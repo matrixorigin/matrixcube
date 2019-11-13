@@ -1,0 +1,72 @@
+syntax = "proto3";
+package raftpb;
+
+import "github.com/deepfabric/beehive/pb/metapb/metapb.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// RaftMessage the message wrapped raft msg with shard info
+message RaftMessage  {
+    uint64            shardID     = 1;
+    metapb.Peer       from        = 2 [(gogoproto.nullable) = false];
+    metapb.Peer       to          = 3 [(gogoproto.nullable) = false];
+    bytes             message     = 4;
+    metapb.ShardEpoch shardEpoch  = 5 [(gogoproto.nullable) = false];
+    bool              isTombstone = 6;
+    bytes             start       = 7;
+    bytes             end         = 8;
+}
+
+// PeerState the state of the shard peer
+enum PeerState {
+    PeerNormal    = 0;
+    PeerApplying  = 1;
+    PeerTombstone = 2;
+}
+
+// ShardLocalState the shard state on the store
+message ShardLocalState {
+    PeerState    state = 1;
+    metapb.Shard shard = 2 [(gogoproto.nullable) = false];
+}
+
+// RaftLocalState raft local state about raft log
+message RaftLocalState {
+    bytes  hardState = 1;
+    uint64 lastIndex = 2;
+}
+
+// RaftTruncatedState raft log truncated state
+message RaftTruncatedState {
+    uint64 index = 1;
+    uint64 term  = 2;
+}
+
+// RaftApplyState raft log applied state
+message RaftApplyState {
+    uint64             appliedIndex   = 1;
+    RaftTruncatedState truncatedState = 2 [(gogoproto.nullable) = false];
+}
+
+// SnapshotMessageHeader snapshot message header
+message SnapshotMessageHeader {
+    metapb.Shard  shard = 1 [(gogoproto.nullable) = false];
+    metapb.Peer   from  = 2 [(gogoproto.nullable) = false];
+    metapb.Peer   to    = 3 [(gogoproto.nullable) = false];
+    uint64        term  = 4;
+    uint64        index = 5;
+}
+
+// SnapshotMessage snapshot message
+message SnapshotMessage {
+    SnapshotMessageHeader header    = 1 [(gogoproto.nullable) = false];
+    bytes                 data      = 2;
+    bool                  first     = 3;
+    bool                  last      = 4;
+    uint64                fileSize  = 5;
+    uint64                checkSum  = 6;
+}

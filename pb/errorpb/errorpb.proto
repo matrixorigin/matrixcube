@@ -1,0 +1,65 @@
+syntax = "proto3";
+package errorpb;
+
+import "github.com/deepfabric/beehive/pb/metapb/metapb.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// NotLeader the current shard peer is not leader
+message NotLeader {
+    uint64      shardID = 1;
+    metapb.Peer leader  = 2 [(gogoproto.nullable) = false];
+}
+
+// StoreNotMatch current store is not match
+message StoreNotMatch {
+}
+
+// ShardNotFound the shard replica is not found on the store
+message ShardNotFound {
+    uint64 shardID = 1;
+}
+
+// KeyNotInShard the key is not found on the store
+message KeyNotInShard {
+    bytes  key     = 1;
+    uint64 shardID = 2;
+    bytes  start   = 3;
+    bytes  end     = 4;
+}
+
+// StaleEpoch the current shard peer is stale
+message StaleEpoch {
+    repeated metapb.Shard newShards = 1 [(gogoproto.nullable) = false];
+}
+
+// ServerIsBusy the server is busy
+message ServerIsBusy {
+}
+
+// StaleCommand the command is stale, need to retry
+message StaleCommand {
+}
+
+// RaftEntryTooLarge raft entry is too large
+message RaftEntryTooLarge {
+    uint64 shardID   = 1;
+    uint64 entrySize = 2;
+}
+
+// Error is a raft error
+message Error {
+    string            message           = 1;
+    NotLeader         notLeader         = 2;
+    ShardNotFound     shardNotFound     = 3;
+    KeyNotInShard     KeyNotInShard     = 4;
+    StaleEpoch        staleEpoch        = 5;
+    ServerIsBusy      serverIsBusy      = 6;
+    StaleCommand      staleCommand      = 7;
+    StoreNotMatch     storeNotMatch     = 8;
+    RaftEntryTooLarge raftEntryTooLarge = 9;
+}
