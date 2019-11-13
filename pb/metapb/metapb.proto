@@ -1,0 +1,58 @@
+syntax = "proto3";
+package metapb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// StoreState the store state.
+enum StoreState {
+    StoreUP        = 0;
+    StoreDown      = 1;
+    StoreTombstone = 2;
+}
+
+// Label the key value paire
+message Label {
+    string key   = 1;
+    string value = 2;
+}
+
+// Cluster the cluster info
+message Cluster {
+    uint64 id          = 1 [(gogoproto.customname) = "ID"];
+    uint32 maxReplicas = 2;
+}
+
+// Peer the shard peer replica metadata
+message Peer {
+    uint64 id      = 1 [(gogoproto.customname) = "ID"];
+    uint64 storeID = 2;
+}
+
+// ShardEpoch shard version
+message ShardEpoch {
+    uint64 confVer  = 1;
+    uint64 shardVer = 2;
+}
+
+// Shard a shard [start,end) of the data
+message Shard {
+             uint64     id    = 1 [(gogoproto.customname) = "ID"];
+             bytes      start = 2;
+             bytes      end   = 3;
+             ShardEpoch epoch = 4 [(gogoproto.nullable) = false];
+    repeated Peer       peers = 5 [(gogoproto.nullable) = false];
+}
+
+// Store the host store metadata
+message Store {
+    uint64         id         = 1 [(gogoproto.customname) = "ID"];
+    string         shardAddr  = 2;
+    repeated Label labels     = 3 [(gogoproto.nullable) = false];
+    StoreState     state      = 4;
+    string         appAddress = 5;
+}
