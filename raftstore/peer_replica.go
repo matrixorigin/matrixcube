@@ -6,10 +6,14 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/raft"
+	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/prophet"
+	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 )
 
@@ -206,6 +210,15 @@ func (pr *peerReplica) mustDestroy() {
 	pr.store.replicas.Delete(pr.shardID)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
+}
+
+func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
+	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
+
+	r := acquireReqCtx()
+	r.req = req
+	r.cb = cb
+	return pr.addRequest(r)
 }
 
 func (pr *peerReplica) stopEventLoop() {

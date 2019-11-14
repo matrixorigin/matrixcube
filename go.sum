@@ -50,6 +50,8 @@ github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6 h1:rUVF6M6CRqAQ
 github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6/go.mod h1:MEkOt020e5MHsdTsvS2LcxndbzwLvGzYH+fCYeHq8R8=
 github.com/deepfabric/prophet v0.0.0-20191022023822-ab67f1351edb h1:YmQJIiJ0YymPGSNgbmwAJrBCqhii0rI8FeIqw4qG+tc=
 github.com/deepfabric/prophet v0.0.0-20191022023822-ab67f1351edb/go.mod h1:qFQ3YKYSAcAU34Ja57r7dDjSy8Kh3Uul3YjmAn0cUTo=
+github.com/deepfabric/prophet v0.0.0-20191104223059-f3dd066f0141 h1:KBk9oixU+UoGKVrri8lsJFrnpyao8+qRN8PWC/JZlFk=
+github.com/deepfabric/prophet v0.0.0-20191104223059-f3dd066f0141/go.mod h1:qFQ3YKYSAcAU34Ja57r7dDjSy8Kh3Uul3YjmAn0cUTo=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=

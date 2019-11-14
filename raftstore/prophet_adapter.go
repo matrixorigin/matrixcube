@@ -62,7 +62,7 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatalf("bootstrap store failed with %+v", err)
 	}
 	if count > 0 {
-		logger.Fatalf("local store is not empty and has already had data")
+		logger.Fatalf("local store is not empty and has already hard data")
 	}
 
 	data = make([]byte, 8, 8)

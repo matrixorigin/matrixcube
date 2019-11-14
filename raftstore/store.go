@@ -35,17 +35,14 @@ type CommandFunc func(uint64, *raftcmdpb.Request) *raftcmdpb.Response
 
 // Store manage a set of raft group
 type Store interface {
-	// Start the raft store, it will do 3 things
-	// 1. Using the init shards to bootstrap the cluster.
-	// 2. Load shards from local
-	// 3. Run all raft groups
+	// Start the raft store
 	Start()
-
 	// RegisterReadFunc register read command handler
 	RegisterReadFunc(uint64, CommandFunc)
-
 	// RegisterWriteFunc register write command handler
 	RegisterWriteFunc(uint64, CommandFunc)
+	// OnRequest receive a request, and call cb while the request is completed
+	OnRequest(*raftcmdpb.Request, func(*raftcmdpb.RaftCMDResponse)) error
 }
 
 const (
@@ -69,6 +66,7 @@ type store struct {
 	runner          *task.Runner
 	trans           Transport
 	snapshotManager SnapshotManager
+	rpc             RPC
 	keyRanges       *util.ShardTree
 	peers           sync.Map // peer  id -> peer
 	replicas        sync.Map // shard id -> *peerReplica
@@ -91,6 +89,8 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 	}
 
 	s.cfg = cfg
+	s.meta.meta.ShardAddr = s.cfg.RaftAddr
+	s.meta.meta.RPCAddr = s.cfg.RPCAddr
 	s.raftMask = uint64(len(cfg.MetadataStorages) - 1)
 	s.dataMask = uint64(len(cfg.DataStorages) - 1)
 
@@ -108,6 +108,11 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 	s.trans = s.opts.trans
 	if s.trans == nil {
 		s.trans = newTransport(s)
+	}
+
+	s.rpc = s.opts.rpc
+	if s.rpc == nil {
+		s.rpc = newRPC(s)
 	}
 
 	s.readHandlers = make(map[uint64]CommandFunc)
@@ -131,6 +136,9 @@ func (s *store) Start() {
 
 	s.startCompactRaftLogTask()
 	logger.Infof("shard raft log compact task started")
+
+	s.startRPC()
+	logger.Infof("store start RPC at %s", s.cfg.RPCAddr)
 }
 
 func (s *store) RegisterReadFunc(ct uint64, handler CommandFunc) {
@@ -139,6 +147,20 @@ func (s *store) RegisterReadFunc(ct uint64, handler CommandFunc) {
 
 func (s *store) RegisterWriteFunc(ct uint64, handler CommandFunc) {
 	s.writeHandlers[ct] = handler
+}
+
+func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
+	pr, err := s.selectShard(req.Key)
+	if err != nil {
+		if err == errStoreNotMatch {
+			respStoreNotMatch(err, req, cb)
+			return nil
+		}
+
+		return err
+	}
+
+	return pr.onReq(req, cb)
 }
 
 func (s *store) initWorkers() {
@@ -151,10 +173,14 @@ func (s *store) initWorkers() {
 
 func (s *store) startProphet(options []prophet.Option) {
 	logger.Infof("begin to start prophet")
+	s.meta.meta.Labels = s.opts.labels
 
 	s.adapter = newProphetAdapter(s)
 	s.pdStartedC = make(chan struct{})
 	options = append(options, prophet.WithRoleChangeHandler(s))
+	if len(s.opts.locationLabels) > 0 {
+		options = append(options, prophet.WithLocationLabels(s.opts.locationLabels))
+	}
 	s.pd = prophet.NewProphet(s.cfg.Name, s.adapter, options...)
 	s.pd.Start()
 	<-s.pdStartedC
@@ -262,6 +288,15 @@ func (s *store) startSplitCheckTask() {
 			}
 		}
 	})
+}
+
+func (s *store) startRPC() {
+	err := s.rpc.Start()
+	if err != nil {
+		logger.Fatalf("start RPC at %s failed with %+v",
+			s.cfg.RPCAddr,
+			err)
+	}
 }
 
 func (s *store) clearMeta(id uint64, wb storage.WriteBatch) error {

@@ -54,23 +54,17 @@ func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error)
 
 	data := in.GetMarkedRemindData()
 
-	// TODO: impl
 	switch t {
-	// case typeSnap:
-	// 	msg := &mraft.SnapshotMessage{}
-	// 	protoc.MustUnmarshal(msg, data)
-	// 	in.MarkedBytesReaded()
-	// 	return true, msg, nil
+	case typeSnap:
+		msg := &raftpb.SnapshotMessage{}
+		protoc.MustUnmarshal(msg, data)
+		in.MarkedBytesReaded()
+		return true, msg, nil
 	case typeRaft:
 		msg := pb.AcquireRaftMessage()
 		protoc.MustUnmarshal(msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
-		// case typeAck:
-		// 	msg := &mraft.ACKMessage{}
-		// 	protoc.MustUnmarshal(msg, data)
-		// 	in.MarkedBytesReaded()
-		// 	return true, msg, nil
 	}
 
 	log.Fatalf("[beehive]: bug, not support msg type %d", t)
@@ -86,22 +80,12 @@ func (e raftEncoder) Encode(data interface{}, out *goetty.ByteBuf) error {
 		t = typeRaft
 		m = data.(*raftpb.RaftMessage)
 		break
+	case *raftpb.SnapshotMessage:
+		t = typeSnap
+		m = data.(*raftpb.SnapshotMessage)
 	default:
 		log.Fatalf("[beehive]: bug, not support msg type %T", data)
 	}
-
-	// if msg, ok := data.(*raftpb.RaftMessage); ok {
-	// 	t = typeRaft
-	// 	m = msg
-	// } else if msg, ok := data.(*raftpb.SnapshotMessage); ok {
-	// 	t = typeSnap
-	// 	m = msg
-	// } else if msg, ok := data.(*raftpb.ACKMessage); ok {
-	// 	t = typeAck
-	// 	m = msg
-	// } else {
-	// 	log.Fatalf("bug: unsupport msg: %+v", msg)
-	// }
 
 	size := m.Size()
 	out.WriteInt(size + 1)
