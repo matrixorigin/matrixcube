@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/coreos/etcd v3.3.17+incompatible
 	github.com/deepfabric/elasticell v0.0.0-20191106005132-1d5f6b77d671
-	github.com/deepfabric/prophet v0.0.0-20191022023822-ab67f1351edb
+	github.com/deepfabric/prophet v0.0.0-20191104223059-f3dd066f0141
 	github.com/fagongzi/goetty v1.3.1
 	github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d
 	github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d

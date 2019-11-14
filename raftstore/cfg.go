@@ -10,6 +10,8 @@ type Cfg struct {
 	Name string
 	// RaftAddr raft addr for exchange raft message
 	RaftAddr string
+	// RPCAddr the RPC address to serve requests
+	RPCAddr string
 	// MetadataStorages storages that to store local raft state, log, and sharding metadata. Beehive will
 	// select the corresponding storage according to shard id
 	MetadataStorages []storage.MetadataStorage

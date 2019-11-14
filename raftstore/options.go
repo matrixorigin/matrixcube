@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/fagongzi/log"
 )
 
@@ -46,6 +47,8 @@ type Option func(*options)
 
 type options struct {
 	dataPath                      string
+	labels                        []metapb.Label
+	locationLabels                []string
 	snapshotDirName               string
 	initShards                    uint64
 	sendRaftBatchSize             uint64
@@ -78,6 +81,7 @@ type options struct {
 	shardSplitCheckBytes          uint64
 	snapshotManager               SnapshotManager
 	trans                         Transport
+	rpc                           RPC
 	cleanDataFunc                 func(uint64) error
 	writeBatchFunc                func() CommandWriteBatch
 }
@@ -394,9 +398,9 @@ func WithMaxRaftLogBytesToForceCompact(value uint64) Option {
 	}
 }
 
-// WithMaxRaftLogCompactProtectLag if the leader node triggers the force compact raft log, the compact index is the last
-// applied raft log index of leader node, to avoid sending snapshots to a smaller delayed follower in the
-// future, set a protected value.
+// WithMaxRaftLogCompactProtectLag If the leader node triggers the force compact raft log, the compact index
+// is the last applied raft log index of leader node, to avoid sending snapshots to a smaller delayed follower
+// in the future, set a protected value.
 func WithMaxRaftLogCompactProtectLag(value uint64) Option {
 	return func(opts *options) {
 		opts.maxRaftLogCompactProtectLag = value
@@ -439,7 +443,7 @@ func WithCleanDataFunc(value func(uint64) error) Option {
 	}
 }
 
-// WithWriteBatchFunc the factory function to create applciation commands batch processor, by default
+// WithWriteBatchFunc the factory function to create applciation commands batch processor. By default
 // the raftstore will process command one by one.
 func WithWriteBatchFunc(value func() CommandWriteBatch) Option {
 	return func(opts *options) {
@@ -451,5 +455,22 @@ func WithWriteBatchFunc(value func() CommandWriteBatch) Option {
 func WithInitShards(value uint64) Option {
 	return func(opts *options) {
 		opts.initShards = value
+	}
+}
+
+// WithLabels Give the current node a set of labels, and specify which label names are used to identify
+// the location. The scheduler will create a replicas of the shard in a different location based on these
+// location labels to achieve high availability.
+func WithLabels(locationLabel []string, labels []metapb.Label) Option {
+	return func(opts *options) {
+		opts.locationLabels = locationLabel
+		opts.labels = labels
+	}
+}
+
+// WithRPC set the rpc implemention to serve request and sent response
+func WithRPC(rpc RPC) Option {
+	return func(opts *options) {
+		opts.rpc = rpc
 	}
 }

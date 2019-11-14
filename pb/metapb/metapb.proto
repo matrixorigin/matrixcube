@@ -54,5 +54,5 @@ message Store {
     string         shardAddr  = 2;
     repeated Label labels     = 3 [(gogoproto.nullable) = false];
     StoreState     state      = 4;
-    string         appAddress = 5;
+    string         rpcAddr    = 5 [(gogoproto.customname) = "RPCAddr"];
 }

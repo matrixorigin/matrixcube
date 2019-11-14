@@ -15,6 +15,7 @@ func init() {
 	prometheus.MustRegister(raftProposalCounter)
 	prometheus.MustRegister(raftCommandCounter)
 	prometheus.MustRegister(raftAdminCommandCounter)
+	prometheus.MustRegister(commandCounter)
 
 	prometheus.MustRegister(snapshotSizeHistogram)
 	prometheus.MustRegister(snapshotSendingDurationHistogram)

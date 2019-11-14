@@ -5,6 +5,14 @@ import (
 )
 
 var (
+	commandCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "beehive",
+			Subsystem: "raftstore",
+			Name:      "command_normal_total",
+			Help:      "Total number of normal commands received.",
+		}, []string{"type"})
+
 	raftReadyCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "beehive",
@@ -45,6 +53,11 @@ var (
 			Help:      "Total number of admin commands processed.",
 		}, []string{"type", "status"})
 )
+
+// IncComandCount inc the command received
+func IncComandCount(cmd string) {
+	commandCounter.WithLabelValues(cmd).Inc()
+}
 
 // AddRaftReadySendCount add raft ready to sent raft message
 func AddRaftReadySendCount(value uint64) {
