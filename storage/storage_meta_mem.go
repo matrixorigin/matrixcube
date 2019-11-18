@@ -42,11 +42,11 @@ func NewMemMetadataStorage() MetadataStorage {
 	}
 }
 
-func (s *memMetadataStorage) NewWriteBatch() WriteBatch {
+func (s *memMetadataStorage) NewWriteBatch() util.WriteBatch {
 	return &memoryWriteBatch{}
 }
 
-func (s *memMetadataStorage) Write(wb WriteBatch, sync bool) error {
+func (s *memMetadataStorage) Write(wb util.WriteBatch, sync bool) error {
 	mwb := wb.(*memoryWriteBatch)
 	for _, opt := range mwb.opts {
 		if opt.isDelete {
