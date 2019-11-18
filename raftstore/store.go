@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"sync"
 	"time"
@@ -37,6 +38,10 @@ type CommandFunc func(uint64, *raftcmdpb.Request) *raftcmdpb.Response
 type Store interface {
 	// Start the raft store
 	Start()
+	// Meta returns store meta
+	Meta() metapb.Store
+	// NewRouter returns a new router
+	NewRouter() Router
 	// RegisterReadFunc register read command handler
 	RegisterReadFunc(uint64, CommandFunc)
 	// RegisterWriteFunc register write command handler
@@ -51,6 +56,8 @@ const (
 	splitCheckWorkerName = "split"
 )
 
+type keyConvertFunc func([]byte, func([]byte) metapb.Shard) metapb.Shard
+
 type store struct {
 	cfg      Cfg
 	opts     *options
@@ -59,7 +66,7 @@ type store struct {
 
 	meta       *containerAdapter
 	pd         prophet.Prophet
-	bootOnce   *sync.Once
+	bootOnce   sync.Once
 	pdStartedC chan struct{}
 	adapter    prophet.Adapter
 
@@ -79,7 +86,7 @@ type store struct {
 	readHandlers  map[uint64]CommandFunc
 	writeHandlers map[uint64]CommandFunc
 
-	keyConvertFunc func([]byte, func([]byte) metapb.Shard) metapb.Shard
+	keyConvertFunc keyConvertFunc
 }
 
 // NewStore returns a raft store
@@ -125,6 +132,7 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 
 func (s *store) Start() {
 	logger.Infof("begin start raftstore")
+	flag.Set("prophet-data", s.opts.prophetDir())
 	s.startProphet(prophet.ParseProphetOptions(s.cfg.Name))
 	logger.Infof("prophet started")
 
@@ -141,6 +149,14 @@ func (s *store) Start() {
 	logger.Infof("store start RPC at %s", s.cfg.RPCAddr)
 }
 
+func (s *store) NewRouter() Router {
+	return newRouter(s.pd, s.runner, s.keyConvertFunc)
+}
+
+func (s *store) Meta() metapb.Store {
+	return s.meta.meta
+}
+
 func (s *store) RegisterReadFunc(ct uint64, handler CommandFunc) {
 	s.readHandlers[ct] = handler
 }
@@ -150,6 +166,10 @@ func (s *store) RegisterWriteFunc(ct uint64, handler CommandFunc) {
 }
 
 func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
+	if logger.DebugEnabled() {
+		logger.Debugf("received %s", formatRequest(req))
+	}
+
 	pr, err := s.selectShard(req.Key)
 	if err != nil {
 		if err == errStoreNotMatch {
@@ -248,7 +268,7 @@ func (s *store) startShards() {
 		}
 	}
 
-	logger.Infof("starts with %d cells, including %d tombstones and %d applying cells",
+	logger.Infof("starts with %d shards, including %d tombstones and %d applying shards",
 		totalCount,
 		tomebstoneCount,
 		applyingCount)
@@ -274,6 +294,11 @@ func (s *store) startCompactRaftLogTask() {
 }
 
 func (s *store) startSplitCheckTask() {
+	if s.opts.disableShardSplit {
+		logger.Infof("shard split disabled")
+		return
+	}
+
 	s.runner.RunCancelableTask(func(ctx context.Context) {
 		ticker := time.NewTicker(s.opts.shardSplitCheckDuration)
 		defer ticker.Stop()
@@ -525,8 +550,8 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 	shard := pr.ps.shard
 	if !checkEpoch(shard, req) {
 		err := new(errorpb.StaleEpoch)
-		// Attach the next cell which might be split from the current cell. But it doesn't
-		// matter if the next cell is not split from the current cell. If the cell meta
+		// Attach the next shard which might be split from the current shard. But it doesn't
+		// matter if the next shard is not split from the current shard. If the shard meta
 		// received by the KV driver is newer than the meta cached in the driver, the meta is
 		// updated.
 		newShard := s.keyRanges.NextShard(shard.Start)

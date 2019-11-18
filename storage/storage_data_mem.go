@@ -14,6 +14,13 @@ type memDataStorage struct {
 	kv *util.KVTree
 }
 
+// NewMemDataStorageWithKV returns a mem data storage
+func NewMemDataStorageWithKV(kv *util.KVTree) DataStorage {
+	return &memDataStorage{
+		kv: kv,
+	}
+}
+
 // NewMemDataStorage returns a mem data storage
 func NewMemDataStorage() DataStorage {
 	return &memDataStorage{
@@ -43,6 +50,11 @@ func (s *memDataStorage) SplitCheck(start []byte, end []byte, size uint64) (uint
 }
 
 func (s *memDataStorage) CreateSnapshot(path string, start, end []byte) error {
+	err := os.MkdirAll(path, os.ModeDir)
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(filepath.Join(path, "db.data"))
 	if err != nil {
 		return err

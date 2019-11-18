@@ -5,7 +5,7 @@ import (
 )
 
 type applyMetrics struct {
-	// an inaccurate difference in cell size since last reset.
+	// an inaccurate difference in shard size since last reset.
 	sizeDiffHint uint64
 	// delete keys' count since last reset.
 	deleteKeysHint uint64

@@ -131,7 +131,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 func (pr *peerReplica) doApplySplit(result *splitResult) {
 	pr.ps.shard = result.left
 
-	// add new cell peers to cache
+	// add new shard peers to cache
 	for _, p := range result.right.Peers {
 		pr.store.peers.Store(p.ID, p)
 	}
@@ -143,7 +143,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			pr.store.peers.Store(p.ID, p)
 		}
 
-		// If the store received a raft msg with the new region raft group
+		// If the store received a raft msg with the new shard raft group
 		// before splitting, it will creates a uninitialized peer.
 		// We can remove this uninitialized peer directly.
 		if newPR.ps.isInitialized() {
@@ -170,11 +170,11 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	newPR.startRegistrationJob()
 	newPR.store.replicas.Store(newPR.shardID, newPR)
 
-	// If this peer is the leader of the cell before split, it's intuitional for
-	// it to become the leader of new split cell.
-	// The ticks are accelerated here, so that the peer for the new split cell
+	// If this peer is the leader of the shard before split, it's intuitional for
+	// it to become the leader of new split shard.
+	// The ticks are accelerated here, so that the peer for the new split shard
 	// comes to campaign earlier than the other follower peers. And then it's more
-	// likely for this peer to become the leader of the new split cell.
+	// likely for this peer to become the leader of the new split shard.
 	// If the other follower peers applies logs too slowly, they may fail to vote the
 	// `MsgRequestVote` from this peer on its campaign.
 	// In this worst case scenario, the new split raft group will not be available
@@ -217,9 +217,9 @@ func (pr *peerReplica) doApplyRaftLogGC(result *raftGCResult) {
 		pr.shardID,
 		startIndex,
 		endIndex)
-	err := pr.startRaftLogGCJob(pr.shardID, startIndex, endIndex)
+	err := pr.startCompactRaftLogJob(pr.shardID, startIndex, endIndex)
 	if err != nil {
-		logger.Errorf("raftstore-compact[cell-%d]: add raft gc job failed, errors:\n %+v",
+		logger.Errorf("shard %s add raft gc job failed, errors:\n %+v",
 			pr.shardID,
 			err)
 	}

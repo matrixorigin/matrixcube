@@ -65,7 +65,7 @@ var (
 			Namespace: "beehive",
 			Subsystem: "raftstore",
 			Name:      "raft_log_lag",
-			Help:      "Bucketed histogram of log lag in a cell.",
+			Help:      "Bucketed histogram of log lag in a shard.",
 			Buckets:   []float64{2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 5120.0, 10240.0},
 		})
 )

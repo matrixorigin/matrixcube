@@ -49,7 +49,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			return nil, nil, nil
 		}
 
-		// Remove ourself, we will destroy all cell data later.
+		// Remove ourself, we will destroy all shard data later.
 		// So we need not to apply following logs.
 		if d.peerID == req.Peer.ID {
 			d.setPendingRemove()
@@ -104,7 +104,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 
 	// splitKey < shard.Startkey
 	if bytes.Compare(req.SplitKey, d.shard.Start) < 0 {
-		logger.Errorf("shard %d invalid split key, split=<%+v> cell-start=<%+v>",
+		logger.Errorf("shard %d invalid split key, split=<%+v> shard-start=<%+v>",
 			d.shard.ID,
 			req.SplitKey,
 			d.shard.Start)
@@ -113,7 +113,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 
 	peer := checkKeyInShard(req.SplitKey, &d.shard)
 	if peer != nil {
-		logger.Errorf("shard %d split key not in cell, errors:\n %+v",
+		logger.Errorf("shard %d split key not in shard, errors:\n %+v",
 			d.shard.ID,
 			peer)
 		return nil, nil, nil
@@ -164,7 +164,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		err = d.ps.writeInitialState(newShard.ID, wb)
 	}
 	if err != nil {
-		logger.Fatalf("shard %d save split cell failed, newShard=<%+v> errors:\n %+v",
+		logger.Fatalf("shard %d save split shard failed, newShard=<%+v> errors:\n %+v",
 			d.shard.ID,
 			newShard,
 			err)
@@ -231,6 +231,10 @@ func (d *applyDelegate) doExecRaftGC(ctx *applyContext) (*raftcmdpb.RaftCMDRespo
 func (d *applyDelegate) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDResponse {
 	resp := pb.AcquireRaftCMDResponse()
 	for _, req := range ctx.req.Requests {
+		if logger.DebugEnabled() {
+			logger.Debugf("exec %s", formatRequest(req))
+		}
+
 		ctx.metrics.writtenKeys++
 
 		if ctx.writeBatch != nil {

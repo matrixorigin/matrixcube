@@ -48,21 +48,20 @@ func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.Raf
 
 	resp := pb.AcquireResponse()
 	resp.ID = req.ID
-	resp.SessionID = req.SessionID
+	resp.SID = req.SID
+	resp.PID = req.PID
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }
 
 func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 	if c.cb != nil {
-		logger.Debugf("shard %d response to client with %+v",
-			c.req.Header.ShardID,
-			resp)
-
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
 				if resp.Header == nil {
-					logger.Fatalf("BUG: requests and response count not match")
+					logger.Fatalf("BUG: requests and response count not match expect %d, but %d",
+						len(c.req.Requests),
+						len(resp.Responses))
 				} else if len(resp.Responses) != 0 {
 					logger.Fatalf("BUG: responses len must be 0")
 				}
@@ -70,19 +69,21 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 				for _, req := range c.req.Requests {
 					rsp := pb.AcquireResponse()
 					rsp.ID = req.ID
-					rsp.SessionID = req.SessionID
-
+					rsp.SID = req.SID
+					rsp.PID = req.SID
 					resp.Responses = append(resp.Responses, rsp)
 				}
 			} else {
 				for idx, req := range c.req.Requests {
 					resp.Responses[idx].ID = req.ID
-					resp.Responses[idx].SessionID = req.SessionID
+					resp.Responses[idx].SID = req.SID
+					resp.Responses[idx].PID = req.PID
 				}
 			}
 
 			if resp.Header != nil {
-				for _, rsp := range resp.Responses {
+				for idx, rsp := range resp.Responses {
+					rsp.OriginRequest = c.req.Requests[idx]
 					rsp.Error = resp.Header.Error
 				}
 			}

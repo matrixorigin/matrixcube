@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Generate all elasticell protobuf bindings.
+# Generate all beehive protobuf bindings.
 # Run from repository root.
 #
 set -e
 
 # directories containing protos to be built
-DIRS="./metapb ./raftpb ./errorpb ./raftcmdpb"
+DIRS="./metapb ./raftpb ./errorpb ./raftcmdpb ./redispb"
 
 PRJ_PB_PATH="${GOPATH}/src/github.com/deepfabric/beehive/pb"
 

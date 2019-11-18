@@ -13,18 +13,37 @@ var (
 	rpcEncoder = goetty.NewIntLengthFieldBasedEncoder(rc)
 )
 
+// CreateRPCCliendSideCodec returns the rpc codec at client side
+func CreateRPCCliendSideCodec() (goetty.Decoder, goetty.Encoder) {
+	v := &rpcCodec{clientSide: true}
+	return goetty.NewIntLengthFieldBasedDecoder(v), goetty.NewIntLengthFieldBasedEncoder(v)
+}
+
 type rpcCodec struct {
+	clientSide bool
 }
 
 func (c *rpcCodec) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
-	req := pb.AcquireRequest()
-	protoc.MustUnmarshal(req, in.GetMarkedRemindData())
+	var value protoc.PB
+	if c.clientSide {
+		value = pb.AcquireResponse()
+	} else {
+		value = pb.AcquireRequest()
+	}
+
+	protoc.MustUnmarshal(value, in.GetMarkedRemindData())
 	in.MarkedBytesReaded()
-	return true, req, nil
+	return true, value, nil
 }
 
 func (c *rpcCodec) Encode(data interface{}, out *goetty.ByteBuf) error {
-	rsp := data.(*raftcmdpb.Response)
+	var rsp protoc.PB
+	if c.clientSide {
+		rsp = data.(*raftcmdpb.Request)
+	} else {
+		rsp = data.(*raftcmdpb.Response)
+	}
+
 	size := rsp.Size()
 	index := out.GetWriteIndex()
 	out.Expansion(size)

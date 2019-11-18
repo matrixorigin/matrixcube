@@ -14,6 +14,9 @@ import (
 type Router interface {
 	// Start the router
 	Start() error
+	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
+	// If returns leader address is "", means the current shard has no leader
+	SelectShard(key []byte) (uint64, string)
 }
 
 type defaultRouter struct {
@@ -23,18 +26,20 @@ type defaultRouter struct {
 	eventC      chan *prophet.EventNotify
 	eventTaskID uint64
 
-	keyRanges *util.ShardTree
-	leaders   sync.Map // shard id -> leader peer store address string
-	stores    sync.Map // store id -> metapb.Store
-	shards    sync.Map // shard id -> metapb.Shard
+	keyConvertFunc keyConvertFunc
+	keyRanges      *util.ShardTree
+	leaders        sync.Map // shard id -> leader peer store address string
+	stores         sync.Map // store id -> metapb.Store
+	shards         sync.Map // shard id -> metapb.Shard
 }
 
-func newRouter(pd prophet.Prophet, runner *task.Runner) Router {
+func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc) Router {
 	return &defaultRouter{
-		pd:        pd,
-		watcher:   prophet.NewWatcherWithProphet(pd),
-		runner:    runner,
-		keyRanges: util.NewShardTree(),
+		pd:             pd,
+		watcher:        prophet.NewWatcherWithProphet(pd),
+		runner:         runner,
+		keyRanges:      util.NewShardTree(),
+		keyConvertFunc: keyConvertFunc,
 	}
 }
 
@@ -47,6 +52,18 @@ func (r *defaultRouter) Start() error {
 
 	r.eventTaskID = id
 	return nil
+}
+
+func (r *defaultRouter) SelectShard(key []byte) (uint64, string) {
+	shard := r.keyConvertFunc(key, r.searchShard)
+	if value, ok := r.leaders.Load(shard.ID); ok {
+		return shard.ID, value.(string)
+	}
+	return shard.ID, ""
+}
+
+func (r *defaultRouter) searchShard(value []byte) metapb.Shard {
+	return r.keyRanges.Search(value)
 }
 
 func (r *defaultRouter) eventLoop(ctx context.Context) {
@@ -111,7 +128,6 @@ func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 
 	for _, p := range shard.Peers {
 		if p.ID == leader {
-			r.mustGetStore(p.StoreID)
 			r.leaders.Store(shard.ID, r.mustGetStore(p.StoreID).RPCAddr)
 			return
 		}
@@ -132,7 +148,7 @@ func (r *defaultRouter) mustGetStore(id uint64) metapb.Store {
 func (r *defaultRouter) mustGetShard(id uint64) metapb.Shard {
 	value, ok := r.shards.Load(id)
 	if !ok {
-		logger.Fatalf("BUG: store %d must exist", id)
+		logger.Fatalf("BUG: shard %d must exist", id)
 	}
 
 	return value.(metapb.Shard)
