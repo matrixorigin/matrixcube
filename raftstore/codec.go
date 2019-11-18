@@ -83,6 +83,7 @@ func (e raftEncoder) Encode(data interface{}, out *goetty.ByteBuf) error {
 	case *raftpb.SnapshotMessage:
 		t = typeSnap
 		m = data.(*raftpb.SnapshotMessage)
+		break
 	default:
 		log.Fatalf("[beehive]: bug, not support msg type %T", data)
 	}

@@ -61,7 +61,7 @@ func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) 
 }
 
 // The peer can be created from another node with raft membership changes, and we only
-// know the cell_id and peer_id when creating this replicated peer, the cell info
+// know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
 func createPeerReplicaWithRaftMessage(store *store, msg *raftpb.RaftMessage, peerID uint64) (*peerReplica, error) {
 	// We will remove tombstone key when apply snapshot
@@ -116,7 +116,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 		readyCnt: 0,
 	}
 
-	// If this region has only one peer and I am the one, campaign directly.
+	// If this shard has only one peer and I am the one, campaign directly.
 	if len(shard.Peers) == 1 && shard.Peers[0].StoreID == store.meta.meta.ID {
 		err = rn.Campaign()
 		if err != nil {

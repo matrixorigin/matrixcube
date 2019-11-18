@@ -51,9 +51,9 @@ func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64
 	return err
 }
 
-func (pr *peerReplica) startRaftLogGCJob(shardID, startIndex, endIndex uint64) error {
-	err := pr.store.addApplyJob(shardID, "doRaftLogGC", func() error {
-		return pr.doRaftLogGC(shardID, startIndex, endIndex)
+func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint64) error {
+	err := pr.store.addApplyJob(shardID, "doCompactRaftLog", func() error {
+		return pr.doCompactRaftLog(shardID, startIndex, endIndex)
 	}, nil)
 
 	return err
@@ -206,7 +206,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 
 		err = ps.store.snapshotManager.Create(msg)
 		if err != nil {
-			logger.Errorf("shard %d create snapshot file failure, errors:\n %+v",
+			logger.Errorf("shard %d create snapshot failed with %+v",
 				ps.shard.ID,
 				err)
 			return nil

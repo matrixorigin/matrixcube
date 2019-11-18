@@ -34,10 +34,6 @@ func (pr *peerReplica) addRequest(req *reqCtx) error {
 	return nil
 }
 
-func (pr *peerReplica) addEvent() (bool, error) {
-	return pr.events.Offer(struct{}{})
-}
-
 func (pr *peerReplica) addAction(act action) {
 	err := pr.actions.Put(act)
 	if err != nil {
@@ -45,6 +41,21 @@ func (pr *peerReplica) addAction(act action) {
 	}
 
 	pr.addEvent()
+}
+
+func (pr *peerReplica) addReport(report interface{}) {
+	err := pr.reports.Put(report)
+	if err != nil {
+		logger.Infof("shard %d raft report stopped",
+			pr.shardID)
+		return
+	}
+
+	pr.addEvent()
+}
+
+func (pr *peerReplica) addEvent() (bool, error) {
+	return pr.events.Offer(struct{}{})
 }
 
 func (pr *peerReplica) addApplyResult(result *asyncApplyResult) {

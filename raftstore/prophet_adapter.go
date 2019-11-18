@@ -1,7 +1,6 @@
 package raftstore
 
 import (
-	"encoding/binary"
 	"math"
 	"time"
 
@@ -41,7 +40,7 @@ func (s *store) doBootstrapCluster() {
 	}
 
 	if len(data) > 0 {
-		id := binary.BigEndian.Uint64(data)
+		id := format.MustBytesToUint64(data)
 		if id > 0 {
 			s.meta.meta.ID = id
 			logger.Infof("load from local, store is %d", id)
@@ -65,9 +64,7 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatalf("local store is not empty and has already hard data")
 	}
 
-	data = make([]byte, 8, 8)
-	binary.BigEndian.PutUint64(data, id)
-	err = s.cfg.MetadataStorages[0].Set(storeIdentKey, data)
+	err = s.cfg.MetadataStorages[0].Set(storeIdentKey, format.Uint64ToBytes(id))
 	if err != nil {
 		logger.Fatal("save local store id failed with %+v", err)
 	}
@@ -178,7 +175,10 @@ func (s *store) removeInitShardIfAlreadyBootstrapped(initShards ...prophet.Resou
 
 func (s *store) mustAllocID() uint64 {
 	id, err := s.pd.GetRPC().AllocID()
-	logger.Fatalf("alloc id failed with %+v", err)
+	if err != nil {
+		logger.Fatalf("alloc id failed with %+v", err)
+	}
+
 	return id
 }
 

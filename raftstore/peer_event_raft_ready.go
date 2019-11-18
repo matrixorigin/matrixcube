@@ -159,7 +159,7 @@ func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap etcdraftpb.Snaps
 		pr.shardID)
 
 	if ctx.snap.Header.Shard.ID != pr.shardID {
-		return fmt.Errorf("shard %d not match, snapCell=<%d> currCell=<%d>",
+		return fmt.Errorf("shard %d not match, snapShard=<%d> currShard=<%d>",
 			pr.shardID,
 			ctx.snap.Header.Shard.ID,
 			pr.shardID)
@@ -339,7 +339,7 @@ func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *apply
 		err := pr.ps.clearExtraData(pr.ps.shard)
 		if err != nil {
 			// No need panic here, when applying snapshot, the deletion will be tried
-			// again. But if the cell range changes, like [a, c) -> [a, b) and [b, c),
+			// again. But if the shard range changes, like [a, c) -> [a, b) and [b, c),
 			// [b, c) will be kept in rocksdb until a covered snapshot is applied or
 			// store is restarted.
 			logger.Errorf("shard %d cleanup data failed, may leave some dirty data, errors:\n %+v",
@@ -454,11 +454,11 @@ func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
 
 	// There could be two cases:
 	// 1. Target peer already exists but has not established communication with leader yet
-	// 2. Target peer is added newly due to member change or region split, but it's not
+	// 2. Target peer is added newly due to member change or shard split, but it's not
 	//    created yet
-	// For both cases the region start key and end key are attached in RequestVote and
+	// For both cases the shard start key and end key are attached in RequestVote and
 	// Heartbeat message for the store of that peer to check whether to create a new peer
-	// when receiving these messages, or just to wait for a pending region split to perform
+	// when receiving these messages, or just to wait for a pending shard split to perform
 	// later.
 	if pr.ps.isInitialized() &&
 		(msg.Type == etcdraftpb.MsgVote ||
@@ -499,13 +499,13 @@ func (pr *peerReplica) doUpdateKeyRange(result *applySnapResult) {
 		result.current)
 
 	if len(result.prev.Peers) > 0 {
-		logger.Infof("shard %d cell changed after apply snapshot, from=<%+v> to=<%+v>",
+		logger.Infof("shard %d shard changed after apply snapshot, from=<%+v> to=<%+v>",
 			pr.shardID,
 			result.prev,
 			result.current)
-		// we have already initialized the peer, so it must exist in cell_ranges.
+		// we have already initialized the peer, so it must exist in shard_ranges.
 		if !pr.store.keyRanges.Remove(result.prev) {
-			logger.Fatalf("shard %d cell not exist, cell=<%+v>",
+			logger.Fatalf("shard %d shard not exist, shard=<%+v>",
 				pr.shardID,
 				result.prev)
 		}

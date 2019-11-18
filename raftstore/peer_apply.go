@@ -47,7 +47,7 @@ func (s *store) doDestroy(shardID uint64, peer metapb.Peer) error {
 	return nil
 }
 
-func (pr *peerReplica) doRaftLogGC(shardID, startIndex, endIndex uint64) error {
+func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) error {
 	firstIndex := startIndex
 
 	if firstIndex == 0 {
@@ -131,6 +131,11 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 }
 
 func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []etcdraftpb.Entry) error {
+	logger.Debugf("shard %d async apply raft log with %d entries at term %d",
+		shardID,
+		len(commitedEntries),
+		term)
+
 	value, ok := pr.store.delegates.Load(shardID)
 	if !ok {
 		return fmt.Errorf("shard %d missing delegate", pr.shardID)
