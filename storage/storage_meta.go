@@ -1,11 +1,15 @@
 package storage
 
+import (
+	"github.com/deepfabric/beehive/util"
+)
+
 // MetadataStorage the storage to save raft log, shard and store metadata.
 type MetadataStorage interface {
 	// NewWriteBatch return a new write batch
-	NewWriteBatch() WriteBatch
+	NewWriteBatch() util.WriteBatch
 	// Write write the data in batch
-	Write(wb WriteBatch, sync bool) error
+	Write(wb util.WriteBatch, sync bool) error
 
 	// Set put the key, value pair to the storage
 	Set(key []byte, value []byte) error
@@ -25,12 +29,4 @@ type MetadataStorage interface {
 	RangeDelete(start, end []byte) error
 	// Seek returns the first key-value that >= key
 	Seek(key []byte) ([]byte, []byte, error)
-}
-
-// WriteBatch the write batch
-type WriteBatch interface {
-	// Delete remove the key
-	Delete(key []byte) error
-	// Set set the key-value pair
-	Set(key []byte, value []byte) error
 }

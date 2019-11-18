@@ -6,6 +6,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/coreos/etcd v3.3.17+incompatible
 	github.com/deepfabric/prophet v0.0.0-20191118055338-af29aab59eed
+	github.com/dgraph-io/badger v1.6.0
 	github.com/fagongzi/goetty v1.3.1
 	github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d
 	github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d
