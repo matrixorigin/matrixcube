@@ -59,7 +59,7 @@ var storeIdentKey = []byte{localPrefix, 0x01}
 
 var (
 	// We save two types shard data in DB, for raft and other meta data.
-	// When the store starts, we should iterate all region meta data to
+	// When the store starts, we should iterate all shard meta data to
 	// construct peer, no need to travel large raft data, so we separate them
 	// with different prefixes.
 	raftPrefix    byte = 0x02
@@ -207,7 +207,7 @@ func encStartKey(shard *metapb.Shard) []byte {
 }
 
 func encEndKey(shard *metapb.Shard) []byte {
-	// only initialized region's end_key can be encoded, otherwise there must be bugs
+	// only initialized shard's end_key can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {
 		logger.Fatalf("bug: shard peers len is empty")

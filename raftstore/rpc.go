@@ -1,13 +1,14 @@
 package raftstore
 
 import (
+	"encoding/hex"
 	"io"
 	"sync"
 
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
-	"github.com/fagongzi/util/task"
 )
 
 // RPC requests RPC
@@ -21,7 +22,7 @@ type RPC interface {
 type defaultRPC struct {
 	store    *store
 	server   *goetty.Server
-	sessions sync.Map // int64 -> *session
+	sessions sync.Map // interface{} -> *util.Session
 }
 
 func newRPC(store *store) RPC {
@@ -51,17 +52,20 @@ func (rpc *defaultRPC) Stop() {
 	rpc.server.Stop()
 }
 
+func releaseResponse(resp interface{}) {
+	pb.ReleaseResponse(resp.(*raftcmdpb.Response))
+}
+
 func (rpc *defaultRPC) doConnection(conn goetty.IOSession) error {
-	rs := newSession(conn)
-	go rs.writeLoop()
-	rpc.sessions.Store(rs.id, rs)
+	rs := util.NewSession(conn, releaseResponse)
+	rpc.sessions.Store(rs.ID, rs)
 	logger.Infof("session %d[%s] connected",
-		rs.id,
-		rs.addr)
+		rs.ID,
+		rs.Addr)
 
 	defer func() {
-		rpc.sessions.Delete(rs.id)
-		rs.close()
+		rpc.sessions.Delete(rs.ID)
+		rs.Close()
 	}()
 
 	for {
@@ -72,19 +76,20 @@ func (rpc *defaultRPC) doConnection(conn goetty.IOSession) error {
 			}
 
 			logger.Errorf("session %d[%s] read failed with %+v",
-				rs.id,
-				rs.addr,
+				rs.ID,
+				rs.Addr,
 				err)
 			return err
 		}
 
 		req := value.(*raftcmdpb.Request)
+		req.PID = rs.ID.(int64)
 		err = rpc.store.OnRequest(req, rpc.onResp)
 		if err != nil {
 			rsp := pb.AcquireResponse()
 			rsp.ID = req.ID
 			rsp.Error.Message = err.Error()
-			rs.onResp(rsp)
+			rs.OnResp(rsp)
 			pb.ReleaseRequest(req)
 		}
 	}
@@ -93,8 +98,8 @@ func (rpc *defaultRPC) doConnection(conn goetty.IOSession) error {
 func (rpc *defaultRPC) onResp(resp *raftcmdpb.RaftCMDResponse) {
 	hasError := resp.Header != nil
 	for _, rsp := range resp.Responses {
-		if value, ok := rpc.sessions.Load(rsp.SessionID); ok {
-			rs := value.(*session)
+		if value, ok := rpc.sessions.Load(rsp.PID); ok {
+			rs := value.(*util.Session)
 			if hasError {
 				if resp.Header.Error.RaftEntryTooLarge == nil {
 					rsp.Type = raftcmdpb.RaftError
@@ -105,73 +110,13 @@ func (rpc *defaultRPC) onResp(resp *raftcmdpb.RaftCMDResponse) {
 				rsp.Error = resp.Header.Error
 			}
 
-			rs.onResp(rsp)
+			logger.Debugf("%s responsed", hex.EncodeToString(rsp.ID))
+			rs.OnResp(rsp)
 		} else {
+			logger.Debugf("%s response ignore", hex.EncodeToString(rsp.ID))
 			pb.ReleaseResponse(rsp)
 		}
 	}
 
 	pb.ReleaseRaftCMDResponse(resp)
-}
-
-var (
-	stopFlag = &struct{}{}
-)
-
-type session struct {
-	id    int64
-	resps *task.Queue
-	conn  goetty.IOSession
-	addr  string
-}
-
-func newSession(conn goetty.IOSession) *session {
-	return &session{
-		id:    conn.ID().(int64),
-		resps: task.New(32),
-		conn:  conn,
-		addr:  conn.RemoteAddr(),
-	}
-}
-
-func (s *session) close() {
-	s.resps.Put(stopFlag)
-}
-
-func (s *session) doClose() {
-	s.resps.Disposed()
-}
-
-func (s *session) onResp(resp *raftcmdpb.Response) {
-	if s != nil {
-		s.resps.Put(resp)
-	} else {
-		pb.ReleaseResponse(resp)
-	}
-}
-
-func (s *session) writeLoop() {
-	items := make([]interface{}, 16, 16)
-	for {
-		n, err := s.resps.Get(16, items)
-		if nil != err {
-			logger.Fatalf("BUG: can not failed")
-		}
-
-		for i := int64(0); i < n; i++ {
-			if items[i] == stopFlag {
-				logger.Infof("session %d[%s] closed",
-					s.id,
-					s.addr)
-				s.doClose()
-				return
-			}
-
-			rsp := items[i].(*raftcmdpb.Response)
-			s.conn.Write(rsp)
-			pb.ReleaseResponse(rsp)
-		}
-
-		s.conn.Flush()
-	}
 }

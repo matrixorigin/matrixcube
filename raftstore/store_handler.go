@@ -175,7 +175,7 @@ func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bo
 		}
 
 		shardEpoch := localState.Shard.Epoch
-		// The cell in this peer is already destroyed
+		// The shard in this peer is already destroyed
 		if isEpochStale(fromEpoch, shardEpoch) {
 			logger.Infof("tombstone peer receive a a stale message, epoch=<%s> shard=<%d> msg=<%s>",
 				shardEpoch.String(),
@@ -294,7 +294,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.End)) < 0 {
 			var state string
 			if p := s.getPR(item.ID, false); p != nil {
-				state = fmt.Sprintf("overlappedCell=<%d> local=<%s> apply=<%s>",
+				state = fmt.Sprintf("overlappedShard=<%d> local=<%s> apply=<%s>",
 					p.shardID,
 					p.ps.raftState.String(),
 					p.ps.applyState.String())
@@ -303,7 +303,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 				s.cacheDroppedVoteMsg(msg.ShardID, *raw)
 			}
 
-			logger.Infof("shard %d msg is overlapped with cell, cell=<%s> msg=<%s> state=<%s>",
+			logger.Infof("shard %d msg is overlapped with shard, shard=<%s> msg=<%s> state=<%s>",
 				msg.ShardID,
 				item.String(),
 				msg.String(),

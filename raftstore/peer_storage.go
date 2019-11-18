@@ -363,7 +363,7 @@ func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (*etcdPB.Entry, e
 	return e, nil
 }
 
-/// Delete all data belong to the region.
+/// Delete all data belong to the shard.
 /// If return Err, data may get partial deleted.
 func (ps *peerStorage) clearData() error {
 	shard := ps.shard
@@ -490,9 +490,9 @@ func (ps *peerStorage) deleteAllInRange(start, end []byte, job *task.Job) error 
 	return ps.store.getDataStorage(ps.shard.ID).RangeDelete(start, end)
 }
 
-func compactRaftLog(cellID uint64, state *raftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
+func compactRaftLog(shardID uint64, state *raftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
 	logger.Debugf("shard %d compact log entries to index %d",
-		cellID,
+		shardID,
 		compactIndex)
 	if compactIndex <= state.TruncatedState.Index {
 		return errors.New("try to truncate compacted entries")
@@ -520,7 +520,7 @@ func loadLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFoun
 			return nil, nil
 		}
 
-		return nil, errors.New("cell state not found")
+		return nil, errors.New("shard state not found")
 	}
 
 	stat := &raftpb.ShardLocalState{}
@@ -547,7 +547,7 @@ func (ps *peerStorage) InitialState() (etcdPB.HardState, etcdPB.ConfState, error
 		hardState.Term == 0 &&
 		hardState.Vote == 0 {
 		if ps.isInitialized() {
-			logger.Fatalf("shard %d cell is initialized but local state has empty hard state, hardState=<%v>",
+			logger.Fatalf("shard %d shard is initialized but local state has empty hard state, hardState=<%v>",
 				ps.shard.ID,
 				hardState)
 		}

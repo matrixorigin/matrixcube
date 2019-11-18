@@ -23,8 +23,6 @@ type Transport interface {
 }
 
 type transport struct {
-	sync.RWMutex
-
 	store  *store
 	server *goetty.Server
 	conns  sync.Map // store id -> goetty.IOSessionPool
@@ -40,7 +38,7 @@ type transport struct {
 }
 
 func newTransport(store *store) Transport {
-	return &transport{
+	t := &transport{
 		store: store,
 		server: goetty.NewServer(store.cfg.RaftAddr,
 			goetty.WithServerDecoder(decoder),
@@ -51,6 +49,8 @@ func newTransport(store *store) Transport {
 		snapMsgs: make([]*task.Queue, store.opts.sendSnapshotMsgWorkerCount, store.opts.sendSnapshotMsgWorkerCount),
 		snapMask: uint64(store.opts.sendSnapshotMsgWorkerCount - 1),
 	}
+	t.resolverFunc = t.resolverStoreAddr
+	return t
 }
 
 func (t *transport) Start() {
@@ -119,7 +119,7 @@ func (t *transport) doConnection(session goetty.IOSession) error {
 			if err == io.EOF {
 				logger.Infof("closed by %s", remoteIP)
 			} else {
-				logger.Warningf("read error from conn-%s failed with %+v",
+				logger.Warningf("read from %s failed with %+v",
 					remoteIP,
 					err)
 			}
@@ -231,18 +231,11 @@ func (t *transport) postSend(msg *raftpb.RaftMessage, err error) {
 			msg.To.ID,
 			err)
 
-		// TODO: impl
-		// storeID := fmt.Sprintf("%d", msg.To.StoreID)
-
-		// pr := t.store.getPeerReplicate(msg.CellID)
-		// if pr != nil {
-		// 	raftFlowFailureReportCounterVec.WithLabelValues(labelRaftFlowFailureReportUnreachable, storeID).Inc()
-		// 	if msg.Message.Type == raftpb.MsgSnap {
-		// 		raftFlowFailureReportCounterVec.WithLabelValues(labelRaftFlowFailureReportSnapshot, storeID).Inc()
-		// 	}
-
-		// 	pr.report(msg.Message)
-		// }
+		if pr := t.store.getPR(msg.ShardID, true); pr != nil {
+			value := etcdraftpb.Message{}
+			protoc.MustUnmarshal(&value, msg.Message)
+			pr.addReport(value)
+		}
 	}
 
 	pb.ReleaseRaftMessage(msg)
@@ -255,7 +248,7 @@ func (t *transport) doSend(msg interface{}, to uint64) error {
 	}
 
 	err = t.doWrite(msg, conn)
-
+	t.putConn(to, conn)
 	return err
 }
 
@@ -270,11 +263,7 @@ func (t *transport) doWrite(msg interface{}, conn goetty.IOSession) error {
 }
 
 func (t *transport) putConn(id uint64, conn goetty.IOSession) {
-	t.RLock()
-	pool, ok := t.conns.Load(id)
-	t.RUnlock()
-
-	if ok {
+	if pool, ok := t.conns.Load(id); ok {
 		pool.(goetty.IOSessionPool).Put(conn)
 	} else {
 		conn.Close()
@@ -296,30 +285,20 @@ func (t *transport) getConn(id uint64) (goetty.IOSession, error) {
 }
 
 func (t *transport) getConnLocked(id uint64) (goetty.IOSession, error) {
-	var err error
-
-	t.RLock()
-	pool, ok := t.conns.Load(id)
-	t.RUnlock()
-
-	if !ok {
-		t.Lock()
-
-		pool, ok = t.conns.Load(id)
-		if !ok {
-			pool, err = goetty.NewIOSessionPool(1, 2, func() (goetty.IOSession, error) {
-				return t.createConn(id)
-			})
-
-			if err != nil {
-				return nil, err
-			}
-
-			t.conns.Store(id, pool)
-		}
-		t.Unlock()
+	if pool, ok := t.conns.Load(id); ok {
+		return pool.(goetty.IOSessionPool).Get()
 	}
 
+	pool, err := goetty.NewIOSessionPool(1, 2, func() (goetty.IOSession, error) {
+		return t.createConn(id)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if old, loaded := t.conns.LoadOrStore(id, pool); loaded {
+		return old.(goetty.IOSessionPool).Get()
+	}
 	return pool.(goetty.IOSessionPool).Get()
 }
 
@@ -334,7 +313,7 @@ func (t *transport) checkConnect(id uint64, conn goetty.IOSession) bool {
 
 	ok, err := conn.Connect()
 	if err != nil {
-		logger.Errorf("connect to store %d failed with %+v",
+		logger.Errorf("connect to store %d",
 			id,
 			err)
 		return false

@@ -1,0 +1,43 @@
+syntax = "proto3";
+package redispb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// RedisArgs the redis args
+message RedisArgs  {
+    repeated bytes args = 1;
+}
+
+// FVPair key value paire
+message FVPair {
+    bytes field = 1;
+    bytes value = 2;
+}
+
+// ScorePair score paire
+message ScorePair {
+    double score  = 1;
+    bytes  member = 2;
+}
+
+// RedisResponse redis response
+message RedisResponse {
+    bytes              errorResult                  = 1;
+    repeated bytes     errorResults                 = 2;
+    bytes              statusResult                 = 3;
+    int64              integerResult                = 4;
+    bytes              bulkResult                   = 5;
+    bool               hasEmptyBulkResult           = 6;
+    repeated bytes     sliceArrayResult             = 7;
+    bool               hasEmptySliceArrayResult     = 8;
+    repeated FVPair    fvPairArrayResult            = 9  [(gogoproto.nullable) = false];
+    bool               hasEmptyFVPairArrayResult    = 10;
+    repeated ScorePair scorePairArrayResult         = 11  [(gogoproto.nullable) = false];
+    bool               hasEmptyScorePairArrayResult = 12;
+    bool               withscores                   = 13;
+}

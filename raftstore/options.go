@@ -1,7 +1,7 @@
 package raftstore
 
 import (
-	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/deepfabric/beehive/pb/metapb"
@@ -40,6 +40,7 @@ var (
 	defaultStoreHeartbeatDuration            = time.Second * 10
 	defaultDataPath                          = "/tmp/beehive"
 	defaultSnapshotDirName                   = "snapshots"
+	defaultProphetDirName                    = "prophet"
 )
 
 // Option options
@@ -197,7 +198,11 @@ func (opts *options) adjust() {
 }
 
 func (opts *options) snapshotDir() string {
-	return fmt.Sprintf("%s/%s", opts.dataPath, opts.snapshotDirName)
+	return filepath.Join(opts.dataPath, opts.snapshotDirName)
+}
+
+func (opts *options) prophetDir() string {
+	return filepath.Join(opts.dataPath, defaultProphetDirName)
 }
 
 // WithDataPath set the path to store the raft log, snapshots and other metadata

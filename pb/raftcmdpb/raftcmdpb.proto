@@ -141,10 +141,8 @@ message Request {
     uint64  custemType  = 3;
     bytes   key         = 4;
     bytes   cmd         = 5;
-    uint64  epoch       = 6;
-    int64   startAt     = 7;
-    int64   lastStageAt = 8;
-    int64   sessionID   = 9;
+    int64   SID         = 6;
+    int64   PID         = 7;
 }
 
 // Response response
@@ -153,6 +151,7 @@ message Response {
     CMDType       type          = 2;
     bytes         value         = 3;
     Request       originRequest = 4 [(gogoproto.nullable) = true];
-    int64         sessionID     = 5;
-    errorpb.Error error         = 6 [(gogoproto.nullable) = false];
+    int64         SID           = 5;
+    int64         PID           = 6;
+    errorpb.Error error         = 7 [(gogoproto.nullable) = false];
 }
