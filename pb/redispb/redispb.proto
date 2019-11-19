@@ -13,18 +13,6 @@ message RedisArgs  {
     repeated bytes args = 1;
 }
 
-// FVPair key value paire
-message FVPair {
-    bytes field = 1;
-    bytes value = 2;
-}
-
-// ScorePair score paire
-message ScorePair {
-    double score  = 1;
-    bytes  member = 2;
-}
-
 // RedisResponse redis response
 message RedisResponse {
     bytes              errorResult                  = 1;
@@ -35,9 +23,9 @@ message RedisResponse {
     bool               hasEmptyBulkResult           = 6;
     repeated bytes     sliceArrayResult             = 7;
     bool               hasEmptySliceArrayResult     = 8;
-    repeated FVPair    fvPairArrayResult            = 9  [(gogoproto.nullable) = false];
+    repeated bytes     fvPairArrayResult            = 9;
     bool               hasEmptyFVPairArrayResult    = 10;
-    repeated ScorePair scorePairArrayResult         = 11  [(gogoproto.nullable) = false];
+    repeated bytes     scorePairArrayResult         = 11;
     bool               hasEmptyScorePairArrayResult = 12;
     bool               withscores                   = 13;
 }
