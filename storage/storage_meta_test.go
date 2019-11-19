@@ -1,10 +1,14 @@
 package storage
 
 import (
+	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/deepfabric/beehive/storage/badger"
+	"github.com/deepfabric/beehive/storage/nemo"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,7 +16,10 @@ var (
 	factories = map[string]func(*testing.T) MetadataStorage{
 		"memory": createMem,
 		"badger": createBadger,
+		"nemo":   createNemo,
 	}
+
+	lock sync.Mutex
 )
 
 func createMem(t *testing.T) MetadataStorage {
@@ -20,12 +27,19 @@ func createMem(t *testing.T) MetadataStorage {
 }
 
 func createBadger(t *testing.T) MetadataStorage {
-	err := os.RemoveAll("/tmp/badger")
+	path := fmt.Sprintf("/tmp/badger/%d", time.Now().UnixNano())
+	os.RemoveAll(path)
+	os.MkdirAll(path, os.ModeDir)
+	s, err := badger.NewKVStore(path)
 	assert.NoError(t, err, "createBadger failed")
 
-	s, err := badger.NewKVStore("/tmp/badger")
-	assert.NoError(t, err, "createBadger failed")
+	return s
+}
 
+func createNemo(t *testing.T) MetadataStorage {
+	path := fmt.Sprintf("/tmp/nemo/%d", time.Now().UnixNano())
+	s, err := nemo.NewStorage(path)
+	assert.NoError(t, err, "createNemo failed")
 	return s
 }
 

@@ -39,7 +39,7 @@ func (s *memDataStorage) SplitCheck(start []byte, end []byte, size uint64) (uint
 	var splitKey []byte
 	s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
 		total += uint64(len(key) + len(value))
-		if !found && total > size {
+		if !found && total >= size {
 			found = true
 			splitKey = key
 		}
@@ -130,6 +130,21 @@ func (s *memDataStorage) ApplySnapshot(path string) error {
 		s.kv.Put(key, value)
 	}
 
+	return nil
+}
+
+func (s *memDataStorage) Set(key []byte, value []byte) error {
+	s.kv.Put(key, value)
+	return nil
+}
+
+func (s *memDataStorage) Get(key []byte) ([]byte, error) {
+	v := s.kv.Get(key)
+	return v, nil
+}
+
+func (s *memDataStorage) Delete(key []byte) error {
+	s.kv.Delete(key)
 	return nil
 }
 
