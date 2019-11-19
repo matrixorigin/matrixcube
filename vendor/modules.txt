@@ -109,7 +109,7 @@ github.com/dgrijalva/jwt-go
 github.com/dgryski/go-farm
 # github.com/dustin/go-humanize v1.0.0
 github.com/dustin/go-humanize
-# github.com/fagongzi/goetty v1.3.1
+# github.com/fagongzi/goetty v1.3.2
 github.com/fagongzi/goetty
 github.com/fagongzi/goetty/protocol/redis
 # github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d

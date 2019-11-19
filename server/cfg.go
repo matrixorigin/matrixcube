@@ -6,7 +6,7 @@ import (
 
 // Cfg cfg
 type Cfg struct {
-	RedisAddr string
-	RaftCfg   raftstore.Cfg
-	Options   []raftstore.Option
+	Addr    string
+	Store   raftstore.Store
+	Handler Handler
 }

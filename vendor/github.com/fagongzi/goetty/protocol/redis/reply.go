@@ -95,43 +95,38 @@ func WriteSliceArray(lst [][]byte, buf *goetty.ByteBuf) {
 }
 
 // WriteFVPairArray write field-value pair array resp
-func WriteFVPairArray(fields, values [][]byte, buf *goetty.ByteBuf) {
+func WriteFVPairArray(fvs [][]byte, buf *goetty.ByteBuf) {
 	buf.WriteByte('*')
-	if len(fields) == 0 || len(values) == 0 {
+	if len(fvs) == 0 {
 		buf.Write(NullArray)
 		buf.Write(Delims)
 	} else {
-		buf.Write(goetty.StringToSlice(strconv.Itoa(len(fields) * 2)))
+		buf.Write(goetty.StringToSlice(strconv.Itoa(len(fvs) / 2)))
 		buf.Write(Delims)
 
-		for i := 0; i < len(values); i++ {
-			WriteBulk(fields[i], buf)
-			WriteBulk(values[i], buf)
+		n := len(fvs) / 2
+		for i := 0; i < n; i++ {
+			WriteBulk(fvs[2*i], buf)
+			WriteBulk(fvs[2*i+1], buf)
 		}
 	}
 }
 
 // WriteScorePairArray write score-member pair array resp
-func WriteScorePairArray(members [][]byte, scores []float64, withScores bool, buf *goetty.ByteBuf) {
+func WriteScorePairArray(membersAndScores [][]byte, withScores bool, buf *goetty.ByteBuf) {
 	buf.WriteByte('*')
-	if len(members) == 0 || len(scores) == 0 {
+	if len(membersAndScores) == 0 {
 		buf.Write(NullArray)
 		buf.Write(Delims)
 	} else {
-		if withScores {
-			buf.Write(goetty.StringToSlice(strconv.Itoa(len(members) * 2)))
-			buf.Write(Delims)
-		} else {
-			buf.Write(goetty.StringToSlice(strconv.Itoa(len(members))))
-			buf.Write(Delims)
+		buf.Write(goetty.StringToSlice(strconv.Itoa(len(membersAndScores) / 2)))
+		buf.Write(Delims)
 
-		}
-
-		for i := 0; i < len(members); i++ {
-			WriteBulk(members[i], buf)
-
+		n := len(membersAndScores) / 2
+		for i := 0; i < n; i++ {
+			WriteBulk(membersAndScores[2*i], buf)
 			if withScores {
-				WriteBulk(goetty.FormatFloat64ToBytes(scores[i]), buf)
+				WriteBulk(membersAndScores[2*i+1], buf)
 			}
 		}
 	}

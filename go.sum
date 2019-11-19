@@ -30,8 +30,12 @@ github.com/cpuguy83/go-md2man v1.0.10/go.mod h1:SmD6nW6nTyfqj6ABTjUi3V3JVMnlJmwc
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/deepfabric/c-nemo v0.0.0-20190419083223-23fa413d9df4 h1:r5nY1MRVgtskrh+F4ZXzG1/zgekyJfAI+twMWpfvh04=
+github.com/deepfabric/c-nemo v0.0.0-20190419083223-23fa413d9df4/go.mod h1:xHI4efz5VNLAaNzIpEzcWlG03PcKRA+S7J1LkYbCG9Q=
 github.com/deepfabric/etcd v3.3.17+incompatible h1:JDSLn0ZFr4Jtxko12SkJNl+yWRenHPeqlhUQ+PkMwew=
 github.com/deepfabric/etcd v3.3.17+incompatible/go.mod h1:ON816fNLmXPggjAqWLeIeFuZfTNz2cS8/1n3NbE1U7U=
+github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6 h1:rUVF6M6CRqAQKYf2inCgI8ETOMMKB9B4fUGVVIgnXAc=
+github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6/go.mod h1:MEkOt020e5MHsdTsvS2LcxndbzwLvGzYH+fCYeHq8R8=
 github.com/deepfabric/prophet v0.0.0-20191118055338-af29aab59eed h1:Huf0QZcjIt+bWJfEU324cjNnvU5sv4quaUC250Dkjcw=
 github.com/deepfabric/prophet v0.0.0-20191118055338-af29aab59eed/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
 github.com/dgraph-io/badger v1.6.0 h1:DshxFxZWXUcO0xX476VJC07Xsr6ZCBVRHKZ93Oh7Evo=
@@ -44,6 +48,8 @@ github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fagongzi/goetty v1.3.1 h1:R5J0ZO3lp0p78JZ0uVq2JWzV1vbyJ5nq3du5US9DHmU=
 github.com/fagongzi/goetty v1.3.1/go.mod h1:lLUyHhtjlOqatxVXgyLocwoI2o359JzLE7EWRGZiGw4=
+github.com/fagongzi/goetty v1.3.2 h1:ARKYpvh2yvh47zMeGxnnmjpYbkroPL4khLfe8oAyQ9E=
+github.com/fagongzi/goetty v1.3.2/go.mod h1:lLUyHhtjlOqatxVXgyLocwoI2o359JzLE7EWRGZiGw4=
 github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d h1:x1tjWY70lxqyNC9/4+F+XYPDDIGtoCWDF88DJehcrrA=
 github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d/go.mod h1:1aUifpZCjAdZK7L3vRRl2cpSktbKasAU5vOSyLSCODs=
 github.com/fagongzi/util v0.0.0-20181102105153-fd38e0f42a4f/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=
