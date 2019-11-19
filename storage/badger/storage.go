@@ -15,13 +15,13 @@ type Storage struct {
 	db *badger.DB
 }
 
-// NewKVStore returns badger kv store on a default options
-func NewKVStore(dir string) (*Storage, error) {
-	return NewKVStoreWithOptions(badger.DefaultOptions(dir))
+// NewStorage returns badger kv store on a default options
+func NewStorage(dir string) (*Storage, error) {
+	return NewStorageWithOptions(badger.DefaultOptions(dir))
 }
 
-// NewKVStoreWithOptions returns badger kv store
-func NewKVStoreWithOptions(opts badger.Options) (*Storage, error) {
+// NewStorageWithOptions returns badger kv store
+func NewStorageWithOptions(opts badger.Options) (*Storage, error) {
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, err

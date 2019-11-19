@@ -11,6 +11,11 @@ import (
 type Storage struct {
 	db *gonemo.NEMO
 	kv *gonemo.DBNemo
+
+	redisKV   *redisKV
+	redisHash *redisHash
+	redisSet  *redisSet
+	redisZSet *redisZSet
 }
 
 // NewStorage create a storage based on nemo
@@ -29,8 +34,12 @@ func NewStorageWithOption(dataPath, options string) (*Storage, error) {
 
 	db := gonemo.OpenNemo(opts, dataPath)
 	return &Storage{
-		db: db,
-		kv: db.GetKvHandle(),
+		db:        db,
+		kv:        db.GetKvHandle(),
+		redisKV:   &redisKV{db: db},
+		redisHash: &redisHash{db: db},
+		redisSet:  &redisSet{db: db},
+		redisZSet: &redisZSet{db: db},
 	}, nil
 }
 
@@ -147,6 +156,31 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 // ApplySnapshot apply a snapshort file from giving path
 func (s *Storage) ApplySnapshot(path string) error {
 	return s.db.IngestFile(path)
+}
+
+// RedisKV returns a redis kv impl
+func (s *Storage) RedisKV() RedisKV {
+	return s.redisKV
+}
+
+// RedisHash returns a redis hash impl
+func (s *Storage) RedisHash() RedisHash {
+	return s.redisHash
+}
+
+// RedisSet returns a redis set impl
+func (s *Storage) RedisSet() RedisSet {
+	return s.redisSet
+}
+
+// RedisZSet returns a redis zset impl
+func (s *Storage) RedisZSet() RedisZSet {
+	return s.redisZSet
+}
+
+// Close close the storage
+func (s *Storage) Close() {
+	s.db.Close()
 }
 
 type writeBatch struct {
