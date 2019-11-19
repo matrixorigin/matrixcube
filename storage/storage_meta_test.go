@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/deepfabric/beehive/storage/badger"
+	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/deepfabric/beehive/storage/nemo"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,14 +24,14 @@ var (
 )
 
 func createMem(t *testing.T) MetadataStorage {
-	return NewMemMetadataStorage()
+	return mem.NewStorage()
 }
 
 func createBadger(t *testing.T) MetadataStorage {
 	path := fmt.Sprintf("/tmp/badger/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
 	os.MkdirAll(path, os.ModeDir)
-	s, err := badger.NewKVStore(path)
+	s, err := badger.NewStorage(path)
 	assert.NoError(t, err, "createBadger failed")
 
 	return s
