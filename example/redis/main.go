@@ -8,7 +8,7 @@ import (
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/server"
 	"github.com/deepfabric/beehive/storage"
-	"github.com/deepfabric/beehive/util"
+	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
@@ -23,25 +23,22 @@ var (
 )
 
 var (
-	kv = util.NewKVTree()
+	store *mem.Storage
 )
 
 func main() {
 	log.InitLog()
 
 	prophet.SetLogger(log.NewLoggerWithPrefix("[prophet]"))
-
-	metaStore := storage.NewMemMetadataStorage()
-	dataStore := storage.NewMemDataStorageWithKV(kv)
-
+	store = mem.NewStorage()
 	cfg := server.Cfg{
 		RedisAddr: *addr,
 		RaftCfg: raftstore.Cfg{
 			Name:             *name,
 			RaftAddr:         *raftAddr,
 			RPCAddr:          *rpcAddr,
-			MetadataStorages: []storage.MetadataStorage{metaStore},
-			DataStorages:     []storage.DataStorage{dataStore},
+			MetadataStorages: []storage.MetadataStorage{store},
+			DataStorages:     []storage.DataStorage{store},
 		},
 		Options: []raftstore.Option{raftstore.WithDataPath(*data)},
 	}
@@ -61,7 +58,7 @@ func set(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
 
-	kv.Put(req.Key, args.Args[0])
+	store.Set(req.Key, args.Args[0])
 
 	value := redispb.RedisResponse{}
 	value.StatusResult = []byte("OK")
@@ -72,7 +69,7 @@ func set(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
 }
 
 func get(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
-	value := kv.Get(req.Key)
+	value, _ := store.Get(req.Key)
 
 	resp := redispb.RedisResponse{}
 	resp.BulkResult = value
