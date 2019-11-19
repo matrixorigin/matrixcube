@@ -12,6 +12,7 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/storage"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 )
@@ -447,7 +448,7 @@ func (ps *peerStorage) doDestroyDataJob(shardID uint64, startKey, endKey []byte)
 	return err
 }
 
-func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerState, wb storage.WriteBatch) error {
+func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerState, wb util.WriteBatch) error {
 	shardState := &raftpb.ShardLocalState{}
 	shardState.State = state
 	shardState.Shard = shard
@@ -459,7 +460,7 @@ func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerStat
 	return ps.store.getStorage(shard.ID).Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
-func (ps *peerStorage) writeInitialState(shardID uint64, wb storage.WriteBatch) error {
+func (ps *peerStorage) writeInitialState(shardID uint64, wb util.WriteBatch) error {
 	hard := etcdPB.HardState{}
 	hard.Term = raftInitLogTerm
 	hard.Commit = raftInitLogIndex

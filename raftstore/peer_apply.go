@@ -11,7 +11,7 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/deepfabric/beehive/storage"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
 )
 
@@ -198,7 +198,7 @@ type raftGCResult struct {
 
 type applyContext struct {
 	// raft state write batch
-	wb         storage.WriteBatch
+	wb         util.WriteBatch
 	writeBatch CommandWriteBatch
 
 	applyState raftpb.RaftApplyState

@@ -324,7 +324,7 @@ func (s *store) startRPC() {
 	}
 }
 
-func (s *store) clearMeta(id uint64, wb storage.WriteBatch) error {
+func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
 	metaCount := 0
 	raftCount := 0
 

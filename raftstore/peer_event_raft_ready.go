@@ -11,7 +11,7 @@ import (
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/deepfabric/beehive/storage"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
 )
 
@@ -21,7 +21,7 @@ type readyContext struct {
 	applyState raftpb.RaftApplyState
 	lastTerm   uint64
 	snap       *raftpb.SnapshotMessage
-	wb         storage.WriteBatch
+	wb         util.WriteBatch
 }
 
 func (ctx *readyContext) reset() {
