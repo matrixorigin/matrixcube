@@ -10,6 +10,8 @@ require (
 	github.com/fagongzi/goetty v1.3.1
 	github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d
 	github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d
+	github.com/funny/slab v0.0.0-20180511031532-b1fad5e5d478 // indirect
+	github.com/funny/utest v0.0.0-20161029064919-43870a374500 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/google/btree v1.0.0

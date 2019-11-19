@@ -37,6 +37,24 @@ func (s *Storage) Set(key []byte, value []byte) error {
 	return s.BatchSet(key, value)
 }
 
+// BatchSet batch set
+func (s *Storage) BatchSet(pairs ...[]byte) error {
+	if len(pairs)%2 != 0 {
+		return fmt.Errorf("invalid args len: %d", len(pairs))
+	}
+
+	return s.db.Update(func(txn *badger.Txn) error {
+		for i := 0; i < len(pairs)/2; i++ {
+			err := txn.Set(pairs[2*i], pairs[2*i+1])
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
 // Get returns the value of the key
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	var value []byte
@@ -63,24 +81,6 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 	}
 
 	return value, nil
-}
-
-// BatchSet batch set
-func (s *Storage) BatchSet(pairs ...[]byte) error {
-	if len(pairs)%2 != 0 {
-		return fmt.Errorf("invalid args len: %d", len(pairs))
-	}
-
-	return s.db.Update(func(txn *badger.Txn) error {
-		for i := 0; i < len(pairs)/2; i++ {
-			err := txn.Set(pairs[2*i], pairs[2*i+1])
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
 }
 
 // Delete remove the key from the storage
@@ -183,7 +183,7 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, []b
 			}
 
 			total += uint64(len(k) + len(v))
-			if !found && total > size {
+			if !found && total >= size {
 				found = true
 				splitKey = k
 			}
@@ -224,12 +224,12 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 
 // NewWriteBatch return a new write batch
 func (s *Storage) NewWriteBatch() util.WriteBatch {
-	return &WriteBatch{}
+	return &writeBatch{}
 }
 
 // Write write the data in batch
 func (s *Storage) Write(value util.WriteBatch, sync bool) error {
-	wb := value.(*WriteBatch)
+	wb := value.(*writeBatch)
 	err := s.db.Update(func(txn *badger.Txn) error {
 		idx := 0
 		var err error
@@ -315,21 +315,20 @@ var (
 	set    = byte(1)
 )
 
-// WriteBatch write batch
-type WriteBatch struct {
+type writeBatch struct {
 	opts   []byte
 	values [][]byte
 }
 
 // Delete remove the key
-func (wb *WriteBatch) Delete(key []byte) error {
+func (wb *writeBatch) Delete(key []byte) error {
 	wb.opts = append(wb.opts, delete)
 	wb.values = append(wb.values, key)
 	return nil
 }
 
 // Set set the key-value pair
-func (wb *WriteBatch) Set(key []byte, value []byte) error {
+func (wb *writeBatch) Set(key []byte, value []byte) error {
 	wb.opts = append(wb.opts, set)
 	wb.values = append(wb.values, key, value)
 	return nil
