@@ -12,3 +12,4 @@
 *.out
 
 .vscode
+example/redis/main
