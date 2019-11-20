@@ -56,10 +56,8 @@ type EventNotify struct {
 	Value []byte `json:"value"`
 }
 
-func newInitEvent(rt *Runtime) (*EventNotify, error) {
+func newInitEvent(snap *snap) (*EventNotify, error) {
 	value := goetty.NewByteBuf(512)
-
-	snap := rt.snap()
 	value.WriteInt(len(snap.containers))
 	value.WriteInt(len(snap.resources))
 
@@ -217,14 +215,15 @@ func (wn *watcherNotifier) onEvent(evt *EventNotify) {
 }
 
 func (wn *watcherNotifier) onInitWatcher(msg *InitWatcher, conn goetty.IOSession) {
+	log.Infof("prophet: new watcher %s added", conn.RemoteIP())
+	snap := wn.rt.snap()
+
 	wn.Lock()
 	defer wn.Unlock()
 
-	log.Infof("prophet: new watcher %s added", conn.RemoteIP())
-
 	if wn.eventC != nil {
 		if MatchEvent(EventInit, msg.Flag) {
-			nt, err := newInitEvent(wn.rt)
+			nt, err := newInitEvent(snap)
 			if err != nil {
 				log.Errorf("prophet: marshal init notify failed, errors:%+v", err)
 				conn.Close()

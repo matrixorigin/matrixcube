@@ -87,6 +87,7 @@ func (s *Application) Exec(cmd interface{}, timeout time.Duration) ([]byte, erro
 
 	s.AsyncExecWithTimeout(cmd, cb, timeout)
 	value := <-completeC
+	close(completeC)
 	switch value.(type) {
 	case error:
 		return nil, value.(error)
