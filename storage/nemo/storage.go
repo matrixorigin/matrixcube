@@ -16,6 +16,7 @@ type Storage struct {
 	redisHash *redisHash
 	redisSet  *redisSet
 	redisZSet *redisZSet
+	redisList *redisList
 }
 
 // NewStorage create a storage based on nemo
@@ -40,6 +41,7 @@ func NewStorageWithOption(dataPath, options string) (*Storage, error) {
 		redisHash: &redisHash{db: db},
 		redisSet:  &redisSet{db: db},
 		redisZSet: &redisZSet{db: db},
+		redisList: &redisList{db: db},
 	}, nil
 }
 
@@ -176,6 +178,11 @@ func (s *Storage) RedisSet() RedisSet {
 // RedisZSet returns a redis zset impl
 func (s *Storage) RedisZSet() RedisZSet {
 	return s.redisZSet
+}
+
+// RedisList returns a redis list impl
+func (s *Storage) RedisList() RedisList {
+	return s.redisList
 }
 
 // Close close the storage

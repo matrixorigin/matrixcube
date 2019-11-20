@@ -116,7 +116,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		pr.send(rd.Messages)
 	}
 
-	driver := pr.store.getStorage(pr.shardID)
+	driver := pr.store.MetadataStorage(pr.shardID)
 	ctx.wb = driver.NewWriteBatch()
 
 	pr.handleAppendSnapshot(ctx, rd)

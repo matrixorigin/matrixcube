@@ -2,16 +2,15 @@ package main
 
 import (
 	"flag"
+	"path/filepath"
 
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/redispb"
 	"github.com/deepfabric/beehive/raftstore"
+	"github.com/deepfabric/beehive/redis"
 	"github.com/deepfabric/beehive/server"
 	"github.com/deepfabric/beehive/storage"
-	"github.com/deepfabric/beehive/storage/mem"
+	"github.com/deepfabric/beehive/storage/nemo"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/log"
-	"github.com/fagongzi/util/protoc"
 )
 
 var (
@@ -22,60 +21,34 @@ var (
 	data     = flag.String("data", "", "data")
 )
 
-var (
-	store *mem.Storage
-)
-
 func main() {
 	log.InitLog()
-
 	prophet.SetLogger(log.NewLoggerWithPrefix("[prophet]"))
-	store = mem.NewStorage()
-	cfg := server.Cfg{
-		RedisAddr: *addr,
-		RaftCfg: raftstore.Cfg{
-			Name:             *name,
-			RaftAddr:         *raftAddr,
-			RPCAddr:          *rpcAddr,
-			MetadataStorages: []storage.MetadataStorage{store},
-			DataStorages:     []storage.DataStorage{store},
-		},
-		Options: []raftstore.Option{raftstore.WithDataPath(*data)},
+
+	nemoStorage, err := nemo.NewStorage(filepath.Join(*data, "nemo"))
+	if err != nil {
+		log.Fatalf("create nemo failed with %+v", err)
 	}
 
-	s := server.NewRedisServer(cfg)
-	s.AddReadCmd("get", 1, get)
-	s.AddWriteCmd("set", 2, set)
-	err := s.Start()
+	store := raftstore.NewStore(raftstore.Cfg{
+		Name:             *name,
+		RaftAddr:         *raftAddr,
+		RPCAddr:          *rpcAddr,
+		MetadataStorages: []storage.MetadataStorage{nemoStorage},
+		DataStorages:     []storage.DataStorage{nemoStorage},
+	}, raftstore.WithDataPath(*data))
+
+	cfg := server.Cfg{
+		Addr:    *addr,
+		Store:   store,
+		Handler: redis.NewHandler(store),
+	}
+
+	s := server.NewApplication(cfg)
+	err = s.Start()
 	if err != nil {
 		log.Fatalf("failed with %+v")
 	}
 
 	select {}
-}
-
-func set(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
-	args := &redispb.RedisArgs{}
-	protoc.MustUnmarshal(args, req.Cmd)
-
-	store.Set(req.Key, args.Args[0])
-
-	value := redispb.RedisResponse{}
-	value.StatusResult = []byte("OK")
-
-	return &raftcmdpb.Response{
-		Value: protoc.MustMarshal(&value),
-	}
-}
-
-func get(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
-	value, _ := store.Get(req.Key)
-
-	resp := redispb.RedisResponse{}
-	resp.BulkResult = value
-	resp.HasEmptyBulkResult = len(value) == 0
-
-	return &raftcmdpb.Response{
-		Value: protoc.MustMarshal(&resp),
-	}
 }
