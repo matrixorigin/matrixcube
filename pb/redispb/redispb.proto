@@ -13,19 +13,28 @@ message RedisArgs  {
     repeated bytes args = 1;
 }
 
+// RedisRespType redis response type
+enum RedisRespType {
+    ErrorResp          = 0;
+    ErrorsResp         = 1;
+    StatusResp         = 2;
+    IntegerResp        = 3;
+    BulkResp           = 4;
+    SliceArrayResp     = 5;
+    KVPairArrayResp    = 6;
+    ScorePairArrayResp = 7;
+}
+
 // RedisResponse redis response
 message RedisResponse {
-    bytes              errorResult                  = 1;
-    repeated bytes     errorResults                 = 2;
-    bytes              statusResult                 = 3;
-    int64              integerResult                = 4;
-    bytes              bulkResult                   = 5;
-    bool               hasEmptyBulkResult           = 6;
-    repeated bytes     sliceArrayResult             = 7;
-    bool               hasEmptySliceArrayResult     = 8;
-    repeated bytes     fvPairArrayResult            = 9;
-    bool               hasEmptyFVPairArrayResult    = 10;
-    repeated bytes     scorePairArrayResult         = 11;
-    bool               hasEmptyScorePairArrayResult = 12;
-    bool               withscores                   = 13;
+    RedisRespType      type                 = 1;
+    bytes              errorResult          = 2;
+    repeated bytes     errorResults         = 3;
+    bytes              statusResult         = 4;
+    int64              integerResult        = 5;
+    bytes              bulkResult           = 6;
+    repeated bytes     sliceArrayResult     = 7;
+    repeated bytes     kvPairArrayResult    = 8 [(gogoproto.customname) = "KVPairArrayResult"];
+    repeated bytes     scorePairArrayResult = 9;
+    bool               withscores           = 10;
 }

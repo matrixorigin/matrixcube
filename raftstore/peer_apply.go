@@ -3,6 +3,7 @@ package raftstore
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"time"
 
 	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
@@ -53,7 +54,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	if firstIndex == 0 {
 		startKey := getRaftLogKey(shardID, 0)
 		firstIndex = endIndex
-		key, _, err := pr.store.getStorage(shardID).Seek(startKey)
+		key, _, err := pr.store.MetadataStorage(shardID).Seek(startKey)
 		if err != nil {
 			return err
 		}
@@ -72,7 +73,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 		return nil
 	}
 
-	wb := pr.store.getStorage(shardID).NewWriteBatch()
+	wb := pr.store.MetadataStorage(shardID).NewWriteBatch()
 	for index := firstIndex; index < endIndex; index++ {
 		key := getRaftLogKey(shardID, index)
 		err := wb.Delete(key)
@@ -81,7 +82,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 		}
 	}
 
-	err := pr.store.getStorage(shardID).Write(wb, false)
+	err := pr.store.MetadataStorage(shardID).Write(wb, false)
 	if err != nil {
 		logger.Infof("shard %d raft log gc complete, entriesCount=<%d>",
 			shardID,
@@ -401,7 +402,7 @@ func (d *applyDelegate) applyEntry(ctx *applyContext, entry *etcdraftpb.Entry) *
 	state := d.applyState
 	state.AppliedIndex = entry.Index
 
-	err := d.store.getStorage(d.shard.ID).Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
+	err := d.store.MetadataStorage(d.shard.ID).Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
 	if err != nil {
 		logger.Fatalf("shard %d apply empty entry failed, entry=<%s> errors:\n %+v",
 			d.shard.ID,
@@ -459,8 +460,10 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 	var err error
 	var resp *raftcmdpb.RaftCMDResponse
 	var result *execResult
+	var writeBytes uint64
+	var diffBytes int64
 
-	driver := d.store.getStorage(d.shard.ID)
+	driver := d.store.MetadataStorage(d.shard.ID)
 	ctx.wb = driver.NewWriteBatch()
 
 	if !d.checkEpoch(ctx.req) {
@@ -472,20 +475,29 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 				resp = errorStaleEpochResp(ctx.req.Header.ID, d.term, d.shard)
 			}
 		} else {
-			resp = d.execWriteRequest(ctx)
+			writeBytes, diffBytes, resp = d.execWriteRequest(ctx)
 		}
 	}
 
 	if ctx.writeBatch != nil {
-		size, err := ctx.writeBatch.Execute()
+		writeBytes, diffBytes, err = ctx.writeBatch.Execute()
 		if err != nil {
 			logger.Fatalf("shard %d execute batch failed with %+v",
 				d.shard.ID,
 				err)
 		}
+	}
 
-		ctx.metrics.writtenBytes += size
-		ctx.metrics.sizeDiffHint += size
+	ctx.metrics.writtenBytes += writeBytes
+	if diffBytes < 0 {
+		v := uint64(math.Abs(float64(diffBytes)))
+		if v >= ctx.metrics.sizeDiffHint {
+			ctx.metrics.sizeDiffHint = 0
+		} else {
+			ctx.metrics.sizeDiffHint -= v
+		}
+	} else {
+		ctx.metrics.sizeDiffHint += uint64(diffBytes)
 	}
 
 	ctx.applyState.AppliedIndex = ctx.index
