@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/redis"
@@ -10,6 +12,7 @@ import (
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/storage/nemo"
 	"github.com/deepfabric/prophet"
+	redisProtoc "github.com/fagongzi/goetty/protocol/redis"
 	"github.com/fagongzi/log"
 )
 
@@ -48,5 +51,13 @@ func main() {
 		log.Fatalf("failed with %+v", err)
 	}
 
-	select {}
+	time.Sleep(time.Second * 10)
+
+	for {
+		var cmd redisProtoc.Command
+		cmd = append(cmd, []byte("set"), []byte("appkey"), []byte(fmt.Sprintf("%d", time.Now().Unix())))
+		value, err := app.Exec(cmd, time.Second)
+		log.Infof("%+v,%+v", value, err)
+		time.Sleep(time.Second)
+	}
 }
