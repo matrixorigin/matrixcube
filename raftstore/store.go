@@ -25,14 +25,19 @@ type CommandWriteBatch interface {
 	// Add add a request to this batch, returns true if it can be executed in this batch,
 	// otherwrise false
 	Add(uint64, *raftcmdpb.Request) (bool, *raftcmdpb.Response, error)
-	// Execute excute the batch, and return the write bytes
-	Execute() (uint64, error)
+	// Execute excute the batch, and return the write bytes, and diff bytes that used to
+	// modify the size of the current shard
+	Execute() (uint64, int64, error)
 	// Reset reset the current batch for reuse
 	Reset()
 }
 
-// CommandFunc the command handler func
-type CommandFunc func(uint64, *raftcmdpb.Request) *raftcmdpb.Response
+// ReadCommandFunc the read command handler func
+type ReadCommandFunc func(uint64, *raftcmdpb.Request) *raftcmdpb.Response
+
+// WriteCommandFunc the write command handler func, returns write bytes and the diff bytes
+// that used to modify the size of the current shard
+type WriteCommandFunc func(uint64, *raftcmdpb.Request) (uint64, int64, *raftcmdpb.Response)
 
 // Store manage a set of raft group
 type Store interface {
@@ -43,11 +48,15 @@ type Store interface {
 	// NewRouter returns a new router
 	NewRouter() Router
 	// RegisterReadFunc register read command handler
-	RegisterReadFunc(uint64, CommandFunc)
+	RegisterReadFunc(uint64, ReadCommandFunc)
 	// RegisterWriteFunc register write command handler
-	RegisterWriteFunc(uint64, CommandFunc)
+	RegisterWriteFunc(uint64, WriteCommandFunc)
 	// OnRequest receive a request, and call cb while the request is completed
 	OnRequest(*raftcmdpb.Request, func(*raftcmdpb.RaftCMDResponse)) error
+	// MetadataStorage returns a MetadataStorage of the shard
+	MetadataStorage(uint64) storage.MetadataStorage
+	// DataStorage returns a DataStorage of the shard
+	DataStorage(uint64) storage.DataStorage
 }
 
 const (
@@ -83,8 +92,8 @@ type store struct {
 	sendingSnapCount   uint64
 	reveivingSnapCount uint64
 
-	readHandlers  map[uint64]CommandFunc
-	writeHandlers map[uint64]CommandFunc
+	readHandlers  map[uint64]ReadCommandFunc
+	writeHandlers map[uint64]WriteCommandFunc
 
 	keyConvertFunc keyConvertFunc
 }
@@ -122,8 +131,8 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 		s.rpc = newRPC(s)
 	}
 
-	s.readHandlers = make(map[uint64]CommandFunc)
-	s.writeHandlers = make(map[uint64]CommandFunc)
+	s.readHandlers = make(map[uint64]ReadCommandFunc)
+	s.writeHandlers = make(map[uint64]WriteCommandFunc)
 	s.keyRanges = util.NewShardTree()
 	s.runner = task.NewRunner()
 	s.initWorkers()
@@ -157,11 +166,11 @@ func (s *store) Meta() metapb.Store {
 	return s.meta.meta
 }
 
-func (s *store) RegisterReadFunc(ct uint64, handler CommandFunc) {
+func (s *store) RegisterReadFunc(ct uint64, handler ReadCommandFunc) {
 	s.readHandlers[ct] = handler
 }
 
-func (s *store) RegisterWriteFunc(ct uint64, handler CommandFunc) {
+func (s *store) RegisterWriteFunc(ct uint64, handler WriteCommandFunc) {
 	s.writeHandlers[ct] = handler
 }
 
@@ -181,6 +190,14 @@ func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResp
 	}
 
 	return pr.onReq(req, cb)
+}
+
+func (s *store) MetadataStorage(id uint64) storage.MetadataStorage {
+	return s.cfg.MetadataStorages[id&s.raftMask]
+}
+
+func (s *store) DataStorage(id uint64) storage.DataStorage {
+	return s.cfg.DataStorages[id&s.dataMask]
 }
 
 func (s *store) initWorkers() {
@@ -331,7 +348,7 @@ func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
 	var keys [][]byte
 	defer func() {
 		for _, key := range keys {
-			s.getStorage(id).Free(key)
+			s.MetadataStorage(id).Free(key)
 		}
 	}()
 
@@ -339,7 +356,7 @@ func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
 	metaStart := getMetaPrefix(id)
 	metaEnd := getMetaPrefix(id + 1)
 
-	err := s.getStorage(id).Scan(metaStart, metaEnd, func(key, value []byte) (bool, error) {
+	err := s.MetadataStorage(id).Scan(metaStart, metaEnd, func(key, value []byte) (bool, error) {
 		keys = append(keys, key)
 		err := wb.Delete(key)
 		if err != nil {
@@ -357,7 +374,7 @@ func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
 	raftStart := getRaftPrefix(id)
 	raftEnd := getRaftPrefix(id + 1)
 
-	err = s.getStorage(id).Scan(raftStart, raftEnd, func(key, value []byte) (bool, error) {
+	err = s.MetadataStorage(id).Scan(raftStart, raftEnd, func(key, value []byte) (bool, error) {
 		keys = append(keys, key)
 		err := wb.Delete(key)
 		if err != nil {
@@ -386,7 +403,7 @@ func (s *store) cleanup() {
 
 	s.keyRanges.Ascend(func(shard *metapb.Shard) bool {
 		start := encStartKey(shard)
-		err := s.getDataStorage(shard.ID).RangeDelete(lastStartKey, start)
+		err := s.DataStorage(shard.ID).RangeDelete(lastStartKey, start)
 		if err != nil {
 			logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
 				lastStartKey,
@@ -430,14 +447,6 @@ func (s *store) addNamedJob(desc, worker string, task func() error) error {
 
 func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb func(*task.Job)) error {
 	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
-}
-
-func (s *store) getStorage(id uint64) storage.MetadataStorage {
-	return s.cfg.MetadataStorages[id&s.raftMask]
-}
-
-func (s *store) getDataStorage(id uint64) storage.DataStorage {
-	return s.cfg.DataStorages[id&s.dataMask]
 }
 
 func (s *store) getPeer(id uint64) (metapb.Peer, bool) {

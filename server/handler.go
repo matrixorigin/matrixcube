@@ -14,7 +14,7 @@ type Handler interface {
 	// Codec returns the decoder and encoder to transfer request and response
 	Codec() (goetty.Decoder, goetty.Encoder)
 	// AddReadFunc add read handler func
-	AddReadFunc(cmd string, cmdType uint64, cb raftstore.CommandFunc)
+	AddReadFunc(cmd string, cmdType uint64, cb raftstore.ReadCommandFunc)
 	// AddWriteFunc add write handler func
-	AddWriteFunc(cmd string, cmdType uint64, cb raftstore.CommandFunc)
+	AddWriteFunc(cmd string, cmdType uint64, cb raftstore.WriteCommandFunc)
 }

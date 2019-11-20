@@ -154,7 +154,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	newShard.Epoch.ShardVer = d.shard.Epoch.ShardVer
 	err := d.ps.updatePeerState(d.shard, raftpb.PeerNormal, ctx.wb)
 
-	driver := d.ps.store.getStorage(newShard.ID)
+	driver := d.ps.store.MetadataStorage(newShard.ID)
 	wb := driver.NewWriteBatch()
 	if err == nil {
 		err = d.ps.updatePeerState(newShard, raftpb.PeerNormal, wb)
@@ -228,7 +228,9 @@ func (d *applyDelegate) doExecRaftGC(ctx *applyContext) (*raftcmdpb.RaftCMDRespo
 	return rsp, result, nil
 }
 
-func (d *applyDelegate) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDResponse {
+func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raftcmdpb.RaftCMDResponse) {
+	writeBytes := uint64(0)
+	diffBytes := int64(0)
 	resp := pb.AcquireRaftCMDResponse()
 	for _, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
@@ -236,7 +238,6 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDRe
 		}
 
 		ctx.metrics.writtenKeys++
-
 		if ctx.writeBatch != nil {
 			ok, rsp, err := ctx.writeBatch.Add(d.shard.ID, req)
 			if err != nil {
@@ -253,10 +254,12 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDRe
 		}
 
 		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-			rsp := h(ctx.req.Header.ShardID, req)
+			written, diff, rsp := h(ctx.req.Header.ShardID, req)
 			resp.Responses = append(resp.Responses, rsp)
+			writeBytes += written
+			diffBytes += diff
 		}
 	}
 
-	return resp
+	return writeBytes, diffBytes, resp
 }

@@ -157,7 +157,7 @@ func (pr *peerReplica) mustDestroy() {
 	pr.stopEventLoop()
 	pr.store.removeDroppedVoteMsg(pr.shardID)
 
-	driver := pr.store.getStorage(pr.shardID)
+	driver := pr.store.MetadataStorage(pr.shardID)
 	wb := driver.NewWriteBatch()
 	err := pr.store.clearMeta(pr.shardID, wb)
 	if err != nil {

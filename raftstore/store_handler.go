@@ -160,7 +160,7 @@ func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bo
 	}
 
 	// no exist, check with tombstone key.
-	localState, err := loadLocalState(shardID, s.getStorage(shardID), true)
+	localState, err := loadLocalState(shardID, s.MetadataStorage(shardID), true)
 	if err != nil {
 		return false, err
 	}

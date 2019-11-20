@@ -21,6 +21,7 @@ require (
 	github.com/shirou/gopsutil v2.19.9+incompatible
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
+	honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc
 )
 
 replace github.com/coreos/etcd => github.com/deepfabric/etcd v3.3.17+incompatible
