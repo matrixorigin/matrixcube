@@ -38,16 +38,14 @@ func main() {
 		DataStorages:     []storage.DataStorage{nemoStorage},
 	}, raftstore.WithDataPath(*data))
 
-	cfg := server.Cfg{
+	app := server.NewApplication(server.Cfg{
 		Addr:    *addr,
 		Store:   store,
 		Handler: redis.NewHandler(store),
-	}
-
-	s := server.NewApplication(cfg)
-	err = s.Start()
+	})
+	err = app.Start()
 	if err != nil {
-		log.Fatalf("failed with %+v")
+		log.Fatalf("failed with %+v", err)
 	}
 
 	select {}
