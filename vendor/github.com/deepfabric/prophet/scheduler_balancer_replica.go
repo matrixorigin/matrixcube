@@ -83,7 +83,7 @@ func (s *balanceReplicaScheduler) transferPeer(rt *Runtime, res *ResourceRuntime
 
 	id, err := checker.rt.p.store.AllocID()
 	if err != nil {
-		log.Errorf("prophet: allocate peer failure, %+v", err)
+		log.Errorf("allocate peer failure, %+v", err)
 		return nil
 	}
 	newPeer.ID = id

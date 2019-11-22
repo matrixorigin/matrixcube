@@ -132,14 +132,14 @@ func listEtcdMembers(client *clientv3.Client) (*clientv3.MemberListResponse, err
 func isDataExist(d string) bool {
 	dir, err := os.Open(d)
 	if err != nil {
-		log.Error("open directory %s failed with %+v", d, err)
+		log.Errorf("open directory %s failed with %+v", d, err)
 		return false
 	}
 	defer dir.Close()
 
 	names, err := dir.Readdirnames(-1)
 	if err != nil {
-		log.Error("list directory %s failed with %+v", d, err)
+		log.Errorf("list directory %s failed with %+v", d, err)
 		return false
 	}
 	return len(names) != 0

@@ -28,7 +28,7 @@ func (r *replicaChecker) Check(target *ResourceRuntime) Operator {
 	}
 
 	currReplicasCount := len(target.meta.Peers())
-	log.Debugf("prophet: dispatch resource %d hit replica checker, expect %d, current %d",
+	log.Debugf("dispatch resource %d hit replica checker, expect %d, current %d",
 		target.meta.ID(),
 		currReplicasCount,
 		r.cfg.CountResourceReplicas)
@@ -43,7 +43,7 @@ func (r *replicaChecker) Check(target *ResourceRuntime) Operator {
 	}
 
 	if currReplicasCount > r.cfg.CountResourceReplicas {
-		log.Debugf("prophet: dispatch resource %d has more replica, expect %d, current %d",
+		log.Debugf("dispatch resource %d has more replica, expect %d, current %d",
 			target.meta.ID(),
 			currReplicasCount,
 			r.cfg.CountResourceReplicas)
@@ -142,13 +142,13 @@ func (r *replicaChecker) selectBestPeer(target *ResourceRuntime, allocPeerID boo
 	// Select the container with best distinct score.
 	// If the scores are the same, select the container with minimal replica score.
 	containers := r.rt.ResourceContainers(target)
-	log.Debugf("prophet: resource %d select best peer using %d containers",
+	log.Debugf("resource %d select best peer using %d containers",
 		target.meta.ID(),
 		len(containers))
 
 	for _, container := range r.rt.Containers() {
 		if filterTarget(container, filters) {
-			log.Debugf("prophet: resource %d select best peer skip container %d",
+			log.Debugf("resource %d select best peer skip container %d",
 				target.meta.ID(),
 				container.meta.ID())
 			continue
@@ -163,14 +163,14 @@ func (r *replicaChecker) selectBestPeer(target *ResourceRuntime, allocPeerID boo
 
 	if bestContainer == nil || filterTarget(bestContainer, r.filters) {
 		if bestContainer != nil {
-			log.Debugf("prophet: resource %d select best peer skip best container %d",
+			log.Debugf("resource %d select best peer skip best container %d",
 				target.meta.ID(),
 				bestContainer.meta.ID())
 		}
 		return nil, 0
 	}
 
-	log.Debugf("prophet: resource %d select best peer use container %d",
+	log.Debugf("resource %d select best peer use container %d",
 		target.meta.ID(),
 		bestContainer.meta.ID())
 
@@ -200,7 +200,7 @@ func (r *replicaChecker) checkBestReplacement(target *ResourceRuntime) Operator 
 
 	id, err := r.rt.p.store.AllocID()
 	if err != nil {
-		log.Errorf("prophet: allocate peer failure, %+v", err)
+		log.Errorf("allocate peer failure, %+v", err)
 		return nil
 	}
 

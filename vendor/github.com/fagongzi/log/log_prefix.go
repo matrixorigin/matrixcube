@@ -1,5 +1,9 @@
 package log
 
+import (
+	"os"
+)
+
 // NewLoggerWithPrefix returns a logger with prefix
 func NewLoggerWithPrefix(prefix string) Logger {
 	return &prefixLoggerWrapper{
@@ -67,8 +71,10 @@ func (l *prefixLoggerWrapper) Errorf(format string, v ...interface{}) {
 
 func (l *prefixLoggerWrapper) Fatal(v ...interface{}) {
 	l.l.logWithPrefix(fatalLevel, l.prefix, v...)
+	os.Exit(-1)
 }
 
 func (l *prefixLoggerWrapper) Fatalf(format string, v ...interface{}) {
 	l.l.logfWithPrefix(fatalLevel, format, l.prefix, v...)
+	os.Exit(-1)
 }

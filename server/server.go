@@ -119,9 +119,9 @@ func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func([]byte, erro
 
 	err = s.shardsProxy.Dispatch(req)
 	if err != nil {
-		cb(nil, err)
 		pb.ReleaseRequest(req)
 		s.libaryCB.Delete(hack.SliceToString(req.ID))
+		cb(nil, err)
 	}
 }
 
@@ -179,7 +179,9 @@ func (s *Application) doConnection(conn goetty.IOSession) error {
 func (s *Application) done(resp *raftcmdpb.Response) {
 	// libary call
 	if resp.SID == 0 {
+		id := hack.SliceToString(resp.ID)
 		if cb, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
+			s.libaryCB.Delete(id)
 			cb.(func([]byte, error))(resp.Value, nil)
 		}
 
@@ -194,7 +196,9 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 	// libary call
 	if resp.SID == 0 {
+		id := hack.SliceToString(resp.ID)
 		if cb, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
+			s.libaryCB.Delete(id)
 			cb.(func([]byte, error))(nil, err)
 		}
 

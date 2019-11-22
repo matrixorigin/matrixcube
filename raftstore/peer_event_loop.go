@@ -147,7 +147,7 @@ func (pr *peerReplica) readyToServeRaft(ctx context.Context) {
 				releaseReqCtx(req)
 			}
 
-			logger.Infof("shard %s handle serve raft stopped",
+			logger.Infof("shard %d handle serve raft stopped",
 				pr.shardID)
 			return
 		}
