@@ -6,7 +6,8 @@ import (
 
 // Cfg cfg
 type Cfg struct {
-	Addr    string
-	Store   raftstore.Store
-	Handler Handler
+	Addr           string
+	Store          raftstore.Store
+	Handler        Handler
+	ExternalServer bool
 }
