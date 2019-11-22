@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/log"
 )
 
@@ -16,31 +17,30 @@ var (
 	kb = 1024
 	mb = 1024 * kb
 
-	defaultSendRaftBatchSize          uint64 = 64
-	defaultProposalBatchSize          uint64 = 64
-	defaultInitShards                 uint64 = 1
-	defaultMaxConcurrencySnapChunks          = 8
-	defaultSnapChunkSize                     = 4 * kb
-	defaultApplyWorkerCount           uint64 = 32
-	defaultSendRaftMsgWorkerCount            = 8
-	defaultSendSnapshotMsgWorkerCount        = 4
-	defaultRaftElectionTick                  = 10
-	defaultRaftHeartbeatTick                 = 2
-	defaultRaftMaxBytesPerMsg                = 4 * mb
-	defaultRaftMaxInflightMsgCount           = 32
-	defaultRaftLogCompactDuration            = time.Second * 30
-	defaultShardSplitCheckDuration           = time.Second * 30
-	defaultMaxProposalBytes                  = int64(8 * mb)
-	defaultShardCapacityBytes         uint64 = uint64(96 * mb)
-	defaultMaxAllowTransferLogLag     uint64 = 5
-	defaultRaftThresholdCompactLog    uint64 = 128
-	defaultRaftTickDuration                  = time.Second
-	defaultMaxPeerDownTime                   = time.Minute * 30
-	defaultShardHeartbeatDuration            = time.Second * 2
-	defaultStoreHeartbeatDuration            = time.Second * 10
-	defaultDataPath                          = "/tmp/beehive"
-	defaultSnapshotDirName                   = "snapshots"
-	defaultProphetDirName                    = "prophet"
+	defaultSendRaftBatchSize        uint64 = 64
+	defaultProposalBatchSize        uint64 = 64
+	defaultInitShards               uint64 = 1
+	defaultMaxConcurrencySnapChunks        = 8
+	defaultSnapChunkSize                   = 4 * mb
+	defaultApplyWorkerCount         uint64 = 32
+	defaultSendRaftMsgWorkerCount          = 8
+	defaultRaftElectionTick                = 10
+	defaultRaftHeartbeatTick               = 2
+	defaultRaftMaxBytesPerMsg              = 4 * mb
+	defaultRaftMaxInflightMsgCount         = 32
+	defaultRaftLogCompactDuration          = time.Second * 30
+	defaultShardSplitCheckDuration         = time.Second * 30
+	defaultMaxProposalBytes                = int64(8 * mb)
+	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
+	defaultMaxAllowTransferLogLag   uint64 = 2
+	defaultRaftThresholdCompactLog  uint64 = 256
+	defaultRaftTickDuration                = time.Second
+	defaultMaxPeerDownTime                 = time.Minute * 30
+	defaultShardHeartbeatDuration          = time.Second * 2
+	defaultStoreHeartbeatDuration          = time.Second * 10
+	defaultDataPath                        = "/tmp/beehive"
+	defaultSnapshotDirName                 = "snapshots"
+	defaultProphetDirName                  = "prophet"
 )
 
 // Option options
@@ -58,7 +58,6 @@ type options struct {
 	snapChunkSize                 int
 	applyWorkerCount              uint64
 	sendRaftMsgWorkerCount        int
-	sendSnapshotMsgWorkerCount    int
 	maxPeerDownTime               time.Duration
 	shardHeartbeatDuration        time.Duration
 	storeHeartbeatDuration        time.Duration
@@ -85,6 +84,8 @@ type options struct {
 	rpc                           RPC
 	cleanDataFunc                 func(uint64) error
 	writeBatchFunc                func() CommandWriteBatch
+
+	prophetOptions []prophet.Option
 }
 
 func (opts *options) adjust() {
@@ -93,7 +94,7 @@ func (opts *options) adjust() {
 	}
 
 	if opts.proposalBatchSize == 0 {
-		opts.sendRaftBatchSize = defaultProposalBatchSize
+		opts.proposalBatchSize = defaultProposalBatchSize
 	}
 
 	if opts.dataPath == "" {
@@ -122,10 +123,6 @@ func (opts *options) adjust() {
 
 	if opts.sendRaftMsgWorkerCount == 0 {
 		opts.sendRaftMsgWorkerCount = defaultSendRaftMsgWorkerCount
-	}
-
-	if opts.sendSnapshotMsgWorkerCount == 0 {
-		opts.sendSnapshotMsgWorkerCount = defaultSendSnapshotMsgWorkerCount
 	}
 
 	if opts.maxPeerDownTime == 0 {
@@ -263,16 +260,6 @@ func WithSendRaftMsgWorkerCount(value int) Option {
 	}
 }
 
-// WithSendSnapshotMsgWorkerCount goroutine number of send snapshots,
-// the system sends the snapshots to the corresponding goroutine according to the shard ID,
-// each goroutine is responsible for a group of stores, only one tcp connection between two stores,
-// Note, the TCP connection that send snapshots and send raft messages are isolated from each other.
-func WithSendSnapshotMsgWorkerCount(value int) Option {
-	return func(opts *options) {
-		opts.sendSnapshotMsgWorkerCount = value
-	}
-}
-
 // WithMaxPeerDownTime In all replicas of a shard, when any message that does not receive
 // a replica is exceeded this value, the system will remove the replica and the scheduler
 // will choose a new store to create a new replica.
@@ -298,9 +285,9 @@ func WithStoreHeartbeatDuration(value time.Duration) Option {
 
 // WithMemoryAsStorage use memory to store the Application's KV data, the scheduler collects the
 // memory usage of the store node and balances the shards in the cluster, otherwise use disk.
-func WithMemoryAsStorage(value bool) Option {
+func WithMemoryAsStorage() Option {
 	return func(opts *options) {
-		opts.useMemoryAsStorage = value
+		opts.useMemoryAsStorage = true
 	}
 }
 
@@ -474,8 +461,15 @@ func WithLabels(locationLabel []string, labels []metapb.Label) Option {
 }
 
 // WithRPC set the rpc implemention to serve request and sent response
-func WithRPC(rpc RPC) Option {
+func WithRPC(value RPC) Option {
 	return func(opts *options) {
-		opts.rpc = rpc
+		opts.rpc = value
+	}
+}
+
+// WithProphetOptions set prophet options
+func WithProphetOptions(value ...prophet.Option) Option {
+	return func(opts *options) {
+		opts.prophetOptions = value
 	}
 }

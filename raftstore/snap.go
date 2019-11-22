@@ -47,7 +47,7 @@ type defaultSnapshotManager struct {
 func newDefaultSnapshotManager(s *store) SnapshotManager {
 	dir := s.opts.snapshotDir()
 	if !exist(dir) {
-		if err := os.Mkdir(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			logger.Fatalf("cannot create snapshot dir %s failed with %+v",
 				dir,
 				err)

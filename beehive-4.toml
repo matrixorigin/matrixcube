@@ -1,0 +1,23 @@
+# The beehive example configuration
+
+# The node name in the cluster
+name = "node4"
+
+# The RPC address to serve requests
+raftAddr = "node4:10001"
+
+# The RPC address to serve requests
+rpcAddr = "node4:10002"
+
+maxPeerDownTime = 1
+
+[prophet]
+# The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
+rpcAddr = "node4:9527"
+
+# The clusters client address list, required while storeMetadata is false
+clusters = [
+    "node1:2371",
+    "node2:2371",
+    "node3:2371"
+]

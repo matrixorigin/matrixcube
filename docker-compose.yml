@@ -1,0 +1,42 @@
+version: '2.1'
+services:
+  node1:
+    image: deepfabric/beehive-redis
+    ports:
+      - "6371:6379"
+    volumes:
+      - ./beehive-1.toml:/etc/beehive.yml
+    command: 
+      - --addr=node1:6379
+      - --beehive-cfg=/etc/beehive.yml
+
+  node2:
+    image: deepfabric/beehive-redis
+    ports:
+      - "6372:6379"
+    volumes:
+      - ./beehive-2.toml:/etc/beehive.yml
+    command: 
+      - --addr=node2:6379
+      - --beehive-cfg=/etc/beehive.yml
+
+  node3:
+    image: deepfabric/beehive-redis
+    ports:
+      - "6373:6379"
+    volumes:
+      - ./beehive-3.toml:/etc/beehive.yml
+    command: 
+      - --wait=10
+      - --addr=node3:6379
+      - --beehive-cfg=/etc/beehive.yml
+
+  node4:
+    image: deepfabric/beehive-redis
+    ports:
+      - "6374:6379"
+    volumes:
+      - ./beehive-4.toml:/etc/beehive.yml
+    command: 
+      - --addr=node4:6379
+      - --beehive-cfg=/etc/beehive.yml

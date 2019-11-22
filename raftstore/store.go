@@ -141,8 +141,8 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 
 func (s *store) Start() {
 	logger.Infof("begin start raftstore")
-	flag.Set("prophet-data", s.opts.prophetDir())
-	s.startProphet(prophet.ParseProphetOptions(s.cfg.Name))
+
+	s.startProphet()
 	logger.Infof("prophet started")
 
 	s.trans.Start()
@@ -208,9 +208,15 @@ func (s *store) initWorkers() {
 	s.runner.AddNamedWorker(splitCheckWorkerName)
 }
 
-func (s *store) startProphet(options []prophet.Option) {
+func (s *store) startProphet() {
 	logger.Infof("begin to start prophet")
 	s.meta.meta.Labels = s.opts.labels
+
+	options := s.opts.prophetOptions
+	if len(options) == 0 {
+		flag.Set("prophet-data", s.opts.prophetDir())
+		options = prophet.ParseProphetOptions(s.cfg.Name)
+	}
 
 	s.adapter = newProphetAdapter(s)
 	s.pdStartedC = make(chan struct{})

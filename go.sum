@@ -1,6 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9 h1:HD8gA2tkByhMAwYaFAX9w2l7vxvBQ5NMoxDrkhqhtn4=
 github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
+github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d h1:G0m3OIz70MZUWq3EgK3CesDbo8upS2Vm9/P3FtgI+Jk=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
@@ -40,6 +41,8 @@ github.com/deepfabric/prophet v0.0.0-20191118055338-af29aab59eed h1:Huf0QZcjIt+b
 github.com/deepfabric/prophet v0.0.0-20191118055338-af29aab59eed/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
 github.com/deepfabric/prophet v0.0.0-20191120112958-71b39b7f9e54 h1:IPetLBrLFS3oEWJG1My0tKYuOPaUBNkTtgBgo7B6NlA=
 github.com/deepfabric/prophet v0.0.0-20191120112958-71b39b7f9e54/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
+github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867 h1:XG8H4DmPG19Pt5MWNnUxobCEK2ADrYiawj/LE5rTU9A=
+github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
 github.com/dgraph-io/badger v1.6.0 h1:DshxFxZWXUcO0xX476VJC07Xsr6ZCBVRHKZ93Oh7Evo=
 github.com/dgraph-io/badger v1.6.0/go.mod h1:zwt7syl517jmP8s94KqSxTlM6IMsdhYy6psNgSztDR4=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=
@@ -54,6 +57,8 @@ github.com/fagongzi/goetty v1.3.2 h1:ARKYpvh2yvh47zMeGxnnmjpYbkroPL4khLfe8oAyQ9E
 github.com/fagongzi/goetty v1.3.2/go.mod h1:lLUyHhtjlOqatxVXgyLocwoI2o359JzLE7EWRGZiGw4=
 github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d h1:x1tjWY70lxqyNC9/4+F+XYPDDIGtoCWDF88DJehcrrA=
 github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d/go.mod h1:1aUifpZCjAdZK7L3vRRl2cpSktbKasAU5vOSyLSCODs=
+github.com/fagongzi/log v0.0.0-20191122063922-293b75312445 h1:XhTJpo5oMYnjgQPq28pufQ/XDGoQXi1x8qa87A4Fsb8=
+github.com/fagongzi/log v0.0.0-20191122063922-293b75312445/go.mod h1:1aUifpZCjAdZK7L3vRRl2cpSktbKasAU5vOSyLSCODs=
 github.com/fagongzi/util v0.0.0-20181102105153-fd38e0f42a4f/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=
 github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d h1:few4BjPeY7w2mjMDoVVzwm111T5GBJ8Ik1n3ZRSaNPM=
 github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=
