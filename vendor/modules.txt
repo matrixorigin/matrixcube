@@ -1,5 +1,7 @@
 # github.com/AndreasBriese/bbloom v0.0.0-20190306092124-e2d15f34fcf9
 github.com/AndreasBriese/bbloom
+# github.com/BurntSushi/toml v0.3.1
+github.com/BurntSushi/toml
 # github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d
 github.com/StackExchange/wmi
 # github.com/beorn7/perks v1.0.1
@@ -94,7 +96,7 @@ github.com/davecgh/go-spew/spew
 github.com/deepfabric/c-nemo
 # github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6
 github.com/deepfabric/go-nemo
-# github.com/deepfabric/prophet v0.0.0-20191120112958-71b39b7f9e54
+# github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867
 github.com/deepfabric/prophet
 # github.com/dgraph-io/badger v1.6.0
 github.com/dgraph-io/badger
@@ -112,7 +114,7 @@ github.com/dustin/go-humanize
 # github.com/fagongzi/goetty v1.3.2
 github.com/fagongzi/goetty
 github.com/fagongzi/goetty/protocol/redis
-# github.com/fagongzi/log v0.0.0-20191106015352-59d362b5908d
+# github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
 github.com/fagongzi/log
 # github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d
 github.com/fagongzi/util/format

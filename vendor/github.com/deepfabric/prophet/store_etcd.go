@@ -404,14 +404,14 @@ func (s *etcdStore) get(key string, opts ...clientv3.OpOption) (*clientv3.GetRes
 	start := time.Now()
 	resp, err := clientv3.NewKV(s.client).Get(ctx, key, opts...)
 	if err != nil {
-		log.Errorf("prophet: read option failure, key=<%s>, errors:\n %+v",
+		log.Errorf("read option failure, key=<%s>, errors:\n %+v",
 			key,
 			err)
 		return resp, err
 	}
 
 	if cost := time.Since(start); cost > DefaultSlowRequestTime {
-		log.Warningf("prophet: read option is too slow, key=<%s>, cost=<%d>",
+		log.Warningf("read option is too slow, key=<%s>, cost=<%d>",
 			key,
 			cost)
 	}

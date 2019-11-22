@@ -327,14 +327,14 @@ func (p *defaultProphet) startListen() {
 	go func() {
 		err := p.tcpL.Start(p.doConnection)
 		if err != nil {
-			log.Fatalf("prophet: rpc listen at %s failed, errors:\n%+v",
+			log.Fatalf("rpc listen at %s failed, errors:\n%+v",
 				p.node.Addr,
 				err)
 		}
 	}()
 
 	<-p.tcpL.Started()
-	log.Infof("prophet: start rpc listen at %s", p.node.Addr)
+	log.Infof("start rpc listen at %s", p.node.Addr)
 }
 
 func (p *defaultProphet) doConnection(conn goetty.IOSession) error {
@@ -383,11 +383,11 @@ func (p *defaultProphet) getLeaderClient() goetty.IOSession {
 
 		conn, err := p.createLeaderClient(addr)
 		if err == nil {
-			log.Infof("prophet: create leader connection to %s", addr)
+			log.Infof("create leader connection to %s", addr)
 			return conn
 		}
 
-		log.Errorf("prophet: create leader connection failed, errors: %+v", err)
+		log.Errorf("create leader connection failed, errors: %+v", err)
 		time.Sleep(time.Second)
 	}
 }

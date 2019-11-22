@@ -138,7 +138,7 @@ func AddRaftProposalConfChangeCount(value uint64) {
 
 // AddRaftAdminCommandConfChangeCount admin command of conf change
 func AddRaftAdminCommandConfChangeCount(value uint64) {
-	raftAdminCommandCounter.WithLabelValues("conf").Add(float64(value))
+	raftAdminCommandCounter.WithLabelValues("conf", "total").Add(float64(value))
 }
 
 // AddRaftAdminCommandConfChangeSucceedCount admin command of conf change succeed
@@ -153,7 +153,7 @@ func AddRaftAdminCommandConfChangeRejectCount(value uint64) {
 
 // AddRaftAdminCommandSplitCount admin command of split shard
 func AddRaftAdminCommandSplitCount(value uint64) {
-	raftAdminCommandCounter.WithLabelValues("split").Add(float64(value))
+	raftAdminCommandCounter.WithLabelValues("split", "total").Add(float64(value))
 }
 
 // AddRaftAdminCommandSplitSucceedCount admin command of split shard succeed
@@ -163,7 +163,7 @@ func AddRaftAdminCommandSplitSucceedCount(value uint64) {
 
 // AddRaftAdminCommandCompactCount admin command of compact raft log
 func AddRaftAdminCommandCompactCount(value uint64) {
-	raftAdminCommandCounter.WithLabelValues("compact").Add(float64(value))
+	raftAdminCommandCounter.WithLabelValues("compact", "succeed").Add(float64(value))
 }
 
 // AddRaftAdminCommandCompactSucceedCount admin command of compact raft log succeed

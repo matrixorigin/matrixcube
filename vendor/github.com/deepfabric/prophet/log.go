@@ -70,5 +70,5 @@ func init() {
 // SetLogger set the log for prophet
 func SetLogger(l Logger) {
 	log = l
-	log.Infof("prophet: logger set")
+	log.Infof("logger set")
 }

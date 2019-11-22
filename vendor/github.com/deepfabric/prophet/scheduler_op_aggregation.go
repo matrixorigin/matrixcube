@@ -17,7 +17,7 @@ type aggregationOperator struct {
 
 func newAggregationOp(cfg *Cfg, target *ResourceRuntime, ops ...Operator) Operator {
 	if len(ops) == 0 {
-		log.Fatal("prophet: create new resource aggregation operator use empty opts")
+		log.Fatal("create new resource aggregation operator use empty opts")
 	}
 
 	return &aggregationOperator{
@@ -42,7 +42,7 @@ func (op *aggregationOperator) ResourceKind() ResourceKind {
 
 func (op *aggregationOperator) Do(target *ResourceRuntime) (*resourceHeartbeatRsp, bool) {
 	if time.Since(op.StartAt) > op.cfg.TimeoutWaitOperatorComplete {
-		log.Errorf("prophet: operator %s timeout", op)
+		log.Errorf("operator %s timeout", op)
 		return nil, true
 	}
 

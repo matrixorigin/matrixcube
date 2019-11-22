@@ -63,7 +63,7 @@ func (p *defaultProphet) doResourceHeartbeatLoop() {
 				if err != nil {
 					conn.Close()
 					conn = nil
-					log.Errorf("prophet: send resource heartbeat failed, errors: %+v", err)
+					log.Errorf("send resource heartbeat failed, errors: %+v", err)
 					break
 				}
 
@@ -72,16 +72,16 @@ func (p *defaultProphet) doResourceHeartbeatLoop() {
 				if err != nil {
 					conn.Close()
 					conn = nil
-					log.Errorf("prophet: read heartbeat rsp failed, errors: %+v", err)
+					log.Errorf("read heartbeat rsp failed, errors: %+v", err)
 					break
 				}
 
-				log.Debugf("prophet: read rpc response (%T)%+v", msg, msg)
+				log.Debugf("read rpc response (%T)%+v", msg, msg)
 
 				if rsp, ok := msg.(*errorRsp); ok {
 					conn.Close()
 					conn = nil
-					log.Infof("prophet: read heartbeat rsp with error %s", rsp.Err)
+					log.Infof("read heartbeat rsp with error %s", rsp.Err)
 					break
 				} else if rsp, ok := msg.(*resourceHeartbeatRsp); ok {
 					if rsp.NewLeader != nil {
@@ -124,7 +124,7 @@ func (p *defaultProphet) startContainerHeartbeatLoop() {
 				if err != nil {
 					conn.Close()
 					conn = nil
-					log.Errorf("prophet: send container heartbeat failed, errors: %+v", err)
+					log.Errorf("send container heartbeat failed, errors: %+v", err)
 					continue
 				}
 
@@ -133,14 +133,14 @@ func (p *defaultProphet) startContainerHeartbeatLoop() {
 				if err != nil {
 					conn.Close()
 					conn = nil
-					log.Errorf("prophet: read container rsp failed, errors: %+v", err)
+					log.Errorf("read container rsp failed, errors: %+v", err)
 					continue
 				}
 
 				if rsp, ok := msg.(*errorRsp); ok {
 					conn.Close()
 					conn = nil
-					log.Infof("prophet: read container rsp with error %s", rsp.Err)
+					log.Infof("read container rsp with error %s", rsp.Err)
 				}
 			}
 		}

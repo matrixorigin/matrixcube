@@ -215,7 +215,7 @@ func (wn *watcherNotifier) onEvent(evt *EventNotify) {
 }
 
 func (wn *watcherNotifier) onInitWatcher(msg *InitWatcher, conn goetty.IOSession) {
-	log.Infof("prophet: new watcher %s added", conn.RemoteIP())
+	log.Infof("new watcher %s added", conn.RemoteIP())
 	snap := wn.rt.snap()
 
 	wn.Lock()
@@ -225,14 +225,14 @@ func (wn *watcherNotifier) onInitWatcher(msg *InitWatcher, conn goetty.IOSession
 		if MatchEvent(EventInit, msg.Flag) {
 			nt, err := newInitEvent(snap)
 			if err != nil {
-				log.Errorf("prophet: marshal init notify failed, errors:%+v", err)
+				log.Errorf("marshal init notify failed, errors:%+v", err)
 				conn.Close()
 				return
 			}
 
 			err = conn.WriteAndFlush(nt)
 			if err != nil {
-				log.Errorf("prophet: notify to %s failed, errors:%+v",
+				log.Errorf("notify to %s failed, errors:%+v",
 					conn.RemoteIP(),
 					err)
 				conn.Close()
@@ -249,7 +249,7 @@ func (wn *watcherNotifier) onInitWatcher(msg *InitWatcher, conn goetty.IOSession
 
 func (wn *watcherNotifier) clearWatcher(conn goetty.IOSession) {
 	wn.Lock()
-	log.Infof("prophet: clear watcher %s", conn.RemoteIP())
+	log.Infof("clear watcher %s", conn.RemoteIP())
 	wn.watchers.Delete(conn.ID())
 	wn.Unlock()
 }
@@ -264,18 +264,18 @@ func (wn *watcherNotifier) stop() {
 		return true
 	})
 	wn.Unlock()
-	log.Infof("prophet: watcher notifyer stopped")
+	log.Infof("watcher notifyer stopped")
 }
 
 func (wn *watcherNotifier) start() {
 	for {
 		evt, ok := <-wn.eventC
 		if !ok {
-			log.Infof("prophet: watcher notifer exited")
+			log.Infof("watcher notifer exited")
 			return
 		}
 
-		log.Debugf("prophet: new event: %+v", evt)
+		log.Debugf("new event: %+v", evt)
 		wn.watchers.Range(func(key, value interface{}) bool {
 			wt := value.(*watcher)
 			wt.notify(evt)

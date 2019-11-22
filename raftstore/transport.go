@@ -46,8 +46,8 @@ func newTransport(store *store) Transport {
 			goetty.WithServerIDGenerator(goetty.NewUUIDV4IdGenerator())),
 		raftMsgs: make([]*task.Queue, store.opts.sendRaftMsgWorkerCount, store.opts.sendRaftMsgWorkerCount),
 		raftMask: uint64(store.opts.sendRaftMsgWorkerCount - 1),
-		snapMsgs: make([]*task.Queue, store.opts.sendSnapshotMsgWorkerCount, store.opts.sendSnapshotMsgWorkerCount),
-		snapMask: uint64(store.opts.sendSnapshotMsgWorkerCount - 1),
+		snapMsgs: make([]*task.Queue, store.opts.maxConcurrencySnapChunks, store.opts.maxConcurrencySnapChunks),
+		snapMask: uint64(store.opts.maxConcurrencySnapChunks - 1),
 	}
 	t.resolverFunc = t.resolverStoreAddr
 	return t
@@ -59,7 +59,7 @@ func (t *transport) Start() {
 		go t.readyToSendRaft(t.raftMsgs[i])
 	}
 
-	for i := 0; i < t.store.opts.sendSnapshotMsgWorkerCount; i++ {
+	for i := 0; i < t.store.opts.maxConcurrencySnapChunks; i++ {
 		t.snapMsgs[i] = &task.Queue{}
 		go t.readyToSendSnapshots(t.snapMsgs[i])
 	}
@@ -313,7 +313,7 @@ func (t *transport) checkConnect(id uint64, conn goetty.IOSession) bool {
 
 	ok, err := conn.Connect()
 	if err != nil {
-		logger.Errorf("connect to store %d",
+		logger.Errorf("connect to store %d failed with %+v",
 			id,
 			err)
 		return false

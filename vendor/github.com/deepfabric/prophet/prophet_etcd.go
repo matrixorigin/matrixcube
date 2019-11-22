@@ -102,29 +102,29 @@ func initWithEmbedEtcd(ecfg *EmbeddedEtcdCfg, opts *options) {
 
 	err := prepareJoin(ecfg)
 	if err != nil {
-		log.Fatalf("prophet: prepare join embed etcd failed with %+v",
+		log.Fatalf("prepare join embed etcd failed with %+v",
 			err)
 	}
 
-	log.Info("prophet: start embed etcd")
+	log.Info("start embed etcd")
 	cfg, err := ecfg.getEmbedEtcdConfig()
 	if err != nil {
-		log.Fatalf("prophet: start embed etcd failed with %+v",
+		log.Fatalf("start embed etcd failed with %+v",
 			err)
 	}
 
 	etcd, err := embed.StartEtcd(cfg)
 	if err != nil {
-		log.Fatalf("prophet: start embed etcd failed with %+v",
+		log.Fatalf("start embed etcd failed with %+v",
 			err)
 	}
 
 	select {
 	case <-etcd.Server.ReadyNotify():
-		log.Info("prophet: embed etcd is ready")
+		log.Info("embed etcd is ready")
 		doAfterEmbedEtcdServerReady(etcd, cfg, ecfg, opts)
 	case <-time.After(time.Minute * 5):
-		log.Fatalf("prophet: start embed etcd timeout")
+		log.Fatalf("start embed etcd timeout")
 	}
 }
 
@@ -132,13 +132,13 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 	checkEtcdCluster(etcd, ecfg)
 
 	id := uint64(etcd.Server.ID())
-	log.Infof("prophet: embed server ids, current %X, leader %X",
+	log.Infof("embed server ids, current %X, leader %X",
 		id,
 		etcd.Server.Leader())
 
 	client, err := initEtcdClient(ecfg)
 	if err != nil {
-		log.Fatalf("prophet: init embed etcd client failure, errors:\n %+v",
+		log.Fatalf("init embed etcd client failure, errors:\n %+v",
 			err)
 	}
 
@@ -149,7 +149,7 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 		// all etcds in initial_cluster at same time, so here just log
 		// an error.
 		// Note that pd can not work correctly if we don't start all etcds.
-		log.Fatalf("prophet: etcd start failure, errors:\n%+v", err)
+		log.Fatalf("etcd start failure, errors:\n%+v", err)
 	}
 
 	opts.client = client
@@ -158,7 +158,7 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 		for {
 			members, err := getCurrentClusterMembers(client)
 			if err != nil {
-				log.Fatalf("prophet: get current members of etcd cluster failed with %+v", err)
+				log.Fatalf("get current members of etcd cluster failed with %+v", err)
 			}
 
 			var eps []string
@@ -166,7 +166,7 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 				eps = append(eps, m.GetClientURLs()...)
 			}
 			client.SetEndpoints(eps...)
-			log.Debugf("prophet: etcd client endpoints set to %+v", eps)
+			log.Debugf("etcd client endpoints set to %+v", eps)
 
 			time.Sleep(time.Second * 10)
 		}
@@ -179,7 +179,7 @@ func initEtcdClient(ecfg *EmbeddedEtcdCfg) (*clientv3.Client, error) {
 		clientAddrs = strings.Split(ecfg.Join, ",")
 	}
 
-	log.Infof("prophet: create etcd v3 client with endpoints <%v>", clientAddrs)
+	log.Infof("create etcd v3 client with endpoints <%v>", clientAddrs)
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   clientAddrs,
@@ -195,14 +195,14 @@ func initEtcdClient(ecfg *EmbeddedEtcdCfg) (*clientv3.Client, error) {
 func updateAdvertisePeerUrls(id uint64, client *clientv3.Client, cfg *EmbeddedEtcdCfg) {
 	members, err := getCurrentClusterMembers(client)
 	if err != nil {
-		log.Fatalf("prophet: update current members of etcd cluster")
+		log.Fatalf("update current members of etcd cluster")
 	}
 
 	for _, m := range members.Members {
 		if id == m.ID {
 			etcdPeerURLs := strings.Join(m.PeerURLs, ",")
 			if cfg.URLsAdvertisePeer != etcdPeerURLs {
-				log.Infof("prophet: update advertise peer urls from <%s> to <%s>",
+				log.Infof("update advertise peer urls from <%s> to <%s>",
 					cfg.URLsAdvertisePeer,
 					etcdPeerURLs)
 				cfg.URLsAdvertisePeer = etcdPeerURLs
@@ -237,7 +237,7 @@ func endpointStatus(cfg *embed.Config, c *clientv3.Client) (*clientv3.StatusResp
 	cancel()
 
 	if cost := time.Since(start); cost > DefaultSlowRequestTime {
-		log.Warningf("prophet: check etcd status failed, endpoint=<%s> resp=<%+v> cost<%s> errors:\n %+v",
+		log.Warningf("check etcd status failed, endpoint=<%s> resp=<%+v> cost<%s> errors:\n %+v",
 			endpoint,
 			resp,
 			cost,
@@ -250,13 +250,13 @@ func endpointStatus(cfg *embed.Config, c *clientv3.Client) (*clientv3.StatusResp
 func checkEtcdCluster(etcd *embed.Etcd, cfg *EmbeddedEtcdCfg) {
 	um, err := types.NewURLsMap(cfg.InitialCluster)
 	if err != nil {
-		log.Fatalf("prophet: check embed etcd failure, errors:\n %+v",
+		log.Fatalf("check embed etcd failure, errors:\n %+v",
 			err)
 	}
 
 	err = checkClusterID(etcd.Server.Cluster().ID(), um)
 	if err != nil {
-		log.Fatalf("prophet: check embed etcd failure, errors:\n %+v",
+		log.Fatalf("check embed etcd failure, errors:\n %+v",
 			err)
 	}
 }

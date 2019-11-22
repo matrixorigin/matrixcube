@@ -38,7 +38,7 @@ func (rc *Runtime) load() {
 		rc.resources[meta.ID()] = newResourceRuntime(meta, nil)
 	})
 	if err != nil {
-		log.Fatalf("prophet: load resources failed, errors:%+v", err)
+		log.Fatalf("load resources failed, errors:%+v", err)
 	}
 
 	err = rc.p.store.LoadContainers(batchLimit, func(meta Container) {
@@ -48,7 +48,7 @@ func (rc *Runtime) load() {
 		rc.containers[meta.ID()] = newContainerRuntime(meta)
 	})
 	if err != nil {
-		log.Fatalf("prophet: load containers failed, errors:%+v", err)
+		log.Fatalf("load containers failed, errors:%+v", err)
 	}
 }
 
@@ -163,7 +163,7 @@ func (rc *Runtime) getResourceWithoutLock(id uint64) *ResourceRuntime {
 func randResource(resources map[uint64]*ResourceRuntime) *ResourceRuntime {
 	for _, res := range resources {
 		if res.leaderPeer == nil {
-			log.Fatalf("prophet: rand resource %d without leader", res.meta.ID())
+			log.Fatalf("rand resource %d without leader", res.meta.ID())
 		}
 
 		if len(res.downPeers) > 0 {

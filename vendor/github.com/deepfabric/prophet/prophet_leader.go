@@ -22,7 +22,7 @@ func mustUnmarshal(data []byte) *Node {
 	value := &Node{}
 	err := json.Unmarshal(data, value)
 	if err != nil {
-		log.Fatalf("prophet: unmarshal leader node failed with %+v", err)
+		log.Fatalf("unmarshal leader node failed with %+v", err)
 	}
 
 	return value
@@ -48,7 +48,7 @@ func (p *defaultProphet) startLeaderLoop() {
 }
 
 func (p *defaultProphet) enableLeader() {
-	log.Infof("prophet: ********become to leader now********")
+	log.Infof("********become to leader now********")
 	p.leader = p.node
 
 	p.rt = newRuntime(p)
@@ -69,11 +69,11 @@ func (p *defaultProphet) enableLeader() {
 
 func (p *defaultProphet) disableLeader() {
 	atomic.StoreInt64(&p.leaderFlag, 0)
-	log.Infof("prophet: ********become to follower now********")
+	log.Infof("********become to follower now********")
 
 	value, err := p.elector.CurrentLeader(math.MaxUint64)
 	if err != nil {
-		log.Fatalf("prophet: get current leader failed with %+v", err)
+		log.Fatalf("get current leader failed with %+v", err)
 	}
 	p.leader = nil
 	if len(value) > 0 {

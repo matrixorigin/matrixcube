@@ -49,7 +49,7 @@ func (rc *Runtime) handleResource(source *ResourceRuntime) error {
 	if current.leaderPeer == nil ||
 		(current.leaderPeer != nil &&
 			current.leaderPeer.ID != source.leaderPeer.ID) {
-		log.Infof("prophet: resource %d leader changed to peer %d",
+		log.Infof("resource %d leader changed to peer %d",
 			current.meta.ID(),
 			source.leaderPeer.ID)
 		rc.p.notifyEvent(newLeaderChangerEvent(source.meta.ID(), source.leaderPeer.ID))

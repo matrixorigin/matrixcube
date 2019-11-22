@@ -1,0 +1,26 @@
+# The beehive example configuration
+
+# The node name in the cluster
+name = "node-1"
+
+# The RPC address to serve requests
+raftAddr = "127.0.0.1:10001"
+
+# The RPC address to serve requests
+rpcAddr = "127.0.0.1:10002"
+
+[prophet]
+# The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
+rpcAddr = "127.0.0.1:9527"
+
+# Store cluster metedata
+storeMetadata = true
+
+# The embed etcd client address, required while storeMetadata is true
+clientAddr = "127.0.0.1:2371"
+
+# The embed etcd peer address, required while storeMetadata is true
+peerAddr = "127.0.0.1:2381"
+
+# The cluster seed node, to join the cluster, required while storeMetadata is true and current node is not seed node
+seed = "127.0.0.1:2371"
