@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	logger = log.NewLoggerWithPrefix("[beehive-redis-server]")
+	logger = log.NewLoggerWithPrefix("[beehive-app]")
 
 	// ErrTimeout timeout error
 	ErrTimeout = errors.New("Exec timeout")
@@ -39,10 +39,12 @@ func NewApplication(cfg Cfg) *Application {
 		cfg: cfg,
 	}
 
-	decoder, encoder := cfg.Handler.Codec()
-	s.server = goetty.NewServer(cfg.Addr,
-		goetty.WithServerDecoder(decoder),
-		goetty.WithServerEncoder(encoder))
+	if !cfg.ExternalServer {
+		decoder, encoder := cfg.Handler.Codec()
+		s.server = goetty.NewServer(cfg.Addr,
+			goetty.WithServerDecoder(decoder),
+			goetty.WithServerEncoder(encoder))
+	}
 	return s
 }
 
@@ -55,6 +57,12 @@ func (s *Application) Start() error {
 	}
 
 	s.shardsProxy = sp
+	if s.cfg.ExternalServer {
+		logger.Infof("using external server, ignore embed tcp server")
+		return nil
+	}
+
+	logger.Infof("start embed tcp server")
 	errorC := make(chan error)
 	go func() {
 		errorC <- s.server.Start(s.doConnection)
@@ -70,6 +78,9 @@ func (s *Application) Start() error {
 
 // Stop stop redis server
 func (s *Application) Stop() {
+	if s.cfg.ExternalServer {
+		return
+	}
 	s.server.Stop()
 }
 
