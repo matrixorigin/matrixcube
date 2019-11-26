@@ -107,6 +107,9 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 				pr.shardID)
 			pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
 			pr.resetBatch()
+			pr.store.opts.shardStateAware.BecomeLeader(pr.shardID)
+		} else {
+			pr.store.opts.shardStateAware.BecomeFollower(pr.shardID)
 		}
 	}
 

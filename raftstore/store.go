@@ -20,6 +20,20 @@ import (
 	"github.com/fagongzi/util/task"
 )
 
+// ShardStateAware shard state aware
+type ShardStateAware interface {
+	// Created the shard was created on the current store
+	Created(uint64)
+	// Splited the shard was splited on the current store
+	Splited(uint64)
+	// Destory the shard was destoryed on the current store
+	Destory(uint64)
+	// BecomeLeader the shard was become leader on the current store
+	BecomeLeader(uint64)
+	// BecomeLeader the shard was become follower on the current store
+	BecomeFollower(uint64)
+}
+
 // CommandWriteBatch command write batch
 type CommandWriteBatch interface {
 	// Add add a request to this batch, returns true if it can be executed in this batch,
@@ -129,6 +143,10 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 	s.rpc = s.opts.rpc
 	if s.rpc == nil {
 		s.rpc = newRPC(s)
+	}
+
+	if s.opts.shardStateAware == nil {
+		s.opts.shardStateAware = s
 	}
 
 	s.readHandlers = make(map[uint64]ReadCommandFunc)

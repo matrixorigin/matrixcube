@@ -84,6 +84,7 @@ type options struct {
 	rpc                           RPC
 	cleanDataFunc                 func(uint64) error
 	writeBatchFunc                func() CommandWriteBatch
+	shardStateAware               ShardStateAware
 
 	prophetOptions []prophet.Option
 }
@@ -471,5 +472,13 @@ func WithRPC(value RPC) Option {
 func WithProphetOptions(value ...prophet.Option) Option {
 	return func(opts *options) {
 		opts.prophetOptions = value
+	}
+}
+
+// WithShardStateAware set shard state aware, the application will received shard event like:
+// create, destory, become leader, become follower and so on.
+func WithShardStateAware(value ShardStateAware) Option {
+	return func(opts *options) {
+		opts.shardStateAware = value
 	}
 }

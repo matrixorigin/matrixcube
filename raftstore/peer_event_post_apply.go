@@ -84,7 +84,7 @@ func (pr *peerReplica) doPostApplyResult(result *asyncApplyResult) {
 	case raftcmdpb.Split:
 		pr.doApplySplit(result.result.splitResult)
 	case raftcmdpb.CompactRaftLog:
-		pr.doApplyRaftLogGC(result.result.raftGCResult)
+		pr.doApplyCompactRaftLog(result.result.raftGCResult)
 	}
 }
 
@@ -198,13 +198,14 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		}
 	}
 
+	pr.store.opts.shardStateAware.Splited(pr.shardID)
 	logger.Infof("shard %d new shard added, left=<%+v> right=<%+v>",
 		pr.shardID,
 		result.left,
 		result.right)
 }
 
-func (pr *peerReplica) doApplyRaftLogGC(result *raftGCResult) {
+func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
 	total := pr.ps.lastReadyIndex - result.firstIndex
 	remain := pr.ps.lastReadyIndex - result.state.Index - 1
 	pr.raftLogSizeHint = pr.raftLogSizeHint * remain / total
