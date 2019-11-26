@@ -166,6 +166,9 @@ func (s *Application) doConnection(conn goetty.IOSession) error {
 		}
 
 		req := pb.AcquireRequest()
+		req.ID = uuid.NewV4().Bytes()
+		req.SID = rs.ID.(int64)
+
 		err = s.cfg.Handler.BuildRequest(req, cmd)
 		if err != nil {
 			resp := &raftcmdpb.Response{}
@@ -174,9 +177,6 @@ func (s *Application) doConnection(conn goetty.IOSession) error {
 			pb.ReleaseRequest(req)
 			continue
 		}
-
-		req.ID = uuid.NewV4().Bytes()
-		req.SID = rs.ID.(int64)
 
 		err = s.shardsProxy.Dispatch(req)
 		if err != nil {
