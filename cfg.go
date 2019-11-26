@@ -93,8 +93,10 @@ func (c *cfg) getLabels() []metapb.Label {
 }
 
 // CreateRaftStoreFromFile create raftstore from a toml configuration file.
-func CreateRaftStoreFromFile(dataPath string, metadataStorages []storage.MetadataStorage,
-	dataStorages []storage.DataStorage) (raftstore.Store, error) {
+func CreateRaftStoreFromFile(dataPath string,
+	metadataStorages []storage.MetadataStorage,
+	dataStorages []storage.DataStorage,
+	opts ...raftstore.Option) (raftstore.Store, error) {
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -118,9 +120,7 @@ func CreateRaftStoreFromFile(dataPath string, metadataStorages []storage.Metadat
 		return nil, errors.New("rpc address is required")
 	}
 
-	var opts []raftstore.Option
 	opts = append(opts, raftstore.WithDataPath(c.DataPath))
-
 	if len(c.Labels) != 0 {
 		opts = append(opts, raftstore.WithLabels(c.LocationLabels, c.getLabels()))
 	}
