@@ -23,15 +23,15 @@ import (
 // ShardStateAware shard state aware
 type ShardStateAware interface {
 	// Created the shard was created on the current store
-	Created(uint64)
+	Created(metapb.Shard)
 	// Splited the shard was splited on the current store
-	Splited(uint64)
+	Splited(metapb.Shard)
 	// Destory the shard was destoryed on the current store
-	Destory(uint64)
+	Destory(metapb.Shard)
 	// BecomeLeader the shard was become leader on the current store
-	BecomeLeader(uint64)
+	BecomeLeader(metapb.Shard)
 	// BecomeLeader the shard was become follower on the current store
-	BecomeFollower(uint64)
+	BecomeFollower(metapb.Shard)
 }
 
 // CommandWriteBatch command write batch

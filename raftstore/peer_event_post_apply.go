@@ -198,7 +198,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		}
 	}
 
-	pr.store.opts.shardStateAware.Splited(pr.shardID)
+	pr.store.opts.shardStateAware.Splited(pr.ps.shard)
 	logger.Infof("shard %d new shard added, left=<%+v> right=<%+v>",
 		pr.shardID,
 		result.left,
