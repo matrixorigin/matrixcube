@@ -127,7 +127,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 			pr.shardID)
 	}
 
-	pr.store.opts.shardStateAware.Created(pr.shardID)
+	pr.store.opts.shardStateAware.Created(pr.ps.shard)
 
 	id, _ := store.runner.RunCancelableTask(pr.readyToServeRaft)
 	pr.cancelTaskIds = append(pr.cancelTaskIds, id)
@@ -210,7 +210,7 @@ func (pr *peerReplica) mustDestroy() {
 	}
 
 	pr.store.replicas.Delete(pr.shardID)
-	pr.store.opts.shardStateAware.Destory(pr.shardID)
+	pr.store.opts.shardStateAware.Destory(pr.ps.shard)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
 }
