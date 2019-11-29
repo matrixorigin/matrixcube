@@ -1,21 +1,25 @@
 package raftstore
 
-func (s *store) Created(id uint64) {
+import (
+	"github.com/deepfabric/beehive/pb/metapb"
+)
+
+func (s *store) Created(metapb.Shard) {
 
 }
 
-func (s *store) Splited(uint64) {
+func (s *store) Splited(metapb.Shard) {
 
 }
 
-func (s *store) Destory(uint64) {
+func (s *store) Destory(metapb.Shard) {
 
 }
 
-func (s *store) BecomeLeader(uint64) {
+func (s *store) BecomeLeader(metapb.Shard) {
 
 }
 
-func (s *store) BecomeFollower(uint64) {
+func (s *store) BecomeFollower(metapb.Shard) {
 
 }
