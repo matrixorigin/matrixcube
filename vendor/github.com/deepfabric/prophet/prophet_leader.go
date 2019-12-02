@@ -73,7 +73,7 @@ func (p *defaultProphet) disableLeader() {
 
 	value, err := p.elector.CurrentLeader(math.MaxUint64)
 	if err != nil {
-		log.Fatalf("get current leader failed with %+v", err)
+		log.Errorf("get current leader failed with %+v", err)
 	}
 	p.leader = nil
 	if len(value) > 0 {
