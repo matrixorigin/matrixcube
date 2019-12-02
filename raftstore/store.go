@@ -73,6 +73,8 @@ type Store interface {
 	MetadataStorage(uint64) storage.MetadataStorage
 	// DataStorage returns a DataStorage of the shard
 	DataStorage(uint64) storage.DataStorage
+	// MaybeLeader returns the shard replica maybe leader
+	MaybeLeader(uint64) bool
 }
 
 const (
@@ -230,6 +232,10 @@ func (s *store) MetadataStorage(id uint64) storage.MetadataStorage {
 
 func (s *store) DataStorage(id uint64) storage.DataStorage {
 	return s.cfg.DataStorages[id&s.dataMask]
+}
+
+func (s *store) MaybeLeader(shard uint64) bool {
+	return nil != s.getPR(shard, true)
 }
 
 func (s *store) initWorkers() {
