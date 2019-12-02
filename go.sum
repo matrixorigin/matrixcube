@@ -43,6 +43,8 @@ github.com/deepfabric/prophet v0.0.0-20191120112958-71b39b7f9e54 h1:IPetLBrLFS3o
 github.com/deepfabric/prophet v0.0.0-20191120112958-71b39b7f9e54/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
 github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867 h1:XG8H4DmPG19Pt5MWNnUxobCEK2ADrYiawj/LE5rTU9A=
 github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
+github.com/deepfabric/prophet v0.0.0-20191202024249-7984727ef27b h1:g9PDB02FxFbwav7InsRLsgpUFZtdh7RsdqPbnlX9Lf0=
+github.com/deepfabric/prophet v0.0.0-20191202024249-7984727ef27b/go.mod h1:OiX6SYbopP++GWhjoXNxRu/tlS/soy3wu92yS2AtGlU=
 github.com/dgraph-io/badger v1.6.0 h1:DshxFxZWXUcO0xX476VJC07Xsr6ZCBVRHKZ93Oh7Evo=
 github.com/dgraph-io/badger v1.6.0/go.mod h1:zwt7syl517jmP8s94KqSxTlM6IMsdhYy6psNgSztDR4=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=

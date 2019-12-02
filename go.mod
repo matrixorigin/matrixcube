@@ -8,7 +8,7 @@ require (
 	github.com/coreos/etcd v3.3.17+incompatible
 	github.com/deepfabric/c-nemo v0.0.0-20190419083223-23fa413d9df4 // indirect
 	github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6
-	github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867
+	github.com/deepfabric/prophet v0.0.0-20191202024249-7984727ef27b
 	github.com/dgraph-io/badger v1.6.0
 	github.com/fagongzi/goetty v1.3.2
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
