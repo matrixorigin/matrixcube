@@ -1,6 +1,7 @@
 package prophet
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -38,6 +39,8 @@ type Adapter interface {
 type Prophet interface {
 	// Start start the prophet instance, this will start the lead election, heartbeat loop and listen requests
 	Start()
+	// Stop stop the prophet instance
+	Stop()
 	// GetStore returns the Store
 	GetStore() Store
 	// GetRPC returns the RPC client
@@ -106,7 +109,6 @@ func NewProphet(name string, adapter Adapter, opts ...Option) Prophet {
 	return p
 }
 
-// Start start the prophet
 func (p *defaultProphet) Start() {
 	p.startListen()
 	p.startLeaderLoop()
@@ -114,17 +116,24 @@ func (p *defaultProphet) Start() {
 	p.startContainerHeartbeatLoop()
 }
 
-// GetStore returns the store
+func (p *defaultProphet) Stop() {
+	p.tcpL.Stop()
+	p.runner.Stop()
+	p.elector.Stop(math.MaxUint64)
+	p.opts.client.Close()
+	if p.opts.etcd != nil {
+		p.opts.etcd.Close()
+	}
+}
+
 func (p *defaultProphet) GetStore() Store {
 	return p.store
 }
 
-// GetRPC returns the rpc interface
 func (p *defaultProphet) GetRPC() RPC {
 	return p.rpc
 }
 
-// GetEtcdClient return etcd client for reuse
 func (p *defaultProphet) GetEtcdClient() *clientv3.Client {
 	return p.opts.client
 }

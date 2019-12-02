@@ -153,24 +153,7 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 	}
 
 	opts.client = client
-	// update client endpoint
-	go func() {
-		for {
-			members, err := getCurrentClusterMembers(client)
-			if err != nil {
-				log.Fatalf("get current members of etcd cluster failed with %+v", err)
-			}
-
-			var eps []string
-			for _, m := range members.Members {
-				eps = append(eps, m.GetClientURLs()...)
-			}
-			client.SetEndpoints(eps...)
-			log.Debugf("etcd client endpoints set to %+v", eps)
-
-			time.Sleep(time.Second * 10)
-		}
-	}()
+	opts.etcd = etcd
 }
 
 func initEtcdClient(ecfg *EmbeddedEtcdCfg) (*clientv3.Client, error) {
@@ -182,8 +165,9 @@ func initEtcdClient(ecfg *EmbeddedEtcdCfg) (*clientv3.Client, error) {
 	log.Infof("create etcd v3 client with endpoints <%v>", clientAddrs)
 
 	client, err := clientv3.New(clientv3.Config{
-		Endpoints:   clientAddrs,
-		DialTimeout: DefaultTimeout,
+		Endpoints:        clientAddrs,
+		DialTimeout:      DefaultTimeout,
+		AutoSyncInterval: time.Second,
 	})
 	if err != nil {
 		return nil, err

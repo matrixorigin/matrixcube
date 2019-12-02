@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/embed"
 )
 
 var (
@@ -103,6 +104,7 @@ func ParseProphetOptions(name string) []Option {
 }
 
 type options struct {
+	etcd   *embed.Etcd
 	client *clientv3.Client
 	cfg    *Cfg
 }
