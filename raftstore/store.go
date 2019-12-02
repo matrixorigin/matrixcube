@@ -179,7 +179,14 @@ func (s *store) Start() {
 }
 
 func (s *store) Stop() {
+	s.foreachPR(func(pr *peerReplica) bool {
+		pr.stopEventLoop()
+		return true
+	})
+
 	s.runner.Stop()
+	s.trans.Stop()
+	s.rpc.Stop()
 	s.pd.Stop()
 }
 
