@@ -195,15 +195,6 @@ func (pr *peerReplica) mustDestroy() {
 		pr.store.runner.StopCancelableTask(id)
 	}
 
-	if pr.store.opts.cleanDataFunc != nil {
-		err = pr.store.opts.cleanDataFunc(pr.shardID)
-		if err != nil {
-			logger.Fatalf("shard %d destory handler failed with %+v",
-				pr.shardID,
-				err)
-		}
-	}
-
 	if pr.ps.isInitialized() && !pr.store.keyRanges.Remove(pr.ps.shard) {
 		logger.Fatalf("shard %d remove key range  failed",
 			pr.shardID)

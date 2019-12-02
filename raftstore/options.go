@@ -82,7 +82,6 @@ type options struct {
 	snapshotManager               SnapshotManager
 	trans                         Transport
 	rpc                           RPC
-	cleanDataFunc                 func(uint64) error
 	writeBatchFunc                func() CommandWriteBatch
 	shardStateAware               ShardStateAware
 
@@ -426,13 +425,6 @@ func WithSnapshotManager(value SnapshotManager) Option {
 func WithTransport(value Transport) Option {
 	return func(opts *options) {
 		opts.trans = value
-	}
-}
-
-// WithCleanDataFunc the handler funcation to clean the shard's data
-func WithCleanDataFunc(value func(uint64) error) Option {
-	return func(opts *options) {
-		opts.cleanDataFunc = value
 	}
 }
 
