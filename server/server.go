@@ -115,6 +115,8 @@ func (s *Application) AsyncExec(cmd interface{}, cb func([]byte, error)) {
 // AsyncExecWithTimeout async exec the request, if the err is ErrTimeout means the request is timeout
 func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func([]byte, error), timeout time.Duration) {
 	req := pb.AcquireRequest()
+	req.ID = uuid.NewV4().Bytes()
+
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
 		cb(nil, err)
@@ -122,7 +124,6 @@ func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func([]byte, erro
 		return
 	}
 
-	req.ID = uuid.NewV4().Bytes()
 	s.libaryCB.Store(hack.SliceToString(req.ID), cb)
 	if timeout > 0 {
 		util.DefaultTimeoutWheel().Schedule(timeout, s.execTimeout, req.ID)
