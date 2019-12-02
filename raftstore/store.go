@@ -57,6 +57,8 @@ type WriteCommandFunc func(uint64, *raftcmdpb.Request) (uint64, int64, *raftcmdp
 type Store interface {
 	// Start the raft store
 	Start()
+	// Stop the raft store
+	Stop()
 	// Meta returns store meta
 	Meta() metapb.Store
 	// NewRouter returns a new router
