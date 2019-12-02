@@ -228,6 +228,18 @@ func (mr *MockProphetMockRecorder) Start() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockProphet)(nil).Start))
 }
 
+// Stop mocks base method
+func (m *MockProphet) Stop() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Stop")
+}
+
+// Stop indicates an expected call of Stop
+func (mr *MockProphetMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockProphet)(nil).Stop))
+}
+
 // GetStore mocks base method
 func (m *MockProphet) GetStore() Store {
 	m.ctrl.T.Helper()

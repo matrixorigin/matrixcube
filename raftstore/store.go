@@ -176,6 +176,11 @@ func (s *store) Start() {
 	logger.Infof("store start RPC at %s", s.cfg.RPCAddr)
 }
 
+func (s *store) Stop() {
+	s.runner.Stop()
+	s.pd.Stop()
+}
+
 func (s *store) NewRouter() Router {
 	return newRouter(s.pd, s.runner, s.keyConvertFunc)
 }

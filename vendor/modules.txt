@@ -96,7 +96,7 @@ github.com/davecgh/go-spew/spew
 github.com/deepfabric/c-nemo
 # github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6
 github.com/deepfabric/go-nemo
-# github.com/deepfabric/prophet v0.0.0-20191122065738-5fa142e32867
+# github.com/deepfabric/prophet v0.0.0-20191202024249-7984727ef27b
 github.com/deepfabric/prophet
 # github.com/dgraph-io/badger v1.6.0
 github.com/dgraph-io/badger
