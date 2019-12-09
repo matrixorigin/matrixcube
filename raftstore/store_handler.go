@@ -28,7 +28,7 @@ func (s *store) handleSplitCheck() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.isLeader() &&
 			pr.sizeDiffHint >= s.opts.shardSplitCheckBytes {
-			pr.addAction(checkCompactAction)
+			pr.addAction(checkSplitAction)
 		}
 		return true
 	})
