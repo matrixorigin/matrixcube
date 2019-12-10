@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/deepfabric/beehive/pb"
@@ -87,18 +88,20 @@ func (s *Application) Stop() {
 // Exec exec the request command
 func (s *Application) Exec(cmd interface{}, timeout time.Duration) ([]byte, error) {
 	completeC := make(chan interface{}, 1)
-
+	closed := uint32(0)
 	cb := func(resp []byte, err error) {
-		if err != nil {
-			completeC <- err
-		} else {
-			completeC <- resp
+		if atomic.CompareAndSwapUint32(&closed, 0, 1) {
+			if err != nil {
+				completeC <- err
+			} else {
+				completeC <- resp
+			}
+			close(completeC)
 		}
 	}
 
 	s.AsyncExecWithTimeout(cmd, cb, timeout)
 	value := <-completeC
-	close(completeC)
 	switch value.(type) {
 	case error:
 		return nil, value.(error)
