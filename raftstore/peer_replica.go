@@ -241,6 +241,10 @@ func (pr *peerReplica) doExecReadCmd(c *cmd) {
 	c.resp(resp)
 }
 
+func (pr *peerReplica) supportSplit() bool {
+	return !pr.ps.shard.DisableSplit
+}
+
 func (pr *peerReplica) isLeader() bool {
 	return pr.rn.Status().RaftState == raft.StateLeader
 }
