@@ -41,11 +41,12 @@ message ShardEpoch {
 
 // Shard a shard [start,end) of the data
 message Shard {
-             uint64     id    = 1 [(gogoproto.customname) = "ID"];
-             bytes      start = 2;
-             bytes      end   = 3;
-             ShardEpoch epoch = 4 [(gogoproto.nullable) = false];
-    repeated Peer       peers = 5 [(gogoproto.nullable) = false];
+    uint64         id           = 1 [(gogoproto.customname) = "ID"];
+    bytes          start        = 2;
+    bytes          end          = 3;
+    ShardEpoch     epoch        = 4 [(gogoproto.nullable) = false];
+    repeated Peer  peers        = 5 [(gogoproto.nullable) = false];
+    bool           disableSplit = 6;
 }
 
 // Store the host store metadata
