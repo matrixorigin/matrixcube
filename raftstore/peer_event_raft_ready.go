@@ -448,6 +448,7 @@ func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
 	sendMsg := pb.AcquireRaftMessage()
 	sendMsg.ShardID = pr.shardID
 	sendMsg.ShardEpoch = pr.ps.shard.Epoch
+	sendMsg.Group = pr.ps.shard.Group
 
 	sendMsg.From = pr.peer
 	sendMsg.To, _ = pr.store.getPeer(msg.To)
@@ -507,12 +508,12 @@ func (pr *peerReplica) doUpdateKeyRange(result *applySnapResult) {
 			result.prev,
 			result.current)
 		// we have already initialized the peer, so it must exist in shard_ranges.
-		if !pr.store.keyRanges.Remove(result.prev) {
+		if !pr.store.removeShardKeyRange(result.prev) {
 			logger.Fatalf("shard %d shard not exist, shard=<%+v>",
 				pr.shardID,
 				result.prev)
 		}
 	}
 
-	pr.store.keyRanges.Update(result.current)
+	pr.store.updateShardKeyRange(result.current)
 }

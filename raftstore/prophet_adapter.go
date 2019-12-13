@@ -4,11 +4,9 @@ import (
 	"math"
 	"time"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/util/format"
@@ -21,6 +19,7 @@ func (s *store) ProphetBecomeLeader() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
 	})
+	s.startEnsureNewShardsTask()
 }
 
 func (s *store) ProphetBecomeFollower() {
@@ -29,6 +28,7 @@ func (s *store) ProphetBecomeFollower() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
 	})
+	s.stopEnsureNewShardsTask()
 }
 
 func (s *store) doBootstrapCluster() {
@@ -123,53 +123,19 @@ func (s *store) createInitShard(start, end []byte) prophet.Resource {
 		StoreID: s.meta.meta.ID,
 	})
 
-	wb := s.cfg.MetadataStorages[0].NewWriteBatch()
-
-	// shard local state
-	wb.Set(getStateKey(shard.ID), protoc.MustMarshal(&raftpb.ShardLocalState{Shard: shard}))
-
-	// shard raft state
-	raftState := new(raftpb.RaftLocalState)
-	raftState.LastIndex = raftInitLogIndex
-	raftState.HardState = protoc.MustMarshal(&etcdraftpb.HardState{
-		Term:   raftInitLogTerm,
-		Commit: raftInitLogIndex,
-	})
-	wb.Set(getRaftStateKey(shard.ID), protoc.MustMarshal(raftState))
-
-	// shard raft apply state
-	applyState := new(raftpb.RaftApplyState)
-	applyState.AppliedIndex = raftInitLogIndex
-	applyState.TruncatedState = raftpb.RaftTruncatedState{
-		Term:  raftInitLogTerm,
-		Index: raftInitLogIndex,
-	}
-	wb.Set(getApplyStateKey(shard.ID), protoc.MustMarshal(applyState))
-
-	err := s.cfg.MetadataStorages[0].Write(wb, true)
-	if err != nil {
-		logger.Fatalf("create init shard failed, errors:\n %+v", err)
-	}
+	s.mustSaveShards(shard)
 
 	logger.Infof("create init shard %d succeed", shard.ID)
 	return newResourceAdapter(shard)
 }
 
 func (s *store) removeInitShardIfAlreadyBootstrapped(initShards ...prophet.Resource) {
-	wb := s.cfg.MetadataStorages[0].NewWriteBatch()
-
+	var ids []uint64
 	for _, res := range initShards {
-		id := res.ID()
-		wb.Delete(getStateKey(id))
-		wb.Delete(getRaftStateKey(id))
-		wb.Delete(getApplyStateKey(id))
+		ids = append(ids, res.ID())
 	}
 
-	err := s.cfg.MetadataStorages[0].Write(wb, true)
-	if err != nil {
-		logger.Fatalf("remove init shards failed with %d", err)
-	}
-
+	s.mustRemoveShards(ids...)
 	logger.Info("all init shards is already removed from store")
 }
 

@@ -12,13 +12,14 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 // RaftMessage the message wrapped raft msg with shard info
 message RaftMessage  {
     uint64            shardID     = 1;
-    metapb.Peer       from        = 2 [(gogoproto.nullable) = false];
-    metapb.Peer       to          = 3 [(gogoproto.nullable) = false];
-    bytes             message     = 4;
-    metapb.ShardEpoch shardEpoch  = 5 [(gogoproto.nullable) = false];
-    bool              isTombstone = 6;
-    bytes             start       = 7;
-    bytes             end         = 8;
+    uint64            group       = 2;
+    metapb.Peer       from        = 3 [(gogoproto.nullable) = false];
+    metapb.Peer       to          = 4 [(gogoproto.nullable) = false];
+    bytes             message     = 5;
+    metapb.ShardEpoch shardEpoch  = 6 [(gogoproto.nullable) = false];
+    bool              isTombstone = 7;
+    bytes             start       = 8;
+    bytes             end         = 9;
 }
 
 // PeerState the state of the shard peer

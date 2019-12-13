@@ -18,7 +18,7 @@ func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	case raftcmdpb.Split:
 		return d.doExecSplit(ctx)
 	case raftcmdpb.CompactRaftLog:
-		return d.doExecRaftGC(ctx)
+		return d.doExecCompactRaftLog(ctx)
 	}
 
 	return nil, nil, nil
@@ -140,6 +140,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		Epoch: d.shard.Epoch,
 		Start: req.SplitKey,
 		End:   d.shard.End,
+		Group: d.shard.Group,
 	}
 	d.shard.End = req.SplitKey
 
@@ -194,7 +195,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	return rsp, result, nil
 }
 
-func (d *applyDelegate) doExecRaftGC(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
+func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	ctx.metrics.admin.compact++
 
 	req := ctx.req.AdminRequest.Compact

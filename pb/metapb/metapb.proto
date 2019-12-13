@@ -47,6 +47,7 @@ message Shard {
     ShardEpoch     epoch        = 4 [(gogoproto.nullable) = false];
     repeated Peer  peers        = 5 [(gogoproto.nullable) = false];
     bool           disableSplit = 6;
+    uint64         group        = 7;
 }
 
 // Store the host store metadata

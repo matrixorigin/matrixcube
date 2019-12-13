@@ -195,7 +195,7 @@ func (pr *peerReplica) mustDestroy() {
 		pr.store.runner.StopCancelableTask(id)
 	}
 
-	if pr.ps.isInitialized() && !pr.store.keyRanges.Remove(pr.ps.shard) {
+	if pr.ps.isInitialized() && !pr.store.removeShardKeyRange(pr.ps.shard) {
 		logger.Fatalf("shard %d remove key range  failed",
 			pr.shardID)
 	}

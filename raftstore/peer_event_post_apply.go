@@ -163,8 +163,8 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			err)
 	}
 
-	pr.store.keyRanges.Update(result.left)
-	pr.store.keyRanges.Update(result.right)
+	pr.store.updateShardKeyRange(result.left)
+	pr.store.updateShardKeyRange(result.right)
 
 	newPR.sizeDiffHint = newPR.store.opts.shardSplitCheckBytes
 	newPR.startRegistrationJob()

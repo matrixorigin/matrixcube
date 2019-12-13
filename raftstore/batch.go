@@ -124,7 +124,7 @@ func (b *proposeBatch) pop() *cmd {
 	return value
 }
 
-func (b *proposeBatch) push(c *reqCtx) {
+func (b *proposeBatch) push(group uint64, c *reqCtx) {
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb
@@ -136,7 +136,7 @@ func (b *proposeBatch) push(c *reqCtx) {
 
 	// use data key to store
 	if !isAdmin {
-		req.Key = getDataKey0(req.Key, b.buf)
+		req.Key = getDataKey0(group, req.Key, b.buf)
 		b.buf.Clear()
 	}
 
