@@ -16,7 +16,7 @@ type Router interface {
 	Start() error
 	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
 	// If returns leader address is "", means the current shard has no leader
-	SelectShard(key []byte) (uint64, string)
+	SelectShard(group uint64, key []byte) (uint64, string)
 }
 
 type defaultRouter struct {
@@ -27,7 +27,7 @@ type defaultRouter struct {
 	eventTaskID uint64
 
 	keyConvertFunc keyConvertFunc
-	keyRanges      *util.ShardTree
+	keyRanges      sync.Map // group id -> *util.ShardTree
 	leaders        sync.Map // shard id -> leader peer store address string
 	stores         sync.Map // store id -> metapb.Store
 	shards         sync.Map // shard id -> metapb.Shard
@@ -38,7 +38,6 @@ func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConver
 		pd:             pd,
 		watcher:        prophet.NewWatcherWithProphet(pd),
 		runner:         runner,
-		keyRanges:      util.NewShardTree(),
 		keyConvertFunc: keyConvertFunc,
 	}
 }
@@ -54,16 +53,20 @@ func (r *defaultRouter) Start() error {
 	return nil
 }
 
-func (r *defaultRouter) SelectShard(key []byte) (uint64, string) {
-	shard := r.keyConvertFunc(key, r.searchShard)
+func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
+	shard := r.keyConvertFunc(group, key, r.searchShard)
 	if value, ok := r.leaders.Load(shard.ID); ok {
 		return shard.ID, value.(string)
 	}
 	return shard.ID, ""
 }
 
-func (r *defaultRouter) searchShard(value []byte) metapb.Shard {
-	return r.keyRanges.Search(value)
+func (r *defaultRouter) searchShard(group uint64, key []byte) metapb.Shard {
+	if value, ok := r.keyRanges.Load(group); ok {
+		return value.(*util.ShardTree).Search(key)
+	}
+
+	return metapb.Shard{}
 }
 
 func (r *defaultRouter) eventLoop(ctx context.Context) {
@@ -107,7 +110,7 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64) {
 	}
 
 	r.shards.Store(res.meta.ID, res.meta)
-	r.keyRanges.Update(res.meta)
+	r.updateShardKeyRange(res.meta)
 	if leader > 0 {
 		r.updateLeader(res.meta.ID, leader)
 	}
@@ -152,4 +155,19 @@ func (r *defaultRouter) mustGetShard(id uint64) metapb.Shard {
 	}
 
 	return value.(metapb.Shard)
+}
+
+func (r *defaultRouter) updateShardKeyRange(shard metapb.Shard) {
+	if value, ok := r.keyRanges.Load(shard.Group); ok {
+		value.(*util.ShardTree).Update(shard)
+		return
+	}
+
+	tree := util.NewShardTree()
+	tree.Update(shard)
+
+	value, loaded := r.keyRanges.LoadOrStore(shard.Group, tree)
+	if loaded {
+		value.(*util.ShardTree).Update(shard)
+	}
 }

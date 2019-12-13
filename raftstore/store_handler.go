@@ -290,9 +290,9 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 	}
 
 	// check range overlapped
-	item := s.keyRanges.Search(msg.Start)
+	item := s.searchShard(msg.Group, msg.Start)
 	if item.ID > 0 {
-		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.End)) < 0 {
+		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.Group, msg.End)) < 0 {
 			var state string
 			if p := s.getPR(item.ID, false); p != nil {
 				state = fmt.Sprintf("overlappedShard=<%d> local=<%s> apply=<%s>",
@@ -325,7 +325,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 
 	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
 	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
-	s.keyRanges.Update(pr.ps.shard)
+	s.updateShardKeyRange(pr.ps.shard)
 
 	// following snapshot may overlap, should insert into keyRanges after
 	// snapshot is applied.

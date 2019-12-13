@@ -47,12 +47,9 @@ var (
 
 // data is in (z, z+1)
 var (
-	dataPrefix    byte = 'z'
-	dataPrefixKey      = []byte{dataPrefix}
-	dataMinKey         = []byte{dataPrefix}
-	dataMaxKey         = []byte{dataPrefix + 1}
-
-	dataPrefixKeySize = len(dataPrefixKey)
+	dataPrefix        byte = 'z'
+	dataPrefixKey          = []byte{dataPrefix}
+	dataPrefixKeySize      = len(dataPrefixKey)
 )
 
 var storeIdentKey = []byte{localPrefix, 0x01}
@@ -170,30 +167,42 @@ func getIDKey(shardID uint64, suffix byte, extraCap int, extra uint64) []byte {
 	return data
 }
 
-func getDataKey0(key []byte, buf *goetty.ByteBuf) []byte {
+func getDataKey0(group uint64, key []byte, buf *goetty.ByteBuf) []byte {
 	buf.Write(dataPrefixKey)
-	buf.Write(key)
+	buf.WriteUint64(group)
+	if len(key) > 0 {
+		buf.Write(key)
+	}
 	_, data, _ := buf.ReadBytes(buf.Readable())
 
 	return data
 }
 
-func getDataKey(key []byte) []byte {
+func getDataKey(group uint64, key []byte) []byte {
 	buf := acquireBuf()
-	data := getDataKey0(key, buf)
+	data := getDataKey0(group, key, buf)
 	releaseBuf(buf)
 	return data
 }
 
 func getOriginKey(key []byte) []byte {
-	return key[len(dataPrefixKey):]
+	return key[len(dataPrefixKey)+8:]
 }
 
-func getDataEndKey(endKey []byte) []byte {
+func getDataMaxKey(group uint64) []byte {
+	buf := acquireBuf()
+	buf.WriteByte(dataPrefix)
+	buf.WriteUint64(group + 1)
+	_, data, _ := buf.ReadBytes(buf.Readable())
+	releaseBuf(buf)
+	return data
+}
+
+func getDataEndKey(group uint64, endKey []byte) []byte {
 	if len(endKey) == 0 {
-		return dataMaxKey
+		return getDataMaxKey(group)
 	}
-	return getDataKey(endKey)
+	return getDataKey(group, endKey)
 }
 
 func encStartKey(shard *metapb.Shard) []byte {
@@ -203,7 +212,7 @@ func encStartKey(shard *metapb.Shard) []byte {
 		logger.Fatalf("bug: shard peers len is empty")
 	}
 
-	return getDataKey(shard.Start)
+	return getDataKey(shard.Group, shard.Start)
 }
 
 func encEndKey(shard *metapb.Shard) []byte {
@@ -212,5 +221,5 @@ func encEndKey(shard *metapb.Shard) []byte {
 	if len(shard.Peers) == 0 {
 		logger.Fatalf("bug: shard peers len is empty")
 	}
-	return getDataEndKey(shard.End)
+	return getDataEndKey(shard.Group, shard.End)
 }

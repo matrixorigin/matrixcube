@@ -1,12 +1,15 @@
 package raftstore
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
+	"github.com/coreos/etcd/clientv3"
 	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/errorpb"
@@ -16,8 +19,13 @@ import (
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
+	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+)
+
+var (
+	eventsPath = "/events/shards"
 )
 
 // ShardStateAware shard state aware
@@ -75,6 +83,9 @@ type Store interface {
 	DataStorage(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
+	// AddShard add a shard meta on the current store, and than prophet will
+	// schedule this shard replicas to other nodes.
+	AddShard(metapb.Shard) error
 }
 
 const (
@@ -83,7 +94,7 @@ const (
 	splitCheckWorkerName = "split"
 )
 
-type keyConvertFunc func([]byte, func([]byte) metapb.Shard) metapb.Shard
+type keyConvertFunc func(uint64, []byte, func(uint64, []byte) metapb.Shard) metapb.Shard
 
 type store struct {
 	cfg      Cfg
@@ -101,7 +112,7 @@ type store struct {
 	trans           Transport
 	snapshotManager SnapshotManager
 	rpc             RPC
-	keyRanges       *util.ShardTree
+	keyRanges       sync.Map // group id -> *util.ShardTree
 	peers           sync.Map // peer  id -> peer
 	replicas        sync.Map // shard id -> *peerReplica
 	delegates       sync.Map // shard id -> *applyDelegate
@@ -114,6 +125,8 @@ type store struct {
 	writeHandlers map[uint64]WriteCommandFunc
 
 	keyConvertFunc keyConvertFunc
+
+	ensureNewShardTaskID uint64
 }
 
 // NewStore returns a raft store
@@ -155,7 +168,6 @@ func NewStore(cfg Cfg, opts ...Option) Store {
 
 	s.readHandlers = make(map[uint64]ReadCommandFunc)
 	s.writeHandlers = make(map[uint64]WriteCommandFunc)
-	s.keyRanges = util.NewShardTree()
 	s.runner = task.NewRunner()
 	s.initWorkers()
 	return s
@@ -175,6 +187,9 @@ func (s *store) Start() {
 
 	s.startCompactRaftLogTask()
 	logger.Infof("shard raft log compact task started")
+
+	s.startSplitCheckTask()
+	logger.Infof("shard shard split check task started")
 
 	s.startRPC()
 	logger.Infof("store start RPC at %s", s.cfg.RPCAddr)
@@ -213,7 +228,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResp
 		logger.Debugf("received %s", formatRequest(req))
 	}
 
-	pr, err := s.selectShard(req.Key)
+	pr, err := s.selectShard(req.Group, req.Key)
 	if err != nil {
 		if err == errStoreNotMatch {
 			respStoreNotMatch(err, req, cb)
@@ -236,6 +251,30 @@ func (s *store) DataStorage(id uint64) storage.DataStorage {
 
 func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getPR(shard, true)
+}
+
+func (s *store) AddShard(shard metapb.Shard) error {
+	shard.ID = s.mustAllocID()
+	shard.Peers = append(shard.Peers, metapb.Peer{
+		ID:      s.mustAllocID(),
+		StoreID: s.meta.ID(),
+	})
+	s.mustSaveShards(shard)
+
+	var buf bytes.Buffer
+	buf.Write(goetty.Int64ToBytes(time.Now().Unix()))
+	buf.Write(protoc.MustMarshal(&shard))
+	ok, _, err := s.pd.GetStore().PutIfNotExists(uint64Key(shard.ID, eventsPath), buf.Bytes())
+	if err != nil {
+		s.mustRemoveShards(shard.ID)
+		return err
+	}
+
+	if ok {
+		return s.createPR(shard)
+	}
+
+	return nil
 }
 
 func (s *store) initWorkers() {
@@ -314,7 +353,7 @@ func (s *store) startShards() {
 
 			pr.startRegistrationJob()
 
-			s.keyRanges.Update(localState.Shard)
+			s.updateShardKeyRange(localState.Shard)
 			s.replicas.Store(shardID, pr)
 
 			return true, nil
@@ -374,6 +413,137 @@ func (s *store) startSplitCheckTask() {
 			}
 		}
 	})
+}
+
+func uint64Key(id uint64, base string) string {
+	return fmt.Sprintf("%s/%020d", base, id)
+}
+
+func (s *store) stopEnsureNewShardsTask() {
+	if s.ensureNewShardTaskID > 0 {
+		s.runner.StopCancelableTask(s.ensureNewShardTaskID)
+	}
+}
+
+func (s *store) startEnsureNewShardsTask() {
+	s.ensureNewShardTaskID, _ = s.runner.RunCancelableTask(func(ctx context.Context) {
+		ticker := time.NewTicker(time.Second * 10)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Infof("ensure new shards task stopped")
+				return
+			case <-ticker.C:
+				s.doEnsureNewShards(16)
+			}
+		}
+	})
+}
+
+func (s *store) doEnsureNewShards(limit int64) {
+	startID := uint64(0)
+	endKey := uint64Key(math.MaxUint64, eventsPath)
+	withRange := clientv3.WithRange(endKey)
+	withLimit := clientv3.WithLimit(limit)
+
+	now := time.Now().Unix()
+	timeout := int64((time.Duration(s.opts.raftHeartbeatTick) * s.opts.raftTickDuration * 5).Seconds())
+	var completed []clientv3.Op
+	var recreate []metapb.Shard
+
+	for {
+		startKey := uint64Key(startID, eventsPath)
+		resp, err := s.getFromProphetStore(startKey, withRange, withLimit)
+		if err != nil {
+			logger.Errorf("ensure new shards failed with %+v", err)
+			return
+		}
+
+		for _, item := range resp.Kvs {
+			createAt := goetty.Byte2Int64(item.Value)
+			shard := metapb.Shard{}
+			protoc.MustUnmarshal(&shard, item.Value[8:])
+
+			res, err := s.pd.GetStore().GetResource(shard.ID)
+			if err != nil {
+				logger.Errorf("ensure new shards failed with %+v", err)
+				return
+			}
+
+			if res != nil && len(res.Peers()) > 2 {
+				completed = append(completed, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
+				continue
+			}
+
+			isTimeout := now-createAt > timeout
+			if !isTimeout {
+				continue
+			}
+
+			logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
+				shard.ID,
+				now-createAt)
+			recreate = append(recreate, shard)
+			startID = shard.ID + 1
+		}
+
+		// read complete
+		if len(resp.Kvs) < int(limit) {
+			break
+		}
+	}
+
+	if len(completed) > 0 {
+		_, err := s.pd.GetEtcdClient().Txn(context.Background()).Then(completed...).Commit()
+		if err != nil {
+			logger.Errorf("remove complete new shards failed with %+v", err)
+		}
+	}
+
+	if len(recreate) > 0 {
+		for i := 0; i < len(recreate); i++ {
+			recreate[i].Peers[0].StoreID = s.meta.ID()
+			recreate[i].Peers[0].ID = s.mustAllocID()
+			recreate[i].Epoch.ConfVer = uint64(now)
+		}
+		s.mustSaveShards(recreate...)
+		for i := 0; i < len(recreate); i++ {
+			err := s.createPR(recreate[i])
+			if err != nil {
+				logger.Errorf("create shard %d failed with %+v", recreate[i].ID, err)
+			}
+		}
+	}
+}
+
+func (s *store) createPR(shard metapb.Shard) error {
+	if _, ok := s.replicas.Load(shard.ID); ok {
+		return nil
+	}
+
+	pr, err := createPeerReplica(s, &shard)
+	if err != nil {
+		s.mustRemoveShards(shard.ID)
+		return err
+	}
+
+	s.updateShardKeyRange(shard)
+	s.replicas.Store(shard.ID, pr)
+	return nil
+}
+
+func (s *store) getFromProphetStore(key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	ctx, cancel := context.WithTimeout(s.pd.GetEtcdClient().Ctx(), prophet.DefaultRequestTimeout)
+	defer cancel()
+
+	resp, err := clientv3.NewKV(s.pd.GetEtcdClient()).Get(ctx, key, opts...)
+	if err != nil {
+		return resp, err
+	}
+
+	return resp, nil
 }
 
 func (s *store) startRPC() {
@@ -442,32 +612,37 @@ func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
 }
 
 func (s *store) cleanup() {
-	// clean up all possible garbage data
-	lastStartKey := getDataKey([]byte(""))
+	s.keyRanges.Range(func(key, value interface{}) bool {
+		// clean up all possible garbage data
+		lastStartKey := getDataKey(key.(uint64), nil)
 
-	s.keyRanges.Ascend(func(shard *metapb.Shard) bool {
-		start := encStartKey(shard)
-		err := s.DataStorage(shard.ID).RangeDelete(lastStartKey, start)
-		if err != nil {
-			logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
-				lastStartKey,
-				start,
-				err)
+		value.(*util.ShardTree).Ascend(func(shard *metapb.Shard) bool {
+			start := encStartKey(shard)
+			err := s.DataStorage(shard.ID).RangeDelete(lastStartKey, start)
+			if err != nil {
+				logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
+					lastStartKey,
+					start,
+					err)
+			}
+
+			lastStartKey = encEndKey(shard)
+			return true
+		})
+
+		dataMaxKey := getDataMaxKey(key.(uint64))
+		for _, driver := range s.cfg.DataStorages {
+			err := driver.RangeDelete(lastStartKey, dataMaxKey)
+			if err != nil {
+				logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
+					lastStartKey,
+					dataMaxKey,
+					err)
+			}
 		}
 
-		lastStartKey = encEndKey(shard)
 		return true
 	})
-
-	for _, driver := range s.cfg.DataStorages {
-		err := driver.RangeDelete(lastStartKey, dataMaxKey)
-		if err != nil {
-			logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
-				lastStartKey,
-				dataMaxKey,
-				err)
-		}
-	}
 
 	logger.Infof("cleanup possible garbage data complete")
 }
@@ -607,7 +782,7 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 		// matter if the next shard is not split from the current shard. If the shard meta
 		// received by the KV driver is newer than the meta cached in the driver, the meta is
 		// updated.
-		newShard := s.keyRanges.NextShard(shard.Start)
+		newShard := s.nextShard(shard)
 		if newShard != nil {
 			err.NewShards = append(err.NewShards, *newShard)
 		}
@@ -687,8 +862,31 @@ func newAdminRaftCMDResponse(adminType raftcmdpb.AdminCmdType, rsp protoc.PB) *r
 	return resp
 }
 
-func (s *store) selectShard(key []byte) (*peerReplica, error) {
-	shard := s.keyConvertFunc(key, s.searchShard)
+func (s *store) updateShardKeyRange(shard metapb.Shard) {
+	if value, ok := s.keyRanges.Load(shard.Group); ok {
+		value.(*util.ShardTree).Update(shard)
+		return
+	}
+
+	tree := util.NewShardTree()
+	tree.Update(shard)
+
+	value, loaded := s.keyRanges.LoadOrStore(shard.Group, tree)
+	if loaded {
+		value.(*util.ShardTree).Update(shard)
+	}
+}
+
+func (s *store) removeShardKeyRange(shard metapb.Shard) bool {
+	if value, ok := s.keyRanges.Load(shard.Group); ok {
+		return value.(*util.ShardTree).Remove(shard)
+	}
+
+	return false
+}
+
+func (s *store) selectShard(group uint64, key []byte) (*peerReplica, error) {
+	shard := s.keyConvertFunc(group, key, s.searchShard)
 	if shard.ID == 0 {
 		return nil, errStoreNotMatch
 	}
@@ -701,6 +899,67 @@ func (s *store) selectShard(key []byte) (*peerReplica, error) {
 	return pr.(*peerReplica), nil
 }
 
-func (s *store) searchShard(value []byte) metapb.Shard {
-	return s.keyRanges.Search(value)
+func (s *store) searchShard(group uint64, key []byte) metapb.Shard {
+	if value, ok := s.keyRanges.Load(group); ok {
+		return value.(*util.ShardTree).Search(key)
+	}
+
+	return metapb.Shard{}
+}
+
+func (s *store) nextShard(shard metapb.Shard) *metapb.Shard {
+	if value, ok := s.keyRanges.Load(shard.Group); ok {
+		return value.(*util.ShardTree).NextShard(shard.Start)
+	}
+
+	return nil
+}
+
+func (s *store) mustSaveShards(shards ...metapb.Shard) {
+	for _, shard := range shards {
+		driver := s.MetadataStorage(shard.ID)
+		wb := driver.NewWriteBatch()
+
+		// shard local state
+		wb.Set(getStateKey(shard.ID), protoc.MustMarshal(&raftpb.ShardLocalState{Shard: shard}))
+
+		// shard raft state
+		raftState := new(raftpb.RaftLocalState)
+		raftState.LastIndex = raftInitLogIndex
+		raftState.HardState = protoc.MustMarshal(&etcdraftpb.HardState{
+			Term:   raftInitLogTerm,
+			Commit: raftInitLogIndex,
+		})
+		wb.Set(getRaftStateKey(shard.ID), protoc.MustMarshal(raftState))
+
+		// shard raft apply state
+		applyState := new(raftpb.RaftApplyState)
+		applyState.AppliedIndex = raftInitLogIndex
+		applyState.TruncatedState = raftpb.RaftTruncatedState{
+			Term:  raftInitLogTerm,
+			Index: raftInitLogIndex,
+		}
+		wb.Set(getApplyStateKey(shard.ID), protoc.MustMarshal(applyState))
+
+		err := driver.Write(wb, true)
+		if err != nil {
+			logger.Fatalf("create init shard failed, errors:\n %+v", err)
+		}
+	}
+}
+
+func (s *store) mustRemoveShards(ids ...uint64) {
+	for _, id := range ids {
+		driver := s.MetadataStorage(id)
+		wb := driver.NewWriteBatch()
+
+		wb.Delete(getStateKey(id))
+		wb.Delete(getRaftStateKey(id))
+		wb.Delete(getApplyStateKey(id))
+
+		err := driver.Write(wb, true)
+		if err != nil {
+			logger.Fatalf("remove shards failed with %d", err)
+		}
+	}
 }

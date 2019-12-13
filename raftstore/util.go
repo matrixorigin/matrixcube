@@ -84,14 +84,14 @@ var (
 	mp  = goetty.NewSyncPool(8, 16, 2)
 )
 
-func noConvert(key []byte, do func([]byte) metapb.Shard) metapb.Shard {
-	return do(key)
+func noConvert(group uint64, key []byte, do func(uint64, []byte) metapb.Shard) metapb.Shard {
+	return do(group, key)
 }
 
-func uint64Convert(key []byte, do func([]byte) metapb.Shard) metapb.Shard {
+func uint64Convert(group uint64, key []byte, do func(uint64, []byte) metapb.Shard) metapb.Shard {
 	b := mp.Alloc(8)
 	binary.BigEndian.PutUint64(b, crc64.Checksum(key, tab))
-	value := do(b)
+	value := do(group, b)
 	mp.Free(b)
 	return value
 }

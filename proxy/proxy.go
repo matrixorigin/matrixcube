@@ -69,7 +69,7 @@ type shardsProxy struct {
 }
 
 func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
-	shard, leader := p.router.SelectShard(req.Key)
+	shard, leader := p.router.SelectShard(req.Group, req.Key)
 	// No leader, retry after a leader tick
 	if leader == "" {
 		p.retryWithRaftError(req)

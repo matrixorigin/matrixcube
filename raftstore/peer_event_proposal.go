@@ -35,7 +35,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 
 	for i := int64(0); i < n; i++ {
 		req := items[i].(*reqCtx)
-		pr.batch.push(req)
+		pr.batch.push(pr.ps.shard.Group, req)
 	}
 
 	for {
