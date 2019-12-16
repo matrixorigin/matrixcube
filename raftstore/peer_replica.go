@@ -217,16 +217,6 @@ func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDR
 
 func (pr *peerReplica) stopEventLoop() {
 	pr.events.Dispose()
-	pr.closeAllQueues()
-}
-
-func (pr *peerReplica) closeAllQueues() {
-	pr.ticks.Dispose()
-	pr.steps.Dispose()
-	pr.reports.Dispose()
-	pr.applyResults.Dispose()
-	pr.requests.Dispose()
-	pr.actions.Dispose()
 }
 
 func (pr *peerReplica) doExecReadCmd(c *cmd) {
