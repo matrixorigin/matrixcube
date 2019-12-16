@@ -531,6 +531,8 @@ func (s *store) createPR(shard metapb.Shard) error {
 
 	s.updateShardKeyRange(shard)
 	s.replicas.Store(shard.ID, pr)
+
+	s.pd.GetRPC().TiggerResourceHeartbeat(shard.ID)
 	return nil
 }
 
