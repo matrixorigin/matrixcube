@@ -112,8 +112,15 @@ func (pr *peerReplica) readyToServeRaft(ctx context.Context) {
 			continue
 		}
 
+		stop := false
+		select {
+		case <-ctx.Done():
+			stop = true
+		default:
+		}
+
 		_, err := pr.events.Get()
-		if err != nil {
+		if err != nil || stop {
 			pr.metrics.flush()
 			pr.actions.Dispose()
 			pr.ticks.Dispose()
