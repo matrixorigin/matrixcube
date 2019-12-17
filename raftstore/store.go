@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/etcd/clientv3"
@@ -127,6 +128,9 @@ type store struct {
 	keyConvertFunc keyConvertFunc
 
 	ensureNewShardTaskID uint64
+
+	stopWG sync.WaitGroup
+	state  uint32
 }
 
 // NewStore returns a raft store
@@ -196,15 +200,25 @@ func (s *store) Start() {
 }
 
 func (s *store) Stop() {
+	atomic.StoreUint32(&s.state, 1)
+
 	s.foreachPR(func(pr *peerReplica) bool {
+		s.stopWG.Add(1)
 		pr.stopEventLoop()
 		return true
 	})
+	s.stopWG.Wait()
 
 	s.runner.Stop()
 	s.trans.Stop()
 	s.rpc.Stop()
 	s.pd.Stop()
+}
+
+func (s *store) prStopped() {
+	if atomic.LoadUint32(&s.state) == 1 {
+		s.stopWG.Done()
+	}
 }
 
 func (s *store) NewRouter() Router {

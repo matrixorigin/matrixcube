@@ -156,6 +156,7 @@ func (pr *peerReplica) readyToServeRaft(ctx context.Context) {
 
 			logger.Infof("shard %d handle serve raft stopped",
 				pr.shardID)
+			pr.store.prStopped()
 			return
 		}
 
