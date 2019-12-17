@@ -105,7 +105,7 @@ func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.
 		}
 	}
 
-	s.AsyncExecWithTimeout(cmd, cb, timeout)
+	s.AsyncExecWithGroupAndTimeout(cmd, group, cb, timeout)
 	value := <-completeC
 	switch value.(type) {
 	case error:
