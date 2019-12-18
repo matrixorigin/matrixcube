@@ -48,7 +48,7 @@ func (s *store) doBootstrapCluster() {
 		}
 	}
 
-	id := s.mustAllocID()
+	id := s.MustAllocID()
 	s.meta.meta.ID = id
 	logger.Infof("init local store with id: %d", id)
 
@@ -104,10 +104,10 @@ func (s *store) doBootstrapCluster() {
 }
 
 func (s *store) createInitShard(start, end []byte) prophet.Resource {
-	shardID := s.mustAllocID()
+	shardID := s.MustAllocID()
 	logger.Infof("alloc shard %d", shardID)
 
-	peerID := s.mustAllocID()
+	peerID := s.MustAllocID()
 	logger.Infof("alloc peer %d for shard %d",
 		peerID,
 		shardID)
@@ -137,15 +137,6 @@ func (s *store) removeInitShardIfAlreadyBootstrapped(initShards ...prophet.Resou
 
 	s.mustRemoveShards(ids...)
 	logger.Info("all init shards is already removed from store")
-}
-
-func (s *store) mustAllocID() uint64 {
-	id, err := s.pd.GetRPC().AllocID()
-	if err != nil {
-		logger.Fatalf("alloc id failed with %+v", err)
-	}
-
-	return id
 }
 
 type containerAdapter struct {

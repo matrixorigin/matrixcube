@@ -87,6 +87,8 @@ type Store interface {
 	// AddShard add a shard meta on the current store, and than prophet will
 	// schedule this shard replicas to other nodes.
 	AddShard(metapb.Shard) error
+	// AllocID returns a uint64 id, panic if has a error
+	MustAllocID() uint64
 }
 
 const (
@@ -268,9 +270,9 @@ func (s *store) MaybeLeader(shard uint64) bool {
 }
 
 func (s *store) AddShard(shard metapb.Shard) error {
-	shard.ID = s.mustAllocID()
+	shard.ID = s.MustAllocID()
 	shard.Peers = append(shard.Peers, metapb.Peer{
-		ID:      s.mustAllocID(),
+		ID:      s.MustAllocID(),
 		StoreID: s.meta.ID(),
 	})
 	s.mustSaveShards(shard)
@@ -289,6 +291,15 @@ func (s *store) AddShard(shard metapb.Shard) error {
 	}
 
 	return nil
+}
+
+func (s *store) MustAllocID() uint64 {
+	id, err := s.pd.GetRPC().AllocID()
+	if err != nil {
+		logger.Fatalf("alloc id failed with %+v", err)
+	}
+
+	return id
 }
 
 func (s *store) initWorkers() {
@@ -519,7 +530,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 	if len(recreate) > 0 {
 		for i := 0; i < len(recreate); i++ {
 			recreate[i].Peers[0].StoreID = s.meta.ID()
-			recreate[i].Peers[0].ID = s.mustAllocID()
+			recreate[i].Peers[0].ID = s.MustAllocID()
 			recreate[i].Epoch.ConfVer = uint64(now)
 		}
 		s.mustSaveShards(recreate...)
