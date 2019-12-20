@@ -9,6 +9,7 @@ import (
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
+	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 )
@@ -40,10 +41,21 @@ func (s *store) doBootstrapCluster() {
 	}
 
 	if len(data) > 0 {
-		id := format.MustBytesToUint64(data)
+		if len(data) != 16 {
+			logger.Fatalf("invalid store meta %+v", data)
+		}
+
+		id := format.MustBytesToUint64(data[0:8])
 		if id > 0 {
 			s.meta.meta.ID = id
 			logger.Infof("load from local, store is %d", id)
+
+			if format.MustBytesToUint64(data[8:]) == 1 {
+				s.keyConvertFunc = noConvert
+			} else {
+				s.keyConvertFunc = uint64Convert
+			}
+
 			return
 		}
 	}
@@ -64,7 +76,10 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatalf("local store is not empty and has already hard data")
 	}
 
-	err = s.cfg.MetadataStorages[0].Set(storeIdentKey, format.Uint64ToBytes(id))
+	v := make([]byte, 16, 16)
+	goetty.Uint64ToBytesTo(id, v)
+	goetty.Uint64ToBytesTo(s.opts.initShards, v[8:])
+	err = s.cfg.MetadataStorages[0].Set(storeIdentKey, v)
 	if err != nil {
 		logger.Fatal("save local store id failed with %+v", err)
 	}
