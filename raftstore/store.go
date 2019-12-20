@@ -475,7 +475,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 
 	now := time.Now().Unix()
 	timeout := int64((time.Duration(s.opts.raftHeartbeatTick) * s.opts.raftTickDuration * 5).Seconds())
-	var completed []clientv3.Op
+	var ops []clientv3.Op
 	var recreate []metapb.Shard
 
 	for {
@@ -498,7 +498,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 			}
 
 			if res != nil && len(res.Peers()) > 2 {
-				completed = append(completed, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
+				ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
 				continue
 			}
 
@@ -506,6 +506,8 @@ func (s *store) doEnsureNewShards(limit int64) {
 			if !isTimeout {
 				continue
 			}
+
+			s.doDestroy(shard.ID, shard.Peers[0])
 
 			logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
 				shard.ID,
@@ -520,19 +522,27 @@ func (s *store) doEnsureNewShards(limit int64) {
 		}
 	}
 
-	if len(completed) > 0 {
-		_, err := s.pd.GetEtcdClient().Txn(context.Background()).Then(completed...).Commit()
-		if err != nil {
-			logger.Errorf("remove complete new shards failed with %+v", err)
-		}
-	}
-
 	if len(recreate) > 0 {
 		for i := 0; i < len(recreate); i++ {
 			recreate[i].Peers[0].StoreID = s.meta.ID()
 			recreate[i].Peers[0].ID = s.MustAllocID()
-			recreate[i].Epoch.ConfVer = uint64(now)
+			recreate[i].Epoch.ConfVer++
+
+			var buf bytes.Buffer
+			buf.Write(goetty.Int64ToBytes(time.Now().Unix()))
+			buf.Write(protoc.MustMarshal(&recreate[i]))
+			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, eventsPath), string(buf.Bytes())))
 		}
+	}
+
+	if len(ops) > 0 {
+		_, err := s.pd.GetEtcdClient().Txn(context.Background()).Then(ops...).Commit()
+		if err != nil {
+			logger.Errorf("remove complete and update new shards failed with %+v", err)
+		}
+	}
+
+	if len(recreate) > 0 {
 		s.mustSaveShards(recreate...)
 		for i := 0; i < len(recreate); i++ {
 			err := s.createPR(recreate[i])
