@@ -36,6 +36,7 @@ func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
 
 func (s *store) doDestroy(shardID uint64, peer metapb.Peer) error {
 	if value, ok := s.delegates.Load(shardID); ok {
+		s.delegates.Delete(shardID)
 		delegate := value.(*applyDelegate)
 		delegate.destroy()
 	}
