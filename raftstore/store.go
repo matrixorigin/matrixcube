@@ -89,6 +89,8 @@ type Store interface {
 	AddShard(metapb.Shard) error
 	// AllocID returns a uint64 id, panic if has a error
 	MustAllocID() uint64
+	// Prophet return current prophet instance
+	Prophet() prophet.Prophet
 }
 
 const (
@@ -300,6 +302,10 @@ func (s *store) MustAllocID() uint64 {
 	}
 
 	return id
+}
+
+func (s *store) Prophet() prophet.Prophet {
+	return s.pd
 }
 
 func (s *store) initWorkers() {
