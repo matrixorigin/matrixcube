@@ -40,6 +40,30 @@ func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse)) 
 	return c
 }
 
+func resp(req *raftcmdpb.Request, resp *raftcmdpb.Response, cb func(*raftcmdpb.RaftCMDResponse)) {
+	resp.ID = req.ID
+	resp.SID = req.SID
+	resp.PID = req.PID
+
+	rsp := pb.AcquireRaftCMDResponse()
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func respWithRetry(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
+	resp := pb.AcquireResponse()
+	resp.Type = raftcmdpb.RaftError
+	resp.ID = req.ID
+	resp.SID = req.SID
+	resp.PID = req.PID
+	resp.OriginRequest = req
+
+	rsp := pb.AcquireRaftCMDResponse()
+	rsp.Responses = append(rsp.Responses, resp)
+
+	cb(rsp)
+}
+
 func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       err.Error(),
@@ -50,6 +74,7 @@ func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.Raf
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
+	resp.OriginRequest = req
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }

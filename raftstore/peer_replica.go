@@ -74,6 +74,7 @@ func createPeerReplicaWithRaftMessage(store *store, msg *raftpb.RaftMessage, pee
 		Epoch: msg.ShardEpoch,
 		Start: msg.Start,
 		End:   msg.End,
+		Group: msg.Group,
 	}
 
 	return newPeerReplica(store, shard, peerID)
