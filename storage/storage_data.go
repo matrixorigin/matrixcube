@@ -11,4 +11,7 @@ type DataStorage interface {
 	CreateSnapshot(path string, start, end []byte) error
 	// ApplySnapshot apply a snapshort file from giving path
 	ApplySnapshot(path string) error
+
+	// Close close the storage
+	Close() error
 }
