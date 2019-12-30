@@ -300,6 +300,11 @@ func (s *Storage) ApplySnapshot(path string) error {
 	return s.db.Load(f, 16)
 }
 
+// Close close the storage
+func (s *Storage) Close() error {
+	return s.db.Close()
+}
+
 func itemValue(item *badger.Item) ([]byte, error) {
 	var value []byte
 	err := item.Value(func(data []byte) error {

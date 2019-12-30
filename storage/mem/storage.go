@@ -209,6 +209,11 @@ func (s *Storage) ApplySnapshot(path string) error {
 	return nil
 }
 
+// Close close the storage
+func (s *Storage) Close() error {
+	return nil
+}
+
 type opt struct {
 	key      []byte
 	value    []byte

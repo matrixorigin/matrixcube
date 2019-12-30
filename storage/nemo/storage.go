@@ -186,8 +186,9 @@ func (s *Storage) RedisList() RedisList {
 }
 
 // Close close the storage
-func (s *Storage) Close() {
+func (s *Storage) Close() error {
 	s.db.Close()
+	return nil
 }
 
 type writeBatch struct {

@@ -29,4 +29,7 @@ type MetadataStorage interface {
 	RangeDelete(start, end []byte) error
 	// Seek returns the first key-value that >= key
 	Seek(key []byte) ([]byte, []byte, error)
+
+	// Close close the storage
+	Close() error
 }
