@@ -43,16 +43,21 @@ func TestAddShard(t *testing.T) {
 	s := createTestStore("s1")
 	s.Start()
 
+	err := s.AddShard(metapb.Shard{
+		Group: 1,
+	})
+	assert.NoError(t, err, "TestAddShard failed")
+
+	err = s.AddShard(metapb.Shard{
+		Group: 1,
+	})
+	assert.NoError(t, err, "TestAddShard failed")
+
 	c := 0
 	s.foreachPR(func(*peerReplica) bool {
 		c++
 		return true
 	})
-	assert.Equal(t, 1, c, "TestAddShard failed")
-
-	err := s.AddShard(metapb.Shard{
-		Group: 1,
-	})
-	assert.NoError(t, err, "TestAddShard failed")
+	assert.Equal(t, 2, c, "TestAddShard failed")
 
 }
