@@ -293,6 +293,40 @@ func (s *store) MaybeLeader(shard uint64) bool {
 }
 
 func (s *store) AddShard(shard metapb.Shard) error {
+	// check overlap
+	hasGap := false
+	err := s.doWithNewShards(16, func(createAt int64, prev metapb.Shard) (bool, error) {
+		if shard.Group == prev.Group &&
+			(bytes.Compare(getDataKey(shard.Group, shard.Start), getDataKey(prev.Group, prev.Start)) >= 0 ||
+				bytes.Compare(getDataKey(shard.Group, shard.Start), getDataEndKey(prev.Group, prev.End)) <= 0) {
+			hasGap = true
+			return false, nil
+		}
+
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+	if hasGap {
+		return nil
+	}
+
+	err = s.pd.GetStore().LoadResources(16, func(res prophet.Resource) {
+		prev := res.(*resourceAdapter).meta
+		if shard.Group == prev.Group &&
+			(bytes.Compare(getDataKey(shard.Group, shard.Start), getDataKey(prev.Group, prev.Start)) >= 0 ||
+				bytes.Compare(getDataKey(shard.Group, shard.Start), getDataEndKey(prev.Group, prev.End)) <= 0) {
+			hasGap = true
+		}
+	})
+	if err != nil {
+		return err
+	}
+	if hasGap {
+		return nil
+	}
+
 	shard.ID = s.MustAllocID()
 	shard.Peers = append(shard.Peers, metapb.Peer{
 		ID:      s.MustAllocID(),
@@ -313,6 +347,7 @@ func (s *store) AddShard(shard metapb.Shard) error {
 		return s.createPR(shard)
 	}
 
+	s.mustRemoveShards(shard.ID)
 	return nil
 }
 
@@ -495,58 +530,39 @@ func (s *store) startEnsureNewShardsTask() {
 }
 
 func (s *store) doEnsureNewShards(limit int64) {
-	startID := uint64(0)
-	endKey := uint64Key(math.MaxUint64, eventsPath)
-	withRange := clientv3.WithRange(endKey)
-	withLimit := clientv3.WithLimit(limit)
-
 	now := time.Now().Unix()
 	timeout := int64((time.Duration(s.opts.raftHeartbeatTick) * s.opts.raftTickDuration * 5).Seconds())
 	var ops []clientv3.Op
 	var recreate []metapb.Shard
 
-	for {
-		startKey := uint64Key(startID, eventsPath)
-		resp, err := s.getFromProphetStore(startKey, withRange, withLimit)
+	err := s.doWithNewShards(limit, func(createAt int64, shard metapb.Shard) (bool, error) {
+		res, err := s.pd.GetStore().GetResource(shard.ID)
 		if err != nil {
-			logger.Errorf("ensure new shards failed with %+v", err)
-			return
+			return false, err
 		}
 
-		for _, item := range resp.Kvs {
-			createAt := goetty.Byte2Int64(item.Value)
-			shard := metapb.Shard{}
-			protoc.MustUnmarshal(&shard, item.Value[8:])
-
-			res, err := s.pd.GetStore().GetResource(shard.ID)
-			if err != nil {
-				logger.Errorf("ensure new shards failed with %+v", err)
-				return
-			}
-
-			if res != nil && len(res.Peers()) > 2 {
-				ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
-				continue
-			}
-
-			isTimeout := now-createAt > timeout
-			if !isTimeout {
-				continue
-			}
-
-			s.doDestroy(shard.ID, shard.Peers[0])
-
-			logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
-				shard.ID,
-				now-createAt)
-			recreate = append(recreate, shard)
-			startID = shard.ID + 1
+		if res != nil && len(res.Peers()) > 2 {
+			ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
+			return true, nil
 		}
 
-		// read complete
-		if len(resp.Kvs) < int(limit) {
-			break
+		isTimeout := now-createAt > timeout
+		if !isTimeout {
+			return true, nil
 		}
+
+		s.doDestroy(shard.ID, shard.Peers[0])
+
+		logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
+			shard.ID,
+			now-createAt)
+		recreate = append(recreate, shard)
+		return true, nil
+	})
+
+	if err != nil {
+		logger.Errorf("ensure new shards failed with %+v", err)
+		return
 	}
 
 	if len(recreate) > 0 {
@@ -578,6 +594,44 @@ func (s *store) doEnsureNewShards(limit int64) {
 			}
 		}
 	}
+}
+
+func (s *store) doWithNewShards(limit int64, fn func(int64, metapb.Shard) (bool, error)) error {
+	startID := uint64(0)
+	endKey := uint64Key(math.MaxUint64, eventsPath)
+	withRange := clientv3.WithRange(endKey)
+	withLimit := clientv3.WithLimit(limit)
+
+	for {
+		startKey := uint64Key(startID, eventsPath)
+		resp, err := s.getFromProphetStore(startKey, withRange, withLimit)
+		if err != nil {
+			logger.Errorf("ensure new shards failed with %+v", err)
+			return err
+		}
+
+		for _, item := range resp.Kvs {
+			createAt := goetty.Byte2Int64(item.Value)
+			shard := metapb.Shard{}
+			protoc.MustUnmarshal(&shard, item.Value[8:])
+
+			next, err := fn(createAt, shard)
+			if err != nil {
+				return err
+			}
+
+			if !next {
+				return nil
+			}
+		}
+
+		// read complete
+		if len(resp.Kvs) < int(limit) {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (s *store) createPR(shard metapb.Shard) error {
