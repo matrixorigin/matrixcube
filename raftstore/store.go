@@ -89,9 +89,9 @@ type Store interface {
 	DataStorage(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
-	// AddShard add a shard meta on the current store, and than prophet will
+	// AddShards add shards meta on the current store, and than prophet will
 	// schedule this shard replicas to other nodes.
-	AddShard(metapb.Shard) error
+	AddShards(...metapb.Shard) error
 	// AllocID returns a uint64 id, panic if has a error
 	MustAllocID() uint64
 	// Prophet return current prophet instance
@@ -292,15 +292,37 @@ func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getPR(shard, true)
 }
 
-func (s *store) AddShard(shard metapb.Shard) error {
+func hasGap(left, right metapb.Shard) bool {
+	if left.Group != right.Group {
+		return false
+	}
+
+	leftS := getDataKey(left.Group, left.Start)
+	leftE := getDataEndKey(left.Group, left.End)
+	rightS := getDataKey(right.Group, right.Start)
+	rightE := getDataEndKey(right.Group, right.End)
+
+	return (bytes.Compare(leftS, rightS) >= 0 && bytes.Compare(leftS, rightE) < 0) ||
+		(bytes.Compare(rightS, leftS) >= 0 && bytes.Compare(rightS, leftE) < 0)
+}
+
+func (s *store) AddShards(shards ...metapb.Shard) error {
+	doShards := make(map[uint64]*metapb.Shard)
+	for idx := range shards {
+		shards[idx].ID = s.MustAllocID()
+		shards[idx].Peers = append(shards[idx].Peers, metapb.Peer{
+			ID:      s.MustAllocID(),
+			StoreID: s.meta.ID(),
+		})
+		doShards[shards[idx].ID] = &shards[idx]
+	}
+
 	// check overlap
-	hasGap := false
 	err := s.doWithNewShards(16, func(createAt int64, prev metapb.Shard) (bool, error) {
-		if shard.Group == prev.Group &&
-			(bytes.Compare(getDataKey(shard.Group, shard.Start), getDataKey(prev.Group, prev.Start)) >= 0 ||
-				bytes.Compare(getDataKey(shard.Group, shard.Start), getDataEndKey(prev.Group, prev.End)) <= 0) {
-			hasGap = true
-			return false, nil
+		for _, shard := range shards {
+			if hasGap(shard, prev) {
+				delete(doShards, shard.ID)
+			}
 		}
 
 		return true, nil
@@ -308,46 +330,55 @@ func (s *store) AddShard(shard metapb.Shard) error {
 	if err != nil {
 		return err
 	}
-	if hasGap {
-		return nil
-	}
 
 	err = s.pd.GetStore().LoadResources(16, func(res prophet.Resource) {
 		prev := res.(*resourceAdapter).meta
-		if shard.Group == prev.Group &&
-			(bytes.Compare(getDataKey(shard.Group, shard.Start), getDataKey(prev.Group, prev.Start)) >= 0 ||
-				bytes.Compare(getDataKey(shard.Group, shard.Start), getDataEndKey(prev.Group, prev.End)) <= 0) {
-			hasGap = true
+		for _, shard := range shards {
+			if hasGap(shard, prev) {
+				delete(doShards, shard.ID)
+			}
 		}
 	})
 	if err != nil {
 		return err
 	}
-	if hasGap {
+
+	if len(doShards) == 0 {
 		return nil
 	}
 
-	shard.ID = s.MustAllocID()
-	shard.Peers = append(shard.Peers, metapb.Peer{
-		ID:      s.MustAllocID(),
-		StoreID: s.meta.ID(),
-	})
-	s.mustSaveShards(shard)
-
+	var createShards []metapb.Shard
+	var createShardIDs []uint64
+	var cmps []clientv3.Cmp
+	var ops []clientv3.Op
 	var buf bytes.Buffer
-	buf.Write(goetty.Int64ToBytes(time.Now().Unix()))
-	buf.Write(protoc.MustMarshal(&shard))
-	ok, _, err := s.pd.GetStore().PutIfNotExists(uint64Key(shard.ID, eventsPath), buf.Bytes())
-	if err != nil {
-		s.mustRemoveShards(shard.ID)
+	now := time.Now().Unix()
+	for _, shard := range doShards {
+		createShards = append(createShards, *shard)
+		createShardIDs = append(createShardIDs, shard.ID)
+
+		buf.Reset()
+		buf.Write(goetty.Int64ToBytes(now))
+		buf.Write(protoc.MustMarshal(shard))
+
+		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(shard.ID, eventsPath)), "=", 0))
+		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, eventsPath), string(buf.Bytes())))
+	}
+	s.mustSaveShards(createShards...)
+
+	cli := s.pd.GetEtcdClient()
+	resp, err := cli.Txn(cli.Ctx()).If(cmps...).Then(ops...).Commit()
+	if err != nil || !resp.Succeeded {
+		s.mustRemoveShards(createShardIDs...)
 		return err
 	}
 
-	if ok {
-		return s.createPR(shard)
+	for _, shard := range doShards {
+		if err := s.createPR(*shard); err != nil {
+			logger.Fatalf("create shards failed with %+v", err)
+		}
 	}
 
-	s.mustRemoveShards(shard.ID)
 	return nil
 }
 

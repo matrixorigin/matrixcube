@@ -2,14 +2,15 @@ package raftstore
 
 import (
 	"fmt"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/storage"
-	"github.com/deepfabric/beehive/storage/mem"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/storage"
+	"github.com/deepfabric/beehive/storage/mem"
+	"github.com/stretchr/testify/assert"
 )
 
 var ports uint64 = 10000
@@ -39,17 +40,24 @@ func createTestStore(name string) *store {
 	}, WithDataPath(data)).(*store)
 }
 
-func TestAddShard(t *testing.T) {
+func TestAddShards(t *testing.T) {
 	s := createTestStore("s1")
 	s.Start()
 
-	err := s.AddShard(metapb.Shard{
+	err := s.AddShards(metapb.Shard{
 		Group: 1,
 	})
 	assert.NoError(t, err, "TestAddShard failed")
 
-	err = s.AddShard(metapb.Shard{
+	err = s.AddShards(metapb.Shard{
 		Group: 1,
+	})
+	assert.NoError(t, err, "TestAddShard failed")
+
+	err = s.AddShards(metapb.Shard{
+		Group: 1,
+	}, metapb.Shard{
+		Group: 2,
 	})
 	assert.NoError(t, err, "TestAddShard failed")
 
@@ -58,6 +66,13 @@ func TestAddShard(t *testing.T) {
 		c++
 		return true
 	})
-	assert.Equal(t, 2, c, "TestAddShard failed")
+	assert.Equal(t, 3, c, "TestAddShard failed")
+}
 
+func TestHasGap(t *testing.T) {
+	assert.True(t, hasGap(metapb.Shard{}, metapb.Shard{}), "TestHasGap failed")
+	assert.True(t, hasGap(metapb.Shard{Start: []byte("a")}, metapb.Shard{Start: []byte("b")}), "TestHasGap failed")
+	assert.False(t, hasGap(metapb.Shard{Start: []byte("a"), End: []byte("b")}, metapb.Shard{Start: []byte("b")}), "TestHasGap failed")
+	assert.True(t, hasGap(metapb.Shard{Start: []byte("a"), End: []byte("c")}, metapb.Shard{Start: []byte("b"), End: []byte("c")}), "TestHasGap failed")
+	assert.False(t, hasGap(metapb.Shard{}, metapb.Shard{Group: 2}), "TestHasGap failed")
 }
