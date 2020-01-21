@@ -12,26 +12,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testStorage interface {
-	DataStorage
-	Set(key []byte, value []byte) error
-	Get(key []byte) ([]byte, error)
-	Delete(key []byte) error
-}
-
 var (
-	dataDactories = map[string]func(*testing.T) testStorage{
+	dataDactories = map[string]func(*testing.T) DataStorage{
 		"memory": createDataMem,
 		"badger": createDataBadger,
 		"nemo":   createDataNemo,
 	}
 )
 
-func createDataMem(t *testing.T) testStorage {
+func createDataMem(t *testing.T) DataStorage {
 	return mem.NewStorage()
 }
 
-func createDataBadger(t *testing.T) testStorage {
+func createDataBadger(t *testing.T) DataStorage {
 	path := fmt.Sprintf("/tmp/badger/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
 	os.MkdirAll(path, os.ModeDir)
@@ -40,7 +33,7 @@ func createDataBadger(t *testing.T) testStorage {
 	return s
 }
 
-func createDataNemo(t *testing.T) testStorage {
+func createDataNemo(t *testing.T) DataStorage {
 	path := fmt.Sprintf("/tmp/nemo/%d", time.Now().UnixNano())
 	s, err := nemo.NewStorage(path)
 	assert.NoError(t, err, "createNemo failed")
