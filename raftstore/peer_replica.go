@@ -12,6 +12,7 @@ import (
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/prophet"
+	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
@@ -47,6 +48,8 @@ type peerReplica struct {
 	cancelTaskIds   []uint64
 
 	metrics localMetrics
+
+	buf *goetty.ByteBuf
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -102,6 +105,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 		return nil, err
 	}
 
+	pr.buf = goetty.NewByteBuf(256)
 	pr.rn = rn
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
@@ -225,7 +229,7 @@ func (pr *peerReplica) doExecReadCmd(c *cmd) {
 
 	for _, req := range c.req.Requests {
 		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			resp.Responses = append(resp.Responses, h(pr.shardID, req))
+			resp.Responses = append(resp.Responses, h(pr.shardID, req, pr.buf))
 		}
 	}
 

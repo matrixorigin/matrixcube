@@ -13,6 +13,7 @@ import (
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/util"
+	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
 )
 
@@ -240,6 +241,8 @@ type applyDelegate struct {
 	term                 uint64
 	pendingCMDs          []*cmd
 	pendingChangePeerCMD *cmd
+
+	buf *goetty.ByteBuf
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {

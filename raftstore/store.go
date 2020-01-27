@@ -47,7 +47,7 @@ type ShardStateAware interface {
 type CommandWriteBatch interface {
 	// Add add a request to this batch, returns true if it can be executed in this batch,
 	// otherwrise false
-	Add(uint64, *raftcmdpb.Request) (bool, *raftcmdpb.Response, error)
+	Add(uint64, *raftcmdpb.Request, *goetty.ByteBuf) (bool, *raftcmdpb.Response, error)
 	// Execute excute the batch, and return the write bytes, and diff bytes that used to
 	// modify the size of the current shard
 	Execute() (uint64, int64, error)
@@ -56,11 +56,11 @@ type CommandWriteBatch interface {
 }
 
 // ReadCommandFunc the read command handler func
-type ReadCommandFunc func(uint64, *raftcmdpb.Request) *raftcmdpb.Response
+type ReadCommandFunc func(uint64, *raftcmdpb.Request, *goetty.ByteBuf) *raftcmdpb.Response
 
 // WriteCommandFunc the write command handler func, returns write bytes and the diff bytes
 // that used to modify the size of the current shard
-type WriteCommandFunc func(uint64, *raftcmdpb.Request) (uint64, int64, *raftcmdpb.Response)
+type WriteCommandFunc func(uint64, *raftcmdpb.Request, *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response)
 
 // LocalCommandFunc directly exec on local func
 type LocalCommandFunc func(uint64, *raftcmdpb.Request) (*raftcmdpb.Response, error)
