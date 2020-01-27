@@ -163,7 +163,7 @@ func (h *httpHandler) AddWriteFunc(cmd string, cmdType uint64, cb raftstore.Writ
 	h.store.RegisterWriteFunc(cmdType, cb)
 }
 
-func (h *httpHandler) set(shard uint64, req *raftcmdpb.Request) (uint64, int64, *raftcmdpb.Response) {
+func (h *httpHandler) set(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
@@ -186,7 +186,7 @@ func (h *httpHandler) set(shard uint64, req *raftcmdpb.Request) (uint64, int64, 
 	return writtenBytes, changedBytes, resp
 }
 
-func (h *httpHandler) delete(shard uint64, req *raftcmdpb.Request) (uint64, int64, *raftcmdpb.Response) {
+func (h *httpHandler) delete(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
@@ -209,7 +209,7 @@ func (h *httpHandler) delete(shard uint64, req *raftcmdpb.Request) (uint64, int6
 	return writtenBytes, changedBytes, resp
 }
 
-func (h *httpHandler) get(shard uint64, req *raftcmdpb.Request) *raftcmdpb.Response {
+func (h *httpHandler) get(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
