@@ -233,6 +233,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	writeBytes := uint64(0)
 	diffBytes := int64(0)
 	resp := pb.AcquireRaftCMDResponse()
+	d.buf.Clear()
 	for _, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("exec %s", formatRequest(req))
