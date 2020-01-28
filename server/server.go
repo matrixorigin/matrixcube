@@ -94,7 +94,7 @@ func (s *Application) Exec(cmd interface{}, timeout time.Duration) ([]byte, erro
 func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.Duration) ([]byte, error) {
 	completeC := make(chan interface{}, 1)
 	closed := uint32(0)
-	cb := func(resp []byte, err error) {
+	cb := func(cmd interface{}, resp []byte, err error) {
 		if atomic.CompareAndSwapUint32(&closed, 0, 1) {
 			if err != nil {
 				completeC <- err
@@ -116,29 +116,32 @@ func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.
 }
 
 // AsyncExec async exec the request command
-func (s *Application) AsyncExec(cmd interface{}, cb func([]byte, error)) {
+func (s *Application) AsyncExec(cmd interface{}, cb func(interface{}, []byte, error)) {
 	s.AsyncExecWithTimeout(cmd, cb, 0)
 }
 
 // AsyncExecWithTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func([]byte, error), timeout time.Duration) {
+func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func(interface{}, []byte, error), timeout time.Duration) {
 	s.AsyncExecWithGroupAndTimeout(cmd, 0, cb, timeout)
 }
 
 // AsyncExecWithGroupAndTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64, cb func([]byte, error), timeout time.Duration) {
+func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64, cb func(interface{}, []byte, error), timeout time.Duration) {
 	req := pb.AcquireRequest()
 	req.ID = uuid.NewV4().Bytes()
 	req.Group = group
 
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
-		cb(nil, err)
+		cb(cmd, nil, err)
 		pb.ReleaseRequest(req)
 		return
 	}
 
-	s.libaryCB.Store(hack.SliceToString(req.ID), cb)
+	s.libaryCB.Store(hack.SliceToString(req.ID), ctx{
+		cmd: cmd,
+		cb:  cb,
+	})
 	if timeout > 0 {
 		util.DefaultTimeoutWheel().Schedule(timeout, s.execTimeout, req.ID)
 	}
@@ -147,15 +150,15 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 	if err != nil {
 		pb.ReleaseRequest(req)
 		s.libaryCB.Delete(hack.SliceToString(req.ID))
-		cb(nil, err)
+		cb(cmd, nil, err)
 	}
 }
 
 func (s *Application) execTimeout(arg interface{}) {
 	id := hack.SliceToString(arg.([]byte))
-	if cb, ok := s.libaryCB.Load(id); ok {
+	if value, ok := s.libaryCB.Load(id); ok {
 		s.libaryCB.Delete(id)
-		cb.(func([]byte, error))(nil, ErrTimeout)
+		value.(ctx).resp(nil, ErrTimeout)
 	}
 }
 
@@ -206,9 +209,9 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 	// libary call
 	if resp.SID == 0 {
 		id := hack.SliceToString(resp.ID)
-		if cb, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
+		if value, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
 			s.libaryCB.Delete(id)
-			cb.(func([]byte, error))(resp.Value, nil)
+			value.(ctx).resp(resp.Value, nil)
 		}
 
 		return
@@ -223,9 +226,9 @@ func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 	// libary call
 	if resp.SID == 0 {
 		id := hack.SliceToString(resp.ID)
-		if cb, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
+		if value, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
 			s.libaryCB.Delete(id)
-			cb.(func([]byte, error))(nil, err)
+			value.(ctx).resp(nil, err)
 		}
 
 		return
@@ -236,4 +239,13 @@ func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 		resp.Error.Message = err.Error()
 		value.(*util.Session).OnResp(resp)
 	}
+}
+
+type ctx struct {
+	cmd interface{}
+	cb  func(interface{}, []byte, error)
+}
+
+func (c ctx) resp(resp []byte, err error) {
+	c.cb(c.cmd, resp, err)
 }
