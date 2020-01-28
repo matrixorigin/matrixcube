@@ -105,7 +105,7 @@ func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.
 		}
 	}
 
-	s.AsyncExecWithGroupAndTimeout(cmd, group, cb, timeout)
+	s.AsyncExecWithGroupAndTimeout(cmd, group, cb, timeout, nil)
 	value := <-completeC
 	switch value.(type) {
 	case error:
@@ -116,30 +116,30 @@ func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.
 }
 
 // AsyncExec async exec the request command
-func (s *Application) AsyncExec(cmd interface{}, cb func(interface{}, []byte, error)) {
-	s.AsyncExecWithTimeout(cmd, cb, 0)
+func (s *Application) AsyncExec(cmd interface{}, cb func(interface{}, []byte, error), arg interface{}) {
+	s.AsyncExecWithTimeout(cmd, cb, 0, arg)
 }
 
 // AsyncExecWithTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func(interface{}, []byte, error), timeout time.Duration) {
-	s.AsyncExecWithGroupAndTimeout(cmd, 0, cb, timeout)
+func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
+	s.AsyncExecWithGroupAndTimeout(cmd, 0, cb, timeout, arg)
 }
 
 // AsyncExecWithGroupAndTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64, cb func(interface{}, []byte, error), timeout time.Duration) {
+func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
 	req := pb.AcquireRequest()
 	req.ID = uuid.NewV4().Bytes()
 	req.Group = group
 
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
-		cb(cmd, nil, err)
+		cb(arg, nil, err)
 		pb.ReleaseRequest(req)
 		return
 	}
 
 	s.libaryCB.Store(hack.SliceToString(req.ID), ctx{
-		cmd: cmd,
+		arg: arg,
 		cb:  cb,
 	})
 	if timeout > 0 {
@@ -150,7 +150,7 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 	if err != nil {
 		pb.ReleaseRequest(req)
 		s.libaryCB.Delete(hack.SliceToString(req.ID))
-		cb(cmd, nil, err)
+		cb(arg, nil, err)
 	}
 }
 
@@ -242,10 +242,10 @@ func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 }
 
 type ctx struct {
-	cmd interface{}
+	arg interface{}
 	cb  func(interface{}, []byte, error)
 }
 
 func (c ctx) resp(resp []byte, err error) {
-	c.cb(c.cmd, resp, err)
+	c.cb(c.arg, resp, err)
 }
