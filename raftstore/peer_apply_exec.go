@@ -256,7 +256,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 		}
 
 		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-			written, diff, rsp := h(ctx.req.Header.ShardID, req, d.buf)
+			written, diff, rsp := h(d.shard, req, d.buf)
 			resp.Responses = append(resp.Responses, rsp)
 			writeBytes += written
 			diffBytes += diff

@@ -2,6 +2,7 @@ package redis
 
 import (
 	"github.com/deepfabric/beehive/pb"
+	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/redispb"
 	"github.com/fagongzi/goetty"
@@ -12,7 +13,7 @@ import (
 
 // ============================= write methods
 
-func (h *handler) hset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) hset(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -22,7 +23,7 @@ func (h *handler) hset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard).HSet(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisHash(shard.ID).HSet(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -39,7 +40,7 @@ func (h *handler) hset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) hdel(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) hdel(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -49,7 +50,7 @@ func (h *handler) hdel(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard).HDel(req.Key, args.Args...)
+	value, err := h.getRedisHash(shard.ID).HDel(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -68,7 +69,7 @@ func (h *handler) hdel(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 	return 0, -diffBytes, resp
 }
 
-func (h *handler) hmset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) hmset(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -91,7 +92,7 @@ func (h *handler) hmset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 		writtenBytes += uint64(len(values[i]))
 	}
 
-	err := h.getRedisHash(shard).HMSet(req.Key, fields, values)
+	err := h.getRedisHash(shard.ID).HMSet(req.Key, fields, values)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -101,7 +102,7 @@ func (h *handler) hmset(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) hsetnx(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) hsetnx(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -111,7 +112,7 @@ func (h *handler) hsetnx(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteB
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard).HSetNX(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisHash(shard.ID).HSetNX(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -128,7 +129,7 @@ func (h *handler) hsetnx(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteB
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) hincrby(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) hincrby(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -144,7 +145,7 @@ func (h *handler) hincrby(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard).HIncrBy(req.Key, args.Args[0], incrment)
+	value, err := h.getRedisHash(shard.ID).HIncrBy(req.Key, args.Args[0], incrment)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -159,7 +160,7 @@ func (h *handler) hincrby(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 
 // ============================= read methods
 
-func (h *handler) hget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hget(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -169,7 +170,7 @@ func (h *handler) hget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard).HGet(req.Key, args.Args[0])
+	value, err := h.getRedisHash(shard.ID).HGet(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -182,7 +183,7 @@ func (h *handler) hget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 	return resp
 }
 
-func (h *handler) hexists(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hexists(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -192,7 +193,7 @@ func (h *handler) hexists(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 		return resp
 	}
 
-	exists, err := h.getRedisHash(shard).HExists(req.Key, args.Args[0])
+	exists, err := h.getRedisHash(shard.ID).HExists(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -210,10 +211,10 @@ func (h *handler) hexists(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 	return resp
 }
 
-func (h *handler) hkeys(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hkeys(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard).HKeys(req.Key)
+	value, err := h.getRedisHash(shard.ID).HKeys(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -226,10 +227,10 @@ func (h *handler) hkeys(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 	return resp
 }
 
-func (h *handler) hvals(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hvals(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard).HVals(req.Key)
+	value, err := h.getRedisHash(shard.ID).HVals(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -242,10 +243,10 @@ func (h *handler) hvals(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 	return resp
 }
 
-func (h *handler) hgetall(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hgetall(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard).HGetAll(req.Key)
+	value, err := h.getRedisHash(shard.ID).HGetAll(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -258,7 +259,7 @@ func (h *handler) hgetall(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 	return resp
 }
 
-func (h *handler) hscanget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hscanget(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -274,7 +275,7 @@ func (h *handler) hscanget(shard uint64, req *raftcmdpb.Request, buf *goetty.Byt
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard).HScanGet(req.Key, args.Args[0], int(count))
+	value, err := h.getRedisHash(shard.ID).HScanGet(req.Key, args.Args[0], int(count))
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -287,10 +288,10 @@ func (h *handler) hscanget(shard uint64, req *raftcmdpb.Request, buf *goetty.Byt
 	return resp
 }
 
-func (h *handler) hlen(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hlen(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard).HLen(req.Key)
+	value, err := h.getRedisHash(shard.ID).HLen(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -303,7 +304,7 @@ func (h *handler) hlen(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf
 	return resp
 }
 
-func (h *handler) hmget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hmget(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -313,7 +314,7 @@ func (h *handler) hmget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 		return resp
 	}
 
-	value, errs := h.getRedisHash(shard).HMGet(req.Key, args.Args...)
+	value, errs := h.getRedisHash(shard.ID).HMGet(req.Key, args.Args...)
 	if len(errs) > 0 {
 		errors := make([][]byte, len(errs))
 		for idx, err := range errs {
@@ -334,7 +335,7 @@ func (h *handler) hmget(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBu
 	return resp
 }
 
-func (h *handler) hstrlen(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) hstrlen(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -344,7 +345,7 @@ func (h *handler) hstrlen(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard).HStrLen(req.Key, args.Args[0])
+	value, err := h.getRedisHash(shard.ID).HStrLen(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp

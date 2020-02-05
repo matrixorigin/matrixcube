@@ -56,14 +56,14 @@ type CommandWriteBatch interface {
 }
 
 // ReadCommandFunc the read command handler func
-type ReadCommandFunc func(uint64, *raftcmdpb.Request, *goetty.ByteBuf) *raftcmdpb.Response
+type ReadCommandFunc func(metapb.Shard, *raftcmdpb.Request, *goetty.ByteBuf) *raftcmdpb.Response
 
 // WriteCommandFunc the write command handler func, returns write bytes and the diff bytes
 // that used to modify the size of the current shard
-type WriteCommandFunc func(uint64, *raftcmdpb.Request, *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response)
+type WriteCommandFunc func(metapb.Shard, *raftcmdpb.Request, *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response)
 
 // LocalCommandFunc directly exec on local func
-type LocalCommandFunc func(uint64, *raftcmdpb.Request) (*raftcmdpb.Response, error)
+type LocalCommandFunc func(metapb.Shard, *raftcmdpb.Request) (*raftcmdpb.Response, error)
 
 // Store manage a set of raft group
 type Store interface {
@@ -268,7 +268,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResp
 	}
 
 	if h, ok := s.localHandlers[req.CustemType]; ok {
-		rsp, err := h(pr.shardID, req)
+		rsp, err := h(pr.ps.shard, req)
 		if err != nil {
 			respWithRetry(req, cb)
 		} else {
