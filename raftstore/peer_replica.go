@@ -229,7 +229,7 @@ func (pr *peerReplica) doExecReadCmd(c *cmd) {
 	pr.buf.Clear()
 	for _, req := range c.req.Requests {
 		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			resp.Responses = append(resp.Responses, h(pr.shardID, req, pr.buf))
+			resp.Responses = append(resp.Responses, h(pr.ps.shard, req, pr.buf))
 		}
 	}
 

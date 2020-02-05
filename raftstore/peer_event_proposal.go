@@ -246,7 +246,7 @@ func (pr *peerReplica) checkProposal(c *cmd) bool {
 	term := pr.getCurrentTerm()
 
 	pe := pr.store.validateShard(c.req)
-	if err != nil {
+	if pe != nil {
 		c.resp(errorPbResp(pe, c.req.Header.ID, term))
 		return false
 	}

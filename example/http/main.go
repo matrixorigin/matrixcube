@@ -10,6 +10,7 @@ import (
 
 	"github.com/deepfabric/beehive"
 	"github.com/deepfabric/beehive/pb"
+	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/server"
@@ -163,7 +164,7 @@ func (h *httpHandler) AddWriteFunc(cmd string, cmdType uint64, cb raftstore.Writ
 	h.store.RegisterWriteFunc(cmdType, cb)
 }
 
-func (h *httpHandler) set(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *httpHandler) set(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
@@ -186,7 +187,7 @@ func (h *httpHandler) set(shard uint64, req *raftcmdpb.Request, buf *goetty.Byte
 	return writtenBytes, changedBytes, resp
 }
 
-func (h *httpHandler) delete(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *httpHandler) delete(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
@@ -209,7 +210,7 @@ func (h *httpHandler) delete(shard uint64, req *raftcmdpb.Request, buf *goetty.B
 	return writtenBytes, changedBytes, resp
 }
 
-func (h *httpHandler) get(shard uint64, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *httpHandler) get(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
 	cmd := request{}
