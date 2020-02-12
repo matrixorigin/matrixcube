@@ -13,6 +13,8 @@ type MetadataStorage interface {
 
 	// Set put the key, value pair to the storage
 	Set(key []byte, value []byte) error
+	// SetWithTTL put the key, value pair to the storage with a ttl in seconds
+	SetWithTTL(key []byte, value []byte, ttl int) error
 	// Get returns the value of the key
 	Get(key []byte) ([]byte, error)
 	// Delete remove the key from the storage

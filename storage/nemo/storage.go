@@ -9,9 +9,8 @@ import (
 
 // Storage nemo storage
 type Storage struct {
-	db *gonemo.NEMO
-	kv *gonemo.DBNemo
-
+	db        *gonemo.NEMO
+	kv        *gonemo.DBNemo
 	redisKV   *redisKV
 	redisHash *redisHash
 	redisSet  *redisSet
@@ -48,6 +47,11 @@ func NewStorageWithOption(dataPath, options string) (*Storage, error) {
 // Set put the key, value pair to the storage
 func (s *Storage) Set(key []byte, value []byte) error {
 	return s.db.PutWithHandle(s.kv, key, value, false)
+}
+
+// SetWithTTL put the key, value pair to the storage with a ttl in seconds
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int) error {
+	return s.RedisKV().Set(key, value, ttl)
 }
 
 // BatchSet batch set
@@ -95,7 +99,7 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 	var err error
 	c := false
 
-	it := s.db.KScanWithHandle(s.kv, start, end, true)
+	it := s.db.KScanWithHandle(s.db.GetKvHandle(), start, end, true)
 	for ; it.Valid(); it.Next() {
 		if pooledKey {
 			key = it.PooledKey()

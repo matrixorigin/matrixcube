@@ -23,7 +23,7 @@ func (h *handler) set(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.By
 		return 0, 0, resp
 	}
 
-	err := h.getRedisKV(shard.ID).Set(req.Key, args.Args[0])
+	err := h.getRedisKV(shard.ID).Set(req.Key, args.Args[0], 0)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp

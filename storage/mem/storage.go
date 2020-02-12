@@ -28,6 +28,11 @@ func (s *Storage) Set(key []byte, value []byte) error {
 	return nil
 }
 
+// SetWithTTL put the key, value pair to the storage with a ttl in seconds
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int) error {
+	return fmt.Errorf("Memory storage not support SetWithTTL")
+}
+
 // BatchSet batch set
 func (s *Storage) BatchSet(pairs ...[]byte) error {
 	if len(pairs)%2 != 0 {
@@ -212,6 +217,10 @@ func (s *Storage) ApplySnapshot(path string) error {
 // Close close the storage
 func (s *Storage) Close() error {
 	return nil
+}
+
+func (s *Storage) onTimeout(arg interface{}) {
+	s.Delete(arg.([]byte))
 }
 
 type opt struct {
