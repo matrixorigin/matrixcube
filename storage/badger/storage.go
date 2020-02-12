@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/deepfabric/beehive/util"
 	"github.com/dgraph-io/badger"
@@ -34,7 +35,26 @@ func NewStorageWithOptions(opts badger.Options) (*Storage, error) {
 
 // Set put the key, value pair to the storage
 func (s *Storage) Set(key []byte, value []byte) error {
-	return s.BatchSet(key, value)
+	return s.db.Update(func(txn *badger.Txn) error {
+		err := txn.Set(key, value)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+// SetWithTTL put the key, value pair to the storage with a ttl in seconds
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int) error {
+	return s.db.Update(func(txn *badger.Txn) error {
+		err := txn.SetEntry(badger.NewEntry(key, value).WithTTL(time.Second * time.Duration(ttl)))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // BatchSet batch set

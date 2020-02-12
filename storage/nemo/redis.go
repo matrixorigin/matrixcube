@@ -3,7 +3,7 @@ package nemo
 // RedisKV redis kv
 type RedisKV interface {
 	// Set redis set command
-	Set(key, value []byte) error
+	Set(key, value []byte, ttl int) error
 	// MSet redis mset command
 	MSet(keys [][]byte, values [][]byte) error
 	// Get redis get command

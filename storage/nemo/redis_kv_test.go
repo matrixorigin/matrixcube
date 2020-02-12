@@ -1,9 +1,10 @@
 package nemo
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -19,7 +20,7 @@ func TestSet(t *testing.T) {
 	key := []byte("key1")
 	value := []byte("value1")
 
-	err = s.RedisKV().Set(key, value)
+	err = s.RedisKV().Set(key, value, 0)
 	assert.NoError(t, err, "TestSet failed")
 }
 
@@ -36,7 +37,7 @@ func TestGet(t *testing.T) {
 	assert.NoError(t, err, "TestGet failed")
 	assert.Empty(t, v, "TestGet failed")
 
-	err = s.RedisKV().Set(key, value)
+	err = s.RedisKV().Set(key, value, 0)
 	assert.NoError(t, err, "TestGet failed")
 
 	v, err = s.RedisKV().Get(key)
@@ -51,7 +52,7 @@ func TestIncrBy(t *testing.T) {
 	defer s.Close()
 
 	key := []byte("TestIncrBy")
-	err = s.RedisKV().Set(key, []byte("1"))
+	err = s.RedisKV().Set(key, []byte("1"), 0)
 	assert.NoError(t, err, "TestIncrBy failed")
 
 	n, err := s.RedisKV().IncrBy(key, 1)
@@ -66,7 +67,7 @@ func TestDecrBy(t *testing.T) {
 	defer s.Close()
 
 	key := []byte("TestDecrBy")
-	err = s.RedisKV().Set(key, []byte("2"))
+	err = s.RedisKV().Set(key, []byte("2"), 0)
 	assert.NoError(t, err, "TestDecrBy failed")
 
 	n, err := s.RedisKV().DecrBy(key, 1)
@@ -150,7 +151,7 @@ func TestStrLen(t *testing.T) {
 	assert.NoError(t, err, "TestStrLen failed")
 	assert.Equal(t, int64(0), n, "TestStrLen failed")
 
-	err = s.RedisKV().Set(key, value)
+	err = s.RedisKV().Set(key, value, 0)
 	assert.NoError(t, err, "TestStrLen failed")
 
 	n, err = s.RedisKV().StrLen(key)

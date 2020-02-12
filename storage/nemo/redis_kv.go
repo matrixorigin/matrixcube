@@ -10,8 +10,8 @@ type redisKV struct {
 	db *gonemo.NEMO
 }
 
-func (kv *redisKV) Set(key, value []byte) error {
-	return kv.db.Set(key, value, 0)
+func (kv *redisKV) Set(key, value []byte, ttl int) error {
+	return kv.db.Set(key, value, ttl)
 }
 
 func (kv *redisKV) MSet(keys [][]byte, values [][]byte) error {
