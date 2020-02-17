@@ -50,8 +50,8 @@ func (s *Storage) Set(key []byte, value []byte) error {
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int) error {
-	return s.RedisKV().Set(key, value, ttl)
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int64) error {
+	return s.RedisKV().Set(key, value, int(ttl))
 }
 
 // BatchSet batch set

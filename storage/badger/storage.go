@@ -46,9 +46,10 @@ func (s *Storage) Set(key []byte, value []byte) error {
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int) error {
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int64) error {
 	return s.db.Update(func(txn *badger.Txn) error {
-		err := txn.SetEntry(badger.NewEntry(key, value).WithTTL(time.Second * time.Duration(ttl)))
+		err := txn.SetEntry(badger.NewEntry(key, value).
+			WithTTL(time.Second * time.Duration(ttl)))
 		if err != nil {
 			return err
 		}
@@ -251,18 +252,23 @@ func (s *Storage) NewWriteBatch() util.WriteBatch {
 func (s *Storage) Write(value util.WriteBatch, sync bool) error {
 	wb := value.(*writeBatch)
 	err := s.db.Update(func(txn *badger.Txn) error {
+		idx := 0
 		var err error
-		for idx, op := range wb.opts {
+		for i, op := range wb.opts {
 			switch op {
 			case delete:
 				err = txn.Delete(wb.values[idx])
 				idx++
 			case set:
-				if wb.ttl[idx] == 0 {
-					err = txn.Set(wb.values[2*idx], wb.values[2*idx+1])
+				ttl := time.Second * time.Duration(wb.ttl[i])
+				key := wb.values[idx]
+				value := wb.values[idx+1]
+				if ttl == 0 {
+					err = txn.Set(key, value)
 				} else {
-					err = txn.SetEntry(badger.NewEntry(wb.values[2*idx], wb.values[2*idx+1]).WithTTL(time.Second * time.Duration(wb.ttl[idx])))
+					err = txn.SetEntry(badger.NewEntry(key, value).WithTTL(ttl))
 				}
+				idx += 2
 			}
 
 			if err != nil {
@@ -352,6 +358,7 @@ type writeBatch struct {
 func (wb *writeBatch) Delete(key []byte) error {
 	wb.opts = append(wb.opts, delete)
 	wb.values = append(wb.values, key)
+	wb.ttl = append(wb.ttl, 0)
 	return nil
 }
 
@@ -361,7 +368,7 @@ func (wb *writeBatch) Set(key []byte, value []byte) error {
 
 func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
 	wb.opts = append(wb.opts, set)
-	wb.values = append(wb.values, key, value)
 	wb.ttl = append(wb.ttl, ttl)
+	wb.values = append(wb.values, key, value)
 	return nil
 }

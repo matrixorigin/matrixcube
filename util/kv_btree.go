@@ -54,16 +54,16 @@ func (kv *KVTree) Put(key, value []byte) {
 // Delete deletes a key, return false if not the key is not exists
 func (kv *KVTree) Delete(key []byte) bool {
 	kv.Lock()
-	defer kv.Unlock()
-
 	item := &treeItem{key: key}
-	return nil != kv.tree.Delete(item)
+	ok := nil != kv.tree.Delete(item)
+	kv.Unlock()
+
+	return ok
 }
 
 // RangeDelete deletes key in [start, end)
 func (kv *KVTree) RangeDelete(start, end []byte) {
 	kv.Lock()
-	defer kv.Unlock()
 
 	var items []btree.Item
 	item := &treeItem{key: start}
@@ -80,12 +80,13 @@ func (kv *KVTree) RangeDelete(start, end []byte) {
 	for _, target := range items {
 		kv.tree.Delete(target)
 	}
+
+	kv.Unlock()
 }
 
 // Get get value, return nil if not the key is not exists
 func (kv *KVTree) Get(key []byte) []byte {
 	kv.RLock()
-	defer kv.RUnlock()
 
 	item := &treeItem{key: key}
 
@@ -96,10 +97,13 @@ func (kv *KVTree) Get(key []byte) []byte {
 	})
 
 	if result == nil || !result.Equals(item) {
+		kv.RUnlock()
 		return nil
 	}
 
-	return result.value
+	value := result.value
+	kv.RUnlock()
+	return value
 }
 
 // Seek returns the next key and value which key >= spec key
