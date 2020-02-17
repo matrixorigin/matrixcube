@@ -63,10 +63,10 @@ func TestWriteBatch(t *testing.T) {
 			value4 := []byte("v4")
 
 			wb.Set(key1, value1)
-			wb.Set(key2, value2)
-			wb.Set(key3, value3)
 			wb.Set(key4, value4)
 			wb.Delete(key4)
+			wb.Set(key2, value2)
+			wb.Set(key3, value3)
 
 			err := s.Write(wb, true)
 			assert.NoError(t, err, "TestWriteBatch failed")
