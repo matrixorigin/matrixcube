@@ -199,14 +199,19 @@ type writeBatch struct {
 	wb *gonemo.WriteBatch
 }
 
-// Delete remove the key
 func (wb *writeBatch) Delete(key []byte) error {
 	wb.wb.WriteBatchDel(key)
 	return nil
 }
 
-// Set set the key-value pair
 func (wb *writeBatch) Set(key []byte, value []byte) error {
+	wb.wb.WriteBatchPut(key, value)
+	return nil
+}
+
+// Set set the key-value pair with a TTL
+func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
+	// TODO: update go-nemo
 	wb.wb.WriteBatchPut(key, value)
 	return nil
 }

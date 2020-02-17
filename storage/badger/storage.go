@@ -251,16 +251,18 @@ func (s *Storage) NewWriteBatch() util.WriteBatch {
 func (s *Storage) Write(value util.WriteBatch, sync bool) error {
 	wb := value.(*writeBatch)
 	err := s.db.Update(func(txn *badger.Txn) error {
-		idx := 0
 		var err error
-		for _, op := range wb.opts {
+		for idx, op := range wb.opts {
 			switch op {
 			case delete:
 				err = txn.Delete(wb.values[idx])
 				idx++
 			case set:
-				err = txn.Set(wb.values[idx], wb.values[idx+1])
-				idx = idx + 2
+				if wb.ttl[idx] == 0 {
+					err = txn.Set(wb.values[2*idx], wb.values[2*idx+1])
+				} else {
+					err = txn.SetEntry(badger.NewEntry(wb.values[2*idx], wb.values[2*idx+1]).WithTTL(time.Second * time.Duration(wb.ttl[idx])))
+				}
 			}
 
 			if err != nil {
@@ -343,6 +345,7 @@ var (
 type writeBatch struct {
 	opts   []byte
 	values [][]byte
+	ttl    []int64
 }
 
 // Delete remove the key
@@ -352,9 +355,13 @@ func (wb *writeBatch) Delete(key []byte) error {
 	return nil
 }
 
-// Set set the key-value pair
 func (wb *writeBatch) Set(key []byte, value []byte) error {
+	return wb.SetWithTTL(key, value, 0)
+}
+
+func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
 	wb.opts = append(wb.opts, set)
 	wb.values = append(wb.values, key, value)
+	wb.ttl = append(wb.ttl, ttl)
 	return nil
 }

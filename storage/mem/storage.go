@@ -226,6 +226,7 @@ func (s *Storage) onTimeout(arg interface{}) {
 type opt struct {
 	key      []byte
 	value    []byte
+	ttl      int64
 	isDelete bool
 }
 
@@ -245,6 +246,15 @@ func (wb *writeBatch) Set(key []byte, value []byte) error {
 	wb.opts = append(wb.opts, opt{
 		key:   key,
 		value: value,
+	})
+	return nil
+}
+
+func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
+	wb.opts = append(wb.opts, opt{
+		key:   key,
+		value: value,
+		ttl:   ttl,
 	})
 	return nil
 }
