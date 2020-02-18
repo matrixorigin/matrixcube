@@ -115,42 +115,44 @@ func (pr *peerReplica) handleEvent() bool {
 
 	_, err := pr.events.Get()
 	if err != nil || stop {
-		pr.metrics.flush()
-		pr.actions.Dispose()
-		pr.ticks.Dispose()
-		pr.steps.Dispose()
-		pr.reports.Dispose()
+		pr.stopOnce.Do(func() {
+			pr.metrics.flush()
+			pr.actions.Dispose()
+			pr.ticks.Dispose()
+			pr.steps.Dispose()
+			pr.reports.Dispose()
 
-		results := pr.applyResults.Dispose()
-		for _, result := range results {
-			releaseAsyncApplyResult(result.(*asyncApplyResult))
-		}
-
-		// resp all stale requests in batch and queue
-		for {
-			if pr.batch.isEmpty() {
-				break
-			}
-			c := pr.batch.pop()
-			for _, req := range c.req.Requests {
-				respStoreNotMatch(errStoreNotMatch, req, c.cb)
-			}
-		}
-
-		requests := pr.requests.Dispose()
-		for _, r := range requests {
-			req := r.(*reqCtx)
-			if req.cb != nil {
-				respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+			results := pr.applyResults.Dispose()
+			for _, result := range results {
+				releaseAsyncApplyResult(result.(*asyncApplyResult))
 			}
 
-			pb.ReleaseRequest(req.req)
-			releaseReqCtx(req)
-		}
+			// resp all stale requests in batch and queue
+			for {
+				if pr.batch.isEmpty() {
+					break
+				}
+				c := pr.batch.pop()
+				for _, req := range c.req.Requests {
+					respStoreNotMatch(errStoreNotMatch, req, c.cb)
+				}
+			}
 
-		logger.Infof("shard %d handle serve raft stopped",
-			pr.shardID)
-		pr.store.prStopped()
+			requests := pr.requests.Dispose()
+			for _, r := range requests {
+				req := r.(*reqCtx)
+				if req.cb != nil {
+					respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+				}
+
+				pb.ReleaseRequest(req.req)
+				releaseReqCtx(req)
+			}
+
+			logger.Infof("shard %d handle serve raft stopped",
+				pr.shardID)
+			pr.store.prStopped()
+		})
 		return false
 	}
 

@@ -52,8 +52,9 @@ type peerReplica struct {
 	raftLogSizeHint uint64
 	deleteKeysHint  uint64
 
-	metrics localMetrics
-	buf     *goetty.ByteBuf
+	metrics  localMetrics
+	buf      *goetty.ByteBuf
+	stopOnce sync.Once
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
