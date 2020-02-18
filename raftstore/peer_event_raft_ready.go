@@ -21,7 +21,7 @@ type readyContext struct {
 	applyState raftpb.RaftApplyState
 	lastTerm   uint64
 	snap       *raftpb.SnapshotMessage
-	wb         util.WriteBatch
+	wb         *util.WriteBatch
 }
 
 func (ctx *readyContext) reset() {
@@ -30,7 +30,7 @@ func (ctx *readyContext) reset() {
 	ctx.applyState = raftpb.RaftApplyState{}
 	ctx.lastTerm = 0
 	ctx.snap = nil
-	ctx.wb = nil
+	ctx.wb.Reset()
 }
 
 type applySnapResult struct {
@@ -119,9 +119,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		pr.send(rd.Messages)
 	}
 
-	driver := pr.store.MetadataStorage(pr.shardID)
-	ctx.wb = driver.NewWriteBatch()
-
+	ctx.wb.Reset()
 	pr.handleAppendSnapshot(ctx, rd)
 	pr.handleAppendEntries(ctx, rd)
 
@@ -132,7 +130,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 	pr.doSaveRaftState(ctx)
 	pr.doSaveApplyState(ctx)
 
-	err := driver.Write(ctx.wb, !pr.store.opts.disableSyncRaftLog)
+	err := pr.store.MetadataStorage(pr.shardID).Write(ctx.wb, !pr.store.opts.disableSyncRaftLog)
 	if err != nil {
 		logger.Fatalf("shard %d handle raft ready failure, errors\n %+v",
 			pr.shardID,

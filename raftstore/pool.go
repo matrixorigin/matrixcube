@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 )
 
@@ -95,7 +96,9 @@ func releaseAsyncApplyResult(res *asyncApplyResult) {
 func acquireReadyContext() *readyContext {
 	v := readyContextPool.Get()
 	if v == nil {
-		return &readyContext{}
+		return &readyContext{
+			wb: util.NewWriteBatch(),
+		}
 	}
 
 	return v.(*readyContext)

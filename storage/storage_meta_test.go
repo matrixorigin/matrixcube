@@ -10,6 +10,7 @@ import (
 	"github.com/deepfabric/beehive/storage/badger"
 	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/deepfabric/beehive/storage/nemo"
+	"github.com/deepfabric/beehive/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,7 +49,7 @@ func TestWriteBatch(t *testing.T) {
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
 			s := factory(t)
-			wb := s.NewWriteBatch()
+			wb := util.NewWriteBatch()
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -124,6 +125,68 @@ func TestSetAndGet(t *testing.T) {
 			value, err = s.Get(key4)
 			assert.NoError(t, err, "TestSetAndGet failed")
 			assert.Equal(t, "", string(value), "TestSetAndGet failed")
+		})
+	}
+}
+
+func TestSetAndGetWithTTL(t *testing.T) {
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(t)
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+
+			s.SetWithTTL(key1, value1, 1)
+
+			value, err := s.Get(key1)
+			assert.NoError(t, err, "TestSetAndGetWithTTL failed")
+			assert.Equal(t, string(value1), string(value), "TestSetAndGetWithTTL failed")
+
+			time.Sleep(time.Millisecond * 1200)
+			value, err = s.Get(key1)
+			assert.NoError(t, err, "TestSetAndGetWithTTL failed")
+			assert.Equal(t, 0, len(value), "TestSetAndGetWithTTL failed")
+
+			c := 0
+			err = s.Scan(key1, []byte("k2"), func(key, value []byte) (bool, error) {
+				c++
+				return true, nil
+			}, false)
+			assert.NoError(t, err, "TestSetAndGetWithTTL failed")
+			assert.Equal(t, 0, c, "TestSetAndGetWithTTL failed")
+		})
+	}
+}
+
+func TestWritebatchWithTTL(t *testing.T) {
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(t)
+
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+			wb := util.NewWriteBatch()
+			wb.SetWithTTL(key1, value1, 1)
+
+			err := s.Write(wb, false)
+			assert.NoError(t, err, "TestWritebatchWithTTL failed")
+
+			value, err := s.Get(key1)
+			assert.NoError(t, err, "TestWritebatchWithTTL failed")
+			assert.Equal(t, string(value1), string(value), "TestWritebatchWithTTL failed")
+
+			time.Sleep(time.Millisecond * 1200)
+			value, err = s.Get(key1)
+			assert.NoError(t, err, "TestWritebatchWithTTL failed")
+			assert.Equal(t, 0, len(value), "TestWritebatchWithTTL failed")
+
+			c := 0
+			err = s.Scan(key1, []byte("k2"), func(key, value []byte) (bool, error) {
+				c++
+				return true, nil
+			}, false)
+			assert.NoError(t, err, "TestWritebatchWithTTL failed")
+			assert.Equal(t, 0, c, "TestWritebatchWithTTL failed")
 		})
 	}
 }

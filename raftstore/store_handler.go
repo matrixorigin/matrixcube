@@ -329,7 +329,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 
 	// following snapshot may overlap, should insert into keyRanges after
 	// snapshot is applied.
-	s.replicas.Store(msg.ShardID, pr)
+	s.addPR(pr)
 	s.peers.Store(msg.From.ID, msg.From)
 	s.peers.Store(msg.To.ID, msg.To)
 	return true

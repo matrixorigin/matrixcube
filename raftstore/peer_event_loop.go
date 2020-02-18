@@ -1,7 +1,6 @@
 package raftstore
 
 import (
-	"context"
 	"time"
 
 	"github.com/coreos/etcd/raft"
@@ -102,76 +101,71 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 	util.DefaultTimeoutWheel().Schedule(pr.store.opts.raftTickDuration, pr.onRaftTick, nil)
 }
 
-func (pr *peerReplica) readyToServeRaft(ctx context.Context) {
-	pr.onRaftTick(nil)
-	items := make([]interface{}, readyBatch, readyBatch)
-
-	for {
-		if pr.events.Len() == 0 && !pr.events.IsDisposed() {
-			time.Sleep(time.Millisecond * 10)
-			continue
-		}
-
-		stop := false
-		select {
-		case <-ctx.Done():
-			stop = true
-		default:
-		}
-
-		_, err := pr.events.Get()
-		if err != nil || stop {
-			pr.metrics.flush()
-			pr.actions.Dispose()
-			pr.ticks.Dispose()
-			pr.steps.Dispose()
-			pr.reports.Dispose()
-
-			results := pr.applyResults.Dispose()
-			for _, result := range results {
-				releaseAsyncApplyResult(result.(*asyncApplyResult))
-			}
-
-			// resp all stale requests in batch and queue
-			for {
-				if pr.batch.isEmpty() {
-					break
-				}
-				c := pr.batch.pop()
-				for _, req := range c.req.Requests {
-					respStoreNotMatch(errStoreNotMatch, req, c.cb)
-				}
-			}
-
-			requests := pr.requests.Dispose()
-			for _, r := range requests {
-				req := r.(*reqCtx)
-				if req.cb != nil {
-					respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
-				}
-
-				pb.ReleaseRequest(req.req)
-				releaseReqCtx(req)
-			}
-
-			logger.Infof("shard %d handle serve raft stopped",
-				pr.shardID)
-			pr.store.prStopped()
-			return
-		}
-
-		pr.handleStep(items)
-		pr.handleTick(items)
-		pr.handleReport(items)
-		pr.handleApplyResult(items)
-		pr.handleRequest(items)
-
-		if pr.rn.HasReadySince(pr.ps.lastReadyIndex) {
-			pr.handleReady()
-		}
-
-		pr.handleAction(items)
+func (pr *peerReplica) handleEvent() bool {
+	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
+		return false
 	}
+
+	stop := false
+	select {
+	case <-pr.ctx.Done():
+		stop = true
+	default:
+	}
+
+	_, err := pr.events.Get()
+	if err != nil || stop {
+		pr.metrics.flush()
+		pr.actions.Dispose()
+		pr.ticks.Dispose()
+		pr.steps.Dispose()
+		pr.reports.Dispose()
+
+		results := pr.applyResults.Dispose()
+		for _, result := range results {
+			releaseAsyncApplyResult(result.(*asyncApplyResult))
+		}
+
+		// resp all stale requests in batch and queue
+		for {
+			if pr.batch.isEmpty() {
+				break
+			}
+			c := pr.batch.pop()
+			for _, req := range c.req.Requests {
+				respStoreNotMatch(errStoreNotMatch, req, c.cb)
+			}
+		}
+
+		requests := pr.requests.Dispose()
+		for _, r := range requests {
+			req := r.(*reqCtx)
+			if req.cb != nil {
+				respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+			}
+
+			pb.ReleaseRequest(req.req)
+			releaseReqCtx(req)
+		}
+
+		logger.Infof("shard %d handle serve raft stopped",
+			pr.shardID)
+		pr.store.prStopped()
+		return false
+	}
+
+	pr.handleStep(pr.items)
+	pr.handleTick(pr.items)
+	pr.handleReport(pr.items)
+	pr.handleApplyResult(pr.items)
+	pr.handleRequest(pr.items)
+
+	if pr.rn.HasReadySince(pr.ps.lastReadyIndex) {
+		pr.handleReady()
+	}
+
+	pr.handleAction(pr.items)
+	return true
 }
 
 func (pr *peerReplica) handleAction(items []interface{}) {

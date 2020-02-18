@@ -84,35 +84,42 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatal("save local store id failed with %+v", err)
 	}
 
-	var initShards []prophet.Resource
-	if s.opts.initShards == 1 {
-		s.keyConvertFunc = noConvert
-		initShards = append(initShards, s.createInitShard(nil, nil))
-	} else {
-		s.keyConvertFunc = uint64Convert
-		step := uint64(math.MaxUint64 / s.opts.initShards)
-		start := uint64(0)
-		end := start + step
-
-		for i := uint64(0); i < s.opts.initShards; i++ {
-			if s.opts.initShards-i == 1 {
-				end = math.MaxUint64
-			}
-
-			initShards = append(initShards, s.createInitShard(format.Uint64ToBytes(start), format.Uint64ToBytes(end)))
-			start = end
-			end = start + step
-		}
-	}
-
-	ok, err := s.pd.GetStore().PutBootstrapped(s.meta, initShards...)
+	ok, err := s.pd.GetStore().AlreadyBootstrapped()
 	if err != nil {
-		s.removeInitShardIfAlreadyBootstrapped(initShards...)
-		logger.Warningf("bootstrap cluster failed with %+v", err)
+		logger.Fatal("get cluster already bootstrapped failed with %+v", err)
 	}
+
 	if !ok {
-		logger.Info("the cluster is already bootstrapped")
-		s.removeInitShardIfAlreadyBootstrapped(initShards...)
+		var initShards []prophet.Resource
+		if s.opts.initShards == 1 {
+			s.keyConvertFunc = noConvert
+			initShards = append(initShards, s.createInitShard(nil, nil))
+		} else {
+			s.keyConvertFunc = uint64Convert
+			step := uint64(math.MaxUint64 / s.opts.initShards)
+			start := uint64(0)
+			end := start + step
+
+			for i := uint64(0); i < s.opts.initShards; i++ {
+				if s.opts.initShards-i == 1 {
+					end = math.MaxUint64
+				}
+
+				initShards = append(initShards, s.createInitShard(format.Uint64ToBytes(start), format.Uint64ToBytes(end)))
+				start = end
+				end = start + step
+			}
+		}
+
+		ok, err := s.pd.GetStore().PutBootstrapped(s.meta, initShards...)
+		if err != nil {
+			s.removeInitShardIfAlreadyBootstrapped(initShards...)
+			logger.Warningf("bootstrap cluster failed with %+v", err)
+		}
+		if !ok {
+			logger.Info("the cluster is already bootstrapped")
+			s.removeInitShardIfAlreadyBootstrapped(initShards...)
+		}
 	}
 
 	s.pd.GetRPC().TiggerContainerHeartbeat()

@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
@@ -20,6 +22,7 @@ import (
 
 type peerReplica struct {
 	shardID      uint64
+	workerID     uint64
 	peer         metapb.Peer
 	rn           *raft.RawNode
 	stopRaftTick bool
@@ -32,6 +35,9 @@ type peerReplica struct {
 
 	batch        *proposeBatch
 	pendingReads *readIndexQueue
+	ctx          context.Context
+	cancel       context.CancelFunc
+	items        []interface{}
 	events       *task.RingBuffer
 	ticks        *task.Queue
 	steps        *task.Queue
@@ -45,11 +51,9 @@ type peerReplica struct {
 	sizeDiffHint    uint64
 	raftLogSizeHint uint64
 	deleteKeysHint  uint64
-	cancelTaskIds   []uint64
 
 	metrics localMetrics
-
-	buf *goetty.ByteBuf
+	buf     *goetty.ByteBuf
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -134,8 +138,9 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 
 	pr.store.opts.shardStateAware.Created(pr.ps.shard)
 
-	id, _ := store.runner.RunCancelableTask(pr.readyToServeRaft)
-	pr.cancelTaskIds = append(pr.cancelTaskIds, id)
+	pr.ctx, pr.cancel = context.WithCancel(context.Background())
+	pr.items = make([]interface{}, readyBatch, readyBatch)
+	pr.onRaftTick(nil)
 	return pr, nil
 }
 
@@ -164,8 +169,7 @@ func (pr *peerReplica) mustDestroy() {
 	pr.stopEventLoop()
 	pr.store.removeDroppedVoteMsg(pr.shardID)
 
-	driver := pr.store.MetadataStorage(pr.shardID)
-	wb := driver.NewWriteBatch()
+	wb := util.NewWriteBatch()
 	err := pr.store.clearMeta(pr.shardID, wb)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
@@ -180,7 +184,7 @@ func (pr *peerReplica) mustDestroy() {
 			err)
 	}
 
-	err = driver.Write(wb, false)
+	err = pr.store.MetadataStorage(pr.shardID).Write(wb, false)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
 			pr.shardID,
@@ -196,9 +200,7 @@ func (pr *peerReplica) mustDestroy() {
 		}
 	}
 
-	for _, id := range pr.cancelTaskIds {
-		pr.store.runner.StopCancelableTask(id)
-	}
+	pr.cancel()
 
 	if pr.ps.isInitialized() && !pr.store.removeShardKeyRange(pr.ps.shard) {
 		logger.Fatalf("shard %d remove key range  failed",

@@ -6,9 +6,9 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/coreos/etcd v3.3.17+incompatible
-	github.com/deepfabric/c-nemo v0.0.0-20190419083223-23fa413d9df4 // indirect
-	github.com/deepfabric/go-nemo v0.0.0-20190419084252-5ec7afa882c6
-	github.com/deepfabric/prophet v0.0.0-20191202055442-cec7351ee5cf
+	github.com/deepfabric/c-nemo v0.0.0-20200217131733-d8d20abdb6f7 // indirect
+	github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871
+	github.com/deepfabric/prophet v0.0.0-20200217214013-3e0d1fb19e8e
 	github.com/dgraph-io/badger v1.6.0
 	github.com/fagongzi/goetty v1.3.2
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445

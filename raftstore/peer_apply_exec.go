@@ -155,14 +155,13 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	newShard.Epoch.ShardVer = d.shard.Epoch.ShardVer
 	err := d.ps.updatePeerState(d.shard, raftpb.PeerNormal, ctx.wb)
 
-	driver := d.ps.store.MetadataStorage(newShard.ID)
-	wb := driver.NewWriteBatch()
+	d.wb.Reset()
 	if err == nil {
-		err = d.ps.updatePeerState(newShard, raftpb.PeerNormal, wb)
+		err = d.ps.updatePeerState(newShard, raftpb.PeerNormal, d.wb)
 	}
 
 	if err == nil {
-		err = d.ps.writeInitialState(newShard.ID, wb)
+		err = d.ps.writeInitialState(newShard.ID, d.wb)
 	}
 	if err != nil {
 		logger.Fatalf("shard %d save split shard failed, newShard=<%+v> errors:\n %+v",
@@ -171,7 +170,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 			err)
 	}
 
-	err = driver.Write(wb, false)
+	err = d.ps.store.MetadataStorage(newShard.ID).Write(d.wb, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,

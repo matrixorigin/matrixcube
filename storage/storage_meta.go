@@ -6,15 +6,13 @@ import (
 
 // MetadataStorage the storage to save raft log, shard and store metadata.
 type MetadataStorage interface {
-	// NewWriteBatch return a new write batch
-	NewWriteBatch() util.WriteBatch
 	// Write write the data in batch
-	Write(wb util.WriteBatch, sync bool) error
+	Write(wb *util.WriteBatch, sync bool) error
 
 	// Set put the key, value pair to the storage
 	Set(key []byte, value []byte) error
 	// SetWithTTL put the key, value pair to the storage with a ttl in seconds
-	SetWithTTL(key []byte, value []byte, ttl int64) error
+	SetWithTTL(key []byte, value []byte, ttl int32) error
 	// Get returns the value of the key
 	Get(key []byte) ([]byte, error)
 	// Delete remove the key from the storage

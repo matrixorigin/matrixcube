@@ -24,6 +24,7 @@ var (
 	defaultSnapChunkSize                   = 4 * mb
 	defaultApplyWorkerCount         uint64 = 32
 	defaultSendRaftMsgWorkerCount          = 8
+	defaultRaftMaxWorkers           uint64 = 32
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
 	defaultRaftMaxBytesPerMsg              = 4 * mb
@@ -62,6 +63,7 @@ type options struct {
 	shardHeartbeatDuration        time.Duration
 	storeHeartbeatDuration        time.Duration
 	useMemoryAsStorage            bool
+	raftMaxWorkers                uint64
 	raftTickDuration              time.Duration
 	raftElectionTick              int
 	raftHeartbeatTick             int
@@ -135,6 +137,10 @@ func (opts *options) adjust() {
 
 	if opts.shardHeartbeatDuration == 0 {
 		opts.shardHeartbeatDuration = defaultShardHeartbeatDuration
+	}
+
+	if opts.raftMaxWorkers == 0 {
+		opts.raftMaxWorkers = defaultRaftMaxWorkers
 	}
 
 	if opts.raftElectionTick == 0 {
@@ -288,6 +294,13 @@ func WithStoreHeartbeatDuration(value time.Duration) Option {
 func WithMemoryAsStorage() Option {
 	return func(opts *options) {
 		opts.useMemoryAsStorage = true
+	}
+}
+
+// WithRaftMaxWorkers set raft workers
+func WithRaftMaxWorkers(value uint64) Option {
+	return func(opts *options) {
+		opts.raftMaxWorkers = value
 	}
 }
 

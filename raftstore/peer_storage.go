@@ -448,7 +448,7 @@ func (ps *peerStorage) doDestroyDataJob(shardID uint64, startKey, endKey []byte)
 	return err
 }
 
-func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerState, wb util.WriteBatch) error {
+func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerState, wb *util.WriteBatch) error {
 	shardState := &raftpb.ShardLocalState{}
 	shardState.State = state
 	shardState.Shard = shard
@@ -460,7 +460,7 @@ func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerStat
 	return ps.store.MetadataStorage(shard.ID).Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
-func (ps *peerStorage) writeInitialState(shardID uint64, wb util.WriteBatch) error {
+func (ps *peerStorage) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
 	hard := etcdPB.HardState{}
 	hard.Term = raftInitLogTerm
 	hard.Commit = raftInitLogIndex

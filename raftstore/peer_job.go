@@ -8,6 +8,7 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
 )
@@ -33,6 +34,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		applyState:       pr.ps.applyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
 		buf:              goetty.NewByteBuf(256),
+		wb:               util.NewWriteBatch(),
 	}
 
 	err := pr.store.addApplyJob(pr.shardID, "doRegistrationJob", func() error {
