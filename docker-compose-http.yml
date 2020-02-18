@@ -17,6 +17,7 @@ services:
     volumes:
       - ./beehive-2.toml:/etc/beehive.yml
     command: 
+      - --wait=1
       - --addr=node2:6379
       - --beehive-cfg=/etc/beehive.yml
 

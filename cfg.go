@@ -45,6 +45,7 @@ type cfg struct {
 	ShardHeartbeatDuration   int64      `toml:"shardHeartbeatDuration"`
 	StoreHeartbeatDuration   int64      `toml:"storeHeartbeatDuration"`
 	MaxAllowTransferLogLag   uint64     `toml:"maxAllowTransferLogLag"`
+	RaftMaxWorkers           uint64     `toml:"raftMaxWorkers"`
 	RaftTickDuration         int64      `toml:"raftTickDuration"`
 	RaftElectionTick         int        `toml:"raftElectionTick"`
 	RaftHeartbeatTick        int        `toml:"raftHeartbeatTick"`
@@ -187,6 +188,10 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.MaxAllowTransferLogLag > 0 {
 		opts = append(opts, raftstore.WithMaxAllowTransferLogLag(c.MaxAllowTransferLogLag))
+	}
+
+	if c.RaftMaxWorkers > 0 {
+		opts = append(opts, raftstore.WithRaftMaxWorkers(c.RaftMaxWorkers))
 	}
 
 	if c.RaftTickDuration > 0 {

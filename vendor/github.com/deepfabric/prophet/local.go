@@ -186,32 +186,39 @@ func (ls *defaultLocalStore) BootstrapCluster(initResources ...Resource) {
 		log.Fatal("save local container id failed with %+v", err)
 	}
 
-	// prepare init resource, alloc the resource id and the first replica peer info
-	for _, res := range initResources {
-		res.SetID(ls.MustAllocID())
-		p := ls.newPeer()
-		res.SetPeers([]*Peer{&p})
-		ls.MustPutResource(res)
-	}
-
-	ok, err := ls.pd.GetStore().PutBootstrapped(ls.meta, initResources...)
+	ok, err := ls.pd.GetStore().AlreadyBootstrapped()
 	if err != nil {
-		for _, res := range initResources {
-			ls.MustRemoveResource(res.ID())
-		}
-
-		if err != errMaybeNotLeader {
-			log.Fatal("bootstrap cluster failed with %+v", err)
-		}
-
-		log.Warningf("bootstrap cluster failed with %+v", err)
+		log.Fatal("get cluster already bootstrapped failed with %+v", err)
 	}
+
 	if !ok {
-		log.Info("the cluster is already bootstrapped")
+		// prepare init resource, alloc the resource id and the first replica peer info
 		for _, res := range initResources {
-			ls.MustRemoveResource(res.ID())
+			res.SetID(ls.MustAllocID())
+			p := ls.newPeer()
+			res.SetPeers([]*Peer{&p})
+			ls.MustPutResource(res)
 		}
-		log.Info("the init resources is already removed from container")
+
+		ok, err := ls.pd.GetStore().PutBootstrapped(ls.meta, initResources...)
+		if err != nil {
+			for _, res := range initResources {
+				ls.MustRemoveResource(res.ID())
+			}
+
+			if err != errMaybeNotLeader {
+				log.Fatal("bootstrap cluster failed with %+v", err)
+			}
+
+			log.Warningf("bootstrap cluster failed with %+v", err)
+		}
+		if !ok {
+			log.Info("the cluster is already bootstrapped")
+			for _, res := range initResources {
+				ls.MustRemoveResource(res.ID())
+			}
+			log.Info("the init resources is already removed from container")
+		}
 	}
 
 	ls.pd.GetRPC().TiggerContainerHeartbeat()

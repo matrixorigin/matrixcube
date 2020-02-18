@@ -50,8 +50,8 @@ func (s *Storage) Set(key []byte, value []byte) error {
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int64) error {
-	return s.RedisKV().Set(key, value, int(ttl))
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
+	return s.db.Set(key, value, int(ttl))
 }
 
 // BatchSet batch set
@@ -142,16 +142,12 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	return s.db.SeekWithHandle(s.kv, target)
 }
 
-// NewWriteBatch return a new write batch
-func (s *Storage) NewWriteBatch() util.WriteBatch {
-	return &writeBatch{
-		wb: gonemo.NewWriteBatch(),
-	}
-}
-
 // Write write the data in batch
-func (s *Storage) Write(value util.WriteBatch, sync bool) error {
-	return s.db.BatchWrite(s.kv, value.(*writeBatch).wb, sync)
+func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
+	if len(wb.Ops) == 0 {
+		return nil
+	}
+	return s.db.BatchWriteTTL(wb.Keys, wb.Values, wb.Ops, wb.TTLs, sync)
 }
 
 // CreateSnapshot create a snapshot file under the giving path
@@ -192,26 +188,5 @@ func (s *Storage) RedisList() RedisList {
 // Close close the storage
 func (s *Storage) Close() error {
 	s.db.Close()
-	return nil
-}
-
-type writeBatch struct {
-	wb *gonemo.WriteBatch
-}
-
-func (wb *writeBatch) Delete(key []byte) error {
-	wb.wb.WriteBatchDel(key)
-	return nil
-}
-
-func (wb *writeBatch) Set(key []byte, value []byte) error {
-	wb.wb.WriteBatchPut(key, value)
-	return nil
-}
-
-// Set set the key-value pair with a TTL
-func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
-	// TODO: update go-nemo
-	wb.wb.WriteBatchPut(key, value)
 	return nil
 }

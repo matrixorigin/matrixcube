@@ -75,7 +75,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 		return nil
 	}
 
-	wb := pr.store.MetadataStorage(shardID).NewWriteBatch()
+	wb := util.NewWriteBatch()
 	for index := firstIndex; index < endIndex; index++ {
 		key := getRaftLogKey(shardID, index)
 		err := wb.Delete(key)
@@ -201,7 +201,7 @@ type raftGCResult struct {
 
 type applyContext struct {
 	// raft state write batch
-	wb         util.WriteBatch
+	wb         *util.WriteBatch
 	writeBatch CommandWriteBatch
 
 	applyState raftpb.RaftApplyState
@@ -212,11 +212,13 @@ type applyContext struct {
 }
 
 func newApplyContext() *applyContext {
-	return &applyContext{}
+	return &applyContext{
+		wb: util.NewWriteBatch(),
+	}
 }
 
 func (ctx *applyContext) reset() {
-	ctx.wb = nil
+	ctx.wb.Reset()
 	ctx.applyState = raftpb.RaftApplyState{}
 	ctx.req = nil
 	ctx.index = 0
@@ -243,6 +245,7 @@ type applyDelegate struct {
 	pendingChangePeerCMD *cmd
 
 	buf *goetty.ByteBuf
+	wb  *util.WriteBatch
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
@@ -467,9 +470,6 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 	var writeBytes uint64
 	var diffBytes int64
 
-	driver := d.store.MetadataStorage(d.shard.ID)
-	ctx.wb = driver.NewWriteBatch()
-
 	if !d.checkEpoch(ctx.req) {
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.term, d.shard)
 	} else {
@@ -514,7 +514,7 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 		}
 	}
 
-	err = driver.Write(ctx.wb, false)
+	err = d.store.MetadataStorage(d.shard.ID).Write(ctx.wb, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,

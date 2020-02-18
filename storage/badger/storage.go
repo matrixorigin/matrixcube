@@ -46,7 +46,7 @@ func (s *Storage) Set(key []byte, value []byte) error {
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int64) error {
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
 	return s.db.Update(func(txn *badger.Txn) error {
 		err := txn.SetEntry(badger.NewEntry(key, value).
 			WithTTL(time.Second * time.Duration(ttl)))
@@ -243,32 +243,27 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	return key, value, err
 }
 
-// NewWriteBatch return a new write batch
-func (s *Storage) NewWriteBatch() util.WriteBatch {
-	return &writeBatch{}
-}
-
 // Write write the data in batch
-func (s *Storage) Write(value util.WriteBatch, sync bool) error {
-	wb := value.(*writeBatch)
+func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
+	if len(wb.Ops) == 0 {
+		return nil
+	}
+
 	err := s.db.Update(func(txn *badger.Txn) error {
-		idx := 0
 		var err error
-		for i, op := range wb.opts {
+		for idx, op := range wb.Ops {
 			switch op {
-			case delete:
-				err = txn.Delete(wb.values[idx])
-				idx++
-			case set:
-				ttl := time.Second * time.Duration(wb.ttl[i])
-				key := wb.values[idx]
-				value := wb.values[idx+1]
+			case util.OpDelete:
+				err = txn.Delete(wb.Keys[idx])
+			case util.OpSet:
+				ttl := time.Second * time.Duration(wb.TTLs[idx])
+				key := wb.Keys[idx]
+				value := wb.Values[idx]
 				if ttl == 0 {
 					err = txn.Set(key, value)
 				} else {
 					err = txn.SetEntry(badger.NewEntry(key, value).WithTTL(ttl))
 				}
-				idx += 2
 			}
 
 			if err != nil {
@@ -341,34 +336,4 @@ func itemValue(item *badger.Item) ([]byte, error) {
 	})
 
 	return value, err
-}
-
-var (
-	delete = byte(0)
-	set    = byte(1)
-)
-
-type writeBatch struct {
-	opts   []byte
-	values [][]byte
-	ttl    []int64
-}
-
-// Delete remove the key
-func (wb *writeBatch) Delete(key []byte) error {
-	wb.opts = append(wb.opts, delete)
-	wb.values = append(wb.values, key)
-	wb.ttl = append(wb.ttl, 0)
-	return nil
-}
-
-func (wb *writeBatch) Set(key []byte, value []byte) error {
-	return wb.SetWithTTL(key, value, 0)
-}
-
-func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
-	wb.opts = append(wb.opts, set)
-	wb.ttl = append(wb.ttl, ttl)
-	wb.values = append(wb.values, key, value)
-	return nil
 }

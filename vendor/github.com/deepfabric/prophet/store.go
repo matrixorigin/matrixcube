@@ -17,7 +17,8 @@ type Store interface {
 
 	// AllocID returns the alloc id
 	AllocID() (uint64, error)
-
+	// AlreadyBootstrapped returns the cluster was already bootstrapped
+	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
 	PutBootstrapped(container Container, resources ...Resource) (bool, error)
 

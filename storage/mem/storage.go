@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/deepfabric/beehive/util"
 )
@@ -28,9 +29,14 @@ func (s *Storage) Set(key []byte, value []byte) error {
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int64) error {
-	// Memory storage not support SetWithTTL
+func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
 	s.kv.Put(key, value)
+	if ttl > 0 {
+		after := time.Second * time.Duration(ttl)
+		util.DefaultTimeoutWheel().Schedule(after, func(arg interface{}) {
+			s.Delete(arg.([]byte))
+		}, key)
+	}
 	return nil
 }
 
@@ -110,22 +116,20 @@ func (s *Storage) Seek(key []byte) ([]byte, []byte, error) {
 	return k, v, nil
 }
 
-// NewWriteBatch return a new write batch
-func (s *Storage) NewWriteBatch() util.WriteBatch {
-	return &writeBatch{}
-}
-
 // Write write the data in batch
-func (s *Storage) Write(wb util.WriteBatch, sync bool) error {
-	mwb := wb.(*writeBatch)
-	for _, opt := range mwb.opts {
-		if opt.isDelete {
-			s.Delete(opt.key)
-		} else {
-			s.SetWithTTL(opt.key, opt.value, opt.ttl)
-		}
+func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
+	if len(wb.Ops) == 0 {
+		return nil
 	}
 
+	for idx, op := range wb.Ops {
+		switch op {
+		case util.OpDelete:
+			s.Delete(wb.Keys[idx])
+		case util.OpSet:
+			s.SetWithTTL(wb.Keys[idx], wb.Values[idx], wb.TTLs[idx])
+		}
+	}
 	return nil
 }
 
@@ -217,42 +221,6 @@ func (s *Storage) ApplySnapshot(path string) error {
 
 // Close close the storage
 func (s *Storage) Close() error {
-	return nil
-}
-
-func (s *Storage) onTimeout(arg interface{}) {
-	s.Delete(arg.([]byte))
-}
-
-type opt struct {
-	key      []byte
-	value    []byte
-	ttl      int64
-	isDelete bool
-}
-
-type writeBatch struct {
-	opts []opt
-}
-
-func (wb *writeBatch) Delete(key []byte) error {
-	wb.opts = append(wb.opts, opt{
-		key:      key,
-		isDelete: true,
-	})
-	return nil
-}
-
-func (wb *writeBatch) Set(key []byte, value []byte) error {
-	return wb.SetWithTTL(key, value, 0)
-}
-
-func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int64) error {
-	wb.opts = append(wb.opts, opt{
-		key:   key,
-		value: value,
-		ttl:   ttl,
-	})
 	return nil
 }
 

@@ -197,6 +197,9 @@ func (s *store) Start() {
 	s.trans.Start()
 	logger.Infof("transport started at %s", s.cfg.RaftAddr)
 
+	s.startRaftWorkers()
+	logger.Infof("raft shards workers started")
+
 	s.startShards()
 	logger.Infof("shards started")
 
@@ -424,13 +427,49 @@ func (s *store) startProphet() {
 	<-s.pdStartedC
 }
 
+func (s *store) startRaftWorkers() {
+	for i := uint64(0); i < s.opts.raftMaxWorkers; i++ {
+		idx := i
+		s.runner.RunCancelableTask(func(ctx context.Context) {
+			s.runPRTask(ctx, idx)
+		})
+	}
+}
+
+func (s *store) runPRTask(ctx context.Context, id uint64) {
+	logger.Infof("raft worker %d start", id)
+
+	hasEvent := true
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("raft worker worker %d exit", id)
+			return
+		default:
+			if !hasEvent {
+				time.Sleep(time.Millisecond * 10)
+			}
+
+			hasEvent = false
+			s.replicas.Range(func(key, value interface{}) bool {
+				pr := value.(*peerReplica)
+				if pr.workerID == id && pr.handleEvent() {
+					hasEvent = true
+				}
+
+				return true
+			})
+		}
+	}
+}
+
 func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 	applyingCount := 0
 
 	for _, driver := range s.cfg.MetadataStorages {
-		wb := driver.NewWriteBatch()
+		wb := util.NewWriteBatch()
 		err := driver.Scan(metaMinKey, metaMaxKey, func(key, value []byte) (bool, error) {
 			shardID, suffix, err := decodeMetaKey(key)
 			if err != nil {
@@ -472,7 +511,7 @@ func (s *store) startShards() {
 			pr.startRegistrationJob()
 
 			s.updateShardKeyRange(localState.Shard)
-			s.replicas.Store(shardID, pr)
+			s.addPR(pr)
 
 			return true, nil
 		}, false)
@@ -678,10 +717,28 @@ func (s *store) createPR(shard metapb.Shard) error {
 
 	s.updateShardKeyRange(shard)
 	pr.startRegistrationJob()
-	s.replicas.Store(shard.ID, pr)
+	s.addPR(pr)
 
 	s.pd.GetRPC().TiggerResourceHeartbeat(shard.ID)
 	return nil
+}
+
+func (s *store) addPR(pr *peerReplica) {
+	// count := make([]uint64, s.opts.raftMaxWorkers, s.opts.raftMaxWorkers)
+	// s.replicas.Range(func(key, value interface{}) bool {
+	// 	count[value.(*peerReplica).workerID]++
+	// 	return true
+	// })
+
+	// best := 0
+	// for idx, v := range count[1:] {
+	// 	if v < count[best] {
+	// 		best = idx
+	// 	}
+	// }
+
+	pr.workerID = pr.shardID & (s.opts.raftMaxWorkers - 1)
+	s.replicas.Store(pr.shardID, pr)
 }
 
 func (s *store) getFromProphetStore(key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
@@ -705,7 +762,7 @@ func (s *store) startRPC() {
 	}
 }
 
-func (s *store) clearMeta(id uint64, wb util.WriteBatch) error {
+func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
 	metaCount := 0
 	raftCount := 0
 
@@ -1068,7 +1125,7 @@ func (s *store) nextShard(shard metapb.Shard) *metapb.Shard {
 func (s *store) mustSaveShards(shards ...metapb.Shard) {
 	for _, shard := range shards {
 		driver := s.MetadataStorage(shard.ID)
-		wb := driver.NewWriteBatch()
+		wb := util.NewWriteBatch()
 
 		// shard local state
 		wb.Set(getStateKey(shard.ID), protoc.MustMarshal(&raftpb.ShardLocalState{Shard: shard}))
@@ -1101,7 +1158,7 @@ func (s *store) mustSaveShards(shards ...metapb.Shard) {
 func (s *store) mustRemoveShards(ids ...uint64) {
 	for _, id := range ids {
 		driver := s.MetadataStorage(id)
-		wb := driver.NewWriteBatch()
+		wb := util.NewWriteBatch()
 
 		wb.Delete(getStateKey(id))
 		wb.Delete(getRaftStateKey(id))
