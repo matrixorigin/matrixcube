@@ -200,9 +200,8 @@ type raftGCResult struct {
 }
 
 type applyContext struct {
-	// raft state write batch
-	wb         *util.WriteBatch
-	writeBatch CommandWriteBatch
+	raftStateWB *util.WriteBatch
+	dataWB      CommandWriteBatch
 
 	applyState raftpb.RaftApplyState
 	req        *raftcmdpb.RaftCMDRequest
@@ -213,20 +212,20 @@ type applyContext struct {
 
 func newApplyContext() *applyContext {
 	return &applyContext{
-		wb: util.NewWriteBatch(),
+		raftStateWB: util.NewWriteBatch(),
 	}
 }
 
 func (ctx *applyContext) reset() {
-	ctx.wb.Reset()
+	ctx.raftStateWB.Reset()
 	ctx.applyState = raftpb.RaftApplyState{}
 	ctx.req = nil
 	ctx.index = 0
 	ctx.term = 0
 	ctx.metrics = applyMetrics{}
 
-	if ctx.writeBatch != nil {
-		ctx.writeBatch.Reset()
+	if ctx.dataWB != nil {
+		ctx.dataWB.Reset()
 	}
 }
 
@@ -338,7 +337,11 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 	req := pb.AcquireRaftCMDRequest()
 
 	if d.store.opts.writeBatchFunc != nil {
-		ctx.writeBatch = d.store.opts.writeBatchFunc()
+		if ctx.dataWB == nil {
+			ctx.dataWB = d.store.opts.writeBatchFunc()
+		} else {
+			ctx.dataWB.Reset()
+		}
 	}
 
 	for idx, entry := range commitedEntries {
@@ -483,8 +486,8 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 		}
 	}
 
-	if ctx.writeBatch != nil {
-		writeBytes, diffBytes, err = ctx.writeBatch.Execute()
+	if ctx.dataWB != nil {
+		writeBytes, diffBytes, err = ctx.dataWB.Execute()
 		if err != nil {
 			logger.Fatalf("shard %d execute batch failed with %+v",
 				d.shard.ID,
@@ -506,7 +509,7 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 
 	ctx.applyState.AppliedIndex = ctx.index
 	if !d.isPendingRemove() {
-		err := ctx.wb.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&ctx.applyState))
+		err := ctx.raftStateWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&ctx.applyState))
 		if err != nil {
 			logger.Fatalf("shard %d save apply context failed, errors:\n %+v",
 				d.shard.ID,
@@ -514,7 +517,7 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 		}
 	}
 
-	err = d.store.MetadataStorage(d.shard.ID).Write(ctx.wb, false)
+	err = d.store.MetadataStorage(d.shard.ID).Write(ctx.raftStateWB, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,
