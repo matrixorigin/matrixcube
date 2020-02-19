@@ -67,7 +67,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		state = raftpb.PeerTombstone
 	}
 
-	err := d.ps.updatePeerState(d.shard, state, ctx.wb)
+	err := d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
 	if err != nil {
 		logger.Fatalf("shard %d update db state failed, errors:\n %+v",
 			d.shard.ID,
@@ -153,7 +153,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 
 	d.shard.Epoch.ShardVer++
 	newShard.Epoch.ShardVer = d.shard.Epoch.ShardVer
-	err := d.ps.updatePeerState(d.shard, raftpb.PeerNormal, ctx.wb)
+	err := d.ps.updatePeerState(d.shard, raftpb.PeerNormal, ctx.raftStateWB)
 
 	d.wb.Reset()
 	if err == nil {
@@ -239,8 +239,8 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 		}
 
 		ctx.metrics.writtenKeys++
-		if ctx.writeBatch != nil {
-			ok, rsp, err := ctx.writeBatch.Add(d.shard.ID, req, d.buf)
+		if ctx.dataWB != nil {
+			addedToWB, rsp, err := ctx.dataWB.Add(d.shard.ID, req, d.buf)
 			if err != nil {
 				logger.Fatalf("shard %s add %+v to write batch failed with %+v",
 					d.shard.ID,
@@ -248,7 +248,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 					err)
 			}
 
-			if ok {
+			if addedToWB {
 				resp.Responses = append(resp.Responses, rsp)
 				continue
 			}

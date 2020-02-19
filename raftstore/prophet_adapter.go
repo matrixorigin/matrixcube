@@ -89,13 +89,17 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatal("get cluster already bootstrapped failed with %+v", err)
 	}
 
+	if s.opts.initShards == 1 {
+		s.keyConvertFunc = noConvert
+	} else {
+		s.keyConvertFunc = uint64Convert
+	}
+
 	if !ok {
 		var initShards []prophet.Resource
 		if s.opts.initShards == 1 {
-			s.keyConvertFunc = noConvert
 			initShards = append(initShards, s.createInitShard(nil, nil))
 		} else {
-			s.keyConvertFunc = uint64Convert
 			step := uint64(math.MaxUint64 / s.opts.initShards)
 			start := uint64(0)
 			end := start + step
