@@ -108,17 +108,3 @@ func releaseReadyContext(ctx *readyContext) {
 	ctx.reset()
 	readyContextPool.Put(ctx)
 }
-
-func acquireApplyContext() *applyContext {
-	v := applyContextPool.Get()
-	if v == nil {
-		return newApplyContext()
-	}
-
-	return v.(*applyContext)
-}
-
-func releaseApplyContext(ctx *applyContext) {
-	ctx.reset()
-	applyContextPool.Put(ctx)
-}

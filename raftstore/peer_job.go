@@ -35,6 +35,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
 		buf:              goetty.NewByteBuf(256),
 		wb:               util.NewWriteBatch(),
+		ctx:              newApplyContext(pr.store),
 	}
 
 	err := pr.store.addApplyJob(pr.shardID, "doRegistrationJob", func() error {
