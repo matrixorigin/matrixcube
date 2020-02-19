@@ -210,9 +210,15 @@ type applyContext struct {
 	metrics    applyMetrics
 }
 
-func newApplyContext() *applyContext {
+func newApplyContext(store *store) *applyContext {
+	var dataWB CommandWriteBatch
+	if store.opts.writeBatchFunc != nil {
+		dataWB = store.opts.writeBatchFunc()
+	}
+
 	return &applyContext{
 		raftStateWB: util.NewWriteBatch(),
+		dataWB:      dataWB,
 	}
 }
 
@@ -243,8 +249,10 @@ type applyDelegate struct {
 	pendingCMDs          []*cmd
 	pendingChangePeerCMD *cmd
 
-	buf *goetty.ByteBuf
+	// reuse
 	wb  *util.WriteBatch
+	buf *goetty.ByteBuf
+	ctx *applyContext
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
@@ -333,15 +341,10 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 	}
 
 	start := time.Now()
-	ctx := acquireApplyContext()
 	req := pb.AcquireRaftCMDRequest()
 
-	if d.store.opts.writeBatchFunc != nil {
-		if ctx.dataWB == nil {
-			ctx.dataWB = d.store.opts.writeBatchFunc()
-		} else {
-			ctx.dataWB.Reset()
-		}
+	if d.ctx.dataWB != nil {
+		d.ctx.dataWB.Reset()
 	}
 
 	for idx, entry := range commitedEntries {
@@ -360,22 +363,22 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 		}
 
 		if idx > 0 {
-			ctx.reset()
+			d.ctx.reset()
 			req.Reset()
 		}
 
-		ctx.req = req
-		ctx.applyState = d.applyState
-		ctx.index = entry.Index
-		ctx.term = entry.Term
+		d.ctx.req = req
+		d.ctx.applyState = d.applyState
+		d.ctx.index = entry.Index
+		d.ctx.term = entry.Term
 
 		var result *execResult
 
 		switch entry.Type {
 		case etcdraftpb.EntryNormal:
-			result = d.applyEntry(ctx, &entry)
+			result = d.applyEntry(&entry)
 		case etcdraftpb.EntryConfChange:
-			result = d.applyConfChange(ctx, &entry)
+			result = d.applyConfChange(&entry)
 		}
 
 		asyncResult := acquireAsyncApplyResult()
@@ -385,8 +388,8 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 		asyncResult.applyState = d.applyState
 		asyncResult.result = result
 
-		if ctx != nil {
-			asyncResult.metrics = ctx.metrics
+		if d.ctx != nil {
+			asyncResult.metrics = d.ctx.metrics
 		}
 
 		pr := d.store.getPR(d.shard.ID, false)
@@ -397,15 +400,14 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 
 	// only release RaftCMDRequest. Header and Requests fields is pb created in Unmarshal
 	pb.ReleaseRaftCMDRequest(req)
-	releaseApplyContext(ctx)
 
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
-func (d *applyDelegate) applyEntry(ctx *applyContext, entry *etcdraftpb.Entry) *execResult {
+func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
 	if len(entry.Data) > 0 {
-		protoc.MustUnmarshal(ctx.req, entry.Data)
-		return d.doApplyRaftCMD(ctx)
+		protoc.MustUnmarshal(d.ctx.req, entry.Data)
+		return d.doApplyRaftCMD()
 	}
 
 	// when a peer become leader, it will send an empty entry.
@@ -437,13 +439,13 @@ func (d *applyDelegate) applyEntry(ctx *applyContext, entry *etcdraftpb.Entry) *
 	}
 }
 
-func (d *applyDelegate) applyConfChange(ctx *applyContext, entry *etcdraftpb.Entry) *execResult {
+func (d *applyDelegate) applyConfChange(entry *etcdraftpb.Entry) *execResult {
 	cc := new(etcdraftpb.ConfChange)
 
 	protoc.MustUnmarshal(cc, entry.Data)
-	protoc.MustUnmarshal(ctx.req, cc.Context)
+	protoc.MustUnmarshal(d.ctx.req, cc.Context)
 
-	result := d.doApplyRaftCMD(ctx)
+	result := d.doApplyRaftCMD()
 	if nil == result {
 		return &execResult{
 			adminType:  raftcmdpb.ChangePeer,
@@ -455,13 +457,13 @@ func (d *applyDelegate) applyConfChange(ctx *applyContext, entry *etcdraftpb.Ent
 	return result
 }
 
-func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
-	if ctx.index == 0 {
+func (d *applyDelegate) doApplyRaftCMD() *execResult {
+	if d.ctx.index == 0 {
 		logger.Fatalf("shard %d apply raft command needs a none zero index",
 			d.shard.ID)
 	}
 
-	c := d.findCB(ctx)
+	c := d.findCB(d.ctx)
 	if d.isPendingRemove() {
 		logger.Fatalf("shard %d apply raft comand can not pending remove",
 			d.shard.ID)
@@ -473,21 +475,21 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 	var writeBytes uint64
 	var diffBytes int64
 
-	if !d.checkEpoch(ctx.req) {
-		resp = errorStaleEpochResp(ctx.req.Header.ID, d.term, d.shard)
+	if !d.checkEpoch(d.ctx.req) {
+		resp = errorStaleEpochResp(d.ctx.req.Header.ID, d.term, d.shard)
 	} else {
-		if ctx.req.AdminRequest != nil {
-			resp, result, err = d.execAdminRequest(ctx)
+		if d.ctx.req.AdminRequest != nil {
+			resp, result, err = d.execAdminRequest(d.ctx)
 			if err != nil {
-				resp = errorStaleEpochResp(ctx.req.Header.ID, d.term, d.shard)
+				resp = errorStaleEpochResp(d.ctx.req.Header.ID, d.term, d.shard)
 			}
 		} else {
-			writeBytes, diffBytes, resp = d.execWriteRequest(ctx)
+			writeBytes, diffBytes, resp = d.execWriteRequest(d.ctx)
 		}
 	}
 
-	if ctx.dataWB != nil {
-		writeBytes, diffBytes, err = ctx.dataWB.Execute()
+	if d.ctx.dataWB != nil {
+		writeBytes, diffBytes, err = d.ctx.dataWB.Execute()
 		if err != nil {
 			logger.Fatalf("shard %d execute batch failed with %+v",
 				d.shard.ID,
@@ -495,21 +497,21 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 		}
 	}
 
-	ctx.metrics.writtenBytes += writeBytes
+	d.ctx.metrics.writtenBytes += writeBytes
 	if diffBytes < 0 {
 		v := uint64(math.Abs(float64(diffBytes)))
-		if v >= ctx.metrics.sizeDiffHint {
-			ctx.metrics.sizeDiffHint = 0
+		if v >= d.ctx.metrics.sizeDiffHint {
+			d.ctx.metrics.sizeDiffHint = 0
 		} else {
-			ctx.metrics.sizeDiffHint -= v
+			d.ctx.metrics.sizeDiffHint -= v
 		}
 	} else {
-		ctx.metrics.sizeDiffHint += uint64(diffBytes)
+		d.ctx.metrics.sizeDiffHint += uint64(diffBytes)
 	}
 
-	ctx.applyState.AppliedIndex = ctx.index
+	d.ctx.applyState.AppliedIndex = d.ctx.index
 	if !d.isPendingRemove() {
-		err := ctx.raftStateWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&ctx.applyState))
+		err := d.ctx.raftStateWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
 		if err != nil {
 			logger.Fatalf("shard %d save apply context failed, errors:\n %+v",
 				d.shard.ID,
@@ -517,20 +519,20 @@ func (d *applyDelegate) doApplyRaftCMD(ctx *applyContext) *execResult {
 		}
 	}
 
-	err = d.store.MetadataStorage(d.shard.ID).Write(ctx.raftStateWB, false)
+	err = d.store.MetadataStorage(d.shard.ID).Write(d.ctx.raftStateWB, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,
 			err)
 	}
 
-	d.applyState = ctx.applyState
-	d.term = ctx.term
+	d.applyState = d.ctx.applyState
+	d.term = d.ctx.term
 
 	if c != nil {
 		if resp != nil {
 			buildTerm(d.term, resp)
-			buildUUID(ctx.req.Header.ID, resp)
+			buildUUID(d.ctx.req.Header.ID, resp)
 			// resp client
 			c.resp(resp)
 		}
