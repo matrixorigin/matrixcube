@@ -174,3 +174,16 @@ maxLimitSnapshotsCount = 3
 # The minimum rate value base on 100 that the storage already used on a store. 
 # The scheduler will not schedule the stores which are high than this value.
 minAvailableStorageUsedRate = 80
+
+[metric]
+# The prometheus pushgateway address
+addr = 127.0.0.1:9091
+
+# The interval seconds to push the metrics to prometheus pushgateway
+interval = 10
+
+# The prometheus job
+job = beehive
+
+# The instance label, default is os.hostname
+instance = ""

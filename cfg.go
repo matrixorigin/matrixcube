@@ -10,6 +10,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/storage"
@@ -54,10 +55,12 @@ type cfg struct {
 	RaftLogCompactDuration   int64      `toml:"raftLogCompactDuration"`
 	RaftThresholdCompactLog  uint64     `toml:"raftThresholdCompactLog"`
 
-	Prophet prophetCfg `toml:"prophet"`
+	Prophet ProphetCfg `toml:"prophet"`
+	Metric  metric.Cfg `toml:"metric"`
 }
 
-type prophetCfg struct {
+// ProphetCfg prophet cfg
+type ProphetCfg struct {
 	RPCAddr                     string   `toml:"rpcAddr"`
 	StoreMetadata               bool     `toml:"storeMetadata"`
 	ClientAddr                  string   `toml:"clientAddr"`
@@ -77,8 +80,8 @@ type prophetCfg struct {
 	MaxRebalanceLeader          uint64   `toml:"maxRebalanceLeader"`
 	MaxRebalanceReplica         uint64   `toml:"maxRebalanceReplica"`
 	MaxScheduleReplica          uint64   `toml:"maxScheduleReplica"`
-	MaxLimitSnapshotsCount      uint64   `toml:"MaxLimitSnapshotsCount"`
-	MinAvailableStorageUsedRate int      `toml:"MaxLimitSnapshotsCount"`
+	MaxLimitSnapshotsCount      uint64   `toml:"maxLimitSnapshotsCount"`
+	MinAvailableStorageUsedRate int      `toml:"minAvailableStorageUsedRate"`
 }
 
 func (c *cfg) getLabels() []metapb.Label {
@@ -228,6 +231,8 @@ func CreateRaftStoreFromFile(dataPath string,
 	}
 
 	opts = append(opts, raftstore.WithProphetOptions(prophetOptions...))
+
+	metric.StartPush(c.Metric)
 	return raftstore.NewStore(raftstore.Cfg{
 		Name:             c.Name,
 		RaftAddr:         c.RaftAddr,
