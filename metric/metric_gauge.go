@@ -86,6 +86,6 @@ func SetShardsOnStore(leader int, count int) {
 
 // SetStorageOnStore set total and free storage on the current store
 func SetStorageOnStore(total uint64, free uint64) {
-	shardCountGauge.WithLabelValues("total").Set(float64(total))
-	shardCountGauge.WithLabelValues("free").Set(float64(free))
+	storeStorageGauge.WithLabelValues("total").Set(float64(total))
+	storeStorageGauge.WithLabelValues("free").Set(float64(free))
 }

@@ -14,8 +14,7 @@ import (
 )
 
 var (
-	logger = log.NewLoggerWithPrefix("beehive-proxy")
-
+	logger           = log.NewLoggerWithPrefix("[beehive-proxy]")
 	decoder, encoder = raftstore.CreateRPCCliendSideCodec()
 )
 

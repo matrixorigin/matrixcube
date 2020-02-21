@@ -18,7 +18,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/google/btree v1.0.0
-	github.com/prometheus/client_golang v1.2.1
+	github.com/prometheus/client_golang v1.4.1
 	github.com/shirou/gopsutil v2.19.9+incompatible
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
