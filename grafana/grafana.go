@@ -68,6 +68,7 @@ func (c *DashboardCreator) createRaftDashboard(folder *grabana.Folder) error {
 			interval.Values([]string{"30s", "1m", "5m", "10m", "30m", "1h", "6h", "12h"}),
 		),
 		c.storageRow(),
+		c.requestRow(),
 		c.shardsRow(),
 		c.raftLogRow(),
 		c.raftInternalRow(),
@@ -177,29 +178,41 @@ func (c *DashboardCreator) promgramInternalRow() grabana.DashboardBuilderOption 
 	)
 }
 
+func (c *DashboardCreator) requestRow() grabana.DashboardBuilderOption {
+	return grabana.Row(
+		"Request status",
+		c.withGraph("Requests received", 12,
+			"sum(rate(beehive_raftstore_command_normal_total[$interval]))",
+			"All requests"),
+	)
+}
+
 func (c *DashboardCreator) storageRow() grabana.DashboardBuilderOption {
 	return grabana.Row(
-		"Storage status",
+		"Overview status",
 		row.WithSingleStat(
-			"Total",
+			"Storage Total",
+			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
 				"sum(beehive_raftstore_store_storage_bytes{type='total'})"),
 			singlestat.Unit("bytes"),
 		),
 		row.WithSingleStat(
-			"Used",
+			"Storage Used",
+			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
 				"sum(beehive_raftstore_store_storage_bytes{type='total'})-sum(beehive_raftstore_store_storage_bytes{type='free'})"),
 			singlestat.Unit("bytes"),
 		),
 		row.WithSingleStat(
-			"Available",
+			"Storage Available",
+			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
-				"sum(beehive_raftstore_store_storage_bytes{type='free'})/sum(beehive_raftstore_store_storage_bytes{type='total'})*100"),
-			singlestat.Unit("percent"),
+				"sum(beehive_raftstore_store_storage_bytes{type='free'})"),
+			singlestat.Unit("bytes"),
 		),
 	)
 }
