@@ -332,7 +332,7 @@ func (pa *prophetAdapter) FetchLeaderResources() []uint64 {
 		return true
 	})
 
-	metric.SetShardsOnStore(shards, leaders)
+	metric.SetShardsOnStore(leaders, shards)
 	return values
 }
 

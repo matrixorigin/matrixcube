@@ -77,6 +77,7 @@ func (pr *peerReplica) propose(c *cmd) {
 		doPropose = pr.proposeTransferLeader(c)
 	case proposeChange:
 		isConfChange = true
+		pr.metrics.admin.confChange++
 		doPropose = pr.proposeConfChange(c)
 	}
 
