@@ -4,18 +4,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var (
+	registry = prometheus.NewRegistry()
+)
+
 func init() {
-	prometheus.MustRegister(queueGauge)
-	prometheus.MustRegister(batchGauge)
-	prometheus.MustRegister(storeStorageGauge)
-	prometheus.MustRegister(shardCountGauge)
+	registry.MustRegister(queueGauge)
+	registry.MustRegister(batchGauge)
+	registry.MustRegister(storeStorageGauge)
+	registry.MustRegister(shardCountGauge)
 
-	prometheus.MustRegister(raftReadyCounter)
-	prometheus.MustRegister(raftMsgsCounter)
-	prometheus.MustRegister(raftProposalCounter)
-	prometheus.MustRegister(raftCommandCounter)
-	prometheus.MustRegister(raftAdminCommandCounter)
+	registry.MustRegister(raftReadyCounter)
+	registry.MustRegister(raftMsgsCounter)
+	registry.MustRegister(raftCommandCounter)
+	registry.MustRegister(raftAdminCommandCounter)
 
-	prometheus.MustRegister(snapshotSizeHistogram)
-	prometheus.MustRegister(snapshotSendingDurationHistogram)
+	registry.MustRegister(raftLogLagHistogram)
+	registry.MustRegister(raftLogAppendDurationHistogram)
+	registry.MustRegister(raftLogApplyDurationHistogram)
+	registry.MustRegister(raftProposalSizeHistogram)
+	registry.MustRegister(snapshotSizeHistogram)
+	registry.MustRegister(snapshotBuildingDurationHistogram)
+	registry.MustRegister(snapshotSendingDurationHistogram)
 }

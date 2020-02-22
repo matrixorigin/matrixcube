@@ -2,6 +2,20 @@
 github.com/AndreasBriese/bbloom
 # github.com/BurntSushi/toml v0.3.1
 github.com/BurntSushi/toml
+# github.com/K-Phoen/grabana v0.4.1
+github.com/K-Phoen/grabana
+github.com/K-Phoen/grabana/alert
+github.com/K-Phoen/grabana/axis
+github.com/K-Phoen/grabana/graph
+github.com/K-Phoen/grabana/row
+github.com/K-Phoen/grabana/singlestat
+github.com/K-Phoen/grabana/table
+github.com/K-Phoen/grabana/target/prometheus
+github.com/K-Phoen/grabana/text
+github.com/K-Phoen/grabana/variable/constant
+github.com/K-Phoen/grabana/variable/custom
+github.com/K-Phoen/grabana/variable/interval
+github.com/K-Phoen/grabana/variable/query
 # github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d
 github.com/StackExchange/wmi
 # github.com/beorn7/perks v1.0.1
@@ -152,6 +166,10 @@ github.com/google/btree
 github.com/google/uuid
 # github.com/gorilla/websocket v1.4.0
 github.com/gorilla/websocket
+# github.com/gosimple/slug v1.1.1
+github.com/gosimple/slug
+# github.com/grafana-tools/sdk v0.0.0-20200127194913-bdcab199ffde
+github.com/grafana-tools/sdk
 # github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 github.com/grpc-ecosystem/go-grpc-middleware
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -191,6 +209,8 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
+# github.com/rainycape/unidecode v0.0.0-20150907023854-cb7f23ec59be
+github.com/rainycape/unidecode
 # github.com/shirou/gopsutil v2.19.9+incompatible
 github.com/shirou/gopsutil/disk
 github.com/shirou/gopsutil/internal/common

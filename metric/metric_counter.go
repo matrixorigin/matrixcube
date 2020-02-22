@@ -21,14 +21,6 @@ var (
 			Help:      "Total number of raft ready sent messages.",
 		}, []string{"type"})
 
-	raftProposalCounter = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "beehive",
-			Subsystem: "raftstore",
-			Name:      "raft_proposal_total",
-			Help:      "Total number of proposal made.",
-		}, []string{"type"})
-
 	raftCommandCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "beehive",
@@ -123,7 +115,7 @@ func AddRaftProposalReadIndexCount(value uint64) {
 
 // AddRaftProposalNormalCount add normal
 func AddRaftProposalNormalCount(value uint64) {
-	raftMsgsCounter.WithLabelValues("read-index").Add(float64(value))
+	raftMsgsCounter.WithLabelValues("normal").Add(float64(value))
 }
 
 // AddRaftProposalTransferLeaderCount add transfer leader

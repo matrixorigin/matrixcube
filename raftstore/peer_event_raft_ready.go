@@ -381,6 +381,8 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 					pr.shardID,
 					err)
 			}
+
+			pr.metrics.ready.commit++
 		}
 	}
 }

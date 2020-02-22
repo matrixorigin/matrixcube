@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/fagongzi/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
 )
 
@@ -24,10 +23,10 @@ func StartPush(cfg Cfg) {
 	}
 
 	pusher := push.New(cfg.Addr, cfg.Job).
-		Gatherer(prometheus.DefaultGatherer).
+		Gatherer(registry).
 		Grouping("instance", cfg.instance())
 	go func() {
-		timer := time.NewTimer(time.Second * time.Duration(cfg.Interval))
+		timer := time.NewTicker(time.Second * time.Duration(cfg.Interval))
 		defer timer.Stop()
 
 		for {

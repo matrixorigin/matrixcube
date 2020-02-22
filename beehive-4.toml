@@ -10,6 +10,7 @@ raftAddr = "node4:10001"
 rpcAddr = "node4:10002"
 
 maxPeerDownTime = 1
+initShards = 3
 
 [prophet]
 # The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
@@ -21,3 +22,15 @@ clusters = [
     "node2:2371",
     "node3:2371"
 ]
+
+[metric]
+# The prometheus pushgateway address
+addr = "172.21.139.10:9091"
+
+# The interval seconds to push the metrics to prometheus pushgateway
+interval = 10
+
+# The prometheus job
+job = "beehive"
+
+instance = "node4"

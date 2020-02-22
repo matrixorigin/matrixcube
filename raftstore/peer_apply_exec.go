@@ -37,15 +37,18 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	switch req.ChangeType {
 	case raftcmdpb.AddNode:
 		if exists != nil {
+			ctx.metrics.admin.confChangeReject++
 			return nil, nil, nil
 		}
 
 		d.shard.Peers = append(d.shard.Peers, req.Peer)
+		ctx.metrics.admin.addPeerSucceed++
 		logger.Infof("shard %d peer added, peer=<%+v>",
 			d.shard.ID,
 			req.Peer)
 	case raftcmdpb.RemoveNode:
 		if exists == nil {
+			ctx.metrics.admin.confChangeReject++
 			return nil, nil, nil
 		}
 
@@ -57,6 +60,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 
 		removePeer(&d.shard, req.Peer.StoreID)
 
+		ctx.metrics.admin.removePeerSucceed++
 		logger.Infof("shard %d peer removed, peer=<%+v>",
 			d.shard.ID,
 			req.Peer)
