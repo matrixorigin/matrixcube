@@ -8,6 +8,11 @@ var (
 	registry = prometheus.NewRegistry()
 )
 
+// MustRegister Delegate the prometheus MustRegister
+func MustRegister(cs ...prometheus.Collector) {
+	registry.MustRegister(cs...)
+}
+
 func init() {
 	registry.MustRegister(queueGauge)
 	registry.MustRegister(batchGauge)
