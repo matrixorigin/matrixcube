@@ -283,7 +283,7 @@ func (d *applyDelegate) findCB(ctx *applyContext) *cmd {
 
 	for {
 		head := d.popPendingCMD(ctx.term)
-		if head == nil {
+		if head == nil || head.req == nil {
 			return nil
 		}
 
