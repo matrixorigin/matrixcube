@@ -476,7 +476,7 @@ func WithRPC(value RPC) Option {
 // WithProphetOptions set prophet options
 func WithProphetOptions(value ...prophet.Option) Option {
 	return func(opts *options) {
-		opts.prophetOptions = value
+		opts.prophetOptions = append(opts.prophetOptions, value...)
 	}
 }
 
