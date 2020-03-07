@@ -44,6 +44,10 @@ const (
 	failed
 )
 
+var (
+	emptyEntry = etcdPB.Entry{}
+)
+
 type peerStorage struct {
 	store *store
 	shard metapb.Shard
@@ -281,7 +285,7 @@ func (ps *peerStorage) checkRange(low, high uint64) error {
 	return nil
 }
 
-func (ps *peerStorage) loadLogEntry(index uint64) (*etcdPB.Entry, error) {
+func (ps *peerStorage) loadLogEntry(index uint64) (etcdPB.Entry, error) {
 	key := getRaftLogKey(ps.shard.ID, index)
 	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(key)
 	if err != nil {
@@ -289,12 +293,12 @@ func (ps *peerStorage) loadLogEntry(index uint64) (*etcdPB.Entry, error) {
 			ps.shard.ID,
 			index,
 			err)
-		return nil, err
+		return emptyEntry, err
 	} else if len(v) == 0 {
 		logger.Errorf("shard %d entry %d not found",
 			ps.shard.ID,
 			index)
-		return nil, fmt.Errorf("log entry at %d not found", index)
+		return emptyEntry, fmt.Errorf("log entry at %d not found", index)
 	}
 
 	return ps.unmarshal(v, index)
@@ -344,16 +348,9 @@ func (ps *peerStorage) loadApplyState() (*raftpb.RaftApplyState, error) {
 	return applyState, err
 }
 
-func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (*etcdPB.Entry, error) {
-	e := acquireEntry()
-	if err := e.Unmarshal(v); err != nil {
-		logger.Errorf("shard %d unmarshal entry failed with %+v",
-			ps.shard.ID,
-			err)
-		releaseEntry(e)
-		return nil, err
-	}
-
+func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (etcdPB.Entry, error) {
+	e := etcdPB.Entry{}
+	protoc.MustUnmarshal(&e, v)
 	if e.Index != expectIndex {
 		logger.Fatalf("shard %d raft log index not match, logIndex %d expect %d",
 			ps.shard.ID,
@@ -594,19 +591,17 @@ func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error
 
 		e, err := ps.unmarshal(v, low)
 		if err != nil {
-			releaseEntry(e)
 			return nil, err
 		}
 
-		ents = append(ents, *e)
-		releaseEntry(e)
+		ents = append(ents, e)
 		return ents, nil
 	}
 
 	endKey := getRaftLogKey(ps.shard.ID, high)
 	err = ps.store.MetadataStorage(ps.shard.ID).Scan(startKey, endKey, func(key, value []byte) (bool, error) {
-		e := acquireEntry()
-		protoc.MustUnmarshal(e, value)
+		e := etcdPB.Entry{}
+		protoc.MustUnmarshal(&e, value)
 
 		// May meet gap or has been compacted.
 		if e.Index != nextIndex {
@@ -618,8 +613,7 @@ func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error
 
 		exceededMaxSize = totalSize > maxSize
 		if !exceededMaxSize || len(ents) == 0 {
-			ents = append(ents, *e)
-			releaseEntry(e)
+			ents = append(ents, e)
 		}
 
 		return !exceededMaxSize, nil
@@ -668,13 +662,10 @@ func (ps *peerStorage) Term(idx uint64) (uint64, error) {
 
 	e, err := ps.unmarshal(v, idx)
 	if err != nil {
-		releaseEntry(e)
 		return 0, err
 	}
 
-	t := e.Term
-	releaseEntry(e)
-	return t, nil
+	return e.Term, nil
 }
 
 func (ps *peerStorage) LastIndex() (uint64, error) {
