@@ -132,9 +132,10 @@ func (pr *peerReplica) handleEvent() bool {
 				if pr.batch.isEmpty() {
 					break
 				}
-				c := pr.batch.pop()
-				for _, req := range c.req.Requests {
-					respStoreNotMatch(errStoreNotMatch, req, c.cb)
+				if c, ok := pr.batch.pop(); ok {
+					for _, req := range c.req.Requests {
+						respStoreNotMatch(errStoreNotMatch, req, c.cb)
+					}
 				}
 			}
 

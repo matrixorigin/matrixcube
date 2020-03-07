@@ -16,6 +16,10 @@ const (
 	admin
 )
 
+var (
+	emptyCMD = cmd{}
+)
+
 type readIndexQueue struct {
 	shardID  uint64
 	reads    []*cmd
@@ -77,7 +81,7 @@ type proposeBatch struct {
 
 	buf      *goetty.ByteBuf
 	lastType int
-	cmds     []*cmd
+	cmds     []cmd
 }
 
 func newBatch(pr *peerReplica) *proposeBatch {
@@ -111,17 +115,17 @@ func (b *proposeBatch) isFull(lastSize uint64) bool {
 	return b.pr.store.opts.proposalBatchSize == lastSize
 }
 
-func (b *proposeBatch) pop() *cmd {
+func (b *proposeBatch) pop() (cmd, bool) {
 	if b.isEmpty() {
-		return nil
+		return emptyCMD, false
 	}
 
 	value := b.cmds[0]
-	b.cmds[0] = nil
+	b.cmds[0] = emptyCMD
 	b.cmds = b.cmds[1:]
 
 	metric.SetRaftProposalBatchMetric(int64(len(value.req.Requests)))
-	return value
+	return value, true
 }
 
 func (b *proposeBatch) push(group uint64, c *reqCtx) {
@@ -140,8 +144,8 @@ func (b *proposeBatch) push(group uint64, c *reqCtx) {
 		b.buf.Clear()
 	}
 
-	last := b.lastCmd()
-	if last == nil ||
+	last, ok := b.lastCmd()
+	if !ok ||
 		isAdmin || // admin request must in a single batch
 		b.lastType != tp ||
 		b.isFull(uint64(len(last.req.Requests))) {
@@ -171,10 +175,10 @@ func (b *proposeBatch) push(group uint64, c *reqCtx) {
 	b.lastType = tp
 }
 
-func (b *proposeBatch) lastCmd() *cmd {
+func (b *proposeBatch) lastCmd() (cmd, bool) {
 	if b.isEmpty() {
-		return nil
+		return emptyCMD, false
 	}
 
-	return b.cmds[b.size()-1]
+	return b.cmds[b.size()-1], true
 }
