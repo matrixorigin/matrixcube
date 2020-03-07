@@ -7,8 +7,7 @@ import (
 )
 
 var (
-	bufPool              sync.Pool
-	asyncApplyResultPool sync.Pool
+	bufPool sync.Pool
 )
 
 func acquireBuf() *goetty.ByteBuf {
