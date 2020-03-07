@@ -55,6 +55,8 @@ type peerReplica struct {
 	metrics  localMetrics
 	buf      *goetty.ByteBuf
 	stopOnce sync.Once
+
+	readyCtx *readyContext
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -119,6 +121,9 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.applyResults = &task.Queue{}
 	pr.requests = &task.Queue{}
 	pr.actions = &task.Queue{}
+	pr.readyCtx = &readyContext{
+		wb: util.NewWriteBatch(),
+	}
 
 	pr.store = store
 	pr.pendingReads = &readIndexQueue{
