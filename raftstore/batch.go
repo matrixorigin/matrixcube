@@ -91,7 +91,7 @@ func newBatch(pr *peerReplica) *proposeBatch {
 	}
 }
 
-func (b *proposeBatch) getType(c *reqCtx) int {
+func (b *proposeBatch) getType(c reqCtx) int {
 	if c.admin != nil {
 		return admin
 	}
@@ -128,13 +128,11 @@ func (b *proposeBatch) pop() (cmd, bool) {
 	return value, true
 }
 
-func (b *proposeBatch) push(group uint64, c *reqCtx) {
+func (b *proposeBatch) push(group uint64, c reqCtx) {
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb
 	tp := b.getType(c)
-
-	releaseReqCtx(c)
 
 	isAdmin := tp == admin
 

@@ -23,7 +23,7 @@ const (
 	doCampaignAction
 )
 
-func (pr *peerReplica) addRequest(req *reqCtx) error {
+func (pr *peerReplica) addRequest(req reqCtx) error {
 	err := pr.requests.Put(req)
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (pr *peerReplica) step(msg etcdraftpb.Message) {
 }
 
 func (pr *peerReplica) onAdmin(req *raftcmdpb.AdminRequest) error {
-	r := acquireReqCtx()
+	r := reqCtx{}
 	r.admin = req
 	return pr.addRequest(r)
 }
@@ -147,7 +147,6 @@ func (pr *peerReplica) handleEvent() bool {
 				}
 
 				pb.ReleaseRequest(req.req)
-				releaseReqCtx(req)
 			}
 
 			logger.Infof("shard %d handle serve raft stopped",
