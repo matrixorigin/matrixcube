@@ -66,7 +66,8 @@ func (pr *peerReplica) handleReady() {
 	}
 
 	rd := pr.rn.ReadySince(pr.ps.lastReadyIndex)
-	ctx := acquireReadyContext()
+	ctx := pr.readyCtx
+	ctx.reset()
 
 	// If snapshot is received, further handling
 	if !raft.IsEmptySnap(rd.Snapshot) {
@@ -91,8 +92,6 @@ func (pr *peerReplica) handleReady() {
 
 	pr.handleRaftReadyAppend(ctx, &rd)
 	pr.handleRaftReadyApply(ctx, &rd)
-
-	releaseReadyContext(ctx)
 }
 
 // ====================== append raft log methods

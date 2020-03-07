@@ -3,14 +3,12 @@ package raftstore
 import (
 	"sync"
 
-	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 )
 
 var (
 	bufPool              sync.Pool
 	asyncApplyResultPool sync.Pool
-	readyContextPool     sync.Pool
 )
 
 func acquireBuf() *goetty.ByteBuf {
@@ -43,20 +41,4 @@ func acquireAsyncApplyResult() *asyncApplyResult {
 func releaseAsyncApplyResult(res *asyncApplyResult) {
 	res.reset()
 	asyncApplyResultPool.Put(res)
-}
-
-func acquireReadyContext() *readyContext {
-	v := readyContextPool.Get()
-	if v == nil {
-		return &readyContext{
-			wb: util.NewWriteBatch(),
-		}
-	}
-
-	return v.(*readyContext)
-}
-
-func releaseReadyContext(ctx *readyContext) {
-	ctx.reset()
-	readyContextPool.Put(ctx)
 }
