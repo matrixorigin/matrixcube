@@ -43,7 +43,9 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			break
 		}
 
-		pr.propose(pr.batch.pop())
+		if c, ok := pr.batch.pop(); ok {
+			pr.propose(&c)
+		}
 	}
 
 	size = pr.requests.Len()

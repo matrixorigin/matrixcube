@@ -421,8 +421,9 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 
 			// we are not leader now, so all writes in the batch is actually stale
 			for i := 0; i < pr.batch.size(); i++ {
-				c := pr.batch.pop()
-				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
+				if c, ok := pr.batch.pop(); ok {
+					c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
+				}
 			}
 			pr.resetBatch()
 		}

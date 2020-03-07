@@ -33,8 +33,8 @@ func (c *cmd) reset() {
 	c.term = 0
 }
 
-func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse)) *cmd {
-	c := acquireCmd()
+func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse)) cmd {
+	c := cmd{}
 	c.req = req
 	c.cb = cb
 	return c
@@ -118,13 +118,6 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 	} else {
 		pb.ReleaseRaftResponseAll(resp)
 	}
-
-	c.release()
-}
-
-func (c *cmd) release() {
-	pb.ReleaseRaftRequestAll(c.req)
-	releaseCmd(c)
 }
 
 func (c *cmd) respShardNotFound(shardID uint64) {
