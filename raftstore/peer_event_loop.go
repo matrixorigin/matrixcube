@@ -57,7 +57,7 @@ func (pr *peerReplica) addEvent() (bool, error) {
 	return pr.events.Offer(struct{}{})
 }
 
-func (pr *peerReplica) addApplyResult(result *asyncApplyResult) {
+func (pr *peerReplica) addApplyResult(result asyncApplyResult) {
 	err := pr.applyResults.Put(result)
 	if err != nil {
 		logger.Infof("shard %d raft apply result stopped",
@@ -121,11 +121,7 @@ func (pr *peerReplica) handleEvent() bool {
 			pr.ticks.Dispose()
 			pr.steps.Dispose()
 			pr.reports.Dispose()
-
-			results := pr.applyResults.Dispose()
-			for _, result := range results {
-				releaseAsyncApplyResult(result.(*asyncApplyResult))
-			}
+			pr.applyResults.Dispose()
 
 			// resp all stale requests in batch and queue
 			for {
