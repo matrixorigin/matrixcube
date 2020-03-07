@@ -3,18 +3,14 @@ package raftstore
 import (
 	"sync"
 
-	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 )
 
 var (
-	raftMessagePool      sync.Pool
 	bufPool              sync.Pool
-	entryPool            sync.Pool
 	asyncApplyResultPool sync.Pool
 	readyContextPool     sync.Pool
-	applyContextPool     sync.Pool
 )
 
 func acquireBuf() *goetty.ByteBuf {
@@ -33,20 +29,6 @@ func releaseBuf(value *goetty.ByteBuf) {
 	value.Clear()
 	value.Release()
 	bufPool.Put(value)
-}
-
-func acquireEntry() *raftpb.Entry {
-	v := entryPool.Get()
-	if v == nil {
-		return &raftpb.Entry{}
-	}
-
-	return v.(*raftpb.Entry)
-}
-
-func releaseEntry(ent *raftpb.Entry) {
-	ent.Reset()
-	entryPool.Put(ent)
 }
 
 func acquireAsyncApplyResult() *asyncApplyResult {

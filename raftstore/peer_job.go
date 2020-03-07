@@ -176,7 +176,6 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 		}
 
 		term = entry.Term
-		releaseEntry(entry)
 	}
 
 	state, err := ps.loadLocalState(nil)
