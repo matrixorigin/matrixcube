@@ -72,7 +72,7 @@ func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer) error {
 	return err
 }
 
-func (pr *peerReplica) startProposeJob(c *cmd, isConfChange bool) error {
+func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
 	err := pr.store.addApplyJob(pr.shardID, "doPropose", func() error {
 		return pr.doPropose(c, isConfChange)
 	}, nil)
@@ -123,7 +123,7 @@ func (ps *peerStorage) resetGenSnapJob() {
 	ps.snapTriedCnt = 0
 }
 
-func (pr *peerReplica) doPropose(c *cmd, isConfChange bool) error {
+func (pr *peerReplica) doPropose(c cmd, isConfChange bool) error {
 	value, ok := pr.store.delegates.Load(pr.shardID)
 	if !ok {
 		c.respShardNotFound(pr.shardID)
@@ -136,11 +136,11 @@ func (pr *peerReplica) doPropose(c *cmd, isConfChange bool) error {
 	}
 
 	if isConfChange {
-		changeC := delegate.getPendingChangePeerCMD()
-		if nil != changeC && changeC.req != nil && changeC.req.Header != nil {
+		changeC := delegate.pendingChangePeerCMD
+		if changeC.req != nil && changeC.req.Header != nil {
 			delegate.notifyStaleCMD(changeC)
 		}
-		delegate.setPendingChangePeerCMD(c)
+		delegate.pendingChangePeerCMD = c
 	} else {
 		delegate.appendPendingCmd(c)
 	}

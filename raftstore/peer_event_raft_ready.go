@@ -389,13 +389,14 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	if pr.readyToHandleRead() {
 		for _, state := range rd.ReadStates {
-			c := pr.pendingReads.pop()
-			if bytes.Compare(state.RequestCtx, c.getUUID()) != 0 {
-				logger.Fatalf("shard %d apply read failed, uuid not match",
-					pr.shardID)
-			}
+			if c, ok := pr.pendingReads.pop(); ok {
+				if bytes.Compare(state.RequestCtx, c.getUUID()) != 0 {
+					logger.Fatalf("shard %d apply read failed, uuid not match",
+						pr.shardID)
+				}
 
-			pr.doExecReadCmd(c)
+				pr.doExecReadCmd(c)
+			}
 		}
 	} else {
 		for range rd.ReadStates {
@@ -411,8 +412,9 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 			if n > 0 {
 				// all uncommitted reads will be dropped silently in raft.
 				for index := 0; index < n; index++ {
-					c := pr.pendingReads.pop()
-					c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
+					if c, ok := pr.pendingReads.pop(); ok {
+						c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
+					}
 				}
 			}
 

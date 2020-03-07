@@ -232,7 +232,7 @@ func (pr *peerReplica) stopEventLoop() {
 	pr.events.Dispose()
 }
 
-func (pr *peerReplica) doExecReadCmd(c *cmd) {
+func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
 	pr.buf.Clear()
 	for _, req := range c.req.Requests {
