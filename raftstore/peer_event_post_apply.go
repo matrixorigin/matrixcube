@@ -22,9 +22,8 @@ func (pr *peerReplica) handleApplyResult(items []interface{}) {
 		}
 
 		for i := int64(0); i < n; i++ {
-			result := items[i].(*asyncApplyResult)
+			result := items[i].(asyncApplyResult)
 			pr.doPollApply(result)
-			releaseAsyncApplyResult(result)
 		}
 
 		if n < readyBatch {
@@ -33,14 +32,14 @@ func (pr *peerReplica) handleApplyResult(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) doPollApply(result *asyncApplyResult) {
+func (pr *peerReplica) doPollApply(result asyncApplyResult) {
 	pr.doPostApply(result)
 	if result.result != nil {
 		pr.doPostApplyResult(result)
 	}
 }
 
-func (pr *peerReplica) doPostApply(result *asyncApplyResult) {
+func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 	if pr.ps.isApplyingSnapshot() {
 		logger.Fatalf("shard %d should not applying snapshot, when do post apply.",
 			pr.shardID)
@@ -77,7 +76,7 @@ func (pr *peerReplica) doPostApply(result *asyncApplyResult) {
 	}
 }
 
-func (pr *peerReplica) doPostApplyResult(result *asyncApplyResult) {
+func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
 	case raftcmdpb.ChangePeer:
 		pr.doApplyConfChange(result.result.changePeer)

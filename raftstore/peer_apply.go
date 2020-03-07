@@ -381,8 +381,7 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 			result = d.applyConfChange(&entry)
 		}
 
-		asyncResult := acquireAsyncApplyResult()
-
+		asyncResult := asyncApplyResult{}
 		asyncResult.shardID = d.shard.ID
 		asyncResult.appliedIndexTerm = d.appliedIndexTerm
 		asyncResult.applyState = d.applyState

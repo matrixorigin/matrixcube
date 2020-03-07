@@ -28,17 +28,3 @@ func releaseBuf(value *goetty.ByteBuf) {
 	value.Release()
 	bufPool.Put(value)
 }
-
-func acquireAsyncApplyResult() *asyncApplyResult {
-	v := asyncApplyResultPool.Get()
-	if v == nil {
-		return &asyncApplyResult{}
-	}
-
-	return v.(*asyncApplyResult)
-}
-
-func releaseAsyncApplyResult(res *asyncApplyResult) {
-	res.reset()
-	asyncApplyResultPool.Put(res)
-}
