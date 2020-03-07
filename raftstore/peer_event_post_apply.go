@@ -69,7 +69,9 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 	readyCnt := int(pr.pendingReads.getReadyCnt())
 	if readyCnt > 0 && pr.readyToHandleRead() {
 		for index := 0; index < readyCnt; index++ {
-			pr.doExecReadCmd(pr.pendingReads.pop())
+			if c, ok := pr.pendingReads.pop(); ok {
+				pr.doExecReadCmd(c)
+			}
 		}
 
 		pr.pendingReads.resetReadyCnt()

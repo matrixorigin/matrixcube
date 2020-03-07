@@ -22,24 +22,23 @@ var (
 
 type readIndexQueue struct {
 	shardID  uint64
-	reads    []*cmd
+	reads    []cmd
 	readyCnt int32
 }
 
-func (q *readIndexQueue) push(c *cmd) {
+func (q *readIndexQueue) push(c cmd) {
 	q.reads = append(q.reads, c)
 }
 
-func (q *readIndexQueue) pop() *cmd {
+func (q *readIndexQueue) pop() (cmd, bool) {
 	if len(q.reads) == 0 {
-		return nil
+		return emptyCMD, false
 	}
 
 	value := q.reads[0]
-	q.reads[0] = nil
+	q.reads[0] = emptyCMD
 	q.reads = q.reads[1:]
-
-	return value
+	return value, true
 }
 
 func (q *readIndexQueue) incrReadyCnt() int32 {

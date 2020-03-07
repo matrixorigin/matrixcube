@@ -44,7 +44,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 		}
 
 		if c, ok := pr.batch.pop(); ok {
-			pr.propose(&c)
+			pr.propose(c)
 		}
 	}
 
@@ -56,11 +56,16 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) propose(c *cmd) {
+func (pr *peerReplica) propose(c cmd) {
 	if !pr.checkProposal(c) {
 		return
 	}
 
+	// Note:
+	// The peer that is being checked is a leader. It might step down to be a follower later. It
+	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
+	// command log entry can't be committed.
+	c.term = pr.getCurrentTerm()
 	isConfChange := false
 	policy, err := pr.getHandlePolicy(c.req)
 	if err != nil {
@@ -93,7 +98,7 @@ func (pr *peerReplica) propose(c *cmd) {
 	}
 }
 
-func (pr *peerReplica) execReadIndex(c *cmd) {
+func (pr *peerReplica) execReadIndex(c cmd) {
 	if !pr.isLeader() {
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
@@ -119,7 +124,7 @@ func (pr *peerReplica) execReadIndex(c *cmd) {
 	pr.metrics.propose.readIndex++
 }
 
-func (pr *peerReplica) proposeNormal(c *cmd) bool {
+func (pr *peerReplica) proposeNormal(c cmd) bool {
 	if !pr.isLeader() {
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
@@ -152,7 +157,7 @@ func (pr *peerReplica) proposeNormal(c *cmd) bool {
 	return true
 }
 
-func (pr *peerReplica) proposeConfChange(c *cmd) bool {
+func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	err := pr.checkConfChange(c)
 	if err != nil {
 		c.respOtherError(err)
@@ -192,7 +197,7 @@ func (pr *peerReplica) proposeConfChange(c *cmd) bool {
 	return true
 }
 
-func (pr *peerReplica) proposeTransferLeader(c *cmd) bool {
+func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
 	req := c.req.AdminRequest.Transfer
 	if pr.isTransferLeaderAllowed(req.Peer) {
 		pr.doTransferLeader(req.Peer)
@@ -233,7 +238,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.opts.maxAllowTransferLogLag
 }
 
-func (pr *peerReplica) checkProposal(c *cmd) bool {
+func (pr *peerReplica) checkProposal(c cmd) bool {
 	// we handle all read, write and admin cmd here
 	if c.req.Header == nil || len(c.req.Header.ID) == 0 {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))
@@ -247,22 +252,16 @@ func (pr *peerReplica) checkProposal(c *cmd) bool {
 	}
 
 	term := pr.getCurrentTerm()
-
 	pe := pr.store.validateShard(c.req)
 	if pe != nil {
 		c.resp(errorPbResp(pe, c.req.Header.ID, term))
 		return false
 	}
 
-	// Note:
-	// The peer that is being checked is a leader. It might step down to be a follower later. It
-	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
-	// command log entry can't be committed.
-	c.term = term
 	return true
 }
 
-func (pr *peerReplica) checkConfChange(c *cmd) error {
+func (pr *peerReplica) checkConfChange(c cmd) error {
 	// Check whether it's safe to propose the specified conf change request.
 	// It's safe iff at least the quorum of the Raft group is still healthy
 	// right after that conf change is applied.

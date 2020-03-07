@@ -246,8 +246,8 @@ type applyDelegate struct {
 	applyState           raftpb.RaftApplyState
 	appliedIndexTerm     uint64
 	term                 uint64
-	pendingCMDs          []*cmd
-	pendingChangePeerCMD *cmd
+	pendingCMDs          []cmd
+	pendingChangePeerCMD cmd
 
 	// reuse
 	wb  *util.WriteBatch
@@ -260,35 +260,35 @@ func (d *applyDelegate) clearAllCommandsAsStale() {
 		d.notifyStaleCMD(c)
 	}
 
-	if nil != d.pendingChangePeerCMD {
+	if d.pendingChangePeerCMD.req != nil {
 		d.notifyStaleCMD(d.pendingChangePeerCMD)
 	}
 
 	d.pendingCMDs = d.pendingCMDs[:0]
-	d.pendingChangePeerCMD = nil
+	d.pendingChangePeerCMD = emptyCMD
 }
 
-func (d *applyDelegate) findCB(ctx *applyContext) *cmd {
+func (d *applyDelegate) findCB(ctx *applyContext) (cmd, bool) {
 	if isChangePeerCMD(ctx.req) {
-		c := d.getPendingChangePeerCMD()
-		if c == nil || c.req == nil {
-			return nil
+		c := d.pendingChangePeerCMD
+		if c.req == nil {
+			return emptyCMD, false
 		} else if bytes.Compare(ctx.req.Header.ID, c.getUUID()) == 0 {
-			return c
+			return c, true
 		}
 
 		d.notifyStaleCMD(c)
-		return nil
+		return emptyCMD, false
 	}
 
 	for {
-		head := d.popPendingCMD(ctx.term)
-		if head == nil || head.req == nil {
-			return nil
+		head, ok := d.popPendingCMD(ctx.term)
+		if !ok || head.req == nil {
+			return emptyCMD, false
 		}
 
 		if bytes.Compare(head.getUUID(), ctx.req.Header.ID) == 0 {
-			return head
+			return head, true
 		}
 
 		// Because of the lack of original RaftCmdRequest, we skip calling
@@ -297,38 +297,30 @@ func (d *applyDelegate) findCB(ctx *applyContext) *cmd {
 	}
 }
 
-func (d *applyDelegate) appendPendingCmd(c *cmd) {
+func (d *applyDelegate) appendPendingCmd(c cmd) {
 	d.pendingCMDs = append(d.pendingCMDs, c)
 }
 
-func (d *applyDelegate) setPendingChangePeerCMD(c *cmd) {
-	d.pendingChangePeerCMD = c
-}
-
-func (d *applyDelegate) getPendingChangePeerCMD() *cmd {
-	return d.pendingChangePeerCMD
-}
-
-func (d *applyDelegate) popPendingCMD(raftLogEntryTerm uint64) *cmd {
+func (d *applyDelegate) popPendingCMD(raftLogEntryTerm uint64) (cmd, bool) {
 	if len(d.pendingCMDs) == 0 {
-		return nil
+		return emptyCMD, false
 	}
 
 	if d.pendingCMDs[0].term > raftLogEntryTerm {
-		return nil
+		return emptyCMD, false
 	}
 
 	c := d.pendingCMDs[0]
-	d.pendingCMDs[0] = nil
+	d.pendingCMDs[0] = emptyCMD
 	d.pendingCMDs = d.pendingCMDs[1:]
-	return c
+	return c, true
 }
 
-func (d *applyDelegate) notifyStaleCMD(c *cmd) {
+func (d *applyDelegate) notifyStaleCMD(c cmd) {
 	c.resp(errorStaleCMDResp(c.getUUID(), d.term))
 }
 
-func (d *applyDelegate) notifyShardRemoved(c *cmd) {
+func (d *applyDelegate) notifyShardRemoved(c cmd) {
 	logger.Infof("shard %d cmd is removed, skip. cmd=<%+v>",
 		d.shard.ID,
 		c)
@@ -428,8 +420,8 @@ func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
 	}
 
 	for {
-		c := d.popPendingCMD(entry.Term - 1)
-		if c == nil {
+		c, ok := d.popPendingCMD(entry.Term - 1)
+		if !ok {
 			return nil
 		}
 
@@ -462,7 +454,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 			d.shard.ID)
 	}
 
-	c := d.findCB(d.ctx)
+	c, ok := d.findCB(d.ctx)
 	if d.isPendingRemove() {
 		logger.Fatalf("shard %d apply raft comand can not pending remove",
 			d.shard.ID)
@@ -528,7 +520,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 	d.applyState = d.ctx.applyState
 	d.term = d.ctx.term
 
-	if c != nil {
+	if ok {
 		if resp != nil {
 			buildTerm(d.term, resp)
 			buildUUID(d.ctx.req.Header.ID, resp)
@@ -545,12 +537,12 @@ func (d *applyDelegate) destroy() {
 		d.notifyShardRemoved(c)
 	}
 
-	if d.pendingChangePeerCMD != nil && d.pendingChangePeerCMD.req != nil {
+	if d.pendingChangePeerCMD.req != nil {
 		d.notifyShardRemoved(d.pendingChangePeerCMD)
 	}
 
 	d.pendingCMDs = nil
-	d.pendingChangePeerCMD = nil
+	d.pendingChangePeerCMD = emptyCMD
 }
 
 func (d *applyDelegate) setPendingRemove() {
