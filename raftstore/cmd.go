@@ -95,7 +95,7 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 					rsp := pb.AcquireResponse()
 					rsp.ID = req.ID
 					rsp.SID = req.SID
-					rsp.PID = req.SID
+					rsp.PID = req.PID
 					resp.Responses = append(resp.Responses, rsp)
 				}
 			} else {
