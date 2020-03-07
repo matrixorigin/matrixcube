@@ -11,7 +11,6 @@ import (
 var (
 	raftMessagePool      sync.Pool
 	bufPool              sync.Pool
-	reqCtxPool           sync.Pool
 	entryPool            sync.Pool
 	asyncApplyResultPool sync.Pool
 	readyContextPool     sync.Pool
@@ -34,20 +33,6 @@ func releaseBuf(value *goetty.ByteBuf) {
 	value.Clear()
 	value.Release()
 	bufPool.Put(value)
-}
-
-func acquireReqCtx() *reqCtx {
-	v := reqCtxPool.Get()
-	if v == nil {
-		return &reqCtx{}
-	}
-
-	return v.(*reqCtx)
-}
-
-func releaseReqCtx(req *reqCtx) {
-	req.reset()
-	reqCtxPool.Put(req)
 }
 
 func acquireEntry() *raftpb.Entry {

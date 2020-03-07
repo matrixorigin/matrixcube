@@ -217,7 +217,7 @@ func (pr *peerReplica) mustDestroy() {
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
 	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
 
-	r := acquireReqCtx()
+	r := reqCtx{}
 	r.req = req
 	r.cb = cb
 	return pr.addRequest(r)
