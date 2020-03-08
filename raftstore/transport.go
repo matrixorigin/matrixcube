@@ -348,6 +348,10 @@ func (t *transport) resolverStoreAddr(storeID uint64) (string, error) {
 			return "", err
 		}
 
+		if container == nil {
+			return "", fmt.Errorf("store %d not registered", storeID)
+		}
+
 		addr = container.(*containerAdapter).meta.ShardAddr
 		t.addrs.Store(storeID, addr)
 		t.addrsRevert.Store(addr, storeID)
