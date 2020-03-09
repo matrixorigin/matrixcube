@@ -26,12 +26,15 @@ type defaultRPC struct {
 }
 
 func newRPC(store *store) RPC {
-	return &defaultRPC{
+	rpc := &defaultRPC{
 		store: store,
 		server: goetty.NewServer(store.cfg.RPCAddr,
 			goetty.WithServerDecoder(rpcDecoder),
 			goetty.WithServerEncoder(rpcEncoder)),
 	}
+
+	store.RegisterRPCRequestCB(rpc.onResp)
+	return rpc
 }
 
 func (rpc *defaultRPC) Start() error {
@@ -84,7 +87,7 @@ func (rpc *defaultRPC) doConnection(conn goetty.IOSession) error {
 
 		req := value.(*raftcmdpb.Request)
 		req.PID = rs.ID.(int64)
-		err = rpc.store.OnRequest(req, rpc.onResp)
+		err = rpc.store.OnRequest(req)
 		if err != nil {
 			rsp := pb.AcquireResponse()
 			rsp.ID = req.ID
@@ -95,28 +98,28 @@ func (rpc *defaultRPC) doConnection(conn goetty.IOSession) error {
 	}
 }
 
-func (rpc *defaultRPC) onResp(resp *raftcmdpb.RaftCMDResponse) {
-	hasError := resp.Header != nil
-	for _, rsp := range resp.Responses {
-		if value, ok := rpc.sessions.Load(rsp.PID); ok {
-			rs := value.(*util.Session)
-			if hasError {
-				if resp.Header.Error.RaftEntryTooLarge == nil {
-					rsp.Type = raftcmdpb.RaftError
-				} else {
-					rsp.Type = raftcmdpb.Invalid
-				}
-
-				rsp.Error = resp.Header.Error
+func (rpc *defaultRPC) onResp(header *raftcmdpb.RaftResponseHeader, rsp *raftcmdpb.Response) {
+	if value, ok := rpc.sessions.Load(rsp.PID); ok {
+		rs := value.(*util.Session)
+		if header != nil {
+			if header.Error.RaftEntryTooLarge == nil {
+				rsp.Type = raftcmdpb.RaftError
+			} else {
+				rsp.Type = raftcmdpb.Invalid
 			}
 
-			logger.Debugf("%s responsed", hex.EncodeToString(rsp.ID))
-			rs.OnResp(rsp)
-		} else {
-			logger.Debugf("%s response ignore", hex.EncodeToString(rsp.ID))
-			pb.ReleaseResponse(rsp)
+			rsp.Error = header.Error
 		}
-	}
 
-	pb.ReleaseRaftCMDResponse(resp)
+		if logger.DebugEnabled() {
+			logger.Debugf("%s responsed", hex.EncodeToString(rsp.ID))
+		}
+		rs.OnResp(rsp)
+	} else {
+		if logger.DebugEnabled() {
+			logger.Debugf("%s response ignore, missing session", hex.EncodeToString(rsp.ID))
+		}
+
+		pb.ReleaseResponse(rsp)
+	}
 }

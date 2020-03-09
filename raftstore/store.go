@@ -81,8 +81,12 @@ type Store interface {
 	RegisterWriteFunc(uint64, WriteCommandFunc)
 	// RegisterLocalFunc register local command handler
 	RegisterLocalFunc(uint64, LocalCommandFunc)
+	// RegisterLocalRequestCB register local request cb to process response
+	RegisterLocalRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
+	// RegisterRPCRequestCB register rpc request cb to process response
+	RegisterRPCRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
 	// OnRequest receive a request, and call cb while the request is completed
-	OnRequest(*raftcmdpb.Request, func(*raftcmdpb.RaftCMDResponse)) error
+	OnRequest(*raftcmdpb.Request) error
 	// MetadataStorage returns a MetadataStorage of the shard
 	MetadataStorage(uint64) storage.MetadataStorage
 	// DataStorage returns a DataStorage of the shard
@@ -141,6 +145,9 @@ type store struct {
 
 	stopWG sync.WaitGroup
 	state  uint32
+
+	localCB func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
+	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 }
 
 // NewStore returns a raft store
@@ -255,7 +262,15 @@ func (s *store) RegisterLocalFunc(ct uint64, handler LocalCommandFunc) {
 	s.localHandlers[ct] = handler
 }
 
-func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
+func (s *store) RegisterLocalRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
+	s.localCB = cb
+}
+
+func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
+	s.localCB = cb
+}
+
+func (s *store) OnRequest(req *raftcmdpb.Request) error {
 	if logger.DebugEnabled() {
 		logger.Debugf("received %s", formatRequest(req))
 	}
@@ -263,7 +278,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResp
 	pr, err := s.selectShard(req.Group, req.Key)
 	if err != nil {
 		if err == errStoreNotMatch {
-			respStoreNotMatch(err, req, cb)
+			respStoreNotMatch(err, req, s.cb)
 			return nil
 		}
 
@@ -273,14 +288,14 @@ func (s *store) OnRequest(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResp
 	if h, ok := s.localHandlers[req.CustemType]; ok {
 		rsp, err := h(pr.ps.shard, req)
 		if err != nil {
-			respWithRetry(req, cb)
+			respWithRetry(req, s.cb)
 		} else {
-			resp(req, rsp, cb)
+			resp(req, rsp, s.cb)
 		}
 		return nil
 	}
 
-	return pr.onReq(req, cb)
+	return pr.onReq(req, s.cb)
 }
 
 func (s *store) MetadataStorage(id uint64) storage.MetadataStorage {
@@ -293,6 +308,18 @@ func (s *store) DataStorage(id uint64) storage.DataStorage {
 
 func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getPR(shard, true)
+}
+
+func (s *store) cb(resp *raftcmdpb.RaftCMDResponse) {
+	for _, rsp := range resp.Responses {
+		if rsp.PID != 0 {
+			s.rpcCB(resp.Header, rsp)
+		} else {
+			s.localCB(resp.Header, rsp)
+		}
+	}
+
+	pb.ReleaseRaftCMDResponse(resp)
 }
 
 func hasGap(left, right metapb.Shard) bool {
