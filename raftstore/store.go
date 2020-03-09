@@ -267,7 +267,7 @@ func (s *store) RegisterLocalRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *r
 }
 
 func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
-	s.localCB = cb
+	s.rpcCB = cb
 }
 
 func (s *store) OnRequest(req *raftcmdpb.Request) error {
