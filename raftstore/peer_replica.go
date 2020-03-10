@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -237,7 +238,15 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 	pr.buf.Clear()
 	for _, req := range c.req.Requests {
 		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
+			if logger.DebugEnabled() {
+				logger.Debugf("%s exec", hex.EncodeToString(req.ID))
+			}
+
 			resp.Responses = append(resp.Responses, h(pr.ps.shard, req, pr.buf))
+
+			if logger.DebugEnabled() {
+				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
+			}
 		}
 	}
 

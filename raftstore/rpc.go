@@ -112,12 +112,12 @@ func (rpc *defaultRPC) onResp(header *raftcmdpb.RaftResponseHeader, rsp *raftcmd
 		}
 
 		if logger.DebugEnabled() {
-			logger.Debugf("%s responsed", hex.EncodeToString(rsp.ID))
+			logger.Debugf("%s rpc received response", hex.EncodeToString(rsp.ID))
 		}
 		rs.OnResp(rsp)
 	} else {
 		if logger.DebugEnabled() {
-			logger.Debugf("%s response ignore, missing session", hex.EncodeToString(rsp.ID))
+			logger.Debugf("%s rpc received response, missing session", hex.EncodeToString(rsp.ID))
 		}
 
 		pb.ReleaseResponse(rsp)

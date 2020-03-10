@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -35,6 +36,9 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 
 	for i := int64(0); i < n; i++ {
 		req := items[i].(reqCtx)
+		if logger.DebugEnabled() && req.req != nil {
+			logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
+		}
 		pr.batch.push(pr.ps.shard.Group, req)
 	}
 
