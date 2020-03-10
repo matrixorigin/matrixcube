@@ -91,7 +91,11 @@ func (bc *backend) readLoop() {
 			}
 
 			if rsp, ok := data.(*raftcmdpb.Response); ok {
-				logger.Debugf("received %s response %+v", hex.EncodeToString(rsp.ID), rsp)
+				if logger.DebugEnabled() {
+					logger.Debugf("%s proxy received response from %s",
+						hex.EncodeToString(rsp.ID),
+						bc.addr)
+				}
 				bc.p.done(rsp)
 			}
 		}

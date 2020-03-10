@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/hex"
 	"errors"
 	"io"
 	"sync"
@@ -206,12 +207,22 @@ func (s *Application) doConnection(conn goetty.IOSession) error {
 }
 
 func (s *Application) done(resp *raftcmdpb.Response) {
+	if logger.DebugEnabled() {
+		logger.Debugf("%s application received response",
+			hex.EncodeToString(resp.ID))
+	}
+
 	// libary call
 	if resp.SID == 0 {
 		id := hack.SliceToString(resp.ID)
 		if value, ok := s.libaryCB.Load(hack.SliceToString(resp.ID)); ok {
 			s.libaryCB.Delete(id)
 			value.(ctx).resp(resp.Value, nil)
+		} else {
+			if logger.DebugEnabled() {
+				logger.Debugf("%s application received response, missing ctx",
+					hex.EncodeToString(resp.ID))
+			}
 		}
 
 		return
@@ -219,6 +230,11 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 
 	if value, ok := s.sessions.Load(resp.SID); ok {
 		value.(*util.Session).OnResp(resp)
+	} else {
+		if logger.DebugEnabled() {
+			logger.Debugf("%s application received response, missing session",
+				hex.EncodeToString(resp.ID))
+		}
 	}
 }
 

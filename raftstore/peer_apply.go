@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"time"
@@ -485,6 +486,12 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 			logger.Fatalf("shard %d execute batch failed with %+v",
 				d.shard.ID,
 				err)
+		}
+	}
+
+	if logger.DebugEnabled() {
+		for _, req := range d.ctx.req.Requests {
+			logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
 		}
 	}
 

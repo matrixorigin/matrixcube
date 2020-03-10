@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -74,6 +75,11 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 	shard, leader := p.router.SelectShard(req.Group, req.Key)
 	// No leader, retry after a leader tick
 	if leader == "" {
+		if logger.DebugEnabled() {
+			logger.Infof("%s retry with no leader",
+				hex.EncodeToString(req.ID))
+		}
+
 		p.retryWithRaftError(req)
 		return nil
 	}

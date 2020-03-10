@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 
 	"github.com/deepfabric/beehive/pb"
@@ -239,7 +240,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	d.buf.Clear()
 	for _, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
-			logger.Debugf("exec %s", formatRequest(req))
+			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 		}
 
 		ctx.metrics.writtenKeys++

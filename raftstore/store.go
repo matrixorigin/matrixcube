@@ -3,6 +3,7 @@ package raftstore
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"math"
@@ -272,7 +273,7 @@ func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raf
 
 func (s *store) OnRequest(req *raftcmdpb.Request) error {
 	if logger.DebugEnabled() {
-		logger.Debugf("received %s", formatRequest(req))
+		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
 
 	pr, err := s.selectShard(req.Group, req.Key)
