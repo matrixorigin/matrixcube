@@ -137,7 +137,7 @@ func (pr *peerReplica) handleEvent() bool {
 
 			requests := pr.requests.Dispose()
 			for _, r := range requests {
-				req := r.(*reqCtx)
+				req := r.(reqCtx)
 				if req.cb != nil {
 					respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
 				}
