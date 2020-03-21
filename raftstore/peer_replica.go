@@ -58,6 +58,7 @@ type peerReplica struct {
 	stopOnce sync.Once
 
 	readyCtx *readyContext
+	attrs    map[string]interface{}
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -114,6 +115,8 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	}
 
 	pr.buf = goetty.NewByteBuf(256)
+	pr.attrs = make(map[string]interface{})
+	pr.attrs[AttrBuf] = pr.buf
 	pr.rn = rn
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
@@ -242,7 +245,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 				logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 			}
 
-			resp.Responses = append(resp.Responses, h(pr.ps.shard, req, pr.buf))
+			resp.Responses = append(resp.Responses, h(pr.ps.shard, req, pr.attrs))
 
 			if logger.DebugEnabled() {
 				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))

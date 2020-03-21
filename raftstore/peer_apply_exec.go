@@ -245,7 +245,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 
 		ctx.metrics.writtenKeys++
 		if ctx.dataWB != nil {
-			addedToWB, rsp, err := ctx.dataWB.Add(d.shard.ID, req, d.buf)
+			addedToWB, rsp, err := ctx.dataWB.Add(d.shard.ID, req, d.attrs)
 			if err != nil {
 				logger.Fatalf("shard %s add %+v to write batch failed with %+v",
 					d.shard.ID,
@@ -260,7 +260,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 		}
 
 		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-			written, diff, rsp := h(d.shard, req, d.buf)
+			written, diff, rsp := h(d.shard, req, d.attrs)
 			resp.Responses = append(resp.Responses, rsp)
 			writeBytes += written
 			diffBytes += diff

@@ -252,8 +252,11 @@ type applyDelegate struct {
 
 	// reuse
 	wb  *util.WriteBatch
-	buf *goetty.ByteBuf
 	ctx *applyContext
+
+	// attrs
+	buf   *goetty.ByteBuf
+	attrs map[string]interface{}
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
