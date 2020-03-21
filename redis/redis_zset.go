@@ -5,7 +5,6 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/redispb"
-	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/protoc"
@@ -13,7 +12,7 @@ import (
 
 // ============================= write methods
 
-func (h *handler) zadd(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zadd(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -47,7 +46,7 @@ func (h *handler) zadd(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) zcard(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zcard(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	value, err := h.getRedisZSet(shard.ID).ZCard(req.Key)
@@ -63,7 +62,7 @@ func (h *handler) zcard(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.
 	return 0, 0, resp
 }
 
-func (h *handler) zincrby(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zincrby(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -92,7 +91,7 @@ func (h *handler) zincrby(shard metapb.Shard, req *raftcmdpb.Request, buf *goett
 	return 0, 0, resp
 }
 
-func (h *handler) zrem(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zrem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -122,7 +121,7 @@ func (h *handler) zrem(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return 0, -diffBytes, resp
 }
 
-func (h *handler) zremrangebylex(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zremrangebylex(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -145,7 +144,7 @@ func (h *handler) zremrangebylex(shard metapb.Shard, req *raftcmdpb.Request, buf
 	return 0, 0, resp
 }
 
-func (h *handler) zremrangebyrank(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zremrangebyrank(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -180,7 +179,7 @@ func (h *handler) zremrangebyrank(shard metapb.Shard, req *raftcmdpb.Request, bu
 	return 0, 0, resp
 }
 
-func (h *handler) zremrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zremrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -203,7 +202,7 @@ func (h *handler) zremrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, b
 	return 0, 0, resp
 }
 
-func (h *handler) zscore(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) zscore(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -228,7 +227,7 @@ func (h *handler) zscore(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 
 // ============================= read methods
 
-func (h *handler) zcount(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zcount(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -251,7 +250,7 @@ func (h *handler) zcount(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 	return resp
 }
 
-func (h *handler) zlexcount(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zlexcount(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -274,7 +273,7 @@ func (h *handler) zlexcount(shard metapb.Shard, req *raftcmdpb.Request, buf *goe
 	return resp
 }
 
-func (h *handler) zrange(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zrange(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -310,7 +309,7 @@ func (h *handler) zrange(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 	return resp
 }
 
-func (h *handler) zrangebylex(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zrangebylex(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -333,7 +332,7 @@ func (h *handler) zrangebylex(shard metapb.Shard, req *raftcmdpb.Request, buf *g
 	return resp
 }
 
-func (h *handler) zrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -357,7 +356,7 @@ func (h *handler) zrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, buf 
 	return resp
 }
 
-func (h *handler) zrank(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) zrank(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)

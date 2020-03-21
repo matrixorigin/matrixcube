@@ -5,7 +5,6 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/redispb"
-	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/protoc"
@@ -13,7 +12,7 @@ import (
 
 // ============================= write methods
 
-func (h *handler) linsert(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) linsert(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -47,7 +46,7 @@ func (h *handler) linsert(shard metapb.Shard, req *raftcmdpb.Request, buf *goett
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) lpop(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) lpop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	value, err := h.getRedisList(shard.ID).LPop(req.Key)
@@ -63,7 +62,7 @@ func (h *handler) lpop(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return 0, -int64(len(value)), resp
 }
 
-func (h *handler) lpush(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) lpush(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -93,7 +92,7 @@ func (h *handler) lpush(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) lpushx(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) lpushx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -123,7 +122,7 @@ func (h *handler) lpushx(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) lrem(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) lrem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -153,7 +152,7 @@ func (h *handler) lrem(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return 0, -diffBytes, resp
 }
 
-func (h *handler) lset(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) lset(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -180,7 +179,7 @@ func (h *handler) lset(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return writtenBytes, 0, resp
 }
 
-func (h *handler) ltrim(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) ltrim(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -212,7 +211,7 @@ func (h *handler) ltrim(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.
 	return 0, 0, resp
 }
 
-func (h *handler) rpop(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) rpop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
 	value, err := h.getRedisList(shard.ID).RPop(req.Key)
@@ -228,7 +227,7 @@ func (h *handler) rpop(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return 0, -int64(len(value)), resp
 }
 
-func (h *handler) rpush(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) rpush(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -258,7 +257,7 @@ func (h *handler) rpush(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.
 	return writtenBytes, int64(writtenBytes), resp
 }
 
-func (h *handler) rpushx(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) (uint64, int64, *raftcmdpb.Response) {
+func (h *handler) rpushx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -290,7 +289,7 @@ func (h *handler) rpushx(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 
 // ============================= read methods
 
-func (h *handler) lindex(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) lindex(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
@@ -319,7 +318,7 @@ func (h *handler) lindex(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty
 	return resp
 }
 
-func (h *handler) llen(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) llen(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
 	value, err := h.getRedisList(shard.ID).LLen(req.Key)
@@ -335,7 +334,7 @@ func (h *handler) llen(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.B
 	return resp
 }
 
-func (h *handler) lrange(shard metapb.Shard, req *raftcmdpb.Request, buf *goetty.ByteBuf) *raftcmdpb.Response {
+func (h *handler) lrange(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)

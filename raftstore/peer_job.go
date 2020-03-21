@@ -36,7 +36,9 @@ func (pr *peerReplica) startRegistrationJob() {
 		buf:              goetty.NewByteBuf(256),
 		wb:               util.NewWriteBatch(),
 		ctx:              newApplyContext(pr.store),
+		attrs:            make(map[string]interface{}),
 	}
+	delegate.attrs[AttrBuf] = delegate.buf
 
 	err := pr.store.addApplyJob(pr.shardID, "doRegistrationJob", func() error {
 		return pr.doRegistrationJob(delegate)
