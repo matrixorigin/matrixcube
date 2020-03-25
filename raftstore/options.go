@@ -86,6 +86,7 @@ type options struct {
 	rpc                           RPC
 	writeBatchFunc                func() CommandWriteBatch
 	shardStateAware               ShardStateAware
+	shardAddHandleFunc            func(metapb.Shard) error
 
 	prophetOptions []prophet.Option
 }
@@ -485,5 +486,12 @@ func WithProphetOptions(value ...prophet.Option) Option {
 func WithShardStateAware(value ShardStateAware) Option {
 	return func(opts *options) {
 		opts.shardStateAware = value
+	}
+}
+
+// WithShardAddHandleFun set shard added handle func
+func WithShardAddHandleFun(value func(metapb.Shard) error) Option {
+	return func(opts *options) {
+		opts.shardAddHandleFunc = value
 	}
 }

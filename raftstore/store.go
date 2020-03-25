@@ -639,7 +639,19 @@ func (s *store) doEnsureNewShards(limit int64) {
 			return false, err
 		}
 
-		if res != nil && len(res.Peers()) > 2 {
+		n := 2
+		if shard.LeastReplicas > 0 {
+			n = int(shard.LeastReplicas)
+		}
+
+		if res != nil && len(res.Peers()) >= n {
+			if s.opts.shardAddHandleFunc != nil {
+				err := s.opts.shardAddHandleFunc(shard)
+				if err != nil {
+					return false, err
+				}
+			}
+
 			ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
 			return true, nil
 		}

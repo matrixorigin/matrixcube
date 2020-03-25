@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/storage"
@@ -38,6 +39,30 @@ func createTestStore(name string) *store {
 		MetadataStorages: []storage.MetadataStorage{m},
 		DataStorages:     []storage.DataStorage{m},
 	}, WithDataPath(data)).(*store)
+}
+
+func TestAddShardsWithHandle(t *testing.T) {
+	s := createTestStore("s1")
+	s.Start()
+
+	c := make(chan struct{})
+	s.opts.shardAddHandleFunc = func(shard metapb.Shard) error {
+		c <- struct{}{}
+		return nil
+	}
+
+	err := s.AddShards(metapb.Shard{
+		Group:         1,
+		LeastReplicas: 1,
+	})
+	assert.NoError(t, err, "TestAddShardsWithHandle failed")
+
+	select {
+	case <-c:
+		return
+	case <-time.After(time.Second * 12):
+		assert.Fail(t, "TestAddShardsWithHandle failed timeout")
+	}
 }
 
 func TestAddShards(t *testing.T) {
