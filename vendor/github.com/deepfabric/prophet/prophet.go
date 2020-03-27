@@ -1,6 +1,7 @@
 package prophet
 
 import (
+	"context"
 	"math"
 	"sync"
 	"time"
@@ -68,12 +69,13 @@ type defaultProphet struct {
 	resourceHBC chan uint64
 
 	// about leader election
-	node       *Node
-	elector    Elector
-	leader     *Node
-	leaderFlag int64
-	signature  string
-	notifyOnce sync.Once
+	node              *Node
+	elector           Elector
+	electorCancelFunc context.CancelFunc
+	leader            *Node
+	leaderFlag        int64
+	signature         string
+	notifyOnce        sync.Once
 }
 
 // NewProphet returns a prophet instance
@@ -119,6 +121,7 @@ func (p *defaultProphet) Start() {
 func (p *defaultProphet) Stop() {
 	p.tcpL.Stop()
 	p.runner.Stop()
+	p.electorCancelFunc()
 	p.elector.Stop(math.MaxUint64)
 	p.opts.client.Close()
 	if p.opts.etcd != nil {

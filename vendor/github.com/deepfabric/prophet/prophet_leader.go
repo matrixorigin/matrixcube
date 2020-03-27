@@ -39,7 +39,9 @@ func (p *defaultProphet) startLeaderLoop() {
 		leaderSignature = p.signature
 	}
 
-	go p.elector.ElectionLoop(context.Background(),
+	ctx, cancel := context.WithCancel(context.Background())
+	p.electorCancelFunc = cancel
+	go p.elector.ElectionLoop(ctx,
 		math.MaxUint64,
 		leaderSignature,
 		p.enableLeader,
