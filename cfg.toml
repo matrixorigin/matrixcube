@@ -177,13 +177,13 @@ minAvailableStorageUsedRate = 80
 
 [metric]
 # The prometheus pushgateway address
-addr = 127.0.0.1:9091
+addr = "127.0.0.1:9091"
 
 # The interval seconds to push the metrics to prometheus pushgateway
 interval = 10
 
 # The prometheus job
-job = beehive
+job = "beehive"
 
 # The instance label, default is os.hostname
 instance = ""

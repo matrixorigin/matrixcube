@@ -29,7 +29,11 @@ func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
 				delegate.peerID)
 		}
 
+		old.peerID = delegate.peerID
+		old.shard = delegate.shard
 		old.term = delegate.term
+		old.applyState = delegate.applyState
+		old.appliedIndexTerm = delegate.appliedIndexTerm
 		old.clearAllCommandsAsStale()
 	}
 
@@ -86,8 +90,8 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	}
 
 	err := pr.store.MetadataStorage(shardID).Write(wb, false)
-	if err != nil {
-		logger.Infof("shard %d raft log gc complete, entriesCount=<%d>",
+	if err == nil {
+		logger.Debugf("shard %d raft log gc complete, entriesCount=<%d>",
 			shardID,
 			(endIndex - startIndex))
 	}
@@ -96,7 +100,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 }
 
 func (pr *peerReplica) doApplyingSnapshotJob() error {
-	logger.Infof("shard %d begin apply snap data", pr.shardID)
+	logger.Infof("shard %d begin apply snapshot data", pr.shardID)
 	localState, err := pr.ps.loadLocalState(pr.ps.applySnapJob)
 	if err != nil {
 		logger.Fatalf("shard %d apply snap load local state failed, errors:\n %+v",
@@ -130,7 +134,9 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 	}
 
 	pr.stopRaftTick = false
-	logger.Infof("shard %d apply snapshot complete", pr.shardID)
+	logger.Infof("shard %d apply snapshot data complete, %+v",
+		pr.shardID,
+		pr.ps.raftHardState)
 	return nil
 }
 

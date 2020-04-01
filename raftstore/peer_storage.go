@@ -78,9 +78,10 @@ func newPeerStorage(store *store, shard metapb.Shard) (*peerStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("shard %d init with raft state %+v",
+	logger.Infof("shard %d init with raft state %+v ,%+v",
 		shard.ID,
-		s.raftState)
+		s.raftState,
+		s.raftHardState)
 
 	err = s.initApplyState()
 	if err != nil {
