@@ -15,6 +15,7 @@ import (
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/server"
 	"github.com/deepfabric/beehive/storage"
+	"github.com/deepfabric/beehive/storage/badger"
 	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/goetty"
@@ -35,16 +36,18 @@ func main() {
 		time.Sleep(time.Second * time.Duration(*wait))
 	}
 
-	memStorage := mem.NewStorage()
-	store, err := beehive.CreateRaftStoreFromFile(*data, []storage.MetadataStorage{memStorage},
-		[]storage.DataStorage{memStorage})
+	dataStorage := mem.NewStorage()
+	metaStore, _ := badger.NewStorage(fmt.Sprintf("%s/data", *data))
+	store, err := beehive.CreateRaftStoreFromFile(*data,
+		[]storage.MetadataStorage{metaStore},
+		[]storage.DataStorage{dataStorage})
 	if err != nil {
 		log.Fatalf("failed parse with %+v", err)
 	}
 
 	app := server.NewApplication(server.Cfg{
 		Store:          store,
-		Handler:        newHTTPHandler(memStorage, store),
+		Handler:        newHTTPHandler(dataStorage, store),
 		ExternalServer: true,
 	})
 	err = app.Start()

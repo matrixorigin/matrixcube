@@ -195,10 +195,9 @@ func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap etcdraftpb.Snaps
 	ctx.applyState.TruncatedState.Index = lastIndex
 	ctx.applyState.TruncatedState.Term = lastTerm
 
-	logger.Infof("shard %d apply snapshot ok, state=<%s>",
+	logger.Infof("shard %d apply snapshot state completed, apply state %+v",
 		pr.shardID,
-		ctx.applyState.String())
-
+		ctx.applyState)
 	return nil
 }
 
@@ -265,8 +264,7 @@ func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
 		ctx.hardState.Vote != pr.ps.raftHardState.Vote {
 
 		ctx.raftState.HardState = protoc.MustMarshal(&ctx.hardState)
-		data, _ := ctx.raftState.Marshal()
-		err := ctx.wb.Set(getRaftStateKey(pr.shardID), data)
+		err := ctx.wb.Set(getRaftStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
 		if err != nil {
 			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
 				pr.ps.shard.ID,
@@ -326,6 +324,7 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 
 func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *applySnapResult {
 	pr.ps.raftState = ctx.raftState
+	pr.ps.raftHardState = ctx.hardState
 	pr.ps.applyState = ctx.applyState
 	pr.ps.lastTerm = ctx.lastTerm
 

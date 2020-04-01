@@ -7,7 +7,7 @@ DIST_DIR 	= $(ROOT_DIR)dist/
 .PHONY: dist_dir
 dist_dir: ; $(info ======== prepare distribute dir:)
 	mkdir -p $(DIST_DIR)
-	@rm -rf $(DIST_DIR)*
+	#@rm -rf $(DIST_DIR)*
 
 .PHONY: redis
 redis: dist_dir; $(info ======== compiled beehive example redis:)
