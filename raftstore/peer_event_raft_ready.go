@@ -450,6 +450,7 @@ func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
 	sendMsg.ShardID = pr.shardID
 	sendMsg.ShardEpoch = pr.ps.shard.Epoch
 	sendMsg.Group = pr.ps.shard.Group
+	sendMsg.DisableSplit = pr.ps.shard.DisableSplit
 
 	sendMsg.From = pr.peer
 	sendMsg.To, _ = pr.store.getPeer(msg.To)
