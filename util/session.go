@@ -1,6 +1,8 @@
 package util
 
 import (
+	"sync"
+
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/task"
@@ -17,6 +19,8 @@ type Session struct {
 	resps       *task.Queue
 	conn        goetty.IOSession
 	releaseFunc func(interface{})
+	stopOnce    sync.Once
+	stopped     chan struct{}
 }
 
 // NewSession create a client session
@@ -27,6 +31,7 @@ func NewSession(conn goetty.IOSession, releaseFunc func(interface{})) *Session {
 		resps:       task.New(32),
 		conn:        conn,
 		releaseFunc: releaseFunc,
+		stopped:     make(chan struct{}),
 	}
 
 	go s.writeLoop()
@@ -36,6 +41,7 @@ func NewSession(conn goetty.IOSession, releaseFunc func(interface{})) *Session {
 // Close close the client session
 func (s *Session) Close() {
 	s.resps.Put(stopFlag)
+	<-s.stopped
 }
 
 // OnResp receive a response
@@ -48,7 +54,10 @@ func (s *Session) OnResp(resp interface{}) {
 }
 
 func (s *Session) doClose() {
-	s.resps.Disposed()
+	s.stopOnce.Do(func() {
+		s.resps.Disposed()
+		s.stopped <- struct{}{}
+	})
 }
 
 func (s *Session) releaseResp(resp interface{}) {
