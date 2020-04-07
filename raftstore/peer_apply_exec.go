@@ -238,6 +238,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	diffBytes := int64(0)
 	resp := pb.AcquireRaftCMDResponse()
 	d.buf.Clear()
+	d.requests = d.requests[:0]
 	for _, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
@@ -259,13 +260,45 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 			}
 		}
 
-		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-			written, diff, rsp := h(d.shard, req, d.attrs)
-			resp.Responses = append(resp.Responses, rsp)
-			writeBytes += written
-			diffBytes += diff
+		d.requests = append(d.requests, req)
+	}
+
+	if len(d.requests) > 0 {
+		d.attrs[AttrWriteRequestApplyMax] = len(d.requests) - 1
+		for idx, req := range d.requests {
+			d.attrs[AttrWriteRequestApplyCurrent] = idx
+			if h, ok := d.store.writeHandlers[req.CustemType]; ok {
+				written, diff, rsp := h(d.shard, req, d.attrs)
+				resp.Responses = append(resp.Responses, rsp)
+				writeBytes += written
+				diffBytes += diff
+			}
 		}
 	}
 
 	return writeBytes, diffBytes, resp
+}
+
+// IsFirstApplyRequest returns true if the current request is first in this apply batch
+func IsFirstApplyRequest(attrs map[string]interface{}) bool {
+	if value, ok := attrs[AttrWriteRequestApplyCurrent]; ok {
+		return value.(int) == 0
+	}
+
+	return false
+}
+
+// IsLastApplyRequest returns true if the last request is first in this apply batch
+func IsLastApplyRequest(attrs map[string]interface{}) bool {
+	current, ok := attrs[AttrWriteRequestApplyCurrent]
+	if !ok {
+		return false
+	}
+
+	total, ok := attrs[AttrWriteRequestApplyMax]
+	if !ok {
+		return false
+	}
+
+	return current == total
 }
