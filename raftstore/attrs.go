@@ -6,5 +6,5 @@ const (
 	// AttrWriteRequestApplyMax max index of write requests in current batch apply
 	AttrWriteRequestApplyMax = "internal.write.request.apply.total"
 	// AttrWriteRequestApplyCurrent current index of write requests in current batch apply
-	AttrWriteRequestApplyCurrent = "internal.write.request.apply.total"
+	AttrWriteRequestApplyCurrent = "internal.write.request.apply.current"
 )

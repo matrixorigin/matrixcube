@@ -239,10 +239,11 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	resp := pb.AcquireRaftCMDResponse()
 	d.buf.Clear()
 	d.requests = d.requests[:0]
-	for _, req := range ctx.req.Requests {
+	for idx, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 		}
+		resp.Responses = append(resp.Responses, nil)
 
 		ctx.metrics.writtenKeys++
 		if ctx.dataWB != nil {
@@ -255,21 +256,22 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 			}
 
 			if addedToWB {
-				resp.Responses = append(resp.Responses, rsp)
+				resp.Responses[idx] = rsp
 				continue
 			}
 		}
 
-		d.requests = append(d.requests, req)
+		d.requests = append(d.requests, idx)
 	}
 
 	if len(d.requests) > 0 {
 		d.attrs[AttrWriteRequestApplyMax] = len(d.requests) - 1
-		for idx, req := range d.requests {
+		for idx, which := range d.requests {
+			req := ctx.req.Requests[which]
 			d.attrs[AttrWriteRequestApplyCurrent] = idx
 			if h, ok := d.store.writeHandlers[req.CustemType]; ok {
 				written, diff, rsp := h(d.shard, req, d.attrs)
-				resp.Responses = append(resp.Responses, rsp)
+				resp.Responses[which] = rsp
 				writeBytes += written
 				diffBytes += diff
 			}

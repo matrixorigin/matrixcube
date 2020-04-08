@@ -263,7 +263,7 @@ type applyDelegate struct {
 	// attrs
 	buf      *goetty.ByteBuf
 	attrs    map[string]interface{}
-	requests []*raftcmdpb.Request
+	requests []int
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
