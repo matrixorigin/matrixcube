@@ -130,7 +130,7 @@ func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
 
 func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request) {
 	if req != nil {
-		util.DefaultTimeoutWheel().Schedule(time.Millisecond*50, p.doRetry, *req)
+		util.DefaultTimeoutWheel().Schedule(time.Second, p.doRetry, *req)
 	}
 }
 
