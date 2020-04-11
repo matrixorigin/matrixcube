@@ -130,6 +130,7 @@ func (pr *peerReplica) handleEvent() bool {
 				}
 				if c, ok := pr.batch.pop(); ok {
 					for _, req := range c.req.Requests {
+						req.Key = DecodeDataKey(req.Key)
 						respStoreNotMatch(errStoreNotMatch, req, c.cb)
 					}
 				}

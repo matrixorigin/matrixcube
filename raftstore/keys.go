@@ -178,14 +178,16 @@ func getDataKey0(group uint64, key []byte, buf *goetty.ByteBuf) []byte {
 	return data
 }
 
-func getDataKey(group uint64, key []byte) []byte {
+// EncodeDataKey encode data key
+func EncodeDataKey(group uint64, key []byte) []byte {
 	buf := acquireBuf()
 	data := getDataKey0(group, key, buf)
 	releaseBuf(buf)
 	return data
 }
 
-func getOriginKey(key []byte) []byte {
+// DecodeDataKey decode data key
+func DecodeDataKey(key []byte) []byte {
 	return key[len(dataPrefixKey)+8:]
 }
 
@@ -202,7 +204,7 @@ func getDataEndKey(group uint64, endKey []byte) []byte {
 	if len(endKey) == 0 {
 		return getDataMaxKey(group)
 	}
-	return getDataKey(group, endKey)
+	return EncodeDataKey(group, endKey)
 }
 
 func encStartKey(shard *metapb.Shard) []byte {
@@ -212,7 +214,7 @@ func encStartKey(shard *metapb.Shard) []byte {
 		logger.Fatalf("bug: shard peers len is empty")
 	}
 
-	return getDataKey(shard.Group, shard.Start)
+	return EncodeDataKey(shard.Group, shard.Start)
 }
 
 func encEndKey(shard *metapb.Shard) []byte {

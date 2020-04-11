@@ -109,6 +109,7 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 			if resp.Header != nil {
 				for idx, rsp := range resp.Responses {
 					rsp.OriginRequest = c.req.Requests[idx]
+					rsp.OriginRequest.Key = DecodeDataKey(rsp.OriginRequest.Key)
 					rsp.Error = resp.Header.Error
 				}
 			}
