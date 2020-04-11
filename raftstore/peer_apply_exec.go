@@ -105,7 +105,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		return nil, nil, errors.New("missing split key")
 	}
 
-	req.SplitKey = getOriginKey(req.SplitKey)
+	req.SplitKey = DecodeDataKey(req.SplitKey)
 
 	// splitKey < shard.Startkey
 	if bytes.Compare(req.SplitKey, d.shard.Start) < 0 {

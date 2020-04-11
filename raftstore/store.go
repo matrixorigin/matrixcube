@@ -328,9 +328,9 @@ func hasGap(left, right metapb.Shard) bool {
 		return false
 	}
 
-	leftS := getDataKey(left.Group, left.Start)
+	leftS := EncodeDataKey(left.Group, left.Start)
 	leftE := getDataEndKey(left.Group, left.End)
-	rightS := getDataKey(right.Group, right.Start)
+	rightS := EncodeDataKey(right.Group, right.Start)
 	rightE := getDataEndKey(right.Group, right.End)
 
 	return (bytes.Compare(leftS, rightS) >= 0 && bytes.Compare(leftS, rightE) < 0) ||
@@ -861,7 +861,7 @@ func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
 func (s *store) cleanup() {
 	s.keyRanges.Range(func(key, value interface{}) bool {
 		// clean up all possible garbage data
-		lastStartKey := getDataKey(key.(uint64), nil)
+		lastStartKey := EncodeDataKey(key.(uint64), nil)
 
 		value.(*util.ShardTree).Ascend(func(shard *metapb.Shard) bool {
 			start := encStartKey(shard)
