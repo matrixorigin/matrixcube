@@ -73,14 +73,7 @@ func (p *defaultProphet) disableLeader() {
 	atomic.StoreInt64(&p.leaderFlag, 0)
 	log.Infof("********become to follower now********")
 
-	value, err := p.elector.CurrentLeader(math.MaxUint64)
-	if err != nil {
-		log.Errorf("get current leader failed with %+v", err)
-	}
-	p.leader = nil
-	if len(value) > 0 {
-		p.leader = mustUnmarshal([]byte(value))
-	}
+	p.maybeLoadLeader()
 
 	// now, we are not leader
 	if p.coordinator != nil {
@@ -94,6 +87,21 @@ func (p *defaultProphet) disableLeader() {
 
 	p.notifyElectionComplete()
 	p.cfg.Handler.ProphetBecomeFollower()
+}
+
+func (p *defaultProphet) maybeLoadLeader() {
+	value, err := p.elector.CurrentLeader(math.MaxUint64)
+	if err != nil {
+		log.Errorf("get current leader failed with %+v", err)
+	}
+
+	if len(value) == 0 {
+		return
+	}
+
+	if len(value) > 0 {
+		p.leader = mustUnmarshal([]byte(value))
+	}
 }
 
 func (p *defaultProphet) isLeader() bool {

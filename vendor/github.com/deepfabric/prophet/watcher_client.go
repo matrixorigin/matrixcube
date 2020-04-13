@@ -148,6 +148,7 @@ func (w *Watcher) startReadLoop() {
 			w.eventC <- evt
 		} else {
 			w.conn.Close()
+			time.Sleep(time.Second * 5)
 			return
 		}
 	}

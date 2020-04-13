@@ -375,19 +375,20 @@ func (p *defaultProphet) doConnection(conn goetty.IOSession) error {
 
 func (p *defaultProphet) getLeaderClient() goetty.IOSession {
 	for {
-		l := p.leader
-		addr := p.node.Addr
-		if l != nil {
-			addr = l.Addr
+		if p.leader == nil {
+			p.maybeLoadLeader()
 		}
 
-		conn, err := p.createLeaderClient(addr)
-		if err == nil {
-			log.Infof("create leader connection to %s", addr)
-			return conn
+		if p.leader != nil {
+			conn, err := p.createLeaderClient(p.leader.Addr)
+			if err == nil {
+				log.Infof("create leader connection to %+v", p.leader)
+				return conn
+			}
+
+			log.Errorf("create leader connection failed, errors: %+v", err)
 		}
 
-		log.Errorf("create leader connection failed, errors: %+v", err)
 		time.Sleep(time.Second)
 	}
 }
