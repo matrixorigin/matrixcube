@@ -256,14 +256,21 @@ func (wn *watcherNotifier) clearWatcher(conn goetty.IOSession) {
 
 func (wn *watcherNotifier) stop() {
 	wn.Lock()
-	close(wn.eventC)
-	wn.eventC = nil
-	wn.watchers.Range(func(key, value interface{}) bool {
-		wn.watchers.Delete(key)
-		value.(*watcher).conn.Close()
-		return true
-	})
-	wn.Unlock()
+	defer wn.Unlock()
+
+	if wn.eventC != nil {
+		close(wn.eventC)
+		wn.eventC = nil
+	}
+
+	if wn.watchers != nil {
+		wn.watchers.Range(func(key, value interface{}) bool {
+			wn.watchers.Delete(key)
+			value.(*watcher).conn.Close()
+			return true
+		})
+	}
+
 	log.Infof("watcher notifyer stopped")
 }
 
