@@ -72,6 +72,18 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 	return s.db.GetWithHandle(s.kv, key)
 }
 
+// MGet returns multi values
+func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
+	values, errs := s.db.MGet(keys)
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return values, nil
+}
+
 // Delete remove the key from the storage
 func (s *Storage) Delete(key []byte) error {
 	return s.db.DeleteWithHandle(s.kv, key, false)

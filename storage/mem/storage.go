@@ -59,6 +59,16 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 	return v, nil
 }
 
+// MGet returns multi values
+func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
+	var values [][]byte
+	for _, key := range keys {
+		values = append(values, s.kv.Get(key))
+	}
+
+	return values, nil
+}
+
 // Delete remove the key from the storage
 func (s *Storage) Delete(key []byte) error {
 	s.kv.Delete(key)
