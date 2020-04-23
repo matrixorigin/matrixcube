@@ -129,6 +129,37 @@ func TestSetAndGet(t *testing.T) {
 	}
 }
 
+func TestSetAndMGet(t *testing.T) {
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(t)
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+
+			key2 := []byte("k2")
+			value2 := []byte("v2")
+
+			key3 := []byte("k3")
+			value3 := []byte("v3")
+
+			key4 := []byte("k4")
+
+			s.Set(key1, value1)
+			s.Set(key2, value2)
+			s.Set(key3, value3)
+
+			values, err := s.MGet(key1, key2, key3, key4)
+			assert.NoError(t, err, "TestSetAndGet failed")
+			assert.Equal(t, 4, len(values), "TestSetAndGet failed")
+
+			assert.Equal(t, string(value1), string(values[0]), "TestSetAndGet failed")
+			assert.Equal(t, string(value2), string(values[1]), "TestSetAndGet failed")
+			assert.Equal(t, string(value3), string(values[2]), "TestSetAndGet failed")
+			assert.Equal(t, 0, len(values[3]), "TestSetAndGet failed")
+		})
+	}
+}
+
 func TestSetAndGetWithTTL(t *testing.T) {
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {

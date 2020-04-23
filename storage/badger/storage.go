@@ -104,6 +104,39 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 	return value, nil
 }
 
+// MGet returns multi values
+func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
+	var values [][]byte
+	err := s.db.View(func(txn *badger.Txn) error {
+		for _, key := range keys {
+			item, err := txn.Get([]byte(key))
+			if err != nil {
+				if err != badger.ErrKeyNotFound {
+					return err
+				}
+
+				values = append(values, nil)
+			} else {
+				value, err := itemValue(item)
+				if err != nil {
+					return err
+				}
+
+				values = append(values, value)
+			}
+
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 // Delete remove the key from the storage
 func (s *Storage) Delete(key []byte) error {
 	return s.BatchDelete(key)

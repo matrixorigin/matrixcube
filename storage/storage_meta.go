@@ -15,6 +15,8 @@ type MetadataStorage interface {
 	SetWithTTL(key []byte, value []byte, ttl int32) error
 	// Get returns the value of the key
 	Get(key []byte) ([]byte, error)
+	// MGet get multi values
+	MGet(keys ...[]byte) ([][]byte, error)
 	// Delete remove the key from the storage
 	Delete(key []byte) error
 
