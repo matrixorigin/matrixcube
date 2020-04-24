@@ -56,6 +56,17 @@ type CommandWriteBatch interface {
 	Reset()
 }
 
+// CommandReadBatch command read batch
+type CommandReadBatch interface {
+	// Add add a request to this batch, returns true if it can be executed in this batch,
+	// otherwrise false
+	Add(uint64, *raftcmdpb.Request, map[string]interface{}) (bool, error)
+	// Execute excute the batch, and return the responses
+	Execute() ([]*raftcmdpb.Response, error)
+	// Reset reset the current batch for reuse
+	Reset()
+}
+
 // ReadCommandFunc the read command handler func
 type ReadCommandFunc func(metapb.Shard, *raftcmdpb.Request, map[string]interface{}) *raftcmdpb.Response
 

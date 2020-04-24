@@ -85,6 +85,7 @@ type options struct {
 	trans                         Transport
 	rpc                           RPC
 	writeBatchFunc                func() CommandWriteBatch
+	readBatchFunc                 func() CommandReadBatch
 	shardStateAware               ShardStateAware
 	shardAddHandleFunc            func(metapb.Shard) error
 
@@ -447,6 +448,14 @@ func WithTransport(value Transport) Option {
 func WithWriteBatchFunc(value func() CommandWriteBatch) Option {
 	return func(opts *options) {
 		opts.writeBatchFunc = value
+	}
+}
+
+// WithReadBatchFunc the factory function to create applciation commands batch processor. By default
+// the raftstore will process command one by one.
+func WithReadBatchFunc(value func() CommandReadBatch) Option {
+	return func(opts *options) {
+		opts.readBatchFunc = value
 	}
 }
 

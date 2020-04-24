@@ -57,8 +57,10 @@ type peerReplica struct {
 	buf      *goetty.ByteBuf
 	stopOnce sync.Once
 
-	readyCtx *readyContext
-	attrs    map[string]interface{}
+	requestIdxs      []int
+	readCommandBatch CommandReadBatch
+	readyCtx         *readyContext
+	attrs            map[string]interface{}
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -118,6 +120,9 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.buf = goetty.NewByteBuf(256)
 	pr.attrs = make(map[string]interface{})
 	pr.attrs[AttrBuf] = pr.buf
+	if store.opts.readBatchFunc != nil {
+		pr.readCommandBatch = store.opts.readBatchFunc()
+	}
 	pr.rn = rn
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
@@ -240,17 +245,60 @@ func (pr *peerReplica) stopEventLoop() {
 func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
 	pr.buf.Clear()
-	for _, req := range c.req.Requests {
-		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			if logger.DebugEnabled() {
-				logger.Debugf("%s exec", hex.EncodeToString(req.ID))
+	pr.requestIdxs = pr.requestIdxs[:0]
+
+	if pr.readCommandBatch != nil {
+		pr.readCommandBatch.Reset()
+	}
+
+	for idx, req := range c.req.Requests {
+		if logger.DebugEnabled() {
+			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
+		}
+		resp.Responses = append(resp.Responses, nil)
+
+		if pr.readCommandBatch != nil {
+			added, err := pr.readCommandBatch.Add(pr.shardID, req, pr.attrs)
+			if err != nil {
+				logger.Fatalf("shard %s add %+v to read batch failed with %+v",
+					pr.shardID,
+					req,
+					err)
 			}
 
-			resp.Responses = append(resp.Responses, h(pr.ps.shard, req, pr.attrs))
+			if added {
+				pr.requestIdxs = append(pr.requestIdxs, idx)
+
+				if logger.DebugEnabled() {
+					logger.Debugf("%s added to read batch", hex.EncodeToString(req.ID))
+				}
+				continue
+			}
+		}
+
+		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
+			resp.Responses[idx] = h(pr.ps.shard, req, pr.attrs)
 
 			if logger.DebugEnabled() {
 				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
 			}
+		} else {
+			if logger.DebugEnabled() {
+				logger.Debugf("%s missing handle func", hex.EncodeToString(req.ID))
+			}
+		}
+	}
+
+	if len(pr.requestIdxs) > 0 {
+		responses, err := pr.readCommandBatch.Execute()
+		if err != nil {
+			logger.Fatalf("shard %s exec read batch failed with %+v",
+				pr.shardID,
+				err)
+		}
+
+		for idx, response := range responses {
+			resp.Responses[pr.requestIdxs[idx]] = response
 		}
 	}
 
