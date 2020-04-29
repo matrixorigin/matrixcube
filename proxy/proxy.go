@@ -89,6 +89,7 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 
 func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, shard uint64, leader string) error {
 	if p.store != nil && p.local.RPCAddr == leader {
+		req.PID = 0
 		return p.store.OnRequest(req)
 	}
 
