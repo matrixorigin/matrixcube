@@ -623,7 +623,7 @@ func (s *store) stopEnsureNewShardsTask() {
 
 func (s *store) startEnsureNewShardsTask() {
 	s.ensureNewShardTaskID, _ = s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(time.Second * 10)
+		ticker := time.NewTicker(s.opts.ensureNewShardInterval)
 		defer ticker.Stop()
 
 		for {

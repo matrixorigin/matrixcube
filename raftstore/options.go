@@ -81,6 +81,7 @@ type options struct {
 	maxRaftLogCompactProtectLag   uint64
 	shardCapacityBytes            uint64
 	shardSplitCheckBytes          uint64
+	ensureNewShardInterval        time.Duration
 	snapshotManager               SnapshotManager
 	trans                         Transport
 	rpc                           RPC
@@ -175,6 +176,10 @@ func (opts *options) adjust() {
 
 	if opts.shardSplitCheckBytes == 0 {
 		opts.shardSplitCheckBytes = opts.shardCapacityBytes * 80 / 100
+	}
+
+	if opts.ensureNewShardInterval == 0 {
+		opts.ensureNewShardInterval = time.Second * 10
 	}
 
 	if opts.maxRaftLogCountToForceCompact == 0 {
@@ -502,5 +507,12 @@ func WithShardStateAware(value ShardStateAware) Option {
 func WithShardAddHandleFun(value func(metapb.Shard) error) Option {
 	return func(opts *options) {
 		opts.shardAddHandleFunc = value
+	}
+}
+
+// WithEnsureNewShardInterval set ensureNewShardInterval
+func WithEnsureNewShardInterval(value time.Duration) Option {
+	return func(opts *options) {
+		opts.ensureNewShardInterval = value
 	}
 }
