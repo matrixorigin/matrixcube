@@ -15,7 +15,7 @@ import (
 
 func (pr *peerReplica) startApplyingSnapJob() {
 	pr.ps.applySnapJobLock.Lock()
-	err := pr.store.addApplyJob(pr.shardID, "doApplyingSnapshotJob", pr.doApplyingSnapshotJob, pr.ps.setApplySnapJob)
+	err := pr.store.addApplyJob(pr.applyWorker, "doApplyingSnapshotJob", pr.doApplyingSnapshotJob, pr.ps.setApplySnapJob)
 	if err != nil {
 		logger.Fatalf("shard %d add apply snapshot task failed with %+v",
 			pr.shardID,
@@ -40,7 +40,7 @@ func (pr *peerReplica) startRegistrationJob() {
 	}
 	delegate.attrs[AttrBuf] = delegate.buf
 
-	err := pr.store.addApplyJob(pr.shardID, "doRegistrationJob", func() error {
+	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {
 		return pr.doRegistrationJob(delegate)
 	}, nil)
 
@@ -52,14 +52,14 @@ func (pr *peerReplica) startRegistrationJob() {
 }
 
 func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64, commitedEntries []etcdraftpb.Entry) error {
-	err := pr.store.addApplyJob(pr.shardID, "doApplyCommittedEntries", func() error {
+	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
 		return pr.doApplyCommittedEntries(shardID, term, commitedEntries)
 	}, nil)
 	return err
 }
 
 func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint64) error {
-	err := pr.store.addApplyJob(shardID, "doCompactRaftLog", func() error {
+	err := pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
 		return pr.doCompactRaftLog(shardID, startIndex, endIndex)
 	}, nil)
 
@@ -67,15 +67,19 @@ func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint
 }
 
 func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer) error {
-	err := s.addApplyJob(shardID, "doDestroy", func() error {
-		return s.doDestroy(shardID, peer)
-	}, nil)
+	pr := s.getPR(shardID, false)
+	if pr != nil {
+		err := s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
+			return s.doDestroy(shardID, peer)
+		}, nil)
+		return err
+	}
 
-	return err
+	return nil
 }
 
 func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
-	err := pr.store.addApplyJob(pr.shardID, "doPropose", func() error {
+	err := pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
 		return pr.doPropose(c, isConfChange)
 	}, nil)
 

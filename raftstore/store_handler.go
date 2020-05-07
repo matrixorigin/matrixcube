@@ -46,16 +46,20 @@ func (s *store) handle(value interface{}) {
 }
 
 func (s *store) onSnapshotMessage(msg *raftpb.SnapshotMessage) {
-	s.addApplyJob(msg.Header.Shard.ID, "onSnapshotData", func() error {
-		err := s.snapshotManager.ReceiveSnapData(msg)
-		if err != nil {
-			logger.Fatalf("sahrd %s received snap data failed, errors:\n%+v",
-				msg.Header.Shard.ID,
-				err)
-		}
+	pr := s.getPR(msg.Header.Shard.ID, false)
+	if pr != nil {
+		s.addApplyJob(pr.applyWorker, "onSnapshotData", func() error {
+			err := s.snapshotManager.ReceiveSnapData(msg)
+			if err != nil {
+				logger.Fatalf("sahrd %s received snap data failed, errors:\n%+v",
+					msg.Header.Shard.ID,
+					err)
+			}
 
-		return err
-	}, nil)
+			return err
+		}, nil)
+	}
+
 }
 
 func (s *store) onRaftMessage(msg *raftpb.RaftMessage) {
