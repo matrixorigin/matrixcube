@@ -160,6 +160,9 @@ type store struct {
 
 	localCB func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
+
+	allocApplyLock sync.Mutex
+	applies        map[string]int
 }
 
 // NewStore returns a raft store
@@ -438,9 +441,13 @@ func (s *store) Prophet() prophet.Prophet {
 }
 
 func (s *store) initWorkers() {
+	s.applies = make(map[string]int)
 	for i := uint64(0); i < s.opts.applyWorkerCount; i++ {
-		s.runner.AddNamedWorker(fmt.Sprintf(applyWorkerName, i))
+		name := fmt.Sprintf(applyWorkerName, i)
+		s.runner.AddNamedWorker(name)
+		s.applies[name] = 0
 	}
+
 	s.runner.AddNamedWorker(snapshotWorkerName)
 	s.runner.AddNamedWorker(splitCheckWorkerName)
 }
@@ -763,6 +770,7 @@ func (s *store) createPR(shard metapb.Shard) error {
 	pr, err := createPeerReplica(s, &shard)
 	if err != nil {
 		s.mustRemoveShards(shard.ID)
+		s.revokeApplyWorker(pr.applyWorker)
 		return err
 	}
 
@@ -775,20 +783,20 @@ func (s *store) createPR(shard metapb.Shard) error {
 }
 
 func (s *store) addPR(pr *peerReplica) {
-	// count := make([]uint64, s.opts.raftMaxWorkers, s.opts.raftMaxWorkers)
-	// s.replicas.Range(func(key, value interface{}) bool {
-	// 	count[value.(*peerReplica).workerID]++
-	// 	return true
-	// })
+	count := make([]uint64, s.opts.raftMaxWorkers, s.opts.raftMaxWorkers)
+	s.replicas.Range(func(key, value interface{}) bool {
+		count[value.(*peerReplica).workerID]++
+		return true
+	})
 
-	// best := 0
-	// for idx, v := range count[1:] {
-	// 	if v < count[best] {
-	// 		best = idx
-	// 	}
-	// }
+	best := 0
+	for id, v := range count[1:] {
+		if v < count[best] {
+			best = id
+		}
+	}
 
-	pr.workerID = pr.shardID & (s.opts.raftMaxWorkers - 1)
+	pr.workerID = uint64(best)
 	s.replicas.Store(pr.shardID, pr)
 }
 
@@ -909,9 +917,8 @@ func (s *store) addSnapJob(task func() error, cb func(*task.Job)) error {
 	return s.addNamedJobWithCB("", snapshotWorkerName, task, cb)
 }
 
-func (s *store) addApplyJob(id uint64, desc string, task func() error, cb func(*task.Job)) error {
-	index := (s.opts.applyWorkerCount - 1) & id
-	return s.addNamedJobWithCB(desc, fmt.Sprintf(applyWorkerName, index), task, cb)
+func (s *store) addApplyJob(worker string, desc string, task func() error, cb func(*task.Job)) error {
+	return s.addNamedJobWithCB(desc, worker, task, cb)
 }
 
 func (s *store) addSplitJob(task func() error) error {
@@ -924,6 +931,30 @@ func (s *store) addNamedJob(desc, worker string, task func() error) error {
 
 func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb func(*task.Job)) error {
 	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
+}
+
+func (s *store) revokeApplyWorker(name string) {
+	s.allocApplyLock.Lock()
+	defer s.allocApplyLock.Unlock()
+
+	s.applies[name]--
+}
+
+func (s *store) allocApplyWorker() string {
+	s.allocApplyLock.Lock()
+	defer s.allocApplyLock.Unlock()
+
+	target := ""
+	value := math.MaxInt32
+	for name, c := range s.applies {
+		if value > c {
+			value = c
+			target = name
+		}
+	}
+
+	s.applies[target]++
+	return target
 }
 
 func (s *store) getPeer(id uint64) (metapb.Peer, bool) {

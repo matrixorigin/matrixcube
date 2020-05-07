@@ -421,11 +421,16 @@ func (ps *peerStorage) clearExtraData(newShard metapb.Shard) error {
 }
 
 func (ps *peerStorage) startDestroyDataJob(shardID uint64, start, end []byte) error {
-	err := ps.store.addApplyJob(shardID, "doDestroyDataJob", func() error {
-		return ps.doDestroyDataJob(shardID, start, end)
-	}, nil)
+	pr := ps.store.getPR(shardID, false)
+	if pr != nil {
+		err := ps.store.addApplyJob(pr.applyWorker, "doDestroyDataJob", func() error {
+			return ps.doDestroyDataJob(shardID, start, end)
+		}, nil)
 
-	return err
+		return err
+	}
+
+	return nil
 }
 
 func (ps *peerStorage) doDestroyDataJob(shardID uint64, startKey, endKey []byte) error {
