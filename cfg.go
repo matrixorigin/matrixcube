@@ -23,37 +23,40 @@ var (
 )
 
 type cfg struct {
-	Name                     string     `toml:"name"`
-	RaftAddr                 string     `toml:"raftAddr"`
-	RPCAddr                  string     `toml:"rpcAddr"`
-	DataPath                 string     `toml:"dataPath"`
-	Labels                   [][]string `toml:"labels"`
-	LocationLabels           []string   `toml:"locationLabels"`
-	InitShards               uint64     `toml:"initShards"`
-	ShardCapacityBytes       uint64     `toml:"shardCapacityBytes"`
-	ShardSplitCheckDuration  int64      `toml:"shardSplitCheckDuration"`
-	ApplyWorkerCount         uint64     `toml:"applyWorkerCount"`
-	SendRaftMsgWorkerCount   int        `toml:"sendRaftMsgWorkerCount"`
-	DisableShardSplit        bool       `toml:"disableShardSplit"`
-	DisableSyncRaftLog       bool       `toml:"disableSyncRaftLog"`
-	UseMemoryAsStorage       bool       `toml:"useMemoryAsStorage"`
-	SendRaftBatchSize        uint64     `toml:"sendRaftBatchSize"`
-	ProposalBatchSize        uint64     `toml:"proposalBatchSize"`
-	MaxProposalBytes         int64      `toml:"maxProposalBytes"`
-	MaxConcurrencySnapChunks int        `toml:"maxConcurrencySnapChunks"`
-	SnapChunkSize            int        `toml:"snapChunkSize"`
-	MaxPeerDownTime          int64      `toml:"maxPeerDownTime"`
-	ShardHeartbeatDuration   int64      `toml:"shardHeartbeatDuration"`
-	StoreHeartbeatDuration   int64      `toml:"storeHeartbeatDuration"`
-	MaxAllowTransferLogLag   uint64     `toml:"maxAllowTransferLogLag"`
-	RaftMaxWorkers           uint64     `toml:"raftMaxWorkers"`
-	RaftTickDuration         int64      `toml:"raftTickDuration"`
-	RaftElectionTick         int        `toml:"raftElectionTick"`
-	RaftHeartbeatTick        int        `toml:"raftHeartbeatTick"`
-	RaftMaxBytesPerMsg       uint64     `toml:"raftMaxBytesPerMsg"`
-	RaftMaxInflightMsgCount  int        `toml:"raftMaxInflightMsgCount"`
-	RaftLogCompactDuration   int64      `toml:"raftLogCompactDuration"`
-	RaftThresholdCompactLog  uint64     `toml:"raftThresholdCompactLog"`
+	Name                          string     `toml:"name"`
+	RaftAddr                      string     `toml:"raftAddr"`
+	RPCAddr                       string     `toml:"rpcAddr"`
+	DataPath                      string     `toml:"dataPath"`
+	Labels                        [][]string `toml:"labels"`
+	LocationLabels                []string   `toml:"locationLabels"`
+	InitShards                    uint64     `toml:"initShards"`
+	ShardCapacityBytes            uint64     `toml:"shardCapacityBytes"`
+	ShardSplitCheckDuration       int64      `toml:"shardSplitCheckDuration"`
+	ApplyWorkerCount              uint64     `toml:"applyWorkerCount"`
+	SendRaftMsgWorkerCount        int        `toml:"sendRaftMsgWorkerCount"`
+	DisableShardSplit             bool       `toml:"disableShardSplit"`
+	DisableSyncRaftLog            bool       `toml:"disableSyncRaftLog"`
+	UseMemoryAsStorage            bool       `toml:"useMemoryAsStorage"`
+	SendRaftBatchSize             uint64     `toml:"sendRaftBatchSize"`
+	ProposalBatchSize             uint64     `toml:"proposalBatchSize"`
+	MaxProposalBytes              int64      `toml:"maxProposalBytes"`
+	MaxConcurrencySnapChunks      int        `toml:"maxConcurrencySnapChunks"`
+	MaxRaftLogCountToForceCompact uint64     `toml:"maxRaftLogCountToForceCompact"`
+	MaxRaftLogBytesToForceCompact uint64     `toml:"maxRaftLogBytesToForceCompact"`
+	MaxRaftLogCompactProtectLag   uint64     `toml:"maxRaftLogCompactProtectLag"`
+	SnapChunkSize                 int        `toml:"snapChunkSize"`
+	MaxPeerDownTime               int64      `toml:"maxPeerDownTime"`
+	ShardHeartbeatDuration        int64      `toml:"shardHeartbeatDuration"`
+	StoreHeartbeatDuration        int64      `toml:"storeHeartbeatDuration"`
+	MaxAllowTransferLogLag        uint64     `toml:"maxAllowTransferLogLag"`
+	RaftMaxWorkers                uint64     `toml:"raftMaxWorkers"`
+	RaftTickDuration              int64      `toml:"raftTickDuration"`
+	RaftElectionTick              int        `toml:"raftElectionTick"`
+	RaftHeartbeatTick             int        `toml:"raftHeartbeatTick"`
+	RaftMaxBytesPerMsg            uint64     `toml:"raftMaxBytesPerMsg"`
+	RaftMaxInflightMsgCount       int        `toml:"raftMaxInflightMsgCount"`
+	RaftLogCompactDuration        int64      `toml:"raftLogCompactDuration"`
+	RaftThresholdCompactLog       uint64     `toml:"raftThresholdCompactLog"`
 
 	Prophet ProphetCfg `toml:"prophet"`
 	Metric  metric.Cfg `toml:"metric"`
@@ -175,6 +178,18 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.MaxConcurrencySnapChunks > 0 && c.SnapChunkSize > 0 {
 		opts = append(opts, raftstore.WithSnapshotLimit(c.MaxConcurrencySnapChunks, c.SnapChunkSize*1024*1024))
+	}
+
+	if c.MaxRaftLogCountToForceCompact > 0 {
+		opts = append(opts, raftstore.WithMaxRaftLogCountToForceCompact(c.MaxRaftLogCountToForceCompact))
+	}
+
+	if c.MaxRaftLogBytesToForceCompact > 0 {
+		opts = append(opts, raftstore.WithMaxRaftLogBytesToForceCompact(c.MaxRaftLogBytesToForceCompact*1024*1024))
+	}
+
+	if c.MaxRaftLogCompactProtectLag > 0 {
+		opts = append(opts, raftstore.WithMaxRaftLogCompactProtectLag(c.MaxRaftLogCompactProtectLag))
 	}
 
 	if c.MaxPeerDownTime > 0 {

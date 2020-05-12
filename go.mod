@@ -21,7 +21,6 @@ require (
 	github.com/google/btree v1.0.0
 	github.com/prometheus/client_golang v1.4.1
 	github.com/shirou/gopsutil v2.19.9+incompatible
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )

@@ -35,6 +35,11 @@ shardSplitCheckDuration = 30
 # the raft log of all the shards. Must pow of 2.
 applyWorkerCount = 32
 
+# The goroutine number of handle raft events. For performance reasons, the system uses 
+# a fixed-size coroutine pool to handle the raft events of all the shards. 
+# Must pow of 2.
+raftMaxWorkers = 32
+
 # The goroutine number of send raft message, the system sends the raft message to the 
 # corresponding goroutine according to the shard ID, each goroutine is responsible for 
 # a group of stores, only one tcp connection between two stores.
@@ -107,6 +112,21 @@ raftLogCompactDuration = 30
 # to the follower node, to prevent this operation from being too frequent, limit the 
 # number of raft logs that will be compacted.
 raftThresholdCompactLog = 256
+
+# The maximum number of raft logs that the leader node has been applied, if exceeded 
+# this value, the leader node will force compact log to last applied raft log index, 
+# so the follower node may receive a snapshot.
+maxRaftLogCountToForceCompact = 1000
+
+# The maximum bytes in mb of raft logs that the leader node has been applied, if exceeded this 
+# value, the leader node will force compact log to last applied raft log index, so the follower 
+# node may receive a snapshot.
+maxRaftLogBytesToForceCompact = 4
+
+# If the leader node triggers the force compact raft log, the compact index is the last applied 
+# raft log index of leader node, to avoid sending snapshots to a smaller delayed follower in the 
+# future, set a protected value.
+maxRaftLogCompactProtectLag   = 100
 
 [prophet]
 # The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
