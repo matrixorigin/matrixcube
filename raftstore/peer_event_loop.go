@@ -241,29 +241,24 @@ func (pr *peerReplica) handleStep(items []interface{}) {
 }
 
 func (pr *peerReplica) handleTick(items []interface{}) {
-	size := pr.ticks.Len()
-	if size == 0 {
-		return
-	}
-
-	n, err := pr.ticks.Get(readyBatch, items)
-	if err != nil {
-		return
-	}
-
-	for i := int64(0); i < n; i++ {
-		if !pr.stopRaftTick {
-			pr.rn.Tick()
+	for {
+		size := pr.ticks.Len()
+		if size == 0 {
+			pr.metrics.flush()
+			metric.SetRaftTickQueueMetric(size)
+			return
 		}
-	}
 
-	pr.metrics.flush()
+		n, err := pr.ticks.Get(readyBatch, items)
+		if err != nil {
+			return
+		}
 
-	size = pr.ticks.Len()
-	metric.SetRaftTickQueueMetric(size)
-
-	if size > 0 {
-		pr.addEvent()
+		for i := int64(0); i < n; i++ {
+			if !pr.stopRaftTick {
+				pr.rn.Tick()
+			}
+		}
 	}
 }
 
