@@ -22,7 +22,6 @@ import (
 )
 
 var (
-	decoder = goetty.NewIntLengthFieldBasedDecoder(newRaftDecoder())
 	encoder = newRaftEncoder()
 )
 
