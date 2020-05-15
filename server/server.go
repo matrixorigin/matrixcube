@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/hex"
-	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -20,9 +19,6 @@ import (
 
 var (
 	logger = log.NewLoggerWithPrefix("[beehive-app]")
-
-	// ErrTimeout timeout error
-	ErrTimeout = errors.New("Exec timeout")
 )
 
 // Application a tcp application server
@@ -131,6 +127,7 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 	req := pb.AcquireRequest()
 	req.ID = uuid.NewV4().Bytes()
 	req.Group = group
+	req.StopAt = time.Now().Add(timeout).Unix()
 
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
@@ -159,7 +156,7 @@ func (s *Application) execTimeout(arg interface{}) {
 	id := hack.SliceToString(arg.([]byte))
 	if value, ok := s.libaryCB.Load(id); ok {
 		s.libaryCB.Delete(id)
-		value.(ctx).resp(nil, ErrTimeout)
+		value.(ctx).resp(nil, proxy.ErrTimeout)
 	}
 }
 

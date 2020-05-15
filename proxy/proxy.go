@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -17,6 +18,11 @@ import (
 var (
 	logger           = log.NewLoggerWithPrefix("[beehive-proxy]")
 	decoder, encoder = raftstore.CreateRPCCliendSideCodec()
+)
+
+var (
+	// ErrTimeout timeout error
+	ErrTimeout = errors.New("Exec timeout")
 )
 
 type doneFunc func(*raftcmdpb.Response)
@@ -133,6 +139,11 @@ func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
 
 func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, later time.Duration) {
 	if req != nil {
+		if req.StopAt >= time.Now().Unix() {
+			p.errorDoneCB(req, ErrTimeout)
+			return
+		}
+
 		util.DefaultTimeoutWheel().Schedule(later, p.doRetry, *req)
 	}
 }
