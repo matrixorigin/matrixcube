@@ -132,6 +132,7 @@ type store struct {
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
+	pdState    uint32
 	adapter    prophet.Adapter
 
 	runner          *task.Runner
@@ -258,6 +259,14 @@ func (s *store) prStopped() {
 }
 
 func (s *store) NewRouter() Router {
+	for {
+		if atomic.LoadUint32(&s.pdState) == 1 {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+
 	return newRouter(s.pd, s.runner, s.keyConvertFunc)
 }
 
@@ -471,6 +480,7 @@ func (s *store) startProphet() {
 	s.pd = prophet.NewProphet(s.cfg.Name, s.adapter, options...)
 	s.pd.Start()
 	<-s.pdStartedC
+	atomic.StoreUint32(&s.pdState, 1)
 }
 
 func (s *store) startRaftWorkers() {
