@@ -209,7 +209,7 @@ func (s *store) handleStaleMsg(msg *raftpb.RaftMessage, currEpoch metapb.ShardEp
 	toPeer := msg.To
 
 	if !needGC {
-		logger.Infof("shard %s raft msg is stale, ignore it, msg=<%+v> current=<%+v>",
+		logger.Infof("shard %d raft msg is stale, ignore it, msg=<%+v> current=<%+v>",
 			shardID,
 			msg,
 			currEpoch)

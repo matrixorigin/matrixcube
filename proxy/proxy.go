@@ -76,11 +76,13 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 	// No leader, retry after a leader tick
 	if leader == "" {
 		if logger.DebugEnabled() {
-			logger.Infof("%s retry with no leader",
-				hex.EncodeToString(req.ID))
+			logger.Infof("%s retry with no leader, shard %d, group %d",
+				hex.EncodeToString(req.ID),
+				shard,
+				req.Group)
 		}
 
-		p.retryWithRaftError(req)
+		p.retryWithRaftError(req, time.Second*10)
 		return nil
 	}
 
@@ -122,16 +124,16 @@ func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
 		return
 	}
 
-	p.retryWithRaftError(rsp.OriginRequest)
+	p.retryWithRaftError(rsp.OriginRequest, time.Second)
 }
 
 func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
 	p.errorDoneCB(req, err)
 }
 
-func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request) {
+func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, later time.Duration) {
 	if req != nil {
-		util.DefaultTimeoutWheel().Schedule(time.Second, p.doRetry, *req)
+		util.DefaultTimeoutWheel().Schedule(later, p.doRetry, *req)
 	}
 }
 
