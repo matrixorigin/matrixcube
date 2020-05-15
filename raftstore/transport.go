@@ -23,9 +23,10 @@ type Transport interface {
 }
 
 type transport struct {
-	store  *store
-	server *goetty.Server
-	conns  sync.Map // store id -> goetty.IOSessionPool
+	store   *store
+	server  *goetty.Server
+	decoder goetty.Decoder
+	conns   sync.Map // store id -> goetty.IOSessionPool
 
 	resolverFunc func(id uint64) (string, error)
 	addrs        sync.Map // store id -> addr
@@ -38,8 +39,11 @@ type transport struct {
 }
 
 func newTransport(store *store) Transport {
+	decoder := goetty.NewIntLengthFieldBasedDecoderSize(newRaftDecoder(), 0, 0, 0, store.opts.maxProposalBytes*2)
+
 	t := &transport{
-		store: store,
+		store:   store,
+		decoder: decoder,
 		server: goetty.NewServer(store.cfg.RaftAddr,
 			goetty.WithServerDecoder(decoder),
 			goetty.WithServerEncoder(encoder),
@@ -330,7 +334,7 @@ func (t *transport) createConn(id uint64) (goetty.IOSession, error) {
 	}
 
 	return goetty.NewConnector(addr,
-		goetty.WithClientDecoder(decoder),
+		goetty.WithClientDecoder(t.decoder),
 		goetty.WithClientEncoder(encoder)), nil
 }
 

@@ -136,8 +136,8 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 	}
 
 	data := protoc.MustMarshal(c.req)
-	size := int64(len(data))
-	metric.ObserveProposalBytes(size)
+	size := len(data)
+	metric.ObserveProposalBytes(int64(size))
 
 	if size > pr.store.opts.maxProposalBytes {
 		c.respLargeRaftEntrySize(pr.shardID, uint64(size))

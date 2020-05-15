@@ -38,8 +38,7 @@ type cfg struct {
 	DisableSyncRaftLog            bool       `toml:"disableSyncRaftLog"`
 	UseMemoryAsStorage            bool       `toml:"useMemoryAsStorage"`
 	SendRaftBatchSize             uint64     `toml:"sendRaftBatchSize"`
-	ProposalBatchSize             uint64     `toml:"proposalBatchSize"`
-	MaxProposalBytes              int64      `toml:"maxProposalBytes"`
+	MaxProposalBytes              int        `toml:"maxProposalBytes"`
 	MaxConcurrencySnapChunks      int        `toml:"maxConcurrencySnapChunks"`
 	MaxRaftLogCountToForceCompact uint64     `toml:"maxRaftLogCountToForceCompact"`
 	MaxRaftLogBytesToForceCompact uint64     `toml:"maxRaftLogBytesToForceCompact"`
@@ -166,10 +165,6 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.SendRaftBatchSize > 0 {
 		opts = append(opts, raftstore.WithSendRaftBatchSize(c.SendRaftBatchSize))
-	}
-
-	if c.ProposalBatchSize > 0 {
-		opts = append(opts, raftstore.WithProposalBatchSize(c.ProposalBatchSize))
 	}
 
 	if c.MaxProposalBytes > 0 {

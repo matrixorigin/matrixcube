@@ -18,7 +18,6 @@ var (
 	mb = 1024 * kb
 
 	defaultSendRaftBatchSize        uint64 = 64
-	defaultProposalBatchSize        uint64 = 64
 	defaultInitShards               uint64 = 1
 	defaultMaxConcurrencySnapChunks        = 8
 	defaultSnapChunkSize                   = 4 * mb
@@ -31,7 +30,7 @@ var (
 	defaultRaftMaxInflightMsgCount         = 32
 	defaultRaftLogCompactDuration          = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
-	defaultMaxProposalBytes                = int64(8 * mb)
+	defaultMaxProposalBytes                = 8 * mb
 	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
 	defaultMaxAllowTransferLogLag   uint64 = 2
 	defaultRaftThresholdCompactLog  uint64 = 256
@@ -54,7 +53,6 @@ type options struct {
 	snapshotDirName               string
 	initShards                    uint64
 	sendRaftBatchSize             uint64
-	proposalBatchSize             uint64
 	maxConcurrencySnapChunks      int
 	snapChunkSize                 int
 	applyWorkerCount              uint64
@@ -73,7 +71,7 @@ type options struct {
 	shardSplitCheckDuration       time.Duration
 	disableShardSplit             bool
 	disableSyncRaftLog            bool
-	maxProposalBytes              int64
+	maxProposalBytes              int
 	maxAllowTransferLogLag        uint64
 	raftThresholdCompactLog       uint64
 	maxRaftLogCountToForceCompact uint64
@@ -96,10 +94,6 @@ type options struct {
 func (opts *options) adjust() {
 	if opts.sendRaftBatchSize == 0 {
 		opts.sendRaftBatchSize = defaultSendRaftBatchSize
-	}
-
-	if opts.proposalBatchSize == 0 {
-		opts.proposalBatchSize = defaultProposalBatchSize
 	}
 
 	if opts.dataPath == "" {
@@ -229,16 +223,9 @@ func WithSendRaftBatchSize(value uint64) Option {
 	}
 }
 
-// WithProposalBatchSize how many request commands in a raft proposal
-func WithProposalBatchSize(value uint64) Option {
-	return func(opts *options) {
-		opts.proposalBatchSize = value
-	}
-}
-
 // WithMaxProposalBytes the maximum bytes per proposal, if exceeded this value, application will
 // receive `RaftEntryTooLarge` error
-func WithMaxProposalBytes(value int64) Option {
+func WithMaxProposalBytes(value int) Option {
 	return func(opts *options) {
 		opts.maxProposalBytes = value
 	}

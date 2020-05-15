@@ -60,9 +60,6 @@ useMemoryAsStorage = false
 # How many raft messages in a batch to send to other node
 sendRaftBatchSize = 64
 
-# The maximum number of request commands can put into a raft proposal
-proposalBatchSize = 64
-
 # The maximum bytes per proposal, if exceeded this value, application will
 # receive `RaftEntryTooLarge` error. Default value is 8 MB.
 maxProposalBytes = 8

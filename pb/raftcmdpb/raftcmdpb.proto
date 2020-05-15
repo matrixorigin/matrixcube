@@ -144,6 +144,7 @@ message Request {
     bytes   cmd         = 6;
     int64   SID         = 7;
     int64   PID         = 8;
+    int64   StopAt      = 9;
 }
 
 // Response response
