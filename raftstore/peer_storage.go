@@ -60,7 +60,6 @@ type peerStorage struct {
 	raftHardState    etcdPB.HardState
 	applyState       raftpb.RaftApplyState
 
-	snapTriedCnt     int
 	genSnapJob       *task.Job
 	applySnapJob     *task.Job
 	applySnapJobLock sync.RWMutex
@@ -691,10 +690,8 @@ func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
 		result := ps.genSnapJob.GetResult()
 		// snapshot failure, we will continue try do snapshot
 		if nil == result {
-			logger.Warningf("shard %d snapshot generating failed, triedCnt %d",
-				ps.shard.ID,
-				ps.snapTriedCnt)
-			ps.snapTriedCnt++
+			logger.Warningf("shard %d snapshot generating failed",
+				ps.shard.ID)
 		} else {
 			snap := result.(etcdPB.Snapshot)
 			if ps.validateSnap(&snap) {
@@ -704,18 +701,9 @@ func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
 		}
 	}
 
-	if ps.snapTriedCnt >= maxSnapTryCnt {
-		cnt := ps.snapTriedCnt
-		ps.resetGenSnapJob()
-		return etcdPB.Snapshot{}, fmt.Errorf("shard %d failed to get snapshot after %d times",
-			ps.shard.ID,
-			cnt)
-	}
-
 	logger.Infof("shard %d start snapshot, epoch=<%+v>",
 		ps.shard.ID,
 		ps.shard.Epoch)
-	ps.snapTriedCnt++
 
 	err := ps.store.addSnapJob(ps.doGenerateSnapshotJob, ps.setGenSnapJob)
 	if err != nil {

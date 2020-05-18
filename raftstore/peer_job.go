@@ -126,7 +126,6 @@ func (ps *peerStorage) resetApplyingSnapJob() {
 
 func (ps *peerStorage) resetGenSnapJob() {
 	ps.genSnapJob = nil
-	ps.snapTriedCnt = 0
 }
 
 func (pr *peerReplica) doPropose(c cmd, isConfChange bool) error {
