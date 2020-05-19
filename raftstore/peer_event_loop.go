@@ -122,7 +122,7 @@ func (pr *peerReplica) doubleCheck() bool {
 		return true
 	}
 
-	return pr.rn.HasReadySince(pr.ps.lastReadyIndex)
+	return !pr.ps.isApplyingSnapshot() && pr.rn.HasReadySince(pr.ps.lastReadyIndex)
 }
 
 func (pr *peerReplica) handleEvent() bool {

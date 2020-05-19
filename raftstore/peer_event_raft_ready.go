@@ -48,7 +48,7 @@ func (pr *peerReplica) handleReady() {
 	// leader will send all the remaining messages to this follower, which can lead
 	// to full message queue under high load.
 	if pr.ps.isApplyingSnapshot() {
-		logger.Infof("shard %d still applying snapshot, skip further handling",
+		logger.Debugf("shard %d still applying snapshot, skip further handling",
 			pr.shardID)
 		return
 	}
