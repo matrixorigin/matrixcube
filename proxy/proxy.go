@@ -25,6 +25,11 @@ var (
 	ErrTimeout = errors.New("Exec timeout")
 )
 
+var (
+	// RetryInterval retry interval
+	RetryInterval = time.Second
+)
+
 type doneFunc func(*raftcmdpb.Response)
 type errorDoneFunc func(*raftcmdpb.Request, error)
 
@@ -88,7 +93,7 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 				req.Group)
 		}
 
-		p.retryWithRaftError(req, time.Second*10)
+		p.retryWithRaftError(req, RetryInterval)
 		return nil
 	}
 
@@ -130,7 +135,7 @@ func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
 		return
 	}
 
-	p.retryWithRaftError(rsp.OriginRequest, time.Second)
+	p.retryWithRaftError(rsp.OriginRequest, RetryInterval)
 }
 
 func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
