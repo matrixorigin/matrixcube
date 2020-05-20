@@ -93,7 +93,7 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 				req.Group)
 		}
 
-		p.retryWithRaftError(req, RetryInterval)
+		p.retryWithRaftError(req, "no leader", RetryInterval)
 		return nil
 	}
 
@@ -135,17 +135,17 @@ func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
 		return
 	}
 
-	p.retryWithRaftError(rsp.OriginRequest, RetryInterval)
+	p.retryWithRaftError(rsp.OriginRequest, rsp.Error.String(), RetryInterval)
 }
 
 func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
 	p.errorDoneCB(req, err)
 }
 
-func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, later time.Duration) {
+func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, err string, later time.Duration) {
 	if req != nil {
 		if time.Now().Unix() >= req.StopAt {
-			p.errorDoneCB(req, ErrTimeout)
+			p.errorDoneCB(req, errors.New(err))
 			return
 		}
 
