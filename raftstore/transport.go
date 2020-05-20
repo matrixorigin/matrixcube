@@ -106,11 +106,15 @@ func (t *transport) Send(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) {
 		snapMsg.Header.From = msg.From
 		snapMsg.Header.To = msg.To
 
-		t.snapMsgs[t.snapMask&storeID].Put(snapMsg)
+		q := t.snapMsgs[t.snapMask&storeID]
+		q.Put(snapMsg)
+		metric.SetRaftSnapQueueMetric(q.Len())
 	}
 
 	msg.Message = protoc.MustMarshal(raw)
-	t.raftMsgs[t.raftMask&storeID].Put(msg)
+	q := t.raftMsgs[t.raftMask&storeID]
+	q.Put(msg)
+	metric.SetRaftMsgQueueMetric(q.Len())
 }
 
 func (t *transport) doConnection(session goetty.IOSession) error {
