@@ -761,12 +761,16 @@ func (s *store) doWithNewShards(limit int64, fn func(int64, metapb.Shard) (bool,
 			if !next {
 				return nil
 			}
+
+			startID = shard.ID
 		}
 
 		// read complete
 		if len(resp.Kvs) < int(limit) {
 			break
 		}
+
+		startID++
 	}
 
 	return nil
