@@ -19,6 +19,7 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
+	"golang.org/x/time/rate"
 )
 
 type peerReplica struct {
@@ -62,6 +63,8 @@ type peerReplica struct {
 	readCommandBatch CommandReadBatch
 	readyCtx         *readyContext
 	attrs            map[string]interface{}
+
+	writeLimiter *rate.Limiter
 }
 
 func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
@@ -112,6 +115,8 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.shardID = shard.ID
 	pr.ps = ps
 	pr.batch = newBatch(pr)
+	pr.writeLimiter = rate.NewLimiter(rate.Every(time.Second/time.Duration(store.opts.maxConcurrencyWritesPerShard)),
+		int(store.opts.maxConcurrencyWritesPerShard))
 
 	c := getRaftConfig(peerID, ps.getAppliedIndex(), ps, store.opts)
 	rn, err := raft.NewRawNode(c, nil)
@@ -234,6 +239,10 @@ func (pr *peerReplica) mustDestroy() {
 
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
 	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
+
+	if _, ok := pr.store.readHandlers[req.CustemType]; ok {
+		pr.writeLimiter.Wait(context.TODO())
+	}
 
 	r := reqCtx{}
 	r.req = req

@@ -17,30 +17,31 @@ var (
 	kb = 1024
 	mb = 1024 * kb
 
-	defaultSendRaftBatchSize        uint64 = 64
-	defaultInitShards               uint64 = 1
-	defaultMaxConcurrencySnapChunks        = 8
-	defaultSnapChunkSize                   = 4 * mb
-	defaultApplyWorkerCount         uint64 = 32
-	defaultSendRaftMsgWorkerCount          = 8
-	defaultRaftMaxWorkers           uint64 = 32
-	defaultRaftElectionTick                = 10
-	defaultRaftHeartbeatTick               = 2
-	defaultRaftMaxBytesPerMsg              = 4 * mb
-	defaultRaftMaxInflightMsgCount         = 32
-	defaultRaftLogCompactDuration          = time.Second * 30
-	defaultShardSplitCheckDuration         = time.Second * 30
-	defaultMaxProposalBytes                = 8 * mb
-	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
-	defaultMaxAllowTransferLogLag   uint64 = 2
-	defaultRaftThresholdCompactLog  uint64 = 256
-	defaultRaftTickDuration                = time.Second
-	defaultMaxPeerDownTime                 = time.Minute * 30
-	defaultShardHeartbeatDuration          = time.Second * 2
-	defaultStoreHeartbeatDuration          = time.Second * 10
-	defaultDataPath                        = "/tmp/beehive"
-	defaultSnapshotDirName                 = "snapshots"
-	defaultProphetDirName                  = "prophet"
+	defaultSendRaftBatchSize            uint64 = 64
+	defaultInitShards                   uint64 = 1
+	defaultMaxConcurrencySnapChunks            = 8
+	defaultSnapChunkSize                       = 4 * mb
+	defaultApplyWorkerCount             uint64 = 32
+	defaultSendRaftMsgWorkerCount              = 8
+	defaultRaftMaxWorkers               uint64 = 32
+	defaultRaftElectionTick                    = 10
+	defaultRaftHeartbeatTick                   = 2
+	defaultRaftMaxBytesPerMsg                  = 4 * mb
+	defaultRaftMaxInflightMsgCount             = 32
+	defaultRaftLogCompactDuration              = time.Second * 30
+	defaultShardSplitCheckDuration             = time.Second * 30
+	defaultMaxProposalBytes                    = 8 * mb
+	defaultShardCapacityBytes           uint64 = uint64(96 * mb)
+	defaultMaxAllowTransferLogLag       uint64 = 2
+	defaultRaftThresholdCompactLog      uint64 = 256
+	defaultMaxConcurrencyWritesPerShard uint64 = 10000
+	defaultRaftTickDuration                    = time.Second
+	defaultMaxPeerDownTime                     = time.Minute * 30
+	defaultShardHeartbeatDuration              = time.Second * 2
+	defaultStoreHeartbeatDuration              = time.Second * 10
+	defaultDataPath                            = "/tmp/beehive"
+	defaultSnapshotDirName                     = "snapshots"
+	defaultProphetDirName                      = "prophet"
 )
 
 // Option options
@@ -79,6 +80,7 @@ type options struct {
 	maxRaftLogCompactProtectLag   uint64
 	shardCapacityBytes            uint64
 	shardSplitCheckBytes          uint64
+	maxConcurrencyWritesPerShard  uint64
 	ensureNewShardInterval        time.Duration
 	snapshotManager               SnapshotManager
 	trans                         Transport
@@ -198,6 +200,10 @@ func (opts *options) adjust() {
 
 	if opts.raftThresholdCompactLog == 0 {
 		opts.raftThresholdCompactLog = defaultRaftThresholdCompactLog
+	}
+
+	if opts.maxConcurrencyWritesPerShard == 0 {
+		opts.maxConcurrencyWritesPerShard = defaultMaxConcurrencyWritesPerShard
 	}
 }
 
@@ -501,5 +507,12 @@ func WithShardAddHandleFun(value func(metapb.Shard) error) Option {
 func WithEnsureNewShardInterval(value time.Duration) Option {
 	return func(opts *options) {
 		opts.ensureNewShardInterval = value
+	}
+}
+
+// WithMaxConcurrencyWritesPerShard limit the write speed per shard
+func WithMaxConcurrencyWritesPerShard(maxConcurrencyWritesPerShard uint64) Option {
+	return func(opts *options) {
+		opts.maxConcurrencyWritesPerShard = maxConcurrencyWritesPerShard
 	}
 }

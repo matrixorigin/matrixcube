@@ -71,6 +71,9 @@ maxProposalBytes = 8
 maxConcurrencySnapChunks = 8
 snapChunkSize = 2
 
+# Limit the write speed per shard 
+maxConcurrencyWritesPerShard = 10000
+
 # In all replicas of a shard, when any message that does not receive a replica is exceeded 
 # this value, the system will remove the replica and the scheduler will choose a new store 
 # to create a new replica. 
