@@ -39,6 +39,7 @@ type cfg struct {
 	UseMemoryAsStorage            bool       `toml:"useMemoryAsStorage"`
 	SendRaftBatchSize             uint64     `toml:"sendRaftBatchSize"`
 	MaxProposalBytes              int        `toml:"maxProposalBytes"`
+	MaxConcurrencyWritesPerShard  uint64     `toml:"maxConcurrencyWritesPerShard"`
 	MaxConcurrencySnapChunks      int        `toml:"maxConcurrencySnapChunks"`
 	MaxRaftLogCountToForceCompact uint64     `toml:"maxRaftLogCountToForceCompact"`
 	MaxRaftLogBytesToForceCompact uint64     `toml:"maxRaftLogBytesToForceCompact"`
@@ -233,6 +234,10 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.RaftThresholdCompactLog > 0 {
 		opts = append(opts, raftstore.WithRaftThresholdCompactLog(c.RaftThresholdCompactLog))
+	}
+
+	if c.MaxConcurrencyWritesPerShard > 0 {
+		opts = append(opts, raftstore.WithMaxConcurrencyWritesPerShard(c.MaxConcurrencyWritesPerShard))
 	}
 
 	prophetOptions, err := getProphetOptions(&c)
