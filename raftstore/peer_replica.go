@@ -240,7 +240,7 @@ func (pr *peerReplica) mustDestroy() {
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
 	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
 
-	if _, ok := pr.store.readHandlers[req.CustemType]; ok {
+	if _, ok := pr.store.writeHandlers[req.CustemType]; ok {
 		pr.writeLimiter.Wait(context.TODO())
 	}
 
