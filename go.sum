@@ -41,6 +41,8 @@ github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871 h1:ZwveYWFRLL+x
 github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871/go.mod h1:MEkOt020e5MHsdTsvS2LcxndbzwLvGzYH+fCYeHq8R8=
 github.com/deepfabric/prophet v0.0.0-20200414050845-eafd59e2a17e h1:cTBbA6tfBg32+9cGmA84wDUCStYBCGDQKxs3xJhuxlw=
 github.com/deepfabric/prophet v0.0.0-20200414050845-eafd59e2a17e/go.mod h1:TVX3H+3KeR5oAN4TNtMTJ9nLY4TXwgzaAhklt+81J+k=
+github.com/deepfabric/prophet v0.0.0-20200521015609-72f948ff1cd9 h1:BSswcp2qtS+3gN1sqllf5JPffSeYyz8YpdvsiMZVVSI=
+github.com/deepfabric/prophet v0.0.0-20200521015609-72f948ff1cd9/go.mod h1:TVX3H+3KeR5oAN4TNtMTJ9nLY4TXwgzaAhklt+81J+k=
 github.com/dgraph-io/badger v1.6.0 h1:DshxFxZWXUcO0xX476VJC07Xsr6ZCBVRHKZ93Oh7Evo=
 github.com/dgraph-io/badger v1.6.0/go.mod h1:zwt7syl517jmP8s94KqSxTlM6IMsdhYy6psNgSztDR4=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=

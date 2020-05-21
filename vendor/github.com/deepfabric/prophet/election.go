@@ -195,6 +195,15 @@ func (e *elector) watchLeader(group uint64) {
 			for _, ev := range wresp.Events {
 				if ev.Type == mvccpb.DELETE {
 					return
+				} else if ev.Type == mvccpb.PUT {
+					if ev.PrevKv != nil {
+						log.Infof("[group-%d]: leader updated from %s to %s",
+							group, string(ev.PrevKv.Value),
+							string(ev.Kv.Value))
+					} else {
+						log.Infof("[group-%d]: leader updated to %s",
+							string(ev.Kv.Value))
+					}
 				}
 			}
 		}
