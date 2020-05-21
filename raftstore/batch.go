@@ -113,7 +113,7 @@ func (b *proposeBatch) isEmpty() bool {
 
 func (b *proposeBatch) isFull(n int) bool {
 	// -64 means exclude etcd raft entry other fields
-	return b.pr.store.opts.maxProposalBytes-64 >= b.lastBytes+n
+	return b.pr.store.opts.maxProposalBytes-64 <= b.lastBytes+n
 }
 
 func (b *proposeBatch) pop() (cmd, bool) {
