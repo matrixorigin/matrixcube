@@ -257,6 +257,34 @@ func (mr *MockResourceMockRecorder) Unmarshal(data interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unmarshal", reflect.TypeOf((*MockResource)(nil).Unmarshal), data)
 }
 
+// SupportRebalance mocks base method
+func (m *MockResource) SupportRebalance() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SupportRebalance")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SupportRebalance indicates an expected call of SupportRebalance
+func (mr *MockResourceMockRecorder) SupportRebalance() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportRebalance", reflect.TypeOf((*MockResource)(nil).SupportRebalance))
+}
+
+// SupportTransferLeader mocks base method
+func (m *MockResource) SupportTransferLeader() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SupportTransferLeader")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// SupportTransferLeader indicates an expected call of SupportTransferLeader
+func (mr *MockResourceMockRecorder) SupportTransferLeader() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SupportTransferLeader", reflect.TypeOf((*MockResource)(nil).SupportTransferLeader))
+}
+
 // MockContainer is a mock of Container interface
 type MockContainer struct {
 	ctrl     *gomock.Controller

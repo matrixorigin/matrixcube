@@ -89,6 +89,11 @@ type Resource interface {
 	Marshal() ([]byte, error)
 	// Unmarshal returns error if unmarshal failed
 	Unmarshal(data []byte) error
+
+	// SupportRebalance support rebalance the resource
+	SupportRebalance() bool
+	// SupportTransferLeader support transfer leader
+	SupportTransferLeader() bool
 }
 
 // Pair key value pair

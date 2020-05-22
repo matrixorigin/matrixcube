@@ -127,19 +127,19 @@ func (rc *Runtime) ResourceFollowerContainers(res *ResourceRuntime) []*Container
 }
 
 // RandLeaderResource returns the random leader resource
-func (rc *Runtime) RandLeaderResource(id uint64) *ResourceRuntime {
+func (rc *Runtime) RandLeaderResource(id uint64, kind ResourceKind) *ResourceRuntime {
 	rc.RLock()
 	defer rc.RUnlock()
 
-	return randResource(rc.leaders[id])
+	return randResource(rc.leaders[id], kind)
 }
 
 // RandFollowerResource returns the random follower resource
-func (rc *Runtime) RandFollowerResource(id uint64) *ResourceRuntime {
+func (rc *Runtime) RandFollowerResource(id uint64, kind ResourceKind) *ResourceRuntime {
 	rc.RLock()
 	defer rc.RUnlock()
 
-	return randResource(rc.followers[id])
+	return randResource(rc.followers[id], kind)
 }
 
 func (rc *Runtime) getContainerWithoutLock(id uint64) *ContainerRuntime {
@@ -160,7 +160,7 @@ func (rc *Runtime) getResourceWithoutLock(id uint64) *ResourceRuntime {
 	return resource.Clone()
 }
 
-func randResource(resources map[uint64]*ResourceRuntime) *ResourceRuntime {
+func randResource(resources map[uint64]*ResourceRuntime, kind ResourceKind) *ResourceRuntime {
 	for _, res := range resources {
 		if res.leaderPeer == nil {
 			log.Fatalf("rand resource %d without leader", res.meta.ID())
@@ -171,6 +171,14 @@ func randResource(resources map[uint64]*ResourceRuntime) *ResourceRuntime {
 		}
 
 		if len(res.pendingPeers) > 0 {
+			continue
+		}
+
+		if kind == LeaderKind && !res.meta.SupportTransferLeader() {
+			continue
+		}
+
+		if kind == ReplicaKind && !res.meta.SupportRebalance() {
 			continue
 		}
 

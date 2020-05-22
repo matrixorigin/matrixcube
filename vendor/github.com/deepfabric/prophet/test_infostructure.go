@@ -211,6 +211,16 @@ func (res *testResource) Unmarshal(data []byte) error {
 	return json.Unmarshal(data, res)
 }
 
+// SupportRebalance support rebalance the resource
+func (res *testResource) SupportRebalance() bool {
+	return true
+}
+
+// SupportTransferLeader support transfer leader
+func (res *testResource) SupportTransferLeader() bool {
+	return true
+}
+
 type testContainer struct {
 	CShardAddr string `json:"shardAddr"`
 	CID        uint64 `json:"cid"`

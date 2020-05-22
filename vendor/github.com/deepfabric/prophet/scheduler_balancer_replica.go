@@ -101,9 +101,9 @@ func scheduleRemovePeer(rt *Runtime, s Selector, filters ...Filter) (*ResourceRu
 		return nil, nil
 	}
 
-	target := rt.RandFollowerResource(source.meta.ID())
+	target := rt.RandFollowerResource(source.meta.ID(), ReplicaKind)
 	if target == nil {
-		target = rt.RandLeaderResource(source.meta.ID())
+		target = rt.RandLeaderResource(source.meta.ID(), ReplicaKind)
 	}
 	if target == nil {
 		return nil, nil

@@ -26,11 +26,12 @@ type defaultRouter struct {
 	eventC      chan *prophet.EventNotify
 	eventTaskID uint64
 
-	keyConvertFunc keyConvertFunc
-	keyRanges      sync.Map // group id -> *util.ShardTree
-	leaders        sync.Map // shard id -> leader peer store address string
-	stores         sync.Map // store id -> metapb.Store
-	shards         sync.Map // shard id -> metapb.Shard
+	keyConvertFunc            keyConvertFunc
+	keyRanges                 sync.Map // group id -> *util.ShardTree
+	leaders                   sync.Map // shard id -> leader peer store address string
+	stores                    sync.Map // store id -> metapb.Store
+	shards                    sync.Map // shard id -> metapb.Shard
+	missingStoreLeaderChanged sync.Map //
 }
 
 func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc) Router {
@@ -114,6 +115,10 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64) {
 	if leader > 0 {
 		r.updateLeader(res.meta.ID, leader)
 	}
+
+	if v, ok := r.missingStoreLeaderChanged.Load(res.meta.ID); ok {
+		r.updateLeader(res.meta.ID, v.(uint64))
+	}
 }
 
 func (r *defaultRouter) updateStore(data []byte) {
@@ -131,12 +136,14 @@ func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 
 	for _, p := range shard.Peers {
 		if p.ID == leader {
+			r.missingStoreLeaderChanged.Delete(shardID)
 			r.leaders.Store(shard.ID, r.mustGetStore(p.StoreID).RPCAddr)
 			return
 		}
 	}
 
-	logger.Fatalf("BUG: missing leader store")
+	// the shard updated will notify later
+	r.missingStoreLeaderChanged.Store(shardID, leader)
 }
 
 func (r *defaultRouter) mustGetStore(id uint64) metapb.Store {

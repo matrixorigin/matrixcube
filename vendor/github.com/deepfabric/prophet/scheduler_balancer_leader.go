@@ -84,7 +84,7 @@ func scheduleTransferLeader(rt *Runtime, s Selector, filters ...Filter) (*Resour
 
 	if mostLeaderDistance > leastLeaderDistance {
 		// Transfer a leader out of mostLeaderContainer.
-		res := rt.RandLeaderResource(mostLeaderContainer.meta.ID())
+		res := rt.RandLeaderResource(mostLeaderContainer.meta.ID(), LeaderKind)
 		if res == nil {
 			return nil, nil
 		}
@@ -99,7 +99,7 @@ func scheduleTransferLeader(rt *Runtime, s Selector, filters ...Filter) (*Resour
 	}
 
 	// Transfer a leader into leastLeaderContainer.
-	res := rt.RandFollowerResource(leastLeaderContainer.meta.ID())
+	res := rt.RandFollowerResource(leastLeaderContainer.meta.ID(), LeaderKind)
 	if res == nil {
 		return nil, nil
 	}

@@ -89,6 +89,8 @@ type options struct {
 	readBatchFunc                 func() CommandReadBatch
 	shardStateAware               ShardStateAware
 	shardAddHandleFunc            func(metapb.Shard) error
+	shardAllowRebalanceFunc       func(metapb.Shard) bool
+	shardAllowTransferLeaderFunc  func(metapb.Shard) bool
 
 	prophetOptions []prophet.Option
 }
@@ -514,5 +516,13 @@ func WithEnsureNewShardInterval(value time.Duration) Option {
 func WithMaxConcurrencyWritesPerShard(maxConcurrencyWritesPerShard uint64) Option {
 	return func(opts *options) {
 		opts.maxConcurrencyWritesPerShard = maxConcurrencyWritesPerShard
+	}
+}
+
+// WithSchedulerFunc set the scheduler contorl func
+func WithSchedulerFunc(shardAllowRebalanceFunc, shardAllowTransferLeaderFunc func(metapb.Shard) bool) Option {
+	return func(opts *options) {
+		opts.shardAllowRebalanceFunc = shardAllowRebalanceFunc
+		opts.shardAllowTransferLeaderFunc = shardAllowTransferLeaderFunc
 	}
 }
