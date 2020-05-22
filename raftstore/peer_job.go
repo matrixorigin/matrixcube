@@ -269,7 +269,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		return nil
 	}
 
-	newShardID, newPeerIDs, err := pr.store.pd.GetRPC().AskSplit(newResourceAdapter(current))
+	newShardID, newPeerIDs, err := pr.store.pd.GetRPC().AskSplit(newResourceAdapter(current, pr.store))
 	if err != nil {
 		logger.Errorf("shard %d ask split failed with %+v",
 			pr.shardID,
