@@ -157,7 +157,7 @@ func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bo
 		epoch := current.Epoch
 		if isEpochStale(fromEpoch, epoch) &&
 			findPeer(&current, fromStoreID) == nil {
-			s.handleStaleMsg(msg, epoch, isVoteMsg)
+			s.handleStaleMsg(msg, epoch, true)
 			return true, nil
 		}
 
@@ -216,7 +216,7 @@ func (s *store) handleStaleMsg(msg *raftpb.RaftMessage, currEpoch metapb.ShardEp
 		return
 	}
 
-	logger.Infof("shard %s raft msg is stale, tell to gc, msg=<%+v> current=<%+v>",
+	logger.Infof("shard %d raft msg is stale, tell to gc, msg=<%+v> current=<%+v>",
 		shardID,
 		msg,
 		currEpoch)
