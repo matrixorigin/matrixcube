@@ -45,6 +45,15 @@ func (bc *backend) addReq(req *raftcmdpb.Request) error {
 
 func (bc *backend) writeLoop() {
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Infof("backend %s write loop failed with %+v, restart later",
+					bc.addr,
+					err)
+				bc.writeLoop()
+			}
+		}()
+
 		batch := int64(16)
 		logger.Infof("backend %s write loop started",
 			bc.addr)
