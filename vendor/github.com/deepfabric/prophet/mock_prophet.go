@@ -193,6 +193,20 @@ func (mr *MockAdapterMockRecorder) HBHandler() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HBHandler", reflect.TypeOf((*MockAdapter)(nil).HBHandler))
 }
 
+// StorageNode mocks base method
+func (m *MockAdapter) StorageNode() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StorageNode")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// StorageNode indicates an expected call of StorageNode
+func (mr *MockAdapterMockRecorder) StorageNode() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageNode", reflect.TypeOf((*MockAdapter)(nil).StorageNode))
+}
+
 // MockProphet is a mock of Prophet interface
 type MockProphet struct {
 	ctrl     *gomock.Controller

@@ -13,7 +13,7 @@ require (
 	github.com/fagongzi/util v0.0.0-20181102105153-fd38e0f42a4f
 	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
-	github.com/golang/mock v1.3.1
+	github.com/golang/mock v1.4.3
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
