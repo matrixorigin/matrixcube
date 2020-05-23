@@ -47,6 +47,8 @@ github.com/deepfabric/prophet v0.0.0-20200522084413-da41c4d5a047 h1:vB2D033tFSJH
 github.com/deepfabric/prophet v0.0.0-20200522084413-da41c4d5a047/go.mod h1:TVX3H+3KeR5oAN4TNtMTJ9nLY4TXwgzaAhklt+81J+k=
 github.com/deepfabric/prophet v0.0.0-20200523102214-42f6bcfb338c h1:H4GIEpu0oYQfWBa3MOH/8gzvqvzy2yhNuV75BkbN300=
 github.com/deepfabric/prophet v0.0.0-20200523102214-42f6bcfb338c/go.mod h1:dK3Th23Aq7bmI2w2HjUbJff2vuHlNYgC6o9QMubBBB4=
+github.com/deepfabric/prophet v0.0.0-20200523103135-80d8fba9c0f3 h1:gm1spotNO+nmw6b8ZQQDsTVjQikshYGF67QEskR6j9Q=
+github.com/deepfabric/prophet v0.0.0-20200523103135-80d8fba9c0f3/go.mod h1:dK3Th23Aq7bmI2w2HjUbJff2vuHlNYgC6o9QMubBBB4=
 github.com/dgraph-io/badger v1.6.0 h1:DshxFxZWXUcO0xX476VJC07Xsr6ZCBVRHKZ93Oh7Evo=
 github.com/dgraph-io/badger v1.6.0/go.mod h1:zwt7syl517jmP8s94KqSxTlM6IMsdhYy6psNgSztDR4=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=

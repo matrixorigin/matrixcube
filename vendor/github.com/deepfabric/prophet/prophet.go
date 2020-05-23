@@ -34,8 +34,6 @@ type Adapter interface {
 	ContainerHBInterval() time.Duration
 	// HBHandler HB hander
 	HBHandler() HeartbeatHandler
-	// StorageNode returns true if the current node is storage node
-	StorageNode() bool
 }
 
 // Prophet is the distributed scheduler and coordinator
@@ -50,6 +48,8 @@ type Prophet interface {
 	GetRPC() RPC
 	// GetEtcdClient returns the internal etcd instance
 	GetEtcdClient() *clientv3.Client
+	// StorageNode returns true if the current node is storage node
+	StorageNode() bool
 }
 
 type defaultProphet struct {
