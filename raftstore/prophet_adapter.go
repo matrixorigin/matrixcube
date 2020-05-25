@@ -289,6 +289,7 @@ func (ra *resourceAdapter) Clone() prophet.Resource {
 	value := &resourceAdapter{}
 	data, _ := ra.Marshal()
 	value.Unmarshal(data)
+	value.store = ra.store
 	return value
 }
 
@@ -328,7 +329,9 @@ func newProphetAdapter(s *store) prophet.Adapter {
 }
 
 func (pa *prophetAdapter) NewResource() prophet.Resource {
-	return &resourceAdapter{}
+	return &resourceAdapter{
+		store: pa.s,
+	}
 }
 
 func (pa *prophetAdapter) NewContainer() prophet.Container {

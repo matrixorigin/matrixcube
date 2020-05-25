@@ -509,12 +509,7 @@ func (pr *peerReplica) doUpdateKeyRange(result *applySnapResult) {
 			pr.shardID,
 			result.prev,
 			result.current)
-		// we have already initialized the peer, so it must exist in shard_ranges.
-		if !pr.store.removeShardKeyRange(result.prev) {
-			logger.Fatalf("shard %d shard not exist, shard=<%+v>",
-				pr.shardID,
-				result.prev)
-		}
+		pr.store.removeShardKeyRange(result.prev)
 	}
 
 	pr.store.updateShardKeyRange(result.current)
