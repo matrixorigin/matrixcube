@@ -175,9 +175,10 @@ func (t *transport) readyToSendSnapshots(q *task.Queue) {
 
 			conn, err := t.getConn(id)
 			if err != nil {
-				logger.Errorf("create conn to %d failed with %+v",
+				logger.Errorf("create conn to %d failed with %+v, retry later",
 					id,
 					err)
+				q.Put(msg)
 				continue
 			}
 
@@ -185,9 +186,10 @@ func (t *transport) readyToSendSnapshots(q *task.Queue) {
 			t.putConn(id, conn)
 
 			if err != nil {
-				logger.Errorf("send snap %s failed with %+v",
+				logger.Errorf("send snap %s failed with %+v, retry later",
 					msg.String(),
 					err)
+				q.Put(msg)
 			}
 		}
 
