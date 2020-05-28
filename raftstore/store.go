@@ -1144,10 +1144,12 @@ func checkEpoch(shard metapb.Shard, req *raftcmdpb.RaftCMDRequest) bool {
 
 	if (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
 		(checkVer && fromEpoch.ShardVer < lastestEpoch.ShardVer) {
-		logger.Infof("shard %d reveiced stale epoch, lastest=<%s> reveived=<%s>",
-			shard.ID,
-			lastestEpoch.String(),
-			fromEpoch.String())
+		if logger.DebugEnabled() {
+			logger.Debugf("shard %d reveiced stale epoch, lastest=<%s> reveived=<%s>",
+				shard.ID,
+				lastestEpoch.String(),
+				fromEpoch.String())
+		}
 		return false
 	}
 
