@@ -308,11 +308,13 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 				s.cacheDroppedVoteMsg(msg.ShardID, *raw)
 			}
 
-			logger.Infof("shard %d msg is overlapped with shard, shard=<%s> msg=<%s> state=<%s>",
-				msg.ShardID,
-				item.String(),
-				msg.String(),
-				state)
+			if logger.DebugEnabled() {
+				logger.Debugf("shard %d msg is overlapped with shard, shard=<%s> msg=<%s> state=<%s>",
+					msg.ShardID,
+					item.String(),
+					msg.String(),
+					state)
+			}
 
 			return false
 		}

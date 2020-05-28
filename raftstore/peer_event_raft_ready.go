@@ -435,7 +435,7 @@ func (pr *peerReplica) send(msgs []etcdraftpb.Message) {
 		err := pr.sendRaftMsg(msg)
 		if err != nil {
 			// We don't care that the message is sent failed, so here just log this error
-			logger.Warningf("shard %d send msg failure, from_peer=<%d> to_peer=<%d>, errors:\n%s",
+			logger.Debugf("shard %d send msg failure, from_peer=<%d> to_peer=<%d>, errors:\n%s",
 				pr.shardID,
 				msg.From,
 				msg.To,

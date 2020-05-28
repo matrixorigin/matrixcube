@@ -25,18 +25,29 @@ type cmd struct {
 	req  *raftcmdpb.RaftCMDRequest
 	cb   func(*raftcmdpb.RaftCMDResponse)
 	term uint64
+	tp   int
+	size int
+}
+
+func (c *cmd) isFull(n, max int) bool {
+	// -64 means exclude etcd raft entry other fields
+	return max-64 <= c.size+n
 }
 
 func (c *cmd) reset() {
 	c.req = nil
 	c.cb = nil
 	c.term = 0
+	c.tp = -1
+	c.size = 0
 }
 
-func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse)) cmd {
+func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
 	c := cmd{}
 	c.req = req
 	c.cb = cb
+	c.tp = tp
+	c.size = size
 	return c
 }
 

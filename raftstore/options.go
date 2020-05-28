@@ -17,12 +17,13 @@ var (
 	kb = 1024
 	mb = 1024 * kb
 
+	defaultGroups                       uint64 = 1
 	defaultSendRaftBatchSize            uint64 = 64
 	defaultInitShards                   uint64 = 1
-	defaultMaxConcurrencySnapChunks            = 8
+	defaultMaxConcurrencySnapChunks     uint64 = 8
 	defaultSnapChunkSize                       = 4 * mb
 	defaultApplyWorkerCount             uint64 = 32
-	defaultSendRaftMsgWorkerCount              = 8
+	defaultSendRaftMsgWorkerCount       uint64 = 8
 	defaultRaftMaxWorkers               uint64 = 32
 	defaultRaftElectionTick                    = 10
 	defaultRaftHeartbeatTick                   = 2
@@ -54,10 +55,10 @@ type options struct {
 	snapshotDirName               string
 	initShards                    uint64
 	sendRaftBatchSize             uint64
-	maxConcurrencySnapChunks      int
+	maxConcurrencySnapChunks      uint64
 	snapChunkSize                 int
 	applyWorkerCount              uint64
-	sendRaftMsgWorkerCount        int
+	sendRaftMsgWorkerCount        uint64
 	maxPeerDownTime               time.Duration
 	shardHeartbeatDuration        time.Duration
 	storeHeartbeatDuration        time.Duration
@@ -91,6 +92,7 @@ type options struct {
 	shardAddHandleFunc            func(metapb.Shard) error
 	shardAllowRebalanceFunc       func(metapb.Shard) bool
 	shardAllowTransferLeaderFunc  func(metapb.Shard) bool
+	groups                        uint64
 
 	prophetOptions []prophet.Option
 }
@@ -207,6 +209,10 @@ func (opts *options) adjust() {
 	if opts.maxConcurrencyWritesPerShard == 0 {
 		opts.maxConcurrencyWritesPerShard = defaultMaxConcurrencyWritesPerShard
 	}
+
+	if opts.groups == 0 {
+		opts.groups = defaultGroups
+	}
 }
 
 func (opts *options) snapshotDir() string {
@@ -243,7 +249,7 @@ func WithMaxProposalBytes(value int) Option {
 // to avoid taking up too much bandwidth, the snapshot is split into a number of chunks,
 // the `maxConcurrencySnapChunks` controls the number of chunks sent concurrently,
 // the `snapChunkSize` controls the bytes of each chunk
-func WithSnapshotLimit(maxConcurrencySnapChunks, snapChunkSize int) Option {
+func WithSnapshotLimit(maxConcurrencySnapChunks uint64, snapChunkSize int) Option {
 	return func(opts *options) {
 		opts.maxConcurrencySnapChunks = maxConcurrencySnapChunks
 		opts.snapChunkSize = snapChunkSize
@@ -262,7 +268,7 @@ func WithApplyWorkerCount(value uint64) Option {
 // WithSendRaftMsgWorkerCount goroutine number of send raft message,
 // the system sends the raft message to the corresponding goroutine according to the shard ID,
 // each goroutine is responsible for a group of stores, only one tcp connection between two stores.
-func WithSendRaftMsgWorkerCount(value int) Option {
+func WithSendRaftMsgWorkerCount(value uint64) Option {
 	return func(opts *options) {
 		opts.sendRaftMsgWorkerCount = value
 	}
@@ -524,5 +530,12 @@ func WithSchedulerFunc(shardAllowRebalanceFunc, shardAllowTransferLeaderFunc fun
 	return func(opts *options) {
 		opts.shardAllowRebalanceFunc = shardAllowRebalanceFunc
 		opts.shardAllowTransferLeaderFunc = shardAllowTransferLeaderFunc
+	}
+}
+
+// WithGroups set group count
+func WithGroups(value uint64) Option {
+	return func(opts *options) {
+		opts.groups = value
 	}
 }

@@ -32,10 +32,10 @@ type transport struct {
 	addrs        sync.Map // store id -> addr
 	addrsRevert  sync.Map // addr -> store id
 
-	raftMsgs []*task.Queue
-	raftMask uint64
-	snapMsgs []*task.Queue
-	snapMask uint64
+	raftMsgs [][]*task.Queue
+	raftMask []uint64
+	snapMsgs [][]*task.Queue
+	snapMask []uint64
 }
 
 func newTransport(store *store) Transport {
@@ -48,24 +48,37 @@ func newTransport(store *store) Transport {
 			goetty.WithServerDecoder(decoder),
 			goetty.WithServerEncoder(encoder),
 			goetty.WithServerIDGenerator(goetty.NewUUIDV4IdGenerator())),
-		raftMsgs: make([]*task.Queue, store.opts.sendRaftMsgWorkerCount, store.opts.sendRaftMsgWorkerCount),
-		raftMask: uint64(store.opts.sendRaftMsgWorkerCount - 1),
-		snapMsgs: make([]*task.Queue, store.opts.maxConcurrencySnapChunks, store.opts.maxConcurrencySnapChunks),
-		snapMask: uint64(store.opts.maxConcurrencySnapChunks - 1),
 	}
 	t.resolverFunc = t.resolverStoreAddr
+
+	for i := uint64(0); i < store.opts.groups; i++ {
+		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.opts.sendRaftMsgWorkerCount, store.opts.sendRaftMsgWorkerCount))
+		t.raftMask = append(t.raftMask, store.opts.sendRaftMsgWorkerCount-1)
+		for j := uint64(0); j < t.store.opts.sendRaftMsgWorkerCount; j++ {
+			t.raftMsgs[i][j] = &task.Queue{}
+		}
+
+		t.snapMsgs = append(t.snapMsgs, make([]*task.Queue, store.opts.maxConcurrencySnapChunks, store.opts.maxConcurrencySnapChunks))
+		t.snapMask = append(t.snapMask, store.opts.maxConcurrencySnapChunks-1)
+		for j := uint64(0); j < t.store.opts.maxConcurrencySnapChunks; j++ {
+			t.snapMsgs[i][j] = &task.Queue{}
+		}
+	}
+
 	return t
 }
 
 func (t *transport) Start() {
-	for i := 0; i < t.store.opts.sendRaftMsgWorkerCount; i++ {
-		t.raftMsgs[i] = &task.Queue{}
-		go t.readyToSendRaft(t.raftMsgs[i])
+	for _, qs := range t.raftMsgs {
+		for _, q := range qs {
+			go t.readyToSendRaft(q)
+		}
 	}
 
-	for i := 0; i < t.store.opts.maxConcurrencySnapChunks; i++ {
-		t.snapMsgs[i] = &task.Queue{}
-		go t.readyToSendSnapshots(t.snapMsgs[i])
+	for _, qs := range t.snapMsgs {
+		for _, q := range qs {
+			go t.readyToSendSnapshots(q)
+		}
 	}
 
 	go func() {
@@ -81,12 +94,16 @@ func (t *transport) Start() {
 }
 
 func (t *transport) Stop() {
-	for _, q := range t.snapMsgs {
-		q.Dispose()
+	for _, qs := range t.snapMsgs {
+		for _, q := range qs {
+			q.Dispose()
+		}
 	}
 
-	for _, q := range t.raftMsgs {
-		q.Dispose()
+	for _, qs := range t.raftMsgs {
+		for _, q := range qs {
+			q.Dispose()
+		}
 	}
 
 	t.server.Stop()
@@ -106,13 +123,13 @@ func (t *transport) Send(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) {
 		snapMsg.Header.From = msg.From
 		snapMsg.Header.To = msg.To
 
-		q := t.snapMsgs[t.snapMask&storeID]
+		q := t.snapMsgs[msg.Group][t.snapMask[msg.Group]&storeID]
 		q.Put(snapMsg)
 		metric.SetRaftSnapQueueMetric(q.Len())
 	}
 
 	msg.Message = protoc.MustMarshal(raw)
-	q := t.raftMsgs[t.raftMask&storeID]
+	q := t.raftMsgs[msg.Group][t.raftMask[msg.Group]&storeID]
 	q.Put(msg)
 	metric.SetRaftMsgQueueMetric(q.Len())
 }
@@ -299,7 +316,7 @@ func (t *transport) getConnLocked(id uint64) (goetty.IOSession, error) {
 		return pool.(goetty.IOSessionPool).Get()
 	}
 
-	pool, err := goetty.NewIOSessionPool(1, 2, func() (goetty.IOSession, error) {
+	pool, err := goetty.NewIOSessionPool(1, int(2*t.store.opts.groups), func() (goetty.IOSession, error) {
 		return t.createConn(id)
 	})
 	if err != nil {

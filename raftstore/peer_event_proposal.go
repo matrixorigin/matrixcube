@@ -24,22 +24,24 @@ const (
 )
 
 func (pr *peerReplica) handleRequest(items []interface{}) {
-	size := pr.requests.Len()
-	if size == 0 {
-		return
-	}
-
-	n, err := pr.requests.Get(readyBatch, items)
-	if err != nil {
-		return
-	}
-
-	for i := int64(0); i < n; i++ {
-		req := items[i].(reqCtx)
-		if logger.DebugEnabled() && req.req != nil {
-			logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
+	for {
+		size := pr.requests.Len()
+		if size == 0 {
+			break
 		}
-		pr.batch.push(pr.ps.shard.Group, req)
+
+		n, err := pr.requests.Get(readyBatch, items)
+		if err != nil {
+			return
+		}
+
+		for i := int64(0); i < n; i++ {
+			req := items[i].(reqCtx)
+			if logger.DebugEnabled() && req.req != nil {
+				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
+			}
+			pr.batch.push(pr.ps.shard.Group, req)
+		}
 	}
 
 	for {
@@ -52,7 +54,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 		}
 	}
 
-	size = pr.requests.Len()
+	size := pr.requests.Len()
 	metric.SetRaftRequestQueueMetric(size)
 
 	if size > 0 {
