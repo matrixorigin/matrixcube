@@ -169,7 +169,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 
 	newPR.sizeDiffHint = newPR.store.opts.shardSplitCheckBytes
 	newPR.startRegistrationJob()
-	newPR.store.replicas.Store(newPR.shardID, newPR)
+	pr.store.addPR(newPR)
 
 	// If this peer is the leader of the shard before split, it's intuitional for
 	// it to become the leader of new split shard.

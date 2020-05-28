@@ -110,7 +110,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	}
 
 	pr := new(peerReplica)
-	pr.applyWorker = store.allocApplyWorker()
+	pr.applyWorker = store.allocApplyWorker(shard.Group)
 	pr.peer = newPeer(peerID, store.meta.meta.ID)
 	pr.shardID = shard.ID
 	pr.ps = ps
@@ -232,7 +232,7 @@ func (pr *peerReplica) mustDestroy() {
 
 	pr.store.replicas.Delete(pr.shardID)
 	pr.store.opts.shardStateAware.Destory(pr.ps.shard)
-	pr.store.revokeApplyWorker(pr.applyWorker)
+	pr.store.revokeApplyWorker(pr.ps.shard.Group, pr.applyWorker)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
 }

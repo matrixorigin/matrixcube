@@ -370,7 +370,7 @@ func (ps *peerStorage) clearData() error {
 	startKey := encStartKey(&shard)
 	endKey := encEndKey(&shard)
 
-	err := ps.store.addSnapJob(func() error {
+	err := ps.store.addSnapJob(ps.shard.Group, func() error {
 		logger.Infof("shard %d deleting data in [%+v, %+v)",
 			shardID,
 			startKey,
@@ -705,7 +705,7 @@ func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
 		ps.shard.ID,
 		ps.shard.Epoch)
 
-	err := ps.store.addSnapJob(ps.doGenerateSnapshotJob, ps.setGenSnapJob)
+	err := ps.store.addSnapJob(ps.shard.Group, ps.doGenerateSnapshotJob, ps.setGenSnapJob)
 	if err != nil {
 		logger.Fatalf("shard %d add generate job failed, errors:\n %+v",
 			ps.shard.ID,

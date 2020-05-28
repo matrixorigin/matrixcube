@@ -78,10 +78,8 @@ func (r *reqCtx) reset() {
 type proposeBatch struct {
 	pr *peerReplica
 
-	buf       *goetty.ByteBuf
-	cmds      []cmd
-	lastType  int
-	lastBytes int
+	buf  *goetty.ByteBuf
+	cmds []cmd
 }
 
 func newBatch(pr *peerReplica) *proposeBatch {
@@ -109,11 +107,6 @@ func (b *proposeBatch) size() int {
 
 func (b *proposeBatch) isEmpty() bool {
 	return 0 == b.size()
-}
-
-func (b *proposeBatch) isFull(n int) bool {
-	// -64 means exclude etcd raft entry other fields
-	return b.pr.store.opts.maxProposalBytes-64 <= b.lastBytes+n
 }
 
 func (b *proposeBatch) pop() (cmd, bool) {
@@ -144,11 +137,19 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	}
 
 	n := req.Size()
-	last, ok := b.lastCmd()
-	if !ok ||
-		isAdmin || // admin request must in a single batch
-		b.lastType != tp ||
-		b.isFull(n) {
+	added := false
+	if !isAdmin {
+		for idx := range b.cmds {
+			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, b.pr.store.opts.maxProposalBytes) {
+				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
+				b.cmds[idx].size += n
+				added = true
+				break
+			}
+		}
+	}
+
+	if !added {
 		shard := b.pr.ps.shard
 		raftCMD := pb.AcquireRaftCMDRequest()
 		raftCMD.Header = pb.AcquireRaftRequestHeader()
@@ -163,24 +164,6 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 			raftCMD.Requests = append(raftCMD.Requests, req)
 		}
 
-		b.cmds = append(b.cmds, newCMD(raftCMD, cb))
-		b.lastBytes = 0
-	} else {
-		if isAdmin {
-			logger.Fatal("BUG: admin request must in a single batch")
-		}
-
-		last.req.Requests = append(last.req.Requests, req)
+		b.cmds = append(b.cmds, newCMD(raftCMD, cb, tp, n))
 	}
-
-	b.lastType = tp
-	b.lastBytes += req.Size()
-}
-
-func (b *proposeBatch) lastCmd() (cmd, bool) {
-	if b.isEmpty() {
-		return emptyCMD, false
-	}
-
-	return b.cmds[b.size()-1], true
 }

@@ -30,17 +30,18 @@ type cfg struct {
 	Labels                        [][]string `toml:"labels"`
 	LocationLabels                []string   `toml:"locationLabels"`
 	InitShards                    uint64     `toml:"initShards"`
+	Groups                        uint64     `toml:"groups"`
 	ShardCapacityBytes            uint64     `toml:"shardCapacityBytes"`
 	ShardSplitCheckDuration       int64      `toml:"shardSplitCheckDuration"`
 	ApplyWorkerCount              uint64     `toml:"applyWorkerCount"`
-	SendRaftMsgWorkerCount        int        `toml:"sendRaftMsgWorkerCount"`
+	SendRaftMsgWorkerCount        uint64     `toml:"sendRaftMsgWorkerCount"`
 	DisableShardSplit             bool       `toml:"disableShardSplit"`
 	DisableSyncRaftLog            bool       `toml:"disableSyncRaftLog"`
 	UseMemoryAsStorage            bool       `toml:"useMemoryAsStorage"`
 	SendRaftBatchSize             uint64     `toml:"sendRaftBatchSize"`
 	MaxProposalBytes              int        `toml:"maxProposalBytes"`
 	MaxConcurrencyWritesPerShard  uint64     `toml:"maxConcurrencyWritesPerShard"`
-	MaxConcurrencySnapChunks      int        `toml:"maxConcurrencySnapChunks"`
+	MaxConcurrencySnapChunks      uint64     `toml:"maxConcurrencySnapChunks"`
 	MaxRaftLogCountToForceCompact uint64     `toml:"maxRaftLogCountToForceCompact"`
 	MaxRaftLogBytesToForceCompact uint64     `toml:"maxRaftLogBytesToForceCompact"`
 	MaxRaftLogCompactProtectLag   uint64     `toml:"maxRaftLogCompactProtectLag"`
@@ -238,6 +239,10 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.MaxConcurrencyWritesPerShard > 0 {
 		opts = append(opts, raftstore.WithMaxConcurrencyWritesPerShard(c.MaxConcurrencyWritesPerShard))
+	}
+
+	if c.Groups > 0 {
+		opts = append(opts, raftstore.WithGroups(c.Groups))
 	}
 
 	prophetOptions, err := getProphetOptions(&c)

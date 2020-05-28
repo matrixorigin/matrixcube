@@ -115,8 +115,8 @@ type Store interface {
 }
 
 const (
-	applyWorkerName      = "apply-%d"
-	snapshotWorkerName   = "snapshot"
+	applyWorkerName      = "apply-%d-%d"
+	snapshotWorkerName   = "snapshot-%d"
 	splitCheckWorkerName = "split"
 )
 
@@ -163,7 +163,7 @@ type store struct {
 	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 
 	allocApplyLock sync.Mutex
-	applies        map[string]int
+	applies        []map[string]int
 }
 
 // NewStore returns a raft store
@@ -450,14 +450,21 @@ func (s *store) Prophet() prophet.Prophet {
 }
 
 func (s *store) initWorkers() {
-	s.applies = make(map[string]int)
-	for i := uint64(0); i < s.opts.applyWorkerCount; i++ {
-		name := fmt.Sprintf(applyWorkerName, i)
-		s.runner.AddNamedWorker(name)
-		s.applies[name] = 0
+	for g := uint64(0); g < s.opts.groups; g++ {
+		s.applies = append(s.applies, make(map[string]int))
+
+		for i := uint64(0); i < s.opts.applyWorkerCount; i++ {
+			name := fmt.Sprintf(applyWorkerName, g, i)
+			s.runner.AddNamedWorker(name)
+			s.applies[g][name] = 0
+		}
 	}
 
-	s.runner.AddNamedWorker(snapshotWorkerName)
+	for g := uint64(0); g < s.opts.groups; g++ {
+		name := fmt.Sprintf(snapshotWorkerName, g)
+		s.runner.AddNamedWorker(name)
+	}
+
 	s.runner.AddNamedWorker(splitCheckWorkerName)
 }
 
@@ -484,22 +491,25 @@ func (s *store) startProphet() {
 }
 
 func (s *store) startRaftWorkers() {
-	for i := uint64(0); i < s.opts.raftMaxWorkers; i++ {
-		idx := i
-		s.runner.RunCancelableTask(func(ctx context.Context) {
-			s.runPRTask(ctx, idx)
-		})
+	for i := uint64(0); i < s.opts.groups; i++ {
+		g := i
+		for j := uint64(0); j < s.opts.raftMaxWorkers; j++ {
+			idx := j
+			s.runner.RunCancelableTask(func(ctx context.Context) {
+				s.runPRTask(ctx, g, idx)
+			})
+		}
 	}
 }
 
-func (s *store) runPRTask(ctx context.Context, id uint64) {
-	logger.Infof("raft worker %d start", id)
+func (s *store) runPRTask(ctx context.Context, g, id uint64) {
+	logger.Infof("raft worker %d/%d start", g, id)
 
 	hasEvent := true
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infof("raft worker worker %d exit", id)
+			logger.Infof("raft worker worker %d/%d exit", g, id)
 			return
 		default:
 			if !hasEvent {
@@ -509,7 +519,7 @@ func (s *store) runPRTask(ctx context.Context, id uint64) {
 			hasEvent = false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
-				if pr.workerID == id && pr.handleEvent() {
+				if pr.workerID == id && pr.ps.shard.Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
 
@@ -784,7 +794,7 @@ func (s *store) createPR(shard metapb.Shard) error {
 	pr, err := createPeerReplica(s, &shard)
 	if err != nil {
 		s.mustRemoveShards(shard.ID)
-		s.revokeApplyWorker(pr.applyWorker)
+		s.revokeApplyWorker(shard.Group, pr.applyWorker)
 		return err
 	}
 
@@ -799,7 +809,10 @@ func (s *store) createPR(shard metapb.Shard) error {
 func (s *store) addPR(pr *peerReplica) {
 	count := make([]uint64, s.opts.raftMaxWorkers, s.opts.raftMaxWorkers)
 	s.replicas.Range(func(key, value interface{}) bool {
-		count[value.(*peerReplica).workerID]++
+		p := value.(*peerReplica)
+		if p.ps.shard.Group == pr.ps.shard.Group {
+			count[p.workerID]++
+		}
 		return true
 	})
 
@@ -927,8 +940,8 @@ func (s *store) cleanup() {
 	logger.Infof("cleanup possible garbage data complete")
 }
 
-func (s *store) addSnapJob(task func() error, cb func(*task.Job)) error {
-	return s.addNamedJobWithCB("", snapshotWorkerName, task, cb)
+func (s *store) addSnapJob(g uint64, task func() error, cb func(*task.Job)) error {
+	return s.addNamedJobWithCB("", fmt.Sprintf(snapshotWorkerName, g), task, cb)
 }
 
 func (s *store) addApplyJob(worker string, desc string, task func() error, cb func(*task.Job)) error {
@@ -947,27 +960,27 @@ func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb fun
 	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
 }
 
-func (s *store) revokeApplyWorker(name string) {
+func (s *store) revokeApplyWorker(g uint64, name string) {
 	s.allocApplyLock.Lock()
 	defer s.allocApplyLock.Unlock()
 
-	s.applies[name]--
+	s.applies[g][name]--
 }
 
-func (s *store) allocApplyWorker() string {
+func (s *store) allocApplyWorker(g uint64) string {
 	s.allocApplyLock.Lock()
 	defer s.allocApplyLock.Unlock()
 
 	target := ""
 	value := math.MaxInt32
-	for name, c := range s.applies {
+	for name, c := range s.applies[g] {
 		if value > c {
 			value = c
 			target = name
 		}
 	}
 
-	s.applies[target]++
+	s.applies[g][target]++
 	return target
 }
 

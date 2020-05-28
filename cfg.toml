@@ -24,6 +24,9 @@ locationLabels = [
 # How many shards will be created while bootstrap the cluster.
 initShards = 1
 
+# The shard group count.
+groups = 1
+
 # The maximum bytes data in mb in a shard
 shardCapacityBytes = 96
 
