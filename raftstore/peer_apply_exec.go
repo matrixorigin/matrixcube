@@ -27,29 +27,36 @@ func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDR
 
 func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	req := ctx.req.AdminRequest.ChangePeer
-	logger.Infof("shard %d exec change conf, type=<%s> epoch=<%+v>",
+	logger.Infof("shard %d do apply %s peer %+v at epoch %+v",
 		d.shard.ID,
 		req.ChangeType.String(),
+		req.Peer,
 		d.shard.Epoch)
 
 	exists := findPeer(&d.shard, req.Peer.StoreID)
-	d.shard.Epoch.ConfVer++
-
 	switch req.ChangeType {
 	case raftcmdpb.AddNode:
 		if exists != nil {
 			ctx.metrics.admin.confChangeReject++
+			logger.Infof("shard %d add peer %+v skipped, already added",
+				d.shard.ID,
+				req.Peer)
 			return nil, nil, nil
 		}
 
 		d.shard.Peers = append(d.shard.Peers, req.Peer)
 		ctx.metrics.admin.addPeerSucceed++
-		logger.Infof("shard %d peer added, peer=<%+v>",
+		d.shard.Epoch.ConfVer++
+		logger.Infof("shard %d added new peer %+v at epoch %+v",
 			d.shard.ID,
-			req.Peer)
+			req.Peer,
+			d.shard.Epoch)
 	case raftcmdpb.RemoveNode:
 		if exists == nil {
 			ctx.metrics.admin.confChangeReject++
+			logger.Infof("shard %d remove peer %+v skipped, already removed",
+				d.shard.ID,
+				req.Peer)
 			return nil, nil, nil
 		}
 
@@ -60,11 +67,12 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		}
 
 		removePeer(&d.shard, req.Peer.StoreID)
-
 		ctx.metrics.admin.removePeerSucceed++
-		logger.Infof("shard %d peer removed, peer=<%+v>",
+		d.shard.Epoch.ConfVer++
+		logger.Infof("shard %d removed a peer %+v at epoch %+v",
 			d.shard.ID,
-			req.Peer)
+			req.Peer,
+			d.shard.Epoch)
 	}
 
 	state := raftpb.PeerNormal

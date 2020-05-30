@@ -825,6 +825,14 @@ func (s *store) addPR(pr *peerReplica) {
 
 	pr.workerID = uint64(best)
 	s.replicas.Store(pr.shardID, pr)
+
+	logger.Infof("shard %d added with peer %+v, epoch %+v, peers %+v, raft worker %d, apply worker %s",
+		pr.shardID,
+		pr.peer,
+		pr.ps.shard.Epoch,
+		pr.ps.shard.Peers,
+		pr.workerID,
+		pr.applyWorker)
 }
 
 func (s *store) getFromProphetStore(key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {

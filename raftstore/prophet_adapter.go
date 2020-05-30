@@ -444,7 +444,7 @@ func (pa *prophetAdapter) ChangeLeader(resourceID uint64, newLeader *prophet.Pee
 		return
 	}
 
-	logger.Infof("shard %d schedule change leader to peer %+v ",
+	logger.Infof("shard %d schedule change leader to peer %+v",
 		resourceID,
 		newLeader)
 
@@ -476,6 +476,11 @@ func (pa *prophetAdapter) ChangePeer(resourceID uint64, peer *prophet.Peer, chan
 	} else if changeType == prophet.RemovePeer {
 		ct = raftcmdpb.RemoveNode
 	}
+
+	logger.Infof("shard %d schedule %s with peer %+v",
+		resourceID,
+		ct.String(),
+		p)
 
 	pr.onAdmin(&raftcmdpb.AdminRequest{
 		CmdType: raftcmdpb.ChangePeer,

@@ -194,10 +194,10 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 		return false
 	}
 
-	logger.Infof("shard %d propose conf change, type=<%s> peer=<%d>",
+	logger.Infof("shard %d propose %s with peer %+v",
 		pr.shardID,
 		changePeer.ChangeType.String(),
-		changePeer.Peer.ID)
+		changePeer.Peer)
 
 	pr.metrics.propose.confChange++
 	return true
