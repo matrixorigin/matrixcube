@@ -97,12 +97,13 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 	}
 
 	pr.ps.shard = cp.shard
-
 	if pr.isLeader() {
 		// Notify pd immediately.
-		logger.Infof("shard %d notify pd with change peer, shard=<%+v>",
+		logger.Infof("shard %d notify pd with %s with peer %+v at epoch %+v",
 			pr.shardID,
-			cp.shard)
+			cp.confChange.Type.String(),
+			cp.peer,
+			pr.ps.shard.Epoch)
 		pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
 	}
 
@@ -127,6 +128,13 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 			}
 		}
 	}
+
+	logger.Infof("shard %d applied %s with peer %+v at epoch %+v, new peers %+v",
+		pr.shardID,
+		cp.confChange.Type.String(),
+		cp.peer,
+		pr.ps.shard.Epoch,
+		pr.ps.shard.Peers)
 }
 
 func (pr *peerReplica) doApplySplit(result *splitResult) {
