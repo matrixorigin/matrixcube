@@ -382,8 +382,7 @@ func (pa *prophetAdapter) FetchContainerHB() *prophet.ContainerHeartbeatReq {
 	req := new(prophet.ContainerHeartbeatReq)
 	req.Container = pa.s.meta.Clone()
 	req.Busy = false
-	req.SendingSnapCount = pa.s.sendingSnapCount
-	req.ReceivingSnapCount = pa.s.reveivingSnapCount
+	req.SendingSnapCount = pa.s.opts.trans.SendingSnapshotCount()
 
 	pa.s.foreachPR(func(pr *peerReplica) bool {
 		if pr.isLeader() {
@@ -392,6 +391,7 @@ func (pa *prophetAdapter) FetchContainerHB() *prophet.ContainerHeartbeatReq {
 
 		if pr.ps.isApplyingSnapshot() {
 			req.ApplyingSnapCount++
+			req.ReceivingSnapCount++
 		}
 
 		req.ReplicaCount++

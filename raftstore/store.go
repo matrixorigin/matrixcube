@@ -145,9 +145,6 @@ type store struct {
 	delegates       sync.Map // shard id -> *applyDelegate
 	droppedVoteMsgs sync.Map // shard id -> etcdraftpb.Message
 
-	sendingSnapCount   uint64
-	reveivingSnapCount uint64
-
 	readHandlers  map[uint64]ReadCommandFunc
 	writeHandlers map[uint64]WriteCommandFunc
 	localHandlers map[uint64]LocalCommandFunc

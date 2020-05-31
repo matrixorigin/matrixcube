@@ -141,8 +141,6 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 
 func (pr *peerReplica) handleAppendSnapshot(ctx *readyContext, rd *raft.Ready) {
 	if !raft.IsEmptySnap(rd.Snapshot) {
-		pr.store.reveivingSnapCount++
-
 		err := pr.doAppendSnapshot(ctx, rd.Snapshot)
 		if err != nil {
 			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
