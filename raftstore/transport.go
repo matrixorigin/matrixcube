@@ -20,6 +20,7 @@ type Transport interface {
 	Start()
 	Stop()
 	Send(*raftpb.RaftMessage, *etcdraftpb.Message)
+	SendingSnapshotCount() uint64
 }
 
 type transport struct {
@@ -108,6 +109,17 @@ func (t *transport) Stop() {
 
 	t.server.Stop()
 	logger.Infof("transfer stopped")
+}
+
+func (t *transport) SendingSnapshotCount() uint64 {
+	c := int64(0)
+	for _, qs := range t.snapMsgs {
+		for _, q := range qs {
+			c += q.Len()
+		}
+	}
+
+	return uint64(c)
 }
 
 func (t *transport) Send(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) {
@@ -236,7 +248,6 @@ func (t *transport) doSendSnapshotMessage(msg *raftpb.SnapshotMessage, conn goet
 			return err
 		}
 
-		t.store.sendingSnapCount++
 		logger.Infof("shard %d pending snap sent succ, size=<%d>, epoch=<%s> term=<%d> index=<%d>",
 			msg.Header.Shard.ID,
 			size,
