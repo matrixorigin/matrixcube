@@ -64,6 +64,7 @@ type options struct {
 	storeHeartbeatDuration        time.Duration
 	useMemoryAsStorage            bool
 	raftMaxWorkers                uint64
+	raftPreVote                   bool
 	raftTickDuration              time.Duration
 	raftElectionTick              int
 	raftHeartbeatTick             int
@@ -537,5 +538,12 @@ func WithSchedulerFunc(shardAllowRebalanceFunc, shardAllowTransferLeaderFunc fun
 func WithGroups(value uint64) Option {
 	return func(opts *options) {
 		opts.groups = value
+	}
+}
+
+// WithRaftPreVote enable raft pre-vote
+func WithRaftPreVote(value bool) Option {
+	return func(opts *options) {
+		opts.raftPreVote = value
 	}
 }

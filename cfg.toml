@@ -93,6 +93,9 @@ storeHeartbeatDuration = 10
 # the transfer leader will not be accepted to this node.
 maxAllowTransferLogLag = 2
 
+# Enable raft pre-vote
+raftPreVote = true
+
 # Raft tick time interval in ms.
 raftTickDuration = 1000
 
