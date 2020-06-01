@@ -52,6 +52,7 @@ type cfg struct {
 	MaxAllowTransferLogLag        uint64     `toml:"maxAllowTransferLogLag"`
 	RaftMaxWorkers                uint64     `toml:"raftMaxWorkers"`
 	RaftTickDuration              int64      `toml:"raftTickDuration"`
+	RaftPreVote                   bool       `toml:"raftPreVote"`
 	RaftElectionTick              int        `toml:"raftElectionTick"`
 	RaftHeartbeatTick             int        `toml:"raftHeartbeatTick"`
 	RaftMaxBytesPerMsg            uint64     `toml:"raftMaxBytesPerMsg"`
@@ -250,6 +251,7 @@ func CreateRaftStoreFromFile(dataPath string,
 		return nil, err
 	}
 
+	opts = append(opts, raftstore.WithRaftPreVote(c.RaftPreVote))
 	opts = append(opts, raftstore.WithProphetOptions(prophetOptions...))
 
 	metric.StartPush(c.Metric)
