@@ -375,14 +375,17 @@ func (pa *prophetAdapter) FetchResourceHB(id uint64) *prophet.ResourceHeartbeatR
 
 func (pa *prophetAdapter) FetchContainerHB() *prophet.ContainerHeartbeatReq {
 	// prophet bootstrap not complete
-	if pa.s.meta.meta.ID == 0 {
+	if pa.s.meta.meta.ID == 0 || pa.s.opts == nil || pa.s.opts.trans == nil {
 		return nil
 	}
 
 	req := new(prophet.ContainerHeartbeatReq)
 	req.Container = pa.s.meta.Clone()
 	req.Busy = false
-	req.SendingSnapCount = pa.s.opts.trans.SendingSnapshotCount()
+	// maybe transport not started
+	if pa.s.opts.trans != nil {
+		req.SendingSnapCount = pa.s.opts.trans.SendingSnapshotCount()
+	}
 
 	pa.s.foreachPR(func(pr *peerReplica) bool {
 		if pr.isLeader() {
