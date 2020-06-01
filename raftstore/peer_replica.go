@@ -421,6 +421,6 @@ func getRaftConfig(id, appliedIndex uint64, store raft.Storage, opts *options) *
 		MaxInflightMsgs: opts.raftMaxInflightMsgCount,
 		Storage:         store,
 		CheckQuorum:     true,
-		PreVote:         false,
+		PreVote:         opts.raftPreVote,
 	}
 }
