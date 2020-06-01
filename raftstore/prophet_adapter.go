@@ -375,7 +375,7 @@ func (pa *prophetAdapter) FetchResourceHB(id uint64) *prophet.ResourceHeartbeatR
 
 func (pa *prophetAdapter) FetchContainerHB() *prophet.ContainerHeartbeatReq {
 	// prophet bootstrap not complete
-	if pa.s.meta.meta.ID == 0 || pa.s.opts == nil || pa.s.opts.trans == nil {
+	if pa.s.meta.meta.ID == 0 {
 		return nil
 	}
 
