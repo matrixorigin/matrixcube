@@ -170,6 +170,7 @@ func (t *transport) doConnection(session goetty.IOSession) error {
 
 func (t *transport) readyToSendRaft(q *task.Queue) {
 	items := make([]interface{}, t.store.opts.sendRaftBatchSize, t.store.opts.sendRaftBatchSize)
+	buffers := make(map[uint64][]*raftpb.RaftMessage)
 
 	for {
 		n, err := q.Get(int64(t.store.opts.sendRaftBatchSize), items)
@@ -180,8 +181,26 @@ func (t *transport) readyToSendRaft(q *task.Queue) {
 
 		for i := int64(0); i < n; i++ {
 			msg := items[i].(*raftpb.RaftMessage)
-			err := t.doSend(msg, msg.To.StoreID)
-			t.postSend(msg, err)
+			var values []*raftpb.RaftMessage
+			if v, ok := buffers[msg.To.StoreID]; ok {
+				values = v
+			}
+
+			values = append(values, msg)
+			buffers[msg.To.StoreID] = values
+		}
+
+		for k, msgs := range buffers {
+			if len(msgs) > 0 {
+				err := t.doSend(msgs, k)
+				for _, msg := range msgs {
+					t.postSend(msg, err)
+				}
+			}
+		}
+
+		for k, msgs := range buffers {
+			buffers[k] = msgs[:0]
 		}
 
 		metric.SetRaftMsgQueueMetric(q.Len())
@@ -279,15 +298,33 @@ func (t *transport) postSend(msg *raftpb.RaftMessage, err error) {
 	pb.ReleaseRaftMessage(msg)
 }
 
-func (t *transport) doSend(msg interface{}, to uint64) error {
+func (t *transport) doSend(msgs []*raftpb.RaftMessage, to uint64) error {
 	conn, err := t.getConn(to)
 	if err != nil {
 		return err
 	}
 
-	err = t.doWrite(msg, conn)
+	err = t.doBatchWrite(msgs, conn)
 	t.putConn(to, conn)
 	return err
+}
+
+func (t *transport) doBatchWrite(msgs []*raftpb.RaftMessage, conn goetty.IOSession) error {
+	for _, m := range msgs {
+		err := conn.Write(m)
+		if err != nil {
+			conn.Close()
+			return err
+		}
+	}
+
+	err := conn.Flush()
+	if err != nil {
+		conn.Close()
+		return err
+	}
+
+	return nil
 }
 
 func (t *transport) doWrite(msg interface{}, conn goetty.IOSession) error {
