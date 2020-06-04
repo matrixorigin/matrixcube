@@ -282,3 +282,10 @@ func WithScaleOnNewStore() Option {
 		opts.cfg.EnableScaleOnNewStore = true
 	}
 }
+
+// WithResourceSortCompareFunc set resource sort compare
+func WithResourceSortCompareFunc(value func(Resource, Resource) int) Option {
+	return func(opts *options) {
+		opts.cfg.ResourceSortCompareFunc = value
+	}
+}

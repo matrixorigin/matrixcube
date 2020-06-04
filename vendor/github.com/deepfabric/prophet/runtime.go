@@ -1,6 +1,7 @@
 package prophet
 
 import (
+	"sort"
 	"sync"
 )
 
@@ -131,7 +132,7 @@ func (rc *Runtime) RandLeaderResource(id uint64, kind ResourceKind) *ResourceRun
 	rc.RLock()
 	defer rc.RUnlock()
 
-	return randResource(rc.leaders[id], kind)
+	return randResource(rc.leaders[id], kind, rc.p.cfg.ResourceSortCompareFunc)
 }
 
 // RandFollowerResource returns the random follower resource
@@ -139,7 +140,7 @@ func (rc *Runtime) RandFollowerResource(id uint64, kind ResourceKind) *ResourceR
 	rc.RLock()
 	defer rc.RUnlock()
 
-	return randResource(rc.followers[id], kind)
+	return randResource(rc.followers[id], kind, rc.p.cfg.ResourceSortCompareFunc)
 }
 
 func (rc *Runtime) getContainerWithoutLock(id uint64) *ContainerRuntime {
@@ -160,8 +161,19 @@ func (rc *Runtime) getResourceWithoutLock(id uint64) *ResourceRuntime {
 	return resource.Clone()
 }
 
-func randResource(resources map[uint64]*ResourceRuntime, kind ResourceKind) *ResourceRuntime {
+func randResource(resources map[uint64]*ResourceRuntime, kind ResourceKind, compare func(Resource, Resource) int) *ResourceRuntime {
+	var values []*ResourceRuntime
 	for _, res := range resources {
+		values = append(values, res)
+	}
+
+	if compare != nil {
+		sort.Slice(values, func(i, j int) bool {
+			return compare(values[i].meta, values[j].meta) < 0
+		})
+	}
+
+	for _, res := range values {
 		if res.leaderPeer == nil {
 			log.Fatalf("rand resource %d without leader", res.meta.ID())
 		}

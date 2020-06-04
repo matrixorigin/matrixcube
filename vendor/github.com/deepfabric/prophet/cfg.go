@@ -47,10 +47,11 @@ type Cfg struct {
 	// MaxRPCTimeout rpc max timeout
 	MaxRPCTimeout time.Duration
 
-	StorageNode bool
-	LeaseTTL    int64
-	Schedulers  []Scheduler
-	Handler     RoleChangeHandler
+	StorageNode             bool
+	LeaseTTL                int64
+	Schedulers              []Scheduler
+	Handler                 RoleChangeHandler
+	ResourceSortCompareFunc func(Resource, Resource) int
 
 	EnableScaleOnNewStore bool
 }
