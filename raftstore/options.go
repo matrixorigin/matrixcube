@@ -80,6 +80,7 @@ type options struct {
 	maxRaftLogCountToForceCompact uint64
 	maxRaftLogBytesToForceCompact uint64
 	maxRaftLogCompactProtectLag   uint64
+	disableRaftLogCompactProtect  []uint64
 	shardCapacityBytes            uint64
 	shardSplitCheckBytes          uint64
 	maxConcurrencyWritesPerShard  uint64
@@ -545,5 +546,12 @@ func WithGroups(value uint64) Option {
 func WithRaftPreVote(value bool) Option {
 	return func(opts *options) {
 		opts.raftPreVote = value
+	}
+}
+
+// WithDisableRaftLogCompactProtect set disable compact protect
+func WithDisableRaftLogCompactProtect(groups ...uint64) Option {
+	return func(opts *options) {
+		opts.disableRaftLogCompactProtect = append(opts.disableRaftLogCompactProtect, groups...)
 	}
 }

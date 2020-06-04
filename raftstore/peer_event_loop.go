@@ -410,13 +410,15 @@ func (pr *peerReplica) doCheckCompact() {
 	}
 
 	// avoid leader send snapshot to the a little lag peer.
-	if compactIdx > replicatedIdx {
-		if (compactIdx - replicatedIdx) <= pr.store.opts.maxRaftLogCompactProtectLag {
-			compactIdx = replicatedIdx
-		} else {
-			logger.Infof("shard %d peer lag is too large, maybe sent a snapshot later. lag=<%d>",
-				pr.shardID,
-				compactIdx-replicatedIdx)
+	if !pr.disableCompactProtect {
+		if compactIdx > replicatedIdx {
+			if (compactIdx - replicatedIdx) <= pr.store.opts.maxRaftLogCompactProtectLag {
+				compactIdx = replicatedIdx
+			} else {
+				logger.Infof("shard %d peer lag is too large, maybe sent a snapshot later. lag=<%d>",
+					pr.shardID,
+					compactIdx-replicatedIdx)
+			}
 		}
 	}
 

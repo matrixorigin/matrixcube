@@ -23,12 +23,13 @@ import (
 )
 
 type peerReplica struct {
-	shardID      uint64
-	workerID     uint64
-	applyWorker  string
-	peer         metapb.Peer
-	rn           *raft.RawNode
-	stopRaftTick bool
+	shardID               uint64
+	workerID              uint64
+	applyWorker           string
+	disableCompactProtect bool
+	peer                  metapb.Peer
+	rn                    *raft.RawNode
+	stopRaftTick          bool
 
 	store *store
 	ps    *peerStorage
@@ -114,6 +115,14 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.peer = newPeer(peerID, store.meta.meta.ID)
 	pr.shardID = shard.ID
 	pr.ps = ps
+
+	for _, g := range store.opts.disableRaftLogCompactProtect {
+		if shard.Group == g {
+			pr.disableCompactProtect = true
+			break
+		}
+	}
+
 	pr.batch = newBatch(pr)
 	pr.writeLimiter = rate.NewLimiter(rate.Every(time.Second/time.Duration(store.opts.maxConcurrencyWritesPerShard)),
 		int(store.opts.maxConcurrencyWritesPerShard))
