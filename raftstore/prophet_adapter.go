@@ -228,6 +228,11 @@ func (ca *containerAdapter) Unmarshal(data []byte) error {
 	return nil
 }
 
+// ShardResource shard resource
+type ShardResource interface {
+	Meta() metapb.Shard
+}
+
 type resourceAdapter struct {
 	meta  metapb.Shard
 	store *store
@@ -238,6 +243,10 @@ func newResourceAdapter(meta metapb.Shard, store *store) prophet.Resource {
 		meta:  meta,
 		store: store,
 	}
+}
+
+func (ra *resourceAdapter) Meta() metapb.Shard {
+	return ra.meta
 }
 
 func (ra *resourceAdapter) SetID(id uint64) {
