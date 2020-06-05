@@ -3,6 +3,7 @@ package raftstore
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/util"
@@ -73,6 +74,9 @@ func (r *defaultRouter) searchShard(group uint64, key []byte) metapb.Shard {
 func (r *defaultRouter) eventLoop(ctx context.Context) {
 	logger.Infof("router event loop task started")
 
+	refreshTimer := time.NewTicker(time.Minute)
+	defer refreshTimer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,6 +84,8 @@ func (r *defaultRouter) eventLoop(ctx context.Context) {
 			return
 		case evt := <-r.eventC:
 			r.handleEvent(evt)
+		case <-refreshTimer.C:
+			r.watcher.Reset()
 		}
 	}
 }
@@ -88,6 +94,10 @@ func (r *defaultRouter) handleEvent(evt *prophet.EventNotify) {
 	switch evt.Event {
 	case prophet.EventInit:
 		logger.Infof("start init event")
+		r.keyRanges.Range(func(key, value interface{}) bool {
+			r.keyRanges.Delete(key)
+			return true
+		})
 		evt.ReadInitEventValues(r.updateShard, r.updateStore)
 	case prophet.EventResourceCreated:
 		r.updateShard(evt.Value, 0)

@@ -64,6 +64,14 @@ func (w *Watcher) Stop() {
 	close(w.eventC)
 }
 
+// Reset reset and refresh
+func (w *Watcher) Reset() {
+	w.Lock()
+	defer w.Unlock()
+
+	w.conn.Close()
+}
+
 func (w *Watcher) resetConn(flag int) {
 	for {
 		addr := w.next()
@@ -112,6 +120,12 @@ func (w *Watcher) resetConnWithProphet(flag int) {
 }
 
 func (w *Watcher) watchDog(flag int) {
+	defer func() {
+		if r := recover(); r != nil {
+			go w.watchDog(flag)
+		}
+	}()
+
 	for {
 		select {
 		case <-w.stopC:
