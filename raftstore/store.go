@@ -664,7 +664,7 @@ func (s *store) startEnsureNewShardsTask() {
 
 func (s *store) doEnsureNewShards(limit int64) {
 	now := time.Now().Unix()
-	timeout := int64((time.Duration(s.opts.raftHeartbeatTick) * s.opts.raftTickDuration * 5).Seconds())
+	timeout := int64(time.Minute * 5)
 	var ops []clientv3.Op
 	var recreate []metapb.Shard
 
@@ -712,9 +712,9 @@ func (s *store) doEnsureNewShards(limit int64) {
 
 	if len(recreate) > 0 {
 		for i := 0; i < len(recreate); i++ {
-			recreate[i].Peers[0].StoreID = s.meta.ID()
-			recreate[i].Peers[0].ID = s.MustAllocID()
-			recreate[i].Epoch.ConfVer++
+			recreate[i].Peers = recreate[i].Peers[:0]
+			recreate[i].Peers = append(recreate[i].Peers, metapb.Peer{ID: s.MustAllocID(), StoreID: s.meta.ID()})
+			recreate[i].Epoch.ConfVer += 100
 
 			var buf bytes.Buffer
 			buf.Write(goetty.Int64ToBytes(time.Now().Unix()))
