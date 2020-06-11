@@ -449,6 +449,7 @@ func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
 	sendMsg.ShardEpoch = pr.ps.shard.Epoch
 	sendMsg.Group = pr.ps.shard.Group
 	sendMsg.DisableSplit = pr.ps.shard.DisableSplit
+	sendMsg.DataAppendToMsg = pr.ps.shard.DataAppendToMsg
 	if pr.ps.shard.DataAppendToMsg {
 		sendMsg.Data = pr.ps.shard.Data
 	}
