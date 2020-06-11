@@ -21,6 +21,7 @@ message RaftMessage  {
     bytes             start        = 8;
     bytes             end          = 9;
     bool              disableSplit = 10;
+    bytes             data         = 11;
 }
 
 // PeerState the state of the shard peer

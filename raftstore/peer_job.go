@@ -255,7 +255,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		return nil
 	}
 
-	logger.Infof("shard %d try to split, size=<%d> splitKey=<%d>",
+	logger.Infof("shard %d try to split, size=<%d> splitKey=<%+v>",
 		pr.shardID,
 		size,
 		splitKey)

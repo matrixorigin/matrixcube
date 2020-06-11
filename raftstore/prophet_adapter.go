@@ -97,21 +97,28 @@ func (s *store) doBootstrapCluster() {
 
 	if !ok {
 		var initShards []prophet.Resource
-		if s.opts.initShards == 1 {
-			initShards = append(initShards, s.createInitShard(nil, nil))
+		if s.opts.customInitShardCreateFunc != nil {
+			shards := s.opts.customInitShardCreateFunc()
+			for _, shard := range shards {
+				initShards = append(initShards, s.doCreateInitShard(shard))
+			}
 		} else {
-			step := uint64(math.MaxUint64 / s.opts.initShards)
-			start := uint64(0)
-			end := start + step
+			if s.opts.initShards == 1 {
+				initShards = append(initShards, s.createInitShard(nil, nil))
+			} else {
+				step := uint64(math.MaxUint64 / s.opts.initShards)
+				start := uint64(0)
+				end := start + step
 
-			for i := uint64(0); i < s.opts.initShards; i++ {
-				if s.opts.initShards-i == 1 {
-					end = math.MaxUint64
+				for i := uint64(0); i < s.opts.initShards; i++ {
+					if s.opts.initShards-i == 1 {
+						end = math.MaxUint64
+					}
+
+					initShards = append(initShards, s.createInitShard(format.Uint64ToBytes(start), format.Uint64ToBytes(end)))
+					start = end
+					end = start + step
 				}
-
-				initShards = append(initShards, s.createInitShard(format.Uint64ToBytes(start), format.Uint64ToBytes(end)))
-				start = end
-				end = start + step
 			}
 		}
 
@@ -130,6 +137,14 @@ func (s *store) doBootstrapCluster() {
 }
 
 func (s *store) createInitShard(start, end []byte) prophet.Resource {
+	shard := metapb.Shard{}
+	shard.Start = start
+	shard.End = end
+
+	return s.doCreateInitShard(shard)
+}
+
+func (s *store) doCreateInitShard(shard metapb.Shard) prophet.Resource {
 	shardID := s.MustAllocID()
 	logger.Infof("alloc shard %d", shardID)
 
@@ -138,19 +153,15 @@ func (s *store) createInitShard(start, end []byte) prophet.Resource {
 		peerID,
 		shardID)
 
-	shard := metapb.Shard{}
 	shard.ID = shardID
 	shard.Epoch.ShardVer = 1
 	shard.Epoch.ConfVer = 1
-	shard.Start = start
-	shard.End = end
 	shard.Peers = append(shard.Peers, metapb.Peer{
 		ID:      peerID,
 		StoreID: s.meta.meta.ID,
 	})
 
 	s.mustSaveShards(shard)
-
 	logger.Infof("create init shard %d succeed", shard.ID)
 	return newResourceAdapter(shard, s)
 }

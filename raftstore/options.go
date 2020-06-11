@@ -96,6 +96,12 @@ type options struct {
 	shardAllowTransferLeaderFunc  func(metapb.Shard) bool
 	groups                        uint64
 
+	customInitShardCreateFunc    func() []metapb.Shard
+	customSnapshotDataCreateFunc func(string, metapb.Shard) error
+	customSnapshotDataApplyFunc  func(string, metapb.Shard) error
+	customSplitCheckFunc         func(metapb.Shard) ([]byte, bool)
+	customSplitCompletedFunc     func(*metapb.Shard, *metapb.Shard)
+
 	prophetOptions []prophet.Option
 }
 
@@ -553,5 +559,34 @@ func WithRaftPreVote(value bool) Option {
 func WithDisableRaftLogCompactProtect(groups ...uint64) Option {
 	return func(opts *options) {
 		opts.disableRaftLogCompactProtect = append(opts.disableRaftLogCompactProtect, groups...)
+	}
+}
+
+// WithCustomInitShardCreateFunc set custom initShardCreateFunc
+func WithCustomInitShardCreateFunc(value func() []metapb.Shard) Option {
+	return func(opts *options) {
+		opts.customInitShardCreateFunc = value
+	}
+}
+
+// WithCustomSnapshotDataFunc set custom snapshot func
+func WithCustomSnapshotDataFunc(createFunc, applyFunc func(string, metapb.Shard) error) Option {
+	return func(opts *options) {
+		opts.customSnapshotDataCreateFunc = createFunc
+		opts.customSnapshotDataApplyFunc = applyFunc
+	}
+}
+
+// WithCustomSplitCheckFunc set customSplitCheckFunc
+func WithCustomSplitCheckFunc(value func(metapb.Shard) ([]byte, bool)) Option {
+	return func(opts *options) {
+		opts.customSplitCheckFunc = value
+	}
+}
+
+// WithCustomSplitCompletedFunc set customSplitCompletedFunc
+func WithCustomSplitCompletedFunc(value func(*metapb.Shard, *metapb.Shard)) Option {
+	return func(opts *options) {
+		opts.customSplitCompletedFunc = value
 	}
 }

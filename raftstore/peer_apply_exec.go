@@ -9,6 +9,7 @@ import (
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/beehive/util"
 )
 
 func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
@@ -101,6 +102,76 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	}
 
 	return resp, result, nil
+}
+
+func (d *applyDelegate) doExecCustomSplit(ctx *applyContext) *execResult {
+	if d.store.opts.customSplitCheckFunc == nil {
+		return nil
+	}
+
+	splitKey, ok := d.store.opts.customSplitCheckFunc(d.shard)
+	if !ok {
+		return nil
+	}
+
+	newShardID, newPeerIDs, err := d.store.pd.GetRPC().AskSplit(newResourceAdapter(d.shard, d.store))
+	if err != nil {
+		logger.Errorf("shard %d ask split failed with %+v",
+			d.shard.ID,
+			err)
+		return nil
+	}
+
+	logger.Infof("shard %d split, splitKey=<%d> shard=<%+v>",
+		d.shard.ID,
+		splitKey,
+		d.shard)
+
+	// After split, the origin shard key range is [start_key, split_key),
+	// the new split shard is [split_key, end).
+	newShard := metapb.Shard{
+		ID:    newShardID,
+		Epoch: d.shard.Epoch,
+		Start: splitKey,
+		End:   d.shard.End,
+		Group: d.shard.Group,
+	}
+	d.shard.End = splitKey
+
+	for idx, id := range newPeerIDs {
+		newShard.Peers = append(newShard.Peers, metapb.Peer{
+			ID:      id,
+			StoreID: d.shard.Peers[idx].StoreID,
+		})
+	}
+
+	d.shard.Epoch.ShardVer++
+	newShard.Epoch.ShardVer = d.shard.Epoch.ShardVer
+
+	if d.store.opts.customSplitCompletedFunc != nil {
+		d.store.opts.customSplitCompletedFunc(&d.shard, &newShard)
+	}
+
+	wb := util.NewWriteBatch()
+	d.ps.updatePeerState(d.shard, raftpb.PeerNormal, wb)
+	d.ps.updatePeerState(newShard, raftpb.PeerNormal, wb)
+	d.ps.writeInitialState(newShard.ID, wb)
+	err = d.store.MetadataStorage(d.shard.ID).Write(wb, false)
+	if err != nil {
+		logger.Fatalf("shard %d save split shard failed, newShard=<%+v> errors:\n %+v",
+			d.shard.ID,
+			newShard,
+			err)
+	}
+
+	ctx.metrics.admin.splitSucceed++
+	return &execResult{
+		adminType: raftcmdpb.Split,
+		splitResult: &splitResult{
+			left:  d.shard,
+			right: newShard,
+		},
+	}
 }
 
 func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
