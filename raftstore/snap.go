@@ -175,6 +175,13 @@ func (m *defaultSnapshotManager) Create(msg *raftpb.SnapshotMessage) error {
 			if err != nil {
 				return err
 			}
+
+			if m.s.opts.customSnapshotDataCreateFunc != nil {
+				err := m.s.opts.customSnapshotDataCreateFunc(path, msg.Header.Shard)
+				if err != nil {
+					return err
+				}
+			}
 		}
 		err := util.GZIP(path)
 		if err != nil {
@@ -364,7 +371,19 @@ func (m *defaultSnapshotManager) Apply(msg *raftpb.SnapshotMessage) error {
 	defer os.RemoveAll(dir)
 
 	// apply snapshot of data
-	return m.s.DataStorage(msg.Header.Shard.ID).ApplySnapshot(dir)
+	err = m.s.DataStorage(msg.Header.Shard.ID).ApplySnapshot(dir)
+	if err != nil {
+		return err
+	}
+
+	if m.s.opts.customSnapshotDataApplyFunc != nil {
+		err := m.s.opts.customSnapshotDataApplyFunc(dir, msg.Header.Shard)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (m *defaultSnapshotManager) cleanTmp(msg *raftpb.SnapshotMessage) error {

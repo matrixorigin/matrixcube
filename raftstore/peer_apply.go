@@ -384,6 +384,10 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 			result = d.applyConfChange(&entry)
 		}
 
+		if idx == len(commitedEntries)-1 && result == nil {
+			result = d.doExecCustomSplit(d.ctx)
+		}
+
 		asyncResult := asyncApplyResult{}
 		asyncResult.shardID = d.shard.ID
 		asyncResult.appliedIndexTerm = d.appliedIndexTerm
