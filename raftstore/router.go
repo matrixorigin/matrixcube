@@ -3,6 +3,7 @@ package raftstore
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/deepfabric/beehive/pb/metapb"
@@ -18,6 +19,13 @@ type Router interface {
 	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
 	// If returns leader address is "", means the current shard has no leader
 	SelectShard(group uint64, key []byte) (uint64, string)
+	// Every do with all shards
+	Every(uint64, bool, func(uint64, string))
+
+	// LeaderAddress return leader peer store address
+	LeaderAddress(uint64) string
+	// RandomPeerAddress return random peer store address
+	RandomPeerAddress(uint64) string
 }
 
 type defaultRouter struct {
@@ -33,6 +41,7 @@ type defaultRouter struct {
 	stores                    sync.Map // store id -> metapb.Store
 	shards                    sync.Map // shard id -> metapb.Shard
 	missingStoreLeaderChanged sync.Map //
+	opts                      sync.Map // shard id -> ops
 }
 
 func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc) Router {
@@ -57,10 +66,48 @@ func (r *defaultRouter) Start() error {
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
 	shard := r.keyConvertFunc(group, key, r.searchShard)
-	if value, ok := r.leaders.Load(shard.ID); ok {
-		return shard.ID, value.(string)
+	return shard.ID, r.LeaderAddress(shard.ID)
+}
+
+func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(uint64, string)) {
+	r.shards.Range(func(key, value interface{}) bool {
+		shard := value.(metapb.Shard)
+		if shard.Group == group {
+			if mustLeader {
+				doFunc(shard.ID, r.LeaderAddress(shard.ID))
+			} else {
+				storeID := r.selectStore(&shard)
+				doFunc(shard.ID, r.mustGetStore(storeID).RPCAddr)
+			}
+		}
+
+		return true
+	})
+}
+
+func (r *defaultRouter) LeaderAddress(id uint64) string {
+	if value, ok := r.leaders.Load(id); ok {
+		return value.(string)
 	}
-	return shard.ID, ""
+
+	return ""
+}
+
+func (r *defaultRouter) RandomPeerAddress(id uint64) string {
+	if value, ok := r.shards.Load(id); ok {
+		shard := value.(metapb.Shard)
+		return r.mustGetStore(r.selectStore(&shard)).RPCAddr
+	}
+
+	return ""
+}
+
+func (r *defaultRouter) selectStore(shard *metapb.Shard) uint64 {
+	r.opts.LoadOrStore(shard.ID, 0)
+	v, _ := r.opts.Load(shard.ID)
+	op := v.(uint64)
+
+	return shard.Peers[int(atomic.AddUint64(&op, 1))%len(shard.Peers)].StoreID
 }
 
 func (r *defaultRouter) searchShard(group uint64, key []byte) metapb.Shard {

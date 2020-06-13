@@ -37,6 +37,8 @@ type errorDoneFunc func(*raftcmdpb.Request, error)
 // retry the request for the error
 type ShardsProxy interface {
 	Dispatch(req *raftcmdpb.Request) error
+	DispatchTo(req *raftcmdpb.Request, shard uint64, store string) error
+	Router() raftstore.Router
 }
 
 // NewShardsProxy returns a shard proxy
@@ -83,9 +85,13 @@ type shardsProxy struct {
 }
 
 func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
-	shard, leader := p.router.SelectShard(req.Group, req.Key)
+	shard, to := p.router.SelectShard(req.Group, req.Key)
+	return p.DispatchTo(req, shard, to)
+}
+
+func (p *shardsProxy) DispatchTo(req *raftcmdpb.Request, shard uint64, to string) error {
 	// No leader, retry after a leader tick
-	if leader == "" {
+	if to == "" {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s retry with no leader, shard %d, group %d",
 				hex.EncodeToString(req.ID),
@@ -93,14 +99,18 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 				req.Group)
 		}
 
-		p.retryWithRaftError(req, "no leader", RetryInterval)
+		p.retryWithRaftError(req, "dispath to nil store", RetryInterval)
 		return nil
 	}
 
-	return p.forwardToBackend(req, shard, leader)
+	return p.forwardToBackend(req, to)
 }
 
-func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, shard uint64, leader string) error {
+func (p *shardsProxy) Router() raftstore.Router {
+	return p.router
+}
+
+func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, leader string) error {
 	if p.store != nil && p.local.RPCAddr == leader {
 		req.PID = 0
 		return p.store.OnRequest(req)
@@ -155,7 +165,19 @@ func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, err string, lat
 
 func (p *shardsProxy) doRetry(arg interface{}) {
 	req := arg.(raftcmdpb.Request)
-	p.Dispatch(&req)
+	if req.ToShard == 0 {
+		p.Dispatch(&req)
+		return
+	}
+
+	to := ""
+	if req.AllowFollower {
+		to = p.router.RandomPeerAddress(req.ToShard)
+	} else {
+		to = p.router.LeaderAddress(req.ToShard)
+	}
+
+	p.DispatchTo(&req, req.ToShard, to)
 }
 
 func (p *shardsProxy) getConn(addr string) (*backend, error) {

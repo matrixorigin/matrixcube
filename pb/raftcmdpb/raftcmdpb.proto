@@ -136,24 +136,28 @@ message CompactRaftLogResponse {
 
 // Request request
 message Request {
-    bytes   id          = 1 [(gogoproto.customname) = "ID"];
-    uint64  group       = 2;
-    CMDType type        = 3;
-    uint64  custemType  = 4;
-    bytes   key         = 5;
-    bytes   cmd         = 6;
-    int64   SID         = 7;
-    int64   PID         = 8;
-    int64   StopAt      = 9;
+    bytes   id            = 1 [(gogoproto.customname) = "ID"];
+    uint64  group         = 2;
+    CMDType type          = 3;
+    uint64  custemType    = 4;
+    bytes   key           = 5;
+    bytes   cmd           = 6;
+    int64   sid           = 7 [(gogoproto.customname) = "SID"];
+    int64   pid           = 8 [(gogoproto.customname) = "PID"];
+    int64   stopAt        = 9;
+    uint64  toShard       = 10;
+    bool    allowFollower = 11;
+    bool    lastBroadcast = 12;
 }
 
 // Response response
 message Response {
-    bytes         id            = 1 [(gogoproto.customname) = "ID"];
-    CMDType       type          = 2;
-    bytes         value         = 3;
-    Request       originRequest = 4 [(gogoproto.nullable) = true];
-    int64         SID           = 5;
-    int64         PID           = 6;
-    errorpb.Error error         = 7 [(gogoproto.nullable) = false];
+    bytes         id                = 1 [(gogoproto.customname) = "ID"];
+    CMDType       type              = 2;
+    bytes         value             = 3;
+    Request       originRequest     = 4 [(gogoproto.nullable) = true];
+    int64         sid               = 5 [(gogoproto.customname) = "SID"];
+    int64         pid               = 6 [(gogoproto.customname) = "PID"];
+    errorpb.Error error             = 7 [(gogoproto.nullable) = false];
+    bool          continueBroadcast = 8;
 }
