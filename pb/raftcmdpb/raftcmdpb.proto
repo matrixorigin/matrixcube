@@ -160,4 +160,5 @@ message Response {
     int64         pid               = 6 [(gogoproto.customname) = "PID"];
     errorpb.Error error             = 7 [(gogoproto.nullable) = false];
     bool          continueBroadcast = 8;
+    bool          stale             = 9;
 }

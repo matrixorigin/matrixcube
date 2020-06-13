@@ -350,6 +350,13 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 			d.attrs[AttrWriteRequestApplyCurrent] = idx
 			if h, ok := d.store.writeHandlers[req.CustemType]; ok {
 				written, diff, rsp := h(d.shard, req, d.attrs)
+				if rsp.Stale {
+					rsp.Error.Message = errStaleCMD.Error()
+					rsp.Error.StaleCommand = infoStaleCMD
+					rsp.OriginRequest = req
+					rsp.OriginRequest.Key = DecodeDataKey(req.Key)
+				}
+
 				resp.Responses[which] = rsp
 				writeBytes += written
 				diffBytes += diff
