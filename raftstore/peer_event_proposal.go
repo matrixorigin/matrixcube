@@ -37,6 +37,18 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
+			if req.req != nil {
+				if h, ok := pr.store.localHandlers[req.req.CustemType]; ok {
+					rsp, err := h(pr.ps.shard, req.req)
+					if err != nil {
+						respWithRetry(req.req, req.cb)
+					} else {
+						resp(req.req, rsp, req.cb)
+					}
+					continue
+				}
+			}
+
 			if logger.DebugEnabled() && req.req != nil {
 				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
 			}
@@ -84,6 +96,8 @@ func (pr *peerReplica) propose(c cmd) {
 	switch policy {
 	case readIndex:
 		pr.execReadIndex(c)
+	case readLocal:
+		pr.doExecReadCmd(c)
 	case proposeNormal:
 		doPropose = pr.proposeNormal(c)
 	case proposeTransferLeader:
@@ -364,6 +378,11 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 
 	if isWrite {
 		return proposeNormal, nil
+	}
+
+	if pr.store.opts.customCanReadLocalFunc != nil &&
+		pr.store.opts.customCanReadLocalFunc(pr.ps.shard) {
+		return readLocal, nil
 	}
 
 	return readIndex, nil

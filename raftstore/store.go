@@ -296,24 +296,24 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
 
-	pr, err := s.selectShard(req.Group, req.Key)
-	if err != nil {
-		if err == errStoreNotMatch {
+	var pr *peerReplica
+	var err error
+	if req.ToShard > 0 {
+		pr = s.getPR(req.ToShard, !req.AllowFollower)
+		if pr == nil {
 			respStoreNotMatch(err, req, s.cb)
 			return nil
 		}
-
-		return err
-	}
-
-	if h, ok := s.localHandlers[req.CustemType]; ok {
-		rsp, err := h(pr.ps.shard, req)
+	} else {
+		pr, err = s.selectShard(req.Group, req.Key)
 		if err != nil {
-			respWithRetry(req, s.cb)
-		} else {
-			resp(req, rsp, s.cb)
+			if err == errStoreNotMatch {
+				respStoreNotMatch(err, req, s.cb)
+				return nil
+			}
+
+			return err
 		}
-		return nil
 	}
 
 	return pr.onReq(req, s.cb)

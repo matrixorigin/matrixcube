@@ -101,6 +101,7 @@ type options struct {
 	customSnapshotDataApplyFunc  func(string, metapb.Shard) error
 	customSplitCheckFunc         func(metapb.Shard) ([]byte, bool)
 	customSplitCompletedFunc     func(*metapb.Shard, *metapb.Shard)
+	customCanReadLocalFunc       func(metapb.Shard) bool
 
 	prophetOptions []prophet.Option
 }
@@ -588,5 +589,12 @@ func WithCustomSplitCheckFunc(value func(metapb.Shard) ([]byte, bool)) Option {
 func WithCustomSplitCompletedFunc(value func(*metapb.Shard, *metapb.Shard)) Option {
 	return func(opts *options) {
 		opts.customSplitCompletedFunc = value
+	}
+}
+
+// WithCustomCanReadLocalFunc set customCanReadLocalFunc
+func WithCustomCanReadLocalFunc(value func(metapb.Shard) bool) Option {
+	return func(opts *options) {
+		opts.customCanReadLocalFunc = value
 	}
 }
