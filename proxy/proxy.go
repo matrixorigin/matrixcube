@@ -140,7 +140,7 @@ func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raf
 }
 
 func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
-	if rsp.Type != raftcmdpb.RaftError {
+	if rsp.Type != raftcmdpb.RaftError && !rsp.Stale {
 		p.doneCB(rsp)
 		return
 	}
