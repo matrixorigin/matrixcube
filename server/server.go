@@ -318,8 +318,10 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 			max = id
 		}
 
-		shards = append(shards, id)
-		forwards = append(forwards, store)
+		if id > after {
+			shards = append(shards, id)
+			forwards = append(forwards, store)
+		}
 	})
 	return max, shards, forwards, err
 }
@@ -339,6 +341,8 @@ func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64
 		if err != nil {
 			break
 		}
+
+		requests = append(requests, req)
 	}
 
 	if err != nil {

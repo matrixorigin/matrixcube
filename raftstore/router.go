@@ -103,7 +103,7 @@ func (r *defaultRouter) RandomPeerAddress(id uint64) string {
 }
 
 func (r *defaultRouter) selectStore(shard *metapb.Shard) uint64 {
-	r.opts.LoadOrStore(shard.ID, 0)
+	r.opts.LoadOrStore(shard.ID, uint64(0))
 	v, _ := r.opts.Load(shard.ID)
 	op := v.(uint64)
 
