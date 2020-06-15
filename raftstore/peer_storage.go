@@ -218,17 +218,6 @@ func (ps *peerStorage) getTruncatedTerm() uint64 {
 }
 
 func (ps *peerStorage) validateSnap(snap *etcdPB.Snapshot) bool {
-	idx := snap.Metadata.Index
-
-	if idx < ps.getTruncatedIndex() {
-		// stale snapshot, should generate again.
-		logger.Infof("shard %d snapshot is stale %d/%d, generate again",
-			ps.shard.ID,
-			idx,
-			ps.getTruncatedIndex())
-		return false
-	}
-
 	snapData := &raftpb.SnapshotMessage{}
 	err := snapData.Unmarshal(snap.Data)
 	if err != nil {

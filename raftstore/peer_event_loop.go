@@ -394,10 +394,12 @@ func (pr *peerReplica) doCheckCompact() {
 		return
 	}
 
-	if appliedIdx > firstIdx &&
+	if !pr.disableCompactProtect &&
+		appliedIdx > firstIdx &&
 		appliedIdx-firstIdx >= pr.store.opts.maxRaftLogCountToForceCompact {
 		compactIdx = appliedIdx
-	} else if pr.raftLogSizeHint >= pr.store.opts.maxRaftLogBytesToForceCompact {
+	} else if !pr.disableCompactProtect &&
+		pr.raftLogSizeHint >= pr.store.opts.maxRaftLogBytesToForceCompact {
 		compactIdx = appliedIdx
 	} else {
 		compactIdx = replicatedIdx
