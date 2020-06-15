@@ -31,7 +31,11 @@ func (c *rpcCodec) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
 		value = pb.AcquireRequest()
 	}
 
-	protoc.MustUnmarshal(value, in.GetMarkedRemindData())
+	err := value.Unmarshal(in.GetMarkedRemindData())
+	if err != nil {
+		return false, nil, err
+	}
+
 	in.MarkedBytesReaded()
 	return true, value, nil
 }

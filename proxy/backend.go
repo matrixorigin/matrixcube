@@ -48,7 +48,7 @@ func (bc *backend) writeLoop() {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logger.Infof("backend %s write loop failed with %+v, restart later",
+				logger.Errorf("backend %s write loop failed with %+v, restart later",
 					bc.addr,
 					err)
 				bc.writeLoop()
