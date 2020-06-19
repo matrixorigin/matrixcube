@@ -156,7 +156,7 @@ func (d *applyDelegate) doExecCustomSplit(ctx *applyContext) *execResult {
 	d.ps.updatePeerState(d.shard, raftpb.PeerNormal, wb)
 	d.ps.updatePeerState(newShard, raftpb.PeerNormal, wb)
 	d.ps.writeInitialState(newShard.ID, wb)
-	err = d.store.MetadataStorage(d.shard.ID).Write(wb, false)
+	err = d.store.MetadataStorage().Write(wb, false)
 	if err != nil {
 		logger.Fatalf("shard %d save split shard failed, newShard=<%+v> errors:\n %+v",
 			d.shard.ID,
@@ -254,7 +254,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 			err)
 	}
 
-	err = d.ps.store.MetadataStorage(newShard.ID).Write(d.wb, false)
+	err = d.ps.store.MetadataStorage().Write(d.wb, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,

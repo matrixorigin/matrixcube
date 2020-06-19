@@ -35,7 +35,7 @@ func (s *store) ProphetBecomeFollower() {
 func (s *store) doBootstrapCluster() {
 	logger.Infof("create %d shards on bootstrap the cluster", s.opts.initShards)
 
-	data, err := s.cfg.MetadataStorages[0].Get(storeIdentKey)
+	data, err := s.cfg.MetadataStorage.Get(storeIdentKey)
 	if err != nil {
 		logger.Fatalf("load store meta failed with %+v", err)
 	}
@@ -65,7 +65,7 @@ func (s *store) doBootstrapCluster() {
 	logger.Infof("init local store with id: %d", id)
 
 	count := 0
-	err = s.cfg.MetadataStorages[0].Scan(minKey, maxKey, func([]byte, []byte) (bool, error) {
+	err = s.cfg.MetadataStorage.Scan(minKey, maxKey, func([]byte, []byte) (bool, error) {
 		count++
 		return false, nil
 	}, false)
@@ -79,7 +79,7 @@ func (s *store) doBootstrapCluster() {
 	v := make([]byte, 16, 16)
 	goetty.Uint64ToBytesTo(id, v)
 	goetty.Uint64ToBytesTo(s.opts.initShards, v[8:])
-	err = s.cfg.MetadataStorages[0].Set(storeIdentKey, v)
+	err = s.cfg.MetadataStorage.Set(storeIdentKey, v)
 	if err != nil {
 		logger.Fatal("save local store id failed with %+v", err)
 	}

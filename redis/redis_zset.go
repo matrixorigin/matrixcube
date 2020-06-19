@@ -28,7 +28,7 @@ func (h *handler) zadd(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZAdd(req.Key, score, args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZAdd(req.Key, score, args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -49,7 +49,7 @@ func (h *handler) zadd(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 func (h *handler) zcard(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisZSet(shard.ID).ZCard(req.Key)
+	value, err := h.getRedisZSetByGroup(shard.Group).ZCard(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -78,7 +78,7 @@ func (h *handler) zincrby(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZIncrBy(req.Key, args.Args[0], by)
+	value, err := h.getRedisZSetByGroup(shard.Group).ZIncrBy(req.Key, args.Args[0], by)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -101,7 +101,7 @@ func (h *handler) zrem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRem(req.Key, args.Args...)
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRem(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -131,7 +131,7 @@ func (h *handler) zremrangebylex(shard metapb.Shard, req *raftcmdpb.Request, att
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRemRangeByLex(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRemRangeByLex(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -166,7 +166,7 @@ func (h *handler) zremrangebyrank(shard metapb.Shard, req *raftcmdpb.Request, at
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRemRangeByRank(req.Key, start, stop)
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRemRangeByRank(req.Key, start, stop)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -189,7 +189,7 @@ func (h *handler) zremrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, a
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRemRangeByScore(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRemRangeByScore(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -212,7 +212,7 @@ func (h *handler) zscore(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZScore(req.Key, args.Args[0])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZScore(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -237,7 +237,7 @@ func (h *handler) zcount(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZCount(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZCount(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -260,7 +260,7 @@ func (h *handler) zlexcount(shard metapb.Shard, req *raftcmdpb.Request, attrs ma
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZLexCount(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZLexCount(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -295,7 +295,7 @@ func (h *handler) zrange(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRange(req.Key, start, stop)
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRange(req.Key, start, stop)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -319,7 +319,7 @@ func (h *handler) zrangebylex(shard metapb.Shard, req *raftcmdpb.Request, attrs 
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRangeByLex(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRangeByLex(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -342,7 +342,7 @@ func (h *handler) zrangebyscore(shard metapb.Shard, req *raftcmdpb.Request, attr
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRangeByScore(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRangeByScore(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -366,7 +366,7 @@ func (h *handler) zrank(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return resp
 	}
 
-	value, err := h.getRedisZSet(shard.ID).ZRank(req.Key, args.Args[0])
+	value, err := h.getRedisZSetByGroup(shard.Group).ZRank(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp

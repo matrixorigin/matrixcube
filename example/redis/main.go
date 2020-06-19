@@ -33,7 +33,8 @@ func main() {
 		log.Fatalf("create nemo failed with %+v", err)
 	}
 
-	store, err := beehive.CreateRaftStoreFromFile(*data, []storage.MetadataStorage{nemoStorage},
+	store, err := beehive.CreateRaftStoreFromFile(*data,
+		nemoStorage,
 		[]storage.DataStorage{nemoStorage})
 	if err != nil {
 		log.Fatalf("failed parse with %+v", err)

@@ -61,7 +61,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	if firstIndex == 0 {
 		startKey := getRaftLogKey(shardID, 0)
 		firstIndex = endIndex
-		key, _, err := pr.store.MetadataStorage(shardID).Seek(startKey)
+		key, _, err := pr.store.MetadataStorage().Seek(startKey)
 		if err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 		}
 	}
 
-	err := pr.store.MetadataStorage(shardID).Write(wb, false)
+	err := pr.store.MetadataStorage().Write(wb, false)
 	if err == nil {
 		logger.Debugf("shard %d raft log gc complete, entriesCount=<%d>",
 			shardID,
@@ -420,7 +420,7 @@ func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
 	state := d.applyState
 	state.AppliedIndex = entry.Index
 
-	err := d.store.MetadataStorage(d.shard.ID).Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
+	err := d.store.MetadataStorage().Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
 	if err != nil {
 		logger.Fatalf("shard %d apply empty entry failed, entry=<%s> errors:\n %+v",
 			d.shard.ID,
@@ -531,7 +531,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 		}
 	}
 
-	err = d.store.MetadataStorage(d.shard.ID).Write(d.ctx.raftStateWB, false)
+	err = d.store.MetadataStorage().Write(d.ctx.raftStateWB, false)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,

@@ -218,7 +218,7 @@ func (pr *peerReplica) mustDestroy() {
 			err)
 	}
 
-	err = pr.store.MetadataStorage(pr.shardID).Write(wb, false)
+	err = pr.store.MetadataStorage().Write(wb, false)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
 			pr.shardID,

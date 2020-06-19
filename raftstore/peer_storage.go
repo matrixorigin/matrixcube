@@ -105,7 +105,7 @@ func newPeerStorage(store *store, shard metapb.Shard) (*peerStorage, error) {
 }
 
 func (ps *peerStorage) initRaftState() error {
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(getRaftStateKey(ps.shard.ID))
+	v, err := ps.store.MetadataStorage().Get(getRaftStateKey(ps.shard.ID))
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (ps *peerStorage) initRaftState() error {
 }
 
 func (ps *peerStorage) initApplyState() error {
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(getApplyStateKey(ps.shard.ID))
+	v, err := ps.store.MetadataStorage().Get(getApplyStateKey(ps.shard.ID))
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (ps *peerStorage) initLastTerm() error {
 		return nil
 	}
 
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(getRaftLogKey(ps.shard.ID, lastIndex))
+	v, err := ps.store.MetadataStorage().Get(getRaftLogKey(ps.shard.ID, lastIndex))
 	if err != nil {
 		return err
 	}
@@ -276,7 +276,7 @@ func (ps *peerStorage) checkRange(low, high uint64) error {
 
 func (ps *peerStorage) loadLogEntry(index uint64) (etcdPB.Entry, error) {
 	key := getRaftLogKey(ps.shard.ID, index)
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(key)
+	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
 		logger.Errorf("shard %d load entry failed at %d with %+v",
 			ps.shard.ID,
@@ -299,7 +299,7 @@ func (ps *peerStorage) loadLocalState(job *task.Job) (*raftpb.ShardLocalState, e
 		return nil, task.ErrJobCancelled
 	}
 
-	return loadLocalState(ps.shard.ID, ps.store.MetadataStorage(ps.shard.ID), false)
+	return loadLocalState(ps.shard.ID, ps.store.MetadataStorage(), false)
 }
 
 func (ps *peerStorage) applySnapshot(job *task.Job) error {
@@ -320,7 +320,7 @@ func (ps *peerStorage) applySnapshot(job *task.Job) error {
 
 func (ps *peerStorage) loadApplyState() (*raftpb.RaftApplyState, error) {
 	key := getApplyStateKey(ps.shard.ID)
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(key)
+	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
 		logger.Errorf("shard %d load apply state failed with %d",
 			ps.shard.ID,
@@ -448,7 +448,7 @@ func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerStat
 		return wb.Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
 	}
 
-	return ps.store.MetadataStorage(shard.ID).Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+	return ps.store.MetadataStorage().Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
 func (ps *peerStorage) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
@@ -479,7 +479,7 @@ func (ps *peerStorage) deleteAllInRange(start, end []byte, job *task.Job) error 
 		return task.ErrJobCancelled
 	}
 
-	return ps.store.DataStorage(ps.shard.ID).RangeDelete(start, end)
+	return ps.store.DataStorageByGroup(ps.shard.Group).RangeDelete(start, end)
 }
 
 func compactRaftLog(shardID uint64, state *raftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
@@ -574,7 +574,7 @@ func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error
 	if low+1 == high {
 		// If election happens in inactive shards, they will just try
 		// to fetch one empty log.
-		v, err := ps.store.MetadataStorage(ps.shard.ID).Get(startKey)
+		v, err := ps.store.MetadataStorage().Get(startKey)
 		if err != nil {
 			return nil, err
 		}
@@ -593,7 +593,7 @@ func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error
 	}
 
 	endKey := getRaftLogKey(ps.shard.ID, high)
-	err = ps.store.MetadataStorage(ps.shard.ID).Scan(startKey, endKey, func(key, value []byte) (bool, error) {
+	err = ps.store.MetadataStorage().Scan(startKey, endKey, func(key, value []byte) (bool, error) {
 		e := etcdPB.Entry{}
 		protoc.MustUnmarshal(&e, value)
 
@@ -645,7 +645,7 @@ func (ps *peerStorage) Term(idx uint64) (uint64, error) {
 	}
 
 	key := getRaftLogKey(ps.shard.ID, idx)
-	v, err := ps.store.MetadataStorage(ps.shard.ID).Get(key)
+	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
 		return 0, err
 	}

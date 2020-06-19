@@ -20,7 +20,7 @@ func (h *handler) sadd(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisSet(shard.ID).SAdd(req.Key, args.Args...)
+	value, err := h.getRedisSetByGroup(shard.Group).SAdd(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -49,7 +49,7 @@ func (h *handler) srem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisSet(shard.ID).SRem(req.Key, args.Args...)
+	value, err := h.getRedisSetByGroup(shard.Group).SRem(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -69,7 +69,7 @@ func (h *handler) srem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 func (h *handler) scard(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisSet(shard.ID).SCard(req.Key)
+	value, err := h.getRedisSetByGroup(shard.Group).SCard(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -86,7 +86,7 @@ func (h *handler) scard(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 func (h *handler) spop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisSet(shard.ID).SPop(req.Key)
+	value, err := h.getRedisSetByGroup(shard.Group).SPop(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -105,7 +105,7 @@ func (h *handler) spop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 func (h *handler) smembers(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisSet(shard.ID).SMembers(req.Key)
+	value, err := h.getRedisSetByGroup(shard.Group).SMembers(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -128,7 +128,7 @@ func (h *handler) sismember(shard metapb.Shard, req *raftcmdpb.Request, attrs ma
 		return resp
 	}
 
-	value, err := h.getRedisSet(shard.ID).SIsMember(req.Key, args.Args[0])
+	value, err := h.getRedisSetByGroup(shard.Group).SIsMember(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp

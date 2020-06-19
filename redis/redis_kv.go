@@ -22,7 +22,7 @@ func (h *handler) set(shard metapb.Shard, req *raftcmdpb.Request, attrs map[stri
 		return 0, 0, resp
 	}
 
-	err := h.getRedisKV(shard.ID).Set(req.Key, args.Args[0], 0)
+	err := h.getRedisKVByGroup(shard.Group).Set(req.Key, args.Args[0], 0)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -49,7 +49,7 @@ func (h *handler) incrBy(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisKV(shard.ID).IncrBy(req.Key, incrment)
+	value, err := h.getRedisKVByGroup(shard.Group).IncrBy(req.Key, incrment)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -65,7 +65,7 @@ func (h *handler) incrBy(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 
 func (h *handler) incr(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
-	value, err := h.getRedisKV(shard.ID).IncrBy(req.Key, 1)
+	value, err := h.getRedisKVByGroup(shard.Group).IncrBy(req.Key, 1)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -95,7 +95,7 @@ func (h *handler) decrby(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisKV(shard.ID).DecrBy(req.Key, incrment)
+	value, err := h.getRedisKVByGroup(shard.Group).DecrBy(req.Key, incrment)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -111,7 +111,7 @@ func (h *handler) decrby(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 
 func (h *handler) decr(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
-	value, err := h.getRedisKV(shard.ID).DecrBy(req.Key, 1)
+	value, err := h.getRedisKVByGroup(shard.Group).DecrBy(req.Key, 1)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -135,7 +135,7 @@ func (h *handler) getset(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisKV(shard.ID).GetSet(req.Key, args.Args[0])
+	value, err := h.getRedisKVByGroup(shard.Group).GetSet(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -159,7 +159,7 @@ func (h *handler) append(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	n, err := h.getRedisKV(shard.ID).Append(req.Key, args.Args[0])
+	n, err := h.getRedisKVByGroup(shard.Group).Append(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -183,7 +183,7 @@ func (h *handler) setnx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return 0, 0, resp
 	}
 
-	n, err := h.getRedisKV(shard.ID).SetNX(req.Key, args.Args[0])
+	n, err := h.getRedisKVByGroup(shard.Group).SetNX(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -207,7 +207,7 @@ func (h *handler) get(shard metapb.Shard, req *raftcmdpb.Request, attrs map[stri
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
 
-	value, err := h.getRedisKV(shard.ID).Get(req.Key)
+	value, err := h.getRedisKVByGroup(shard.Group).Get(req.Key)
 	if err != nil {
 		resp.Value = protoc.MustMarshal(&redispb.RedisResponse{
 			Type:        redispb.ErrorResp,
@@ -228,7 +228,7 @@ func (h *handler) strlen(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 	args := &redispb.RedisArgs{}
 	protoc.MustUnmarshal(args, req.Cmd)
 
-	value, err := h.getRedisKV(shard.ID).StrLen(req.Key)
+	value, err := h.getRedisKVByGroup(shard.Group).StrLen(req.Key)
 	if err != nil {
 		resp.Value = protoc.MustMarshal(&redispb.RedisResponse{
 			Type:        redispb.ErrorResp,

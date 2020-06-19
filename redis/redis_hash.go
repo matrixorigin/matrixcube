@@ -22,7 +22,7 @@ func (h *handler) hset(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HSet(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisHashByGroup(shard.Group).HSet(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -49,7 +49,7 @@ func (h *handler) hdel(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HDel(req.Key, args.Args...)
+	value, err := h.getRedisHashByGroup(shard.Group).HDel(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -91,7 +91,7 @@ func (h *handler) hmset(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		writtenBytes += uint64(len(values[i]))
 	}
 
-	err := h.getRedisHash(shard.ID).HMSet(req.Key, fields, values)
+	err := h.getRedisHashByGroup(shard.Group).HMSet(req.Key, fields, values)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -111,7 +111,7 @@ func (h *handler) hsetnx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HSetNX(req.Key, args.Args[0], args.Args[1])
+	value, err := h.getRedisHashByGroup(shard.Group).HSetNX(req.Key, args.Args[0], args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -144,7 +144,7 @@ func (h *handler) hincrby(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HIncrBy(req.Key, args.Args[0], incrment)
+	value, err := h.getRedisHashByGroup(shard.Group).HIncrBy(req.Key, args.Args[0], incrment)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -169,7 +169,7 @@ func (h *handler) hget(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HGet(req.Key, args.Args[0])
+	value, err := h.getRedisHashByGroup(shard.Group).HGet(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -192,7 +192,7 @@ func (h *handler) hexists(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 		return resp
 	}
 
-	exists, err := h.getRedisHash(shard.ID).HExists(req.Key, args.Args[0])
+	exists, err := h.getRedisHashByGroup(shard.Group).HExists(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -213,7 +213,7 @@ func (h *handler) hexists(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 func (h *handler) hkeys(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard.ID).HKeys(req.Key)
+	value, err := h.getRedisHashByGroup(shard.Group).HKeys(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -229,7 +229,7 @@ func (h *handler) hkeys(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 func (h *handler) hvals(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard.ID).HVals(req.Key)
+	value, err := h.getRedisHashByGroup(shard.Group).HVals(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -245,7 +245,7 @@ func (h *handler) hvals(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 func (h *handler) hgetall(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard.ID).HGetAll(req.Key)
+	value, err := h.getRedisHashByGroup(shard.Group).HGetAll(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -274,7 +274,7 @@ func (h *handler) hscanget(shard metapb.Shard, req *raftcmdpb.Request, attrs map
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HScanGet(req.Key, args.Args[0], int(count))
+	value, err := h.getRedisHashByGroup(shard.Group).HScanGet(req.Key, args.Args[0], int(count))
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -290,7 +290,7 @@ func (h *handler) hscanget(shard metapb.Shard, req *raftcmdpb.Request, attrs map
 func (h *handler) hlen(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisHash(shard.ID).HLen(req.Key)
+	value, err := h.getRedisHashByGroup(shard.Group).HLen(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -313,7 +313,7 @@ func (h *handler) hmget(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return resp
 	}
 
-	value, errs := h.getRedisHash(shard.ID).HMGet(req.Key, args.Args...)
+	value, errs := h.getRedisHashByGroup(shard.Group).HMGet(req.Key, args.Args...)
 	if len(errs) > 0 {
 		errors := make([][]byte, len(errs))
 		for idx, err := range errs {
@@ -344,7 +344,7 @@ func (h *handler) hstrlen(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 		return resp
 	}
 
-	value, err := h.getRedisHash(shard.ID).HStrLen(req.Key, args.Args[0])
+	value, err := h.getRedisHashByGroup(shard.Group).HStrLen(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
