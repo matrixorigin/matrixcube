@@ -167,7 +167,7 @@ func (m *defaultSnapshotManager) Create(msg *raftpb.SnapshotMessage) error {
 	gzPath := m.getPathOfSnapKeyGZ(msg)
 	start := encStartKey(&msg.Header.Shard)
 	end := encEndKey(&msg.Header.Shard)
-	db := m.s.DataStorage(msg.Header.Shard.ID)
+	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
 
 	if !exist(gzPath) {
 		if !exist(path) {
@@ -371,7 +371,7 @@ func (m *defaultSnapshotManager) Apply(msg *raftpb.SnapshotMessage) error {
 	defer os.RemoveAll(dir)
 
 	// apply snapshot of data
-	err = m.s.DataStorage(msg.Header.Shard.ID).ApplySnapshot(dir)
+	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(dir)
 	if err != nil {
 		return err
 	}

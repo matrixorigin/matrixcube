@@ -139,24 +139,24 @@ func (h *handler) AddWriteFunc(cmd string, cmdType uint64, cb raftstore.WriteCom
 	h.store.RegisterWriteFunc(cmdType, cb)
 }
 
-func (h *handler) getRedisKV(shard uint64) nemo.RedisKV {
-	return h.store.DataStorage(shard).(*nemo.Storage).RedisKV()
+func (h *handler) getRedisKVByGroup(group uint64) nemo.RedisKV {
+	return h.store.DataStorageByGroup(group).(*nemo.Storage).RedisKV()
 }
 
-func (h *handler) getRedisSet(shard uint64) nemo.RedisSet {
-	return h.store.DataStorage(shard).(*nemo.Storage).RedisSet()
+func (h *handler) getRedisSetByGroup(group uint64) nemo.RedisSet {
+	return h.store.DataStorageByGroup(group).(*nemo.Storage).RedisSet()
 }
 
-func (h *handler) getRedisZSet(shard uint64) nemo.RedisZSet {
-	return h.store.DataStorage(shard).(*nemo.Storage).RedisZSet()
+func (h *handler) getRedisZSetByGroup(group uint64) nemo.RedisZSet {
+	return h.store.DataStorageByGroup(group).(*nemo.Storage).RedisZSet()
 }
 
-func (h *handler) getRedisHash(shard uint64) nemo.RedisHash {
-	return h.store.DataStorage(shard).(*nemo.Storage).RedisHash()
+func (h *handler) getRedisHashByGroup(group uint64) nemo.RedisHash {
+	return h.store.DataStorageByGroup(group).(*nemo.Storage).RedisHash()
 }
 
-func (h *handler) getRedisList(shard uint64) nemo.RedisList {
-	return h.store.DataStorage(shard).(*nemo.Storage).RedisList()
+func (h *handler) getRedisListByGroup(group uint64) nemo.RedisList {
+	return h.store.DataStorageByGroup(group).(*nemo.Storage).RedisList()
 }
 
 func errorResp(err error) []byte {

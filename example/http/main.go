@@ -39,7 +39,7 @@ func main() {
 	dataStorage := mem.NewStorage()
 	metaStore, _ := badger.NewStorage(fmt.Sprintf("%s/data", *data))
 	store, err := beehive.CreateRaftStoreFromFile(*data,
-		[]storage.MetadataStorage{metaStore},
+		metaStore,
 		[]storage.DataStorage{dataStorage})
 	if err != nil {
 		log.Fatalf("failed parse with %+v", err)

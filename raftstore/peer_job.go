@@ -242,7 +242,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 	var size uint64
 	var splitKey []byte
 
-	size, splitKey, err := pr.store.DataStorage(pr.shardID).SplitCheck(startKey, endKey, pr.store.opts.shardCapacityBytes)
+	size, splitKey, err := pr.store.DataStorageByGroup(pr.ps.shard.Group).SplitCheck(startKey, endKey, pr.store.opts.shardCapacityBytes)
 	if err != nil {
 		logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
 			pr.shardID,

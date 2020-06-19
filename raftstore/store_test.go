@@ -33,11 +33,11 @@ func createTestStore(name string) *store {
 
 	m := mem.NewStorage()
 	return NewStore(Cfg{
-		Name:             name,
-		RaftAddr:         fmt.Sprintf("127.0.0.1:%d", p1),
-		RPCAddr:          fmt.Sprintf("127.0.0.1:%d", p2),
-		MetadataStorages: []storage.MetadataStorage{m},
-		DataStorages:     []storage.DataStorage{m},
+		Name:            name,
+		RaftAddr:        fmt.Sprintf("127.0.0.1:%d", p1),
+		RPCAddr:         fmt.Sprintf("127.0.0.1:%d", p2),
+		MetadataStorage: m,
+		DataStorages:    []storage.DataStorage{m},
 	}, WithDataPath(data)).(*store)
 }
 

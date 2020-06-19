@@ -28,7 +28,7 @@ func (h *handler) linsert(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LInsert(req.Key, int(pos), args.Args[1], args.Args[2])
+	value, err := h.getRedisListByGroup(shard.Group).LInsert(req.Key, int(pos), args.Args[1], args.Args[2])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -49,7 +49,7 @@ func (h *handler) linsert(shard metapb.Shard, req *raftcmdpb.Request, attrs map[
 func (h *handler) lpop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisList(shard.ID).LPop(req.Key)
+	value, err := h.getRedisListByGroup(shard.Group).LPop(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -72,7 +72,7 @@ func (h *handler) lpush(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LPush(req.Key, args.Args...)
+	value, err := h.getRedisListByGroup(shard.Group).LPush(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -102,7 +102,7 @@ func (h *handler) lpushx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LPushX(req.Key, args.Args[0])
+	value, err := h.getRedisListByGroup(shard.Group).LPushX(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -138,7 +138,7 @@ func (h *handler) lrem(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LRem(req.Key, count, args.Args[1])
+	value, err := h.getRedisListByGroup(shard.Group).LRem(req.Key, count, args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -168,7 +168,7 @@ func (h *handler) lset(shard metapb.Shard, req *raftcmdpb.Request, attrs map[str
 		return 0, 0, resp
 	}
 
-	err = h.getRedisList(shard.ID).LSet(req.Key, index, args.Args[1])
+	err = h.getRedisListByGroup(shard.Group).LSet(req.Key, index, args.Args[1])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -201,7 +201,7 @@ func (h *handler) ltrim(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return 0, 0, resp
 	}
 
-	err = h.getRedisList(shard.ID).LTrim(req.Key, begin, end)
+	err = h.getRedisListByGroup(shard.Group).LTrim(req.Key, begin, end)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -214,7 +214,7 @@ func (h *handler) ltrim(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 func (h *handler) rpop(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) (uint64, int64, *raftcmdpb.Response) {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisList(shard.ID).RPop(req.Key)
+	value, err := h.getRedisListByGroup(shard.Group).RPop(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -237,7 +237,7 @@ func (h *handler) rpush(shard metapb.Shard, req *raftcmdpb.Request, attrs map[st
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).RPush(req.Key, args.Args...)
+	value, err := h.getRedisListByGroup(shard.Group).RPush(req.Key, args.Args...)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -267,7 +267,7 @@ func (h *handler) rpushx(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return 0, 0, resp
 	}
 
-	value, err := h.getRedisList(shard.ID).RPushX(req.Key, args.Args[0])
+	value, err := h.getRedisListByGroup(shard.Group).RPushX(req.Key, args.Args[0])
 	if err != nil {
 		resp.Value = errorResp(err)
 		return 0, 0, resp
@@ -305,7 +305,7 @@ func (h *handler) lindex(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LIndex(req.Key, index)
+	value, err := h.getRedisListByGroup(shard.Group).LIndex(req.Key, index)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -321,7 +321,7 @@ func (h *handler) lindex(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 func (h *handler) llen(shard metapb.Shard, req *raftcmdpb.Request, attrs map[string]interface{}) *raftcmdpb.Response {
 	resp := pb.AcquireResponse()
 
-	value, err := h.getRedisList(shard.ID).LLen(req.Key)
+	value, err := h.getRedisListByGroup(shard.Group).LLen(req.Key)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp
@@ -356,7 +356,7 @@ func (h *handler) lrange(shard metapb.Shard, req *raftcmdpb.Request, attrs map[s
 		return resp
 	}
 
-	value, err := h.getRedisList(shard.ID).LRange(req.Key, start, end)
+	value, err := h.getRedisListByGroup(shard.Group).LRange(req.Key, start, end)
 	if err != nil {
 		resp.Value = errorResp(err)
 		return resp

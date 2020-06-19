@@ -103,7 +103,7 @@ func (c *cfg) getLabels() []metapb.Label {
 
 // CreateRaftStoreFromFile create raftstore from a toml configuration file.
 func CreateRaftStoreFromFile(dataPath string,
-	metadataStorages []storage.MetadataStorage,
+	metadataStorage storage.MetadataStorage,
 	dataStorages []storage.DataStorage,
 	opts ...raftstore.Option) (raftstore.Store, error) {
 	if !flag.Parsed() {
@@ -256,11 +256,11 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	metric.StartPush(c.Metric)
 	return raftstore.NewStore(raftstore.Cfg{
-		Name:             c.Name,
-		RaftAddr:         c.RaftAddr,
-		RPCAddr:          c.RPCAddr,
-		MetadataStorages: metadataStorages,
-		DataStorages:     dataStorages,
+		Name:            c.Name,
+		RaftAddr:        c.RaftAddr,
+		RPCAddr:         c.RPCAddr,
+		MetadataStorage: metadataStorage,
+		DataStorages:    dataStorages,
 	}, opts...), nil
 }
 
