@@ -26,11 +26,18 @@ func (s *store) handleSplitCheck() {
 	}
 
 	s.foreachPR(func(pr *peerReplica) bool {
-		if pr.supportSplit() &&
-			pr.isLeader() &&
-			pr.sizeDiffHint >= s.opts.shardSplitCheckBytes {
-			pr.addAction(checkSplitAction)
+		if s.opts.customSplitCheckFunc == nil {
+			if pr.supportSplit() &&
+				pr.isLeader() &&
+				pr.sizeDiffHint >= s.opts.shardSplitCheckBytes {
+				pr.addAction(checkSplitAction)
+			}
+		} else {
+			if _, ok := s.opts.customSplitCheckFunc(pr.ps.shard); ok {
+				pr.addAction(checkSplitAction)
+			}
 		}
+
 		return true
 	})
 }
