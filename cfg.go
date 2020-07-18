@@ -308,6 +308,10 @@ func getProphetOptions(c *cfg) ([]prophet.Option, error) {
 		opts = append(opts, prophet.WithMaxRebalanceReplica(c.Prophet.MaxRebalanceReplica))
 	}
 
+	if c.Prophet.CountResourceReplicas > 0 {
+		opts = append(opts, prophet.WithCountResourceReplicas(c.Prophet.CountResourceReplicas))
+	}
+
 	if c.Prophet.MaxScheduleReplica > 0 {
 		opts = append(opts, prophet.WithMaxScheduleReplica(c.Prophet.MaxScheduleReplica))
 	}
