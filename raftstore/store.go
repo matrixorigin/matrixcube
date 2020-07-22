@@ -1072,7 +1072,8 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 		}
 	}
 
-	if !pr.isLeader() {
+	allowFollow := req.AdminRequest == nil && len(req.Requests) > 0 && req.Requests[0].AllowFollower
+	if !allowFollow && !pr.isLeader() {
 		err := new(errorpb.NotLeader)
 		err.ShardID = shardID
 		err.Leader, _ = s.getPeer(pr.getLeaderPeerID())
