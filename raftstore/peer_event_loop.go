@@ -126,15 +126,6 @@ func (pr *peerReplica) doubleCheck() bool {
 }
 
 func (pr *peerReplica) handleEvent() bool {
-	defer func() {
-		if err := recover(); err != nil {
-			logger.Errorf("shard %d hanele event with error %+v, destory it.",
-				pr.shardID,
-				err)
-			pr.store.doDestroy(pr.shardID, pr.peer)
-		}
-	}()
-
 	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
 		if !pr.doubleCheck() {
 			return false
