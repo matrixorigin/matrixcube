@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	logger           = log.NewLoggerWithPrefix("[beehive-proxy]")
-	decoder, encoder = raftstore.CreateRPCCliendSideCodec()
+	logger = log.NewLoggerWithPrefix("[beehive-proxy]")
 )
 
 var (
@@ -198,6 +197,7 @@ func (p *shardsProxy) getConnLocked(addr string) *backend {
 }
 
 func (p *shardsProxy) createConn(addr string) *backend {
+	decoder, encoder := p.store.CreateRPCCliendSideCodec()
 	bc := newBackend(p, addr, goetty.NewConnector(addr,
 		goetty.WithClientConnectTimeout(defaultConnectTimeout),
 		goetty.WithClientDecoder(decoder),
