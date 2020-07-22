@@ -28,6 +28,14 @@ type Router interface {
 	RandomPeerAddress(uint64) string
 }
 
+type op struct {
+	value uint64
+}
+
+func (o *op) next() uint64 {
+	return atomic.AddUint64(&o.value, 1)
+}
+
 type defaultRouter struct {
 	pd          prophet.Prophet
 	watcher     *prophet.Watcher
@@ -41,7 +49,7 @@ type defaultRouter struct {
 	stores                    sync.Map // store id -> metapb.Store
 	shards                    sync.Map // shard id -> metapb.Shard
 	missingStoreLeaderChanged sync.Map //
-	opts                      sync.Map // shard id -> ops
+	opts                      sync.Map // shard id -> *op
 }
 
 func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc) Router {
@@ -103,11 +111,18 @@ func (r *defaultRouter) RandomPeerAddress(id uint64) string {
 }
 
 func (r *defaultRouter) selectStore(shard *metapb.Shard) uint64 {
-	r.opts.LoadOrStore(shard.ID, uint64(0))
-	v, _ := r.opts.Load(shard.ID)
-	op := v.(uint64)
+	var ops *op
+	if v, ok := r.opts.Load(shard.ID); ok {
+		ops = v.(*op)
+	} else {
+		ops = &op{}
+		v, exists := r.opts.LoadOrStore(shard.ID, ops)
+		if exists {
+			ops = v.(*op)
+		}
+	}
 
-	return shard.Peers[int(atomic.AddUint64(&op, 1))%len(shard.Peers)].StoreID
+	return shard.Peers[int(ops.next())%len(shard.Peers)].StoreID
 }
 
 func (r *defaultRouter) searchShard(group uint64, key []byte) metapb.Shard {
