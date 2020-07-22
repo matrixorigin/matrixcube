@@ -8,16 +8,8 @@ import (
 )
 
 var (
-	rc         = &rpcCodec{}
-	rpcDecoder = goetty.NewIntLengthFieldBasedDecoder(rc)
-	rpcEncoder = goetty.NewIntLengthFieldBasedEncoder(rc)
+	rc = &rpcCodec{}
 )
-
-// CreateRPCCliendSideCodec returns the rpc codec at client side
-func CreateRPCCliendSideCodec() (goetty.Decoder, goetty.Encoder) {
-	v := &rpcCodec{clientSide: true}
-	return goetty.NewIntLengthFieldBasedDecoder(v), goetty.NewIntLengthFieldBasedEncoder(v)
-}
 
 type rpcCodec struct {
 	clientSide bool

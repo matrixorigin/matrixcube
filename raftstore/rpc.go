@@ -26,6 +26,9 @@ type defaultRPC struct {
 }
 
 func newRPC(store *store) RPC {
+	rpcDecoder := goetty.NewIntLengthFieldBasedDecoderSize(rc, 0, 0, 0, store.opts.maxProposalBytes*2)
+	rpcEncoder := goetty.NewIntLengthFieldBasedEncoder(rc)
+
 	rpc := &defaultRPC{
 		store: store,
 		server: goetty.NewServer(store.cfg.RPCAddr,

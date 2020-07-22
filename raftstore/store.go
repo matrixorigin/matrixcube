@@ -112,6 +112,8 @@ type Store interface {
 	MustAllocID() uint64
 	// Prophet return current prophet instance
 	Prophet() prophet.Prophet
+	// CreateRPCCliendSideCodec returns the rpc codec at client side
+	CreateRPCCliendSideCodec() (goetty.Decoder, goetty.Encoder)
 }
 
 const (
@@ -297,7 +299,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 	if req.ToShard > 0 {
 		pr = s.getPR(req.ToShard, !req.AllowFollower)
 		if pr == nil {
-			respStoreNotMatch(err, req, s.cb)
+			respStoreNotMatch(errStoreNotMatch, req, s.cb)
 			return nil
 		}
 	} else {
@@ -440,6 +442,12 @@ func (s *store) MustAllocID() uint64 {
 
 func (s *store) Prophet() prophet.Prophet {
 	return s.pd
+}
+
+func (s *store) CreateRPCCliendSideCodec() (goetty.Decoder, goetty.Encoder) {
+	v := &rpcCodec{clientSide: true}
+	return goetty.NewIntLengthFieldBasedDecoderSize(v, 0, 0, 0, s.opts.maxProposalBytes*2),
+		goetty.NewIntLengthFieldBasedEncoder(v)
 }
 
 func (s *store) initWorkers() {
