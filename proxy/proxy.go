@@ -139,7 +139,7 @@ func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raf
 }
 
 func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
-	if rsp.Type == raftcmdpb.Invalid {
+	if rsp.Type == raftcmdpb.Invalid && rsp.Error.Message != "" {
 		p.errorDoneCB(rsp.OriginRequest, errors.New(rsp.Error.String()))
 		return
 	}
