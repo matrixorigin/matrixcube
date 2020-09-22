@@ -51,7 +51,7 @@ type CommandWriteBatch interface {
 	Add(uint64, *raftcmdpb.Request, map[string]interface{}) (bool, *raftcmdpb.Response, error)
 	// Execute excute the batch, and return the write bytes, and diff bytes that used to
 	// modify the size of the current shard
-	Execute() (uint64, int64, error)
+	Execute(metapb.Shard) (uint64, int64, error)
 	// Reset reset the current batch for reuse
 	Reset()
 }
@@ -62,7 +62,7 @@ type CommandReadBatch interface {
 	// otherwrise false
 	Add(uint64, *raftcmdpb.Request, map[string]interface{}) (bool, error)
 	// Execute excute the batch, and return the responses
-	Execute() ([]*raftcmdpb.Response, error)
+	Execute(metapb.Shard) ([]*raftcmdpb.Response, error)
 	// Reset reset the current batch for reuse
 	Reset()
 }

@@ -256,9 +256,10 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		if len(splitKey) == 0 {
 			pr.sizeDiffHint = size
 			ok = false
+		} else {
+			ok = true
 		}
 
-		ok = true
 	} else {
 		splitKey, ok = pr.store.opts.customSplitCheckFunc(pr.ps.shard)
 		if ok {

@@ -313,7 +313,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 	}
 
 	if len(pr.requestIdxs) > 0 {
-		responses, err := pr.readCommandBatch.Execute()
+		responses, err := pr.readCommandBatch.Execute(pr.ps.shard)
 		if err != nil {
 			logger.Fatalf("shard %s exec read batch failed with %+v",
 				pr.shardID,
