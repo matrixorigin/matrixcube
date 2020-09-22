@@ -491,7 +491,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 	}
 
 	if d.ctx.dataWB != nil {
-		writeBytes, diffBytes, err = d.ctx.dataWB.Execute()
+		writeBytes, diffBytes, err = d.ctx.dataWB.Execute(d.shard)
 		if err != nil {
 			logger.Fatalf("shard %d execute batch failed with %+v",
 				d.shard.ID,

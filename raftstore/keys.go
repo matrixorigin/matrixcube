@@ -50,6 +50,9 @@ var (
 	dataPrefix        byte = 'z'
 	dataPrefixKey          = []byte{dataPrefix}
 	dataPrefixKeySize      = len(dataPrefixKey)
+
+	// DataPrefixSize data prefix size
+	DataPrefixSize = dataPrefixKeySize + 8
 )
 
 var storeIdentKey = []byte{localPrefix, 0x01}
@@ -169,13 +172,19 @@ func getIDKey(shardID uint64, suffix byte, extraCap int, extra uint64) []byte {
 
 func getDataKey0(group uint64, key []byte, buf *goetty.ByteBuf) []byte {
 	buf.Write(dataPrefixKey)
-	buf.WriteUint64(group)
+	buf.WriteUInt64(group)
 	if len(key) > 0 {
 		buf.Write(key)
 	}
-	_, data, _ := buf.ReadBytes(buf.Readable())
 
+	_, data, _ := buf.ReadBytes(buf.Readable())
 	return data
+}
+
+// WriteGroupPrefix write group prefix
+func WriteGroupPrefix(group uint64, key []byte) {
+	copy(key, dataPrefixKey)
+	goetty.Uint64ToBytesTo(group, key[dataPrefixKeySize:])
 }
 
 // EncodeDataKey encode data key
@@ -188,7 +197,7 @@ func EncodeDataKey(group uint64, key []byte) []byte {
 
 // DecodeDataKey decode data key
 func DecodeDataKey(key []byte) []byte {
-	return key[len(dataPrefixKey)+8:]
+	return key[DataPrefixSize:]
 }
 
 func getDataMaxKey(group uint64) []byte {
