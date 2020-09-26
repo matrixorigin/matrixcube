@@ -266,6 +266,13 @@ type applyDelegate struct {
 	requests []int
 }
 
+func (d *applyDelegate) resetAttrs() {
+	for key := range d.attrs {
+		delete(d.attrs, key)
+	}
+	d.attrs[attrBuf] = d.buf
+}
+
 func (d *applyDelegate) clearAllCommandsAsStale() {
 	for _, c := range d.pendingCMDs {
 		d.notifyStaleCMD(c)

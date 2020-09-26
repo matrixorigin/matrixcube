@@ -61,6 +61,7 @@ type peerReplica struct {
 	stopOnce sync.Once
 
 	requestIdxs      []int
+	requestBatchIdxs []int
 	readCommandBatch CommandReadBatch
 	readyCtx         *readyContext
 	attrs            map[string]interface{}
@@ -137,7 +138,6 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 
 	pr.buf = goetty.NewByteBuf(256)
 	pr.attrs = make(map[string]interface{})
-	pr.attrs[AttrBuf] = pr.buf
 	if store.opts.readBatchFunc != nil {
 		pr.readCommandBatch = store.opts.readBatchFunc()
 	}
@@ -265,10 +265,20 @@ func (pr *peerReplica) stopEventLoop() {
 	pr.events.Dispose()
 }
 
+func (pr *peerReplica) resetAttrs() {
+	for key := range pr.attrs {
+		delete(pr.attrs, key)
+	}
+	pr.attrs[attrBuf] = pr.buf
+}
+
 func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
+
+	pr.resetAttrs()
 	pr.buf.Clear()
 	pr.requestIdxs = pr.requestIdxs[:0]
+	pr.requestBatchIdxs = pr.requestBatchIdxs[:0]
 
 	if pr.readCommandBatch != nil {
 		pr.readCommandBatch.Reset()
@@ -290,7 +300,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 			}
 
 			if added {
-				pr.requestIdxs = append(pr.requestIdxs, idx)
+				pr.requestBatchIdxs = append(pr.requestBatchIdxs, idx)
 
 				if logger.DebugEnabled() {
 					logger.Debugf("%s added to read batch", hex.EncodeToString(req.ID))
@@ -299,20 +309,10 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 			}
 		}
 
-		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			resp.Responses[idx] = h(pr.ps.shard, req, pr.attrs)
-
-			if logger.DebugEnabled() {
-				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
-			}
-		} else {
-			if logger.DebugEnabled() {
-				logger.Debugf("%s missing handle func", hex.EncodeToString(req.ID))
-			}
-		}
+		pr.requestIdxs = append(pr.requestIdxs, idx)
 	}
 
-	if len(pr.requestIdxs) > 0 {
+	if len(pr.requestBatchIdxs) > 0 {
 		responses, err := pr.readCommandBatch.Execute(pr.ps.shard)
 		if err != nil {
 			logger.Fatalf("shard %s exec read batch failed with %+v",
@@ -321,7 +321,24 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 		}
 
 		for idx, response := range responses {
-			resp.Responses[pr.requestIdxs[idx]] = response
+			resp.Responses[pr.requestBatchIdxs[idx]] = response
+		}
+	}
+
+	if len(pr.requestIdxs) > 0 {
+		pr.attrs[attrRequestsTotal] = len(pr.requestIdxs) - 1
+		for idx, which := range pr.requestIdxs {
+			req := c.req.Requests[which]
+			pr.attrs[attrRequestsCurrent] = idx
+			if h, ok := pr.store.readHandlers[req.CustemType]; ok {
+				resp.Responses[which] = h(pr.ps.shard, req, pr.attrs)
+
+				if logger.DebugEnabled() {
+					logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
+				}
+			} else {
+				logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
+			}
 		}
 	}
 
