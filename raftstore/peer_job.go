@@ -38,7 +38,6 @@ func (pr *peerReplica) startRegistrationJob() {
 		ctx:              newApplyContext(pr.store),
 		attrs:            make(map[string]interface{}),
 	}
-	delegate.attrs[AttrBuf] = delegate.buf
 
 	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {
 		return pr.doRegistrationJob(delegate)
