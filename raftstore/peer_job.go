@@ -91,6 +91,10 @@ func (pr *peerReplica) startSplitCheckJob() error {
 	startKey := encStartKey(&shard)
 	endKey := encEndKey(&shard)
 
+	logger.Infof("shard %d start split check job from %+v to %+v",
+		pr.ps.shard.ID,
+		startKey,
+		endKey)
 	err := pr.store.addSplitJob(func() error {
 		return pr.doSplitCheck(epoch, startKey, endKey)
 	})
@@ -271,7 +275,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		return nil
 	}
 
-	logger.Infof("shard %d try to split, size=<%d> splitKey=<%+v>",
+	logger.Infof("shard %d try to split, size %d bytes splitKey %+v",
 		pr.shardID,
 		size,
 		splitKey)

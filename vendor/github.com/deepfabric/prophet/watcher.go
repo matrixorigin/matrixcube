@@ -275,20 +275,32 @@ func (wn *watcherNotifier) stop() {
 }
 
 func (wn *watcherNotifier) start() {
-	for {
-		evt, ok := <-wn.eventC
-		if !ok {
-			log.Infof("watcher notifer exited")
-			return
-		}
+	go func() {
+		defer func() {
+			if err := recover(); err == nil {
+				log.Errorf("watcher notify failed with %+v, restart later", err)
+				wn.start()
+			}
+		}()
 
-		log.Debugf("new event: %+v", evt)
-		wn.watchers.Range(func(key, value interface{}) bool {
-			wt := value.(*watcher)
-			wt.notify(evt)
-			return true
-		})
-	}
+		for {
+			evt, ok := <-wn.eventC
+			if !ok {
+				log.Infof("watcher notifer exited")
+				return
+			}
+
+			log.Debugf("new event: %+v", evt)
+			wn.RLock()
+			wn.watchers.Range(func(key, value interface{}) bool {
+				wt := value.(*watcher)
+				wt.notify(evt)
+				return true
+			})
+			wn.RUnlock()
+		}
+	}()
+
 }
 
 type snap struct {

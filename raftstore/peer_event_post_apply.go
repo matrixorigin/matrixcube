@@ -139,6 +139,9 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 
 func (pr *peerReplica) doApplySplit(result *splitResult) {
 	pr.ps.shard = result.left
+	logger.Infof("shard %d update to %+v by post applt split",
+		pr.ps.shard.ID,
+		pr.ps.shard)
 
 	// add new shard peers to cache
 	for _, p := range result.right.Peers {

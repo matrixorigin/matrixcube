@@ -60,7 +60,7 @@ func (p *defaultProphet) enableLeader() {
 	p.coordinator.start()
 
 	p.wn = newWatcherNotifier(p.rt)
-	go p.wn.start()
+	p.wn.start()
 
 	// now, we are leader
 	atomic.StoreInt64(&p.leaderFlag, 1)
