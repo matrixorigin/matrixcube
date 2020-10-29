@@ -240,6 +240,7 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, []b
 			if !found && total >= size {
 				found = true
 				splitKey = k
+				break
 			}
 		}
 		return nil
