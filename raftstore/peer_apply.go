@@ -133,6 +133,7 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		return err
 	}
 
+	pr.store.opts.shardStateAware.SnapshotApplied(pr.ps.shard)
 	pr.stopRaftTick = false
 	logger.Infof("shard %d apply snapshot data complete, %+v",
 		pr.shardID,
