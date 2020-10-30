@@ -42,6 +42,8 @@ type ShardStateAware interface {
 	BecomeLeader(metapb.Shard)
 	// BecomeLeader the shard was become follower on the current store
 	BecomeFollower(metapb.Shard)
+	// SnapshotApplied snapshot applied
+	SnapshotApplied(metapb.Shard)
 }
 
 // CommandWriteBatch command write batch

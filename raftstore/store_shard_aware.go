@@ -23,3 +23,7 @@ func (s *store) BecomeLeader(metapb.Shard) {
 func (s *store) BecomeFollower(metapb.Shard) {
 
 }
+
+func (s *store) SnapshotApplied(metapb.Shard) {
+
+}
