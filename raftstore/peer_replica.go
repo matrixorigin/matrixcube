@@ -139,7 +139,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.buf = goetty.NewByteBuf(256)
 	pr.attrs = make(map[string]interface{})
 	if store.opts.readBatchFunc != nil {
-		pr.readCommandBatch = store.opts.readBatchFunc()
+		pr.readCommandBatch = store.opts.readBatchFunc(pr.shardID)
 	}
 	pr.rn = rn
 	pr.events = task.NewRingBuffer(2)

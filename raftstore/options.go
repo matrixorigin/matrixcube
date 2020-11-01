@@ -88,8 +88,8 @@ type options struct {
 	snapshotManager               SnapshotManager
 	trans                         Transport
 	rpc                           RPC
-	writeBatchFunc                func() CommandWriteBatch
-	readBatchFunc                 func() CommandReadBatch
+	writeBatchFunc                func(uint64) CommandWriteBatch
+	readBatchFunc                 func(uint64) CommandReadBatch
 	shardStateAware               ShardStateAware
 	shardAddHandleFunc            func(metapb.Shard) error
 	shardAllowRebalanceFunc       func(metapb.Shard) bool
@@ -460,7 +460,7 @@ func WithTransport(value Transport) Option {
 
 // WithWriteBatchFunc the factory function to create applciation commands batch processor. By default
 // the raftstore will process command one by one.
-func WithWriteBatchFunc(value func() CommandWriteBatch) Option {
+func WithWriteBatchFunc(value func(uint64) CommandWriteBatch) Option {
 	return func(opts *options) {
 		opts.writeBatchFunc = value
 	}
@@ -468,7 +468,7 @@ func WithWriteBatchFunc(value func() CommandWriteBatch) Option {
 
 // WithReadBatchFunc the factory function to create applciation commands batch processor. By default
 // the raftstore will process command one by one.
-func WithReadBatchFunc(value func() CommandReadBatch) Option {
+func WithReadBatchFunc(value func(uint64) CommandReadBatch) Option {
 	return func(opts *options) {
 		opts.readBatchFunc = value
 	}
