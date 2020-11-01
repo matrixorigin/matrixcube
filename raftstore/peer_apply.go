@@ -218,10 +218,10 @@ type applyContext struct {
 	metrics    applyMetrics
 }
 
-func newApplyContext(store *store) *applyContext {
+func newApplyContext(id uint64, store *store) *applyContext {
 	var dataWB CommandWriteBatch
 	if store.opts.writeBatchFunc != nil {
-		dataWB = store.opts.writeBatchFunc()
+		dataWB = store.opts.writeBatchFunc(id)
 	}
 
 	return &applyContext{
