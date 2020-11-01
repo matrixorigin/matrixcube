@@ -269,6 +269,11 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 }
 
 func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
+	if resp == nil && nil != err {
+		logger.Errorf("handle failed with %+v", err)
+		return
+	}
+
 	// libary call
 	if resp.SID == 0 {
 		id := hack.SliceToString(resp.ID)
