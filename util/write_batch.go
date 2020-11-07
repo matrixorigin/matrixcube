@@ -45,6 +45,14 @@ func (wb *WriteBatch) SetWithTTL(key []byte, value []byte, ttl int32) error {
 
 // Reset reset
 func (wb *WriteBatch) Reset() {
+	for idx := range wb.Keys {
+		wb.Keys[idx] = nil
+	}
+
+	for idx := range wb.Values {
+		wb.Values[idx] = nil
+	}
+
 	wb.Ops = wb.Ops[:0]
 	wb.Keys = wb.Keys[:0]
 	wb.Values = wb.Values[:0]
