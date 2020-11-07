@@ -354,10 +354,6 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 	start := time.Now()
 	req := pb.AcquireRaftCMDRequest()
 
-	if d.ctx.dataWB != nil {
-		d.ctx.dataWB.Reset()
-	}
-
 	for idx, entry := range commitedEntries {
 		if d.isPendingRemove() {
 			// This peer is about to be destroyed, skip everything.
@@ -505,6 +501,8 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 				d.shard.ID,
 				err)
 		}
+
+		d.ctx.dataWB.Reset()
 	}
 
 	if logger.DebugEnabled() {
