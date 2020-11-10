@@ -74,6 +74,7 @@ type options struct {
 	shardSplitCheckDuration       time.Duration
 	disableShardSplit             bool
 	disableSyncRaftLog            bool
+	disableRefreshRoute           bool
 	maxProposalBytes              int
 	maxAllowTransferLogLag        uint64
 	raftThresholdCompactLog       uint64
@@ -596,5 +597,12 @@ func WithCustomSplitCompletedFunc(value func(*metapb.Shard, *metapb.Shard)) Opti
 func WithCustomCanReadLocalFunc(value func(metapb.Shard) bool) Option {
 	return func(opts *options) {
 		opts.customCanReadLocalFunc = value
+	}
+}
+
+// WithDisableRefreshRoute set disableRefreshRoute
+func WithDisableRefreshRoute(value bool) Option {
+	return func(opts *options) {
+		opts.disableRefreshRoute = value
 	}
 }

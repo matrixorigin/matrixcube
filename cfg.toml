@@ -134,6 +134,9 @@ maxRaftLogBytesToForceCompact = 4
 # future, set a protected value.
 maxRaftLogCompactProtectLag   = 100
 
+# Disable refresh route at fix rate, if true route will close watcher, and refresh.
+disableRefreshRoute = false
+
 [prophet]
 # The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
 rpcAddr = "127.0.0.1:9527"

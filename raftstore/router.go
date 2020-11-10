@@ -37,11 +37,12 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
-	pd          prophet.Prophet
-	watcher     *prophet.Watcher
-	runner      *task.Runner
-	eventC      chan *prophet.EventNotify
-	eventTaskID uint64
+	disableRefreshRoute bool
+	pd                  prophet.Prophet
+	watcher             *prophet.Watcher
+	runner              *task.Runner
+	eventC              chan *prophet.EventNotify
+	eventTaskID         uint64
 
 	keyConvertFunc            keyConvertFunc
 	keyRanges                 sync.Map // group id -> *util.ShardTree
@@ -52,12 +53,13 @@ type defaultRouter struct {
 	opts                      sync.Map // shard id -> *op
 }
 
-func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc) Router {
+func newRouter(pd prophet.Prophet, runner *task.Runner, keyConvertFunc keyConvertFunc, disableRefreshRoute bool) Router {
 	return &defaultRouter{
-		pd:             pd,
-		watcher:        prophet.NewWatcherWithProphet(pd),
-		runner:         runner,
-		keyConvertFunc: keyConvertFunc,
+		pd:                  pd,
+		watcher:             prophet.NewWatcherWithProphet(pd),
+		runner:              runner,
+		keyConvertFunc:      keyConvertFunc,
+		disableRefreshRoute: disableRefreshRoute,
 	}
 }
 
@@ -147,7 +149,9 @@ func (r *defaultRouter) eventLoop(ctx context.Context) {
 		case evt := <-r.eventC:
 			r.handleEvent(evt)
 		case <-refreshTimer.C:
-			r.watcher.Reset()
+			if !r.disableRefreshRoute {
+				r.watcher.Reset()
+			}
 		}
 	}
 }

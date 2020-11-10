@@ -264,7 +264,7 @@ func (s *store) NewRouter() Router {
 		time.Sleep(time.Second)
 	}
 
-	return newRouter(s.pd, s.runner, s.keyConvertFunc)
+	return newRouter(s.pd, s.runner, s.keyConvertFunc, s.opts.disableShardSplit)
 }
 
 func (s *store) Meta() metapb.Store {
