@@ -59,6 +59,7 @@ type cfg struct {
 	RaftMaxInflightMsgCount       int        `toml:"raftMaxInflightMsgCount"`
 	RaftLogCompactDuration        int64      `toml:"raftLogCompactDuration"`
 	RaftThresholdCompactLog       uint64     `toml:"raftThresholdCompactLog"`
+	DisableRefreshRoute           bool       `toml:"disableRefreshRoute"`
 
 	Prophet ProphetCfg `toml:"prophet"`
 	Metric  metric.Cfg `toml:"metric"`
@@ -244,6 +245,10 @@ func CreateRaftStoreFromFile(dataPath string,
 
 	if c.Groups > 0 {
 		opts = append(opts, raftstore.WithGroups(c.Groups))
+	}
+
+	if c.DisableRefreshRoute {
+		opts = append(opts, raftstore.WithDisableRefreshRoute(c.DisableRefreshRoute))
 	}
 
 	prophetOptions, err := getProphetOptions(&c)
