@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/K-Phoen/grabana v0.4.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/cockroachdb/pebble v0.0.0-20201125222200-e6d62a79c8e3
 	github.com/coreos/etcd v3.3.17+incompatible
 	github.com/deepfabric/c-nemo v0.0.0-20200217131733-d8d20abdb6f7 // indirect
 	github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871
@@ -21,7 +22,7 @@ require (
 	github.com/google/btree v1.0.0
 	github.com/prometheus/client_golang v1.4.1
 	github.com/shirou/gopsutil v2.19.9+incompatible
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.6.1
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )
 

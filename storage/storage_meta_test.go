@@ -19,6 +19,7 @@ var (
 		"memory": createMem,
 		"badger": createBadger,
 		"nemo":   createNemo,
+		"pebble": createPebble,
 	}
 
 	lock sync.Mutex
@@ -35,6 +36,15 @@ func createBadger(t *testing.T) MetadataStorage {
 	s, err := badger.NewStorage(path)
 	assert.NoError(t, err, "createBadger failed")
 
+	return s
+}
+
+func createPebble(t *testing.T) MetadataStorage {
+	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
+	os.RemoveAll(path)
+	os.MkdirAll(path, os.ModeDir)
+	s, err := badger.NewStorage(path)
+	assert.NoError(t, err, "createPebble failed")
 	return s
 }
 
@@ -163,6 +173,10 @@ func TestSetAndMGet(t *testing.T) {
 func TestSetAndGetWithTTL(t *testing.T) {
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
+			if name == "pebble" {
+				return
+			}
+
 			s := factory(t)
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -192,6 +206,10 @@ func TestSetAndGetWithTTL(t *testing.T) {
 func TestWritebatchWithTTL(t *testing.T) {
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
+			if name == "pebble" {
+				return
+			}
+
 			s := factory(t)
 
 			key1 := []byte("k1")
