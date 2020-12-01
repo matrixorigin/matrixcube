@@ -24,3 +24,7 @@ example-redis: ; $(info ======== compiled beehive redis example:)
 .PHONY: example-http
 example-http: http; $(info ======== compiled beehive http example:)
 	docker build -t deepfabric/beehive-http -f Dockerfile-http .
+
+.PHONY: test
+test: ; $(info ======== test beehive)
+	env GO111MODULE=off go test -count=1 github.com/deepfabric/beehive/storage
