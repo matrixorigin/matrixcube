@@ -9,6 +9,7 @@ import (
 	"github.com/deepfabric/beehive/storage/badger"
 	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/deepfabric/beehive/storage/nemo"
+	"github.com/deepfabric/beehive/storage/pebble"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,7 +39,7 @@ func createDataPebble(t *testing.T) DataStorage {
 	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
 	os.MkdirAll(path, os.ModeDir)
-	s, err := badger.NewStorage(path)
+	s, err := pebble.NewStorage(path)
 	assert.NoError(t, err, "createDataPebble failed")
 	return s
 }
