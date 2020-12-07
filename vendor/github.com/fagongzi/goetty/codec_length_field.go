@@ -74,40 +74,26 @@ func (decoder IntLengthFieldBasedDecoder) Decode(in *ByteBuf) (bool, interface{}
 
 // IntLengthFieldBasedEncoder encoder based on length filed + data
 type IntLengthFieldBasedEncoder struct {
-	base    Encoder
-	prepare func(data interface{}, out *ByteBuf) error
+	base Encoder
 }
 
 // NewIntLengthFieldBasedEncoder returns a encoder with base
 func NewIntLengthFieldBasedEncoder(base Encoder) Encoder {
-	return NewIntLengthFieldBasedEncoderWithPrepare(base, nil)
-}
-
-// NewIntLengthFieldBasedEncoderWithPrepare returns a encoder with base and prepare fun
-func NewIntLengthFieldBasedEncoderWithPrepare(base Encoder, prepare func(data interface{}, out *ByteBuf) error) Encoder {
 	return &IntLengthFieldBasedEncoder{
-		base:    base,
-		prepare: prepare,
+		base: base,
 	}
 }
 
 // Encode encode
 func (encoder *IntLengthFieldBasedEncoder) Encode(data interface{}, out *ByteBuf) error {
-	buf := NewByteBuf(32)
-
-	if encoder.prepare != nil {
-		err := encoder.prepare(data, out)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := encoder.base.Encode(data, buf)
+	idx := out.GetWriteIndex()
+	out.Expansion(4)
+	out.SetWriterIndex(idx + 4)
+	err := encoder.base.Encode(data, out)
 	if err != nil {
 		return err
 	}
 
-	out.WriteInt(buf.Readable())
-	out.WriteByteBuf(buf)
+	Int2BytesTo(out.GetWriteIndex()-idx-4, out.RawBuf()[idx:])
 	return nil
 }

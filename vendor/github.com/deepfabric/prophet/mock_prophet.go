@@ -5,8 +5,8 @@
 package prophet
 
 import (
-	clientv3 "github.com/coreos/etcd/clientv3"
 	gomock "github.com/golang/mock/gomock"
+	clientv3 "go.etcd.io/etcd/clientv3"
 	reflect "reflect"
 	time "time"
 )

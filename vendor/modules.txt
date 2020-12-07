@@ -70,82 +70,6 @@ github.com/cockroachdb/redact/internal
 github.com/cockroachdb/redact/internal/fmtsort
 # github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2
 github.com/cockroachdb/sentry-go
-# github.com/coreos/bbolt v1.3.3
-github.com/coreos/bbolt
-# github.com/coreos/etcd v3.3.17+incompatible => github.com/deepfabric/etcd v3.3.17+incompatible
-github.com/coreos/etcd/alarm
-github.com/coreos/etcd/auth
-github.com/coreos/etcd/auth/authpb
-github.com/coreos/etcd/client
-github.com/coreos/etcd/clientv3
-github.com/coreos/etcd/clientv3/balancer
-github.com/coreos/etcd/clientv3/balancer/connectivity
-github.com/coreos/etcd/clientv3/balancer/picker
-github.com/coreos/etcd/clientv3/balancer/resolver/endpoint
-github.com/coreos/etcd/clientv3/concurrency
-github.com/coreos/etcd/clientv3/credentials
-github.com/coreos/etcd/compactor
-github.com/coreos/etcd/discovery
-github.com/coreos/etcd/embed
-github.com/coreos/etcd/error
-github.com/coreos/etcd/etcdserver
-github.com/coreos/etcd/etcdserver/api
-github.com/coreos/etcd/etcdserver/api/etcdhttp
-github.com/coreos/etcd/etcdserver/api/v2http
-github.com/coreos/etcd/etcdserver/api/v2http/httptypes
-github.com/coreos/etcd/etcdserver/api/v2v3
-github.com/coreos/etcd/etcdserver/api/v3client
-github.com/coreos/etcd/etcdserver/api/v3election
-github.com/coreos/etcd/etcdserver/api/v3election/v3electionpb
-github.com/coreos/etcd/etcdserver/api/v3election/v3electionpb/gw
-github.com/coreos/etcd/etcdserver/api/v3lock
-github.com/coreos/etcd/etcdserver/api/v3lock/v3lockpb
-github.com/coreos/etcd/etcdserver/api/v3lock/v3lockpb/gw
-github.com/coreos/etcd/etcdserver/api/v3rpc
-github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
-github.com/coreos/etcd/etcdserver/auth
-github.com/coreos/etcd/etcdserver/etcdserverpb
-github.com/coreos/etcd/etcdserver/etcdserverpb/gw
-github.com/coreos/etcd/etcdserver/membership
-github.com/coreos/etcd/etcdserver/stats
-github.com/coreos/etcd/lease
-github.com/coreos/etcd/lease/leasehttp
-github.com/coreos/etcd/lease/leasepb
-github.com/coreos/etcd/mvcc
-github.com/coreos/etcd/mvcc/backend
-github.com/coreos/etcd/mvcc/mvccpb
-github.com/coreos/etcd/pkg/adt
-github.com/coreos/etcd/pkg/contention
-github.com/coreos/etcd/pkg/cors
-github.com/coreos/etcd/pkg/cpuutil
-github.com/coreos/etcd/pkg/crc
-github.com/coreos/etcd/pkg/debugutil
-github.com/coreos/etcd/pkg/fileutil
-github.com/coreos/etcd/pkg/httputil
-github.com/coreos/etcd/pkg/idutil
-github.com/coreos/etcd/pkg/ioutil
-github.com/coreos/etcd/pkg/logutil
-github.com/coreos/etcd/pkg/netutil
-github.com/coreos/etcd/pkg/pathutil
-github.com/coreos/etcd/pkg/pbutil
-github.com/coreos/etcd/pkg/runtime
-github.com/coreos/etcd/pkg/schedule
-github.com/coreos/etcd/pkg/srv
-github.com/coreos/etcd/pkg/systemd
-github.com/coreos/etcd/pkg/tlsutil
-github.com/coreos/etcd/pkg/transport
-github.com/coreos/etcd/pkg/types
-github.com/coreos/etcd/pkg/wait
-github.com/coreos/etcd/proxy/grpcproxy/adapter
-github.com/coreos/etcd/raft
-github.com/coreos/etcd/raft/raftpb
-github.com/coreos/etcd/rafthttp
-github.com/coreos/etcd/snap
-github.com/coreos/etcd/snap/snappb
-github.com/coreos/etcd/store
-github.com/coreos/etcd/version
-github.com/coreos/etcd/wal
-github.com/coreos/etcd/wal/walpb
 # github.com/coreos/go-semver v0.3.0
 github.com/coreos/go-semver/semver
 # github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f
@@ -154,11 +78,11 @@ github.com/coreos/go-systemd/journal
 github.com/coreos/pkg/capnslog
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
-# github.com/deepfabric/c-nemo v0.0.0-20200217131733-d8d20abdb6f7
+# github.com/deepfabric/c-nemo v0.0.0-20200512075312-b836bc944d11
 github.com/deepfabric/c-nemo
-# github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871
+# github.com/deepfabric/go-nemo v0.0.0-20200219105322-91e0b83abc09
 github.com/deepfabric/go-nemo
-# github.com/deepfabric/prophet v0.0.0-20201028021755-a9b74a61f74a
+# github.com/deepfabric/prophet v0.0.0-20201207022600-24a75d046494
 github.com/deepfabric/prophet
 # github.com/dgraph-io/badger v1.6.0
 github.com/dgraph-io/badger
@@ -173,7 +97,7 @@ github.com/dgrijalva/jwt-go
 github.com/dgryski/go-farm
 # github.com/dustin/go-humanize v1.0.0
 github.com/dustin/go-humanize
-# github.com/fagongzi/goetty v1.3.2
+# github.com/fagongzi/goetty v1.6.1
 github.com/fagongzi/goetty
 github.com/fagongzi/goetty/protocol/redis
 # github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
@@ -221,7 +145,7 @@ github.com/gorilla/websocket
 github.com/gosimple/slug
 # github.com/grafana-tools/sdk v0.0.0-20200127194913-bdcab199ffde
 github.com/grafana-tools/sdk
-# github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
+# github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4
 github.com/grpc-ecosystem/go-grpc-middleware
 # github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 github.com/grpc-ecosystem/go-grpc-prometheus
@@ -274,12 +198,94 @@ github.com/shirou/gopsutil/mem
 github.com/sirupsen/logrus
 # github.com/soheilhy/cmux v0.1.4
 github.com/soheilhy/cmux
+# github.com/spf13/pflag v1.0.3
+github.com/spf13/pflag
 # github.com/stretchr/testify v1.6.1
 github.com/stretchr/testify/assert
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5
 github.com/tmc/grpc-websocket-proxy/wsproxy
 # github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
 github.com/xiang90/probing
+# go.etcd.io/bbolt v1.3.3
+go.etcd.io/bbolt
+# go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b => github.com/deepfabric/etcd v0.0.0-20201207015257-3b4a2ca4cf64
+go.etcd.io/etcd/auth
+go.etcd.io/etcd/auth/authpb
+go.etcd.io/etcd/client
+go.etcd.io/etcd/clientv3
+go.etcd.io/etcd/clientv3/balancer
+go.etcd.io/etcd/clientv3/balancer/connectivity
+go.etcd.io/etcd/clientv3/balancer/picker
+go.etcd.io/etcd/clientv3/balancer/resolver/endpoint
+go.etcd.io/etcd/clientv3/concurrency
+go.etcd.io/etcd/clientv3/credentials
+go.etcd.io/etcd/embed
+go.etcd.io/etcd/etcdserver
+go.etcd.io/etcd/etcdserver/api
+go.etcd.io/etcd/etcdserver/api/etcdhttp
+go.etcd.io/etcd/etcdserver/api/membership
+go.etcd.io/etcd/etcdserver/api/rafthttp
+go.etcd.io/etcd/etcdserver/api/snap
+go.etcd.io/etcd/etcdserver/api/snap/snappb
+go.etcd.io/etcd/etcdserver/api/v2auth
+go.etcd.io/etcd/etcdserver/api/v2discovery
+go.etcd.io/etcd/etcdserver/api/v2error
+go.etcd.io/etcd/etcdserver/api/v2http
+go.etcd.io/etcd/etcdserver/api/v2http/httptypes
+go.etcd.io/etcd/etcdserver/api/v2stats
+go.etcd.io/etcd/etcdserver/api/v2store
+go.etcd.io/etcd/etcdserver/api/v2v3
+go.etcd.io/etcd/etcdserver/api/v3alarm
+go.etcd.io/etcd/etcdserver/api/v3client
+go.etcd.io/etcd/etcdserver/api/v3compactor
+go.etcd.io/etcd/etcdserver/api/v3election
+go.etcd.io/etcd/etcdserver/api/v3election/v3electionpb
+go.etcd.io/etcd/etcdserver/api/v3election/v3electionpb/gw
+go.etcd.io/etcd/etcdserver/api/v3lock
+go.etcd.io/etcd/etcdserver/api/v3lock/v3lockpb
+go.etcd.io/etcd/etcdserver/api/v3lock/v3lockpb/gw
+go.etcd.io/etcd/etcdserver/api/v3rpc
+go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes
+go.etcd.io/etcd/etcdserver/etcdserverpb
+go.etcd.io/etcd/etcdserver/etcdserverpb/gw
+go.etcd.io/etcd/lease
+go.etcd.io/etcd/lease/leasehttp
+go.etcd.io/etcd/lease/leasepb
+go.etcd.io/etcd/mvcc
+go.etcd.io/etcd/mvcc/backend
+go.etcd.io/etcd/mvcc/mvccpb
+go.etcd.io/etcd/pkg/adt
+go.etcd.io/etcd/pkg/contention
+go.etcd.io/etcd/pkg/cpuutil
+go.etcd.io/etcd/pkg/crc
+go.etcd.io/etcd/pkg/debugutil
+go.etcd.io/etcd/pkg/fileutil
+go.etcd.io/etcd/pkg/flags
+go.etcd.io/etcd/pkg/httputil
+go.etcd.io/etcd/pkg/idutil
+go.etcd.io/etcd/pkg/ioutil
+go.etcd.io/etcd/pkg/logutil
+go.etcd.io/etcd/pkg/netutil
+go.etcd.io/etcd/pkg/pathutil
+go.etcd.io/etcd/pkg/pbutil
+go.etcd.io/etcd/pkg/runtime
+go.etcd.io/etcd/pkg/schedule
+go.etcd.io/etcd/pkg/srv
+go.etcd.io/etcd/pkg/systemd
+go.etcd.io/etcd/pkg/tlsutil
+go.etcd.io/etcd/pkg/traceutil
+go.etcd.io/etcd/pkg/transport
+go.etcd.io/etcd/pkg/types
+go.etcd.io/etcd/pkg/wait
+go.etcd.io/etcd/proxy/grpcproxy/adapter
+go.etcd.io/etcd/raft
+go.etcd.io/etcd/raft/confchange
+go.etcd.io/etcd/raft/quorum
+go.etcd.io/etcd/raft/raftpb
+go.etcd.io/etcd/raft/tracker
+go.etcd.io/etcd/version
+go.etcd.io/etcd/wal
+go.etcd.io/etcd/wal/walpb
 # go.uber.org/atomic v1.4.0
 go.uber.org/atomic
 # go.uber.org/multierr v1.1.0
@@ -308,7 +314,7 @@ golang.org/x/net/trace
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.2
+# golang.org/x/text v0.3.3
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
@@ -316,7 +322,6 @@ golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
 # google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
-google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/protobuf/field_mask

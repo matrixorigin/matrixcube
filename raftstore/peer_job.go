@@ -3,7 +3,6 @@ package raftstore
 import (
 	"time"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
@@ -11,6 +10,7 @@ import (
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) startApplyingSnapJob() {
@@ -209,7 +209,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 
 	confState := etcdraftpb.ConfState{}
 	for _, peer := range ps.shard.Peers {
-		confState.Nodes = append(confState.Nodes, peer.ID)
+		confState.Voters = append(confState.Voters, peer.ID)
 	}
 	snapshot.Metadata.ConfState = confState
 

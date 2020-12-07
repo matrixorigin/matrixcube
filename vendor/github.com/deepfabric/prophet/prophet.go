@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
 	"github.com/fagongzi/goetty"
+	"go.etcd.io/etcd/clientv3"
 )
 
 // RoleChangeHandler prophet role change handler

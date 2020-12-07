@@ -7,7 +7,6 @@ import (
 	"math"
 	"time"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
@@ -16,6 +15,7 @@ import (
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {

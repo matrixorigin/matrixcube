@@ -121,6 +121,17 @@ func UInt16ToBytes(v uint16) []byte {
 	return ret
 }
 
+// Slice the slice of byte buf
+type Slice struct {
+	from, to int // [from, to)
+	buf      *ByteBuf
+}
+
+// Data data
+func (s Slice) Data() []byte {
+	return s.buf.buf[s.from:s.to]
+}
+
 // ByteBuf a buf with byte arrays
 //
 // | discardable bytes  |   readable bytes   |   writeable bytes  |
@@ -156,6 +167,25 @@ func NewByteBufPool(capacity int, pool Pool) *ByteBuf {
 	}
 }
 
+// WrapBytes wrap a bytes as a bytebuf
+func WrapBytes(data []byte) *ByteBuf {
+	return &ByteBuf{
+		capacity:    cap(data),
+		buf:         data,
+		readerIndex: 0,
+		writerIndex: len(data),
+		pool:        getDefaultMP(),
+	}
+}
+
+// Wrap wrap a bytes
+func (b *ByteBuf) Wrap(data []byte) {
+	b.Clear()
+	b.Release()
+	b.buf = data
+	b.writerIndex = len(data)
+}
+
 // RawBuf get the raw byte array
 func (b *ByteBuf) RawBuf() []byte {
 	return b.buf
@@ -166,6 +196,9 @@ func (b *ByteBuf) Clear() {
 	b.readerIndex = 0
 	b.writerIndex = 0
 	b.markedIndex = 0
+
+	b.pool.Free(b.buf)
+	b.buf = b.pool.Alloc(b.capacity)
 }
 
 // Release release buf
@@ -229,6 +262,21 @@ func (b *ByteBuf) SetWriterIndex(newWriterIndex int) error {
 	b.writerIndex = newWriterIndex
 
 	return nil
+}
+
+// MarkWrite mark current write index
+func (b *ByteBuf) MarkWrite() {
+	b.markedIndex = b.writerIndex
+}
+
+// WrittenDataAfterMark returns the data referance after mark write
+func (b *ByteBuf) WrittenDataAfterMark() Slice {
+	return Slice{b.markedIndex, b.writerIndex, b}
+}
+
+// Slice returns a read only bytebuf slice
+func (b *ByteBuf) Slice(from, to int) Slice {
+	return Slice{from, to, b}
 }
 
 // MarkN mark a index offset based by currently read index
@@ -528,7 +576,23 @@ func (b *ByteBuf) WriteByteBuf(from *ByteBuf) error {
 // Expansion expansion buf size
 func (b *ByteBuf) Expansion(n int) {
 	if free := b.Writeable(); free < n {
-		newBuf := b.pool.Alloc(b.Capacity() + n)
+		current := b.Capacity()
+		step := current / 2
+		if step < minScale {
+			step = minScale
+		}
+
+		size := current + (n - free)
+		target := current
+		for {
+			if target > size {
+				break
+			}
+
+			target += step
+		}
+
+		newBuf := b.pool.Alloc(target)
 		offset := b.writerIndex - b.readerIndex
 		copy(newBuf, b.buf[b.readerIndex:b.writerIndex])
 		b.readerIndex = 0

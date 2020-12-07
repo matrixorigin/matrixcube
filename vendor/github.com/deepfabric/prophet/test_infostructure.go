@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/embed"
 	"github.com/golang/mock/gomock"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/embed"
 )
 
 var (

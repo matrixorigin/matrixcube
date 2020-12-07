@@ -15,7 +15,7 @@ var (
 	lock       sync.Mutex
 	mp         Pool
 	defaultMin = 256
-	defaultMax = 8 * MB
+	defaultMax = 64 * MB
 )
 
 func getDefaultMP() Pool {

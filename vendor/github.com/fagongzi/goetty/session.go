@@ -97,6 +97,7 @@ func (s *clientIOSession) ReadTimeout(timeout time.Duration) (interface{}, error
 					complete, msg, err = s.readFromConn(timeout)
 				}
 			} else {
+				s.in.Clear()
 				complete, msg, err = s.readFromConn(timeout)
 			}
 

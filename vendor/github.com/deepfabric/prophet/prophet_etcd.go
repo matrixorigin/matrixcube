@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/embed"
-	"github.com/coreos/etcd/etcdserver"
-	"github.com/coreos/etcd/pkg/types"
 	"github.com/coreos/pkg/capnslog"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/etcdserver"
+	"go.etcd.io/etcd/pkg/types"
 )
 
 // unixToHTTP replace unix scheme with http.
@@ -144,7 +144,7 @@ func doAfterEmbedEtcdServerReady(etcd *embed.Etcd, cfg *embed.Config, ecfg *Embe
 
 	updateAdvertisePeerUrls(id, client, ecfg)
 	if err := waitEtcdStart(cfg, client); err != nil {
-		// See https://github.com/coreos/etcd/issues/6067
+		// See https://go.etcd.io/etcd/issues/6067
 		// Here may return "not capable" error because we don't start
 		// all etcds in initial_cluster at same time, so here just log
 		// an error.
@@ -269,7 +269,7 @@ func checkClusterID(localClusterID types.ID, um types.URLsMap) error {
 			peerURLs[i] = unixToHTTP.Replace(peerURLs[i])
 		}
 
-		remoteCluster, gerr := etcdserver.GetClusterFromRemotePeers([]string{peerURLs[i]}, trp)
+		remoteCluster, gerr := etcdserver.GetClusterFromRemotePeers(nil, []string{peerURLs[i]}, trp)
 		trp.CloseIdleConnections()
 		if gerr != nil {
 			// Do not return error, because other members may be not ready.

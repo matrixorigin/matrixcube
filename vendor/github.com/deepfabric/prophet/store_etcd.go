@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/format"
+	"go.etcd.io/etcd/clientv3"
 )
 
 const (

@@ -170,6 +170,7 @@ func (c *connector) ReadTimeout(timeout time.Duration) (interface{}, error) {
 					complete, msg, err = c.readFromConn(timeout)
 				}
 			} else {
+				c.in.Clear()
 				complete, msg, err = c.readFromConn(timeout)
 			}
 

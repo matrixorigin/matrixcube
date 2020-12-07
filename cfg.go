@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/coreos/etcd/clientv3"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/prophet"
 	"github.com/fagongzi/util/format"
+	"go.etcd.io/etcd/clientv3"
 )
 
 var (

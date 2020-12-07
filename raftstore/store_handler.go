@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/fagongzi/util/protoc"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 func (s *store) handleCompactRaftLog() {
