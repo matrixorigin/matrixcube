@@ -7,14 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/coreos/etcd/raft"
-	etcdPB "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+	"go.etcd.io/etcd/raft"
+	etcdPB "go.etcd.io/etcd/raft/raftpb"
 )
 
 const (
@@ -548,7 +548,7 @@ func (ps *peerStorage) InitialState() (etcdPB.HardState, etcdPB.ConfState, error
 	}
 
 	for _, p := range ps.shard.Peers {
-		confState.Nodes = append(confState.Nodes, p.ID)
+		confState.Voters = append(confState.Voters, p.ID)
 	}
 
 	return hardState, confState, nil

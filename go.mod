@@ -7,12 +7,11 @@ require (
 	github.com/K-Phoen/grabana v0.4.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/cockroachdb/pebble v0.0.0-20201125222200-e6d62a79c8e3
-	github.com/coreos/etcd v3.3.17+incompatible
-	github.com/deepfabric/c-nemo v0.0.0-20200217131733-d8d20abdb6f7 // indirect
-	github.com/deepfabric/go-nemo v0.0.0-20200217132256-1a30b09e0871
-	github.com/deepfabric/prophet v0.0.0-20201028021755-a9b74a61f74a
+	github.com/deepfabric/c-nemo v0.0.0-20200512075312-b836bc944d11 // indirect
+	github.com/deepfabric/go-nemo v0.0.0-20200219105322-91e0b83abc09
+	github.com/deepfabric/prophet v0.0.0-20201207022600-24a75d046494
 	github.com/dgraph-io/badger v1.6.0
-	github.com/fagongzi/goetty v1.3.2
+	github.com/fagongzi/goetty v1.6.1
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
 	github.com/fagongzi/util v0.0.0-20191031020235-c0f29a56724d
 	github.com/funny/slab v0.0.0-20180511031532-b1fad5e5d478 // indirect
@@ -23,7 +22,8 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/shirou/gopsutil v2.19.9+incompatible
 	github.com/stretchr/testify v1.6.1
+	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )
 
-replace github.com/coreos/etcd => github.com/deepfabric/etcd v3.3.17+incompatible
+replace go.etcd.io/etcd => github.com/deepfabric/etcd v0.0.0-20201207015257-3b4a2ca4cf64

@@ -3,12 +3,13 @@ package raftstore
 import (
 	"time"
 
-	"github.com/coreos/etcd/raft"
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/util"
+	"go.etcd.io/etcd/raft"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/tracker"
 )
 
 const (
@@ -319,7 +320,7 @@ func (pr *peerReplica) handleReport(items []interface{}) {
 func (pr *peerReplica) doCheckSplit() {
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
-		if p.State == raft.ProgressStateSnapshot {
+		if p.State == tracker.StateSnapshot {
 			logger.Infof("shard %d peer %d is applying snapshot",
 				pr.shardID,
 				id)

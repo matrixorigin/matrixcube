@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 // Transport raft transport

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/etcd/raft"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
@@ -19,6 +18,7 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
+	"go.etcd.io/etcd/raft"
 	"golang.org/x/time/rate"
 )
 
@@ -131,7 +131,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 		int(store.opts.maxConcurrencyWritesPerShard))
 
 	c := getRaftConfig(peerID, ps.getAppliedIndex(), ps, store.opts)
-	rn, err := raft.NewRawNode(c, nil)
+	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		return nil, err
 	}

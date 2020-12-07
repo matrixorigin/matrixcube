@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/etcd/raft"
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 type readyContext struct {

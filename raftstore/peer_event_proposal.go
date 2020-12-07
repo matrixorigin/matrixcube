@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coreos/etcd/raft"
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/util/protoc"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/tracker"
 )
 
 type requestPolicy int
@@ -249,7 +249,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	}
 
 	for _, p := range status.Progress {
-		if p.State == raft.ProgressStateSnapshot {
+		if p.State == tracker.StateSnapshot {
 			return false
 		}
 	}

@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coreos/etcd/clientv3"
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/errorpb"
 	"github.com/deepfabric/beehive/pb/metapb"
@@ -24,6 +22,8 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+	"go.etcd.io/etcd/clientv3"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 var (

@@ -3,9 +3,9 @@ package raftstore
 import (
 	"time"
 
-	etcdraftpb "github.com/coreos/etcd/raft/raftpb"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) handleApplyResult(items []interface{}) {
