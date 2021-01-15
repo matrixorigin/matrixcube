@@ -189,7 +189,7 @@ func (s *Application) execTimeout(arg interface{}) {
 }
 
 func (s *Application) doConnection(conn goetty.IOSession) error {
-	rs := util.NewSession(conn, nil)
+	rs := util.NewSession(conn, s.releaseResponse)
 	s.sessions.Store(rs.ID, rs)
 	defer func() {
 		rs.Close()
@@ -390,6 +390,10 @@ func (s *Application) retryForward(arg interface{}) {
 		// retry later
 		util.DefaultTimeoutWheel().Schedule(time.Second, s.retryForward, req)
 	}
+}
+
+func (s *Application) releaseResponse(rsp interface{}) {
+	pb.ReleaseResponse(rsp.(*raftcmdpb.Response))
 }
 
 type asyncCtx interface {

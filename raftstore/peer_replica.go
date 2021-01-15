@@ -24,7 +24,7 @@ import (
 
 type peerReplica struct {
 	shardID               uint64
-	workerID              uint64
+	eventWorker           uint64
 	applyWorker           string
 	disableCompactProtect bool
 	peer                  metapb.Peer
@@ -114,7 +114,6 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	}
 
 	pr := new(peerReplica)
-	pr.applyWorker = store.allocApplyWorker(shard.Group)
 	pr.peer = newPeer(peerID, store.meta.meta.ID)
 	pr.shardID = shard.ID
 	pr.ps = ps
@@ -174,6 +173,8 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
 	pr.items = make([]interface{}, readyBatch, readyBatch)
+
+	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
 	return pr, nil
 }
@@ -243,7 +244,7 @@ func (pr *peerReplica) mustDestroy() {
 
 	pr.store.replicas.Delete(pr.shardID)
 	pr.store.opts.shardStateAware.Destory(pr.ps.shard)
-	pr.store.revokeApplyWorker(pr.ps.shard.Group, pr.applyWorker)
+	pr.store.revokeWorker(pr)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
 }
