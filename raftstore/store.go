@@ -161,8 +161,9 @@ type store struct {
 	localCB func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 
-	allocApplyLock sync.Mutex
-	applies        []map[string]int
+	allocWorkerLock sync.Mutex
+	applyWorkers    []map[string]int
+	eventWorkers    []map[uint64]int
 }
 
 // NewStore returns a raft store
@@ -454,12 +455,12 @@ func (s *store) CreateRPCCliendSideCodec() (goetty.Decoder, goetty.Encoder) {
 
 func (s *store) initWorkers() {
 	for g := uint64(0); g < s.opts.groups; g++ {
-		s.applies = append(s.applies, make(map[string]int))
+		s.applyWorkers = append(s.applyWorkers, make(map[string]int))
 
 		for i := uint64(0); i < s.opts.applyWorkerCount; i++ {
 			name := fmt.Sprintf(applyWorkerName, g, i)
+			s.applyWorkers[g][name] = 0
 			s.runner.AddNamedWorker(name)
-			s.applies[g][name] = 0
 		}
 	}
 
@@ -495,8 +496,10 @@ func (s *store) startProphet() {
 
 func (s *store) startRaftWorkers() {
 	for i := uint64(0); i < s.opts.groups; i++ {
+		s.eventWorkers = append(s.eventWorkers, make(map[uint64]int))
 		g := i
 		for j := uint64(0); j < s.opts.raftMaxWorkers; j++ {
+			s.eventWorkers[g][j] = 0
 			idx := j
 			s.runner.RunCancelableTask(func(ctx context.Context) {
 				s.runPRTask(ctx, g, idx)
@@ -522,7 +525,7 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 			hasEvent = false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
-				if pr.workerID == id && pr.ps.shard.Group == g && pr.handleEvent() {
+				if pr.eventWorker == id && pr.ps.shard.Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
 
@@ -795,7 +798,7 @@ func (s *store) createPR(shard metapb.Shard) error {
 	pr, err := createPeerReplica(s, &shard)
 	if err != nil {
 		s.mustRemoveShards(shard.ID)
-		s.revokeApplyWorker(shard.Group, pr.applyWorker)
+		s.revokeWorker(pr)
 		return err
 	}
 
@@ -808,23 +811,6 @@ func (s *store) createPR(shard metapb.Shard) error {
 }
 
 func (s *store) addPR(pr *peerReplica) {
-	count := make([]uint64, s.opts.raftMaxWorkers, s.opts.raftMaxWorkers)
-	s.replicas.Range(func(key, value interface{}) bool {
-		p := value.(*peerReplica)
-		if p.ps.shard.Group == pr.ps.shard.Group {
-			count[p.workerID]++
-		}
-		return true
-	})
-
-	best := 0
-	for id, v := range count[1:] {
-		if v < count[best] {
-			best = id
-		}
-	}
-
-	pr.workerID = uint64(best)
 	s.replicas.Store(pr.shardID, pr)
 
 	logger.Infof("shard %d added with peer %+v, epoch %+v, peers %+v, raft worker %d, apply worker %s",
@@ -832,7 +818,7 @@ func (s *store) addPR(pr *peerReplica) {
 		pr.peer,
 		pr.ps.shard.Epoch,
 		pr.ps.shard.Peers,
-		pr.workerID,
+		pr.eventWorker,
 		pr.applyWorker)
 }
 
@@ -969,28 +955,45 @@ func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb fun
 	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
 }
 
-func (s *store) revokeApplyWorker(g uint64, name string) {
-	s.allocApplyLock.Lock()
-	defer s.allocApplyLock.Unlock()
+func (s *store) revokeWorker(pr *peerReplica) {
+	if pr == nil {
+		return
+	}
 
-	s.applies[g][name]--
+	s.allocWorkerLock.Lock()
+	defer s.allocWorkerLock.Unlock()
+
+	g := pr.ps.shard.Group
+	s.applyWorkers[g][pr.applyWorker]--
+	s.eventWorkers[g][pr.eventWorker]--
 }
 
-func (s *store) allocApplyWorker(g uint64) string {
-	s.allocApplyLock.Lock()
-	defer s.allocApplyLock.Unlock()
+func (s *store) allocWorker(g uint64) (string, uint64) {
+	s.allocWorkerLock.Lock()
+	defer s.allocWorkerLock.Unlock()
 
-	target := ""
+	applyWorker := ""
 	value := math.MaxInt32
-	for name, c := range s.applies[g] {
+	for name, c := range s.applyWorkers[g] {
 		if value > c {
 			value = c
-			target = name
+			applyWorker = name
+		}
+	}
+	s.applyWorkers[g][applyWorker]++
+
+	raftEventWorker := uint64(0)
+	value = math.MaxInt32
+	for k, v := range s.eventWorkers[g] {
+		if v < value {
+			value = v
+			raftEventWorker = k
 		}
 	}
 
-	s.applies[g][target]++
-	return target
+	s.eventWorkers[g][raftEventWorker]++
+
+	return applyWorker, raftEventWorker
 }
 
 func (s *store) getPeer(id uint64) (metapb.Peer, bool) {
