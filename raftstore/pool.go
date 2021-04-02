@@ -3,26 +3,26 @@ package raftstore
 import (
 	"sync"
 
-	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/buf"
 )
 
 var (
 	bufPool sync.Pool
 )
 
-func acquireBuf() *goetty.ByteBuf {
+func acquireBuf() *buf.ByteBuf {
 	value := bufPool.Get()
 	if value == nil {
-		return goetty.NewByteBuf(64)
+		return buf.NewByteBuf(64)
 	}
 
-	buf := value.(*goetty.ByteBuf)
+	buf := value.(*buf.ByteBuf)
 	buf.Resume(64)
 
 	return buf
 }
 
-func releaseBuf(value *goetty.ByteBuf) {
+func releaseBuf(value *buf.ByteBuf) {
 	value.Clear()
 	value.Release()
 	bufPool.Put(value)

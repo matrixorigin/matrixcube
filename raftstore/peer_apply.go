@@ -7,15 +7,17 @@ import (
 	"math"
 	"time"
 
+	"github.com/deepfabric/beehive/command"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/util"
-	"github.com/fagongzi/goetty"
+	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
@@ -125,7 +127,7 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		return err
 	}
 
-	err = pr.ps.updatePeerState(pr.ps.shard, raftpb.PeerNormal, nil)
+	err = pr.ps.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, nil)
 	if err != nil {
 		logger.Fatalf("shard %d apply snap update peer state failed, errors:\n %+v",
 			pr.shardID,
@@ -133,15 +135,17 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		return err
 	}
 
-	pr.store.opts.shardStateAware.SnapshotApplied(pr.ps.shard)
+	if pr.store.aware != nil {
+		pr.store.aware.SnapshotApplied(pr.ps.shard)
+	}
 	pr.stopRaftTick = false
 	logger.Infof("shard %d apply snapshot data complete, %+v",
 		pr.shardID,
-		pr.ps.raftHardState)
+		pr.ps.raftState.HardState)
 	return nil
 }
 
-func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []etcdraftpb.Entry) error {
+func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
 	logger.Debugf("shard %d async apply raft log with %d entries at term %d",
 		shardID,
 		len(commitedEntries),
@@ -167,7 +171,7 @@ func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, comm
 type asyncApplyResult struct {
 	shardID          uint64
 	appliedIndexTerm uint64
-	applyState       raftpb.RaftApplyState
+	applyState       bhraftpb.RaftApplyState
 	result           *execResult
 	metrics          applyMetrics
 }
@@ -175,7 +179,7 @@ type asyncApplyResult struct {
 func (res *asyncApplyResult) reset() {
 	res.shardID = 0
 	res.appliedIndexTerm = 0
-	res.applyState = raftpb.RaftApplyState{}
+	res.applyState = bhraftpb.RaftApplyState{}
 	res.result = nil
 	res.metrics = applyMetrics{}
 }
@@ -192,26 +196,26 @@ type execResult struct {
 }
 
 type changePeer struct {
-	confChange etcdraftpb.ConfChange
+	confChange raftpb.ConfChange
 	peer       metapb.Peer
-	shard      metapb.Shard
+	shard      bhmetapb.Shard
 }
 
 type splitResult struct {
-	left  metapb.Shard
-	right metapb.Shard
+	left  bhmetapb.Shard
+	right bhmetapb.Shard
 }
 
 type raftGCResult struct {
-	state      raftpb.RaftTruncatedState
+	state      bhraftpb.RaftTruncatedState
 	firstIndex uint64
 }
 
 type applyContext struct {
 	raftStateWB *util.WriteBatch
-	dataWB      CommandWriteBatch
+	dataWB      command.CommandWriteBatch
 
-	applyState raftpb.RaftApplyState
+	applyState bhraftpb.RaftApplyState
 	req        *raftcmdpb.RaftCMDRequest
 	index      uint64
 	term       uint64
@@ -219,9 +223,9 @@ type applyContext struct {
 }
 
 func newApplyContext(id uint64, store *store) *applyContext {
-	var dataWB CommandWriteBatch
-	if store.opts.writeBatchFunc != nil {
-		dataWB = store.opts.writeBatchFunc(id)
+	var dataWB command.CommandWriteBatch
+	if store.cfg.Customize.CustomWriteBatchFunc != nil {
+		dataWB = store.cfg.Customize.CustomWriteBatchFunc(id)
 	}
 
 	return &applyContext{
@@ -232,7 +236,7 @@ func newApplyContext(id uint64, store *store) *applyContext {
 
 func (ctx *applyContext) reset() {
 	ctx.raftStateWB.Reset()
-	ctx.applyState = raftpb.RaftApplyState{}
+	ctx.applyState = bhraftpb.RaftApplyState{}
 	ctx.req = nil
 	ctx.index = 0
 	ctx.term = 0
@@ -247,11 +251,11 @@ type applyDelegate struct {
 	store  *store
 	ps     *peerStorage
 	peerID uint64
-	shard  metapb.Shard
+	shard  bhmetapb.Shard
 	// if we remove ourself in ChangePeer remove, we should set this flag, then
 	// any following committed logs in same Ready should be applied failed.
 	pendingRemove        bool
-	applyState           raftpb.RaftApplyState
+	applyState           bhraftpb.RaftApplyState
 	appliedIndexTerm     uint64
 	term                 uint64
 	pendingCMDs          []cmd
@@ -262,7 +266,7 @@ type applyDelegate struct {
 	ctx *applyContext
 
 	// attrs
-	buf      *goetty.ByteBuf
+	buf      *buf.ByteBuf
 	attrs    map[string]interface{}
 	requests []int
 }
@@ -346,7 +350,7 @@ func (d *applyDelegate) notifyShardRemoved(c cmd) {
 	c.respShardNotFound(d.shard.ID)
 }
 
-func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry) {
+func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 	if len(commitedEntries) <= 0 {
 		return
 	}
@@ -382,9 +386,9 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 		var result *execResult
 
 		switch entry.Type {
-		case etcdraftpb.EntryNormal:
+		case raftpb.EntryNormal:
 			result = d.applyEntry(&entry)
-		case etcdraftpb.EntryConfChange:
+		case raftpb.EntryConfChange:
 			result = d.applyConfChange(&entry)
 		}
 
@@ -410,7 +414,7 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
-func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
+func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 	if len(entry.Data) > 0 {
 		protoc.MustUnmarshal(d.ctx.req, entry.Data)
 		return d.doApplyRaftCMD()
@@ -445,8 +449,8 @@ func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
 	}
 }
 
-func (d *applyDelegate) applyConfChange(entry *etcdraftpb.Entry) *execResult {
-	cc := new(etcdraftpb.ConfChange)
+func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
+	cc := new(raftpb.ConfChange)
 
 	protoc.MustUnmarshal(cc, entry.Data)
 	protoc.MustUnmarshal(d.ctx.req, cc.Context)
@@ -454,7 +458,7 @@ func (d *applyDelegate) applyConfChange(entry *etcdraftpb.Entry) *execResult {
 	result := d.doApplyRaftCMD()
 	if nil == result {
 		return &execResult{
-			adminType:  raftcmdpb.ChangePeer,
+			adminType:  raftcmdpb.AdminCmdType_ChangePeer,
 			changePeer: &changePeer{},
 		}
 	}
@@ -582,5 +586,5 @@ func (d *applyDelegate) checkEpoch(req *raftcmdpb.RaftCMDRequest) bool {
 
 func isChangePeerCMD(req *raftcmdpb.RaftCMDRequest) bool {
 	return nil != req.AdminRequest &&
-		req.AdminRequest.CmdType == raftcmdpb.ChangePeer
+		req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeer
 }

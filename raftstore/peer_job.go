@@ -4,13 +4,14 @@ import (
 	"time"
 
 	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
+	sn "github.com/deepfabric/beehive/snapshot"
 	"github.com/deepfabric/beehive/util"
-	"github.com/fagongzi/goetty"
+	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) startApplyingSnapJob() {
@@ -33,7 +34,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		term:             pr.getCurrentTerm(),
 		applyState:       pr.ps.applyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
-		buf:              goetty.NewByteBuf(256),
+		buf:              buf.NewByteBuf(256),
 		wb:               util.NewWriteBatch(),
 		ctx:              newApplyContext(pr.shardID, pr.store),
 		attrs:            make(map[string]interface{}),
@@ -50,7 +51,7 @@ func (pr *peerReplica) startRegistrationJob() {
 	}
 }
 
-func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64, commitedEntries []etcdraftpb.Entry) error {
+func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
 		return pr.doApplyCommittedEntries(shardID, term, commitedEntries)
 	}, nil)
@@ -191,30 +192,30 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 		return nil
 	}
 
-	if state.State != raftpb.PeerNormal {
+	if state.State != bhraftpb.PeerState_Normal {
 		logger.Errorf("shard %d snap seems stale, skip", ps.shard.ID)
 		return nil
 	}
 
-	msg := &raftpb.SnapshotMessage{}
-	msg.Header = raftpb.SnapshotMessageHeader{
+	msg := &bhraftpb.SnapshotMessage{}
+	msg.Header = bhraftpb.SnapshotMessageHeader{
 		Shard: state.Shard,
 		Term:  term,
 		Index: applyState.AppliedIndex,
 	}
 
-	snapshot := etcdraftpb.Snapshot{}
+	snapshot := raftpb.Snapshot{}
 	snapshot.Metadata.Term = msg.Header.Term
 	snapshot.Metadata.Index = msg.Header.Index
 
-	confState := etcdraftpb.ConfState{}
+	confState := raftpb.ConfState{}
 	for _, peer := range ps.shard.Peers {
 		confState.Voters = append(confState.Voters, peer.ID)
 	}
 	snapshot.Metadata.ConfState = confState
 
-	if ps.store.snapshotManager.Register(msg, Creating) {
-		defer ps.store.snapshotManager.Deregister(msg, Creating)
+	if ps.store.snapshotManager.Register(msg, sn.Creating) {
+		defer ps.store.snapshotManager.Deregister(msg, sn.Creating)
 
 		err = ps.store.snapshotManager.Create(msg)
 		if err != nil {
@@ -237,7 +238,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 	return nil
 }
 
-func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []byte) error {
+func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []byte) error {
 	if !pr.isLeader() {
 		return nil
 	}
@@ -247,8 +248,8 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 	var err error
 	var ok bool
 
-	if pr.store.opts.customSplitCheckFunc == nil {
-		size, splitKey, err = pr.store.DataStorageByGroup(pr.ps.shard.Group).SplitCheck(startKey, endKey, pr.store.opts.shardCapacityBytes)
+	if pr.store.cfg.Customize.CustomSplitCheckFunc == nil {
+		size, splitKey, err = pr.store.DataStorageByGroup(pr.ps.shard.Group, pr.ps.shard.ID).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
 		if err != nil {
 			logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
 				pr.shardID,
@@ -264,7 +265,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		}
 
 	} else {
-		splitKey, ok = pr.store.opts.customSplitCheckFunc(pr.ps.shard)
+		splitKey, ok = pr.store.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard)
 		if ok {
 			splitKey = EncodeDataKey(pr.shardID, splitKey)
 		}
@@ -281,7 +282,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 		splitKey)
 
 	current := pr.ps.shard
-	if current.Epoch.ShardVer != epoch.ShardVer {
+	if current.Epoch.Version != epoch.Version {
 		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
 			pr.shardID,
 			current.Epoch,
@@ -298,7 +299,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ShardEpoch, startKey, endKey []
 	}
 
 	return pr.onAdmin(&raftcmdpb.AdminRequest{
-		CmdType: raftcmdpb.Split,
+		CmdType: raftcmdpb.AdminCmdType_BatchSplit,
 		Split: &raftcmdpb.SplitRequest{
 			SplitKey:   splitKey,
 			NewShardID: newShardID,

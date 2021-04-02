@@ -7,19 +7,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deepfabric/beehive/command"
+	"github.com/deepfabric/beehive/config"
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
-	"github.com/fagongzi/goetty"
+	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 	"go.etcd.io/etcd/raft"
-	"golang.org/x/time/rate"
 )
 
 type peerReplica struct {
@@ -57,19 +59,17 @@ type peerReplica struct {
 	deleteKeysHint  uint64
 
 	metrics  localMetrics
-	buf      *goetty.ByteBuf
+	buf      *buf.ByteBuf
 	stopOnce sync.Once
 
 	requestIdxs      []int
 	requestBatchIdxs []int
-	readCommandBatch CommandReadBatch
+	readCommandBatch command.CommandReadBatch
 	readyCtx         *readyContext
 	attrs            map[string]interface{}
-
-	writeLimiter *rate.Limiter
 }
 
-func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) {
+func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
 		return nil, fmt.Errorf("no peer found on store %d in shard %+v",
@@ -83,13 +83,13 @@ func createPeerReplica(store *store, shard *metapb.Shard) (*peerReplica, error) 
 // The peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *raftpb.RaftMessage, peerID uint64) (*peerReplica, error) {
+func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peerID uint64) (*peerReplica, error) {
 	// We will remove tombstone key when apply snapshot
 	logger.Infof("shard %d replicate peer, peerID=<%d>",
 		msg.ShardID,
 		peerID)
 
-	shard := &metapb.Shard{
+	shard := &bhmetapb.Shard{
 		ID:              msg.ShardID,
 		Epoch:           msg.ShardEpoch,
 		Start:           msg.Start,
@@ -103,7 +103,7 @@ func createPeerReplicaWithRaftMessage(store *store, msg *raftpb.RaftMessage, pee
 	return newPeerReplica(store, shard, peerID)
 }
 
-func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerReplica, error) {
+func newPeerReplica(store *store, shard *bhmetapb.Shard, peerID uint64) (*peerReplica, error) {
 	if peerID == 0 {
 		return nil, fmt.Errorf("invalid peer id: %d", peerID)
 	}
@@ -118,7 +118,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	pr.shardID = shard.ID
 	pr.ps = ps
 
-	for _, g := range store.opts.disableRaftLogCompactProtect {
+	for _, g := range store.cfg.Raft.RaftLog.DisableRaftLogCompactProtect {
 		if shard.Group == g {
 			pr.disableCompactProtect = true
 			break
@@ -126,19 +126,16 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	}
 
 	pr.batch = newBatch(pr)
-	pr.writeLimiter = rate.NewLimiter(rate.Every(time.Second/time.Duration(store.opts.maxConcurrencyWritesPerShard)),
-		int(store.opts.maxConcurrencyWritesPerShard))
-
-	c := getRaftConfig(peerID, ps.getAppliedIndex(), ps, store.opts)
+	c := getRaftConfig(peerID, ps.getAppliedIndex(), ps, store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		return nil, err
 	}
 
-	pr.buf = goetty.NewByteBuf(256)
+	pr.buf = buf.NewByteBuf(256)
 	pr.attrs = make(map[string]interface{})
-	if store.opts.readBatchFunc != nil {
-		pr.readCommandBatch = store.opts.readBatchFunc(pr.shardID)
+	if store.cfg.Customize.CustomReadBatchFunc != nil {
+		pr.readCommandBatch = store.cfg.Customize.CustomReadBatchFunc(pr.shardID)
 	}
 	pr.rn = rn
 	pr.events = task.NewRingBuffer(2)
@@ -159,7 +156,7 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 	}
 
 	// If this shard has only one peer and I am the one, campaign directly.
-	if len(shard.Peers) == 1 && shard.Peers[0].StoreID == store.meta.meta.ID {
+	if len(shard.Peers) == 1 && shard.Peers[0].ContainerID == store.meta.meta.ID {
 		err = rn.Campaign()
 		if err != nil {
 			return nil, err
@@ -169,7 +166,9 @@ func newPeerReplica(store *store, shard *metapb.Shard, peerID uint64) (*peerRepl
 			pr.shardID)
 	}
 
-	pr.store.opts.shardStateAware.Created(pr.ps.shard)
+	if pr.store.aware != nil {
+		pr.store.aware.Created(pr.ps.shard)
+	}
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
 	pr.items = make([]interface{}, readyBatch, readyBatch)
@@ -212,7 +211,7 @@ func (pr *peerReplica) mustDestroy() {
 			err)
 	}
 
-	err = pr.ps.updatePeerState(pr.ps.shard, raftpb.PeerTombstone, wb)
+	err = pr.ps.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Tombstone, wb)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
 			pr.shardID,
@@ -243,7 +242,9 @@ func (pr *peerReplica) mustDestroy() {
 	}
 
 	pr.store.replicas.Delete(pr.shardID)
-	pr.store.opts.shardStateAware.Destory(pr.ps.shard)
+	if pr.store.aware != nil {
+		pr.store.aware.Destory(pr.ps.shard)
+	}
 	pr.store.revokeWorker(pr)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
@@ -251,10 +252,6 @@ func (pr *peerReplica) mustDestroy() {
 
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
 	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
-
-	if _, ok := pr.store.writeHandlers[req.CustemType]; ok {
-		pr.writeLimiter.Wait(context.TODO())
-	}
 
 	r := reqCtx{}
 	r.req = req
@@ -383,7 +380,7 @@ func (pr *peerReplica) checkPeers() {
 	}
 }
 
-func (pr *peerReplica) collectDownPeers(maxDuration time.Duration) []*prophet.PeerStats {
+func (pr *peerReplica) collectDownPeers(maxDuration time.Duration) []*metapb.PeerStats {
 	now := time.Now()
 	var downPeers []*prophet.PeerStats
 	for _, p := range pr.ps.shard.Peers {
@@ -440,16 +437,16 @@ func (pr *peerReplica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, store raft.Storage, opts *options) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, store raft.Storage, cfg *config.Config) *raft.Config {
 	return &raft.Config{
 		ID:              id,
 		Applied:         appliedIndex,
-		ElectionTick:    opts.raftElectionTick,
-		HeartbeatTick:   opts.raftHeartbeatTick,
-		MaxSizePerMsg:   opts.raftMaxBytesPerMsg,
-		MaxInflightMsgs: opts.raftMaxInflightMsgCount,
+		ElectionTick:    cfg.Raft.ElectionTimeoutTicks,
+		HeartbeatTick:   cfg.Raft.HeartbeatTicks,
+		MaxSizePerMsg:   uint64(cfg.Raft.MaxSizePerMsg),
+		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
 		Storage:         store,
 		CheckQuorum:     true,
-		PreVote:         opts.raftPreVote,
+		PreVote:         cfg.Raft.EnablePreVote,
 	}
 }

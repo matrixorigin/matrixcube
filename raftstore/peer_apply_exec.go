@@ -6,19 +6,20 @@ import (
 	"errors"
 
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/prophet/pb/metapb"
 )
 
 func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
-	case raftcmdpb.ChangePeer:
+	case raftcmdpb.AdminCmdType_ChangePeer:
 		return d.doExecChangePeer(ctx)
-	case raftcmdpb.Split:
+	case raftcmdpb.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
-	case raftcmdpb.CompactRaftLog:
+	case raftcmdpb.AdminCmdType_CompactLog:
 		return d.doExecCompactRaftLog(ctx)
 	}
 
@@ -33,9 +34,9 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		req.Peer,
 		d.shard.Epoch)
 
-	exists := findPeer(&d.shard, req.Peer.StoreID)
+	exists := findPeer(&d.shard, req.Peer.ContainerID)
 	switch req.ChangeType {
-	case raftcmdpb.AddNode:
+	case raftcmdpb.ConfChangeType_AddNode:
 		if exists != nil {
 			ctx.metrics.admin.confChangeReject++
 			logger.Infof("shard %d add peer %+v skipped, already added",
@@ -51,7 +52,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			d.shard.ID,
 			req.Peer,
 			d.shard.Epoch)
-	case raftcmdpb.RemoveNode:
+	case raftcmdpb.ConfChangeType_RemoveNode:
 		if exists == nil {
 			ctx.metrics.admin.confChangeReject++
 			logger.Infof("shard %d remove peer %+v skipped, already removed",
@@ -66,7 +67,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			d.setPendingRemove()
 		}
 
-		removePeer(&d.shard, req.Peer.StoreID)
+		removePeer(&d.shard, req.Peer.ContainerID)
 		ctx.metrics.admin.removePeerSucceed++
 		d.shard.Epoch.ConfVer++
 		logger.Infof("shard %d removed a peer %+v at epoch %+v",
@@ -75,9 +76,9 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			d.shard.Epoch)
 	}
 
-	state := raftpb.PeerNormal
+	state := bhraftpb.PeerState_Normal
 	if d.isPendingRemove() {
-		state = raftpb.PeerTombstone
+		state = bhraftpb.PeerState_Tombstone
 	}
 
 	err := d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
@@ -87,12 +88,12 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			err)
 	}
 
-	resp := newAdminRaftCMDResponse(raftcmdpb.ChangePeer, &raftcmdpb.ChangePeerResponse{
+	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: d.shard,
 	})
 
 	result := &execResult{
-		adminType: raftcmdpb.ChangePeer,
+		adminType: raftcmdpb.AdminCmdType_ChangePeer,
 		// confChange set by applyConfChange
 		changePeer: &changePeer{
 			peer:  req.Peer,
@@ -105,7 +106,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 
 func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	ctx.metrics.admin.split++
-	req := ctx.req.AdminRequest.Split
+	req := ctx.req.AdminRequest.Splits
 
 	if len(req.SplitKey) == 0 {
 		logger.Errorf("shard %d missing split key",
@@ -148,7 +149,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 
 	// After split, the origin shard key range is [start_key, split_key),
 	// the new split shard is [split_key, end).
-	newShard := metapb.Shard{
+	newShard := bhmetapb.Shard{
 		ID:    req.NewShardID,
 		Epoch: d.shard.Epoch,
 		Start: req.SplitKey,
@@ -160,22 +161,22 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	for idx, id := range req.NewPeerIDs {
 		newShard.Peers = append(newShard.Peers, metapb.Peer{
 			ID:      id,
-			StoreID: d.shard.Peers[idx].StoreID,
+			StoreID: d.shard.Peers[idx].ContainerID,
 		})
 	}
 
-	d.shard.Epoch.ShardVer++
-	newShard.Epoch.ShardVer = d.shard.Epoch.ShardVer
+	d.shard.Epoch.Version++
+	newShard.Epoch.Version = d.shard.Epoch.Version
 
-	if d.store.opts.customSplitCompletedFunc != nil {
-		d.store.opts.customSplitCompletedFunc(&d.shard, &newShard)
+	if d.store.cfg.Customize.CustomSplitCompletedFunc != nil {
+		d.store.cfg.Customize.CustomSplitCompletedFunc(&d.shard, &newShard)
 	}
 
-	err := d.ps.updatePeerState(d.shard, raftpb.PeerNormal, ctx.raftStateWB)
+	err := d.ps.updatePeerState(d.shard, bhraftpb.PeerState_Normal, ctx.raftStateWB)
 
 	d.wb.Reset()
 	if err == nil {
-		err = d.ps.updatePeerState(newShard, raftpb.PeerNormal, d.wb)
+		err = d.ps.updatePeerState(newShard, bhraftpb.PeerState_Normal, d.wb)
 	}
 
 	if err == nil {
@@ -195,13 +196,13 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 			err)
 	}
 
-	rsp := newAdminRaftCMDResponse(raftcmdpb.Split, &raftcmdpb.SplitResponse{
+	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.SplitResponse{
 		Left:  d.shard,
 		Right: newShard,
 	})
 
 	result := &execResult{
-		adminType: raftcmdpb.Split,
+		adminType: raftcmdpb.AdminCmdType_BatchSplit,
 		splitResult: &splitResult{
 			left:  d.shard,
 			right: newShard,
@@ -215,7 +216,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	ctx.metrics.admin.compact++
 
-	req := ctx.req.AdminRequest.Compact
+	req := ctx.req.AdminRequest.CompactLog
 	compactIndex := req.CompactIndex
 	firstIndex := ctx.applyState.TruncatedState.Index + 1
 
@@ -233,9 +234,9 @@ func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.Raft
 		return nil, nil, err
 	}
 
-	rsp := newAdminRaftCMDResponse(raftcmdpb.CompactRaftLog, &raftcmdpb.CompactRaftLogResponse{})
+	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_CompactLog, &raftcmdpb.CompactLogRequest{})
 	result := &execResult{
-		adminType: raftcmdpb.CompactRaftLog,
+		adminType: raftcmdpb.AdminCmdType_CompactLog,
 		raftGCResult: &raftGCResult{
 			state:      ctx.applyState.TruncatedState,
 			firstIndex: firstIndex,

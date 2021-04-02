@@ -6,7 +6,7 @@ import (
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
 )
 
@@ -78,14 +78,14 @@ func (r *reqCtx) reset() {
 type proposeBatch struct {
 	pr *peerReplica
 
-	buf  *goetty.ByteBuf
+	buf  *buf.ByteBuf
 	cmds []cmd
 }
 
 func newBatch(pr *peerReplica) *proposeBatch {
 	return &proposeBatch{
 		pr:  pr,
-		buf: goetty.NewByteBuf(512),
+		buf: buf.NewByteBuf(512),
 	}
 }
 
@@ -94,7 +94,7 @@ func (b *proposeBatch) getType(c reqCtx) int {
 		return admin
 	}
 
-	if c.req.Type == raftcmdpb.Write {
+	if c.req.Type == raftcmdpb.CMDType_Write {
 		return write
 	}
 
@@ -140,7 +140,7 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	added := false
 	if !isAdmin {
 		for idx := range b.cmds {
-			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, b.pr.store.opts.maxProposalBytes) {
+			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, int(b.pr.store.cfg.Raft.MaxProposalBytes)) {
 				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
 				b.cmds[idx].size += n
 				added = true
@@ -156,7 +156,7 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 		raftCMD.Header.ShardID = shard.ID
 		raftCMD.Header.Peer = b.pr.peer
 		raftCMD.Header.ID = uuid.NewV4().Bytes()
-		raftCMD.Header.ShardEpoch = shard.Epoch
+		raftCMD.Header.Epoch = shard.Epoch
 
 		if isAdmin {
 			raftCMD.AdminRequest = adminReq

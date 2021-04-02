@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/protoc"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
 )
 
@@ -155,7 +155,7 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 	size := len(data)
 	metric.ObserveProposalBytes(int64(size))
 
-	if size > pr.store.opts.maxProposalBytes {
+	if size > int(pr.store.cfg.Raft.MaxProposalBytes) {
 		c.respLargeRaftEntrySize(pr.shardID, uint64(size))
 		return false
 	}
@@ -185,12 +185,12 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	}
 
 	changePeer := c.req.AdminRequest.ChangePeer
-	cc := new(etcdraftpb.ConfChange)
+	cc := new(raftpb.ConfChange)
 	switch changePeer.ChangeType {
-	case raftcmdpb.AddNode:
-		cc.Type = etcdraftpb.ConfChangeAddNode
-	case raftcmdpb.RemoveNode:
-		cc.Type = etcdraftpb.ConfChangeRemoveNode
+	case raftcmdpb.ConfChangeType_AddNode:
+		cc.Type = raftpb.ConfChangeAddNode
+	case raftcmdpb.ConfChangeType_RemoveNode:
+		cc.Type = raftpb.ConfChangeRemoveNode
 	}
 	cc.NodeID = changePeer.Peer.ID
 	cc.Context = protoc.MustMarshal(c.req)
@@ -218,7 +218,7 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 }
 
 func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
-	req := c.req.AdminRequest.Transfer
+	req := c.req.AdminRequest.TransferLeader
 	if pr.isTransferLeaderAllowed(req.Peer) {
 		pr.doTransferLeader(req.Peer)
 	} else {
@@ -229,7 +229,7 @@ func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
 
 	// transfer leader command doesn't need to replicate log and apply, so we
 	// return immediately. Note that this command may fail, we can view it just as an advice
-	c.resp(newAdminRaftCMDResponse(raftcmdpb.TransferLeader, &raftcmdpb.TransferLeaderResponse{}))
+	c.resp(newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_TransferLeader, &raftcmdpb.TransferLeaderResponse{}))
 	return false
 }
 
@@ -255,7 +255,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	}
 
 	lastIndex, _ := pr.ps.LastIndex()
-	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.opts.maxAllowTransferLogLag
+	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLogLag
 }
 
 func (pr *peerReplica) checkProposal(c cmd) bool {
@@ -304,11 +304,11 @@ func (pr *peerReplica) checkConfChange(c cmd) error {
 	peer := changePeer.Peer
 
 	switch changePeer.ChangeType {
-	case raftcmdpb.AddNode:
+	case raftcmdpb.ConfChangeType_AddNode:
 		if _, ok := pr.rn.Status().Progress[peer.ID]; !ok {
 			total++
 		}
-	case raftcmdpb.RemoveNode:
+	case raftcmdpb.ConfChangeType_RemoveNode:
 		if _, ok := pr.rn.Status().Progress[peer.ID]; !ok {
 			return nil
 		}
@@ -357,9 +357,9 @@ func (pr *peerReplica) countHealthyNode() int {
 func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPolicy, error) {
 	if req.AdminRequest != nil {
 		switch req.AdminRequest.CmdType {
-		case raftcmdpb.ChangePeer:
+		case raftcmdpb.AdminCmdType_ChangePeer:
 			return proposeChange, nil
-		case raftcmdpb.TransferLeader:
+		case raftcmdpb.AdminCmdType_TransferLeader:
 			return proposeTransferLeader, nil
 		default:
 			return proposeNormal, nil
@@ -368,8 +368,8 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 
 	var isRead, isWrite bool
 	for _, r := range req.Requests {
-		isRead = r.Type == raftcmdpb.Read
-		isWrite = r.Type == raftcmdpb.Write
+		isRead = r.Type == raftcmdpb.CMDType_Read
+		isWrite = r.Type == raftcmdpb.CMDType_Write
 	}
 
 	if isRead && isWrite {
@@ -380,8 +380,8 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 		return proposeNormal, nil
 	}
 
-	if pr.store.opts.customCanReadLocalFunc != nil &&
-		pr.store.opts.customCanReadLocalFunc(pr.ps.shard) {
+	if pr.store.cfg.Customize.CustomCanReadLocalFunc != nil &&
+		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.ps.shard) {
 		return readLocal, nil
 	}
 

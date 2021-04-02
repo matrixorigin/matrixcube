@@ -8,7 +8,7 @@ import (
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/util"
 	"go.etcd.io/etcd/raft"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
 )
 
@@ -69,7 +69,7 @@ func (pr *peerReplica) addApplyResult(result asyncApplyResult) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) step(msg etcdraftpb.Message) {
+func (pr *peerReplica) step(msg raftpb.Message) {
 	err := pr.steps.Put(msg)
 	if err != nil {
 		logger.Infof("shard %d raft step stopped",
@@ -99,7 +99,7 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 		pr.addEvent()
 	}
 
-	util.DefaultTimeoutWheel().Schedule(pr.store.opts.raftTickDuration, pr.onRaftTick, nil)
+	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
 func (pr *peerReplica) doubleCheck() bool {
@@ -240,7 +240,7 @@ func (pr *peerReplica) handleStep(items []interface{}) {
 	}
 
 	for i := int64(0); i < n; i++ {
-		msg := items[i].(etcdraftpb.Message)
+		msg := items[i].(raftpb.Message)
 		if pr.isLeader() && msg.From != 0 {
 			pr.peerHeartbeatsMap.Store(msg.From, time.Now())
 		}
@@ -301,9 +301,9 @@ func (pr *peerReplica) handleReport(items []interface{}) {
 	}
 
 	for i := int64(0); i < n; i++ {
-		if msg, ok := items[i].(etcdraftpb.Message); ok {
+		if msg, ok := items[i].(raftpb.Message); ok {
 			pr.rn.ReportUnreachable(msg.To)
-			if msg.Type == etcdraftpb.MsgSnap {
+			if msg.Type == raftpb.MsgSnap {
 				pr.rn.ReportSnapshot(msg.To, raft.SnapshotFailure)
 			}
 		}
@@ -382,16 +382,16 @@ func (pr *peerReplica) doCheckCompact() {
 	firstIdx, _ := pr.ps.FirstIndex()
 
 	if replicatedIdx < firstIdx ||
-		replicatedIdx-firstIdx <= pr.store.opts.raftThresholdCompactLog {
+		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.RaftThresholdCompactLog {
 		return
 	}
 
 	if !pr.disableCompactProtect &&
 		appliedIdx > firstIdx &&
-		appliedIdx-firstIdx >= pr.store.opts.maxRaftLogCountToForceCompact {
+		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.MaxRaftLogCountToForceCompact {
 		compactIdx = appliedIdx
 	} else if !pr.disableCompactProtect &&
-		pr.raftLogSizeHint >= pr.store.opts.maxRaftLogBytesToForceCompact {
+		pr.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.MaxRaftLogBytesToForceCompact {
 		compactIdx = appliedIdx
 	} else {
 		compactIdx = replicatedIdx
@@ -406,7 +406,7 @@ func (pr *peerReplica) doCheckCompact() {
 	// avoid leader send snapshot to the a little lag peer.
 	if !pr.disableCompactProtect {
 		if compactIdx > replicatedIdx {
-			if (compactIdx - replicatedIdx) <= pr.store.opts.maxRaftLogCompactProtectLag {
+			if (compactIdx - replicatedIdx) <= pr.store.cfg.Raft.RaftLog.MaxRaftLogCompactProtectLag {
 				compactIdx = replicatedIdx
 			} else {
 				logger.Infof("shard %d peer lag is too large, maybe sent a snapshot later. lag=<%d>",
@@ -424,8 +424,8 @@ func (pr *peerReplica) doCheckCompact() {
 
 	term, _ := pr.rn.Term(compactIdx)
 	req := new(raftcmdpb.AdminRequest)
-	req.CmdType = raftcmdpb.CompactRaftLog
-	req.Compact = &raftcmdpb.CompactRaftLogRequest{
+	req.CmdType = raftcmdpb.AdminCmdType_CompactLog
+	req.CompactLog = &raftcmdpb.CompactLogRequest{
 		CompactIndex: compactIdx,
 		CompactTerm:  term,
 	}

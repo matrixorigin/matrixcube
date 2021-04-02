@@ -16,8 +16,8 @@ package raftstore
 import (
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/uuid"
 )
 
@@ -63,7 +63,7 @@ func resp(req *raftcmdpb.Request, resp *raftcmdpb.Response, cb func(*raftcmdpb.R
 
 func respWithRetry(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
 	resp := pb.AcquireResponse()
-	resp.Type = raftcmdpb.RaftError
+	resp.Type = raftcmdpb.CMDType_Invalid
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID

@@ -80,11 +80,11 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 
 func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
-	case raftcmdpb.ChangePeer:
+	case raftcmdpb.AdminCmdType_ChangePeer:
 		pr.doApplyConfChange(result.result.changePeer)
-	case raftcmdpb.Split:
+	case raftcmdpb.AdminCmdType_BatchSplit:
 		pr.doApplySplit(result.result.splitResult)
-	case raftcmdpb.CompactRaftLog:
+	case raftcmdpb.AdminCmdType_CompactLog:
 		pr.doApplyCompactRaftLog(result.result.raftGCResult)
 	}
 }
@@ -118,7 +118,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		pr.store.peers.Delete(cp.peer.ID)
 
 		// We only care remove itself now.
-		if cp.peer.StoreID == pr.store.meta.meta.ID {
+		if cp.peer.ContainerID == pr.store.meta.meta.ID {
 			if cp.peer.ID == pr.peer.ID {
 				pr.mustDestroy()
 			} else {
@@ -178,7 +178,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	pr.store.updateShardKeyRange(result.left)
 	pr.store.updateShardKeyRange(result.right)
 
-	newPR.sizeDiffHint = newPR.store.opts.shardSplitCheckBytes
+	newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
 	newPR.startRegistrationJob()
 	pr.store.addPR(newPR)
 
@@ -210,7 +210,9 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		}
 	}
 
-	pr.store.opts.shardStateAware.Splited(pr.ps.shard)
+	if pr.store.aware != nil {
+		pr.store.aware.Splited(pr.ps.shard)
+	}
 	logger.Infof("shard %d new shard added, left=<%+v> right=<%+v>",
 		pr.shardID,
 		result.left,

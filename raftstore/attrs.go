@@ -1,6 +1,8 @@
 package raftstore
 
-import "github.com/fagongzi/goetty"
+import (
+	"github.com/fagongzi/goetty/buf"
+)
 
 const (
 	attrBuf             = "internal.temp.buf"
@@ -9,9 +11,9 @@ const (
 )
 
 // GetBuf returns byte buffer from attr
-func GetBuf(attrs map[string]interface{}) *goetty.ByteBuf {
+func GetBuf(attrs map[string]interface{}) *buf.ByteBuf {
 	if v, ok := attrs[attrBuf]; ok {
-		return v.(*goetty.ByteBuf)
+		return v.(*buf.ByteBuf)
 	}
 
 	return nil
