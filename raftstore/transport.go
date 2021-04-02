@@ -2,66 +2,70 @@ package raftstore
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
+	sn "github.com/deepfabric/beehive/snapshot"
+	"github.com/deepfabric/beehive/transport"
 	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/codec"
+	"github.com/fagongzi/goetty/codec/length"
+	"github.com/fagongzi/goetty/pool"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
-// Transport raft transport
-type Transport interface {
-	Start()
-	Stop()
-	Send(*raftpb.RaftMessage, *etcdraftpb.Message)
-	SendingSnapshotCount() uint64
+type defaultTransport struct {
+	store                  *store
+	decoder                codec.Decoder
+	encoder                codec.Encoder
+	server                 goetty.NetApplication
+	readTimeout, writeTime time.Duration
+	conns                  sync.Map // store id -> pool.IOSessionPool
+	resolverFunc           func(id uint64) (string, error)
+	addrs                  sync.Map // store id -> addr
+	addrsRevert            sync.Map // addr -> store id
+	raftMsgs               [][]*task.Queue
+	raftMask               []uint64
+	snapMsgs               [][]*task.Queue
+	snapMask               []uint64
 }
 
-type transport struct {
-	store   *store
-	server  *goetty.Server
-	decoder goetty.Decoder
-	conns   sync.Map // store id -> goetty.IOSessionPool
-
-	resolverFunc func(id uint64) (string, error)
-	addrs        sync.Map // store id -> addr
-	addrsRevert  sync.Map // addr -> store id
-
-	raftMsgs [][]*task.Queue
-	raftMask []uint64
-	snapMsgs [][]*task.Queue
-	snapMask []uint64
-}
-
-func newTransport(store *store) Transport {
-	decoder := goetty.NewIntLengthFieldBasedDecoderSize(newRaftDecoder(), 0, 0, 0, store.opts.maxProposalBytes*2)
-
-	t := &transport{
-		store:   store,
-		decoder: decoder,
-		server: goetty.NewServer(store.cfg.RaftAddr,
-			goetty.WithServerDecoder(decoder),
-			goetty.WithServerEncoder(encoder),
-			goetty.WithServerIDGenerator(goetty.NewUUIDV4IdGenerator())),
+func newTransport(store *store) transport.Transport {
+	t := &defaultTransport{
+		store:       store,
+		readTimeout: 2 * time.Duration(store.cfg.Raft.HeartbeatTicks) * store.cfg.Raft.TickInterval.Duration,
+		writeTime:   time.Minute,
 	}
+
+	baseEncoder := newRaftEncoder()
+	baseDecoder := newRaftDecoder()
+	t.encoder, t.decoder = length.NewWithSize(baseEncoder, baseDecoder, 0, 0, 0, int(store.cfg.Raft.MaxProposalBytes)*2)
+	app, err := goetty.NewTCPApplication(store.cfg.RaftAddr, t.onMessage,
+		goetty.WithAppSessionOptions(goetty.WithCodec(t.encoder, t.decoder),
+			goetty.WithTimeout(t.readTimeout, t.writeTime),
+			goetty.WithEnableAsyncWrite(int64(store.cfg.Raft.SendRaftBatchSize))))
+	if err != nil {
+		logger.Fatalf("create transport failed with %+v", err)
+	}
+
+	t.server = app
 	t.resolverFunc = t.resolverStoreAddr
 
-	for i := uint64(0); i < store.opts.groups; i++ {
-		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.opts.sendRaftMsgWorkerCount, store.opts.sendRaftMsgWorkerCount))
-		t.raftMask = append(t.raftMask, store.opts.sendRaftMsgWorkerCount-1)
-		for j := uint64(0); j < t.store.opts.sendRaftMsgWorkerCount; j++ {
+	for i := uint64(0); i < store.cfg.Groups; i++ {
+		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.cfg.Worker.SendRaftMsgWorkerCount, store.cfg.Worker.SendRaftMsgWorkerCount))
+		t.raftMask = append(t.raftMask, store.cfg.Worker.SendRaftMsgWorkerCount-1)
+		for j := uint64(0); j < t.store.cfg.Worker.SendRaftMsgWorkerCount; j++ {
 			t.raftMsgs[i][j] = &task.Queue{}
 		}
 
-		t.snapMsgs = append(t.snapMsgs, make([]*task.Queue, store.opts.maxConcurrencySnapChunks, store.opts.maxConcurrencySnapChunks))
-		t.snapMask = append(t.snapMask, store.opts.maxConcurrencySnapChunks-1)
-		for j := uint64(0); j < t.store.opts.maxConcurrencySnapChunks; j++ {
+		t.snapMsgs = append(t.snapMsgs, make([]*task.Queue, store.cfg.Snapshot.MaxConcurrencySnapChunks, store.cfg.Snapshot.MaxConcurrencySnapChunks))
+		t.snapMask = append(t.snapMask, store.cfg.Snapshot.MaxConcurrencySnapChunks-1)
+		for j := uint64(0); j < t.store.cfg.Snapshot.MaxConcurrencySnapChunks; j++ {
 			t.snapMsgs[i][j] = &task.Queue{}
 		}
 	}
@@ -69,7 +73,7 @@ func newTransport(store *store) Transport {
 	return t
 }
 
-func (t *transport) Start() {
+func (t *defaultTransport) Start() {
 	for _, qs := range t.raftMsgs {
 		for _, q := range qs {
 			go t.readyToSendRaft(q)
@@ -82,19 +86,15 @@ func (t *transport) Start() {
 		}
 	}
 
-	go func() {
-		err := t.server.Start(t.doConnection)
-		if err != nil {
-			logger.Fatalf("transport start at %s failed with %+v",
-				t.store.cfg.RaftAddr,
-				err)
-		}
-	}()
-
-	<-t.server.Started()
+	err := t.server.Start()
+	if err != nil {
+		logger.Fatalf("transport start at %s failed with %+v",
+			t.store.cfg.RaftAddr,
+			err)
+	}
 }
 
-func (t *transport) Stop() {
+func (t *defaultTransport) Stop() {
 	for _, qs := range t.snapMsgs {
 		for _, q := range qs {
 			q.Dispose()
@@ -111,7 +111,7 @@ func (t *transport) Stop() {
 	logger.Infof("transfer stopped")
 }
 
-func (t *transport) SendingSnapshotCount() uint64 {
+func (t *defaultTransport) SendingSnapshotCount() uint64 {
 	c := int64(0)
 	for _, qs := range t.snapMsgs {
 		for _, q := range qs {
@@ -122,16 +122,16 @@ func (t *transport) SendingSnapshotCount() uint64 {
 	return uint64(c)
 }
 
-func (t *transport) Send(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) {
-	storeID := msg.To.StoreID
+func (t *defaultTransport) Send(msg *bhraftpb.RaftMessage) {
+	storeID := msg.To.ContainerID
 	if storeID == t.store.meta.meta.ID {
 		t.store.handle(msg)
 		return
 	}
 
-	if raw.Type == etcdraftpb.MsgSnap {
-		snapMsg := &raftpb.SnapshotMessage{}
-		protoc.MustUnmarshal(snapMsg, raw.Snapshot.Data)
+	if msg.Message.Type == raftpb.MsgSnap {
+		snapMsg := &bhraftpb.SnapshotMessage{}
+		protoc.MustUnmarshal(snapMsg, msg.Message.Snapshot.Data)
 		snapMsg.Header.From = msg.From
 		snapMsg.Header.To = msg.To
 
@@ -140,54 +140,36 @@ func (t *transport) Send(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) {
 		metric.SetRaftSnapQueueMetric(q.Len())
 	}
 
-	msg.Message = protoc.MustMarshal(raw)
 	q := t.raftMsgs[msg.Group][t.raftMask[msg.Group]&storeID]
 	q.Put(msg)
 	metric.SetRaftMsgQueueMetric(q.Len())
 }
 
-func (t *transport) doConnection(session goetty.IOSession) error {
-	remoteIP := session.RemoteIP()
-
-	logger.Infof("%s connected", remoteIP)
-	for {
-		msg, err := session.Read()
-		if err != nil {
-			if err == io.EOF {
-				logger.Infof("closed by %s", remoteIP)
-			} else {
-				logger.Warningf("read from %s failed with %+v",
-					remoteIP,
-					err)
-			}
-
-			return err
-		}
-
-		t.store.handle(msg)
-	}
+func (t *defaultTransport) onMessage(rs goetty.IOSession, msg interface{}, seq uint64) error {
+	t.store.handle(msg)
+	return nil
 }
 
-func (t *transport) readyToSendRaft(q *task.Queue) {
-	items := make([]interface{}, t.store.opts.sendRaftBatchSize, t.store.opts.sendRaftBatchSize)
-	buffers := make(map[uint64][]*raftpb.RaftMessage)
+func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
+	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize, t.store.cfg.Raft.SendRaftBatchSize)
+	buffers := make(map[uint64][]*bhraftpb.RaftMessage)
 
 	for {
-		n, err := q.Get(int64(t.store.opts.sendRaftBatchSize), items)
+		n, err := q.Get(int64(t.store.cfg.Raft.SendRaftBatchSize), items)
 		if err != nil {
 			logger.Infof("send raft worker stopped")
 			return
 		}
 
 		for i := int64(0); i < n; i++ {
-			msg := items[i].(*raftpb.RaftMessage)
-			var values []*raftpb.RaftMessage
-			if v, ok := buffers[msg.To.StoreID]; ok {
+			msg := items[i].(*bhraftpb.RaftMessage)
+			var values []*bhraftpb.RaftMessage
+			if v, ok := buffers[msg.To.ContainerID]; ok {
 				values = v
 			}
 
 			values = append(values, msg)
-			buffers[msg.To.StoreID] = values
+			buffers[msg.To.ContainerID] = values
 		}
 
 		for k, msgs := range buffers {
@@ -207,19 +189,19 @@ func (t *transport) readyToSendRaft(q *task.Queue) {
 	}
 }
 
-func (t *transport) readyToSendSnapshots(q *task.Queue) {
-	items := make([]interface{}, t.store.opts.sendRaftBatchSize, t.store.opts.sendRaftBatchSize)
+func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
+	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize, t.store.cfg.Raft.SendRaftBatchSize)
 
 	for {
-		n, err := q.Get(int64(t.store.opts.sendRaftBatchSize), items)
+		n, err := q.Get(int64(t.store.cfg.Raft.SendRaftBatchSize), items)
 		if err != nil {
 			logger.Infof("send snapshot worker stopped")
 			return
 		}
 
 		for i := int64(0); i < n; i++ {
-			msg := items[i].(*raftpb.SnapshotMessage)
-			id := msg.Header.To.StoreID
+			msg := items[i].(*bhraftpb.SnapshotMessage)
+			id := msg.Header.To.ContainerID
 
 			conn, err := t.getConn(id)
 			if err != nil {
@@ -245,9 +227,9 @@ func (t *transport) readyToSendSnapshots(q *task.Queue) {
 	}
 }
 
-func (t *transport) doSendSnapshotMessage(msg *raftpb.SnapshotMessage, conn goetty.IOSession) error {
-	if t.store.snapshotManager.Register(msg, Sending) {
-		defer t.store.snapshotManager.Deregister(msg, Sending)
+func (t *defaultTransport) doSendSnapshotMessage(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) error {
+	if t.store.snapshotManager.Register(msg, sn.Sending) {
+		defer t.store.snapshotManager.Deregister(msg, sn.Sending)
 
 		logger.Infof("shard %d start send pending snap, epoch=<%s> term=<%d> index=<%d>",
 			msg.Header.Shard.ID,
@@ -280,7 +262,7 @@ func (t *transport) doSendSnapshotMessage(msg *raftpb.SnapshotMessage, conn goet
 	return nil
 }
 
-func (t *transport) postSend(msg *raftpb.RaftMessage, err error) {
+func (t *defaultTransport) postSend(msg *bhraftpb.RaftMessage, err error) {
 	if err != nil {
 		logger.Errorf("shard %d send msg from %d to %d failed with %+v",
 			msg.ShardID,
@@ -289,16 +271,14 @@ func (t *transport) postSend(msg *raftpb.RaftMessage, err error) {
 			err)
 
 		if pr := t.store.getPR(msg.ShardID, true); pr != nil {
-			value := etcdraftpb.Message{}
-			protoc.MustUnmarshal(&value, msg.Message)
-			pr.addReport(value)
+			pr.addReport(msg.Message)
 		}
 	}
 
 	pb.ReleaseRaftMessage(msg)
 }
 
-func (t *transport) doSend(msgs []*raftpb.RaftMessage, to uint64) error {
+func (t *defaultTransport) doSend(msgs []*bhraftpb.RaftMessage, to uint64) error {
 	conn, err := t.getConn(to)
 	if err != nil {
 		return err
@@ -309,7 +289,7 @@ func (t *transport) doSend(msgs []*raftpb.RaftMessage, to uint64) error {
 	return err
 }
 
-func (t *transport) doBatchWrite(msgs []*raftpb.RaftMessage, conn goetty.IOSession) error {
+func (t *defaultTransport) doBatchWrite(msgs []*bhraftpb.RaftMessage, conn goetty.IOSession) error {
 	for _, m := range msgs {
 		err := conn.Write(m)
 		if err != nil {
@@ -327,7 +307,7 @@ func (t *transport) doBatchWrite(msgs []*raftpb.RaftMessage, conn goetty.IOSessi
 	return nil
 }
 
-func (t *transport) doWrite(msg interface{}, conn goetty.IOSession) error {
+func (t *defaultTransport) doWrite(msg interface{}, conn goetty.IOSession) error {
 	err := conn.WriteAndFlush(msg)
 	if err != nil {
 		conn.Close()
@@ -337,15 +317,15 @@ func (t *transport) doWrite(msg interface{}, conn goetty.IOSession) error {
 	return nil
 }
 
-func (t *transport) putConn(id uint64, conn goetty.IOSession) {
-	if pool, ok := t.conns.Load(id); ok {
-		pool.(goetty.IOSessionPool).Put(conn)
+func (t *defaultTransport) putConn(id uint64, conn goetty.IOSession) {
+	if p, ok := t.conns.Load(id); ok {
+		p.(pool.IOSessionPool).Put(conn)
 	} else {
 		conn.Close()
 	}
 }
 
-func (t *transport) getConn(id uint64) (goetty.IOSession, error) {
+func (t *defaultTransport) getConn(id uint64) (goetty.IOSession, error) {
 	conn, err := t.getConnLocked(id)
 	if err != nil {
 		return nil, err
@@ -359,34 +339,39 @@ func (t *transport) getConn(id uint64) (goetty.IOSession, error) {
 	return nil, errConnect
 }
 
-func (t *transport) getConnLocked(id uint64) (goetty.IOSession, error) {
-	if pool, ok := t.conns.Load(id); ok {
-		return pool.(goetty.IOSessionPool).Get()
+func (t *defaultTransport) getConnLocked(id uint64) (goetty.IOSession, error) {
+	if p, ok := t.conns.Load(id); ok {
+		return p.(pool.IOSessionPool).Get()
 	}
 
-	pool, err := goetty.NewIOSessionPool(1, int(2*t.store.opts.groups), func() (goetty.IOSession, error) {
-		return t.createConn(id)
+	p, err := pool.NewIOSessionPool(nil, 1, int(2*t.store.cfg.Groups), func(remote interface{}) (goetty.IOSession, error) {
+		return t.createConn()
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if old, loaded := t.conns.LoadOrStore(id, pool); loaded {
-		return old.(goetty.IOSessionPool).Get()
+	if old, loaded := t.conns.LoadOrStore(id, p); loaded {
+		return old.(pool.IOSessionPool).Get()
 	}
-	return pool.(goetty.IOSessionPool).Get()
+	return p.(pool.IOSessionPool).Get()
 }
 
-func (t *transport) checkConnect(id uint64, conn goetty.IOSession) bool {
+func (t *defaultTransport) checkConnect(id uint64, conn goetty.IOSession) bool {
 	if nil == conn {
 		return false
 	}
 
-	if conn.IsConnected() {
+	if conn.Connected() {
 		return true
 	}
 
-	ok, err := conn.Connect()
+	addr, err := t.resolverFunc(id)
+	if err != nil {
+		return false
+	}
+
+	ok, err := conn.Connect(addr, time.Second*10)
 	if err != nil {
 		logger.Errorf("connect to store %d failed with %+v",
 			id,
@@ -398,18 +383,12 @@ func (t *transport) checkConnect(id uint64, conn goetty.IOSession) bool {
 	return ok
 }
 
-func (t *transport) createConn(id uint64) (goetty.IOSession, error) {
-	addr, err := t.resolverFunc(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return goetty.NewConnector(addr,
-		goetty.WithClientDecoder(t.decoder),
-		goetty.WithClientEncoder(encoder)), nil
+func (t *defaultTransport) createConn() (goetty.IOSession, error) {
+	return goetty.NewIOSession(goetty.WithCodec(t.encoder, t.decoder),
+		goetty.WithTimeout(t.readTimeout, t.writeTime)), nil
 }
 
-func (t *transport) resolverStoreAddr(storeID uint64) (string, error) {
+func (t *defaultTransport) resolverStoreAddr(storeID uint64) (string, error) {
 	addr, ok := t.addrs.Load(storeID)
 
 	if !ok {
@@ -418,7 +397,7 @@ func (t *transport) resolverStoreAddr(storeID uint64) (string, error) {
 			return addr.(string), nil
 		}
 
-		container, err := t.store.pd.GetStore().GetContainer(storeID)
+		container, err := t.store.pd.GetStorage().GetContainer(storeID)
 		if err != nil {
 			return "", err
 		}
@@ -427,7 +406,7 @@ func (t *transport) resolverStoreAddr(storeID uint64) (string, error) {
 			return "", fmt.Errorf("store %d not registered", storeID)
 		}
 
-		addr = container.(*containerAdapter).meta.ShardAddr
+		addr = container.(*containerAdapter).meta.RaftAddr
 		t.addrs.Store(storeID, addr)
 		t.addrsRevert.Store(addr, storeID)
 	}

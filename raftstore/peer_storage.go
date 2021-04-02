@@ -7,14 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftpb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"go.etcd.io/etcd/raft"
-	etcdPB "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 const (
@@ -45,20 +45,19 @@ const (
 )
 
 var (
-	emptyEntry = etcdPB.Entry{}
+	emptyEntry = raftpb.Entry{}
 )
 
 type peerStorage struct {
 	store *store
-	shard metapb.Shard
+	shard bhmetapb.Shard
 
 	lastTerm         uint64
 	appliedIndexTerm uint64
 	lastReadyIndex   uint64
 	lastCompactIndex uint64
-	raftState        raftpb.RaftLocalState
-	raftHardState    etcdPB.HardState
-	applyState       raftpb.RaftApplyState
+	raftState        bhraftpb.RaftLocalState
+	applyState       bhraftpb.RaftApplyState
 
 	genSnapJob       *task.Job
 	applySnapJob     *task.Job
@@ -67,7 +66,7 @@ type peerStorage struct {
 	pendingReads *readIndexQueue
 }
 
-func newPeerStorage(store *store, shard metapb.Shard) (*peerStorage, error) {
+func newPeerStorage(store *store, shard bhmetapb.Shard) (*peerStorage, error) {
 	s := new(peerStorage)
 	s.store = store
 	s.shard = shard
@@ -77,10 +76,9 @@ func newPeerStorage(store *store, shard metapb.Shard) (*peerStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("shard %d init with raft state %+v ,%+v",
+	logger.Infof("shard %d init with raft state %+v",
 		shard.ID,
-		s.raftState,
-		s.raftHardState)
+		s.raftState)
 
 	err = s.initApplyState()
 	if err != nil {
@@ -111,18 +109,17 @@ func (ps *peerStorage) initRaftState() error {
 	}
 
 	if len(v) > 0 {
-		s := &raftpb.RaftLocalState{}
+		s := &bhraftpb.RaftLocalState{}
 		err = s.Unmarshal(v)
 		if err != nil {
 			return err
 		}
 
 		ps.raftState = *s
-		protoc.MustUnmarshal(&ps.raftHardState, s.HardState)
 		return nil
 	}
 
-	s := &raftpb.RaftLocalState{}
+	s := &bhraftpb.RaftLocalState{}
 	if len(ps.shard.Peers) > 0 {
 		s.LastIndex = raftInitLogIndex
 	}
@@ -138,7 +135,7 @@ func (ps *peerStorage) initApplyState() error {
 	}
 
 	if len(v) > 0 && len(ps.shard.Peers) > 0 {
-		s := &raftpb.RaftApplyState{}
+		s := &bhraftpb.RaftApplyState{}
 		err = s.Unmarshal(v)
 		if err != nil {
 			return err
@@ -187,7 +184,7 @@ func (ps *peerStorage) initLastTerm() error {
 			lastIndex)
 	}
 
-	s := &etcdPB.Entry{}
+	s := &raftpb.Entry{}
 	err = s.Unmarshal(v)
 	if err != nil {
 		return err
@@ -206,7 +203,7 @@ func (ps *peerStorage) getAppliedIndex() uint64 {
 }
 
 func (ps *peerStorage) getCommittedIndex() uint64 {
-	return ps.raftHardState.Commit
+	return ps.raftState.HardState.Commit
 }
 
 func (ps *peerStorage) getTruncatedIndex() uint64 {
@@ -217,8 +214,8 @@ func (ps *peerStorage) getTruncatedTerm() uint64 {
 	return ps.applyState.TruncatedState.Term
 }
 
-func (ps *peerStorage) validateSnap(snap *etcdPB.Snapshot) bool {
-	snapData := &raftpb.SnapshotMessage{}
+func (ps *peerStorage) validateSnap(snap *raftpb.Snapshot) bool {
+	snapData := &bhraftpb.SnapshotMessage{}
 	err := snapData.Unmarshal(snap.Data)
 	if err != nil {
 		logger.Errorf("shard %d decode snapshot failed with %+v",
@@ -274,7 +271,7 @@ func (ps *peerStorage) checkRange(low, high uint64) error {
 	return nil
 }
 
-func (ps *peerStorage) loadLogEntry(index uint64) (etcdPB.Entry, error) {
+func (ps *peerStorage) loadLogEntry(index uint64) (raftpb.Entry, error) {
 	key := getRaftLogKey(ps.shard.ID, index)
 	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
@@ -293,7 +290,7 @@ func (ps *peerStorage) loadLogEntry(index uint64) (etcdPB.Entry, error) {
 	return ps.unmarshal(v, index)
 }
 
-func (ps *peerStorage) loadLocalState(job *task.Job) (*raftpb.ShardLocalState, error) {
+func (ps *peerStorage) loadLocalState(job *task.Job) (*bhraftpb.ShardLocalState, error) {
 	if nil != job &&
 		job.IsCancelling() {
 		return nil, task.ErrJobCancelled
@@ -308,8 +305,8 @@ func (ps *peerStorage) applySnapshot(job *task.Job) error {
 		return task.ErrJobCancelled
 	}
 
-	snap := &raftpb.SnapshotMessage{}
-	snap.Header = raftpb.SnapshotMessageHeader{
+	snap := &bhraftpb.SnapshotMessage{}
+	snap.Header = bhraftpb.SnapshotMessageHeader{
 		Shard: ps.shard,
 		Term:  ps.applyState.TruncatedState.Term,
 		Index: ps.applyState.TruncatedState.Index,
@@ -318,7 +315,7 @@ func (ps *peerStorage) applySnapshot(job *task.Job) error {
 	return ps.store.snapshotManager.Apply(snap)
 }
 
-func (ps *peerStorage) loadApplyState() (*raftpb.RaftApplyState, error) {
+func (ps *peerStorage) loadApplyState() (*bhraftpb.RaftApplyState, error) {
 	key := getApplyStateKey(ps.shard.ID)
 	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
@@ -332,13 +329,13 @@ func (ps *peerStorage) loadApplyState() (*raftpb.RaftApplyState, error) {
 		return nil, errors.New("shard apply state not found")
 	}
 
-	applyState := &raftpb.RaftApplyState{}
+	applyState := &bhraftpb.RaftApplyState{}
 	err = applyState.Unmarshal(v)
 	return applyState, err
 }
 
-func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (etcdPB.Entry, error) {
-	e := etcdPB.Entry{}
+func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (raftpb.Entry, error) {
+	e := raftpb.Entry{}
 	protoc.MustUnmarshal(&e, v)
 	if e.Index != expectIndex {
 		logger.Fatalf("shard %d raft log index not match, logIndex %d expect %d",
@@ -380,7 +377,7 @@ func (ps *peerStorage) clearData() error {
 }
 
 // Delete all data that is not covered by `newShard`.
-func (ps *peerStorage) clearExtraData(newShard metapb.Shard) error {
+func (ps *peerStorage) clearExtraData(newShard bhmetapb.Shard) error {
 	shard := ps.shard
 
 	oldStartKey := encStartKey(&shard)
@@ -439,8 +436,8 @@ func (ps *peerStorage) doDestroyDataJob(shardID uint64, startKey, endKey []byte)
 	return err
 }
 
-func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerState, wb *util.WriteBatch) error {
-	shardState := &raftpb.ShardLocalState{}
+func (ps *peerStorage) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, wb *util.WriteBatch) error {
+	shardState := &bhraftpb.ShardLocalState{}
 	shardState.State = state
 	shardState.Shard = shard
 
@@ -452,15 +449,12 @@ func (ps *peerStorage) updatePeerState(shard metapb.Shard, state raftpb.PeerStat
 }
 
 func (ps *peerStorage) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
-	hard := etcdPB.HardState{}
-	hard.Term = raftInitLogTerm
-	hard.Commit = raftInitLogIndex
-
-	raftState := new(raftpb.RaftLocalState)
+	raftState := new(bhraftpb.RaftLocalState)
 	raftState.LastIndex = raftInitLogIndex
-	raftState.HardState = protoc.MustMarshal(&hard)
+	raftState.HardState.Term = raftInitLogTerm
+	raftState.HardState.Commit = raftInitLogIndex
 
-	applyState := new(raftpb.RaftApplyState)
+	applyState := new(bhraftpb.RaftApplyState)
 	applyState.AppliedIndex = raftInitLogIndex
 	applyState.TruncatedState.Index = raftInitLogIndex
 	applyState.TruncatedState.Term = raftInitLogTerm
@@ -479,10 +473,10 @@ func (ps *peerStorage) deleteAllInRange(start, end []byte, job *task.Job) error 
 		return task.ErrJobCancelled
 	}
 
-	return ps.store.DataStorageByGroup(ps.shard.Group).RangeDelete(start, end)
+	return ps.store.DataStorageByGroup(ps.shard.Group, ps.shard.ID).RangeDelete(start, end)
 }
 
-func compactRaftLog(shardID uint64, state *raftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
+func compactRaftLog(shardID uint64, state *bhraftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
 	logger.Debugf("shard %d compact log entries to index %d",
 		shardID,
 		compactIndex)
@@ -499,7 +493,7 @@ func compactRaftLog(shardID uint64, state *raftpb.RaftApplyState, compactIndex, 
 	return nil
 }
 
-func loadLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFound bool) (*raftpb.ShardLocalState, error) {
+func loadLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFound bool) (*bhraftpb.ShardLocalState, error) {
 	key := getStateKey(shardID)
 	v, err := driver.Get(key)
 	if err != nil {
@@ -515,7 +509,7 @@ func loadLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFoun
 		return nil, errors.New("shard state not found")
 	}
 
-	stat := &raftpb.ShardLocalState{}
+	stat := &bhraftpb.ShardLocalState{}
 	err = stat.Unmarshal(v)
 
 	return stat, err
@@ -530,37 +524,34 @@ func (ps *peerStorage) isGenSnapJobComplete() bool {
 }
 
 // ============================ etcd raft storage interface method
-func (ps *peerStorage) InitialState() (etcdPB.HardState, etcdPB.ConfState, error) {
-	hardState := etcdPB.HardState{}
-	protoc.MustUnmarshal(&hardState, ps.raftState.HardState)
-	confState := etcdPB.ConfState{}
-
-	if hardState.Commit == 0 &&
-		hardState.Term == 0 &&
-		hardState.Vote == 0 {
+func (ps *peerStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
+	confState := raftpb.ConfState{}
+	if ps.raftState.HardState.Commit == 0 &&
+		ps.raftState.HardState.Term == 0 &&
+		ps.raftState.HardState.Vote == 0 {
 		if ps.isInitialized() {
 			logger.Fatalf("shard %d shard is initialized but local state has empty hard state, hardState=<%v>",
 				ps.shard.ID,
-				hardState)
+				ps.raftState.HardState)
 		}
 
-		return hardState, confState, nil
+		return ps.raftState.HardState, confState, nil
 	}
 
 	for _, p := range ps.shard.Peers {
 		confState.Voters = append(confState.Voters, p.ID)
 	}
 
-	return hardState, confState, nil
+	return ps.raftState.HardState, confState, nil
 }
 
-func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error) {
+func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]raftpb.Entry, error) {
 	err := ps.checkRange(low, high)
 	if err != nil {
 		return nil, err
 	}
 
-	var ents []etcdPB.Entry
+	var ents []raftpb.Entry
 	if low == high {
 		return ents, nil
 	}
@@ -594,7 +585,7 @@ func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]etcdPB.Entry, error
 
 	endKey := getRaftLogKey(ps.shard.ID, high)
 	err = ps.store.MetadataStorage().Scan(startKey, endKey, func(key, value []byte) (bool, error) {
-		e := etcdPB.Entry{}
+		e := raftpb.Entry{}
 		protoc.MustUnmarshal(&e, value)
 
 		// May meet gap or has been compacted.
@@ -670,9 +661,9 @@ func (ps *peerStorage) FirstIndex() (uint64, error) {
 	return ps.getTruncatedIndex() + 1, nil
 }
 
-func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
+func (ps *peerStorage) Snapshot() (raftpb.Snapshot, error) {
 	if ps.isGeneratingSnap() {
-		return etcdPB.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
+		return raftpb.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
 	}
 
 	if ps.isGenSnapJobComplete() {
@@ -682,7 +673,7 @@ func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
 			logger.Warningf("shard %d snapshot generating failed",
 				ps.shard.ID)
 		} else {
-			snap := result.(etcdPB.Snapshot)
+			snap := result.(raftpb.Snapshot)
 			if ps.validateSnap(&snap) {
 				ps.resetGenSnapJob()
 				return snap, nil
@@ -701,7 +692,7 @@ func (ps *peerStorage) Snapshot() (etcdPB.Snapshot, error) {
 			err)
 	}
 
-	return etcdPB.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
+	return raftpb.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
 }
 
 func (ps *peerStorage) setGenSnapJob(job *task.Job) {

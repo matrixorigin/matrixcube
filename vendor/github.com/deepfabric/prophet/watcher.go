@@ -1,338 +1,133 @@
 package prophet
 
 import (
-	"sync"
-	"sync/atomic"
+	"context"
+	"time"
 
+	"github.com/deepfabric/prophet/pb/rpcpb"
+	"github.com/deepfabric/prophet/util"
 	"github.com/fagongzi/goetty"
 )
 
-var (
-	// EventInit event init
-	EventInit = 1 << 1
-	// EventResourceCreated event resource created
-	EventResourceCreated = 1 << 2
-	// EventResourceLeaderChanged event resource leader changed
-	EventResourceLeaderChanged = 1 << 3
-	// EventResourceChaned event resource changed
-	EventResourceChaned = 1 << 4
-	// EventContainerCreated  event container create
-	EventContainerCreated = 1 << 5
-	// EventContainerChanged  event container create
-	EventContainerChanged = 1 << 6
-
-	// EventFlagResource all resource event
-	EventFlagResource = EventResourceCreated | EventResourceLeaderChanged | EventResourceChaned
-	// EventFlagContainer all container event
-	EventFlagContainer = EventContainerCreated | EventContainerChanged
-	// EventFlagAll all event
-	EventFlagAll = 0xffffffff
-)
-
-// MatchEvent returns the flag has the target event
-func MatchEvent(event, flag int) bool {
-	return event == 0 || event&flag != 0
-}
-
-func (p *defaultProphet) notifyEvent(event *EventNotify) {
-	if event == nil {
-		return
-	}
-
-	if p.isLeader() {
-		p.wn.onEvent(event)
-	}
-}
-
-// InitWatcher init watcher
-type InitWatcher struct {
-	Flag int `json:"flag"`
-}
-
-// EventNotify event notify
-type EventNotify struct {
-	Seq   uint64 `json:"seq"`
-	Event int    `json:"event"`
-	Value []byte `json:"value"`
-}
-
-func newInitEvent(snap *snap) (*EventNotify, error) {
-	value := goetty.NewByteBuf(512)
-	value.WriteInt(len(snap.containers))
-	value.WriteInt(len(snap.resources))
-
-	for _, v := range snap.containers {
-		data, err := v.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		value.WriteInt(len(data))
-		value.Write(data)
-	}
-
-	for _, v := range snap.resources {
-		data, err := v.Marshal()
-		if err != nil {
-			return nil, err
-		}
-		value.WriteInt(len(data) + 8)
-		value.Write(data)
-		if id, ok := snap.leaders[v.ID()]; ok {
-			value.WriteUint64(id)
-		} else {
-			value.WriteUint64(0)
-		}
-	}
-
-	_, data, _ := value.ReadAll()
-	nt := &EventNotify{
-		Event: EventInit,
-		Value: data,
-	}
-	value.Release()
-	return nt, nil
-}
-
-func newResourceEvent(event int, target Resource) *EventNotify {
-	value, err := target.Marshal()
-	if err != nil {
-		return nil
-	}
-
-	return &EventNotify{
-		Event: event,
-		Value: value,
-	}
-}
-
-func newContainerEvent(event int, target Container) *EventNotify {
-	value, err := target.Marshal()
-	if err != nil {
-		return nil
-	}
-
-	return &EventNotify{
-		Event: event,
-		Value: value,
-	}
-}
-
-func newLeaderChangerEvent(target, leader uint64) *EventNotify {
-	value := goetty.NewByteBuf(16)
-	value.WriteUint64(target)
-	value.WriteUint64(leader)
-
-	_, data, _ := value.ReadAll()
-	nt := &EventNotify{
-		Event: EventResourceLeaderChanged,
-		Value: data,
-	}
-	value.Release()
-	return nt
-}
-
-// ReadInitEventValues read all resource info
-func (evt *EventNotify) ReadInitEventValues(resourceF func([]byte, uint64), containerF func([]byte)) {
-	if len(evt.Value) == 0 {
-		return
-	}
-
-	buf := goetty.NewByteBuf(len(evt.Value))
-	buf.Write(evt.Value)
-	cn, _ := buf.ReadInt()
-	rn, _ := buf.ReadInt()
-
-	for i := 0; i < cn; i++ {
-		size, _ := buf.ReadInt()
-		_, data, _ := buf.ReadBytes(size)
-		containerF(data)
-	}
-
-	for i := 0; i < rn; i++ {
-		size, _ := buf.ReadInt()
-		_, data, _ := buf.ReadBytes(size - 8)
-		leader, _ := buf.ReadUInt64()
-		resourceF(data, leader)
-	}
-
-	buf.Release()
-	return
-}
-
-// ReadLeaderChangerValue returns the target resource and the new leader
-// returns resourceid, newleaderid
-func (evt *EventNotify) ReadLeaderChangerValue() (uint64, uint64) {
-	if len(evt.Value) == 0 {
-		return 0, 0
-	}
-	buf := goetty.NewByteBuf(len(evt.Value))
-	buf.Write(evt.Value)
-	resourceID, _ := buf.ReadUInt64()
-	newLeaderID, _ := buf.ReadUInt64()
-	buf.Release()
-
-	return resourceID, newLeaderID
+// Watcher watcher
+type Watcher interface {
+	// GetNotify returns event notify channel
+	GetNotify() chan rpcpb.EventNotify
+	// Close close watcher
+	Close()
 }
 
 type watcher struct {
-	seq  uint64
-	info *InitWatcher
-	conn goetty.IOSession
+	ctx           context.Context
+	cancel        context.CancelFunc
+	flag          uint32
+	currentLeader string
+	client        *asyncClient
+	eventC        chan rpcpb.EventNotify
+	conn          goetty.IOSession
 }
 
-func (wt *watcher) notify(evt *EventNotify) {
-	if MatchEvent(evt.Event, wt.info.Flag) {
-		evt.Seq = atomic.AddUint64(&wt.seq, 1)
-		err := wt.conn.WriteAndFlush(evt)
-		if err != nil {
-			wt.conn.Close()
-		}
-	}
-}
-
-type watcherNotifier struct {
-	sync.RWMutex
-
-	watchers *sync.Map
-	eventC   chan *EventNotify
-	rt       *Runtime
-}
-
-func newWatcherNotifier(rt *Runtime) *watcherNotifier {
-	return &watcherNotifier{
-		watchers: &sync.Map{},
-		eventC:   make(chan *EventNotify, 256),
-		rt:       rt,
-	}
-}
-
-func (wn *watcherNotifier) onEvent(evt *EventNotify) {
-	wn.RLock()
-	if wn.eventC != nil {
-		wn.eventC <- evt
-	}
-	wn.RUnlock()
-}
-
-func (wn *watcherNotifier) onInitWatcher(msg *InitWatcher, conn goetty.IOSession) {
-	log.Infof("new watcher %s added", conn.RemoteIP())
-	snap := wn.rt.snap()
-
-	wn.Lock()
-	defer wn.Unlock()
-
-	if wn.eventC != nil {
-		if MatchEvent(EventInit, msg.Flag) {
-			nt, err := newInitEvent(snap)
-			if err != nil {
-				log.Errorf("marshal init notify failed, errors:%+v", err)
-				conn.Close()
-				return
-			}
-
-			err = conn.WriteAndFlush(nt)
-			if err != nil {
-				log.Errorf("notify to %s failed, errors:%+v",
-					conn.RemoteIP(),
-					err)
-				conn.Close()
-				return
-			}
-		}
-
-		wn.watchers.Store(conn.ID(), &watcher{
-			info: msg,
-			conn: conn,
-		})
-	}
-}
-
-func (wn *watcherNotifier) clearWatcher(conn goetty.IOSession) {
-	wn.Lock()
-	log.Infof("clear watcher %s", conn.RemoteIP())
-	wn.watchers.Delete(conn.ID())
-	wn.Unlock()
-}
-
-func (wn *watcherNotifier) stop() {
-	wn.Lock()
-	defer wn.Unlock()
-
-	if wn.eventC != nil {
-		close(wn.eventC)
-		wn.eventC = nil
+func newWatcher(flag uint32, client *asyncClient) Watcher {
+	ctx, cancel := context.WithCancel(context.Background())
+	w := &watcher{
+		ctx:    ctx,
+		cancel: cancel,
+		flag:   flag,
+		eventC: make(chan rpcpb.EventNotify, 128),
+		conn:   createConn(),
 	}
 
-	if wn.watchers != nil {
-		wn.watchers.Range(func(key, value interface{}) bool {
-			wn.watchers.Delete(key)
-			value.(*watcher).conn.Close()
-			return true
-		})
-	}
-
-	log.Infof("watcher notifyer stopped")
+	go w.watchDog()
+	return w
 }
 
-func (wn *watcherNotifier) start() {
-	go func() {
-		defer func() {
-			if err := recover(); err == nil {
-				log.Errorf("watcher notify failed with %+v, restart later", err)
-				wn.start()
-			}
-		}()
+func (w *watcher) Close() {
+	w.cancel()
+}
 
-		for {
-			evt, ok := <-wn.eventC
-			if !ok {
-				log.Infof("watcher notifer exited")
-				return
-			}
+func (w *watcher) GetNotify() chan rpcpb.EventNotify {
+	return w.eventC
+}
 
-			log.Debugf("new event: %+v", evt)
-			wn.RLock()
-			wn.watchers.Range(func(key, value interface{}) bool {
-				wt := value.(*watcher)
-				wt.notify(evt)
-				return true
-			})
-			wn.RUnlock()
+func (w *watcher) doClose() {
+	close(w.eventC)
+	w.conn.Close()
+}
+
+func (w *watcher) watchDog() {
+	defer func() {
+		if r := recover(); r != nil {
+			go w.watchDog()
 		}
 	}()
 
-}
+	for {
+		select {
+		case <-w.ctx.Done():
+			w.doClose()
+			return
+		case <-w.client.ctx.Done():
+			w.doClose()
+			return
+		default:
+			err := w.resetConn()
+			if err == nil {
+				w.startReadLoop()
+			}
 
-type snap struct {
-	resources  []Resource
-	containers []Container
-	leaders    map[uint64]uint64
-}
-
-func (rc *Runtime) snap() *snap {
-	rc.RLock()
-	defer rc.RUnlock()
-
-	value := &snap{
-		resources:  make([]Resource, len(rc.resources), len(rc.resources)),
-		containers: make([]Container, len(rc.containers), len(rc.containers)),
-		leaders:    make(map[uint64]uint64),
-	}
-
-	idx := 0
-	for _, c := range rc.containers {
-		value.containers[idx] = c.meta.Clone()
-		idx++
-	}
-
-	idx = 0
-	for _, r := range rc.resources {
-		value.resources[idx] = r.meta.Clone()
-		if r.leaderPeer != nil {
-			value.leaders[r.meta.ID()] = r.leaderPeer.ID
+			util.GetLogger().Errorf("reset watcher conn failed with %+v, leader %s, retry later",
+				err,
+				w.currentLeader)
+			time.Sleep(time.Second)
 		}
-		idx++
+	}
+}
+
+func (w *watcher) resetConn() error {
+	err := w.client.initLeaderConn(w.conn, w.currentLeader, w.client.opts.rpcTimeout)
+	if err != nil {
+		return err
 	}
 
-	return value
+	return w.conn.WriteAndFlush(&rpcpb.Request{
+		Type: rpcpb.TypeCreateWatcherReq,
+		CreateWatcher: rpcpb.CreateWatcherReq{
+			Flag: w.flag,
+		},
+	})
+}
+
+func (w *watcher) startReadLoop() {
+	expectSeq := uint64(0)
+
+	for {
+		data, err := w.conn.Read()
+		if err != nil {
+			return
+		}
+
+		resp := data.(*rpcpb.Response)
+		if resp.Type != rpcpb.TypeEventNotify {
+			return
+		}
+
+		if resp.Error != "" {
+			if util.IsNotLeaderError(resp.Error) {
+				w.currentLeader = resp.Leader
+			}
+
+			return
+		}
+
+		// we lost some event notify, close the conection, and retry
+		if expectSeq != resp.Event.Seq {
+			util.GetLogger().Warningf("watch lost some event notify, expect seq %d, but %d, close and retry",
+				expectSeq,
+				resp.Event.Seq)
+			return
+		}
+
+		expectSeq = resp.Event.Seq + 1
+		w.eventC <- resp.Event
+	}
 }

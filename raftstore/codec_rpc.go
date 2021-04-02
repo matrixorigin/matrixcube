@@ -3,7 +3,7 @@ package raftstore
 import (
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
 )
 
@@ -15,7 +15,7 @@ type rpcCodec struct {
 	clientSide bool
 }
 
-func (c *rpcCodec) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
+func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	var value protoc.PB
 	if c.clientSide {
 		value = pb.AcquireResponse()
@@ -32,7 +32,7 @@ func (c *rpcCodec) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
 	return true, value, nil
 }
 
-func (c *rpcCodec) Encode(data interface{}, out *goetty.ByteBuf) error {
+func (c *rpcCodec) Encode(data interface{}, out *buf.ByteBuf) error {
 	var rsp protoc.PB
 	if c.clientSide {
 		rsp = data.(*raftcmdpb.Request)

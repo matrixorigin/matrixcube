@@ -14,11 +14,8 @@
 package raftstore
 
 import (
-	"encoding/binary"
-	"hash/crc64"
-
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/fagongzi/goetty"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/prophet/pb/metapb"
 )
 
 const (
@@ -26,14 +23,14 @@ const (
 )
 
 // check whether epoch is staler than checkEpoch.
-func isEpochStale(epoch metapb.ShardEpoch, checkEpoch metapb.ShardEpoch) bool {
-	return epoch.ShardVer < checkEpoch.ShardVer ||
+func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) bool {
+	return epoch.Version < checkEpoch.Version ||
 		epoch.ConfVer < checkEpoch.ConfVer
 }
 
-func findPeer(shard *metapb.Shard, storeID uint64) *metapb.Peer {
+func findPeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
 	for _, peer := range shard.Peers {
-		if peer.StoreID == storeID {
+		if peer.ContainerID == storeID {
 			return &peer
 		}
 	}
@@ -41,10 +38,10 @@ func findPeer(shard *metapb.Shard, storeID uint64) *metapb.Peer {
 	return nil
 }
 
-func removePeer(shard *metapb.Shard, storeID uint64) {
+func removePeer(shard *bhmetapb.Shard, storeID uint64) {
 	var newPeers []metapb.Peer
 	for _, peer := range shard.Peers {
-		if peer.StoreID != storeID {
+		if peer.ContainerID != storeID {
 			newPeers = append(newPeers, peer)
 		}
 	}
@@ -54,12 +51,12 @@ func removePeer(shard *metapb.Shard, storeID uint64) {
 
 func newPeer(peerID, storeID uint64) metapb.Peer {
 	return metapb.Peer{
-		ID:      peerID,
-		StoreID: storeID,
+		ID:          peerID,
+		ContainerID: storeID,
 	}
 }
 
-func removedPeers(new, old metapb.Shard) []uint64 {
+func removedPeers(new, old bhmetapb.Shard) []uint64 {
 	var ids []uint64
 
 	for _, o := range old.Peers {
@@ -77,21 +74,4 @@ func removedPeers(new, old metapb.Shard) []uint64 {
 	}
 
 	return ids
-}
-
-var (
-	tab = crc64.MakeTable(crc64.ECMA)
-	mp  = goetty.NewSyncPool(8, 16, 2)
-)
-
-func noConvert(group uint64, key []byte, do func(uint64, []byte) metapb.Shard) metapb.Shard {
-	return do(group, key)
-}
-
-func uint64Convert(group uint64, key []byte, do func(uint64, []byte) metapb.Shard) metapb.Shard {
-	b := mp.Alloc(8)
-	binary.BigEndian.PutUint64(b, crc64.Checksum(key, tab))
-	value := do(group, b)
-	mp.Free(b)
-	return value
 }

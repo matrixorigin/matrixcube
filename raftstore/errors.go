@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/deepfabric/beehive/pb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/metapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 )
 
@@ -67,7 +67,7 @@ func errorStaleCMDResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDRespon
 	return resp
 }
 
-func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...metapb.Shard) *raftcmdpb.RaftCMDResponse {
+func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...bhmetapb.Shard) *raftcmdpb.RaftCMDResponse {
 	resp := errorBaseResp(uuid, currentTerm)
 
 	resp.Header.Error.Message = errStaleCMD.Error()
@@ -87,7 +87,7 @@ func errorBaseResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDResponse {
 	return resp
 }
 
-func checkKeyInShard(key []byte, shard *metapb.Shard) *errorpb.Error {
+func checkKeyInShard(key []byte, shard *bhmetapb.Shard) *errorpb.Error {
 	if bytes.Compare(key, shard.Start) >= 0 && (len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil
 	}

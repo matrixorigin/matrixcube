@@ -3,8 +3,8 @@ package pb
 import (
 	"sync"
 
+	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
 )
 
 var (
@@ -18,16 +18,16 @@ var (
 )
 
 // AcquireRaftMessage returns a raft message from pool
-func AcquireRaftMessage() *raftpb.RaftMessage {
+func AcquireRaftMessage() *bhraftpb.RaftMessage {
 	v := raftMessagePool.Get()
 	if v == nil {
-		return &raftpb.RaftMessage{}
+		return &bhraftpb.RaftMessage{}
 	}
-	return v.(*raftpb.RaftMessage)
+	return v.(*bhraftpb.RaftMessage)
 }
 
 // ReleaseRaftMessage returns a raft message to pool
-func ReleaseRaftMessage(msg *raftpb.RaftMessage) {
+func ReleaseRaftMessage(msg *bhraftpb.RaftMessage) {
 	msg.Reset()
 	raftMessagePool.Put(msg)
 }

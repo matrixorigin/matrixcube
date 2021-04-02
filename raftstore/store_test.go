@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/storage/mem"
 	"github.com/stretchr/testify/assert"
@@ -46,12 +46,12 @@ func TestAddShardsWithHandle(t *testing.T) {
 	s.Start()
 
 	c := make(chan struct{})
-	s.opts.shardAddHandleFunc = func(shard metapb.Shard) error {
+	s.opts.shardAddHandleFunc = func(shard bhmetapb.Shard) error {
 		c <- struct{}{}
 		return nil
 	}
 
-	err := s.AddShards(metapb.Shard{
+	err := s.AddShards(bhmetapb.Shard{
 		Group:         1,
 		LeastReplicas: 1,
 	})
@@ -69,19 +69,19 @@ func TestAddShards(t *testing.T) {
 	s := createTestStore("s1")
 	s.Start()
 
-	err := s.AddShards(metapb.Shard{
+	err := s.AddShards(bhmetapb.Shard{
 		Group: 1,
 	})
 	assert.NoError(t, err, "TestAddShard failed")
 
-	err = s.AddShards(metapb.Shard{
+	err = s.AddShards(bhmetapb.Shard{
 		Group: 1,
 	})
 	assert.NoError(t, err, "TestAddShard failed")
 
-	err = s.AddShards(metapb.Shard{
+	err = s.AddShards(bhmetapb.Shard{
 		Group: 1,
-	}, metapb.Shard{
+	}, bhmetapb.Shard{
 		Group: 2,
 	})
 	assert.NoError(t, err, "TestAddShard failed")
@@ -95,9 +95,9 @@ func TestAddShards(t *testing.T) {
 }
 
 func TestHasGap(t *testing.T) {
-	assert.True(t, hasGap(metapb.Shard{}, metapb.Shard{}), "TestHasGap failed")
-	assert.True(t, hasGap(metapb.Shard{Start: []byte("a")}, metapb.Shard{Start: []byte("b")}), "TestHasGap failed")
-	assert.False(t, hasGap(metapb.Shard{Start: []byte("a"), End: []byte("b")}, metapb.Shard{Start: []byte("b")}), "TestHasGap failed")
-	assert.True(t, hasGap(metapb.Shard{Start: []byte("a"), End: []byte("c")}, metapb.Shard{Start: []byte("b"), End: []byte("c")}), "TestHasGap failed")
-	assert.False(t, hasGap(metapb.Shard{}, metapb.Shard{Group: 2}), "TestHasGap failed")
+	assert.True(t, hasGap(bhmetapb.Shard{}, bhmetapb.Shard{}), "TestHasGap failed")
+	assert.True(t, hasGap(bhmetapb.Shard{Start: []byte("a")}, bhmetapb.Shard{Start: []byte("b")}), "TestHasGap failed")
+	assert.False(t, hasGap(bhmetapb.Shard{Start: []byte("a"), End: []byte("b")}, bhmetapb.Shard{Start: []byte("b")}), "TestHasGap failed")
+	assert.True(t, hasGap(bhmetapb.Shard{Start: []byte("a"), End: []byte("c")}, bhmetapb.Shard{Start: []byte("b"), End: []byte("c")}), "TestHasGap failed")
+	assert.False(t, hasGap(bhmetapb.Shard{}, bhmetapb.Shard{Group: 2}), "TestHasGap failed")
 }

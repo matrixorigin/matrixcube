@@ -1,0 +1,79 @@
+syntax = "proto3";
+package bhraftpb;
+
+import "github.com/deepfabric/beehive/pb/bhmetapb/bhmetapb.proto";
+import "github.com/deepfabric/prophet/pb/metapb/metapb.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "go.etcd.io/etcd/raft/raftpb/raft.proto";
+
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = true;
+
+// RaftMessage the message wrapped raft msg with shard info
+message RaftMessage  {
+    uint64            shardID         = 1;
+    uint64            group           = 2;
+    metapb.Peer       from            = 3 [(gogoproto.nullable) = false];
+    metapb.Peer       to              = 4 [(gogoproto.nullable) = false];
+    raftpb.Message       message         = 5 [(gogoproto.nullable) = false];
+    metapb.ResourceEpoch shardEpoch      = 6 [(gogoproto.nullable) = false];
+    bool                 isTombstone     = 7;
+    bytes             start           = 8;
+    bytes             end             = 9;
+    bool              disableSplit    = 10;
+    bytes             data            = 11;
+    bool              dataAppendToMsg = 12;
+}
+
+// PeerState the state of the shard peer
+enum PeerState {
+    Normal    = 0;
+    Applying  = 1;
+    Tombstone = 2;
+}
+
+// ShardLocalState the shard state on the store
+message ShardLocalState {
+    PeerState    state = 1;
+    bhmetapb.Shard shard = 2 [(gogoproto.nullable) = false];
+}
+
+// RaftLocalState raft local state about raft log
+message RaftLocalState {
+    raftpb.HardState  hardState = 1 [(gogoproto.nullable) = false];
+    uint64 lastIndex = 2;
+}
+
+// RaftTruncatedState raft log truncated state
+message RaftTruncatedState {
+    uint64 index = 1;
+    uint64 term  = 2;
+}
+
+// RaftApplyState raft log applied state
+message RaftApplyState {
+    uint64             appliedIndex   = 1;
+    RaftTruncatedState truncatedState = 2 [(gogoproto.nullable) = false];
+}
+
+// SnapshotMessageHeader snapshot message header
+message SnapshotMessageHeader {
+    bhmetapb.Shard  shard = 1 [(gogoproto.nullable) = false];
+    metapb.Peer   from  = 2 [(gogoproto.nullable) = false];
+    metapb.Peer   to    = 3 [(gogoproto.nullable) = false];
+    uint64        term  = 4;
+    uint64        index = 5;
+}
+
+// SnapshotMessage snapshot message
+message SnapshotMessage {
+    SnapshotMessageHeader header    = 1 [(gogoproto.nullable) = false];
+    bytes                 data      = 2;
+    bool                  first     = 3;
+    bool                  last      = 4;
+    uint64                fileSize  = 5;
+    uint64                checkSum  = 6;
+}

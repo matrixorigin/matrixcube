@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepfabric/beehive/storage/badger"
 	"github.com/deepfabric/beehive/storage/mem"
-	"github.com/deepfabric/beehive/storage/nemo"
 	"github.com/deepfabric/beehive/storage/pebble"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,8 +14,6 @@ import (
 var (
 	dataDactories = map[string]func(*testing.T) DataStorage{
 		"memory": createDataMem,
-		"badger": createDataBadger,
-		"nemo":   createDataNemo,
 		"pebble": createDataPebble,
 	}
 )
@@ -26,28 +22,12 @@ func createDataMem(t *testing.T) DataStorage {
 	return mem.NewStorage()
 }
 
-func createDataBadger(t *testing.T) DataStorage {
-	path := fmt.Sprintf("/tmp/badger/%d", time.Now().UnixNano())
-	os.RemoveAll(path)
-	os.MkdirAll(path, os.ModeDir)
-	s, err := badger.NewStorage(path)
-	assert.NoError(t, err, "createBadger failed")
-	return s
-}
-
 func createDataPebble(t *testing.T) DataStorage {
 	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
 	os.MkdirAll(path, os.ModeDir)
 	s, err := pebble.NewStorage(path)
 	assert.NoError(t, err, "createDataPebble failed")
-	return s
-}
-
-func createDataNemo(t *testing.T) DataStorage {
-	path := fmt.Sprintf("/tmp/nemo/%d", time.Now().UnixNano())
-	s, err := nemo.NewStorage(path)
-	assert.NoError(t, err, "createNemo failed")
 	return s
 }
 

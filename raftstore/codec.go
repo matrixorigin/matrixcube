@@ -15,8 +15,8 @@ package raftstore
 
 import (
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/fagongzi/goetty"
+	"github.com/deepfabric/beehive/pb/bhraftpb"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 )
@@ -45,7 +45,7 @@ func newRaftEncoder() *raftEncoder {
 	return &raftEncoder{}
 }
 
-func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
+func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	t, err := in.ReadByte()
 	if err != nil {
 		return true, nil, err
@@ -55,7 +55,7 @@ func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error)
 
 	switch t {
 	case typeSnap:
-		msg := &raftpb.SnapshotMessage{}
+		msg := &bhraftpb.SnapshotMessage{}
 		protoc.MustUnmarshal(msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
@@ -70,18 +70,18 @@ func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error)
 	return false, nil, nil
 }
 
-func (e raftEncoder) Encode(data interface{}, out *goetty.ByteBuf) error {
+func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	t := typeRaft
 	var m protoc.PB
 
 	switch data.(type) {
-	case *raftpb.RaftMessage:
+	case *bhraftpb.RaftMessage:
 		t = typeRaft
-		m = data.(*raftpb.RaftMessage)
+		m = data.(*bhraftpb.RaftMessage)
 		break
-	case *raftpb.SnapshotMessage:
+	case *bhraftpb.SnapshotMessage:
 		t = typeSnap
-		m = data.(*raftpb.SnapshotMessage)
+		m = data.(*bhraftpb.SnapshotMessage)
 		break
 	default:
 		log.Fatalf("[beehive]: bug, not support msg type %T", data)

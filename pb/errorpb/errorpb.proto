@@ -1,7 +1,8 @@
 syntax = "proto3";
 package errorpb;
 
-import "github.com/deepfabric/beehive/pb/metapb/metapb.proto";
+import "github.com/deepfabric/beehive/pb/bhmetapb/bhmetapb.proto";
+import "github.com/deepfabric/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -34,7 +35,7 @@ message KeyNotInShard {
 
 // StaleEpoch the current shard peer is stale
 message StaleEpoch {
-    repeated metapb.Shard newShards = 1 [(gogoproto.nullable) = false];
+    repeated bhmetapb.Shard newShards = 1 [(gogoproto.nullable) = false];
 }
 
 // ServerIsBusy the server is busy
