@@ -2,9 +2,12 @@ package raftstore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/deepfabric/beehive/storage"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet/metadata"
 	"github.com/deepfabric/prophet/pb/metapb"
@@ -193,29 +196,22 @@ func (s *store) startStoreHeartbeat() {
 		ticker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
 		defer ticker.Stop()
 
+		last := time.Now()
 		for {
 			select {
 			case <-ctx.Done():
 				logger.Infof("store heartbeat task stopped")
 				return
 			case <-ticker.C:
-				s.doStoreHeartbeat()
+				s.doStoreHeartbeat(last)
+				last = time.Now()
 			}
 		}
 	})
 }
 
-func (s *store) getShardCount() uint64 {
-	c := uint64(0)
-	s.replicas.Range(func(key, value interface{}) bool {
-		c++
-		return true
-	})
-	return c
-}
-
-func (s *store) doStoreHeartbeat() {
-	stats := &rpcpb.ContainerStats{}
+func (s *store) doStoreHeartbeat(last time.Time) {
+	stats := rpcpb.ContainerStats{}
 	stats.ContainerID = s.Meta().ID
 	if s.cfg.UseMemoryAsStorage {
 		ms, err := util.MemStats()
@@ -238,6 +234,36 @@ func (s *store) doStoreHeartbeat() {
 		stats.Capacity = uint64(s.cfg.Capacity)
 	}
 
+	// cpu usages
+	usages, err := util.CpuUsages()
+	if err != nil {
+		logger.Errorf("get cpu usages failed with %+v", err)
+		return
+	}
+	for i, v := range usages {
+		stats.CpuUsages = append(stats.CpuUsages, rpcpb.RecordPair{
+			Key:   fmt.Sprintf("cpu:%d", i),
+			Value: uint64(v * 100),
+		})
+	}
+
+	// io rates
+	rates, err := util.IORates(s.cfg.DataPath)
+	if err != nil {
+		logger.Errorf("get io rates failed with %+v", err)
+		return
+	}
+	for name, v := range rates {
+		stats.WriteIORates = append(stats.WriteIORates, rpcpb.RecordPair{
+			Key:   name,
+			Value: v.WriteBytes,
+		})
+		stats.ReadIORates = append(stats.ReadIORates, rpcpb.RecordPair{
+			Key:   name,
+			Value: v.ReadBytes,
+		})
+	}
+
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.ps.isApplyingSnapshot() {
 			stats.ApplyingSnapCount++
@@ -246,61 +272,96 @@ func (s *store) doStoreHeartbeat() {
 		stats.ResourceCount++
 		return true
 	})
-	stats.ResourceCount = s.getShardCount()
 	stats.ReceivingSnapCount = s.snapshotManager.ReceiveSnapCount()
+	stats.SendingSnapCount = s.trans.SendingSnapshotCount()
+	stats.StartTime = uint64(s.Meta().StartTime)
 
-	// let snap_stats = self.ctx.snap_mgr.stats();
-	// stats.set_sending_snap_count(snap_stats.sending_count as u32);
-	// stats.set_receiving_snap_count(snap_stats.receiving_count as u32);
-	// STORE_SNAPSHOT_TRAFFIC_GAUGE_VEC
-	// 	.with_label_values(&["sending"])
-	// 	.set(snap_stats.sending_count as i64);
-	// STORE_SNAPSHOT_TRAFFIC_GAUGE_VEC
-	// 	.with_label_values(&["receiving"])
-	// 	.set(snap_stats.receiving_count as i64);
+	s.cfg.Storage.ForeachDataStorageFunc(func(db storage.DataStorage) {
+		st := db.Stats()
+		stats.BytesWritten += st.WrittenBytes
+		stats.KeysWritten += st.WrittenKeys
+		stats.KeysRead += st.ReadKeys
+		stats.BytesRead += st.ReadBytes
+	})
 
-	// let apply_snapshot_count = self.ctx.applying_snap_count.load(Ordering::SeqCst);
-	// stats.set_applying_snap_count(apply_snapshot_count as u32);
-	// STORE_SNAPSHOT_TRAFFIC_GAUGE_VEC
-	// 	.with_label_values(&["applying"])
-	// 	.set(apply_snapshot_count as i64);
+	// TODO: is busy
+	stats.IsBusy = false
+	stats.Interval = &rpcpb.TimeInterval{
+		Start: uint64(last.Unix()),
+		End:   uint64(time.Now().Unix()),
+	}
 
-	// stats.set_start_time(self.fsm.store.start_time.unwrap().sec as u32);
+	_, err = s.pd.GetClient().ContainerHeartbeat(rpcpb.ContainerHeartbeatReq{Stats: stats})
+	if err != nil {
+		logger.Errorf("send store heartbeat failed with %+v", err)
+	}
+}
 
-	// // report store write flow to pd
-	// stats.set_bytes_written(
-	// 	self.ctx
-	// 		.global_stat
-	// 		.stat
-	// 		.engine_total_bytes_written
-	// 		.swap(0, Ordering::SeqCst),
-	// );
-	// stats.set_keys_written(
-	// 	self.ctx
-	// 		.global_stat
-	// 		.stat
-	// 		.engine_total_keys_written
-	// 		.swap(0, Ordering::SeqCst),
-	// );
+func (s *store) startHandleResourceHeartbeat() {
+	c, err := s.pd.GetClient().GetResourceHeartbeatRspNotifier()
+	if err != nil {
+		logger.Fatalf("start handle resource heartbeat resp task failed with %+v", err)
+	}
+	s.runner.RunCancelableTask(func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Infof("handle resource heartbeat resp task stopped")
+				return
+			case rsp, ok := <-c:
+				if ok {
+					s.doResourceHeartbeatRsp(rsp)
+				}
+			}
+		}
+	})
+}
 
-	// stats.set_is_busy(
-	// 	self.ctx
-	// 		.global_stat
-	// 		.stat
-	// 		.is_busy
-	// 		.swap(false, Ordering::SeqCst),
-	// );
+func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
+	pr := s.getPR(rsp.ResourceID, true)
+	if pr == nil {
+		logger.Infof("shard-%d is not leader, skip heartbeat resp")
+		return
+	}
 
-	// let store_info = StoreInfo {
-	// 	engine: self.ctx.engines.kv.clone(),
-	// 	capacity: self.ctx.cfg.capacity.0,
-	// };
+	if rsp.ChangePeer != nil {
+		logger.Infof("shard-%d %s peer %+v",
+			rsp.ResourceID,
+			rsp.ChangePeer.ChangeType.String(),
+			rsp.ChangePeer.Peer)
+		pr.onAdmin(newChangePeerAdminReq(rsp))
+	} else if rsp.ChangePeerV2 != nil {
+		pr.onAdmin(newChangePeerV2AdminReq(rsp))
+	}
+}
 
-	// let task = PdTask::StoreHeartbeat { stats, store_info };
-	// if let Err(e) = self.ctx.pd_scheduler.schedule(task) {
-	// 	error!("notify pd failed";
-	// 		"store_id" => self.fsm.store.id,
-	// 		"err" => ?e
-	// 	);
-	// }
+func newChangePeerAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
+	req := &raftcmdpb.AdminRequest{
+		CmdType: raftcmdpb.AdminCmdType_ChangePeer,
+		ChangePeer: &raftcmdpb.ChangePeerRequest{
+			ChangeType: rsp.ChangePeer.ChangeType,
+			Peer:       rsp.ChangePeer.Peer,
+		},
+	}
+
+	req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
+		ChangeType: rsp.ChangePeer.ChangeType,
+		Peer:       rsp.ChangePeer.Peer,
+	})
+	return req
+}
+
+func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
+	req := &raftcmdpb.AdminRequest{
+		CmdType:      raftcmdpb.AdminCmdType_ChangePeerV2,
+		ChangePeerV2: &raftcmdpb.ChangePeerV2Request{},
+	}
+
+	for _, ch := range rsp.ChangePeerV2.Changes {
+		req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
+			ChangeType: ch.ChangeType,
+			Peer:       ch.Peer,
+		})
+	}
+	return req
 }

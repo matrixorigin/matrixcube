@@ -1,16 +1,9 @@
 package util
 
 import (
-	"time"
-
-	"github.com/fagongzi/goetty"
+	putil "github.com/deepfabric/prophet/util"
 )
 
 var (
-	defaultTW = goetty.NewTimeoutWheel(goetty.WithTickInterval(time.Millisecond * 50))
+	DefaultTimeoutWheel = putil.DefaultTimeoutWheel
 )
-
-// DefaultTimeoutWheel returns default timeout wheel
-func DefaultTimeoutWheel() *goetty.TimeoutWheel {
-	return defaultTW
-}

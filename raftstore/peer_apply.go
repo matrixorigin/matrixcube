@@ -196,8 +196,9 @@ type execResult struct {
 }
 
 type changePeer struct {
-	confChange raftpb.ConfChange
-	peer       metapb.Peer
+	index      uint64
+	confChange raftpb.ConfChangeV2
+	changes    []raftcmdpb.ChangePeerRequest
 	shard      bhmetapb.Shard
 }
 
@@ -389,6 +390,7 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		case raftpb.EntryNormal:
 			result = d.applyEntry(&entry)
 		case raftpb.EntryConfChange:
+		case raftpb.EntryConfChangeV2:
 			result = d.applyConfChange(&entry)
 		}
 
@@ -450,10 +452,17 @@ func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 }
 
 func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
-	cc := new(raftpb.ConfChange)
-
-	protoc.MustUnmarshal(cc, entry.Data)
-	protoc.MustUnmarshal(d.ctx.req, cc.Context)
+	var v2cc raftpb.ConfChangeV2
+	if entry.Type == raftpb.EntryConfChange {
+		cc := raftpb.ConfChange{}
+		protoc.MustUnmarshal(&cc, entry.Data)
+		protoc.MustUnmarshal(d.ctx.req, cc.Context)
+		v2cc = cc.AsV2()
+	} else {
+		v2cc = raftpb.ConfChangeV2{}
+		protoc.MustUnmarshal(&v2cc, entry.Data)
+		protoc.MustUnmarshal(d.ctx.req, v2cc.Context)
+	}
 
 	result := d.doApplyRaftCMD()
 	if nil == result {
@@ -463,7 +472,7 @@ func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
 		}
 	}
 
-	result.changePeer.confChange = *cc
+	result.changePeer.confChange = v2cc
 	return result
 }
 
@@ -586,5 +595,6 @@ func (d *applyDelegate) checkEpoch(req *raftcmdpb.RaftCMDRequest) bool {
 
 func isChangePeerCMD(req *raftcmdpb.RaftCMDRequest) bool {
 	return nil != req.AdminRequest &&
-		req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeer
+		(req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeer ||
+			req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeerV2)
 }

@@ -105,7 +105,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		if rd.SoftState.RaftState == raft.StateLeader {
 			logger.Infof("shard %d ********become leader now********",
 				pr.shardID)
-			pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
+			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.ps.shard)

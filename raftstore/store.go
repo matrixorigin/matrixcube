@@ -747,8 +747,7 @@ func (s *store) createPR(shard bhmetapb.Shard) error {
 	s.updateShardKeyRange(shard)
 	pr.startRegistrationJob()
 	s.addPR(pr)
-
-	s.pd.GetRPC().TiggerResourceHeartbeat(shard.ID)
+	pr.addAction(action{actionType: heartbeatAction})
 	return nil
 }
 

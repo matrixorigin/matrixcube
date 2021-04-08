@@ -23,13 +23,13 @@ type CommandReadBatch interface {
 	// otherwrise false
 	Add(uint64, *raftcmdpb.Request, map[string]interface{}) (bool, error)
 	// Execute excute the batch, and return the responses
-	Execute(bhmetapb.Shard) ([]*raftcmdpb.Response, error)
+	Execute(bhmetapb.Shard) ([]*raftcmdpb.Response, uint64, error)
 	// Reset reset the current batch for reuse
 	Reset()
 }
 
 // ReadCommandFunc the read command handler func
-type ReadCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, map[string]interface{}) *raftcmdpb.Response
+type ReadCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, map[string]interface{}) (*raftcmdpb.Response, uint64)
 
 // WriteCommandFunc the write command handler func, returns write bytes and the diff bytes
 // that used to modify the size of the current shard

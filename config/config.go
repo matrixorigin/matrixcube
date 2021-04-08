@@ -144,6 +144,7 @@ type ReplicationConfig struct {
 	StoreHeartbeatDuration  typeutil.Duration `toml:"store-heartbeat-duration"`
 	ShardSplitCheckDuration typeutil.Duration `toml:"shard-split-check-duration"`
 	DisableShardSplit       bool
+	AllowRemoveLeader       bool
 	ShardCapacityBytes      typeutil.ByteSize
 	ShardSplitCheckBytes    typeutil.ByteSize
 	EnsureNewShardInterval  typeutil.Duration
@@ -331,7 +332,7 @@ type CustomizeConfig struct {
 	CustomTransportFactory       func() transport.Transport
 	CustomSnapshotDataCreateFunc func(string, bhmetapb.Shard) error
 	CustomSnapshotDataApplyFunc  func(string, bhmetapb.Shard) error
-	CustomSplitCheckFunc         func(bhmetapb.Shard) ([]byte, bool)
+	CustomSplitCheckFunc         func(bhmetapb.Shard) (uint64, uint64, [][]byte, error)
 	CustomSplitCompletedFunc     func(*bhmetapb.Shard, *bhmetapb.Shard)
 	CustomCanReadLocalFunc       func(bhmetapb.Shard) bool
 	CustomShardAddHandleFunc     func(bhmetapb.Shard) error

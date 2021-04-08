@@ -5,7 +5,7 @@ import (
 
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"github.com/deepfabric/prophet/pb/metapb"
 )
 
 func (pr *peerReplica) handleApplyResult(items []interface{}) {
@@ -55,7 +55,7 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 
 	pr.metrics.admin.incBy(result.metrics.admin)
 
-	pr.writtenBytes += uint64(result.metrics.writtenBytes)
+	pr.writtenBytes += result.metrics.writtenBytes
 	pr.writtenKeys += result.metrics.writtenKeys
 
 	if result.hasSplitExecResult() {
@@ -90,49 +90,90 @@ func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 }
 
 func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
-	pr.rn.ApplyConfChange(cp.confChange)
-	if cp.confChange.NodeID == 0 {
+	if cp.index == 0 {
 		// Apply failed, skip.
 		return
 	}
 
+	pr.rn.ApplyConfChange(cp.confChange)
 	pr.ps.shard = cp.shard
-	if pr.isLeader() {
-		// Notify pd immediately.
-		logger.Infof("shard %d notify pd with %s with peer %+v at epoch %+v",
-			pr.shardID,
-			cp.confChange.Type.String(),
-			cp.peer,
-			pr.ps.shard.Epoch)
-		pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
-	}
 
-	switch cp.confChange.Type {
-	case etcdraftpb.ConfChangeAddNode:
-		// Add this peer to cache.
-		pr.peerHeartbeatsMap.Store(cp.peer.ID, time.Now())
-		pr.store.peers.Store(cp.peer.ID, cp.peer)
-	case etcdraftpb.ConfChangeRemoveNode:
-		// Remove this peer from cache.
-		pr.peerHeartbeatsMap.Delete(cp.peer.ID)
-		pr.store.peers.Delete(cp.peer.ID)
+	remove_self := false
+	need_ping := false
+	now := time.Now()
+	for _, change := range cp.changes {
+		change_type := change.ChangeType
+		peer := change.Peer
+		store_id := peer.ContainerID
+		peer_id := peer.ID
 
-		// We only care remove itself now.
-		if cp.peer.ContainerID == pr.store.meta.meta.ID {
-			if cp.peer.ID == pr.peer.ID {
-				pr.mustDestroy()
-			} else {
-				logger.Fatalf("shard %d trying to remove unknown peer, peer=<%+v>",
-					pr.shardID,
-					cp.peer)
+		switch change_type {
+		case metapb.ChangePeerType_AddNode:
+		case metapb.ChangePeerType_AddLearnerNode:
+			pr.peerHeartbeatsMap.Store(peer_id, now)
+			pr.store.peers.Store(peer_id, peer)
+			if pr.isLeader() {
+				need_ping = true
+			}
+			break
+		case metapb.ChangePeerType_RemoveNode:
+			pr.peerHeartbeatsMap.Delete(peer_id)
+			pr.store.peers.Delete(peer_id)
+
+			// We only care remove itself now.
+			if pr.store.meta.meta.ID == store_id {
+				if pr.peer.ID == peer_id {
+					remove_self = true
+				} else {
+					logger.Fatalf("shard-%d trying to remove unknown peer %+v",
+						pr.shardID,
+						peer)
+				}
 			}
 		}
 	}
 
-	logger.Infof("shard %d applied %s with peer %+v at epoch %+v, new peers %+v",
+	if pr.isLeader() {
+		// Notify pd immediately.
+		logger.Infof("shard %d notify pd with %+v with changes %+v at epoch %+v",
+			pr.shardID,
+			cp.confChange,
+			cp.changes,
+			pr.ps.shard.Epoch)
+		pr.addAction(action{actionType: heartbeatAction})
+
+		// Remove or demote leader will cause this raft group unavailable
+		// until new leader elected, but we can't revert this operation
+		// because its result is already persisted in apply worker
+		// TODO: should we transfer leader here?
+		demote_self := pr.peer.Role == metapb.PeerRole_Learner
+		if remove_self || demote_self {
+			logger.Warningf("shard-%d removing or demoting leader, remove %+v, demote",
+				pr.shardID,
+				remove_self,
+				demote_self)
+
+			if demote_self {
+				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
+			}
+
+			// Don't ping to speed up leader election
+			need_ping = false
+		}
+
+		if need_ping {
+			// Speed up snapshot instead of waiting another heartbeat.
+			pr.rn.Ping()
+		}
+
+		if remove_self {
+			pr.mustDestroy()
+		}
+	}
+
+	logger.Infof("shard %d applied changes %+v at epoch %+v, new peers %+v",
 		pr.shardID,
-		cp.confChange.Type.String(),
-		cp.peer,
+		cp.changes,
 		pr.ps.shard.Epoch,
 		pr.ps.shard.Peers)
 }
@@ -192,7 +233,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	// In this worst case scenario, the new split raft group will not be available
 	// since there is no leader established during one election timeout after the split.
 	if pr.isLeader() && len(result.right.Peers) > 1 {
-		newPR.addAction(doCampaignAction)
+		newPR.addAction(action{actionType: doCampaignAction})
 	}
 
 	if pr.isLeader() {
@@ -202,8 +243,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			result.right,
 			pr.ps.raftState.String(),
 			pr.ps.applyState.String())
-
-		pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
+		pr.addAction(action{actionType: heartbeatAction})
 	} else {
 		if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {
 			newPR.step(vote)
