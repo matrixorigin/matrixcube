@@ -7,6 +7,8 @@ import (
 	"github.com/deepfabric/beehive/pb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/util"
+	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/deepfabric/prophet/pb/rpcpb"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
@@ -16,12 +18,21 @@ const (
 	readyBatch = 1024
 )
 
-type action int
+type action struct {
+	actionType actionType
+	splitKeys  [][]byte
+	splitIDs   []rpcpb.SplitID
+	epoch      metapb.ResourceEpoch
+}
+
+type actionType int
 
 const (
-	checkCompactAction = iota
-	checkSplitAction
-	doCampaignAction
+	checkCompactAction = actionType(0)
+	doCampaignAction   = actionType(1)
+	checkSplitAction   = actionType(2)
+	doSplitAction      = actionType(3)
+	heartbeatAction    = actionType(4)
 )
 
 func (pr *peerReplica) addRequest(req reqCtx) error {
@@ -207,9 +218,11 @@ func (pr *peerReplica) handleAction(items []interface{}) {
 
 	for i := int64(0); i < n; i++ {
 		a := items[i].(action)
-		switch a {
+		switch a.actionType {
 		case checkSplitAction:
 			pr.doCheckSplit()
+		case doSplitAction:
+			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
 		case checkCompactAction:
 			pr.doCheckCompact()
 		case doCampaignAction:
@@ -220,6 +233,8 @@ func (pr *peerReplica) handleAction(items []interface{}) {
 					pr.ps.shard,
 					err)
 			}
+		case heartbeatAction:
+			pr.doHeartbeat()
 		}
 	}
 
@@ -318,6 +333,14 @@ func (pr *peerReplica) handleReport(items []interface{}) {
 }
 
 func (pr *peerReplica) doCheckSplit() {
+	if !pr.isLeader() {
+		return
+	}
+
+	if pr.store.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
+		return
+	}
+
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
 		if p.State == tracker.StateSnapshot {
@@ -337,6 +360,35 @@ func (pr *peerReplica) doCheckSplit() {
 	}
 
 	pr.sizeDiffHint = 0
+}
+
+func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {
+	if !pr.isLeader() {
+		return
+	}
+
+	current := pr.ps.shard
+	if current.Epoch.Version != epoch.Version {
+		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
+			pr.shardID,
+			current.Epoch,
+			epoch)
+		return
+	}
+
+	req := &raftcmdpb.AdminRequest{
+		CmdType: raftcmdpb.AdminCmdType_BatchSplit,
+		Splits:  &raftcmdpb.BatchSplitRequest{},
+	}
+
+	for idx := range splitIDs {
+		req.Splits.Requests = append(req.Splits.Requests, raftcmdpb.SplitRequest{
+			SplitKey:   splitKeys[idx],
+			NewShardID: splitIDs[idx].NewID,
+			NewPeerIDs: splitIDs[idx].NewPeerIDs,
+		})
+	}
+	pr.onAdmin(req)
 }
 
 func (pr *peerReplica) doCheckCompact() {
@@ -431,4 +483,34 @@ func (pr *peerReplica) doCheckCompact() {
 	}
 
 	pr.onAdmin(req)
+}
+
+func (pr *peerReplica) doHeartbeat() {
+	if !pr.isLeader() {
+		return
+	}
+	req := rpcpb.ResourceHeartbeatReq{}
+	req.Term = pr.rn.BasicStatus().Term
+	req.Leader = &pr.peer
+	req.ContainerID = pr.store.Meta().ID
+	req.DownPeers = pr.collectDownPeers()
+	req.PendingPeers = pr.collectPendingPeers()
+	req.BytesWritten = pr.writtenBytes
+	req.KeysWritten = pr.writtenKeys
+	req.BytesRead = pr.readBytes
+	req.KeysRead = pr.readKeys
+	req.ApproximateKeys = pr.approximateKeys
+	req.ApproximateSize = pr.approximateSize
+	req.Interval = &rpcpb.TimeInterval{
+		Start: pr.lastHBTime,
+		End:   uint64(time.Now().Unix()),
+	}
+	pr.lastHBTime = req.Interval.End
+
+	err := pr.store.pd.GetClient().ResourceHeartbeat(newResourceAdapterWithShard(pr.ps.shard), req)
+	if err != nil {
+		logger.Errorf("shard %d heartbeat to prophet failed with %+v",
+			pr.shardID,
+			err)
+	}
 }

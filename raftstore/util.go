@@ -38,15 +38,19 @@ func findPeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
 	return nil
 }
 
-func removePeer(shard *bhmetapb.Shard, storeID uint64) {
+func removePeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
+	var removed *metapb.Peer
 	var newPeers []metapb.Peer
 	for _, peer := range shard.Peers {
 		if peer.ContainerID != storeID {
 			newPeers = append(newPeers, peer)
+		} else {
+			removed = &peer
 		}
 	}
 
 	shard.Peers = newPeers
+	return removed
 }
 
 func newPeer(peerID, storeID uint64) metapb.Peer {

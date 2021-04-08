@@ -90,6 +90,7 @@ func (s *store) doBootstrapCluster() {
 	}
 
 	s.startStoreHeartbeat()
+	s.startHandleResourceHeartbeat()
 }
 
 func (s *store) mustSaveStoreMetadata() {

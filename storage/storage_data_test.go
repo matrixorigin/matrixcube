@@ -14,7 +14,7 @@ import (
 var (
 	dataDactories = map[string]func(*testing.T) DataStorage{
 		"memory": createDataMem,
-		"pebble": createDataPebble,
+		// "pebble": createDataPebble,
 	}
 )
 
@@ -70,6 +70,8 @@ func TestSplitCheck(t *testing.T) {
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
 			s := factory(t)
+			totalSize := uint64(16)
+			totalKeys := uint64(4)
 			key1 := []byte("k1")
 			value1 := []byte("v1")
 
@@ -79,26 +81,48 @@ func TestSplitCheck(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("v3")
 
-			assert.NoError(t, s.Set(key1, value1), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key2, value2), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key3, value3), "TestRangeDelete failed")
+			key4 := []byte("k4")
+			value4 := []byte("v4")
 
-			total, key, err := s.SplitCheck(key1, []byte("k4"), 1024)
-			assert.NoError(t, err, "TestSplitCheck failed")
-			assert.Equal(t, uint64(12), total, "TestSplitCheck failed")
-			assert.Equal(t, "", string(key), "TestSplitCheck failed")
+			end := []byte("k5")
 
-			total, key, err = s.SplitCheck(key1, []byte("k4"), 4)
-			assert.NoError(t, err, "TestSplitCheck failed")
-			assert.Equal(t, "k1", string(key), "TestSplitCheck failed")
+			assert.NoError(t, s.Set(key1, value1))
+			assert.NoError(t, s.Set(key2, value2))
+			assert.NoError(t, s.Set(key3, value3))
+			assert.NoError(t, s.Set(key4, value4))
 
-			total, key, err = s.SplitCheck(key1, []byte("k4"), 8)
-			assert.NoError(t, err, "TestSplitCheck failed")
-			assert.Equal(t, "k2", string(key), "TestSplitCheck failed")
+			// [key1, key5), after split ranges: [key1, key2), [key2, key3), [key3, key4), [key4, key5)
+			total, keys, splitKeys, err := s.SplitCheck(key1, end, 4)
+			assert.NoError(t, err)
+			assert.Equal(t, totalSize, total)
+			assert.Equal(t, totalKeys, keys)
+			assert.Equal(t, 3, len(splitKeys))
+			assert.Equal(t, key2, splitKeys[0])
+			assert.Equal(t, key3, splitKeys[1])
+			assert.Equal(t, key4, splitKeys[2])
 
-			total, key, err = s.SplitCheck(key1, []byte("k4"), 11)
-			assert.NoError(t, err, "TestSplitCheck failed")
-			assert.Equal(t, "k3", string(key), "TestSplitCheck failed")
+			// [key1, key5), after split ranges: [key1, key3), [key3, key5)
+			total, keys, splitKeys, err = s.SplitCheck(key1, end, 8)
+			assert.NoError(t, err)
+			assert.Equal(t, totalSize, total)
+			assert.Equal(t, totalKeys, keys)
+			assert.Equal(t, 1, len(splitKeys))
+			assert.Equal(t, key3, splitKeys[0])
+
+			// [key1, key5), after split ranges: [key1, key4), [key4, key5)
+			total, keys, splitKeys, err = s.SplitCheck(key1, end, 12)
+			assert.NoError(t, err)
+			assert.Equal(t, totalSize, total)
+			assert.Equal(t, totalKeys, keys)
+			assert.Equal(t, 1, len(splitKeys))
+			assert.Equal(t, key4, splitKeys[0])
+
+			// [key1, key5), after split ranges: [key1, key5)
+			total, keys, splitKeys, err = s.SplitCheck(key1, end, 16)
+			assert.NoError(t, err)
+			assert.Equal(t, totalSize, total)
+			assert.Equal(t, totalKeys, keys)
+			assert.Equal(t, 0, len(splitKeys))
 		})
 	}
 }

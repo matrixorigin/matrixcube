@@ -5,7 +5,6 @@ import (
 
 	"github.com/deepfabric/beehive/metric"
 	"github.com/deepfabric/beehive/pb/bhraftpb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	sn "github.com/deepfabric/beehive/snapshot"
 	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet/pb/metapb"
@@ -244,42 +243,34 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 	}
 
 	var size uint64
-	var splitKey []byte
+	var keys uint64
+	var splitKeys [][]byte
 	var err error
-	var ok bool
 
 	if pr.store.cfg.Customize.CustomSplitCheckFunc == nil {
-		size, splitKey, err = pr.store.DataStorageByGroup(pr.ps.shard.Group, pr.ps.shard.ID).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
-		if err != nil {
-			logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
-				pr.shardID,
-				err)
-			return err
-		}
-
-		if len(splitKey) == 0 {
-			pr.sizeDiffHint = size
-			ok = false
-		} else {
-			ok = true
-		}
-
+		size, keys, splitKeys, err = pr.store.DataStorageByGroup(pr.ps.shard.Group, pr.ps.shard.ID).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
 	} else {
-		splitKey, ok = pr.store.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard)
-		if ok {
-			splitKey = EncodeDataKey(pr.shardID, splitKey)
-		}
+		size, keys, splitKeys, err = pr.store.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard)
 	}
 
-	if !ok {
+	if err != nil {
+		logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
+			pr.shardID,
+			err)
+		return err
+	}
+
+	pr.approximateSize = size
+	pr.approximateKeys = keys
+	if len(splitKeys) == 0 {
 		pr.sizeDiffHint = size
 		return nil
 	}
 
-	logger.Infof("shard %d try to split, size %d bytes splitKey %+v",
+	logger.Infof("shard %d try to split, size %d bytes splitKeys %+v",
 		pr.shardID,
 		size,
-		splitKey)
+		splitKeys)
 
 	current := pr.ps.shard
 	if current.Epoch.Version != epoch.Version {
@@ -290,20 +281,14 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		return nil
 	}
 
-	newShardID, newPeerIDs, err := pr.store.pd.GetRPC().AskSplit(newResourceAdapter(current, pr.store))
+	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(newResourceAdapterWithShard(current), uint32(len(splitKeys)))
 	if err != nil {
-		logger.Errorf("shard %d ask split failed with %+v",
+		logger.Errorf("shard %d ask batch split failed with %+v",
 			pr.shardID,
 			err)
 		return err
 	}
 
-	return pr.onAdmin(&raftcmdpb.AdminRequest{
-		CmdType: raftcmdpb.AdminCmdType_BatchSplit,
-		Split: &raftcmdpb.SplitRequest{
-			SplitKey:   splitKey,
-			NewShardID: newShardID,
-			NewPeerIDs: newPeerIDs,
-		},
-	})
+	pr.addAction(action{actionType: doSplitAction, splitKeys: splitKeys, splitIDs: newIDs, epoch: epoch})
+	return nil
 }

@@ -1,11 +1,15 @@
 package storage
 
 import (
+	"github.com/deepfabric/beehive/storage/stats"
 	"github.com/deepfabric/beehive/util"
 )
 
 // MetadataStorage the storage to save raft log, shard and store metadata.
 type MetadataStorage interface {
+	// Stats storage status
+	Stats() stats.Stats
+
 	// Write write the data in batch
 	Write(wb *util.WriteBatch, sync bool) error
 

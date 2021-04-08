@@ -13,7 +13,7 @@ import (
 func (s *store) handleCompactRaftLog() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.isLeader() {
-			pr.addAction(checkCompactAction)
+			pr.addAction(action{actionType: checkCompactAction})
 		}
 		return true
 	})
@@ -25,16 +25,10 @@ func (s *store) handleSplitCheck() {
 	}
 
 	s.foreachPR(func(pr *peerReplica) bool {
-		if s.cfg.Customize.CustomSplitCheckFunc == nil {
-			if pr.supportSplit() &&
-				pr.isLeader() &&
-				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes) {
-				pr.addAction(checkSplitAction)
-			}
-		} else {
-			if _, ok := s.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard); ok {
-				pr.addAction(checkSplitAction)
-			}
+		if pr.supportSplit() &&
+			pr.isLeader() &&
+			pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes) {
+			pr.addAction(action{actionType: checkSplitAction})
 		}
 
 		return true

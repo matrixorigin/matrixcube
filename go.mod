@@ -9,7 +9,7 @@ require (
 	github.com/deepfabric/prophet v0.1.1-0.20210402054224-6967f3c670d7
 	github.com/fagongzi/goetty v2.0.2+incompatible
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
-	github.com/fagongzi/util v0.0.0-20201116094402-221cc40c4593
+	github.com/fagongzi/util v0.0.0-20210329034752-eb3b3809c6c8
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/google/btree v1.0.0
@@ -20,4 +20,4 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )
 
-replace go.etcd.io/etcd => github.com/deepfabric/etcd v0.0.0-20201207015257-3b4a2ca4cf64
+replace go.etcd.io/etcd => github.com/deepfabric/etcd v3.4.15+incompatible

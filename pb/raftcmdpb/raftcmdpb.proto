@@ -11,13 +11,6 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
-enum ConfChangeType {
-	AddNode        = 0;
-	RemoveNode     = 1;
-	UpdateNode     = 2;
-	AddLearnerNode = 3;
-}
-
 enum CMDType {
     Invalid   = 0;
     RaftError = 1;
@@ -121,7 +114,7 @@ message Response {
 
 message ChangePeerRequest {
     // This can be only called in internal RaftStore now.
-    ConfChangeType changeType = 1;
+    metapb.ChangePeerType changeType = 1;
     metapb.Peer peer = 2 [(gogoproto.nullable) = false];
 }
 
@@ -167,10 +160,10 @@ message SplitRequest {
 }
 
 message BatchSplitRequest {
-    repeated SplitRequest requests = 1;
+    repeated SplitRequest requests = 1 [(gogoproto.nullable) = false];
     // If true, the last shard derive the origin shard_id, 
     // other shards use new ids.
-    bool rightDerive = 2;
+    bool rightDerive = 2 ;
 }
 
 message BatchSplitResponse {
@@ -180,7 +173,7 @@ message BatchSplitResponse {
 
 
 message ChangePeerV2Request {
-    repeated ChangePeerRequest changes = 1;
+    repeated ChangePeerRequest changes = 1 [(gogoproto.nullable) = false];
 }
 
 message ChangePeerV2Response {

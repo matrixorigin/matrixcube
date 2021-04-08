@@ -15,7 +15,6 @@ import (
 	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/util"
-	"github.com/deepfabric/prophet"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
@@ -37,7 +36,7 @@ type peerReplica struct {
 	ps    *peerStorage
 
 	peerHeartbeatsMap sync.Map
-	lastHBJob         *task.Job
+	lastHBTime        uint64
 
 	batch        *proposeBatch
 	pendingReads *readIndexQueue
@@ -54,9 +53,14 @@ type peerReplica struct {
 
 	writtenKeys     uint64
 	writtenBytes    uint64
+	readKeys        uint64
+	readBytes       uint64
 	sizeDiffHint    uint64
 	raftLogSizeHint uint64
 	deleteKeysHint  uint64
+	// TODO: setting on split check
+	approximateSize uint64
+	approximateKeys uint64
 
 	metrics  localMetrics
 	buf      *buf.ByteBuf
@@ -277,6 +281,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 	pr.buf.Clear()
 	pr.requestIdxs = pr.requestIdxs[:0]
 	pr.requestBatchIdxs = pr.requestBatchIdxs[:0]
+	readBytes := uint64(0)
 
 	if pr.readCommandBatch != nil {
 		pr.readCommandBatch.Reset()
@@ -286,6 +291,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 		}
+		pr.readKeys++
 		resp.Responses = append(resp.Responses, nil)
 
 		if pr.readCommandBatch != nil {
@@ -311,13 +317,13 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 	}
 
 	if len(pr.requestBatchIdxs) > 0 {
-		responses, err := pr.readCommandBatch.Execute(pr.ps.shard)
+		responses, readBytes, err := pr.readCommandBatch.Execute(pr.ps.shard)
 		if err != nil {
 			logger.Fatalf("shard %s exec read batch failed with %+v",
 				pr.shardID,
 				err)
 		}
-
+		pr.readBytes += readBytes
 		for idx, response := range responses {
 			resp.Responses[pr.requestBatchIdxs[idx]] = response
 		}
@@ -329,8 +335,8 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 			req := c.req.Requests[which]
 			pr.attrs[attrRequestsCurrent] = idx
 			if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-				resp.Responses[which] = h(pr.ps.shard, req, pr.attrs)
-
+				resp.Responses[which], readBytes = h(pr.ps.shard, req, pr.attrs)
+				pr.readBytes += readBytes
 				if logger.DebugEnabled() {
 					logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
 				}
@@ -380,9 +386,9 @@ func (pr *peerReplica) checkPeers() {
 	}
 }
 
-func (pr *peerReplica) collectDownPeers(maxDuration time.Duration) []*metapb.PeerStats {
+func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {
 	now := time.Now()
-	var downPeers []*prophet.PeerStats
+	var downPeers []metapb.PeerStats
 	for _, p := range pr.ps.shard.Peers {
 		if p.ID == pr.peer.ID {
 			continue
@@ -390,9 +396,9 @@ func (pr *peerReplica) collectDownPeers(maxDuration time.Duration) []*metapb.Pee
 
 		if value, ok := pr.peerHeartbeatsMap.Load(p.ID); ok {
 			last := value.(time.Time)
-			if now.Sub(last) >= maxDuration {
-				state := &prophet.PeerStats{}
-				state.Peer = &prophet.Peer{ID: p.ID, ContainerID: p.StoreID}
+			if now.Sub(last) >= pr.store.cfg.Replication.MaxPeerDownTime.Duration {
+				state := metapb.PeerStats{}
+				state.Peer = metapb.Peer{ID: p.ID, ContainerID: p.ContainerID}
 				state.DownSeconds = uint64(now.Sub(last).Seconds())
 
 				downPeers = append(downPeers, state)
@@ -402,8 +408,8 @@ func (pr *peerReplica) collectDownPeers(maxDuration time.Duration) []*metapb.Pee
 	return downPeers
 }
 
-func (pr *peerReplica) collectPendingPeers() []*prophet.Peer {
-	var pendingPeers []*prophet.Peer
+func (pr *peerReplica) collectPendingPeers() []metapb.Peer {
+	var pendingPeers []metapb.Peer
 	status := pr.rn.Status()
 	truncatedIdx := pr.ps.getTruncatedIndex()
 
@@ -415,7 +421,7 @@ func (pr *peerReplica) collectPendingPeers() []*prophet.Peer {
 		if progress.Match < truncatedIdx {
 			if v, ok := pr.store.peers.Load(id); ok {
 				p := v.(metapb.Peer)
-				pendingPeers = append(pendingPeers, &prophet.Peer{ID: p.ID, ContainerID: p.StoreID})
+				pendingPeers = append(pendingPeers, metapb.Peer{ID: p.ID, ContainerID: p.ContainerID})
 			}
 		}
 	}

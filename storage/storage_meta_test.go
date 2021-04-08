@@ -3,7 +3,6 @@ package storage
 import (
 	"fmt"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +17,6 @@ var (
 		"memory": createMem,
 		"pebble": createPebble,
 	}
-
-	lock sync.Mutex
 )
 
 func createMem(t *testing.T) MetadataStorage {
