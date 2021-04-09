@@ -1,10 +1,10 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (

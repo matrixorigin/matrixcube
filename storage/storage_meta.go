@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"github.com/deepfabric/beehive/storage/stats"
-	"github.com/deepfabric/beehive/util"
+	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // MetadataStorage the storage to save raft log, shard and store metadata.

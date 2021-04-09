@@ -1,8 +1,8 @@
 package command
 
 import (
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 // CommandWriteBatch command write batch

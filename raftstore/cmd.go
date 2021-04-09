@@ -14,11 +14,11 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 type cmd struct {

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"sync"
 
-	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/google/btree"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 const (

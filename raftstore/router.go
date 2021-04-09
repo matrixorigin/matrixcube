@@ -5,12 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet"
 	"github.com/deepfabric/prophet/event"
 	"github.com/deepfabric/prophet/pb/rpcpb"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // Router route the request to the corresponding shard

@@ -3,10 +3,10 @@ package raftstore
 import (
 	"encoding/hex"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 type defaultRPC struct {

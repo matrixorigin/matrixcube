@@ -1,7 +1,7 @@
 package aware
 
 import (
-	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 // ShardStateAware shard state aware

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (

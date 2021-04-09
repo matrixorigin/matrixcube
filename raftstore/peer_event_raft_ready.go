@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/pb/bhraftpb"
-	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
 )

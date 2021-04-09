@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/deepfabric/beehive/raftstore"
+	"github.com/matrixorigin/matrixcube/raftstore"
 )
 
 // Cfg cfg

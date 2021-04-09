@@ -18,8 +18,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/fagongzi/goetty/buf"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 // for meta

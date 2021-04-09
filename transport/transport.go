@@ -1,7 +1,7 @@
 package transport
 
 import (
-	"github.com/deepfabric/beehive/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 )
 
 // Transport raft transport

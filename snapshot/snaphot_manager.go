@@ -1,9 +1,9 @@
 package snapshot
 
 import (
-	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/log"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 )
 
 var (

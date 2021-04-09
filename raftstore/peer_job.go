@@ -3,13 +3,13 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/bhraftpb"
-	sn "github.com/deepfabric/beehive/snapshot"
-	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	sn "github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
