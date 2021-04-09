@@ -167,7 +167,7 @@ message BatchSplitRequest {
 }
 
 message BatchSplitResponse {
-    repeated bhmetapb.Shard shards = 1;
+    repeated bhmetapb.Shard shards = 1 [(gogoproto.nullable) = false];
 }
 
 

@@ -34,14 +34,6 @@ func (c *cmd) isFull(n, max int) bool {
 	return max-64 <= c.size+n
 }
 
-func (c *cmd) reset() {
-	c.req = nil
-	c.cb = nil
-	c.term = 0
-	c.tp = -1
-	c.size = 0
-}
-
 func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
 	c := cmd{}
 	c.req = req

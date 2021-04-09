@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/hex"
 	"fmt"
-	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,11 +24,9 @@ var (
 // Application a tcp application server
 type Application struct {
 	cfg         Cfg
-	server      *goetty.Server
-	sessions    sync.Map // id -> *util.Session
+	server      goetty.NetApplication
 	shardsProxy proxy.ShardsProxy
-
-	libaryCB sync.Map // id -> application cb
+	libaryCB    sync.Map // id -> application cb
 }
 
 // NewApplication returns a tcp application server
@@ -39,10 +36,15 @@ func NewApplication(cfg Cfg) *Application {
 	}
 
 	if !cfg.ExternalServer {
-		decoder, encoder := cfg.Handler.Codec()
-		s.server = goetty.NewServer(cfg.Addr,
-			goetty.WithServerDecoder(decoder),
-			goetty.WithServerEncoder(encoder))
+		encoder, decoder := cfg.Handler.Codec()
+		app, err := goetty.NewTCPApplication(cfg.Addr, s.onMessage,
+			goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
+				goetty.WithEnableAsyncWrite(16),
+				goetty.WithReleaseMsgFunc(s.releaseResponse)))
+		if err != nil {
+			logger.Fatalf("create internal tcp server failed with %+v", err)
+		}
+		s.server = app
 	}
 	return s
 }
@@ -62,17 +64,7 @@ func (s *Application) Start() error {
 	}
 
 	logger.Infof("start embed tcp server")
-	errorC := make(chan error)
-	go func() {
-		errorC <- s.server.Start(s.doConnection)
-	}()
-
-	select {
-	case <-s.server.Started():
-		return nil
-	case err := <-errorC:
-		return err
-	}
+	return s.server.Start()
 }
 
 // Stop stop redis server
@@ -188,47 +180,27 @@ func (s *Application) execTimeout(arg interface{}) {
 	}
 }
 
-func (s *Application) doConnection(conn goetty.IOSession) error {
-	rs := util.NewSession(conn, s.releaseResponse)
-	s.sessions.Store(rs.ID, rs)
-	defer func() {
-		rs.Close()
-		s.sessions.Delete(rs.ID)
-	}()
+func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint64) error {
+	req := pb.AcquireRequest()
+	req.ID = uuid.NewV4().Bytes()
+	req.SID = int64(conn.ID())
 
-	for {
-		cmd, err := conn.Read()
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-
-			logger.Errorf("read from cli %s failed, errors\n %+v",
-				rs.Addr,
-				err)
-			return err
-		}
-
-		req := pb.AcquireRequest()
-		req.ID = uuid.NewV4().Bytes()
-		req.SID = rs.ID.(int64)
-
-		err = s.cfg.Handler.BuildRequest(req, cmd)
-		if err != nil {
-			resp := &raftcmdpb.Response{}
-			resp.Error.Message = err.Error()
-			rs.OnResp(resp)
-			pb.ReleaseRequest(req)
-			continue
-		}
-
-		err = s.shardsProxy.Dispatch(req)
-		if err != nil {
-			resp := &raftcmdpb.Response{}
-			resp.Error.Message = err.Error()
-			rs.OnResp(resp)
-		}
+	err := s.cfg.Handler.BuildRequest(req, cmd)
+	if err != nil {
+		resp := &raftcmdpb.Response{}
+		resp.Error.Message = err.Error()
+		conn.WriteAndFlush(resp)
+		pb.ReleaseRequest(req)
+		return nil
 	}
+
+	err = s.shardsProxy.Dispatch(req)
+	if err != nil {
+		resp := &raftcmdpb.Response{}
+		resp.Error.Message = err.Error()
+		conn.WriteAndFlush(resp)
+	}
+	return nil
 }
 
 func (s *Application) done(resp *raftcmdpb.Response) {
@@ -258,8 +230,8 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 		return
 	}
 
-	if value, ok := s.sessions.Load(resp.SID); ok {
-		value.(*util.Session).OnResp(resp)
+	if conn, _ := s.server.GetSession(uint64(resp.SID)); conn != nil {
+		conn.WriteAndFlush(resp)
 	} else {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s application received response, missing session",
@@ -285,10 +257,10 @@ func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 		return
 	}
 
-	if value, ok := s.sessions.Load(resp.SID); ok {
+	if conn, _ := s.server.GetSession(uint64(resp.SID)); conn != nil {
 		resp := &raftcmdpb.Response{}
 		resp.Error.Message = err.Error()
-		value.(*util.Session).OnResp(resp)
+		conn.WriteAndFlush(resp)
 	}
 }
 

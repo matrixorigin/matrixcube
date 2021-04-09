@@ -15,14 +15,14 @@ var (
 )
 
 var (
-	errStaleCMD           = errors.New("Stale command")
-	errStaleEpoch         = errors.New("Stale epoch")
-	errNotLeader          = errors.New("NotLeader")
-	errShardNotFound      = errors.New("Shard not found")
-	errMissingUUIDCMD     = errors.New("Missing request id")
-	errLargeRaftEntrySize = errors.New("Raft entry is too large")
-	errKeyNotInShard      = errors.New("Key not in shard")
-	errStoreNotMatch      = errors.New("Store not match")
+	errStaleCMD           = errors.New("stale command")
+	errStaleEpoch         = errors.New("stale epoch")
+	errNotLeader          = errors.New("notLeader")
+	errShardNotFound      = errors.New("shard not found")
+	errMissingUUIDCMD     = errors.New("missing request id")
+	errLargeRaftEntrySize = errors.New("raft entry is too large")
+	errKeyNotInShard      = errors.New("key not in shard")
+	errStoreNotMatch      = errors.New("store not match")
 
 	infoStaleCMD  = new(errorpb.StaleCommand)
 	storeNotMatch = new(errorpb.StoreNotMatch)

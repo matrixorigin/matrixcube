@@ -46,11 +46,6 @@ func (q *readIndexQueue) incrReadyCnt() int32 {
 	return q.readyCnt
 }
 
-func (q *readIndexQueue) decrReadyCnt() int32 {
-	q.readyCnt--
-	return q.readyCnt
-}
-
 func (q *readIndexQueue) resetReadyCnt() {
 	q.readyCnt = 0
 }
@@ -67,12 +62,6 @@ type reqCtx struct {
 	admin *raftcmdpb.AdminRequest
 	req   *raftcmdpb.Request
 	cb    func(*raftcmdpb.RaftCMDResponse)
-}
-
-func (r *reqCtx) reset() {
-	r.admin = nil
-	r.cb = nil
-	r.req = nil
 }
 
 type proposeBatch struct {
@@ -106,7 +95,7 @@ func (b *proposeBatch) size() int {
 }
 
 func (b *proposeBatch) isEmpty() bool {
-	return 0 == b.size()
+	return b.size() == 0
 }
 
 func (b *proposeBatch) pop() (cmd, bool) {

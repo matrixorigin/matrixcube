@@ -176,14 +176,6 @@ type asyncApplyResult struct {
 	metrics          applyMetrics
 }
 
-func (res *asyncApplyResult) reset() {
-	res.shardID = 0
-	res.appliedIndexTerm = 0
-	res.applyState = bhraftpb.RaftApplyState{}
-	res.result = nil
-	res.metrics = applyMetrics{}
-}
-
 func (res *asyncApplyResult) hasSplitExecResult() bool {
 	return nil != res.result && res.result.splitResult != nil
 }
@@ -203,8 +195,8 @@ type changePeer struct {
 }
 
 type splitResult struct {
-	left  bhmetapb.Shard
-	right bhmetapb.Shard
+	derived bhmetapb.Shard
+	shards  []bhmetapb.Shard
 }
 
 type raftGCResult struct {
@@ -297,7 +289,7 @@ func (d *applyDelegate) findCB(ctx *applyContext) (cmd, bool) {
 		c := d.pendingChangePeerCMD
 		if c.req == nil {
 			return emptyCMD, false
-		} else if bytes.Compare(ctx.req.Header.ID, c.getUUID()) == 0 {
+		} else if bytes.Equal(ctx.req.Header.ID, c.getUUID()) {
 			return c, true
 		}
 
@@ -311,7 +303,7 @@ func (d *applyDelegate) findCB(ctx *applyContext) (cmd, bool) {
 			return emptyCMD, false
 		}
 
-		if bytes.Compare(head.getUUID(), ctx.req.Header.ID) == 0 {
+		if bytes.Equal(head.getUUID(), ctx.req.Header.ID) {
 			return head, true
 		}
 

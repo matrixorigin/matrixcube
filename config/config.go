@@ -320,7 +320,10 @@ type StorageConfig struct {
 	// MetaStorage used to store raft, shards and store's metadata
 	MetaStorage storage.MetadataStorage
 	// DataStorageFactory is a storage factory  to store application's data
-	DataStorageFactory     func(group uint64, shardID uint64) storage.DataStorage
+	DataStorageFactory func(group uint64, shardID uint64) storage.DataStorage
+	// DataMoveFunc move data from a storage to others
+	DataMoveFunc func(bhmetapb.Shard, []bhmetapb.Shard) error
+	// ForeachDataStorageFunc do in every storage
 	ForeachDataStorageFunc func(cb func(storage.DataStorage))
 }
 

@@ -13,7 +13,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
 )
 
 type readyContext struct {
@@ -26,7 +25,7 @@ type readyContext struct {
 }
 
 func (ctx *readyContext) reset() {
-	ctx.hardState = etcdraftpb.HardState{}
+	ctx.hardState = raftpb.HardState{}
 	ctx.raftState = bhraftpb.RaftLocalState{}
 	ctx.applyState = bhraftpb.RaftApplyState{}
 	ctx.lastTerm = 0
@@ -392,7 +391,7 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	if pr.readyToHandleRead() {
 		for _, state := range rd.ReadStates {
 			if c, ok := pr.pendingReads.pop(); ok {
-				if bytes.Compare(state.RequestCtx, c.getUUID()) != 0 {
+				if !bytes.Equal(state.RequestCtx, c.getUUID()) {
 					logger.Fatalf("shard %d apply read failed, uuid not match",
 						pr.shardID)
 				}

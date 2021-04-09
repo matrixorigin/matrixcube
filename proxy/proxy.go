@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/beehive/raftstore"
 	"github.com/deepfabric/beehive/util"
@@ -21,7 +21,7 @@ var (
 
 var (
 	// ErrTimeout timeout error
-	ErrTimeout = errors.New("Exec timeout")
+	ErrTimeout = errors.New("exec timeout")
 )
 
 var (
@@ -75,7 +75,7 @@ func NewShardsProxyWithStore(store raftstore.Store,
 }
 
 type shardsProxy struct {
-	local       metapb.Store
+	local       bhmetapb.Store
 	store       raftstore.Store
 	router      raftstore.Router
 	doneCB      doneFunc
@@ -110,7 +110,7 @@ func (p *shardsProxy) Router() raftstore.Router {
 }
 
 func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, leader string) error {
-	if p.store != nil && p.local.RPCAddr == leader {
+	if p.store != nil && p.local.ClientAddr == leader {
 		req.PID = 0
 		return p.store.OnRequest(req)
 	}
@@ -126,9 +126,9 @@ func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, leader string) er
 func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raftcmdpb.Response) {
 	if header != nil {
 		if header.Error.RaftEntryTooLarge == nil {
-			rsp.Type = raftcmdpb.RaftError
+			rsp.Type = raftcmdpb.CMDType_RaftError
 		} else {
-			rsp.Type = raftcmdpb.Invalid
+			rsp.Type = raftcmdpb.CMDType_Invalid
 		}
 
 		rsp.Error = header.Error
@@ -138,12 +138,12 @@ func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raf
 }
 
 func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
-	if rsp.Type == raftcmdpb.Invalid && rsp.Error.Message != "" {
+	if rsp.Type == raftcmdpb.CMDType_Invalid && rsp.Error.Message != "" {
 		p.errorDoneCB(rsp.OriginRequest, errors.New(rsp.Error.String()))
 		return
 	}
 
-	if rsp.Type != raftcmdpb.RaftError && !rsp.Stale {
+	if rsp.Type != raftcmdpb.CMDType_RaftError && !rsp.Stale {
 		p.doneCB(rsp)
 		return
 	}
@@ -186,7 +186,7 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 
 func (p *shardsProxy) getConn(addr string) (*backend, error) {
 	bc := p.getConnLocked(addr)
-	if p.checkConnect(addr, bc) {
+	if p.checkConnect(bc) {
 		return bc, nil
 	}
 
@@ -202,11 +202,9 @@ func (p *shardsProxy) getConnLocked(addr string) *backend {
 }
 
 func (p *shardsProxy) createConn(addr string) *backend {
-	decoder, encoder := p.store.CreateRPCCliendSideCodec()
-	bc := newBackend(p, addr, goetty.NewConnector(addr,
-		goetty.WithClientConnectTimeout(defaultConnectTimeout),
-		goetty.WithClientDecoder(decoder),
-		goetty.WithClientEncoder(encoder)))
+	encoder, decoder := p.store.CreateRPCCliendSideCodec()
+	bc := newBackend(p, addr,
+		goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
 
 	old, loaded := p.backends.LoadOrStore(addr, bc)
 	if loaded {
@@ -216,26 +214,26 @@ func (p *shardsProxy) createConn(addr string) *backend {
 	return bc
 }
 
-func (p *shardsProxy) checkConnect(addr string, bc *backend) bool {
+func (p *shardsProxy) checkConnect(bc *backend) bool {
 	if nil == bc {
 		return false
 	}
 
-	if bc.conn.IsConnected() {
+	if bc.conn.Connected() {
 		return true
 	}
 
 	bc.Lock()
 	defer bc.Unlock()
 
-	if bc.conn.IsConnected() {
+	if bc.conn.Connected() {
 		return true
 	}
 
-	ok, err := bc.conn.Connect()
+	ok, err := bc.conn.Connect(bc.addr, defaultConnectTimeout)
 	if err != nil {
 		logger.Errorf("connect to backend %s failed with %+v",
-			addr,
+			bc.addr,
 			err)
 		return false
 	}

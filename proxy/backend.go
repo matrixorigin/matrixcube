@@ -59,7 +59,7 @@ func (bc *backend) writeLoop() {
 		logger.Infof("backend %s write loop started",
 			bc.addr)
 
-		items := make([]interface{}, batch, batch)
+		items := make([]interface{}, batch)
 		for {
 			n, err := bc.reqs.Get(batch, items)
 			if err != nil {
