@@ -27,4 +27,4 @@ example-http: http; $(info ======== compiled beehive http example:)
 
 .PHONY: test
 test: ; $(info ======== test beehive)
-	env GO111MODULE=off go test -count=1 github.com/deepfabric/beehive/storage
+	env GO111MODULE=off go test -count=1 github.com/matrixorigin/matrixcube/storage

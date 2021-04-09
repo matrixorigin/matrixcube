@@ -3,7 +3,7 @@ package util
 import (
 	"testing"
 
-	"github.com/deepfabric/beehive/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 func TestTree(t *testing.T) {

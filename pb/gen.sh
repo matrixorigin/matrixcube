@@ -6,7 +6,7 @@
 set -e
 
 # directories containing protos to be built
-MOD="github.com/deepfabric/beehive"
+MOD="github.com/matrixorigin/matrixcube"
 DIRS="./bhmetapb ./bhraftpb ./raftcmdpb ./errorpb"
 VENDOR_DIR=$(dirname "$PWD")/vendor
 PB_DIR=$(dirname "$PWD")/pb

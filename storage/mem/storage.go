@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/deepfabric/beehive/storage/stats"
-	"github.com/deepfabric/beehive/util"
+	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // Storage memory storage

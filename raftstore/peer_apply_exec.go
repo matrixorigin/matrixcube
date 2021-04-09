@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/pb/bhraftpb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {

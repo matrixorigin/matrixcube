@@ -1,9 +1,9 @@
 package server
 
 import (
-	"github.com/deepfabric/beehive/command"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/goetty/codec"
+	"github.com/matrixorigin/matrixcube/command"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 // Handler is the request handler

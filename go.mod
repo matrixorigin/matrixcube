@@ -1,4 +1,4 @@
-module github.com/deepfabric/beehive
+module github.com/matrixorigin/matrixcube
 
 go 1.13
 

@@ -3,8 +3,8 @@ package pb
 import (
 	"sync"
 
-	"github.com/deepfabric/beehive/pb/bhraftpb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (

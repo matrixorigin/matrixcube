@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/deepfabric/beehive/storage/stats"
-	"github.com/deepfabric/beehive/util"
+	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // Storage returns a kv storage based on badger

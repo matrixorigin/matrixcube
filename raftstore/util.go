@@ -14,8 +14,8 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/pb/bhmetapb"
 	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 const (

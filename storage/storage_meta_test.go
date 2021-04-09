@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/deepfabric/beehive/storage/mem"
-	"github.com/deepfabric/beehive/storage/pebble"
-	"github.com/deepfabric/beehive/util"
+	"github.com/matrixorigin/matrixcube/storage/mem"
+	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/util"
 	"github.com/stretchr/testify/assert"
 )
 

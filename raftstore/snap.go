@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/bhraftpb"
-	"github.com/deepfabric/beehive/snapshot"
-	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/util"
 	"golang.org/x/time/rate"
 )
 

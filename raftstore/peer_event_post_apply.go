@@ -3,9 +3,9 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 func (pr *peerReplica) handleApplyResult(items []interface{}) {

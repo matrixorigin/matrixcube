@@ -3,12 +3,12 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/deepfabric/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"

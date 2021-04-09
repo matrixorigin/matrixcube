@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (

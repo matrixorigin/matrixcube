@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deepfabric/beehive/pb/bhmetapb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/storage"
-	"github.com/deepfabric/beehive/util"
 	"github.com/deepfabric/prophet/metadata"
 	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/deepfabric/prophet/pb/rpcpb"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 type resourceAdapter struct {

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/bhraftpb"
 	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
