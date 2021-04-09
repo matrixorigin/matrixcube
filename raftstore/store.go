@@ -405,7 +405,7 @@ func (s *store) CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder) {
 }
 
 func (s *store) initWorkers() {
-	for g := uint64(0); g < s.cfg.Groups; g++ {
+	for g := uint64(0); g < s.cfg.ShardGroups; g++ {
 		s.applyWorkers = append(s.applyWorkers, make(map[string]int))
 
 		for i := uint64(0); i < s.cfg.Worker.ApplyWorkerCount; i++ {
@@ -415,7 +415,7 @@ func (s *store) initWorkers() {
 		}
 	}
 
-	for g := uint64(0); g < s.cfg.Groups; g++ {
+	for g := uint64(0); g < s.cfg.ShardGroups; g++ {
 		name := fmt.Sprintf(snapshotWorkerName, g)
 		s.runner.AddNamedWorker(name)
 	}
@@ -437,7 +437,7 @@ func (s *store) startProphet() {
 }
 
 func (s *store) startRaftWorkers() {
-	for i := uint64(0); i < s.cfg.Groups; i++ {
+	for i := uint64(0); i < s.cfg.ShardGroups; i++ {
 		s.eventWorkers = append(s.eventWorkers, make(map[uint64]int))
 		g := i
 		for j := uint64(0); j < s.cfg.Worker.RaftMaxWorkers; j++ {

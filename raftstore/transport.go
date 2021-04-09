@@ -56,7 +56,7 @@ func newTransport(store *store) transport.Transport {
 	t.server = app
 	t.resolverFunc = t.resolverStoreAddr
 
-	for i := uint64(0); i < store.cfg.Groups; i++ {
+	for i := uint64(0); i < store.cfg.ShardGroups; i++ {
 		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.cfg.Worker.SendRaftMsgWorkerCount))
 		t.raftMask = append(t.raftMask, store.cfg.Worker.SendRaftMsgWorkerCount-1)
 		for j := uint64(0); j < t.store.cfg.Worker.SendRaftMsgWorkerCount; j++ {
@@ -334,7 +334,7 @@ func (t *defaultTransport) getConnLocked(id uint64) (goetty.IOSession, error) {
 		return p.(pool.IOSessionPool).Get()
 	}
 
-	p, err := pool.NewIOSessionPool(nil, 1, int(2*t.store.cfg.Groups), func(remote interface{}) (goetty.IOSession, error) {
+	p, err := pool.NewIOSessionPool(nil, 1, int(2*t.store.cfg.ShardGroups), func(remote interface{}) (goetty.IOSession, error) {
 		return t.createConn()
 	})
 	if err != nil {
