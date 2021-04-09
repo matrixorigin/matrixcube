@@ -733,7 +733,7 @@ func (m *RaftMessage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i--
 	dAtA[i] = 0x32
 	{
-		size, err := m.Message.MarshalToSizedBuffer(dAtA[:i])
+		size, err := m.Message.MarshalTo(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}

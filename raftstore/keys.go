@@ -38,8 +38,6 @@ const (
 // local is in (0x01, 0x02);
 var (
 	localPrefix byte = 0x01
-	localMinKey      = []byte{localPrefix}
-	localMaxKey      = []byte{localPrefix + 1}
 
 	maxKey = []byte{}
 	minKey = []byte{0xff}

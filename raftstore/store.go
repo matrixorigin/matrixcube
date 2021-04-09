@@ -366,7 +366,7 @@ func (s *store) AddShards(shards ...bhmetapb.Shard) error {
 		buffer.Write(protoc.MustMarshal(shard))
 
 		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(shard.ID, eventsPath)), "=", 0))
-		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, eventsPath), string(buffer.Bytes())))
+		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, eventsPath), buffer.String()))
 	}
 	s.mustSaveShards(createShards...)
 
@@ -668,7 +668,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 			var buffer bytes.Buffer
 			buffer.Write(buf.Int64ToBytes(time.Now().Unix()))
 			buffer.Write(protoc.MustMarshal(&recreate[i]))
-			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, eventsPath), string(buffer.Bytes())))
+			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, eventsPath), buffer.String()))
 		}
 	}
 
@@ -965,13 +965,6 @@ func (s *store) getPR(id uint64, mustLeader bool) *peerReplica {
 	return nil
 }
 
-func (s *store) destroyPR(id uint64, target metapb.Peer) {
-	logger.Infof("shard %d asking destroying stale peer, peer=<%v>",
-		id,
-		target)
-	s.startDestroyJob(id, target)
-}
-
 // In some case, the vote raft msg maybe dropped, so follwer node can't response the vote msg
 // shard a has 3 peers p1, p2, p3. The p1 split to new shard b
 // case 1: in most sence, p1 apply split raft log is before p2 and p3.
@@ -1117,16 +1110,12 @@ func newAdminRaftCMDResponse(adminType raftcmdpb.AdminCmdType, rsp protoc.PB) *r
 	switch adminType {
 	case raftcmdpb.AdminCmdType_ChangePeer:
 		adminResp.ChangePeer = rsp.(*raftcmdpb.ChangePeerResponse)
-		break
 	case raftcmdpb.AdminCmdType_TransferLeader:
 		adminResp.TransferLeader = rsp.(*raftcmdpb.TransferLeaderResponse)
-		break
 	case raftcmdpb.AdminCmdType_CompactLog:
 		adminResp.CompactLog = rsp.(*raftcmdpb.CompactLogResponse)
-		break
 	case raftcmdpb.AdminCmdType_BatchSplit:
 		adminResp.Splits = rsp.(*raftcmdpb.BatchSplitResponse)
-		break
 	}
 
 	resp := pb.AcquireRaftCMDResponse()

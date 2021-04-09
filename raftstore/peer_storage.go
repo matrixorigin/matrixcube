@@ -22,26 +22,6 @@ const (
 	// so that we can force the follower peer to sync the snapshot first.
 	raftInitLogTerm  = 5
 	raftInitLogIndex = 5
-
-	maxSnapTryCnt = 5
-)
-
-type snapshotState int
-
-var (
-	relax        = snapshotState(1)
-	generating   = snapshotState(2)
-	applying     = snapshotState(3)
-	applyAborted = snapshotState(4)
-)
-
-const (
-	pending = iota
-	running
-	cancelling
-	cancelled
-	finished
-	failed
 )
 
 var (

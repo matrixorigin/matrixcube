@@ -65,7 +65,6 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		logger.Infof("shard-%d add peer %+v successfully",
 			region.ID,
 			peer)
-		break
 	case metapb.ChangePeerType_RemoveNode:
 		if p != nil {
 			if *p != peer {
@@ -88,7 +87,6 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		logger.Infof("shard-%d remove peer %+v successfully",
 			region.ID,
 			peer)
-		break
 	case metapb.ChangePeerType_AddLearnerNode:
 		if p != nil {
 			return nil, nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
@@ -100,7 +98,6 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		logger.Infof("shard-%d add learner peer %+v successfully",
 			region.ID,
 			peer)
-		break
 	}
 
 	state := bhraftpb.PeerState_Normal
@@ -310,11 +307,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		return nil, nil, errors.New("missing splits request")
 	}
 
-	new_region_cnt := len(splitReqs.Requests)
-
+	newShardsCount := len(splitReqs.Requests)
 	derived := bhmetapb.Shard{}
 	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&d.shard))
-	var regions []bhmetapb.Shard
+	var shards []bhmetapb.Shard
 	keys := deque.New()
 
 	for _, req := range splitReqs.Requests {
@@ -322,13 +318,13 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 			return nil, nil, errors.New("missing split key")
 		}
 
-		split_key := DecodeDataKey(req.SplitKey)
+		splitKey := DecodeDataKey(req.SplitKey)
 		v := derived.Start
 		if e, ok := keys.Back(); ok {
 			v = e.Value.([]byte)
 		}
-		if bytes.Compare(split_key, v) <= 0 {
-			return nil, nil, fmt.Errorf("invalid split key %+v", split_key)
+		if bytes.Compare(splitKey, v) <= 0 {
+			return nil, nil, fmt.Errorf("invalid split key %+v", splitKey)
 		}
 
 		if len(req.NewPeerIDs) != len(derived.Peers) {
@@ -337,11 +333,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 				len(req.NewPeerIDs))
 		}
 
-		keys.PushBack(split_key)
+		keys.PushBack(splitKey)
 	}
 
-	v, _ := keys.Back()
-	err := checkKeyInShard(v.Value.([]byte), &d.shard)
+	err := checkKeyInShard(keys.MustBack().Value.([]byte), &d.shard)
 	if err != nil {
 		logger.Errorf("shard %d split key not in shard, errors:\n %+v",
 			d.shard.ID,
@@ -349,109 +344,74 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		return nil, nil, nil
 	}
 
-	derived.Epoch.Version += uint64(new_region_cnt)
+	derived.Epoch.Version += uint64(newShardsCount)
 	keys.PushBack(derived.End)
-	v, _ = keys.Front()
-	derived.End = v.Value.([]byte)
-	regions = append(regions, newResourceAdapterWithShard(derived).Clone().(resourceAdapter).meta)
+	derived.End = keys.MustFront().Value.([]byte)
 
-	// req.SplitKey = DecodeDataKey(req.SplitKey)
+	for _, req := range splitReqs.Requests {
+		newShard := bhmetapb.Shard{}
+		newShard.ID = req.NewShardID
+		newShard.Group = derived.Group
+		newShard.Data = derived.Data
+		newShard.DataAppendToMsg = derived.DataAppendToMsg
+		newShard.DisableSplit = derived.DisableSplit
+		newShard.LeastReplicas = derived.LeastReplicas
+		newShard.Epoch = derived.Epoch
+		newShard.Start = keys.PopFront().Value.([]byte)
+		newShard.End = keys.MustFront().Value.([]byte)
+		for idx, p := range derived.Peers {
+			newShard.Peers = append(newShard.Peers, metapb.Peer{
+				ID:          req.NewPeerIDs[idx],
+				ContainerID: p.ContainerID,
+			})
+		}
 
-	// // splitKey < shard.Startkey
-	// if bytes.Compare(req.SplitKey, d.shard.Start) < 0 {
-	// 	logger.Errorf("shard %d invalid split key, split=<%+v> shard-start=<%+v>",
-	// 		d.shard.ID,
-	// 		req.SplitKey,
-	// 		d.shard.Start)
-	// 	return nil, nil, nil
-	// }
+		shards = append(shards, newShard)
+		ctx.metrics.admin.splitSucceed++
 
-	// peer := checkKeyInShard(req.SplitKey, &d.shard)
-	// if peer != nil {
-	// 	logger.Errorf("shard %d split key not in shard, errors:\n %+v",
-	// 		d.shard.ID,
-	// 		peer)
-	// 	return nil, nil, nil
-	// }
+		if d.store.cfg.Customize.CustomSplitCompletedFunc != nil {
+			d.store.cfg.Customize.CustomSplitCompletedFunc(&derived, &newShard)
+		}
+	}
 
-	// if len(req.NewPeerIDs) != len(d.shard.Peers) {
-	// 	logger.Errorf("shard %d invalid new peer id count, splitCount=<%d> currentCount=<%d>",
-	// 		d.shard.ID,
-	// 		len(req.NewPeerIDs),
-	// 		len(d.shard.Peers))
+	d.ps.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftStateWB)
+	for _, region := range shards {
+		d.ps.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftStateWB)
+		d.ps.writeInitialState(region.ID, ctx.raftStateWB)
+	}
 
-	// 	return nil, nil, nil
-	// }
+	{
+		err := d.ps.store.MetadataStorage().Write(ctx.raftStateWB, false)
+		if err != nil {
+			logger.Fatalf("shard %d commit apply splits result failed with %+v",
+				d.shard.ID,
+				err)
+		}
+	}
 
-	// logger.Infof("shard %d split, splitKey=<%d> shard=<%+v>",
-	// 	d.shard.ID,
-	// 	req.SplitKey,
-	// 	d.shard)
+	if d.store.cfg.Storage.DataMoveFunc != nil {
+		err := d.store.cfg.Storage.DataMoveFunc(derived, shards)
+		if err != nil {
+			logger.Fatalf("shard %d commit apply splits result, move data failed with %+v",
+				d.shard.ID,
+				err)
+		}
+	}
 
-	// // After split, the origin shard key range is [start_key, split_key),
-	// // the new split shard is [split_key, end).
-	// newShard := bhmetapb.Shard{
-	// 	ID:    req.NewShardID,
-	// 	Epoch: d.shard.Epoch,
-	// 	Start: req.SplitKey,
-	// 	End:   d.shard.End,
-	// 	Group: d.shard.Group,
-	// }
-	// d.shard.End = req.SplitKey
+	d.shard = derived
+	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.BatchSplitResponse{
+		Shards: shards,
+	})
 
-	// for idx, id := range req.NewPeerIDs {
-	// 	newShard.Peers = append(newShard.Peers, metapb.Peer{
-	// 		ID:      id,
-	// 		StoreID: d.shard.Peers[idx].ContainerID,
-	// 	})
-	// }
+	result := &execResult{
+		adminType: raftcmdpb.AdminCmdType_BatchSplit,
+		splitResult: &splitResult{
+			derived: derived,
+			shards:  shards,
+		},
+	}
 
-	// d.shard.Epoch.Version++
-	// newShard.Epoch.Version = d.shard.Epoch.Version
-
-	// if d.store.cfg.Customize.CustomSplitCompletedFunc != nil {
-	// 	d.store.cfg.Customize.CustomSplitCompletedFunc(&d.shard, &newShard)
-	// }
-
-	// err := d.ps.updatePeerState(d.shard, bhraftpb.PeerState_Normal, ctx.raftStateWB)
-
-	// d.wb.Reset()
-	// if err == nil {
-	// 	err = d.ps.updatePeerState(newShard, bhraftpb.PeerState_Normal, d.wb)
-	// }
-
-	// if err == nil {
-	// 	err = d.ps.writeInitialState(newShard.ID, d.wb)
-	// }
-	// if err != nil {
-	// 	logger.Fatalf("shard %d save split shard failed, newShard=<%+v> errors:\n %+v",
-	// 		d.shard.ID,
-	// 		newShard,
-	// 		err)
-	// }
-
-	// err = d.ps.store.MetadataStorage().Write(d.wb, false)
-	// if err != nil {
-	// 	logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
-	// 		d.shard.ID,
-	// 		err)
-	// }
-
-	// rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.SplitResponse{
-	// 	Left:  d.shard,
-	// 	Right: newShard,
-	// })
-
-	// result := &execResult{
-	// 	adminType: raftcmdpb.AdminCmdType_BatchSplit,
-	// 	splitResult: &splitResult{
-	// 		left:  d.shard,
-	// 		right: newShard,
-	// 	},
-	// }
-
-	// ctx.metrics.admin.splitSucceed++
-	// return rsp, result, nil
+	return rsp, result, nil
 }
 
 func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {

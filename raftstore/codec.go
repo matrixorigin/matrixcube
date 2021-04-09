@@ -21,10 +21,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 )
 
-var (
-	encoder = newRaftEncoder()
-)
-
 const (
 	typeRaft = 1
 	typeSnap = 2
@@ -74,16 +70,13 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	t := typeRaft
 	var m protoc.PB
 
-	switch data.(type) {
-	case *bhraftpb.RaftMessage:
+	if v, ok := data.(*bhraftpb.RaftMessage); ok {
 		t = typeRaft
-		m = data.(*bhraftpb.RaftMessage)
-		break
-	case *bhraftpb.SnapshotMessage:
+		m = v
+	} else if v, ok := data.(*bhraftpb.SnapshotMessage); ok {
 		t = typeSnap
-		m = data.(*bhraftpb.SnapshotMessage)
-		break
-	default:
+		m = v
+	} else {
 		log.Fatalf("[beehive]: bug, not support msg type %T", data)
 	}
 

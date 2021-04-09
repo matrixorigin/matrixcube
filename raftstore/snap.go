@@ -137,16 +137,6 @@ func (m *defaultSnapshotManager) Deregister(msg *bhraftpb.SnapshotMessage, step 
 	delete(m.registry, fkey)
 }
 
-func (m *defaultSnapshotManager) inRegistry(msg *bhraftpb.SnapshotMessage, step int) bool {
-	m.RLock()
-	defer m.RUnlock()
-
-	fkey := formatKeyStep(msg, step)
-	_, ok := m.registry[fkey]
-
-	return ok
-}
-
 func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
@@ -223,7 +213,7 @@ func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goe
 			dst.Header = msg.Header
 			dst.Data = buf[0:nr]
 			dst.FileSize = uint64(fileSize)
-			dst.First = 0 == written
+			dst.First = written == 0
 			dst.Last = fileSize == written+int64(nr)
 
 			written += int64(nr)

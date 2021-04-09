@@ -38,12 +38,11 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
-	disableRefreshRoute bool
-	pd                  prophet.Prophet
-	watcher             prophet.Watcher
-	runner              *task.Runner
-	eventC              chan rpcpb.EventNotify
-	eventTaskID         uint64
+	pd          prophet.Prophet
+	watcher     prophet.Watcher
+	runner      *task.Runner
+	eventC      chan rpcpb.EventNotify
+	eventTaskID uint64
 
 	keyRanges                 sync.Map // group id -> *util.ShardTree
 	leaders                   sync.Map // shard id -> leader peer store address string

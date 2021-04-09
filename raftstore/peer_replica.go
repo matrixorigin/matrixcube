@@ -175,7 +175,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peerID uint64) (*peerRe
 	}
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
-	pr.items = make([]interface{}, readyBatch, readyBatch)
+	pr.items = make([]interface{}, readyBatch)
 
 	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
@@ -371,19 +371,6 @@ func (pr *peerReplica) readyReadCount() int {
 
 func (pr *peerReplica) resetBatch() {
 	pr.batch = newBatch(pr)
-}
-
-func (pr *peerReplica) checkPeers() {
-	if !pr.isLeader() {
-		pr.peerHeartbeatsMap = sync.Map{}
-		return
-	}
-
-	peers := pr.ps.shard.Peers
-	// Insert heartbeats in case that some peers never response heartbeats.
-	for _, p := range peers {
-		pr.peerHeartbeatsMap.LoadOrStore(p.ID, time.Now())
-	}
 }
 
 func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {

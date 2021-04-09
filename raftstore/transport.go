@@ -57,13 +57,13 @@ func newTransport(store *store) transport.Transport {
 	t.resolverFunc = t.resolverStoreAddr
 
 	for i := uint64(0); i < store.cfg.Groups; i++ {
-		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.cfg.Worker.SendRaftMsgWorkerCount, store.cfg.Worker.SendRaftMsgWorkerCount))
+		t.raftMsgs = append(t.raftMsgs, make([]*task.Queue, store.cfg.Worker.SendRaftMsgWorkerCount))
 		t.raftMask = append(t.raftMask, store.cfg.Worker.SendRaftMsgWorkerCount-1)
 		for j := uint64(0); j < t.store.cfg.Worker.SendRaftMsgWorkerCount; j++ {
 			t.raftMsgs[i][j] = &task.Queue{}
 		}
 
-		t.snapMsgs = append(t.snapMsgs, make([]*task.Queue, store.cfg.Snapshot.MaxConcurrencySnapChunks, store.cfg.Snapshot.MaxConcurrencySnapChunks))
+		t.snapMsgs = append(t.snapMsgs, make([]*task.Queue, store.cfg.Snapshot.MaxConcurrencySnapChunks))
 		t.snapMask = append(t.snapMask, store.cfg.Snapshot.MaxConcurrencySnapChunks-1)
 		for j := uint64(0); j < t.store.cfg.Snapshot.MaxConcurrencySnapChunks; j++ {
 			t.snapMsgs[i][j] = &task.Queue{}
@@ -151,7 +151,7 @@ func (t *defaultTransport) onMessage(rs goetty.IOSession, msg interface{}, seq u
 }
 
 func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
-	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize, t.store.cfg.Raft.SendRaftBatchSize)
+	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize)
 	buffers := make(map[uint64][]*bhraftpb.RaftMessage)
 
 	for {
@@ -190,7 +190,7 @@ func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
 }
 
 func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
-	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize, t.store.cfg.Raft.SendRaftBatchSize)
+	items := make([]interface{}, t.store.cfg.Raft.SendRaftBatchSize)
 
 	for {
 		n, err := q.Get(int64(t.store.cfg.Raft.SendRaftBatchSize), items)
@@ -299,16 +299,6 @@ func (t *defaultTransport) doBatchWrite(msgs []*bhraftpb.RaftMessage, conn goett
 	}
 
 	err := conn.Flush()
-	if err != nil {
-		conn.Close()
-		return err
-	}
-
-	return nil
-}
-
-func (t *defaultTransport) doWrite(msg interface{}, conn goetty.IOSession) error {
-	err := conn.WriteAndFlush(msg)
 	if err != nil {
 		conn.Close()
 		return err
