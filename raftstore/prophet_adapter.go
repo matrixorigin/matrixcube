@@ -320,7 +320,8 @@ func (s *store) startHandleResourceHeartbeat() {
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	pr := s.getPR(rsp.ResourceID, true)
 	if pr == nil {
-		logger.Infof("shard-%d is not leader, skip heartbeat resp")
+		logger.Infof("shard-%d is not leader, skip heartbeat resp",
+			rsp.ResourceID)
 		return
 	}
 
@@ -332,6 +333,27 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 		pr.onAdmin(newChangePeerAdminReq(rsp))
 	} else if rsp.ChangePeerV2 != nil {
 		pr.onAdmin(newChangePeerV2AdminReq(rsp))
+	} else if rsp.TransferLeader != nil {
+		pr.onAdmin(newTransferLeaderAdminReq(rsp))
+	} else if rsp.SplitResource != nil {
+		// currently, pd only support use keys to splits
+		switch rsp.SplitResource.Policy {
+		case metapb.CheckPolicy_USEKEY:
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(newResourceAdapterWithShard(pr.ps.shard),
+				uint32(len(rsp.SplitResource.Keys)))
+			if err != nil {
+				logger.Errorf("shard-%d ask batch split failed with %+v",
+					rsp.ResourceID,
+					err)
+				return
+			}
+			pr.addAction(action{
+				epoch:      rsp.ResourceEpoch,
+				actionType: doSplitAction,
+				splitKeys:  rsp.SplitResource.Keys,
+				splitIDs:   splitIDs,
+			})
+		}
 	}
 }
 
@@ -363,5 +385,20 @@ func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminReq
 			Peer:       ch.Peer,
 		})
 	}
+	return req
+}
+
+func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
+	req := &raftcmdpb.AdminRequest{
+		CmdType: raftcmdpb.AdminCmdType_TransferLeader,
+		TransferLeader: &raftcmdpb.TransferLeaderRequest{
+			Peer: rsp.TransferLeader.Peer,
+		},
+	}
+
+	req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
+		ChangeType: rsp.ChangePeer.ChangeType,
+		Peer:       rsp.ChangePeer.Peer,
+	})
 	return req
 }
