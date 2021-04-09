@@ -30,8 +30,6 @@ var (
 	defaultRaftMaxWorkers           uint64 = 32
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
-	defaultRaftMaxBytesPerMsg              = 4 * mb
-	defaultRaftMaxInflightMsgCount         = 32
 	defaultRaftLogCompactDuration          = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultEnsureNewSuardInterval          = time.Second * 10
@@ -53,21 +51,19 @@ var (
 
 // Config beehive config
 type Config struct {
-	RaftAddr       string     `toml:"addr-raft"`
-	ClientAddr     string     `toml:"addr-client"`
-	DataPath       string     `toml:"dir-data"`
-	DeployPath     string     `toml:"dir-deploy"`
-	Version        string     `toml:"version"`
-	GitHash        string     `toml:"githash"`
-	Labels         [][]string `toml:"labels"`
-	locationLabels []string   `toml:"location-labels"`
+	RaftAddr   string     `toml:"addr-raft"`
+	ClientAddr string     `toml:"addr-client"`
+	DataPath   string     `toml:"dir-data"`
+	DeployPath string     `toml:"dir-deploy"`
+	Version    string     `toml:"version"`
+	GitHash    string     `toml:"githash"`
+	Labels     [][]string `toml:"labels"`
 	// Capacity max capacity can use
-	Capacity            typeutil.ByteSize `toml:"capacity"`
-	UseMemoryAsStorage  bool              `toml:"use-memory-as-storage"`
-	DisableRefreshRoute bool
-	Groups              uint64
-	Replication         ReplicationConfig
-	Snapshot            SnapshotConfig
+	Capacity           typeutil.ByteSize `toml:"capacity"`
+	UseMemoryAsStorage bool              `toml:"use-memory-as-storage"`
+	ShardGroups        uint64            `toml:"shard-groups"`
+	Replication        ReplicationConfig `toml:"replication"`
+	Snapshot           SnapshotConfig    `toml:"snapshot"`
 	// Raft raft config
 	Raft RaftConfig `toml:"raft"`
 	// Storage config
@@ -106,8 +102,8 @@ func (c *Config) Adjust() {
 		c.DeployPath = "not set"
 	}
 
-	if c.Groups == 0 {
-		c.Groups = defaultGroups
+	if c.ShardGroups == 0 {
+		c.ShardGroups = defaultGroups
 	}
 
 	(&c.Snapshot).adjust()
@@ -143,11 +139,11 @@ type ReplicationConfig struct {
 	ShardHeartbeatDuration  typeutil.Duration `toml:"shard-heartbeat-duration"`
 	StoreHeartbeatDuration  typeutil.Duration `toml:"store-heartbeat-duration"`
 	ShardSplitCheckDuration typeutil.Duration `toml:"shard-split-check-duration"`
-	DisableShardSplit       bool
-	AllowRemoveLeader       bool
-	ShardCapacityBytes      typeutil.ByteSize
-	ShardSplitCheckBytes    typeutil.ByteSize
-	EnsureNewShardInterval  typeutil.Duration
+	DisableShardSplit       bool              `toml:"disable-shard-split"`
+	AllowRemoveLeader       bool              `toml:"allow-remove-leader"`
+	ShardCapacityBytes      typeutil.ByteSize `toml:"shard-capacity-bytes"`
+	ShardSplitCheckBytes    typeutil.ByteSize `toml:"shard-split-check-bytes"`
+	EnsureNewShardInterval  typeutil.Duration `toml:"ensure-new-shard-duration"`
 }
 
 func (c *ReplicationConfig) adjust() {
