@@ -22,7 +22,7 @@ const (
 	invalidIndex = 0
 )
 
-// check whether epoch is staler than checkEpoch.
+// check whether epoch is staler than checkEpoch. returns true means epoch < checkEpoch
 func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) bool {
 	return epoch.Version < checkEpoch.Version ||
 		epoch.ConfVer < checkEpoch.ConfVer
@@ -42,10 +42,11 @@ func removePeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
 	var removed *metapb.Peer
 	var newPeers []metapb.Peer
 	for _, peer := range shard.Peers {
-		if peer.ContainerID != storeID {
-			newPeers = append(newPeers, peer)
+		if peer.ContainerID == storeID {
+			p := peer
+			removed = &p
 		} else {
-			removed = &peer
+			newPeers = append(newPeers, peer)
 		}
 	}
 
