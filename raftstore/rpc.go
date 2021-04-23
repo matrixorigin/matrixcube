@@ -25,7 +25,7 @@ func newRPC(store *store) *defaultRPC {
 			goetty.WithEnableAsyncWrite(16),
 			goetty.WithReleaseMsgFunc(releaseResponse)))
 	if err != nil {
-		logger.Fatalf("create rpc failed with %+v")
+		logger.Fatalf("create rpc failed with %+v", err)
 	}
 
 	store.RegisterRPCRequestCB(rpc.onResp)

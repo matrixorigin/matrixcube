@@ -135,6 +135,7 @@ func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raf
 	}
 
 	p.done(rsp)
+	pb.ReleaseResponse(rsp)
 }
 
 func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
