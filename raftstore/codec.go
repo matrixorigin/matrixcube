@@ -14,6 +14,8 @@
 package raftstore
 
 import (
+	"fmt"
+
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
@@ -62,8 +64,7 @@ func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 		return true, msg, nil
 	}
 
-	log.Fatalf("[beehive]: bug, not support msg type %d", t)
-	return false, nil, nil
+	return false, nil, fmt.Errorf("[beehive]: bug, not support msg type %d", t)
 }
 
 func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
