@@ -45,8 +45,8 @@ var (
 	defaultDataPath                        = "/tmp/beehive"
 	defaultSnapshotDirName                 = "snapshots"
 	defaultProphetDirName                  = "prophet"
-	defaultRaftAddr                        = "127.0.0.1:10001"
-	defaultRPCAddr                         = "127.0.0.1:10002"
+	defaultRaftAddr                        = "127.0.0.1:20001"
+	defaultRPCAddr                         = "127.0.0.1:20002"
 )
 
 // Config beehive config
