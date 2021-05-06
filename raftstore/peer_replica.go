@@ -81,17 +81,17 @@ func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error
 			shard)
 	}
 
-	return newPeerReplica(store, shard, peer.ID)
+	return newPeerReplica(store, shard, *peer)
 }
 
 // The peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peerID uint64) (*peerReplica, error) {
+func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peer metapb.Peer) (*peerReplica, error) {
 	// We will remove tombstone key when apply snapshot
-	logger.Infof("shard %d replicate peer, peerID=<%d>",
+	logger.Infof("shard %d replicate peer %+v",
 		msg.ShardID,
-		peerID)
+		peer)
 
 	shard := &bhmetapb.Shard{
 		ID:              msg.ShardID,
@@ -104,12 +104,12 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 		DataAppendToMsg: msg.DataAppendToMsg,
 	}
 
-	return newPeerReplica(store, shard, peerID)
+	return newPeerReplica(store, shard, peer)
 }
 
-func newPeerReplica(store *store, shard *bhmetapb.Shard, peerID uint64) (*peerReplica, error) {
-	if peerID == 0 {
-		return nil, fmt.Errorf("invalid peer id: %d", peerID)
+func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*peerReplica, error) {
+	if peer.ID == 0 {
+		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
 
 	ps, err := newPeerStorage(store, *shard)
@@ -118,7 +118,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peerID uint64) (*peerRe
 	}
 
 	pr := new(peerReplica)
-	pr.peer = newPeer(peerID, store.meta.meta.ID)
+	pr.peer = peer
 	pr.shardID = shard.ID
 	pr.ps = ps
 
@@ -130,7 +130,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peerID uint64) (*peerRe
 	}
 
 	pr.batch = newBatch(pr)
-	c := getRaftConfig(peerID, ps.getAppliedIndex(), ps, store.cfg)
+	c := getRaftConfig(peer.ID, ps.getAppliedIndex(), ps, store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		return nil, err
