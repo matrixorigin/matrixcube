@@ -545,7 +545,7 @@ type Cache struct {
 //   defer c.Unref()
 //   d, err := pebble.Open(pebble.Options{Cache: c})
 func New(size int64) *Cache {
-	return newShards(size, 2*runtime.NumCPU())
+	return newShards(size, 2*runtime.GOMAXPROCS(0))
 }
 
 func newShards(size int64, shards int) *Cache {
@@ -567,18 +567,18 @@ func newShards(size int64, shards int) *Cache {
 		c.shards[i].blocks.init(16)
 		c.shards[i].files.init(16)
 	}
-	if !invariants.RaceEnabled {
-		runtime.SetFinalizer(c, func(obj interface{}) {
-			c := obj.(*Cache)
-			if v := atomic.LoadInt64(&c.refs); v != 0 {
-				c.tr.Lock()
-				fmt.Fprintf(os.Stderr, "pebble: cache (%p) has non-zero reference count: %d\n%s",
-					c, v, strings.Join(c.tr.msgs, "\n"))
-				c.tr.Unlock()
-				os.Exit(1)
-			}
-		})
-	}
+
+	// Note: this is a no-op if invariants are disabled or race is enabled.
+	invariants.SetFinalizer(c, func(obj interface{}) {
+		c := obj.(*Cache)
+		if v := atomic.LoadInt64(&c.refs); v != 0 {
+			c.tr.Lock()
+			fmt.Fprintf(os.Stderr, "pebble: cache (%p) has non-zero reference count: %d\n%s",
+				c, v, strings.Join(c.tr.msgs, "\n"))
+			c.tr.Unlock()
+			os.Exit(1)
+		}
+	})
 	return c
 }
 

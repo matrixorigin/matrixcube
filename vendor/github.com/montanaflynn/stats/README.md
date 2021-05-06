@@ -177,7 +177,7 @@ To make things as seamless as possible please also consider the following steps:
 
 ## Releasing
 
-To release a new version we should update the [CHANGELOG.md](/changelog.md) and [DOC.md](/DOC.md).
+To release a new version we should update the [CHANGELOG.md](/CHANGELOG.md) and [DOCUMENTATION.md](/DOCUMENTATION.md).
 
 First install the tools used to generate the markdown files:
 
@@ -189,14 +189,11 @@ go get github.com/golangci/golangci-lint/cmd/golangci-lint
 Then you can run these `make` directives:
 
 ```
-# Generate CHANGELOG.md
-make changelog
-
 # Generate DOCUMENTATION.md
-make documentation
+make docs
 ```
 
-Then we will create a new git tag and github release:
+Then we can create a [CHANGELOG.md](/CHANGELOG.md) a new git tag and a github release:
 
 ```
 make release TAG=v0.x.x
@@ -204,7 +201,7 @@ make release TAG=v0.x.x
 
 ## MIT License
 
-Copyright (c) 2014-2020 Montana Flynn (https://montanaflynn.com)
+Copyright (c) 2014-2021 Montana Flynn (https://montanaflynn.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 

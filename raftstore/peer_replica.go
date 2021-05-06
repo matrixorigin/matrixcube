@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/command"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"

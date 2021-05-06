@@ -22,6 +22,9 @@ type File interface {
 	io.Closer
 	io.Reader
 	io.ReaderAt
+	// Unlike the specification for io.Writer.Write(), the vfs.File.Write()
+	// method *is* allowed to modify the slice passed in, whether temporarily
+	// or permanently. Callers of Write() need to take this into account.
 	io.Writer
 	Stat() (os.FileInfo, error)
 	Sync() error
@@ -90,7 +93,7 @@ type FS interface {
 	// file will release the lock prematurely.
 	//
 	// Attempting to lock a file that is already locked by the current process
-	// has undefined behavior.
+	// returns an error and leaves the existing lock untouched.
 	//
 	// Lock is not yet implemented on other operating systems, and calling it
 	// will return an error.

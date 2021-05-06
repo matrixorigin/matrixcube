@@ -5,10 +5,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/deepfabric/prophet"
-	"github.com/deepfabric/prophet/event"
-	"github.com/deepfabric/prophet/pb/rpcpb"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/components/prophet"
+	"github.com/matrixorigin/matrixcube/components/prophet/event"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/util"
 )

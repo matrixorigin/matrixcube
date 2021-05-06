@@ -48,7 +48,9 @@ func (g *getIter) SeekGE(key []byte) (*InternalKey, []byte) {
 	panic("pebble: SeekGE unimplemented")
 }
 
-func (g *getIter) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
+func (g *getIter) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
 	panic("pebble: SeekPrefixGE unimplemented")
 }
 
@@ -143,7 +145,8 @@ func (g *getIter) Next() (*InternalKey, []byte) {
 				files := g.l0[n-1].Iter()
 				g.l0 = g.l0[:n-1]
 				iterOpts := IterOptions{logger: g.logger}
-				g.levelIter.init(iterOpts, g.cmp, g.newIters, files, manifest.L0Sublevel(n), nil)
+				g.levelIter.init(iterOpts, g.cmp, nil /* split */, g.newIters,
+					files, manifest.L0Sublevel(n), nil)
 				g.levelIter.initRangeDel(&g.rangeDelIter)
 				g.iter = &g.levelIter
 				g.iterKey, g.iterValue = g.iter.SeekGE(g.key)
@@ -161,7 +164,7 @@ func (g *getIter) Next() (*InternalKey, []byte) {
 		}
 
 		iterOpts := IterOptions{logger: g.logger}
-		g.levelIter.init(iterOpts, g.cmp, g.newIters,
+		g.levelIter.init(iterOpts, g.cmp, nil /* split */, g.newIters,
 			g.version.Levels[g.level].Iter(), manifest.Level(g.level), nil)
 		g.levelIter.initRangeDel(&g.rangeDelIter)
 		g.level++

@@ -1,69 +1,31 @@
 package raftstore
 
 import (
+	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 )
 
-// Name       string            `toml:"name" json:"name"`
-// 	DataDir    string            `toml:"data-dir"`
-// 	RPCAddr    string            `toml:"rpc-addr"`
-// 	RPCTimeout typeutil.Duration `toml:"rpc-timeout"`
-
-// 	// etcd configuration
-// 	StorageNode  bool            `toml:"storage-node"`
-// 	ExternalEtcd []string        `toml:"external-etcd"`
-// 	EmbedEtcd    EmbedEtcdConfig `toml:"embed-etcd"`
-
-// 	// LeaderLease time, if leader doesn't update its TTL
-// 	// in etcd after lease time, etcd will expire the leader key
-// 	// and other servers can campaign the leader again.
-// 	// Etcd only supports seconds TTL, so here is second too.
-// 	LeaderLease int64 `toml:"lease" json:"lease"`
-
-// 	Schedule      ScheduleConfig      `toml:"schedule"`
-// 	Replication   ReplicationConfig   `toml:"replication"`
-// 	LabelProperty LabelPropertyConfig `toml:"label-property"`
-
 var (
-	prophetCfg = `
-
-name = "node1"
-data-dir = ""
-
-
-
-	
-# The node name in the cluster
-name = "node1"
-
-# The RPC address to serve requests
-raftAddr = "127.0.0.1:10001"
-
-# The RPC address to serve requests
-rpcAddr = "127.0.0.1:10002"
-
-groups = 4
-
-[prophet]
-# The application and prophet RPC address, send heartbeats, alloc id, watch event, etc. required
-rpcAddr = "127.0.0.1:9527"
-
-# Store cluster metedata
-storeMetadata = true
-
-# The embed etcd client address, required while storeMetadata is true
-clientAddr = "127.0.0.1:2371"
-
-# The embed etcd peer address, required while storeMetadata is true
-peerAddr = "127.0.0.1:2381"
-	`
+	tmpDir = "/tmp/beehive"
 )
 
-func newTestStore() (Store, func()) {
+func recreateTestTempDir() {
+	os.RemoveAll(tmpDir)
+	os.MkdirAll(tmpDir, os.ModeDir)
+}
+
+func newTestStore() (*store, func()) {
+	recreateTestTempDir()
+
 	dataStorage := mem.NewStorage()
 	cfg := &config.Config{}
+	cfg.DataPath = tmpDir
 	cfg.Prophet.StorageNode = true
 	cfg.Storage.MetaStorage = mem.NewStorage()
 	cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
@@ -73,8 +35,72 @@ func newTestStore() (Store, func()) {
 		cb(dataStorage)
 	}
 
-	s := NewStore(cfg)
+	s := NewStore(cfg).(*store)
 	return s, func() {
 		s.Stop()
 	}
+}
+
+func newTestClusterStore(t *testing.T) *testCluster {
+	recreateTestTempDir()
+
+	c := &testCluster{t: t}
+	for i := 0; i < 3; i++ {
+		dataStorage := mem.NewStorage()
+		cfg := &config.Config{}
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", tmpDir, i)
+		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
+		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
+
+		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
+		cfg.Prophet.StorageNode = true
+		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
+		if i != 0 {
+			cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
+		}
+		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
+		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
+
+		cfg.Storage.MetaStorage = mem.NewStorage()
+		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
+			return dataStorage
+		}
+		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
+			cb(dataStorage)
+		}
+
+		c.stores = append(c.stores, NewStore(cfg).(*store))
+	}
+
+	return c
+}
+
+type testCluster struct {
+	t      *testing.T
+	stores []*store
+}
+
+func (c *testCluster) start() {
+	for idx, s := range c.stores {
+		if idx == 2 {
+			time.Sleep(time.Second * 5)
+		}
+
+		s.Start()
+	}
+}
+
+func (c *testCluster) stop() {
+	for _, s := range c.stores {
+		s.Stop()
+	}
+}
+
+func (c *testCluster) getPRCount(idx int) int {
+	cnt := 0
+	c.stores[idx].replicas.Range(func(k, v interface{}) bool {
+		cnt++
+		return true
+	})
+	return cnt
 }

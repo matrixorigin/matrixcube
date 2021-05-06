@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
@@ -67,7 +67,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			peer)
 	case metapb.ChangePeerType_RemoveNode:
 		if p != nil {
-			if *p != peer {
+			if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
 				return nil, nil, fmt.Errorf("shard %+v ignore remove unmatched peer %+v",
 					region.ID,
 					peer)
@@ -178,8 +178,8 @@ func (d *applyDelegate) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCM
 }
 
 func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raftcmdpb.ChangePeerRequest) (bhmetapb.Shard, error) {
-	region := bhmetapb.Shard{}
-	protoc.MustUnmarshal(&region, protoc.MustMarshal(&d.shard))
+	res := bhmetapb.Shard{}
+	protoc.MustUnmarshal(&res, protoc.MustMarshal(&d.shard))
 
 	for _, cp := range changes {
 		change_type := cp.ChangeType
@@ -191,7 +191,7 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 			r := exist_peer.Role
 			if r == metapb.PeerRole_IncomingVoter || r == metapb.PeerRole_DemotingVoter {
 				logger.Fatalf("shard-%d can't apply confchange because configuration is still in joint state",
-					region.ID)
+					res.ID)
 			}
 		}
 
@@ -202,12 +202,12 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 				peer.Role = metapb.PeerRole_IncomingVoter
 			}
 
-			region.Peers = append(region.Peers, peer)
+			res.Peers = append(res.Peers, peer)
 		} else if exist_peer == nil && change_type == metapb.ChangePeerType_AddLearnerNode {
 			peer.Role = metapb.PeerRole_Learner
-			region.Peers = append(region.Peers, peer)
+			res.Peers = append(res.Peers, peer)
 		} else if exist_peer == nil && change_type == metapb.ChangePeerType_RemoveNode {
-			return region, fmt.Errorf("remove missing peer %+v", peer)
+			return res, fmt.Errorf("remove missing peer %+v", peer)
 		} else if exist_peer != nil &&
 			(change_type == metapb.ChangePeerType_AddNode || change_type == metapb.ChangePeerType_AddLearnerNode) {
 			// add node
@@ -220,7 +220,7 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 				// The peer is already the requested role
 				(role == metapb.PeerRole_Voter && change_type == metapb.ChangePeerType_AddNode) ||
 				(role == metapb.PeerRole_Learner && change_type == metapb.ChangePeerType_AddLearnerNode) {
-				return region, fmt.Errorf("can't add duplicated peer %+v, duplicated with exist peer %+v",
+				return res, fmt.Errorf("can't add duplicated peer %+v, duplicated with exist peer %+v",
 					peer, exist_peer)
 			}
 
@@ -242,14 +242,14 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 		} else if exist_peer != nil && change_type == metapb.ChangePeerType_RemoveNode {
 			// Remove node
 			if kind == enterJointKind && exist_peer.Role == metapb.PeerRole_Voter {
-				return region, fmt.Errorf("can't remove voter peer %+v directly",
+				return res, fmt.Errorf("can't remove voter peer %+v directly",
 					peer)
 			}
 
-			p := removePeer(&region, store_id)
+			p := removePeer(&res, store_id)
 			if p != nil {
-				if *p != peer {
-					return region, fmt.Errorf("ignore remove unmatched peer %+v", peer)
+				if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
+					return res, fmt.Errorf("ignore remove unmatched peer %+v", peer)
 				}
 
 				if d.peerID == peer.ID {
@@ -261,11 +261,11 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 		}
 	}
 
-	region.Epoch.ConfVer += uint64(len(changes))
+	res.Epoch.ConfVer += uint64(len(changes))
 	logger.Infof("shard-%d conf change successfully, changes %+v",
-		region.ID,
+		res.ID,
 		changes)
-	return region, nil
+	return res, nil
 }
 
 func (d *applyDelegate) applyLeaveJoint() (bhmetapb.Shard, error) {

@@ -10,10 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/deepfabric/prophet"
-	"github.com/deepfabric/prophet/metadata"
-	"github.com/deepfabric/prophet/option"
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
@@ -22,6 +18,10 @@ import (
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
+	"github.com/matrixorigin/matrixcube/components/prophet"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/option"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -530,11 +530,11 @@ func (s *store) startShards() {
 	}, false)
 
 	if err != nil {
-		logger.Fatalf("init store failed, errors:\n %+v", err)
+		logger.Fatalf("init store failed1, errors:\n %+v", err)
 	}
 	err = s.MetadataStorage().Write(wb, false)
 	if err != nil {
-		logger.Fatalf("init store failed, errors:\n %+v", err)
+		logger.Fatalf("init store failed2, errors:\n %+v", err)
 	}
 
 	logger.Infof("starts with %d shards, including %d tombstones and %d applying shards",
@@ -965,7 +965,7 @@ func (s *store) getPR(id uint64, mustLeader bool) *peerReplica {
 	return nil
 }
 
-// In some case, the vote raft msg maybe dropped, so follwer node can't response the vote msg
+// In some case, the vote raft msg maybe dropped, so follower node can't response the vote msg
 // shard a has 3 peers p1, p2, p3. The p1 split to new shard b
 // case 1: in most sence, p1 apply split raft log is before p2 and p3.
 //         At this time, if p2, p3 received the shard b's vote msg,

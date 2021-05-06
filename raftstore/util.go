@@ -14,7 +14,7 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 

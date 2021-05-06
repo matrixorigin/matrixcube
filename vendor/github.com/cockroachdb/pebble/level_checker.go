@@ -402,11 +402,11 @@ func checkRangeTombstones(c *checkConfig) error {
 		return nil
 	}
 	// Now the levels with untruncated tombsones.
-	for i := len(current.L0Sublevels.Levels) - 1; i >= 0; i-- {
-		if current.L0Sublevels.Levels[i].Empty() {
+	for i := len(current.L0SublevelFiles) - 1; i >= 0; i-- {
+		if current.L0SublevelFiles[i].Empty() {
 			continue
 		}
-		err := addTombstonesFromLevel(current.L0Sublevels.Levels[i].Iter(), 0)
+		err := addTombstonesFromLevel(current.L0SublevelFiles[i].Iter(), 0)
 		if err != nil {
 			return err
 		}
@@ -615,8 +615,8 @@ func checkLevelsInternal(c *checkConfig) (err error) {
 	// Determine the final size for mlevels so that there are no more
 	// reallocations. levelIter will hold a pointer to elements in mlevels.
 	start := len(mlevels)
-	for sublevel := len(current.L0Sublevels.Levels) - 1; sublevel >= 0; sublevel-- {
-		if current.L0Sublevels.Levels[sublevel].Empty() {
+	for sublevel := len(current.L0SublevelFiles) - 1; sublevel >= 0; sublevel-- {
+		if current.L0SublevelFiles[sublevel].Empty() {
 			continue
 		}
 		mlevels = append(mlevels, simpleMergingIterLevel{})
@@ -629,14 +629,14 @@ func checkLevelsInternal(c *checkConfig) (err error) {
 	}
 	mlevelAlloc := mlevels[start:]
 	// Add L0 files by sublevel.
-	for sublevel := len(current.L0Sublevels.Levels) - 1; sublevel >= 0; sublevel-- {
-		if current.L0Sublevels.Levels[sublevel].Empty() {
+	for sublevel := len(current.L0SublevelFiles) - 1; sublevel >= 0; sublevel-- {
+		if current.L0SublevelFiles[sublevel].Empty() {
 			continue
 		}
-		manifestIter := current.L0Sublevels.Levels[sublevel].Iter()
+		manifestIter := current.L0SublevelFiles[sublevel].Iter()
 		iterOpts := IterOptions{logger: c.logger}
 		li := &levelIter{}
-		li.init(iterOpts, c.cmp, c.newIters, manifestIter,
+		li.init(iterOpts, c.cmp, nil /* split */, c.newIters, manifestIter,
 			manifest.L0Sublevel(sublevel), nil)
 		li.initRangeDel(&mlevelAlloc[0].rangeDelIter)
 		li.initSmallestLargestUserKey(&mlevelAlloc[0].smallestUserKey, nil, nil)
@@ -650,7 +650,8 @@ func checkLevelsInternal(c *checkConfig) (err error) {
 
 		iterOpts := IterOptions{logger: c.logger}
 		li := &levelIter{}
-		li.init(iterOpts, c.cmp, c.newIters, current.Levels[level].Iter(), manifest.Level(level), nil)
+		li.init(iterOpts, c.cmp, nil /* split */, c.newIters,
+			current.Levels[level].Iter(), manifest.Level(level), nil)
 		li.initRangeDel(&mlevelAlloc[0].rangeDelIter)
 		li.initSmallestLargestUserKey(&mlevelAlloc[0].smallestUserKey, nil, nil)
 		mlevelAlloc[0].iter = li

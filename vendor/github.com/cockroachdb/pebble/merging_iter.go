@@ -212,6 +212,7 @@ type mergingIterLevel struct {
 // heap and range-del iterator positioning).
 type mergingIter struct {
 	logger   Logger
+	split    Split
 	dir      int
 	snapshot uint64
 	levels   []mergingIterLevel
@@ -232,23 +233,29 @@ var _ base.InternalIterator = (*mergingIter)(nil)
 
 // newMergingIter returns an iterator that merges its input. Walking the
 // resultant iterator will return all key/value pairs of all input iterators
-// in strictly increasing key order, as defined by cmp.
+// in strictly increasing key order, as defined by cmp. It is permissible to
+// pass a nil split parameter if the caller is never going to call
+// SeekPrefixGE.
 //
 // The input's key ranges may overlap, but there are assumed to be no duplicate
 // keys: if iters[i] contains a key k then iters[j] will not contain that key k.
 //
 // None of the iters may be nil.
-func newMergingIter(logger Logger, cmp Compare, iters ...internalIterator) *mergingIter {
+func newMergingIter(
+	logger Logger, cmp Compare, split Split, iters ...internalIterator,
+) *mergingIter {
 	m := &mergingIter{}
 	levels := make([]mergingIterLevel, len(iters))
 	for i := range levels {
 		levels[i].iter = iters[i]
 	}
-	m.init(&IterOptions{logger: logger}, cmp, levels...)
+	m.init(&IterOptions{logger: logger}, cmp, split, levels...)
 	return m
 }
 
-func (m *mergingIter) init(opts *IterOptions, cmp Compare, levels ...mergingIterLevel) {
+func (m *mergingIter) init(
+	opts *IterOptions, cmp Compare, split Split, levels ...mergingIterLevel,
+) {
 	m.err = nil // clear cached iteration error
 	m.logger = opts.getLogger()
 	if opts != nil {
@@ -258,6 +265,7 @@ func (m *mergingIter) init(opts *IterOptions, cmp Compare, levels ...mergingIter
 	m.snapshot = InternalKeySeqNumMax
 	m.levels = levels
 	m.heap.cmp = cmp
+	m.split = split
 	if cap(m.heap.items) < len(levels) {
 		m.heap.items = make([]mergingIterItem, 0, len(levels))
 	} else {
@@ -597,7 +605,10 @@ func (m *mergingIter) isNextEntryDeleted(item *mergingIterItem) bool {
 				if l.largestUserKey != nil && m.heap.cmp(l.largestUserKey, seekKey) < 0 {
 					seekKey = l.largestUserKey
 				}
-				m.seekGE(seekKey, item.index)
+				// This seek is not directly due to a SeekGE call, so we don't
+				// know enough about the underlying iterator positions, and so
+				// we set trySeekUsingNext=false.
+				m.seekGE(seekKey, item.index, false /* trySeekUsingNext */)
 				return true
 			}
 			if l.tombstone.Deletes(item.key.SeqNum()) {
@@ -617,6 +628,19 @@ func (m *mergingIter) findNextEntry() (*InternalKey, []byte) {
 			break
 		}
 		if m.isNextEntryDeleted(item) {
+			// For prefix iteration, stop if we are past the prefix. We could
+			// amortize the cost of this comparison, by doing it only after we
+			// have iterated in this for loop a few times. But unless we find
+			// a performance benefit to that, we do the simple thing and
+			// compare each time. Note that isNextEntryDeleted already did at
+			// least 4 key comparisons in order to return true, and
+			// additionally at least one heap comparison to step to the next
+			// entry.
+			if m.prefix != nil {
+				if n := m.split(item.key.UserKey); !bytes.Equal(m.prefix, item.key.UserKey[:n]) {
+					return nil, nil
+				}
+			}
 			continue
 		}
 		if item.key.Visible(m.snapshot) &&
@@ -774,7 +798,7 @@ func (m *mergingIter) findPrevEntry() (*InternalKey, []byte) {
 }
 
 // Seeks levels >= level to >= key. Additionally uses range tombstones to extend the seeks.
-func (m *mergingIter) seekGE(key []byte, level int) {
+func (m *mergingIter) seekGE(key []byte, level int, trySeekUsingNext bool) {
 	// When seeking, we can use tombstones to adjust the key we seek to on each
 	// level. Consider the series of range tombstones:
 	//
@@ -803,7 +827,7 @@ func (m *mergingIter) seekGE(key []byte, level int) {
 
 		l := &m.levels[level]
 		if m.prefix != nil {
-			l.iterKey, l.iterValue = l.iter.SeekPrefixGE(m.prefix, key)
+			l.iterKey, l.iterValue = l.iter.SeekPrefixGE(m.prefix, key, trySeekUsingNext)
 		} else {
 			l.iterKey, l.iterValue = l.iter.SeekGE(key)
 		}
@@ -860,17 +884,19 @@ func (m *mergingIter) String() string {
 func (m *mergingIter) SeekGE(key []byte) (*InternalKey, []byte) {
 	m.err = nil // clear cached iteration error
 	m.prefix = nil
-	m.seekGE(key, 0 /* start level */)
+	m.seekGE(key, 0 /* start level */, false /* trySeekUsingNext */)
 	return m.findNextEntry()
 }
 
 // SeekPrefixGE implements base.InternalIterator.SeekPrefixGE. Note that
 // SeekPrefixGE only checks the upper bound. It is up to the caller to ensure
 // that key is greater than or equal to the lower bound.
-func (m *mergingIter) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
+func (m *mergingIter) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
 	m.err = nil // clear cached iteration error
 	m.prefix = prefix
-	m.seekGE(key, 0 /* start level */)
+	m.seekGE(key, 0 /* start level */, trySeekUsingNext)
 	return m.findNextEntry()
 }
 
@@ -1061,4 +1087,14 @@ func (m *mergingIter) DebugString() string {
 		m.initMaxHeap()
 	}
 	return buf.String()
+}
+
+func (m *mergingIter) ForEachLevelIter(fn func(li *levelIter) bool) {
+	for _, iter := range m.levels {
+		if li, ok := iter.iter.(*levelIter); ok {
+			if done := fn(li); done {
+				break
+			}
+		}
+	}
 }

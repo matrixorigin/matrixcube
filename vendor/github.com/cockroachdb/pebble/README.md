@@ -1,4 +1,4 @@
-# Pebble [![Build Status](https://travis-ci.org/cockroachdb/pebble.svg?branch=master)](https://travis-ci.org/cockroachdb/pebble) [![GoDoc](https://godoc.org/github.com/cockroachdb/pebble?status.svg)](https://godoc.org/github.com/cockroachdb/pebble)
+# Pebble [![Build Status](https://travis-ci.com/cockroachdb/pebble.svg?branch=master)](https://travis-ci.com/cockroachdb/pebble) [![GoDoc](https://godoc.org/github.com/cockroachdb/pebble?status.svg)](https://godoc.org/github.com/cockroachdb/pebble)
 
 #### [Nightly benchmarks](https://cockroachdb.github.io/pebble/)
 
@@ -49,6 +49,15 @@ Pebble:
 ***WARNING***: Pebble may silently corrupt data or behave incorrectly if
 used with a RocksDB database that uses a feature Pebble doesn't
 support. Caveat emptor!
+
+## Production Ready
+
+Pebble was introduced as an alternative storage engine to RocksDB in
+CockroachDB v20.1 (released May 2020) and was used in production
+successfully at that time. Pebble was made the default storage engine
+in CockroachDB v20.2 (released Nov 2020). Pebble is being used in
+production by users of CockroachDB at scale and is considered stable
+and production ready.
 
 ## Advantages
 

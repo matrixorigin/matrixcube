@@ -8,7 +8,6 @@ package pebble // import "github.com/cockroachdb/pebble"
 import (
 	"fmt"
 	"io"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -223,12 +222,19 @@ type DB struct {
 	// updates.
 	logRecycler logRecycler
 
-	closed   atomic.Value
+	closed   *atomic.Value
 	closedCh chan struct{}
 
 	compactionLimiter limiter
 	flushLimiter      limiter
 	deletionLimiter   limiter
+
+	// Async deletion jobs spawned by cleaners increment this WaitGroup, and
+	// call Done when completed. Once `d.mu.cleaning` is false, the db.Close()
+	// goroutine needs to call Wait on this WaitGroup to ensure all cleaning
+	// and deleting goroutines have finished running. As deletion goroutines
+	// could grab db.mu, it must *not* be held while deleters.Wait() is called.
+	deleters sync.WaitGroup
 
 	// The main mutex protecting internal DB state. This mutex encompasses many
 	// fields because those fields need to be accessed and updated atomically. In
@@ -310,6 +316,9 @@ type DB struct {
 			manual []*manualCompaction
 			// inProgress is the set of in-progress flushes and compactions.
 			inProgress map[*compaction]struct{}
+			// readCompactions is a list of read triggered compactions. The next
+			// compaction to perform is as the start. New entries are added to the end.
+			readCompactions []readCompaction
 		}
 
 		cleaner struct {
@@ -318,7 +327,8 @@ type DB struct {
 			// serialized, and a caller trying to do a file cleaning operation may wait
 			// until the ongoing one is complete.
 			cond sync.Cond
-			// True when a file cleaning operation is in progress.
+			// True when a file cleaning operation is in progress. False does not necessarily
+			// mean all cleaning jobs have completed; see the comment on d.deleters.
 			cleaning bool
 			// Non-zero when file cleaning is disabled. The disabled count acts as a
 			// reference count to prohibit file cleaning. See
@@ -366,6 +376,18 @@ func (d *DB) Get(key []byte) ([]byte, io.Closer, error) {
 	return d.getInternal(key, nil /* batch */, nil /* snapshot */)
 }
 
+type getIterAlloc struct {
+	dbi                 Iterator
+	keyBuf              []byte
+	get                 getIter
+}
+
+var getIterAllocPool = sync.Pool{
+	New: func() interface{} {
+		return &getIterAlloc{}
+	},
+}
+
 func (d *DB) getInternal(key []byte, b *Batch, s *Snapshot) ([]byte, io.Closer, error) {
 	if err := d.closed.Load(); err != nil {
 		panic(err)
@@ -385,22 +407,21 @@ func (d *DB) getInternal(key []byte, b *Batch, s *Snapshot) ([]byte, io.Closer, 
 		seqNum = atomic.LoadUint64(&d.mu.versions.atomic.visibleSeqNum)
 	}
 
-	var buf struct {
-		dbi Iterator
-		get getIter
-	}
+	buf := getIterAllocPool.Get().(*getIterAlloc)
 
 	get := &buf.get
-	get.logger = d.opts.Logger
-	get.cmp = d.cmp
-	get.equal = d.equal
-	get.newIters = d.newIters
-	get.snapshot = seqNum
-	get.key = key
-	get.batch = b
-	get.mem = readState.memtables
-	get.l0 = readState.current.L0Sublevels.Levels
-	get.version = readState.current
+	*get = getIter{
+		logger: d.opts.Logger,
+		cmp: d.cmp,
+		equal: d.equal,
+		newIters: d.newIters,
+		snapshot: seqNum,
+		key: key,
+		batch: b,
+		mem: readState.memtables,
+		l0: readState.current.L0SublevelFiles,
+		version: readState.current,
+	}
 
 	// Strip off memtables which cannot possibly contain the seqNum being read
 	// at.
@@ -413,12 +434,16 @@ func (d *DB) getInternal(key []byte, b *Batch, s *Snapshot) ([]byte, io.Closer, 
 	}
 
 	i := &buf.dbi
-	i.cmp = d.cmp
-	i.equal = d.equal
-	i.merge = d.merge
-	i.split = d.split
-	i.iter = get
-	i.readState = readState
+	*i = Iterator{
+		getIterAlloc:        buf,
+		cmp:                 d.cmp,
+		equal:               d.equal,
+		iter:                get,
+		merge:               d.merge,
+		split:               d.split,
+		readState:           readState,
+		keyBuf:              buf.keyBuf,
+	}
 
 	if !i.First() {
 		err := i.Close()
@@ -659,11 +684,12 @@ func (d *DB) commitWrite(b *Batch, syncWG *sync.WaitGroup, syncErr *error) (*mem
 }
 
 type iterAlloc struct {
-	dbi     Iterator
-	keyBuf  []byte
-	merging mergingIter
-	mlevels [3 + numLevels]mergingIterLevel
-	levels  [3 + numLevels]levelIter
+	dbi                 Iterator
+	keyBuf              []byte
+	prefixOrFullSeekKey []byte
+	merging             mergingIter
+	mlevels             [3 + numLevels]mergingIterLevel
+	levels              [3 + numLevels]levelIter
 }
 
 var iterAllocPool = sync.Pool{
@@ -672,11 +698,9 @@ var iterAllocPool = sync.Pool{
 	},
 }
 
-// newIterInternal constructs a new iterator, merging in batchIter as an extra
+// newIterInternal constructs a new iterator, merging in batch iterators as an extra
 // level.
-func (d *DB) newIterInternal(
-	batchIter internalIterator, batchRangeDelIter internalIterator, s *Snapshot, o *IterOptions,
-) *Iterator {
+func (d *DB) newIterInternal(batch *Batch, s *Snapshot, o *IterOptions) *Iterator {
 	if err := d.closed.Load(); err != nil {
 		panic(err)
 	}
@@ -700,28 +724,47 @@ func (d *DB) newIterInternal(
 	buf := iterAllocPool.Get().(*iterAlloc)
 	dbi := &buf.dbi
 	*dbi = Iterator{
-		alloc:     buf,
-		cmp:       d.cmp,
-		equal:     d.equal,
-		iter:      &buf.merging,
-		merge:     d.merge,
-		split:     d.split,
-		readState: readState,
-		keyBuf:    buf.keyBuf,
+		alloc:               buf,
+		cmp:                 d.cmp,
+		equal:               d.equal,
+		iter:                &buf.merging,
+		merge:               d.merge,
+		split:               d.split,
+		readState:           readState,
+		keyBuf:              buf.keyBuf,
+		prefixOrFullSeekKey: buf.prefixOrFullSeekKey,
+		batch:               batch,
+		newIters:            d.newIters,
+		seqNum:              seqNum,
 	}
 	if o != nil {
 		dbi.opts = *o
 	}
 	dbi.opts.logger = d.opts.Logger
+	return finishInitializingIter(buf)
+}
 
+// finishInitializingIter is a helper for doing the non-trivial initialization
+// of an Iterator.
+func finishInitializingIter(buf *iterAlloc) *Iterator {
+	// Short-hand.
+	dbi := &buf.dbi
+	readState := dbi.readState
+	batch := dbi.batch
+	seqNum := dbi.seqNum
+
+	// Merging levels.
 	mlevels := buf.mlevels[:0]
-	if batchIter != nil {
+
+	// Top-level is the batch, if any.
+	if batch != nil {
 		mlevels = append(mlevels, mergingIterLevel{
-			iter:         batchIter,
-			rangeDelIter: batchRangeDelIter,
+			iter:         batch.newInternalIter(&dbi.opts),
+			rangeDelIter: batch.newRangeDelIter(&dbi.opts),
 		})
 	}
 
+	// Next are the memtables.
 	memtables := readState.memtables
 	for i := len(memtables) - 1; i >= 0; i-- {
 		mem := memtables[i]
@@ -736,12 +779,14 @@ func (d *DB) newIterInternal(
 		})
 	}
 
+	// Next are the file levels: L0 sub-levels followed by lower levels.
+
 	// Determine the final size for mlevels so that we can avoid any more
 	// reallocations. This is important because each levelIter will hold a
 	// reference to elements in mlevels.
 	start := len(mlevels)
 	current := readState.current
-	for sl := 0; sl < len(current.L0Sublevels.Levels); sl++ {
+	for sl := 0; sl < len(current.L0SublevelFiles); sl++ {
 		mlevels = append(mlevels, mergingIterLevel{})
 	}
 	for level := 1; level < len(current.Levels); level++ {
@@ -763,7 +808,7 @@ func (d *DB) newIterInternal(
 			li = &levelIter{}
 		}
 
-		li.init(dbi.opts, d.cmp, d.newIters, files, level, nil)
+		li.init(dbi.opts, dbi.cmp, dbi.split, dbi.newIters, files, level, nil)
 		li.initRangeDel(&mlevels[0].rangeDelIter)
 		li.initSmallestLargestUserKey(&mlevels[0].smallestUserKey, &mlevels[0].largestUserKey,
 			&mlevels[0].isLargestUserKeyRangeDelSentinel)
@@ -774,8 +819,8 @@ func (d *DB) newIterInternal(
 
 	// Add level iterators for the L0 sublevels, iterating from newest to
 	// oldest.
-	for i := len(current.L0Sublevels.Levels) - 1; i >= 0; i-- {
-		addLevelIterForFiles(current.L0Sublevels.Levels[i].Iter(), manifest.L0Sublevel(i))
+	for i := len(current.L0SublevelFiles) - 1; i >= 0; i-- {
+		addLevelIterForFiles(current.L0SublevelFiles[i].Iter(), manifest.L0Sublevel(i))
 	}
 
 	// Add level iterators for the non-empty non-L0 levels.
@@ -786,7 +831,7 @@ func (d *DB) newIterInternal(
 		addLevelIterForFiles(current.Levels[level].Iter(), manifest.Level(level))
 	}
 
-	buf.merging.init(&dbi.opts, d.cmp, finalMLevels...)
+	buf.merging.init(&dbi.opts, dbi.cmp, dbi.split, finalMLevels...)
 	buf.merging.snapshot = seqNum
 	buf.merging.elideRangeTombstones = true
 	return dbi
@@ -816,8 +861,7 @@ func (d *DB) NewIndexedBatch() *Batch {
 // apparent memory and disk usage leak. Use snapshots (see NewSnapshot) for
 // point-in-time snapshots which avoids these problems.
 func (d *DB) NewIter(o *IterOptions) *Iterator {
-	return d.newIterInternal(nil, /* batchIter */
-		nil /* batchRangeDelIter */, nil /* snapshot */, o)
+	return d.newIterInternal(nil /* batch */, nil /* snapshot */, o)
 }
 
 // NewSnapshot returns a point-in-time view of the current DB state. Iterators
@@ -854,6 +898,14 @@ func (d *DB) Close() error {
 	if err := d.closed.Load(); err != nil {
 		panic(err)
 	}
+
+	// Clear the finalizer that is used to check that an unreferenced DB has been
+	// closed. We're closing the DB here, so the check performed by that
+	// finalizer isn't necessary.
+	//
+	// Note: this is a no-op if invariants are disabled or race is enabled.
+	invariants.SetFinalizer(d.closed, nil)
+
 	d.closed.Store(errors.WithStack(ErrClosed))
 	close(d.closedCh)
 
@@ -887,29 +939,27 @@ func (d *DB) Close() error {
 		err = firstError(err, d.walDir.Close())
 	}
 
-	if err == nil {
-		d.readState.val.unrefLocked()
+	d.readState.val.unrefLocked()
 
-		current := d.mu.versions.currentVersion()
-		for v := d.mu.versions.versions.Front(); true; v = v.Next() {
-			refs := v.Refs()
-			if v == current {
-				if refs != 1 {
-					return errors.Errorf("leaked iterators: current\n%s", v)
-				}
-				break
+	current := d.mu.versions.currentVersion()
+	for v := d.mu.versions.versions.Front(); true; v = v.Next() {
+		refs := v.Refs()
+		if v == current {
+			if refs != 1 {
+				err = firstError(err, errors.Errorf("leaked iterators: current\n%s", v))
 			}
-			if refs != 0 {
-				return errors.Errorf("leaked iterators:\n%s", v)
-			}
+			break
 		}
+		if refs != 0 {
+			err = firstError(err, errors.Errorf("leaked iterators:\n%s", v))
+		}
+	}
 
-		for _, mem := range d.mu.mem.queue {
-			mem.readerUnref()
-		}
-		if reserved := atomic.LoadInt64(&d.atomic.memTableReserved); reserved != 0 {
-			return errors.Errorf("leaked memtable reservation: %d", errors.Safe(reserved))
-		}
+	for _, mem := range d.mu.mem.queue {
+		mem.readerUnref()
+	}
+	if reserved := atomic.LoadInt64(&d.atomic.memTableReserved); reserved != 0 {
+		err = firstError(err, errors.Errorf("leaked memtable reservation: %d", errors.Safe(reserved)))
 	}
 
 	// No more cleaning can start. Wait for any async cleaning to complete.
@@ -920,8 +970,12 @@ func (d *DB) Close() error {
 	// prevented a new cleaning job when a readState was unrefed. If needed,
 	// synchronously delete obsolete files.
 	if len(d.mu.versions.obsoleteTables) > 0 {
-		d.deleteObsoleteFiles(d.mu.nextJobID)
+		d.deleteObsoleteFiles(d.mu.nextJobID, true /* waitForOngoing */)
 	}
+	// Wait for all the deletion goroutines spawned by cleaning jobs to finish.
+	d.mu.Unlock()
+	d.deleters.Wait()
+	d.mu.Lock()
 	return err
 }
 
@@ -935,7 +989,10 @@ func (d *DB) Compact(
 	if d.opts.ReadOnly {
 		return ErrReadOnly
 	}
-
+	if d.cmp(start, end) >= 0 {
+		return errors.Errorf("Compact start %s is not less than end %s",
+			d.opts.Comparer.FormatKey(start), d.opts.Comparer.FormatKey(end))
+	}
 	iStart := base.MakeInternalKey(start, InternalKeySeqNumMax, InternalKeyKindMax)
 	iEnd := base.MakeInternalKey(end, 0, 0)
 	meta := []*fileMetadata{{Smallest: iStart, Largest: iEnd}}
@@ -1256,9 +1313,9 @@ func (d *DB) newMemTable(logNum FileNum, logSeqNum uint64) (*memTable, *flushabl
 		arenaBuf:  manual.New(int(size)),
 		logSeqNum: logSeqNum,
 	})
-	if invariants.Enabled {
-		runtime.SetFinalizer(mem, checkMemTable)
-	}
+
+	// Note: this is a no-op if invariants are disabled or race is enabled.
+	invariants.SetFinalizer(mem, checkMemTable)
 
 	entry := d.newFlushableEntry(mem, logNum, logSeqNum)
 	entry.releaseMemAccounting = func() {
@@ -1378,8 +1435,10 @@ func (d *DB) makeRoomForWrite(b *Batch) error {
 				if recycleLogNum > 0 {
 					recycleLogName := base.MakeFilename(d.opts.FS, d.walDirname, fileTypeLog, recycleLogNum)
 					newLogFile, err = d.opts.FS.ReuseForWrite(recycleLogName, newLogName)
+					base.MustExist(d.opts.FS, newLogName, d.opts.Logger, err)
 				} else {
 					newLogFile, err = d.opts.FS.Create(newLogName)
+					base.MustExist(d.opts.FS, newLogName, d.opts.Logger, err)
 				}
 			}
 

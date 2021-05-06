@@ -1,2 +1,0 @@
-# prophet
-Embedded distributed coordinator

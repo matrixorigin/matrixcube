@@ -24,9 +24,6 @@ sed -i 's|gogoproto/gogo.proto|github.com/gogo/protobuf/gogoproto/gogo.proto|g' 
 for dir in ${DIRS}; do
 	pushd ${dir}
 		protoc  -I=.:$VENDOR_DIR --gogofast_out=plugins=grpc:.  *.proto
-		sed -i 's/m.Raft.MarshalToSizedBuffer/m.Raft.MarshalTo/g' *.pb.go
-		sed -i 's/m.HardState.MarshalToSizedBuffer/m.HardState.MarshalTo/g' *.pb.go
-		sed -i 's/m.Message.MarshalToSizedBuffer/m.Message.MarshalTo/g' *.pb.go
 		goimports -w *.pb.go
 	popd
 done

@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sort"
 	"sync"
 	"unsafe"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble/internal/base"
 	"github.com/cockroachdb/pebble/internal/cache"
@@ -23,10 +23,10 @@ import (
 	"github.com/cockroachdb/pebble/internal/private"
 	"github.com/cockroachdb/pebble/internal/rangedel"
 	"github.com/cockroachdb/pebble/vfs"
-	"github.com/golang/snappy"
 )
 
 var errCorruptIndexEntry = base.CorruptionErrorf("pebble/table: corrupt index entry")
+var errReaderClosed = errors.New("pebble/table: reader is closed")
 
 const (
 	// Constants for dynamic readahead of data blocks. Note that the size values
@@ -154,6 +154,8 @@ type singleLevelIterator struct {
 	// the upper bound, -1 when exhausted the lower bound, and 0 when
 	// neither. It is used for invariant checking.
 	exhaustedBounds int8
+
+	lastBloomFilterMatched bool
 }
 
 // singleLevelIterator implements the base.InternalIterator interface.
@@ -162,9 +164,8 @@ var _ base.InternalIterator = (*singleLevelIterator)(nil)
 var singleLevelIterPool = sync.Pool{
 	New: func() interface{} {
 		i := &singleLevelIterator{}
-		if invariants.Enabled {
-			runtime.SetFinalizer(i, checkSingleLevelIterator)
-		}
+		// Note: this is a no-op if invariants are disabled or race is enabled.
+		invariants.SetFinalizer(i, checkSingleLevelIterator)
 		return i
 	},
 }
@@ -172,9 +173,8 @@ var singleLevelIterPool = sync.Pool{
 var twoLevelIterPool = sync.Pool{
 	New: func() interface{} {
 		i := &twoLevelIterator{}
-		if invariants.Enabled {
-			runtime.SetFinalizer(i, checkTwoLevelIterator)
-		}
+		// Note: this is a no-op if invariants are disabled or race is enabled.
+		invariants.SetFinalizer(i, checkTwoLevelIterator)
 		return i
 	},
 }
@@ -401,11 +401,13 @@ func (i *singleLevelIterator) SeekGE(key []byte) (*InternalKey, []byte) {
 	// Seek optimization only applies until iterator is first positioned after SetBounds.
 	i.boundsCmp = 0
 	i.positionedUsingLatestBounds = true
-	return i.seekGEHelper(key, boundsCmp)
+	return i.seekGEHelper(key, boundsCmp, false /* trySeekUsingNext */)
 }
 
 // seekGEHelper contains the common functionality for SeekGE and SeekPrefixGE.
-func (i *singleLevelIterator) seekGEHelper(key []byte, boundsCmp int) (*InternalKey, []byte) {
+func (i *singleLevelIterator) seekGEHelper(
+	key []byte, boundsCmp int, trySeekUsingNext bool,
+) (*InternalKey, []byte) {
 	var dontSeekWithinBlock bool
 	if !i.data.isDataInvalidated() && !i.index.isDataInvalidated() && i.data.Valid() && i.index.Valid() &&
 		boundsCmp > 0 && i.cmp(key, i.index.Key().UserKey) <= 0 {
@@ -429,6 +431,31 @@ func (i *singleLevelIterator) seekGEHelper(key []byte, boundsCmp int) (*Internal
 			dontSeekWithinBlock = true
 		}
 	} else {
+		// Cannot use bounds monotonicity. But may be able to optimize if
+		// caller claimed externally known invariant represented by
+		// trySeekUsingNext=true.
+		if trySeekUsingNext {
+			// seekPrefixGE has already ensured
+			// !i.data.isDataInvalidated() && i.exhaustedBounds != +1
+			currKey := i.data.Key()
+			value := i.data.Value()
+			less := i.cmp(currKey.UserKey, key) < 0
+			// We could be more sophisticated and confirm that the seek
+			// position is within the current block before applying this
+			// optimization. But there may be some benefit even if it is in
+			// the next block, since we can avoid seeking i.index.
+			for j := 0; less && j < numStepsBeforeSeek; j++ {
+				currKey, value = i.Next()
+				if currKey == nil {
+					return nil, nil
+				}
+				less = i.cmp(currKey.UserKey, key) < 0
+			}
+			if !less {
+				return currKey, value
+			}
+		}
+		// Slow-path.
 		if ikey, _ := i.index.SeekGE(key); ikey == nil {
 			// The target key is greater than any key in the sstable. Invalidate the
 			// block iterator so that a subsequent call to Prev() will return the last
@@ -455,16 +482,24 @@ func (i *singleLevelIterator) seekGEHelper(key []byte, boundsCmp int) (*Internal
 // SeekPrefixGE implements internalIterator.SeekPrefixGE, as documented in the
 // pebble package. Note that SeekPrefixGE only checks the upper bound. It is up
 // to the caller to ensure that key is greater than or equal to the lower bound.
-func (i *singleLevelIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
-	return i.seekPrefixGE(prefix, key, true /* checkFilter */)
+func (i *singleLevelIterator) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
+	k, v := i.seekPrefixGE(prefix, key, trySeekUsingNext, true /* checkFilter */)
+	return k, v
 }
 
 func (i *singleLevelIterator) seekPrefixGE(
-	prefix, key []byte, checkFilter bool,
-) (*InternalKey, []byte) {
+	prefix, key []byte, trySeekUsingNext bool, checkFilter bool,
+) (k *InternalKey, value []byte) {
 	i.err = nil // clear cached iteration error
 
 	if checkFilter && i.reader.tableFilter != nil {
+		if !i.lastBloomFilterMatched {
+			// Iterator is not positioned based on last seek.
+			trySeekUsingNext = false
+		}
+		i.lastBloomFilterMatched = false
 		// Check prefix bloom filter.
 		var dataH cache.Handle
 		dataH, i.err = i.reader.readFilter()
@@ -483,6 +518,11 @@ func (i *singleLevelIterator) seekPrefixGE(
 			i.data.invalidate()
 			return nil, nil
 		}
+		i.lastBloomFilterMatched = true
+	}
+	if trySeekUsingNext && (i.exhaustedBounds == +1 || i.data.isDataInvalidated()) {
+		// Already exhausted, so return nil.
+		return nil, nil
 	}
 	// Bloom filter matches, or skipped, so this method will position the
 	// iterator.
@@ -491,7 +531,8 @@ func (i *singleLevelIterator) seekPrefixGE(
 	// Seek optimization only applies until iterator is first positioned after SetBounds.
 	i.boundsCmp = 0
 	i.positionedUsingLatestBounds = true
-	return i.seekGEHelper(key, boundsCmp)
+	k, value = i.seekGEHelper(key, boundsCmp, trySeekUsingNext)
+	return k, value
 }
 
 // SeekLT implements internalIterator.SeekLT, as documented in the pebble
@@ -836,7 +877,9 @@ func (i *compactionIterator) SeekGE(key []byte) (*InternalKey, []byte) {
 	panic("pebble: SeekGE unimplemented")
 }
 
-func (i *compactionIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
+func (i *compactionIterator) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
 	panic("pebble: SeekPrefixGE unimplemented")
 }
 
@@ -989,11 +1032,18 @@ func (i *twoLevelIterator) SeekGE(key []byte) (*InternalKey, []byte) {
 // SeekPrefixGE implements internalIterator.SeekPrefixGE, as documented in the
 // pebble package. Note that SeekPrefixGE only checks the upper bound. It is up
 // to the caller to ensure that key is greater than or equal to the lower bound.
-func (i *twoLevelIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
+func (i *twoLevelIterator) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
 	i.err = nil // clear cached iteration error
 
 	// Check prefix bloom filter.
 	if i.reader.tableFilter != nil {
+		if !i.lastBloomFilterMatched {
+			// Iterator is not positioned based on last seek.
+			trySeekUsingNext = false
+		}
+		i.lastBloomFilterMatched = false
 		var dataH cache.Handle
 		dataH, i.err = i.reader.readFilter()
 		if i.err != nil {
@@ -1011,6 +1061,7 @@ func (i *twoLevelIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byt
 			i.data.invalidate()
 			return nil, nil
 		}
+		i.lastBloomFilterMatched = true
 	}
 
 	// Bloom filter matches.
@@ -1019,6 +1070,15 @@ func (i *twoLevelIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byt
 	if i.topLevelIndex.isDataInvalidated() || !i.topLevelIndex.Valid() || i.boundsCmp <= 0 ||
 		i.cmp(key, i.topLevelIndex.Key().UserKey) > 0 {
 		// Slow-path: need to position the topLevelIndex.
+		//
+		// TODO(sumeer): improve this slow-path to be able to use Next, when
+		// trySeekUsingNext is true, since the fast path never applies for
+		// practical uses of SeekPrefixGE in CockroachDB (they never set
+		// monotonic bounds). To apply it here, we would need to confirm that
+		// the topLevelIndex can continue using the same second level index
+		// block, and in that case we don't need to invalidate and reload the
+		// singleLevelIterator state.
+		trySeekUsingNext = false
 		if ikey, _ := i.topLevelIndex.SeekGE(key); ikey == nil {
 			i.data.invalidate()
 			i.index.invalidate()
@@ -1039,10 +1099,17 @@ func (i *twoLevelIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byt
 	// it must be at the right position.
 
 	if ikey, val := i.singleLevelIterator.seekPrefixGE(
-		prefix, key, false /* checkFilter */); ikey != nil {
+		prefix, key, trySeekUsingNext, false /* checkFilter */); ikey != nil {
 		return ikey, val
 	}
 	return i.skipForward()
+}
+
+func (i *twoLevelIterator) SeekPrefixGEWithExhaustionIndicator(
+	prefix, key []byte, trySeekUsingNext bool,
+) (k *base.InternalKey, value []byte, iterExhaustedAndNotBloomFilterFail bool) {
+	k, value = i.SeekPrefixGE(prefix, key, trySeekUsingNext)
+	return k, value, false
 }
 
 // SeekLT implements internalIterator.SeekLT, as documented in the pebble
@@ -1259,7 +1326,9 @@ func (i *twoLevelCompactionIterator) SeekGE(key []byte) (*InternalKey, []byte) {
 	panic("pebble: SeekGE unimplemented")
 }
 
-func (i *twoLevelCompactionIterator) SeekPrefixGE(prefix, key []byte) (*InternalKey, []byte) {
+func (i *twoLevelCompactionIterator) SeekPrefixGE(
+	prefix, key []byte, trySeekUsingNext bool,
+) (*base.InternalKey, []byte) {
 	panic("pebble: SeekPrefixGE unimplemented")
 }
 
@@ -1612,7 +1681,7 @@ func init() {
 
 // Reader is a table reader.
 type Reader struct {
-	file              vfs.File
+	file              ReadableFile
 	fs                vfs.FS
 	filename          string
 	cacheID           uint64
@@ -1631,6 +1700,7 @@ type Reader struct {
 	FormatKey         base.FormatKey
 	Split             Split
 	mergerOK          bool
+	checksumType      ChecksumType
 	tableFilter       *tableFilterReader
 	Properties        Properties
 }
@@ -1654,7 +1724,7 @@ func (r *Reader) Close() error {
 		}
 	}
 	// Make any future calls to Get, NewIter or Close return an error.
-	r.err = errors.New("pebble/table: reader is closed")
+	r.err = errReaderClosed
 	return nil
 }
 
@@ -1827,7 +1897,12 @@ func (r *Reader) readBlock(
 				}
 			}
 			if raState.sequentialFile != nil {
-				_ = vfs.Prefetch(r.file, bh.Offset, uint64(readaheadSize))
+				type fd interface {
+					Fd() uintptr
+				}
+				if f, ok := r.file.(fd); ok {
+					_ = vfs.Prefetch(f.Fd(), bh.Offset, uint64(readaheadSize))
+				}
 			}
 		}
 	}
@@ -1839,9 +1914,18 @@ func (r *Reader) readBlock(
 		return cache.Handle{}, err
 	}
 
-	checksum0 := binary.LittleEndian.Uint32(b[bh.Length+1:])
-	checksum1 := crc.New(b[:bh.Length+1]).Value()
-	if checksum0 != checksum1 {
+	expectedChecksum := binary.LittleEndian.Uint32(b[bh.Length+1:])
+	var computedChecksum uint32
+	switch r.checksumType {
+	case ChecksumTypeCRC32c:
+		computedChecksum = crc.New(b[:bh.Length+1]).Value()
+	case ChecksumTypeXXHash64:
+		computedChecksum = uint32(xxhash.Sum64(b[:bh.Length+1]))
+	default:
+		return cache.Handle{}, errors.Errorf("unsupported checksum type: %d", r.checksumType)
+	}
+
+	if expectedChecksum != computedChecksum {
 		r.opts.Cache.Free(v)
 		return cache.Handle{}, base.CorruptionErrorf(
 			"pebble/table: invalid table %s (checksum mismatch at %d/%d)",
@@ -1852,33 +1936,14 @@ func (r *Reader) readBlock(
 	b = b[:bh.Length]
 	v.Truncate(len(b))
 
-	switch typ {
-	case noCompressionBlockType:
-		break
-	case snappyCompressionBlockType:
-		decodedLen, err := snappy.DecodedLen(b)
-		if err != nil {
-			r.opts.Cache.Free(v)
-			return cache.Handle{}, base.MarkCorruptionError(err)
-		}
-		decoded := r.opts.Cache.Alloc(decodedLen)
-		decodedBuf := decoded.Buf()
-		result, err := snappy.Decode(decodedBuf, b)
+	decoded, err := decompressBlock(r.opts.Cache, typ, b)
+	if decoded != nil {
 		r.opts.Cache.Free(v)
-		if err != nil {
-			r.opts.Cache.Free(decoded)
-			return cache.Handle{}, base.MarkCorruptionError(err)
-		}
-		if len(result) != 0 &&
-			(len(result) != len(decodedBuf) || &result[0] != &decodedBuf[0]) {
-			r.opts.Cache.Free(decoded)
-			return cache.Handle{}, base.CorruptionErrorf("pebble/table: snappy decoded into unexpected buffer: %p != %p",
-				errors.Safe(result), errors.Safe(decodedBuf))
-		}
-		v, b = decoded, decodedBuf
-	default:
+		v = decoded
+		b = v.Buf()
+	} else if err != nil {
 		r.opts.Cache.Free(v)
-		return cache.Handle{}, base.CorruptionErrorf("pebble/table: unknown block compression: %d", errors.Safe(typ))
+		return cache.Handle{}, err
 	}
 
 	if transform != nil {
@@ -2195,9 +2260,16 @@ func (r *Reader) EstimateDiskUsage(start, end []byte) (uint64, error) {
 	return endBH.Offset + endBH.Length + blockTrailerLen - startBH.Offset, nil
 }
 
+// ReadableFile describes subset of vfs.File required for reading SSTs.
+type ReadableFile interface {
+	io.ReaderAt
+	io.Closer
+	Stat() (os.FileInfo, error)
+}
+
 // NewReader returns a new table reader for the file. Closing the reader will
 // close the file.
-func NewReader(f vfs.File, o ReaderOptions, extraOpts ...ReaderOption) (*Reader, error) {
+func NewReader(f ReadableFile, o ReaderOptions, extraOpts ...ReaderOption) (*Reader, error) {
 	o = o.ensureDefaults()
 	r := &Reader{
 		file: f,
@@ -2232,6 +2304,7 @@ func NewReader(f vfs.File, o ReaderOptions, extraOpts ...ReaderOption) (*Reader,
 		r.err = err
 		return nil, r.Close()
 	}
+	r.checksumType = footer.checksum
 	// Read the metaindex.
 	if err := r.readMetaindex(footer.metaindexBH); err != nil {
 		r.err = err
