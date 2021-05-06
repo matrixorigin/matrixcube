@@ -155,16 +155,16 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 					return ops
 				}
 			}
-			util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, source container %d",
-				l.GetName(),
-				sourceID)
+			// util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, source container %d",
+			// 	l.GetName(),
+			// 	sourceID)
 		}
 		if i < len(targets) {
 			target := targets[i]
 			targetID := target.Meta.ID()
-			util.GetLogger().Debugf("container leader score, scheduler %s, target container %d",
-				l.GetName(),
-				targetID)
+			// util.GetLogger().Debugf("container leader score, scheduler %s, target container %d",
+			// 	l.GetName(),
+			// 	targetID)
 			targetContainerLabel := strconv.FormatUint(targetID, 10)
 			l.counter.WithLabelValues("low-score", targetContainerLabel).Inc()
 
@@ -174,9 +174,9 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 					return ops
 				}
 			}
-			util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, target container %d",
-				l.GetName(),
-				targetID)
+			// util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, target container %d",
+			// 	l.GetName(),
+			// 	targetID)
 		}
 	}
 	return nil
@@ -189,9 +189,9 @@ func (l *balanceLeaderScheduler) transferLeaderOut(cluster opt.Cluster, source *
 	sourceID := source.Meta.ID()
 	resource := cluster.RandLeaderResource(sourceID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
-		util.GetLogger().Debugf("container %d has no leader, scheduler %s",
-			sourceID,
-			l.GetName())
+		// util.GetLogger().Debugf("container %d has no leader, scheduler %s",
+		// 	sourceID,
+		// 	l.GetName())
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader-resource").Inc()
 		return nil
 	}
@@ -228,9 +228,9 @@ func (l *balanceLeaderScheduler) transferLeaderIn(cluster opt.Cluster, target *c
 	targetID := target.Meta.ID()
 	resource := cluster.RandFollowerResource(targetID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
-		util.GetLogger().Debugf("container %d has no follower, scheduler %s",
-			targetID,
-			l.GetName())
+		// util.GetLogger().Debugf("container %d has no follower, scheduler %s",
+		// 	targetID,
+		// 	l.GetName())
 		schedulerCounter.WithLabelValues(l.GetName(), "no-follower-resource").Inc()
 		return nil
 	}

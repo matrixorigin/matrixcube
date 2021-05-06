@@ -29,9 +29,9 @@ func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) b
 }
 
 func findPeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
-	for _, peer := range shard.Peers {
-		if peer.ContainerID == storeID {
-			return &peer
+	for idx := range shard.Peers {
+		if shard.Peers[idx].ContainerID == storeID {
+			return &shard.Peers[idx]
 		}
 	}
 

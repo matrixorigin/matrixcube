@@ -34,24 +34,25 @@ func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDR
 func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
 	req := ctx.req.AdminRequest.ChangePeer
 	peer := req.Peer
-	logger.Infof("shard %d do apply change peer %+v at epoch %+v",
+	logger.Infof("shard %d do apply change peer %+v at epoch %+v, peers %+v",
 		d.shard.ID,
 		req,
-		d.shard.Epoch)
+		d.shard.Epoch,
+		d.shard.Peers)
 
-	region := bhmetapb.Shard{}
-	protoc.MustUnmarshal(&region, protoc.MustMarshal(&d.shard))
-	region.Epoch.ConfVer++
+	res := bhmetapb.Shard{}
+	protoc.MustUnmarshal(&res, protoc.MustMarshal(&d.shard))
+	res.Epoch.ConfVer++
 
-	p := findPeer(&d.shard, req.Peer.ContainerID)
+	p := findPeer(&res, req.Peer.ContainerID)
 	switch req.ChangeType {
 	case metapb.ChangePeerType_AddNode:
 		exists := false
 		if p != nil {
 			exists = true
-			if p.Role == metapb.PeerRole_Learner || p.ID != peer.ID {
+			if p.Role != metapb.PeerRole_Learner || p.ID != peer.ID {
 				return nil, nil, fmt.Errorf("shard-%d can't add duplicated peer %+v",
-					region.ID,
+					res.ID,
 					peer)
 			}
 
@@ -59,17 +60,18 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		}
 
 		if !exists {
-			region.Peers = append(region.Peers, peer)
+			res.Peers = append(res.Peers, peer)
 		}
 
-		logger.Infof("shard-%d add peer %+v successfully",
-			region.ID,
-			peer)
+		logger.Infof("shard-%d add peer %+v successfully, peers %+v",
+			res.ID,
+			peer,
+			res.Peers)
 	case metapb.ChangePeerType_RemoveNode:
 		if p != nil {
 			if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
 				return nil, nil, fmt.Errorf("shard %+v ignore remove unmatched peer %+v",
-					region.ID,
+					res.ID,
 					peer)
 			}
 
@@ -80,24 +82,26 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			}
 		} else {
 			return nil, nil, fmt.Errorf("shard %+v remove missing peer %+v",
-				region.ID,
+				res.ID,
 				peer)
 		}
 
-		logger.Infof("shard-%d remove peer %+v successfully",
-			region.ID,
-			peer)
+		logger.Infof("shard-%d remove peer %+v successfully, peers %+v",
+			res.ID,
+			peer,
+			res.Peers)
 	case metapb.ChangePeerType_AddLearnerNode:
 		if p != nil {
 			return nil, nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
-				region.ID,
+				res.ID,
 				peer)
 		}
 
-		region.Peers = append(region.Peers, peer)
-		logger.Infof("shard-%d add learner peer %+v successfully",
-			region.ID,
-			peer)
+		res.Peers = append(res.Peers, peer)
+		logger.Infof("shard-%d add learner peer %+v successfully, peers %+v",
+			res.ID,
+			peer,
+			res.Peers)
 	}
 
 	state := bhraftpb.PeerState_Normal
@@ -105,7 +109,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		state = bhraftpb.PeerState_Tombstone
 	}
 
-	d.shard = region
+	d.shard = res
 	err := d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
 	if err != nil {
 		logger.Fatalf("shard %d update db state failed, errors:\n %+v",
@@ -136,13 +140,13 @@ func (d *applyDelegate) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCM
 		changes,
 		d.shard.Epoch)
 
-	var region bhmetapb.Shard
+	var res bhmetapb.Shard
 	var err error
 	kind := getConfChangeKind(len(changes))
 	if kind == leaveJointKind {
-		region, err = d.applyLeaveJoint()
+		res, err = d.applyLeaveJoint()
 	} else {
-		region, err = d.applyConfChangeByKind(kind, changes)
+		res, err = d.applyConfChangeByKind(kind, changes)
 	}
 
 	if err != nil {
@@ -154,7 +158,7 @@ func (d *applyDelegate) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCM
 		state = bhraftpb.PeerState_Tombstone
 	}
 
-	d.shard = region
+	d.shard = res
 	err = d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
 	if err != nil {
 		logger.Fatalf("shard %d update db state failed, errors:\n %+v",

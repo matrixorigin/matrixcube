@@ -38,7 +38,7 @@ type defaultTransport struct {
 func newTransport(store *store) transport.Transport {
 	t := &defaultTransport{
 		store:       store,
-		readTimeout: 2 * time.Duration(store.cfg.Raft.HeartbeatTicks) * store.cfg.Raft.TickInterval.Duration,
+		readTimeout: 3 * time.Duration(store.cfg.Raft.HeartbeatTicks) * store.cfg.Raft.TickInterval.Duration,
 		writeTime:   time.Minute,
 	}
 
@@ -264,8 +264,9 @@ func (t *defaultTransport) doSendSnapshotMessage(msg *bhraftpb.SnapshotMessage, 
 
 func (t *defaultTransport) postSend(msg *bhraftpb.RaftMessage, err error) {
 	if err != nil {
-		logger.Errorf("shard %d send msg from %d to %d failed with %+v",
+		logger.Errorf("shard %d send msg %+v from %d to %d failed with %+v",
 			msg.ShardID,
+			msg,
 			msg.From.ID,
 			msg.To.ID,
 			err)

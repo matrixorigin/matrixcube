@@ -448,7 +448,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			saveKV, saveCache = true, true
 		}
 		if r.GetConfVer() > o.GetConfVer() {
-			util.GetLogger().Info("resource %d ConfVer changed from %d to %d",
+			util.GetLogger().Infof("resource %d ConfVer changed from %d to %d",
 				res.Meta.ID(),
 				o.GetConfVer(),
 				r.GetConfVer())
