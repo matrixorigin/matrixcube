@@ -318,7 +318,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	}
 
 	// now we can create a replicate
-	pr, err := createPeerReplicaWithRaftMessage(s, msg, target.ID)
+	pr, err := createPeerReplicaWithRaftMessage(s, msg, target)
 	if err != nil {
 		logger.Errorf("shard %d peer replica failure, errors:\n %+v",
 			msg.ShardID,

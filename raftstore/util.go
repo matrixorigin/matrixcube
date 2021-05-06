@@ -54,13 +54,6 @@ func removePeer(shard *bhmetapb.Shard, storeID uint64) *metapb.Peer {
 	return removed
 }
 
-func newPeer(peerID, storeID uint64) metapb.Peer {
-	return metapb.Peer{
-		ID:          peerID,
-		ContainerID: storeID,
-	}
-}
-
 func removedPeers(new, old bhmetapb.Shard) []uint64 {
 	var ids []uint64
 
