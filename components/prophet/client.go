@@ -440,7 +440,7 @@ func (c *asyncClient) readLoop() {
 					util.GetLogger().Debugf("read msg %+v",
 						msg)
 					resp := msg.(*rpcpb.Response)
-					if resp.Type == rpcpb.TypeResourceHeartbeatRsp && resp.Error == "" {
+					if resp.Type == rpcpb.TypeResourceHeartbeatRsp && resp.Error == "" && resp.ResourceHeartbeat.ResourceID > 0 {
 						util.GetLogger().Infof("resource hb resp %+v added",
 							resp.ResourceHeartbeat)
 						c.resourceHeartbeatRspC <- resp.ResourceHeartbeat

@@ -34,8 +34,9 @@ enum ContainerState {
 enum ChangePeerType {
     AddNode        = 0;
     RemoveNode     = 1;
-    AddLearnerNode = 2;
-    ScalePeer      = 3;
+    UpdateNode     = 2;
+    AddLearnerNode = 3;
+    ScalePeer      = 4;
 }
 
 // PeerRole role of current peer

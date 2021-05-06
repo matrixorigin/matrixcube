@@ -82,9 +82,7 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	}
 
 	size := m.Size()
-	out.WriteInt(size + 1)
 	out.WriteByte(byte(t))
-
 	if size > 0 {
 		index := out.GetWriteIndex()
 		out.Expansion(size)

@@ -382,6 +382,7 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		case raftpb.EntryNormal:
 			result = d.applyEntry(&entry)
 		case raftpb.EntryConfChange:
+			result = d.applyConfChange(&entry)
 		case raftpb.EntryConfChangeV2:
 			result = d.applyConfChange(&entry)
 		}

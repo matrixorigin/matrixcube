@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/mem"
@@ -51,6 +52,9 @@ func newTestClusterStore(t *testing.T) *testCluster {
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", tmpDir, i)
 		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
+
+		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
 
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.StorageNode = true
