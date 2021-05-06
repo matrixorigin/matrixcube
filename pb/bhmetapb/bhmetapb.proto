@@ -2,7 +2,7 @@ syntax = "proto3";
 package bhmetapb;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "github.com/deepfabric/prophet/pb/metapb/metapb.proto";
+import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"go.etcd.io/etcd/raft/raftpb"
@@ -249,7 +249,9 @@ func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *raftcmdpb.AdminRe
 	if err != nil {
 		return err
 	}
-	if propose_index != pr.nextProposalIndex() {
+	if propose_index == pr.nextProposalIndex() {
+		// The message is dropped silently, this usually due to leader absence
+		// or transferring leader. Both cases can be considered as NotLeader error.
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return errNotLeader
@@ -394,9 +396,9 @@ func (pr *peerReplica) checkConfChange(changes []raftcmdpb.ChangePeerRequest, cc
 			return fmt.Errorf("invalid conf change request %+v, can not remove voter directly", cp)
 		}
 
-		if cp.ChangeType == metapb.ChangePeerType_RemoveNode ||
+		if !(cp.ChangeType == metapb.ChangePeerType_RemoveNode ||
 			(cp.ChangeType == metapb.ChangePeerType_AddNode && cp.Peer.Role == metapb.PeerRole_Voter) ||
-			(cp.ChangeType == metapb.ChangePeerType_AddLearnerNode && cp.Peer.Role == metapb.PeerRole_Learner) {
+			(cp.ChangeType == metapb.ChangePeerType_AddLearnerNode && cp.Peer.Role == metapb.PeerRole_Learner)) {
 			return fmt.Errorf("invalid conf change request %+v", cp)
 		}
 

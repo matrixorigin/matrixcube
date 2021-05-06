@@ -3,9 +3,9 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/prophet/metadata"
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/util"
@@ -42,7 +42,7 @@ func (s *store) initMeta() {
 
 func (s *store) doBootstrapCluster() {
 	logger.Infof("begin to bootstrap the cluster")
-	defer s.initMeta()
+	s.initMeta()
 
 	if s.mustLoadStoreMetadata() {
 		return
@@ -58,9 +58,10 @@ func (s *store) doBootstrapCluster() {
 	if err != nil {
 		logger.Fatal("check the cluster whether bootstrapped failed with %+v", err)
 	}
+	logger.Infof("the cluster already bootstrap: %+v", ok)
 
 	if !ok {
-		logger.Infof("begin to bootstrap the cluster")
+		logger.Infof("begin to bootstrap the cluster with init shards")
 		var initShards []bhmetapb.Shard
 		var resources []metadata.Resource
 		if s.cfg.Customize.CustomInitShardsFactory != nil {
@@ -87,6 +88,10 @@ func (s *store) doBootstrapCluster() {
 			logger.Info("the cluster is already bootstrapped")
 			s.removeInitShards(initShards...)
 		}
+	}
+
+	if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
+		logger.Fatalf("put container to prophet failed with %+v", err)
 	}
 
 	s.startStoreHeartbeat()

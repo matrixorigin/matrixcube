@@ -3,9 +3,9 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/prophet/pb/metapb"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	sn "github.com/matrixorigin/matrixcube/snapshot"

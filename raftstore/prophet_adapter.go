@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deepfabric/prophet/metadata"
-	"github.com/deepfabric/prophet/pb/metapb"
-	"github.com/deepfabric/prophet/pb/rpcpb"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -221,6 +221,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		}
 		stats.Capacity = ms.Total
 		stats.UsedSize = ms.Total - ms.Available
+		stats.Available = ms.Available
 	} else {
 		ms, err := util.DiskStats(s.cfg.DataPath)
 		if err != nil {
@@ -229,6 +230,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		}
 		stats.Capacity = ms.Total
 		stats.UsedSize = ms.Total - ms.Free
+		stats.Available = ms.Free
 	}
 	if s.cfg.Capacity > 0 && stats.Capacity > uint64(s.cfg.Capacity) {
 		stats.Capacity = uint64(s.cfg.Capacity)
@@ -358,19 +360,13 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 }
 
 func newChangePeerAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
-	req := &raftcmdpb.AdminRequest{
+	return &raftcmdpb.AdminRequest{
 		CmdType: raftcmdpb.AdminCmdType_ChangePeer,
 		ChangePeer: &raftcmdpb.ChangePeerRequest{
 			ChangeType: rsp.ChangePeer.ChangeType,
 			Peer:       rsp.ChangePeer.Peer,
 		},
 	}
-
-	req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
-		ChangeType: rsp.ChangePeer.ChangeType,
-		Peer:       rsp.ChangePeer.Peer,
-	})
-	return req
 }
 
 func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {

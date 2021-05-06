@@ -3,7 +3,7 @@ package raftcmdpb;
 
 import "github.com/matrixorigin/matrixcube/pb/bhmetapb/bhmetapb.proto";
 import "github.com/matrixorigin/matrixcube/pb/errorpb/errorpb.proto";
-import "github.com/deepfabric/prophet/pb/metapb/metapb.proto";
+import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;

@@ -1,7 +1,7 @@
 package util
 
 import (
-	putil "github.com/deepfabric/prophet/util"
+	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 var (
