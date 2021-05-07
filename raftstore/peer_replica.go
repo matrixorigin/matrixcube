@@ -23,9 +23,10 @@ import (
 )
 
 type readContext struct {
-	offset int
-	buf    *buf.ByteBuf
-	attrs  map[string]interface{}
+	offset    int
+	batchSize int
+	buf       *buf.ByteBuf
+	attrs     map[string]interface{}
 }
 
 func newReadContext() *readContext {
@@ -41,6 +42,7 @@ func (ctx *readContext) reset() {
 	}
 	ctx.buf.Clear()
 	ctx.offset = 0
+	ctx.batchSize = 0
 }
 
 func (ctx *readContext) WriteBatch() *util.WriteBatch {
@@ -63,6 +65,10 @@ func (ctx *readContext) LogIndex() uint64 {
 
 func (ctx *readContext) Offset() int {
 	return ctx.offset
+}
+
+func (ctx *readContext) BatchSize() int {
+	return ctx.batchSize
 }
 
 type peerReplica struct {
@@ -305,6 +311,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
 
 	pr.readCtx.reset()
+	pr.readCtx.batchSize = len(c.req.Requests)
 	for idx, req := range c.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))

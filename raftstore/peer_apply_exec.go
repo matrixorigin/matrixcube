@@ -438,6 +438,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	diffBytes := int64(0)
 	resp := pb.AcquireRaftCMDResponse()
 
+	ctx.batchSize = len(ctx.req.Requests)
 	for idx, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
