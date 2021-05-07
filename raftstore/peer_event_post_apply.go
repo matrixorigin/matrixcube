@@ -108,8 +108,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		peer_id := peer.ID
 
 		switch change_type {
-		case metapb.ChangePeerType_AddNode:
-		case metapb.ChangePeerType_AddLearnerNode:
+		case metapb.ChangePeerType_AddNode, metapb.ChangePeerType_AddLearnerNode:
 			pr.peerHeartbeatsMap.Store(peer_id, now)
 			pr.store.peers.Store(peer_id, peer)
 			if pr.isLeader() {

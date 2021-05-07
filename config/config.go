@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/aware"
-	"github.com/matrixorigin/matrixcube/command"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
@@ -335,8 +334,6 @@ type CustomizeConfig struct {
 	CustomSplitCompletedFunc     func(*bhmetapb.Shard, *bhmetapb.Shard)
 	CustomCanReadLocalFunc       func(bhmetapb.Shard) bool
 	CustomShardAddHandleFunc     func(bhmetapb.Shard) error
-	CustomWriteBatchFunc         func(uint64) command.CommandWriteBatch
-	CustomReadBatchFunc          func(uint64) command.CommandReadBatch
 }
 
 // GetLabels returns lables

@@ -530,11 +530,12 @@ func (s *store) startShards() {
 	}, false)
 
 	if err != nil {
-		logger.Fatalf("init store failed1, errors:\n %+v", err)
+		logger.Fatalf("init store failed, errors:\n %+v", err)
 	}
+
 	err = s.MetadataStorage().Write(wb, false)
 	if err != nil {
-		logger.Fatalf("init store failed2, errors:\n %+v", err)
+		logger.Fatalf("init store failed, errors:\n %+v", err)
 	}
 
 	logger.Infof("starts with %d shards, including %d tombstones and %d applying shards",
