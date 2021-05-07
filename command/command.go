@@ -13,8 +13,10 @@ type Context interface {
 	WriteBatch() *util.WriteBatch
 	// LogIndex log index, the raft log index of the current command, it's only used in write command handle.
 	LogIndex() uint64
-	// Offset offset in the current command batch
+	// Offset is the index in the current command batch
 	Offset() int
+	// BatchSize number of the current command batch
+	BatchSize() int
 	// Attrs returns a map to store attrs
 	Attrs() map[string]interface{}
 	// ByteBuf returns the bytebuf

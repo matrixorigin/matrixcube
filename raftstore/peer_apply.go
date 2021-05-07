@@ -213,6 +213,7 @@ type applyContext struct {
 	index      uint64
 	term       uint64
 	offset     int
+	batchSize  int
 	metrics    applyMetrics
 }
 
@@ -236,6 +237,7 @@ func (ctx *applyContext) reset() {
 	ctx.index = 0
 	ctx.term = 0
 	ctx.offset = 0
+	ctx.batchSize = 0
 	ctx.metrics = applyMetrics{}
 }
 
@@ -256,6 +258,10 @@ func (ctx *applyContext) LogIndex() uint64 {
 
 func (ctx *applyContext) Offset() int {
 	return ctx.offset
+}
+
+func (ctx *applyContext) BatchSize() int {
+	return ctx.batchSize
 }
 
 type applyDelegate struct {
