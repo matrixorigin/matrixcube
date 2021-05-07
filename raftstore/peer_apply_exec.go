@@ -110,12 +110,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	}
 
 	d.shard = res
-	err := d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
-	if err != nil {
-		logger.Fatalf("shard %d update db state failed, errors:\n %+v",
-			d.shard.ID,
-			err)
-	}
+	d.ps.updatePeerState(d.shard, state, ctx.raftWB)
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: d.shard,
@@ -159,12 +154,7 @@ func (d *applyDelegate) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCM
 	}
 
 	d.shard = res
-	err = d.ps.updatePeerState(d.shard, state, ctx.raftStateWB)
-	if err != nil {
-		logger.Fatalf("shard %d update db state failed, errors:\n %+v",
-			d.shard.ID,
-			err)
-	}
+	d.ps.updatePeerState(d.shard, state, ctx.raftWB)
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: d.shard,
@@ -378,19 +368,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		}
 	}
 
-	d.ps.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftStateWB)
+	d.ps.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
 	for _, region := range shards {
-		d.ps.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftStateWB)
-		d.ps.writeInitialState(region.ID, ctx.raftStateWB)
-	}
-
-	{
-		err := d.ps.store.MetadataStorage().Write(ctx.raftStateWB, false)
-		if err != nil {
-			logger.Fatalf("shard %d commit apply splits result failed with %+v",
-				d.shard.ID,
-				err)
-		}
+		d.ps.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftWB)
+		d.ps.writeInitialState(region.ID, ctx.raftWB)
 	}
 
 	if d.store.cfg.Storage.DataMoveFunc != nil {
@@ -457,55 +438,27 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 	diffBytes := int64(0)
 	resp := pb.AcquireRaftCMDResponse()
 
-	d.resetAttrs()
-	d.buf.Clear()
-	d.requests = d.requests[:0]
-
 	for idx, req := range ctx.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 		}
-		resp.Responses = append(resp.Responses, nil)
+		ctx.offset = idx
+		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
+			written, diff, rsp := h(d.shard, req, ctx)
+			if rsp.Stale {
+				rsp.Error.Message = errStaleCMD.Error()
+				rsp.Error.StaleCommand = infoStaleCMD
+				rsp.OriginRequest = req
+				rsp.OriginRequest.Key = DecodeDataKey(req.Key)
+			}
 
+			resp.Responses = append(resp.Responses, rsp)
+			writeBytes += written
+			diffBytes += diff
+		} else {
+			logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
+		}
 		ctx.metrics.writtenKeys++
-		if ctx.dataWB != nil {
-			addedToWB, rsp, err := ctx.dataWB.Add(d.shard.ID, req, d.attrs)
-			if err != nil {
-				logger.Fatalf("shard %s add %+v to write batch failed with %+v",
-					d.shard.ID,
-					req,
-					err)
-			}
-
-			if addedToWB {
-				resp.Responses[idx] = rsp
-				continue
-			}
-		}
-
-		d.requests = append(d.requests, idx)
 	}
-
-	if len(d.requests) > 0 {
-		d.attrs[attrRequestsTotal] = len(d.requests) - 1
-		for idx, which := range d.requests {
-			req := ctx.req.Requests[which]
-			d.attrs[attrRequestsCurrent] = idx
-			if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-				written, diff, rsp := h(d.shard, req, d.attrs)
-				if rsp.Stale {
-					rsp.Error.Message = errStaleCMD.Error()
-					rsp.Error.StaleCommand = infoStaleCMD
-					rsp.OriginRequest = req
-					rsp.OriginRequest.Key = DecodeDataKey(req.Key)
-				}
-
-				resp.Responses[which] = rsp
-				writeBytes += written
-				diffBytes += diff
-			}
-		}
-	}
-
 	return writeBytes, diffBytes, resp
 }

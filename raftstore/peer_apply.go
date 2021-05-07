@@ -9,7 +9,6 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -205,39 +204,58 @@ type raftGCResult struct {
 }
 
 type applyContext struct {
-	raftStateWB *util.WriteBatch
-	dataWB      command.CommandWriteBatch
-
+	raftWB     *util.WriteBatch
+	dataWB     *util.WriteBatch
+	attrs      map[string]interface{}
+	buf        *buf.ByteBuf
 	applyState bhraftpb.RaftApplyState
 	req        *raftcmdpb.RaftCMDRequest
 	index      uint64
 	term       uint64
+	offset     int
 	metrics    applyMetrics
 }
 
 func newApplyContext(id uint64, store *store) *applyContext {
-	var dataWB command.CommandWriteBatch
-	if store.cfg.Customize.CustomWriteBatchFunc != nil {
-		dataWB = store.cfg.Customize.CustomWriteBatchFunc(id)
-	}
-
 	return &applyContext{
-		raftStateWB: util.NewWriteBatch(),
-		dataWB:      dataWB,
+		raftWB: util.NewWriteBatch(),
+		dataWB: util.NewWriteBatch(),
+		buf:    buf.NewByteBuf(512),
+		attrs:  make(map[string]interface{}),
 	}
 }
 
 func (ctx *applyContext) reset() {
-	ctx.raftStateWB.Reset()
+	ctx.raftWB.Reset()
+	ctx.dataWB.Reset()
+	for key := range ctx.attrs {
+		delete(ctx.attrs, key)
+	}
 	ctx.applyState = bhraftpb.RaftApplyState{}
 	ctx.req = nil
 	ctx.index = 0
 	ctx.term = 0
+	ctx.offset = 0
 	ctx.metrics = applyMetrics{}
+}
 
-	if ctx.dataWB != nil {
-		ctx.dataWB.Reset()
-	}
+func (ctx *applyContext) WriteBatch() *util.WriteBatch {
+	return ctx.dataWB
+}
+func (ctx *applyContext) Attrs() map[string]interface{} {
+	return ctx.attrs
+}
+
+func (ctx *applyContext) ByteBuf() *buf.ByteBuf {
+	return ctx.buf
+}
+
+func (ctx *applyContext) LogIndex() uint64 {
+	return ctx.index
+}
+
+func (ctx *applyContext) Offset() int {
+	return ctx.offset
 }
 
 type applyDelegate struct {
@@ -253,22 +271,7 @@ type applyDelegate struct {
 	term                 uint64
 	pendingCMDs          []cmd
 	pendingChangePeerCMD cmd
-
-	// reuse
-	wb  *util.WriteBatch
-	ctx *applyContext
-
-	// attrs
-	buf      *buf.ByteBuf
-	attrs    map[string]interface{}
-	requests []int
-}
-
-func (d *applyDelegate) resetAttrs() {
-	for key := range d.attrs {
-		delete(d.attrs, key)
-	}
-	d.attrs[attrBuf] = d.buf
+	ctx                  *applyContext
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
@@ -500,17 +503,6 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 		}
 	}
 
-	if d.ctx.dataWB != nil {
-		writeBytes, diffBytes, err = d.ctx.dataWB.Execute(d.shard)
-		if err != nil {
-			logger.Fatalf("shard %d execute batch failed with %+v",
-				d.shard.ID,
-				err)
-		}
-
-		d.ctx.dataWB.Reset()
-	}
-
 	if logger.DebugEnabled() {
 		for _, req := range d.ctx.req.Requests {
 			logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
@@ -531,15 +523,17 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 
 	d.ctx.applyState.AppliedIndex = d.ctx.index
 	if !d.isPendingRemove() {
-		err := d.ctx.raftStateWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
-		if err != nil {
-			logger.Fatalf("shard %d save apply context failed, errors:\n %+v",
-				d.shard.ID,
-				err)
-		}
+		d.ctx.raftWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
 	}
 
-	err = d.store.MetadataStorage().Write(d.ctx.raftStateWB, false)
+	err = d.store.DataStorageByGroup(d.shard.Group, d.shard.ID).Write(d.ctx.dataWB, true)
+	if err != nil {
+		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
+			d.shard.ID,
+			err)
+	}
+
+	err = d.store.MetadataStorage().Write(d.ctx.raftWB, true)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,

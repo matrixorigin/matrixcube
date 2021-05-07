@@ -3,13 +3,11 @@ package raftstore
 import (
 	"time"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	sn "github.com/matrixorigin/matrixcube/snapshot"
-	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
@@ -33,10 +31,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		term:             pr.getCurrentTerm(),
 		applyState:       pr.ps.applyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
-		buf:              buf.NewByteBuf(256),
-		wb:               util.NewWriteBatch(),
 		ctx:              newApplyContext(pr.shardID, pr.store),
-		attrs:            make(map[string]interface{}),
 	}
 
 	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {

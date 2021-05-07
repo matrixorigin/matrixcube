@@ -11,7 +11,6 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
-	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -22,6 +21,49 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 )
+
+type readContext struct {
+	offset int
+	buf    *buf.ByteBuf
+	attrs  map[string]interface{}
+}
+
+func newReadContext() *readContext {
+	return &readContext{
+		buf:   buf.NewByteBuf(512),
+		attrs: make(map[string]interface{}),
+	}
+}
+
+func (ctx *readContext) reset() {
+	for key := range ctx.attrs {
+		delete(ctx.attrs, key)
+	}
+	ctx.buf.Clear()
+	ctx.offset = 0
+}
+
+func (ctx *readContext) WriteBatch() *util.WriteBatch {
+	logger.Fatalf("read context can not call WriteBatch()")
+	return nil
+}
+
+func (ctx *readContext) Attrs() map[string]interface{} {
+	return ctx.attrs
+}
+
+func (ctx *readContext) ByteBuf() *buf.ByteBuf {
+	return ctx.buf
+}
+
+func (ctx *readContext) LogIndex() uint64 {
+	logger.Fatalf("read context can not call LogIndex()")
+	return 0
+}
+
+func (ctx *readContext) Offset() int {
+	return ctx.offset
+}
 
 type peerReplica struct {
 	shardID               uint64
@@ -63,14 +105,10 @@ type peerReplica struct {
 	approximateKeys uint64
 
 	metrics  localMetrics
-	buf      *buf.ByteBuf
 	stopOnce sync.Once
+	readyCtx *readyContext
 
-	requestIdxs      []int
-	requestBatchIdxs []int
-	readCommandBatch command.CommandReadBatch
-	readyCtx         *readyContext
-	attrs            map[string]interface{}
+	readCtx *readContext
 }
 
 func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error) {
@@ -136,12 +174,8 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		return nil, err
 	}
 
-	pr.buf = buf.NewByteBuf(256)
-	pr.attrs = make(map[string]interface{})
-	if store.cfg.Customize.CustomReadBatchFunc != nil {
-		pr.readCommandBatch = store.cfg.Customize.CustomReadBatchFunc(pr.shardID)
-	}
 	pr.rn = rn
+	pr.readCtx = newReadContext()
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
 	pr.steps = &task.Queue{}
@@ -267,82 +301,25 @@ func (pr *peerReplica) stopEventLoop() {
 	pr.events.Dispose()
 }
 
-func (pr *peerReplica) resetAttrs() {
-	for key := range pr.attrs {
-		delete(pr.attrs, key)
-	}
-	pr.attrs[attrBuf] = pr.buf
-}
-
 func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
 
-	pr.resetAttrs()
-	pr.buf.Clear()
-	pr.requestIdxs = pr.requestIdxs[:0]
-	pr.requestBatchIdxs = pr.requestBatchIdxs[:0]
-	readBytes := uint64(0)
-
-	if pr.readCommandBatch != nil {
-		pr.readCommandBatch.Reset()
-	}
-
+	pr.readCtx.reset()
 	for idx, req := range c.req.Requests {
 		if logger.DebugEnabled() {
 			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
 		}
 		pr.readKeys++
-		resp.Responses = append(resp.Responses, nil)
-
-		if pr.readCommandBatch != nil {
-			added, err := pr.readCommandBatch.Add(pr.shardID, req, pr.attrs)
-			if err != nil {
-				logger.Fatalf("shard %s add %+v to read batch failed with %+v",
-					pr.shardID,
-					req,
-					err)
+		pr.readCtx.offset = idx
+		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
+			rsp, readBytes := h(pr.ps.shard, req, pr.readCtx)
+			resp.Responses = append(resp.Responses, rsp)
+			pr.readBytes += readBytes
+			if logger.DebugEnabled() {
+				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
 			}
-
-			if added {
-				pr.requestBatchIdxs = append(pr.requestBatchIdxs, idx)
-
-				if logger.DebugEnabled() {
-					logger.Debugf("%s added to read batch", hex.EncodeToString(req.ID))
-				}
-				continue
-			}
-		}
-
-		pr.requestIdxs = append(pr.requestIdxs, idx)
-	}
-
-	if len(pr.requestBatchIdxs) > 0 {
-		responses, readBytes, err := pr.readCommandBatch.Execute(pr.ps.shard)
-		if err != nil {
-			logger.Fatalf("shard %s exec read batch failed with %+v",
-				pr.shardID,
-				err)
-		}
-		pr.readBytes += readBytes
-		for idx, response := range responses {
-			resp.Responses[pr.requestBatchIdxs[idx]] = response
-		}
-	}
-
-	if len(pr.requestIdxs) > 0 {
-		pr.attrs[attrRequestsTotal] = len(pr.requestIdxs) - 1
-		for idx, which := range pr.requestIdxs {
-			req := c.req.Requests[which]
-			pr.attrs[attrRequestsCurrent] = idx
-			if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-				resp.Responses[which], readBytes = h(pr.ps.shard, req, pr.attrs)
-				pr.readBytes += readBytes
-				if logger.DebugEnabled() {
-					logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
-				}
-			} else {
-				logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
-			}
+		} else {
+			logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
 		}
 	}
 
