@@ -146,13 +146,7 @@ func NewStore(cfg *config.Config) Store {
 		s.snapshotManager = newDefaultSnapshotManager(s)
 	}
 
-	if s.cfg.Customize.CustomTransportFactory != nil {
-		s.trans = s.cfg.Customize.CustomTransportFactory()
-	} else {
-		s.trans = newTransport(s)
-	}
 	s.rpc = newRPC(s)
-
 	s.initWorkers()
 	return s
 }
@@ -163,7 +157,7 @@ func (s *store) Start() {
 	s.startProphet()
 	logger.Infof("prophet started")
 
-	s.trans.Start()
+	s.startTransport()
 	logger.Infof("start listen at %s for raft", s.cfg.RaftAddr)
 
 	s.startRaftWorkers()
@@ -401,7 +395,7 @@ func (s *store) Prophet() prophet.Prophet {
 
 func (s *store) CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder) {
 	v := &rpcCodec{clientSide: true}
-	return length.NewWithSize(v, v, 0, 0, 0, int(s.cfg.Raft.MaxProposalBytes)*2)
+	return length.NewWithSize(v, v, 0, 0, 0, int(s.cfg.Raft.MaxEntryBytes)*2)
 }
 
 func (s *store) initWorkers() {
@@ -436,11 +430,34 @@ func (s *store) startProphet() {
 	<-s.pdStartedC
 }
 
+func (s *store) startTransport() {
+	if s.cfg.Customize.CustomTransportFactory != nil {
+		s.trans = s.cfg.Customize.CustomTransportFactory()
+	} else {
+		s.trans = transport.NewDefaultTransport(s.Meta().ID,
+			s.cfg.RaftAddr,
+			s.snapshotManager,
+			s.handle,
+			s.pd.GetStorage().GetContainer,
+			transport.WithMaxBodyBytes(int(s.cfg.Raft.MaxEntryBytes)*2),
+			transport.WithTimeout(3*time.Duration(s.cfg.Raft.HeartbeatTicks)*s.cfg.Raft.TickInterval.Duration, time.Minute),
+			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
+			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
+			transport.WithErrorHandler(func(msg *bhraftpb.RaftMessage, err error) {
+				if pr := s.getPR(msg.ShardID, true); pr != nil {
+					pr.addReport(msg.Message)
+				}
+			}))
+	}
+
+	s.trans.Start()
+}
+
 func (s *store) startRaftWorkers() {
 	for i := uint64(0); i < s.cfg.ShardGroups; i++ {
 		s.eventWorkers = append(s.eventWorkers, make(map[uint64]int))
 		g := i
-		for j := uint64(0); j < s.cfg.Worker.RaftMaxWorkers; j++ {
+		for j := uint64(0); j < s.cfg.Worker.RaftEventWorkers; j++ {
 			s.eventWorkers[g][j] = 0
 			idx := j
 			s.runner.RunCancelableTask(func(ctx context.Context) {
@@ -548,7 +565,7 @@ func (s *store) startShards() {
 
 func (s *store) startCompactRaftLogTask() {
 	s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(s.cfg.Raft.RaftLog.RaftLogCompactDuration.Duration)
+		ticker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
 		defer ticker.Stop()
 
 		for {

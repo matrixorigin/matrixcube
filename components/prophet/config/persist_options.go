@@ -16,7 +16,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
-	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 )
 
@@ -505,17 +504,6 @@ func (o *PersistOptions) Persist(storage storage.Storage) error {
 		LabelProperty: o.GetLabelPropertyConfig(),
 	}
 	return storage.SaveConfig(cfg)
-}
-
-func (o *PersistOptions) adjustScheduleCfg(scheduleCfg *ScheduleConfig) {
-	// In case we add new default schedulers.
-	for _, ps := range DefaultSchedulers {
-		if slice.NoneOf(scheduleCfg.Schedulers, func(i int) bool {
-			return scheduleCfg.Schedulers[i].Type == ps.Type
-		}) {
-			scheduleCfg.Schedulers = append(scheduleCfg.Schedulers, ps)
-		}
-	}
 }
 
 // CheckLabelProperty checks the label property.

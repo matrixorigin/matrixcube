@@ -64,6 +64,7 @@ func newTestClusterStore(t *testing.T) *testCluster {
 		}
 		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
 		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
+		cfg.Prophet.Schedule.EnableJointConsensus = true
 
 		cfg.Storage.MetaStorage = mem.NewStorage()
 		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {

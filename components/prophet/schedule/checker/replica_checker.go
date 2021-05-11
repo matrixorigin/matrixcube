@@ -54,7 +54,7 @@ func (r *ReplicaChecker) Check(res *core.CachedResource) *operator.Operator {
 		op.SetPriorityLevel(core.HighPriority)
 		return op
 	}
-	if op := r.checkMakeUPReplica(res); op != nil {
+	if op := r.checkMakeUpReplica(res); op != nil {
 		checkerCounter.WithLabelValues("replica_checker", "new-operator").Inc()
 		op.SetPriorityLevel(core.HighPriority)
 		return op
@@ -125,7 +125,7 @@ func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedResource) *operator.Op
 	return nil
 }
 
-func (r *ReplicaChecker) checkMakeUPReplica(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.Operator {
 	if !r.opts.IsMakeUpReplicaEnabled() {
 		return nil
 	}

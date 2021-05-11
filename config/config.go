@@ -29,13 +29,13 @@ var (
 	defaultRaftMaxWorkers           uint64 = 32
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
-	defaultRaftLogCompactDuration          = time.Second * 30
+	defaultCompactDuration                 = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultEnsureNewSuardInterval          = time.Second * 10
-	defaultMaxProposalBytes                = 10 * mb
+	defaultMaxEntryBytes                   = 10 * mb
 	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
-	defaultMaxAllowTransferLogLag   uint64 = 2
-	defaultRaftThresholdCompactLog  uint64 = 256
+	defaultMaxAllowTransferLag      uint64 = 2
+	defaultCompactThreshold         uint64 = 256
 	defaultRaftTickDuration                = time.Second
 	defaultMaxPeerDownTime                 = time.Minute * 30
 	defaultShardHeartbeatDuration          = time.Second * 2
@@ -65,16 +65,17 @@ type Config struct {
 	Snapshot           SnapshotConfig    `toml:"snapshot"`
 	// Raft raft config
 	Raft RaftConfig `toml:"raft"`
-	// Storage config
-	Storage StorageConfig `toml:"storage"`
-	// Worker config
+	// Worker worker config
 	Worker WorkerConfig `toml:"worker"`
-	// Customize config
-	Customize CustomizeConfig
-	// Prophet config
+	// Prophet prophet config
 	Prophet pconfig.Config `toml:"prophet"`
 	// Metric Config
 	Metric metric.Cfg `toml:"metric"`
+	// Storage config
+	Storage StorageConfig
+	// Worker config
+	// Customize config
+	Customize CustomizeConfig
 }
 
 // Adjust adjust
@@ -193,9 +194,9 @@ func (c *SnapshotConfig) adjust() {
 
 // WorkerConfig worker config
 type WorkerConfig struct {
-	ApplyWorkerCount       uint64 `toml:"apply-worker-count"`
-	SendRaftMsgWorkerCount uint64 `toml:"send-raft-msg-worker-count"`
-	RaftMaxWorkers         uint64 `toml:"raft-max-workers"`
+	ApplyWorkerCount       uint64 `toml:"raft-apply-worker"`
+	SendRaftMsgWorkerCount uint64 `toml:"raft-msg-worker"`
+	RaftEventWorkers       uint64 `toml:"raft-event-workers"`
 }
 
 func (c *WorkerConfig) adjust() {
@@ -207,8 +208,8 @@ func (c *WorkerConfig) adjust() {
 		c.SendRaftMsgWorkerCount = defaultSendRaftMsgWorkerCount
 	}
 
-	if c.RaftMaxWorkers == 0 {
-		c.RaftMaxWorkers = defaultRaftMaxWorkers
+	if c.RaftEventWorkers == 0 {
+		c.RaftEventWorkers = defaultRaftMaxWorkers
 	}
 }
 
@@ -237,10 +238,9 @@ type RaftConfig struct {
 	MaxInflightMsgs int `toml:"max-inflight-msgs"`
 	// MaxEntryBytes max bytes of entry in a proposal message
 	MaxEntryBytes typeutil.ByteSize `toml:"max-entry-bytes"`
-
+	// SendRaftBatchSize raft message sender count
 	SendRaftBatchSize uint64 `toml:"send-raft-batch-size"`
-	MaxProposalBytes  typeutil.ByteSize
-
+	// RaftLog raft log 配置
 	RaftLog RaftLogConfig `toml:"raft-log"`
 }
 
@@ -265,8 +265,8 @@ func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 		c.SendRaftBatchSize = defaultSendRaftBatchSize
 	}
 
-	if c.MaxProposalBytes == 0 {
-		c.MaxProposalBytes = typeutil.ByteSize(defaultMaxProposalBytes)
+	if c.MaxEntryBytes == 0 {
+		c.MaxEntryBytes = typeutil.ByteSize(defaultMaxEntryBytes)
 	}
 
 	(&c.RaftLog).adjust(shardCapacityBytes)
@@ -274,39 +274,39 @@ func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 
 // RaftLogConfig raft log config
 type RaftLogConfig struct {
-	DisableSyncRaftLog            bool
-	RaftLogCompactDuration        typeutil.Duration
-	MaxAllowTransferLogLag        uint64
-	RaftThresholdCompactLog       uint64
-	MaxRaftLogCountToForceCompact uint64
-	MaxRaftLogBytesToForceCompact uint64
-	MaxRaftLogCompactProtectLag   uint64
-	DisableRaftLogCompactProtect  []uint64
+	DisableSync           bool              `toml:"disable-sync"`
+	CompactDuration       typeutil.Duration `toml:"compact-duration"`
+	CompactThreshold      uint64            `toml:"compact-threshold"`
+	DisableCompactProtect []uint64          `toml:"disable-compact-protect"`
+	MaxAllowTransferLag   uint64            `toml:"max-allow-transfer-lag"`
+	ForceCompactCount     uint64
+	ForceCompactBytes     uint64
+	CompactProtectLag     uint64
 }
 
 func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
-	if c.RaftLogCompactDuration.Duration == 0 {
-		c.RaftLogCompactDuration.Duration = defaultRaftLogCompactDuration
+	if c.CompactDuration.Duration == 0 {
+		c.CompactDuration.Duration = defaultCompactDuration
 	}
 
-	if c.MaxAllowTransferLogLag == 0 {
-		c.MaxAllowTransferLogLag = defaultMaxAllowTransferLogLag
+	if c.MaxAllowTransferLag == 0 {
+		c.MaxAllowTransferLag = defaultMaxAllowTransferLag
 	}
 
-	if c.RaftThresholdCompactLog == 0 {
-		c.RaftThresholdCompactLog = defaultRaftThresholdCompactLog
+	if c.CompactThreshold == 0 {
+		c.CompactThreshold = defaultCompactThreshold
 	}
 
-	if c.MaxRaftLogCountToForceCompact == 0 {
-		c.MaxRaftLogCountToForceCompact = shardCapacityBytes * uint64(mb) * 3 / 4 / uint64(kb)
+	if c.ForceCompactCount == 0 {
+		c.ForceCompactCount = shardCapacityBytes * uint64(mb) * 3 / 4 / uint64(kb)
 	}
 
-	if c.MaxRaftLogBytesToForceCompact == 0 {
-		c.MaxRaftLogBytesToForceCompact = shardCapacityBytes * 3 / 4
+	if c.ForceCompactBytes == 0 {
+		c.ForceCompactBytes = shardCapacityBytes * 3 / 4
 	}
 
-	if c.MaxRaftLogCompactProtectLag == 0 {
-		c.MaxRaftLogCompactProtectLag = shardCapacityBytes * uint64(mb) / 256 / 16
+	if c.CompactProtectLag == 0 {
+		c.CompactProtectLag = shardCapacityBytes * uint64(mb) / 256 / 16
 	}
 }
 

@@ -11,10 +11,6 @@ import (
 )
 
 var (
-	errConnect = errors.New("not connected")
-)
-
-var (
 	errStaleCMD           = errors.New("stale command")
 	errStaleEpoch         = errors.New("stale epoch")
 	errNotLeader          = errors.New("notLeader")

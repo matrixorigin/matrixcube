@@ -27,4 +27,5 @@ example-http: http; $(info ======== compiled beehive http example:)
 
 .PHONY: test
 test: ; $(info ======== test beehive)
-	go test -count=1 github.com/matrixorigin/matrixcube/storage
+	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/storage
+	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/raftstore
