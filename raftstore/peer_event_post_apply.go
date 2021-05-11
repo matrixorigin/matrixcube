@@ -3,9 +3,9 @@ package raftstore
 import (
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 func (pr *peerReplica) handleApplyResult(items []interface{}) {
@@ -55,7 +55,7 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 
 	pr.metrics.admin.incBy(result.metrics.admin)
 
-	pr.writtenBytes += uint64(result.metrics.writtenBytes)
+	pr.writtenBytes += result.metrics.writtenBytes
 	pr.writtenKeys += result.metrics.writtenKeys
 
 	if result.hasSplitExecResult() {
@@ -80,141 +80,189 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 
 func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
-	case raftcmdpb.ChangePeer:
+	case raftcmdpb.AdminCmdType_ChangePeer:
 		pr.doApplyConfChange(result.result.changePeer)
-	case raftcmdpb.Split:
+	case raftcmdpb.AdminCmdType_BatchSplit:
 		pr.doApplySplit(result.result.splitResult)
-	case raftcmdpb.CompactRaftLog:
+	case raftcmdpb.AdminCmdType_CompactLog:
 		pr.doApplyCompactRaftLog(result.result.raftGCResult)
 	}
 }
 
 func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
-	pr.rn.ApplyConfChange(cp.confChange)
-	if cp.confChange.NodeID == 0 {
+	if cp.index == 0 {
 		// Apply failed, skip.
 		return
 	}
 
+	pr.rn.ApplyConfChange(cp.confChange)
 	pr.ps.shard = cp.shard
-	if pr.isLeader() {
-		// Notify pd immediately.
-		logger.Infof("shard %d notify pd with %s with peer %+v at epoch %+v",
-			pr.shardID,
-			cp.confChange.Type.String(),
-			cp.peer,
-			pr.ps.shard.Epoch)
-		pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
-	}
 
-	switch cp.confChange.Type {
-	case etcdraftpb.ConfChangeAddNode:
-		// Add this peer to cache.
-		pr.peerHeartbeatsMap.Store(cp.peer.ID, time.Now())
-		pr.store.peers.Store(cp.peer.ID, cp.peer)
-	case etcdraftpb.ConfChangeRemoveNode:
-		// Remove this peer from cache.
-		pr.peerHeartbeatsMap.Delete(cp.peer.ID)
-		pr.store.peers.Delete(cp.peer.ID)
+	remove_self := false
+	need_ping := false
+	now := time.Now()
+	for _, change := range cp.changes {
+		change_type := change.ChangeType
+		peer := change.Peer
+		store_id := peer.ContainerID
+		peer_id := peer.ID
 
-		// We only care remove itself now.
-		if cp.peer.StoreID == pr.store.meta.meta.ID {
-			if cp.peer.ID == pr.peer.ID {
-				pr.mustDestroy()
-			} else {
-				logger.Fatalf("shard %d trying to remove unknown peer, peer=<%+v>",
-					pr.shardID,
-					cp.peer)
+		switch change_type {
+		case metapb.ChangePeerType_AddNode, metapb.ChangePeerType_AddLearnerNode:
+			pr.peerHeartbeatsMap.Store(peer_id, now)
+			pr.store.peers.Store(peer_id, peer)
+			if pr.isLeader() {
+				need_ping = true
+			}
+		case metapb.ChangePeerType_RemoveNode:
+			pr.peerHeartbeatsMap.Delete(peer_id)
+			pr.store.peers.Delete(peer_id)
+
+			// We only care remove itself now.
+			if pr.store.meta.meta.ID == store_id {
+				if pr.peer.ID == peer_id {
+					remove_self = true
+				} else {
+					logger.Fatalf("shard-%d trying to remove unknown peer %+v",
+						pr.shardID,
+						peer)
+				}
 			}
 		}
 	}
 
-	logger.Infof("shard %d applied %s with peer %+v at epoch %+v, new peers %+v",
+	if pr.isLeader() {
+		// Notify pd immediately.
+		logger.Infof("shard %d notify pd with %+v with changes %+v at epoch %+v",
+			pr.shardID,
+			cp.confChange,
+			cp.changes,
+			pr.ps.shard.Epoch)
+		pr.addAction(action{actionType: heartbeatAction})
+
+		// Remove or demote leader will cause this raft group unavailable
+		// until new leader elected, but we can't revert this operation
+		// because its result is already persisted in apply worker
+		// TODO: should we transfer leader here?
+		demote_self := pr.peer.Role == metapb.PeerRole_Learner
+		if remove_self || demote_self {
+			logger.Warningf("shard-%d removing or demoting leader, remove %+v, demote",
+				pr.shardID,
+				remove_self,
+				demote_self)
+
+			if demote_self {
+				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
+			}
+
+			// Don't ping to speed up leader election
+			need_ping = false
+		}
+
+		if need_ping {
+			// Speed up snapshot instead of waiting another heartbeat.
+			pr.rn.Ping()
+		}
+
+		if remove_self {
+			pr.mustDestroy()
+		}
+	}
+
+	logger.Infof("shard %d applied changes %+v at epoch %+v, new peers %+v",
 		pr.shardID,
-		cp.confChange.Type.String(),
-		cp.peer,
+		cp.changes,
 		pr.ps.shard.Epoch,
 		pr.ps.shard.Peers)
 }
 
 func (pr *peerReplica) doApplySplit(result *splitResult) {
-	pr.ps.shard = result.left
 	logger.Infof("shard %d update to %+v by post applt split",
 		pr.ps.shard.ID,
 		pr.ps.shard)
 
-	// add new shard peers to cache
-	for _, p := range result.right.Peers {
-		pr.store.peers.Store(p.ID, p)
+	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
+	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)
+	pr.ps.shard = result.derived
+	pr.sizeDiffHint = 0
+	pr.approximateKeys = 0
+	pr.approximateSize = 0
+	pr.store.updateShardKeyRange(result.derived)
+
+	if pr.isLeader() {
+		pr.approximateSize = estimatedSize
+		pr.approximateKeys = estimatedKeys
+		pr.addAction(action{actionType: heartbeatAction})
 	}
 
-	newShardID := result.right.ID
-	newPR := pr.store.getPR(newShardID, false)
-	if newPR != nil {
-		for _, p := range result.right.Peers {
+	for _, shard := range result.shards {
+		// add new shard peers to cache
+		for _, p := range shard.Peers {
 			pr.store.peers.Store(p.ID, p)
 		}
 
-		// If the store received a raft msg with the new shard raft group
-		// before splitting, it will creates a uninitialized peer.
-		// We can remove this uninitialized peer directly.
-		if newPR.ps.isInitialized() {
-			logger.Fatalf("shard %d duplicated shard split to new shard %d",
+		newShardID := shard.ID
+		newPR := pr.store.getPR(newShardID, false)
+		if newPR != nil {
+			for _, p := range shard.Peers {
+				pr.store.peers.Store(p.ID, p)
+			}
+
+			// If the store received a raft msg with the new shard raft group
+			// before splitting, it will creates a uninitialized peer.
+			// We can remove this uninitialized peer directly.
+			if newPR.ps.isInitialized() {
+				logger.Fatalf("shard %d duplicated shard split to new shard %d",
+					pr.shardID,
+					newShardID)
+			}
+		}
+
+		newPR, err := createPeerReplica(pr.store, &shard)
+		if err != nil {
+			// peer information is already written into db, can't recover.
+			// there is probably a bug.
+			logger.Fatalf("shard %d create new split shard failed, new shard=<%+v> errors:\n %+v",
 				pr.shardID,
-				newShardID)
+				shard,
+				err)
+		}
+
+		pr.store.updateShardKeyRange(shard)
+
+		newPR.approximateKeys = estimatedKeys
+		newPR.approximateSize = estimatedSize
+		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
+		newPR.startRegistrationJob()
+		pr.store.addPR(newPR)
+
+		// If this peer is the leader of the shard before split, it's intuitional for
+		// it to become the leader of new split shard.
+		// The ticks are accelerated here, so that the peer for the new split shard
+		// comes to campaign earlier than the other follower peers. And then it's more
+		// likely for this peer to become the leader of the new split shard.
+		// If the other follower peers applies logs too slowly, they may fail to vote the
+		// `MsgRequestVote` from this peer on its campaign.
+		// In this worst case scenario, the new split raft group will not be available
+		// since there is no leader established during one election timeout after the split.
+		if pr.isLeader() && len(shard.Peers) > 1 {
+			newPR.addAction(action{actionType: doCampaignAction})
+		}
+
+		if !pr.isLeader() {
+			if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {
+				newPR.step(vote)
+			}
 		}
 	}
 
-	newPR, err := createPeerReplica(pr.store, &result.right)
-	if err != nil {
-		// peer information is already written into db, can't recover.
-		// there is probably a bug.
-		logger.Fatalf("shard %d create new split shard failed, new shard=<%+v> errors:\n %+v",
-			pr.shardID,
-			result.right,
-			err)
+	if pr.store.aware != nil {
+		pr.store.aware.Splited(pr.ps.shard)
 	}
 
-	pr.store.updateShardKeyRange(result.left)
-	pr.store.updateShardKeyRange(result.right)
-
-	newPR.sizeDiffHint = newPR.store.opts.shardSplitCheckBytes
-	newPR.startRegistrationJob()
-	pr.store.addPR(newPR)
-
-	// If this peer is the leader of the shard before split, it's intuitional for
-	// it to become the leader of new split shard.
-	// The ticks are accelerated here, so that the peer for the new split shard
-	// comes to campaign earlier than the other follower peers. And then it's more
-	// likely for this peer to become the leader of the new split shard.
-	// If the other follower peers applies logs too slowly, they may fail to vote the
-	// `MsgRequestVote` from this peer on its campaign.
-	// In this worst case scenario, the new split raft group will not be available
-	// since there is no leader established during one election timeout after the split.
-	if pr.isLeader() && len(result.right.Peers) > 1 {
-		newPR.addAction(doCampaignAction)
-	}
-
-	if pr.isLeader() {
-		logger.Infof("shard %d notify pd with split, left=<%+v> right=<%+v>, state=<%s>, apply=<%s>",
-			pr.shardID,
-			result.left,
-			result.right,
-			pr.ps.raftState.String(),
-			pr.ps.applyState.String())
-
-		pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
-	} else {
-		if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {
-			newPR.step(vote)
-		}
-	}
-
-	pr.store.opts.shardStateAware.Splited(pr.ps.shard)
-	logger.Infof("shard %d new shard added, left=<%+v> right=<%+v>",
+	logger.Infof("shard %d new shard added, new shards %+v",
 		pr.shardID,
-		result.left,
-		result.right)
+		result.shards)
 }
 
 func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {

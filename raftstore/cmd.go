@@ -14,11 +14,11 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 type cmd struct {
@@ -32,14 +32,6 @@ type cmd struct {
 func (c *cmd) isFull(n, max int) bool {
 	// -64 means exclude etcd raft entry other fields
 	return max-64 <= c.size+n
-}
-
-func (c *cmd) reset() {
-	c.req = nil
-	c.cb = nil
-	c.term = 0
-	c.tp = -1
-	c.size = 0
 }
 
 func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
@@ -63,7 +55,7 @@ func resp(req *raftcmdpb.Request, resp *raftcmdpb.Response, cb func(*raftcmdpb.R
 
 func respWithRetry(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
 	resp := pb.AcquireResponse()
-	resp.Type = raftcmdpb.RaftError
+	resp.Type = raftcmdpb.CMDType_Invalid
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID

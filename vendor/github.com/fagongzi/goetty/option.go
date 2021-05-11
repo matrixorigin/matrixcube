@@ -1,117 +1,77 @@
 package goetty
 
-import "time"
+import (
+	"net"
+	"time"
+
+	"github.com/fagongzi/goetty/codec"
+)
 
 const (
 	// DefaultSessionBucketSize default bucket size of session map
-	DefaultSessionBucketSize = 64
+	DefaultSessionBucketSize = uint64(64)
 	// DefaultReadBuf read buf size
 	DefaultReadBuf = 256
 	// DefaultWriteBuf write buf size
 	DefaultWriteBuf = 256
 )
 
-var (
-	defaultEncoder = NewEmptyEncoder()
-	defaultDecoder = NewEmptyDecoder()
-)
+// AppOption application option
+type AppOption func(*appOptions)
 
-// ServerOption option of server side
-type ServerOption func(*serverOptions)
-
-type serverOptions struct {
-	decoder                   Decoder
-	encoder                   Encoder
-	generator                 IDGenerator
-	readBufSize, writeBufSize int
-	sessionBucketSize         int
-	useSyncProtocol           bool
-	middlewares               []Middleware
+type appOptions struct {
+	sessionOpts       *options
+	sessionBucketSize uint64
+	errorMsgFactory   func(IOSession, interface{}, error) interface{}
 }
 
-func (opts *serverOptions) adjust() {
+// WithAppSessionOptions set the number of maps to store session
+func WithAppSessionOptions(value ...Option) AppOption {
+	return func(opts *appOptions) {
+		for _, opt := range value {
+			opt(opts.sessionOpts)
+		}
+	}
+}
+
+// WithAppSessionBucketSize set the number of maps to store session
+func WithAppSessionBucketSize(value uint64) AppOption {
+	return func(opts *appOptions) {
+		opts.sessionBucketSize = value
+	}
+}
+
+// WithAppErrorMsgFactory set function to process error, closed the client session if this field not set
+func WithAppErrorMsgFactory(value func(IOSession, interface{}, error) interface{}) AppOption {
+	return func(opts *appOptions) {
+		opts.errorMsgFactory = value
+	}
+}
+
+func (opts *appOptions) adjust() {
+	opts.sessionOpts.adjust()
+
 	if opts.sessionBucketSize == 0 {
 		opts.sessionBucketSize = DefaultSessionBucketSize
 	}
-
-	if opts.readBufSize == 0 {
-		opts.readBufSize = DefaultReadBuf
-	}
-
-	if opts.writeBufSize == 0 {
-		opts.writeBufSize = DefaultWriteBuf
-	}
-
-	if opts.generator == nil {
-		opts.generator = NewInt64IDGenerator()
-	}
-
-	if opts.encoder == nil {
-		opts.encoder = defaultEncoder
-	}
-
-	if opts.decoder == nil {
-		opts.decoder = defaultDecoder
-	}
 }
 
-// WithServerDecoder option of server's decoder
-func WithServerDecoder(decoder Decoder) ServerOption {
-	return func(opts *serverOptions) {
-		opts.decoder = decoder
-	}
-}
+// Option transport option
+type Option func(*options)
 
-// WithServerEncoder option of server's encoder
-func WithServerEncoder(encoder Encoder) ServerOption {
-	return func(opts *serverOptions) {
-		opts.encoder = encoder
-	}
-}
-
-// WithServerReadBufSize option of server's read buf size
-func WithServerReadBufSize(readBufSize int) ServerOption {
-	return func(opts *serverOptions) {
-		opts.readBufSize = readBufSize
-	}
-}
-
-// WithServerWriteBufSize option of server's write buf size
-func WithServerWriteBufSize(writeBufSize int) ServerOption {
-	return func(opts *serverOptions) {
-		opts.writeBufSize = writeBufSize
-	}
-}
-
-// WithServerIDGenerator option of server's id generator
-func WithServerIDGenerator(generator IDGenerator) ServerOption {
-	return func(opts *serverOptions) {
-		opts.generator = generator
-	}
-}
-
-// WithServerMiddleware option of handle write timeout
-func WithServerMiddleware(middlewares ...Middleware) ServerOption {
-	return func(opts *serverOptions) {
-		opts.middlewares = append(opts.middlewares, middlewares...)
-	}
-}
-
-// ClientOption option of client side
-type ClientOption func(*clientOptions)
-
-type clientOptions struct {
-	decoder                   Decoder
-	encoder                   Encoder
+type options struct {
+	logger                    Logger
+	decoder                   codec.Decoder
+	encoder                   codec.Encoder
 	readBufSize, writeBufSize int
-	connectTimeout            time.Duration
-	writeTimeout              time.Duration
-	writeTimeoutHandler       func(string, IOSession)
-	timeWheel                 *TimeoutWheel
-	middlewares               []Middleware
+	writeTimeout, readTimeout time.Duration
+	connOptionFunc            func(net.Conn)
+	asyncWrite                bool
+	asyncFlushBatch           int64
+	releaseMsgFunc            func(interface{})
 }
 
-func (opts *clientOptions) adjust() {
+func (opts *options) adjust() {
 	if opts.readBufSize == 0 {
 		opts.readBufSize = DefaultReadBuf
 	}
@@ -120,62 +80,68 @@ func (opts *clientOptions) adjust() {
 		opts.writeBufSize = DefaultWriteBuf
 	}
 
-	if opts.encoder == nil {
-		opts.encoder = defaultEncoder
+	if opts.releaseMsgFunc == nil {
+		opts.releaseMsgFunc = func(interface{}) {}
 	}
 
-	if opts.decoder == nil {
-		opts.decoder = defaultDecoder
+	if opts.connOptionFunc == nil {
+		opts.connOptionFunc = func(net.Conn) {}
+	}
+
+	if opts.logger == nil {
+		opts.logger = newStdLog()
 	}
 }
 
-// WithClientDecoder option of client's decoder
-func WithClientDecoder(decoder Decoder) ClientOption {
-	return func(opts *clientOptions) {
+// WithLogger set logger
+func WithLogger(value Logger) Option {
+	return func(opts *options) {
+		opts.logger = value
+	}
+}
+
+// WithConnOptionFunc set conn options func
+func WithConnOptionFunc(connOptionFunc func(net.Conn)) Option {
+	return func(opts *options) {
+		opts.connOptionFunc = connOptionFunc
+	}
+}
+
+// WithCodec set codec
+func WithCodec(encoder codec.Encoder, decoder codec.Decoder) Option {
+	return func(opts *options) {
+		opts.encoder = encoder
 		opts.decoder = decoder
 	}
 }
 
-// WithClientEncoder option of client's encoder
-func WithClientEncoder(encoder Encoder) ClientOption {
-	return func(opts *clientOptions) {
-		opts.encoder = encoder
+// WithBufSize set read/write buf size
+func WithBufSize(read, write int) Option {
+	return func(opts *options) {
+		opts.readBufSize = read
+		opts.writeBufSize = write
 	}
 }
 
-// WithClientReadBufSize option of client's read buf size
-func WithClientReadBufSize(readBufSize int) ClientOption {
-	return func(opts *clientOptions) {
-		opts.readBufSize = readBufSize
+// WithTimeout set read/write timeout
+func WithTimeout(read, write time.Duration) Option {
+	return func(opts *options) {
+		opts.writeTimeout = write
+		opts.readTimeout = read
 	}
 }
 
-// WithClientWriteBufSize option of client's write buf size
-func WithClientWriteBufSize(writeBufSize int) ClientOption {
-	return func(opts *clientOptions) {
-		opts.writeBufSize = writeBufSize
+// WithEnableAsyncWrite enable async write
+func WithEnableAsyncWrite(asyncFlushBatch int64) Option {
+	return func(opts *options) {
+		opts.asyncWrite = true
+		opts.asyncFlushBatch = asyncFlushBatch
 	}
 }
 
-// WithClientConnectTimeout option of timeout to connect to server
-func WithClientConnectTimeout(timeout time.Duration) ClientOption {
-	return func(opts *clientOptions) {
-		opts.connectTimeout = timeout
-	}
-}
-
-// WithClientWriteTimeoutHandler option of handle write timeout
-func WithClientWriteTimeoutHandler(timeout time.Duration, handler func(string, IOSession), timeWheel *TimeoutWheel) ClientOption {
-	return func(opts *clientOptions) {
-		opts.writeTimeout = timeout
-		opts.writeTimeoutHandler = handler
-		opts.timeWheel = timeWheel
-	}
-}
-
-// WithClientMiddleware option of handle write timeout
-func WithClientMiddleware(middlewares ...Middleware) ClientOption {
-	return func(opts *clientOptions) {
-		opts.middlewares = append(opts.middlewares, middlewares...)
+// WithReleaseMsgFunc set the number of maps to store session
+func WithReleaseMsgFunc(value func(interface{})) Option {
+	return func(opts *options) {
+		opts.releaseMsgFunc = value
 	}
 }

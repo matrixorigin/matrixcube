@@ -14,15 +14,13 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/fagongzi/goetty"
+	"fmt"
+
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
-)
-
-var (
-	encoder = newRaftEncoder()
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 )
 
 const (
@@ -45,7 +43,7 @@ func newRaftEncoder() *raftEncoder {
 	return &raftEncoder{}
 }
 
-func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
+func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	t, err := in.ReadByte()
 	if err != nil {
 		return true, nil, err
@@ -55,7 +53,7 @@ func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error)
 
 	switch t {
 	case typeSnap:
-		msg := &raftpb.SnapshotMessage{}
+		msg := &bhraftpb.SnapshotMessage{}
 		protoc.MustUnmarshal(msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
@@ -66,31 +64,25 @@ func (decoder raftDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error)
 		return true, msg, nil
 	}
 
-	log.Fatalf("[beehive]: bug, not support msg type %d", t)
-	return false, nil, nil
+	return false, nil, fmt.Errorf("[beehive]: bug, not support msg type %d", t)
 }
 
-func (e raftEncoder) Encode(data interface{}, out *goetty.ByteBuf) error {
+func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	t := typeRaft
 	var m protoc.PB
 
-	switch data.(type) {
-	case *raftpb.RaftMessage:
+	if v, ok := data.(*bhraftpb.RaftMessage); ok {
 		t = typeRaft
-		m = data.(*raftpb.RaftMessage)
-		break
-	case *raftpb.SnapshotMessage:
+		m = v
+	} else if v, ok := data.(*bhraftpb.SnapshotMessage); ok {
 		t = typeSnap
-		m = data.(*raftpb.SnapshotMessage)
-		break
-	default:
+		m = v
+	} else {
 		log.Fatalf("[beehive]: bug, not support msg type %T", data)
 	}
 
 	size := m.Size()
-	out.WriteInt(size + 1)
 	out.WriteByte(byte(t))
-
 	if size > 0 {
 		index := out.GetWriteIndex()
 		out.Expansion(size)

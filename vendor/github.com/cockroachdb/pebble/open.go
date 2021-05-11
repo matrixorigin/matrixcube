@@ -10,8 +10,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -65,6 +65,7 @@ func Open(dirname string, opts *Options) (db *DB, _ error) {
 		abbreviatedKey:      opts.Comparer.AbbreviatedKey,
 		largeBatchThreshold: (opts.MemTableSize - int(memTableEmptySize)) / 2,
 		logRecycler:         logRecycler{limit: opts.MemTableStopWritesThreshold + 1},
+		closed:              new(atomic.Value),
 		closedCh:            make(chan struct{}),
 	}
 	d.mu.versions = &versionSet{}
@@ -351,7 +352,7 @@ func Open(dirname string, opts *Options) (db *DB, _ error) {
 
 	if !d.opts.ReadOnly {
 		d.scanObsoleteFiles(ls)
-		d.deleteObsoleteFiles(jobID)
+		d.deleteObsoleteFiles(jobID, true /* waitForOngoing */)
 	} else {
 		// All the log files are obsolete.
 		d.mu.versions.metrics.WAL.Files = int64(len(logFiles))
@@ -363,15 +364,30 @@ func Open(dirname string, opts *Options) (db *DB, _ error) {
 	d.maybeScheduleFlush()
 	d.maybeScheduleCompaction()
 
-	if invariants.Enabled {
-		runtime.SetFinalizer(d, func(obj interface{}) {
-			d := obj.(*DB)
-			if err := d.closed.Load(); err == nil {
-				fmt.Fprintf(os.Stderr, "%p: unreferenced DB not closed\n", d)
-				os.Exit(1)
-			}
-		})
-	}
+	// Note: this is a no-op if invariants are disabled or race is enabled.
+	//
+	// Setting a finalizer on *DB causes *DB to never be reclaimed and the
+	// finalizer to never be run. The problem is due to this limitation of
+	// finalizers mention in the SetFinalizer docs:
+	//
+	//   If a cyclic structure includes a block with a finalizer, that cycle is
+	//   not guaranteed to be garbage collected and the finalizer is not
+	//   guaranteed to run, because there is no ordering that respects the
+	//   dependencies.
+	//
+	// DB has cycles with several of its internal structures: readState,
+	// newIters, tableCache, versions, etc. Each of this individually cause a
+	// cycle and prevent the finalizer from being run. But we can workaround this
+	// finializer limitation by setting a finalizer on another object that is
+	// tied to the lifetime of DB: the DB.closed atomic.Value.
+	dPtr := fmt.Sprintf("%p", d)
+	invariants.SetFinalizer(d.closed, func(obj interface{}) {
+		v := obj.(*atomic.Value)
+		if err := v.Load(); err == nil {
+			fmt.Fprintf(os.Stderr, "%s: unreferenced DB not closed\n", dPtr)
+			os.Exit(1)
+		}
+	})
 
 	d.fileLock, fileLock = fileLock, nil
 	return d, nil
@@ -529,7 +545,7 @@ func (d *DB) replayWAL(
 		seqNum := b.SeqNum()
 		maxSeqNum = seqNum + uint64(b.Count())
 
-		if b.memTableSize >= uint32(d.largeBatchThreshold) {
+		if b.memTableSize >= uint64(d.largeBatchThreshold) {
 			flushMem()
 			// Make a copy of the data slice since it is currently owned by buf and will
 			// be reused in the next iteration.

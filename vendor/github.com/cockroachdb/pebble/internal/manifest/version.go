@@ -48,6 +48,9 @@ type TableStats struct {
 	// The number of point and range deletion entries in the table.
 	NumDeletions uint64
 	// Estimate of the total disk space that may be dropped by this table's
+	// point deletions by compacting them.
+	PointDeletionsBytesEstimate uint64
+	// Estimate of the total disk space that may be dropped by this table's
 	// range deletions by compacting them. This estimate is at data-block
 	// granularity and is not updated if compactions beneath the table reduce
 	// the amount of reclaimable disk space. It also does not account for
@@ -93,10 +96,18 @@ type FileMetadata struct {
 	// is true and IsIntraL0Compacting is false for an L0 file, the file must
 	// be part of a compaction to Lbase.
 	IsIntraL0Compacting bool
-	subLevel            int
-	l0Index             int
-	minIntervalIndex    int
-	maxIntervalIndex    int
+	// Fields inside the Atomic struct should be accessed atomically.
+	Atomic struct {
+		// AllowedSeeks is used to determine if a file should be picked for
+		// a read triggered compaction. It is decremented when read sampling
+		// in pebble.Iterator after every after every positioning operation
+		// that returns a user key (eg. Next, Prev, SeekGE, SeekLT, etc).
+		AllowedSeeks int64
+	}
+	subLevel         int
+	l0Index          int
+	minIntervalIndex int
+	maxIntervalIndex int
 
 	// True if user asked us to compact this file. This flag is only set and
 	// respected by RocksDB but exists here to preserve its value in the
@@ -255,10 +266,7 @@ const NumLevels = 7
 // NewVersion constructs a new Version with the provided files. It requires
 // the provided files are already well-ordered. It's intended for testing.
 func NewVersion(
-	cmp Compare,
-	formatKey base.FormatKey,
-	flushSplitBytes int64,
-	files [NumLevels][]*FileMetadata,
+	cmp Compare, formatKey base.FormatKey, flushSplitBytes int64, files [NumLevels][]*FileMetadata,
 ) *Version {
 	var v Version
 	for l := range files {
@@ -315,9 +323,18 @@ type Version struct {
 	// levels, sublevel n contains older tables (lower sequence numbers) than
 	// sublevel n+1.
 	//
+	// The L0Sublevels struct is mostly used for compaction picking. As most
+	// internal data structures in it are only necessary for compaction picking
+	// and not for iterator creation, the reference to L0Sublevels is nil'd
+	// after this version becomes the non-newest version, to reduce memory
+	// usage.
+	//
 	// L0Sublevels.Levels contains L0 files ordered by sublevels. All the files
-	// in Files[0] are in L0Sublevels.Levels.
-	L0Sublevels *L0Sublevels
+	// in Files[0] are in L0Sublevels.Levels. L0SublevelFiles is also set to
+	// a reference to that slice, as that slice is necessary for iterator
+	// creation and needs to outlast L0Sublevels.
+	L0Sublevels     *L0Sublevels
+	L0SublevelFiles []LevelSlice
 
 	Levels [NumLevels]LevelMetadata
 
@@ -339,10 +356,10 @@ func (v *Version) String() string {
 // Pretty returns a string representation of the version.
 func (v *Version) Pretty(format base.FormatKey) string {
 	var buf bytes.Buffer
-	if v.L0Sublevels != nil {
-		for sublevel := len(v.L0Sublevels.Levels) - 1; sublevel >= 0; sublevel-- {
+	if len(v.L0SublevelFiles) > 0 {
+		for sublevel := len(v.L0SublevelFiles) - 1; sublevel >= 0; sublevel-- {
 			fmt.Fprintf(&buf, "0.%d:\n", sublevel)
-			v.L0Sublevels.Levels[sublevel].Each(func(f *FileMetadata) {
+			v.L0SublevelFiles[sublevel].Each(func(f *FileMetadata) {
 				fmt.Fprintf(&buf, "  %06d:[%s-%s]\n", f.FileNum,
 					format(f.Smallest.UserKey), format(f.Largest.UserKey))
 			})
@@ -367,10 +384,10 @@ func (v *Version) Pretty(format base.FormatKey) string {
 func (v *Version) DebugString(format base.FormatKey) string {
 	var buf bytes.Buffer
 
-	if v.L0Sublevels != nil {
-		for sublevel := len(v.L0Sublevels.Levels) - 1; sublevel >= 0; sublevel-- {
+	if len(v.L0SublevelFiles) > 0 {
+		for sublevel := len(v.L0SublevelFiles) - 1; sublevel >= 0; sublevel-- {
 			fmt.Fprintf(&buf, "0.%d:\n", sublevel)
-			v.L0Sublevels.Levels[sublevel].Each(func(f *FileMetadata) {
+			v.L0SublevelFiles[sublevel].Each(func(f *FileMetadata) {
 				fmt.Fprintf(&buf, "  %06d:[%s-%s]\n", f.FileNum,
 					f.Smallest.Pretty(format), f.Largest.Pretty(format))
 			})
@@ -445,6 +462,9 @@ func (v *Version) InitL0Sublevels(
 ) error {
 	var err error
 	v.L0Sublevels, err = NewL0Sublevels(&v.Levels[0], cmp, formatKey, flushSplitBytes)
+	if err == nil && v.L0Sublevels != nil {
+		v.L0SublevelFiles = v.L0Sublevels.Levels
+	}
 	return err
 }
 
@@ -549,8 +569,8 @@ func (v *Version) Overlaps(level int, cmp Compare, start, end []byte) LevelSlice
 // increasing file numbers (for level 0 files) and increasing and non-
 // overlapping internal key ranges (for level non-0 files).
 func (v *Version) CheckOrdering(cmp Compare, format base.FormatKey) error {
-	for sublevel := len(v.L0Sublevels.Levels) - 1; sublevel >= 0; sublevel-- {
-		sublevelIter := v.L0Sublevels.Levels[sublevel].Iter()
+	for sublevel := len(v.L0SublevelFiles) - 1; sublevel >= 0; sublevel-- {
+		sublevelIter := v.L0SublevelFiles[sublevel].Iter()
 		if err := CheckOrdering(cmp, format, L0Sublevel(sublevel), sublevelIter); err != nil {
 			return base.CorruptionErrorf("%s\n%s", err, v.DebugString(format))
 		}
@@ -637,6 +657,9 @@ func (l *VersionList) PushBack(v *Version) {
 	v.next = &l.root
 	v.next.prev = v
 	v.list = l
+	// Let L0Sublevels on the second newest version get GC'd, as it is no longer
+	// necessary. See the comment in Version.
+	v.prev.L0Sublevels = nil
 }
 
 // Remove removes the specified version from the list.

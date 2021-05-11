@@ -318,6 +318,10 @@ type raft struct {
 	step stepFunc
 
 	logger Logger
+
+	// The peer is requesting snapshot, it is the index that the follower
+	// needs it to be included in a snapshot.
+	pendingRequestSnapshot uint64
 }
 
 func newRaft(c *Config) *raft {
@@ -356,6 +360,7 @@ func newRaft(c *Config) *raft {
 		preVote:                   c.PreVote,
 		readOnly:                  newReadOnly(c.ReadOnlyOption),
 		disableProposalForwarding: c.DisableProposalForwarding,
+		pendingRequestSnapshot:    0,
 	}
 
 	cfg, prs, err := confchange.Restore(confchange.Changer{
@@ -598,7 +603,12 @@ func (r *raft) advance(rd Ready) {
 // r.bcastAppend).
 func (r *raft) maybeCommit() bool {
 	mci := r.prs.Committed()
-	return r.raftLog.maybeCommit(mci, r.Term)
+	if r.raftLog.maybeCommit(mci, r.Term) {
+		r.prs.Progress[r.id].UpdateCommitted(r.raftLog.committed)
+		return true
+	}
+
+	return false
 }
 
 func (r *raft) reset(term uint64) {
@@ -624,6 +634,7 @@ func (r *raft) reset(term uint64) {
 		}
 		if id == r.id {
 			pr.Match = r.raftLog.lastIndex()
+			pr.CommittedIndex = r.raftLog.committed
 		}
 	})
 
@@ -1125,6 +1136,9 @@ func stepLeader(r *raft, m pb.Message) error {
 	case pb.MsgAppResp:
 		pr.RecentActive = true
 
+		// update followers committed index via append response
+		pr.UpdateCommitted(m.Commit)
+
 		if m.Reject {
 			r.logger.Debugf("%x received MsgAppResp(MsgApp was rejected, lastindex: %d) from %x for index %d",
 				r.id, m.RejectHint, m.From, m.Index)
@@ -1180,6 +1194,9 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		}
 	case pb.MsgHeartbeatResp:
+		// update followers committed index via append response
+		pr.UpdateCommitted(m.Commit)
+
 		pr.RecentActive = true
 		pr.ProbeSent = false
 
@@ -1502,11 +1519,14 @@ func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
 			LastIndex: r.raftLog.lastIndex(),
 		}
 		if cc.LeaveJoint() {
-			return changer.LeaveJoint()
+			c, t, _, err := changer.LeaveJoint()
+			return c, t, err
 		} else if autoLeave, ok := cc.EnterJoint(); ok {
-			return changer.EnterJoint(autoLeave, cc.Changes...)
+			c, t, _, err := changer.EnterJoint(autoLeave, cc.Changes...)
+			return c, t, err
 		}
-		return changer.Simple(cc.Changes...)
+		c, t, _, err := changer.Simple(cc.Changes...)
+		return c, t, err
 	}()
 
 	if err != nil {

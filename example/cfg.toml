@@ -1,0 +1,326 @@
+# cube的完整的配置文件
+# 1. 关于bytes大小的配置：可用的配置单位 "KB", "MB", "GB", "PB"。不区分大小写。
+# 2. 关于duration的配置：可用的时间单位："ns", "us", "ms", "s", "m", "h"。组合也
+# 是可以的，比如"2h45m"也是一个合法的配置。
+
+# raft-group的RPC通信地址，节点之间通过这个地址来发送raft message和snapshot。
+addr-raft = "127.0.0.1:20001"
+
+# 对客户端开放的地址，客户通过这个端口和cube来交互自定义的业务请求。
+addr-client = "127.0.0.1:20002"
+
+# cube的数据存放目录，每个节点会根据这个目录所在的磁盘统计存储的使用情况，上报给调度节点。
+dir-data = "/tmp/beehive"
+
+# cube的发布版本号
+version = "版本号"
+
+# cube的git hash
+githash = "git hash"
+
+# 当前cube节点的label信息，这些信息会通过节点的心跳消息上报给调度节点，调度节点根据每个节点
+# 的label信息来做调度，比如可以做raft-group的副本的隔离级别。
+labels = [
+    ["zone", "default-zone"],
+    ["rack", "rack-0"],
+    ["host", "node-0"]
+]
+
+# 这个节点最大可使用的存储空间，这个值 <= dir-data所在的磁盘的大小。但cube节点所存储的数据量
+# 超过这个值，调度节点会停止调度新的raft-group到这个节点。
+capacity = "100GB"
+
+# 通常我们的应用使用磁盘存储数据，那么cube会统计dir-data所在的磁盘存储信息来上报给调度节点，
+# 调度节点通过集群中所有节点的磁盘的存储信息来rebalance。如果应用使用内存来存储数据，可以设置
+# 位true，那么cube就会使用内存的使用信息来代替磁盘的信息上报，那么调度节点就会根据内存的使用
+# 情况来做rebalance。
+use-memory-as-storage = false
+
+# raft-group的分组个数，默认1。cube使用range分区来做multi-raft，所以每个raft-group的range范围
+# 是不能有gap的，当应用使用cube来做一些混合存储，同时提供多种存储服务，可以设置raft-group的分组
+# 个数，每个分组内，raft-group的range是不能有gap，不同组之间则没关系。
+# 可以在初始化cube的时候，使用config.Customize.CustomInitShardsFactory来初始化每个group的第一个
+# raft-group。
+shard-groups = 1
+
+# replication相关的配置
+[replication]
+# 一个raft-group的副本最大的down time，当一个副本的down time超过这个值，调度节点就会认为这个副本用久的故障了，
+# 然后会在集群中选择一个合适的节点来重新创建这个副本。如果后面这个节点又重新启动了，那么调度节点会通知这个副本
+# 销毁自己。
+max-peer-down-time = "30m"
+
+# cube中每一个raft-group叫做一个`shard`，每个shard由多个副本组成，同是会通过raft选择一个leader副本，这个leader
+# 副本会周期新的收集shard的信息（包括副本个数，DownPeers，PendingPeers，大概的数据大小，读写请求统计信息等）上报给
+# 调度节点。使用这个配置来指定上报周期。
+shard-heartbeat-duration = "30s"
+
+# cube中每个节点叫做一个store，每个store会存储多个Shard的副本。store节点会周期性的收集当前节点的信息（包括存储统计信息，
+# IO统计信息，CPU统计信息，shards信息等）上报给调度节点。使用这个配置来指定上报周期。
+store-heartbeat-duration = "1m"
+
+# cube中，一个shard所管理的数据大小不能无限制的增长，到达了指定的shard的最大数据阈值，就会分类成N个Shards。每个Shard副本
+# 的leader会周期的新的check当前Shard的大小，来决定是否需要分裂当前Shard。
+shard-split-check-duration = "1m"
+
+# 如果应用希望cube的Shard不做Split，可以使用这个全局配置，来禁止Split操作。注意这个操作是全局生效的，一旦配置
+# 为True，那么集群中所有的Shard都会被禁止Split，如果只是系统某些Shard不做Split，可以指定Shard的属性`DisableSplit`。
+disable-shard-split = false
+
+# Cube的调度节点会时时刻刻观察整个集群的信息，如果发现Shard的副本不均衡的情况，会在集群之前搬迁Shard的副本。但是在调度
+# 节点做rebalance的时候，把一个Shard副本的leader节点从一个节点搬迁到另外一个节点，那么对于整个集群的读写请求是由影响的，
+# 可以通过这个配置来指定。
+allow-remove-leader = false
+
+# 一个Shard最大可以管理的数据大小，超过这个大小，Shard会执行Split操作。调度节点在集群层面做数据的balance的时候，就是
+# 达成所有节点的Shard个数大致相等来做集群数据层面的Rebalance。
+shard-capacity-bytes = "96MB"
+
+# Cube会在内存中统计一个Shard所占用的数据大小，但是这个值是一个统计值，不准确的，内存中的值如果达到了配置指定的大小，
+# Shard的Leader副本会发起异步的Check操作，这个操作会检查磁盘中真实的Shard占用大小，用来决定是否发起Split操作。
+shard-split-check-bytes = "64MB"
+
+# Cube对外提供API，通过API来创建一个Shard，这个过程是异步的，这个创建元信息存放在调度节点的内嵌的ETCD中，然后由调度
+# 节点的Leader来周期性的确认Shard的创建情况。使用这个配置来指定这个周期。
+ensure-new-shard-duration = "10s"
+
+# snapshot的相关配置
+[snapshot]
+# Cube中Raft相关的通信做了优化，并不是一个Shard的所有副本之间建立独立的TCP链接，这样一旦整个集群的Shard个数一旦很多，
+# 那么链接个数就会爆炸，Cube的链接是基于Store层面的，也就是整个集群中的所有节点之间两两建立TCP链接，这样极大的减少了
+# 整个集群的TCP链接个数。这样带来一个问题，如果普通的Raft Message和Snapshot Message复用一个TCP链接，由于Snapshot
+# 通常都非常大，那么正常的业务就会受影响。所以Cube把Snapshot单独建立链接处理，同时限速Snapshot的发送，避免带宽被
+# Snapshot占用过大。Cube中采用了N个queue，来限制并发发送的Snapshot-Chunk。使用这个配置来指定队列的个数。
+max-concurrency-snap-chunks = 8
+
+# Snapshot不是一次性发送出去的，而是采用流的方式，把一个Snapshot拆分成多个Chunk来发送，结合`max-concurrency-snap-chunks`
+# 发送Snapshot所占用的带宽就是 `snap-chunk-size` * `max-concurrency-snap-chunks`。
+snap-chunk-size = "4MB"
+
+# raft相关的配置，Cube的单Raft-Group实现使用Etcd的raft实现
+[raft]
+# 开启Raft的pre-vote。
+enable-pre-vote = true
+
+# Raft的tick的周期时间
+tick-interval = "1s"
+
+# Heartbeat时间, `heartbeat-ticks` * `tick-interval`
+heartbeat-ticks = 2
+
+# 超时选举时间, `election-timeout-ticks` * `tick-interval`
+election-timeout-ticks = 10
+
+# Etcd.Raft.MaxSizePerMsg 配置，0表示每次最多append一个Raft-Entry，MaxUint64 for unlimited
+max-size-per-msg = "1MB"
+
+# Etcd.Raft.MaxInflightMsgs 配置
+max-inflight-msgs = 512
+
+# Cube会对Raft的写请求做batch，会把多个写请求合并到一个Raft-Log，只做一次Raft的Proposal，这个配置
+# 指定一个Proposal的大小
+max-entry-bytes = "1MB"
+
+# 指定发送Raft Message的batch大小, 即每次最多取多少个Raft Message作为一个batch一起发送
+send-raft-batch-size = 64
+
+# Raft log 相关配置
+[raft.raft-log]
+# 指定Cube在写Raft-Log到磁盘的时候,是否每次都Sync
+disable-sync = false
+
+# 清理Raft-Log的周期
+compact-duration = "30s"
+
+# Cube在清理Raft-Log的时候,会得到一个清理的Log index的范围, 如果这个范围包含的Log较少,会导致清理操作非常频繁
+# 这个配置指定这个范围至少包含多少个Raft-Log才会执行清理操作
+compact-threshold = 256
+
+# 在调度节点transfer Raft Leader的时候, 指定目标副本落后复制的Log的最大值
+max-allow-transfer-lag = 2
+
+# worker相关配置
+[worker]
+# Cube一个节点上所有的Shard公用N个event worker,这些worker来处理所有的Raft事件, 每个Shard的副本在创建的时候由
+# Store分配一个Event-Worker. 这个配置指定worker个数
+raft-event-worker = 32
+
+# Cube一个节点上所有的Shard公用N个apply worker,这些worker来异步处理Raft Apply, 每个Shard的副本在创建的时候由
+# Store分配一个Apply-Worker. 这个配置指定worker个数
+raft-apply-worker = 32
+
+# Cube在发送Raft-Message的时候, 会根据每个Message指定的Store和发送worker的个数来放到一个固定的worker上, 然后
+# 所有worker并行的发送所有的Message.
+raft-msg-worker = 8
+
+# prophet调度相关配置
+[prophet]
+# 调度节点的名称, 每个集群
+name = "pd1"
+
+# 调度节点对外的RPC地址
+rpc-addr = "127.0.0.1:10001"
+
+# rpc timeout
+rpc-timeout = "10s"
+
+# Cube把调度节点和数据节点放在一个进程中, 在整个集群中,  通过`storage-node = true`来指定3个节点组成调度集群,
+# 并且负责集群所有的元数据的存储．三个调度节点组成一个内嵌的Etcd集群, 并且选择出一个节点作为Leader, leader负责
+# 接受所有数据节点的心跳上报信息, 并且负责下发调度策略.
+# 所有`storage-node = false`的节点为普通的数据节点, 所有的数据节点都会和调度节点Leader创建链接, 在这个链接上
+# 处理所有和调度相关的操作, 同时还会watch调度Leader的变更.
+storage-node = true
+
+# 在3个调度节点Leader选举的时候, 是基于Etcd的Lease来实现的,这个地方设置Leader的lease时间, 单位秒.
+lease = 3
+
+# 所有`storage-node = false`的数据节点都需要和3个调度节组成的内嵌的Etcd交互, 这里配置为3个调度节点的Etcd client
+# address.
+external-etcd = ["", "", ""]
+
+# 3个`storage-node = true`的调度节点内嵌Etcd相关配置
+[prophet.embed-etcd]
+# Cube的调度节点会先后启动, 假设我们由node1, node2, node3单个调度节点, 第一个启动的是node1节点, 那么node1节点就会
+# 组成一个只有一个副本的etcd, 对于node1而言, `join`参数不需要填写, 后面的node2, node3启动的时候, `join`设置为node1
+# 的Etcd的Peer address
+join = ""
+
+# 内嵌Etcd的client address
+client-urls = "http://127.0.0.1:2379"
+# 内嵌Etcd的advertise client address, 不填写, 默认和`client-urls`一致
+advertise-client-urls = ""
+
+# 内嵌Etcd的peer address
+peer-urls = "http://127.0.0.1:2379"
+# 内嵌Etcd的advertise peer address, 不填写, 默认和`peer-urls`一致
+advertise-peer-urls = ""
+
+# 内嵌Etcd Raft tick interval
+tick-interval = "500ms"
+
+# 内嵌etcd Raft election interval
+election-interval = "3000ms"
+
+# 内嵌etcd 开启Raft的pre-vote
+enable-prevote = true
+
+# 内嵌etcd AutoCompactionRetention, periodic|revision.
+auto-compaction-mode = "periodic"
+	
+# 内嵌etcd AutoCompactionRetention
+auto-compaction-retention = "1h"
+
+# 内嵌Etcd QuotaBackendBytes
+quota-backend-bytes = "8GB"
+	
+# 调度相关配置   
+[prophet.schedule]
+# Cube的每个节点存在多个Shard, 每个Shard都有可能在Create,Sending,Receiving,Applying Snapshot。
+# 为了保证每个集群的稳定，当某个节点处理的Snapshot个数超过这个参数，调度器在调度的时候，会排除这个
+# 节点。
+max-snapshot-count = 3
+
+# 当一个节点的PendingPeers（例如一个在接收或者Applying snapshot）的个数超过这个配置，调度器在
+# 调度的时候，会排除这个节点。
+max-pending-peer-count = 16
+
+# Cube的调度Leader节点会定期巡检所有的Shard，发现副本数量不满足系统指定的副本数的Shard，并寻找合适的
+# Store去创建副本或者删除多余的副本。这个配置设置巡检的周期。
+patrol-resource-interval = "100ms"
+
+# Cube集群中的所有节点都会定期发送心跳到调度的Leader节点，当一个节点超过一定的时间都没有发送心跳，
+# 那么调度节点会把这个节点的状态修改为Down，并且会把这个节点上，所有的Shard在集群其他节点来重建，
+# 当这个节点恢复后，这个节点上的所有Shard都会收到销毁的调度消息。
+max-container-down-time = "30m"
+
+# Cube的集群都是通过Raft的Leader节点来处理读写请求，如果整个集群中的Raft Leader节点分布不均匀，
+# 会导致整个集群的负载不均衡。调度的Leader节点会在整个集群中来针对Raft Leader做Rebalance。但是由于
+# 切换Leader节点对于读写请求是有影响的，这个参数配置全局同时存在的Transfer Leader操作的个数。
+leader-schedule-limit = 4
+
+# 调度节点在针对Raft Leader做Rebalance的时候，调度的策略，count|size
+# Count: 调度目标是集群中每个节点上的Raft Leader个数大致相等
+# Size:  调度目标是集群中每个节点上的Raft Leader管理的数据大小大致相等
+leader-schedule-policy = "count"
+
+# Cube会在整个集群中不停的搬迁Shard，来是的整个集群的数据存储是均衡的。这个参数限制集群中同时的存在
+# 的搬迁操作的个数
+resource-schedule-limit = 2048
+
+# Cube会定期巡检所有的Shard，如果发现Shard的副本个数异常，就是执行创建和删除Shard副本的调度，这个而参数
+# 限制集群中同时存在的修复Shard副本操作的个数
+replica-schedule-limit = 64
+
+# Cube的调度节点会针对系统中的热点Shard做调度，这个参数限制热点Shard搬迁的操作个数。
+hot-resource-schedule-limit = 4
+
+# Cube的调度 Leader节点在内存中有一个热点Shard的缓存，当某个Shard命中这个Cache的次数超过该参数
+# 指定的值，那么调度节点就会认为这个Shard是一个热点Shard。
+hot-resource-cache-hits-threshold = 3
+
+# Cube会维护当前集群处于Waiting状态的调度操作，这个参数限制处于Waitting状态的调度操作的个数，超出的
+# 的时候，调度操作都会丢弃。
+scheduler-max-waiting-operator = 5
+
+# low 和 hight用来表示一个Store的存储空间的使用情况，调度的Leader节点会根据这个信息来排除或者优先
+# 选择某些Store。
+#       high space stage         transition stage           low space stage
+#    |--------------------|-----------------------------|-------------------------|
+#    ^                    ^                             ^                         ^
+#    0       HighSpaceRatio * capacity       LowSpaceRatio * capacity          capacity
+low-space-ratio = 0.8
+high-space-ratio = 0.7
+
+# 开启调度节点在集群中移除DownPeer。
+enable-remove-down-replica = true
+
+# Cube的调度节点支持API的方式下线一个Store，一旦这个Store下线，那么这个Store的状态就是Offline，但是
+# 这个Store的节点还是存活的并且正常运行，这个参数开启调度的Leader节点把Offline的Store上的所有Shard
+# 迁移走。这个操作通常用于滚动升级，让系统的升级更平滑，如果直接停掉一个节点，对于系统的抖动是比较大的。
+enable-replace-offline-replica = true
+
+# 在Cube的周期性巡检时，当发现Shard副本不足时，是否在集群中合适的节点创建副本。
+enable-make-up-replica = true
+
+# 在Cube的周期性巡检时，当发现Shard副本超出时，是否移除多余的副本。
+enable-remove-extra-replica = true
+
+# 在Cube的周期性巡检时，当发现某些Shard的副本所在的节点位置不是很合适，是否寻找一个更合适的位置迁移。
+enable-location-replacement = true
+
+# 开启Raft的joint-consensus
+enable-joint-consensus = true
+
+[prophet.replication]
+# 每个Shard最多多少个副本，当Cube的调度节点周期性巡检的时候，发现Shard的副本个数和这个值
+# 不匹配的时候，会执行创建副本或者删除副本的调度操作。
+max-replicas = 3
+
+# Cube的所有节点在启动的时候，都会被打上一些Label，这个参数告诉调度节点，那些Label的Key是用来
+# 标识一个节点的位置信息的。
+location-labels = "zone,rack"
+
+# 配置为True，表示`location-labels`指定的label必须在Store节点的Label里存在。
+strictly-match-label = true
+
+# 开启基于规则的调度
+enable-placement-rules = true
+
+# 一个Shard的副本之间的隔离级别，用来控制一个Shard的副本在指定的Location中最多只能有一个。
+# 举个例子：如果配置为Zone，Shard有3个副本，那么这个三个副本一定位于不同的Zone，假设有3个Zone，
+# 那么，Zone-1,Zone-2,Zone3中各有一个副本。
+isolation-level = "rack"
+
+# metric相关的配置
+[metric]
+# Cube采用prometheus的Push方式推送Metric，这个配置指定prometheus-gateway的地址
+addr = "127.0.0.1:9093"
+
+# 上报的周期，如果是0，则不启动上报。单位秒
+interval = 0
+
+# prometheus job
+job = "cube"
+
+# prometheus instance
+instance = "node1"

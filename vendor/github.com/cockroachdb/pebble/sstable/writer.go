@@ -12,13 +12,13 @@ import (
 	"io"
 	"math"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble/internal/base"
 	"github.com/cockroachdb/pebble/internal/cache"
 	"github.com/cockroachdb/pebble/internal/crc"
 	"github.com/cockroachdb/pebble/internal/private"
 	"github.com/cockroachdb/pebble/internal/rangedel"
-	"github.com/golang/snappy"
 )
 
 // WriterMetadata holds info about a finished sstable.
@@ -103,6 +103,7 @@ type Writer struct {
 	separator               Separator
 	successor               Successor
 	tableFormat             TableFormat
+	checksumType            ChecksumType
 	cache                   *cache.Cache
 	// disableKeyOrderChecks disables the checks that keys are added to an
 	// sstable in order. It is intended for internal use only in the construction
@@ -133,7 +134,7 @@ type Writer struct {
 	rangeDelBlock    blockWriter
 	props            Properties
 	propCollectors   []TablePropertyCollector
-	// compressedBuf is the destination buffer for snappy compression. It is
+	// compressedBuf is the destination buffer for compression. It is
 	// re-used over the lifetime of the writer, avoiding the allocation of a
 	// temporary buffer for each block.
 	compressedBuf []byte
@@ -144,6 +145,8 @@ type Writer struct {
 	// tmp is a scratch buffer, large enough to hold either footerLen bytes,
 	// blockTrailerLen bytes, or (5 * binary.MaxVarintLen64) bytes.
 	tmp [rocksDBFooterLen]byte
+
+	xxHasher *xxhash.Digest
 
 	topLevelIndexBlock blockWriter
 	indexPartitions    []blockWriter
@@ -467,21 +470,37 @@ func (w *Writer) writeTwoLevelIndex() (BlockHandle, error) {
 }
 
 func (w *Writer) writeBlock(b []byte, compression Compression) (BlockHandle, error) {
-	blockType := noCompressionBlockType
-	if compression == SnappyCompression {
-		// Compress the buffer, discarding the result if the improvement isn't at
-		// least 12.5%.
-		compressed := snappy.Encode(w.compressedBuf, b)
+	// Compress the buffer, discarding the result if the improvement isn't at
+	// least 12.5%.
+	blockType, compressed := compressBlock(compression, b, w.compressedBuf)
+	if blockType != noCompressionBlockType && cap(compressed) > cap(w.compressedBuf) {
 		w.compressedBuf = compressed[:cap(compressed)]
-		if len(compressed) < len(b)-len(b)/8 {
-			blockType = snappyCompressionBlockType
-			b = compressed
-		}
 	}
+	if len(compressed) < len(b)-len(b)/8 {
+		b = compressed
+	} else {
+		blockType = noCompressionBlockType
+	}
+
 	w.tmp[0] = blockType
 
 	// Calculate the checksum.
-	checksum := crc.New(b).Update(w.tmp[:1]).Value()
+	var checksum uint32
+	switch w.checksumType {
+	case ChecksumTypeCRC32c:
+		checksum = crc.New(b).Update(w.tmp[:1]).Value()
+	case ChecksumTypeXXHash64:
+		if w.xxHasher == nil {
+			w.xxHasher = xxhash.New()
+		} else {
+			w.xxHasher.Reset()
+		}
+		w.xxHasher.Write(b)
+		w.xxHasher.Write(w.tmp[:1])
+		checksum = uint32(w.xxHasher.Sum64())
+	default:
+		return BlockHandle{}, errors.Newf("unsupported checksum type: %d", w.checksumType)
+	}
 	binary.LittleEndian.PutUint32(w.tmp[1:5], checksum)
 	bh := BlockHandle{w.meta.Size, uint64(len(b))}
 
@@ -663,7 +682,7 @@ func (w *Writer) Close() (err error) {
 	// Write the table footer.
 	footer := footer{
 		format:      w.tableFormat,
-		checksum:    checksumCRC32c,
+		checksum:    w.checksumType,
 		metaindexBH: metaindexBH,
 		indexBH:     indexBH,
 	}
@@ -747,6 +766,7 @@ func NewWriter(f writeCloseSyncer, o WriterOptions, extraOpts ...WriterOption) *
 		separator:               o.Comparer.Separator,
 		successor:               o.Comparer.Successor,
 		tableFormat:             o.TableFormat,
+		checksumType:            o.Checksum,
 		cache:                   o.Cache,
 		block: blockWriter{
 			restartInterval: o.BlockRestartInterval,

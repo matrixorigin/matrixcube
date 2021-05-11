@@ -930,7 +930,7 @@ func (c *compaction) newInputIter(newIters tableNewIters) (_ internalIterator, r
 			f := c.flushing[0]
 			iter := f.newFlushIter(nil, &c.bytesIterated)
 			if rangeDelIter := f.newRangeDelIter(nil); rangeDelIter != nil {
-				return newMergingIter(c.logger, c.cmp, iter, rangeDelIter), nil
+				return newMergingIter(c.logger, c.cmp, nil, iter, rangeDelIter), nil
 			}
 			return iter, nil
 		}
@@ -943,7 +943,7 @@ func (c *compaction) newInputIter(newIters tableNewIters) (_ internalIterator, r
 				iters = append(iters, rangeDelIter)
 			}
 		}
-		return newMergingIter(c.logger, c.cmp, iters...), nil
+		return newMergingIter(c.logger, c.cmp, nil, iters...), nil
 	}
 
 	// Check that the LSM ordering invariants are ok in order to prevent
@@ -1028,8 +1028,8 @@ func (c *compaction) newInputIter(newIters tableNewIters) (_ internalIterator, r
 
 	iterOpts := IterOptions{logger: c.logger}
 	addItersForLevel := func(iters []internalIterator, level *compactionLevel) ([]internalIterator, error) {
-		iters = append(iters, newLevelIter(iterOpts, c.cmp, newIters, level.files.Iter(),
-			manifest.Level(level.level), &c.bytesIterated))
+		iters = append(iters, newLevelIter(iterOpts, c.cmp, nil /* split */, newIters,
+			level.files.Iter(), manifest.Level(level.level), &c.bytesIterated))
 		// Add the range deletion iterator for each file as an independent level
 		// in mergingIter, as opposed to making a levelIter out of those. This
 		// is safer as levelIter expects all keys coming from underlying
@@ -1096,7 +1096,7 @@ func (c *compaction) newInputIter(newIters tableNewIters) (_ internalIterator, r
 	if err != nil {
 		return nil, err
 	}
-	return newMergingIter(c.logger, c.cmp, iters...), nil
+	return newMergingIter(c.logger, c.cmp, nil, iters...), nil
 }
 
 func (c *compaction) String() string {
@@ -1129,6 +1129,14 @@ type manualCompaction struct {
 	done        chan error
 	start       InternalKey
 	end         InternalKey
+}
+
+type readCompaction struct {
+	level int
+	// Key ranges are used instead of file handles as versions could change
+	// between the read sampling and scheduling a compaction.
+	start []byte
+	end   []byte
 }
 
 func (d *DB) addInProgressCompaction(c *compaction) {
@@ -1263,6 +1271,15 @@ func (d *DB) maybeScheduleFlush() {
 		return
 	}
 
+	if !d.passedFlushThreshold() {
+		return
+	}
+
+	d.mu.compact.flushing = true
+	go d.flush()
+}
+
+func (d *DB) passedFlushThreshold() bool {
 	var n int
 	var size uint64
 	for ; n < len(d.mu.mem.queue)-1; n++ {
@@ -1279,7 +1296,7 @@ func (d *DB) maybeScheduleFlush() {
 	}
 	if n == 0 {
 		// None of the immutable memtables are ready for flushing.
-		return
+		return false
 	}
 
 	// Only flush once the sum of the queued memtable sizes exceeds half the
@@ -1288,11 +1305,10 @@ func (d *DB) maybeScheduleFlush() {
 	// DB.newMemTable().
 	minFlushSize := uint64(d.opts.MemTableSize) / 2
 	if size < minFlushSize {
-		return
+		return false
 	}
 
-	d.mu.compact.flushing = true
-	go d.flush()
+	return true
 }
 
 func (d *DB) maybeScheduleDelayedFlush(tbl *memTable) {
@@ -1465,7 +1481,7 @@ func (d *DB) flush1() error {
 		d.updateReadStateLocked(d.opts.DebugCheck)
 		d.updateTableStatsLocked(ve.NewFiles)
 	}
-	d.deleteObsoleteFiles(jobID)
+	d.deleteObsoleteFiles(jobID, false /* waitForOngoing */)
 
 	// Mark all the memtables we flushed as flushed. Note that we do this last so
 	// that a synchronous call to DB.Flush() will not return until the deletion
@@ -1577,6 +1593,10 @@ func (d *DB) maybeScheduleCompactionPicker(
 
 	for !d.opts.private.disableAutomaticCompactions && d.mu.compact.compactingCount < d.opts.MaxConcurrentCompactions {
 		env.inProgressCompactions = d.getInProgressCompactionInfoLocked(nil)
+		env.readCompactionEnv = readCompactionEnv{
+			readCompactions: &d.mu.compact.readCompactions,
+			flushing:        d.mu.compact.flushing || d.passedFlushThreshold(),
+		}
 		pc := pickFunc(d.mu.versions.picker, env)
 		if pc == nil {
 			break
@@ -1868,7 +1888,7 @@ func (d *DB) compact1(c *compaction, errChannel chan error) (err error) {
 		d.updateReadStateLocked(d.opts.DebugCheck)
 		d.updateTableStatsLocked(ve.NewFiles)
 	}
-	d.deleteObsoleteFiles(jobID)
+	d.deleteObsoleteFiles(jobID, true /* waitForOngoing */)
 
 	return err
 }
@@ -2047,9 +2067,11 @@ func (d *DB) runCompaction(
 		// then the sstable will only contain range tombstones. The smallest
 		// key in the sstable will be the start key of the first range
 		// tombstone added. We need to ensure that this start key is distinct
-		// from the limit (key) passed to finishOutput, otherwise we would
-		// generate an sstable where the largest key is smaller than the
+		// from the limit (key) passed to finishOutput (if set), otherwise we
+		// would generate an sstable where the largest key is smaller than the
 		// smallest key due to how the largest key boundary is set below.
+		// NB: It is permissible for the range tombstone start key to be the
+		// empty string.
 		// TODO: It is unfortunate that we have to do this check here rather
 		// than when we decide to finish the sstable in the runCompaction
 		// loop. A better structure currently eludes us.
@@ -2058,7 +2080,7 @@ func (d *DB) runCompaction(
 			if len(iter.tombstones) > 0 {
 				startKey = iter.tombstones[0].Start.UserKey
 			}
-			if d.cmp(startKey, key) == 0 {
+			if key != nil && d.cmp(startKey, key) == 0 {
 				return nil
 			}
 		}
@@ -2349,8 +2371,10 @@ func (d *DB) runCompaction(
 			}
 
 			atomic.StoreUint64(c.atomicBytesIterated, c.bytesIterated)
-			if err := pacer.maybeThrottle(c.bytesIterated); err != nil {
-				return nil, pendingOutputs, err
+			if pacer != nilPacer {
+				if err := pacer.maybeThrottle(c.bytesIterated); err != nil {
+					return nil, pendingOutputs, err
+				}
 			}
 			if key.Kind() == InternalKeyKindRangeDelete {
 				// Range tombstones are handled specially. They are fragmented and
@@ -2535,7 +2559,7 @@ func (d *DB) enableFileDeletions() {
 	}
 	jobID := d.mu.nextJobID
 	d.mu.nextJobID++
-	d.deleteObsoleteFiles(jobID)
+	d.deleteObsoleteFiles(jobID, true /* waitForOngoing */)
 }
 
 // d.mu must be held when calling this.
@@ -2562,12 +2586,14 @@ func (d *DB) releaseCleaningTurn() {
 	d.mu.cleaner.cond.Broadcast()
 }
 
-// deleteObsoleteFiles deletes those files that are no longer needed.
+// deleteObsoleteFiles deletes those files that are no longer needed. If
+// waitForOngoing is true, it waits for any ongoing cleaning turns to complete,
+// and if false, it returns rightaway if a cleaning turn is ongoing.
 //
 // d.mu must be held when calling this, but the mutex may be dropped and
 // re-acquired during the course of this method.
-func (d *DB) deleteObsoleteFiles(jobID int) {
-	if !d.acquireCleaningTurn(true) {
+func (d *DB) deleteObsoleteFiles(jobID int, waitForOngoing bool) {
+	if !d.acquireCleaningTurn(waitForOngoing) {
 		return
 	}
 	d.doDeleteObsoleteFiles(jobID)
@@ -2665,6 +2691,7 @@ func (d *DB) doDeleteObsoleteFiles(jobID int) {
 		}
 	}
 	if len(filesToDelete) > 0 {
+		d.deleters.Add(1)
 		// Delete asynchronously if that could get held up in the pacer.
 		if d.opts.Experimental.MinDeletionRate > 0 {
 			go d.paceAndDeleteObsoleteFiles(jobID, filesToDelete)
@@ -2677,6 +2704,7 @@ func (d *DB) doDeleteObsoleteFiles(jobID int) {
 // Paces and eventually deletes the list of obsolete files passed in. db.mu
 // must NOT be held when calling this method.
 func (d *DB) paceAndDeleteObsoleteFiles(jobID int, files []obsoleteFile) {
+	defer d.deleters.Done()
 	pacer := (pacer)(nilPacer)
 	if d.opts.Experimental.MinDeletionRate > 0 {
 		pacer = newDeletionPacer(d.deletionLimiter, d.getDeletionPacerInfo)

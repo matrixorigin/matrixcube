@@ -417,7 +417,8 @@ func ingestTargetLevel(
 
 	level := baseLevel
 	for ; level < numLevels; level++ {
-		levelIter := newLevelIter(iterOps, cmp, newIters, v.Levels[level].Iter(), manifest.Level(level), nil)
+		levelIter := newLevelIter(iterOps, cmp, nil /* split */, newIters,
+			v.Levels[level].Iter(), manifest.Level(level), nil)
 		var rangeDelIter internalIterator
 		// Pass in a non-nil pointer to rangeDelIter so that levelIter.findFileGE sets it up for the target file.
 		levelIter.initRangeDel(&rangeDelIter)
@@ -686,7 +687,7 @@ func (d *DB) ingestApply(jobID int, meta []*fileMetadata) (*versionEdit, error) 
 	}
 	d.updateReadStateLocked(d.opts.DebugCheck)
 	d.updateTableStatsLocked(ve.NewFiles)
-	d.deleteObsoleteFiles(jobID)
+	d.deleteObsoleteFiles(jobID, false /* waitForOngoing */)
 	// The ingestion may have pushed a level over the threshold for compaction,
 	// so check to see if one is necessary and schedule it.
 	d.maybeScheduleCompaction()

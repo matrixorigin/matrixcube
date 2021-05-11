@@ -126,7 +126,8 @@ func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap,
 		for _, cc := range incoming {
 			cc := cc // loop-local copy
 			ops = append(ops, func(chg Changer) (tracker.Config, tracker.ProgressMap, error) {
-				return chg.Simple(cc)
+				c, t, _, err := chg.Simple(cc)
+				return c, t, err
 			})
 		}
 	} else {
@@ -138,7 +139,8 @@ func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap,
 		for _, cc := range outgoing {
 			cc := cc // loop-local copy
 			ops = append(ops, func(chg Changer) (tracker.Config, tracker.ProgressMap, error) {
-				return chg.Simple(cc)
+				c, t, _, err := chg.Simple(cc)
+				return c, t, err
 			})
 		}
 		// Now enter the joint state, which rotates the above additions into the
@@ -147,7 +149,8 @@ func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap,
 		// would be removing 2,3,4 and then adding in 1,2,3 while transitioning
 		// into a joint state.
 		ops = append(ops, func(chg Changer) (tracker.Config, tracker.ProgressMap, error) {
-			return chg.EnterJoint(cs.AutoLeave, incoming...)
+			c, t, _, err := chg.EnterJoint(cs.AutoLeave, incoming...)
+			return c, t, err
 		})
 	}
 

@@ -77,6 +77,18 @@ type Progress struct {
 
 	// IsLearner is true if this progress is tracked for a learner.
 	IsLearner bool
+
+	// fields to compatible tikv implementation
+
+	// PendingRequestSnapshot is used in request snapshot.
+	// If there is a pending request snapshot, this will be set to the request
+	// index of the snapshot.
+	PendingRequestSnapshot uint64
+
+	// CommitGroupID only logs replicated to different group will be committed if any group is configured.
+	CommitGroupID uint64
+	// CommittedIndex committed index in raft_log
+	CommittedIndex uint64
 }
 
 // ResetState moves the Progress into the specified State, resetting ProbeSent,
@@ -152,6 +164,13 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 		pr.Next = n + 1
 	}
 	return updated
+}
+
+// UpdateCommitted update committed index
+func (pr *Progress) UpdateCommitted(committedIndex uint64) {
+	if committedIndex > pr.CommittedIndex {
+		pr.CommittedIndex = committedIndex
+	}
 }
 
 // OptimisticUpdate signals that appends all the way up to and including index n

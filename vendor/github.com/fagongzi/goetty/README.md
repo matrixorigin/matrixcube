@@ -4,84 +4,55 @@ Goetty is a framework to help you build socket application.
 
 Example
 --------
-codec
-```go
-package example
-
-import (
-    "github.com/fagongzi/goetty"
-)
-
-type StringDecoder struct {
-}
-
-func (decoder StringDecoder) Decode(in *goetty.ByteBuf) (bool, interface{}, error) {
-    _, data, err := in.ReadMarkedBytes()
-
-    if err != nil {
-        return true, "", err
-    }
-
-    return true, string(data), nil
-}
-
-type StringEncoder struct {
-}
-
-func (self StringEncoder) Encode(data interface{}, out *goetty.ByteBuf) error {
-    msg, _ := data.(string)
-    bytes := []byte(msg)
-    out.WriteInt(len(bytes))
-    out.Write(bytes)
-    return nil
-}
-
-```
-
 server
 ```go
 package example
 
 import (
-    "fmt"
-    "github.com/fagongzi/goetty"
+	"log"
+
+	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/codec/simple"
 )
 
+// EchoServer echo server
 type EchoServer struct {
-    addr   string
-    server *goetty.Server
+	addr string
+	app  goetty.NetApplication
 }
 
+// NewEchoServer create new server
 func NewEchoServer(addr string) *EchoServer {
-    return &EchoServer{
-        addr:   addr,
-        server: goetty.NewServer(addr, goetty.NewIntLengthFieldBasedDecoder(&StringDecoder{}), &StringEncoder{}, goetty.NewInt64IdGenerator()),
-    }
+	svr := &EchoServer{}
+	encoder, decoder := simple.NewStringCodec()
+	app, err := goetty.NewTCPApplication(addr, svr.handle,
+		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder)))
+	if err != nil {
+		log.Panicf("start server failed with %+v", err)
+	}
+
+	return &EchoServer{
+		addr: addr,
+		app:  app,
+	}
 }
 
-func (self *EchoServer) Serve() error {
-    return self.server.Serve(self.doConnection)
+// Start start
+func (s *EchoServer) Start() error {
+	return s.Start()
 }
 
-func (self *EchoServer) doConnection(session goetty.IOSession) error {
-    defer session.Close() // close the connection
+// Stop stop
+func (s *EchoServer) Stop() error {
+	return s.Stop()
+}
 
-    fmt.Printf("A new connection from <%s>", session.RemoteAddr())
-
-    // start loop for read msg from this connection
-    for {
-        msg, err := session.Read() // if you want set a read deadline, you can use 'session.ReadTimeout(timeout)'
-        if err != nil {
-            return err
-        }
-
-        fmt.Printf("receive a msg<%s> from <%s>", msg, session.RemoteAddr())
-
-        // echo msg back
-        session.Write(msg)
-    }
-
-    return nil
+func (s *EchoServer) handle(session goetty.IOSession, msg interface{}, received uint64) error {
+	log.Printf("received %+v from %s, already received %d msgs",
+		msg,
+		session.RemoteAddr(),
+		received)
+	return session.WriteAndFlush(msg)
 }
 
 ```
@@ -91,63 +62,48 @@ client
 package example
 
 import (
-    "fmt"
-    "github.com/fagongzi/goetty"
-    "time"
+	"log"
+	"time"
+
+	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/codec/simple"
 )
 
+// EchoClient echo client
 type EchoClient struct {
-    serverAddr string
-    conn       *goetty.Connector
+	serverAddr string
+	conn       goetty.IOSession
 }
 
+// NewEchoClient new client
 func NewEchoClient(serverAddr string) (*EchoClient, error) {
-    cnf := &goetty.Conf{
-        Addr: serverAddr,
-        TimeoutConnectToServer: time.Second * 3,
-    }
+	c := &EchoClient{
+		serverAddr: serverAddr,
+	}
 
-    c := &EchoClient{
-        serverAddr: serverAddr,
-        conn:       goetty.NewConnector(cnf, goetty.NewIntLengthFieldBasedDecoder(&StringDecoder{}), &StringEncoder{}),
-    }
-
-    // if you want to send heartbeat to server, you can set conf as below, otherwise not set
-
-    // create a timewheel to calc timeout
-    tw := goetty.NewHashedTimeWheel(time.Second, 60, 3)
-    tw.Start()
-
-    cnf.TimeoutWrite = time.Second * 3
-    cnf.TimeWheel = tw
-    cnf.WriteTimeoutFn = c.writeHeartbeat
-
-    _, err := c.conn.Connect()
-
-    return c, err
+	encoder, decoder := simple.NewStringCodec()
+	c.conn = goetty.NewIOSession(goetty.WithCodec(encoder, decoder))
+	_, err := c.conn.Connect(serverAddr, time.Second*3)
+	return c, err
 }
 
-func (self *EchoClient) writeHeartbeat(serverAddr string, conn *goetty.Connector) {
-    self.SendMsg("this is a heartbeat msg")
+// SendMsg send msg to server
+func (c *EchoClient) SendMsg(msg string) error {
+	return c.conn.WriteAndFlush(msg)
 }
 
-func (self *EchoClient) SendMsg(msg string) error {
-    return self.conn.Write(msg)
-}
+// ReadLoop read loop
+func (c *EchoClient) ReadLoop() error {
+	// start loop to read msg from server
+	for {
+		msg, err := c.conn.Read() // if you want set a read deadline, you can use 'WithTimeout option'
+		if err != nil {
+			log.Printf("read failed with %+v", err)
+			return err
+		}
 
-func (self *EchoClient) ReadLoop() error {
-    // start loop to read msg from server
-    for {
-        msg, err := self.conn.Read() // if you want set a read deadline, you can use 'connector.ReadTimeout(timeout)'
-        if err != nil {
-            fmt.Printf("read msg from server<%s> failure", self.serverAddr)
-            return err
-        }
-
-        fmt.Printf("receive a msg<%s> from <%s>", msg, self.serverAddr)
-    }
-
-    return nil
+		log.Printf("received %+v", msg)
+	}
 }
 
 ```

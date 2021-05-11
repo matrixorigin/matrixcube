@@ -1,20 +1,15 @@
 syntax = "proto3";
 package raftcmdpb;
 
-import "github.com/deepfabric/beehive/pb/metapb/metapb.proto";
-import "github.com/deepfabric/beehive/pb/errorpb/errorpb.proto";
+import "github.com/matrixorigin/matrixcube/pb/bhmetapb/bhmetapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/errorpb/errorpb.proto";
+import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
-option (gogoproto.goproto_enum_prefix_all) = false;
-
-// ChangePeerType add or remove node
-enum ChangePeerType {
-    AddNode    = 0;
-    RemoveNode = 1;
-}
+option (gogoproto.goproto_enum_prefix_all) = true;
 
 enum CMDType {
     Invalid   = 0;
@@ -24,14 +19,16 @@ enum CMDType {
     Read      = 4;
 }
 
+// AdminCmdType admin cmd type
 enum AdminCmdType {
     InvalidAdmin   = 0;
     ChangePeer     = 1;
-    Split          = 2;
-    CompactRaftLog = 3;
-    TransferLeader = 4;
-    ComputeHash    = 5;
-    VerifyHash     = 6;
+    CompactLog     = 2;
+    TransferLeader = 3;
+    ComputeHash    = 4;
+    VerifyHash     = 5;
+    BatchSplit     = 6;
+    ChangePeerV2   = 7;
 }
 
 // RaftRequestHeader raft request header, it contains the shard's metadata
@@ -39,7 +36,7 @@ message RaftRequestHeader {
     bytes             id         = 1 [(gogoproto.customname) = "ID"];
     uint64            shardID    = 2;
     metapb.Peer       peer       = 3 [(gogoproto.nullable) = false]; 
-    metapb.ShardEpoch shardEpoch = 5 [(gogoproto.nullable) = false];
+    metapb.ResourceEpoch epoch = 5 [(gogoproto.nullable) = false];
     uint64            term       = 6;
 }
 
@@ -65,73 +62,24 @@ message RaftCMDResponse {
 
 // AdminRequest admin request
 message AdminRequest {
-    AdminCmdType          cmdType    = 1;
-    ChangePeerRequest     changePeer = 2;
-    SplitRequest          split      = 3;
-    TransferLeaderRequest transfer   = 4;
-    CompactRaftLogRequest compact    = 5;
+    AdminCmdType          cmdType        = 1;
+    ChangePeerRequest     changePeer     = 2;
+    CompactLogRequest     compactLog     = 3;
+    TransferLeaderRequest transferLeader = 4;
+    VerifyHashRequest     verifyHash     = 5;
+    BatchSplitRequest     splits         = 6;
+    ChangePeerV2Request   changePeerV2   = 7;
 }
 
 // AdminResponse admin response
 message AdminResponse {
-    AdminCmdType           type       = 1;
-    ChangePeerResponse     changePeer = 2;
-    SplitResponse          split      = 3;
-    TransferLeaderResponse transfer   = 4;
-    CompactRaftLogResponse compact    = 5;
-}
-
-// ChangePeerRequest change peer request
-message ChangePeerRequest {
-    ChangePeerType       changeType = 1;
-    metapb.Peer          peer       = 2 [(gogoproto.nullable) = false];
-}
-
-// ChangePeerResponse change peer response
-message ChangePeerResponse {
-    metapb.Shard shard = 1 [(gogoproto.nullable) = false];
-}
-
-// SplitRequest split shard request
-message SplitRequest {
-    // This can be only called in internal RaftStore now.
-    // The splitKey must be in the been splitting shard.
-    bytes           splitKey    = 1;
-    // We split the shard into two, first uses the shard 
-    // parent shard id, and the second uses the new_shard_id.
-    // We must guarantee that the new_shard_id is global unique.
-    uint64          newShardID  = 2;
-    // The peer ids for the new split shard.
-    repeated uint64 newPeerIDs  = 3;
-    // If true, right shard derive the origin shard_id, 
-    // left shard use new_shard_id.
-    bool            rightDerive = 4;
-}
-
-// SplitResponse split shard response
-message SplitResponse {
-    metapb.Shard left  = 1 [(gogoproto.nullable) = false];
-    metapb.Shard right = 2 [(gogoproto.nullable) = false];
-}
-
-// TransferLeaderRequest transfer leader request
-message TransferLeaderRequest {
-    metapb.Peer peer =	1 [(gogoproto.nullable) = false];
-}
-
-// TransferLeaderResponse transfer leader response
-message TransferLeaderResponse {
-}
-
-// CompactRaftLogRequest compact raft log request
-message CompactRaftLogRequest {
-    uint64 compactIndex = 1;
-    uint64 compactTerm  = 2;
-}
-
-// CompactRaftLogResponse compact raft log response
-message CompactRaftLogResponse {
-    
+    AdminCmdType           cmdType        = 1;
+    ChangePeerResponse     changePeer     = 2;
+    CompactLogResponse     compactLog     = 3;
+    TransferLeaderResponse transferLeader = 4;
+    VerifyHashResponse     verifyHash     = 5;
+    BatchSplitResponse     splits         = 9;
+    ChangePeerV2Response   changePeerV2   = 10;
 }
 
 // Request request
@@ -161,4 +109,73 @@ message Response {
     errorpb.Error error             = 7 [(gogoproto.nullable) = false];
     bool          continueBroadcast = 8;
     bool          stale             = 9;
+}
+
+
+message ChangePeerRequest {
+    // This can be only called in internal RaftStore now.
+    metapb.ChangePeerType changeType = 1;
+    metapb.Peer peer = 2 [(gogoproto.nullable) = false];
+}
+
+// ChangePeerResponse change peer response
+message ChangePeerResponse {
+    bhmetapb.Shard shard = 1 [(gogoproto.nullable) = false];
+}
+
+// CompactLogRequest compact raft log
+message CompactLogRequest {
+    uint64 compactIndex = 1;
+    uint64 compactTerm  = 2;
+}
+
+// CompactLogResponse compact raft log
+message CompactLogResponse {}
+
+// TransferLeaderRequest transfer leader
+message TransferLeaderRequest {
+    metapb.Peer peer = 1 [(gogoproto.nullable) = false];
+}
+
+message TransferLeaderResponse {}
+
+message VerifyHashRequest {
+    uint64 index = 1;
+    bytes hash = 2;
+    bytes context = 3;
+}
+
+message VerifyHashResponse {}
+
+message SplitRequest {
+    // This can be only called in internal RaftStore now.
+    // The split_key must be in the been splitting region.
+    bytes splitKey = 1;
+    // We split the region into two, first uses the origin 
+    // parent region id, and the second uses the new_region_id.
+    // We must guarantee that the new_region_id is global unique.
+    uint64 newShardID = 2;
+    // The peer ids for the new split region.
+    repeated uint64 newPeerIDs = 3;
+}
+
+message BatchSplitRequest {
+    repeated SplitRequest requests = 1 [(gogoproto.nullable) = false];
+    // If true, the last shard derive the origin shard_id, 
+    // other shards use new ids.
+    bool rightDerive = 2 ;
+}
+
+message BatchSplitResponse {
+    repeated bhmetapb.Shard shards = 1 [(gogoproto.nullable) = false];
+}
+
+
+
+message ChangePeerV2Request {
+    repeated ChangePeerRequest changes = 1 [(gogoproto.nullable) = false];
+}
+
+message ChangePeerV2Response {
+    bhmetapb.Shard shard = 1;
 }
