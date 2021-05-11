@@ -334,6 +334,7 @@ type CustomizeConfig struct {
 	CustomSplitCompletedFunc     func(*bhmetapb.Shard, *bhmetapb.Shard)
 	CustomCanReadLocalFunc       func(bhmetapb.Shard) bool
 	CustomShardAddHandleFunc     func(bhmetapb.Shard) error
+	CustomAdjustCompactFunc      func(bhmetapb.Shard, uint64) (uint64, error)
 }
 
 // GetLabels returns lables
