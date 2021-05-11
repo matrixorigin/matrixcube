@@ -67,7 +67,7 @@ func (s *Session) releaseResp(resp interface{}) {
 }
 
 func (s *Session) writeLoop() {
-	items := make([]interface{}, 16, 16)
+	items := make([]interface{}, 16)
 	for {
 		n, err := s.resps.Get(16, items)
 		if nil != err {

@@ -7,11 +7,11 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
-	metapb "github.com/deepfabric/beehive/pb/metapb"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	metapb "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	bhmetapb "github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,12 +23,15 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // NotLeader the current shard peer is not leader
 type NotLeader struct {
-	ShardID uint64      `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
-	Leader  metapb.Peer `protobuf:"bytes,2,opt,name=leader,proto3" json:"leader"`
+	ShardID              uint64      `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	Leader               metapb.Peer `protobuf:"bytes,2,opt,name=leader,proto3" json:"leader"`
+	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
+	XXX_unrecognized     []byte      `json:"-"`
+	XXX_sizecache        int32       `json:"-"`
 }
 
 func (m *NotLeader) Reset()         { *m = NotLeader{} }
@@ -45,7 +48,7 @@ func (m *NotLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_NotLeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -80,6 +83,9 @@ func (m *NotLeader) GetLeader() metapb.Peer {
 
 // StoreNotMatch current store is not match
 type StoreNotMatch struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *StoreNotMatch) Reset()         { *m = StoreNotMatch{} }
@@ -96,7 +102,7 @@ func (m *StoreNotMatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_StoreNotMatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +123,10 @@ var xxx_messageInfo_StoreNotMatch proto.InternalMessageInfo
 
 // ShardNotFound the shard replica is not found on the store
 type ShardNotFound struct {
-	ShardID uint64 `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	ShardID              uint64   `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ShardNotFound) Reset()         { *m = ShardNotFound{} }
@@ -134,7 +143,7 @@ func (m *ShardNotFound) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ShardNotFound.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -162,10 +171,13 @@ func (m *ShardNotFound) GetShardID() uint64 {
 
 // KeyNotInShard the key is not found on the store
 type KeyNotInShard struct {
-	Key     []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	ShardID uint64 `protobuf:"varint,2,opt,name=shardID,proto3" json:"shardID,omitempty"`
-	Start   []byte `protobuf:"bytes,3,opt,name=start,proto3" json:"start,omitempty"`
-	End     []byte `protobuf:"bytes,4,opt,name=end,proto3" json:"end,omitempty"`
+	Key                  []byte   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	ShardID              uint64   `protobuf:"varint,2,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	Start                []byte   `protobuf:"bytes,3,opt,name=start,proto3" json:"start,omitempty"`
+	End                  []byte   `protobuf:"bytes,4,opt,name=end,proto3" json:"end,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *KeyNotInShard) Reset()         { *m = KeyNotInShard{} }
@@ -182,7 +194,7 @@ func (m *KeyNotInShard) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_KeyNotInShard.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +243,10 @@ func (m *KeyNotInShard) GetEnd() []byte {
 
 // StaleEpoch the current shard peer is stale
 type StaleEpoch struct {
-	NewShards []metapb.Shard `protobuf:"bytes,1,rep,name=newShards,proto3" json:"newShards"`
+	NewShards            []bhmetapb.Shard `protobuf:"bytes,1,rep,name=newShards,proto3" json:"newShards"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *StaleEpoch) Reset()         { *m = StaleEpoch{} }
@@ -248,7 +263,7 @@ func (m *StaleEpoch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_StaleEpoch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +282,7 @@ func (m *StaleEpoch) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_StaleEpoch proto.InternalMessageInfo
 
-func (m *StaleEpoch) GetNewShards() []metapb.Shard {
+func (m *StaleEpoch) GetNewShards() []bhmetapb.Shard {
 	if m != nil {
 		return m.NewShards
 	}
@@ -276,6 +291,9 @@ func (m *StaleEpoch) GetNewShards() []metapb.Shard {
 
 // ServerIsBusy the server is busy
 type ServerIsBusy struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ServerIsBusy) Reset()         { *m = ServerIsBusy{} }
@@ -292,7 +310,7 @@ func (m *ServerIsBusy) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ServerIsBusy.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -313,6 +331,9 @@ var xxx_messageInfo_ServerIsBusy proto.InternalMessageInfo
 
 // StaleCommand the command is stale, need to retry
 type StaleCommand struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *StaleCommand) Reset()         { *m = StaleCommand{} }
@@ -329,7 +350,7 @@ func (m *StaleCommand) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_StaleCommand.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -350,8 +371,11 @@ var xxx_messageInfo_StaleCommand proto.InternalMessageInfo
 
 // RaftEntryTooLarge raft entry is too large
 type RaftEntryTooLarge struct {
-	ShardID   uint64 `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
-	EntrySize uint64 `protobuf:"varint,2,opt,name=entrySize,proto3" json:"entrySize,omitempty"`
+	ShardID              uint64   `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	EntrySize            uint64   `protobuf:"varint,2,opt,name=entrySize,proto3" json:"entrySize,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *RaftEntryTooLarge) Reset()         { *m = RaftEntryTooLarge{} }
@@ -368,7 +392,7 @@ func (m *RaftEntryTooLarge) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_RaftEntryTooLarge.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -403,15 +427,18 @@ func (m *RaftEntryTooLarge) GetEntrySize() uint64 {
 
 // Error is a raft error
 type Error struct {
-	Message           string             `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	NotLeader         *NotLeader         `protobuf:"bytes,2,opt,name=notLeader,proto3" json:"notLeader,omitempty"`
-	ShardNotFound     *ShardNotFound     `protobuf:"bytes,3,opt,name=shardNotFound,proto3" json:"shardNotFound,omitempty"`
-	KeyNotInShard     *KeyNotInShard     `protobuf:"bytes,4,opt,name=KeyNotInShard,proto3" json:"KeyNotInShard,omitempty"`
-	StaleEpoch        *StaleEpoch        `protobuf:"bytes,5,opt,name=staleEpoch,proto3" json:"staleEpoch,omitempty"`
-	ServerIsBusy      *ServerIsBusy      `protobuf:"bytes,6,opt,name=serverIsBusy,proto3" json:"serverIsBusy,omitempty"`
-	StaleCommand      *StaleCommand      `protobuf:"bytes,7,opt,name=staleCommand,proto3" json:"staleCommand,omitempty"`
-	StoreNotMatch     *StoreNotMatch     `protobuf:"bytes,8,opt,name=storeNotMatch,proto3" json:"storeNotMatch,omitempty"`
-	RaftEntryTooLarge *RaftEntryTooLarge `protobuf:"bytes,9,opt,name=raftEntryTooLarge,proto3" json:"raftEntryTooLarge,omitempty"`
+	Message              string             `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	NotLeader            *NotLeader         `protobuf:"bytes,2,opt,name=notLeader,proto3" json:"notLeader,omitempty"`
+	ShardNotFound        *ShardNotFound     `protobuf:"bytes,3,opt,name=shardNotFound,proto3" json:"shardNotFound,omitempty"`
+	KeyNotInShard        *KeyNotInShard     `protobuf:"bytes,4,opt,name=KeyNotInShard,proto3" json:"KeyNotInShard,omitempty"`
+	StaleEpoch           *StaleEpoch        `protobuf:"bytes,5,opt,name=staleEpoch,proto3" json:"staleEpoch,omitempty"`
+	ServerIsBusy         *ServerIsBusy      `protobuf:"bytes,6,opt,name=serverIsBusy,proto3" json:"serverIsBusy,omitempty"`
+	StaleCommand         *StaleCommand      `protobuf:"bytes,7,opt,name=staleCommand,proto3" json:"staleCommand,omitempty"`
+	StoreNotMatch        *StoreNotMatch     `protobuf:"bytes,8,opt,name=storeNotMatch,proto3" json:"storeNotMatch,omitempty"`
+	RaftEntryTooLarge    *RaftEntryTooLarge `protobuf:"bytes,9,opt,name=raftEntryTooLarge,proto3" json:"raftEntryTooLarge,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
+	XXX_unrecognized     []byte             `json:"-"`
+	XXX_sizecache        int32              `json:"-"`
 }
 
 func (m *Error) Reset()         { *m = Error{} }
@@ -428,7 +455,7 @@ func (m *Error) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Error.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -525,47 +552,47 @@ func init() {
 func init() { proto.RegisterFile("errorpb.proto", fileDescriptor_390aa86757fd1154) }
 
 var fileDescriptor_390aa86757fd1154 = []byte{
-	// 532 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x53, 0x5d, 0x8f, 0xd2, 0x40,
-	0x14, 0xa5, 0xbb, 0x7c, 0xd8, 0x0b, 0x55, 0xb7, 0x7e, 0x64, 0x42, 0x36, 0x95, 0xf4, 0x09, 0x4d,
-	0x04, 0x65, 0x7d, 0x31, 0x31, 0x31, 0x41, 0x31, 0x92, 0x5d, 0x89, 0x0e, 0xfe, 0x81, 0x29, 0xbd,
-	0x7c, 0xc4, 0xa5, 0x43, 0x66, 0x86, 0x35, 0xf8, 0xe8, 0x2f, 0xf0, 0x67, 0xed, 0x23, 0x8f, 0x3e,
-	0x19, 0x85, 0x3f, 0x62, 0x3a, 0x94, 0x76, 0xca, 0x46, 0x9f, 0x98, 0x3b, 0xf7, 0x9c, 0x73, 0x99,
-	0x73, 0x6e, 0xc1, 0x41, 0x21, 0xb8, 0x58, 0x04, 0xad, 0x85, 0xe0, 0x8a, 0xbb, 0x95, 0xa4, 0xac,
-	0xbf, 0x98, 0xcc, 0xd4, 0x74, 0x19, 0xb4, 0x46, 0x7c, 0xde, 0x0e, 0x11, 0x17, 0x63, 0x16, 0x88,
-	0xd9, 0xa8, 0x1d, 0x20, 0x4e, 0x67, 0x57, 0xd8, 0x5e, 0x04, 0xed, 0x39, 0x2a, 0x96, 0xfe, 0xec,
-	0xe8, 0xf5, 0xa7, 0x06, 0x6b, 0xc2, 0x27, 0xbc, 0xad, 0xaf, 0x83, 0xe5, 0x58, 0x57, 0xba, 0xd0,
-	0xa7, 0x1d, 0xdc, 0xff, 0x04, 0xf6, 0x80, 0xab, 0x0b, 0x64, 0x21, 0x0a, 0x97, 0x40, 0x45, 0x4e,
-	0x99, 0x08, 0xfb, 0x6f, 0x89, 0xd5, 0xb0, 0x9a, 0x45, 0xba, 0x2f, 0xdd, 0x27, 0x50, 0xbe, 0xd4,
-	0x18, 0x72, 0xd4, 0xb0, 0x9a, 0xd5, 0x4e, 0xad, 0x95, 0x0c, 0xfd, 0x88, 0x28, 0xba, 0xc5, 0xeb,
-	0x5f, 0x8f, 0x0a, 0x34, 0x41, 0xf8, 0x77, 0xc0, 0x19, 0x2a, 0x2e, 0x70, 0xc0, 0xd5, 0x07, 0xa6,
-	0x46, 0x53, 0xff, 0x31, 0x38, 0xc3, 0x58, 0x67, 0xc0, 0xd5, 0x3b, 0xbe, 0x8c, 0xc2, 0x7f, 0xcf,
-	0xf1, 0x47, 0xe0, 0x9c, 0xe3, 0x6a, 0xc0, 0x55, 0x3f, 0xd2, 0x14, 0xf7, 0x2e, 0x1c, 0x7f, 0xc1,
-	0x95, 0x86, 0xd5, 0x68, 0x7c, 0x34, 0xc9, 0x47, 0xf9, 0x3f, 0x79, 0x1f, 0x4a, 0x52, 0x31, 0xa1,
-	0xc8, 0xb1, 0x46, 0xef, 0x8a, 0x58, 0x01, 0xa3, 0x90, 0x14, 0x77, 0x0a, 0x18, 0x85, 0xfe, 0x6b,
-	0x80, 0xa1, 0x62, 0x97, 0xd8, 0x5b, 0xf0, 0xd1, 0xd4, 0x7d, 0x0e, 0x76, 0x84, 0x5f, 0xf5, 0x34,
-	0x49, 0xac, 0xc6, 0x71, 0xb3, 0xda, 0x71, 0xf6, 0xaf, 0xd3, 0xb7, 0xc9, 0xf3, 0x32, 0x94, 0x7f,
-	0x1b, 0x6a, 0x43, 0x14, 0x57, 0x28, 0xfa, 0xb2, 0xbb, 0x94, 0x2b, 0x5d, 0xc7, 0x82, 0x6f, 0xf8,
-	0x7c, 0xce, 0xa2, 0xd0, 0x3f, 0x87, 0x13, 0xca, 0xc6, 0xaa, 0x17, 0x29, 0xb1, 0xfa, 0xcc, 0xf9,
-	0x05, 0x13, 0x13, 0xfc, 0x8f, 0xb9, 0xa7, 0x60, 0x63, 0x0c, 0x1d, 0xce, 0xbe, 0x61, 0xf2, 0xa6,
-	0xec, 0xc2, 0xff, 0x5e, 0x84, 0x52, 0x2f, 0x5e, 0x89, 0x58, 0x61, 0x8e, 0x52, 0xb2, 0x09, 0x6a,
-	0x05, 0x9b, 0xee, 0x4b, 0xf7, 0x19, 0xd8, 0xd1, 0x3e, 0xc5, 0x24, 0x21, 0xb7, 0xb5, 0x5f, 0xab,
-	0x34, 0x5f, 0x9a, 0x81, 0xdc, 0x57, 0xe0, 0x48, 0x33, 0x13, 0xed, 0x59, 0xb5, 0xf3, 0x30, 0x65,
-	0xe5, 0x12, 0xa3, 0x79, 0x70, 0xcc, 0xce, 0xc5, 0xa4, 0xdd, 0x35, 0xd9, 0xb9, 0x2e, 0x3d, 0xc8,
-	0xf4, 0x0c, 0x40, 0xa6, 0xfe, 0x93, 0x92, 0xa6, 0xde, 0xcb, 0x06, 0xa7, 0x2d, 0x6a, 0xc0, 0xdc,
-	0x97, 0x50, 0x93, 0x86, 0xe7, 0xa4, 0xac, 0x69, 0x0f, 0x32, 0x9a, 0xd1, 0xa4, 0x39, 0xa8, 0xa6,
-	0x1a, 0xf1, 0x90, 0xca, 0x21, 0xd5, 0x68, 0xd2, 0x1c, 0x54, 0xdb, 0x64, 0xee, 0x32, 0xb9, 0x75,
-	0x68, 0x93, 0xd9, 0xa5, 0x79, 0xb0, 0xfb, 0x1e, 0x4e, 0xc4, 0xe1, 0x1e, 0x10, 0x5b, 0x2b, 0xd4,
-	0x53, 0x85, 0x1b, 0x9b, 0x42, 0x6f, 0x92, 0xba, 0xa7, 0xeb, 0x3f, 0x5e, 0xe1, 0x7a, 0xe3, 0x59,
-	0xeb, 0x8d, 0x67, 0xfd, 0xde, 0x78, 0xd6, 0x8f, 0xad, 0x57, 0x58, 0x6f, 0xbd, 0xc2, 0xcf, 0xad,
-	0x57, 0x08, 0xca, 0xfa, 0x5b, 0x3e, 0xfb, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x1a, 0x24, 0xf0, 0x48,
-	0x4a, 0x04, 0x00, 0x00,
+	// 541 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x93, 0xdf, 0x8e, 0xd2, 0x40,
+	0x14, 0xc6, 0xb7, 0xcb, 0x3f, 0x7b, 0x00, 0x77, 0xb7, 0xfe, 0xc9, 0x84, 0x18, 0x24, 0xbd, 0x42,
+	0x13, 0xc1, 0x80, 0x37, 0x26, 0x7a, 0x21, 0x8a, 0x91, 0xec, 0x4a, 0x74, 0xf0, 0x05, 0xa6, 0xed,
+	0xa1, 0x6d, 0xdc, 0x76, 0x9a, 0xe9, 0xa0, 0xe2, 0xa5, 0x4f, 0xb7, 0x97, 0xfb, 0x04, 0x46, 0x79,
+	0x12, 0xd3, 0xa1, 0x94, 0x29, 0x1b, 0xf7, 0x6e, 0xce, 0x9c, 0xef, 0xf7, 0x0d, 0x3d, 0xdf, 0x01,
+	0xda, 0x28, 0x04, 0x17, 0x89, 0x33, 0x48, 0x04, 0x97, 0xdc, 0x6a, 0xe4, 0x65, 0xe7, 0xb5, 0x1f,
+	0xca, 0x60, 0xe5, 0x0c, 0x5c, 0x1e, 0x0d, 0x23, 0x26, 0x45, 0xf8, 0x83, 0x8b, 0xd0, 0x0f, 0xe3,
+	0xbc, 0x70, 0x57, 0x0e, 0x0e, 0x13, 0x67, 0xe8, 0x04, 0x11, 0x4a, 0xa6, 0x1d, 0xb6, 0x3e, 0x9d,
+	0x17, 0x1a, 0xee, 0x21, 0x26, 0x4b, 0xe6, 0x88, 0xd0, 0x1d, 0x26, 0x82, 0x27, 0x01, 0xca, 0x8c,
+	0xcc, 0xb9, 0x12, 0xf5, 0x4c, 0xa3, 0x7c, 0xee, 0xf3, 0xa1, 0xba, 0x76, 0x56, 0x4b, 0x55, 0xa9,
+	0x42, 0x9d, 0xb6, 0x72, 0xfb, 0x33, 0x98, 0x73, 0x2e, 0x2f, 0x90, 0x79, 0x28, 0x2c, 0x02, 0x8d,
+	0x34, 0x60, 0xc2, 0x9b, 0xbd, 0x23, 0x46, 0xcf, 0xe8, 0x57, 0xe9, 0xae, 0xb4, 0x9e, 0x42, 0xfd,
+	0x52, 0x69, 0xc8, 0x71, 0xcf, 0xe8, 0x37, 0x47, 0xad, 0x41, 0xfe, 0xe8, 0x27, 0x44, 0x31, 0xa9,
+	0x5e, 0xfd, 0x7e, 0x7c, 0x44, 0x73, 0x85, 0x7d, 0x02, 0xed, 0x85, 0xe4, 0x02, 0xe7, 0x5c, 0x7e,
+	0x64, 0xd2, 0x0d, 0xec, 0x27, 0xd0, 0x5e, 0x64, 0x3e, 0x73, 0x2e, 0xdf, 0xf3, 0x55, 0xec, 0xfd,
+	0xff, 0x1d, 0xdb, 0x85, 0xf6, 0x39, 0xae, 0xe7, 0x5c, 0xce, 0x62, 0x85, 0x58, 0xa7, 0x50, 0xf9,
+	0x8a, 0x6b, 0x25, 0x6b, 0xd1, 0xec, 0xa8, 0xc3, 0xc7, 0xe5, 0x1f, 0x79, 0x1f, 0x6a, 0xa9, 0x64,
+	0x42, 0x92, 0x8a, 0x52, 0x6f, 0x8b, 0xcc, 0x01, 0x63, 0x8f, 0x54, 0xb7, 0x0e, 0x18, 0x7b, 0xf6,
+	0x1b, 0x80, 0x85, 0x64, 0x97, 0x38, 0x4d, 0xb8, 0x1b, 0x58, 0x63, 0x30, 0x63, 0xfc, 0xae, 0x5e,
+	0x4b, 0x89, 0xd1, 0xab, 0xf4, 0x9b, 0xa3, 0x93, 0x41, 0x11, 0x85, 0xba, 0xcf, 0x3f, 0x70, 0xaf,
+	0xb3, 0xef, 0x42, 0x6b, 0x81, 0xe2, 0x1b, 0x8a, 0x59, 0x3a, 0x59, 0xa5, 0x6b, 0x55, 0x67, 0x96,
+	0x6f, 0x79, 0x14, 0xb1, 0xd8, 0xb3, 0xcf, 0xe1, 0x8c, 0xb2, 0xa5, 0x9c, 0xc6, 0x52, 0xac, 0xbf,
+	0x70, 0x7e, 0xc1, 0x84, 0x8f, 0xb7, 0x8c, 0xf7, 0x11, 0x98, 0x98, 0x49, 0x17, 0xe1, 0x4f, 0xcc,
+	0xbf, 0x6a, 0x7f, 0x61, 0xff, 0xaa, 0x42, 0x6d, 0x9a, 0xed, 0x54, 0xe6, 0x10, 0x61, 0x9a, 0x32,
+	0x1f, 0x95, 0x83, 0x49, 0x77, 0xa5, 0xf5, 0x1c, 0xcc, 0x78, 0x97, 0x63, 0x9e, 0x91, 0x35, 0xd8,
+	0xed, 0x65, 0x91, 0x30, 0xdd, 0x8b, 0xac, 0x57, 0xd0, 0x4e, 0xf5, 0x54, 0xd4, 0xd4, 0x9a, 0xa3,
+	0x87, 0x05, 0x55, 0xca, 0x8c, 0x96, 0xc5, 0x19, 0x5d, 0x0a, 0x4a, 0xcd, 0x57, 0xa7, 0x4b, 0x5d,
+	0x7a, 0x90, 0xea, 0x18, 0x20, 0x2d, 0x12, 0x20, 0x35, 0x85, 0xde, 0xdb, 0x3f, 0x5c, 0xb4, 0xa8,
+	0x26, 0xb3, 0x5e, 0x42, 0x2b, 0xd5, 0x66, 0x4e, 0xea, 0x0a, 0x7b, 0xb0, 0xc7, 0xb4, 0x26, 0x2d,
+	0x49, 0x15, 0xaa, 0xc5, 0x43, 0x1a, 0x87, 0xa8, 0xd6, 0xa4, 0x25, 0xa9, 0x1a, 0x93, 0xbe, 0xcd,
+	0xe4, 0xce, 0xe1, 0x98, 0xf4, 0x2e, 0x2d, 0x8b, 0xad, 0x0f, 0x70, 0x26, 0x0e, 0xf7, 0x80, 0x98,
+	0xca, 0xa1, 0x53, 0x38, 0xdc, 0xd8, 0x14, 0x7a, 0x13, 0x9a, 0x9c, 0x5e, 0xff, 0xed, 0x1e, 0x5d,
+	0x6d, 0xba, 0xc6, 0xf5, 0xa6, 0x6b, 0xfc, 0xd9, 0x74, 0x0d, 0xa7, 0xae, 0xfe, 0xc1, 0xe3, 0x7f,
+	0x01, 0x00, 0x00, 0xff, 0xff, 0x8b, 0xdc, 0x83, 0xdf, 0x7f, 0x04, 0x00, 0x00,
 }
 
 func (m *NotLeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -573,37 +600,33 @@ func (m *NotLeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NotLeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *NotLeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	{
-		size, err := m.Leader.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintErrorpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	return len(dAtA) - i, nil
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintErrorpb(dAtA, i, uint64(m.Leader.Size()))
+	n1, err := m.Leader.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n1
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -611,22 +634,20 @@ func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StoreNotMatch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StoreNotMatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ShardNotFound) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -634,27 +655,25 @@ func (m *ShardNotFound) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ShardNotFound) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ShardNotFound) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *KeyNotInShard) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -662,48 +681,43 @@ func (m *KeyNotInShard) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KeyNotInShard) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *KeyNotInShard) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if len(m.End) > 0 {
-		i -= len(m.End)
-		copy(dAtA[i:], m.End)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.End)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.Start) > 0 {
-		i -= len(m.Start)
-		copy(dAtA[i:], m.Start)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Start)))
-		i--
-		dAtA[i] = 0x1a
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if len(m.Start) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Start)))
+		i += copy(dAtA[i:], m.Start)
 	}
-	return len(dAtA) - i, nil
+	if len(m.End) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.End)))
+		i += copy(dAtA[i:], m.End)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *StaleEpoch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -711,36 +725,32 @@ func (m *StaleEpoch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StaleEpoch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StaleEpoch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if len(m.NewShards) > 0 {
-		for iNdEx := len(m.NewShards) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.NewShards[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintErrorpb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.NewShards {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintErrorpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ServerIsBusy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -748,22 +758,20 @@ func (m *ServerIsBusy) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ServerIsBusy) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ServerIsBusy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *StaleCommand) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -771,22 +779,20 @@ func (m *StaleCommand) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StaleCommand) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StaleCommand) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RaftEntryTooLarge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -794,32 +800,30 @@ func (m *RaftEntryTooLarge) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RaftEntryTooLarge) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RaftEntryTooLarge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.EntrySize != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.EntrySize))
-		i--
-		dAtA[i] = 0x10
-	}
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	return len(dAtA) - i, nil
+	if m.EntrySize != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.EntrySize))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Error) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -827,131 +831,110 @@ func (m *Error) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Error) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.RaftEntryTooLarge != nil {
-		{
-			size, err := m.RaftEntryTooLarge.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x4a
-	}
-	if m.StoreNotMatch != nil {
-		{
-			size, err := m.StoreNotMatch.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.StaleCommand != nil {
-		{
-			size, err := m.StaleCommand.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.ServerIsBusy != nil {
-		{
-			size, err := m.ServerIsBusy.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.StaleEpoch != nil {
-		{
-			size, err := m.StaleEpoch.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.KeyNotInShard != nil {
-		{
-			size, err := m.KeyNotInShard.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.ShardNotFound != nil {
-		{
-			size, err := m.ShardNotFound.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
+	if len(m.Message) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
 	}
 	if m.NotLeader != nil {
-		{
-			size, err := m.NotLeader.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.NotLeader.Size()))
+		n2, err := m.NotLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
 	}
-	if len(m.Message) > 0 {
-		i -= len(m.Message)
-		copy(dAtA[i:], m.Message)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Message)))
-		i--
-		dAtA[i] = 0xa
+	if m.ShardNotFound != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardNotFound.Size()))
+		n3, err := m.ShardNotFound.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
 	}
-	return len(dAtA) - i, nil
+	if m.KeyNotInShard != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.KeyNotInShard.Size()))
+		n4, err := m.KeyNotInShard.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
+	}
+	if m.StaleEpoch != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleEpoch.Size()))
+		n5, err := m.StaleEpoch.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n5
+	}
+	if m.ServerIsBusy != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ServerIsBusy.Size()))
+		n6, err := m.ServerIsBusy.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n6
+	}
+	if m.StaleCommand != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleCommand.Size()))
+		n7, err := m.StaleCommand.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n7
+	}
+	if m.StoreNotMatch != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StoreNotMatch.Size()))
+		n8, err := m.StoreNotMatch.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n8
+	}
+	if m.RaftEntryTooLarge != nil {
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.RaftEntryTooLarge.Size()))
+		n9, err := m.RaftEntryTooLarge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n9
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintErrorpb(dAtA []byte, offset int, v uint64) int {
-	offset -= sovErrorpb(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *NotLeader) Size() (n int) {
 	if m == nil {
@@ -964,6 +947,9 @@ func (m *NotLeader) Size() (n int) {
 	}
 	l = m.Leader.Size()
 	n += 1 + l + sovErrorpb(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -973,6 +959,9 @@ func (m *StoreNotMatch) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -984,6 +973,9 @@ func (m *ShardNotFound) Size() (n int) {
 	_ = l
 	if m.ShardID != 0 {
 		n += 1 + sovErrorpb(uint64(m.ShardID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1009,6 +1001,9 @@ func (m *KeyNotInShard) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -1024,6 +1019,9 @@ func (m *StaleEpoch) Size() (n int) {
 			n += 1 + l + sovErrorpb(uint64(l))
 		}
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -1033,6 +1031,9 @@ func (m *ServerIsBusy) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -1042,6 +1043,9 @@ func (m *StaleCommand) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
@@ -1056,6 +1060,9 @@ func (m *RaftEntryTooLarge) Size() (n int) {
 	}
 	if m.EntrySize != 0 {
 		n += 1 + sovErrorpb(uint64(m.EntrySize))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
 	}
 	return n
 }
@@ -1102,11 +1109,21 @@ func (m *Error) Size() (n int) {
 		l = m.RaftEntryTooLarge.Size()
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
 	return n
 }
 
 func sovErrorpb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozErrorpb(x uint64) (n int) {
 	return sovErrorpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1207,6 +1224,7 @@ func (m *NotLeader) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1260,6 +1278,7 @@ func (m *StoreNotMatch) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1332,6 +1351,7 @@ func (m *ShardNotFound) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1506,6 +1526,7 @@ func (m *KeyNotInShard) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1573,7 +1594,7 @@ func (m *StaleEpoch) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.NewShards = append(m.NewShards, metapb.Shard{})
+			m.NewShards = append(m.NewShards, bhmetapb.Shard{})
 			if err := m.NewShards[len(m.NewShards)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -1593,6 +1614,7 @@ func (m *StaleEpoch) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1646,6 +1668,7 @@ func (m *ServerIsBusy) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1699,6 +1722,7 @@ func (m *StaleCommand) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -1790,6 +1814,7 @@ func (m *RaftEntryTooLarge) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2163,6 +2188,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			if (iNdEx + skippy) > l {
 				return io.ErrUnexpectedEOF
 			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
 			iNdEx += skippy
 		}
 	}
@@ -2175,7 +2201,6 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 func skipErrorpb(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -2207,8 +2232,10 @@ func skipErrorpb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -2229,30 +2256,55 @@ func skipErrorpb(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthErrorpb
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupErrorpb
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthErrorpb
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowErrorpb
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipErrorpb(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthErrorpb
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthErrorpb
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthErrorpb        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowErrorpb          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupErrorpb = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthErrorpb = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowErrorpb   = fmt.Errorf("proto: integer overflow")
 )

@@ -5,37 +5,37 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 type readyContext struct {
-	hardState  etcdraftpb.HardState
-	raftState  raftpb.RaftLocalState
-	applyState raftpb.RaftApplyState
+	hardState  raftpb.HardState
+	raftState  bhraftpb.RaftLocalState
+	applyState bhraftpb.RaftApplyState
 	lastTerm   uint64
-	snap       *raftpb.SnapshotMessage
+	snap       *bhraftpb.SnapshotMessage
 	wb         *util.WriteBatch
 }
 
 func (ctx *readyContext) reset() {
-	ctx.hardState = etcdraftpb.HardState{}
-	ctx.raftState = raftpb.RaftLocalState{}
-	ctx.applyState = raftpb.RaftApplyState{}
+	ctx.hardState = raftpb.HardState{}
+	ctx.raftState = bhraftpb.RaftLocalState{}
+	ctx.applyState = bhraftpb.RaftApplyState{}
 	ctx.lastTerm = 0
 	ctx.snap = nil
 	ctx.wb.Reset()
 }
 
 type applySnapResult struct {
-	prev    metapb.Shard
-	current metapb.Shard
+	prev    bhmetapb.Shard
+	current bhmetapb.Shard
 }
 
 // handle raft ready will do these things:
@@ -71,7 +71,7 @@ func (pr *peerReplica) handleReady() {
 
 	// If snapshot is received, further handling
 	if !raft.IsEmptySnap(rd.Snapshot) {
-		ctx.snap = &raftpb.SnapshotMessage{}
+		ctx.snap = &bhraftpb.SnapshotMessage{}
 		protoc.MustUnmarshal(ctx.snap, rd.Snapshot.Data)
 		if !pr.stopRaftTick {
 			// When we apply snapshot, stop raft tick and resume until the snapshot applied
@@ -85,7 +85,7 @@ func (pr *peerReplica) handleReady() {
 		}
 	}
 
-	ctx.hardState = pr.ps.raftHardState
+	ctx.hardState = pr.ps.raftState.HardState
 	ctx.raftState = pr.ps.raftState
 	ctx.applyState = pr.ps.applyState
 	ctx.lastTerm = pr.ps.lastTerm
@@ -104,11 +104,15 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		if rd.SoftState.RaftState == raft.StateLeader {
 			logger.Infof("shard %d ********become leader now********",
 				pr.shardID)
-			pr.store.pd.GetRPC().TiggerResourceHeartbeat(pr.shardID)
+			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
-			pr.store.opts.shardStateAware.BecomeLeader(pr.ps.shard)
+			if pr.store.aware != nil {
+				pr.store.aware.BecomeLeader(pr.ps.shard)
+			}
 		} else {
-			pr.store.opts.shardStateAware.BecomeFollower(pr.ps.shard)
+			if pr.store.aware != nil {
+				pr.store.aware.BecomeFollower(pr.ps.shard)
+			}
 		}
 	}
 
@@ -129,7 +133,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 	pr.doSaveRaftState(ctx)
 	pr.doSaveApplyState(ctx)
 
-	err := pr.store.MetadataStorage().Write(ctx.wb, !pr.store.opts.disableSyncRaftLog)
+	err := pr.store.MetadataStorage().Write(ctx.wb, !pr.store.cfg.Raft.RaftLog.DisableSync)
 	if err != nil {
 		logger.Fatalf("shard %d handle raft ready failure, errors\n %+v",
 			pr.shardID,
@@ -152,7 +156,7 @@ func (pr *peerReplica) handleAppendSnapshot(ctx *readyContext, rd *raft.Ready) {
 	}
 }
 
-func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap etcdraftpb.Snapshot) error {
+func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap raftpb.Snapshot) error {
 	logger.Infof("shard %d begin to apply snapshot",
 		pr.shardID)
 
@@ -173,7 +177,7 @@ func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap etcdraftpb.Snaps
 		}
 	}
 
-	err := pr.ps.updatePeerState(ctx.snap.Header.Shard, raftpb.PeerApplying, ctx.wb)
+	err := pr.ps.updatePeerState(ctx.snap.Header.Shard, bhraftpb.PeerState_Applying, ctx.wb)
 	if err != nil {
 		logger.Errorf("shard %d write peer state failed, errors:\n %+v",
 			pr.shardID,
@@ -215,7 +219,7 @@ func (pr *peerReplica) handleAppendEntries(ctx *readyContext, rd *raft.Ready) {
 // doAppendEntries the given entries to the raft log using previous last index or self.last_index.
 // Return the new last index for later update. After we commit in engine, we can set last_index
 // to the return one.
-func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []etcdraftpb.Entry) error {
+func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []raftpb.Entry) error {
 	c := len(entries)
 	if c == 0 {
 		return nil
@@ -257,11 +261,11 @@ func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []etcdraftpb.E
 
 func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
 	if ctx.raftState.LastIndex != pr.ps.raftState.LastIndex ||
-		ctx.hardState.Commit != pr.ps.raftHardState.Commit ||
-		ctx.hardState.Term != pr.ps.raftHardState.Term ||
-		ctx.hardState.Vote != pr.ps.raftHardState.Vote {
+		ctx.hardState.Commit != pr.ps.raftState.HardState.Commit ||
+		ctx.hardState.Term != pr.ps.raftState.HardState.Term ||
+		ctx.hardState.Vote != pr.ps.raftState.HardState.Vote {
 
-		ctx.raftState.HardState = protoc.MustMarshal(&ctx.hardState)
+		ctx.raftState.HardState = ctx.hardState
 		err := ctx.wb.Set(getRaftStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
 		if err != nil {
 			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
@@ -322,7 +326,7 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 
 func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *applySnapResult {
 	pr.ps.raftState = ctx.raftState
-	pr.ps.raftHardState = ctx.hardState
+	pr.ps.raftState.HardState = ctx.hardState
 	pr.ps.applyState = ctx.applyState
 	pr.ps.lastTerm = ctx.lastTerm
 
@@ -387,7 +391,7 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	if pr.readyToHandleRead() {
 		for _, state := range rd.ReadStates {
 			if c, ok := pr.pendingReads.pop(); ok {
-				if bytes.Compare(state.RequestCtx, c.getUUID()) != 0 {
+				if !bytes.Equal(state.RequestCtx, c.getUUID()) {
 					logger.Fatalf("shard %d apply read failed, uuid not match",
 						pr.shardID)
 				}
@@ -428,7 +432,7 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	}
 }
 
-func (pr *peerReplica) send(msgs []etcdraftpb.Message) {
+func (pr *peerReplica) send(msgs []raftpb.Message) {
 	for _, msg := range msgs {
 		err := pr.sendRaftMsg(msg)
 		if err != nil {
@@ -443,7 +447,7 @@ func (pr *peerReplica) send(msgs []etcdraftpb.Message) {
 	}
 }
 
-func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
+func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg := pb.AcquireRaftMessage()
 	sendMsg.ShardID = pr.shardID
 	sendMsg.ShardEpoch = pr.ps.shard.Epoch
@@ -469,32 +473,33 @@ func (pr *peerReplica) sendRaftMsg(msg etcdraftpb.Message) error {
 	// when receiving these messages, or just to wait for a pending shard split to perform
 	// later.
 	if pr.ps.isInitialized() &&
-		(msg.Type == etcdraftpb.MsgVote ||
+		(msg.Type == raftpb.MsgVote ||
 			// the peer has not been known to this leader, it may exist or not.
-			(msg.Type == etcdraftpb.MsgHeartbeat && msg.Commit == 0)) {
+			(msg.Type == raftpb.MsgHeartbeat && msg.Commit == 0)) {
 		sendMsg.Start = pr.ps.shard.Start
 		sendMsg.End = pr.ps.shard.End
 	}
 
-	pr.store.trans.Send(sendMsg, &msg)
+	sendMsg.Message = msg
+	pr.store.trans.Send(sendMsg)
 
 	switch msg.Type {
-	case etcdraftpb.MsgApp:
+	case raftpb.MsgApp:
 		pr.metrics.message.append++
-	case etcdraftpb.MsgAppResp:
+	case raftpb.MsgAppResp:
 		pr.metrics.message.appendResp++
-	case etcdraftpb.MsgVote:
+	case raftpb.MsgVote:
 		pr.metrics.message.vote++
-	case etcdraftpb.MsgVoteResp:
+	case raftpb.MsgVoteResp:
 		pr.metrics.message.voteResp++
-	case etcdraftpb.MsgSnap:
+	case raftpb.MsgSnap:
 		pr.rn.ReportSnapshot(msg.To, raft.SnapshotFinish)
 		pr.metrics.message.snapshot++
-	case etcdraftpb.MsgHeartbeat:
+	case raftpb.MsgHeartbeat:
 		pr.metrics.message.heartbeat++
-	case etcdraftpb.MsgHeartbeatResp:
+	case raftpb.MsgHeartbeatResp:
 		pr.metrics.message.heartbeatResp++
-	case etcdraftpb.MsgTransferLeader:
+	case raftpb.MsgTransferLeader:
 		pr.metrics.message.transfeLeader++
 	}
 

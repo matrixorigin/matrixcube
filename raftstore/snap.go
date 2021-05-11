@@ -5,47 +5,31 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/deepfabric/beehive/util"
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/util"
 	"golang.org/x/time/rate"
 )
-
-var (
-	// Creating creating step
-	Creating = 1
-	// Sending snapshot sending step
-	Sending = 2
-)
-
-// SnapshotManager manager snapshot
-type SnapshotManager interface {
-	Register(msg *raftpb.SnapshotMessage, step int) bool
-	Deregister(msg *raftpb.SnapshotMessage, step int)
-	Create(msg *raftpb.SnapshotMessage) error
-	Exists(msg *raftpb.SnapshotMessage) bool
-	WriteTo(msg *raftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error)
-	CleanSnap(msg *raftpb.SnapshotMessage) error
-	ReceiveSnapData(msg *raftpb.SnapshotMessage) error
-	Apply(msg *raftpb.SnapshotMessage) error
-}
 
 type defaultSnapshotManager struct {
 	sync.RWMutex
 
-	limiter  *rate.Limiter
-	s        *store
-	dir      string
-	registry map[string]struct{}
+	limiter          *rate.Limiter
+	s                *store
+	dir              string
+	registry         map[string]struct{}
+	receiveSnapCount uint64
 }
 
-func newDefaultSnapshotManager(s *store) SnapshotManager {
-	dir := s.opts.snapshotDir()
+func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
+	dir := s.cfg.SnapshotDir()
 	if !exist(dir) {
 		if err := os.MkdirAll(dir, 0750); err != nil {
 			logger.Fatalf("cannot create snapshot dir %s failed with %+v",
@@ -54,6 +38,7 @@ func newDefaultSnapshotManager(s *store) SnapshotManager {
 		}
 	}
 
+	snapshotDirName := path.Base(dir)
 	go func() {
 		interval := time.Hour * 2
 
@@ -66,12 +51,12 @@ func newDefaultSnapshotManager(s *store) SnapshotManager {
 					return nil
 				}
 
-				if f.IsDir() && f.Name() == s.opts.snapshotDirName {
+				if f.IsDir() && f.Name() == snapshotDirName {
 					return nil
 				}
 
 				var skip error
-				if f.IsDir() && f.Name() != s.opts.snapshotDirName {
+				if f.IsDir() && f.Name() != snapshotDirName {
 					skip = filepath.SkipDir
 				}
 
@@ -102,35 +87,35 @@ func newDefaultSnapshotManager(s *store) SnapshotManager {
 	}()
 
 	return &defaultSnapshotManager{
-		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(s.opts.maxConcurrencySnapChunks)),
-			int(s.opts.maxConcurrencySnapChunks)),
+		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
+			int(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
 		dir:      dir,
 		s:        s,
 		registry: make(map[string]struct{}),
 	}
 }
 
-func formatKey(msg *raftpb.SnapshotMessage) string {
+func formatKey(msg *bhraftpb.SnapshotMessage) string {
 	return fmt.Sprintf("%d_%d_%d", msg.Header.Shard.ID, msg.Header.Term, msg.Header.Index)
 }
 
-func formatKeyStep(msg *raftpb.SnapshotMessage, step int) string {
+func formatKeyStep(msg *bhraftpb.SnapshotMessage, step int) string {
 	return fmt.Sprintf("%s_%d", formatKey(msg), step)
 }
 
-func (m *defaultSnapshotManager) getPathOfSnapKey(msg *raftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getPathOfSnapKey(msg *bhraftpb.SnapshotMessage) string {
 	return fmt.Sprintf("%s/%s", m.dir, formatKey(msg))
 }
 
-func (m *defaultSnapshotManager) getPathOfSnapKeyGZ(msg *raftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getPathOfSnapKeyGZ(msg *bhraftpb.SnapshotMessage) string {
 	return fmt.Sprintf("%s.gz", m.getPathOfSnapKey(msg))
 }
 
-func (m *defaultSnapshotManager) getTmpPathOfSnapKeyGZ(msg *raftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getTmpPathOfSnapKeyGZ(msg *bhraftpb.SnapshotMessage) string {
 	return fmt.Sprintf("%s.tmp", m.getPathOfSnapKey(msg))
 }
 
-func (m *defaultSnapshotManager) Register(msg *raftpb.SnapshotMessage, step int) bool {
+func (m *defaultSnapshotManager) Register(msg *bhraftpb.SnapshotMessage, step int) bool {
 	m.Lock()
 	defer m.Unlock()
 
@@ -144,7 +129,7 @@ func (m *defaultSnapshotManager) Register(msg *raftpb.SnapshotMessage, step int)
 	return true
 }
 
-func (m *defaultSnapshotManager) Deregister(msg *raftpb.SnapshotMessage, step int) {
+func (m *defaultSnapshotManager) Deregister(msg *bhraftpb.SnapshotMessage, step int) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -152,22 +137,12 @@ func (m *defaultSnapshotManager) Deregister(msg *raftpb.SnapshotMessage, step in
 	delete(m.registry, fkey)
 }
 
-func (m *defaultSnapshotManager) inRegistry(msg *raftpb.SnapshotMessage, step int) bool {
-	m.RLock()
-	defer m.RUnlock()
-
-	fkey := formatKeyStep(msg, step)
-	_, ok := m.registry[fkey]
-
-	return ok
-}
-
-func (m *defaultSnapshotManager) Create(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
 	start := encStartKey(&msg.Header.Shard)
 	end := encEndKey(&msg.Header.Shard)
-	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
+	db := m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID)
 
 	if !exist(gzPath) {
 		if !exist(path) {
@@ -176,8 +151,8 @@ func (m *defaultSnapshotManager) Create(msg *raftpb.SnapshotMessage) error {
 				return err
 			}
 
-			if m.s.opts.customSnapshotDataCreateFunc != nil {
-				err := m.s.opts.customSnapshotDataCreateFunc(path, msg.Header.Shard)
+			if m.s.cfg.Customize.CustomSnapshotDataCreateFunc != nil {
+				err := m.s.cfg.Customize.CustomSnapshotDataCreateFunc(path, msg.Header.Shard)
 				if err != nil {
 					return err
 				}
@@ -198,12 +173,12 @@ func (m *defaultSnapshotManager) Create(msg *raftpb.SnapshotMessage) error {
 	return nil
 }
 
-func (m *defaultSnapshotManager) Exists(msg *raftpb.SnapshotMessage) bool {
+func (m *defaultSnapshotManager) Exists(msg *bhraftpb.SnapshotMessage) bool {
 	file := m.getPathOfSnapKeyGZ(msg)
 	return exist(file)
 }
 
-func (m *defaultSnapshotManager) WriteTo(msg *raftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error) {
+func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error) {
 	file := m.getPathOfSnapKeyGZ(msg)
 
 	if !m.Exists(msg) {
@@ -223,7 +198,7 @@ func (m *defaultSnapshotManager) WriteTo(msg *raftpb.SnapshotMessage, conn goett
 	defer f.Close()
 
 	var written int64
-	buf := make([]byte, m.s.opts.snapChunkSize)
+	buf := make([]byte, m.s.cfg.Snapshot.SnapChunkSize)
 	ctx := context.TODO()
 
 	logger.Infof("shard %d try to send snap, header=<%s>,size=<%d>",
@@ -234,11 +209,11 @@ func (m *defaultSnapshotManager) WriteTo(msg *raftpb.SnapshotMessage, conn goett
 	for {
 		nr, er := f.Read(buf)
 		if nr > 0 {
-			dst := &raftpb.SnapshotMessage{}
+			dst := &bhraftpb.SnapshotMessage{}
 			dst.Header = msg.Header
 			dst.Data = buf[0:nr]
 			dst.FileSize = uint64(fileSize)
-			dst.First = 0 == written
+			dst.First = written == 0
 			dst.Last = fileSize == written+int64(nr)
 
 			written += int64(nr)
@@ -265,7 +240,7 @@ func (m *defaultSnapshotManager) WriteTo(msg *raftpb.SnapshotMessage, conn goett
 	return uint64(written), nil
 }
 
-func (m *defaultSnapshotManager) CleanSnap(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error {
 	var err error
 
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
@@ -306,11 +281,14 @@ func (m *defaultSnapshotManager) CleanSnap(msg *raftpb.SnapshotMessage) error {
 	return err
 }
 
-func (m *defaultSnapshotManager) ReceiveSnapData(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) ReceiveSnapData(msg *bhraftpb.SnapshotMessage) error {
 	var err error
 	var f *os.File
 
 	if msg.First {
+		m.Lock()
+		m.receiveSnapCount++
+		m.Unlock()
 		err = m.cleanTmp(msg)
 	}
 
@@ -349,13 +327,18 @@ func (m *defaultSnapshotManager) ReceiveSnapData(msg *raftpb.SnapshotMessage) er
 	f.Close()
 
 	if msg.Last {
+		m.Lock()
+		if m.receiveSnapCount > 0 {
+			m.receiveSnapCount--
+		}
+		m.Unlock()
 		return m.check(msg)
 	}
 
 	return nil
 }
 
-func (m *defaultSnapshotManager) Apply(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 	file := m.getPathOfSnapKeyGZ(msg)
 	if !m.Exists(msg) {
 		return fmt.Errorf("missing snapshot file, path=%s", file)
@@ -371,13 +354,13 @@ func (m *defaultSnapshotManager) Apply(msg *raftpb.SnapshotMessage) error {
 	defer os.RemoveAll(dir)
 
 	// apply snapshot of data
-	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(dir)
+	err = m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID).ApplySnapshot(dir)
 	if err != nil {
 		return err
 	}
 
-	if m.s.opts.customSnapshotDataApplyFunc != nil {
-		err := m.s.opts.customSnapshotDataApplyFunc(dir, msg.Header.Shard)
+	if m.s.cfg.Customize.CustomSnapshotDataApplyFunc != nil {
+		err := m.s.cfg.Customize.CustomSnapshotDataApplyFunc(dir, msg.Header.Shard)
 		if err != nil {
 			return err
 		}
@@ -386,7 +369,13 @@ func (m *defaultSnapshotManager) Apply(msg *raftpb.SnapshotMessage) error {
 	return nil
 }
 
-func (m *defaultSnapshotManager) cleanTmp(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) ReceiveSnapCount() uint64 {
+	m.RLock()
+	defer m.RUnlock()
+	return m.receiveSnapCount
+}
+
+func (m *defaultSnapshotManager) cleanTmp(msg *bhraftpb.SnapshotMessage) error {
 	var err error
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
 	if exist(tmpFile) {
@@ -404,7 +393,7 @@ func (m *defaultSnapshotManager) cleanTmp(msg *raftpb.SnapshotMessage) error {
 	return nil
 }
 
-func (m *defaultSnapshotManager) check(msg *raftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) check(msg *bhraftpb.SnapshotMessage) error {
 	file := m.getTmpPathOfSnapKeyGZ(msg)
 	if exist(file) {
 		info, err := os.Stat(file)

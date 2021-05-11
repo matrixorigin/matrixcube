@@ -4,17 +4,16 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/fagongzi/util/protoc"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func (s *store) handleCompactRaftLog() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.isLeader() {
-			pr.addAction(checkCompactAction)
+			pr.addAction(action{actionType: checkCompactAction})
 		}
 		return true
 	})
@@ -26,16 +25,10 @@ func (s *store) handleSplitCheck() {
 	}
 
 	s.foreachPR(func(pr *peerReplica) bool {
-		if s.opts.customSplitCheckFunc == nil {
-			if pr.supportSplit() &&
-				pr.isLeader() &&
-				pr.sizeDiffHint >= s.opts.shardSplitCheckBytes {
-				pr.addAction(checkSplitAction)
-			}
-		} else {
-			if _, ok := s.opts.customSplitCheckFunc(pr.ps.shard); ok {
-				pr.addAction(checkSplitAction)
-			}
+		if pr.supportSplit() &&
+			pr.isLeader() &&
+			pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes) {
+			pr.addAction(action{actionType: checkSplitAction})
 		}
 
 		return true
@@ -44,15 +37,15 @@ func (s *store) handleSplitCheck() {
 
 // all raft message entrypoint
 func (s *store) handle(value interface{}) {
-	if msg, ok := value.(*raftpb.RaftMessage); ok {
+	if msg, ok := value.(*bhraftpb.RaftMessage); ok {
 		s.onRaftMessage(msg)
 		pb.ReleaseRaftMessage(msg)
-	} else if msg, ok := value.(*raftpb.SnapshotMessage); ok {
+	} else if msg, ok := value.(*bhraftpb.SnapshotMessage); ok {
 		s.onSnapshotMessage(msg)
 	}
 }
 
-func (s *store) onSnapshotMessage(msg *raftpb.SnapshotMessage) {
+func (s *store) onSnapshotMessage(msg *bhraftpb.SnapshotMessage) {
 	pr := s.getPR(msg.Header.Shard.ID, false)
 	if pr != nil {
 		s.addApplyJob(pr.applyWorker, "onSnapshotData", func() error {
@@ -69,7 +62,7 @@ func (s *store) onSnapshotMessage(msg *raftpb.SnapshotMessage) {
 
 }
 
-func (s *store) onRaftMessage(msg *raftpb.RaftMessage) {
+func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
 	if !s.isRaftMsgValid(msg) {
 		return
 	}
@@ -80,27 +73,24 @@ func (s *store) onRaftMessage(msg *raftpb.RaftMessage) {
 		return
 	}
 
-	raw := &etcdraftpb.Message{}
-	protoc.MustUnmarshal(raw, msg.Message)
-
-	yes, err := s.isMsgStale(msg, raw)
+	yes, err := s.isMsgStale(msg)
 	if err != nil || yes {
 		return
 	}
 
-	if !s.tryToCreatePeerReplicate(msg, raw) {
+	if !s.tryToCreatePeerReplicate(msg) {
 		return
 	}
 
 	s.peers.Store(msg.From.ID, msg.From)
 	pr := s.getPR(msg.ShardID, false)
-	pr.step(*raw)
+	pr.step(msg.Message)
 }
 
-func (s *store) isRaftMsgValid(msg *raftpb.RaftMessage) bool {
-	if msg.To.StoreID != s.meta.meta.ID {
+func (s *store) isRaftMsgValid(msg *bhraftpb.RaftMessage) bool {
+	if msg.To.ContainerID != s.meta.meta.ID {
 		logger.Warningf("store not match, toPeerStoreID=<%d> mineStoreID=<%d>",
-			msg.To.StoreID,
+			msg.To.ContainerID,
 			s.meta.meta.ID)
 		return false
 	}
@@ -108,7 +98,7 @@ func (s *store) isRaftMsgValid(msg *raftpb.RaftMessage) bool {
 	return true
 }
 
-func (s *store) handleGCPeerMsg(msg *raftpb.RaftMessage) {
+func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 	shardID := msg.ShardID
 	needRemove := false
 
@@ -134,11 +124,11 @@ func (s *store) handleGCPeerMsg(msg *raftpb.RaftMessage) {
 	}
 }
 
-func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bool, error) {
+func (s *store) isMsgStale(msg *bhraftpb.RaftMessage) (bool, error) {
 	shardID := msg.ShardID
 	fromEpoch := msg.ShardEpoch
-	isVoteMsg := raw.Type == etcdraftpb.MsgVote
-	fromStoreID := msg.From.StoreID
+	isVoteMsg := msg.Message.Type == raftpb.MsgVote
+	fromStoreID := msg.From.ContainerID
 
 	// Let's consider following cases with three nodes [1, 2, 3] and 1 is leader:
 	// a. 1 removes 2, 2 may still send MsgAppendResponse to 1.
@@ -178,9 +168,9 @@ func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bo
 	}
 
 	if localState != nil {
-		if localState.State != raftpb.PeerTombstone {
+		if localState.State != bhraftpb.PeerState_Tombstone {
 			// Maybe split, but not registered yet.
-			s.cacheDroppedVoteMsg(shardID, *raw)
+			s.cacheDroppedVoteMsg(shardID, msg.Message)
 			return false, fmt.Errorf("shard<%d> not exist but not tombstone, local state: %s",
 				shardID,
 				localState.String())
@@ -210,7 +200,7 @@ func (s *store) isMsgStale(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) (bo
 	return false, nil
 }
 
-func (s *store) handleStaleMsg(msg *raftpb.RaftMessage, currEpoch metapb.ShardEpoch, needGC bool) {
+func (s *store) handleStaleMsg(msg *bhraftpb.RaftMessage, currEpoch metapb.ResourceEpoch, needGC bool) {
 	shardID := msg.ShardID
 	fromPeer := msg.From
 	toPeer := msg.To
@@ -228,17 +218,17 @@ func (s *store) handleStaleMsg(msg *raftpb.RaftMessage, currEpoch metapb.ShardEp
 		msg,
 		currEpoch)
 
-	gc := new(raftpb.RaftMessage)
+	gc := new(bhraftpb.RaftMessage)
 	gc.ShardID = shardID
 	gc.To = fromPeer
 	gc.From = toPeer
 	gc.ShardEpoch = currEpoch
 	gc.IsTombstone = true
 
-	s.trans.Send(gc, &etcdraftpb.Message{})
+	s.trans.Send(gc)
 }
 
-func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftpb.Message) bool {
+func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	// If target peer doesn't exist, create it.
 	//
 	// return false to indicate that target peer is in invalid state or
@@ -291,12 +281,12 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 	}
 
 	// arrive here means target peer not found, we will try to create it
-	if raw.Type != etcdraftpb.MsgVote &&
-		(raw.Type != etcdraftpb.MsgHeartbeat || raw.Commit != invalidIndex) {
+	if msg.Message.Type != raftpb.MsgVote &&
+		(msg.Message.Type != raftpb.MsgHeartbeat || msg.Message.Commit != invalidIndex) {
 		logger.Infof("shard %d target peer doesn't exist, peer=<%+v> message=<%s>",
 			msg.ShardID,
 			target,
-			raw.Type)
+			msg.Message.Type)
 		return false
 	}
 
@@ -312,7 +302,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 					p.ps.applyState.String())
 
 				// Maybe split, but not registered yet.
-				s.cacheDroppedVoteMsg(msg.ShardID, *raw)
+				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
 			}
 
 			if logger.DebugEnabled() {
@@ -328,7 +318,7 @@ func (s *store) tryToCreatePeerReplicate(msg *raftpb.RaftMessage, raw *etcdraftp
 	}
 
 	// now we can create a replicate
-	pr, err := createPeerReplicaWithRaftMessage(s, msg, target.ID)
+	pr, err := createPeerReplicaWithRaftMessage(s, msg, target)
 	if err != nil {
 		logger.Errorf("shard %d peer replica failure, errors:\n %+v",
 			msg.ShardID,

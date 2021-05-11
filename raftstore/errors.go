@@ -4,25 +4,21 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/errorpb"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (
-	errConnect = errors.New("not connected")
-)
-
-var (
-	errStaleCMD           = errors.New("Stale command")
-	errStaleEpoch         = errors.New("Stale epoch")
-	errNotLeader          = errors.New("NotLeader")
-	errShardNotFound      = errors.New("Shard not found")
-	errMissingUUIDCMD     = errors.New("Missing request id")
-	errLargeRaftEntrySize = errors.New("Raft entry is too large")
-	errKeyNotInShard      = errors.New("Key not in shard")
-	errStoreNotMatch      = errors.New("Store not match")
+	errStaleCMD           = errors.New("stale command")
+	errStaleEpoch         = errors.New("stale epoch")
+	errNotLeader          = errors.New("notLeader")
+	errShardNotFound      = errors.New("shard not found")
+	errMissingUUIDCMD     = errors.New("missing request id")
+	errLargeRaftEntrySize = errors.New("raft entry is too large")
+	errKeyNotInShard      = errors.New("key not in shard")
+	errStoreNotMatch      = errors.New("store not match")
 
 	infoStaleCMD  = new(errorpb.StaleCommand)
 	storeNotMatch = new(errorpb.StoreNotMatch)
@@ -67,7 +63,7 @@ func errorStaleCMDResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDRespon
 	return resp
 }
 
-func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...metapb.Shard) *raftcmdpb.RaftCMDResponse {
+func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...bhmetapb.Shard) *raftcmdpb.RaftCMDResponse {
 	resp := errorBaseResp(uuid, currentTerm)
 
 	resp.Header.Error.Message = errStaleCMD.Error()
@@ -87,7 +83,7 @@ func errorBaseResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDResponse {
 	return resp
 }
 
-func checkKeyInShard(key []byte, shard *metapb.Shard) *errorpb.Error {
+func checkKeyInShard(key []byte, shard *bhmetapb.Shard) *errorpb.Error {
 	if bytes.Compare(key, shard.Start) >= 0 && (len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil
 	}

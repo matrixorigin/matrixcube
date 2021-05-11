@@ -23,7 +23,7 @@ func (item *treeItem) Less(other btree.Item) bool {
 func (item *treeItem) Equals(other btree.Item) bool {
 	left := item.key
 	right := other.(*treeItem).key
-	return bytes.Compare(right, left) == 0
+	return bytes.Equal(right, left)
 }
 
 // KVTree kv btree

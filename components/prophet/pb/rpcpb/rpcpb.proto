@@ -1,0 +1,322 @@
+syntax = "proto3";
+package rpcpb;
+
+import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+// Type rpc type
+enum Type {
+    TypeRegisterContainer     = 0;
+    TypeResourceHeartbeatReq  = 1;
+	TypeResourceHeartbeatRsp  = 2;
+	TypeContainerHeartbeatReq = 3;
+	TypeContainerHeartbeatRsp = 4;
+    TypePutContainerReq       = 5;
+	TypePutContainerRsp       = 6;
+	TypeGetContainerReq       = 7;
+	TypeGetContainerRsp       = 8;
+	TypeAllocIDReq            = 9;
+	TypeAllocIDRsp            = 10;
+	TypeAskSplitReq           = 11;
+	TypeAskSplitRsp           = 12;
+    TypeAskBatchSplitReq      = 13;
+	TypeAskBatchSplitRsp      = 14;
+    TypeReportSplitReq        = 15;
+	TypeReportSplitRsp        = 16;
+    TypeBatchReportSplitReq   = 17;
+	TypeBatchReportSplitRsp   = 18;
+    TypeCreateWatcherReq      = 19;
+    TypeEventNotify           = 20;
+}
+
+// Request the prophet rpc request
+message Request {
+    uint64                id                 = 1  [(gogoproto.customname) = "ID"];
+    uint64                containerID        = 2;
+    Type                  type               = 3;
+    ResourceHeartbeatReq  ResourceHeartbeat  = 4  [(gogoproto.nullable) = false]; 
+    ContainerHeartbeatReq ContainerHeartbeat = 5  [(gogoproto.nullable) = false]; 
+    PutContainerReq       PutContainer       = 6  [(gogoproto.nullable) = false]; 
+    GetContainerReq       GetContainer       = 7  [(gogoproto.nullable) = false];
+    AllocIDReq            AllocID            = 8  [(gogoproto.nullable) = false];
+    AskSplitReq           AskSplit           = 9  [(gogoproto.nullable) = false];
+    AskBatchSplitReq      AskBatchSplit      = 10  [(gogoproto.nullable) = false];
+    ReportSplitReq        ReportSplit        = 11  [(gogoproto.nullable) = false];
+    BatchReportSplitReq   BatchReportSplit   = 12 [(gogoproto.nullable) = false];
+    CreateWatcherReq      CreateWatcher      = 13 [(gogoproto.nullable) = false];
+}
+
+// Response the prophet rpc response
+message Response {
+    uint64                id                 = 1  [(gogoproto.customname) = "ID"];
+    Type                  type               = 2;
+    string                error              = 3;
+    string                leader             = 4;
+    ResourceHeartbeatRsp  ResourceHeartbeat  = 5  [(gogoproto.nullable) = false]; 
+    ContainerHeartbeatRsp ContainerHeartbeat = 6  [(gogoproto.nullable) = false]; 
+    PutContainerRsp       PutContainer       = 7  [(gogoproto.nullable) = false]; 
+    GetContainerRsp       GetContainer       = 8  [(gogoproto.nullable) = false];
+    AllocIDRsp            AllocID            = 9  [(gogoproto.nullable) = false];
+    AskSplitRsp           AskSplit           = 10  [(gogoproto.nullable) = false];
+    AskBatchSplitRsp      AskBatchSplit      = 11 [(gogoproto.nullable) = false];
+    ReportSplitRsp        ReportSplit        = 12 [(gogoproto.nullable) = false];
+    BatchReportSplitRsp   BatchReportSplit   = 13 [(gogoproto.nullable) = false];
+    EventNotify           Event              = 14 [(gogoproto.nullable) = false];
+}
+
+// ResourceHeartbeatReq resource heartbeat request
+message ResourceHeartbeatReq {
+             uint64           containerID     = 1;
+             bytes            resource        = 2;
+             // Term is the term of raft group.
+             uint64           term            = 3;
+             metapb.Peer      leader          = 4;
+    repeated metapb.PeerStats downPeers       = 5 [(gogoproto.nullable) = false];
+    repeated metapb.Peer      pendingPeers    = 6 [(gogoproto.nullable) = false];
+             // Bytes read/written during this period.
+             uint64           bytesWritten    = 7;
+             uint64           bytesRead       = 8;
+             // Keys read/written during this period.
+             uint64           keysWritten     = 9;
+             uint64           keysRead        = 10;
+             // Approximate  resource size in bytes.
+             uint64           approximateSize = 11;
+             // Approximate keys that resource contains.
+             uint64           approximateKeys = 12;
+             // Actually reported time interval
+             TimeInterval     interval        = 13;
+}
+   
+// ResourceHeartbeatRsp resource heartbeat response.
+message ResourceHeartbeatRsp {
+    uint64               resourceID     = 1;
+    metapb.ResourceEpoch resourceEpoch  = 2 [(gogoproto.nullable) = false];
+    // Leader of the resource at the moment of the corresponding request was made.
+    metapb.Peer          targetPeer     = 3;
+    // Notice, prophet only allows handling reported epoch >= current prophet's.
+    // Leader peer reports resource status with ResourceHeartbeatReq
+    // to prophet regularly, prophet will determine whether this resource
+    // should do ChangePeer or not.
+    // E,g, max peer number is 3, resource A, first only peer 1 in A.
+    // 1. prophet resource state -> Peers (1), ConfVer (1).
+    // 2. Leader peer 1 reports resource state to prophet, prophet finds the
+    // peer number is < 3, so first changes its current resource
+    // state -> Peers (1, 2), ConfVer (1), and returns ChangePeer Adding 2.
+    // 3. Leader does ChangePeer, then reports Peers (1, 2), ConfVer (2),
+    // prophet updates its state -> Peers (1, 2), ConfVer (2).
+    // 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
+    // finished, pd stills responses ChangePeer Adding 2, of course, we must
+    // guarantee the second ChangePeer can't be applied in your application.
+    ChangePeer           changePeer     = 4;
+    TransferLeader       transferLeader = 5;
+    Merge                merge          = 6;
+    SplitResource        splitResource  = 7;
+    ChangePeerV2         changePeerV2   = 8;
+}
+
+// PutContainerReq put container request
+message PutContainerReq {
+    bytes container = 1;        
+}
+
+// PutContainerRsp put container response
+message PutContainerRsp {
+}
+
+// ContainerHeartbeatReq container heartbeat request
+message ContainerHeartbeatReq {
+    ContainerStats stats = 1 [(gogoproto.nullable) = false];        
+}
+
+// ContainerHeartbeatRsp container heartbeat response
+message ContainerHeartbeatRsp {
+}
+
+// GetContainerReq get container request
+message GetContainerReq {
+    uint64 id = 1 [(gogoproto.customname) = "ID"];
+}
+
+// GetContainerRsp get container response
+message GetContainerRsp {
+    bytes          data  = 1;
+    ContainerStats stats = 2;
+}
+
+// AllocIDReq alloc id request
+message AllocIDReq {
+}
+
+// AllocIDRsp alloc id response
+message AllocIDRsp {
+    uint64 id = 1 [(gogoproto.customname) = "ID"];
+}
+
+// AskSplitReq ask split request
+message AskSplitReq {
+    bytes data = 1;
+}
+
+// AskSplitRsp ask split response
+message AskSplitRsp {
+    SplitID splitID = 1 [(gogoproto.nullable) = false];
+}
+
+// ReportSplitReq report split request
+message ReportSplitReq {
+    bytes left  = 1;
+    bytes right = 2;
+}
+
+// ReportSplitRsp report split response
+message ReportSplitRsp {
+}
+
+// AskBatchSplitReq ask batch split request
+message AskBatchSplitReq {
+    bytes  data  = 1;
+    uint32 count = 2;
+}
+
+// AskBatchSplitRsp ask batch split response
+message AskBatchSplitRsp {
+    repeated SplitID splitIDs = 1 [(gogoproto.nullable) = false];
+}
+
+// BatchReportSplitReq report split request
+message BatchReportSplitReq {
+    repeated bytes resources = 1;
+}
+
+// BatchReportSplitRsp report split response
+message BatchReportSplitRsp {
+    
+}
+
+// SplitID split id
+message SplitID {
+             uint64 newID      = 1;
+    repeated uint64 newPeerIDs = 2;
+}
+
+// CreateWatcherReq create watcher req
+message CreateWatcherReq {
+    uint32 flag = 1;
+}
+
+// EventNotify event notify
+message EventNotify {
+    uint64                 seq                = 1;
+    uint32                 type               = 2;
+    InitEventData          initEvent          = 3;
+    ResourceEventData      resourceEvent      = 4;
+    ContainerEventData     containerEvent     = 5;
+}
+
+// InitEventData init event data
+message InitEventData {
+    repeated bytes  resources  = 1;
+    repeated uint64 leaders    = 2;
+    repeated bytes  containers = 3;
+}
+
+// ResourceEventData resource created or updated
+message ResourceEventData {
+    bytes  data   = 1;
+    uint64 leader = 2;
+}
+
+// ContainerEventData container created or updated
+message ContainerEventData {
+    bytes data = 1;
+}
+
+// ChangePeer change peer
+message ChangePeer {
+    metapb.Peer           peer       = 1 [(gogoproto.nullable) = false];
+    metapb.ChangePeerType changeType = 2;
+}
+
+// TransferLeader transfer leader
+message TransferLeader {
+    metapb.Peer peer = 1 [(gogoproto.nullable) = false];
+}
+
+// ChangePeerV2 change peer v2
+message ChangePeerV2 {
+    // If changes is empty, it means that to exit joint state.
+    repeated ChangePeer changes = 1 [(gogoproto.nullable) = false];
+}
+
+// Merge merge
+message Merge {
+    // target resource
+    bytes target = 1;
+}
+
+// SplitResource split resource
+message SplitResource {
+    metapb.CheckPolicy policy = 1;
+    repeated bytes     keys   = 2;
+}
+
+// TimeInterval time interval
+message TimeInterval {
+    // The unix timestamp in seconds of the start of this period.
+    uint64 start = 1;
+    // The unix timestamp in seconds of the end of this period.
+    uint64 end   = 2;
+}
+
+// RecordPair record pair
+message RecordPair {
+    string key   = 1;
+    uint64 value = 2;
+}
+
+// ContainerStats container stats
+message ContainerStats {
+             // Container id
+             uint64       containerID        = 1;
+             // When the container is started (unix timestamp in seconds).
+             uint64       startTime          = 2;
+             // Actually reported time interval
+             TimeInterval interval           = 3;
+             // Capacity for the container.
+             uint64       capacity           = 4;
+             // Available size for the container.
+             uint64       available          = 5;
+             // Actually used space by db
+             uint64       usedSize           = 6;
+             // If the container is busy
+             bool         isBusy             = 7;
+             // Total resource count in this container.
+             uint64       resourceCount      = 8;
+             // Current sending snapshot count.
+             uint64       sendingSnapCount   = 9;
+             // Current receiving snapshot count.
+             uint64       receivingSnapCount = 10;
+             // How many resource is applying snapshot.
+             uint64       applyingSnapCount  = 11;
+             // Bytes written for the container during this period.
+             uint64       bytesWritten       = 12;
+             // Bytes read for the container during this period.
+             uint64       bytesRead          = 13;
+             // Bytes written for the container during this period.
+             uint64       keysWritten        = 14;
+             // Bytes read for the container during this period.
+             uint64       keysRead           = 15;
+    // Threads' CPU usages in the container
+    repeated RecordPair   cpuUsages          = 16 [(gogoproto.nullable) = false];
+    // Threads' read disk I/O rates in the container
+    repeated RecordPair   readIORates        = 17 [(gogoproto.nullable) = false];
+    // Threads' write disk I/O rates in the container
+    repeated RecordPair   writeIORates       = 18 [(gogoproto.nullable) = false];
+    // Operations' latencies in the container
+    repeated RecordPair   opLatencies        = 19 [(gogoproto.nullable) = false];
+}

@@ -3,25 +3,25 @@ package util
 import (
 	"testing"
 
-	"github.com/deepfabric/beehive/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 func TestTree(t *testing.T) {
 	tree := NewShardTree()
 
-	tree.Update(metapb.Shard{
+	tree.Update(bhmetapb.Shard{
 		ID:    1,
 		Start: []byte{0},
 		End:   []byte{1},
 	})
 
-	tree.Update(metapb.Shard{
+	tree.Update(bhmetapb.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},
 	})
 
-	tree.Update(metapb.Shard{
+	tree.Update(bhmetapb.Shard{
 		ID:    3,
 		Start: []byte{4},
 		End:   []byte{5},
@@ -33,7 +33,7 @@ func TestTree(t *testing.T) {
 
 	expect := []byte{0, 2, 4}
 	count := 0
-	tree.Ascend(func(Shard *metapb.Shard) bool {
+	tree.Ascend(func(Shard *bhmetapb.Shard) bool {
 		if expect[count] != Shard.Start[0] {
 			t.Error("tree failed, asc order is error")
 		}
@@ -53,7 +53,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{4}, func(Shard *metapb.Shard) bool {
+	tree.AscendRange(nil, []byte{4}, func(Shard *bhmetapb.Shard) bool {
 		count++
 		return true
 	})
@@ -63,7 +63,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{5}, func(Shard *metapb.Shard) bool {
+	tree.AscendRange(nil, []byte{5}, func(Shard *bhmetapb.Shard) bool {
 		count++
 		return true
 	})
@@ -73,7 +73,7 @@ func TestTree(t *testing.T) {
 	}
 
 	// it will replace with 0,1 Shard
-	tree.Update(metapb.Shard{
+	tree.Update(bhmetapb.Shard{
 		ID:    10,
 		Start: nil,
 		End:   []byte{1},
@@ -83,7 +83,7 @@ func TestTree(t *testing.T) {
 		t.Error("tree failed, update overlaps failed")
 	}
 
-	tree.Remove(metapb.Shard{
+	tree.Remove(bhmetapb.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},

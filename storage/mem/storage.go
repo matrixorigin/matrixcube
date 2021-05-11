@@ -6,14 +6,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
-	"github.com/deepfabric/beehive/util"
+	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // Storage memory storage
 type Storage struct {
-	kv *util.KVTree
+	kv    *util.KVTree
+	stats stats.Stats
 }
 
 // NewStorage returns a mem data storage
@@ -23,13 +26,21 @@ func NewStorage() *Storage {
 	}
 }
 
+func (s *Storage) Stats() stats.Stats {
+	return s.stats
+}
+
 // Set put the key, value pair to the storage
 func (s *Storage) Set(key []byte, value []byte) error {
+	atomic.AddUint64(&s.stats.WrittenKeys, 1)
+	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
 	return s.SetWithTTL(key, value, 0)
 }
 
 // SetWithTTL put the key, value pair to the storage with a ttl in seconds
 func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
+	atomic.AddUint64(&s.stats.WrittenKeys, 1)
+	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
 	s.kv.Put(key, value)
 	if ttl > 0 {
 		after := time.Second * time.Duration(ttl)
@@ -46,8 +57,10 @@ func (s *Storage) BatchSet(pairs ...[]byte) error {
 		return fmt.Errorf("invalid args len: %d", len(pairs))
 	}
 
+	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(pairs)/2))
 	for i := 0; i < len(pairs)/2; i++ {
 		s.Set(pairs[2*i], pairs[2*i+1])
+		atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(pairs[2*i])+len(pairs[2*i+1])))
 	}
 
 	return nil
@@ -71,21 +84,29 @@ func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
 
 // Delete remove the key from the storage
 func (s *Storage) Delete(key []byte) error {
+	atomic.AddUint64(&s.stats.WrittenKeys, 1)
+	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)))
 	s.kv.Delete(key)
 	return nil
 }
 
 // BatchDelete batch delete
 func (s *Storage) BatchDelete(keys ...[]byte) error {
+	n := 0
 	for _, key := range keys {
 		s.kv.Delete(key)
+		n += len(key)
 	}
 
+	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(keys)))
+	atomic.AddUint64(&s.stats.WrittenBytes, uint64(n))
 	return nil
 }
 
 // RangeDelete remove data in [start,end)
 func (s *Storage) RangeDelete(start, end []byte) error {
+	atomic.AddUint64(&s.stats.WrittenKeys, 2)
+	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(start)+len(end)))
 	s.kv.RangeDelete(start, end)
 	return nil
 }
@@ -104,20 +125,30 @@ func (s *Storage) Free(pooled []byte) {
 
 // SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
 // returns the current bytes in [start,end), and the founded key
-func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, []byte, error) {
+func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uint64, [][]byte, error) {
 	total := uint64(0)
-	found := false
-	var splitKey []byte
+	keys := uint64(0)
+	sum := uint64(0)
+	appendSplitKey := false
+	var splitKeys [][]byte
 	s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
-		total += uint64(len(key) + len(value))
-		if !found && total >= size {
-			found = true
-			splitKey = key
+		if appendSplitKey {
+			splitKeys = append(splitKeys, key)
+			appendSplitKey = false
+			sum = 0
+		}
+
+		n := uint64(len(key) + len(value))
+		total += n
+		sum += n
+		keys++
+		if sum >= size {
+			appendSplitKey = true
 		}
 		return true, nil
 	})
 
-	return total, splitKey, nil
+	return total, keys, splitKeys, nil
 }
 
 // Seek returns the first key-value that >= key
@@ -223,6 +254,8 @@ func (s *Storage) ApplySnapshot(path string) error {
 			return fmt.Errorf("error format, missing value field")
 		}
 
+		atomic.AddUint64(&s.stats.WrittenKeys, 1)
+		atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)+len(value)))
 		s.kv.Put(key, value)
 	}
 
@@ -258,7 +291,7 @@ func readBytes(f *os.File) ([]byte, error) {
 
 	total := int(binary.BigEndian.Uint32(size))
 	written := 0
-	data := make([]byte, total, total)
+	data := make([]byte, total)
 	for {
 		n, err = f.Read(data[written:])
 		if err != nil && err != io.EOF {

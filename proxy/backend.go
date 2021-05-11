@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
 var (
@@ -59,7 +59,7 @@ func (bc *backend) writeLoop() {
 		logger.Infof("backend %s write loop started",
 			bc.addr)
 
-		items := make([]interface{}, batch, batch)
+		items := make([]interface{}, batch)
 		for {
 			n, err := bc.reqs.Get(batch, items)
 			if err != nil {

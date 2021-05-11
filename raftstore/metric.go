@@ -1,7 +1,7 @@
 package raftstore
 
 import (
-	"github.com/deepfabric/beehive/metric"
+	"github.com/matrixorigin/matrixcube/metric"
 )
 
 type applyMetrics struct {

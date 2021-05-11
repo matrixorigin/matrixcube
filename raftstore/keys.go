@@ -18,8 +18,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/buf"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
 // for meta
@@ -38,8 +38,6 @@ const (
 // local is in (0x01, 0x02);
 var (
 	localPrefix byte = 0x01
-	localMinKey      = []byte{localPrefix}
-	localMaxKey      = []byte{localPrefix + 1}
 
 	maxKey = []byte{}
 	minKey = []byte{0xff}
@@ -170,7 +168,7 @@ func getIDKey(shardID uint64, suffix byte, extraCap int, extra uint64) []byte {
 	return data
 }
 
-func getDataKey0(group uint64, key []byte, buf *goetty.ByteBuf) []byte {
+func getDataKey0(group uint64, key []byte, buf *buf.ByteBuf) []byte {
 	buf.Write(dataPrefixKey)
 	buf.WriteUInt64(group)
 	if len(key) > 0 {
@@ -184,7 +182,7 @@ func getDataKey0(group uint64, key []byte, buf *goetty.ByteBuf) []byte {
 // WriteGroupPrefix write group prefix
 func WriteGroupPrefix(group uint64, key []byte) {
 	copy(key, dataPrefixKey)
-	goetty.Uint64ToBytesTo(group, key[dataPrefixKeySize:])
+	buf.Uint64ToBytesTo(group, key[dataPrefixKeySize:])
 }
 
 // EncodeDataKey encode data key
@@ -216,7 +214,7 @@ func getDataEndKey(group uint64, endKey []byte) []byte {
 	return EncodeDataKey(group, endKey)
 }
 
-func encStartKey(shard *metapb.Shard) []byte {
+func encStartKey(shard *bhmetapb.Shard) []byte {
 	// only initialized shard's startKey can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {
@@ -226,7 +224,7 @@ func encStartKey(shard *metapb.Shard) []byte {
 	return EncodeDataKey(shard.Group, shard.Start)
 }
 
-func encEndKey(shard *metapb.Shard) []byte {
+func encEndKey(shard *bhmetapb.Shard) []byte {
 	// only initialized shard's end_key can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {

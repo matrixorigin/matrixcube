@@ -7,15 +7,16 @@ import (
 	"math"
 	"time"
 
-	"github.com/deepfabric/beehive/metric"
-	"github.com/deepfabric/beehive/pb"
-	"github.com/deepfabric/beehive/pb/metapb"
-	"github.com/deepfabric/beehive/pb/raftcmdpb"
-	"github.com/deepfabric/beehive/pb/raftpb"
-	"github.com/deepfabric/beehive/util"
-	"github.com/fagongzi/goetty"
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	etcdraftpb "go.etcd.io/etcd/raft/raftpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/util"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
@@ -125,7 +126,7 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		return err
 	}
 
-	err = pr.ps.updatePeerState(pr.ps.shard, raftpb.PeerNormal, nil)
+	err = pr.ps.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, nil)
 	if err != nil {
 		logger.Fatalf("shard %d apply snap update peer state failed, errors:\n %+v",
 			pr.shardID,
@@ -133,15 +134,17 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		return err
 	}
 
-	pr.store.opts.shardStateAware.SnapshotApplied(pr.ps.shard)
+	if pr.store.aware != nil {
+		pr.store.aware.SnapshotApplied(pr.ps.shard)
+	}
 	pr.stopRaftTick = false
 	logger.Infof("shard %d apply snapshot data complete, %+v",
 		pr.shardID,
-		pr.ps.raftHardState)
+		pr.ps.raftState.HardState)
 	return nil
 }
 
-func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []etcdraftpb.Entry) error {
+func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
 	logger.Debugf("shard %d async apply raft log with %d entries at term %d",
 		shardID,
 		len(commitedEntries),
@@ -167,17 +170,9 @@ func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, comm
 type asyncApplyResult struct {
 	shardID          uint64
 	appliedIndexTerm uint64
-	applyState       raftpb.RaftApplyState
+	applyState       bhraftpb.RaftApplyState
 	result           *execResult
 	metrics          applyMetrics
-}
-
-func (res *asyncApplyResult) reset() {
-	res.shardID = 0
-	res.appliedIndexTerm = 0
-	res.applyState = raftpb.RaftApplyState{}
-	res.result = nil
-	res.metrics = applyMetrics{}
 }
 
 func (res *asyncApplyResult) hasSplitExecResult() bool {
@@ -192,86 +187,97 @@ type execResult struct {
 }
 
 type changePeer struct {
-	confChange etcdraftpb.ConfChange
-	peer       metapb.Peer
-	shard      metapb.Shard
+	index      uint64
+	confChange raftpb.ConfChangeV2
+	changes    []raftcmdpb.ChangePeerRequest
+	shard      bhmetapb.Shard
 }
 
 type splitResult struct {
-	left  metapb.Shard
-	right metapb.Shard
+	derived bhmetapb.Shard
+	shards  []bhmetapb.Shard
 }
 
 type raftGCResult struct {
-	state      raftpb.RaftTruncatedState
+	state      bhraftpb.RaftTruncatedState
 	firstIndex uint64
 }
 
 type applyContext struct {
-	raftStateWB *util.WriteBatch
-	dataWB      CommandWriteBatch
-
-	applyState raftpb.RaftApplyState
+	raftWB     *util.WriteBatch
+	dataWB     *util.WriteBatch
+	attrs      map[string]interface{}
+	buf        *buf.ByteBuf
+	applyState bhraftpb.RaftApplyState
 	req        *raftcmdpb.RaftCMDRequest
 	index      uint64
 	term       uint64
+	offset     int
+	batchSize  int
 	metrics    applyMetrics
 }
 
 func newApplyContext(id uint64, store *store) *applyContext {
-	var dataWB CommandWriteBatch
-	if store.opts.writeBatchFunc != nil {
-		dataWB = store.opts.writeBatchFunc(id)
-	}
-
 	return &applyContext{
-		raftStateWB: util.NewWriteBatch(),
-		dataWB:      dataWB,
+		raftWB: util.NewWriteBatch(),
+		dataWB: util.NewWriteBatch(),
+		buf:    buf.NewByteBuf(512),
+		attrs:  make(map[string]interface{}),
 	}
 }
 
 func (ctx *applyContext) reset() {
-	ctx.raftStateWB.Reset()
-	ctx.applyState = raftpb.RaftApplyState{}
+	ctx.raftWB.Reset()
+	ctx.dataWB.Reset()
+	for key := range ctx.attrs {
+		delete(ctx.attrs, key)
+	}
+	ctx.applyState = bhraftpb.RaftApplyState{}
 	ctx.req = nil
 	ctx.index = 0
 	ctx.term = 0
+	ctx.offset = 0
+	ctx.batchSize = 0
 	ctx.metrics = applyMetrics{}
+}
 
-	if ctx.dataWB != nil {
-		ctx.dataWB.Reset()
-	}
+func (ctx *applyContext) WriteBatch() *util.WriteBatch {
+	return ctx.dataWB
+}
+func (ctx *applyContext) Attrs() map[string]interface{} {
+	return ctx.attrs
+}
+
+func (ctx *applyContext) ByteBuf() *buf.ByteBuf {
+	return ctx.buf
+}
+
+func (ctx *applyContext) LogIndex() uint64 {
+	return ctx.index
+}
+
+func (ctx *applyContext) Offset() int {
+	return ctx.offset
+}
+
+func (ctx *applyContext) BatchSize() int {
+	return ctx.batchSize
 }
 
 type applyDelegate struct {
 	store  *store
 	ps     *peerStorage
 	peerID uint64
-	shard  metapb.Shard
+	shard  bhmetapb.Shard
 	// if we remove ourself in ChangePeer remove, we should set this flag, then
 	// any following committed logs in same Ready should be applied failed.
 	pendingRemove        bool
-	applyState           raftpb.RaftApplyState
+	applyState           bhraftpb.RaftApplyState
 	appliedIndexTerm     uint64
 	term                 uint64
 	pendingCMDs          []cmd
 	pendingChangePeerCMD cmd
-
-	// reuse
-	wb  *util.WriteBatch
-	ctx *applyContext
-
-	// attrs
-	buf      *goetty.ByteBuf
-	attrs    map[string]interface{}
-	requests []int
-}
-
-func (d *applyDelegate) resetAttrs() {
-	for key := range d.attrs {
-		delete(d.attrs, key)
-	}
-	d.attrs[attrBuf] = d.buf
+	ctx                  *applyContext
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
@@ -292,7 +298,7 @@ func (d *applyDelegate) findCB(ctx *applyContext) (cmd, bool) {
 		c := d.pendingChangePeerCMD
 		if c.req == nil {
 			return emptyCMD, false
-		} else if bytes.Compare(ctx.req.Header.ID, c.getUUID()) == 0 {
+		} else if bytes.Equal(ctx.req.Header.ID, c.getUUID()) {
 			return c, true
 		}
 
@@ -306,7 +312,7 @@ func (d *applyDelegate) findCB(ctx *applyContext) (cmd, bool) {
 			return emptyCMD, false
 		}
 
-		if bytes.Compare(head.getUUID(), ctx.req.Header.ID) == 0 {
+		if bytes.Equal(head.getUUID(), ctx.req.Header.ID) {
 			return head, true
 		}
 
@@ -346,7 +352,7 @@ func (d *applyDelegate) notifyShardRemoved(c cmd) {
 	c.respShardNotFound(d.shard.ID)
 }
 
-func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry) {
+func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 	if len(commitedEntries) <= 0 {
 		return
 	}
@@ -382,9 +388,11 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 		var result *execResult
 
 		switch entry.Type {
-		case etcdraftpb.EntryNormal:
+		case raftpb.EntryNormal:
 			result = d.applyEntry(&entry)
-		case etcdraftpb.EntryConfChange:
+		case raftpb.EntryConfChange:
+			result = d.applyConfChange(&entry)
+		case raftpb.EntryConfChangeV2:
 			result = d.applyConfChange(&entry)
 		}
 
@@ -410,7 +418,7 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []etcdraftpb.Entry
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
-func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
+func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 	if len(entry.Data) > 0 {
 		protoc.MustUnmarshal(d.ctx.req, entry.Data)
 		return d.doApplyRaftCMD()
@@ -445,21 +453,28 @@ func (d *applyDelegate) applyEntry(entry *etcdraftpb.Entry) *execResult {
 	}
 }
 
-func (d *applyDelegate) applyConfChange(entry *etcdraftpb.Entry) *execResult {
-	cc := new(etcdraftpb.ConfChange)
-
-	protoc.MustUnmarshal(cc, entry.Data)
-	protoc.MustUnmarshal(d.ctx.req, cc.Context)
+func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
+	var v2cc raftpb.ConfChangeV2
+	if entry.Type == raftpb.EntryConfChange {
+		cc := raftpb.ConfChange{}
+		protoc.MustUnmarshal(&cc, entry.Data)
+		protoc.MustUnmarshal(d.ctx.req, cc.Context)
+		v2cc = cc.AsV2()
+	} else {
+		v2cc = raftpb.ConfChangeV2{}
+		protoc.MustUnmarshal(&v2cc, entry.Data)
+		protoc.MustUnmarshal(d.ctx.req, v2cc.Context)
+	}
 
 	result := d.doApplyRaftCMD()
 	if nil == result {
 		return &execResult{
-			adminType:  raftcmdpb.ChangePeer,
+			adminType:  raftcmdpb.AdminCmdType_ChangePeer,
 			changePeer: &changePeer{},
 		}
 	}
 
-	result.changePeer.confChange = *cc
+	result.changePeer.confChange = v2cc
 	return result
 }
 
@@ -494,17 +509,6 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 		}
 	}
 
-	if d.ctx.dataWB != nil {
-		writeBytes, diffBytes, err = d.ctx.dataWB.Execute(d.shard)
-		if err != nil {
-			logger.Fatalf("shard %d execute batch failed with %+v",
-				d.shard.ID,
-				err)
-		}
-
-		d.ctx.dataWB.Reset()
-	}
-
 	if logger.DebugEnabled() {
 		for _, req := range d.ctx.req.Requests {
 			logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
@@ -525,15 +529,17 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 
 	d.ctx.applyState.AppliedIndex = d.ctx.index
 	if !d.isPendingRemove() {
-		err := d.ctx.raftStateWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
-		if err != nil {
-			logger.Fatalf("shard %d save apply context failed, errors:\n %+v",
-				d.shard.ID,
-				err)
-		}
+		d.ctx.raftWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
 	}
 
-	err = d.store.MetadataStorage().Write(d.ctx.raftStateWB, false)
+	err = d.store.DataStorageByGroup(d.shard.Group, d.shard.ID).Write(d.ctx.dataWB, true)
+	if err != nil {
+		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
+			d.shard.ID,
+			err)
+	}
+
+	err = d.store.MetadataStorage().Write(d.ctx.raftWB, true)
 	if err != nil {
 		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
 			d.shard.ID,
@@ -582,5 +588,6 @@ func (d *applyDelegate) checkEpoch(req *raftcmdpb.RaftCMDRequest) bool {
 
 func isChangePeerCMD(req *raftcmdpb.RaftCMDRequest) bool {
 	return nil != req.AdminRequest &&
-		req.AdminRequest.CmdType == raftcmdpb.ChangePeer
+		(req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeer ||
+			req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeerV2)
 }
