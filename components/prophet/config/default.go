@@ -41,9 +41,7 @@ const (
 )
 
 var (
-	defaultEnableTelemetry = true
-	defaultRuntimeServices = []string{}
-	defaultLocationLabels  = []string{}
+	defaultLocationLabels = []string{}
 	// DefaultContainerLimit is the default container limit of add peer and remove peer.
 	DefaultContainerLimit = ContainerLimit{AddPeer: 15, RemovePeer: 15}
 )
@@ -70,17 +68,6 @@ const (
 	defaultTickInterval = 500 * time.Millisecond
 	// embed etcd has a check that `5 * tick > election`
 	defaultElectionInterval = 3000 * time.Millisecond
-
-	defaultMetricsPushInterval = 15 * time.Second
-
-	defaultHeartbeatStreamRebindInterval = time.Minute
-
-	defaultLeaderPriorityCheckInterval = time.Minute
-
-	defaultUseResourceStorage = true
-	defaultTraceResourceFlow  = true
-	defaultMaxResetTSGap      = 24 * time.Hour
-	defaultKeyType            = "table"
 
 	defaultStrictlyMatchLabel   = false
 	defaultEnablePlacementRules = true

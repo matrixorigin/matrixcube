@@ -19,7 +19,7 @@ func newRPC(store *store) *defaultRPC {
 		store: store,
 	}
 
-	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, int(store.cfg.Raft.MaxProposalBytes)*2)
+	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, int(store.cfg.Raft.MaxEntryBytes)*2)
 	app, err := goetty.NewTCPApplication(store.cfg.ClientAddr, rpc.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),

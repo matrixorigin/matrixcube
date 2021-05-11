@@ -434,16 +434,16 @@ func (pr *peerReplica) doCheckCompact() {
 	firstIdx, _ := pr.ps.FirstIndex()
 
 	if replicatedIdx < firstIdx ||
-		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.RaftThresholdCompactLog {
+		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
 		return
 	}
 
 	if !pr.disableCompactProtect &&
 		appliedIdx > firstIdx &&
-		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.MaxRaftLogCountToForceCompact {
+		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
 		compactIdx = appliedIdx
 	} else if !pr.disableCompactProtect &&
-		pr.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.MaxRaftLogBytesToForceCompact {
+		pr.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
 		compactIdx = appliedIdx
 	} else {
 		compactIdx = replicatedIdx
@@ -458,7 +458,7 @@ func (pr *peerReplica) doCheckCompact() {
 	// avoid leader send snapshot to the a little lag peer.
 	if !pr.disableCompactProtect {
 		if compactIdx > replicatedIdx {
-			if (compactIdx - replicatedIdx) <= pr.store.cfg.Raft.RaftLog.MaxRaftLogCompactProtectLag {
+			if (compactIdx - replicatedIdx) <= pr.store.cfg.Raft.RaftLog.CompactProtectLag {
 				compactIdx = replicatedIdx
 			} else {
 				logger.Infof("shard %d peer lag is too large, maybe sent a snapshot later. lag=<%d>",

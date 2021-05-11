@@ -133,7 +133,7 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 	pr.doSaveRaftState(ctx)
 	pr.doSaveApplyState(ctx)
 
-	err := pr.store.MetadataStorage().Write(ctx.wb, !pr.store.cfg.Raft.RaftLog.DisableSyncRaftLog)
+	err := pr.store.MetadataStorage().Write(ctx.wb, !pr.store.cfg.Raft.RaftLog.DisableSync)
 	if err != nil {
 		logger.Fatalf("shard %d handle raft ready failure, errors\n %+v",
 			pr.shardID,

@@ -354,25 +354,6 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 	return c.Validate()
 }
 
-func (c *ScheduleConfig) parseDeprecatedFlag(meta *configMetaData, name string, old, new bool) (bool, error) {
-	oldName, newName := "disable-"+name, "enable-"+name
-	defineOld, defineNew := meta.IsDefined(oldName), meta.IsDefined(newName)
-	switch {
-	case defineNew && defineOld:
-		if new == old {
-			return false, fmt.Errorf("config item %s and %s(deprecated) are conflict", newName, oldName)
-		}
-		return new, nil
-	case defineNew && !defineOld:
-		return new, nil
-	case !defineNew && defineOld:
-		return !old, nil // use !disable-*
-	case !defineNew && !defineOld:
-		return true, nil // use default value true
-	}
-	return false, nil // unreachable.
-}
-
 // Validate is used to validate if some scheduling configurations are right.
 func (c *ScheduleConfig) Validate() error {
 	if c.TolerantSizeRatio < 0 {

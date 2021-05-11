@@ -175,7 +175,7 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 	size := len(data)
 	metric.ObserveProposalBytes(int64(size))
 
-	if size > int(pr.store.cfg.Raft.MaxProposalBytes) {
+	if size > int(pr.store.cfg.Raft.MaxEntryBytes) {
 		c.respLargeRaftEntrySize(pr.shardID, uint64(size))
 		return false
 	}
@@ -338,7 +338,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	}
 
 	lastIndex, _ := pr.ps.LastIndex()
-	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLogLag
+	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
 }
 
 func (pr *peerReplica) checkProposal(c cmd) bool {

@@ -166,7 +166,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	pr.shardID = shard.ID
 	pr.ps = ps
 
-	for _, g := range store.cfg.Raft.RaftLog.DisableRaftLogCompactProtect {
+	for _, g := range store.cfg.Raft.RaftLog.DisableCompactProtect {
 		if shard.Group == g {
 			pr.disableCompactProtect = true
 			break
