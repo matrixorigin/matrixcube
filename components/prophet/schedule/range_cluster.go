@@ -3,7 +3,7 @@ package schedule
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 )
 
@@ -41,7 +41,7 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 	resourceCount := r.subCluster.GetContainerResourceCount(id)
 	resourceSize := r.subCluster.GetContainerResourceSize(id)
 	pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(id)
-	newStats := proto.Clone(s.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(s.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.UsedSize = uint64(float64(resourceSize)/amplification) * (1 << 20)
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
 	newContainer := s.Clone(

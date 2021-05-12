@@ -71,25 +71,14 @@ message Response {
 
 // ResourceHeartbeatReq resource heartbeat request
 message ResourceHeartbeatReq {
-             uint64           containerID     = 1;
-             bytes            resource        = 2;
+             uint64               containerID     = 1;
+             bytes                resource        = 2;
              // Term is the term of raft group.
-             uint64           term            = 3;
-             metapb.Peer      leader          = 4;
-    repeated metapb.PeerStats downPeers       = 5 [(gogoproto.nullable) = false];
-    repeated metapb.Peer      pendingPeers    = 6 [(gogoproto.nullable) = false];
-             // Bytes read/written during this period.
-             uint64           bytesWritten    = 7;
-             uint64           bytesRead       = 8;
-             // Keys read/written during this period.
-             uint64           keysWritten     = 9;
-             uint64           keysRead        = 10;
-             // Approximate  resource size in bytes.
-             uint64           approximateSize = 11;
-             // Approximate keys that resource contains.
-             uint64           approximateKeys = 12;
-             // Actually reported time interval
-             TimeInterval     interval        = 13;
+             uint64               term            = 3;
+             metapb.Peer          leader          = 4;
+    repeated metapb.PeerStats     downPeers       = 5 [(gogoproto.nullable) = false];
+    repeated metapb.Peer          pendingPeers    = 6 [(gogoproto.nullable) = false];
+             metapb.ResourceStats stats           = 7 [(gogoproto.nullable) = false];
 }
    
 // ResourceHeartbeatRsp resource heartbeat response.
@@ -130,7 +119,7 @@ message PutContainerRsp {
 
 // ContainerHeartbeatReq container heartbeat request
 message ContainerHeartbeatReq {
-    ContainerStats stats = 1 [(gogoproto.nullable) = false];        
+    metapb.ContainerStats stats = 1 [(gogoproto.nullable) = false];        
 }
 
 // ContainerHeartbeatRsp container heartbeat response
@@ -144,8 +133,8 @@ message GetContainerReq {
 
 // GetContainerRsp get container response
 message GetContainerRsp {
-    bytes          data  = 1;
-    ContainerStats stats = 2;
+    bytes                 data  = 1;
+    metapb.ContainerStats stats = 2;
 }
 
 // AllocIDReq alloc id request
@@ -211,11 +200,13 @@ message CreateWatcherReq {
 
 // EventNotify event notify
 message EventNotify {
-    uint64                 seq                = 1;
-    uint32                 type               = 2;
-    InitEventData          initEvent          = 3;
-    ResourceEventData      resourceEvent      = 4;
-    ContainerEventData     containerEvent     = 5;
+    uint64                 seq                 = 1;
+    uint32                 type                = 2;
+    InitEventData          initEvent           = 3;
+    ResourceEventData      resourceEvent       = 4;
+    ContainerEventData     containerEvent      = 5;
+    metapb.ResourceStats   resourceStatsEvent  = 6;
+    metapb.ContainerStats  containerStatsEvent = 7;
 }
 
 // InitEventData init event data
@@ -265,58 +256,5 @@ message SplitResource {
     repeated bytes     keys   = 2;
 }
 
-// TimeInterval time interval
-message TimeInterval {
-    // The unix timestamp in seconds of the start of this period.
-    uint64 start = 1;
-    // The unix timestamp in seconds of the end of this period.
-    uint64 end   = 2;
-}
 
-// RecordPair record pair
-message RecordPair {
-    string key   = 1;
-    uint64 value = 2;
-}
 
-// ContainerStats container stats
-message ContainerStats {
-             // Container id
-             uint64       containerID        = 1;
-             // When the container is started (unix timestamp in seconds).
-             uint64       startTime          = 2;
-             // Actually reported time interval
-             TimeInterval interval           = 3;
-             // Capacity for the container.
-             uint64       capacity           = 4;
-             // Available size for the container.
-             uint64       available          = 5;
-             // Actually used space by db
-             uint64       usedSize           = 6;
-             // If the container is busy
-             bool         isBusy             = 7;
-             // Total resource count in this container.
-             uint64       resourceCount      = 8;
-             // Current sending snapshot count.
-             uint64       sendingSnapCount   = 9;
-             // Current receiving snapshot count.
-             uint64       receivingSnapCount = 10;
-             // How many resource is applying snapshot.
-             uint64       applyingSnapCount  = 11;
-             // Bytes written for the container during this period.
-             uint64       bytesWritten       = 12;
-             // Bytes read for the container during this period.
-             uint64       bytesRead          = 13;
-             // Bytes written for the container during this period.
-             uint64       keysWritten        = 14;
-             // Bytes read for the container during this period.
-             uint64       keysRead           = 15;
-    // Threads' CPU usages in the container
-    repeated RecordPair   cpuUsages          = 16 [(gogoproto.nullable) = false];
-    // Threads' read disk I/O rates in the container
-    repeated RecordPair   readIORates        = 17 [(gogoproto.nullable) = false];
-    // Threads' write disk I/O rates in the container
-    repeated RecordPair   writeIORates       = 18 [(gogoproto.nullable) = false];
-    // Operations' latencies in the container
-    repeated RecordPair   opLatencies        = 19 [(gogoproto.nullable) = false];
-}

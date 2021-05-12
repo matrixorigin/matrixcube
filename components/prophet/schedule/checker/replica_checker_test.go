@@ -9,7 +9,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/testutil"
@@ -31,7 +30,7 @@ func (s *testReplicaChecker) setup() {
 	cfg := config.NewTestOptions()
 	s.cluster = mockcluster.NewCluster(cfg)
 	s.rc = NewReplicaChecker(s.cluster, cache.NewDefaultCache(10))
-	stats := &rpcpb.ContainerStats{
+	stats := &metapb.ContainerStats{
 		Capacity:  100,
 		Available: 100,
 	}

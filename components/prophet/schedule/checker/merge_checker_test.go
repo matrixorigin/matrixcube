@@ -148,7 +148,7 @@ func (s *testMergeChecker) checkSteps(t *testing.T, op *operator.Operator, steps
 func TestBasic(t *testing.T) {
 	s := &testMergeChecker{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	s.cluster.SetSplitMergeInterval(0)
 
@@ -220,7 +220,7 @@ func TestBasic(t *testing.T) {
 func TestMatchPeers(t *testing.T) {
 	s := &testMergeChecker{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	s.cluster.SetSplitMergeInterval(0)
 	// partial Container overlap not including leader

@@ -5,7 +5,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
@@ -34,7 +34,7 @@ func NewContainerLimiter(opt *config.PersistOptions) *ContainerLimiter {
 }
 
 // Collect the container statistics and update the cluster state
-func (s *ContainerLimiter) Collect(stats *rpcpb.ContainerStats) {
+func (s *ContainerLimiter) Collect(stats *metapb.ContainerStats) {
 	s.m.Lock()
 	defer s.m.Unlock()
 

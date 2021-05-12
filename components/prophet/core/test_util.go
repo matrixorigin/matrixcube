@@ -5,7 +5,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
 var (
@@ -95,7 +94,7 @@ func NewTestContainerInfoWithLabel(id uint64, resourceCount int, labels map[stri
 			Value: v,
 		})
 	}
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedContainer(
@@ -112,7 +111,7 @@ func NewTestContainerInfoWithLabel(id uint64, resourceCount int, labels map[stri
 
 // NewTestCachedContainerWithSizeCount is create a container with size and count.
 func NewTestCachedContainerWithSizeCount(id uint64, resourceCount, leaderCount int, resourceSize, leaderSize int64) *CachedContainer {
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedContainer(
@@ -134,6 +133,6 @@ func newTestResourceItem(start, end []byte) *resourceItem {
 
 func newResourceWithStat(start, end string, size, keys int64) *CachedResource {
 	res := NewTestCachedResource([]byte(start), []byte(end))
-	res.approximateSize, res.approximateKeys = size, keys
+	res.stats.ApproximateSize, res.stats.ApproximateKeys = uint64(size), uint64(keys)
 	return res
 }

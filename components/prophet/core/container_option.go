@@ -5,7 +5,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
 // ContainerCreateOption is used to create container.
@@ -145,7 +144,7 @@ func SetLastPersistTime(lastPersist time.Time) ContainerCreateOption {
 }
 
 // SetContainerStats sets the statistics information for the container.
-func SetContainerStats(stats *rpcpb.ContainerStats) ContainerCreateOption {
+func SetContainerStats(stats *metapb.ContainerStats) ContainerCreateOption {
 	return func(container *CachedContainer) {
 		container.containerStats.updateRawStats(stats)
 	}

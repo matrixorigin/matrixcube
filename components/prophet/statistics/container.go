@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
 )
@@ -54,13 +54,13 @@ func (s *ContainersStats) GetOrCreateRollingContainerStats(containerID uint64) *
 }
 
 // Observe records the current container status with a given container.
-func (s *ContainersStats) Observe(containerID uint64, stats *rpcpb.ContainerStats) {
+func (s *ContainersStats) Observe(containerID uint64, stats *metapb.ContainerStats) {
 	container := s.GetOrCreateRollingContainerStats(containerID)
 	container.Observe(stats)
 }
 
 // Set sets the container statistics (for test).
-func (s *ContainersStats) Set(containerID uint64, stats *rpcpb.ContainerStats) {
+func (s *ContainersStats) Set(containerID uint64, stats *metapb.ContainerStats) {
 	container := s.GetOrCreateRollingContainerStats(containerID)
 	container.Set(stats)
 }
@@ -306,7 +306,7 @@ func newRollingContainerStats() *RollingContainerStats {
 	}
 }
 
-func collect(records []rpcpb.RecordPair) float64 {
+func collect(records []metapb.RecordPair) float64 {
 	var total uint64
 	for _, record := range records {
 		total += record.GetValue()
@@ -315,17 +315,17 @@ func collect(records []rpcpb.RecordPair) float64 {
 }
 
 // Observe records current statistics.
-func (r *RollingContainerStats) Observe(stats *rpcpb.ContainerStats) {
+func (r *RollingContainerStats) Observe(stats *metapb.ContainerStats) {
 	statInterval := stats.GetInterval()
 	interval := statInterval.GetEnd() - statInterval.GetStart()
 	util.GetLogger().Debugf("update container stats, %+v", stats)
 
 	r.Lock()
 	defer r.Unlock()
-	r.bytesWriteRate.Add(float64(stats.BytesWritten), time.Duration(interval)*time.Second)
-	r.bytesReadRate.Add(float64(stats.BytesRead), time.Duration(interval)*time.Second)
-	r.keysWriteRate.Add(float64(stats.KeysWritten), time.Duration(interval)*time.Second)
-	r.keysReadRate.Add(float64(stats.KeysRead), time.Duration(interval)*time.Second)
+	r.bytesWriteRate.Add(float64(stats.WrittenBytes), time.Duration(interval)*time.Second)
+	r.bytesReadRate.Add(float64(stats.ReadBytes), time.Duration(interval)*time.Second)
+	r.keysWriteRate.Add(float64(stats.WrittenKeys), time.Duration(interval)*time.Second)
+	r.keysReadRate.Add(float64(stats.ReadKeys), time.Duration(interval)*time.Second)
 
 	// Updates the cpu usages and disk rw rates of container.
 	r.totalCPUUsage.Add(collect(stats.GetCpuUsages()))
@@ -334,7 +334,7 @@ func (r *RollingContainerStats) Observe(stats *rpcpb.ContainerStats) {
 }
 
 // Set sets the statistics (for test).
-func (r *RollingContainerStats) Set(stats *rpcpb.ContainerStats) {
+func (r *RollingContainerStats) Set(stats *metapb.ContainerStats) {
 	statInterval := stats.GetInterval()
 	interval := statInterval.GetEnd() - statInterval.GetStart()
 	if interval == 0 {
@@ -342,10 +342,10 @@ func (r *RollingContainerStats) Set(stats *rpcpb.ContainerStats) {
 	}
 	r.Lock()
 	defer r.Unlock()
-	r.bytesWriteRate.Set(float64(stats.BytesWritten) / float64(interval))
-	r.bytesReadRate.Set(float64(stats.BytesRead) / float64(interval))
-	r.keysWriteRate.Set(float64(stats.KeysWritten) / float64(interval))
-	r.keysReadRate.Set(float64(stats.KeysRead) / float64(interval))
+	r.bytesWriteRate.Set(float64(stats.WrittenBytes) / float64(interval))
+	r.bytesReadRate.Set(float64(stats.ReadBytes) / float64(interval))
+	r.keysWriteRate.Set(float64(stats.WrittenKeys) / float64(interval))
+	r.keysReadRate.Set(float64(stats.ReadKeys) / float64(interval))
 }
 
 // GetBytesRate returns the bytes write rate and the bytes read rate.
