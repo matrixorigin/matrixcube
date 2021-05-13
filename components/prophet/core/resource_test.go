@@ -13,11 +13,12 @@ import (
 )
 
 func newTestCachedResourceWithID(id uint64) *CachedResource {
-	return &CachedResource{
-		Meta:            &metadata.TestResource{ResID: id},
-		approximateSize: int64(id),
-		approximateKeys: int64(id),
+	res := &CachedResource{
+		Meta: &metadata.TestResource{ResID: id},
 	}
+	res.stats.ApproximateSize = id
+	res.stats.ApproximateKeys = id
+	return res
 }
 
 func TestResourceMap(t *testing.T) {
@@ -143,8 +144,8 @@ func TestSetResource(t *testing.T) {
 
 	// Test update keys and size of resource.
 	res = res.Clone()
-	res.approximateKeys = 20
-	res.approximateSize = 30
+	res.stats.ApproximateKeys = 20
+	res.stats.ApproximateSize = 30
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
 	assert.Equal(t, 96, resources.tree.length(), "TestSetResource failed")

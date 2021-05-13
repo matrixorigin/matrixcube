@@ -46,7 +46,7 @@ func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int
 		resourceSize = resourceSizes[0]
 	}
 
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = 100 * (1 << 30)
 	stats.UsedSize = resourceSize * (1 << 20)
 	stats.Available = stats.Capacity - stats.UsedSize
@@ -89,7 +89,7 @@ func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) err
 }
 
 func (c *testCluster) addLeaderContainer(containerID uint64, leaderCount int) error {
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
 		core.SetContainerStats(stats),
 		core.SetLeaderCount(leaderCount),
@@ -831,19 +831,6 @@ type mockLimitScheduler struct {
 
 func (s *mockLimitScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 	return s.counter.OperatorCount(s.kind) < s.limit
-}
-
-type testScheduleController struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-func (s *testScheduleController) setup(t *testing.T) {
-	s.ctx, s.cancel = context.WithCancel(context.Background())
-}
-
-func (s *testScheduleController) tearDown() {
-	s.cancel()
 }
 
 func TestController(t *testing.T) {

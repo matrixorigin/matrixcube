@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func cpu(usage int64) []rpcpb.RecordPair {
+func cpu(usage int64) []metapb.RecordPair {
 	n := 10
 	name := "cpu"
-	pairs := make([]rpcpb.RecordPair, n)
+	pairs := make([]metapb.RecordPair, n)
 	for i := 0; i < n; i++ {
-		pairs[i] = rpcpb.RecordPair{
+		pairs[i] = metapb.RecordPair{
 			Key:   fmt.Sprintf("%s:%d", name, i),
 			Value: uint64(usage),
 		}

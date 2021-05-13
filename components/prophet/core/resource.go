@@ -24,19 +24,13 @@ var errResourceIsStale = func(res metadata.Resource, origin metadata.Resource) e
 type CachedResource struct {
 	Meta metadata.Resource
 
-	term            uint64
-	learners        []metapb.Peer
-	voters          []metapb.Peer
-	leader          *metapb.Peer
-	downPeers       []metapb.PeerStats
-	pendingPeers    []metapb.Peer
-	writtenBytes    uint64
-	writtenKeys     uint64
-	readBytes       uint64
-	readKeys        uint64
-	approximateSize int64
-	approximateKeys int64
-	interval        *rpcpb.TimeInterval
+	term         uint64
+	learners     []metapb.Peer
+	voters       []metapb.Peer
+	leader       *metapb.Peer
+	downPeers    []metapb.PeerStats
+	pendingPeers []metapb.Peer
+	stats        metapb.ResourceStats
 }
 
 // NewCachedResource creates CachedResource with resource's meta and leader peer.
@@ -76,24 +70,18 @@ const EmptyResourceApproximateSize = 1
 func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.Resource) *CachedResource {
 	// Convert unit to MB.
 	// If resource is empty or less than 1MB, use 1MB instead.
-	resourceSize := heartbeat.GetApproximateSize() / (1 << 20)
+	resourceSize := heartbeat.Stats.GetApproximateSize() / (1 << 20)
 	if resourceSize < EmptyResourceApproximateSize {
 		resourceSize = EmptyResourceApproximateSize
 	}
 
 	res := &CachedResource{
-		Meta:            meta,
-		term:            heartbeat.GetTerm(),
-		leader:          heartbeat.GetLeader(),
-		downPeers:       heartbeat.GetDownPeers(),
-		pendingPeers:    heartbeat.GetPendingPeers(),
-		writtenBytes:    heartbeat.GetBytesWritten(),
-		writtenKeys:     heartbeat.GetKeysWritten(),
-		readBytes:       heartbeat.GetBytesRead(),
-		readKeys:        heartbeat.GetKeysRead(),
-		approximateSize: int64(resourceSize),
-		approximateKeys: int64(heartbeat.GetApproximateKeys()),
-		interval:        heartbeat.GetInterval(),
+		Meta:         meta,
+		term:         heartbeat.GetTerm(),
+		leader:       heartbeat.GetLeader(),
+		downPeers:    heartbeat.GetDownPeers(),
+		pendingPeers: heartbeat.GetPendingPeers(),
+		stats:        heartbeat.Stats,
 	}
 
 	classifyVoterAndLearner(res)
@@ -112,19 +100,14 @@ func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
 	}
 
 	res := &CachedResource{
-		term:            r.term,
-		Meta:            r.Meta.Clone(),
-		leader:          proto.Clone(r.leader).(*metapb.Peer),
-		downPeers:       downPeers,
-		pendingPeers:    pendingPeers,
-		writtenBytes:    r.writtenBytes,
-		writtenKeys:     r.writtenKeys,
-		readBytes:       r.readBytes,
-		readKeys:        r.readKeys,
-		approximateSize: r.approximateSize,
-		approximateKeys: r.approximateKeys,
-		interval:        proto.Clone(r.interval).(*rpcpb.TimeInterval),
+		term:         r.term,
+		Meta:         r.Meta.Clone(),
+		leader:       proto.Clone(r.leader).(*metapb.Peer),
+		downPeers:    downPeers,
+		pendingPeers: pendingPeers,
+		stats:        r.stats,
 	}
+	res.stats.Interval = proto.Clone(r.stats.Interval).(*metapb.TimeInterval)
 
 	for _, opt := range opts {
 		opt(res)
@@ -300,31 +283,27 @@ func (r *CachedResource) GetDiffFollowers(other *CachedResource) []metapb.Peer {
 }
 
 // GetStat returns the statistics of the resource.
-func (r *CachedResource) GetStat() *metapb.ResourceStat {
+func (r *CachedResource) GetStat() *metapb.ResourceStats {
 	if r == nil {
 		return nil
 	}
-	return &metapb.ResourceStat{
-		BytesWritten: r.writtenBytes,
-		BytesRead:    r.readBytes,
-		KeysWritten:  r.writtenKeys,
-		KeysRead:     r.readKeys,
-	}
+	stats := r.stats
+	return &stats
 }
 
 // GetApproximateSize returns the approximate size of the resource.
 func (r *CachedResource) GetApproximateSize() int64 {
-	return r.approximateSize
+	return int64(r.stats.ApproximateSize)
 }
 
 // GetApproximateKeys returns the approximate keys of the resource.
 func (r *CachedResource) GetApproximateKeys() int64 {
-	return r.approximateKeys
+	return int64(r.stats.ApproximateKeys)
 }
 
 // GetInterval returns the interval information of the resource.
-func (r *CachedResource) GetInterval() *rpcpb.TimeInterval {
-	return r.interval
+func (r *CachedResource) GetInterval() *metapb.TimeInterval {
+	return r.stats.Interval
 }
 
 // GetDownPeers returns the down peers of the resource.
@@ -339,22 +318,22 @@ func (r *CachedResource) GetPendingPeers() []metapb.Peer {
 
 // GetBytesRead returns the read bytes of the resource.
 func (r *CachedResource) GetBytesRead() uint64 {
-	return r.readBytes
+	return r.stats.ReadBytes
 }
 
 // GetBytesWritten returns the written bytes of the resource.
 func (r *CachedResource) GetBytesWritten() uint64 {
-	return r.writtenBytes
+	return r.stats.WrittenBytes
 }
 
 // GetKeysWritten returns the written keys of the resource.
 func (r *CachedResource) GetKeysWritten() uint64 {
-	return r.writtenKeys
+	return r.stats.WrittenKeys
 }
 
 // GetKeysRead returns the read keys of the resource.
 func (r *CachedResource) GetKeysRead() uint64 {
-	return r.readKeys
+	return r.stats.ReadKeys
 }
 
 // GetLeader returns the leader of the resource.
@@ -414,12 +393,12 @@ func (rm *resourceMap) Get(id uint64) *CachedResource {
 
 func (rm *resourceMap) Put(res *CachedResource) {
 	if old, ok := rm.m[res.Meta.ID()]; ok {
-		rm.totalSize -= old.approximateSize
-		rm.totalKeys -= old.approximateKeys
+		rm.totalSize -= int64(old.stats.ApproximateSize)
+		rm.totalKeys -= int64(old.stats.ApproximateKeys)
 	}
 	rm.m[res.Meta.ID()] = res
-	rm.totalSize += res.approximateSize
-	rm.totalKeys += res.approximateKeys
+	rm.totalSize += int64(res.stats.ApproximateSize)
+	rm.totalKeys += int64(res.stats.ApproximateKeys)
 }
 
 func (rm *resourceMap) Delete(id uint64) {
@@ -428,8 +407,8 @@ func (rm *resourceMap) Delete(id uint64) {
 	}
 	if old, ok := rm.m[id]; ok {
 		delete(rm.m, id)
-		rm.totalSize -= old.approximateSize
-		rm.totalKeys -= old.approximateKeys
+		rm.totalSize -= int64(old.stats.ApproximateSize)
+		rm.totalKeys -= int64(old.stats.ApproximateKeys)
 	}
 }
 
@@ -475,11 +454,11 @@ func (rst *resourceSubTree) scanRanges() []*CachedResource {
 
 func (rst *resourceSubTree) update(res *CachedResource) {
 	overlaps := rst.resourceTree.update(res)
-	rst.totalSize += res.approximateSize
-	rst.totalKeys += res.approximateKeys
+	rst.totalSize += int64(res.stats.ApproximateSize)
+	rst.totalKeys += int64(res.stats.ApproximateKeys)
 	for _, r := range overlaps {
-		rst.totalSize -= r.approximateSize
-		rst.totalKeys -= r.approximateKeys
+		rst.totalSize -= int64(r.stats.ApproximateSize)
+		rst.totalKeys -= int64(r.stats.ApproximateKeys)
 	}
 }
 
@@ -488,8 +467,8 @@ func (rst *resourceSubTree) remove(res *CachedResource) {
 		return
 	}
 	if rst.resourceTree.remove(res) != nil {
-		rst.totalSize -= res.approximateSize
-		rst.totalKeys -= res.approximateKeys
+		rst.totalSize -= int64(res.stats.ApproximateSize)
+		rst.totalKeys -= int64(res.stats.ApproximateKeys)
 	}
 }
 

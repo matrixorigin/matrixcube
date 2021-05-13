@@ -8,7 +8,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,7 +76,7 @@ func TestCloneContainer(t *testing.T) {
 }
 
 func TestResourceScore(t *testing.T) {
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = 512 * (1 << 20)  // 512 MB
 	stats.Available = 100 * (1 << 20) // 100 MB
 	stats.UsedSize = 0

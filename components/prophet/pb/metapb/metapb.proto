@@ -96,16 +96,72 @@ message Timestamp {
     int64 logical  = 2;
 }
 
-// ResourceStat resource stat
-message ResourceStat {
-    // Bytes written for the container during this period.
-    uint64       bytesWritten       = 1;
-    // Bytes read for the container during this period.
-    uint64       bytesRead          = 2;
-    // Bytes written for the container during this period.
-    uint64       keysWritten        = 3;
-    // Bytes read for the container during this period.
-    uint64       keysRead           = 4;
+// ResourceStats resource stats
+message ResourceStats {
+    // resource ID
+    uint64       resourceID      = 1;
+    // bytes written during this period
+	uint64       writtenBytes    = 2;
+	// keys written during this period
+	uint64       writtenKeys     = 3;
+    // bytes read during this period
+	uint64       readBytes       = 4;     
+	// keys read during this period
+	uint64       readKeys        = 5;
+	// approximate data size in bytes of the resource
+	uint64       approximateSize = 6;
+	// approximate count of keys in the resource
+	uint64       approximateKeys = 7;
+    // Actually reported time interval
+    TimeInterval interval        = 8;
+}
+
+// ContainerStats container stats
+message ContainerStats {
+             // Container id
+             uint64       containerID        = 1;
+             // When the container is started (unix timestamp in seconds).
+             uint64       startTime          = 2;
+             // Actually reported time interval
+             TimeInterval interval           = 3;
+             // Capacity for the container.
+             uint64       capacity           = 4;
+             // Available size for the container.
+             uint64       available          = 5;
+             // Actually used space by db
+             uint64       usedSize           = 6;
+             // If the container is busy
+             bool         isBusy             = 7;
+             // Total resource count in this container.
+             uint64       resourceCount      = 8;
+             // Current sending snapshot count.
+             uint64       sendingSnapCount   = 9;
+             // Current receiving snapshot count.
+             uint64       receivingSnapCount = 10;
+             // How many resource is applying snapshot.
+             uint64       applyingSnapCount  = 11;
+             // Bytes written for the container during this period.
+             uint64       writtenBytes       = 12;
+             // Bytes read for the container during this period.
+             uint64       readBytes          = 13;
+             // Bytes written for the container during this period.
+             uint64       writtenKeys        = 14;
+             // Bytes read for the container during this period.
+             uint64       readKeys           = 15;
+    // Threads' CPU usages in the container
+    repeated RecordPair   cpuUsages          = 16 [(gogoproto.nullable) = false];
+    // Threads' read disk I/O rates in the container
+    repeated RecordPair   readIORates        = 17 [(gogoproto.nullable) = false];
+    // Threads' write disk I/O rates in the container
+    repeated RecordPair   writeIORates       = 18 [(gogoproto.nullable) = false];
+    // Operations' latencies in the container
+    repeated RecordPair   opLatencies        = 19 [(gogoproto.nullable) = false];
+}
+
+// RecordPair record pair
+message RecordPair {
+    string key   = 1;
+    uint64 value = 2;
 }
 
 // Member prophet member
@@ -119,4 +175,12 @@ message Member {
 message Cluster {
     uint64 id           = 1 [(gogoproto.customname) = "ID"];
     uint32 maxPeerCount = 2;
+}
+
+// TimeInterval time interval
+message TimeInterval {
+    // The unix timestamp in seconds of the start of this period.
+    uint64 start = 1;
+    // The unix timestamp in seconds of the end of this period.
+    uint64 end   = 2;
 }

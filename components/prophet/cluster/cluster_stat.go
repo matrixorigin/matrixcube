@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
@@ -95,7 +95,7 @@ const NumberOfEntries = 30
 const StaleEntriesTimeout = 300 * time.Second
 
 // StatEntry is an entry of container statistics
-type StatEntry rpcpb.ContainerStats
+type StatEntry metapb.ContainerStats
 
 // CPUEntries saves a history of container statistics
 type CPUEntries struct {

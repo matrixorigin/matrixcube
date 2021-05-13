@@ -2,16 +2,21 @@ package event
 
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
 var (
 	// EventInit event init
 	EventInit uint32 = 1 << 1
-	// EventResource event resource event
+	// EventResource resource event
 	EventResource uint32 = 1 << 2
-	// EventContainer  event container create
+	// EventContainer container create event
 	EventContainer uint32 = 1 << 3
+	// EventResourceStats resource stats
+	EventResourceStats uint32 = 1 << 4
+	// EventContainerStats container stats
+	EventContainerStats uint32 = 1 << 5
 	// EventFlagAll all event
 	EventFlagAll = 0xffffffff
 )
@@ -67,6 +72,22 @@ func NewResourceEvent(target metadata.Resource, leaderID uint64) rpcpb.EventNoti
 			Data:   value,
 			Leader: leaderID,
 		},
+	}
+}
+
+// NewResourceStatsEvent create resource stats event
+func NewResourceStatsEvent(stats *metapb.ResourceStats) rpcpb.EventNotify {
+	return rpcpb.EventNotify{
+		Type:               EventResourceStats,
+		ResourceStatsEvent: stats,
+	}
+}
+
+// NewContainerStatsEvent create container stats event
+func NewContainerStatsEvent(stats *metapb.ContainerStats) rpcpb.EventNotify {
+	return rpcpb.EventNotify{
+		Type:                EventContainerStats,
+		ContainerStatsEvent: stats,
 	}
 }
 

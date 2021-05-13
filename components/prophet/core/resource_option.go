@@ -3,7 +3,6 @@ package core
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
 // ResourceOption is used to select resource.
@@ -122,14 +121,14 @@ func WithDecConfVer() ResourceCreateOption {
 // SetWrittenBytes sets the written bytes for the resource.
 func SetWrittenBytes(v uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.writtenBytes = v
+		res.stats.WrittenBytes = v
 	}
 }
 
 // SetWrittenKeys sets the written keys for the resource.
 func SetWrittenKeys(v uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.writtenKeys = v
+		res.stats.WrittenKeys = v
 	}
 }
 
@@ -149,35 +148,35 @@ func WithRemoveContainerPeer(containerID uint64) ResourceCreateOption {
 // SetReadBytes sets the read bytes for the resource.
 func SetReadBytes(v uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.readBytes = v
+		res.stats.ReadBytes = v
 	}
 }
 
 // SetReadKeys sets the read keys for the resource.
 func SetReadKeys(v uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.readKeys = v
+		res.stats.ReadKeys = v
 	}
 }
 
 // SetApproximateSize sets the approximate size for the resource.
 func SetApproximateSize(v int64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.approximateSize = v
+		res.stats.ApproximateSize = uint64(v)
 	}
 }
 
 // SetApproximateKeys sets the approximate keys for the resource.
 func SetApproximateKeys(v int64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.approximateKeys = v
+		res.stats.ApproximateKeys = uint64(v)
 	}
 }
 
 // SetReportInterval sets the report interval for the resource.
 func SetReportInterval(v uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.interval = &rpcpb.TimeInterval{Start: 0, End: v}
+		res.stats.Interval = &metapb.TimeInterval{Start: 0, End: v}
 	}
 }
 
