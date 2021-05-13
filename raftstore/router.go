@@ -8,6 +8,7 @@ import (
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/util"
@@ -21,12 +22,17 @@ type Router interface {
 	// If returns leader address is "", means the current shard has no leader
 	SelectShard(group uint64, key []byte) (uint64, string)
 	// Every do with all shards
-	Every(uint64, bool, func(uint64, string))
+	Every(group uint64, mustLeader bool, fn func(shardID uint64, address string))
 
 	// LeaderAddress return leader peer store address
 	LeaderAddress(uint64) string
 	// RandomPeerAddress return random peer store address
 	RandomPeerAddress(uint64) string
+
+	// GetShardStats returns the runtime stats info of the shard
+	GetShardStats(id uint64) *metapb.ResourceStats
+	// GetStoreStats returns the runtime stats info of the store
+	GetStoreStats(id uint64) *metapb.ContainerStats
 }
 
 type op struct {
@@ -50,6 +56,9 @@ type defaultRouter struct {
 	shards                    sync.Map // shard id -> metapb.Shard
 	missingStoreLeaderChanged sync.Map //
 	opts                      sync.Map // shard id -> *op
+
+	shardStats sync.Map // shard id -> ResourceStats
+	storeStats sync.Map // store id -> ContainerStats
 }
 
 func newRouter(pd prophet.Prophet, runner *task.Runner) (Router, error) {
@@ -114,6 +123,22 @@ func (r *defaultRouter) RandomPeerAddress(id uint64) string {
 	return ""
 }
 
+func (r *defaultRouter) GetShardStats(id uint64) *metapb.ResourceStats {
+	if v, ok := r.shardStats.Load(id); ok {
+		return v.(*metapb.ResourceStats)
+	}
+
+	return nil
+}
+
+func (r *defaultRouter) GetStoreStats(id uint64) *metapb.ContainerStats {
+	if v, ok := r.storeStats.Load(id); ok {
+		return v.(*metapb.ContainerStats)
+	}
+
+	return nil
+}
+
 func (r *defaultRouter) selectStore(shard *bhmetapb.Shard) uint64 {
 	var ops *op
 	if v, ok := r.opts.Load(shard.ID); ok {
@@ -171,6 +196,10 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 		r.updateShard(evt.ResourceEvent.Data, evt.ResourceEvent.Leader)
 	case event.EventContainer:
 		r.updateStore(evt.ContainerEvent.Data)
+	case event.EventResourceStats:
+		r.shardStats.Store(evt.ResourceStatsEvent.ResourceID, evt.ResourceStatsEvent)
+	case event.EventContainerStats:
+		r.storeStats.Store(evt.ContainerStatsEvent.ContainerID, evt.ContainerStatsEvent)
 	}
 }
 

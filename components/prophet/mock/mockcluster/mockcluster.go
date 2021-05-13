@@ -10,7 +10,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
@@ -199,7 +198,7 @@ func (mc *Cluster) SetContainerOffline(containerID uint64) {
 // SetContainerBusy sets container busy.
 func (mc *Cluster) SetContainerBusy(containerID uint64, busy bool) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.IsBusy = busy
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
@@ -210,7 +209,7 @@ func (mc *Cluster) SetContainerBusy(containerID uint64, busy bool) {
 
 // AddLeaderContainer adds container with specified count of leader.
 func (mc *Cluster) AddLeaderContainer(containerID uint64, leaderCount int, leaderSizes ...int64) {
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
 	stats.UsedSize = uint64(leaderCount) * defaultResourceSize
 	stats.Available = stats.Capacity - uint64(leaderCount)*defaultResourceSize
@@ -235,7 +234,7 @@ func (mc *Cluster) AddLeaderContainer(containerID uint64, leaderCount int, leade
 
 // AddResourceContainer adds container with specified count of resource.
 func (mc *Cluster) AddResourceContainer(containerID uint64, resourceCount int) {
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
 	stats.UsedSize = uint64(resourceCount) * defaultResourceSize
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultResourceSize
@@ -275,7 +274,7 @@ func (mc *Cluster) AddLabelsContainer(containerID uint64, resourceCount int, lab
 	for k, v := range labels {
 		newLabels = append(newLabels, metapb.Pair{Key: k, Value: v})
 	}
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultResourceSize
 	stats.UsedSize = uint64(resourceCount) * defaultResourceSize
@@ -377,7 +376,7 @@ func (mc *Cluster) UpdateContainerResourceWeight(containerID uint64, weight floa
 // UpdateContainerLeaderSize updates container leader size.
 func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.Available = newStats.Capacity - uint64(container.GetLeaderSize())
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
@@ -389,7 +388,7 @@ func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 // UpdateContainerResourceSize updates container resource size.
 func (mc *Cluster) UpdateContainerResourceSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.Available = newStats.Capacity - uint64(container.GetResourceSize())
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
@@ -421,7 +420,7 @@ func (mc *Cluster) UpdateResourceCount(containerID uint64, resourceCount int) {
 // UpdateSnapshotCount updates container snapshot count.
 func (mc *Cluster) UpdateSnapshotCount(containerID uint64, snapshotCount int) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.ApplyingSnapCount = uint64(snapshotCount)
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.PutContainer(newContainer)
@@ -437,7 +436,7 @@ func (mc *Cluster) UpdatePendingPeerCount(containerID uint64, pendingPeerCount i
 // UpdateStorageRatio updates container storage ratio count.
 func (mc *Cluster) UpdateStorageRatio(containerID uint64, usedRatio, availableRatio float64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.Capacity = defaultContainerCapacity
 	newStats.UsedSize = uint64(float64(newStats.Capacity) * usedRatio)
 	newStats.Available = uint64(float64(newStats.Capacity) * availableRatio)
@@ -448,11 +447,11 @@ func (mc *Cluster) UpdateStorageRatio(containerID uint64, usedRatio, availableRa
 // UpdateStorageWrittenStats updates container written bytes.
 func (mc *Cluster) UpdateStorageWrittenStats(containerID, bytesWritten, keysWritten uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.BytesWritten = bytesWritten
-	newStats.KeysWritten = keysWritten
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.WrittenBytes = bytesWritten
+	newStats.WrittenKeys = keysWritten
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -462,11 +461,11 @@ func (mc *Cluster) UpdateStorageWrittenStats(containerID, bytesWritten, keysWrit
 // UpdateStorageReadStats updates container written bytes.
 func (mc *Cluster) UpdateStorageReadStats(containerID, bytesWritten, keysWritten uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.BytesRead = bytesWritten
-	newStats.KeysRead = keysWritten
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.ReadBytes = bytesWritten
+	newStats.ReadKeys = keysWritten
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -476,11 +475,11 @@ func (mc *Cluster) UpdateStorageReadStats(containerID, bytesWritten, keysWritten
 // UpdateStorageWrittenBytes updates container written bytes.
 func (mc *Cluster) UpdateStorageWrittenBytes(containerID uint64, bytesWritten uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.BytesWritten = bytesWritten
-	newStats.KeysWritten = bytesWritten / 100
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.WrittenBytes = bytesWritten
+	newStats.WrittenKeys = bytesWritten / 100
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -490,11 +489,11 @@ func (mc *Cluster) UpdateStorageWrittenBytes(containerID uint64, bytesWritten ui
 // UpdateStorageReadBytes updates container read bytes.
 func (mc *Cluster) UpdateStorageReadBytes(containerID uint64, bytesRead uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.BytesRead = bytesRead
-	newStats.KeysRead = bytesRead / 100
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.ReadBytes = bytesRead
+	newStats.ReadKeys = bytesRead / 100
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -504,11 +503,11 @@ func (mc *Cluster) UpdateStorageReadBytes(containerID uint64, bytesRead uint64) 
 // UpdateStorageWrittenKeys updates container written keys.
 func (mc *Cluster) UpdateStorageWrittenKeys(containerID uint64, keysWritten uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.KeysWritten = keysWritten
-	newStats.BytesWritten = keysWritten * 100
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.WrittenKeys = keysWritten
+	newStats.WrittenBytes = keysWritten * 100
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -518,11 +517,11 @@ func (mc *Cluster) UpdateStorageWrittenKeys(containerID uint64, keysWritten uint
 // UpdateStorageReadKeys updates container read bytes.
 func (mc *Cluster) UpdateStorageReadKeys(containerID uint64, keysRead uint64) {
 	container := mc.GetContainer(containerID)
-	newStats := proto.Clone(container.GetContainerStats()).(*rpcpb.ContainerStats)
-	newStats.KeysRead = keysRead
-	newStats.BytesRead = keysRead * 100
+	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
+	newStats.ReadKeys = keysRead
+	newStats.ReadBytes = keysRead * 100
 	now := time.Now().Second()
-	interval := &rpcpb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
+	interval := &metapb.TimeInterval{Start: uint64(now - statistics.ContainerHeartBeatReportInterval), End: uint64(now)}
 	newStats.Interval = interval
 	newContainer := container.Clone(core.SetContainerStats(newStats))
 	mc.Set(containerID, newStats)
@@ -537,7 +536,7 @@ func (mc *Cluster) UpdateContainerStatus(id uint64) {
 	leaderSize := mc.Resources.GetContainerLeaderResourceSize(id)
 	resourceSize := mc.Resources.GetContainerResourceSize(id)
 	container := mc.Containers.GetContainer(id)
-	stats := &rpcpb.ContainerStats{}
+	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
 	stats.Available = stats.Capacity - uint64(container.GetResourceSize()*mb)
 	stats.UsedSize = uint64(container.GetResourceSize() * mb)

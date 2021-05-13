@@ -164,6 +164,11 @@ func NewTestOptions() *PersistOptions {
 		RegisterScheduler(d.Type)
 	}
 	c := NewConfig()
+	c.Schedule.EnableReplaceOfflineReplica = true
+	c.Schedule.EnableMakeUpReplica = true
+	c.Schedule.EnableRemoveExtraReplica = true
+	c.Schedule.EnableRemoveDownReplica = true
+	c.Schedule.EnableLocationReplacement = true
 	c.Adjust(nil, false)
 	return NewPersistOptions(c)
 }

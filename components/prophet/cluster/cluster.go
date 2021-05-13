@@ -85,9 +85,7 @@ type RaftCluster struct {
 
 	ruleManager *placement.RuleManager
 	etcdClient  *clientv3.Client
-	httpClient  *http.Client
-
-	adapter metadata.Adapter
+	adapter     metadata.Adapter
 }
 
 // NewRaftCluster create a new cluster.
@@ -100,16 +98,6 @@ func NewRaftCluster(ctx context.Context, root string, clusterID uint64, etcdClie
 		etcdClient:  etcdClient,
 		adapter:     adapter,
 	}
-}
-
-func (c *RaftCluster) isInitialized() bool {
-	if c.core.GetResourceCount() > 1 {
-		return true
-	}
-	res := c.core.SearchResource(nil)
-	return res != nil &&
-		len(res.GetVoters()) >= int(c.GetReplicationConfig().MaxReplicas) &&
-		len(res.GetPendingPeers()) == 0
 }
 
 // GetReplicationConfig get the replication config.
@@ -373,7 +361,7 @@ func (c *RaftCluster) ClearSuspectKeyRanges() {
 }
 
 // HandleContainerHeartbeat updates the container status.
-func (c *RaftCluster) HandleContainerHeartbeat(stats *rpcpb.ContainerStats) error {
+func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -404,6 +392,7 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *rpcpb.ContainerStats) erro
 		c.hotStat.UpdateContainerHeartbeatMetrics(container)
 	}
 	c.core.PutContainer(newContainer)
+	c.changedEvents <- event.NewContainerStatsEvent(newContainer.GetContainerStats())
 	c.hotStat.Observe(newContainer.Meta.ID(), newContainer.GetContainerStats())
 	c.hotStat.UpdateTotalBytesRate(c.core.GetContainers)
 	c.hotStat.UpdateTotalKeysRate(c.core.GetContainers)
@@ -565,6 +554,9 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 	if saveKV {
 		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID())
+	}
+	if saveCache {
+		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
 	}
 
 	return nil

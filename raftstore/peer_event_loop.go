@@ -522,17 +522,17 @@ func (pr *peerReplica) doHeartbeat() {
 	req.ContainerID = pr.store.Meta().ID
 	req.DownPeers = pr.collectDownPeers()
 	req.PendingPeers = pr.collectPendingPeers()
-	req.BytesWritten = pr.writtenBytes
-	req.KeysWritten = pr.writtenKeys
-	req.BytesRead = pr.readBytes
-	req.KeysRead = pr.readKeys
-	req.ApproximateKeys = pr.approximateKeys
-	req.ApproximateSize = pr.approximateSize
-	req.Interval = &rpcpb.TimeInterval{
+	req.Stats.WrittenBytes = pr.writtenBytes
+	req.Stats.WrittenKeys = pr.writtenKeys
+	req.Stats.ReadBytes = pr.readBytes
+	req.Stats.ReadKeys = pr.readKeys
+	req.Stats.ApproximateKeys = pr.approximateKeys
+	req.Stats.ApproximateSize = pr.approximateSize
+	req.Stats.Interval = &metapb.TimeInterval{
 		Start: pr.lastHBTime,
 		End:   uint64(time.Now().Unix()),
 	}
-	pr.lastHBTime = req.Interval.End
+	pr.lastHBTime = req.Stats.Interval.End
 
 	err := pr.store.pd.GetClient().ResourceHeartbeat(newResourceAdapterWithShard(pr.ps.shard), req)
 	if err != nil {

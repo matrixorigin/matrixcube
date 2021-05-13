@@ -6,7 +6,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +25,7 @@ func TestCollect(t *testing.T) {
 
 	limiter := NewContainerLimiter(s.opt)
 
-	limiter.Collect(&rpcpb.ContainerStats{})
+	limiter.Collect(&metapb.ContainerStats{})
 	assert.Equal(t, int64(1), limiter.state.cst.total)
 }
 

@@ -11,7 +11,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
@@ -34,7 +33,7 @@ func TestContainerHeartbeat(t *testing.T) {
 	assert.Equal(t, int(n), cluster.core.Resources.GetResourceCount())
 
 	for i, container := range containers {
-		containerStats := &rpcpb.ContainerStats{
+		containerStats := &metapb.ContainerStats{
 			ContainerID:   container.Meta.ID(),
 			Capacity:      100,
 			Available:     50,
@@ -69,7 +68,7 @@ func TestFilterUnhealthyContainer(t *testing.T) {
 
 	containers := newTestContainers(3, "2.0.0")
 	for _, container := range containers {
-		containerStats := &rpcpb.ContainerStats{
+		containerStats := &metapb.ContainerStats{
 			ContainerID:   container.Meta.ID(),
 			Capacity:      100,
 			Available:     50,
@@ -81,7 +80,7 @@ func TestFilterUnhealthyContainer(t *testing.T) {
 	}
 
 	for _, container := range containers {
-		containerStats := &rpcpb.ContainerStats{
+		containerStats := &metapb.ContainerStats{
 			ContainerID:   container.Meta.ID(),
 			Capacity:      100,
 			Available:     50,

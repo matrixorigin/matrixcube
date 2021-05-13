@@ -211,7 +211,7 @@ func (s *store) startStoreHeartbeat() {
 }
 
 func (s *store) doStoreHeartbeat(last time.Time) {
-	stats := rpcpb.ContainerStats{}
+	stats := metapb.ContainerStats{}
 	stats.ContainerID = s.Meta().ID
 	if s.cfg.UseMemoryAsStorage {
 		ms, err := util.MemStats()
@@ -243,7 +243,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		return
 	}
 	for i, v := range usages {
-		stats.CpuUsages = append(stats.CpuUsages, rpcpb.RecordPair{
+		stats.CpuUsages = append(stats.CpuUsages, metapb.RecordPair{
 			Key:   fmt.Sprintf("cpu:%d", i),
 			Value: uint64(v * 100),
 		})
@@ -256,11 +256,11 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		return
 	}
 	for name, v := range rates {
-		stats.WriteIORates = append(stats.WriteIORates, rpcpb.RecordPair{
+		stats.WriteIORates = append(stats.WriteIORates, metapb.RecordPair{
 			Key:   name,
 			Value: v.WriteBytes,
 		})
-		stats.ReadIORates = append(stats.ReadIORates, rpcpb.RecordPair{
+		stats.ReadIORates = append(stats.ReadIORates, metapb.RecordPair{
 			Key:   name,
 			Value: v.ReadBytes,
 		})
@@ -280,15 +280,15 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 
 	s.cfg.Storage.ForeachDataStorageFunc(func(db storage.DataStorage) {
 		st := db.Stats()
-		stats.BytesWritten += st.WrittenBytes
-		stats.KeysWritten += st.WrittenKeys
-		stats.KeysRead += st.ReadKeys
-		stats.BytesRead += st.ReadBytes
+		stats.WrittenBytes += st.WrittenBytes
+		stats.WrittenKeys += st.WrittenKeys
+		stats.ReadKeys += st.ReadKeys
+		stats.ReadBytes += st.ReadBytes
 	})
 
 	// TODO: is busy
 	stats.IsBusy = false
-	stats.Interval = &rpcpb.TimeInterval{
+	stats.Interval = &metapb.TimeInterval{
 		Start: uint64(last.Unix()),
 		End:   uint64(time.Now().Unix()),
 	}

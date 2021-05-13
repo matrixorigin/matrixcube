@@ -10,7 +10,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/stretchr/testify/assert"
 )
@@ -154,7 +153,7 @@ func TestContainerStateFilter(t *testing.T) {
 
 	// Busy
 	container = container.Clone(core.SetLastHeartbeatTS(time.Now())).
-		Clone(core.SetContainerStats(&rpcpb.ContainerStats{IsBusy: true}))
+		Clone(core.SetContainerStats(&metapb.ContainerStats{IsBusy: true}))
 	testCases = []testCase{
 		{0, true, false},
 		{1, false, false},
