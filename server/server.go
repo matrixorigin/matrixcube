@@ -27,12 +27,19 @@ type Application struct {
 	server      goetty.NetApplication
 	shardsProxy proxy.ShardsProxy
 	libaryCB    sync.Map // id -> application cb
+	dispatcher  func(req *raftcmdpb.Request, cmd interface{}, proxy proxy.ShardsProxy) error
 }
 
 // NewApplication returns a tcp application server
 func NewApplication(cfg Cfg) *Application {
+	return NewApplicationWithDispatcher(cfg, nil)
+}
+
+// NewApplication returns a tcp application server
+func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Request, cmd interface{}, proxy proxy.ShardsProxy) error) *Application {
 	s := &Application{
-		cfg: cfg,
+		cfg:        cfg,
+		dispatcher: dispatcher,
 	}
 
 	if !cfg.ExternalServer {
@@ -75,6 +82,11 @@ func (s *Application) Stop() {
 	s.server.Stop()
 }
 
+// ShardProxy returns the shard proxy
+func (s *Application) ShardProxy() proxy.ShardsProxy {
+	return s.shardsProxy
+}
+
 // Exec exec the request command
 func (s *Application) Exec(cmd interface{}, timeout time.Duration) ([]byte, error) {
 	return s.ExecWithGroup(cmd, 0, timeout)
@@ -97,9 +109,9 @@ func (s *Application) ExecWithGroup(cmd interface{}, group uint64, timeout time.
 
 	s.AsyncExecWithGroupAndTimeout(cmd, group, cb, timeout, nil)
 	value := <-completeC
-	switch value.(type) {
+	switch v := value.(type) {
 	case error:
-		return nil, value.(error)
+		return nil, v
 	default:
 		return value.([]byte), nil
 	}
@@ -137,7 +149,11 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 		util.DefaultTimeoutWheel().Schedule(timeout, s.execTimeout, req.ID)
 	}
 
-	err = s.shardsProxy.Dispatch(req)
+	if s.dispatcher != nil {
+		err = s.dispatcher(req, cmd, s.shardsProxy)
+	} else {
+		err = s.shardsProxy.Dispatch(req)
+	}
 	if err != nil {
 		pb.ReleaseRequest(req)
 		s.libaryCB.Delete(hack.SliceToString(req.ID))
@@ -194,7 +210,12 @@ func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint
 		return nil
 	}
 
-	err = s.shardsProxy.Dispatch(req)
+	if s.dispatcher != nil {
+		err = s.dispatcher(req, cmd, s.shardsProxy)
+	} else {
+		err = s.shardsProxy.Dispatch(req)
+	}
+
 	if err != nil {
 		resp := &raftcmdpb.Response{}
 		resp.Error.Message = err.Error()
