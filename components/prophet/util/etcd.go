@@ -39,7 +39,7 @@ func CheckClusterID(localClusterID types.ID, um types.URLsMap) error {
 
 		remoteClusterID := remoteCluster.ID()
 		if remoteClusterID != localClusterID {
-			return fmt.Errorf("Etcd cluster ID mismatch, expect %d, got %d", localClusterID, remoteClusterID)
+			return fmt.Errorf("etcd cluster ID mismatch, expect %d, got %d", localClusterID, remoteClusterID)
 		}
 	}
 	return nil
@@ -167,7 +167,7 @@ func (t *slowLogTxn) Commit() (*clientv3.TxnResponse, error) {
 	resp, err := t.Txn.Commit()
 	t.cancel()
 
-	cost := time.Now().Sub(start)
+	cost := time.Since(start)
 	if cost > option.DefaultSlowRequestTime {
 		GetLogger().Warningf("txn runs too slow, resp=<%+v> cost=<%s> errors:\n %+v",
 			resp,

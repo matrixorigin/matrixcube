@@ -238,7 +238,11 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 
 func (pr *peerReplica) mustDestroy() {
 	if pr.ps.isApplyingSnapshot() {
-		logger.Fatalf("shard %d destroy db is apply for snapshot", pr.shardID)
+		util.DefaultTimeoutWheel().Schedule(time.Second*30, func(interface{}) {
+			pr.mustDestroy()
+		}, nil)
+		logger.Infof("shard %d is applying snapshot, retry destory later", pr.shardID)
+		return
 	}
 
 	logger.Infof("shard %d begin to destroy",
@@ -285,11 +289,7 @@ func (pr *peerReplica) mustDestroy() {
 			pr.shardID)
 	}
 
-	pr.store.replicas.Delete(pr.shardID)
-	if pr.store.aware != nil {
-		pr.store.aware.Destory(pr.ps.shard)
-	}
-	pr.store.revokeWorker(pr)
+	pr.store.removePR(pr)
 	logger.Infof("shard %d destroy self complete.",
 		pr.shardID)
 }

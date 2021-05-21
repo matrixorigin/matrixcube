@@ -31,6 +31,7 @@ var (
 	defaultRaftHeartbeatTick               = 2
 	defaultCompactDuration                 = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
+	defaultShardStateCheckDuration         = time.Second * 60
 	defaultEnsureNewSuardInterval          = time.Second * 10
 	defaultMaxEntryBytes                   = 10 * mb
 	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
@@ -139,6 +140,7 @@ type ReplicationConfig struct {
 	ShardHeartbeatDuration  typeutil.Duration `toml:"shard-heartbeat-duration"`
 	StoreHeartbeatDuration  typeutil.Duration `toml:"store-heartbeat-duration"`
 	ShardSplitCheckDuration typeutil.Duration `toml:"shard-split-check-duration"`
+	ShardStateCheckDuration typeutil.Duration `toml:"shard-state-check-duration"`
 	DisableShardSplit       bool              `toml:"disable-shard-split"`
 	AllowRemoveLeader       bool              `toml:"allow-remove-leader"`
 	ShardCapacityBytes      typeutil.ByteSize `toml:"shard-capacity-bytes"`
@@ -161,6 +163,10 @@ func (c *ReplicationConfig) adjust() {
 
 	if c.ShardSplitCheckDuration.Duration == 0 {
 		c.ShardSplitCheckDuration.Duration = defaultShardSplitCheckDuration
+	}
+
+	if c.ShardStateCheckDuration.Duration == 0 {
+		c.ShardStateCheckDuration.Duration = defaultShardStateCheckDuration
 	}
 
 	if c.ShardCapacityBytes == 0 {

@@ -62,6 +62,14 @@ func (ra *resourceAdapter) SetEpoch(value metapb.ResourceEpoch) {
 	ra.meta.Epoch = value
 }
 
+func (ra *resourceAdapter) State() metapb.ResourceState {
+	return ra.meta.State
+}
+
+func (ra *resourceAdapter) SetState(state metapb.ResourceState) {
+	ra.meta.State = state
+}
+
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
 	return protoc.MustMarshal(&ra.meta), nil
 }
@@ -320,13 +328,17 @@ func (s *store) startHandleResourceHeartbeat() {
 }
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
+	if rsp.DestoryDirectly {
+		s.doDestroy(rsp.ResourceID)
+		return
+	}
+
 	pr := s.getPR(rsp.ResourceID, true)
 	if pr == nil {
 		logger.Infof("shard-%d is not leader, skip heartbeat resp",
 			rsp.ResourceID)
 		return
 	}
-
 	if rsp.ChangePeer != nil {
 		logger.Infof("shard-%d %s peer %+v",
 			rsp.ResourceID,

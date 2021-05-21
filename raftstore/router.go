@@ -59,19 +59,22 @@ type defaultRouter struct {
 
 	shardStats sync.Map // shard id -> ResourceStats
 	storeStats sync.Map // store id -> ContainerStats
+
+	removedHandleFunc func(id uint64)
 }
 
-func newRouter(pd prophet.Prophet, runner *task.Runner) (Router, error) {
+func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(id uint64)) (Router, error) {
 	watcher, err := pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
 	if err != nil {
 		return nil, err
 	}
 
 	return &defaultRouter{
-		pd:      pd,
-		runner:  runner,
-		watcher: watcher,
-		eventC:  watcher.GetNotify(),
+		pd:                pd,
+		runner:            runner,
+		watcher:           watcher,
+		eventC:            watcher.GetNotify(),
+		removedHandleFunc: removedHandleFunc,
 	}, nil
 }
 
@@ -190,10 +193,10 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 		}
 
 		for i, data := range evt.InitEvent.Resources {
-			r.updateShard(data, evt.InitEvent.Leaders[i])
+			r.updateShard(data, evt.InitEvent.Leaders[i], false)
 		}
 	case event.EventResource:
-		r.updateShard(evt.ResourceEvent.Data, evt.ResourceEvent.Leader)
+		r.updateShard(evt.ResourceEvent.Data, evt.ResourceEvent.Leader, evt.ResourceEvent.Removed)
 	case event.EventContainer:
 		r.updateStore(evt.ContainerEvent.Data)
 	case event.EventResourceStats:
@@ -203,11 +206,22 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	}
 }
 
-func (r *defaultRouter) updateShard(data []byte, leader uint64) {
+func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool) {
 	res := &resourceAdapter{}
 	err := res.Unmarshal(data)
 	if err != nil {
 		logger.Fatalf("unmarshal shard failed with %+v", err)
+	}
+
+	if removed {
+		r.removedHandleFunc(res.meta.ID)
+		if value, ok := r.keyRanges.Load(res.meta.Group); ok {
+			value.(*util.ShardTree).Remove(res.meta)
+		}
+		r.shards.Delete(res.meta.ID)
+		r.missingStoreLeaderChanged.Delete(res.meta.ID)
+		r.leaders.Delete(res.meta.ID)
+		return
 	}
 
 	r.shards.Store(res.meta.ID, res.meta)

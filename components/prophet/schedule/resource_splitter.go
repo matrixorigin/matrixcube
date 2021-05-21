@@ -96,7 +96,6 @@ func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, splitKey
 				r.handler.ScanResourcesByKeyRange(groupKeys, results)
 			}
 		case <-ctx.Done():
-			break
 		}
 		finished := true
 		for _, groupKeys := range validGroups {
