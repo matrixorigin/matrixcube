@@ -48,6 +48,8 @@ type Storage interface {
 
 	// PutResource puts the meta to the storage
 	PutResource(meta metadata.Resource) error
+	// PutResources put resource in batch
+	PutResources(resources ...metadata.Resource) error
 	// RemoveResource remove resource from storage
 	RemoveResource(meta metadata.Resource) error
 	// GetResource returns the spec resource
@@ -231,6 +233,19 @@ func (s *storage) PutResource(meta metadata.Resource) error {
 	}
 
 	return s.kv.Save(key, string(data))
+}
+
+func (s *storage) PutResources(resources ...metadata.Resource) error {
+	batch := &Batch{}
+	for _, res := range resources {
+		data, err := res.Marshal()
+		if err != nil {
+			return err
+		}
+		batch.SaveKeys = append(batch.SaveKeys, s.getKey(res.ID(), s.resourcePath))
+		batch.SaveValues = append(batch.SaveValues, string(data))
+	}
+	return s.kv.Batch(batch)
 }
 
 func (s *storage) RemoveResource(meta metadata.Resource) error {

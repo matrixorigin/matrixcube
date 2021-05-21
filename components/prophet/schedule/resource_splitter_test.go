@@ -48,9 +48,7 @@ func (m *mockSplitResourcesHandler) ScanResourcesByKeyRange(groupKeys *resourceG
 	groupKeys.finished = true
 }
 
-type testresourceSplitter struct{}
-
-func (s *testresourceSplitter) TestresourceSplitter(t *testing.T) {
+func TestResourceSplitter(t *testing.T) {
 	ctx := context.Background()
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
@@ -78,7 +76,7 @@ func (s *testresourceSplitter) TestresourceSplitter(t *testing.T) {
 	assert.Empty(t, newresourcesID)
 }
 
-func TestGroupKeysByresource(t *testing.T) {
+func TestGroupKeysByResource(t *testing.T) {
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
 	tc := mockcluster.NewCluster(opt)

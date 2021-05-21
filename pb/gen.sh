@@ -10,13 +10,15 @@ MOD="github.com/matrixorigin/matrixcube"
 DIRS="./bhmetapb ./bhraftpb ./raftcmdpb ./errorpb"
 VENDOR_DIR=$(dirname "$PWD")/vendor
 PB_DIR=$(dirname "$PWD")/pb
+PROPHET_PB_DIR=$(dirname "$PWD")/components/prophet/pb
 
 if [ ! -d "$VENDOR_DIR/$MOD" ]; then
   rm -rf $VENDOR_DIR/$MOD
 fi
 
-mkdir -p $VENDOR_DIR/$MOD
+mkdir -p $VENDOR_DIR/$MOD/components/prophet
 cp -R $PB_DIR $VENDOR_DIR/$MOD
+cp -R $PROPHET_PB_DIR $VENDOR_DIR/$MOD/components/prophet
 
 mv $VENDOR_DIR/go.etcd.io/etcd/raft/raftpb/raft.proto $VENDOR_DIR/raft.proto.bak
 cat $VENDOR_DIR/raft.proto.bak > $VENDOR_DIR/go.etcd.io/etcd/raft/raftpb/raft.proto

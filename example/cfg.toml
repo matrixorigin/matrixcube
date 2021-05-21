@@ -61,7 +61,10 @@ store-heartbeat-duration = "1m"
 
 # cube中，一个shard所管理的数据大小不能无限制的增长，到达了指定的shard的最大数据阈值，就会分类成N个Shards。每个Shard副本
 # 的leader会周期的新的check当前Shard的大小，来决定是否需要分裂当前Shard。
-shard-split-check-duration = "1m"
+shard-split-check-duration = "30s"
+
+# cube支持异步的删除shard，这个时间指定当前节点检查shard状态的周期，用来执行真实的删除shard副本的操作
+shard-state-check-duration = "1m"
 
 # 如果应用希望cube的Shard不做Split，可以使用这个全局配置，来禁止Split操作。注意这个操作是全局生效的，一旦配置
 # 为True，那么集群中所有的Shard都会被禁止Split，如果只是系统某些Shard不做Split，可以指定Shard的属性`DisableSplit`。

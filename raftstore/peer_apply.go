@@ -9,7 +9,6 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -41,7 +40,7 @@ func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
 	return nil
 }
 
-func (s *store) doDestroy(shardID uint64, peer metapb.Peer) error {
+func (s *store) doDestroy(shardID uint64) {
 	if value, ok := s.delegates.Load(shardID); ok {
 		s.delegates.Delete(shardID)
 		delegate := value.(*applyDelegate)
@@ -52,8 +51,6 @@ func (s *store) doDestroy(shardID uint64, peer metapb.Peer) error {
 	if pr != nil {
 		pr.mustDestroy()
 	}
-
-	return nil
 }
 
 func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) error {

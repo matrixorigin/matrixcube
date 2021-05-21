@@ -14,7 +14,7 @@ func Min(input Float64Data) (min float64, err error) {
 
 	// Return an error if there are no numbers
 	if l == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Get the first value as the starting point
@@ -34,7 +34,7 @@ func Max(input Float64Data) (max float64, err error) {
 
 	// Return an error if there are no numbers
 	if input.Len() == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Get the first value as the starting point
@@ -54,7 +54,7 @@ func Max(input Float64Data) (max float64, err error) {
 func Sum(input Float64Data) (sum float64, err error) {
 
 	if input.Len() == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Add em up
@@ -69,7 +69,7 @@ func Sum(input Float64Data) (sum float64, err error) {
 func Mean(input Float64Data) (float64, error) {
 
 	if input.Len() == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	sum, _ := input.Sum()
@@ -82,7 +82,7 @@ func GeometricMean(input Float64Data) (float64, error) {
 
 	l := input.Len()
 	if l == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Get the product of all the numbers
@@ -104,7 +104,7 @@ func HarmonicMean(input Float64Data) (float64, error) {
 
 	l := input.Len()
 	if l == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Get the sum of all the numbers reciprocals and return an
@@ -112,9 +112,9 @@ func HarmonicMean(input Float64Data) (float64, error) {
 	var p float64
 	for _, n := range input {
 		if n < 0 {
-			return 0, errors.New("Input must not contain a negative number")
+			return 0, errors.New("input must not contain a negative number")
 		} else if n == 0 {
-			return 0, errors.New("Input must not contain a zero value")
+			return 0, errors.New("input must not contain a zero value")
 		}
 		p += (1 / n)
 	}
@@ -148,7 +148,7 @@ func Median(input Float64Data) (median float64, err error) {
 	// For odd numbers we just use the middle number
 	l := len(c)
 	if l == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	} else if l%2 == 0 {
 		median, _ = Mean(c[l/2-1 : l/2+1])
 	} else {
@@ -166,7 +166,7 @@ func Mode(input Float64Data) (mode []float64, err error) {
 	if l == 1 {
 		return input, nil
 	} else if l == 0 {
-		return nil, errors.New("Input must not be empty")
+		return nil, errors.New("input must not be empty")
 	}
 
 	// Create a map with the counts for each number
@@ -247,7 +247,7 @@ func StandardDeviation(input Float64Data) (sdev float64, err error) {
 func StandardDeviationPopulation(input Float64Data) (sdev float64, err error) {
 
 	if input.Len() == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Get the population variance
@@ -272,7 +272,7 @@ func PopulationVariance(input Float64Data) (pvar float64, err error) {
 func _variance(input Float64Data, sample int) (variance float64, err error) {
 
 	if input.Len() == 0 {
-		return 0, errors.New("Input must not be empty")
+		return 0, errors.New("input must not be empty")
 	}
 
 	// Sum the square of the mean subtracted from each number
