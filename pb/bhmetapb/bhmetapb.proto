@@ -27,12 +27,13 @@ message Shard {
     bytes                 start           = 2;
     bytes                 end             = 3;
     metapb.ResourceEpoch  epoch           = 4 [(gogoproto.nullable) = false];
-    repeated metapb.Peer  peers           = 5 [(gogoproto.nullable) = false];
-    bool                  disableSplit    = 6;
-    uint64                group           = 7;
-    bytes                 data            = 8;
-    uint32                leastReplicas   = 9;
-    bool                  dataAppendToMsg = 10;
+    metapb.ResourceState  state           = 5;
+    repeated metapb.Peer  peers           = 6 [(gogoproto.nullable) = false];
+    bool                  disableSplit    = 7;
+    uint64                group           = 8;
+    bytes                 data            = 9;
+    uint32                leastReplicas   = 10;
+    bool                  dataAppendToMsg = 11;
 }
 
 // Store the host store metadata

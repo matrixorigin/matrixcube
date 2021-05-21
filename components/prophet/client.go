@@ -11,6 +11,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/pilosa/pilosa/roaring"
 )
 
 var (
@@ -39,6 +40,15 @@ type Client interface {
 	ReportBatchSplit(results ...metadata.Resource) error
 	NewWatcher(flag uint32) (Watcher, error)
 	GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error)
+	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
+	// on the prophet leader cache and embed etcd. The resource actual destory triggered in three ways as below:
+	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
+	//    destoryed if encounter removed state.
+	// b) Resource heartbeat received a DestoryDirectly schedule command.
+	// c) If received a resource removed event.
+	AsyncRemoveResources(ids ...uint64) error
+	// CheckResourceState returns resources state
+	CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error)
 }
 
 type asyncClient struct {
@@ -320,6 +330,40 @@ func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHear
 	}
 
 	return c.resourceHeartbeatRspC, nil
+}
+
+func (c *asyncClient) AsyncRemoveResources(ids ...uint64) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeRemoveResourcesReq
+	req.RemoveResources.IDs = append(req.RemoveResources.IDs, ids...)
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *asyncClient) CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error) {
+	if !c.running() {
+		return rpcpb.CheckResourceStateRsp{}, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeCheckResourceStateRsp
+	req.CheckResourceState.IDs = util.MustMarshalBM64(resources)
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return rpcpb.CheckResourceStateRsp{}, err
+	}
+
+	return rsp.CheckResourceState, nil
 }
 
 func (c *asyncClient) doClose() {

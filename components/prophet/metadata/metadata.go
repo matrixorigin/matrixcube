@@ -25,6 +25,10 @@ type Resource interface {
 	Epoch() metapb.ResourceEpoch
 	// SetEpoch set epoch
 	SetEpoch(metapb.ResourceEpoch)
+	// State resource state
+	State() metapb.ResourceState
+	// SetState set resource state
+	SetState(metapb.ResourceState)
 	// Clone returns the cloned value
 	Clone() Resource
 	// Marshal returns error if marshal failed

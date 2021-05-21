@@ -49,6 +49,10 @@ const (
 	TypeBatchReportSplitRsp   Type = 18
 	TypeCreateWatcherReq      Type = 19
 	TypeEventNotify           Type = 20
+	TypeRemoveResourcesReq    Type = 21
+	TypeRemoveResourcesRsp    Type = 22
+	TypeCheckResourceStateReq Type = 23
+	TypeCheckResourceStateRsp Type = 24
 )
 
 var Type_name = map[int32]string{
@@ -73,6 +77,10 @@ var Type_name = map[int32]string{
 	18: "TypeBatchReportSplitRsp",
 	19: "TypeCreateWatcherReq",
 	20: "TypeEventNotify",
+	21: "TypeRemoveResourcesReq",
+	22: "TypeRemoveResourcesRsp",
+	23: "TypeCheckResourceStateReq",
+	24: "TypeCheckResourceStateRsp",
 }
 
 var Type_value = map[string]int32{
@@ -97,6 +105,10 @@ var Type_value = map[string]int32{
 	"TypeBatchReportSplitRsp":   18,
 	"TypeCreateWatcherReq":      19,
 	"TypeEventNotify":           20,
+	"TypeRemoveResourcesReq":    21,
+	"TypeRemoveResourcesRsp":    22,
+	"TypeCheckResourceStateReq": 23,
+	"TypeCheckResourceStateRsp": 24,
 }
 
 func (x Type) String() string {
@@ -122,6 +134,8 @@ type Request struct {
 	ReportSplit          ReportSplitReq        `protobuf:"bytes,11,opt,name=ReportSplit,proto3" json:"ReportSplit"`
 	BatchReportSplit     BatchReportSplitReq   `protobuf:"bytes,12,opt,name=BatchReportSplit,proto3" json:"BatchReportSplit"`
 	CreateWatcher        CreateWatcherReq      `protobuf:"bytes,13,opt,name=CreateWatcher,proto3" json:"CreateWatcher"`
+	RemoveResources      RemoveResourcesReq    `protobuf:"bytes,14,opt,name=RemoveResources,proto3" json:"RemoveResources"`
+	CheckResourceState   CheckResourceStateReq `protobuf:"bytes,15,opt,name=CheckResourceState,proto3" json:"CheckResourceState"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -251,6 +265,20 @@ func (m *Request) GetCreateWatcher() CreateWatcherReq {
 	return CreateWatcherReq{}
 }
 
+func (m *Request) GetRemoveResources() RemoveResourcesReq {
+	if m != nil {
+		return m.RemoveResources
+	}
+	return RemoveResourcesReq{}
+}
+
+func (m *Request) GetCheckResourceState() CheckResourceStateReq {
+	if m != nil {
+		return m.CheckResourceState
+	}
+	return CheckResourceStateReq{}
+}
+
 // Response the prophet rpc response
 type Response struct {
 	ID                   uint64                `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -267,6 +295,8 @@ type Response struct {
 	ReportSplit          ReportSplitRsp        `protobuf:"bytes,12,opt,name=ReportSplit,proto3" json:"ReportSplit"`
 	BatchReportSplit     BatchReportSplitRsp   `protobuf:"bytes,13,opt,name=BatchReportSplit,proto3" json:"BatchReportSplit"`
 	Event                EventNotify           `protobuf:"bytes,14,opt,name=Event,proto3" json:"Event"`
+	RemoveResources      RemoveResourcesRsp    `protobuf:"bytes,15,opt,name=RemoveResources,proto3" json:"RemoveResources"`
+	CheckResourceState   CheckResourceStateRsp `protobuf:"bytes,16,opt,name=CheckResourceState,proto3" json:"CheckResourceState"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -403,6 +433,20 @@ func (m *Response) GetEvent() EventNotify {
 	return EventNotify{}
 }
 
+func (m *Response) GetRemoveResources() RemoveResourcesRsp {
+	if m != nil {
+		return m.RemoveResources
+	}
+	return RemoveResourcesRsp{}
+}
+
+func (m *Response) GetCheckResourceState() CheckResourceStateRsp {
+	if m != nil {
+		return m.CheckResourceState
+	}
+	return CheckResourceStateRsp{}
+}
+
 // ResourceHeartbeatReq resource heartbeat request
 type ResourceHeartbeatReq struct {
 	ContainerID uint64 `protobuf:"varint,1,opt,name=containerID,proto3" json:"containerID,omitempty"`
@@ -520,14 +564,16 @@ type ResourceHeartbeatRsp struct {
 	// 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
 	// finished, pd stills responses ChangePeer Adding 2, of course, we must
 	// guarantee the second ChangePeer can't be applied in your application.
-	ChangePeer           *ChangePeer     `protobuf:"bytes,4,opt,name=changePeer,proto3" json:"changePeer,omitempty"`
-	TransferLeader       *TransferLeader `protobuf:"bytes,5,opt,name=transferLeader,proto3" json:"transferLeader,omitempty"`
-	Merge                *Merge          `protobuf:"bytes,6,opt,name=merge,proto3" json:"merge,omitempty"`
-	SplitResource        *SplitResource  `protobuf:"bytes,7,opt,name=splitResource,proto3" json:"splitResource,omitempty"`
-	ChangePeerV2         *ChangePeerV2   `protobuf:"bytes,8,opt,name=changePeerV2,proto3" json:"changePeerV2,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
+	ChangePeer     *ChangePeer     `protobuf:"bytes,4,opt,name=changePeer,proto3" json:"changePeer,omitempty"`
+	TransferLeader *TransferLeader `protobuf:"bytes,5,opt,name=transferLeader,proto3" json:"transferLeader,omitempty"`
+	Merge          *Merge          `protobuf:"bytes,6,opt,name=merge,proto3" json:"merge,omitempty"`
+	SplitResource  *SplitResource  `protobuf:"bytes,7,opt,name=splitResource,proto3" json:"splitResource,omitempty"`
+	ChangePeerV2   *ChangePeerV2   `protobuf:"bytes,8,opt,name=changePeerV2,proto3" json:"changePeerV2,omitempty"`
+	// DestoryDirectly the resource has been removed, destory directly without raft.
+	DestoryDirectly      bool     `protobuf:"varint,9,opt,name=destoryDirectly,proto3" json:"destoryDirectly,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *ResourceHeartbeatRsp) Reset()         { *m = ResourceHeartbeatRsp{} }
@@ -617,6 +663,13 @@ func (m *ResourceHeartbeatRsp) GetChangePeerV2() *ChangePeerV2 {
 		return m.ChangePeerV2
 	}
 	return nil
+}
+
+func (m *ResourceHeartbeatRsp) GetDestoryDirectly() bool {
+	if m != nil {
+		return m.DestoryDirectly
+	}
+	return false
 }
 
 // PutContainerReq put container request
@@ -1475,6 +1528,190 @@ func (m *CreateWatcherReq) GetFlag() uint32 {
 	return 0
 }
 
+// RemoveResourcesReq remove resources req
+type RemoveResourcesReq struct {
+	IDs                  []uint64 `protobuf:"varint,1,rep,packed,name=ids,proto3" json:"ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RemoveResourcesReq) Reset()         { *m = RemoveResourcesReq{} }
+func (m *RemoveResourcesReq) String() string { return proto.CompactTextString(m) }
+func (*RemoveResourcesReq) ProtoMessage()    {}
+func (*RemoveResourcesReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{22}
+}
+func (m *RemoveResourcesReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RemoveResourcesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RemoveResourcesReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RemoveResourcesReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RemoveResourcesReq.Merge(m, src)
+}
+func (m *RemoveResourcesReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *RemoveResourcesReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_RemoveResourcesReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RemoveResourcesReq proto.InternalMessageInfo
+
+func (m *RemoveResourcesReq) GetIDs() []uint64 {
+	if m != nil {
+		return m.IDs
+	}
+	return nil
+}
+
+// RemoveResourcesRsp remove resources rsp
+type RemoveResourcesRsp struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RemoveResourcesRsp) Reset()         { *m = RemoveResourcesRsp{} }
+func (m *RemoveResourcesRsp) String() string { return proto.CompactTextString(m) }
+func (*RemoveResourcesRsp) ProtoMessage()    {}
+func (*RemoveResourcesRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{23}
+}
+func (m *RemoveResourcesRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RemoveResourcesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RemoveResourcesRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RemoveResourcesRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RemoveResourcesRsp.Merge(m, src)
+}
+func (m *RemoveResourcesRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *RemoveResourcesRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_RemoveResourcesRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RemoveResourcesRsp proto.InternalMessageInfo
+
+// CheckResourceStateReq check resource state req
+type CheckResourceStateReq struct {
+	IDs                  []byte   `protobuf:"bytes,1,opt,name=ids,proto3" json:"ids,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CheckResourceStateReq) Reset()         { *m = CheckResourceStateReq{} }
+func (m *CheckResourceStateReq) String() string { return proto.CompactTextString(m) }
+func (*CheckResourceStateReq) ProtoMessage()    {}
+func (*CheckResourceStateReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{24}
+}
+func (m *CheckResourceStateReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CheckResourceStateReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CheckResourceStateReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CheckResourceStateReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckResourceStateReq.Merge(m, src)
+}
+func (m *CheckResourceStateReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *CheckResourceStateReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CheckResourceStateReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CheckResourceStateReq proto.InternalMessageInfo
+
+func (m *CheckResourceStateReq) GetIDs() []byte {
+	if m != nil {
+		return m.IDs
+	}
+	return nil
+}
+
+// CheckResourceStateReq check resource state rsp
+type CheckResourceStateRsp struct {
+	Removed              []uint64 `protobuf:"varint,1,rep,packed,name=removed,proto3" json:"removed,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CheckResourceStateRsp) Reset()         { *m = CheckResourceStateRsp{} }
+func (m *CheckResourceStateRsp) String() string { return proto.CompactTextString(m) }
+func (*CheckResourceStateRsp) ProtoMessage()    {}
+func (*CheckResourceStateRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{25}
+}
+func (m *CheckResourceStateRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CheckResourceStateRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CheckResourceStateRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *CheckResourceStateRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckResourceStateRsp.Merge(m, src)
+}
+func (m *CheckResourceStateRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *CheckResourceStateRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CheckResourceStateRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CheckResourceStateRsp proto.InternalMessageInfo
+
+func (m *CheckResourceStateRsp) GetRemoved() []uint64 {
+	if m != nil {
+		return m.Removed
+	}
+	return nil
+}
+
 // EventNotify event notify
 type EventNotify struct {
 	Seq                  uint64                 `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
@@ -1493,7 +1730,7 @@ func (m *EventNotify) Reset()         { *m = EventNotify{} }
 func (m *EventNotify) String() string { return proto.CompactTextString(m) }
 func (*EventNotify) ProtoMessage()    {}
 func (*EventNotify) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{22}
+	return fileDescriptor_25e491924c678914, []int{26}
 }
 func (m *EventNotify) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1585,7 +1822,7 @@ func (m *InitEventData) Reset()         { *m = InitEventData{} }
 func (m *InitEventData) String() string { return proto.CompactTextString(m) }
 func (*InitEventData) ProtoMessage()    {}
 func (*InitEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{23}
+	return fileDescriptor_25e491924c678914, []int{27}
 }
 func (m *InitEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1639,6 +1876,7 @@ func (m *InitEventData) GetContainers() [][]byte {
 type ResourceEventData struct {
 	Data                 []byte   `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	Leader               uint64   `protobuf:"varint,2,opt,name=leader,proto3" json:"leader,omitempty"`
+	Removed              bool     `protobuf:"varint,3,opt,name=removed,proto3" json:"removed,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1648,7 +1886,7 @@ func (m *ResourceEventData) Reset()         { *m = ResourceEventData{} }
 func (m *ResourceEventData) String() string { return proto.CompactTextString(m) }
 func (*ResourceEventData) ProtoMessage()    {}
 func (*ResourceEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{24}
+	return fileDescriptor_25e491924c678914, []int{28}
 }
 func (m *ResourceEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1691,6 +1929,13 @@ func (m *ResourceEventData) GetLeader() uint64 {
 	return 0
 }
 
+func (m *ResourceEventData) GetRemoved() bool {
+	if m != nil {
+		return m.Removed
+	}
+	return false
+}
+
 // ContainerEventData container created or updated
 type ContainerEventData struct {
 	Data                 []byte   `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -1703,7 +1948,7 @@ func (m *ContainerEventData) Reset()         { *m = ContainerEventData{} }
 func (m *ContainerEventData) String() string { return proto.CompactTextString(m) }
 func (*ContainerEventData) ProtoMessage()    {}
 func (*ContainerEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{25}
+	return fileDescriptor_25e491924c678914, []int{29}
 }
 func (m *ContainerEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1752,7 +1997,7 @@ func (m *ChangePeer) Reset()         { *m = ChangePeer{} }
 func (m *ChangePeer) String() string { return proto.CompactTextString(m) }
 func (*ChangePeer) ProtoMessage()    {}
 func (*ChangePeer) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{26}
+	return fileDescriptor_25e491924c678914, []int{30}
 }
 func (m *ChangePeer) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1807,7 +2052,7 @@ func (m *TransferLeader) Reset()         { *m = TransferLeader{} }
 func (m *TransferLeader) String() string { return proto.CompactTextString(m) }
 func (*TransferLeader) ProtoMessage()    {}
 func (*TransferLeader) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{27}
+	return fileDescriptor_25e491924c678914, []int{31}
 }
 func (m *TransferLeader) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1856,7 +2101,7 @@ func (m *ChangePeerV2) Reset()         { *m = ChangePeerV2{} }
 func (m *ChangePeerV2) String() string { return proto.CompactTextString(m) }
 func (*ChangePeerV2) ProtoMessage()    {}
 func (*ChangePeerV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{28}
+	return fileDescriptor_25e491924c678914, []int{32}
 }
 func (m *ChangePeerV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1905,7 +2150,7 @@ func (m *Merge) Reset()         { *m = Merge{} }
 func (m *Merge) String() string { return proto.CompactTextString(m) }
 func (*Merge) ProtoMessage()    {}
 func (*Merge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{29}
+	return fileDescriptor_25e491924c678914, []int{33}
 }
 func (m *Merge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1954,7 +2199,7 @@ func (m *SplitResource) Reset()         { *m = SplitResource{} }
 func (m *SplitResource) String() string { return proto.CompactTextString(m) }
 func (*SplitResource) ProtoMessage()    {}
 func (*SplitResource) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{30}
+	return fileDescriptor_25e491924c678914, []int{34}
 }
 func (m *SplitResource) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2021,6 +2266,10 @@ func init() {
 	proto.RegisterType((*BatchReportSplitRsp)(nil), "rpcpb.BatchReportSplitRsp")
 	proto.RegisterType((*SplitID)(nil), "rpcpb.SplitID")
 	proto.RegisterType((*CreateWatcherReq)(nil), "rpcpb.CreateWatcherReq")
+	proto.RegisterType((*RemoveResourcesReq)(nil), "rpcpb.RemoveResourcesReq")
+	proto.RegisterType((*RemoveResourcesRsp)(nil), "rpcpb.RemoveResourcesRsp")
+	proto.RegisterType((*CheckResourceStateReq)(nil), "rpcpb.CheckResourceStateReq")
+	proto.RegisterType((*CheckResourceStateRsp)(nil), "rpcpb.CheckResourceStateRsp")
 	proto.RegisterType((*EventNotify)(nil), "rpcpb.EventNotify")
 	proto.RegisterType((*InitEventData)(nil), "rpcpb.InitEventData")
 	proto.RegisterType((*ResourceEventData)(nil), "rpcpb.ResourceEventData")
@@ -2035,103 +2284,114 @@ func init() {
 func init() { proto.RegisterFile("rpcpb.proto", fileDescriptor_25e491924c678914) }
 
 var fileDescriptor_25e491924c678914 = []byte{
-	// 1524 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x58, 0xdb, 0x72, 0xdc, 0x44,
-	0x13, 0xce, 0x9e, 0xbd, 0xbd, 0x07, 0xcb, 0xe3, 0x93, 0xe2, 0xe4, 0xb7, 0xfd, 0x4f, 0xa5, 0x52,
-	0xfe, 0x7f, 0x82, 0x4d, 0x36, 0x10, 0xa8, 0x14, 0x21, 0xf8, 0x90, 0x22, 0x2e, 0x02, 0xb8, 0xe4,
-	0x54, 0xb8, 0x96, 0xe5, 0xf1, 0x5a, 0xe5, 0xb5, 0x34, 0xd1, 0xcc, 0x12, 0xfc, 0x00, 0x5c, 0xf2,
-	0x0a, 0x3c, 0x03, 0xc5, 0x53, 0xe4, 0x32, 0x4f, 0x90, 0x02, 0xbf, 0x06, 0x37, 0xd4, 0x1c, 0xa4,
-	0x19, 0x69, 0xb5, 0x9b, 0x70, 0x65, 0x4d, 0x77, 0x7f, 0xdf, 0x1c, 0xbf, 0xee, 0xf6, 0x42, 0x27,
-	0xa1, 0x01, 0x3d, 0xd9, 0xa6, 0x49, 0xcc, 0x63, 0xd4, 0x90, 0x83, 0xb5, 0xe7, 0xc3, 0x90, 0x9f,
-	0x8f, 0x4f, 0xb6, 0x83, 0xf8, 0x72, 0xe7, 0xd2, 0xe7, 0x49, 0xf8, 0x73, 0x9c, 0x84, 0xc3, 0x30,
-	0xd2, 0x83, 0x60, 0x7c, 0x42, 0x76, 0x82, 0xf8, 0x92, 0xc6, 0x11, 0x89, 0x38, 0xdb, 0xa1, 0x49,
-	0x4c, 0xcf, 0x09, 0xdf, 0xa1, 0x27, 0x3b, 0x97, 0x84, 0xfb, 0xd9, 0x1f, 0x45, 0xba, 0xf6, 0xb1,
-	0xc5, 0x36, 0x8c, 0x87, 0xf1, 0x8e, 0x34, 0x9f, 0x8c, 0xcf, 0xe4, 0x48, 0x0e, 0xe4, 0x97, 0x0a,
-	0xc7, 0xbf, 0x36, 0xa1, 0xe5, 0x91, 0x57, 0x63, 0xc2, 0x38, 0x5a, 0x81, 0x6a, 0x78, 0xea, 0x56,
-	0x36, 0x2b, 0x5b, 0xf5, 0xbd, 0xe6, 0xf5, 0xbb, 0x8d, 0xea, 0xe1, 0x81, 0x57, 0x0d, 0x4f, 0xd1,
-	0x26, 0x74, 0x82, 0x38, 0xe2, 0x7e, 0x18, 0x91, 0xe4, 0xf0, 0xc0, 0xad, 0x8a, 0x00, 0xcf, 0x36,
-	0xa1, 0x0d, 0xa8, 0xf3, 0x2b, 0x4a, 0xdc, 0xda, 0x66, 0x65, 0xab, 0x3f, 0xe8, 0x6c, 0xab, 0x5d,
-	0xbe, 0xb8, 0xa2, 0xc4, 0x93, 0x0e, 0xf4, 0x03, 0x2c, 0x78, 0x84, 0xc5, 0xe3, 0x24, 0x20, 0xcf,
-	0x88, 0x9f, 0xf0, 0x13, 0xe2, 0x73, 0xb7, 0xbe, 0x59, 0xd9, 0xea, 0x0c, 0x6e, 0xe9, 0xe8, 0x09,
-	0xbf, 0x47, 0x5e, 0xed, 0xd5, 0xdf, 0xbc, 0xdb, 0xb8, 0xe1, 0x4d, 0x62, 0x91, 0x07, 0x68, 0x3f,
-	0x5d, 0x80, 0x61, 0x6c, 0x48, 0xc6, 0xdb, 0x9a, 0x71, 0x32, 0xc0, 0x50, 0x96, 0xa0, 0xd1, 0xd7,
-	0xd0, 0x3d, 0x1a, 0xf3, 0xcc, 0xe1, 0x36, 0x25, 0xdb, 0x8a, 0x66, 0xb3, 0x5d, 0x86, 0x27, 0x87,
-	0x10, 0x0c, 0xdf, 0x10, 0x8b, 0xa1, 0x95, 0x63, 0xb0, 0x5d, 0x16, 0x83, 0x6d, 0x46, 0xf7, 0xa1,
-	0xb5, 0x3b, 0x1a, 0xc5, 0xc1, 0xe1, 0x81, 0x3b, 0x27, 0xc1, 0x0b, 0x1a, 0xac, 0xad, 0x06, 0x97,
-	0xc6, 0xa1, 0x4f, 0x61, 0x6e, 0x97, 0x5d, 0x1c, 0xd3, 0x51, 0xc8, 0xdd, 0xb6, 0xc4, 0xa0, 0x14,
-	0xa3, 0xcd, 0x06, 0x94, 0x45, 0xa2, 0x7d, 0xe8, 0xed, 0xb2, 0x8b, 0x3d, 0x9f, 0x07, 0xe7, 0x0a,
-	0x0a, 0x12, 0xba, 0x6a, 0xa0, 0xc6, 0x67, 0xf0, 0x79, 0x0c, 0x7a, 0x0c, 0x1d, 0x8f, 0xd0, 0x38,
-	0xe1, 0x8a, 0xa2, 0x23, 0x29, 0x96, 0xb3, 0x0b, 0xcd, 0x3c, 0x86, 0xc0, 0x8e, 0x47, 0xcf, 0xc1,
-	0x91, 0x64, 0x36, 0x47, 0x57, 0x72, 0xac, 0x69, 0x8e, 0xa2, 0xdb, 0x10, 0x4d, 0x20, 0xc5, 0x8e,
-	0xf6, 0x13, 0xe2, 0x73, 0xf2, 0xa3, 0xf0, 0x90, 0xc4, 0xed, 0xe5, 0x76, 0x94, 0xf3, 0x59, 0x3b,
-	0xca, 0xd9, 0xf1, 0x2f, 0x4d, 0x98, 0xf3, 0x08, 0xa3, 0x71, 0xc4, 0xc8, 0x54, 0x41, 0xa4, 0xcf,
-	0xbd, 0x3a, 0xed, 0xb9, 0x2f, 0x41, 0x83, 0x24, 0x49, 0x9c, 0x48, 0x41, 0xb4, 0x3d, 0x35, 0x40,
-	0x2b, 0xd0, 0x1c, 0x11, 0xff, 0x94, 0x24, 0xf2, 0xe5, 0xb7, 0x3d, 0x3d, 0x2a, 0x17, 0x47, 0xe3,
-	0x3d, 0xe2, 0x60, 0xf4, 0xdf, 0x8a, 0xa3, 0xf9, 0x3e, 0x71, 0x64, 0x94, 0x1f, 0x22, 0x8e, 0xd6,
-	0x74, 0x71, 0x64, 0x3c, 0xb3, 0xc5, 0x31, 0x37, 0x5d, 0x1c, 0x86, 0x61, 0x9a, 0x38, 0xda, 0xa5,
-	0xe2, 0xc8, 0x70, 0xa5, 0xe2, 0x80, 0x72, 0x71, 0x64, 0xa0, 0x19, 0xe2, 0xe8, 0xcc, 0x10, 0x47,
-	0x86, 0x9f, 0x2d, 0x8e, 0xee, 0x54, 0x71, 0x64, 0x04, 0xef, 0x15, 0x47, 0x6f, 0xb6, 0x38, 0x32,
-	0xa2, 0x49, 0x71, 0x6c, 0x43, 0xe3, 0xe9, 0x4f, 0x24, 0xe2, 0x6e, 0x3f, 0x77, 0x08, 0xd2, 0xf6,
-	0x7d, 0xcc, 0xc3, 0xb3, 0x2b, 0x0d, 0x55, 0x61, 0xf8, 0xf7, 0x2a, 0x2c, 0x95, 0x65, 0xe4, 0x62,
-	0x31, 0xa8, 0x4c, 0x16, 0x83, 0x35, 0x98, 0x4b, 0x34, 0x52, 0x2a, 0xa4, 0xeb, 0x65, 0x63, 0x84,
-	0xa0, 0xce, 0x49, 0x72, 0x29, 0x75, 0x51, 0xf7, 0xe4, 0x37, 0xba, 0x93, 0x93, 0x45, 0x67, 0xd0,
-	0xdd, 0xd6, 0x05, 0xed, 0x88, 0x90, 0x24, 0x13, 0xc9, 0x67, 0xd0, 0x3e, 0x8d, 0x5f, 0x47, 0xc2,
-	0xc6, 0xdc, 0xc6, 0x66, 0x4d, 0xde, 0xbe, 0x15, 0x78, 0xcc, 0x7d, 0xce, 0xf4, 0x1e, 0x4c, 0x24,
-	0x7a, 0x08, 0x5d, 0x4a, 0xa2, 0xd3, 0x30, 0x1a, 0x2a, 0x64, 0x53, 0x22, 0x73, 0x53, 0xa4, 0x4f,
-	0xcd, 0x8e, 0x43, 0xf7, 0xa1, 0xc1, 0x04, 0xa3, 0x7e, 0xe7, 0xcb, 0x29, 0x20, 0x3d, 0x13, 0x7b,
-	0x3a, 0x15, 0x89, 0xff, 0xa8, 0x95, 0x1d, 0x19, 0xa3, 0x68, 0x1d, 0x20, 0x3d, 0x80, 0xec, 0xc4,
-	0x2c, 0x0b, 0xda, 0x85, 0x5e, 0x3a, 0x7a, 0x4a, 0xe3, 0xe0, 0x5c, 0x9e, 0x5a, 0xc9, 0x9c, 0xd2,
-	0x99, 0xbe, 0xb5, 0x1c, 0x02, 0xdd, 0x03, 0xe0, 0x7e, 0x32, 0x24, 0x5c, 0xac, 0x5e, 0x9e, 0x6e,
-	0xf1, 0x1c, 0x2d, 0x3f, 0xba, 0x0f, 0x10, 0x9c, 0xfb, 0xd1, 0x90, 0xc8, 0xe8, 0x7a, 0x4e, 0x4a,
-	0xfb, 0x99, 0xc3, 0xb3, 0x82, 0xd0, 0x63, 0xe8, 0xf3, 0xc4, 0x8f, 0xd8, 0x19, 0x49, 0x9e, 0xab,
-	0xcb, 0x6a, 0xe4, 0xde, 0xf3, 0x8b, 0x9c, 0xd3, 0x2b, 0x04, 0x23, 0x0c, 0x8d, 0x4b, 0x92, 0x0c,
-	0x89, 0x4e, 0x42, 0x5d, 0x8d, 0xfa, 0x4e, 0xd8, 0x3c, 0xe5, 0x42, 0x8f, 0xa0, 0xc7, 0x54, 0x8e,
-	0xd7, 0x8f, 0x47, 0x1d, 0xfd, 0x92, 0x8e, 0x3d, 0xb6, 0x7d, 0x5e, 0x3e, 0x14, 0x7d, 0x0e, 0x5d,
-	0xb3, 0xd8, 0x97, 0x03, 0x9d, 0x5b, 0x16, 0x27, 0xf6, 0xf4, 0x72, 0xe0, 0xe5, 0x02, 0xf1, 0x0e,
-	0xcc, 0x17, 0x0a, 0x3b, 0xba, 0x0d, 0xed, 0xec, 0x39, 0xcb, 0xdb, 0xea, 0x7a, 0xc6, 0x80, 0x17,
-	0x0a, 0x00, 0x46, 0xf1, 0xb7, 0xb0, 0x5c, 0xda, 0x6a, 0xa0, 0x41, 0xfa, 0x88, 0x2a, 0x3a, 0xd5,
-	0xe9, 0x0b, 0xc9, 0xa2, 0x4b, 0x5e, 0xd1, 0x6a, 0x29, 0x19, 0xa3, 0xf8, 0x7f, 0x30, 0x5f, 0x68,
-	0x20, 0xa6, 0xd5, 0x27, 0x7c, 0x5c, 0x08, 0x65, 0x54, 0x08, 0xef, 0xd4, 0xe7, 0xbe, 0xde, 0x8f,
-	0xfc, 0x46, 0xf7, 0xd2, 0xe5, 0x55, 0x67, 0x2d, 0x2f, 0x5d, 0x58, 0x17, 0xc0, 0xf4, 0x20, 0xf8,
-	0x8e, 0x19, 0x31, 0x3a, 0x75, 0x21, 0xff, 0x85, 0x8e, 0xd5, 0x83, 0x94, 0x2d, 0x02, 0x3f, 0xb6,
-	0x42, 0x18, 0x45, 0xdb, 0xd0, 0x92, 0x37, 0xab, 0x85, 0xd2, 0x19, 0xf4, 0xed, 0xeb, 0x3f, 0x3c,
-	0x48, 0xf3, 0xbb, 0x0e, 0xc2, 0x8f, 0xa0, 0x9f, 0x6f, 0x0f, 0xc4, 0x24, 0x23, 0x72, 0xc6, 0xd3,
-	0x49, 0xc4, 0xb7, 0xa8, 0xc7, 0x49, 0x38, 0x3c, 0xe7, 0x3a, 0x1f, 0xa9, 0x01, 0x76, 0xf2, 0x58,
-	0x46, 0xf1, 0x97, 0xe0, 0x14, 0x1b, 0x9f, 0xd2, 0x93, 0x5b, 0x82, 0x46, 0x10, 0x8f, 0x23, 0xc5,
-	0xd7, 0xf3, 0xd4, 0x00, 0x1f, 0x14, 0xd1, 0x8c, 0xa2, 0x4f, 0x60, 0x4e, 0x2f, 0x55, 0xbc, 0x82,
-	0xda, 0xd4, 0x0d, 0x65, 0x51, 0xf8, 0x01, 0x2c, 0x96, 0x74, 0x3d, 0xe2, 0x55, 0xa6, 0x92, 0x57,
-	0x4c, 0x5d, 0xcf, 0x18, 0xf0, 0x72, 0x09, 0x88, 0x51, 0xfc, 0x04, 0x5a, 0x7a, 0x1a, 0xb1, 0xe4,
-	0x88, 0xbc, 0xce, 0xf2, 0x8f, 0x1a, 0x88, 0xd4, 0x14, 0x91, 0xd7, 0x42, 0x0b, 0x62, 0x81, 0xd5,
-	0xcd, 0x9a, 0x48, 0x4d, 0xc6, 0x82, 0xef, 0x82, 0x53, 0xec, 0x9b, 0xc4, 0x81, 0x9c, 0x8d, 0xfc,
-	0xa1, 0x24, 0xea, 0x79, 0xf2, 0x1b, 0xff, 0x5d, 0x85, 0x8e, 0x55, 0x4b, 0x90, 0x03, 0x35, 0x46,
-	0x5e, 0xe9, 0xb9, 0xc4, 0xa7, 0xcc, 0xfc, 0x69, 0xcf, 0xd4, 0xd3, 0x6d, 0xd2, 0x00, 0xda, 0x61,
-	0x14, 0x72, 0x55, 0x98, 0x6a, 0x39, 0xb5, 0x1f, 0xa6, 0xf6, 0x03, 0x9f, 0xfb, 0x9e, 0x09, 0x43,
-	0x5f, 0x59, 0xc9, 0x52, 0xe2, 0x54, 0xfa, 0x72, 0x0b, 0x8d, 0x92, 0xc1, 0xe6, 0xc3, 0xd1, 0x2e,
-	0xf4, 0x33, 0x31, 0x2b, 0x02, 0x95, 0xc8, 0x6e, 0x16, 0xfb, 0x22, 0xc3, 0x50, 0x00, 0xa0, 0xa7,
-	0x80, 0x12, 0xbb, 0x0c, 0x28, 0x9a, 0xe6, 0x8c, 0x42, 0xe1, 0x95, 0x00, 0xd0, 0x33, 0x58, 0x0c,
-	0x72, 0x4a, 0x53, 0x3c, 0xad, 0x99, 0x62, 0x2c, 0x83, 0xe0, 0x21, 0xf4, 0x72, 0xe7, 0x35, 0xfb,
-	0xb1, 0x20, 0x17, 0x5a, 0xaa, 0xa8, 0xa6, 0x37, 0x9e, 0x0e, 0xc5, 0x73, 0xc8, 0xf8, 0x99, 0x5b,
-	0x93, 0x40, 0xcb, 0x82, 0x9f, 0x98, 0x4e, 0xd5, 0x4c, 0x56, 0x26, 0x10, 0xd3, 0xea, 0xaa, 0xff,
-	0x16, 0xf5, 0x08, 0x6f, 0x59, 0x9d, 0xe9, 0x4c, 0x06, 0x3c, 0x02, 0x30, 0x69, 0x1b, 0xdd, 0x85,
-	0x3a, 0x25, 0x3a, 0x1d, 0x97, 0x97, 0x6f, 0xe9, 0x47, 0x0f, 0xd3, 0xca, 0xf6, 0xc2, 0xf4, 0xe7,
-	0xe6, 0x28, 0x33, 0x3e, 0xd9, 0xaa, 0x5b, 0x91, 0xf8, 0x0b, 0xe8, 0xe7, 0x2b, 0xd8, 0x87, 0xce,
-	0x88, 0x77, 0xa1, 0x6b, 0x97, 0x17, 0xd1, 0xa3, 0x2a, 0xde, 0x54, 0xef, 0x93, 0x85, 0x35, 0xcd,
-	0x61, 0x3a, 0x0e, 0x6f, 0x40, 0x43, 0x16, 0x42, 0x71, 0x6a, 0xaa, 0x4a, 0xeb, 0x93, 0xd0, 0x23,
-	0x7c, 0x04, 0xbd, 0x5c, 0xf5, 0x43, 0x1f, 0x41, 0x93, 0xc6, 0xa3, 0x30, 0xb8, 0x92, 0x81, 0xfd,
-	0xc1, 0xa2, 0xd9, 0x22, 0x09, 0x2e, 0x8e, 0xa4, 0xcb, 0xd3, 0x21, 0xe2, 0x74, 0x2f, 0xc8, 0x95,
-	0xba, 0xeb, 0xae, 0x27, 0xbf, 0xff, 0xff, 0x5b, 0x1d, 0xea, 0x62, 0xe3, 0xe8, 0x26, 0x2c, 0xcb,
-	0xc3, 0x20, 0xc3, 0x90, 0x71, 0x92, 0x64, 0x97, 0xe3, 0xdc, 0x40, 0xb7, 0xc1, 0x55, 0xae, 0xc9,
-	0x2e, 0xd0, 0xa9, 0x4c, 0xf7, 0x32, 0xea, 0x54, 0xd1, 0x7f, 0xe0, 0xa6, 0xf0, 0x96, 0x96, 0x45,
-	0xa7, 0x36, 0xc3, 0xcd, 0xa8, 0x53, 0x47, 0xab, 0xb0, 0x28, 0xdc, 0x85, 0xc2, 0xec, 0x34, 0x4a,
-	0x1d, 0x8c, 0x3a, 0xcd, 0xd4, 0x51, 0x28, 0x90, 0x4e, 0xab, 0xd4, 0xc1, 0xa8, 0x33, 0x87, 0x10,
-	0xf4, 0x85, 0xc3, 0x94, 0x34, 0xa7, 0x5d, 0xb4, 0x31, 0xea, 0x00, 0x5a, 0x84, 0x79, 0x69, 0x33,
-	0x65, 0xcc, 0xe9, 0x4c, 0x18, 0x19, 0x75, 0xba, 0xc8, 0x85, 0x25, 0x6d, 0xcc, 0x15, 0x10, 0xa7,
-	0x57, 0xee, 0x61, 0xd4, 0xe9, 0xa3, 0x15, 0x40, 0xea, 0x14, 0xed, 0x5c, 0xef, 0xcc, 0x97, 0xd9,
-	0x19, 0x75, 0x1c, 0x74, 0x0b, 0x56, 0x85, 0xbd, 0xa4, 0x40, 0x38, 0x0b, 0x53, 0x9d, 0x8c, 0x3a,
-	0x28, 0x5d, 0x43, 0x31, 0x9b, 0x3b, 0x8b, 0xe9, 0x66, 0xac, 0xf4, 0xed, 0x2c, 0xed, 0x39, 0x6f,
-	0xff, 0x5a, 0xbf, 0xf1, 0xe6, 0x7a, 0xbd, 0xf2, 0xf6, 0x7a, 0xbd, 0xf2, 0xe7, 0xf5, 0x7a, 0xe5,
-	0xa4, 0x29, 0x7f, 0x30, 0x7a, 0xf0, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x56, 0xc1, 0x72, 0x88,
-	0xc3, 0x12, 0x00, 0x00,
+	// 1703 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x58, 0xdb, 0x72, 0xdc, 0xc6,
+	0x11, 0xd5, 0xde, 0x77, 0x7b, 0x6f, 0xc3, 0xe1, 0x0d, 0xa4, 0x14, 0x92, 0x41, 0xa9, 0x54, 0x4c,
+	0xa2, 0x70, 0xc3, 0x55, 0xa2, 0xa4, 0x54, 0x51, 0x12, 0x92, 0xab, 0x8a, 0x58, 0x51, 0x6c, 0x16,
+	0xa8, 0x92, 0xcb, 0x8f, 0x20, 0x76, 0xb8, 0x44, 0x71, 0x09, 0x8c, 0x30, 0x43, 0xc9, 0xfc, 0x0f,
+	0x7f, 0x82, 0x1f, 0xfd, 0xe0, 0xcf, 0xd0, 0xa3, 0x3e, 0xc0, 0xa5, 0xb2, 0xf9, 0x1b, 0x7e, 0x71,
+	0xcd, 0x05, 0xc0, 0x00, 0x8b, 0x5d, 0xca, 0x4f, 0xc4, 0x74, 0xf7, 0x39, 0x98, 0x69, 0xf4, 0x99,
+	0xee, 0x25, 0xb4, 0x23, 0xea, 0xd1, 0xb3, 0x3d, 0x1a, 0x85, 0x3c, 0xc4, 0x35, 0xb9, 0xd8, 0x7c,
+	0x35, 0xf1, 0xf9, 0xc5, 0xf5, 0xd9, 0x9e, 0x17, 0x5e, 0x0d, 0xae, 0x5c, 0x1e, 0xf9, 0xdf, 0x84,
+	0x91, 0x3f, 0xf1, 0x03, 0xbd, 0xf0, 0xae, 0xcf, 0xc8, 0xc0, 0x0b, 0xaf, 0x68, 0x18, 0x90, 0x80,
+	0xb3, 0x01, 0x8d, 0x42, 0x7a, 0x41, 0xf8, 0x80, 0x9e, 0x0d, 0xae, 0x08, 0x77, 0x93, 0x3f, 0x8a,
+	0x74, 0xf3, 0xcf, 0x06, 0xdb, 0x24, 0x9c, 0x84, 0x03, 0x69, 0x3e, 0xbb, 0x3e, 0x97, 0x2b, 0xb9,
+	0x90, 0x4f, 0x2a, 0xdc, 0xfe, 0xbe, 0x01, 0x0d, 0x87, 0xbc, 0xbd, 0x26, 0x8c, 0xe3, 0x35, 0x28,
+	0xfb, 0x63, 0xab, 0xb4, 0x53, 0xda, 0xad, 0x1e, 0xd6, 0x6f, 0x3f, 0x6d, 0x97, 0x8f, 0x47, 0x4e,
+	0xd9, 0x1f, 0xe3, 0x1d, 0x68, 0x7b, 0x61, 0xc0, 0x5d, 0x3f, 0x20, 0xd1, 0xf1, 0xc8, 0x2a, 0x8b,
+	0x00, 0xc7, 0x34, 0xe1, 0x6d, 0xa8, 0xf2, 0x1b, 0x4a, 0xac, 0xca, 0x4e, 0x69, 0xb7, 0x37, 0x6c,
+	0xef, 0xa9, 0x53, 0xbe, 0xbe, 0xa1, 0xc4, 0x91, 0x0e, 0xfc, 0x25, 0x2c, 0x39, 0x84, 0x85, 0xd7,
+	0x91, 0x47, 0x5e, 0x12, 0x37, 0xe2, 0x67, 0xc4, 0xe5, 0x56, 0x75, 0xa7, 0xb4, 0xdb, 0x1e, 0xde,
+	0xd7, 0xd1, 0x33, 0x7e, 0x87, 0xbc, 0x3d, 0xac, 0x7e, 0xf8, 0xb4, 0x7d, 0xcf, 0x99, 0xc5, 0x62,
+	0x07, 0xf0, 0x51, 0xbc, 0x81, 0x94, 0xb1, 0x26, 0x19, 0x1f, 0x68, 0xc6, 0xd9, 0x80, 0x94, 0xb2,
+	0x00, 0x8d, 0xff, 0x03, 0x9d, 0x93, 0x6b, 0x9e, 0x38, 0xac, 0xba, 0x64, 0x5b, 0xd3, 0x6c, 0xa6,
+	0x2b, 0xe5, 0xc9, 0x20, 0x04, 0xc3, 0x7f, 0x89, 0xc1, 0xd0, 0xc8, 0x30, 0x98, 0x2e, 0x83, 0xc1,
+	0x34, 0xe3, 0x7d, 0x68, 0x1c, 0x4c, 0xa7, 0xa1, 0x77, 0x3c, 0xb2, 0x9a, 0x12, 0xbc, 0xa4, 0xc1,
+	0xda, 0x9a, 0xe2, 0xe2, 0x38, 0xfc, 0x57, 0x68, 0x1e, 0xb0, 0xcb, 0x53, 0x3a, 0xf5, 0xb9, 0xd5,
+	0x92, 0x18, 0x1c, 0x63, 0xb4, 0x39, 0x05, 0x25, 0x91, 0xf8, 0x08, 0xba, 0x07, 0xec, 0xf2, 0xd0,
+	0xe5, 0xde, 0x85, 0x82, 0x82, 0x84, 0xae, 0xa7, 0xd0, 0xd4, 0x97, 0xe2, 0xb3, 0x18, 0xfc, 0x1c,
+	0xda, 0x0e, 0xa1, 0x61, 0xc4, 0x15, 0x45, 0x5b, 0x52, 0xac, 0x26, 0x1f, 0x34, 0xf1, 0xa4, 0x04,
+	0x66, 0x3c, 0x7e, 0x05, 0x48, 0x92, 0x99, 0x1c, 0x1d, 0xc9, 0xb1, 0xa9, 0x39, 0xf2, 0xee, 0x94,
+	0x68, 0x06, 0x29, 0x4e, 0x74, 0x14, 0x11, 0x97, 0x93, 0xaf, 0x84, 0x87, 0x44, 0x56, 0x37, 0x73,
+	0xa2, 0x8c, 0xcf, 0x38, 0x51, 0xc6, 0x8e, 0x8f, 0xa1, 0xef, 0x90, 0xab, 0xf0, 0x1d, 0x89, 0x4b,
+	0x8e, 0x59, 0x3d, 0x49, 0xb3, 0x91, 0x9c, 0x2a, 0xe3, 0x4d, 0x89, 0xf2, 0x38, 0x59, 0xa2, 0x17,
+	0xc4, 0xbb, 0x8c, 0x2d, 0xa7, 0xdc, 0xe5, 0xc4, 0xea, 0x67, 0x4b, 0x74, 0x26, 0xc0, 0x2c, 0xd1,
+	0x19, 0xa7, 0xfd, 0x5d, 0x03, 0x9a, 0x0e, 0x61, 0x34, 0x0c, 0x18, 0x99, 0xab, 0xd7, 0x58, 0x8d,
+	0xe5, 0x79, 0x6a, 0x5c, 0x81, 0x1a, 0x89, 0xa2, 0x30, 0x92, 0x7a, 0x6d, 0x39, 0x6a, 0x81, 0xd7,
+	0xa0, 0x3e, 0x25, 0xee, 0x98, 0x44, 0x52, 0x98, 0x2d, 0x47, 0xaf, 0x8a, 0xb5, 0x5b, 0xbb, 0x43,
+	0xbb, 0x8c, 0xfe, 0x56, 0xed, 0xd6, 0xef, 0xd2, 0x6e, 0x42, 0xf9, 0x39, 0xda, 0x6d, 0xcc, 0xd7,
+	0x6e, 0xc2, 0xb3, 0x58, 0xbb, 0xcd, 0xf9, 0xda, 0x4d, 0x19, 0xe6, 0x69, 0xb7, 0x55, 0xa8, 0xdd,
+	0x04, 0x57, 0xa8, 0x5d, 0x28, 0xd6, 0x6e, 0x02, 0x5a, 0xa0, 0xdd, 0xf6, 0x02, 0xed, 0x26, 0xf8,
+	0xc5, 0xda, 0xed, 0xcc, 0xd5, 0x6e, 0x42, 0x70, 0xa7, 0x76, 0xbb, 0x8b, 0xb5, 0x9b, 0x10, 0xcd,
+	0x6a, 0x77, 0x0f, 0x6a, 0x2f, 0xde, 0x91, 0x80, 0x6b, 0xb1, 0xc5, 0x49, 0x90, 0xb6, 0x2f, 0x42,
+	0xee, 0x9f, 0xdf, 0x68, 0xa8, 0x0a, 0x2b, 0x92, 0x69, 0x7f, 0xa1, 0x4c, 0x93, 0x77, 0x7f, 0xa6,
+	0x4c, 0xd1, 0x5d, 0x32, 0x35, 0xaa, 0x71, 0x56, 0xa6, 0x3f, 0x94, 0x61, 0xa5, 0xa8, 0x9f, 0xe5,
+	0x5b, 0x69, 0x69, 0xb6, 0x95, 0x6e, 0x42, 0x33, 0xd2, 0x48, 0x29, 0xe0, 0x8e, 0x93, 0xac, 0x31,
+	0x86, 0x2a, 0x27, 0xd1, 0x95, 0x94, 0x6d, 0xd5, 0x91, 0xcf, 0xf8, 0x61, 0x46, 0xb5, 0xed, 0x61,
+	0x67, 0x4f, 0x8f, 0x03, 0x27, 0x84, 0x44, 0x89, 0x86, 0xff, 0x06, 0xad, 0x71, 0xf8, 0x3e, 0x10,
+	0x36, 0x66, 0xd5, 0x76, 0x2a, 0xb2, 0x38, 0x8d, 0x40, 0xb1, 0x6d, 0xa6, 0x0f, 0x94, 0x46, 0xe2,
+	0xa7, 0xd0, 0xa1, 0x24, 0x18, 0xfb, 0xc1, 0x44, 0x21, 0xeb, 0x12, 0x99, 0x79, 0x45, 0xac, 0x04,
+	0x33, 0x0e, 0xef, 0x43, 0x8d, 0x09, 0x46, 0x2d, 0xc3, 0xd5, 0x18, 0x60, 0x66, 0x29, 0x7e, 0x9d,
+	0x8a, 0xb4, 0x7f, 0xac, 0x14, 0xa5, 0x8c, 0x51, 0xbc, 0x05, 0x10, 0x27, 0x20, 0xc9, 0x98, 0x61,
+	0xc1, 0x07, 0xd0, 0x8d, 0x57, 0x2f, 0x68, 0xe8, 0x5d, 0xc8, 0xac, 0x15, 0xbc, 0x53, 0x3a, 0x63,
+	0x29, 0x64, 0x10, 0xf8, 0x31, 0x00, 0x77, 0xa3, 0x09, 0xe1, 0x62, 0xf7, 0x32, 0xbb, 0xf9, 0x3c,
+	0x1a, 0x7e, 0xbc, 0x0f, 0xe0, 0x5d, 0xb8, 0xc1, 0x84, 0xc8, 0xe8, 0x6a, 0x46, 0xe9, 0x47, 0x89,
+	0xc3, 0x31, 0x82, 0xf0, 0x73, 0xe8, 0xf1, 0xc8, 0x0d, 0xd8, 0x39, 0x89, 0x5e, 0xa9, 0x8f, 0x55,
+	0xcb, 0xc8, 0xed, 0x75, 0xc6, 0xe9, 0xe4, 0x82, 0xb1, 0x0d, 0xb5, 0x2b, 0x12, 0x4d, 0x88, 0xbe,
+	0x23, 0x3b, 0x1a, 0xf5, 0x7f, 0x61, 0x73, 0x94, 0x0b, 0x3f, 0x83, 0x2e, 0x53, 0x1d, 0x52, 0x17,
+	0x8f, 0x4a, 0xfd, 0x8a, 0x8e, 0x3d, 0x35, 0x7d, 0x4e, 0x36, 0x14, 0xff, 0x1d, 0x3a, 0xe9, 0x66,
+	0xdf, 0x0c, 0xf5, 0xd5, 0xb7, 0x3c, 0x73, 0xa6, 0x37, 0x43, 0x27, 0x13, 0x88, 0x77, 0xa1, 0x3f,
+	0x26, 0x8c, 0x87, 0xd1, 0xcd, 0xc8, 0x8f, 0x88, 0xc7, 0xa7, 0x37, 0xf2, 0xe6, 0x6b, 0x3a, 0x79,
+	0xb3, 0x3d, 0x80, 0x7e, 0x6e, 0x80, 0xc2, 0x0f, 0xa0, 0x95, 0x14, 0xbe, 0xfc, 0xae, 0x1d, 0x27,
+	0x35, 0xd8, 0x4b, 0x39, 0x00, 0xa3, 0xf6, 0xff, 0x60, 0xb5, 0x70, 0xa4, 0xc3, 0xc3, 0xb8, 0xdc,
+	0x4a, 0xfa, 0xce, 0xd6, 0x9f, 0x2e, 0x89, 0x2e, 0xa8, 0xb7, 0xf5, 0x42, 0x32, 0x46, 0xed, 0x3f,
+	0x40, 0x3f, 0x37, 0xa8, 0xcd, 0x6b, 0xb4, 0xf6, 0x69, 0x2e, 0x94, 0x51, 0x21, 0xd1, 0xb1, 0xcb,
+	0x5d, 0x7d, 0x1e, 0xf9, 0x8c, 0x1f, 0xc7, 0xdb, 0x2b, 0x2f, 0xda, 0x5e, 0xbc, 0xb1, 0x0e, 0x40,
+	0x3a, 0xeb, 0xd9, 0x0f, 0xd3, 0x15, 0xa3, 0x73, 0x37, 0xf2, 0x7b, 0x68, 0x1b, 0xb3, 0x5e, 0xd1,
+	0x26, 0xec, 0xe7, 0x46, 0x08, 0xa3, 0x78, 0x0f, 0x1a, 0xb2, 0x06, 0xb4, 0xa4, 0xda, 0xc3, 0x9e,
+	0x59, 0x28, 0xc7, 0xa3, 0xb8, 0x51, 0xe9, 0x20, 0xfb, 0x19, 0xf4, 0xb2, 0x63, 0x98, 0x78, 0xc9,
+	0x94, 0x9c, 0xf3, 0xf8, 0x25, 0xe2, 0x59, 0x0c, 0x16, 0x91, 0x3f, 0xb9, 0xe0, 0xfa, 0xe6, 0x52,
+	0x0b, 0x1b, 0x65, 0xb1, 0x8c, 0xda, 0xff, 0x04, 0x94, 0x1f, 0x30, 0x0b, 0x33, 0xb7, 0x02, 0x35,
+	0x2f, 0xbc, 0x0e, 0x14, 0x5f, 0xd7, 0x51, 0x0b, 0x7b, 0x94, 0x47, 0x33, 0x8a, 0xff, 0x02, 0x4d,
+	0xbd, 0x55, 0x51, 0x05, 0x95, 0xb9, 0x07, 0x4a, 0xa2, 0xec, 0x27, 0xb0, 0x5c, 0x30, 0x5d, 0x8a,
+	0xaa, 0x8c, 0x92, 0x9e, 0x22, 0x98, 0x3a, 0x4e, 0x6a, 0xb0, 0x57, 0x0b, 0x40, 0x8c, 0xda, 0xff,
+	0x86, 0x86, 0x7e, 0x8d, 0xd8, 0x72, 0x40, 0xde, 0x27, 0x37, 0x95, 0x5a, 0x88, 0x4b, 0x2c, 0x20,
+	0xef, 0x85, 0x6a, 0xc4, 0x06, 0xcb, 0x3b, 0x15, 0x71, 0x89, 0xa5, 0x16, 0xfb, 0x11, 0xa0, 0xfc,
+	0x7c, 0x2a, 0x12, 0x72, 0x3e, 0x75, 0x27, 0x92, 0xa8, 0xeb, 0xc8, 0x67, 0x7b, 0x00, 0x78, 0x76,
+	0x00, 0xc5, 0x1b, 0x50, 0xf1, 0xc7, 0x6a, 0xb7, 0xd5, 0xc3, 0xc6, 0xed, 0xa7, 0xed, 0xca, 0xf1,
+	0x88, 0x39, 0xc2, 0x66, 0xaf, 0xcc, 0x02, 0x18, 0xb5, 0x87, 0xb0, 0x5a, 0x38, 0x79, 0xa6, 0x4c,
+	0xa5, 0xdd, 0x4e, 0x8e, 0x69, 0xbf, 0x10, 0xc3, 0x28, 0xb6, 0xa0, 0x11, 0xc9, 0x57, 0x8c, 0xd5,
+	0x0e, 0x9c, 0x78, 0x69, 0xff, 0x52, 0x86, 0xb6, 0xd1, 0xc2, 0x31, 0x82, 0x0a, 0x23, 0x6f, 0x75,
+	0x66, 0xc4, 0xa3, 0xec, 0x68, 0xf1, 0xa8, 0xda, 0xd5, 0xd3, 0xe9, 0x10, 0x5a, 0x7e, 0xe0, 0x73,
+	0x35, 0x0f, 0x54, 0x32, 0xb7, 0xd8, 0x71, 0x6c, 0x1f, 0xb9, 0xdc, 0x75, 0xd2, 0x30, 0xfc, 0x2f,
+	0xa3, 0x09, 0x48, 0x9c, 0xba, 0x96, 0xad, 0xdc, 0x7c, 0x9a, 0x62, 0xb3, 0xe1, 0xf8, 0x00, 0x7a,
+	0xc9, 0xd5, 0xa3, 0x08, 0x6a, 0x99, 0x71, 0xe2, 0x28, 0xe3, 0x94, 0x0c, 0x39, 0x00, 0x7e, 0x01,
+	0x38, 0x32, 0xdb, 0x9b, 0xa2, 0xa9, 0x2f, 0x68, 0x80, 0x4e, 0x01, 0x00, 0xbf, 0x84, 0x65, 0x2f,
+	0x73, 0x2f, 0x28, 0x9e, 0xc6, 0xc2, 0xab, 0xa3, 0x08, 0x62, 0x4f, 0xa0, 0x9b, 0xc9, 0xd7, 0xe2,
+	0xd2, 0x16, 0x9f, 0x51, 0x0d, 0x0b, 0x71, 0x7d, 0xc6, 0x4b, 0x51, 0xbc, 0x09, 0x3f, 0xb3, 0x2a,
+	0x12, 0x68, 0x58, 0xec, 0xaf, 0xd3, 0x1f, 0x08, 0xe9, 0xcb, 0x8a, 0xe4, 0x9c, 0xfe, 0xc2, 0x50,
+	0xff, 0x43, 0x88, 0xa7, 0x13, 0xa3, 0x82, 0x2a, 0xb2, 0x7d, 0x24, 0x15, 0xb4, 0x6b, 0xfc, 0x54,
+	0x58, 0xc8, 0x6d, 0x4f, 0x01, 0xd2, 0x46, 0x85, 0x1f, 0x41, 0x95, 0x12, 0xdd, 0x56, 0x8a, 0x07,
+	0x16, 0xe9, 0xc7, 0x4f, 0xe3, 0x5e, 0xfe, 0x3a, 0xfd, 0xc1, 0x94, 0x26, 0x39, 0xe1, 0x93, 0xbf,
+	0x9d, 0x8c, 0x48, 0xfb, 0x1f, 0xd0, 0xcb, 0xf6, 0xec, 0xcf, 0x7d, 0xa3, 0x7d, 0x00, 0x1d, 0xb3,
+	0xa1, 0x8a, 0x1f, 0x0d, 0x8a, 0x37, 0xbe, 0xb7, 0x66, 0x47, 0x89, 0xf8, 0x2e, 0xd6, 0x71, 0xf6,
+	0x36, 0xd4, 0x64, 0xeb, 0x17, 0xf9, 0x54, 0x73, 0x89, 0xce, 0x84, 0x5e, 0xd9, 0x27, 0xd0, 0xcd,
+	0xf4, 0x7b, 0xfc, 0x27, 0xa8, 0xd3, 0x70, 0xea, 0x7b, 0x37, 0x32, 0xb0, 0x37, 0x5c, 0x4e, 0x8f,
+	0x48, 0xbc, 0xcb, 0x13, 0xe9, 0x72, 0x74, 0x88, 0xc8, 0xee, 0x25, 0xb9, 0x51, 0x55, 0xd0, 0x71,
+	0xe4, 0xf3, 0x1f, 0xbf, 0xad, 0x41, 0x55, 0x1c, 0x1c, 0x6f, 0xc0, 0xaa, 0x4c, 0x06, 0x99, 0xf8,
+	0x8c, 0x93, 0x28, 0xf9, 0x38, 0xe8, 0x1e, 0x7e, 0x00, 0x96, 0x72, 0xcd, 0xce, 0xbd, 0xa8, 0x34,
+	0xdf, 0xcb, 0x28, 0x2a, 0xe3, 0xdf, 0xc1, 0x86, 0xf0, 0x16, 0xb6, 0x77, 0x54, 0x59, 0xe0, 0x66,
+	0x14, 0x55, 0xf1, 0x3a, 0x2c, 0x0b, 0x77, 0x6e, 0xc0, 0x40, 0xb5, 0x42, 0x07, 0xa3, 0xa8, 0x1e,
+	0x3b, 0x72, 0x8d, 0x1e, 0x35, 0x0a, 0x1d, 0x8c, 0xa2, 0x26, 0xc6, 0xd0, 0x13, 0x8e, 0xb4, 0x35,
+	0xa3, 0x56, 0xde, 0xc6, 0x28, 0x02, 0xbc, 0x0c, 0x7d, 0x69, 0x4b, 0xdb, 0x31, 0x6a, 0xcf, 0x18,
+	0x19, 0x45, 0x1d, 0x6c, 0xc1, 0x8a, 0x36, 0x66, 0x1a, 0x21, 0xea, 0x16, 0x7b, 0x18, 0x45, 0x3d,
+	0xbc, 0x06, 0x58, 0x65, 0xd1, 0xec, 0x59, 0xa8, 0x5f, 0x64, 0x67, 0x14, 0x21, 0x7c, 0x1f, 0xd6,
+	0x85, 0xbd, 0xa0, 0xd1, 0xa1, 0xa5, 0xb9, 0x4e, 0x46, 0x11, 0x8e, 0xf7, 0x90, 0xef, 0x4a, 0x68,
+	0x39, 0x3e, 0x8c, 0x71, 0xb1, 0xa3, 0x15, 0xbc, 0x09, 0x6b, 0x6a, 0x03, 0xf9, 0xe6, 0x84, 0x56,
+	0xe7, 0xf9, 0x18, 0x45, 0x6b, 0xc9, 0x97, 0x2d, 0xea, 0x46, 0x68, 0x7d, 0x81, 0x9b, 0x51, 0x64,
+	0x1d, 0xa2, 0x8f, 0x3f, 0x6f, 0xdd, 0xfb, 0x70, 0xbb, 0x55, 0xfa, 0x78, 0xbb, 0x55, 0xfa, 0xe9,
+	0x76, 0xab, 0x74, 0x56, 0x97, 0xff, 0xd6, 0x7c, 0xf2, 0x6b, 0x00, 0x00, 0x00, 0xff, 0xff, 0xf1,
+	0xe4, 0x80, 0x43, 0x69, 0x15, 0x00, 0x00,
 }
 
 func (m *Request) Marshal() (dAtA []byte, err error) {
@@ -2244,6 +2504,22 @@ func (m *Request) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n10
+	dAtA[i] = 0x72
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveResources.Size()))
+	n11, err := m.RemoveResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n11
+	dAtA[i] = 0x7a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckResourceState.Size()))
+	n12, err := m.CheckResourceState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n12
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2290,83 +2566,101 @@ func (m *Response) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceHeartbeat.Size()))
-	n11, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n11
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
-	n12, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n12
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
-	n13, err := m.PutContainer.MarshalTo(dAtA[i:])
+	n13, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n13
-	dAtA[i] = 0x42
+	dAtA[i] = 0x32
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
-	n14, err := m.GetContainer.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
+	n14, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n14
-	dAtA[i] = 0x4a
+	dAtA[i] = 0x3a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n15, err := m.AllocID.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
+	n15, err := m.PutContainer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n15
-	dAtA[i] = 0x52
+	dAtA[i] = 0x42
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskSplit.Size()))
-	n16, err := m.AskSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
+	n16, err := m.GetContainer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n16
-	dAtA[i] = 0x5a
+	dAtA[i] = 0x4a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n17, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
+	n17, err := m.AllocID.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n17
-	dAtA[i] = 0x62
+	dAtA[i] = 0x52
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportSplit.Size()))
-	n18, err := m.ReportSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskSplit.Size()))
+	n18, err := m.AskSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n18
-	dAtA[i] = 0x6a
+	dAtA[i] = 0x5a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.BatchReportSplit.Size()))
-	n19, err := m.BatchReportSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
+	n19, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n19
-	dAtA[i] = 0x72
+	dAtA[i] = 0x62
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
-	n20, err := m.Event.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportSplit.Size()))
+	n20, err := m.ReportSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n20
+	dAtA[i] = 0x6a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.BatchReportSplit.Size()))
+	n21, err := m.BatchReportSplit.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n21
+	dAtA[i] = 0x72
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
+	n22, err := m.Event.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n22
+	dAtA[i] = 0x7a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveResources.Size()))
+	n23, err := m.RemoveResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n23
+	dAtA[i] = 0x82
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckResourceState.Size()))
+	n24, err := m.CheckResourceState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n24
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2408,11 +2702,11 @@ func (m *ResourceHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader.Size()))
-		n21, err := m.Leader.MarshalTo(dAtA[i:])
+		n25, err := m.Leader.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n21
+		i += n25
 	}
 	if len(m.DownPeers) > 0 {
 		for _, msg := range m.DownPeers {
@@ -2441,11 +2735,11 @@ func (m *ResourceHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n22, err := m.Stats.MarshalTo(dAtA[i:])
+	n26, err := m.Stats.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n22
+	i += n26
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2475,70 +2769,80 @@ func (m *ResourceHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEpoch.Size()))
-	n23, err := m.ResourceEpoch.MarshalTo(dAtA[i:])
+	n27, err := m.ResourceEpoch.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n23
+	i += n27
 	if m.TargetPeer != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TargetPeer.Size()))
-		n24, err := m.TargetPeer.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n24
-	}
-	if m.ChangePeer != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeer.Size()))
-		n25, err := m.ChangePeer.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n25
-	}
-	if m.TransferLeader != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
-		n26, err := m.TransferLeader.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n26
-	}
-	if m.Merge != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
-		n27, err := m.Merge.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n27
-	}
-	if m.SplitResource != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitResource.Size()))
-		n28, err := m.SplitResource.MarshalTo(dAtA[i:])
+		n28, err := m.TargetPeer.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n28
 	}
-	if m.ChangePeerV2 != nil {
-		dAtA[i] = 0x42
+	if m.ChangePeer != nil {
+		dAtA[i] = 0x22
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeerV2.Size()))
-		n29, err := m.ChangePeerV2.MarshalTo(dAtA[i:])
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeer.Size()))
+		n29, err := m.ChangePeer.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n29
+	}
+	if m.TransferLeader != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
+		n30, err := m.TransferLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n30
+	}
+	if m.Merge != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
+		n31, err := m.Merge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n31
+	}
+	if m.SplitResource != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitResource.Size()))
+		n32, err := m.SplitResource.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n32
+	}
+	if m.ChangePeerV2 != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeerV2.Size()))
+		n33, err := m.ChangePeerV2.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n33
+	}
+	if m.DestoryDirectly {
+		dAtA[i] = 0x48
+		i++
+		if m.DestoryDirectly {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2612,11 +2916,11 @@ func (m *ContainerHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n30, err := m.Stats.MarshalTo(dAtA[i:])
+	n34, err := m.Stats.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n30
+	i += n34
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2695,11 +2999,11 @@ func (m *GetContainerRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-		n31, err := m.Stats.MarshalTo(dAtA[i:])
+		n35, err := m.Stats.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n31
+		i += n35
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2799,11 +3103,11 @@ func (m *AskSplitRsp) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitID.Size()))
-	n32, err := m.SplitID.MarshalTo(dAtA[i:])
+	n36, err := m.SplitID.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n32
+	i += n36
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -3000,21 +3304,21 @@ func (m *SplitID) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
 	}
 	if len(m.NewPeerIDs) > 0 {
-		dAtA34 := make([]byte, len(m.NewPeerIDs)*10)
-		var j33 int
+		dAtA38 := make([]byte, len(m.NewPeerIDs)*10)
+		var j37 int
 		for _, num := range m.NewPeerIDs {
 			for num >= 1<<7 {
-				dAtA34[j33] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA38[j37] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j33++
+				j37++
 			}
-			dAtA34[j33] = uint8(num)
-			j33++
+			dAtA38[j37] = uint8(num)
+			j37++
 		}
 		dAtA[i] = 0x12
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j33))
-		i += copy(dAtA[i:], dAtA34[:j33])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j37))
+		i += copy(dAtA[i:], dAtA38[:j37])
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3041,6 +3345,130 @@ func (m *CreateWatcherReq) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x8
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Flag))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *RemoveResourcesReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RemoveResourcesReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.IDs) > 0 {
+		dAtA40 := make([]byte, len(m.IDs)*10)
+		var j39 int
+		for _, num := range m.IDs {
+			for num >= 1<<7 {
+				dAtA40[j39] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j39++
+			}
+			dAtA40[j39] = uint8(num)
+			j39++
+		}
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j39))
+		i += copy(dAtA[i:], dAtA40[:j39])
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *RemoveResourcesRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RemoveResourcesRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CheckResourceStateReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CheckResourceStateReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.IDs) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IDs)))
+		i += copy(dAtA[i:], m.IDs)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CheckResourceStateRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CheckResourceStateRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Removed) > 0 {
+		dAtA42 := make([]byte, len(m.Removed)*10)
+		var j41 int
+		for _, num := range m.Removed {
+			for num >= 1<<7 {
+				dAtA42[j41] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j41++
+			}
+			dAtA42[j41] = uint8(num)
+			j41++
+		}
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j41))
+		i += copy(dAtA[i:], dAtA42[:j41])
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3077,51 +3505,51 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.InitEvent.Size()))
-		n35, err := m.InitEvent.MarshalTo(dAtA[i:])
+		n43, err := m.InitEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n35
+		i += n43
 	}
 	if m.ResourceEvent != nil {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEvent.Size()))
-		n36, err := m.ResourceEvent.MarshalTo(dAtA[i:])
+		n44, err := m.ResourceEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n36
+		i += n44
 	}
 	if m.ContainerEvent != nil {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerEvent.Size()))
-		n37, err := m.ContainerEvent.MarshalTo(dAtA[i:])
+		n45, err := m.ContainerEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n37
+		i += n45
 	}
 	if m.ResourceStatsEvent != nil {
 		dAtA[i] = 0x32
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceStatsEvent.Size()))
-		n38, err := m.ResourceStatsEvent.MarshalTo(dAtA[i:])
+		n46, err := m.ResourceStatsEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n38
+		i += n46
 	}
 	if m.ContainerStatsEvent != nil {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerStatsEvent.Size()))
-		n39, err := m.ContainerStatsEvent.MarshalTo(dAtA[i:])
+		n47, err := m.ContainerStatsEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n39
+		i += n47
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3153,21 +3581,21 @@ func (m *InitEventData) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Leaders) > 0 {
-		dAtA41 := make([]byte, len(m.Leaders)*10)
-		var j40 int
+		dAtA49 := make([]byte, len(m.Leaders)*10)
+		var j48 int
 		for _, num := range m.Leaders {
 			for num >= 1<<7 {
-				dAtA41[j40] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA49[j48] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j40++
+				j48++
 			}
-			dAtA41[j40] = uint8(num)
-			j40++
+			dAtA49[j48] = uint8(num)
+			j48++
 		}
 		dAtA[i] = 0x12
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j40))
-		i += copy(dAtA[i:], dAtA41[:j40])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j48))
+		i += copy(dAtA[i:], dAtA49[:j48])
 	}
 	if len(m.Containers) > 0 {
 		for _, b := range m.Containers {
@@ -3208,6 +3636,16 @@ func (m *ResourceEventData) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader))
+	}
+	if m.Removed {
+		dAtA[i] = 0x18
+		i++
+		if m.Removed {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3260,11 +3698,11 @@ func (m *ChangePeer) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Peer.Size()))
-	n42, err := m.Peer.MarshalTo(dAtA[i:])
+	n50, err := m.Peer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n42
+	i += n50
 	if m.ChangeType != 0 {
 		dAtA[i] = 0x10
 		i++
@@ -3294,11 +3732,11 @@ func (m *TransferLeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Peer.Size()))
-	n43, err := m.Peer.MarshalTo(dAtA[i:])
+	n51, err := m.Peer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n43
+	i += n51
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -3443,6 +3881,10 @@ func (m *Request) Size() (n int) {
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.CreateWatcher.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.RemoveResources.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.CheckResourceState.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3489,6 +3931,10 @@ func (m *Response) Size() (n int) {
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.Event.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.RemoveResources.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.CheckResourceState.Size()
+	n += 2 + l + sovRpcpb(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3569,6 +4015,9 @@ func (m *ResourceHeartbeatRsp) Size() (n int) {
 	if m.ChangePeerV2 != nil {
 		l = m.ChangePeerV2.Size()
 		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.DestoryDirectly {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3858,6 +4307,72 @@ func (m *CreateWatcherReq) Size() (n int) {
 	return n
 }
 
+func (m *RemoveResourcesReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.IDs) > 0 {
+		l = 0
+		for _, e := range m.IDs {
+			l += sovRpcpb(uint64(e))
+		}
+		n += 1 + sovRpcpb(uint64(l)) + l
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RemoveResourcesRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CheckResourceStateReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.IDs)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CheckResourceStateRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Removed) > 0 {
+		l = 0
+		for _, e := range m.Removed {
+			l += sovRpcpb(uint64(e))
+		}
+		n += 1 + sovRpcpb(uint64(l)) + l
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *EventNotify) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3939,6 +4454,9 @@ func (m *ResourceEventData) Size() (n int) {
 	}
 	if m.Leader != 0 {
 		n += 1 + sovRpcpb(uint64(m.Leader))
+	}
+	if m.Removed {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4477,6 +4995,72 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemoveResources", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.RemoveResources.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CheckResourceState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.CheckResourceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
@@ -4960,6 +5544,72 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if err := m.Event.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemoveResources", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.RemoveResources.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CheckResourceState", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.CheckResourceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -5548,6 +6198,26 @@ func (m *ResourceHeartbeatRsp) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DestoryDirectly", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.DestoryDirectly = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
@@ -7088,6 +7758,408 @@ func (m *CreateWatcherReq) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *RemoveResourcesReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RemoveResourcesReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RemoveResourcesReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.IDs = append(m.IDs, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.IDs) == 0 {
+					m.IDs = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpcpb
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.IDs = append(m.IDs, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field IDs", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RemoveResourcesRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RemoveResourcesRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RemoveResourcesRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CheckResourceStateReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CheckResourceStateReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CheckResourceStateReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IDs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IDs = append(m.IDs[:0], dAtA[iNdEx:postIndex]...)
+			if m.IDs == nil {
+				m.IDs = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CheckResourceStateRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CheckResourceStateRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CheckResourceStateRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.Removed = append(m.Removed, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.Removed) == 0 {
+					m.Removed = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpcpb
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.Removed = append(m.Removed, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Removed", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *EventNotify) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7636,6 +8708,26 @@ func (m *ResourceEventData) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Removed", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Removed = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])

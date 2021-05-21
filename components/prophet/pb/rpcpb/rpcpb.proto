@@ -32,6 +32,10 @@ enum Type {
 	TypeBatchReportSplitRsp   = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
+    TypeRemoveResourcesReq    = 21;
+    TypeRemoveResourcesRsp    = 22;
+    TypeCheckResourceStateReq = 23;
+    TypeCheckResourceStateRsp = 24;
 }
 
 // Request the prophet rpc request
@@ -45,10 +49,12 @@ message Request {
     GetContainerReq       GetContainer       = 7  [(gogoproto.nullable) = false];
     AllocIDReq            AllocID            = 8  [(gogoproto.nullable) = false];
     AskSplitReq           AskSplit           = 9  [(gogoproto.nullable) = false];
-    AskBatchSplitReq      AskBatchSplit      = 10  [(gogoproto.nullable) = false];
-    ReportSplitReq        ReportSplit        = 11  [(gogoproto.nullable) = false];
+    AskBatchSplitReq      AskBatchSplit      = 10 [(gogoproto.nullable) = false];
+    ReportSplitReq        ReportSplit        = 11 [(gogoproto.nullable) = false];
     BatchReportSplitReq   BatchReportSplit   = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      CreateWatcher      = 13 [(gogoproto.nullable) = false];
+    RemoveResourcesReq    RemoveResources    = 14 [(gogoproto.nullable) = false];
+    CheckResourceStateReq CheckResourceState = 15 [(gogoproto.nullable) = false];
 }
 
 // Response the prophet rpc response
@@ -62,11 +68,13 @@ message Response {
     PutContainerRsp       PutContainer       = 7  [(gogoproto.nullable) = false]; 
     GetContainerRsp       GetContainer       = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            AllocID            = 9  [(gogoproto.nullable) = false];
-    AskSplitRsp           AskSplit           = 10  [(gogoproto.nullable) = false];
+    AskSplitRsp           AskSplit           = 10 [(gogoproto.nullable) = false];
     AskBatchSplitRsp      AskBatchSplit      = 11 [(gogoproto.nullable) = false];
     ReportSplitRsp        ReportSplit        = 12 [(gogoproto.nullable) = false];
     BatchReportSplitRsp   BatchReportSplit   = 13 [(gogoproto.nullable) = false];
     EventNotify           Event              = 14 [(gogoproto.nullable) = false];
+    RemoveResourcesRsp    RemoveResources    = 15 [(gogoproto.nullable) = false];
+    CheckResourceStateRsp CheckResourceState = 16 [(gogoproto.nullable) = false];
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -83,10 +91,10 @@ message ResourceHeartbeatReq {
    
 // ResourceHeartbeatRsp resource heartbeat response.
 message ResourceHeartbeatRsp {
-    uint64               resourceID     = 1;
-    metapb.ResourceEpoch resourceEpoch  = 2 [(gogoproto.nullable) = false];
+    uint64               resourceID      = 1;
+    metapb.ResourceEpoch resourceEpoch   = 2 [(gogoproto.nullable) = false];
     // Leader of the resource at the moment of the corresponding request was made.
-    metapb.Peer          targetPeer     = 3;
+    metapb.Peer          targetPeer      = 3;
     // Notice, prophet only allows handling reported epoch >= current prophet's.
     // Leader peer reports resource status with ResourceHeartbeatReq
     // to prophet regularly, prophet will determine whether this resource
@@ -101,11 +109,13 @@ message ResourceHeartbeatRsp {
     // 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
     // finished, pd stills responses ChangePeer Adding 2, of course, we must
     // guarantee the second ChangePeer can't be applied in your application.
-    ChangePeer           changePeer     = 4;
-    TransferLeader       transferLeader = 5;
-    Merge                merge          = 6;
-    SplitResource        splitResource  = 7;
-    ChangePeerV2         changePeerV2   = 8;
+    ChangePeer           changePeer      = 4;
+    TransferLeader       transferLeader  = 5;
+    Merge                merge           = 6;
+    SplitResource        splitResource   = 7;
+    ChangePeerV2         changePeerV2    = 8;
+    // DestoryDirectly the resource has been removed, destory directly without raft.
+    bool                 destoryDirectly = 9;
 }
 
 // PutContainerReq put container request
@@ -198,6 +208,25 @@ message CreateWatcherReq {
     uint32 flag = 1;
 }
 
+// RemoveResourcesReq remove resources req
+message RemoveResourcesReq {
+    repeated uint64 ids = 1 [(gogoproto.customname) = "IDs"];
+}
+
+// RemoveResourcesRsp remove resources rsp
+message RemoveResourcesRsp {
+}
+
+// CheckResourceStateReq check resource state req
+message CheckResourceStateReq {
+    bytes ids = 1 [(gogoproto.customname) = "IDs"];
+}
+
+// CheckResourceStateReq check resource state rsp
+message CheckResourceStateRsp {
+    repeated uint64 removed = 1;
+}
+
 // EventNotify event notify
 message EventNotify {
     uint64                 seq                 = 1;
@@ -218,8 +247,9 @@ message InitEventData {
 
 // ResourceEventData resource created or updated
 message ResourceEventData {
-    bytes  data   = 1;
-    uint64 leader = 2;
+    bytes  data    = 1;
+    uint64 leader  = 2;
+    bool   removed = 3;
 }
 
 // ContainerEventData container created or updated

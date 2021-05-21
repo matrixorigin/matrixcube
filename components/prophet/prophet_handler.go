@@ -112,6 +112,18 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 				return err
 			}
 		}
+	case rpcpb.TypeRemoveResourcesReq:
+		resp.Type = rpcpb.TypeRemoveResourcesRsp
+		err := p.handleRemoveResources(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeCheckResourceStateReq:
+		resp.Type = rpcpb.TypeCheckResourceStateRsp
+		err := p.handleCheckResourceState(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
 	default:
 		return fmt.Errorf("type %s not support", req.Type.String())
 	}
@@ -250,6 +262,26 @@ func (p *defaultProphet) handleReportBatchSplit(rc *cluster.RaftCluster, req *rp
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p *defaultProphet) handleRemoveResources(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	rsp, err := rc.HandleRemoveResources(req)
+	if err != nil {
+		return err
+	}
+
+	resp.RemoveResources = *rsp
+	return nil
+}
+
+func (p *defaultProphet) handleCheckResourceState(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	rsp, err := rc.HandleCheckResourceState(req)
+	if err != nil {
+		return err
+	}
+
+	resp.CheckResourceState = *rsp
 	return nil
 }
 

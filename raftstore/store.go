@@ -14,6 +14,7 @@ import (
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/log"
+	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
@@ -37,8 +38,11 @@ import (
 )
 
 var (
-	eventsPath = "/events/shards"
-	logger     = log.NewLoggerWithPrefix("[raftstore]")
+	addShardsPath    = "/events/shards/add"
+	removeShardsPath = "/events/shards/remove"
+	logger           = log.NewLoggerWithPrefix("[raftstore]")
+
+	maxShardsOnce = 8
 )
 
 // Store manage a set of raft group
@@ -69,9 +73,11 @@ type Store interface {
 	DataStorageByGroup(uint64, uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
-	// AddShards add shards meta on the current store, and than prophet will
+	// AsyncAddShards add shards meta on the current store, and than prophet will
 	// schedule this shard replicas to other nodes.
-	AddShards(...bhmetapb.Shard) error
+	AsyncAddShards(...bhmetapb.Shard) error
+	// AsyncRemoveShards schedule remove shards asynchronously
+	AsyncRemoveShards(ids ...uint64) error
 	// AllocID returns a uint64 id, panic if has a error
 	MustAllocID() uint64
 	// Prophet return current prophet instance
@@ -166,11 +172,8 @@ func (s *store) Start() {
 	s.startShards()
 	logger.Infof("shards started")
 
-	s.startCompactRaftLogTask()
-	logger.Infof("shard raft log compact task started")
-
-	s.startSplitCheckTask()
-	logger.Infof("shard shard split check task started")
+	s.startTimerTasks()
+	logger.Infof("shard timer based tasks started")
 
 	s.startRPC()
 	logger.Infof("start listen at %s for client", s.cfg.ClientAddr)
@@ -207,7 +210,7 @@ func (s *store) NewRouter() Router {
 		time.Sleep(time.Second)
 	}
 
-	r, err := newRouter(s.pd, s.runner)
+	r, err := newRouter(s.pd, s.runner, s.doDestroy)
 	if err != nil {
 		logger.Fatalf("create router failed with %+v", err)
 	}
@@ -304,7 +307,12 @@ func hasGap(left, right bhmetapb.Shard) bool {
 		(bytes.Compare(rightS, leftS) >= 0 && bytes.Compare(rightS, leftE) < 0)
 }
 
-func (s *store) AddShards(shards ...bhmetapb.Shard) error {
+func (s *store) AsyncAddShards(shards ...bhmetapb.Shard) error {
+	if len(shards) > maxShardsOnce {
+		return fmt.Errorf("exceed the maximum number of add shards, current %d, max %d",
+			len(shards), maxShardsOnce)
+	}
+
 	doShards := make(map[uint64]*bhmetapb.Shard)
 	for idx := range shards {
 		shards[idx].ID = s.MustAllocID()
@@ -346,35 +354,58 @@ func (s *store) AddShards(shards ...bhmetapb.Shard) error {
 	}
 
 	var createShards []bhmetapb.Shard
-	var createShardIDs []uint64
 	var cmps []clientv3.Cmp
 	var ops []clientv3.Op
 	var buffer bytes.Buffer
 	now := time.Now().Unix()
 	for _, shard := range doShards {
 		createShards = append(createShards, *shard)
-		createShardIDs = append(createShardIDs, shard.ID)
-
 		buffer.Reset()
 		buffer.Write(buf.Int64ToBytes(now))
 		buffer.Write(protoc.MustMarshal(shard))
 
-		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(shard.ID, eventsPath)), "=", 0))
-		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, eventsPath), buffer.String()))
+		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(shard.ID, addShardsPath)), "=", 0))
+		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, addShardsPath), buffer.String()))
 	}
-	s.mustSaveShards(createShards...)
-
 	cli := s.pd.GetMember().Client()
 	resp, err := cli.Txn(cli.Ctx()).If(cmps...).Then(ops...).Commit()
-	if err != nil || !resp.Succeeded {
-		s.mustRemoveShards(createShardIDs...)
+	if err != nil {
 		return err
 	}
+	if !resp.Succeeded {
+		return fmt.Errorf("save create shards failed")
+	}
 
+	s.mustSaveShards(createShards...)
 	for _, shard := range doShards {
 		if err := s.createPR(*shard); err != nil {
 			logger.Fatalf("create shards failed with %+v", err)
 		}
+	}
+
+	return nil
+}
+
+func (s *store) AsyncRemoveShards(ids ...uint64) error {
+	if len(ids) > maxShardsOnce {
+		return fmt.Errorf("exceed the maximum number of remove shards, current %d, max %d",
+			len(ids), maxShardsOnce)
+	}
+
+	var cmps []clientv3.Cmp
+	var ops []clientv3.Op
+	for _, id := range ids {
+		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(id, removeShardsPath)), "=", 0))
+		ops = append(ops, clientv3.OpPut(uint64Key(id, removeShardsPath), string(format.Uint64ToBytes(id))))
+	}
+
+	cli := s.pd.GetMember().Client()
+	resp, err := cli.Txn(cli.Ctx()).If(cmps...).Then(ops...).Commit()
+	if err != nil {
+		return err
+	}
+	if !resp.Succeeded {
+		return fmt.Errorf("save remove shards failed")
 	}
 
 	return nil
@@ -563,40 +594,30 @@ func (s *store) startShards() {
 	s.cleanup()
 }
 
-func (s *store) startCompactRaftLogTask() {
+func (s *store) startTimerTasks() {
 	s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
-		defer ticker.Stop()
+		compactTicker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
+		defer compactTicker.Stop()
+
+		splitCheckTicker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
+		defer splitCheckTicker.Stop()
+
+		stateCheckTicker := time.NewTicker(s.cfg.Replication.ShardStateCheckDuration.Duration)
+		defer stateCheckTicker.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof("compact raft log task stopped")
+				logger.Infof("timer based tasks stopped")
 				return
-			case <-ticker.C:
+			case <-compactTicker.C:
 				s.handleCompactRaftLog()
-			}
-		}
-	})
-}
-
-func (s *store) startSplitCheckTask() {
-	if s.cfg.Replication.DisableShardSplit {
-		logger.Infof("shard split disabled")
-		return
-	}
-
-	s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Infof("shard split check task stopped")
-				return
-			case <-ticker.C:
-				s.handleSplitCheck()
+			case <-splitCheckTicker.C:
+				if !s.cfg.Replication.DisableShardSplit {
+					s.handleSplitCheck()
+				}
+			case <-stateCheckTicker.C:
+				s.handleShardStateCheck()
 			}
 		}
 	})
@@ -654,7 +675,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 				}
 			}
 
-			ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, eventsPath)))
+			ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, addShardsPath)))
 			return true, nil
 		}
 
@@ -663,7 +684,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 			return true, nil
 		}
 
-		s.doDestroy(shard.ID, shard.Peers[0])
+		s.doDestroy(shard.ID)
 
 		logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
 			shard.ID,
@@ -686,7 +707,7 @@ func (s *store) doEnsureNewShards(limit int64) {
 			var buffer bytes.Buffer
 			buffer.Write(buf.Int64ToBytes(time.Now().Unix()))
 			buffer.Write(protoc.MustMarshal(&recreate[i]))
-			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, eventsPath), buffer.String()))
+			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, addShardsPath), buffer.String()))
 		}
 	}
 
@@ -710,12 +731,12 @@ func (s *store) doEnsureNewShards(limit int64) {
 
 func (s *store) doWithNewShards(limit int64, fn func(int64, bhmetapb.Shard) (bool, error)) error {
 	startID := uint64(0)
-	endKey := uint64Key(math.MaxUint64, eventsPath)
+	endKey := uint64Key(math.MaxUint64, addShardsPath)
 	withRange := clientv3.WithRange(endKey)
 	withLimit := clientv3.WithLimit(limit)
 
 	for {
-		startKey := uint64Key(startID, eventsPath)
+		startKey := uint64Key(startID, addShardsPath)
 		resp, err := s.getFromProphetStore(startKey, withRange, withLimit)
 		if err != nil {
 			logger.Errorf("ensure new shards failed with %+v", err)
@@ -771,7 +792,6 @@ func (s *store) createPR(shard bhmetapb.Shard) error {
 
 func (s *store) addPR(pr *peerReplica) {
 	s.replicas.Store(pr.shardID, pr)
-
 	logger.Infof("shard %d added with peer %+v, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
 		pr.peer,
@@ -779,6 +799,14 @@ func (s *store) addPR(pr *peerReplica) {
 		pr.ps.shard.Peers,
 		pr.eventWorker,
 		pr.applyWorker)
+}
+
+func (s *store) removePR(pr *peerReplica) {
+	s.replicas.Delete(pr.shardID)
+	if s.aware != nil {
+		s.aware.Destory(pr.ps.shard)
+	}
+	s.revokeWorker(pr)
 }
 
 func (s *store) getFromProphetStore(key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {

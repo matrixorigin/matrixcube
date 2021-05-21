@@ -23,12 +23,23 @@ type TestResource struct {
 	Start     []byte               `json:"start"`
 	End       []byte               `json:"end"`
 	ResEpoch  metapb.ResourceEpoch `json:"epoch"`
+	ResState  metapb.ResourceState `json:"state"`
 	Err       bool                 `json:"-"`
 }
 
 // NewTestResource create test resource
 func NewTestResource(id uint64) *TestResource {
 	return &TestResource{ResID: id}
+}
+
+// State resource state
+func (res *TestResource) State() metapb.ResourceState {
+	return res.ResState
+}
+
+// SetState set resource state
+func (res *TestResource) SetState(state metapb.ResourceState) {
+	res.ResState = state
 }
 
 // SetID mock

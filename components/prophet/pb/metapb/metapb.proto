@@ -30,6 +30,14 @@ enum ContainerState {
     Tombstone = 2;
 }
 
+// State the resource state
+enum ResourceState {
+    // Running is serve state
+    Running   = 0;
+    // Tombstone is the destory state
+    Removed   = 1;
+}
+
 // ChangePeerType change peer type
 enum ChangePeerType {
     AddNode        = 0;
@@ -183,4 +191,10 @@ message TimeInterval {
     uint64 start = 1;
     // The unix timestamp in seconds of the end of this period.
     uint64 end   = 2;
+}
+
+// RemoveResourceJob remove resources job
+message RemoveResourceJob {
+             uint64 id  = 1 [(gogoproto.customname) = "ID"];
+    repeated Peer peers = 2 [(gogoproto.nullable) = false];
 }

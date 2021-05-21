@@ -6,23 +6,42 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"github.com/pilosa/pilosa/roaring"
 )
 
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	Containers *CachedContainers
-	Resources  *CachedResources
+	Containers       *CachedContainers
+	Resources        *CachedResources
+	RemovedResources *roaring.Bitmap
 }
 
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
 	return &BasicCluster{
-		Containers: NewCachedContainers(),
-		Resources:  NewCachedResources(factory),
+		Containers:       NewCachedContainers(),
+		Resources:        NewCachedResources(factory),
+		RemovedResources: roaring.NewBitmap(),
 	}
+}
+
+// AddRemovedResources add removed resources
+func (bc *BasicCluster) AddRemovedResources(ids ...uint64) {
+	bc.Lock()
+	defer bc.Unlock()
+	bc.RemovedResources.Add(ids...)
+}
+
+// GetRemovedResources get removed state resources
+func (bc *BasicCluster) GetRemovedResources(bm *roaring.Bitmap) []uint64 {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	return bc.RemovedResources.Intersect(bm).Slice()
 }
 
 // GetContainers returns all Containers in the cluster.
@@ -316,6 +335,11 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 
 // CheckAndPutResource checks if the resource is valid to put,if valid then put.
 func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
+	if res.Meta.State() == metapb.ResourceState_Removed {
+		bc.AddRemovedResources(res.Meta.ID())
+		return nil
+	}
+
 	origin, err := bc.PreCheckPutResource(res)
 	if err != nil {
 		util.GetLogger().Debugf("resource %+v is stale",

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
+	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
@@ -15,13 +16,18 @@ import (
 
 // HandleResourceHeartbeat processes CachedResource reports from client.
 func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
-	if err := c.processResourceHeartbeat(res); err != nil {
-		return err
-	}
-
 	c.RLock()
 	co := c.coordinator
 	c.RUnlock()
+
+	if err := c.processResourceHeartbeat(res); err != nil {
+		if err == errResourceRemoved {
+			co.opController.DispatchDestoryDirectly(res, schedule.DispatchFromHeartBeat)
+			return nil
+		}
+		return err
+	}
+
 	co.opController.Dispatch(res, schedule.DispatchFromHeartBeat)
 	return nil
 }
@@ -237,4 +243,48 @@ func (c *RaftCluster) HandleBatchReportSplit(request *rpcpb.Request) (*rpcpb.Bat
 		hrm.String(),
 		last)
 	return &rpcpb.BatchReportSplitRsp{}, nil
+}
+
+// HandleRemoveResources handle remove resources
+func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.RemoveResourcesRsp, error) {
+	if len(request.RemoveResources.IDs) > 4 {
+		return nil, fmt.Errorf("exceed the maximum batch size of remove resources, max is %d current %d",
+			4, len(request.RemoveResources.IDs))
+	}
+
+	c.RLock()
+	defer c.RUnlock()
+
+	var targets []metadata.Resource
+	var origin []metadata.Resource
+	for _, id := range request.RemoveResources.IDs {
+		v := c.GetResource(id)
+		if v == nil {
+			return nil, fmt.Errorf("resource %d not found in prophet", id)
+		}
+		origin = append(origin, v.Meta)
+
+		res := v.Meta.Clone() // use cloned value
+		res.SetState(metapb.ResourceState_Removed)
+		targets = append(targets, res)
+	}
+	err := c.storage.PutResources(targets...)
+	if err != nil {
+		return nil, err
+	}
+
+	c.core.AddRemovedResources(request.RemoveResources.IDs...)
+	for _, res := range origin {
+		res.SetState(metapb.ResourceState_Removed)
+		c.changedEvents <- event.NewResourceEvent(res, 0, true)
+	}
+
+	return &rpcpb.RemoveResourcesRsp{}, nil
+}
+
+// HandleCheckResourceState handle check resource state
+func (c *RaftCluster) HandleCheckResourceState(request *rpcpb.Request) (*rpcpb.CheckResourceStateRsp, error) {
+	return &rpcpb.CheckResourceStateRsp{
+		Removed: c.core.GetRemovedResources(util.MustUnmarshalBM64(request.CheckResourceState.IDs)),
+	}, nil
 }

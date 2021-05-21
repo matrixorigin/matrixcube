@@ -7,6 +7,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/pilosa/pilosa/roaring"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
@@ -33,6 +34,25 @@ func (s *store) handleSplitCheck() {
 
 		return true
 	})
+}
+
+func (s *store) handleShardStateCheck() {
+	bm := roaring.NewBitmap()
+	s.foreachPR(func(pr *peerReplica) bool {
+		bm.Add(pr.shardID)
+		return true
+	})
+
+	if bm.Count() > 0 {
+		rsp, err := s.pd.GetClient().CheckResourceState(bm)
+		if err != nil {
+			logger.Errorf("check shards state failed with %+v", err)
+		}
+
+		for _, id := range rsp.Removed {
+			s.doDestroy(id)
+		}
+	}
 }
 
 // all raft message entrypoint

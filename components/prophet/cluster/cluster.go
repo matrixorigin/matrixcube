@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -35,6 +36,10 @@ var backgroundJobInterval = 10 * time.Second
 const (
 	clientTimeout            = 3 * time.Second
 	defaultChangedEventLimit = 10000
+)
+
+var (
+	errResourceRemoved = errors.New("resource removed")
 )
 
 // Server is the interface for cluster.
@@ -414,9 +419,27 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		c.RUnlock()
 		return err
 	}
+
 	writeItems := c.CheckWriteStatus(res)
 	readItems := c.CheckReadStatus(res)
 	c.RUnlock()
+
+	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
+	// each node execute these job on local to remove resource. So we need check whether the resource removed
+	// or not.
+	var checkMaybeRemoved metadata.Resource
+	if origin != nil {
+		checkMaybeRemoved = origin.Meta
+	}
+	if checkMaybeRemoved == nil {
+		checkMaybeRemoved, err = c.storage.GetResource(res.Meta.ID())
+		if err != nil {
+			return err
+		}
+	}
+	if checkMaybeRemoved != nil && checkMaybeRemoved.State() == metapb.ResourceState_Removed {
+		return errResourceRemoved
+	}
 
 	// Save to storage if meta is updated.
 	// Save to cache if meta or leader is updated, or contains any down/pending peer.
@@ -553,7 +576,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
 	if saveKV {
-		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID())
+		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID(), false)
 	}
 	if saveCache {
 		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
