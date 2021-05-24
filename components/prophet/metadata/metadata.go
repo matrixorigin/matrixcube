@@ -29,6 +29,10 @@ type Resource interface {
 	State() metapb.ResourceState
 	// SetState set resource state
 	SetState(metapb.ResourceState)
+	// Unique is identifier of the resources, used for dynamic create resources.
+	Unique() string
+	// SetUnique set Unique
+	SetUnique(string)
 	// Clone returns the cloned value
 	Clone() Resource
 	// Marshal returns error if marshal failed

@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -39,6 +40,30 @@ func NewReplicaChecker(cluster opt.Cluster, resourceWaitingList cache.Cache) *Re
 		opts:                cluster.GetOpts(),
 		resourceWaitingList: resourceWaitingList,
 	}
+}
+
+// FillReplicas make up all replica for a empty resource
+func (r *ReplicaChecker) FillReplicas(res *core.CachedResource) error {
+	if len(res.Meta.Peers()) > 0 {
+		return fmt.Errorf("fill resource replicas only support empty resources")
+	}
+
+	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
+		return nil
+	}
+
+	rs := r.strategy(res)
+	resourceContainers := r.cluster.GetResourceContainers(res)
+	for i := 0; i < r.opts.GetMaxReplicas(); i++ {
+		container := rs.SelectContainerToAdd(resourceContainers)
+		if container == 0 {
+			return errors.New("no container to add peer")
+		}
+		peers := res.Meta.Peers()
+		peers = append(peers, metapb.Peer{ContainerID: container})
+		res.Meta.SetPeers(peers)
+	}
+	return nil
 }
 
 // Check verifies a resource's replicas, creating an operator.Operator if need.

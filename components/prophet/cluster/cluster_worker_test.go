@@ -57,6 +57,83 @@ func TestReportBatchSplit(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestCreateResources(t *testing.T) {
+	cluster, co, cleanup := prepare(t, nil, nil, nil)
+	defer cleanup()
+
+	cluster.coordinator = co
+
+	res := newTestResourceMeta(1)
+	data, err := res.Marshal()
+	assert.NoError(t, err)
+	req := &rpcpb.Request{}
+	req.CreateResources.Resources = append(req.CreateResources.Resources, data)
+
+	_, err = cluster.HandleCreateResources(req)
+	assert.Error(t, err)
+
+	cluster.addResourceContainer(1, 1)
+	_, err = cluster.HandleCreateResources(req)
+	assert.Error(t, err)
+
+	cluster.addResourceContainer(2, 1)
+	_, err = cluster.HandleCreateResources(req)
+	assert.Error(t, err)
+
+	cluster.addResourceContainer(3, 1)
+	_, err = cluster.HandleCreateResources(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(cluster.core.WaittingCreateResources))
+	assert.Equal(t, 0, cluster.GetResourceCount())
+
+	cluster.doNotifyCreateResources()
+	e := <-cluster.ChangedEventNotifier()
+	assert.Equal(t, event.EventResource, e.Type)
+	assert.True(t, e.ResourceEvent.Create)
+
+	for _, res := range cluster.core.WaittingCreateResources {
+		v, err := cluster.storage.GetResource(res.ID())
+		assert.NoError(t, err)
+		assert.Equal(t, metapb.ResourceState_WaittingCreate, v.State())
+
+		assert.NoError(t, cluster.HandleResourceHeartbeat(core.NewCachedResource(res, &res.Peers()[0])))
+		assert.Equal(t, 1, cluster.GetResourceCount())
+		assert.Equal(t, 0, len(cluster.core.WaittingCreateResources))
+
+		v, err = cluster.storage.GetResource(res.ID())
+		assert.NoError(t, err)
+		assert.Equal(t, metapb.ResourceState_Running, v.State())
+	}
+}
+
+func TestCreateResourcesRestart(t *testing.T) {
+	cluster, co, cleanup := prepare(t, nil, nil, nil)
+	defer cleanup()
+
+	cluster.coordinator = co
+
+	res := newTestResourceMeta(1)
+	data, err := res.Marshal()
+	assert.NoError(t, err)
+	req := &rpcpb.Request{}
+	req.CreateResources.Resources = append(req.CreateResources.Resources, data)
+
+	cluster.addResourceContainer(1, 1)
+	cluster.addResourceContainer(2, 1)
+	cluster.addResourceContainer(3, 1)
+	_, err = cluster.HandleCreateResources(req)
+	assert.NoError(t, err)
+
+	// restart
+	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory))
+	tc.LoadClusterInfo()
+	assert.Equal(t, 1, len(tc.core.WaittingCreateResources))
+	tc.doNotifyCreateResources()
+	e := <-tc.ChangedEventNotifier()
+	assert.Equal(t, event.EventResource, e.Type)
+	assert.True(t, e.ResourceEvent.Create)
+}
+
 func TestRemoveResources(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)

@@ -66,6 +66,25 @@ func TestAddRulePeer(t *testing.T) {
 	assert.Equal(t, uint64(3), op.Step(0).(operator.AddLearner).ToContainer)
 }
 
+func TestFillReplicasWithRule(t *testing.T) {
+	s := &testRuleChecker{}
+	s.setup()
+
+	s.cluster.AddLeaderContainer(1, 2)
+	s.cluster.AddLeaderContainer(2, 2)
+	s.cluster.AddLeaderContainer(3, 1)
+
+	res := core.NewTestCachedResource(nil, nil)
+	res.Meta.SetPeers([]metapb.Peer{{ID: 1, ContainerID: 1}})
+	err := s.rc.FillReplicas(res)
+	assert.Error(t, err)
+
+	res.Meta.SetPeers(nil)
+	err = s.rc.FillReplicas(res)
+	assert.NoError(t, err)
+	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
+}
+
 func TestAddRulePeerWithIsolationLevel(t *testing.T) {
 	s := &testRuleChecker{}
 	s.setup()

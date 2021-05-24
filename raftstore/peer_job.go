@@ -277,7 +277,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		return nil
 	}
 
-	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(newResourceAdapterWithShard(current), uint32(len(splitKeys)))
+	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
 	if err != nil {
 		logger.Errorf("shard %d ask batch split failed with %+v",
 			pr.shardID,

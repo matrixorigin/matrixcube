@@ -45,6 +45,15 @@ func NewCheckerController(ctx context.Context, cluster opt.Cluster, ruleManager 
 	}
 }
 
+// FillReplicas fill replicas for a empty resources
+func (c *CheckerController) FillReplicas(res *core.CachedResource) error {
+	if c.opts.IsPlacementRulesEnabled() {
+		return c.ruleChecker.FillReplicas(res)
+	}
+
+	return c.replicaChecker.FillReplicas(res)
+}
+
 // CheckResource will check the resource and add a new operator if needed.
 func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.Operator {
 	// If PD has restarted, it need to check learners added before and promote them.

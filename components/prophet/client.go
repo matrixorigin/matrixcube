@@ -40,6 +40,10 @@ type Client interface {
 	ReportBatchSplit(results ...metadata.Resource) error
 	NewWatcher(flag uint32) (Watcher, error)
 	GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error)
+	// AsyncAddResources add resources asynchronously. The operation add new resources meta on the
+	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
+	// all related containers to create resource replica peer at local.
+	AsyncAddResources(resources ...metadata.Resource) error
 	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
 	// on the prophet leader cache and embed etcd. The resource actual destory triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
@@ -332,6 +336,29 @@ func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHear
 	return c.resourceHeartbeatRspC, nil
 }
 
+func (c *asyncClient) AsyncAddResources(resources ...metadata.Resource) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeCreateResourcesReq
+	for _, res := range resources {
+		data, err := res.Marshal()
+		if err != nil {
+			return err
+		}
+		req.CreateResources.Resources = append(req.CreateResources.Resources, data)
+	}
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *asyncClient) AsyncRemoveResources(ids ...uint64) error {
 	if !c.running() {
 		return ErrClosed
@@ -376,7 +403,7 @@ func (c *asyncClient) doClose() {
 }
 
 func (c *asyncClient) start() {
-	err := c.initLeaderConn(c.leaderConn, "", time.Minute)
+	err := c.initLeaderConn(c.leaderConn, "", time.Minute, true)
 	if err != nil {
 		util.GetLogger().Fatalf("connect to leader failed after 1 minute, error %+v", err)
 	}
@@ -522,10 +549,10 @@ func (c *asyncClient) resetLeaderConn(newLeader string) error {
 	}
 
 	c.leaderConn.Close()
-	return c.initLeaderConn(c.leaderConn, newLeader, c.opts.rpcTimeout)
+	return c.initLeaderConn(c.leaderConn, newLeader, c.opts.rpcTimeout, true)
 }
 
-func (c *asyncClient) initLeaderConn(conn goetty.IOSession, newLeader string, timeout time.Duration) error {
+func (c *asyncClient) initLeaderConn(conn goetty.IOSession, newLeader string, timeout time.Duration, registerContainer bool) error {
 	addr := newLeader
 	for {
 		select {
@@ -544,10 +571,12 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, newLeader string, ti
 				conn.Close()
 				ok, err := conn.Connect(addr, c.opts.rpcTimeout)
 				if err == nil && ok {
-					c.maybeRegisterContainer()
+					if registerContainer {
+						c.maybeRegisterContainer()
+					}
 					c.currentLeader = addr
 					c.resetReadC <- struct{}{}
-					util.GetLogger().Infof("connected to leader %s", addr)
+					util.GetLogger().Infof("client conn connected to leader %s", addr)
 					return nil
 				}
 
