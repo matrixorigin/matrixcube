@@ -33,6 +33,7 @@ func newWatcher(flag uint32, client *asyncClient) Watcher {
 		ctx:    ctx,
 		cancel: cancel,
 		flag:   flag,
+		client: client,
 		eventC: make(chan rpcpb.EventNotify, 128),
 		conn:   createConn(),
 	}
@@ -56,11 +57,11 @@ func (w *watcher) doClose() {
 
 func (w *watcher) watchDog() {
 	defer func() {
-		if r := recover(); r != nil {
+		if err := recover(); err != nil {
+			util.GetLogger().Errorf("client watcher failed with %+v, restart later", err)
 			go w.watchDog()
 		}
 	}()
-
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -84,11 +85,11 @@ func (w *watcher) watchDog() {
 }
 
 func (w *watcher) resetConn() error {
-	err := w.client.initLeaderConn(w.conn, w.currentLeader, w.client.opts.rpcTimeout)
+	err := w.client.initLeaderConn(w.conn, w.currentLeader, w.client.opts.rpcTimeout, false)
 	if err != nil {
 		return err
 	}
-
+	util.GetLogger().Infof("watcher init leader connection %s succeed", w.conn.RemoteAddr())
 	return w.conn.WriteAndFlush(&rpcpb.Request{
 		Type: rpcpb.TypeCreateWatcherReq,
 		CreateWatcher: rpcpb.CreateWatcherReq{
@@ -103,6 +104,7 @@ func (w *watcher) startReadLoop() {
 	for {
 		data, err := w.conn.Read()
 		if err != nil {
+			util.GetLogger().Errorf("watcher read events failed with %+v", err)
 			return
 		}
 

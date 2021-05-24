@@ -74,8 +74,9 @@ type RaftCluster struct {
 	storage storage.Storage
 	limiter *ContainerLimiter
 
-	prepareChecker *prepareChecker
-	changedEvents  chan rpcpb.EventNotify
+	prepareChecker  *prepareChecker
+	changedEvents   chan rpcpb.EventNotify
+	createResourceC chan struct{}
 
 	labelLevelStats *statistics.LabelStatistics
 	resourceStats   *statistics.ResourceStatistics
@@ -120,9 +121,11 @@ func (c *RaftCluster) InitCluster(opt *config.PersistOptions, storage storage.St
 	c.labelLevelStats = statistics.NewLabelStatistics()
 	c.hotStat = statistics.NewHotStat()
 	c.prepareChecker = newPrepareChecker()
-	c.changedEvents = make(chan rpcpb.EventNotify, defaultChangedEventLimit)
 	c.suspectResources = cache.NewIDTTL(c.ctx, time.Minute, 3*time.Minute)
 	c.suspectKeyRanges = cache.NewStringTTL(c.ctx, time.Minute, 3*time.Minute)
+
+	c.changedEvents = make(chan rpcpb.EventNotify, defaultChangedEventLimit)
+	c.createResourceC = make(chan struct{}, 1)
 }
 
 // Start starts a cluster.
@@ -218,6 +221,9 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 			c.checkContainers()
 			c.collectMetrics()
 			c.coordinator.opController.PruneHistory()
+			c.doNotifyCreateResources()
+		case <-c.createResourceC:
+			c.doNotifyCreateResources()
 		}
 	}
 }
@@ -250,6 +256,8 @@ func (c *RaftCluster) Stop() {
 
 	c.running = false
 	close(c.quit)
+	close(c.createResourceC)
+	close(c.changedEvents)
 	c.coordinator.stop()
 	c.Unlock()
 	c.wg.Wait()
@@ -505,6 +513,13 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 
 	c.Lock()
+	if isNew {
+		if c.core.IsWaittingCreateResource(res.Meta.ID()) {
+			c.core.CompleteCreateResource(res.Meta.ID())
+			res.Meta.SetState(metapb.ResourceState_Running)
+		}
+	}
+
 	if saveCache {
 		// To prevent a concurrent heartbeat of another resource from overriding the up-to-date resource info by a stale one,
 		// check its validation again here.
@@ -576,7 +591,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
 	if saveKV {
-		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID(), false)
+		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID(), false, false)
 	}
 	if saveCache {
 		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())

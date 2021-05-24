@@ -15,17 +15,19 @@ import (
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	Containers       *CachedContainers
-	Resources        *CachedResources
-	RemovedResources *roaring.Bitmap
+	Containers              *CachedContainers
+	Resources               *CachedResources
+	RemovedResources        *roaring.Bitmap
+	WaittingCreateResources map[uint64]metadata.Resource
 }
 
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
 	return &BasicCluster{
-		Containers:       NewCachedContainers(),
-		Resources:        NewCachedResources(factory),
-		RemovedResources: roaring.NewBitmap(),
+		Containers:              NewCachedContainers(),
+		Resources:               NewCachedResources(factory),
+		RemovedResources:        roaring.NewBitmap(),
+		WaittingCreateResources: make(map[uint64]metadata.Resource),
 	}
 }
 
@@ -34,6 +36,41 @@ func (bc *BasicCluster) AddRemovedResources(ids ...uint64) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.RemovedResources.Add(ids...)
+}
+
+// AddWaittingCreateResources add waitting create resources
+func (bc *BasicCluster) AddWaittingCreateResources(resources ...metadata.Resource) {
+	bc.Lock()
+	defer bc.Unlock()
+	for _, res := range resources {
+		bc.WaittingCreateResources[res.ID()] = res
+	}
+}
+
+// ForeachWaittingCreateResources do func for every waitting create resources
+func (bc *BasicCluster) ForeachWaittingCreateResources(do func(res metadata.Resource)) {
+	bc.RLock()
+	defer bc.RUnlock()
+	for _, res := range bc.WaittingCreateResources {
+		do(res)
+	}
+}
+
+// IsWaittingCreateResource returns true means the resource is waitting create
+func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	_, ok := bc.WaittingCreateResources[id]
+	return ok
+}
+
+// CompleteCreateResource create resource complete
+func (bc *BasicCluster) CompleteCreateResource(id uint64) {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	delete(bc.WaittingCreateResources, id)
 }
 
 // GetRemovedResources get removed state resources
@@ -337,6 +374,11 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
 	if res.Meta.State() == metapb.ResourceState_Removed {
 		bc.AddRemovedResources(res.Meta.ID())
+		return nil
+	}
+
+	if res.Meta.State() == metapb.ResourceState_WaittingCreate {
+		bc.AddWaittingCreateResources(res.Meta)
 		return nil
 	}
 

@@ -60,7 +60,7 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 }
 
 // NewResourceEvent create resource event
-func NewResourceEvent(target metadata.Resource, leaderID uint64, removed bool) rpcpb.EventNotify {
+func NewResourceEvent(target metadata.Resource, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
@@ -72,6 +72,7 @@ func NewResourceEvent(target metadata.Resource, leaderID uint64, removed bool) r
 			Data:    value,
 			Leader:  leaderID,
 			Removed: removed,
+			Create:  create,
 		},
 	}
 }

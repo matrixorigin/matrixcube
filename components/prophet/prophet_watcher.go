@@ -20,12 +20,12 @@ type watcherSession struct {
 func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 	if event.MatchEvent(evt.Type, wt.flag) {
 		resp := &rpcpb.Response{}
+		resp.Type = rpcpb.TypeEventNotify
 		resp.Event = evt
 		resp.Event.Seq = atomic.AddUint64(&wt.seq, 1)
-
-		return wt.session.Write(resp)
+		util.GetLogger().Debugf("write notify event %+v", resp)
+		return wt.session.WriteAndFlush(resp)
 	}
-
 	return nil
 }
 
@@ -69,7 +69,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 			resp.Event.InitEvent = rsp
 		}
 
-		wn.watchers.Store(session.ID, &watcherSession{
+		wn.watchers.Store(session.ID(), &watcherSession{
 			flag:    req.CreateWatcher.Flag,
 			session: session,
 		})
@@ -79,7 +79,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 }
 
 func (wn *watcherNotifier) clearWatcher(w *watcherSession) {
-	wn.watchers.Delete(w.session.ID)
+	wn.watchers.Delete(w.session.ID())
 	util.GetLogger().Infof("watcher %s removed",
 		w.session.RemoteAddr())
 }
@@ -101,7 +101,6 @@ func (wn *watcherNotifier) start() {
 				return
 			}
 
-			util.GetLogger().Debugf("new event: %+v", evt)
 			if len(closed) > 0 {
 				closed = closed[:0]
 			}

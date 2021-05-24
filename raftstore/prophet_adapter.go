@@ -23,7 +23,8 @@ func newResourceAdapter() metadata.Resource {
 	return &resourceAdapter{}
 }
 
-func newResourceAdapterWithShard(meta bhmetapb.Shard) metadata.Resource {
+// NewResourceAdapterWithShard create a prophet resource use shard
+func NewResourceAdapterWithShard(meta bhmetapb.Shard) metadata.Resource {
 	return &resourceAdapter{meta: meta}
 }
 
@@ -68,6 +69,14 @@ func (ra *resourceAdapter) State() metapb.ResourceState {
 
 func (ra *resourceAdapter) SetState(state metapb.ResourceState) {
 	ra.meta.State = state
+}
+
+func (ra *resourceAdapter) Unique() string {
+	return ra.meta.Unique
+}
+
+func (ra *resourceAdapter) SetUnique(value string) {
+	ra.meta.Unique = value
 }
 
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
@@ -353,7 +362,7 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitResource.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(newResourceAdapterWithShard(pr.ps.shard),
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.ps.shard),
 				uint32(len(rsp.SplitResource.Keys)))
 			if err != nil {
 				logger.Errorf("shard-%d ask batch split failed with %+v",

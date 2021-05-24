@@ -18,14 +18,13 @@ message RaftMessage  {
     uint64            group           = 2;
     metapb.Peer       from            = 3 [(gogoproto.nullable) = false];
     metapb.Peer       to              = 4 [(gogoproto.nullable) = false];
-    raftpb.Message       message         = 5 [(gogoproto.nullable) = false];
-    metapb.ResourceEpoch shardEpoch      = 6 [(gogoproto.nullable) = false];
-    bool                 isTombstone     = 7;
+    raftpb.Message       message      = 5 [(gogoproto.nullable) = false];
+    metapb.ResourceEpoch shardEpoch   = 6 [(gogoproto.nullable) = false];
+    bool                 isTombstone  = 7;
     bytes             start           = 8;
     bytes             end             = 9;
     bool              disableSplit    = 10;
-    bytes             data            = 11;
-    bool              dataAppendToMsg = 12;
+    string            unique          = 11;
 }
 
 // PeerState the state of the shard peer

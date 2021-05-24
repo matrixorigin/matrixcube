@@ -24,6 +24,7 @@ type TestResource struct {
 	End       []byte               `json:"end"`
 	ResEpoch  metapb.ResourceEpoch `json:"epoch"`
 	ResState  metapb.ResourceState `json:"state"`
+	ResUnique string               `json:"unique"`
 	Err       bool                 `json:"-"`
 }
 
@@ -100,6 +101,14 @@ func (res *TestResource) Changed(other Resource) bool {
 // Labels mock
 func (res *TestResource) Labels() []metapb.Pair {
 	return res.ResLabels
+}
+
+func (res *TestResource) Unique() string {
+	return res.ResUnique
+}
+
+func (res *TestResource) SetUnique(value string) {
+	res.ResUnique = value
 }
 
 // Clone mock

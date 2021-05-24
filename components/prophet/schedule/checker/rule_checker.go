@@ -2,6 +2,7 @@ package checker
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -30,6 +31,38 @@ func NewRuleChecker(cluster opt.Cluster, ruleManager *placement.RuleManager, res
 		name:                "rule-checker",
 		resourceWaitingList: resourceWaitingList,
 	}
+}
+
+// FillReplicas make up all replica for a empty resource
+func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
+	if len(res.Meta.Peers()) > 0 {
+		return fmt.Errorf("fill resource replicas only support empty resources")
+	}
+
+	fit := c.cluster.FitResource(res)
+	if len(fit.RuleFits) == 0 {
+		return fmt.Errorf("fill resource replicas cann't matches no rules")
+	}
+
+	for _, rf := range fit.RuleFits {
+		if rf.Rule.Role == placement.Voter {
+			rs := c.strategy(res, rf.Rule)
+			ruleContainers := c.getRuleFitContainers(rf)
+
+			for i := 0; i < rf.Rule.Count; i++ {
+				container := rs.SelectContainerToAdd(ruleContainers)
+				if container == 0 {
+					return errors.New("no container to add peer")
+				}
+				peers := res.Meta.Peers()
+				peers = append(peers, metapb.Peer{ContainerID: container})
+				res.Meta.SetPeers(peers)
+			}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("fill resource replicas cann't matches no voter rules")
 }
 
 // Check checks if the resource matches placement rules and returns Operator to

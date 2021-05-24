@@ -105,12 +105,18 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 			resp.Error = err.Error()
 		}
 	case rpcpb.TypeCreateWatcherReq:
-		doResponse = false
+		resp.Type = rpcpb.TypeEventNotify
 		if p.wn != nil {
 			err := p.wn.handleCreateWatcher(req, resp, rs)
 			if err != nil {
 				return err
 			}
+		}
+	case rpcpb.TypeCreateResourcesReq:
+		resp.Type = rpcpb.TypeCreateResourcesRsp
+		err := p.handleCreateResources(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
 		}
 	case rpcpb.TypeRemoveResourcesReq:
 		resp.Type = rpcpb.TypeRemoveResourcesRsp
@@ -131,7 +137,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	if doResponse {
 		util.GetLogger().Debugf("%s response %+v",
 			p.cfg.Name, req)
-		return rs.Write(resp)
+		return rs.WriteAndFlush(resp)
 	}
 
 	return nil
@@ -262,6 +268,16 @@ func (p *defaultProphet) handleReportBatchSplit(rc *cluster.RaftCluster, req *rp
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p *defaultProphet) handleCreateResources(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	rsp, err := rc.HandleCreateResources(req)
+	if err != nil {
+		return err
+	}
+
+	resp.CreateResources = *rsp
 	return nil
 }
 

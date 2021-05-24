@@ -33,9 +33,11 @@ enum ContainerState {
 // State the resource state
 enum ResourceState {
     // Running is serve state
-    Running   = 0;
-    // Tombstone is the destory state
-    Removed   = 1;
+    Running        = 0;
+    // Create is the destory state
+    WaittingCreate = 1;
+    // Removed is the destory state
+    Removed        = 2;
 }
 
 // ChangePeerType change peer type
