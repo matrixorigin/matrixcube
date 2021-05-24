@@ -1,8 +1,14 @@
 package prophet
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/event"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,4 +52,87 @@ func TestClientGetContainer(t *testing.T) {
 	value, err := c.GetContainer(0)
 	assert.Error(t, err)
 	assert.Nil(t, value)
+}
+
+func TestAsyncCreateResources(t *testing.T) {
+	p := newTestSingleProphet(t)
+	defer p.Stop()
+
+	c := p.GetClient()
+
+	assert.NoError(t, c.PutContainer(newTestContainerMeta(1)))
+	_, err := c.ContainerHeartbeat(newTestContainerHeartbeat(1, 1))
+	assert.NoError(t, err)
+	assert.Error(t, c.AsyncAddResources(newTestResourceMeta(1)))
+
+	assert.NoError(t, c.PutContainer(newTestContainerMeta(2)))
+	_, err = c.ContainerHeartbeat(newTestContainerHeartbeat(2, 1))
+	assert.NoError(t, err)
+	assert.Error(t, c.AsyncAddResources(newTestResourceMeta(1)))
+
+	assert.NoError(t, c.PutContainer(newTestContainerMeta(3)))
+	_, err = c.ContainerHeartbeat(newTestContainerHeartbeat(3, 1))
+	assert.NoError(t, err)
+	w, err := c.NewWatcher(uint32(event.EventFlagAll))
+	assert.NoError(t, err)
+	assert.NoError(t, c.AsyncAddResources(newTestResourceMeta(1)))
+
+	select {
+	case e := <-w.GetNotify():
+		assert.Equal(t, event.EventInit, e.Type)
+	case <-time.After(time.Second):
+		assert.FailNow(t, "timeout")
+	}
+
+	for i := 0; i < 2; i++ {
+		select {
+		case e := <-w.GetNotify():
+			assert.True(t, e.ResourceEvent.Create)
+		case <-time.After(time.Second * 11):
+			assert.FailNow(t, "timeout")
+		}
+	}
+}
+
+func newTestResourceMeta(resourceID uint64) metadata.Resource {
+	return &metadata.TestResource{
+		ResID:    resourceID,
+		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
+		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
+		ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1},
+	}
+}
+
+func newTestContainerMeta(containerID uint64) metadata.Container {
+	return &metadata.TestContainer{
+		CID:        containerID,
+		CAddr:      fmt.Sprintf("127.0.0.1:%d", containerID),
+		CShardAddr: fmt.Sprintf("127.0.0.2:%d", containerID),
+	}
+}
+
+func newTestContainerHeartbeat(containerID uint64, resourceCount int, resourceSizes ...uint64) rpcpb.ContainerHeartbeatReq {
+	var resourceSize uint64
+	if len(resourceSizes) == 0 {
+		resourceSize = uint64(resourceCount) * 10
+	} else {
+		resourceSize = resourceSizes[0]
+	}
+
+	stats := metapb.ContainerStats{}
+	stats.Capacity = 100 * (1 << 30)
+	stats.UsedSize = resourceSize * (1 << 20)
+	stats.Available = stats.Capacity - stats.UsedSize
+	stats.ContainerID = containerID
+	stats.ResourceCount = uint64(resourceCount)
+	stats.StartTime = uint64(time.Now().Add(-time.Minute).Unix())
+	stats.IsBusy = false
+	stats.Interval = &metapb.TimeInterval{
+		Start: stats.StartTime,
+		End:   uint64(time.Now().Unix()),
+	}
+
+	return rpcpb.ContainerHeartbeatReq{
+		Stats: stats,
+	}
 }

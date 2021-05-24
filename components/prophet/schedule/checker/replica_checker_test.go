@@ -141,6 +141,31 @@ func TestOfflineWithOneReplica(t *testing.T) {
 	assert.Equal(t, "replace-offline-replica", op.Desc())
 }
 
+func TestFillReplicas(t *testing.T) {
+	s := &testReplicaChecker{}
+	s.setup()
+
+	opt := config.NewTestOptions()
+	tc := mockcluster.NewCluster(opt)
+	tc.SetMaxSnapshotCount(2)
+	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
+
+	// Add containers 1,2,3
+	tc.AddResourceContainer(1, 1)
+	tc.AddResourceContainer(2, 1)
+	tc.AddResourceContainer(3, 1)
+
+	res := core.NewTestCachedResource(nil, nil)
+	res.Meta.SetPeers([]metapb.Peer{{ID: 1, ContainerID: 1}})
+	err := rc.FillReplicas(res)
+	assert.Error(t, err)
+
+	res.Meta.SetPeers(nil)
+	err = rc.FillReplicas(res)
+	assert.NoError(t, err)
+	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
+}
+
 func TestReplicaCheckerBasic(t *testing.T) {
 	s := &testReplicaChecker{}
 	s.setup()

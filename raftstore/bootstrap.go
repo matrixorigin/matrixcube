@@ -18,7 +18,6 @@ func (s *store) ProphetBecomeLeader() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
 	})
-	s.startEnsureNewShardsTask()
 }
 
 func (s *store) ProphetBecomeFollower() {
@@ -27,7 +26,6 @@ func (s *store) ProphetBecomeFollower() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
 	})
-	s.stopEnsureNewShardsTask()
 }
 
 func (s *store) initMeta() {
@@ -69,13 +67,13 @@ func (s *store) doBootstrapCluster() {
 			for _, shard := range shards {
 				s.doCreateInitShard(&shard)
 				initShards = append(initShards, shard)
-				resources = append(resources, newResourceAdapterWithShard(shard))
+				resources = append(resources, NewResourceAdapterWithShard(shard))
 			}
 		} else {
 			shard := bhmetapb.Shard{}
 			s.doCreateInitShard(&shard)
 			initShards = append(initShards, shard)
-			resources = append(resources, newResourceAdapterWithShard(shard))
+			resources = append(resources, NewResourceAdapterWithShard(shard))
 		}
 		s.mustSaveShards(initShards...)
 

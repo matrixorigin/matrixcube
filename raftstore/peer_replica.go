@@ -138,14 +138,13 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 		peer)
 
 	shard := &bhmetapb.Shard{
-		ID:              msg.ShardID,
-		Epoch:           msg.ShardEpoch,
-		Start:           msg.Start,
-		End:             msg.End,
-		Group:           msg.Group,
-		DisableSplit:    msg.DisableSplit,
-		Data:            msg.Data,
-		DataAppendToMsg: msg.DataAppendToMsg,
+		ID:           msg.ShardID,
+		Epoch:        msg.ShardEpoch,
+		Start:        msg.Start,
+		End:          msg.End,
+		Group:        msg.Group,
+		DisableSplit: msg.DisableSplit,
+		Unique:       msg.Unique,
 	}
 
 	return newPeerReplica(store, shard, peer)

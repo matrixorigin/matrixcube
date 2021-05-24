@@ -32,10 +32,12 @@ enum Type {
 	TypeBatchReportSplitRsp   = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
-    TypeRemoveResourcesReq    = 21;
-    TypeRemoveResourcesRsp    = 22;
-    TypeCheckResourceStateReq = 23;
-    TypeCheckResourceStateRsp = 24;
+    TypeCreateResourcesReq    = 21;
+    TypeCreateResourcesRsp    = 22;
+    TypeRemoveResourcesReq    = 23;
+    TypeRemoveResourcesRsp    = 24;
+    TypeCheckResourceStateReq = 25;
+    TypeCheckResourceStateRsp = 26;
 }
 
 // Request the prophet rpc request
@@ -43,18 +45,19 @@ message Request {
     uint64                id                 = 1  [(gogoproto.customname) = "ID"];
     uint64                containerID        = 2;
     Type                  type               = 3;
-    ResourceHeartbeatReq  ResourceHeartbeat  = 4  [(gogoproto.nullable) = false]; 
-    ContainerHeartbeatReq ContainerHeartbeat = 5  [(gogoproto.nullable) = false]; 
-    PutContainerReq       PutContainer       = 6  [(gogoproto.nullable) = false]; 
-    GetContainerReq       GetContainer       = 7  [(gogoproto.nullable) = false];
-    AllocIDReq            AllocID            = 8  [(gogoproto.nullable) = false];
-    AskSplitReq           AskSplit           = 9  [(gogoproto.nullable) = false];
-    AskBatchSplitReq      AskBatchSplit      = 10 [(gogoproto.nullable) = false];
-    ReportSplitReq        ReportSplit        = 11 [(gogoproto.nullable) = false];
-    BatchReportSplitReq   BatchReportSplit   = 12 [(gogoproto.nullable) = false];
-    CreateWatcherReq      CreateWatcher      = 13 [(gogoproto.nullable) = false];
-    RemoveResourcesReq    RemoveResources    = 14 [(gogoproto.nullable) = false];
-    CheckResourceStateReq CheckResourceState = 15 [(gogoproto.nullable) = false];
+    ResourceHeartbeatReq  resourceHeartbeat  = 4  [(gogoproto.nullable) = false]; 
+    ContainerHeartbeatReq containerHeartbeat = 5  [(gogoproto.nullable) = false]; 
+    PutContainerReq       putContainer       = 6  [(gogoproto.nullable) = false]; 
+    GetContainerReq       getContainer       = 7  [(gogoproto.nullable) = false];
+    AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
+    AskSplitReq           askSplit           = 9  [(gogoproto.nullable) = false];
+    AskBatchSplitReq      askBatchSplit      = 10 [(gogoproto.nullable) = false];
+    ReportSplitReq        reportSplit        = 11 [(gogoproto.nullable) = false];
+    BatchReportSplitReq   batchReportSplit   = 12 [(gogoproto.nullable) = false];
+    CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
+    CreateResourcesReq    createResources    = 14 [(gogoproto.nullable) = false];
+    RemoveResourcesReq    removeResources    = 15 [(gogoproto.nullable) = false];
+    CheckResourceStateReq checkResourceState = 16 [(gogoproto.nullable) = false];
 }
 
 // Response the prophet rpc response
@@ -63,18 +66,19 @@ message Response {
     Type                  type               = 2;
     string                error              = 3;
     string                leader             = 4;
-    ResourceHeartbeatRsp  ResourceHeartbeat  = 5  [(gogoproto.nullable) = false]; 
-    ContainerHeartbeatRsp ContainerHeartbeat = 6  [(gogoproto.nullable) = false]; 
-    PutContainerRsp       PutContainer       = 7  [(gogoproto.nullable) = false]; 
-    GetContainerRsp       GetContainer       = 8  [(gogoproto.nullable) = false];
-    AllocIDRsp            AllocID            = 9  [(gogoproto.nullable) = false];
-    AskSplitRsp           AskSplit           = 10 [(gogoproto.nullable) = false];
-    AskBatchSplitRsp      AskBatchSplit      = 11 [(gogoproto.nullable) = false];
-    ReportSplitRsp        ReportSplit        = 12 [(gogoproto.nullable) = false];
-    BatchReportSplitRsp   BatchReportSplit   = 13 [(gogoproto.nullable) = false];
-    EventNotify           Event              = 14 [(gogoproto.nullable) = false];
-    RemoveResourcesRsp    RemoveResources    = 15 [(gogoproto.nullable) = false];
-    CheckResourceStateRsp CheckResourceState = 16 [(gogoproto.nullable) = false];
+    ResourceHeartbeatRsp  resourceHeartbeat  = 5  [(gogoproto.nullable) = false]; 
+    ContainerHeartbeatRsp containerHeartbeat = 6  [(gogoproto.nullable) = false]; 
+    PutContainerRsp       putContainer       = 7  [(gogoproto.nullable) = false]; 
+    GetContainerRsp       getContainer       = 8  [(gogoproto.nullable) = false];
+    AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
+    AskSplitRsp           askSplit           = 10 [(gogoproto.nullable) = false];
+    AskBatchSplitRsp      askBatchSplit      = 11 [(gogoproto.nullable) = false];
+    ReportSplitRsp        reportSplit        = 12 [(gogoproto.nullable) = false];
+    BatchReportSplitRsp   batchReportSplit   = 13 [(gogoproto.nullable) = false];
+    EventNotify           event              = 14 [(gogoproto.nullable) = false];
+    CreateResourcesRsp    createResources    = 15 [(gogoproto.nullable) = false];
+    RemoveResourcesRsp    removeResources    = 16 [(gogoproto.nullable) = false];
+    CheckResourceStateRsp checkResourceState = 17 [(gogoproto.nullable) = false];
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -208,6 +212,15 @@ message CreateWatcherReq {
     uint32 flag = 1;
 }
 
+// CreateResourcesReq create resources req
+message CreateResourcesReq {
+    repeated bytes  resources   = 1;
+}
+
+// CreateResourcesRsp create resources rsp
+message CreateResourcesRsp {
+}
+
 // RemoveResourcesReq remove resources req
 message RemoveResourcesReq {
     repeated uint64 ids = 1 [(gogoproto.customname) = "IDs"];
@@ -250,6 +263,7 @@ message ResourceEventData {
     bytes  data    = 1;
     uint64 leader  = 2;
     bool   removed = 3;
+    bool   create  = 4;
 }
 
 // ContainerEventData container created or updated

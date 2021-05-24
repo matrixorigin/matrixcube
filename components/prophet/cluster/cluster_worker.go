@@ -245,6 +245,93 @@ func (c *RaftCluster) HandleBatchReportSplit(request *rpcpb.Request) (*rpcpb.Bat
 	return &rpcpb.BatchReportSplitRsp{}, nil
 }
 
+// HandleCreateResources handle create resources. It will create resources with full replica peers.
+func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.CreateResourcesRsp, error) {
+	if len(request.CreateResources.Resources) > 4 {
+		return nil, fmt.Errorf("exceed the maximum batch size of create resources, max is %d current %d",
+			4, len(request.CreateResources.Resources))
+	}
+
+	c.RLock()
+	defer c.RUnlock()
+
+	var createResources []metadata.Resource
+	for _, data := range request.CreateResources.Resources {
+		res := c.adapter.NewResource()
+		err := res.Unmarshal(data)
+		if err != nil {
+			return nil, err
+		}
+		if len(res.Peers()) > 0 {
+			return nil, fmt.Errorf("cann't assign peers in create resources")
+		}
+
+		// check recreate
+		create := true
+		for _, cr := range c.core.GetResources() {
+			if cr.Meta.Unique() == res.Unique() {
+				create = false
+				break
+			}
+		}
+		if !create {
+			continue
+		}
+
+		id, err := c.storage.KV().AllocID()
+		if err != nil {
+			return nil, err
+		}
+		res.SetID(id)
+		res.SetEpoch(metapb.ResourceEpoch{ConfVer: 3})
+		res.SetState(metapb.ResourceState_WaittingCreate)
+
+		_, err = c.core.PreCheckPutResource(core.NewCachedResource(res, nil))
+		if err != nil {
+			return nil, err
+		}
+		createResources = append(createResources, res)
+	}
+
+	for _, res := range createResources {
+		err := c.coordinator.checkers.FillReplicas(core.NewCachedResource(res, nil))
+		if err != nil {
+			return nil, err
+		}
+
+		for idx := range res.Peers() {
+			id, err := c.storage.KV().AllocID()
+			if err != nil {
+				return nil, err
+			}
+
+			res.Peers()[idx].ID = id
+		}
+	}
+
+	err := c.storage.PutResources(createResources...)
+	if err != nil {
+		return nil, err
+	}
+
+	c.core.AddWaittingCreateResources(createResources...)
+	c.triggerNotifyCreateResources()
+	return &rpcpb.CreateResourcesRsp{}, nil
+}
+
+func (c *RaftCluster) triggerNotifyCreateResources() {
+	select {
+	case c.createResourceC <- struct{}{}:
+	default:
+	}
+}
+
+func (c *RaftCluster) doNotifyCreateResources() {
+	c.core.ForeachWaittingCreateResources(func(res metadata.Resource) {
+		c.changedEvents <- event.NewResourceEvent(res, 0, false, true)
+	})
+}
+
 // HandleRemoveResources handle remove resources
 func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.RemoveResourcesRsp, error) {
 	if len(request.RemoveResources.IDs) > 4 {
@@ -258,7 +345,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 	var targets []metadata.Resource
 	var origin []metadata.Resource
 	for _, id := range request.RemoveResources.IDs {
-		v := c.GetResource(id)
+		v := c.core.GetResource(id)
 		if v == nil {
 			return nil, fmt.Errorf("resource %d not found in prophet", id)
 		}
@@ -276,7 +363,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 	c.core.AddRemovedResources(request.RemoveResources.IDs...)
 	for _, res := range origin {
 		res.SetState(metapb.ResourceState_Removed)
-		c.changedEvents <- event.NewResourceEvent(res, 0, true)
+		c.changedEvents <- event.NewResourceEvent(res, 0, true, false)
 	}
 
 	return &rpcpb.RemoveResourcesRsp{}, nil

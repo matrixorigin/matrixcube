@@ -61,9 +61,10 @@ type defaultRouter struct {
 	storeStats sync.Map // store id -> ContainerStats
 
 	removedHandleFunc func(id uint64)
+	createHandleFunc  func(shard bhmetapb.Shard)
 }
 
-func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(id uint64)) (Router, error) {
+func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard bhmetapb.Shard)) (Router, error) {
 	watcher, err := pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
 	if err != nil {
 		return nil, err
@@ -75,6 +76,7 @@ func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(i
 		watcher:           watcher,
 		eventC:            watcher.GetNotify(),
 		removedHandleFunc: removedHandleFunc,
+		createHandleFunc:  createHandleFunc,
 	}, nil
 }
 
@@ -193,10 +195,11 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 		}
 
 		for i, data := range evt.InitEvent.Resources {
-			r.updateShard(data, evt.InitEvent.Leaders[i], false)
+			r.updateShard(data, evt.InitEvent.Leaders[i], false, false)
 		}
 	case event.EventResource:
-		r.updateShard(evt.ResourceEvent.Data, evt.ResourceEvent.Leader, evt.ResourceEvent.Removed)
+		r.updateShard(evt.ResourceEvent.Data, evt.ResourceEvent.Leader,
+			evt.ResourceEvent.Removed, evt.ResourceEvent.Create)
 	case event.EventContainer:
 		r.updateStore(evt.ContainerEvent.Data)
 	case event.EventResourceStats:
@@ -206,7 +209,7 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	}
 }
 
-func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool) {
+func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, create bool) {
 	res := &resourceAdapter{}
 	err := res.Unmarshal(data)
 	if err != nil {
@@ -221,6 +224,11 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool) {
 		r.shards.Delete(res.meta.ID)
 		r.missingStoreLeaderChanged.Delete(res.meta.ID)
 		r.leaders.Delete(res.meta.ID)
+		return
+	}
+
+	if create {
+		r.createHandleFunc(res.meta)
 		return
 	}
 

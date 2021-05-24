@@ -1,7 +1,6 @@
 package raftstore
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -10,18 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/log"
-	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -33,16 +28,11 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
 var (
-	addShardsPath    = "/events/shards/add"
-	removeShardsPath = "/events/shards/remove"
-	logger           = log.NewLoggerWithPrefix("[raftstore]")
-
-	maxShardsOnce = 8
+	logger = log.NewLoggerWithPrefix("[raftstore]")
 )
 
 // Store manage a set of raft group
@@ -73,11 +63,6 @@ type Store interface {
 	DataStorageByGroup(uint64, uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
-	// AsyncAddShards add shards meta on the current store, and than prophet will
-	// schedule this shard replicas to other nodes.
-	AsyncAddShards(...bhmetapb.Shard) error
-	// AsyncRemoveShards schedule remove shards asynchronously
-	AsyncRemoveShards(ids ...uint64) error
 	// AllocID returns a uint64 id, panic if has a error
 	MustAllocID() uint64
 	// Prophet return current prophet instance
@@ -114,8 +99,6 @@ type store struct {
 	readHandlers  map[uint64]command.ReadCommandFunc
 	writeHandlers map[uint64]command.WriteCommandFunc
 	localHandlers map[uint64]command.LocalCommandFunc
-
-	ensureNewShardTaskID uint64
 
 	stopWG sync.WaitGroup
 	state  uint32
@@ -210,7 +193,7 @@ func (s *store) NewRouter() Router {
 		time.Sleep(time.Second)
 	}
 
-	r, err := newRouter(s.pd, s.runner, s.doDestroy)
+	r, err := newRouter(s.pd, s.runner, s.doDestroy, s.doCreate)
 	if err != nil {
 		logger.Fatalf("create router failed with %+v", err)
 	}
@@ -291,124 +274,6 @@ func (s *store) cb(resp *raftcmdpb.RaftCMDResponse) {
 	}
 
 	pb.ReleaseRaftCMDResponse(resp)
-}
-
-func hasGap(left, right bhmetapb.Shard) bool {
-	if left.Group != right.Group {
-		return false
-	}
-
-	leftS := EncodeDataKey(left.Group, left.Start)
-	leftE := getDataEndKey(left.Group, left.End)
-	rightS := EncodeDataKey(right.Group, right.Start)
-	rightE := getDataEndKey(right.Group, right.End)
-
-	return (bytes.Compare(leftS, rightS) >= 0 && bytes.Compare(leftS, rightE) < 0) ||
-		(bytes.Compare(rightS, leftS) >= 0 && bytes.Compare(rightS, leftE) < 0)
-}
-
-func (s *store) AsyncAddShards(shards ...bhmetapb.Shard) error {
-	if len(shards) > maxShardsOnce {
-		return fmt.Errorf("exceed the maximum number of add shards, current %d, max %d",
-			len(shards), maxShardsOnce)
-	}
-
-	doShards := make(map[uint64]*bhmetapb.Shard)
-	for idx := range shards {
-		shards[idx].ID = s.MustAllocID()
-		shards[idx].Peers = append(shards[idx].Peers, metapb.Peer{
-			ID:          s.MustAllocID(),
-			ContainerID: s.meta.ID(),
-		})
-		doShards[shards[idx].ID] = &shards[idx]
-	}
-
-	// check overlap
-	err := s.doWithNewShards(16, func(createAt int64, prev bhmetapb.Shard) (bool, error) {
-		for _, shard := range shards {
-			if hasGap(shard, prev) {
-				delete(doShards, shard.ID)
-			}
-		}
-
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-
-	err = s.pd.GetStorage().LoadResources(16, func(res metadata.Resource) {
-		prev := res.(*resourceAdapter).meta
-		for _, shard := range shards {
-			if hasGap(shard, prev) {
-				delete(doShards, shard.ID)
-			}
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	if len(doShards) == 0 {
-		return nil
-	}
-
-	var createShards []bhmetapb.Shard
-	var cmps []clientv3.Cmp
-	var ops []clientv3.Op
-	var buffer bytes.Buffer
-	now := time.Now().Unix()
-	for _, shard := range doShards {
-		createShards = append(createShards, *shard)
-		buffer.Reset()
-		buffer.Write(buf.Int64ToBytes(now))
-		buffer.Write(protoc.MustMarshal(shard))
-
-		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(shard.ID, addShardsPath)), "=", 0))
-		ops = append(ops, clientv3.OpPut(uint64Key(shard.ID, addShardsPath), buffer.String()))
-	}
-	cli := s.pd.GetMember().Client()
-	resp, err := cli.Txn(cli.Ctx()).If(cmps...).Then(ops...).Commit()
-	if err != nil {
-		return err
-	}
-	if !resp.Succeeded {
-		return fmt.Errorf("save create shards failed")
-	}
-
-	s.mustSaveShards(createShards...)
-	for _, shard := range doShards {
-		if err := s.createPR(*shard); err != nil {
-			logger.Fatalf("create shards failed with %+v", err)
-		}
-	}
-
-	return nil
-}
-
-func (s *store) AsyncRemoveShards(ids ...uint64) error {
-	if len(ids) > maxShardsOnce {
-		return fmt.Errorf("exceed the maximum number of remove shards, current %d, max %d",
-			len(ids), maxShardsOnce)
-	}
-
-	var cmps []clientv3.Cmp
-	var ops []clientv3.Op
-	for _, id := range ids {
-		cmps = append(cmps, clientv3.Compare(clientv3.CreateRevision(uint64Key(id, removeShardsPath)), "=", 0))
-		ops = append(ops, clientv3.OpPut(uint64Key(id, removeShardsPath), string(format.Uint64ToBytes(id))))
-	}
-
-	cli := s.pd.GetMember().Client()
-	resp, err := cli.Txn(cli.Ctx()).If(cmps...).Then(ops...).Commit()
-	if err != nil {
-		return err
-	}
-	if !resp.Succeeded {
-		return fmt.Errorf("save remove shards failed")
-	}
-
-	return nil
 }
 
 func (s *store) MustAllocID() uint64 {
@@ -623,175 +488,31 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func uint64Key(id uint64, base string) string {
-	return fmt.Sprintf("%s/%020d", base, id)
-}
-
-func (s *store) stopEnsureNewShardsTask() {
-	if s.ensureNewShardTaskID > 0 {
-		s.runner.StopCancelableTask(s.ensureNewShardTaskID)
-	}
-}
-
-func (s *store) startEnsureNewShardsTask() {
-	s.ensureNewShardTaskID, _ = s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(s.cfg.Replication.EnsureNewShardInterval.Duration)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Infof("ensure new shards task stopped")
-				return
-			case <-ticker.C:
-				s.doEnsureNewShards(16)
-			}
-		}
-	})
-}
-
-func (s *store) doEnsureNewShards(limit int64) {
-	now := time.Now().Unix()
-	timeout := int64(time.Minute * 5)
-	var ops []clientv3.Op
-	var recreate []bhmetapb.Shard
-
-	err := s.doWithNewShards(limit, func(createAt int64, shard bhmetapb.Shard) (bool, error) {
-		res, err := s.pd.GetStorage().GetResource(shard.ID)
-		if err != nil {
-			return false, err
-		}
-
-		n := 2
-		if shard.LeastReplicas > 0 {
-			n = int(shard.LeastReplicas)
-		}
-
-		if res != nil && len(res.Peers()) >= n {
-			if s.cfg.Customize.CustomShardAddHandleFunc != nil {
-				err := s.cfg.Customize.CustomShardAddHandleFunc(shard)
-				if err != nil {
-					return false, err
-				}
-			}
-
-			ops = append(ops, clientv3.OpDelete(uint64Key(shard.ID, addShardsPath)))
-			return true, nil
-		}
-
-		isTimeout := now-createAt > timeout
-		if !isTimeout {
-			return true, nil
-		}
-
-		s.doDestroy(shard.ID)
-
-		logger.Warningf("shard %d created timeout after %d seconds, recreated at current node",
-			shard.ID,
-			now-createAt)
-		recreate = append(recreate, shard)
-		return true, nil
-	})
-
-	if err != nil {
-		logger.Errorf("ensure new shards failed with %+v", err)
-		return
-	}
-
-	if len(recreate) > 0 {
-		for i := 0; i < len(recreate); i++ {
-			recreate[i].Peers = recreate[i].Peers[:0]
-			recreate[i].Peers = append(recreate[i].Peers, metapb.Peer{ID: s.MustAllocID(), ContainerID: s.meta.ID()})
-			recreate[i].Epoch.ConfVer += 100
-
-			var buffer bytes.Buffer
-			buffer.Write(buf.Int64ToBytes(time.Now().Unix()))
-			buffer.Write(protoc.MustMarshal(&recreate[i]))
-			ops = append(ops, clientv3.OpPut(uint64Key(recreate[i].ID, addShardsPath), buffer.String()))
-		}
-	}
-
-	if len(ops) > 0 {
-		_, err := s.pd.GetMember().Client().Txn(context.Background()).Then(ops...).Commit()
-		if err != nil {
-			logger.Errorf("remove complete and update new shards failed with %+v", err)
-		}
-	}
-
-	if len(recreate) > 0 {
-		s.mustSaveShards(recreate...)
-		for i := 0; i < len(recreate); i++ {
-			err := s.createPR(recreate[i])
-			if err != nil {
-				logger.Errorf("create shard %d failed with %+v", recreate[i].ID, err)
-			}
-		}
-	}
-}
-
-func (s *store) doWithNewShards(limit int64, fn func(int64, bhmetapb.Shard) (bool, error)) error {
-	startID := uint64(0)
-	endKey := uint64Key(math.MaxUint64, addShardsPath)
-	withRange := clientv3.WithRange(endKey)
-	withLimit := clientv3.WithLimit(limit)
-
-	for {
-		startKey := uint64Key(startID, addShardsPath)
-		resp, err := s.getFromProphetStore(startKey, withRange, withLimit)
-		if err != nil {
-			logger.Errorf("ensure new shards failed with %+v", err)
-			return err
-		}
-
-		for _, item := range resp.Kvs {
-			createAt := buf.Byte2Int64(item.Value)
-			shard := bhmetapb.Shard{}
-			protoc.MustUnmarshal(&shard, item.Value[8:])
-
-			next, err := fn(createAt, shard)
-			if err != nil {
-				return err
-			}
-
-			if !next {
-				return nil
-			}
-
-			startID = shard.ID
-		}
-
-		// read complete
-		if len(resp.Kvs) < int(limit) {
-			break
-		}
-
-		startID++
-	}
-
-	return nil
-}
-
-func (s *store) createPR(shard bhmetapb.Shard) error {
+func (s *store) doCreate(shard bhmetapb.Shard) {
 	if _, ok := s.replicas.Load(shard.ID); ok {
-		return nil
+		return
 	}
 
 	pr, err := createPeerReplica(s, &shard)
 	if err != nil {
-		s.mustRemoveShards(shard.ID)
 		s.revokeWorker(pr)
-		return err
+		return
 	}
 
-	s.updateShardKeyRange(shard)
-	pr.startRegistrationJob()
-	s.addPR(pr)
-	pr.addAction(action{actionType: heartbeatAction})
-	return nil
+	if s.addPR(pr) {
+		s.mustSaveShards(shard)
+		s.updateShardKeyRange(shard)
+		pr.startRegistrationJob()
+		pr.addAction(action{actionType: heartbeatAction})
+	}
 }
 
-func (s *store) addPR(pr *peerReplica) {
-	s.replicas.Store(pr.shardID, pr)
+func (s *store) addPR(pr *peerReplica) bool {
+	_, added := s.replicas.LoadOrStore(pr.shardID, pr)
+	if !added {
+		return false
+	}
+
 	logger.Infof("shard %d added with peer %+v, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
 		pr.peer,
@@ -799,6 +520,7 @@ func (s *store) addPR(pr *peerReplica) {
 		pr.ps.shard.Peers,
 		pr.eventWorker,
 		pr.applyWorker)
+	return true
 }
 
 func (s *store) removePR(pr *peerReplica) {
@@ -807,18 +529,6 @@ func (s *store) removePR(pr *peerReplica) {
 		s.aware.Destory(pr.ps.shard)
 	}
 	s.revokeWorker(pr)
-}
-
-func (s *store) getFromProphetStore(key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
-	ctx, cancel := context.WithTimeout(s.pd.GetMember().Client().Ctx(), option.DefaultRequestTimeout)
-	defer cancel()
-
-	resp, err := clientv3.NewKV(s.pd.GetMember().Client()).Get(ctx, key, opts...)
-	if err != nil {
-		return resp, err
-	}
-
-	return resp, nil
 }
 
 func (s *store) startRPC() {

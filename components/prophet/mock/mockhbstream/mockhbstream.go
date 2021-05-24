@@ -11,13 +11,20 @@ import (
 
 // HeartbeatStream is used to mock HeartbeatStream for test use.
 type HeartbeatStream struct {
-	ch chan *rpcpb.ResourceHeartbeatRsp
+	ch      chan *rpcpb.ResourceHeartbeatRsp
+	timeout time.Duration
 }
 
 // NewHeartbeatStream creates a new HeartbeatStream.
 func NewHeartbeatStream() HeartbeatStream {
+	return NewHeartbeatStreamWithTimeout(time.Millisecond * 10)
+}
+
+// NewHeartbeatStreamWithTimeout creates a new HeartbeatStream.
+func NewHeartbeatStreamWithTimeout(timeout time.Duration) HeartbeatStream {
 	return HeartbeatStream{
-		ch: make(chan *rpcpb.ResourceHeartbeatRsp),
+		ch:      make(chan *rpcpb.ResourceHeartbeatRsp),
+		timeout: timeout,
 	}
 }
 
@@ -40,7 +47,7 @@ func (s HeartbeatStream) BindStream(containerID uint64, stream opt.HeartbeatStre
 // Recv mocks method.
 func (s HeartbeatStream) Recv() *rpcpb.ResourceHeartbeatRsp {
 	select {
-	case <-time.After(time.Millisecond * 10):
+	case <-time.After(s.timeout):
 		return nil
 	case res := <-s.ch:
 		return res

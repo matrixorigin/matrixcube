@@ -534,7 +534,7 @@ func (pr *peerReplica) doHeartbeat() {
 	}
 	pr.lastHBTime = req.Stats.Interval.End
 
-	err := pr.store.pd.GetClient().ResourceHeartbeat(newResourceAdapterWithShard(pr.ps.shard), req)
+	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.ps.shard), req)
 	if err != nil {
 		logger.Errorf("shard %d heartbeat to prophet failed with %+v",
 			pr.shardID,
