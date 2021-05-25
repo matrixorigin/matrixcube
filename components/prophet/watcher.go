@@ -129,6 +129,7 @@ func (w *watcher) startReadLoop() {
 			return
 		}
 
+		util.GetLogger().Debugf("watcher read event %+v", resp.Event)
 		expectSeq = resp.Event.Seq + 1
 		w.eventC <- resp.Event
 	}

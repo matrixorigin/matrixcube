@@ -9,6 +9,7 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -87,7 +88,6 @@ func (ps *peerStorage) initRaftState() error {
 	if err != nil {
 		return err
 	}
-
 	if len(v) > 0 {
 		s := &bhraftpb.RaftLocalState{}
 		err = s.Unmarshal(v)
@@ -102,6 +102,8 @@ func (ps *peerStorage) initRaftState() error {
 	s := &bhraftpb.RaftLocalState{}
 	if len(ps.shard.Peers) > 0 {
 		s.LastIndex = raftInitLogIndex
+		s.HardState.Commit = raftInitLogIndex
+		s.HardState.Term = raftInitLogTerm
 	}
 
 	ps.raftState = *s
@@ -113,7 +115,6 @@ func (ps *peerStorage) initApplyState() error {
 	if err != nil {
 		return err
 	}
-
 	if len(v) > 0 && len(ps.shard.Peers) > 0 {
 		s := &bhraftpb.RaftApplyState{}
 		err = s.Unmarshal(v)
@@ -519,7 +520,11 @@ func (ps *peerStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error
 	}
 
 	for _, p := range ps.shard.Peers {
-		confState.Voters = append(confState.Voters, p.ID)
+		if p.Role == metapb.PeerRole_Voter {
+			confState.Voters = append(confState.Voters, p.ID)
+		} else if p.Role == metapb.PeerRole_Learner {
+			confState.Learners = append(confState.Learners, p.ID)
+		}
 	}
 
 	return ps.raftState.HardState, confState, nil

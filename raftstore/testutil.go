@@ -8,6 +8,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 )
@@ -42,7 +43,7 @@ func newTestStore() (*store, func()) {
 	}
 }
 
-func newTestClusterStore(t *testing.T) *testCluster {
+func newTestClusterStore(t *testing.T, initShardsFunc func() []bhmetapb.Shard) *testCluster {
 	recreateTestTempDir()
 
 	c := &testCluster{t: t}
@@ -55,6 +56,7 @@ func newTestClusterStore(t *testing.T) *testCluster {
 
 		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
 		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
+		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
 
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.StorageNode = true
@@ -73,6 +75,7 @@ func newTestClusterStore(t *testing.T) *testCluster {
 		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
 			cb(dataStorage)
 		}
+		cfg.Customize.CustomInitShardsFactory = initShardsFunc
 
 		c.stores = append(c.stores, NewStore(cfg).(*store))
 	}

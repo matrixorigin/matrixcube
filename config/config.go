@@ -32,7 +32,6 @@ var (
 	defaultCompactDuration                 = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultShardStateCheckDuration         = time.Second * 60
-	defaultEnsureNewSuardInterval          = time.Second * 10
 	defaultMaxEntryBytes                   = 10 * mb
 	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
 	defaultMaxAllowTransferLag      uint64 = 2
@@ -145,7 +144,6 @@ type ReplicationConfig struct {
 	AllowRemoveLeader       bool              `toml:"allow-remove-leader"`
 	ShardCapacityBytes      typeutil.ByteSize `toml:"shard-capacity-bytes"`
 	ShardSplitCheckBytes    typeutil.ByteSize `toml:"shard-split-check-bytes"`
-	EnsureNewShardInterval  typeutil.Duration `toml:"ensure-new-shard-duration"`
 }
 
 func (c *ReplicationConfig) adjust() {
@@ -175,10 +173,6 @@ func (c *ReplicationConfig) adjust() {
 
 	if c.ShardSplitCheckBytes == 0 {
 		c.ShardSplitCheckBytes = c.ShardCapacityBytes * 80 / 100
-	}
-
-	if c.EnsureNewShardInterval.Duration == 0 {
-		c.EnsureNewShardInterval.Duration = defaultEnsureNewSuardInterval
 	}
 }
 
