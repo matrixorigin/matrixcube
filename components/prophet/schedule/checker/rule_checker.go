@@ -80,7 +80,8 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 	for _, rf := range fit.RuleFits {
 		op, err := c.fixRulePeer(res, fit, rf)
 		if err != nil {
-			util.GetLogger().Debugf("rule %s/%s fix rule peer failed with %+v",
+			util.GetLogger().Debugf("res-%d rule %s/%s fix rule peer failed with %+v",
+				res.Meta.ID(),
 				rf.Rule.GroupID,
 				rf.Rule.ID,
 				err)

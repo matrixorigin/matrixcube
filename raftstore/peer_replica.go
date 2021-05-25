@@ -171,14 +171,12 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 			break
 		}
 	}
-
 	pr.batch = newBatch(pr)
 	c := getRaftConfig(peer.ID, ps.getAppliedIndex(), ps, store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		return nil, err
 	}
-
 	pr.rn = rn
 	pr.readCtx = newReadContext()
 	pr.events = task.NewRingBuffer(2)
@@ -215,7 +213,6 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
 	pr.items = make([]interface{}, readyBatch)
-
 	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
 	return pr, nil

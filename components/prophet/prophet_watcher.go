@@ -87,7 +87,7 @@ func (wn *watcherNotifier) clearWatcher(w *watcherSession) {
 func (wn *watcherNotifier) start() {
 	go func() {
 		defer func() {
-			if err := recover(); err == nil {
+			if err := recover(); err != nil {
 				util.GetLogger().Errorf("watcher notify failed with %+v, restart later", err)
 				wn.start()
 			}
