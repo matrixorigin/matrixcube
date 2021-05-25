@@ -43,8 +43,8 @@ type Store interface {
 	Stop()
 	// Meta returns store meta
 	Meta() bhmetapb.Store
-	// NewRouter returns a new router
-	NewRouter() Router
+	// GetRouter returns a router
+	GetRouter() Router
 	// RegisterReadFunc register read command handler
 	RegisterReadFunc(uint64, command.ReadCommandFunc)
 	// RegisterWriteFunc register write command handler
@@ -84,12 +84,13 @@ type store struct {
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
-	pdState    uint32
 
 	runner          *task.Runner
 	trans           transport.Transport
 	snapshotManager snapshot.SnapshotManager
 	rpc             *defaultRPC
+	router          Router
+	routerOnce      sync.Once
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	peers           sync.Map // peer  id -> peer
 	replicas        sync.Map // shard id -> *peerReplica
@@ -160,6 +161,9 @@ func (s *store) Start() {
 
 	s.startRPC()
 	logger.Infof("start listen at %s for client", s.cfg.ClientAddr)
+
+	s.startRouter()
+	logger.Infof("router started")
 }
 
 func (s *store) Stop() {
@@ -184,20 +188,24 @@ func (s *store) prStopped() {
 	}
 }
 
-func (s *store) NewRouter() Router {
-	for {
-		if atomic.LoadUint32(&s.pdState) == 1 {
-			break
+func (s *store) GetRouter() Router {
+	s.startRouter()
+	return s.router
+}
+
+func (s *store) startRouter() {
+	s.routerOnce.Do(func() {
+		r, err := newRouter(s.pd, s.runner, s.doDestroy, s.doCreate)
+		if err != nil {
+			logger.Fatalf("create router failed with %+v", err)
+		}
+		err = r.Start()
+		if err != nil {
+			logger.Fatalf("start router failed with %+v", err)
 		}
 
-		time.Sleep(time.Second)
-	}
-
-	r, err := newRouter(s.pd, s.runner, s.doDestroy, s.doCreate)
-	if err != nil {
-		logger.Fatalf("create router failed with %+v", err)
-	}
-	return r
+		s.router = r
+	})
 }
 
 func (s *store) Meta() bhmetapb.Store {
@@ -500,16 +508,20 @@ func (s *store) doCreate(shard bhmetapb.Shard) {
 	}
 
 	if s.addPR(pr) {
+		for _, p := range shard.Peers {
+			s.peers.Store(p.ID, p)
+		}
 		s.mustSaveShards(shard)
 		s.updateShardKeyRange(shard)
 		pr.startRegistrationJob()
-		pr.addAction(action{actionType: heartbeatAction})
+	} else {
+		pr.stopEventLoop()
 	}
 }
 
 func (s *store) addPR(pr *peerReplica) bool {
-	_, added := s.replicas.LoadOrStore(pr.shardID, pr)
-	if !added {
+	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
+	if loaded {
 		return false
 	}
 

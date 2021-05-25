@@ -56,16 +56,10 @@ func NewShardsProxyWithStore(store raftstore.Store,
 	doneCB doneFunc,
 	errorDoneCB errorDoneFunc,
 ) (ShardsProxy, error) {
-	router := store.NewRouter()
-	err := router.Start()
-	if err != nil {
-		return nil, err
-	}
-
 	sp := &shardsProxy{
 		store:       store,
 		local:       store.Meta(),
-		router:      router,
+		router:      store.GetRouter(),
 		doneCB:      doneCB,
 		errorDoneCB: errorDoneCB,
 	}

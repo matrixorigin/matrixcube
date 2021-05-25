@@ -271,9 +271,21 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 		for _, cr := range c.core.GetResources() {
 			if cr.Meta.Unique() == res.Unique() {
 				create = false
+				util.GetLogger().Infof("resource with unique %s already created",
+					res.Unique())
 				break
 			}
 		}
+		if create {
+			c.core.ForeachWaittingCreateResources(func(wres metadata.Resource) {
+				if wres.Unique() == res.Unique() {
+					create = false
+					util.GetLogger().Infof("resource with unique %s already in waitting create queue",
+						res.Unique())
+				}
+			})
+		}
+
 		if !create {
 			continue
 		}
@@ -307,6 +319,8 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 
 			res.Peers()[idx].ID = id
 		}
+
+		util.GetLogger().Infof("resource %d created with peers %+v", res.ID(), res.Peers())
 	}
 
 	err := c.storage.PutResources(createResources...)

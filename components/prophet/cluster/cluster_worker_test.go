@@ -64,6 +64,7 @@ func TestCreateResources(t *testing.T) {
 	cluster.coordinator = co
 
 	res := newTestResourceMeta(1)
+	res.SetUnique("res1")
 	data, err := res.Marshal()
 	assert.NoError(t, err)
 	req := &rpcpb.Request{}
@@ -81,6 +82,12 @@ func TestCreateResources(t *testing.T) {
 	assert.Error(t, err)
 
 	cluster.addResourceContainer(3, 1)
+	_, err = cluster.HandleCreateResources(req)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(cluster.core.WaittingCreateResources))
+	assert.Equal(t, 0, cluster.GetResourceCount())
+
+	// recreate
 	_, err = cluster.HandleCreateResources(req)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(cluster.core.WaittingCreateResources))
