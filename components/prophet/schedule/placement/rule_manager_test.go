@@ -19,7 +19,7 @@ type testManager struct {
 func (s *testManager) setup(t *testing.T) {
 	s.storage = storage.NewTestStorage()
 	var err error
-	s.manager = NewRuleManager(s.storage)
+	s.manager = NewRuleManager(s.storage, nil)
 	err = s.manager.Initialize(3, []string{"zone", "rack", "host"})
 	assert.NoError(t, err)
 }
@@ -63,11 +63,12 @@ func TestAdjustRule(t *testing.T) {
 		{GroupID: "group", ID: "id", StartKeyHex: "123abc", EndKeyHex: "123abf", Role: "voter", Count: -1},
 		{GroupID: "group", ID: "id", StartKeyHex: "123abc", EndKeyHex: "123abf", Role: "voter", Count: 3, LabelConstraints: []LabelConstraint{{Op: "foo"}}},
 	}
-	assert.Nil(t, s.manager.adjustRule(&rules[0]))
+	assert.Nil(t, s.manager.adjustRule(&rules[0], "group"))
 	assert.True(t, reflect.DeepEqual([]byte{0x12, 0x3a, 0xbc}, rules[0].StartKey))
 	assert.True(t, reflect.DeepEqual([]byte{0x12, 0x3a, 0xbf}, rules[0].EndKey))
-	for i := 1; i < len(rules); i++ {
-		assert.NotNil(t, s.manager.adjustRule(&rules[i]))
+	assert.NotNil(t, s.manager.adjustRule(&rules[1], ""))
+	for i := 2; i < len(rules); i++ {
+		assert.NotNil(t, s.manager.adjustRule(&rules[i], "group"))
 	}
 }
 
@@ -102,7 +103,7 @@ func TestSaveLoad(t *testing.T) {
 		assert.Nil(t, s.manager.SetRule(r))
 	}
 
-	m2 := NewRuleManager(s.storage)
+	m2 := NewRuleManager(s.storage, nil)
 	err := m2.Initialize(3, []string{"no", "labels"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(m2.GetAllRules()))

@@ -78,12 +78,14 @@ type Container interface {
 	LastHeartbeat() int64
 	//SetLastHeartbeat set the last heartbeat timestamp of the container.
 	SetLastHeartbeat(int64)
+	// PhysicallyDestroyed return true if the contianer is physically destroyed,
+	// which means it can never up again
+	PhysicallyDestroyed() bool
+	// SetPhysicallyDestroyed set physicallyDestroyed
+	SetPhysicallyDestroyed(bool)
 
 	// Clone returns the cloned value
 	Clone() Container
-	// ActionOnJoinCluster returns the cluster will do what when a new container join the cluster
-	ActionOnJoinCluster() metapb.Action
-
 	// Marshal returns error if marshal failed
 	Marshal() ([]byte, error)
 	// Unmarshal returns error if unmarshal failed

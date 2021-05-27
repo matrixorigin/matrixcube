@@ -69,6 +69,7 @@ func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.
 			if opController.OperatorCount(operator.OpReplica) < c.opts.GetReplicaScheduleLimit() {
 				return []*operator.Operator{op}
 			}
+			operator.OperatorLimitCounter.WithLabelValues(c.ruleChecker.GetType(), operator.OpReplica.String()).Inc()
 			c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		}
 	} else {
@@ -79,14 +80,20 @@ func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.
 			if opController.OperatorCount(operator.OpReplica) < c.opts.GetReplicaScheduleLimit() {
 				return []*operator.Operator{op}
 			}
+			operator.OperatorLimitCounter.WithLabelValues(c.replicaChecker.GetType(), operator.OpReplica.String()).Inc()
 			c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		}
 	}
 
 	if c.mergeChecker != nil && opController.OperatorCount(operator.OpMerge) < c.opts.GetMergeScheduleLimit() {
-		if ops := c.mergeChecker.Check(res); ops != nil {
-			// It makes sure that two operators can be added successfully altogether.
-			return ops
+		allowed := opController.OperatorCount(operator.OpMerge) < c.opts.GetMergeScheduleLimit()
+		if !allowed {
+			operator.OperatorLimitCounter.WithLabelValues(c.mergeChecker.GetType(), operator.OpMerge.String()).Inc()
+		} else {
+			if ops := c.mergeChecker.Check(res); ops != nil {
+				// It makes sure that two operators can be added successfully altogether.
+				return ops
+			}
 		}
 	}
 	return nil

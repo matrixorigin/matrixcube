@@ -10,12 +10,18 @@ import (
 )
 
 const (
-	topNN                        = 60
-	topNTTL                      = 3 * ResourceHeartBeatReportInterval * time.Second
-	hotThresholdRatio            = 0.8
-	rollingWindowsSize           = 5
-	hotResourceReportMinInterval = 3
-	hotResourceAntiCount         = 2
+	// TopNN is the threshold which means we can get hot threshold from store.
+	TopNN = 60
+	// HotThresholdRatio is used to calculate hot thresholds
+	HotThresholdRatio = 0.8
+	topNTTL           = 3 * ResourceHeartBeatReportInterval * time.Second
+
+	rollingWindowsSize = 5
+
+	// HotResourceReportMinInterval is used for the simulator and test
+	HotResourceReportMinInterval = 3
+
+	hotResourceAntiCount = 2
 )
 
 var (
@@ -47,15 +53,17 @@ func newHotContainersStats(kind FlowKind) *hotPeerCache {
 }
 
 // ResourceStats returns hot items
-func (f *hotPeerCache) ResourceStats() map[uint64][]*HotPeerStat {
+func (f *hotPeerCache) ResourceStats(minHotDegree int) map[uint64][]*HotPeerStat {
 	res := make(map[uint64][]*HotPeerStat)
-	for containerID, peers := range f.peersOfContainer {
+	for storeID, peers := range f.peersOfContainer {
 		values := peers.GetAll()
-		stat := make([]*HotPeerStat, len(values))
-		res[containerID] = stat
-		for i := range values {
-			stat[i] = values[i].(*HotPeerStat)
+		stat := make([]*HotPeerStat, 0, len(values))
+		for _, v := range values {
+			if peer := v.(*HotPeerStat); peer.HotDegree >= minHotDegree {
+				stat = append(stat, peer)
+			}
 		}
+		res[storeID] = stat
 	}
 	return res
 }
@@ -73,7 +81,7 @@ func (f *hotPeerCache) Update(item *HotPeerStat) {
 	} else {
 		peers, ok := f.peersOfContainer[item.ContainerID]
 		if !ok {
-			peers = NewTopN(dimLen, topNN, topNTTL)
+			peers = NewTopN(dimLen, TopNN, topNTTL)
 			f.peersOfContainer[item.ContainerID] = peers
 		}
 		peers.Put(item)
@@ -118,8 +126,14 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 	// old resource is in the front and new resource is in the back
 	// which ensures it will hit the cache if moving peer or transfer leader occurs with the same replica number
 
+	var peers []uint64
+	for _, peer := range res.Meta.Peers() {
+		peers = append(peers, peer.ContainerID)
+	}
+
 	var tmpItem *HotPeerStat
 	containerIDs := f.getAllContainerIDs(res)
+	justTransferLeader := f.justTransferLeader(res)
 	for _, containerID := range containerIDs {
 		isExpired := f.isResourceExpired(res, containerID) // transfer read leader or remove write peer
 		oldItem := f.getOldHotPeerStat(res.Meta.ID(), containerID)
@@ -127,20 +141,26 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 			tmpItem = oldItem
 		}
 
-		// This is used for the simulator. Ignore if report too fast.
-		if !isExpired && Denoising && interval < hotResourceReportMinInterval {
+		// This is used for the simulator and test. Ignore if report too fast.
+		if !isExpired && Denoising && interval < HotResourceReportMinInterval {
 			continue
 		}
 
+		thresholds := f.calcHotThresholds(containerID)
+
 		newItem := &HotPeerStat{
-			ContainerID:    containerID,
-			ResourceID:     res.Meta.ID(),
-			Kind:           f.kind,
-			ByteRate:       byteRate,
-			KeyRate:        keyRate,
-			LastUpdateTime: time.Now(),
-			needDelete:     isExpired,
-			isLeader:       res.GetLeader().GetContainerID() == containerID,
+			ContainerID:        containerID,
+			ResourceID:         res.Meta.ID(),
+			Kind:               f.kind,
+			ByteRate:           byteRate,
+			KeyRate:            keyRate,
+			LastUpdateTime:     time.Now(),
+			needDelete:         isExpired,
+			isLeader:           res.GetLeader().GetContainerID() == containerID,
+			justTransferLeader: justTransferLeader,
+			interval:           interval,
+			peers:              peers,
+			thresholds:         thresholds,
 		}
 
 		if oldItem == nil {
@@ -156,7 +176,7 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 			}
 		}
 
-		newItem = f.updateHotPeerStat(newItem, oldItem, bytes, keys, time.Duration(interval))
+		newItem = f.updateHotPeerStat(newItem, oldItem, bytes, keys, time.Duration(interval)*time.Second)
 		if newItem != nil {
 			ret = append(ret, newItem)
 		}
@@ -230,7 +250,7 @@ func (f *hotPeerCache) isResourceExpired(res *core.CachedResource, containerID u
 func (f *hotPeerCache) calcHotThresholds(containerID uint64) [dimLen]float64 {
 	minThresholds := minHotThresholds[f.kind]
 	tn, ok := f.peersOfContainer[containerID]
-	if !ok || tn.Len() < topNN {
+	if !ok || tn.Len() < TopNN {
 		return minThresholds
 	}
 	ret := [dimLen]float64{
@@ -238,7 +258,7 @@ func (f *hotPeerCache) calcHotThresholds(containerID uint64) [dimLen]float64 {
 		keyDim:  tn.GetTopNMin(keyDim).(*HotPeerStat).GetKeyRate(),
 	}
 	for k := 0; k < dimLen; k++ {
-		ret[k] = math.Max(ret[k]*hotThresholdRatio, minThresholds[k])
+		ret[k] = math.Max(ret[k]*HotThresholdRatio, minThresholds[k])
 	}
 	return ret
 }
@@ -271,6 +291,45 @@ func (f *hotPeerCache) getAllContainerIDs(res *core.CachedResource) []uint64 {
 	return ret
 }
 
+func (f *hotPeerCache) isOldColdPeer(oldItem *HotPeerStat, storeID uint64) bool {
+	isOldPeer := func() bool {
+		for _, id := range oldItem.peers {
+			if id == storeID {
+				return true
+			}
+		}
+		return false
+	}
+	noInCache := func() bool {
+		ids, ok := f.containersOfResource[oldItem.ResourceID]
+		if ok {
+			for id := range ids {
+				if id == storeID {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	return isOldPeer() && noInCache()
+}
+
+func (f *hotPeerCache) justTransferLeader(res *core.CachedResource) bool {
+	ids, ok := f.containersOfResource[res.Meta.ID()]
+	if ok {
+		for containerID := range ids {
+			oldItem := f.getOldHotPeerStat(res.Meta.ID(), containerID)
+			if oldItem == nil {
+				continue
+			}
+			if oldItem.isLeader {
+				return oldItem.ContainerID != res.GetLeader().GetContainerID()
+			}
+		}
+	}
+	return false
+}
+
 func (f *hotPeerCache) isResourceHotWithAnyPeers(res *core.CachedResource, hotDegree int) bool {
 	for _, peer := range res.Meta.Peers() {
 		if f.isResourceHotWithPeer(res, &peer, hotDegree) {
@@ -294,42 +353,78 @@ func (f *hotPeerCache) isResourceHotWithPeer(res *core.CachedResource, peer *met
 }
 
 func (f *hotPeerCache) getDefaultTimeMedian() *movingaverage.TimeMedian {
-	return movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, ResourceHeartBeatReportInterval)
+	return movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, ResourceHeartBeatReportInterval*time.Second)
 }
 
 func (f *hotPeerCache) updateHotPeerStat(newItem, oldItem *HotPeerStat, bytes, keys float64, interval time.Duration) *HotPeerStat {
-	thresholds := f.calcHotThresholds(newItem.ContainerID)
-	isHot := newItem.ByteRate >= thresholds[byteDim] || // if interval is zero, rate will be NaN, isHot will be false
-		newItem.KeyRate >= thresholds[keyDim]
-
 	if newItem.needDelete {
 		return newItem
 	}
 
-	if oldItem != nil {
-		newItem.rollingByteRate = oldItem.rollingByteRate
-		newItem.rollingKeyRate = oldItem.rollingKeyRate
-		if isHot {
-			newItem.HotDegree = oldItem.HotDegree + 1
-			newItem.AntiCount = hotResourceAntiCount
-		} else if interval != 0 {
-			newItem.HotDegree = oldItem.HotDegree - 1
-			newItem.AntiCount = oldItem.AntiCount - 1
-			if newItem.AntiCount <= 0 {
-				newItem.needDelete = true
-			}
+	if oldItem == nil {
+		if interval == 0 {
+			return nil
 		}
-	} else {
+		isHot := bytes/interval.Seconds() >= newItem.thresholds[byteDim] || keys/interval.Seconds() >= newItem.thresholds[keyDim]
 		if !isHot {
 			return nil
 		}
-		newItem.rollingByteRate = f.getDefaultTimeMedian()
-		newItem.rollingKeyRate = f.getDefaultTimeMedian()
-		newItem.AntiCount = hotResourceAntiCount
+		if interval.Seconds() >= ResourceHeartBeatReportInterval {
+			newItem.HotDegree = 1
+			newItem.AntiCount = hotResourceAntiCount
+		}
 		newItem.isNew = true
+		newItem.rollingByteRate = newDimStat(byteDim)
+		newItem.rollingKeyRate = newDimStat(keyDim)
+		newItem.rollingByteRate.Add(bytes, interval)
+		newItem.rollingKeyRate.Add(keys, interval)
+		if newItem.rollingKeyRate.isFull() {
+			newItem.clearLastAverage()
+		}
+		return newItem
 	}
-	newItem.rollingByteRate.Add(bytes, interval*time.Second)
-	newItem.rollingKeyRate.Add(keys, interval*time.Second)
 
+	newItem.rollingByteRate = oldItem.rollingByteRate
+	newItem.rollingKeyRate = oldItem.rollingKeyRate
+
+	if newItem.justTransferLeader {
+		// skip the first heartbeat flow statistic after transfer leader, because its statistics are calculated by the last leader in this store and are inaccurate
+		// maintain anticount and hotdegree to avoid store threshold and hot peer are unstable.
+		newItem.HotDegree = oldItem.HotDegree
+		newItem.AntiCount = oldItem.AntiCount
+		newItem.lastTransferLeaderTime = time.Now()
+		return newItem
+	}
+
+	newItem.lastTransferLeaderTime = oldItem.lastTransferLeaderTime
+	newItem.rollingByteRate.Add(bytes, interval)
+	newItem.rollingKeyRate.Add(keys, interval)
+
+	if !newItem.rollingKeyRate.isFull() {
+		// not update hot degree and anti count
+		newItem.HotDegree = oldItem.HotDegree
+		newItem.AntiCount = oldItem.AntiCount
+	} else {
+		if f.isOldColdPeer(oldItem, newItem.ContainerID) {
+			if newItem.isFullAndHot() {
+				newItem.HotDegree = 1
+				newItem.AntiCount = hotResourceAntiCount
+			} else {
+				newItem.needDelete = true
+			}
+		} else {
+			if newItem.isFullAndHot() {
+				newItem.HotDegree = oldItem.HotDegree + 1
+				newItem.AntiCount = hotResourceAntiCount
+			} else {
+				newItem.HotDegree = oldItem.HotDegree - 1
+				newItem.AntiCount = oldItem.AntiCount - 1
+				if newItem.AntiCount <= 0 {
+					newItem.needDelete = true
+				}
+			}
+		}
+		newItem.clearLastAverage()
+	}
 	return newItem
 }

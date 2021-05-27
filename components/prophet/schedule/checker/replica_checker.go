@@ -42,6 +42,11 @@ func NewReplicaChecker(cluster opt.Cluster, resourceWaitingList cache.Cache) *Re
 	}
 }
 
+// GetType return ReplicaChecker's type
+func (r *ReplicaChecker) GetType() string {
+	return "replica-checker"
+}
+
 // FillReplicas make up all replica for a empty resource
 func (r *ReplicaChecker) FillReplicas(res *core.CachedResource) error {
 	if len(res.Meta.Peers()) > 0 {
@@ -236,7 +241,7 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 
 func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, status string) *operator.Operator {
 	// Check the number of replicas first.
-	if len(res.Meta.Peers()) > r.opts.GetMaxReplicas() {
+	if len(res.GetVoters()) > r.opts.GetMaxReplicas() {
 		removeExtra := fmt.Sprintf("remove-extra-%s-replica", status)
 		op, err := operator.CreateRemovePeerOperator(removeExtra, r.cluster, operator.OpReplica, res, containerID)
 		if err != nil {

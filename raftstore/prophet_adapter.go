@@ -173,8 +173,12 @@ func (ca *containerAdapter) SetLastHeartbeat(value int64) {
 	ca.meta.LastHeartbeatTime = value
 }
 
-func (ca *containerAdapter) ActionOnJoinCluster() metapb.Action {
-	return metapb.Action_None
+func (ca *containerAdapter) PhysicallyDestroyed() bool {
+	return ca.meta.PhysicallyDestroyed
+}
+
+func (ca *containerAdapter) SetPhysicallyDestroyed(v bool) {
+	ca.meta.PhysicallyDestroyed = v
 }
 
 func (ca *containerAdapter) Marshal() ([]byte, error) {

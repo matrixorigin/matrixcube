@@ -35,6 +35,11 @@ func NewMergeChecker(ctx context.Context, cluster opt.Cluster) *MergeChecker {
 	}
 }
 
+// GetType return MergeChecker's type
+func (m *MergeChecker) GetType() string {
+	return "merge-checker"
+}
+
 // RecordResourceSplit put the recently split resource into cache. MergeChecker
 // will skip check it for a while.
 func (m *MergeChecker) RecordResourceSplit(resourceIDs []uint64) {
@@ -130,9 +135,10 @@ func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
 	return ops
 }
 
-func (m *MergeChecker) checkTarget(res, adjacent *core.CachedResource) bool {
-	return adjacent != nil && !m.cluster.IsResourceHot(adjacent) && AllowMerge(m.cluster, res, adjacent) &&
-		opt.IsResourceHealthy(m.cluster, adjacent) && opt.IsResourceReplicated(m.cluster, adjacent)
+func (m *MergeChecker) checkTarget(region, adjacent *core.CachedResource) bool {
+	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.ID()) && !m.cluster.IsResourceHot(adjacent) &&
+		AllowMerge(m.cluster, region, adjacent) && opt.IsResourceHealthy(m.cluster, adjacent) &&
+		opt.IsResourceReplicated(m.cluster, adjacent)
 }
 
 // AllowMerge returns true if two resources can be merged according to the key type.

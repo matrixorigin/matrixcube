@@ -96,9 +96,19 @@ func (s *shuffleHotResourceScheduler) EncodeConfig() ([]byte, error) {
 }
 
 func (s *shuffleHotResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return s.OpController.OperatorCount(operator.OpHotResource) < s.conf.Limit &&
-		s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit() &&
-		s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	hotRegionAllowed := s.OpController.OperatorCount(operator.OpHotResource) < s.conf.Limit
+	regionAllowed := s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit()
+	leaderAllowed := s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	if !hotRegionAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpHotResource.String()).Inc()
+	}
+	if !regionAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+	}
+	if !leaderAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpLeader.String()).Inc()
+	}
+	return hotRegionAllowed && regionAllowed && leaderAllowed
 }
 
 func (s *shuffleHotResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
@@ -108,25 +118,20 @@ func (s *shuffleHotResourceScheduler) Schedule(cluster opt.Cluster) []*operator.
 }
 
 func (s *shuffleHotResourceScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Operator {
-	containersStats := cluster.GetContainersStats()
-	minHotDegree := cluster.GetOpts().GetHotResourceCacheHitsThreshold()
+	storesLoads := cluster.GetContainersLoads()
 	switch typ {
 	case read:
 		s.stLoadInfos[readLeader] = summaryContainersLoad(
-			containersStats.GetContainersBytesReadStat(),
-			containersStats.GetContainersKeysReadStat(),
+			storesLoads,
 			map[uint64]Influence{},
 			cluster.ResourceReadStats(),
-			minHotDegree,
 			read, metapb.ResourceKind_LeaderKind)
 		return s.randomSchedule(cluster, s.stLoadInfos[readLeader])
 	case write:
 		s.stLoadInfos[writeLeader] = summaryContainersLoad(
-			containersStats.GetContainersBytesWriteStat(),
-			containersStats.GetContainersKeysWriteStat(),
+			storesLoads,
 			map[uint64]Influence{},
 			cluster.ResourceWriteStats(),
-			minHotDegree,
 			write, metapb.ResourceKind_LeaderKind)
 		return s.randomSchedule(cluster, s.stLoadInfos[writeLeader])
 	}

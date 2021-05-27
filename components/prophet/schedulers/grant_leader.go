@@ -2,7 +2,6 @@ package schedulers
 
 import (
 	"errors"
-	"net/http"
 	"strconv"
 	"sync"
 
@@ -105,36 +104,10 @@ func (conf *grantLeaderSchedulerConfig) getSchedulerName() string {
 	return GrantLeaderName
 }
 
-func (conf *grantLeaderSchedulerConfig) getRanges(id uint64) []string {
-	conf.mu.RLock()
-	defer conf.mu.RUnlock()
-	var res []string
-	ranges := conf.ContainerIDWithRanges[id]
-	for index := range ranges {
-		res = append(res, (string)(ranges[index].StartKey), (string)(ranges[index].EndKey))
-	}
-	return res
-}
-
-func (conf *grantLeaderSchedulerConfig) mayBeRemoveContainerFromConfig(id uint64) (succ bool, last bool) {
-	conf.mu.Lock()
-	defer conf.mu.Unlock()
-	_, exists := conf.ContainerIDWithRanges[id]
-	succ, last = false, false
-	if exists {
-		delete(conf.ContainerIDWithRanges, id)
-		conf.cluster.ResumeLeaderTransfer(id)
-		succ = true
-		last = len(conf.ContainerIDWithRanges) == 0
-	}
-	return succ, last
-}
-
 // grantLeaderScheduler transfers all leaders to peers in the container.
 type grantLeaderScheduler struct {
 	*BaseScheduler
-	conf    *grantLeaderSchedulerConfig
-	handler http.Handler
+	conf *grantLeaderSchedulerConfig
 }
 
 // newGrantLeaderScheduler creates an admin scheduler that transfers all leaders
@@ -180,7 +153,11 @@ func (s *grantLeaderScheduler) Cleanup(cluster opt.Cluster) {
 }
 
 func (s *grantLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	allowed := s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpLeader.String()).Inc()
+	}
+	return allowed
 }
 
 func (s *grantLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {

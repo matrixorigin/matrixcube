@@ -592,7 +592,6 @@ func TestContainerLimitWithMerge(t *testing.T) {
 	defer s.tearDown()
 
 	cfg := config.NewTestOptions()
-	cfg.SetEnableJointConsensus(true)
 	tc := mockcluster.NewCluster(cfg)
 	tc.SetMaxMergeResourceSize(2)
 	tc.SetMaxMergeResourceKeys(2)

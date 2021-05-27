@@ -154,15 +154,16 @@ func (res *TestResource) SupportTransferLeader() bool {
 
 // TestContainer mock
 type TestContainer struct {
-	CID            uint64        `json:"cid"`
-	CAddr          string        `json:"addr"`
-	CShardAddr     string        `json:"shardAddr"`
-	CLabels        []metapb.Pair `json:"labels"`
-	StartTS        int64         `json:"startTS"`
-	CLastHeartbeat int64         `json:"lastHeartbeat"`
-	CVerion        string        `json:"version"`
-	CGitHash       string        `json:"gitHash"`
-	CDeployPath    string        `json:"deployPath"`
+	CID                  uint64        `json:"cid"`
+	CAddr                string        `json:"addr"`
+	CShardAddr           string        `json:"shardAddr"`
+	CLabels              []metapb.Pair `json:"labels"`
+	StartTS              int64         `json:"startTS"`
+	CLastHeartbeat       int64         `json:"lastHeartbeat"`
+	CVerion              string        `json:"version"`
+	CGitHash             string        `json:"gitHash"`
+	CDeployPath          string        `json:"deployPath"`
+	CPhysicallyDestroyed bool          `json:"physicallyDestroyed"`
 
 	CState  metapb.ContainerState `json:"state"`
 	CAction metapb.Action         `json:"action"`
@@ -260,9 +261,14 @@ func (c *TestContainer) SetState(state metapb.ContainerState) {
 	c.CState = state
 }
 
-// ActionOnJoinCluster mock
-func (c *TestContainer) ActionOnJoinCluster() metapb.Action {
-	return c.CAction
+// PhysicallyDestroyed mock
+func (c *TestContainer) PhysicallyDestroyed() bool {
+	return c.CPhysicallyDestroyed
+}
+
+// SetPhysicallyDestroyed mock
+func (c *TestContainer) SetPhysicallyDestroyed(v bool) {
+	c.CPhysicallyDestroyed = v
 }
 
 // Clone mock

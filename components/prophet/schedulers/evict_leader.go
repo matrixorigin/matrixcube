@@ -109,31 +109,6 @@ func (conf *evictLeaderSchedulerConfig) getSchedulerName() string {
 	return EvictLeaderName
 }
 
-func (conf *evictLeaderSchedulerConfig) getRanges(id uint64) []string {
-	conf.mu.RLock()
-	defer conf.mu.RUnlock()
-	var res []string
-	ranges := conf.ContainerIDWithRanges[id]
-	for index := range ranges {
-		res = append(res, (string)(ranges[index].StartKey), (string)(ranges[index].EndKey))
-	}
-	return res
-}
-
-func (conf *evictLeaderSchedulerConfig) mayBeRemoveContainerFromConfig(id uint64) (succ bool, last bool) {
-	conf.mu.Lock()
-	defer conf.mu.Unlock()
-	_, exists := conf.ContainerIDWithRanges[id]
-	succ, last = false, false
-	if exists {
-		delete(conf.ContainerIDWithRanges, id)
-		conf.cluster.ResumeLeaderTransfer(id)
-		succ = true
-		last = len(conf.ContainerIDWithRanges) == 0
-	}
-	return succ, last
-}
-
 type evictLeaderScheduler struct {
 	*BaseScheduler
 	conf *evictLeaderSchedulerConfig
@@ -184,7 +159,11 @@ func (s *evictLeaderScheduler) Cleanup(cluster opt.Cluster) {
 }
 
 func (s *evictLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	allowed := s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpLeader.String()).Inc()
+	}
+	return allowed
 }
 
 func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Operator {

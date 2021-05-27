@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testBalance struct{}
-
 type testBalanceSpeedCase struct {
 	sourceCount    uint64
 	targetCount    uint64
@@ -177,7 +175,7 @@ func (s *testBalanceLeaderScheduler) setup(t *testing.T) {
 	s.lb = lb
 }
 
-func (s *testBalanceLeaderScheduler) tearDownTest() {
+func (s *testBalanceLeaderScheduler) tearDown() {
 	s.cancel()
 }
 
@@ -188,7 +186,7 @@ func (s *testBalanceLeaderScheduler) schedule() []*operator.Operator {
 func TestLeaderBalanceLimit(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	s.tc.SetTolerantSizeRatio(2.5)
 	// containers:     1    2    3    4
@@ -227,7 +225,7 @@ func TestLeaderBalanceLimit(t *testing.T) {
 func TestBalanceLeaderSchedulePolicy(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:          1       2       3       4
 	// Leader Count:    10      10      10      10
@@ -247,7 +245,7 @@ func TestBalanceLeaderSchedulePolicy(t *testing.T) {
 func TestBalanceLeaderTolerantRatio(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	s.tc.SetTolerantSizeRatio(2.5)
 	// test schedule leader by count, with tolerantSizeRatio=2.5
@@ -274,7 +272,7 @@ func TestBalanceLeaderTolerantRatio(t *testing.T) {
 func TestScheduleWithOpInfluence(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	s.tc.SetTolerantSizeRatio(2.5)
 	// containers:     1    2    3    4
@@ -310,7 +308,7 @@ func TestScheduleWithOpInfluence(t *testing.T) {
 func TestTransferLeaderOut(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:     1    2    3    4
 	// Leaders:    7    8    9   12
@@ -352,7 +350,7 @@ func TestTransferLeaderOut(t *testing.T) {
 func TestBalanceFilter(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:     1    2    3    4
 	// Leaders:    1    2    3   16
@@ -389,7 +387,7 @@ func TestBalanceFilter(t *testing.T) {
 func TestLeaderWeight(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:     1       2       3       4
 	// Leaders:    10      10      10      10
@@ -412,7 +410,7 @@ func TestLeaderWeight(t *testing.T) {
 func TestBalancePolicy(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:       1    2     3    4
 	// LeaderCount: 20   66     6   20
@@ -432,7 +430,7 @@ func TestBalancePolicy(t *testing.T) {
 func TestBalanceSelector(t *testing.T) {
 	s := &testBalanceLeaderScheduler{}
 	s.setup(t)
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:     1    2    3    4
 	// Leaders:    1    2    3   16
@@ -513,7 +511,7 @@ func (s *testBalanceLeaderRangeScheduler) tearDown() {
 func TestSingleRangeBalance(t *testing.T) {
 	s := &testBalanceLeaderRangeScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	// containers:     1       2       3       4
 	// Leaders:    10      10      10      10
@@ -558,7 +556,7 @@ func TestSingleRangeBalance(t *testing.T) {
 func TestMultiRangeBalance(t *testing.T) {
 	s := &testBalanceLeaderRangeScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	// Containers:     1       2       3       4
 	// Leaders:    10      10      10      10
@@ -599,7 +597,7 @@ func (s *testBalanceresourceScheduler) setup() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 }
 
-func (s *testBalanceresourceScheduler) tearDown(t *testing.T) {
+func (s *testBalanceresourceScheduler) tearDown() {
 	s.cancel()
 }
 
@@ -702,7 +700,7 @@ func (s *testBalanceresourceScheduler) checkReplacePendingResource(t *testing.T,
 func TestBalance(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	// TODO: enable placementrules
@@ -742,7 +740,7 @@ func TestBalance(t *testing.T) {
 func TestReplicas3(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	//TODO: enable placementrules
@@ -764,7 +762,7 @@ func TestReplicas3(t *testing.T) {
 func TestReplicas5(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	//TODO: enable placementrules
@@ -804,7 +802,7 @@ func TestReplicas5(t *testing.T) {
 func TestBalance1(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
@@ -885,7 +883,7 @@ func TestBalance1(t *testing.T) {
 func TestContainerWeight(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
@@ -917,7 +915,7 @@ func TestContainerWeight(t *testing.T) {
 func TestReplacePendingresource(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
@@ -937,7 +935,7 @@ func TestReplacePendingresource(t *testing.T) {
 func TestOpInfluence(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
@@ -972,7 +970,7 @@ func TestOpInfluence(t *testing.T) {
 func TestShouldNotBalance(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
@@ -988,6 +986,47 @@ func TestShouldNotBalance(t *testing.T) {
 	} else {
 		assert.Empty(t, operators)
 	}
+}
+
+func TestEmptyResource(t *testing.T) {
+	s := &testBalanceresourceScheduler{}
+	s.setup()
+	defer s.tearDown()
+
+	opt := config.NewTestOptions()
+	tc := mockcluster.NewCluster(opt)
+	tc.DisableJointConsensus()
+	oc := schedule.NewOperatorController(s.ctx, tc, nil)
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	assert.NoError(t, err)
+	tc.AddResourceContainer(1, 10)
+	tc.AddResourceContainer(2, 9)
+	tc.AddResourceContainer(3, 10)
+	tc.AddResourceContainer(4, 10)
+	res := core.NewCachedResource(
+		&metadata.TestResource{
+			ResID: 5,
+			Start: []byte("a"),
+			End:   []byte("b"),
+			ResPeers: []metapb.Peer{
+				{ID: 6, ContainerID: 1},
+				{ID: 7, ContainerID: 3},
+				{ID: 8, ContainerID: 4},
+			},
+		},
+		&metapb.Peer{ID: 7, ContainerID: 3},
+		core.SetApproximateSize(1),
+		core.SetApproximateKeys(1),
+	)
+	tc.PutResource(res)
+	operators := sb.Schedule(tc)
+	assert.NotNil(t, operators)
+
+	for i := uint64(10); i < 60; i++ {
+		tc.PutResourceContainers(i, 1, 3, 4)
+	}
+	operators = sb.Schedule(tc)
+	assert.Nil(t, operators)
 }
 
 func TestMerge(t *testing.T) {
@@ -1033,14 +1072,14 @@ func (s *testScatterRangeLeader) setup() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 }
 
-func (s *testScatterRangeLeader) TearDownSuite(t *testing.T) {
+func (s *testScatterRangeLeader) tearDown() {
 	s.cancel()
 }
 
 func TestScatterRangeLeaderBalance(t *testing.T) {
 	s := &testScatterRangeLeader{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	// TODO: enable palcementrules
@@ -1119,7 +1158,7 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 func TestConcurrencyUpdateConfig(t *testing.T) {
 	s := &testScatterRangeLeader{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
@@ -1149,7 +1188,7 @@ func TestConcurrencyUpdateConfig(t *testing.T) {
 func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 	s := &testScatterRangeLeader{}
 	s.setup()
-	defer s.cancel()
+	defer s.tearDown()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)

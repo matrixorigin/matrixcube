@@ -19,7 +19,6 @@ type testBuilder struct {
 
 func (s *testBuilder) setup() {
 	opts := config.NewTestOptions()
-	opts.SetEnableJointConsensus(true)
 	s.cluster = mockcluster.NewCluster(opts)
 	s.cluster.SetLabelPropertyConfig(config.LabelPropertyConfig{
 		opt.RejectLeader: {{Key: "noleader", Value: "true"}},

@@ -36,6 +36,10 @@ var backgroundJobInterval = 10 * time.Second
 const (
 	clientTimeout            = 3 * time.Second
 	defaultChangedEventLimit = 10000
+	// persistLimitRetryTimes is used to reduce the probability of the persistent error
+	// since the once the store is add or remove, we shouldn't return an error even if the store limit is failed to persist.
+	persistLimitRetryTimes = 5
+	persistLimitWaitTime   = 100 * time.Millisecond
 )
 
 var (
@@ -147,7 +151,7 @@ func (c *RaftCluster) Start(s Server) error {
 		return nil
 	}
 
-	c.ruleManager = placement.NewRuleManager(c.storage)
+	c.ruleManager = placement.NewRuleManager(c.storage, c)
 	if c.opt.IsPlacementRulesEnabled() {
 		err = c.ruleManager.Initialize(c.opt.GetMaxReplicas(), c.opt.GetLocationLabels())
 		if err != nil {
@@ -407,8 +411,7 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 	c.core.PutContainer(newContainer)
 	c.changedEvents <- event.NewContainerStatsEvent(newContainer.GetContainerStats())
 	c.hotStat.Observe(newContainer.Meta.ID(), newContainer.GetContainerStats())
-	c.hotStat.UpdateTotalBytesRate(c.core.GetContainers)
-	c.hotStat.UpdateTotalKeysRate(c.core.GetContainers)
+	c.hotStat.UpdateTotalLoad(c.core.GetContainers())
 	c.hotStat.FilterUnhealthyContainer(c)
 
 	// c.limiter is nil before "start" is called
@@ -485,10 +488,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			}
 			saveCache = true
 		}
-		if len(res.GetDownPeers()) > 0 || len(res.GetPendingPeers()) > 0 {
+		if !core.SortedPeersStatsEqual(res.GetDownPeers(), origin.GetDownPeers()) {
 			saveCache = true
 		}
-		if len(origin.GetDownPeers()) > 0 || len(origin.GetPendingPeers()) > 0 {
+		if !core.SortedPeersEqual(res.GetPendingPeers(), origin.GetPendingPeers()) {
 			saveCache = true
 		}
 		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
@@ -543,7 +546,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			if c.resourceStats != nil {
 				c.resourceStats.ClearDefunctResource(item.Meta.ID())
 			}
-			c.labelLevelStats.ClearDefunctResource(item.Meta.ID(), c.opt.GetLocationLabels())
+			c.labelLevelStats.ClearDefunctResource(item.Meta.ID())
 		}
 
 		// Update related containers.
@@ -803,8 +806,9 @@ func (c *RaftCluster) putContainerImpl(container metadata.Container, force bool)
 
 	// container address can not be the same as other containers.
 	for _, s := range c.GetContainers() {
-		// It's OK to start a new container on the same address if the old container has been removed.
-		if s.IsTombstone() {
+		// It's OK to start a new store on the same address if the old store has been removed or physically destroyed.
+		if s.IsTombstone() || s.IsPhysicallyDestroyed() {
+
 			continue
 		}
 		if s.Meta.ID() != container.ID() && s.Meta.Addr() == container.Addr() {
@@ -871,7 +875,7 @@ func (c *RaftCluster) checkContainerLabels(s *core.CachedContainer) error {
 
 // RemoveContainer marks a container as offline in cluster.
 // State transition: Up -> Offline.
-func (c *RaftCluster) RemoveContainer(containerID uint64) error {
+func (c *RaftCluster) RemoveContainer(containerID uint64, physicallyDestroyed bool) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -881,7 +885,7 @@ func (c *RaftCluster) RemoveContainer(containerID uint64) error {
 	}
 
 	// Remove an offline container should be OK, nothing to do.
-	if container.IsOffline() {
+	if container.IsOffline() && container.IsPhysicallyDestroyed() == physicallyDestroyed {
 		return nil
 	}
 
@@ -889,22 +893,28 @@ func (c *RaftCluster) RemoveContainer(containerID uint64) error {
 		return fmt.Errorf("container %d is tombstone", containerID)
 	}
 
-	newContainer := container.Clone(core.SetContainerState(metapb.ContainerState_Offline))
-	util.GetLogger().Warningf("container %d/%s has been offline",
+	if container.IsPhysicallyDestroyed() {
+		return fmt.Errorf("container %d is physically destroyed", containerID)
+	}
+
+	newContainer := container.Clone(core.OfflineContainer(physicallyDestroyed))
+	util.GetLogger().Warningf("container %d/%s has been offline, physically-destroyed %+v",
 		newContainer.Meta.ID(),
-		newContainer.Meta.Addr())
+		newContainer.Meta.Addr(),
+		physicallyDestroyed)
 	err := c.putContainerLocked(newContainer)
 	if err == nil {
+		// TODO: if the persist operation encounters error, the "Unlimited" will be rollback.
+		// And considering the store state has changed, RemoveStore is actually successful.
 		c.SetContainerLimit(containerID, limit.RemovePeer, limit.Unlimited)
 	}
 	return err
 }
 
-// BuryContainer marks a container as tombstone in cluster.
-// State transition:
-// Case 1: Up -> Tombstone (if force is true);
-// Case 2: Offline -> Tombstone.
-func (c *RaftCluster) BuryContainer(containerID uint64, force bool) error {
+// buryContainer marks a store as tombstone in cluster.
+// The store should be empty before calling this func
+// State transition: Offline -> Tombstone.
+func (c *RaftCluster) buryContainer(containerID uint64) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -919,18 +929,14 @@ func (c *RaftCluster) BuryContainer(containerID uint64, force bool) error {
 	}
 
 	if container.IsUp() {
-		if !force {
-			return fmt.Errorf("container %d is UP", containerID)
-		}
-		util.GetLogger().Warningf("force bury container %d/%s",
-			container.Meta.ID(),
-			container.Meta.Addr())
+		return fmt.Errorf("container %d is UP", containerID)
 	}
 
-	newContainer := container.Clone(core.SetContainerState(metapb.ContainerState_Tombstone))
-	util.GetLogger().Warningf("container %d/%s has been Tombstone",
+	newContainer := container.Clone(core.TombstoneContainer())
+	util.GetLogger().Warningf("container %d/%s has been Tombstone, physically-destroyed",
 		newContainer.Meta.ID(),
-		newContainer.Meta.Addr())
+		newContainer.Meta.Addr(),
+		newContainer.IsPhysicallyDestroyed())
 	err := c.putContainerLocked(newContainer)
 	if err == nil {
 		c.RemoveContainerLimit(containerID)
@@ -955,22 +961,32 @@ func (c *RaftCluster) AttachAvailableFunc(containerID uint64, limitType limit.Ty
 	c.core.AttachAvailableFunc(containerID, limitType, f)
 }
 
-// SetContainerState sets up a container's state.
-func (c *RaftCluster) SetContainerState(containerID uint64, state metapb.ContainerState) error {
+// UpContainer up a store from offline
+func (c *RaftCluster) UpContainer(containerID uint64) error {
 	c.Lock()
 	defer c.Unlock()
-
 	container := c.GetContainer(containerID)
 	if container == nil {
 		return fmt.Errorf("container %d not found", containerID)
 	}
 
-	newContainer := container.Clone(core.SetContainerState(state))
-	util.GetLogger().Warningf("container %d/%s update state %+v",
+	if container.IsTombstone() {
+		return fmt.Errorf("container %d is tombstone", containerID)
+	}
+
+	if container.IsPhysicallyDestroyed() {
+		return fmt.Errorf("container %d is physically destroyed", containerID)
+	}
+
+	if container.IsUp() {
+		return nil
+	}
+
+	newStore := container.Clone(core.UpContainer())
+	util.GetLogger().Warningf("container %d/%s has been up",
 		containerID,
-		newContainer.Meta.Addr(),
-		state)
-	return c.putContainerLocked(newContainer)
+		newStore.Meta.Addr())
+	return c.putContainerLocked(newStore)
 }
 
 // SetContainerWeight sets up a container's leader/resource balance weight.
@@ -1027,7 +1043,7 @@ func (c *RaftCluster) checkContainers() {
 		// If the container is empty, it can be buried.
 		resourceCount := c.core.GetContainerResourceCount(offlineContainer.ID())
 		if resourceCount == 0 {
-			if err := c.BuryContainer(offlineContainer.ID(), false); err != nil {
+			if err := c.buryContainer(offlineContainer.ID()); err != nil {
 				util.GetLogger().Errorf("bury container %d/%s failed with %+v",
 					offlineContainer.ID(),
 					offlineContainer.Addr(),
@@ -1059,6 +1075,11 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 
 	for _, container := range c.GetContainers() {
 		if container.IsTombstone() {
+			if container.GetResourceCount() > 0 {
+				util.GetLogger().Warningf("skip removing tombstone container %+v", container.Meta)
+				continue
+			}
+
 			// the container has already been tombstone
 			err := c.deleteContainerLocked(container)
 			if err != nil {
@@ -1145,6 +1166,16 @@ func (c *RaftCluster) GetResourceStatsByType(typ statistics.ResourceStatisticTyp
 	return c.resourceStats.GetResourceStatsByType(typ)
 }
 
+// GetOfflineResourceStatsByType gets the status of the offline resource by types.
+func (c *RaftCluster) GetOfflineResourceStatsByType(typ statistics.ResourceStatisticType) []*core.CachedResource {
+	c.RLock()
+	defer c.RUnlock()
+	if c.resourceStats == nil {
+		return nil
+	}
+	return c.resourceStats.GetOfflineResourceStatsByType(typ)
+}
+
 func (c *RaftCluster) updateResourcesLabelLevelStats(resources []*core.CachedResource) {
 	c.Lock()
 	defer c.Unlock()
@@ -1187,44 +1218,25 @@ func (c *RaftCluster) isPrepared() bool {
 	return c.prepareChecker.check(c)
 }
 
-// GetContainersBytesWriteStat returns the bytes write stat of all CachedContainer.
-func (c *RaftCluster) GetContainersBytesWriteStat() map[uint64]float64 {
+// GetContainersLoads returns load stats of all containers.
+func (c *RaftCluster) GetContainersLoads() map[uint64][]float64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.hotStat.GetContainersBytesWriteStat()
-}
-
-// GetContainersBytesReadStat returns the bytes read stat of all CachedContainer.
-func (c *RaftCluster) GetContainersBytesReadStat() map[uint64]float64 {
-	c.RLock()
-	defer c.RUnlock()
-	return c.hotStat.GetContainersBytesReadStat()
-}
-
-// GetContainersKeysWriteStat returns the bytes write stat of all CachedContainer.
-func (c *RaftCluster) GetContainersKeysWriteStat() map[uint64]float64 {
-	c.RLock()
-	defer c.RUnlock()
-	return c.hotStat.GetContainersKeysWriteStat()
-}
-
-// GetContainersKeysReadStat returns the bytes read stat of all CachedContainer.
-func (c *RaftCluster) GetContainersKeysReadStat() map[uint64]float64 {
-	c.RLock()
-	defer c.RUnlock()
-	return c.hotStat.GetContainersKeysReadStat()
+	return c.hotStat.GetContainersLoads()
 }
 
 // ResourceReadStats returns hot resource's read stats.
+// The result only includes peers that are hot enough.
 func (c *RaftCluster) ResourceReadStats() map[uint64][]*statistics.HotPeerStat {
 	// ResourceStats is a thread-safe method
-	return c.hotStat.ResourceStats(statistics.ReadFlow)
+	return c.hotStat.ResourceStats(statistics.ReadFlow, c.GetOpts().GetHotResourceCacheHitsThreshold())
 }
 
 // ResourceWriteStats returns hot resource's write stats.
+// The result only includes peers that are hot enough.
 func (c *RaftCluster) ResourceWriteStats() map[uint64][]*statistics.HotPeerStat {
 	// ResourceStats is a thread-safe method
-	return c.hotStat.ResourceStats(statistics.WriteFlow)
+	return c.hotStat.ResourceStats(statistics.WriteFlow, c.GetOpts().GetHotResourceCacheHitsThreshold())
 }
 
 // CheckWriteStatus checks the write status, returns whether need update statistics and item.
@@ -1388,6 +1400,18 @@ func (c *RaftCluster) AddContainerLimit(container metadata.Container) {
 
 	cfg.ContainerLimit[containerID] = sc
 	c.opt.SetScheduleConfig(cfg)
+
+	var err error
+	for i := 0; i < persistLimitRetryTimes; i++ {
+		if err = c.opt.Persist(c.storage); err == nil {
+			util.GetLogger().Infof("container %d limit added", containerID)
+			return
+		}
+		time.Sleep(persistLimitWaitTime)
+	}
+	util.GetLogger().Errorf("persist container %d limit failed with %+v ",
+		containerID,
+		err)
 }
 
 // RemoveContainerLimit remove a container limit for a given container ID.
@@ -1398,16 +1422,54 @@ func (c *RaftCluster) RemoveContainerLimit(containerID uint64) {
 	}
 	delete(cfg.ContainerLimit, containerID)
 	c.opt.SetScheduleConfig(cfg)
+
+	var err error
+	for i := 0; i < persistLimitRetryTimes; i++ {
+		if err = c.opt.Persist(c.storage); err == nil {
+			util.GetLogger().Infof("container %d limit removed", containerID)
+			return
+		}
+		time.Sleep(persistLimitWaitTime)
+	}
+	util.GetLogger().Errorf("persist container %d limit failed with %+v ",
+		containerID,
+		err)
 }
 
 // SetContainerLimit sets a container limit for a given type and rate.
-func (c *RaftCluster) SetContainerLimit(containerID uint64, typ limit.Type, ratePerMin float64) {
+func (c *RaftCluster) SetContainerLimit(containerID uint64, typ limit.Type, ratePerMin float64) error {
+	old := c.opt.GetScheduleConfig().Clone()
 	c.opt.SetContainerLimit(containerID, typ, ratePerMin)
+	if err := c.opt.Persist(c.storage); err != nil {
+		// roll back the store limit
+		c.opt.SetScheduleConfig(old)
+		util.GetLogger().Errorf("persist container %d limit failed with %+v ",
+			containerID,
+			err)
+		return err
+	}
+
+	util.GetLogger().Infof("container %d limit changed", containerID)
+	return nil
 }
 
 // SetAllContainersLimit sets all container limit for a given type and rate.
-func (c *RaftCluster) SetAllContainersLimit(typ limit.Type, ratePerMin float64) {
+func (c *RaftCluster) SetAllContainersLimit(typ limit.Type, ratePerMin float64) error {
+	old := c.opt.GetScheduleConfig().Clone()
+	oldAdd := config.DefaultContainerLimit.GetDefaultContainerLimit(limit.AddPeer)
+	oldRemove := config.DefaultContainerLimit.GetDefaultContainerLimit(limit.RemovePeer)
 	c.opt.SetAllContainersLimit(typ, ratePerMin)
+	if err := c.opt.Persist(c.storage); err != nil {
+		// roll back the store limit
+		c.opt.SetScheduleConfig(old)
+		config.DefaultContainerLimit.SetDefaultContainerLimit(limit.AddPeer, oldAdd)
+		config.DefaultContainerLimit.SetDefaultContainerLimit(limit.RemovePeer, oldRemove)
+		util.GetLogger().Errorf("persist containers limit failed with %+v ",
+			err)
+		return err
+	}
+	util.GetLogger().Infof("all containers limit changed")
+	return nil
 }
 
 // GetClusterVersion returns the current cluster version.

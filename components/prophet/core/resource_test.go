@@ -21,6 +21,94 @@ func newTestCachedResourceWithID(id uint64) *CachedResource {
 	return res
 }
 
+func TestSortedEqual(t *testing.T) {
+	testcases := []struct {
+		idsA    []uint64
+		idsB    []uint64
+		isEqual bool
+	}{
+		{
+			[]uint64{},
+			[]uint64{},
+			true,
+		},
+		{
+			[]uint64{},
+			[]uint64{1, 2},
+			false,
+		},
+		{
+			[]uint64{1, 2},
+			[]uint64{1, 2},
+			true,
+		},
+		{
+			[]uint64{1, 2},
+			[]uint64{2, 1},
+			true,
+		},
+		{
+			[]uint64{1, 2},
+			[]uint64{1, 2, 3},
+			false,
+		},
+		{
+			[]uint64{1, 2, 3},
+			[]uint64{2, 3, 1},
+			true,
+		},
+		{
+			[]uint64{1, 3},
+			[]uint64{1, 2},
+			false,
+		},
+	}
+
+	meta := &metadata.TestResource{
+		ResID: 100,
+		ResPeers: []metapb.Peer{
+			{
+				ID:          1,
+				ContainerID: 10,
+			},
+			{
+				ID:          3,
+				ContainerID: 30,
+			},
+			{
+				ID:          2,
+				ContainerID: 20,
+			},
+			{
+				ID:          4,
+				ContainerID: 40,
+			},
+		},
+	}
+
+	res := NewCachedResource(meta, &meta.ResPeers[0])
+
+	for _, tc := range testcases {
+		downPeersA := make([]metapb.PeerStats, 0)
+		downPeersB := make([]metapb.PeerStats, 0)
+		pendingPeersA := make([]metapb.Peer, 0)
+		pendingPeersB := make([]metapb.Peer, 0)
+		for _, i := range tc.idsA {
+			downPeersA = append(downPeersA, metapb.PeerStats{Peer: meta.ResPeers[i]})
+			pendingPeersA = append(pendingPeersA, meta.ResPeers[i])
+		}
+		for _, i := range tc.idsB {
+			downPeersB = append(downPeersB, metapb.PeerStats{Peer: meta.ResPeers[i]})
+			pendingPeersB = append(pendingPeersB, meta.ResPeers[i])
+		}
+
+		resA := res.Clone(WithDownPeers(downPeersA), WithPendingPeers(pendingPeersA))
+		resB := res.Clone(WithDownPeers(downPeersB), WithPendingPeers(pendingPeersB))
+		assert.Equal(t, tc.isEqual, SortedPeersStatsEqual(resA.GetDownPeers(), resB.GetDownPeers()))
+		assert.Equal(t, tc.isEqual, SortedPeersEqual(resA.GetPendingPeers(), resB.GetPendingPeers()))
+	}
+}
+
 func TestResourceMap(t *testing.T) {
 	var empty *resourceMap
 	assert.Equal(t, 0, empty.Len(), "TestResourceMap failed")

@@ -381,6 +381,40 @@ func TestIssue2419(t *testing.T) {
 	assert.Equal(t, uint64(3), op.Step(2).(operator.RemovePeer).FromContainer)
 }
 
+// Ref https://github.com/tikv/pd/issues/3521
+// The problem is when offline a store, we may add learner multiple times if
+// the operator is timeout.
+func TestIssue3521_PriorityFixOrphanPeer(t *testing.T) {
+	s := &testRuleChecker{}
+	s.setup()
+
+	s.cluster.AddLabelsContainer(1, 1, map[string]string{"host": "host1"})
+	s.cluster.AddLabelsContainer(2, 1, map[string]string{"host": "host1"})
+	s.cluster.AddLabelsContainer(3, 1, map[string]string{"host": "host2"})
+	s.cluster.AddLabelsContainer(4, 1, map[string]string{"host": "host4"})
+	s.cluster.AddLabelsContainer(5, 1, map[string]string{"host": "host5"})
+	s.cluster.AddLeaderResourceWithRange(1, "", "", 1, 2, 3)
+	op := s.rc.Check(s.cluster.GetResource(1))
+	assert.Nil(t, op)
+	s.cluster.SetContainerOffline(2)
+	op = s.rc.Check(s.cluster.GetResource(1))
+	assert.NotNil(t, op)
+	_, ok := op.Step(0).(operator.AddLearner)
+	assert.True(t, ok)
+	assert.Equal(t, "replace-rule-offline-peer", op.Desc())
+	r := s.cluster.GetResource(1).Clone(core.WithAddPeer(
+		metapb.Peer{
+			ID:          5,
+			ContainerID: 4,
+			Role:        metapb.PeerRole_Learner,
+		}))
+	s.cluster.PutResource(r)
+	op = s.rc.Check(s.cluster.GetResource(1))
+	_, ok = op.Step(0).(operator.RemovePeer)
+	assert.True(t, ok)
+	assert.Equal(t, "remove-orphan-peer", op.Desc())
+}
+
 func TestIssue3293(t *testing.T) {
 	s := &testRuleChecker{}
 	s.setup()
@@ -398,15 +432,16 @@ func TestIssue3293(t *testing.T) {
 		Count:   1,
 		LabelConstraints: []placement.LabelConstraint{
 			{
-				Key: "dc",
+				Key: "host",
 				Values: []string{
-					"sh",
+					"host5",
 				},
 				Op: placement.In,
 			},
 		},
 	})
 	assert.NoError(t, err)
+	s.cluster.DeleteContainer(s.cluster.TakeContainer(5))
 	err = s.ruleManager.SetRule(&placement.Rule{
 		GroupID: "DDL_51",
 		ID:      "default",
@@ -419,4 +454,99 @@ func TestIssue3293(t *testing.T) {
 	op := s.rc.Check(s.cluster.GetResource(1))
 	assert.NotNil(t, op)
 	assert.Equal(t, "add-rule-peer", op.Desc())
+}
+
+func TestIssue3299(t *testing.T) {
+	s := &testRuleChecker{}
+	s.setup()
+
+	s.cluster.AddLabelsContainer(1, 1, map[string]string{"host": "host1"})
+	s.cluster.AddLabelsContainer(2, 1, map[string]string{"dc": "sh"})
+	s.cluster.AddLeaderResourceWithRange(1, "", "", 1, 2)
+
+	testCases := []struct {
+		constraints []placement.LabelConstraint
+		err         string
+	}{
+		{
+			constraints: []placement.LabelConstraint{
+				{
+					Key:    "host",
+					Values: []string{"host5"},
+					Op:     placement.In,
+				},
+			},
+			err: ".*can not match any store",
+		},
+		{
+			constraints: []placement.LabelConstraint{
+				{
+					Key:    "ho",
+					Values: []string{"sh"},
+					Op:     placement.In,
+				},
+			},
+			err: ".*can not match any store",
+		},
+		{
+			constraints: []placement.LabelConstraint{
+				{
+					Key:    "host",
+					Values: []string{"host1"},
+					Op:     placement.In,
+				},
+				{
+					Key:    "host",
+					Values: []string{"host1"},
+					Op:     placement.NotIn,
+				},
+			},
+			err: ".*can not match any store",
+		},
+		{
+			constraints: []placement.LabelConstraint{
+				{
+					Key:    "host",
+					Values: []string{"host1"},
+					Op:     placement.In,
+				},
+				{
+					Key:    "host",
+					Values: []string{"host3"},
+					Op:     placement.In,
+				},
+			},
+			err: ".*can not match any store",
+		},
+		{
+			constraints: []placement.LabelConstraint{
+				{
+					Key:    "host",
+					Values: []string{"host1"},
+					Op:     placement.In,
+				},
+				{
+					Key:    "host",
+					Values: []string{"host1"},
+					Op:     placement.In,
+				},
+			},
+			err: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		err := s.ruleManager.SetRule(&placement.Rule{
+			GroupID:          "p",
+			ID:               "0",
+			Role:             placement.Follower,
+			Count:            1,
+			LabelConstraints: tc.constraints,
+		})
+		if tc.err != "" {
+			assert.Error(t, err)
+		} else {
+			assert.Empty(t, tc.err)
+		}
+	}
 }

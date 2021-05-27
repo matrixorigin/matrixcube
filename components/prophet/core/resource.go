@@ -62,9 +62,17 @@ func classifyVoterAndLearner(res *CachedResource) {
 	res.voters = voters
 }
 
-// EmptyResourceApproximateSize is the resource approximate size of an empty resource
-// (heartbeat size <= 1MB).
-const EmptyResourceApproximateSize = 1
+const (
+	// EmptyResourceApproximateSize is the resource approximate size of an empty resource
+	// (heartbeat size <= 1MB).
+	EmptyResourceApproximateSize = 1
+
+	// ImpossibleFlowSize is an impossible flow size (such as written_bytes, read_keys, etc.)
+	// It may be caused by overflow, refer to https://github.com/tikv/pd/issues/3379.
+	// They need to be filtered so as not to affect downstream.
+	// (flow size >= 1024TB)
+	ImpossibleFlowSize = 1 << 50
+)
 
 // ResourceFromHeartbeat constructs a Resource from resource heartbeat.
 func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.Resource) *CachedResource {
@@ -83,6 +91,18 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 		pendingPeers: heartbeat.GetPendingPeers(),
 		stats:        heartbeat.Stats,
 	}
+
+	if res.stats.WrittenKeys >= ImpossibleFlowSize || res.stats.WrittenBytes >= ImpossibleFlowSize {
+		res.stats.WrittenKeys = 0
+		res.stats.WrittenBytes = 0
+	}
+	if res.stats.ReadKeys >= ImpossibleFlowSize || res.stats.ReadBytes >= ImpossibleFlowSize {
+		res.stats.ReadKeys = 0
+		res.stats.ReadBytes = 0
+	}
+
+	sort.Sort(peerStatsSlice(res.downPeers))
+	sort.Sort(peerSlice(res.pendingPeers))
 
 	classifyVoterAndLearner(res)
 	return res
@@ -673,6 +693,44 @@ func (s peerSlice) Swap(i, j int) {
 }
 func (s peerSlice) Less(i, j int) bool {
 	return s[i].ID < s[j].ID
+}
+
+// SortedPeersEqual judges whether two sorted `peerSlice` are equal
+func SortedPeersEqual(peersA, peersB []metapb.Peer) bool {
+	if len(peersA) != len(peersB) {
+		return false
+	}
+	for i, peer := range peersA {
+		if peer.GetID() != peersB[i].GetID() {
+			return false
+		}
+	}
+	return true
+}
+
+type peerStatsSlice []metapb.PeerStats
+
+func (s peerStatsSlice) Len() int {
+	return len(s)
+}
+func (s peerStatsSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s peerStatsSlice) Less(i, j int) bool {
+	return s[i].GetPeer().ID < s[j].GetPeer().ID
+}
+
+// SortedPeersStatsEqual judges whether two sorted `peerStatsSlice` are equal
+func SortedPeersStatsEqual(peersA, peersB []metapb.PeerStats) bool {
+	if len(peersA) != len(peersB) {
+		return false
+	}
+	for i, peerStats := range peersA {
+		if peerStats.GetPeer().ID != peersB[i].GetPeer().ID {
+			return false
+		}
+	}
+	return true
 }
 
 // shouldRemoveFromSubTree return true when the resource leader changed, peer transferred,

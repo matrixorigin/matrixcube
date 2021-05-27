@@ -113,7 +113,11 @@ func (s *balanceResourceScheduler) EncodeConfig() ([]byte, error) {
 }
 
 func (s *balanceResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return s.opController.OperatorCount(operator.OpResource)-s.opController.OperatorCount(operator.OpMerge) < cluster.GetOpts().GetResourceScheduleLimit()
+	allowed := s.opController.OperatorCount(operator.OpResource)-s.opController.OperatorCount(operator.OpMerge) < cluster.GetOpts().GetResourceScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+	}
+	return allowed
 }
 
 func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
@@ -133,23 +137,23 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 		sourceID := source.Meta.ID()
 
 		for i := 0; i < balanceResourceRetryLimit; i++ {
-			// Priority pick the resource that has a pending peer.
-			// Pending resource may means the disk is overload, remove the pending resource firstly.
-			res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster))
+			// Priority pick the Resource that has a pending peer.
+			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
+			res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			if res == nil {
-				// Then pick the resource that has a follower in the source container.
-				res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				// Then pick the Resource that has a follower in the source store.
+				res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
-				// Then pick the resource has the leader in the source container.
-				res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				// Then pick the Resource has the leader in the source store.
+				res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Finally pick learner.
-				res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
-				schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
+				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
 				continue
 			}
 			util.GetLogger().Debugf("scheduler %s select resource %d",

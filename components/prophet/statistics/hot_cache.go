@@ -53,32 +53,28 @@ func (w *HotCache) Update(item *HotPeerStat) {
 }
 
 // ResourceStats returns hot items according to kind
-func (w *HotCache) ResourceStats(kind FlowKind) map[uint64][]*HotPeerStat {
+func (w *HotCache) ResourceStats(kind FlowKind, minHotDegree int) map[uint64][]*HotPeerStat {
 	switch kind {
 	case WriteFlow:
-		return w.writeFlow.ResourceStats()
+		return w.writeFlow.ResourceStats(minHotDegree)
 	case ReadFlow:
-		return w.readFlow.ResourceStats()
+		return w.readFlow.ResourceStats(minHotDegree)
 	}
 	return nil
 }
 
-// RandHotResourceFromContainer random picks a hot resource in specify container.
-func (w *HotCache) RandHotResourceFromContainer(containerID uint64, kind FlowKind, hotDegree int) *HotPeerStat {
-	if stats, ok := w.ResourceStats(kind)[containerID]; ok {
-		for _, i := range rand.Perm(len(stats)) {
-			if stats[i].HotDegree >= hotDegree {
-				return stats[i]
-			}
-		}
+// RandHotResourceFromContainer random picks a hot resource in specify store.
+func (w *HotCache) RandHotResourceFromContainer(storeID uint64, kind FlowKind, minHotDegree int) *HotPeerStat {
+	if stats, ok := w.ResourceStats(kind, minHotDegree)[storeID]; ok && len(stats) > 0 {
+		return stats[rand.Intn(len(stats))]
 	}
 	return nil
 }
 
 // IsResourceHot checks if the resource is hot.
-func (w *HotCache) IsResourceHot(res *core.CachedResource, hotDegree int) bool {
-	return w.writeFlow.IsResourceHot(res, hotDegree) ||
-		w.readFlow.IsResourceHot(res, hotDegree)
+func (w *HotCache) IsResourceHot(res *core.CachedResource, minHotDegree int) bool {
+	return w.writeFlow.IsResourceHot(res, minHotDegree) ||
+		w.readFlow.IsResourceHot(res, minHotDegree)
 }
 
 // CollectMetrics collects the hot cache metrics.

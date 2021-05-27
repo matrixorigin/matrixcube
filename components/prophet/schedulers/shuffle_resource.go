@@ -78,7 +78,11 @@ func (s *shuffleResourceScheduler) EncodeConfig() ([]byte, error) {
 }
 
 func (s *shuffleResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit()
+	allowed := s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+	}
+	return allowed
 }
 
 func (s *shuffleResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {

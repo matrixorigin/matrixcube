@@ -67,7 +67,7 @@ func TestCloneContainer(t *testing.T) {
 				break
 			}
 			container.Clone(
-				SetContainerState(metapb.ContainerState_UP),
+				UpContainer(),
 				SetLastHeartbeatTS(time.Now()),
 			)
 		}
@@ -89,4 +89,16 @@ func TestResourceScore(t *testing.T) {
 	score := container.ResourceScore("v1", 0.7, 0.9, 0, 0)
 	// Resource score should never be NaN, or /container API would fail.
 	assert.False(t, math.IsNaN(score))
+}
+
+func TestLowSpaceRatio(t *testing.T) {
+	container := NewTestContainerInfoWithLabel(1, 20, nil)
+	container.rawStats.Capacity = initialMinSpace << 4
+	container.rawStats.Available = container.rawStats.Capacity >> 3
+
+	assert.False(t, container.IsLowSpace(0.8))
+	container.resourceCount = 31
+	assert.True(t, container.IsLowSpace(0.8))
+	container.rawStats.Available = container.rawStats.Capacity >> 2
+	assert.False(t, container.IsLowSpace(0.8))
 }

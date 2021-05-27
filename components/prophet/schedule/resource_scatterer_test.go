@@ -68,9 +68,7 @@ func (s *testScatterResource) scatter(t *testing.T, numContainers, numResources 
 	}
 	tc.SetEnablePlacementRules(useRules)
 
-	// resource 1 has the same distribution with the resource 2, which is used to test selectPeerToReplace.
-	tc.AddLeaderResource(1, 1, 2, 3)
-	for i := uint64(2); i <= numResources; i++ {
+	for i := uint64(1); i <= numResources; i++ {
 		// resource distributed in same containers.
 		tc.AddLeaderResource(i, 1, 2, 3)
 	}
@@ -91,9 +89,10 @@ func (s *testScatterResource) scatter(t *testing.T, numContainers, numResources 
 	countLeader := make(map[uint64]uint64)
 	for i := uint64(1); i <= numResources; i++ {
 		resource := tc.GetResource(i)
+		leaderContainerID := resource.GetLeader().GetContainerID()
 		for _, peer := range resource.Meta.Peers() {
 			countPeers[peer.GetContainerID()]++
-			if peer.ID == resource.GetLeader().GetID() {
+			if peer.GetContainerID() == leaderContainerID {
 				countLeader[peer.GetContainerID()]++
 			}
 		}
@@ -160,6 +159,7 @@ func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers
 	countOrdinaryLeaders := make(map[uint64]uint64)
 	for i := uint64(1); i <= numresources; i++ {
 		resource := tc.GetResource(i)
+		leaderContainerID := resource.GetLeader().GetContainerID()
 		for _, peer := range resource.Meta.Peers() {
 			containerID := peer.GetContainerID()
 			container := tc.Containers.GetContainer(containerID)
@@ -168,7 +168,7 @@ func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers
 			} else {
 				countOrdinaryPeers[containerID]++
 			}
-			if peer.ID == resource.GetLeader().GetID() {
+			if peer.GetContainerID() == leaderContainerID {
 				countOrdinaryLeaders[containerID]++
 			}
 		}
@@ -194,6 +194,8 @@ func TestSixContainers(t *testing.T) {
 
 	s.scatter(t, 6, 100, false)
 	s.scatter(t, 6, 100, true)
+	s.scatter(t, 6, 1000, false)
+	s.scatter(t, 6, 1000, true)
 }
 
 func TestFiveContainers(t *testing.T) {
@@ -201,17 +203,21 @@ func TestFiveContainers(t *testing.T) {
 
 	s.scatter(t, 5, 100, false)
 	s.scatter(t, 5, 100, true)
+	s.scatter(t, 5, 1000, false)
+	s.scatter(t, 5, 1000, true)
 }
 
 func TestSixSpecialContainers(t *testing.T) {
 	s := testScatterResource{}
 	s.scatterSpecial(t, 3, 6, 100)
+	s.scatterSpecial(t, 3, 6, 1000)
 }
 
 func TestFiveSpecialContainers(t *testing.T) {
 	s := testScatterResource{}
 
 	s.scatterSpecial(t, 5, 5, 100)
+	s.scatterSpecial(t, 5, 5, 1000)
 }
 
 func TestScatterContainerLimit(t *testing.T) {
@@ -351,7 +357,7 @@ func TestScatterGroup(t *testing.T) {
 			// 100 resources divided 5 Containers, each Container expected to have about 20 resources.
 			assert.True(t, min <= 20)
 			assert.True(t, max >= 20)
-			assert.True(t, (max-min) <= 3)
+			assert.True(t, (max-min) <= 5)
 		}
 		cancel()
 	}
@@ -386,7 +392,9 @@ func TestScattersGroup(t *testing.T) {
 		scatterer.ScatterResources(resources, failures, group, 3)
 		max := uint64(0)
 		min := uint64(math.MaxUint64)
-		for _, count := range scatterer.ordinaryEngine.selectedLeader.getGroupDistributionOrDefault(group) {
+		groupDistribution, exist := scatterer.ordinaryEngine.selectedLeader.GetGroupDistribution(group)
+		assert.True(t, exist)
+		for _, count := range groupDistribution {
 			if count > max {
 				max = count
 			}
@@ -415,15 +423,15 @@ func TestSelectedContainerGC(t *testing.T) {
 	gcTTL = time.Second * 3
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	containers := newSelectedContainers(ctx, true)
+	containers := newSelectedContainers(ctx)
 	containers.put(1, "testgroup")
-	_, ok := containers.getContainer("testgroup")
+	_, ok := containers.GetGroupDistribution("testgroup")
 	assert.True(t, ok)
-	_, ok = containers.getGroupDistribution("testgroup")
+	_, ok = containers.GetGroupDistribution("testgroup")
 	assert.True(t, ok)
 	time.Sleep(gcTTL)
-	_, ok = containers.getContainer("testgroup")
+	_, ok = containers.GetGroupDistribution("testgroup")
 	assert.False(t, ok)
-	_, ok = containers.getGroupDistribution("testgroup")
+	_, ok = containers.GetGroupDistribution("testgroup")
 	assert.False(t, ok)
 }

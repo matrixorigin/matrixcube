@@ -62,6 +62,22 @@ var (
 			Name:      "container_limit_cost",
 			Help:      "limit rate cost of container.",
 		}, []string{"container", "limit_type"})
+
+	scatterCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "prophet",
+			Subsystem: "schedule",
+			Name:      "scatter_operators_count",
+			Help:      "Counter of region scatter operators.",
+		}, []string{"type", "event"})
+
+	scatterDistributionCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "prophet",
+			Subsystem: "schedule",
+			Name:      "scatter_distribution",
+			Help:      "Counter of the distribution in scatter.",
+		}, []string{"store", "is_leader", "engine"})
 )
 
 func init() {
@@ -72,4 +88,6 @@ func init() {
 	prometheus.MustRegister(containerLimitRateGauge)
 	prometheus.MustRegister(containerLimitCostCounter)
 	prometheus.MustRegister(operatorWaitCounter)
+	prometheus.MustRegister(scatterCounter)
+	prometheus.MustRegister(scatterDistributionCounter)
 }

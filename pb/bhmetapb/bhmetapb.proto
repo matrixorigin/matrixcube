@@ -36,14 +36,15 @@ message Shard {
 
 // Store the host store metadata
 message Store {
-    uint64                id                = 1 [(gogoproto.customname) = "ID"];
-    string                raftAddr          = 2;
-    string                clientAddr        = 3;
-    repeated metapb.Pair  labels            = 4 [(gogoproto.nullable) = false];
-    metapb.ContainerState state             = 5;
-    int64                 startTime         = 6;
-    int64                 lastHeartbeatTime = 7;
-    string                version           = 8;
-    string                gitHash           = 9;
-    string                deployPath        = 10;
+    uint64                id                  = 1 [(gogoproto.customname) = "ID"];
+    string                raftAddr            = 2;
+    string                clientAddr          = 3;
+    repeated metapb.Pair  labels              = 4 [(gogoproto.nullable) = false];
+    metapb.ContainerState state               = 5;
+    int64                 startTime           = 6;
+    int64                 lastHeartbeatTime   = 7;
+    string                version             = 8;
+    string                gitHash             = 9;
+    string                deployPath          = 10;
+    bool                  physicallyDestroyed = 11;
 }

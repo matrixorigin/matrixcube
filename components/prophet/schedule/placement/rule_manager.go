@@ -23,18 +23,23 @@ const (
 // RuleManager is responsible for the lifecycle of all placement Rules.
 // It is thread safe.
 type RuleManager struct {
-	storage storage.Storage
 	sync.RWMutex
+
+	storage     storage.Storage
 	initialized bool
 	ruleConfig  *ruleConfig
 	ruleList    ruleList
+
+	// used for rule validation
+	containerSetInformer core.ContainerSetInformer
 }
 
 // NewRuleManager creates a RuleManager instance.
-func NewRuleManager(storage storage.Storage) *RuleManager {
+func NewRuleManager(storage storage.Storage, containerSetInformer core.ContainerSetInformer) *RuleManager {
 	return &RuleManager{
-		storage:    storage,
-		ruleConfig: newRuleConfig(),
+		storage:              storage,
+		containerSetInformer: containerSetInformer,
+		ruleConfig:           newRuleConfig(),
 	}
 }
 
@@ -88,7 +93,7 @@ func (m *RuleManager) loadRules() error {
 			toDelete = append(toDelete, k)
 			return nil
 		}
-		if err := m.adjustRule(&r); err != nil {
+		if err := m.adjustRule(&r, ""); err != nil {
 			util.GetLogger().Errorf("rule %s is bad format, adjust failed with %+v, %+v",
 				k, err, v)
 			toDelete = append(toDelete, k)
@@ -139,7 +144,7 @@ func (m *RuleManager) loadGroups() error {
 }
 
 // check and adjust rule from client or storage.
-func (m *RuleManager) adjustRule(r *Rule) error {
+func (m *RuleManager) adjustRule(r *Rule, groupID string) error {
 	var err error
 	r.StartKey, err = hex.DecodeString(r.StartKeyHex)
 	if err != nil {
@@ -152,6 +157,15 @@ func (m *RuleManager) adjustRule(r *Rule) error {
 	if len(r.EndKey) > 0 && bytes.Compare(r.EndKey, r.StartKey) <= 0 {
 		return fmt.Errorf("endKey %+s should be greater than startKey %+s", r.StartKeyHex, r.EndKeyHex)
 	}
+
+	if groupID != "" {
+		if r.GroupID == "" {
+			r.GroupID = groupID
+		} else if groupID != r.GroupID {
+			return fmt.Errorf("rule group %s does not match group ID %s", r.GroupID, groupID)
+		}
+	}
+
 	if r.GroupID == "" {
 		return errors.New("group ID should not be empty")
 	}
@@ -172,6 +186,13 @@ func (m *RuleManager) adjustRule(r *Rule) error {
 			return fmt.Errorf("invalid op %s", c.Op)
 		}
 	}
+
+	if m.containerSetInformer != nil {
+		containers := m.containerSetInformer.GetContainers()
+		if len(containers) > 0 && !checkRule(r, containers) {
+			return fmt.Errorf("rule '%s' from rule group '%s' can not match any container", r.ID, r.GroupID)
+		}
+	}
 	return nil
 }
 
@@ -184,7 +205,7 @@ func (m *RuleManager) GetRule(group, id string) *Rule {
 
 // SetRule inserts or updates a Rule.
 func (m *RuleManager) SetRule(rule *Rule) error {
-	if err := m.adjustRule(rule); err != nil {
+	if err := m.adjustRule(rule, ""); err != nil {
 		return err
 	}
 	m.Lock()
@@ -334,7 +355,7 @@ func (m *RuleManager) SetRules(rules []*Rule) error {
 	defer m.Unlock()
 	p := m.beginPatch()
 	for _, r := range rules {
-		if err := m.adjustRule(r); err != nil {
+		if err := m.adjustRule(r, ""); err != nil {
 			return err
 		}
 		p.setRule(r)
@@ -376,7 +397,7 @@ func (m *RuleManager) Batch(todo []RuleOp) error {
 	for _, t := range todo {
 		switch t.Action {
 		case RuleOpAdd:
-			err := m.adjustRule(t.Rule)
+			err := m.adjustRule(t.Rule, "")
 			if err != nil {
 				return err
 			}
@@ -548,7 +569,7 @@ func (m *RuleManager) SetAllGroupBundles(groups []GroupBundle, override bool) er
 			Override: g.Override,
 		})
 		for _, r := range g.Rules {
-			if err := m.adjustRule(r); err != nil {
+			if err := m.adjustRule(r, g.ID); err != nil {
 				return err
 			}
 			p.setRule(r)
@@ -582,7 +603,7 @@ func (m *RuleManager) SetGroupBundle(group GroupBundle) error {
 		Override: group.Override,
 	})
 	for _, r := range group.Rules {
-		if err := m.adjustRule(r); err != nil {
+		if err := m.adjustRule(r, group.ID); err != nil {
 			return err
 		}
 		p.setRule(r)

@@ -33,6 +33,11 @@ func NewRuleChecker(cluster opt.Cluster, ruleManager *placement.RuleManager, res
 	}
 }
 
+// GetType returns RuleChecker's Type
+func (c *RuleChecker) GetType() string {
+	return "rule-checker"
+}
+
 // FillReplicas make up all replica for a empty resource
 func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
 	if len(res.Meta.Peers()) > 0 {
@@ -77,6 +82,13 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 		// multiple rules.
 		return c.fixRange(res)
 	}
+
+	op, err := c.fixOrphanPeers(res, fit)
+	if err == nil && op != nil {
+		return op
+	}
+	util.GetLogger().Debugf("fix orphan peer failed with %+v", err)
+
 	for _, rf := range fit.RuleFits {
 		op, err := c.fixRulePeer(res, fit, rf)
 		if err != nil {
@@ -91,12 +103,8 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 			return op
 		}
 	}
-	op, err := c.fixOrphanPeers(res, fit)
-	if err != nil {
-		util.GetLogger().Debugf("fix orphan peer failed with %+v", err)
-		return nil
-	}
-	return op
+
+	return nil
 }
 
 func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {

@@ -36,6 +36,10 @@ func (ss *containerStats) updateRawStats(rawStats *metapb.ContainerStats) {
 	defer ss.mu.Unlock()
 	ss.rawStats = rawStats
 
+	if ss.avgAvailable == nil {
+		return
+	}
+
 	ss.avgAvailable.Add(float64(rawStats.GetAvailable()))
 	deviation := math.Abs(float64(rawStats.GetAvailable()) - ss.avgAvailable.Get())
 	ss.maxAvailableDeviation.Add(deviation)
@@ -130,6 +134,9 @@ func (ss *containerStats) GetApplyingSnapCount() uint64 {
 func (ss *containerStats) GetAvgAvailable() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
+	if ss.avgAvailable == nil {
+		return ss.rawStats.Available
+	}
 	return climp0(ss.avgAvailable.Get())
 }
 
@@ -137,6 +144,9 @@ func (ss *containerStats) GetAvgAvailable() uint64 {
 func (ss *containerStats) GetAvailableDeviation() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
+	if ss.avgMaxAvailableDeviation == nil {
+		return 0
+	}
 	return climp0(ss.avgMaxAvailableDeviation.Get())
 }
 

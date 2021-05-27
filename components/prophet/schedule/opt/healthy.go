@@ -4,6 +4,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 )
 
+// balanceEmptyResourceThreshold is a threshold which allow balance the empty resource
+// if the resource number is less than this threshold.
+var balanceEmptyResourceThreshold = 50
+
 // IsResourceHealthy checks if a resource is healthy for scheduling. It requires the
 // resource does not have any down or pending peers. And when placement rules
 // feature is disabled, it requires the resource does not have any learner peer.
@@ -20,6 +24,12 @@ func IsHealthyAllowPending(cluster Cluster, res *core.CachedResource) bool {
 	return len(res.GetDownPeers()) == 0
 }
 
+// IsEmptyResourceAllowBalance checks if a region is an empty region and can be balanced.
+func IsEmptyResourceAllowBalance(cluster Cluster, res *core.CachedResource) bool {
+	return res.GetApproximateSize() > core.EmptyResourceApproximateSize ||
+		cluster.GetResourceCount() < balanceEmptyResourceThreshold
+}
+
 // HealthResource returns a function that checks if a resource is healthy for
 // scheduling. It requires the resource does not have any down or pending peers,
 // and does not have any learner peers when placement rules is disabled.
@@ -32,6 +42,12 @@ func HealthResource(cluster Cluster) func(*core.CachedResource) bool {
 // to have pending peers.
 func HealthAllowPending(cluster Cluster) func(*core.CachedResource) bool {
 	return func(res *core.CachedResource) bool { return IsHealthyAllowPending(cluster, res) }
+}
+
+// AllowBalanceEmptyResource returns a function that checks if a resource is an empty resource
+// and can be balanced.
+func AllowBalanceEmptyResource(cluster Cluster) func(*core.CachedResource) bool {
+	return func(res *core.CachedResource) bool { return IsEmptyResourceAllowBalance(cluster, res) }
 }
 
 // IsResourceReplicated checks if a resource is fully replicated. When placement

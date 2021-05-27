@@ -55,6 +55,34 @@ func SetContainerDeployPath(deployPath string) ContainerCreateOption {
 	}
 }
 
+// OfflineContainer offline a container
+func OfflineContainer(physicallyDestroyed bool) ContainerCreateOption {
+	return func(container *CachedContainer) {
+		meta := container.Meta.Clone()
+		meta.SetPhysicallyDestroyed(physicallyDestroyed)
+		meta.SetState(metapb.ContainerState_Offline)
+		container.Meta = meta
+	}
+}
+
+// UpContainer up a container
+func UpContainer() ContainerCreateOption {
+	return func(container *CachedContainer) {
+		meta := container.Meta.Clone()
+		meta.SetState(metapb.ContainerState_UP)
+		container.Meta = meta
+	}
+}
+
+// TombstoneContainer set a container to tombstone.
+func TombstoneContainer() ContainerCreateOption {
+	return func(container *CachedContainer) {
+		meta := container.Meta.Clone()
+		meta.SetState(metapb.ContainerState_Tombstone)
+		container.Meta = meta
+	}
+}
+
 // SetContainerState sets the state for the container.
 func SetContainerState(state metapb.ContainerState) ContainerCreateOption {
 	return func(container *CachedContainer) {
@@ -147,6 +175,17 @@ func SetLastPersistTime(lastPersist time.Time) ContainerCreateOption {
 func SetContainerStats(stats *metapb.ContainerStats) ContainerCreateOption {
 	return func(container *CachedContainer) {
 		container.containerStats.updateRawStats(stats)
+	}
+}
+
+// SetNewContainerStats sets the raw statistics information for the container.
+func SetNewContainerStats(stats *metapb.ContainerStats) ContainerCreateOption {
+	return func(container *CachedContainer) {
+		// There is no clone in default container stats, we create new one to avoid to modify others.
+		// And range cluster cannot use HMA because the last value is not cached
+		container.containerStats = &containerStats{
+			rawStats: stats,
+		}
 	}
 }
 

@@ -65,6 +65,40 @@ func (s *testReplicaChecker) setup() {
 	s.cluster.AddLabelsContainer(2, 1, map[string]string{"noleader": "true"})
 }
 
+func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.PeerRole) *operator.Operator {
+	s.cluster.SetMaxReplicas(2)
+	s.cluster.SetContainerUP(1)
+	downContainerID := uint64(3)
+	peers := []metapb.Peer{
+		{
+			ID:          4,
+			ContainerID: 1,
+			Role:        aliveRole,
+		},
+		{
+			ID:          14,
+			ContainerID: downContainerID,
+		},
+		{
+			ID:          15,
+			ContainerID: 4,
+		},
+	}
+	r := core.NewCachedResource(&metadata.TestResource{ResID: 2, ResPeers: peers}, &peers[0])
+	s.cluster.PutResource(r)
+	s.cluster.SetContainerDown(downContainerID)
+	downPeer := metapb.PeerStats{
+		Peer: metapb.Peer{
+			ID:          14,
+			ContainerID: downContainerID,
+		},
+		DownSeconds: 24 * 60 * 60,
+	}
+	r = r.Clone(core.WithDownPeers(append(r.GetDownPeers(), downPeer)))
+	assert.Equal(t, 1, len(r.GetDownPeers()))
+	return s.rc.Check(r)
+}
+
 func TestReplacePendingPeer(t *testing.T) {
 	s := &testReplicaChecker{}
 	s.setup()
@@ -164,6 +198,21 @@ func TestFillReplicas(t *testing.T) {
 	err = rc.FillReplicas(res)
 	assert.NoError(t, err)
 	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
+}
+
+func TestDownPeer(t *testing.T) {
+	s := &testReplicaChecker{}
+	s.setup()
+
+	// down a peer, the number of normal peers(except learner) is enough.
+	op := s.downPeerAndCheck(t, metapb.PeerRole_Voter)
+	assert.NotNil(t, op)
+	assert.Equal(t, "remove-extra-down-replica", op.Desc())
+
+	// down a peer,the number of peers(except learner) is not enough.
+	op = s.downPeerAndCheck(t, metapb.PeerRole_Learner)
+	assert.NotNil(t, op)
+	assert.Equal(t, "replace-down-replica", op.Desc())
 }
 
 func TestReplicaCheckerBasic(t *testing.T) {
@@ -450,7 +499,7 @@ func TestStorageThreshold(t *testing.T) {
 	tc.UpdateStorageRatio(2, 0.1, 0.9)
 	tc.UpdateContainerResourceSize(2, 100*MB)
 	tc.AddLabelsContainer(3, 1, map[string]string{"zone": "z2"})
-	tc.AddLabelsContainer(4, 0, map[string]string{"zone": "z3"})
+	tc.AddLabelsContainer(4, 31, map[string]string{"zone": "z3"})
 
 	tc.AddLeaderResource(1, 1, 2, 3)
 	resource := tc.GetResource(1)
