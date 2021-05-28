@@ -44,6 +44,9 @@ type Client interface {
 	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
 	// all related containers to create resource replica peer at local.
 	AsyncAddResources(resources ...metadata.Resource) error
+	// AsyncAddResourcesWithLeastPeers same of `AsyncAddResources`, but if the number of peers successfully
+	// allocated exceed the `leastPeers`, no error will be returned.
+	AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error
 	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
 	// on the prophet leader cache and embed etcd. The resource actual destory triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
@@ -53,6 +56,11 @@ type Client interface {
 	AsyncRemoveResources(ids ...uint64) error
 	// CheckResourceState returns resources state
 	CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error)
+
+	// PutPlacementRule put placement rule
+	PutPlacementRule(rule rpcpb.PlacementRule) error
+	// GetAppliedRules returns applied rules of the resource
+	GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error)
 }
 
 type asyncClient struct {
@@ -337,18 +345,23 @@ func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHear
 }
 
 func (c *asyncClient) AsyncAddResources(resources ...metadata.Resource) error {
+	return c.AsyncAddResourcesWithLeastPeers(resources, make([]int, len(resources)))
+}
+
+func (c *asyncClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
 	req := &rpcpb.Request{}
 	req.Type = rpcpb.TypeCreateResourcesReq
-	for _, res := range resources {
+	for idx, res := range resources {
 		data, err := res.Marshal()
 		if err != nil {
 			return err
 		}
 		req.CreateResources.Resources = append(req.CreateResources.Resources, data)
+		req.CreateResources.LeastPeers = append(req.CreateResources.LeastPeers, uint64(leastPeers[idx]))
 	}
 
 	_, err := c.syncDo(req)
@@ -391,6 +404,40 @@ func (c *asyncClient) CheckResourceState(resources *roaring.Bitmap) (rpcpb.Check
 	}
 
 	return rsp.CheckResourceState, nil
+}
+
+func (c *asyncClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypePutPlacementRuleReq
+	req.PutPlacementRule.Rule = rule
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) {
+	if !c.running() {
+		return nil, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeGetAppliedRulesReq
+	req.GetAppliedRules.ResourceID = id
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.GetAppliedRules.Rules, nil
 }
 
 func (c *asyncClient) doClose() {

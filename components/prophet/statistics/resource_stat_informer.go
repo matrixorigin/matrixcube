@@ -8,8 +8,10 @@ import (
 type ResourceStatInformer interface {
 	IsResourceHot(res *core.CachedResource) bool
 	// ResourceWriteStats return the containerID -> write stat of peers on this container
+	// The result only includes peers that are hot enough.
 	ResourceWriteStats() map[uint64][]*HotPeerStat
 	// ResourceReadStats return the containerID -> read stat of peers on this container
+	// The result only includes peers that are hot enough.
 	ResourceReadStats() map[uint64][]*HotPeerStat
 	RandHotResourceFromContainer(container uint64, kind FlowKind) *core.CachedResource
 }

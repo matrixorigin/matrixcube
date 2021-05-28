@@ -13,6 +13,46 @@ const (
 	dimLen
 )
 
+type dimStat struct {
+	typ         int
+	Rolling     *movingaverage.TimeMedian  // it's used to statistic hot degree and average speed.
+	LastAverage *movingaverage.AvgOverTime // it's used to obtain the average speed in last second as instantaneous speed.
+}
+
+func newDimStat(typ int) *dimStat {
+	reportInterval := ResourceHeartBeatReportInterval * time.Second
+	return &dimStat{
+		typ:         typ,
+		Rolling:     movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, reportInterval),
+		LastAverage: movingaverage.NewAvgOverTime(reportInterval),
+	}
+}
+
+func (d *dimStat) Add(delta float64, interval time.Duration) {
+	d.LastAverage.Add(delta, interval)
+	d.Rolling.Add(delta, interval)
+}
+
+func (d *dimStat) isLastAverageHot(thresholds [dimLen]float64) bool {
+	return d.LastAverage.Get() >= thresholds[d.typ]
+}
+
+func (d *dimStat) isHot(thresholds [dimLen]float64) bool {
+	return d.Rolling.Get() >= thresholds[d.typ]
+}
+
+func (d *dimStat) isFull() bool {
+	return d.LastAverage.IsFull()
+}
+
+func (d *dimStat) clearLastAverage() {
+	d.LastAverage.Clear()
+}
+
+func (d *dimStat) Get() float64 {
+	return d.Rolling.Get()
+}
+
 // HotPeerStat records each hot peer's statistics
 type HotPeerStat struct {
 	ContainerID uint64 `json:"container_id"`
@@ -28,15 +68,20 @@ type HotPeerStat struct {
 	KeyRate  float64  `json:"flow_keys"`
 
 	// rolling statistics, recording some recently added records.
-	rollingByteRate *movingaverage.TimeMedian
-	rollingKeyRate  *movingaverage.TimeMedian
+	rollingByteRate *dimStat
+	rollingKeyRate  *dimStat
 
 	// LastUpdateTime used to calculate average write
 	LastUpdateTime time.Time `json:"last_update_time"`
 
-	needDelete bool
-	isLeader   bool
-	isNew      bool
+	needDelete             bool
+	isLeader               bool
+	isNew                  bool
+	justTransferLeader     bool
+	interval               uint64
+	thresholds             [dimLen]float64
+	peers                  []uint64
+	lastTransferLeaderTime time.Time
 }
 
 // ID returns resource ID. Implementing TopNItem.
@@ -55,6 +100,11 @@ func (stat *HotPeerStat) Less(k int, than TopNItem) bool {
 	default:
 		return stat.GetByteRate() < rhs.GetByteRate()
 	}
+}
+
+// IsNeedCoolDownTransferLeader use cooldown time after transfer leader to avoid unnecessary schedule
+func (stat *HotPeerStat) IsNeedCoolDownTransferLeader(minHotDegree int) bool {
+	return time.Since(stat.lastTransferLeaderTime).Seconds() < float64(minHotDegree*ResourceHeartBeatReportInterval)
 }
 
 // IsNeedDelete to delete the item in cache.
@@ -88,6 +138,11 @@ func (stat *HotPeerStat) GetKeyRate() float64 {
 	return math.Round(stat.rollingKeyRate.Get())
 }
 
+// GetThresholds returns thresholds
+func (stat *HotPeerStat) GetThresholds() [dimLen]float64 {
+	return stat.thresholds
+}
+
 // Clone clones the HotPeerStat
 func (stat *HotPeerStat) Clone() *HotPeerStat {
 	ret := *stat
@@ -96,4 +151,14 @@ func (stat *HotPeerStat) Clone() *HotPeerStat {
 	ret.KeyRate = stat.GetKeyRate()
 	ret.rollingKeyRate = nil
 	return &ret
+}
+
+func (stat *HotPeerStat) isFullAndHot() bool {
+	return (stat.rollingByteRate.isFull() && stat.rollingByteRate.isLastAverageHot(stat.thresholds)) ||
+		(stat.rollingKeyRate.isFull() && stat.rollingKeyRate.isLastAverageHot(stat.thresholds))
+}
+
+func (stat *HotPeerStat) clearLastAverage() {
+	stat.rollingByteRate.clearLastAverage()
+	stat.rollingKeyRate.clearLastAverage()
 }

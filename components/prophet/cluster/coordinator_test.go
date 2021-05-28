@@ -107,7 +107,7 @@ func (c *testCluster) addLeaderContainer(containerID uint64, leaderCount int) er
 func (c *testCluster) setContainerDown(containerID uint64) error {
 	container := c.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetContainerState(metapb.ContainerState_UP),
+		core.UpContainer(),
 		core.SetLastHeartbeatTS(time.Time{}),
 	)
 	c.Lock()
@@ -117,7 +117,7 @@ func (c *testCluster) setContainerDown(containerID uint64) error {
 
 func (c *testCluster) setContainerOffline(containerID uint64) error {
 	container := c.GetContainer(containerID)
-	newContainer := container.Clone(core.SetContainerState(metapb.ContainerState_Offline))
+	newContainer := container.Clone(core.OfflineContainer(false))
 	c.Lock()
 	defer c.Unlock()
 	return c.putContainerLocked(newContainer)
@@ -163,7 +163,7 @@ func TestBasic(t *testing.T) {
 func TestDispatch(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, func(tc *testCluster) { tc.prepareChecker.isPrepared = true }, nil)
 	defer cleanup()
-
+	tc.DisableJointConsensus()
 	// Transfer peer from container 4 to container 1.
 	assert.Nil(t, tc.addResourceContainer(4, 40))
 	assert.Nil(t, tc.addResourceContainer(3, 30))

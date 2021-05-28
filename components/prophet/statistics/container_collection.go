@@ -89,29 +89,26 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available").Set(float64(container.GetAvailable()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_used").Set(float64(container.GetUsedSize()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_capacity").Set(float64(container.GetCapacity()))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_avg").Set(float64(container.GetAvgAvailable()))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_deviation").Set(float64(container.GetAvailableDeviation()))
 
 	// Container flows.
 	containerFlowStats := stats.GetRollingContainerStats(container.Meta.ID())
 	if containerFlowStats == nil {
 		return
 	}
-	collect := func(getBytesRate, getKeysRate func() (float64, float64), tail string) {
-		containerWriteRateByte, containerReadRateByte := getBytesRate()
-		containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes"+tail).Set(containerWriteRateByte) // container_write_rate_bytes or container_write_rate_bytes_instant
-		containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes"+tail).Set(containerReadRateByte)   // container_read_rate_bytes or container_read_rate_bytes_instant
-		containerWriteRateKey, containerReadRateKey := getKeysRate()
-		containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys"+tail).Set(containerWriteRateKey) // container_write_rate_keys or container_write_rate_keys_instant
-		containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys"+tail).Set(containerReadRateKey)   // container_read_rate_keys or container_read_rate_keys_instant
-	}
-	collect(containerFlowStats.GetBytesRate, containerFlowStats.GetKeysRate, "")
-	collect(containerFlowStats.GetBytesRateInstantaneous, containerFlowStats.GetKeysRateInstantaneous, "_instant")
-	// Container's threads statistics.
-	containerCPUUsage := stats.GetContainerCPUUsage(container.Meta.ID())
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_cpu_usage").Set(containerCPUUsage)
-	containerDiskReadRate := stats.GetContainerDiskReadRate(container.Meta.ID())
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_read_rate").Set(containerDiskReadRate)
-	containerDiskWriteRate := stats.GetContainerDiskWriteRate(container.Meta.ID())
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_write_rate").Set(containerDiskWriteRate)
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes").Set(containerFlowStats.GetLoad(ContainerWriteBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes").Set(containerFlowStats.GetLoad(ContainerReadBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys").Set(containerFlowStats.GetLoad(ContainerWriteKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys").Set(containerFlowStats.GetLoad(ContainerReadKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_cpu_usage").Set(containerFlowStats.GetLoad(ContainerCPUUsage))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_read_rate").Set(containerFlowStats.GetLoad(ContainerDiskReadRate))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_write_rate").Set(containerFlowStats.GetLoad(ContainerDiskWriteRate))
+
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(ContainerWriteBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(ContainerReadBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(ContainerWriteKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(ContainerReadKeys))
 }
 
 func (s *containerStatistics) Collect() {

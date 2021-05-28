@@ -203,14 +203,14 @@ func (o *PersistOptions) SetContainerLimit(containerID uint64, typ limit.Type, r
 	switch typ {
 	case limit.AddPeer:
 		if _, ok := v.ContainerLimit[containerID]; !ok {
-			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.AddPeer)
+			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.RemovePeer)
 		} else {
 			rate = v.ContainerLimit[containerID].RemovePeer
 		}
 		sc = ContainerLimitConfig{AddPeer: ratePerMin, RemovePeer: rate}
 	case limit.RemovePeer:
 		if _, ok := v.ContainerLimit[containerID]; !ok {
-			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.RemovePeer)
+			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.AddPeer)
 		} else {
 			rate = v.ContainerLimit[containerID].AddPeer
 		}

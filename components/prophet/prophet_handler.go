@@ -130,6 +130,18 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
+	case rpcpb.TypePutPlacementRuleReq:
+		resp.Type = rpcpb.TypePutPlacementRuleRsp
+		err := p.handlePutPlacementRule(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeGetAppliedRulesReq:
+		resp.Type = rpcpb.TypeGetAppliedRulesRsp
+		err := p.handleGetAppliedRule(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
 	default:
 		return fmt.Errorf("type %s not support", req.Type.String())
 	}
@@ -298,6 +310,20 @@ func (p *defaultProphet) handleCheckResourceState(rc *cluster.RaftCluster, req *
 	}
 
 	resp.CheckResourceState = *rsp
+	return nil
+}
+
+func (p *defaultProphet) handlePutPlacementRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	return rc.HandlePutPlacementRule(req)
+}
+
+func (p *defaultProphet) handleGetAppliedRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	rsp, err := rc.HandleAppliedRules(req)
+	if err != nil {
+		return err
+	}
+
+	resp.GetAppliedRules = *rsp
 	return nil
 }
 

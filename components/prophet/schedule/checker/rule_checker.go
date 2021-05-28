@@ -33,8 +33,13 @@ func NewRuleChecker(cluster opt.Cluster, ruleManager *placement.RuleManager, res
 	}
 }
 
+// GetType returns RuleChecker's Type
+func (c *RuleChecker) GetType() string {
+	return "rule-checker"
+}
+
 // FillReplicas make up all replica for a empty resource
-func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
+func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) error {
 	if len(res.Meta.Peers()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
@@ -44,25 +49,38 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
 		return fmt.Errorf("fill resource replicas cann't matches no rules")
 	}
 
+	cnt := 0
 	for _, rf := range fit.RuleFits {
-		if rf.Rule.Role == placement.Voter {
-			rs := c.strategy(res, rf.Rule)
-			ruleContainers := c.getRuleFitContainers(rf)
+		cnt += rf.Rule.Count
+		rs := c.strategy(res, rf.Rule)
+		ruleContainers := c.getRuleFitContainers(rf)
 
-			for i := 0; i < rf.Rule.Count; i++ {
-				container := rs.SelectContainerToAdd(ruleContainers)
-				if container == 0 {
-					return errors.New("no container to add peer")
-				}
-				peers := res.Meta.Peers()
-				peers = append(peers, metapb.Peer{ContainerID: container})
-				res.Meta.SetPeers(peers)
+		for i := 0; i < rf.Rule.Count; i++ {
+			container := rs.SelectContainerToAdd(ruleContainers)
+			if container == 0 {
+				break
 			}
-			return nil
+
+			p := metapb.Peer{ContainerID: container}
+			switch rf.Rule.Role {
+			case placement.Voter, placement.Follower, placement.Leader:
+				p.Role = metapb.PeerRole_Voter
+			default:
+				p.Role = metapb.PeerRole_Learner
+			}
+
+			peers := res.Meta.Peers()
+			peers = append(peers, metapb.Peer{ContainerID: container})
+			res.Meta.SetPeers(peers)
 		}
 	}
 
-	return fmt.Errorf("fill resource replicas cann't matches no voter rules")
+	if (leastPeers == 0 && len(res.Meta.Peers()) == cnt) || // all rule peers matches
+		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
+		return nil
+	}
+
+	return errors.New("no container to add peers")
 }
 
 // Check checks if the resource matches placement rules and returns Operator to
@@ -77,6 +95,13 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 		// multiple rules.
 		return c.fixRange(res)
 	}
+
+	op, err := c.fixOrphanPeers(res, fit)
+	if err == nil && op != nil {
+		return op
+	}
+	util.GetLogger().Debugf("fix orphan peer failed with %+v", err)
+
 	for _, rf := range fit.RuleFits {
 		op, err := c.fixRulePeer(res, fit, rf)
 		if err != nil {
@@ -91,12 +116,8 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 			return op
 		}
 	}
-	op, err := c.fixOrphanPeers(res, fit)
-	if err != nil {
-		util.GetLogger().Debugf("fix orphan peer failed with %+v", err)
-		return nil
-	}
-	return op
+
+	return nil
 }
 
 func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {

@@ -526,7 +526,7 @@ func (b *Builder) setTargetLeaderIfNotExist() {
 
 	for _, targetLeaderContainerID := range b.targetPeers.IDs() {
 		peer := b.targetPeers[targetLeaderContainerID]
-		if !b.allowLeader(peer, false) {
+		if !b.allowLeader(peer, b.forceTargetLeader) {
 			continue
 		}
 		// if role info is given, container having role follower should not be target leader.

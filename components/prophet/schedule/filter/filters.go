@@ -22,7 +22,10 @@ func SelectSourceContainers(containers []*core.CachedContainer, filters []Filter
 	return filterContainersBy(containers, func(s *core.CachedContainer) bool {
 		return slice.AllOf(filters, func(i int) bool {
 			if !filters[i].Source(opt, s) {
-				filterCounter.WithLabelValues("filter-source", s.Meta.Addr(), fmt.Sprintf("%d", s.Meta.ID()), filters[i].Scope(), filters[i].Type()).Inc()
+				sourceID := fmt.Sprintf("%d", s.Meta.ID())
+				targetID := ""
+				filterCounter.WithLabelValues("filter-source", s.Meta.Addr(),
+					sourceID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
 			return true
@@ -34,8 +37,16 @@ func SelectSourceContainers(containers []*core.CachedContainer, filters []Filter
 func SelectTargetContainers(containers []*core.CachedContainer, filters []Filter, opt *config.PersistOptions) []*core.CachedContainer {
 	return filterContainersBy(containers, func(s *core.CachedContainer) bool {
 		return slice.AllOf(filters, func(i int) bool {
-			if !filters[i].Target(opt, s) {
-				filterCounter.WithLabelValues("filter-target", s.Meta.Addr(), fmt.Sprintf("%d", s.Meta.ID()), filters[i].Scope(), filters[i].Type()).Inc()
+			filter := filters[i]
+			if !filter.Target(opt, s) {
+				cfilter, ok := filter.(comparingFilter)
+				targetID := fmt.Sprintf("%d", s.Meta.ID())
+				sourceID := ""
+				if ok {
+					sourceID = fmt.Sprintf("%d", cfilter.GetSourceContainerID())
+				}
+				filterCounter.WithLabelValues("filter-target", s.Meta.Addr(),
+					targetID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
 			return true
@@ -63,13 +74,23 @@ type Filter interface {
 	Target(opt *config.PersistOptions, container *core.CachedContainer) bool
 }
 
+// comparingFilter is an interface to filter target store by comparing source and target stores
+type comparingFilter interface {
+	Filter
+	// GetSourceContainerID returns the source store when comparing.
+	GetSourceContainerID() uint64
+}
+
 // Source checks if container can pass all Filters as source container.
 func Source(opt *config.PersistOptions, container *core.CachedContainer, filters []Filter) bool {
 	containerAddress := container.Meta.Addr()
 	containerID := fmt.Sprintf("%d", container.Meta.ID())
 	for _, filter := range filters {
 		if !filter.Source(opt, container) {
-			filterCounter.WithLabelValues("filter-source", containerAddress, containerID, filter.Scope(), filter.Type()).Inc()
+			sourceID := containerID
+			targetID := ""
+			filterCounter.WithLabelValues("filter-source", containerAddress,
+				sourceID, filter.Scope(), filter.Type(), sourceID, targetID).Inc()
 			return false
 		}
 	}
@@ -82,7 +103,14 @@ func Target(opt *config.PersistOptions, container *core.CachedContainer, filters
 	containerID := fmt.Sprintf("%d", container.Meta.ID())
 	for _, filter := range filters {
 		if !filter.Target(opt, container) {
-			filterCounter.WithLabelValues("filter-target", containerAddress, containerID, filter.Scope(), filter.Type()).Inc()
+			cfilter, ok := filter.(comparingFilter)
+			targetID := containerID
+			sourceID := ""
+			if ok {
+				sourceID = fmt.Sprintf("%d", cfilter.GetSourceContainerID())
+			}
+			filterCounter.WithLabelValues("filter-target", containerAddress,
+				targetID, filter.Scope(), filter.Type(), sourceID, targetID).Inc()
 			return false
 		}
 	}
@@ -148,11 +176,12 @@ func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *c
 
 // distinctScoreFilter ensures that distinct score will not decrease.
 type distinctScoreFilter struct {
-	scope      string
-	labels     []string
-	containers []*core.CachedContainer
-	policy     string
-	safeScore  float64
+	scope        string
+	labels       []string
+	containers   []*core.CachedContainer
+	policy       string
+	safeScore    float64
+	srcContainer uint64
 }
 
 const (
@@ -185,11 +214,12 @@ func newDistinctScoreFilter(scope string, labels []string, containers []*core.Ca
 	}
 
 	return &distinctScoreFilter{
-		scope:      scope,
-		labels:     labels,
-		containers: newContainers,
-		safeScore:  core.DistinctScore(labels, newContainers, source),
-		policy:     policy,
+		scope:        scope,
+		labels:       labels,
+		containers:   newContainers,
+		safeScore:    core.DistinctScore(labels, newContainers, source),
+		policy:       policy,
+		srcContainer: source.Meta.ID(),
 	}
 }
 
@@ -217,6 +247,11 @@ func (f *distinctScoreFilter) Target(opt *config.PersistOptions, container *core
 	}
 }
 
+// GetSourceContainerID implements the ComparingFilter
+func (f *distinctScoreFilter) GetSourceContainerID() uint64 {
+	return f.srcContainer
+}
+
 // ContainerStateFilter is used to determine whether a container can be selected as the
 // source or target of the schedule based on the container's state.
 type ContainerStateFilter struct {
@@ -225,6 +260,8 @@ type ContainerStateFilter struct {
 	TransferLeader bool
 	// Set true if the schedule involves any move resource operation.
 	MoveResource bool
+	// Set true if the scatter move the resource
+	ScatterResource bool
 	// Set true if allows temporary states.
 	AllowTemporaryStates bool
 	// Reason is used to distinguish the reason of container state filter
@@ -322,6 +359,7 @@ const (
 	resourceSource
 	leaderTarget
 	resourceTarget
+	scatterResourceTarget
 )
 
 func (f *ContainerStateFilter) anyConditionMatch(typ int, opt *config.PersistOptions, container *core.CachedContainer) bool {
@@ -337,6 +375,9 @@ func (f *ContainerStateFilter) anyConditionMatch(typ int, opt *config.PersistOpt
 	case resourceTarget:
 		funcs = []conditionFunc{f.isTombstone, f.isOffline, f.isDown, f.isDisconnected, f.isBusy,
 			f.exceedAddLimit, f.tooManySnapshots, f.tooManyPendingPeers}
+	case scatterResourceTarget:
+		funcs = []conditionFunc{f.isTombstone, f.isOffline, f.isDown, f.isDisconnected, f.isBusy}
+
 	}
 	for _, cf := range funcs {
 		if cf(opt, container) {
@@ -364,7 +405,10 @@ func (f *ContainerStateFilter) Target(opts *config.PersistOptions, container *co
 	if f.TransferLeader && f.anyConditionMatch(leaderTarget, opts, container) {
 		return false
 	}
-	if f.MoveResource && f.anyConditionMatch(resourceTarget, opts, container) {
+	if f.MoveResource && f.ScatterResource && f.anyConditionMatch(scatterResourceTarget, opts, container) {
+		return false
+	}
+	if f.MoveResource && !f.ScatterResource && f.anyConditionMatch(resourceTarget, opts, container) {
 		return false
 	}
 	return true
@@ -407,12 +451,12 @@ type ResourceFitter interface {
 }
 
 type ruleFitFilter struct {
-	factory        func() metadata.Resource
-	scope          string
-	fitter         ResourceFitter
-	resource       *core.CachedResource
-	oldFit         *placement.ResourceFit
-	oldContainerID uint64
+	factory      func() metadata.Resource
+	scope        string
+	fitter       ResourceFitter
+	resource     *core.CachedResource
+	oldFit       *placement.ResourceFit
+	srcContainer uint64
 }
 
 // newRuleFitFilter creates a filter that ensures after replace a peer with new
@@ -420,12 +464,12 @@ type ruleFitFilter struct {
 // distinctScoreFilter but used when placement rules is enabled.
 func newRuleFitFilter(scope string, fitter ResourceFitter, resource *core.CachedResource, oldContainerID uint64, factory func() metadata.Resource) Filter {
 	return &ruleFitFilter{
-		factory:        factory,
-		scope:          scope,
-		fitter:         fitter,
-		resource:       resource,
-		oldFit:         fitter.FitResource(resource),
-		oldContainerID: oldContainerID,
+		factory:      factory,
+		scope:        scope,
+		fitter:       fitter,
+		resource:     resource,
+		oldFit:       fitter.FitResource(resource),
+		srcContainer: oldContainerID,
 	}
 }
 
@@ -447,9 +491,14 @@ func (f *ruleFitFilter) Target(opt *config.PersistOptions, container *core.Cache
 	resource := createResourceForRuleFit(start, end,
 		f.resource.Meta.Peers(), f.resource.GetLeader(),
 		f.factory,
-		core.WithReplacePeerContainer(f.oldContainerID, container.Meta.ID()))
+		core.WithReplacePeerContainer(f.srcContainer, container.Meta.ID()))
 	newFit := f.fitter.FitResource(resource)
 	return placement.CompareResourceFit(f.oldFit, newFit) <= 0
+}
+
+// GetSourceContainerID implements the ComparingFilter
+func (f *ruleFitFilter) GetSourceContainerID() uint64 {
+	return f.srcContainer
 }
 
 type ruleLeaderFitFilter struct {
@@ -458,7 +507,7 @@ type ruleLeaderFitFilter struct {
 	fitter               ResourceFitter
 	resource             *core.CachedResource
 	oldFit               *placement.ResourceFit
-	oldLeaderContainerID uint64
+	srcLeaderContainerID uint64
 }
 
 // newRuleLeaderFitFilter creates a filter that ensures after transfer leader with new container,
@@ -470,7 +519,7 @@ func newRuleLeaderFitFilter(scope string, fitter ResourceFitter, res *core.Cache
 		fitter:               fitter,
 		resource:             res,
 		oldFit:               fitter.FitResource(res),
-		oldLeaderContainerID: oldLeaderContainerID,
+		srcLeaderContainerID: oldLeaderContainerID,
 	}
 }
 
@@ -499,6 +548,10 @@ func (f *ruleLeaderFitFilter) Target(opt *config.PersistOptions, container *core
 		core.WithLeader(&targetPeer))
 	newFit := f.fitter.FitResource(copyResource)
 	return placement.CompareResourceFit(f.oldFit, newFit) <= 0
+}
+
+func (f *ruleLeaderFitFilter) GetSourceContainerID() uint64 {
+	return f.srcLeaderContainerID
 }
 
 // NewPlacementSafeguard creates a filter that ensures after replace a peer with new
@@ -630,6 +683,8 @@ const (
 	EngineKey = "engine"
 	// EngineTiFlash is the tiflash value of the engine label.
 	EngineTiFlash = "tiflash"
+	// EngineTiKV indicates the tikv engine in metrics
+	EngineTiKV = "tikv"
 )
 
 var allSpecialUses = []string{SpecialUseHotResource, SpecialUseReserved}

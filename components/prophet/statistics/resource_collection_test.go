@@ -20,7 +20,7 @@ type testResourceStatistics struct {
 func (s *testResourceStatistics) setup(t *testing.T) {
 	s.storage = storage.NewTestStorage()
 	var err error
-	s.manager = placement.NewRuleManager(s.storage)
+	s.manager = placement.NewRuleManager(s.storage, nil)
 	err = s.manager.Initialize(3, []string{"zone", "rack", "host"})
 	assert.NoError(t, err)
 }
@@ -56,7 +56,7 @@ func TestResourceStatistics(t *testing.T) {
 		{Peer: peers[1], DownSeconds: 3608},
 	}
 
-	container3 := containers[3].Clone(core.SetContainerState(metapb.ContainerState_Offline))
+	container3 := containers[3].Clone(core.OfflineContainer(false))
 	containers[3] = container3
 	r1 := &metadata.TestResource{ResID: 1, ResPeers: peers, Start: []byte("aa"), End: []byte("bb")}
 	r2 := &metadata.TestResource{ResID: 2, ResPeers: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
@@ -67,6 +67,10 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, 1, len(resourceStats.stats[ExtraPeer]))
 	assert.Equal(t, 1, len(resourceStats.stats[LearnerPeer]))
 	assert.Equal(t, 1, len(resourceStats.stats[EmptyResource]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[EmptyResource]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
 
 	resource1 = resource1.Clone(
 		core.WithDownPeers(downPeers),
@@ -82,6 +86,14 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 1)
 	assert.Equal(t, len(resourceStats.stats[EmptyResource]), 0)
 
+	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[DownPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[EmptyResource]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
+
 	resource2 = resource2.Clone(core.WithDownPeers(downPeers[0:1]))
 	resourceStats.Observe(resource2, containers[0:2])
 	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
@@ -89,7 +101,12 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, len(resourceStats.stats[DownPeer]), 2)
 	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
 	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 1)
+	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[DownPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
 
 	resource1 = resource1.Clone(core.WithRemoveContainerPeer(7))
 	resourceStats.Observe(resource1, containers[0:3])
@@ -99,8 +116,14 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
 	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 0)
 	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 0)
+	assert.Equal(t, 0, len(resourceStats.offlineStats[ExtraPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[DownPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[PendingPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[LearnerPeer]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[OfflinePeer]))
 
-	container3 = containers[3].Clone(core.SetContainerState(metapb.ContainerState_UP))
+	container3 = containers[3].Clone(core.UpContainer())
 	containers[3] = container3
 	resourceStats.Observe(resource1, containers)
 	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 0)
@@ -187,9 +210,21 @@ func TestResourceLabelIsolationLevel(t *testing.T) {
 			{"zone": "z1", "rack": "r2", "host": "h2"},
 			{"zone": "z1", "rack": "r2", "host": "h2"},
 		},
+		{
+			// isolated by rack
+			{"rack": "r1", "host": "h1"},
+			{"rack": "r2", "host": "h2"},
+			{"rack": "r3", "host": "h3"},
+		},
+		{
+			// isolated by host
+			{"zone": "z1", "rack": "r1", "host": "h1"},
+			{"zone": "z1", "rack": "r2", "host": "h2"},
+			{"zone": "z1", "host": "h3"},
+		},
 	}
-	res := []string{"rack", "host", "zone", "rack", "none"}
-	counter := map[string]int{"none": 1, "host": 1, "rack": 2, "zone": 1}
+	res := []string{"rack", "host", "zone", "rack", "none", "rack", "host"}
+	counter := map[string]int{"none": 1, "host": 2, "rack": 3, "zone": 1}
 	resourceID := 1
 	f := func(labels []map[string]string, res string, locationLabels []string) {
 		metaContainers := []*metadata.TestContainer{
@@ -225,10 +260,13 @@ func TestResourceLabelIsolationLevel(t *testing.T) {
 	assert.Equal(t, nonIsolation, label)
 	label = getResourceLabelIsolation(nil, nil)
 	assert.Equal(t, nonIsolation, label)
+	store := core.NewCachedContainer(&metadata.TestContainer{CID: 1, CAddr: "mock://server-1"}, core.SetContainerLabels([]metapb.Pair{{Key: "foo", Value: "bar"}}))
+	label = getResourceLabelIsolation([]*core.CachedContainer{store}, locationLabels)
+	assert.Equal(t, "zone", label)
 
 	resourceID = 1
-	res = []string{"rack", "none", "zone", "rack", "none"}
-	counter = map[string]int{"none": 2, "host": 0, "rack": 2, "zone": 1}
+	res = []string{"rack", "none", "zone", "rack", "none", "rack", "none"}
+	counter = map[string]int{"none": 3, "host": 0, "rack": 3, "zone": 1}
 	locationLabels = []string{"zone", "rack"}
 
 	for i, labels := range labelsSet {

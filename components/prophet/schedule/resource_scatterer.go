@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,81 +25,33 @@ var gcInterval = time.Minute
 var gcTTL = time.Minute * 3
 
 type selectedContainers struct {
-	mu sync.Mutex
-	// If checkExist is true, after each putting operation, an entry with the key constructed by group and containerID would be put
-	// into "containers" map. And the entry with the same key (containerID, group) couldn't be put before "containers" being reset
-	checkExist bool
+	mu sync.RWMutex
 
-	containers        *cache.TTLString // value type: map[uint64]struct{}, group -> containerID -> struct{}
 	groupDistribution *cache.TTLString // value type: map[uint64]uint64, group -> containerID -> count
 }
 
-func newSelectedContainers(ctx context.Context, checkExist bool) *selectedContainers {
+func newSelectedContainers(ctx context.Context) *selectedContainers {
 	return &selectedContainers{
-		checkExist:        checkExist,
-		containers:        cache.NewStringTTL(ctx, gcInterval, gcTTL),
 		groupDistribution: cache.NewStringTTL(ctx, gcInterval, gcTTL),
 	}
 }
 
-func (s *selectedContainers) getContainer(group string) (map[uint64]struct{}, bool) {
-	if result, ok := s.containers.Get(group); ok {
-		return result.(map[uint64]struct{}), true
-	}
-	return nil, false
-}
-
-func (s *selectedContainers) getGroupDistribution(group string) (map[uint64]uint64, bool) {
-	if result, ok := s.groupDistribution.Get(group); ok {
-		return result.(map[uint64]uint64), true
-	}
-	return nil, false
-}
-
-func (s *selectedContainers) getContainerOrDefault(group string) map[uint64]struct{} {
-	if result, ok := s.getContainer(group); ok {
-		return result
-	}
-	return make(map[uint64]struct{})
-}
-
-func (s *selectedContainers) getGroupDistributionOrDefault(group string) map[uint64]uint64 {
-	if result, ok := s.getGroupDistribution(group); ok {
-		return result
-	}
-	return make(map[uint64]uint64)
-}
-
-func (s *selectedContainers) put(id uint64, group string) bool {
+func (s *selectedContainers) put(id uint64, group string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.checkExist {
-		placed := s.getContainerOrDefault(group)
-		if _, ok := placed[id]; ok {
-			return false
-		}
-		placed[id] = struct{}{}
-		s.containers.Put(group, placed)
+	distribution, ok := s.getDistributionByGroupLocked(group)
+	if !ok {
+		distribution = map[uint64]uint64{}
+		distribution[id] = 0
 	}
-	distribution := s.getGroupDistributionOrDefault(group)
 	distribution[id] = distribution[id] + 1
 	s.groupDistribution.Put(group, distribution)
-	return true
-}
-
-func (s *selectedContainers) reset() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.checkExist {
-		return
-	}
-	s.containers.Clear()
 }
 
 func (s *selectedContainers) get(id uint64, group string) uint64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	distribution, ok := s.getGroupDistribution(group)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	distribution, ok := s.getDistributionByGroupLocked(group)
 	if !ok {
 		return 0
 	}
@@ -110,19 +62,19 @@ func (s *selectedContainers) get(id uint64, group string) uint64 {
 	return count
 }
 
-func (s *selectedContainers) newFilters(scope, group string) []filter.Filter {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.checkExist {
-		return nil
+// GetGroupDistribution get distribution group by `group`
+func (s *selectedContainers) GetGroupDistribution(group string) (map[uint64]uint64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getDistributionByGroupLocked(group)
+}
+
+// getDistributionByGroupLocked should be called with lock
+func (s *selectedContainers) getDistributionByGroupLocked(group string) (map[uint64]uint64, bool) {
+	if result, ok := s.groupDistribution.Get(group); ok {
+		return result.(map[uint64]uint64), true
 	}
-	cloned := make(map[uint64]struct{})
-	if groupPlaced, ok := s.getContainer(group); ok {
-		for id := range groupPlaced {
-			cloned[id] = struct{}{}
-		}
-	}
-	return []filter.Filter{filter.NewExcludedFilter(scope, nil, cloned)}
+	return nil, false
 }
 
 // ResourceScatterer scatters resources.
@@ -153,11 +105,11 @@ type engineContext struct {
 }
 
 func newEngineContext(ctx context.Context, filters ...filter.Filter) engineContext {
-	filters = append(filters, &filter.ContainerStateFilter{ActionScope: resourceScatterName})
+	filters = append(filters, &filter.ContainerStateFilter{ActionScope: resourceScatterName, MoveResource: true, ScatterResource: true})
 	return engineContext{
 		filters:        filters,
-		selectedPeer:   newSelectedContainers(ctx, true),
-		selectedLeader: newSelectedContainers(ctx, false),
+		selectedPeer:   newSelectedContainers(ctx),
+		selectedLeader: newSelectedContainers(ctx),
 	}
 }
 
@@ -169,6 +121,7 @@ const maxRetryLimit = 30
 func (r *ResourceScatterer) ScatterResourcesByRange(startKey, endKey []byte, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
 	resources := r.cluster.ScanResources(startKey, endKey, -1)
 	if len(resources) < 1 {
+		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, nil, errors.New("empty resource")
 	}
 	failures := make(map[uint64]error, len(resources))
@@ -187,6 +140,7 @@ func (r *ResourceScatterer) ScatterResourcesByRange(startKey, endKey []byte, gro
 // ScatterResourcesByID directly scatter resources by ScatterResources
 func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
 	if len(resourceIDs) < 1 {
+		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, nil, errors.New("empty resource")
 	}
 	failures := make(map[uint64]error, len(resourceIDs))
@@ -194,6 +148,8 @@ func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group str
 	for _, id := range resourceIDs {
 		res := r.cluster.GetResource(id)
 		if res == nil {
+			scatterCounter.WithLabelValues("skip", "no-resource").Inc()
+			util.GetLogger().Warningf("resource %d failed to find region during scatter", id)
 			failures[id] = fmt.Errorf("failed to find resource %v", id)
 			continue
 		}
@@ -219,6 +175,7 @@ func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group str
 // and the value of the failures indicates the failure error.
 func (r *ResourceScatterer) ScatterResources(resources map[uint64]*core.CachedResource, failures map[uint64]error, group string, retryLimit int) ([]*operator.Operator, error) {
 	if len(resources) < 1 {
+		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, errors.New("empty resource")
 	}
 	if retryLimit > maxRetryLimit {
@@ -253,14 +210,20 @@ func (r *ResourceScatterer) ScatterResources(resources map[uint64]*core.CachedRe
 func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*operator.Operator, error) {
 	if !opt.IsResourceReplicated(r.cluster, res) {
 		r.cluster.AddSuspectResources(res.Meta.ID())
+		scatterCounter.WithLabelValues("skip", "not-replicated").Inc()
+		util.GetLogger().Warningf("resource %d not replicated during scatter", res.Meta.ID())
 		return nil, fmt.Errorf("resource %d is not fully replicated", res.Meta.ID())
 	}
 
 	if res.GetLeader() == nil {
+		scatterCounter.WithLabelValues("skip", "no-leader").Inc()
+		util.GetLogger().Warningf("resource %d no leader during scatter", res.Meta.ID())
 		return nil, fmt.Errorf("resource %d has no leader", res.Meta.ID())
 	}
 
 	if r.cluster.IsResourceHot(res) {
+		scatterCounter.WithLabelValues("skip", "hot").Inc()
+		util.GetLogger().Warningf("resource %d  too hot during scatter", res.Meta.ID())
 		return nil, fmt.Errorf("resource %d is hot", res.Meta.ID())
 	}
 
@@ -269,48 +232,36 @@ func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*op
 
 func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group string) *operator.Operator {
 	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
-	var ordinaryPeers []metapb.Peer
-	specialPeers := make(map[string][]metapb.Peer)
-	// Group peers by the engine of their containers
+	ordinaryPeers := make(map[uint64]metapb.Peer)
+	specialPeers := make(map[string]map[uint64]metapb.Peer)
+	// Group peers by the engine of their stores
 	for _, peer := range res.Meta.Peers() {
-		container := r.cluster.GetContainer(peer.ContainerID)
-		if ordinaryFilter.Target(r.cluster.GetOpts(), container) {
-			ordinaryPeers = append(ordinaryPeers, peer)
+		store := r.cluster.GetContainer(peer.GetContainerID())
+		if ordinaryFilter.Target(r.cluster.GetOpts(), store) {
+			ordinaryPeers[peer.ID] = peer
 		} else {
-			engine := container.GetLabelValue(filter.EngineKey)
-			specialPeers[engine] = append(specialPeers[engine], peer)
+			engine := store.GetLabelValue(filter.EngineKey)
+			if _, ok := specialPeers[engine]; !ok {
+				specialPeers[engine] = make(map[uint64]metapb.Peer)
+			}
+			specialPeers[engine][peer.ID] = peer
 		}
 	}
 
 	targetPeers := make(map[uint64]metapb.Peer)
-
-	scatterWithSameEngine := func(peers []metapb.Peer, context engineContext) {
-		containers := r.collectAvailableContainers(group, res, context)
+	selectedStores := make(map[uint64]struct{})
+	scatterWithSameEngine := func(peers map[uint64]metapb.Peer, context engineContext) {
 		for _, peer := range peers {
-			if len(containers) == 0 {
-				context.selectedPeer.reset()
-				containers = r.collectAvailableContainers(group, res, context)
-			}
-			if context.selectedPeer.put(peer.ContainerID, group) {
-				delete(containers, peer.ContainerID)
-				targetPeers[peer.ContainerID] = peer
-				continue
-			}
-			newPeer, ok := r.selectPeerToReplace(group, containers, res, peer, context)
-			if !ok {
-				targetPeers[peer.ContainerID] = peer
-				continue
-			}
-			// Remove it from containers and mark it as selected.
-			delete(containers, newPeer.ContainerID)
-			context.selectedPeer.put(newPeer.ContainerID, group)
-			targetPeers[newPeer.ContainerID] = newPeer
+			candidates := r.selectCandidates(res, peer.GetContainerID(), selectedStores, context)
+			newPeer := r.selectContainer(group, &peer, peer.GetContainerID(), candidates, context)
+			targetPeers[newPeer.GetContainerID()] = *newPeer
+			selectedStores[newPeer.GetContainerID()] = struct{}{}
 		}
 	}
 
 	scatterWithSameEngine(ordinaryPeers, r.ordinaryEngine)
-	// FIXME: target leader only considers the ordinary containers，maybe we need to consider the
-	// special engine containers if the engine supports to become a leader. But now there is only
+	// FIXME: target leader only considers the ordinary stores，maybe we need to consider the
+	// special engine stores if the engine supports to become a leader. But now there is only
 	// one engine, tiflash, which does not support the leader, so don't consider it for now.
 	targetLeader := r.selectAvailableLeaderContainers(group, targetPeers, r.ordinaryEngine)
 
@@ -325,75 +276,70 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 
 	op, err := operator.CreateScatterResourceOperator("scatter-resource", r.cluster, res, targetPeers, targetLeader)
 	if err != nil {
+		scatterCounter.WithLabelValues("fail", "").Inc()
+		for _, peer := range res.Meta.Peers() {
+			targetPeers[peer.GetContainerID()] = peer
+		}
+		r.Put(targetPeers, res.GetLeader().GetContainerID(), group)
 		util.GetLogger().Debugf("create scatter resource operator failed with %+v", err)
 		return nil
 	}
-	op.SetPriorityLevel(core.HighPriority)
+	if op != nil {
+		scatterCounter.WithLabelValues("success", "").Inc()
+		r.Put(targetPeers, targetLeader, group)
+		op.SetPriorityLevel(core.HighPriority)
+	}
 	return op
 }
 
-func (r *ResourceScatterer) selectPeerToReplace(group string, containers map[uint64]*core.CachedContainer, res *core.CachedResource, oldPeer metapb.Peer, context engineContext) (metapb.Peer, bool) {
-	// scoreGuard guarantees that the distinct score will not decrease.
-	containerID := oldPeer.ContainerID
-	sourceContainer := r.cluster.GetContainer(containerID)
-	if sourceContainer == nil {
-		util.GetLogger().Errorf("get the container %d failed with container not found",
-			containerID)
-		return metapb.Peer{}, false
+func (r *ResourceScatterer) selectCandidates(res *core.CachedResource, sourceContainerID uint64, selectedContainers map[uint64]struct{}, context engineContext) []uint64 {
+	sourceStore := r.cluster.GetContainer(sourceContainerID)
+	if sourceStore == nil {
+		util.GetLogger().Errorf("failed to get the container %d", sourceContainerID)
+		return nil
 	}
-	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceContainer, r.cluster.GetResourceFactory())
-
-	candidates := make([]*core.CachedContainer, 0, len(containers))
-	for _, container := range containers {
-		if !scoreGuard.Target(r.cluster.GetOpts(), container) {
-			continue
-		}
-		candidates = append(candidates, container)
+	filters := []filter.Filter{
+		filter.NewExcludedFilter(r.name, nil, selectedContainers),
 	}
-
-	if len(candidates) == 0 {
-		return metapb.Peer{}, false
-	}
-
-	minPeer := uint64(math.MaxUint64)
-	var selectedCandidateID uint64
-	for _, candidate := range candidates {
-		count := context.selectedPeer.get(candidate.Meta.ID(), group)
-		if count < minPeer {
-			minPeer = count
-			selectedCandidateID = candidate.Meta.ID()
+	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceStore, r.cluster.GetResourceFactory())
+	filters = append(filters, context.filters...)
+	filters = append(filters, scoreGuard)
+	stores := r.cluster.GetContainers()
+	candidates := make([]uint64, 0)
+	for _, store := range stores {
+		if filter.Target(r.cluster.GetOpts(), store, filters) {
+			candidates = append(candidates, store.Meta.ID())
 		}
 	}
-	if selectedCandidateID < 1 {
-		target := candidates[rand.Intn(len(candidates))]
-		return metapb.Peer{
-			ContainerID: target.Meta.ID(),
-			Role:        oldPeer.GetRole(),
-		}, true
-	}
-
-	return metapb.Peer{
-		ContainerID: selectedCandidateID,
-		Role:        oldPeer.GetRole(),
-	}, true
+	return candidates
 }
 
-func (r *ResourceScatterer) collectAvailableContainers(group string, res *core.CachedResource, context engineContext) map[uint64]*core.CachedContainer {
-	filters := []filter.Filter{
-		filter.NewExcludedFilter(r.name, nil, res.GetContainerIDs()),
-		&filter.ContainerStateFilter{ActionScope: r.name, MoveResource: true},
+func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Peer, sourceContainerID uint64, candidates []uint64, context engineContext) *metapb.Peer {
+	if len(candidates) < 1 {
+		return peer
 	}
-	filters = append(filters, context.filters...)
-	filters = append(filters, context.selectedPeer.newFilters(r.name, group)...)
-
-	containers := r.cluster.GetContainers()
-	targets := make(map[uint64]*core.CachedContainer, len(containers))
-	for _, container := range containers {
-		if filter.Target(r.cluster.GetOpts(), container, filters) && !container.IsBusy() {
-			targets[container.Meta.ID()] = container
+	var newPeer *metapb.Peer
+	minCount := uint64(math.MaxUint64)
+	for _, storeID := range candidates {
+		count := context.selectedPeer.get(storeID, group)
+		if count < minCount {
+			minCount = count
+			newPeer = &metapb.Peer{
+				ContainerID: storeID,
+				Role:        peer.GetRole(),
+			}
 		}
 	}
-	return targets
+	// if the source store have the least count, we don't need to scatter this peer
+	for _, containerID := range candidates {
+		if containerID == sourceContainerID && context.selectedPeer.get(sourceContainerID, group) <= minCount {
+			return peer
+		}
+	}
+	if newPeer == nil {
+		return peer
+	}
+	return newPeer
 }
 
 // selectAvailableLeaderContainers select the target leader container from the candidates. The candidates would be collected by
@@ -401,15 +347,44 @@ func (r *ResourceScatterer) collectAvailableContainers(group string, res *core.C
 func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers map[uint64]metapb.Peer, context engineContext) uint64 {
 	minContainerGroupLeader := uint64(math.MaxUint64)
 	id := uint64(0)
-	for containerID := range peers {
-		containerGroupLeaderCount := context.selectedLeader.get(containerID, group)
-		if minContainerGroupLeader > containerGroupLeaderCount {
-			minContainerGroupLeader = containerGroupLeaderCount
-			id = containerID
+	for storeID := range peers {
+		if id == 0 {
+			id = storeID
+		}
+		storeGroupLeaderCount := context.selectedLeader.get(storeID, group)
+		if minContainerGroupLeader > storeGroupLeaderCount {
+			minContainerGroupLeader = storeGroupLeaderCount
+			id = storeID
 		}
 	}
-	if id != 0 {
-		context.selectedLeader.put(id, group)
-	}
 	return id
+}
+
+// Put put the final distribution in the context no matter the operator was created
+func (r *ResourceScatterer) Put(peers map[uint64]metapb.Peer, leaderContainerID uint64, group string) {
+	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
+	// Group peers by the engine of their stores
+	for _, peer := range peers {
+		containerID := peer.GetContainerID()
+		container := r.cluster.GetContainer(containerID)
+		if ordinaryFilter.Target(r.cluster.GetOpts(), container) {
+			r.ordinaryEngine.selectedPeer.put(containerID, group)
+			scatterDistributionCounter.WithLabelValues(
+				fmt.Sprintf("%v", containerID),
+				strconv.FormatBool(false),
+				filter.EngineTiKV).Inc()
+		} else {
+			engine := container.GetLabelValue(filter.EngineKey)
+			r.specialEngines[engine].selectedPeer.put(containerID, group)
+			scatterDistributionCounter.WithLabelValues(
+				fmt.Sprintf("%v", containerID),
+				strconv.FormatBool(false),
+				engine).Inc()
+		}
+	}
+	r.ordinaryEngine.selectedLeader.put(leaderContainerID, group)
+	scatterDistributionCounter.WithLabelValues(
+		fmt.Sprintf("%v", leaderContainerID),
+		strconv.FormatBool(true),
+		filter.EngineTiKV).Inc()
 }

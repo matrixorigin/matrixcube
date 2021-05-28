@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -86,14 +87,14 @@ func TestFilterUnhealthyContainer(t *testing.T) {
 			Available:     50,
 			ResourceCount: 1,
 		}
-		newContainer := container.Clone(core.SetContainerState(metapb.ContainerState_Tombstone))
+		newContainer := container.Clone(core.TombstoneContainer())
 		assert.NoError(t, cluster.putContainerLocked(newContainer))
 		assert.NoError(t, cluster.HandleContainerHeartbeat(containerStats))
 		assert.Nil(t, cluster.hotStat.GetRollingContainerStats(container.Meta.ID()))
 	}
 }
 
-func TestSetContainerState(t *testing.T) {
+func TestSetOfflineContainer(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
 	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
@@ -102,19 +103,114 @@ func TestSetContainerState(t *testing.T) {
 	for _, container := range newTestContainers(4, "2.0.0") {
 		assert.NoError(t, cluster.PutContainer(container.Meta))
 	}
-	// container 3 and 4 offline normally.
-	for _, id := range []uint64{3, 4} {
-		assert.NoError(t, cluster.RemoveContainer(id))
-		assert.NoError(t, cluster.BuryContainer(id, false))
+
+	// container 1: up -> offline
+	assert.NoError(t, cluster.RemoveContainer(1, false))
+	container := cluster.GetContainer(1)
+	assert.True(t, container.IsOffline())
+	assert.False(t, container.IsPhysicallyDestroyed())
+
+	// container 1: set physically to true success
+	assert.NoError(t, cluster.RemoveContainer(1, true))
+	container = cluster.GetContainer(1)
+	assert.True(t, container.IsOffline())
+	assert.True(t, container.IsPhysicallyDestroyed())
+
+	// container 2:up -> offline & physically destroyed
+	assert.NoError(t, cluster.RemoveContainer(2, true))
+	// container 2: set physically destroyed to false failed
+	assert.Error(t, cluster.RemoveContainer(2, false))
+	assert.NoError(t, cluster.RemoveContainer(2, true))
+
+	// container 3: up to offline
+	assert.NoError(t, cluster.RemoveContainer(3, false))
+	assert.NoError(t, cluster.RemoveContainer(3, false))
+
+	cluster.checkContainers()
+	// container 1,2,3 shuold be to tombstone
+	for containerID := uint64(1); containerID <= 3; containerID++ {
+		assert.True(t, cluster.GetContainer(containerID).IsTombstone())
 	}
-	// Change the status of 3 directly back to Up.
-	assert.NoError(t, cluster.SetContainerState(3, metapb.ContainerState_UP))
-	// Update container 1 2 3
-	for _, container := range newTestContainers(3, "3.0.0") {
+	// test bury container
+	for containerID := uint64(0); containerID <= 4; containerID++ {
+		container := cluster.GetContainer(containerID)
+		if container == nil || container.IsUp() {
+			assert.Error(t, cluster.buryContainer(containerID))
+		} else {
+			assert.NoError(t, cluster.buryContainer(containerID))
+		}
+	}
+}
+
+func TestReuseAddress(t *testing.T) {
+	_, opt, err := newTestScheduleConfig()
+	assert.NoError(t, err)
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+
+	// Put 4 containers.
+	for _, container := range newTestContainers(4, "2.0.0") {
 		assert.NoError(t, cluster.PutContainer(container.Meta))
 	}
-	// Since the container 4 version is too low, setting it to Up should fail.
-	assert.NoError(t, cluster.SetContainerState(4, metapb.ContainerState_UP))
+	// container 1: up
+	// container 2: offline
+	assert.NoError(t, cluster.RemoveContainer(2, false))
+	// container 3: offline and physically destroyed
+	assert.NoError(t, cluster.RemoveContainer(3, true))
+	// container 4: tombstone
+	assert.NoError(t, cluster.RemoveContainer(4, true))
+	assert.NoError(t, cluster.buryContainer(4))
+
+	for id := uint64(1); id <= 4; id++ {
+		container := cluster.GetContainer(id)
+		containerID := container.Meta.ID() + 1000
+		v, _ := container.Meta.Version()
+		newContainer := &metadata.TestContainer{
+			CID:         containerID,
+			CAddr:       container.Meta.Addr(),
+			CState:      metapb.ContainerState_UP,
+			CVerion:     v,
+			CDeployPath: fmt.Sprintf("test/container%d", containerID),
+		}
+
+		if container.IsPhysicallyDestroyed() || container.IsTombstone() {
+			// try to start a new container with the same address with container which is physically destryed or tombstone should be success
+			assert.NoError(t, cluster.PutContainer(newContainer))
+		} else {
+			assert.Error(t, cluster.PutContainer(newContainer))
+		}
+	}
+}
+
+func TestUpStore(t *testing.T) {
+	_, opt, err := newTestScheduleConfig()
+	assert.NoError(t, err)
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	// Put 3 stores.
+	for _, container := range newTestContainers(3, "2.0.0") {
+		assert.NoError(t, cluster.PutContainer(container.Meta))
+	}
+
+	// set store 1 offline
+	assert.NoError(t, cluster.RemoveContainer(1, false))
+	// up a offline store should be success.
+	assert.NoError(t, cluster.UpContainer(1))
+
+	// set store 2 offline and physically destroyed
+	assert.NoError(t, cluster.RemoveContainer(2, true))
+	assert.Error(t, cluster.UpContainer(2))
+
+	// bury store 2
+	cluster.checkContainers()
+	// store is tombstone
+	err = cluster.UpContainer(2)
+	assert.True(t, strings.Contains(err.Error(), "tombstone"))
+
+	// store 3 is up
+	assert.NoError(t, cluster.UpContainer(3))
+
+	// store 4 not exist
+	err = cluster.UpContainer(4)
+	assert.True(t, strings.Contains(err.Error(), "not found"))
 }
 
 func TestResourceHeartbeat(t *testing.T) {
@@ -650,7 +746,7 @@ func newTestScheduleConfig() (*config.ScheduleConfig, *config.PersistOptions, er
 func newTestCluster(opt *config.PersistOptions) *testCluster {
 	storage := storage.NewTestStorage()
 	rc := newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory))
-	rc.ruleManager = placement.NewRuleManager(storage)
+	rc.ruleManager = placement.NewRuleManager(storage, rc)
 	if opt.IsPlacementRulesEnabled() {
 		err := rc.ruleManager.Initialize(opt.GetMaxReplicas(), opt.GetLocationLabels())
 		if err != nil {

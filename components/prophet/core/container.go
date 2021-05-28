@@ -16,7 +16,9 @@ const (
 	// Interval to save container meta (including heartbeat ts) to etcd.
 	containerPersistInterval = 5 * time.Minute
 	mb                       = 1 << 20 // megabyte
-	gb                       = 1 << 30
+	gb                       = 1 << 30 // 1GB size
+	initialMaxResourceCounts = 30      // exclude storage Threshold Filter when resource less than 30
+	initialMinSpace          = 1 << 33 // 2^3=8GB
 )
 
 // CachedContainer is the container runtime info cached in the cache
@@ -125,6 +127,11 @@ func (cr *CachedContainer) IsTombstone() bool {
 	return cr.GetState() == metapb.ContainerState_Tombstone
 }
 
+// IsPhysicallyDestroyed checks if the store's physically destroyed.
+func (cr *CachedContainer) IsPhysicallyDestroyed() bool {
+	return cr.Meta.PhysicallyDestroyed()
+}
+
 // DownTime returns the time elapsed since last heartbeat.
 func (cr *CachedContainer) DownTime() time.Duration {
 	return time.Since(cr.GetLastHeartbeatTS())
@@ -202,7 +209,7 @@ func (cr *CachedContainer) LeaderScore(policy SchedulePolicy, delta int64) float
 func (cr *CachedContainer) ResourceScore(version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
 	switch version {
 	case "v2":
-		return cr.resourceScoreV2(delta, deviation)
+		return cr.resourceScoreV2(delta, deviation, lowSpaceRatio)
 	case "v1":
 		fallthrough
 	default:
@@ -255,15 +262,16 @@ func (cr *CachedContainer) resourceScoreV1(highSpaceRatio, lowSpaceRatio float64
 	return score / math.Max(cr.GetResourceWeight(), minWeight)
 }
 
-func (cr *CachedContainer) resourceScoreV2(delta int64, deviation int) float64 {
+func (cr *CachedContainer) resourceScoreV2(delta int64, deviation int, lowSpaceRatio float64) float64 {
 	A := float64(float64(cr.GetAvgAvailable())-float64(deviation)*float64(cr.GetAvailableDeviation())) / gb
 	C := float64(cr.GetCapacity()) / gb
 	R := float64(cr.GetResourceSize() + delta)
 	var (
 		K, M float64 = 1, 256 // Experience value to control the weight of the available influence on score
-		F    float64 = 20     // Experience value to prevent some nodes from running out of disk space prematurely.
+		F    float64 = 50     // Experience value to prevent some nodes from running out of disk space prematurely.
+		B            = 1e7
 	)
-
+	F = math.Max(F, C*(1-lowSpaceRatio))
 	var score float64
 	if A >= C || C < 1 {
 		score = R
@@ -273,7 +281,8 @@ func (cr *CachedContainer) resourceScoreV2(delta int64, deviation int) float64 {
 		score = (K + M*(math.Log(C)-math.Log(A-F+1))/(C-A+F-1)) * R
 	} else {
 		// When remaining space is less then F, the score is mainly determined by available space.
-		score = (K+M*math.Log(C)/C)*R + (F-A)*(K+M*math.Log(F)/F)
+		// store's score will increase rapidly after it has few space. and it will reach similar score when they has no space
+		score = (K+M*math.Log(C)/C)*R + B*(F-A)/F
 	}
 	return score / math.Max(cr.GetResourceWeight(), minWeight)
 }
@@ -293,7 +302,14 @@ func (cr *CachedContainer) AvailableRatio() float64 {
 
 // IsLowSpace checks if the container is lack of space.
 func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64) bool {
-	return cr.GetContainerStats() != nil && cr.AvailableRatio() < 1-lowSpaceRatio
+	if cr.GetContainerStats() == nil {
+		return false
+	}
+	// issue #3444
+	if cr.resourceCount < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
+		return false
+	}
+	return cr.AvailableRatio() < 1-lowSpaceRatio
 }
 
 // ResourceCount returns count of leader/resource-replica in the container.

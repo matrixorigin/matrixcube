@@ -29,6 +29,14 @@ var (
 			Help:      "Status of the resources.",
 		}, []string{"type"})
 
+	offlineResourceStatusGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "prophet",
+			Subsystem: "resources",
+			Name:      "offline_status",
+			Help:      "Status of the offline resources.",
+		}, []string{"type"})
+
 	clusterStatusGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "prophet",
@@ -114,6 +122,7 @@ func init() {
 	prometheus.MustRegister(hotCacheStatusGauge)
 	prometheus.MustRegister(containerStatusGauge)
 	prometheus.MustRegister(resourceStatusGauge)
+	prometheus.MustRegister(offlineResourceStatusGauge)
 	prometheus.MustRegister(clusterStatusGauge)
 	prometheus.MustRegister(placementStatusGauge)
 	prometheus.MustRegister(configStatusGauge)

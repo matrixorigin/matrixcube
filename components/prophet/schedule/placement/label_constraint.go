@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 )
 
@@ -24,8 +25,39 @@ const (
 	NotExists LabelConstraintOp = "notExists"
 )
 
+// RPCLabelConstraintOp convert placement.LabelConstraintOp to rpcpb.LabelConstraintOp
+func (l LabelConstraintOp) RPCLabelConstraintOp() rpcpb.LabelConstraintOp {
+	switch l {
+	case In:
+		return rpcpb.In
+	case NotIn:
+		return rpcpb.NotIn
+	case Exists:
+		return rpcpb.Exists
+	case NotExists:
+		return rpcpb.NotExists
+	}
+
+	return rpcpb.In
+}
+
 func validateOp(op LabelConstraintOp) bool {
 	return op == In || op == NotIn || op == Exists || op == NotExists
+}
+
+func getLabelConstraintOpFromRPC(op rpcpb.LabelConstraintOp) LabelConstraintOp {
+	switch op {
+	case rpcpb.In:
+		return In
+	case rpcpb.NotIn:
+		return NotIn
+	case rpcpb.Exists:
+		return Exists
+	case rpcpb.NotExists:
+		return NotExists
+	}
+
+	return In
 }
 
 // LabelConstraint is used to filter container when trying to place peer of a resource.
@@ -50,6 +82,15 @@ func (c *LabelConstraint) MatchContainer(container *core.CachedContainer) bool {
 		return container.GetLabelValue(c.Key) == ""
 	}
 	return false
+}
+
+// RPCLabelConstraint convert placement.LabelConstraint to rpcpb.LabelConstraint
+func (c LabelConstraint) RPCLabelConstraint() rpcpb.LabelConstraint {
+	return rpcpb.LabelConstraint{
+		Key:    c.Key,
+		Op:     c.Op.RPCLabelConstraintOp(),
+		Values: c.Values,
+	}
 }
 
 // For backward compatibility. Need to remove later.
@@ -77,4 +118,28 @@ func MatchLabelConstraints(container *core.CachedContainer, constraints []LabelC
 	}
 
 	return slice.AllOf(constraints, func(i int) bool { return constraints[i].MatchContainer(container) })
+}
+
+func newLabelConstraintsFromRPC(lcs []rpcpb.LabelConstraint) []LabelConstraint {
+	var values []LabelConstraint
+	for _, lc := range lcs {
+		values = append(values, newLabelConstraintFromRPC(lc))
+	}
+	return values
+}
+
+func newLabelConstraintFromRPC(lc rpcpb.LabelConstraint) LabelConstraint {
+	return LabelConstraint{
+		Key:    lc.Key,
+		Op:     getLabelConstraintOpFromRPC(lc.Op),
+		Values: lc.Values,
+	}
+}
+
+func toRPCLabelConstraints(lcs []LabelConstraint) []rpcpb.LabelConstraint {
+	var values []rpcpb.LabelConstraint
+	for _, lc := range lcs {
+		values = append(values, lc.RPCLabelConstraint())
+	}
+	return values
 }
