@@ -257,7 +257,8 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 	defer c.RUnlock()
 
 	var createResources []metadata.Resource
-	for _, data := range request.CreateResources.Resources {
+	var leastPeers []int
+	for idx, data := range request.CreateResources.Resources {
 		res := c.adapter.NewResource()
 		err := res.Unmarshal(data)
 		if err != nil {
@@ -304,10 +305,11 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 		createResources = append(createResources, res)
+		leastPeers = append(leastPeers, int(request.CreateResources.LeastPeers[idx]))
 	}
 
-	for _, res := range createResources {
-		err := c.coordinator.checkers.FillReplicas(core.NewCachedResource(res, nil))
+	for idx, res := range createResources {
+		err := c.coordinator.checkers.FillReplicas(core.NewCachedResource(res, nil), leastPeers[idx])
 		if err != nil {
 			return nil, err
 		}

@@ -76,11 +76,11 @@ func TestFillReplicasWithRule(t *testing.T) {
 
 	res := core.NewTestCachedResource(nil, nil)
 	res.Meta.SetPeers([]metapb.Peer{{ID: 1, ContainerID: 1}})
-	err := s.rc.FillReplicas(res)
+	err := s.rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
 	res.Meta.SetPeers(nil)
-	err = s.rc.FillReplicas(res)
+	err = s.rc.FillReplicas(res, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
 }

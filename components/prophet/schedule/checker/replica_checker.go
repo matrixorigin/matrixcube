@@ -1,7 +1,6 @@
 package checker
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -48,7 +47,7 @@ func (r *ReplicaChecker) GetType() string {
 }
 
 // FillReplicas make up all replica for a empty resource
-func (r *ReplicaChecker) FillReplicas(res *core.CachedResource) error {
+func (r *ReplicaChecker) FillReplicas(res *core.CachedResource, leastPeers int) error {
 	if len(res.Meta.Peers()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
@@ -62,12 +61,19 @@ func (r *ReplicaChecker) FillReplicas(res *core.CachedResource) error {
 	for i := 0; i < r.opts.GetMaxReplicas(); i++ {
 		container := rs.SelectContainerToAdd(resourceContainers)
 		if container == 0 {
-			return errors.New("no container to add peer")
+			break
 		}
+
 		peers := res.Meta.Peers()
 		peers = append(peers, metapb.Peer{ContainerID: container})
 		res.Meta.SetPeers(peers)
 	}
+
+	if (leastPeers == 0 && len(res.Meta.Peers()) == r.opts.GetMaxReplicas()) || // all peers matches
+		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
+		return nil
+	}
+
 	return nil
 }
 

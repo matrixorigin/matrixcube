@@ -44,6 +44,9 @@ type Client interface {
 	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
 	// all related containers to create resource replica peer at local.
 	AsyncAddResources(resources ...metadata.Resource) error
+	// AsyncAddResourcesWithLeastPeers same of `AsyncAddResources`, but if the number of peers successfully
+	// allocated exceed the `leastPeers`, no error will be returned.
+	AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error
 	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
 	// on the prophet leader cache and embed etcd. The resource actual destory triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
@@ -342,18 +345,23 @@ func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHear
 }
 
 func (c *asyncClient) AsyncAddResources(resources ...metadata.Resource) error {
+	return c.AsyncAddResourcesWithLeastPeers(resources, make([]int, len(resources)))
+}
+
+func (c *asyncClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
 	req := &rpcpb.Request{}
 	req.Type = rpcpb.TypeCreateResourcesReq
-	for _, res := range resources {
+	for idx, res := range resources {
 		data, err := res.Marshal()
 		if err != nil {
 			return err
 		}
 		req.CreateResources.Resources = append(req.CreateResources.Resources, data)
+		req.CreateResources.LeastPeers = append(req.CreateResources.LeastPeers, uint64(leastPeers[idx]))
 	}
 
 	_, err := c.syncDo(req)

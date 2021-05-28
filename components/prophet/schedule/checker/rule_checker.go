@@ -39,7 +39,7 @@ func (c *RuleChecker) GetType() string {
 }
 
 // FillReplicas make up all replica for a empty resource
-func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
+func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) error {
 	if len(res.Meta.Peers()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
@@ -49,14 +49,16 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
 		return fmt.Errorf("fill resource replicas cann't matches no rules")
 	}
 
+	cnt := 0
 	for _, rf := range fit.RuleFits {
+		cnt += rf.Rule.Count
 		rs := c.strategy(res, rf.Rule)
 		ruleContainers := c.getRuleFitContainers(rf)
 
 		for i := 0; i < rf.Rule.Count; i++ {
 			container := rs.SelectContainerToAdd(ruleContainers)
 			if container == 0 {
-				return errors.New("no container to add peer")
+				break
 			}
 
 			p := metapb.Peer{ContainerID: container}
@@ -73,11 +75,12 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
 		}
 	}
 
-	if len(res.Meta.Peers()) > 0 {
+	if (leastPeers == 0 && len(res.Meta.Peers()) == cnt) || // all rule peers matches
+		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
 		return nil
 	}
 
-	return fmt.Errorf("fill resource replicas cann't matches no voter rules")
+	return errors.New("no container to add peers")
 }
 
 // Check checks if the resource matches placement rules and returns Operator to

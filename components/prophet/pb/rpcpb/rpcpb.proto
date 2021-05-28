@@ -223,6 +223,7 @@ message CreateWatcherReq {
 // CreateResourcesReq create resources req
 message CreateResourcesReq {
     repeated bytes  resources   = 1;
+    repeated uint64 leastPeers  = 2;
 }
 
 // CreateResourcesRsp create resources rsp

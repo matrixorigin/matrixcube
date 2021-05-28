@@ -53,6 +53,7 @@ func newTestClusterStore(t *testing.T, initShardsFunc func() []bhmetapb.Shard) *
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", tmpDir, i)
 		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
+		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
 
 		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
 		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)

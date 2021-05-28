@@ -46,12 +46,12 @@ func NewCheckerController(ctx context.Context, cluster opt.Cluster, ruleManager 
 }
 
 // FillReplicas fill replicas for a empty resources
-func (c *CheckerController) FillReplicas(res *core.CachedResource) error {
+func (c *CheckerController) FillReplicas(res *core.CachedResource, leastPeers int) error {
 	if c.opts.IsPlacementRulesEnabled() {
-		return c.ruleChecker.FillReplicas(res)
+		return c.ruleChecker.FillReplicas(res, leastPeers)
 	}
 
-	return c.replicaChecker.FillReplicas(res)
+	return c.replicaChecker.FillReplicas(res, leastPeers)
 }
 
 // CheckResource will check the resource and add a new operator if needed.
