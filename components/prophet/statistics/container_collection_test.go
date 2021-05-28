@@ -36,7 +36,7 @@ func TestContainerStatistics(t *testing.T) {
 		containers = append(containers, s)
 	}
 
-	container3 := containers[3].Clone(core.SetContainerState(metapb.ContainerState_Offline))
+	container3 := containers[3].Clone(core.OfflineContainer(false))
 	containers[3] = container3
 	container4 := containers[4].Clone(core.SetLastHeartbeatTS(containers[4].GetLastHeartbeatTS().Add(-time.Hour)))
 	containers[4] = container4

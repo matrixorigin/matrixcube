@@ -129,13 +129,3 @@ func (conf *hotResourceSchedulerConfig) GetMinHotByteRate() float64 {
 	defer conf.RUnlock()
 	return conf.MinHotByteRate
 }
-
-func (conf *hotResourceSchedulerConfig) persist() error {
-	data, err := schedule.EncodeConfig(conf)
-	if err != nil {
-		return err
-
-	}
-	return conf.storage.SaveScheduleConfig(HotResourceName, data)
-
-}

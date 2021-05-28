@@ -1,6 +1,8 @@
 package core
 
 import (
+	"sort"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 )
@@ -14,14 +16,16 @@ type ResourceCreateOption func(res *CachedResource)
 // WithDownPeers sets the down peers for the resource.
 func WithDownPeers(downPeers []metapb.PeerStats) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.downPeers = downPeers
+		res.downPeers = append(downPeers[:0:0], downPeers...)
+		sort.Sort(peerStatsSlice(res.downPeers))
 	}
 }
 
 // WithPendingPeers sets the pending peers for the resource.
 func WithPendingPeers(pendingPeers []metapb.Peer) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.pendingPeers = pendingPeers
+		res.pendingPeers = append(pendingPeers[:0:0], pendingPeers...)
+		sort.Sort(peerSlice(res.pendingPeers))
 	}
 }
 
@@ -250,5 +254,12 @@ func WithReplacePeerContainer(oldContainerID, newContainerID uint64) ResourceCre
 				peers[i].ContainerID = newContainerID
 			}
 		}
+	}
+}
+
+// WithInterval sets the interval
+func WithInterval(interval *metapb.TimeInterval) ResourceCreateOption {
+	return func(res *CachedResource) {
+		res.stats.Interval = interval
 	}
 }

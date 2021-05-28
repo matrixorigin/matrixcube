@@ -9,7 +9,6 @@ import (
 // Delay is aotSize * mfSize * reportInterval/4
 // and the min filled period is aotSize * reportInterval, which is not related with mfSize
 type TimeMedian struct {
-	aotInterval   time.Duration
 	aot           *AvgOverTime
 	mf            *MedianFilter
 	aotSize       int
@@ -18,14 +17,12 @@ type TimeMedian struct {
 }
 
 // NewTimeMedian returns a TimeMedian with given size.
-func NewTimeMedian(aotSize, mfSize, reportInterval int) *TimeMedian {
-	interval := time.Duration(aotSize*reportInterval) * time.Second
+func NewTimeMedian(aotSize, mfSize int, reportInterval time.Duration) *TimeMedian {
 	return &TimeMedian{
-		aotInterval: interval,
-		aot:         NewAvgOverTime(interval),
-		mf:          NewMedianFilter(mfSize),
-		aotSize:     aotSize,
-		mfSize:      mfSize,
+		aot:     NewAvgOverTime(time.Duration(aotSize) * reportInterval),
+		mf:      NewMedianFilter(mfSize),
+		aotSize: aotSize,
+		mfSize:  mfSize,
 	}
 }
 

@@ -143,12 +143,23 @@ func (h *hotScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 }
 
 func (h *hotScheduler) allowBalanceLeader(cluster opt.Cluster) bool {
-	return h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit() &&
-		h.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	hotResourceAllowed := h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit()
+	leaderAllowed := h.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
+	if !hotResourceAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotResource.String()).Inc()
+	}
+	if !leaderAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpLeader.String()).Inc()
+	}
+	return hotResourceAllowed && leaderAllowed
 }
 
 func (h *hotScheduler) allowBalanceResource(cluster opt.Cluster) bool {
-	return h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit()
+	allowed := h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotResource.String()).Inc()
+	}
+	return allowed
 }
 
 func (h *hotScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
@@ -176,40 +187,29 @@ func (h *hotScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Ope
 func (h *hotScheduler) prepareForBalance(cluster opt.Cluster) {
 	h.summaryPendingInfluence()
 
-	containersStat := cluster.GetContainersStats()
+	containersLoads := cluster.GetContainersLoads()
 
-	minHotDegree := cluster.GetOpts().GetHotResourceCacheHitsThreshold()
 	{ // update read statistics
 		resourceRead := cluster.ResourceReadStats()
-		containerByte := containersStat.GetContainersBytesReadStat()
-		containerKey := containersStat.GetContainersKeysReadStat()
 		h.stLoadInfos[readLeader] = summaryContainersLoad(
-			containerByte,
-			containerKey,
+			containersLoads,
 			h.pendingSums[readLeader],
 			resourceRead,
-			minHotDegree,
 			read, metapb.ResourceKind_LeaderKind)
 	}
 
 	{ // update write statistics
 		resourceWrite := cluster.ResourceWriteStats()
-		containerByte := containersStat.GetContainersBytesWriteStat()
-		containerKey := containersStat.GetContainersKeysWriteStat()
 		h.stLoadInfos[writeLeader] = summaryContainersLoad(
-			containerByte,
-			containerKey,
+			containersLoads,
 			h.pendingSums[writeLeader],
 			resourceWrite,
-			minHotDegree,
 			write, metapb.ResourceKind_LeaderKind)
 
 		h.stLoadInfos[writePeer] = summaryContainersLoad(
-			containerByte,
-			containerKey,
+			containersLoads,
 			h.pendingSums[writePeer],
 			resourceWrite,
-			minHotDegree,
 			write, metapb.ResourceKind_ReplicaKind)
 	}
 }
@@ -250,30 +250,33 @@ func (h *hotScheduler) gcResourcePendings() {
 // summaryContainersLoad Load information of all available containers.
 // it will filtered the hot peer and calculate the current and future stat(byte/key rate,count) for each container
 func summaryContainersLoad(
-	containerByteRate map[uint64]float64,
-	containerKeyRate map[uint64]float64,
+	containersLoads map[uint64][]float64,
 	containerPendings map[uint64]Influence,
 	containerHotPeers map[uint64][]*statistics.HotPeerStat,
-	minHotDegree int,
 	rwTy rwType,
 	kind metapb.ResourceKind,
 ) map[uint64]*containerLoadDetail {
-	// loadDetail containers the containerID -> hotPeers stat and its current and future stat(key/byte rate,count)
-	loadDetail := make(map[uint64]*containerLoadDetail, len(containerByteRate))
+	// loadDetail stores the storeID -> hotPeers stat and its current and future stat(key/byte rate,count)
+	loadDetail := make(map[uint64]*containerLoadDetail, len(containersLoads))
 	allByteSum := 0.0
 	allKeySum := 0.0
 	allCount := 0.0
 
-	// Containers without byte rate statistics is not available to schedule.
-	for id, byteRate := range containerByteRate {
-		keyRate := containerKeyRate[id]
+	for id, loads := range containersLoads {
+		var byteRate, keyRate float64
+		switch rwTy {
+		case read:
+			byteRate, keyRate = loads[statistics.ContainerReadBytes], loads[statistics.ContainerReadKeys]
+		case write:
+			byteRate, keyRate = loads[statistics.ContainerWriteBytes], loads[statistics.ContainerWriteKeys]
+		}
 
 		// Find all hot peers first
 		var hotPeers []*statistics.HotPeerStat
 		{
 			byteSum := 0.0
 			keySum := 0.0
-			for _, peer := range filterHotPeers(kind, minHotDegree, containerHotPeers[id]) {
+			for _, peer := range filterHotPeers(kind, containerHotPeers[id]) {
 				byteSum += peer.GetByteRate()
 				keySum += peer.GetKeyRate()
 				hotPeers = append(hotPeers, peer.Clone())
@@ -300,22 +303,22 @@ func summaryContainersLoad(
 		allKeySum += keyRate
 		allCount += float64(len(hotPeers))
 
-		// Build container load prediction from current load and pending influence.
+		// Build store load prediction from current load and pending influence.
 		stLoadPred := (&containerLoad{
 			ByteRate: byteRate,
 			KeyRate:  keyRate,
 			Count:    float64(len(hotPeers)),
 		}).ToLoadPred(containerPendings[id])
 
-		// Construct container load info.
+		// Construct store load info.
 		loadDetail[id] = &containerLoadDetail{
 			LoadPred: stLoadPred,
 			HotPeers: hotPeers,
 		}
 	}
-	containerLen := float64(len(containerByteRate))
 
-	// container expectation byte/key rate and count for each container-load detail.
+	containerLen := float64(len(containersLoads))
+	// store expectation byte/key rate and count for each store-load detail.
 	for id, detail := range loadDetail {
 		byteExp := allByteSum / containerLen
 		keyExp := allKeySum / containerLen
@@ -343,13 +346,11 @@ func summaryContainersLoad(
 // filterHotPeers filter the peer whose hot degree is less than minHotDegress
 func filterHotPeers(
 	kind metapb.ResourceKind,
-	minHotDegree int,
 	peers []*statistics.HotPeerStat,
 ) []*statistics.HotPeerStat {
 	var ret []*statistics.HotPeerStat
 	for _, peer := range peers {
-		if (kind == metapb.ResourceKind_LeaderKind && !peer.IsLeader()) ||
-			peer.HotDegree < minHotDegree {
+		if kind == metapb.ResourceKind_LeaderKind && !peer.IsLeader() {
 			continue
 		}
 		ret = append(ret, peer)
@@ -376,7 +377,7 @@ func (h *hotScheduler) addPendingInfluence(op *operator.Operator, srcContainer, 
 		h.resourcePendings[resID] = tmp
 	}
 
-	schedulerStatus.WithLabelValues(h.GetName(), "pending_op_create").Inc()
+	schedulerStatus.WithLabelValues(h.GetName(), "pending_op_infos").Inc()
 	return true
 }
 
@@ -597,7 +598,9 @@ func (bs *balanceSolver) filterHotPeers() []*statistics.HotPeerStat {
 
 	// filter pending resource
 	appendItem := func(items []*statistics.HotPeerStat, item *statistics.HotPeerStat) []*statistics.HotPeerStat {
-		if _, ok := bs.sche.resourcePendings[item.ID()]; !ok {
+		minHotDegree := bs.cluster.GetOpts().GetHotResourceCacheHitsThreshold()
+		if _, ok := bs.sche.resourcePendings[item.ID()]; !ok && !item.IsNeedCoolDownTransferLeader(minHotDegree) {
+			// no in pending operator and no need cool down after transfer leader
 			items = append(items, item)
 		}
 		return items
@@ -727,7 +730,9 @@ func (bs *balanceSolver) filterDstContainers() map[uint64]*containerLoadDetail {
 			filter.NewPlacementSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcContainer, bs.cluster.GetResourceFactory()),
 		}
 
-		candidates = bs.cluster.GetContainers()
+		for containerID := range bs.stLoadDetail {
+			candidates = append(candidates, bs.cluster.GetContainer(containerID))
+		}
 
 	case transferLeader:
 		filters = []filter.Filter{
@@ -738,7 +743,11 @@ func (bs *balanceSolver) filterDstContainers() map[uint64]*containerLoadDetail {
 			filters = append(filters, leaderFilter)
 		}
 
-		candidates = bs.cluster.GetFollowerContainers(bs.cur.resource)
+		for _, container := range bs.cluster.GetFollowerContainers(bs.cur.resource) {
+			if _, ok := bs.stLoadDetail[container.Meta.ID()]; ok {
+				candidates = append(candidates, container)
+			}
+		}
 
 	default:
 		return nil
@@ -773,7 +782,7 @@ func (bs *balanceSolver) calcProgressiveRank() {
 	if bs.rwTy == write && bs.opTy == transferLeader {
 		// In this condition, CPU usage is the matter.
 		// Only consider about key rate.
-		if srcLd.KeyRate >= dstLd.KeyRate+peer.GetKeyRate() {
+		if srcLd.KeyRate-peer.GetKeyRate() >= dstLd.KeyRate+peer.GetKeyRate() {
 			rank = -1
 		}
 	} else {
@@ -792,13 +801,13 @@ func (bs *balanceSolver) calcProgressiveRank() {
 		greatDecRatio, minorDecRatio := bs.sche.conf.GetGreatDecRatio(), bs.sche.conf.GetMinorGreatDecRatio()
 		switch {
 		case byteHot && byteDecRatio <= greatDecRatio && keyHot && keyDecRatio <= greatDecRatio:
-			// Both byte rate and key rate are balanced, the best choice.
+			// If belong to the case, both byte rate and key rate will be more balanced, the best choice.
 			rank = -3
 		case byteDecRatio <= minorDecRatio && keyHot && keyDecRatio <= greatDecRatio:
-			// Byte rate is not worsened, key rate is balanced.
+			// If belong to the case, byte rate will be not worsened, key rate will be more balanced.
 			rank = -2
 		case byteHot && byteDecRatio <= greatDecRatio:
-			// Byte rate is balanced, ignore the key rate.
+			// If belong to the case, byte rate will be more balanced, ignore the key rate.
 			rank = -1
 		}
 	}

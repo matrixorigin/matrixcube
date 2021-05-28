@@ -45,7 +45,7 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 	newStats.UsedSize = uint64(float64(resourceSize)/amplification) * (1 << 20)
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
 	newContainer := s.Clone(
-		core.SetContainerStats(newStats),
+		core.SetNewContainerStats(newStats), // it means to use instant value directly
 		core.SetLeaderCount(leaderCount),
 		core.SetResourceCount(resourceCount),
 		core.SetPendingPeerCount(pendingPeerCount),

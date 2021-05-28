@@ -11,6 +11,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 // CreateAddPeerOperator creates an operator that adds a new peer.
@@ -36,14 +37,14 @@ func CreateRemovePeerOperator(desc string, cluster opt.Cluster, kind OpKind, res
 
 // CreateTransferLeaderOperator creates an operator that transfers the leader from a source container to a target container.
 func CreateTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, sourceContainerID uint64, targetContainerID uint64, kind OpKind) (*Operator, error) {
-	return NewBuilder(desc, cluster, res).
+	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).
 		SetLeader(targetContainerID).
 		Build(kind)
 }
 
 // CreateForceTransferLeaderOperator creates an operator that transfers the leader from a source container to a target container forcible.
 func CreateForceTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, sourceContainerID uint64, targetContainerID uint64, kind OpKind) (*Operator, error) {
-	return NewBuilder(desc, cluster, res).
+	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).
 		SetLeader(targetContainerID).
 		EnableForceTargetLeader().
 		Build(kind)
@@ -208,7 +209,7 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 	}
 
 	leader, ok := b.originPeers[b.originLeaderContainerID]
-	if !ok || (leader.Role == metapb.PeerRole_DemotingVoter || metadata.IsLearner(leader)) {
+	if !ok || !b.allowLeader(leader, true) {
 		b.targetLeaderContainerID = 0
 	} else {
 		b.targetLeaderContainerID = b.originLeaderContainerID
@@ -223,6 +224,16 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 
 	b.setTargetLeaderIfNotExist()
 	if b.targetLeaderContainerID == 0 {
+		// Because the demote leader will be rejected by TiKV,
+		// when the target leader cannot be found, we need to force a target to be found.
+		b.forceTargetLeader = true
+		b.setTargetLeaderIfNotExist()
+	}
+
+	if b.targetLeaderContainerID == 0 {
+		util.GetLogger().Errorf(
+			"resource %d unable to find target leader",
+			origin.Meta.ID())
 		b.originLeaderContainerID = 0
 	} else if b.originLeaderContainerID != b.targetLeaderContainerID {
 		kind |= OpLeader

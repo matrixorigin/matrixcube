@@ -79,6 +79,14 @@ func (ra *resourceAdapter) SetUnique(value string) {
 	ra.meta.Unique = value
 }
 
+func (ra *resourceAdapter) RuleGroups() []string {
+	return ra.meta.RuleGroups
+}
+
+func (ra *resourceAdapter) SetRuleGroups(values ...string) {
+	ra.meta.RuleGroups = values
+}
+
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
 	return protoc.MustMarshal(&ra.meta), nil
 }
@@ -173,8 +181,12 @@ func (ca *containerAdapter) SetLastHeartbeat(value int64) {
 	ca.meta.LastHeartbeatTime = value
 }
 
-func (ca *containerAdapter) ActionOnJoinCluster() metapb.Action {
-	return metapb.Action_None
+func (ca *containerAdapter) PhysicallyDestroyed() bool {
+	return ca.meta.PhysicallyDestroyed
+}
+
+func (ca *containerAdapter) SetPhysicallyDestroyed(v bool) {
+	ca.meta.PhysicallyDestroyed = v
 }
 
 func (ca *containerAdapter) Marshal() ([]byte, error) {

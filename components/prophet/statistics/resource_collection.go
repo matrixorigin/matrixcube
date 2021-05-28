@@ -25,18 +25,22 @@ const nonIsolation = "none"
 
 // ResourceStatistics is used to record the status of resources.
 type ResourceStatistics struct {
-	opt         *config.PersistOptions
-	stats       map[ResourceStatisticType]map[uint64]*core.CachedResource
-	index       map[uint64]ResourceStatisticType
-	ruleManager *placement.RuleManager
+	opt          *config.PersistOptions
+	stats        map[ResourceStatisticType]map[uint64]*core.CachedResource
+	offlineStats map[ResourceStatisticType]map[uint64]*core.CachedResource
+	index        map[uint64]ResourceStatisticType
+	offlineIndex map[uint64]ResourceStatisticType
+	ruleManager  *placement.RuleManager
 }
 
 // NewResourceStatistics creates a new ResourceStatistics.
 func NewResourceStatistics(opt *config.PersistOptions, ruleManager *placement.RuleManager) *ResourceStatistics {
 	r := &ResourceStatistics{
-		opt:   opt,
-		stats: make(map[ResourceStatisticType]map[uint64]*core.CachedResource),
-		index: make(map[uint64]ResourceStatisticType),
+		opt:          opt,
+		stats:        make(map[ResourceStatisticType]map[uint64]*core.CachedResource),
+		offlineStats: make(map[ResourceStatisticType]map[uint64]*core.CachedResource),
+		index:        make(map[uint64]ResourceStatisticType),
+		offlineIndex: make(map[uint64]ResourceStatisticType),
 	}
 	r.stats[MissPeer] = make(map[uint64]*core.CachedResource)
 	r.stats[ExtraPeer] = make(map[uint64]*core.CachedResource)
@@ -45,6 +49,14 @@ func NewResourceStatistics(opt *config.PersistOptions, ruleManager *placement.Ru
 	r.stats[OfflinePeer] = make(map[uint64]*core.CachedResource)
 	r.stats[LearnerPeer] = make(map[uint64]*core.CachedResource)
 	r.stats[EmptyResource] = make(map[uint64]*core.CachedResource)
+
+	r.offlineStats[MissPeer] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[ExtraPeer] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[DownPeer] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[PendingPeer] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[LearnerPeer] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[EmptyResource] = make(map[uint64]*core.CachedResource)
+	r.offlineStats[OfflinePeer] = make(map[uint64]*core.CachedResource)
 	r.ruleManager = ruleManager
 	return r
 }
@@ -58,10 +70,27 @@ func (r *ResourceStatistics) GetResourceStatsByType(typ ResourceStatisticType) [
 	return res
 }
 
+// GetOfflineResourceStatsByType gets the status of the offline region by types.
+func (r *ResourceStatistics) GetOfflineResourceStatsByType(typ ResourceStatisticType) []*core.CachedResource {
+	res := make([]*core.CachedResource, 0, len(r.stats[typ]))
+	for _, r := range r.offlineStats[typ] {
+		res = append(res, r)
+	}
+	return res
+}
+
 func (r *ResourceStatistics) deleteEntry(deleteIndex ResourceStatisticType, resID uint64) {
 	for typ := ResourceStatisticType(1); typ <= deleteIndex; typ <<= 1 {
 		if deleteIndex&typ != 0 {
 			delete(r.stats[typ], resID)
+		}
+	}
+}
+
+func (r *ResourceStatistics) deleteOfflineEntry(deleteIndex ResourceStatisticType, resID uint64) {
+	for typ := ResourceStatisticType(1); typ <= deleteIndex; typ <<= 1 {
+		if deleteIndex&typ != 0 {
+			delete(r.offlineStats[typ], resID)
 		}
 	}
 }
@@ -71,8 +100,9 @@ func (r *ResourceStatistics) Observe(res *core.CachedResource, containers []*cor
 	// Resource state.
 	resID := res.Meta.ID()
 	var (
-		peerTypeIndex ResourceStatisticType
-		deleteIndex   ResourceStatisticType
+		peerTypeIndex        ResourceStatisticType
+		offlinePeerTypeIndex ResourceStatisticType
+		deleteIndex          ResourceStatisticType
 	)
 	desiredReplicas := r.opt.GetMaxReplicas()
 	if r.opt.IsPlacementRulesEnabled() {
@@ -87,42 +117,48 @@ func (r *ResourceStatistics) Observe(res *core.CachedResource, containers []*cor
 		}
 	}
 
-	if len(res.Meta.Peers()) < desiredReplicas {
-		r.stats[MissPeer][resID] = res
-		peerTypeIndex |= MissPeer
-	} else if len(res.Meta.Peers()) > desiredReplicas {
-		r.stats[ExtraPeer][resID] = res
-		peerTypeIndex |= ExtraPeer
-	}
+	var isOffline bool
 
-	if len(res.GetDownPeers()) > 0 {
-		r.stats[DownPeer][resID] = res
-		peerTypeIndex |= DownPeer
-	}
-
-	if len(res.GetPendingPeers()) > 0 {
-		r.stats[PendingPeer][resID] = res
-		peerTypeIndex |= PendingPeer
-	}
-
-	if len(res.GetLearners()) > 0 {
-		r.stats[LearnerPeer][resID] = res
-		peerTypeIndex |= LearnerPeer
-	}
-
-	if res.GetApproximateSize() <= core.EmptyResourceApproximateSize {
-		r.stats[EmptyResource][resID] = res
-		peerTypeIndex |= EmptyResource
-	}
-
-	for _, container := range containers {
-		if container.IsOffline() {
-			if _, ok := res.GetContainerPeer(container.Meta.ID()); ok {
-				r.stats[OfflinePeer][resID] = res
-				peerTypeIndex |= OfflinePeer
+	for _, store := range containers {
+		if store.IsOffline() {
+			_, ok := res.GetContainerPeer(store.Meta.ID())
+			if ok {
+				isOffline = true
+				break
 			}
 		}
 	}
+
+	conditions := map[ResourceStatisticType]bool{
+		MissPeer:      len(res.Meta.Peers()) < desiredReplicas,
+		ExtraPeer:     len(res.Meta.Peers()) > desiredReplicas,
+		DownPeer:      len(res.GetDownPeers()) > 0,
+		PendingPeer:   len(res.GetPendingPeers()) > 0,
+		LearnerPeer:   len(res.GetLearners()) > 0,
+		EmptyResource: res.GetApproximateSize() <= core.EmptyResourceApproximateSize,
+	}
+
+	for typ, c := range conditions {
+		if c {
+			if isOffline {
+				r.offlineStats[typ][resID] = res
+				offlinePeerTypeIndex |= typ
+			}
+			r.stats[typ][resID] = res
+			peerTypeIndex |= typ
+		}
+	}
+
+	if isOffline {
+		r.offlineStats[OfflinePeer][resID] = res
+		offlinePeerTypeIndex |= OfflinePeer
+	}
+
+	if oldIndex, ok := r.offlineIndex[resID]; ok {
+		deleteIndex = oldIndex &^ offlinePeerTypeIndex
+	}
+	r.deleteOfflineEntry(deleteIndex, resID)
+	r.offlineIndex[resID] = offlinePeerTypeIndex
 
 	if oldIndex, ok := r.index[resID]; ok {
 		deleteIndex = oldIndex &^ peerTypeIndex
@@ -144,14 +180,22 @@ func (r *ResourceStatistics) Collect() {
 	resourceStatusGauge.WithLabelValues("extra-peer-resource-count").Set(float64(len(r.stats[ExtraPeer])))
 	resourceStatusGauge.WithLabelValues("down-peer-resource-count").Set(float64(len(r.stats[DownPeer])))
 	resourceStatusGauge.WithLabelValues("pending-peer-resource-count").Set(float64(len(r.stats[PendingPeer])))
-	resourceStatusGauge.WithLabelValues("offline-peer-resource-count").Set(float64(len(r.stats[OfflinePeer])))
 	resourceStatusGauge.WithLabelValues("learner-peer-resource-count").Set(float64(len(r.stats[LearnerPeer])))
 	resourceStatusGauge.WithLabelValues("empty-resource-count").Set(float64(len(r.stats[EmptyResource])))
+
+	offlineResourceStatusGauge.WithLabelValues("miss-peer-resource-count").Set(float64(len(r.offlineStats[MissPeer])))
+	offlineResourceStatusGauge.WithLabelValues("extra-peer-resource-count").Set(float64(len(r.offlineStats[ExtraPeer])))
+	offlineResourceStatusGauge.WithLabelValues("down-peer-resource-count").Set(float64(len(r.offlineStats[DownPeer])))
+	offlineResourceStatusGauge.WithLabelValues("pending-peer-resource-count").Set(float64(len(r.offlineStats[PendingPeer])))
+	offlineResourceStatusGauge.WithLabelValues("learner-peer-resource-count").Set(float64(len(r.offlineStats[LearnerPeer])))
+	offlineResourceStatusGauge.WithLabelValues("empty-resource-count").Set(float64(len(r.offlineStats[EmptyResource])))
+	offlineResourceStatusGauge.WithLabelValues("offline-peer-resource-count").Set(float64(len(r.offlineStats[OfflinePeer])))
 }
 
 // Reset resets the metrics of the resources' status.
 func (r *ResourceStatistics) Reset() {
 	resourceStatusGauge.Reset()
+	offlineResourceStatusGauge.Reset()
 }
 
 // LabelStatistics is the statistics of the level of labels.
@@ -176,10 +220,10 @@ func (l *LabelStatistics) Observe(res *core.CachedResource, containers []*core.C
 		if label == resourceIsolation {
 			return
 		}
-		l.counterDec(label)
+		l.labelCounter[label]--
 	}
 	l.resourceLabelStats[resID] = resourceIsolation
-	l.counterInc(resourceIsolation)
+	l.labelCounter[resourceIsolation]++
 }
 
 // Collect collects the metrics of the label status.
@@ -195,26 +239,10 @@ func (l *LabelStatistics) Reset() {
 }
 
 // ClearDefunctResource is used to handle the overlap resource.
-func (l *LabelStatistics) ClearDefunctResource(resID uint64, labels []string) {
+func (l *LabelStatistics) ClearDefunctResource(resID uint64) {
 	if label, ok := l.resourceLabelStats[resID]; ok {
-		l.counterDec(label)
-		delete(l.resourceLabelStats, resID)
-	}
-}
-
-func (l *LabelStatistics) counterInc(label string) {
-	if label == nonIsolation {
-		l.labelCounter[nonIsolation]++
-	} else {
-		l.labelCounter[label]++
-	}
-}
-
-func (l *LabelStatistics) counterDec(label string) {
-	if label == nonIsolation {
-		l.labelCounter[nonIsolation]--
-	} else {
 		l.labelCounter[label]--
+		delete(l.resourceLabelStats, resID)
 	}
 }
 
@@ -240,18 +268,40 @@ func getResourceLabelIsolation(containers []*core.CachedContainer, labels []stri
 }
 
 func notIsolatedContainersWithLabel(containers []*core.CachedContainer, label string) [][]*core.CachedContainer {
-	m := make(map[string][]*core.CachedContainer)
+	var emptyValueStores []*core.CachedContainer
+	valueStoresMap := make(map[string][]*core.CachedContainer)
+
 	for _, s := range containers {
 		labelValue := s.GetLabelValue(label)
 		if labelValue == "" {
-			continue
+			emptyValueStores = append(emptyValueStores, s)
+		} else {
+			valueStoresMap[labelValue] = append(valueStoresMap[labelValue], s)
 		}
-		m[labelValue] = append(m[labelValue], s)
 	}
+
+	if len(valueStoresMap) == 0 {
+		// Usually it is because all TiKVs lack this label.
+		if len(emptyValueStores) > 1 {
+			return [][]*core.CachedContainer{emptyValueStores}
+		}
+		return nil
+	}
+
 	var res [][]*core.CachedContainer
-	for _, caches := range m {
-		if len(caches) > 1 {
-			res = append(res, caches)
+	if len(emptyValueStores) == 0 {
+		// No TiKV lacks this label.
+		for _, stores := range valueStoresMap {
+			if len(stores) > 1 {
+				res = append(res, stores)
+			}
+		}
+	} else {
+		// Usually it is because some TiKVs lack this label.
+		// The TiKVs in each label and the TiKVs without label form a group.
+		for _, stores := range valueStoresMap {
+			stores = append(stores, emptyValueStores...)
+			res = append(res, stores)
 		}
 	}
 	return res

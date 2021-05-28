@@ -169,7 +169,23 @@ func (l *scatterRangeScheduler) EncodeConfig() ([]byte, error) {
 }
 
 func (l *scatterRangeScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return l.OpController.OperatorCount(operator.OpRange) < cluster.GetOpts().GetResourceScheduleLimit()
+	return l.allowBalanceLeader(cluster) || l.allowBalanceResource(cluster)
+}
+
+func (l *scatterRangeScheduler) allowBalanceLeader(cluster opt.Cluster) bool {
+	allowed := l.OpController.OperatorCount(operator.OpRange) < cluster.GetOpts().GetLeaderScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(l.GetType(), operator.OpLeader.String()).Inc()
+	}
+	return allowed
+}
+
+func (l *scatterRangeScheduler) allowBalanceResource(cluster opt.Cluster) bool {
+	allowed := l.OpController.OperatorCount(operator.OpRange) < cluster.GetOpts().GetResourceScheduleLimit()
+	if !allowed {
+		operator.OperatorLimitCounter.WithLabelValues(l.GetType(), operator.OpResource.String()).Inc()
+	}
+	return allowed
 }
 
 func (l *scatterRangeScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
@@ -177,25 +193,31 @@ func (l *scatterRangeScheduler) Schedule(cluster opt.Cluster) []*operator.Operat
 	// isolate a new cluster according to the key range
 	c := schedule.GenRangeCluster(cluster, l.config.GetStartKey(), l.config.GetEndKey())
 	c.SetTolerantSizeRatio(2)
-	ops := l.balanceLeader.Schedule(c)
-	if len(ops) > 0 {
-		ops[0].SetDesc(fmt.Sprintf("scatter-range-leader-%s", l.config.RangeName))
-		ops[0].AttachKind(operator.OpRange)
-		ops[0].Counters = append(ops[0].Counters,
-			schedulerCounter.WithLabelValues(l.GetName(), "new-operator"),
-			schedulerCounter.WithLabelValues(l.GetName(), "new-leader-operator"))
-		return ops
+	if l.allowBalanceLeader(cluster) {
+		ops := l.balanceLeader.Schedule(c)
+		if len(ops) > 0 {
+			ops[0].SetDesc(fmt.Sprintf("scatter-range-leader-%s", l.config.RangeName))
+			ops[0].AttachKind(operator.OpRange)
+			ops[0].Counters = append(ops[0].Counters,
+				schedulerCounter.WithLabelValues(l.GetName(), "new-operator"),
+				schedulerCounter.WithLabelValues(l.GetName(), "new-leader-operator"))
+			return ops
+		}
+		schedulerCounter.WithLabelValues(l.GetName(), "no-need-balance-leader").Inc()
 	}
-	ops = l.balanceResource.Schedule(c)
-	if len(ops) > 0 {
-		ops[0].SetDesc(fmt.Sprintf("scatter-range-resource-%s", l.config.RangeName))
-		ops[0].AttachKind(operator.OpRange)
-		ops[0].Counters = append(ops[0].Counters,
-			schedulerCounter.WithLabelValues(l.GetName(), "new-operator"),
-			schedulerCounter.WithLabelValues(l.GetName(), "new-resource-operator"),
-		)
-		return ops
+	if l.allowBalanceResource(cluster) {
+		ops := l.balanceResource.Schedule(c)
+		if len(ops) > 0 {
+			ops[0].SetDesc(fmt.Sprintf("scatter-range-resource-%s", l.config.RangeName))
+			ops[0].AttachKind(operator.OpRange)
+			ops[0].Counters = append(ops[0].Counters,
+				schedulerCounter.WithLabelValues(l.GetName(), "new-operator"),
+				schedulerCounter.WithLabelValues(l.GetName(), "new-resource-operator"),
+			)
+			return ops
+		}
+		schedulerCounter.WithLabelValues(l.GetName(), "no-need-balance-resource").Inc()
 	}
-	schedulerCounter.WithLabelValues(l.GetName(), "no-need").Inc()
+
 	return nil
 }

@@ -3,6 +3,7 @@ package statistics
 import (
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -31,7 +32,7 @@ func TestContainerTimeUnsync(t *testing.T) {
 
 		checkAndUpdate(t, cache, resource, 3)
 		{
-			stats := cache.ResourceStats()
+			stats := cache.ResourceStats(0)
 			assert.Equal(t, 3, len(stats))
 			for _, s := range stats {
 				assert.Equal(t, 1, len(s))
@@ -195,4 +196,99 @@ func newPeers(n int, pid genID, sid genID) []metapb.Peer {
 		peers = append(peers, peer)
 	}
 	return peers
+}
+
+func TestUpdateHotPeerStat(t *testing.T) {
+	cache := newHotContainersStats(ReadFlow)
+
+	// skip interval=0
+	newItem := &HotPeerStat{needDelete: false, thresholds: [2]float64{0.0, 0.0}}
+	newItem = cache.updateHotPeerStat(newItem, nil, 0, 0, 0)
+	assert.Nil(t, newItem)
+
+	// new peer, interval is larger than report interval, but no hot
+	newItem = &HotPeerStat{needDelete: false, thresholds: [2]float64{1.0, 1.0}}
+	newItem = cache.updateHotPeerStat(newItem, nil, 0, 0, 60*time.Second)
+	assert.Nil(t, newItem)
+
+	// new peer, interval is less than report interval
+	newItem = &HotPeerStat{needDelete: false, thresholds: [2]float64{0.0, 0.0}}
+	newItem = cache.updateHotPeerStat(newItem, nil, 60, 60, 30*time.Second)
+	assert.NotNil(t, newItem)
+	assert.Equal(t, 0, newItem.HotDegree)
+	assert.Equal(t, 0, newItem.AntiCount)
+	// sum of interval is less than report interval
+	oldItem := newItem
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 10*time.Second)
+	assert.Equal(t, 0, newItem.HotDegree)
+	assert.Equal(t, 0, newItem.AntiCount)
+	// sum of interval is larger than report interval, and hot
+	oldItem = newItem
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 30*time.Second)
+	assert.Equal(t, 1, newItem.HotDegree)
+	assert.Equal(t, 2, newItem.AntiCount)
+	// sum of interval is less than report interval
+	oldItem = newItem
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 10*time.Second)
+	assert.Equal(t, 1, newItem.HotDegree)
+	assert.Equal(t, 2, newItem.AntiCount)
+	// sum of interval is larger than report interval, and hot
+	oldItem = newItem
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 50*time.Second)
+	assert.Equal(t, 2, newItem.HotDegree)
+	assert.Equal(t, 2, newItem.AntiCount)
+	// sum of interval is larger than report interval, and cold
+	oldItem = newItem
+	newItem.thresholds = [2]float64{10.0, 10.0}
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 60*time.Second)
+	assert.Equal(t, 1, newItem.HotDegree)
+	assert.Equal(t, 1, newItem.AntiCount)
+	// sum of interval is larger than report interval, and cold
+	oldItem = newItem
+	newItem = cache.updateHotPeerStat(newItem, oldItem, 60, 60, 60*time.Second)
+	assert.Equal(t, 0, newItem.HotDegree)
+	assert.Equal(t, 0, newItem.AntiCount)
+	assert.True(t, newItem.needDelete)
+}
+
+func TestThresholdWithUpdateHotPeerStat(t *testing.T) {
+	byteRate := minHotThresholds[ReadFlow][byteDim] * 2
+	expectThreshold := byteRate * HotThresholdRatio
+	testMetrics(t, 120., byteRate, expectThreshold)
+	testMetrics(t, 60., byteRate, expectThreshold)
+	testMetrics(t, 30., byteRate, expectThreshold)
+	testMetrics(t, 17., byteRate, expectThreshold)
+	testMetrics(t, 1., byteRate, expectThreshold)
+}
+func testMetrics(t *testing.T, interval, byteRate, expectThreshold float64) {
+	cache := newHotContainersStats(ReadFlow)
+	minThresholds := minHotThresholds[cache.kind]
+	containerID := uint64(1)
+	assert.True(t, byteRate >= minThresholds[byteDim])
+	for i := uint64(1); i < TopNN+10; i++ {
+		var oldItem *HotPeerStat
+		for {
+			thresholds := cache.calcHotThresholds(containerID)
+			newItem := &HotPeerStat{
+				ContainerID: containerID,
+				ResourceID:  i,
+				needDelete:  false,
+				thresholds:  thresholds,
+				ByteRate:    byteRate,
+				KeyRate:     0,
+			}
+			oldItem = cache.getOldHotPeerStat(i, containerID)
+			if oldItem != nil && oldItem.rollingByteRate.isHot(thresholds) == true {
+				break
+			}
+			item := cache.updateHotPeerStat(newItem, oldItem, byteRate*interval, 0, time.Duration(interval)*time.Second)
+			cache.Update(item)
+		}
+		thresholds := cache.calcHotThresholds(containerID)
+		if i < TopNN {
+			assert.Equal(t, minThresholds[byteDim], thresholds[byteDim])
+		} else {
+			assert.Equal(t, expectThreshold, thresholds[byteDim])
+		}
+	}
 }

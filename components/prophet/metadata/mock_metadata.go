@@ -16,16 +16,17 @@ var (
 
 // TestResource test resource
 type TestResource struct {
-	ResID     uint64               `json:"id"`
-	Version   uint64               `json:"version"`
-	ResPeers  []metapb.Peer        `json:"peers"`
-	ResLabels []metapb.Pair        `json:"labels"`
-	Start     []byte               `json:"start"`
-	End       []byte               `json:"end"`
-	ResEpoch  metapb.ResourceEpoch `json:"epoch"`
-	ResState  metapb.ResourceState `json:"state"`
-	ResUnique string               `json:"unique"`
-	Err       bool                 `json:"-"`
+	ResID         uint64               `json:"id"`
+	Version       uint64               `json:"version"`
+	ResPeers      []metapb.Peer        `json:"peers"`
+	ResLabels     []metapb.Pair        `json:"labels"`
+	Start         []byte               `json:"start"`
+	End           []byte               `json:"end"`
+	ResEpoch      metapb.ResourceEpoch `json:"epoch"`
+	ResState      metapb.ResourceState `json:"state"`
+	ResUnique     string               `json:"unique"`
+	ResRuleGroups []string             `json:"rule-groups"`
+	Err           bool                 `json:"-"`
 }
 
 // NewTestResource create test resource
@@ -103,12 +104,24 @@ func (res *TestResource) Labels() []metapb.Pair {
 	return res.ResLabels
 }
 
+// Unique mock
 func (res *TestResource) Unique() string {
 	return res.ResUnique
 }
 
+// SetUnique mock
 func (res *TestResource) SetUnique(value string) {
 	res.ResUnique = value
+}
+
+// RuleGroups mock
+func (res *TestResource) RuleGroups() []string {
+	return res.ResRuleGroups
+}
+
+// SetRuleGroups mock
+func (res *TestResource) SetRuleGroups(ruleGroups ...string) {
+	res.ResRuleGroups = ruleGroups
 }
 
 // Clone mock
@@ -154,15 +167,16 @@ func (res *TestResource) SupportTransferLeader() bool {
 
 // TestContainer mock
 type TestContainer struct {
-	CID            uint64        `json:"cid"`
-	CAddr          string        `json:"addr"`
-	CShardAddr     string        `json:"shardAddr"`
-	CLabels        []metapb.Pair `json:"labels"`
-	StartTS        int64         `json:"startTS"`
-	CLastHeartbeat int64         `json:"lastHeartbeat"`
-	CVerion        string        `json:"version"`
-	CGitHash       string        `json:"gitHash"`
-	CDeployPath    string        `json:"deployPath"`
+	CID                  uint64        `json:"cid"`
+	CAddr                string        `json:"addr"`
+	CShardAddr           string        `json:"shardAddr"`
+	CLabels              []metapb.Pair `json:"labels"`
+	StartTS              int64         `json:"startTS"`
+	CLastHeartbeat       int64         `json:"lastHeartbeat"`
+	CVerion              string        `json:"version"`
+	CGitHash             string        `json:"gitHash"`
+	CDeployPath          string        `json:"deployPath"`
+	CPhysicallyDestroyed bool          `json:"physicallyDestroyed"`
 
 	CState  metapb.ContainerState `json:"state"`
 	CAction metapb.Action         `json:"action"`
@@ -260,9 +274,14 @@ func (c *TestContainer) SetState(state metapb.ContainerState) {
 	c.CState = state
 }
 
-// ActionOnJoinCluster mock
-func (c *TestContainer) ActionOnJoinCluster() metapb.Action {
-	return c.CAction
+// PhysicallyDestroyed mock
+func (c *TestContainer) PhysicallyDestroyed() bool {
+	return c.CPhysicallyDestroyed
+}
+
+// SetPhysicallyDestroyed mock
+func (c *TestContainer) SetPhysicallyDestroyed(v bool) {
+	c.CPhysicallyDestroyed = v
 }
 
 // Clone mock

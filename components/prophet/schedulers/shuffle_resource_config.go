@@ -49,11 +49,3 @@ func (conf *shuffleResourceSchedulerConfig) IsRoleAllow(role string) bool {
 	defer conf.RUnlock()
 	return slice.AnyOf(conf.Roles, func(i int) bool { return conf.Roles[i] == role })
 }
-
-func (conf *shuffleResourceSchedulerConfig) persist() error {
-	data, err := schedule.EncodeConfig(conf)
-	if err != nil {
-		return err
-	}
-	return conf.storage.SaveScheduleConfig(ShuffleResourceName, data)
-}

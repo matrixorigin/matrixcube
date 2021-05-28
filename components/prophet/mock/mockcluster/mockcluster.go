@@ -2,6 +2,7 @@ package mockcluster
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -89,9 +90,9 @@ func (mc *Cluster) LoadResource(resID uint64, followerIds ...uint64) {
 	mc.PutResource(r)
 }
 
-// GetContainersStats gets containers statistics.
-func (mc *Cluster) GetContainersStats() *statistics.ContainersStats {
-	return mc.HotStat.ContainersStats
+// GetContainersLoads gets stores load statistics.
+func (mc *Cluster) GetContainersLoads() map[uint64][]float64 {
+	return mc.HotStat.GetContainersLoads()
 }
 
 // GetContainerResourceCount gets resource count with a given container.
@@ -109,14 +110,16 @@ func (mc *Cluster) IsResourceHot(res *core.CachedResource) bool {
 	return mc.HotCache.IsResourceHot(res, mc.GetHotResourceCacheHitsThreshold())
 }
 
-// ResourceReadStats returns hot resource's read stats.
+// ResourceReadStats returns hot Resource's read stats.
+// The result only includes peers that are hot enough.
 func (mc *Cluster) ResourceReadStats() map[uint64][]*statistics.HotPeerStat {
-	return mc.HotCache.ResourceStats(statistics.ReadFlow)
+	return mc.HotCache.ResourceStats(statistics.ReadFlow, mc.GetHotResourceCacheHitsThreshold())
 }
 
-// ResourceWriteStats returns hot resource's write stats.
+// ResourceWriteStats returns hot Resource's write stats.
+// The result only includes peers that are hot enough.
 func (mc *Cluster) ResourceWriteStats() map[uint64][]*statistics.HotPeerStat {
-	return mc.HotCache.ResourceStats(statistics.WriteFlow)
+	return mc.HotCache.ResourceStats(statistics.WriteFlow, mc.GetHotResourceCacheHitsThreshold())
 }
 
 // RandHotResourceFromContainer random picks a hot resource in specify container.
@@ -143,7 +146,7 @@ func (mc *Cluster) AllocPeer(containerID uint64) (metapb.Peer, error) {
 
 func (mc *Cluster) initRuleManager() {
 	if mc.RuleManager == nil {
-		mc.RuleManager = placement.NewRuleManager(mc.storage)
+		mc.RuleManager = placement.NewRuleManager(mc.storage, mc)
 		mc.RuleManager.Initialize(int(mc.GetReplicationConfig().MaxReplicas), mc.GetReplicationConfig().LocationLabels)
 	}
 }
@@ -162,7 +165,7 @@ func (mc *Cluster) GetRuleManager() *placement.RuleManager {
 func (mc *Cluster) SetContainerUP(containerID uint64) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetContainerState(metapb.ContainerState_UP),
+		core.UpContainer(),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.PutContainer(newContainer)
@@ -172,7 +175,7 @@ func (mc *Cluster) SetContainerUP(containerID uint64) {
 func (mc *Cluster) SetContainerDisconnect(containerID uint64) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetContainerState(metapb.ContainerState_UP),
+		core.UpContainer(),
 		core.SetLastHeartbeatTS(time.Now().Add(-time.Second*30)),
 	)
 	mc.PutContainer(newContainer)
@@ -182,7 +185,7 @@ func (mc *Cluster) SetContainerDisconnect(containerID uint64) {
 func (mc *Cluster) SetContainerDown(containerID uint64) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetContainerState(metapb.ContainerState_UP),
+		core.UpContainer(),
 		core.SetLastHeartbeatTS(time.Time{}),
 	)
 	mc.PutContainer(newContainer)
@@ -191,7 +194,7 @@ func (mc *Cluster) SetContainerDown(containerID uint64) {
 // SetContainerOffline sets container state to be offline.
 func (mc *Cluster) SetContainerOffline(containerID uint64) {
 	container := mc.GetContainer(containerID)
-	newContainer := container.Clone(core.SetContainerState(metapb.ContainerState_Offline))
+	newContainer := container.Clone(core.OfflineContainer(false))
 	mc.PutContainer(newContainer)
 }
 
@@ -324,19 +327,25 @@ func (mc *Cluster) AddLeaderResourceWithReadInfo(
 	resID uint64, leaderID uint64,
 	readBytes, readKeys uint64,
 	reportInterval uint64,
-	followerIds []uint64) {
+	followerIds []uint64, filledNums ...int) []*statistics.HotPeerStat {
 	r := mc.newMockCachedResource(resID, leaderID, followerIds...)
 	r = r.Clone(core.SetReadBytes(readBytes))
 	r = r.Clone(core.SetReadKeys(readKeys))
 	r = r.Clone(core.SetReportInterval(reportInterval))
-	num := mc.HotCache.GetFilledPeriod(statistics.ReadFlow)
-	for i := 0; i < num; i++ {
-		items := mc.HotCache.CheckRead(r)
+	filledNum := mc.HotCache.GetFilledPeriod(statistics.ReadFlow)
+	if len(filledNums) > 0 {
+		filledNum = filledNums[0]
+	}
+
+	var items []*statistics.HotPeerStat
+	for i := 0; i < filledNum; i++ {
+		items = mc.HotCache.CheckRead(r)
 		for _, item := range items {
 			mc.HotCache.Update(item)
 		}
 	}
 	mc.PutResource(r)
+	return items
 }
 
 // AddLeaderResourceWithWriteInfo adds resource with specified leader, followers and write info.
@@ -344,19 +353,26 @@ func (mc *Cluster) AddLeaderResourceWithWriteInfo(
 	resID uint64, leaderID uint64,
 	writtenBytes, writtenKeys uint64,
 	reportInterval uint64,
-	followerIds []uint64) {
+	followerIds []uint64, filledNums ...int) []*statistics.HotPeerStat {
 	r := mc.newMockCachedResource(resID, leaderID, followerIds...)
 	r = r.Clone(core.SetWrittenBytes(writtenBytes))
 	r = r.Clone(core.SetWrittenKeys(writtenKeys))
 	r = r.Clone(core.SetReportInterval(reportInterval))
-	num := mc.HotCache.GetFilledPeriod(statistics.WriteFlow)
-	for i := 0; i < num; i++ {
-		items := mc.HotCache.CheckWrite(r)
+
+	filledNum := mc.HotCache.GetFilledPeriod(statistics.WriteFlow)
+	if len(filledNums) > 0 {
+		filledNum = filledNums[0]
+	}
+
+	var items []*statistics.HotPeerStat
+	for i := 0; i < filledNum; i++ {
+		items = mc.HotCache.CheckWrite(r)
 		for _, item := range items {
 			mc.HotCache.Update(item)
 		}
 	}
 	mc.PutResource(r)
+	return items
 }
 
 // UpdateContainerLeaderWeight updates container leader weight.
@@ -570,7 +586,11 @@ func (mc *Cluster) CheckLabelProperty(typ string, labels []metapb.Pair) bool {
 
 // PutResourceContainers mocks method.
 func (mc *Cluster) PutResourceContainers(id uint64, containerIDs ...uint64) {
-	meta := &metadata.TestResource{ResID: id}
+	meta := &metadata.TestResource{
+		ResID: id,
+		Start: []byte(strconv.FormatUint(id, 10)),
+		End:   []byte(strconv.FormatUint(id+1, 10)),
+	}
 	for _, id := range containerIDs {
 		meta.ResPeers = append(meta.ResPeers, metapb.Peer{ContainerID: id})
 	}

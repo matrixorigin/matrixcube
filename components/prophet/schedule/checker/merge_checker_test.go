@@ -17,16 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestMergeChecker(t *testing.T) {
-// 	TestingT(t)
-// }
-
-// func TestMain(m *testing.M) {
-// 	goleak.VerifyTestMain(m, testutil.LeakOptions...)
-// }
-
-// var _ = Suite(&testMergeCheckerSuite{})
-
 type testMergeChecker struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -106,8 +96,8 @@ func (s *testMergeChecker) setup() {
 				},
 			},
 			&metapb.Peer{ID: 109, ContainerID: 4},
-			core.SetApproximateSize(10),
-			core.SetApproximateKeys(10),
+			core.SetApproximateSize(1),
+			core.SetApproximateKeys(1),
 		),
 	}
 
@@ -206,10 +196,19 @@ func TestBasic(t *testing.T) {
 	assert.NotNil(t, ops)
 	assert.Equal(t, ops[0].ResourceID(), s.resources[2].Meta.ID())
 	assert.Equal(t, ops[1].ResourceID(), s.resources[1].Meta.ID())
-	s.cluster.RuleManager.DeleteRule("test", "test")
+	s.cluster.RuleManager.DeleteRule("prophet", "test")
 
 	// Skip recently split resources.
 	s.cluster.SetSplitMergeInterval(time.Hour)
+	ops = s.mc.Check(s.resources[2])
+	assert.Empty(t, ops)
+
+	s.mc.startTime = time.Now().Add(-2 * time.Hour)
+	ops = s.mc.Check(s.resources[2])
+	assert.NotEmpty(t, ops)
+	ops = s.mc.Check(s.resources[3])
+	assert.NotEmpty(t, ops)
+
 	s.mc.RecordResourceSplit([]uint64{s.resources[2].Meta.ID()})
 	ops = s.mc.Check(s.resources[2])
 	assert.Nil(t, ops)

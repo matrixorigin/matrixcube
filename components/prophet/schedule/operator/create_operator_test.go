@@ -22,7 +22,7 @@ type testCreateOperator struct {
 
 func (s *testCreateOperator) setup() {
 	opts := config.NewTestOptions()
-	opts.SetEnableJointConsensus(true)
+	opts.GetScheduleConfig().EnableJointConsensus = true
 	s.cluster = mockcluster.NewCluster(opts)
 	s.cluster.SetLabelPropertyConfig(config.LabelPropertyConfig{
 		opt.RejectLeader: {{Key: "noleader", Value: "true"}},
@@ -269,14 +269,114 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 	}
 }
 
+func TestCreateTransferLeaderOperator(t *testing.T) {
+	s := &testCreateOperator{}
+	s.setup()
+
+	type testCase struct {
+		originPeers             []metapb.Peer // first is leader
+		targetLeaderContainerID uint64
+		isErr                   bool
+	}
+	cases := []testCase{
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			},
+			targetLeaderContainerID: 3,
+			isErr:                   false,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			},
+			targetLeaderContainerID: 1,
+			isErr:                   true,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			},
+			targetLeaderContainerID: 4,
+			isErr:                   true,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
+			},
+			targetLeaderContainerID: 3,
+			isErr:                   true,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			targetLeaderContainerID: 3,
+			isErr:                   true,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			targetLeaderContainerID: 4,
+			isErr:                   false,
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			targetLeaderContainerID: 3,
+			isErr:                   false,
+		},
+	}
+	for _, tc := range cases {
+		region := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: tc.originPeers}, &tc.originPeers[0])
+		op, err := CreateTransferLeaderOperator("test", s.cluster, region, tc.originPeers[0].ContainerID, tc.targetLeaderContainerID, 0)
+
+		if tc.isErr {
+			assert.Error(t, err)
+			continue
+		}
+
+		assert.NoError(t, err)
+		assert.Equal(t, OpLeader, op.Kind())
+		assert.Equal(t, 1, len(op.steps))
+		switch step := op.Step(0).(type) {
+		case TransferLeader:
+			assert.Equal(t, tc.originPeers[0].ContainerID, step.FromContainer)
+			assert.Equal(t, tc.targetLeaderContainerID, step.ToContainer)
+		default:
+			assert.Failf(t, "unexpected type: %s", step.String())
+		}
+	}
+}
+
 func TestCreateLeaveJointStateOperator(t *testing.T) {
 	s := &testCreateOperator{}
 	s.setup()
 
 	type testCase struct {
-		originPeers []metapb.Peer // first is leader
-		kind        OpKind
-		steps       []OpStep // empty means error
+		originPeers       []metapb.Peer // first is leader
+		offlineContainers []uint64
+		kind              OpKind
+		steps             []OpStep // empty means error
 	}
 	cases := []testCase{
 		{
@@ -291,6 +391,73 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 				ChangePeerV2Leave{
 					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
 					DemoteVoters:    []DemoteVoter{{ToContainer: 3}},
+				},
+			},
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			kind: OpLeader,
+			steps: []OpStep{
+				TransferLeader{FromContainer: 1, ToContainer: 2},
+				ChangePeerV2Leave{
+					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
+					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+				},
+			},
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			offlineContainers: []uint64{2},
+			kind:              OpLeader,
+			steps: []OpStep{
+				TransferLeader{FromContainer: 1, ToContainer: 3},
+				ChangePeerV2Leave{
+					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
+					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+				},
+			},
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			offlineContainers: []uint64{2, 3},
+			kind:              OpLeader,
+			steps: []OpStep{
+				TransferLeader{FromContainer: 1, ToContainer: 4},
+				ChangePeerV2Leave{
+					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
+					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+				},
+			},
+		},
+		{
+			originPeers: []metapb.Peer{
+				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			},
+			offlineContainers: []uint64{1, 2, 3, 4},
+			kind:              OpLeader,
+			steps: []OpStep{
+				TransferLeader{FromContainer: 1, ToContainer: 2},
+				ChangePeerV2Leave{
+					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
+					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
 				},
 			},
 		},
@@ -344,10 +511,21 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 	}
 
 	for _, tc := range cases {
+		for _, containerID := range tc.offlineContainers {
+			s.cluster.SetContainerOffline(containerID)
+		}
+
+		revertOffline := func() {
+			for _, storeID := range tc.offlineContainers {
+				s.cluster.SetContainerUP(storeID)
+			}
+		}
+
 		resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: tc.originPeers}, &tc.originPeers[0])
 		op, err := CreateLeaveJointStateOperator("test", s.cluster, resource)
 		if len(tc.steps) == 0 {
 			assert.Error(t, err)
+			revertOffline()
 			continue
 		}
 		assert.NoError(t, err)
@@ -371,6 +549,8 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 				t.Fatalf("unexpected type: %s", step.String())
 			}
 		}
+
+		revertOffline()
 	}
 }
 
