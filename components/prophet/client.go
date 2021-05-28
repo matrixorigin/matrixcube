@@ -53,6 +53,11 @@ type Client interface {
 	AsyncRemoveResources(ids ...uint64) error
 	// CheckResourceState returns resources state
 	CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error)
+
+	// PutPlacementRule put placement rule
+	PutPlacementRule(rule rpcpb.PlacementRule) error
+	// GetAppliedRules returns applied rules of the resource
+	GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error)
 }
 
 type asyncClient struct {
@@ -391,6 +396,40 @@ func (c *asyncClient) CheckResourceState(resources *roaring.Bitmap) (rpcpb.Check
 	}
 
 	return rsp.CheckResourceState, nil
+}
+
+func (c *asyncClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypePutPlacementRuleReq
+	req.PutPlacementRule.Rule = rule
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) {
+	if !c.running() {
+		return nil, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeGetAppliedRulesReq
+	req.GetAppliedRules.ResourceID = id
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.GetAppliedRules.Rules, nil
 }
 
 func (c *asyncClient) doClose() {

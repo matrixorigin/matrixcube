@@ -79,6 +79,14 @@ func (ra *resourceAdapter) SetUnique(value string) {
 	ra.meta.Unique = value
 }
 
+func (ra *resourceAdapter) RuleGroups() []string {
+	return ra.meta.RuleGroups
+}
+
+func (ra *resourceAdapter) SetRuleGroups(values ...string) {
+	ra.meta.RuleGroups = values
+}
+
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
 	return protoc.MustMarshal(&ra.meta), nil
 }

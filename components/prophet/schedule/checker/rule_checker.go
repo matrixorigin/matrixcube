@@ -50,21 +50,31 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource) error {
 	}
 
 	for _, rf := range fit.RuleFits {
-		if rf.Rule.Role == placement.Voter {
-			rs := c.strategy(res, rf.Rule)
-			ruleContainers := c.getRuleFitContainers(rf)
+		rs := c.strategy(res, rf.Rule)
+		ruleContainers := c.getRuleFitContainers(rf)
 
-			for i := 0; i < rf.Rule.Count; i++ {
-				container := rs.SelectContainerToAdd(ruleContainers)
-				if container == 0 {
-					return errors.New("no container to add peer")
-				}
-				peers := res.Meta.Peers()
-				peers = append(peers, metapb.Peer{ContainerID: container})
-				res.Meta.SetPeers(peers)
+		for i := 0; i < rf.Rule.Count; i++ {
+			container := rs.SelectContainerToAdd(ruleContainers)
+			if container == 0 {
+				return errors.New("no container to add peer")
 			}
-			return nil
+
+			p := metapb.Peer{ContainerID: container}
+			switch rf.Rule.Role {
+			case placement.Voter, placement.Follower, placement.Leader:
+				p.Role = metapb.PeerRole_Voter
+			default:
+				p.Role = metapb.PeerRole_Learner
+			}
+
+			peers := res.Meta.Peers()
+			peers = append(peers, metapb.Peer{ContainerID: container})
+			res.Meta.SetPeers(peers)
 		}
+	}
+
+	if len(res.Meta.Peers()) > 0 {
+		return nil
 	}
 
 	return fmt.Errorf("fill resource replicas cann't matches no voter rules")

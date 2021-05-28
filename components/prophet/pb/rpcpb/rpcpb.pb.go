@@ -55,6 +55,10 @@ const (
 	TypeRemoveResourcesRsp    Type = 24
 	TypeCheckResourceStateReq Type = 25
 	TypeCheckResourceStateRsp Type = 26
+	TypePutPlacementRuleReq   Type = 27
+	TypePutPlacementRuleRsp   Type = 28
+	TypeGetAppliedRulesReq    Type = 29
+	TypeGetAppliedRulesRsp    Type = 30
 )
 
 var Type_name = map[int32]string{
@@ -85,6 +89,10 @@ var Type_name = map[int32]string{
 	24: "TypeRemoveResourcesRsp",
 	25: "TypeCheckResourceStateReq",
 	26: "TypeCheckResourceStateRsp",
+	27: "TypePutPlacementRuleReq",
+	28: "TypePutPlacementRuleRsp",
+	29: "TypeGetAppliedRulesReq",
+	30: "TypeGetAppliedRulesRsp",
 }
 
 var Type_value = map[string]int32{
@@ -115,6 +123,10 @@ var Type_value = map[string]int32{
 	"TypeRemoveResourcesRsp":    24,
 	"TypeCheckResourceStateReq": 25,
 	"TypeCheckResourceStateRsp": 26,
+	"TypePutPlacementRuleReq":   27,
+	"TypePutPlacementRuleRsp":   28,
+	"TypeGetAppliedRulesReq":    29,
+	"TypeGetAppliedRulesRsp":    30,
 }
 
 func (x Type) String() string {
@@ -123,6 +135,79 @@ func (x Type) String() string {
 
 func (Type) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_25e491924c678914, []int{0}
+}
+
+// PeerRoleType is the expected peer type of the placement rule
+type PeerRoleType int32
+
+const (
+	// Voter can either match a leader peer or follower peer
+	Voter PeerRoleType = 0
+	// Leader matches a leader.
+	Leader PeerRoleType = 1
+	// Follower matches a follower.
+	Follower PeerRoleType = 2
+	// Learner matches a learner.
+	Learner PeerRoleType = 3
+)
+
+var PeerRoleType_name = map[int32]string{
+	0: "Voter",
+	1: "Leader",
+	2: "Follower",
+	3: "Learner",
+}
+
+var PeerRoleType_value = map[string]int32{
+	"Voter":    0,
+	"Leader":   1,
+	"Follower": 2,
+	"Learner":  3,
+}
+
+func (x PeerRoleType) String() string {
+	return proto.EnumName(PeerRoleType_name, int32(x))
+}
+
+func (PeerRoleType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{1}
+}
+
+// LabelConstraintOp defines how a LabelConstraint matches a container. It can be one of
+// 'in', 'notIn', 'exists', or 'notExists'.
+type LabelConstraintOp int32
+
+const (
+	// In If label does not exist, `in` is always false.
+	In LabelConstraintOp = 0
+	// NotIn restricts the container label value should not in the value list.
+	NotIn LabelConstraintOp = 1
+	// Exists restricts the container should have the label.
+	Exists LabelConstraintOp = 2
+	// NotExists restricts the container should not have the label.
+	NotExists LabelConstraintOp = 3
+)
+
+var LabelConstraintOp_name = map[int32]string{
+	0: "In",
+	1: "NotIn",
+	2: "Exists",
+	3: "NotExists",
+}
+
+var LabelConstraintOp_value = map[string]int32{
+	"In":        0,
+	"NotIn":     1,
+	"Exists":    2,
+	"NotExists": 3,
+}
+
+func (x LabelConstraintOp) String() string {
+	return proto.EnumName(LabelConstraintOp_name, int32(x))
+}
+
+func (LabelConstraintOp) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{2}
 }
 
 // Request the prophet rpc request
@@ -143,6 +228,8 @@ type Request struct {
 	CreateResources      CreateResourcesReq    `protobuf:"bytes,14,opt,name=createResources,proto3" json:"createResources"`
 	RemoveResources      RemoveResourcesReq    `protobuf:"bytes,15,opt,name=removeResources,proto3" json:"removeResources"`
 	CheckResourceState   CheckResourceStateReq `protobuf:"bytes,16,opt,name=checkResourceState,proto3" json:"checkResourceState"`
+	PutPlacementRule     PutPlacementRuleReq   `protobuf:"bytes,17,opt,name=putPlacementRule,proto3" json:"putPlacementRule"`
+	GetAppliedRules      GetAppliedRulesReq    `protobuf:"bytes,18,opt,name=getAppliedRules,proto3" json:"getAppliedRules"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -293,6 +380,20 @@ func (m *Request) GetCheckResourceState() CheckResourceStateReq {
 	return CheckResourceStateReq{}
 }
 
+func (m *Request) GetPutPlacementRule() PutPlacementRuleReq {
+	if m != nil {
+		return m.PutPlacementRule
+	}
+	return PutPlacementRuleReq{}
+}
+
+func (m *Request) GetGetAppliedRules() GetAppliedRulesReq {
+	if m != nil {
+		return m.GetAppliedRules
+	}
+	return GetAppliedRulesReq{}
+}
+
 // Response the prophet rpc response
 type Response struct {
 	ID                   uint64                `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -312,6 +413,8 @@ type Response struct {
 	CreateResources      CreateResourcesRsp    `protobuf:"bytes,15,opt,name=createResources,proto3" json:"createResources"`
 	RemoveResources      RemoveResourcesRsp    `protobuf:"bytes,16,opt,name=removeResources,proto3" json:"removeResources"`
 	CheckResourceState   CheckResourceStateRsp `protobuf:"bytes,17,opt,name=checkResourceState,proto3" json:"checkResourceState"`
+	PutPlacementRule     PutPlacementRuleRsp   `protobuf:"bytes,18,opt,name=putPlacementRule,proto3" json:"putPlacementRule"`
+	GetAppliedRules      GetAppliedRulesRsp    `protobuf:"bytes,19,opt,name=getAppliedRules,proto3" json:"getAppliedRules"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -467,6 +570,20 @@ func (m *Response) GetCheckResourceState() CheckResourceStateRsp {
 		return m.CheckResourceState
 	}
 	return CheckResourceStateRsp{}
+}
+
+func (m *Response) GetPutPlacementRule() PutPlacementRuleRsp {
+	if m != nil {
+		return m.PutPlacementRule
+	}
+	return PutPlacementRuleRsp{}
+}
+
+func (m *Response) GetGetAppliedRules() GetAppliedRulesRsp {
+	if m != nil {
+		return m.GetAppliedRules
+	}
+	return GetAppliedRulesRsp{}
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -1822,6 +1939,190 @@ func (m *CheckResourceStateRsp) GetRemoved() []uint64 {
 	return nil
 }
 
+// PutPlacementRuleReq put placement rule req
+type PutPlacementRuleReq struct {
+	Rule                 PlacementRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule"`
+	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
+	XXX_unrecognized     []byte        `json:"-"`
+	XXX_sizecache        int32         `json:"-"`
+}
+
+func (m *PutPlacementRuleReq) Reset()         { *m = PutPlacementRuleReq{} }
+func (m *PutPlacementRuleReq) String() string { return proto.CompactTextString(m) }
+func (*PutPlacementRuleReq) ProtoMessage()    {}
+func (*PutPlacementRuleReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{28}
+}
+func (m *PutPlacementRuleReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PutPlacementRuleReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PutPlacementRuleReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PutPlacementRuleReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PutPlacementRuleReq.Merge(m, src)
+}
+func (m *PutPlacementRuleReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *PutPlacementRuleReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_PutPlacementRuleReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PutPlacementRuleReq proto.InternalMessageInfo
+
+func (m *PutPlacementRuleReq) GetRule() PlacementRule {
+	if m != nil {
+		return m.Rule
+	}
+	return PlacementRule{}
+}
+
+// PutPlacementRuleRsp put placement rule rsp
+type PutPlacementRuleRsp struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *PutPlacementRuleRsp) Reset()         { *m = PutPlacementRuleRsp{} }
+func (m *PutPlacementRuleRsp) String() string { return proto.CompactTextString(m) }
+func (*PutPlacementRuleRsp) ProtoMessage()    {}
+func (*PutPlacementRuleRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{29}
+}
+func (m *PutPlacementRuleRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PutPlacementRuleRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PutPlacementRuleRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PutPlacementRuleRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PutPlacementRuleRsp.Merge(m, src)
+}
+func (m *PutPlacementRuleRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *PutPlacementRuleRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_PutPlacementRuleRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PutPlacementRuleRsp proto.InternalMessageInfo
+
+// GetAppliedRulesReq get applied rules req
+type GetAppliedRulesReq struct {
+	ResourceID           uint64   `protobuf:"varint,1,opt,name=resourceID,proto3" json:"resourceID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetAppliedRulesReq) Reset()         { *m = GetAppliedRulesReq{} }
+func (m *GetAppliedRulesReq) String() string { return proto.CompactTextString(m) }
+func (*GetAppliedRulesReq) ProtoMessage()    {}
+func (*GetAppliedRulesReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{30}
+}
+func (m *GetAppliedRulesReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetAppliedRulesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetAppliedRulesReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetAppliedRulesReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAppliedRulesReq.Merge(m, src)
+}
+func (m *GetAppliedRulesReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetAppliedRulesReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAppliedRulesReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetAppliedRulesReq proto.InternalMessageInfo
+
+func (m *GetAppliedRulesReq) GetResourceID() uint64 {
+	if m != nil {
+		return m.ResourceID
+	}
+	return 0
+}
+
+// GetAppliedRulesRsp get applied rules rsp
+type GetAppliedRulesRsp struct {
+	Rules                []PlacementRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
+}
+
+func (m *GetAppliedRulesRsp) Reset()         { *m = GetAppliedRulesRsp{} }
+func (m *GetAppliedRulesRsp) String() string { return proto.CompactTextString(m) }
+func (*GetAppliedRulesRsp) ProtoMessage()    {}
+func (*GetAppliedRulesRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{31}
+}
+func (m *GetAppliedRulesRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetAppliedRulesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetAppliedRulesRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetAppliedRulesRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAppliedRulesRsp.Merge(m, src)
+}
+func (m *GetAppliedRulesRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetAppliedRulesRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAppliedRulesRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetAppliedRulesRsp proto.InternalMessageInfo
+
+func (m *GetAppliedRulesRsp) GetRules() []PlacementRule {
+	if m != nil {
+		return m.Rules
+	}
+	return nil
+}
+
 // EventNotify event notify
 type EventNotify struct {
 	Seq                  uint64                 `protobuf:"varint,1,opt,name=seq,proto3" json:"seq,omitempty"`
@@ -1840,7 +2141,7 @@ func (m *EventNotify) Reset()         { *m = EventNotify{} }
 func (m *EventNotify) String() string { return proto.CompactTextString(m) }
 func (*EventNotify) ProtoMessage()    {}
 func (*EventNotify) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{28}
+	return fileDescriptor_25e491924c678914, []int{32}
 }
 func (m *EventNotify) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1932,7 +2233,7 @@ func (m *InitEventData) Reset()         { *m = InitEventData{} }
 func (m *InitEventData) String() string { return proto.CompactTextString(m) }
 func (*InitEventData) ProtoMessage()    {}
 func (*InitEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{29}
+	return fileDescriptor_25e491924c678914, []int{33}
 }
 func (m *InitEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1997,7 +2298,7 @@ func (m *ResourceEventData) Reset()         { *m = ResourceEventData{} }
 func (m *ResourceEventData) String() string { return proto.CompactTextString(m) }
 func (*ResourceEventData) ProtoMessage()    {}
 func (*ResourceEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{30}
+	return fileDescriptor_25e491924c678914, []int{34}
 }
 func (m *ResourceEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2066,7 +2367,7 @@ func (m *ContainerEventData) Reset()         { *m = ContainerEventData{} }
 func (m *ContainerEventData) String() string { return proto.CompactTextString(m) }
 func (*ContainerEventData) ProtoMessage()    {}
 func (*ContainerEventData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{31}
+	return fileDescriptor_25e491924c678914, []int{35}
 }
 func (m *ContainerEventData) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2115,7 +2416,7 @@ func (m *ChangePeer) Reset()         { *m = ChangePeer{} }
 func (m *ChangePeer) String() string { return proto.CompactTextString(m) }
 func (*ChangePeer) ProtoMessage()    {}
 func (*ChangePeer) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{32}
+	return fileDescriptor_25e491924c678914, []int{36}
 }
 func (m *ChangePeer) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2170,7 +2471,7 @@ func (m *TransferLeader) Reset()         { *m = TransferLeader{} }
 func (m *TransferLeader) String() string { return proto.CompactTextString(m) }
 func (*TransferLeader) ProtoMessage()    {}
 func (*TransferLeader) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{33}
+	return fileDescriptor_25e491924c678914, []int{37}
 }
 func (m *TransferLeader) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2219,7 +2520,7 @@ func (m *ChangePeerV2) Reset()         { *m = ChangePeerV2{} }
 func (m *ChangePeerV2) String() string { return proto.CompactTextString(m) }
 func (*ChangePeerV2) ProtoMessage()    {}
 func (*ChangePeerV2) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{34}
+	return fileDescriptor_25e491924c678914, []int{38}
 }
 func (m *ChangePeerV2) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2268,7 +2569,7 @@ func (m *Merge) Reset()         { *m = Merge{} }
 func (m *Merge) String() string { return proto.CompactTextString(m) }
 func (*Merge) ProtoMessage()    {}
 func (*Merge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{35}
+	return fileDescriptor_25e491924c678914, []int{39}
 }
 func (m *Merge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2317,7 +2618,7 @@ func (m *SplitResource) Reset()         { *m = SplitResource{} }
 func (m *SplitResource) String() string { return proto.CompactTextString(m) }
 func (*SplitResource) ProtoMessage()    {}
 func (*SplitResource) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{36}
+	return fileDescriptor_25e491924c678914, []int{40}
 }
 func (m *SplitResource) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2360,8 +2661,211 @@ func (m *SplitResource) GetKeys() [][]byte {
 	return nil
 }
 
+// LabelConstraint is used to filter container when trying to place peer of a resource.
+type LabelConstraint struct {
+	Key                  string            `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Op                   LabelConstraintOp `protobuf:"varint,2,opt,name=op,proto3,enum=rpcpb.LabelConstraintOp" json:"op,omitempty"`
+	Values               []string          `protobuf:"bytes,3,rep,name=values,proto3" json:"values,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *LabelConstraint) Reset()         { *m = LabelConstraint{} }
+func (m *LabelConstraint) String() string { return proto.CompactTextString(m) }
+func (*LabelConstraint) ProtoMessage()    {}
+func (*LabelConstraint) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{41}
+}
+func (m *LabelConstraint) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *LabelConstraint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_LabelConstraint.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *LabelConstraint) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LabelConstraint.Merge(m, src)
+}
+func (m *LabelConstraint) XXX_Size() int {
+	return m.Size()
+}
+func (m *LabelConstraint) XXX_DiscardUnknown() {
+	xxx_messageInfo_LabelConstraint.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LabelConstraint proto.InternalMessageInfo
+
+func (m *LabelConstraint) GetKey() string {
+	if m != nil {
+		return m.Key
+	}
+	return ""
+}
+
+func (m *LabelConstraint) GetOp() LabelConstraintOp {
+	if m != nil {
+		return m.Op
+	}
+	return In
+}
+
+func (m *LabelConstraint) GetValues() []string {
+	if m != nil {
+		return m.Values
+	}
+	return nil
+}
+
+// PlacementRule place rule
+type PlacementRule struct {
+	// ID unique ID within a group
+	ID string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// GroupID mark the source that add the rule
+	GroupID string `protobuf:"bytes,2,opt,name=groupID,proto3" json:"groupID,omitempty"`
+	// Index rule apply order in a group, rule with less ID is applied first when indexes are equal
+	Index uint32 `protobuf:"varint,3,opt,name=index,proto3" json:"index,omitempty"`
+	// Override when it is true, all rules with less indexes are disabled
+	Override bool   `protobuf:"varint,4,opt,name=override,proto3" json:"override,omitempty"`
+	StartKey []byte `protobuf:"bytes,5,opt,name=startKey,proto3" json:"startKey,omitempty"`
+	EndKey   []byte `protobuf:"bytes,6,opt,name=endKey,proto3" json:"endKey,omitempty"`
+	// Role expected role of the peers
+	Role PeerRoleType `protobuf:"varint,7,opt,name=role,proto3,enum=rpcpb.PeerRoleType" json:"role,omitempty"`
+	// Count expected count of the peers
+	Count uint32 `protobuf:"varint,8,opt,name=count,proto3" json:"count,omitempty"`
+	// LabelConstraints used to select containers to place peers
+	LabelConstraints []LabelConstraint `protobuf:"bytes,9,rep,name=labelConstraints,proto3" json:"labelConstraints"`
+	// LocationLabels used to make peers isolated physically
+	LocationLabels []string `protobuf:"bytes,10,rep,name=locationLabels,proto3" json:"locationLabels,omitempty"`
+	// IsolationLevelused to isolate replicas explicitly and forcibly
+	IsolationLevel       string   `protobuf:"bytes,11,opt,name=isolationLevel,proto3" json:"isolationLevel,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *PlacementRule) Reset()         { *m = PlacementRule{} }
+func (m *PlacementRule) String() string { return proto.CompactTextString(m) }
+func (*PlacementRule) ProtoMessage()    {}
+func (*PlacementRule) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{42}
+}
+func (m *PlacementRule) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *PlacementRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_PlacementRule.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *PlacementRule) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PlacementRule.Merge(m, src)
+}
+func (m *PlacementRule) XXX_Size() int {
+	return m.Size()
+}
+func (m *PlacementRule) XXX_DiscardUnknown() {
+	xxx_messageInfo_PlacementRule.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_PlacementRule proto.InternalMessageInfo
+
+func (m *PlacementRule) GetID() string {
+	if m != nil {
+		return m.ID
+	}
+	return ""
+}
+
+func (m *PlacementRule) GetGroupID() string {
+	if m != nil {
+		return m.GroupID
+	}
+	return ""
+}
+
+func (m *PlacementRule) GetIndex() uint32 {
+	if m != nil {
+		return m.Index
+	}
+	return 0
+}
+
+func (m *PlacementRule) GetOverride() bool {
+	if m != nil {
+		return m.Override
+	}
+	return false
+}
+
+func (m *PlacementRule) GetStartKey() []byte {
+	if m != nil {
+		return m.StartKey
+	}
+	return nil
+}
+
+func (m *PlacementRule) GetEndKey() []byte {
+	if m != nil {
+		return m.EndKey
+	}
+	return nil
+}
+
+func (m *PlacementRule) GetRole() PeerRoleType {
+	if m != nil {
+		return m.Role
+	}
+	return Voter
+}
+
+func (m *PlacementRule) GetCount() uint32 {
+	if m != nil {
+		return m.Count
+	}
+	return 0
+}
+
+func (m *PlacementRule) GetLabelConstraints() []LabelConstraint {
+	if m != nil {
+		return m.LabelConstraints
+	}
+	return nil
+}
+
+func (m *PlacementRule) GetLocationLabels() []string {
+	if m != nil {
+		return m.LocationLabels
+	}
+	return nil
+}
+
+func (m *PlacementRule) GetIsolationLevel() string {
+	if m != nil {
+		return m.IsolationLevel
+	}
+	return ""
+}
+
 func init() {
 	proto.RegisterEnum("rpcpb.Type", Type_name, Type_value)
+	proto.RegisterEnum("rpcpb.PeerRoleType", PeerRoleType_name, PeerRoleType_value)
+	proto.RegisterEnum("rpcpb.LabelConstraintOp", LabelConstraintOp_name, LabelConstraintOp_value)
 	proto.RegisterType((*Request)(nil), "rpcpb.Request")
 	proto.RegisterType((*Response)(nil), "rpcpb.Response")
 	proto.RegisterType((*ResourceHeartbeatReq)(nil), "rpcpb.ResourceHeartbeatReq")
@@ -2390,6 +2894,10 @@ func init() {
 	proto.RegisterType((*RemoveResourcesRsp)(nil), "rpcpb.RemoveResourcesRsp")
 	proto.RegisterType((*CheckResourceStateReq)(nil), "rpcpb.CheckResourceStateReq")
 	proto.RegisterType((*CheckResourceStateRsp)(nil), "rpcpb.CheckResourceStateRsp")
+	proto.RegisterType((*PutPlacementRuleReq)(nil), "rpcpb.PutPlacementRuleReq")
+	proto.RegisterType((*PutPlacementRuleRsp)(nil), "rpcpb.PutPlacementRuleRsp")
+	proto.RegisterType((*GetAppliedRulesReq)(nil), "rpcpb.GetAppliedRulesReq")
+	proto.RegisterType((*GetAppliedRulesRsp)(nil), "rpcpb.GetAppliedRulesRsp")
 	proto.RegisterType((*EventNotify)(nil), "rpcpb.EventNotify")
 	proto.RegisterType((*InitEventData)(nil), "rpcpb.InitEventData")
 	proto.RegisterType((*ResourceEventData)(nil), "rpcpb.ResourceEventData")
@@ -2399,122 +2907,150 @@ func init() {
 	proto.RegisterType((*ChangePeerV2)(nil), "rpcpb.ChangePeerV2")
 	proto.RegisterType((*Merge)(nil), "rpcpb.Merge")
 	proto.RegisterType((*SplitResource)(nil), "rpcpb.SplitResource")
+	proto.RegisterType((*LabelConstraint)(nil), "rpcpb.LabelConstraint")
+	proto.RegisterType((*PlacementRule)(nil), "rpcpb.PlacementRule")
 }
 
 func init() { proto.RegisterFile("rpcpb.proto", fileDescriptor_25e491924c678914) }
 
 var fileDescriptor_25e491924c678914 = []byte{
-	// 1759 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x58, 0x4b, 0x73, 0xe4, 0x48,
-	0x11, 0x9e, 0x7e, 0x77, 0x67, 0xbf, 0xca, 0xe5, 0x97, 0xec, 0x1d, 0x6c, 0xa3, 0xd8, 0xd8, 0x30,
-	0xb0, 0xb8, 0x99, 0x5e, 0x58, 0x88, 0x0d, 0x06, 0x18, 0x4f, 0x4f, 0xb0, 0x0e, 0x06, 0x98, 0xd0,
-	0x4c, 0x2c, 0x67, 0xb5, 0xba, 0xdc, 0x56, 0xb8, 0x2d, 0xd5, 0xa8, 0xca, 0x3b, 0xf8, 0x5f, 0xf1,
-	0x33, 0xf6, 0xc0, 0x61, 0x7f, 0x00, 0x31, 0x01, 0xfe, 0x03, 0x1c, 0x39, 0x70, 0x21, 0xea, 0x25,
-	0x95, 0x1e, 0xdd, 0x36, 0x27, 0xab, 0x32, 0xf3, 0xfb, 0x54, 0x95, 0xaa, 0xfc, 0x32, 0xdb, 0xd0,
-	0x4f, 0x68, 0x40, 0xe7, 0x67, 0x34, 0x89, 0x79, 0x8c, 0x5b, 0x72, 0x71, 0xf8, 0x7a, 0x19, 0xf2,
-	0xab, 0xdb, 0xf9, 0x59, 0x10, 0xdf, 0x4c, 0x6e, 0x7c, 0x9e, 0x84, 0x7f, 0x8d, 0x93, 0x70, 0x19,
-	0x46, 0x7a, 0x11, 0xdc, 0xce, 0xc9, 0x24, 0x88, 0x6f, 0x68, 0x1c, 0x91, 0x88, 0xb3, 0x09, 0x4d,
-	0x62, 0x7a, 0x45, 0xf8, 0x84, 0xce, 0x27, 0x37, 0x84, 0xfb, 0xe9, 0x1f, 0x45, 0x7a, 0xf8, 0x53,
-	0x8b, 0x6d, 0x19, 0x2f, 0xe3, 0x89, 0x34, 0xcf, 0x6f, 0x2f, 0xe5, 0x4a, 0x2e, 0xe4, 0x93, 0x0a,
-	0x77, 0xff, 0xd3, 0x81, 0x8e, 0x47, 0xde, 0xdf, 0x12, 0xc6, 0xf1, 0x1e, 0xd4, 0xc3, 0x85, 0x53,
-	0x3b, 0xa9, 0x9d, 0x36, 0xcf, 0xdb, 0xf7, 0x1f, 0x8f, 0xeb, 0x17, 0x33, 0xaf, 0x1e, 0x2e, 0xf0,
-	0x09, 0xf4, 0x83, 0x38, 0xe2, 0x7e, 0x18, 0x91, 0xe4, 0x62, 0xe6, 0xd4, 0x45, 0x80, 0x67, 0x9b,
-	0xf0, 0x31, 0x34, 0xf9, 0x1d, 0x25, 0x4e, 0xe3, 0xa4, 0x76, 0x3a, 0x9a, 0xf6, 0xcf, 0xd4, 0x29,
-	0xdf, 0xdd, 0x51, 0xe2, 0x49, 0x07, 0xfe, 0x33, 0x6c, 0x25, 0x84, 0xc5, 0xb7, 0x49, 0x40, 0xbe,
-	0x26, 0x7e, 0xc2, 0xe7, 0xc4, 0xe7, 0x4e, 0xf3, 0xa4, 0x76, 0xda, 0x9f, 0x7e, 0xa2, 0xa3, 0xbd,
-	0xa2, 0xdf, 0x23, 0xef, 0xcf, 0x9b, 0xdf, 0x7d, 0x3c, 0x7e, 0xe2, 0x95, 0xb1, 0xd8, 0x03, 0x9c,
-	0x6e, 0x20, 0x63, 0x6c, 0x49, 0xc6, 0xa7, 0x9a, 0xf1, 0x65, 0x29, 0x20, 0xa3, 0xac, 0x40, 0xe3,
-	0xdf, 0xc1, 0x80, 0xde, 0xf2, 0x14, 0xe5, 0xb4, 0x25, 0xdb, 0x9e, 0x66, 0x7b, 0x63, 0xb9, 0x32,
-	0x9e, 0x1c, 0x42, 0x30, 0x2c, 0x89, 0xc5, 0xd0, 0xc9, 0x31, 0xfc, 0x9e, 0x54, 0x32, 0xd8, 0x08,
-	0xfc, 0x0c, 0x3a, 0xfe, 0x6a, 0x15, 0x07, 0x17, 0x33, 0xa7, 0x2b, 0xc1, 0x5b, 0x1a, 0xfc, 0x42,
-	0x59, 0x33, 0x9c, 0x89, 0xc3, 0x3f, 0x87, 0xae, 0xcf, 0xae, 0xdf, 0xd2, 0x55, 0xc8, 0x9d, 0x9e,
-	0xc4, 0x60, 0x83, 0xd1, 0xe6, 0x0c, 0x94, 0x46, 0xe2, 0x97, 0x30, 0xf4, 0xd9, 0xf5, 0xb9, 0xcf,
-	0x83, 0x2b, 0x05, 0x05, 0x09, 0xdd, 0xcf, 0xa0, 0x99, 0x2f, 0xc3, 0xe7, 0x31, 0xf8, 0x39, 0xf4,
-	0x13, 0x42, 0xe3, 0x84, 0x2b, 0x8a, 0xbe, 0xa4, 0xd8, 0x4d, 0x3f, 0x68, 0xea, 0xc9, 0x08, 0xec,
-	0x78, 0xfc, 0x1a, 0xd0, 0x5c, 0x90, 0x59, 0x91, 0xce, 0x40, 0x72, 0x1c, 0x6a, 0x8e, 0xf3, 0x82,
-	0x3b, 0x23, 0x2a, 0x21, 0xc5, 0x89, 0x82, 0x84, 0xf8, 0x9c, 0xfc, 0x45, 0x78, 0x48, 0xe2, 0x0c,
-	0x73, 0x27, 0x7a, 0x69, 0xfb, 0xac, 0x13, 0xe5, 0x30, 0xf8, 0x02, 0xc6, 0xca, 0x60, 0xae, 0x23,
-	0x73, 0x46, 0x92, 0xe6, 0x20, 0x47, 0x93, 0x7a, 0x33, 0xa2, 0x22, 0x4e, 0x50, 0x25, 0xe4, 0x26,
-	0xfe, 0xd6, 0xa2, 0x1a, 0xe7, 0xa8, 0xbc, 0xbc, 0xd7, 0xa2, 0x2a, 0xe0, 0xe4, 0x6d, 0xbf, 0x22,
-	0xc1, 0xb5, 0xb1, 0xbc, 0xe5, 0x3e, 0x27, 0x0e, 0xca, 0xdf, 0xf6, 0x52, 0x80, 0x7d, 0xdb, 0x4b,
-	0x4e, 0xf7, 0xdf, 0x1d, 0xe8, 0x7a, 0x84, 0xd1, 0x38, 0x62, 0x64, 0x6d, 0xe9, 0x9b, 0xc2, 0xae,
-	0xaf, 0x2b, 0xec, 0x1d, 0x68, 0x91, 0x24, 0x89, 0x13, 0x59, 0xfa, 0x3d, 0x4f, 0x2d, 0xf0, 0x1e,
-	0xb4, 0x57, 0xc4, 0x5f, 0x90, 0x44, 0xd6, 0x78, 0xcf, 0xd3, 0xab, 0x6a, 0x19, 0x68, 0x3d, 0x20,
-	0x03, 0x8c, 0xfe, 0xbf, 0x32, 0xd0, 0x7e, 0x48, 0x06, 0x52, 0xca, 0xc7, 0xc8, 0x40, 0x67, 0xbd,
-	0x0c, 0xa4, 0x3c, 0x9b, 0x65, 0xa0, 0xbb, 0x5e, 0x06, 0x32, 0x86, 0x75, 0x32, 0xd0, 0xab, 0x94,
-	0x81, 0x14, 0x57, 0x29, 0x03, 0x50, 0x2d, 0x03, 0x29, 0x68, 0x83, 0x0c, 0xf4, 0x37, 0xc8, 0x40,
-	0x8a, 0xdf, 0x2c, 0x03, 0x83, 0xb5, 0x32, 0x90, 0x12, 0x3c, 0x28, 0x03, 0xc3, 0xcd, 0x32, 0x90,
-	0x12, 0x95, 0x65, 0xe0, 0x0c, 0x5a, 0xe4, 0x5b, 0x12, 0x71, 0x5d, 0xb7, 0x26, 0x09, 0xaf, 0x84,
-	0xed, 0x4f, 0x31, 0x0f, 0x2f, 0xef, 0x34, 0x54, 0x85, 0x55, 0x55, 0xfc, 0x78, 0x63, 0xc5, 0xa7,
-	0xef, 0x7e, 0x4c, 0xc5, 0xa3, 0x8d, 0x15, 0x9f, 0x51, 0x3d, 0xae, 0xe2, 0xb7, 0x1e, 0xaa, 0x78,
-	0xeb, 0x62, 0x97, 0x2b, 0xfe, 0x6f, 0x75, 0xd8, 0xa9, 0xea, 0xb2, 0xc5, 0x06, 0x5f, 0x2b, 0x37,
-	0xf8, 0x43, 0xe8, 0x9a, 0xe2, 0x93, 0x5a, 0x30, 0xf0, 0xd2, 0x35, 0xc6, 0xd0, 0xe4, 0x24, 0xb9,
-	0x91, 0x0a, 0xd0, 0xf4, 0xe4, 0x33, 0xfe, 0x34, 0x27, 0x00, 0xfd, 0xe9, 0xe0, 0x4c, 0x0f, 0x29,
-	0x6f, 0x08, 0x49, 0x52, 0x39, 0xf8, 0x05, 0xf4, 0x16, 0xf1, 0x87, 0x48, 0xd8, 0x98, 0xd3, 0x3a,
-	0x69, 0xc8, 0x7b, 0x6e, 0x05, 0x8a, 0x6d, 0x33, 0x7d, 0xa0, 0x2c, 0x12, 0x7f, 0x09, 0x03, 0x4a,
-	0xa2, 0x45, 0x18, 0x2d, 0x15, 0xb2, 0x2d, 0x91, 0xb9, 0x57, 0xa4, 0x65, 0x69, 0xc5, 0xe1, 0x67,
-	0xd0, 0x62, 0x82, 0x51, 0x57, 0xf4, 0xae, 0x01, 0xd8, 0x59, 0x32, 0xaf, 0x53, 0x91, 0xee, 0x3f,
-	0x1a, 0x55, 0x29, 0x63, 0x14, 0x1f, 0x01, 0x98, 0x04, 0xa4, 0x19, 0xb3, 0x2c, 0xf8, 0x05, 0x0c,
-	0xcd, 0xea, 0x15, 0x8d, 0x83, 0x2b, 0x99, 0xb5, 0x8a, 0x77, 0x4a, 0xa7, 0xa9, 0xaa, 0x1c, 0x02,
-	0x7f, 0x0e, 0xc0, 0xfd, 0x64, 0x49, 0xb8, 0xd8, 0xbd, 0xcc, 0x6e, 0x31, 0x8f, 0x96, 0x1f, 0x3f,
-	0x03, 0x08, 0xae, 0xfc, 0x68, 0x49, 0x64, 0x74, 0x33, 0x27, 0x1a, 0x2f, 0x53, 0x87, 0x67, 0x05,
-	0xe1, 0xe7, 0x30, 0xe2, 0x89, 0x1f, 0xb1, 0x4b, 0x92, 0xbc, 0x56, 0x1f, 0xab, 0x95, 0xab, 0xdc,
-	0x77, 0x39, 0xa7, 0x57, 0x08, 0xc6, 0x2e, 0xb4, 0x6e, 0x48, 0xb2, 0x24, 0x5a, 0x6e, 0x07, 0x1a,
-	0xf5, 0x47, 0x61, 0xf3, 0x94, 0x0b, 0x7f, 0x05, 0x43, 0xa6, 0xfa, 0xb6, 0xbe, 0x3c, 0x2a, 0xf5,
-	0x3b, 0x3a, 0xf6, 0xad, 0xed, 0xf3, 0xf2, 0xa1, 0xf8, 0x97, 0x30, 0xc8, 0x36, 0xfb, 0xcd, 0x54,
-	0xab, 0xe8, 0x76, 0xe9, 0x4c, 0xdf, 0x4c, 0xbd, 0x5c, 0x20, 0x3e, 0x85, 0xf1, 0x82, 0x30, 0x1e,
-	0x27, 0x77, 0xb3, 0x30, 0x21, 0x01, 0x5f, 0xdd, 0x49, 0x11, 0xed, 0x7a, 0x45, 0xb3, 0x3b, 0x81,
-	0x71, 0x61, 0xac, 0xc3, 0x4f, 0xa1, 0x97, 0x5e, 0x7c, 0xf9, 0x5d, 0x07, 0x5e, 0x66, 0x70, 0xb7,
-	0x0a, 0x00, 0x46, 0xdd, 0x3f, 0xc0, 0x6e, 0xe5, 0xa0, 0x89, 0xa7, 0xe6, 0xba, 0xd5, 0xb4, 0xfc,
-	0xeb, 0x4f, 0x97, 0x46, 0x57, 0xdc, 0xb7, 0xfd, 0x4a, 0x32, 0x46, 0xdd, 0x1f, 0xc1, 0xb8, 0x30,
-	0x3e, 0xae, 0xeb, 0xd9, 0xee, 0xdb, 0x42, 0x28, 0xa3, 0xa2, 0x44, 0x17, 0x3e, 0xf7, 0xf5, 0x79,
-	0xe4, 0x33, 0xfe, 0xdc, 0x6c, 0xaf, 0xbe, 0x69, 0x7b, 0x66, 0x63, 0x03, 0x80, 0x6c, 0x02, 0x75,
-	0x3f, 0xcd, 0x56, 0x8c, 0xae, 0xdd, 0xc8, 0x0f, 0xa1, 0x6f, 0x4d, 0xa0, 0x55, 0x9b, 0x70, 0x9f,
-	0x5b, 0x21, 0x8c, 0xe2, 0x33, 0xe8, 0xc8, 0x3b, 0xa0, 0x4b, 0xaa, 0x3f, 0x1d, 0xd9, 0x17, 0xe5,
-	0x62, 0x66, 0x7a, 0x9e, 0x0e, 0x72, 0xbf, 0x82, 0x51, 0x7e, 0x38, 0x14, 0x2f, 0x59, 0x91, 0x4b,
-	0x6e, 0x5e, 0x22, 0x9e, 0xc5, 0x8c, 0x92, 0x84, 0xcb, 0x2b, 0xae, 0x95, 0x4b, 0x2d, 0x5c, 0x94,
-	0xc7, 0x32, 0xea, 0xfe, 0x1a, 0x50, 0x71, 0xec, 0xad, 0xcc, 0xdc, 0x0e, 0xb4, 0x82, 0xf8, 0x36,
-	0x52, 0x7c, 0x43, 0x4f, 0x2d, 0xdc, 0x59, 0x11, 0xcd, 0x28, 0xfe, 0x19, 0x74, 0xf5, 0x56, 0xc5,
-	0x2d, 0x68, 0xac, 0x3d, 0x50, 0x1a, 0xe5, 0x7e, 0x01, 0xdb, 0x15, 0x33, 0xaf, 0xb8, 0x95, 0x49,
-	0xda, 0x53, 0x04, 0xd3, 0xc0, 0xcb, 0x0c, 0xee, 0x6e, 0x05, 0x88, 0x51, 0xf7, 0xb7, 0xd0, 0xd1,
-	0xaf, 0x11, 0x5b, 0x8e, 0xc8, 0x87, 0x54, 0xa9, 0xd4, 0x42, 0x88, 0x58, 0x44, 0x3e, 0x88, 0xaa,
-	0x11, 0x1b, 0xac, 0x9f, 0x34, 0x84, 0x88, 0x65, 0x16, 0xf7, 0x33, 0x40, 0xc5, 0xa9, 0x59, 0x24,
-	0xe4, 0x72, 0xe5, 0x2f, 0x25, 0xd1, 0xd0, 0x93, 0xcf, 0xee, 0x14, 0x70, 0x79, 0x2c, 0x7e, 0x60,
-	0xcf, 0x3b, 0x65, 0x0c, 0xa3, 0xee, 0x04, 0x70, 0x79, 0x2a, 0xc6, 0x07, 0xd0, 0x08, 0x17, 0x8a,
-	0xa3, 0x79, 0xde, 0xb9, 0xff, 0x78, 0xdc, 0xb8, 0x98, 0x31, 0x4f, 0xd8, 0x04, 0x4d, 0xb9, 0xa9,
-	0xba, 0x53, 0xd8, 0xad, 0x1c, 0x87, 0x33, 0xa6, 0xda, 0xe9, 0xa0, 0xc0, 0xf4, 0xac, 0x12, 0xc3,
-	0x28, 0x76, 0xa0, 0xa3, 0xba, 0xf3, 0x42, 0xed, 0xc0, 0x33, 0x4b, 0xf7, 0xbf, 0x75, 0xe8, 0x5b,
-	0x73, 0x05, 0x46, 0xd0, 0x60, 0xe4, 0xbd, 0xce, 0xb1, 0x78, 0x94, 0xbd, 0xd1, 0xcc, 0xcf, 0x43,
-	0x3d, 0x32, 0x4f, 0xa1, 0x17, 0x46, 0x21, 0x97, 0x40, 0x2d, 0xeb, 0x46, 0x0f, 0x2f, 0x8c, 0x7d,
-	0xe6, 0x73, 0xdf, 0xcb, 0xc2, 0xf0, 0x6f, 0xac, 0x76, 0x22, 0x71, 0x4a, 0xe0, 0x9d, 0xc2, 0xd0,
-	0x9c, 0x61, 0xf3, 0xe1, 0xf8, 0x05, 0x8c, 0x52, 0x11, 0x53, 0x04, 0xad, 0xfc, 0x8c, 0x93, 0x73,
-	0x4a, 0x86, 0x02, 0x00, 0xbf, 0x02, 0x9c, 0xd8, 0x8d, 0x52, 0xd1, 0xb4, 0x37, 0xb4, 0x52, 0xaf,
-	0x02, 0x80, 0xbf, 0x86, 0xed, 0x20, 0xa7, 0x30, 0x8a, 0xa7, 0xb3, 0x51, 0x84, 0xaa, 0x20, 0xee,
-	0x12, 0x86, 0xb9, 0x7c, 0x6d, 0xbe, 0x70, 0xe2, 0x33, 0xaa, 0xb1, 0xc3, 0xdc, 0x74, 0xb3, 0x14,
-	0x65, 0x90, 0xf2, 0x33, 0xa7, 0x21, 0x81, 0x96, 0xc5, 0x7d, 0x0f, 0x5b, 0xa5, 0x04, 0x57, 0x0a,
-	0x43, 0xf6, 0xb3, 0x47, 0xfd, 0x8f, 0xc4, 0xcc, 0x39, 0xd6, 0x0d, 0x6a, 0xc8, 0x46, 0x64, 0x96,
-	0x02, 0xa1, 0x86, 0x48, 0xf9, 0x41, 0xbb, 0x9e, 0x5e, 0xb9, 0xa7, 0x80, 0xcb, 0x9f, 0xa4, 0x52,
-	0x41, 0x57, 0x00, 0x59, 0x2b, 0xc4, 0x9f, 0x41, 0x93, 0x12, 0xdd, 0xb8, 0xaa, 0x47, 0x22, 0xe9,
-	0xc7, 0x5f, 0x9a, 0x69, 0xe1, 0x5d, 0xf6, 0xeb, 0x2e, 0x4b, 0x7e, 0xca, 0x27, 0x7f, 0xe8, 0x59,
-	0x91, 0xee, 0xaf, 0x60, 0x94, 0x9f, 0x0a, 0x1e, 0xfb, 0x46, 0xf7, 0x05, 0x0c, 0xec, 0x96, 0x2d,
-	0x7e, 0xe1, 0x28, 0x5e, 0xa3, 0x8c, 0xe5, 0x61, 0xc5, 0xa8, 0xbd, 0x8e, 0x73, 0x8f, 0xa1, 0x25,
-	0x87, 0x0b, 0x91, 0x35, 0x35, 0xf9, 0xe8, 0x4c, 0xe8, 0x95, 0xfb, 0x06, 0x86, 0xb9, 0x89, 0x02,
-	0xff, 0x04, 0xda, 0x34, 0x5e, 0x85, 0xc1, 0x9d, 0x0c, 0x1c, 0x4d, 0xb7, 0xb3, 0x23, 0x92, 0xe0,
-	0xfa, 0x8d, 0x74, 0x79, 0x3a, 0x44, 0x64, 0xf7, 0x9a, 0xdc, 0xa9, 0xdb, 0x31, 0xf0, 0xe4, 0xf3,
-	0x8f, 0xff, 0xde, 0x82, 0xa6, 0x38, 0x38, 0x3e, 0x80, 0x5d, 0x99, 0x0c, 0xb2, 0x0c, 0x19, 0x27,
-	0x49, 0xfa, 0x71, 0xd0, 0x13, 0xfc, 0x14, 0x1c, 0xe5, 0x2a, 0x4f, 0xd6, 0xa8, 0xb6, 0xde, 0xcb,
-	0x28, 0xaa, 0xe3, 0x1f, 0xc0, 0x81, 0xf0, 0x56, 0x0e, 0x10, 0xa8, 0xb1, 0xc1, 0xcd, 0x28, 0x6a,
-	0xe2, 0x7d, 0xd8, 0x16, 0xee, 0xc2, 0x08, 0x83, 0x5a, 0x95, 0x0e, 0x46, 0x51, 0xdb, 0x38, 0x0a,
-	0xa3, 0x04, 0xea, 0x54, 0x3a, 0x18, 0x45, 0x5d, 0x8c, 0x61, 0x24, 0x1c, 0x59, 0xf3, 0x47, 0xbd,
-	0xa2, 0x8d, 0x51, 0x04, 0x78, 0x1b, 0xc6, 0xd2, 0x96, 0x35, 0x7c, 0xd4, 0x2f, 0x19, 0x19, 0x45,
-	0x03, 0xec, 0xc0, 0x8e, 0x36, 0xe6, 0x5a, 0x2d, 0x1a, 0x56, 0x7b, 0x18, 0x45, 0x23, 0xbc, 0x07,
-	0x58, 0x65, 0xd1, 0xee, 0x8a, 0x68, 0x5c, 0x65, 0x67, 0x14, 0x21, 0xfc, 0x09, 0xec, 0x0b, 0x7b,
-	0x45, 0x2b, 0x45, 0x5b, 0x6b, 0x9d, 0x8c, 0x22, 0x6c, 0xf6, 0x50, 0xec, 0x7b, 0x68, 0xdb, 0x1c,
-	0xc6, 0x12, 0x7c, 0xb4, 0x83, 0x0f, 0x61, 0x2f, 0x0b, 0xb7, 0x9b, 0x16, 0xda, 0x5d, 0xe7, 0x63,
-	0x14, 0xed, 0x19, 0x5f, 0xb9, 0xd9, 0xa1, 0xfd, 0x75, 0x3e, 0x46, 0x91, 0x93, 0xde, 0x88, 0xaa,
-	0xee, 0x86, 0x0e, 0x36, 0xb8, 0x19, 0x45, 0x87, 0xe7, 0xe8, 0xfb, 0x7f, 0x1d, 0x3d, 0xf9, 0xee,
-	0xfe, 0xa8, 0xf6, 0xfd, 0xfd, 0x51, 0xed, 0x9f, 0xf7, 0x47, 0xb5, 0x79, 0x5b, 0xfe, 0x1b, 0xf8,
-	0x8b, 0xff, 0x05, 0x00, 0x00, 0xff, 0xff, 0xe4, 0x07, 0x50, 0x7d, 0x99, 0x16, 0x00, 0x00,
+	// 2175 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x59, 0xc9, 0x72, 0x1c, 0xb7,
+	0x19, 0xd6, 0xec, 0x33, 0xff, 0x2c, 0x04, 0xc1, 0xad, 0x49, 0xc9, 0x24, 0xd3, 0xe5, 0x52, 0x18,
+	0xc5, 0x21, 0xa3, 0xb1, 0xe3, 0xa4, 0x5c, 0x51, 0x62, 0x6e, 0xb6, 0x58, 0x66, 0x64, 0x56, 0x4b,
+	0xa5, 0x9c, 0x9b, 0x33, 0xe0, 0xb0, 0x8b, 0xcd, 0x6e, 0x08, 0xc0, 0x50, 0xe2, 0x2d, 0xc7, 0x1c,
+	0xf3, 0x28, 0x79, 0x82, 0x9c, 0x7d, 0xd4, 0x03, 0xa4, 0x54, 0x09, 0x5f, 0x23, 0x97, 0x14, 0x96,
+	0xde, 0x7b, 0x86, 0xf4, 0x89, 0xfd, 0x6f, 0x5f, 0x03, 0x7f, 0x03, 0x1f, 0x3e, 0x0c, 0xa1, 0xcb,
+	0xe8, 0x88, 0x9e, 0xef, 0x52, 0x16, 0x8a, 0x10, 0x37, 0x94, 0xb1, 0x71, 0x3a, 0xf1, 0xc4, 0xe5,
+	0xf4, 0x7c, 0x77, 0x14, 0x5e, 0xef, 0x5d, 0xbb, 0x82, 0x79, 0x1f, 0x42, 0xe6, 0x4d, 0xbc, 0xc0,
+	0x18, 0xa3, 0xe9, 0x39, 0xd9, 0x1b, 0x85, 0xd7, 0x34, 0x0c, 0x48, 0x20, 0xf8, 0x1e, 0x65, 0x21,
+	0xbd, 0x24, 0x62, 0x8f, 0x9e, 0xef, 0x5d, 0x13, 0xe1, 0xc6, 0x7f, 0x34, 0xe8, 0xc6, 0x6f, 0x52,
+	0x68, 0x93, 0x70, 0x12, 0xee, 0x29, 0xf7, 0xf9, 0xf4, 0x42, 0x59, 0xca, 0x50, 0x4f, 0x3a, 0xdd,
+	0xfe, 0x47, 0x07, 0x5a, 0x0e, 0x79, 0x37, 0x25, 0x5c, 0xe0, 0x55, 0xa8, 0x7a, 0x63, 0xab, 0xb2,
+	0x5d, 0xd9, 0xa9, 0x1f, 0x34, 0xef, 0x3e, 0x6d, 0x55, 0x4f, 0x8e, 0x9c, 0xaa, 0x37, 0xc6, 0xdb,
+	0xd0, 0x1d, 0x85, 0x81, 0x70, 0xbd, 0x80, 0xb0, 0x93, 0x23, 0xab, 0x2a, 0x13, 0x9c, 0xb4, 0x0b,
+	0x6f, 0x41, 0x5d, 0xdc, 0x52, 0x62, 0xd5, 0xb6, 0x2b, 0x3b, 0x83, 0x61, 0x77, 0x57, 0xcf, 0xf2,
+	0xcd, 0x2d, 0x25, 0x8e, 0x0a, 0xe0, 0x1f, 0x61, 0x91, 0x11, 0x1e, 0x4e, 0xd9, 0x88, 0xbc, 0x24,
+	0x2e, 0x13, 0xe7, 0xc4, 0x15, 0x56, 0x7d, 0xbb, 0xb2, 0xd3, 0x1d, 0x3e, 0x36, 0xd9, 0x4e, 0x3e,
+	0xee, 0x90, 0x77, 0x07, 0xf5, 0x9f, 0x3e, 0x6d, 0x3d, 0x72, 0x8a, 0xb5, 0xd8, 0x01, 0x1c, 0x0f,
+	0x20, 0x41, 0x6c, 0x28, 0xc4, 0x27, 0x06, 0xf1, 0xb0, 0x90, 0x90, 0x40, 0x96, 0x54, 0xe3, 0x6f,
+	0xa1, 0x47, 0xa7, 0x22, 0xae, 0xb2, 0x9a, 0x0a, 0x6d, 0xd5, 0xa0, 0x9d, 0xa5, 0x42, 0x09, 0x4e,
+	0xa6, 0x42, 0x22, 0x4c, 0x48, 0x0a, 0xa1, 0x95, 0x41, 0xf8, 0x9e, 0x94, 0x22, 0xa4, 0x2b, 0xf0,
+	0x73, 0x68, 0xb9, 0xbe, 0x1f, 0x8e, 0x4e, 0x8e, 0xac, 0xb6, 0x2a, 0x5e, 0x34, 0xc5, 0xfb, 0xda,
+	0x9b, 0xd4, 0x45, 0x79, 0xf8, 0x2b, 0x68, 0xbb, 0xfc, 0xea, 0x35, 0xf5, 0x3d, 0x61, 0x75, 0x54,
+	0x0d, 0x8e, 0x6a, 0x8c, 0x3b, 0x29, 0x8a, 0x33, 0xf1, 0x21, 0xf4, 0x5d, 0x7e, 0x75, 0xe0, 0x8a,
+	0xd1, 0xa5, 0x2e, 0x05, 0x55, 0xba, 0x96, 0x94, 0x26, 0xb1, 0xa4, 0x3e, 0x5b, 0x83, 0x5f, 0x40,
+	0x97, 0x11, 0x1a, 0x32, 0xa1, 0x21, 0xba, 0x0a, 0x62, 0x25, 0xfe, 0xa0, 0x71, 0x24, 0x01, 0x48,
+	0xe7, 0xe3, 0x53, 0x40, 0xe7, 0x12, 0x2c, 0x95, 0x69, 0xf5, 0x14, 0xc6, 0x86, 0xc1, 0x38, 0xc8,
+	0x85, 0x13, 0xa0, 0x42, 0xa5, 0x9c, 0xd1, 0x88, 0x11, 0x57, 0x90, 0xbf, 0xca, 0x08, 0x61, 0x56,
+	0x3f, 0x33, 0xa3, 0xc3, 0x74, 0x2c, 0x35, 0xa3, 0x4c, 0x0d, 0x3e, 0x81, 0x05, 0xed, 0x88, 0x96,
+	0x23, 0xb7, 0x06, 0x0a, 0x66, 0x3d, 0x03, 0x13, 0x47, 0x13, 0xa0, 0x7c, 0x9d, 0x84, 0x62, 0xe4,
+	0x3a, 0xbc, 0x49, 0x41, 0x2d, 0x64, 0xa0, 0x9c, 0x6c, 0x34, 0x05, 0x95, 0xab, 0x53, 0xab, 0xfd,
+	0x92, 0x8c, 0xae, 0x22, 0xcf, 0x6b, 0xe1, 0x0a, 0x62, 0xa1, 0xec, 0x6a, 0x2f, 0x24, 0xa4, 0x57,
+	0x7b, 0x21, 0x28, 0x9b, 0x4f, 0xa7, 0xe2, 0xcc, 0x77, 0x47, 0xe4, 0x9a, 0x04, 0xc2, 0x99, 0xfa,
+	0xc4, 0x5a, 0xcc, 0x34, 0xff, 0x2c, 0x17, 0x4e, 0x35, 0x3f, 0x5f, 0x29, 0x27, 0x3b, 0x21, 0x62,
+	0x9f, 0x52, 0xdf, 0x23, 0x63, 0xe9, 0xe1, 0x16, 0xce, 0x4c, 0xf6, 0xfb, 0x6c, 0x34, 0x35, 0xd9,
+	0x5c, 0x9d, 0xfd, 0xf7, 0x0e, 0xb4, 0x1d, 0xc2, 0x69, 0x18, 0x70, 0x32, 0x93, 0x93, 0x22, 0xc6,
+	0xa9, 0xce, 0x62, 0x9c, 0x65, 0x68, 0x10, 0xc6, 0x42, 0xa6, 0x38, 0xa9, 0xe3, 0x68, 0x03, 0xaf,
+	0x42, 0xd3, 0x27, 0xee, 0x98, 0x30, 0x45, 0x3e, 0x1d, 0xc7, 0x58, 0xe5, 0xfc, 0xd4, 0xb8, 0x87,
+	0x9f, 0x38, 0xfd, 0xb9, 0xfc, 0xd4, 0xbc, 0x8f, 0x9f, 0x62, 0xc8, 0x87, 0xf0, 0x53, 0x6b, 0x36,
+	0x3f, 0xc5, 0x38, 0xf3, 0xf9, 0xa9, 0x3d, 0x9b, 0x9f, 0x12, 0x84, 0x59, 0xfc, 0xd4, 0x29, 0xe5,
+	0xa7, 0xb8, 0xae, 0x94, 0x9f, 0xa0, 0x9c, 0x9f, 0xe2, 0xa2, 0x39, 0xfc, 0xd4, 0x9d, 0xc3, 0x4f,
+	0x71, 0xfd, 0x7c, 0x7e, 0xea, 0xcd, 0xe4, 0xa7, 0x18, 0xe0, 0x5e, 0x7e, 0xea, 0xcf, 0xe7, 0xa7,
+	0x18, 0xa8, 0xc8, 0x4f, 0xbb, 0xd0, 0x20, 0x37, 0x24, 0x10, 0x86, 0x50, 0xa2, 0x26, 0x1c, 0x4b,
+	0xdf, 0xab, 0x50, 0x78, 0x17, 0xb7, 0xa6, 0x54, 0xa7, 0x95, 0x51, 0xd1, 0xc2, 0x5c, 0x2a, 0x8a,
+	0xdf, 0xfd, 0x10, 0x2a, 0x42, 0x73, 0xa9, 0x28, 0x81, 0x7a, 0x18, 0x15, 0x2d, 0xde, 0x47, 0x45,
+	0xa9, 0x85, 0xfd, 0x30, 0x2a, 0xc2, 0xf3, 0xa9, 0x28, 0xe9, 0xf3, 0x43, 0xa8, 0x68, 0x69, 0x2e,
+	0x15, 0x25, 0x93, 0xcd, 0x53, 0xd1, 0x3f, 0xab, 0xb0, 0x5c, 0xa6, 0x4b, 0xf2, 0x92, 0xa8, 0x52,
+	0x94, 0x44, 0x1b, 0xd0, 0x8e, 0x58, 0x41, 0x91, 0x54, 0xcf, 0x89, 0x6d, 0x8c, 0xa1, 0x2e, 0x08,
+	0xbb, 0x56, 0xd4, 0x54, 0x77, 0xd4, 0x33, 0xfe, 0x3c, 0xc3, 0x4c, 0xdd, 0x61, 0x6f, 0xd7, 0xc8,
+	0xba, 0x33, 0x42, 0x58, 0xcc, 0x53, 0xbf, 0x83, 0xce, 0x38, 0x7c, 0x1f, 0x48, 0x1f, 0xb7, 0x1a,
+	0xdb, 0x35, 0xb5, 0x01, 0x53, 0x89, 0xb2, 0x9f, 0xdc, 0xcc, 0x26, 0xc9, 0xc4, 0x5f, 0x43, 0x8f,
+	0x92, 0x60, 0xec, 0x05, 0x13, 0x5d, 0xd9, 0x54, 0x95, 0x99, 0x57, 0xc4, 0x7c, 0x91, 0xca, 0xc3,
+	0xcf, 0xa1, 0xc1, 0x25, 0xa2, 0xa1, 0x9a, 0x95, 0xa8, 0x20, 0xfd, 0xf9, 0xa2, 0xd7, 0xe9, 0x4c,
+	0xfb, 0xdf, 0xb5, 0xb2, 0x96, 0x71, 0x8a, 0x37, 0x01, 0xa2, 0x06, 0xc4, 0x1d, 0x4b, 0x79, 0xf0,
+	0x3e, 0xf4, 0x23, 0xeb, 0x98, 0x86, 0xa3, 0x4b, 0xd5, 0xb5, 0x92, 0x77, 0xaa, 0x60, 0xb4, 0xdd,
+	0x33, 0x15, 0xf8, 0x0b, 0x00, 0xe1, 0xb2, 0x09, 0x11, 0x72, 0xf4, 0xaa, 0xbb, 0xf9, 0x3e, 0xa6,
+	0xe2, 0xf8, 0x39, 0xc0, 0xe8, 0xd2, 0x0d, 0x26, 0x44, 0x65, 0xd7, 0x33, 0x6c, 0x76, 0x18, 0x07,
+	0x9c, 0x54, 0x12, 0x7e, 0x01, 0x03, 0xc1, 0xdc, 0x80, 0x5f, 0x10, 0x76, 0xaa, 0x3f, 0x56, 0x23,
+	0x43, 0x29, 0x6f, 0x32, 0x41, 0x27, 0x97, 0x8c, 0x6d, 0x68, 0x5c, 0x13, 0x36, 0x21, 0xe6, 0x1c,
+	0xe8, 0x99, 0xaa, 0xbf, 0x48, 0x9f, 0xa3, 0x43, 0xf8, 0x1b, 0xe8, 0x73, 0xad, 0x74, 0xcc, 0xe2,
+	0xd1, 0xad, 0x5f, 0x36, 0xb9, 0xaf, 0xd3, 0x31, 0x27, 0x9b, 0x8a, 0x7f, 0x0f, 0xbd, 0x64, 0xb0,
+	0x6f, 0x87, 0x86, 0xde, 0x97, 0x0a, 0x73, 0x7a, 0x3b, 0x74, 0x32, 0x89, 0x78, 0x07, 0x16, 0xc6,
+	0x84, 0x8b, 0x90, 0xdd, 0x1e, 0x79, 0x8c, 0x8c, 0x84, 0x7f, 0xab, 0xd8, 0xbd, 0xed, 0xe4, 0xdd,
+	0xf6, 0x1e, 0x2c, 0xe4, 0x84, 0x30, 0x7e, 0x02, 0x9d, 0x78, 0xe1, 0xab, 0xef, 0xda, 0x73, 0x12,
+	0x87, 0xbd, 0x98, 0x2b, 0xe0, 0xd4, 0xfe, 0x01, 0x56, 0x4a, 0xa5, 0x39, 0x1e, 0x46, 0xcb, 0xad,
+	0x62, 0xce, 0x25, 0xf3, 0xe9, 0xe2, 0xec, 0x92, 0xf5, 0xb6, 0x56, 0x0a, 0xc6, 0xa9, 0xfd, 0x2b,
+	0x58, 0xc8, 0x09, 0xee, 0x59, 0x62, 0xc2, 0x7e, 0x9d, 0x4b, 0xe5, 0x54, 0x6e, 0xd1, 0xb1, 0x2b,
+	0x5c, 0x33, 0x1f, 0xf5, 0x8c, 0xbf, 0x88, 0x86, 0x57, 0x9d, 0x37, 0xbc, 0x68, 0x60, 0x3d, 0x80,
+	0x44, 0xb3, 0xdb, 0x9f, 0x27, 0x16, 0xa7, 0x33, 0x07, 0xf2, 0x0b, 0xe8, 0xa6, 0x34, 0x7b, 0xd9,
+	0x20, 0xec, 0x17, 0xa9, 0x14, 0x4e, 0xf1, 0x2e, 0xb4, 0xd4, 0x1a, 0x30, 0x5b, 0xaa, 0x3b, 0x1c,
+	0xa4, 0x17, 0xca, 0xc9, 0x51, 0x74, 0x18, 0x9b, 0x24, 0xfb, 0x1b, 0x18, 0x64, 0xe5, 0xb4, 0x7c,
+	0x89, 0x4f, 0x2e, 0x44, 0xf4, 0x12, 0xf9, 0x2c, 0xc5, 0x13, 0xf3, 0x26, 0x97, 0xc2, 0x30, 0x97,
+	0x36, 0x6c, 0x94, 0xad, 0xe5, 0xd4, 0xfe, 0x23, 0xa0, 0xfc, 0x45, 0xa1, 0xb4, 0x73, 0xcb, 0xd0,
+	0x18, 0x85, 0xd3, 0x40, 0xe3, 0xf5, 0x1d, 0x6d, 0xd8, 0x47, 0xf9, 0x6a, 0x4e, 0xf1, 0x6f, 0xa1,
+	0x6d, 0x86, 0x2a, 0x57, 0x41, 0x6d, 0xe6, 0x84, 0xe2, 0x2c, 0xfb, 0x4b, 0x58, 0x2a, 0xb9, 0x25,
+	0xc8, 0x55, 0xc9, 0xe2, 0xc3, 0x4e, 0x22, 0xf5, 0x9c, 0xc4, 0x61, 0xaf, 0x94, 0x14, 0x71, 0x6a,
+	0xff, 0x19, 0x5a, 0xe6, 0x35, 0x72, 0xc8, 0x01, 0x79, 0x1f, 0x33, 0x95, 0x36, 0x24, 0x89, 0x05,
+	0xe4, 0xbd, 0xdc, 0x35, 0x72, 0x80, 0xd5, 0xed, 0x9a, 0x24, 0xb1, 0xc4, 0x63, 0x3f, 0x05, 0x94,
+	0xbf, 0x67, 0xc8, 0x86, 0x5c, 0xf8, 0xee, 0x44, 0x01, 0xf5, 0x1d, 0xf5, 0x6c, 0x0f, 0x01, 0x17,
+	0x2f, 0x12, 0xf7, 0x8c, 0x79, 0xb9, 0x58, 0xc3, 0xa9, 0xbd, 0x07, 0xb8, 0x78, 0x8f, 0xc0, 0xeb,
+	0x50, 0xf3, 0xc6, 0x1a, 0xa3, 0x7e, 0xd0, 0xba, 0xfb, 0xb4, 0x55, 0x3b, 0x39, 0xe2, 0x8e, 0xf4,
+	0x49, 0x98, 0xe2, 0x69, 0x6f, 0x0f, 0x61, 0xa5, 0xf4, 0x02, 0x91, 0x20, 0x55, 0x76, 0x7a, 0x39,
+	0xa4, 0xe7, 0xa5, 0x35, 0x9c, 0x62, 0x0b, 0x5a, 0x5a, 0x36, 0x8c, 0xf5, 0x08, 0x9c, 0xc8, 0xb4,
+	0x8f, 0x61, 0xa9, 0xe4, 0x56, 0x81, 0x77, 0xa1, 0xce, 0xe4, 0xa1, 0x5f, 0xc9, 0x70, 0x5d, 0x26,
+	0xcd, 0x7c, 0x77, 0x95, 0x27, 0x3f, 0x5f, 0x89, 0x22, 0xb0, 0xbf, 0x02, 0x5c, 0xbc, 0x66, 0xdc,
+	0x77, 0xf0, 0xd8, 0xdf, 0x15, 0xab, 0xd4, 0x42, 0x6c, 0x30, 0xa5, 0x1d, 0xf4, 0x2a, 0x9c, 0x37,
+	0x26, 0x9d, 0x68, 0xff, 0xaf, 0x0a, 0xdd, 0x94, 0x98, 0xc3, 0x08, 0x6a, 0x9c, 0xbc, 0x33, 0x2f,
+	0x94, 0x8f, 0xea, 0xdc, 0x8f, 0x2e, 0x2d, 0x7d, 0x73, 0x4f, 0x19, 0x42, 0xc7, 0x0b, 0x3c, 0xa1,
+	0x0a, 0xcd, 0x91, 0x15, 0xbd, 0xeb, 0x24, 0xf2, 0x1f, 0xb9, 0xc2, 0x75, 0x92, 0x34, 0xfc, 0xa7,
+	0xd4, 0x51, 0xa9, 0xea, 0xf4, 0xe1, 0x65, 0xe5, 0x6e, 0x2a, 0x49, 0x6d, 0x36, 0x1d, 0xef, 0xc3,
+	0x20, 0x26, 0x68, 0x0d, 0xd0, 0xc8, 0x0a, 0xcb, 0x4c, 0x50, 0x21, 0xe4, 0x0a, 0xf0, 0x31, 0x60,
+	0x96, 0x16, 0x01, 0x1a, 0xa6, 0x39, 0x47, 0x26, 0x38, 0x25, 0x05, 0xf8, 0x25, 0x2c, 0x8d, 0x32,
+	0xec, 0xa9, 0x71, 0x5a, 0x73, 0x09, 0xb6, 0xac, 0xc4, 0x9e, 0x40, 0x3f, 0xd3, 0xaf, 0xf9, 0x9b,
+	0x49, 0x2e, 0x51, 0x2d, 0xa9, 0xa2, 0x5d, 0x1c, 0x99, 0x72, 0xb9, 0xc4, 0xf8, 0xdc, 0xaa, 0xa9,
+	0xc2, 0x94, 0xc7, 0x7e, 0x07, 0x8b, 0x85, 0x06, 0x97, 0x92, 0x5e, 0x72, 0xd7, 0xd4, 0xbf, 0x98,
+	0x45, 0x1a, 0x2e, 0xb5, 0x3b, 0x6a, 0xea, 0x90, 0x8d, 0x4c, 0x59, 0xa1, 0x95, 0xbb, 0xfa, 0xa0,
+	0x6d, 0xc7, 0x58, 0xf6, 0x0e, 0xe0, 0xe2, 0x27, 0x29, 0x3d, 0x1d, 0x7c, 0x80, 0xe4, 0x98, 0xc7,
+	0x4f, 0xa1, 0x4e, 0x89, 0x39, 0x94, 0xcb, 0xe5, 0x9e, 0x8a, 0xe3, 0xaf, 0x23, 0x25, 0xf4, 0x26,
+	0xb9, 0x52, 0x27, 0xcd, 0x8f, 0xf1, 0xd4, 0xed, 0x3a, 0x95, 0x69, 0xff, 0x01, 0x06, 0x59, 0xc5,
+	0xf3, 0xd0, 0x37, 0xda, 0xfb, 0xd0, 0x4b, 0xcb, 0x11, 0x79, 0xad, 0xd4, 0xb8, 0xd1, 0x7e, 0x2b,
+	0x0a, 0xb1, 0xe8, 0x24, 0x33, 0x79, 0xf6, 0x16, 0x34, 0x94, 0x70, 0x92, 0x5d, 0xd3, 0xaa, 0xce,
+	0x74, 0xc2, 0x58, 0xf6, 0x19, 0xf4, 0x33, 0x6a, 0x09, 0xff, 0x1a, 0x9a, 0x34, 0xf4, 0xbd, 0xd1,
+	0xad, 0x4a, 0x1c, 0x0c, 0x97, 0x92, 0x29, 0x92, 0xd1, 0xd5, 0x99, 0x0a, 0x39, 0x26, 0x45, 0x76,
+	0xf7, 0x8a, 0xdc, 0xea, 0xd5, 0xd1, 0x73, 0xd4, 0xb3, 0x4d, 0x60, 0xe1, 0xd4, 0x3d, 0x27, 0xfe,
+	0x61, 0x18, 0x70, 0xc1, 0x5c, 0x2f, 0x10, 0x72, 0x93, 0x5f, 0x11, 0x0d, 0xd8, 0x71, 0xe4, 0x23,
+	0xde, 0x81, 0x6a, 0x48, 0x4d, 0x13, 0xa3, 0x1d, 0x99, 0xab, 0xfa, 0x91, 0x3a, 0xd5, 0x50, 0xaa,
+	0x80, 0xe6, 0x8d, 0xeb, 0x4f, 0x89, 0x5e, 0x65, 0x1d, 0xc7, 0x58, 0xf6, 0xdf, 0x6a, 0xd0, 0xcf,
+	0x5e, 0x69, 0x12, 0xbd, 0xd0, 0xc9, 0xfc, 0x0a, 0x62, 0x41, 0x6b, 0xc2, 0xc2, 0x29, 0x35, 0xbf,
+	0xca, 0x76, 0x9c, 0xc8, 0x94, 0xc7, 0x97, 0x17, 0x8c, 0xc9, 0x07, 0xb5, 0xc4, 0xfa, 0x8e, 0x36,
+	0xe4, 0xa5, 0x24, 0xbc, 0x21, 0x8c, 0x79, 0xe3, 0x68, 0x89, 0xc5, 0xb6, 0x8c, 0x71, 0xe1, 0x32,
+	0xf1, 0x03, 0xb9, 0x55, 0x74, 0xd0, 0x73, 0x62, 0x5b, 0x8e, 0x94, 0x04, 0x63, 0x19, 0x69, 0xea,
+	0x16, 0x6b, 0x0b, 0xff, 0x12, 0xea, 0x2c, 0xf4, 0xb5, 0x46, 0x1d, 0xc4, 0x42, 0x53, 0xc9, 0xe6,
+	0xd0, 0x27, 0xfa, 0xd7, 0x18, 0x99, 0x90, 0x08, 0x80, 0x76, 0x4a, 0x00, 0xe0, 0x97, 0x80, 0xfc,
+	0x6c, 0x67, 0xb8, 0xd5, 0x51, 0x9f, 0x7f, 0xb5, 0xbc, 0x71, 0xd1, 0x9d, 0x2f, 0x5f, 0x85, 0x9f,
+	0xc2, 0xc0, 0x0f, 0x47, 0xae, 0xf0, 0xc2, 0x40, 0x95, 0x70, 0x0b, 0x54, 0x4b, 0x73, 0x5e, 0x99,
+	0xe7, 0xf1, 0xd0, 0xd7, 0x2e, 0x72, 0x43, 0x7c, 0xf5, 0xb3, 0x42, 0xc7, 0xc9, 0x79, 0x9f, 0xfd,
+	0xab, 0x09, 0x75, 0x39, 0x7c, 0xbc, 0x0e, 0x2b, 0x6a, 0x1a, 0x64, 0xe2, 0x71, 0x41, 0x58, 0xbc,
+	0x0d, 0xd1, 0x23, 0xfc, 0x04, 0x2c, 0x1d, 0x2a, 0xde, 0x0f, 0x51, 0x65, 0x76, 0x94, 0x53, 0x54,
+	0xc5, 0x9f, 0xc1, 0xba, 0x8c, 0x96, 0xca, 0x60, 0x54, 0x9b, 0x13, 0xe6, 0x14, 0xd5, 0xf1, 0x1a,
+	0x2c, 0xc9, 0x70, 0x4e, 0x88, 0xa3, 0x46, 0x69, 0x80, 0x53, 0xd4, 0x8c, 0x02, 0x39, 0x41, 0x8c,
+	0x5a, 0xa5, 0x01, 0x4e, 0x51, 0x1b, 0x63, 0x18, 0xc8, 0x40, 0x22, 0x61, 0x51, 0x27, 0xef, 0xe3,
+	0x14, 0x01, 0x5e, 0x82, 0x05, 0xe5, 0x4b, 0x64, 0x2b, 0xea, 0x16, 0x9c, 0x9c, 0xa2, 0x1e, 0xb6,
+	0x60, 0xd9, 0x38, 0x33, 0x82, 0x11, 0xf5, 0xcb, 0x23, 0x9c, 0xa2, 0x01, 0x5e, 0x05, 0xac, 0xbb,
+	0x98, 0xd6, 0x76, 0x68, 0xa1, 0xcc, 0xcf, 0x29, 0x42, 0xf8, 0x31, 0xac, 0x49, 0x7f, 0x89, 0x20,
+	0x44, 0x8b, 0x33, 0x83, 0x9c, 0x22, 0x1c, 0x8d, 0x21, 0xaf, 0xde, 0xd0, 0x52, 0x34, 0x99, 0xd4,
+	0xd1, 0x8e, 0x96, 0xf1, 0x06, 0xac, 0x26, 0xe9, 0x69, 0xe9, 0x85, 0x56, 0x66, 0xc5, 0x38, 0x45,
+	0xab, 0x51, 0xac, 0x28, 0xd9, 0xd0, 0xda, 0xac, 0x18, 0xa7, 0xc8, 0x8a, 0x57, 0x44, 0x99, 0x46,
+	0x43, 0xeb, 0x73, 0xc2, 0x9c, 0xa2, 0x8d, 0x68, 0xe6, 0x25, 0xd2, 0x0b, 0x3d, 0x9e, 0x19, 0xe4,
+	0x14, 0x3d, 0x89, 0xc6, 0x54, 0x94, 0x55, 0xe8, 0xb3, 0x59, 0x31, 0x4e, 0xd1, 0xe6, 0xb3, 0x6f,
+	0xa1, 0x97, 0xa6, 0x01, 0xdc, 0x81, 0xc6, 0xdb, 0x50, 0xa8, 0x7d, 0x03, 0xd0, 0xd4, 0xa7, 0x05,
+	0xaa, 0xe0, 0x1e, 0xb4, 0xbf, 0x0b, 0x7d, 0x3f, 0x7c, 0x4f, 0x18, 0xaa, 0xe2, 0x2e, 0xb4, 0x4e,
+	0x89, 0xcb, 0xe4, 0xf6, 0xaa, 0x3d, 0xdb, 0x87, 0xc5, 0x02, 0x6d, 0xe2, 0x26, 0x54, 0x4f, 0x02,
+	0xf4, 0x48, 0xc2, 0xbd, 0x0a, 0xc5, 0x49, 0x80, 0x2a, 0x12, 0xee, 0xf8, 0x83, 0xc7, 0x05, 0x47,
+	0x55, 0xdc, 0x87, 0xce, 0xab, 0x50, 0x18, 0xb3, 0x76, 0x80, 0x3e, 0xfe, 0x77, 0xf3, 0xd1, 0x4f,
+	0x77, 0x9b, 0x95, 0x8f, 0x77, 0x9b, 0x95, 0xff, 0xdc, 0x6d, 0x56, 0xce, 0x9b, 0xea, 0xbf, 0x5e,
+	0x5f, 0xfe, 0x3f, 0x00, 0x00, 0xff, 0xff, 0x54, 0x3c, 0xb1, 0xde, 0x88, 0x1b, 0x00, 0x00,
 }
 
 func (m *Request) Marshal() (dAtA []byte, err error) {
@@ -2653,6 +3189,26 @@ func (m *Request) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n13
+	dAtA[i] = 0x8a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
+	n14, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n14
+	dAtA[i] = 0x92
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
+	n15, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n15
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2699,111 +3255,131 @@ func (m *Response) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceHeartbeat.Size()))
-	n14, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n14
-	dAtA[i] = 0x32
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
-	n15, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n15
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
-	n16, err := m.PutContainer.MarshalTo(dAtA[i:])
+	n16, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n16
-	dAtA[i] = 0x42
+	dAtA[i] = 0x32
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
-	n17, err := m.GetContainer.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
+	n17, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n17
-	dAtA[i] = 0x4a
+	dAtA[i] = 0x3a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n18, err := m.AllocID.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
+	n18, err := m.PutContainer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n18
-	dAtA[i] = 0x52
+	dAtA[i] = 0x42
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskSplit.Size()))
-	n19, err := m.AskSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
+	n19, err := m.GetContainer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n19
-	dAtA[i] = 0x5a
+	dAtA[i] = 0x4a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n20, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
+	n20, err := m.AllocID.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n20
-	dAtA[i] = 0x62
+	dAtA[i] = 0x52
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportSplit.Size()))
-	n21, err := m.ReportSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskSplit.Size()))
+	n21, err := m.AskSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n21
-	dAtA[i] = 0x6a
+	dAtA[i] = 0x5a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.BatchReportSplit.Size()))
-	n22, err := m.BatchReportSplit.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
+	n22, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n22
-	dAtA[i] = 0x72
+	dAtA[i] = 0x62
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
-	n23, err := m.Event.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportSplit.Size()))
+	n23, err := m.ReportSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n23
-	dAtA[i] = 0x7a
+	dAtA[i] = 0x6a
 	i++
-	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateResources.Size()))
-	n24, err := m.CreateResources.MarshalTo(dAtA[i:])
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.BatchReportSplit.Size()))
+	n24, err := m.BatchReportSplit.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n24
+	dAtA[i] = 0x72
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
+	n25, err := m.Event.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n25
+	dAtA[i] = 0x7a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateResources.Size()))
+	n26, err := m.CreateResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n26
 	dAtA[i] = 0x82
 	i++
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveResources.Size()))
-	n25, err := m.RemoveResources.MarshalTo(dAtA[i:])
+	n27, err := m.RemoveResources.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n25
+	i += n27
 	dAtA[i] = 0x8a
 	i++
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckResourceState.Size()))
-	n26, err := m.CheckResourceState.MarshalTo(dAtA[i:])
+	n28, err := m.CheckResourceState.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n26
+	i += n28
+	dAtA[i] = 0x92
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
+	n29, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n29
+	dAtA[i] = 0x9a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
+	n30, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n30
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2845,11 +3421,11 @@ func (m *ResourceHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader.Size()))
-		n27, err := m.Leader.MarshalTo(dAtA[i:])
+		n31, err := m.Leader.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n27
+		i += n31
 	}
 	if len(m.DownPeers) > 0 {
 		for _, msg := range m.DownPeers {
@@ -2878,11 +3454,11 @@ func (m *ResourceHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n28, err := m.Stats.MarshalTo(dAtA[i:])
+	n32, err := m.Stats.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n28
+	i += n32
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -2912,70 +3488,70 @@ func (m *ResourceHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEpoch.Size()))
-	n29, err := m.ResourceEpoch.MarshalTo(dAtA[i:])
+	n33, err := m.ResourceEpoch.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n29
+	i += n33
 	if m.TargetPeer != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TargetPeer.Size()))
-		n30, err := m.TargetPeer.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n30
-	}
-	if m.ChangePeer != nil {
-		dAtA[i] = 0x22
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeer.Size()))
-		n31, err := m.ChangePeer.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n31
-	}
-	if m.TransferLeader != nil {
-		dAtA[i] = 0x2a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
-		n32, err := m.TransferLeader.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n32
-	}
-	if m.Merge != nil {
-		dAtA[i] = 0x32
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
-		n33, err := m.Merge.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n33
-	}
-	if m.SplitResource != nil {
-		dAtA[i] = 0x3a
-		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitResource.Size()))
-		n34, err := m.SplitResource.MarshalTo(dAtA[i:])
+		n34, err := m.TargetPeer.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n34
 	}
-	if m.ChangePeerV2 != nil {
-		dAtA[i] = 0x42
+	if m.ChangePeer != nil {
+		dAtA[i] = 0x22
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeerV2.Size()))
-		n35, err := m.ChangePeerV2.MarshalTo(dAtA[i:])
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeer.Size()))
+		n35, err := m.ChangePeer.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
 		i += n35
+	}
+	if m.TransferLeader != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
+		n36, err := m.TransferLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n36
+	}
+	if m.Merge != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
+		n37, err := m.Merge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n37
+	}
+	if m.SplitResource != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitResource.Size()))
+		n38, err := m.SplitResource.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n38
+	}
+	if m.ChangePeerV2 != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangePeerV2.Size()))
+		n39, err := m.ChangePeerV2.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n39
 	}
 	if m.DestoryDirectly {
 		dAtA[i] = 0x48
@@ -3059,11 +3635,11 @@ func (m *ContainerHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n36, err := m.Stats.MarshalTo(dAtA[i:])
+	n40, err := m.Stats.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n36
+	i += n40
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -3142,11 +3718,11 @@ func (m *GetContainerRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-		n37, err := m.Stats.MarshalTo(dAtA[i:])
+		n41, err := m.Stats.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n37
+		i += n41
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3246,11 +3822,11 @@ func (m *AskSplitRsp) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitID.Size()))
-	n38, err := m.SplitID.MarshalTo(dAtA[i:])
+	n42, err := m.SplitID.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n38
+	i += n42
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -3447,21 +4023,21 @@ func (m *SplitID) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
 	}
 	if len(m.NewPeerIDs) > 0 {
-		dAtA40 := make([]byte, len(m.NewPeerIDs)*10)
-		var j39 int
+		dAtA44 := make([]byte, len(m.NewPeerIDs)*10)
+		var j43 int
 		for _, num := range m.NewPeerIDs {
 			for num >= 1<<7 {
-				dAtA40[j39] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA44[j43] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j39++
+				j43++
 			}
-			dAtA40[j39] = uint8(num)
-			j39++
+			dAtA44[j43] = uint8(num)
+			j43++
 		}
 		dAtA[i] = 0x12
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j39))
-		i += copy(dAtA[i:], dAtA40[:j39])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j43))
+		i += copy(dAtA[i:], dAtA44[:j43])
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3561,21 +4137,21 @@ func (m *RemoveResourcesReq) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.IDs) > 0 {
-		dAtA42 := make([]byte, len(m.IDs)*10)
-		var j41 int
+		dAtA46 := make([]byte, len(m.IDs)*10)
+		var j45 int
 		for _, num := range m.IDs {
 			for num >= 1<<7 {
-				dAtA42[j41] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA46[j45] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j41++
+				j45++
 			}
-			dAtA42[j41] = uint8(num)
-			j41++
+			dAtA46[j45] = uint8(num)
+			j45++
 		}
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j41))
-		i += copy(dAtA[i:], dAtA42[:j41])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j45))
+		i += copy(dAtA[i:], dAtA46[:j45])
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3647,21 +4223,130 @@ func (m *CheckResourceStateRsp) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if len(m.Removed) > 0 {
-		dAtA44 := make([]byte, len(m.Removed)*10)
-		var j43 int
+		dAtA48 := make([]byte, len(m.Removed)*10)
+		var j47 int
 		for _, num := range m.Removed {
 			for num >= 1<<7 {
-				dAtA44[j43] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA48[j47] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j43++
+				j47++
 			}
-			dAtA44[j43] = uint8(num)
-			j43++
+			dAtA48[j47] = uint8(num)
+			j47++
 		}
 		dAtA[i] = 0xa
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j43))
-		i += copy(dAtA[i:], dAtA44[:j43])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j47))
+		i += copy(dAtA[i:], dAtA48[:j47])
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *PutPlacementRuleReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PutPlacementRuleReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	dAtA[i] = 0xa
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
+	n49, err := m.Rule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n49
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *PutPlacementRuleRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PutPlacementRuleRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetAppliedRulesReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetAppliedRulesReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ResourceID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceID))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetAppliedRulesRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetAppliedRulesRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Rules) > 0 {
+		for _, msg := range m.Rules {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3698,51 +4383,51 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.InitEvent.Size()))
-		n45, err := m.InitEvent.MarshalTo(dAtA[i:])
+		n50, err := m.InitEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n45
+		i += n50
 	}
 	if m.ResourceEvent != nil {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEvent.Size()))
-		n46, err := m.ResourceEvent.MarshalTo(dAtA[i:])
+		n51, err := m.ResourceEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n46
+		i += n51
 	}
 	if m.ContainerEvent != nil {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerEvent.Size()))
-		n47, err := m.ContainerEvent.MarshalTo(dAtA[i:])
+		n52, err := m.ContainerEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n47
+		i += n52
 	}
 	if m.ResourceStatsEvent != nil {
 		dAtA[i] = 0x32
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceStatsEvent.Size()))
-		n48, err := m.ResourceStatsEvent.MarshalTo(dAtA[i:])
+		n53, err := m.ResourceStatsEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n48
+		i += n53
 	}
 	if m.ContainerStatsEvent != nil {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerStatsEvent.Size()))
-		n49, err := m.ContainerStatsEvent.MarshalTo(dAtA[i:])
+		n54, err := m.ContainerStatsEvent.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n49
+		i += n54
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -3774,21 +4459,21 @@ func (m *InitEventData) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.Leaders) > 0 {
-		dAtA51 := make([]byte, len(m.Leaders)*10)
-		var j50 int
+		dAtA56 := make([]byte, len(m.Leaders)*10)
+		var j55 int
 		for _, num := range m.Leaders {
 			for num >= 1<<7 {
-				dAtA51[j50] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA56[j55] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j50++
+				j55++
 			}
-			dAtA51[j50] = uint8(num)
-			j50++
+			dAtA56[j55] = uint8(num)
+			j55++
 		}
 		dAtA[i] = 0x12
 		i++
-		i = encodeVarintRpcpb(dAtA, i, uint64(j50))
-		i += copy(dAtA[i:], dAtA51[:j50])
+		i = encodeVarintRpcpb(dAtA, i, uint64(j55))
+		i += copy(dAtA[i:], dAtA56[:j55])
 	}
 	if len(m.Containers) > 0 {
 		for _, b := range m.Containers {
@@ -3901,11 +4586,11 @@ func (m *ChangePeer) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Peer.Size()))
-	n52, err := m.Peer.MarshalTo(dAtA[i:])
+	n57, err := m.Peer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n52
+	i += n57
 	if m.ChangeType != 0 {
 		dAtA[i] = 0x10
 		i++
@@ -3935,11 +4620,11 @@ func (m *TransferLeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Peer.Size()))
-	n53, err := m.Peer.MarshalTo(dAtA[i:])
+	n58, err := m.Peer.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n53
+	i += n58
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -4040,6 +4725,156 @@ func (m *SplitResource) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *LabelConstraint) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LabelConstraint) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
+	}
+	if m.Op != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Op))
+	}
+	if len(m.Values) > 0 {
+		for _, s := range m.Values {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *PlacementRule) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *PlacementRule) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.ID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
+	}
+	if len(m.GroupID) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupID)))
+		i += copy(dAtA[i:], m.GroupID)
+	}
+	if m.Index != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+	}
+	if m.Override {
+		dAtA[i] = 0x20
+		i++
+		if m.Override {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	if len(m.StartKey) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.StartKey)))
+		i += copy(dAtA[i:], m.StartKey)
+	}
+	if len(m.EndKey) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.EndKey)))
+		i += copy(dAtA[i:], m.EndKey)
+	}
+	if m.Role != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Role))
+	}
+	if m.Count != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+	}
+	if len(m.LabelConstraints) > 0 {
+		for _, msg := range m.LabelConstraints {
+			dAtA[i] = 0x4a
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.LocationLabels) > 0 {
+		for _, s := range m.LocationLabels {
+			dAtA[i] = 0x52
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.IsolationLevel) > 0 {
+		dAtA[i] = 0x5a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IsolationLevel)))
+		i += copy(dAtA[i:], m.IsolationLevel)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func encodeVarintRpcpb(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -4089,6 +4924,10 @@ func (m *Request) Size() (n int) {
 	l = m.RemoveResources.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.CheckResourceState.Size()
+	n += 2 + l + sovRpcpb(uint64(l))
+	l = m.PutPlacementRule.Size()
+	n += 2 + l + sovRpcpb(uint64(l))
+	l = m.GetAppliedRules.Size()
 	n += 2 + l + sovRpcpb(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4141,6 +4980,10 @@ func (m *Response) Size() (n int) {
 	l = m.RemoveResources.Size()
 	n += 2 + l + sovRpcpb(uint64(l))
 	l = m.CheckResourceState.Size()
+	n += 2 + l + sovRpcpb(uint64(l))
+	l = m.PutPlacementRule.Size()
+	n += 2 + l + sovRpcpb(uint64(l))
+	l = m.GetAppliedRules.Size()
 	n += 2 + l + sovRpcpb(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4610,6 +5453,65 @@ func (m *CheckResourceStateRsp) Size() (n int) {
 	return n
 }
 
+func (m *PutPlacementRuleReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Rule.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PutPlacementRuleRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetAppliedRulesReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ResourceID != 0 {
+		n += 1 + sovRpcpb(uint64(m.ResourceID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetAppliedRulesRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Rules) > 0 {
+		for _, e := range m.Rules {
+			l = e.Size()
+			n += 1 + l + sovRpcpb(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *EventNotify) Size() (n int) {
 	if m == nil {
 		return 0
@@ -4799,6 +5701,87 @@ func (m *SplitResource) Size() (n int) {
 			l = len(b)
 			n += 1 + l + sovRpcpb(uint64(l))
 		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *LabelConstraint) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Key)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.Op != 0 {
+		n += 1 + sovRpcpb(uint64(m.Op))
+	}
+	if len(m.Values) > 0 {
+		for _, s := range m.Values {
+			l = len(s)
+			n += 1 + l + sovRpcpb(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *PlacementRule) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ID)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	l = len(m.GroupID)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.Index != 0 {
+		n += 1 + sovRpcpb(uint64(m.Index))
+	}
+	if m.Override {
+		n += 2
+	}
+	l = len(m.StartKey)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	l = len(m.EndKey)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.Role != 0 {
+		n += 1 + sovRpcpb(uint64(m.Role))
+	}
+	if m.Count != 0 {
+		n += 1 + sovRpcpb(uint64(m.Count))
+	}
+	if len(m.LabelConstraints) > 0 {
+		for _, e := range m.LabelConstraints {
+			l = e.Size()
+			n += 1 + l + sovRpcpb(uint64(l))
+		}
+	}
+	if len(m.LocationLabels) > 0 {
+		for _, s := range m.LocationLabels {
+			l = len(s)
+			n += 1 + l + sovRpcpb(uint64(l))
+		}
+	}
+	l = len(m.IsolationLevel)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -5331,6 +6314,72 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if err := m.CheckResourceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PutPlacementRule", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.PutPlacementRule.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 18:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GetAppliedRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.GetAppliedRules.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -5916,6 +6965,72 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if err := m.CheckResourceState.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 18:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PutPlacementRule", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.PutPlacementRule.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 19:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GetAppliedRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.GetAppliedRules.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -8606,6 +9721,308 @@ func (m *CheckResourceStateRsp) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *PutPlacementRuleReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PutPlacementRuleReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PutPlacementRuleReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rule", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Rule.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PutPlacementRuleRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PutPlacementRuleRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PutPlacementRuleRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetAppliedRulesReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetAppliedRulesReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetAppliedRulesReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceID", wireType)
+			}
+			m.ResourceID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ResourceID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetAppliedRulesRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetAppliedRulesRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetAppliedRulesRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Rules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Rules = append(m.Rules, PlacementRule{})
+			if err := m.Rules[len(m.Rules)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *EventNotify) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -9755,6 +11172,504 @@ func (m *SplitResource) Unmarshal(dAtA []byte) error {
 			}
 			m.Keys = append(m.Keys, make([]byte, postIndex-iNdEx))
 			copy(m.Keys[len(m.Keys)-1], dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LabelConstraint) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LabelConstraint: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LabelConstraint: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Key = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Op", wireType)
+			}
+			m.Op = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Op |= LabelConstraintOp(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Values", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Values = append(m.Values, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *PlacementRule) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: PlacementRule: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: PlacementRule: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field GroupID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.GroupID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Index", wireType)
+			}
+			m.Index = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Index |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Override", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.Override = bool(v != 0)
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartKey = append(m.StartKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.StartKey == nil {
+				m.StartKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EndKey = append(m.EndKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.EndKey == nil {
+				m.EndKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Role", wireType)
+			}
+			m.Role = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Role |= PeerRoleType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LabelConstraints", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LabelConstraints = append(m.LabelConstraints, LabelConstraint{})
+			if err := m.LabelConstraints[len(m.LabelConstraints)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LocationLabels", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LocationLabels = append(m.LocationLabels, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsolationLevel", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.IsolationLevel = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

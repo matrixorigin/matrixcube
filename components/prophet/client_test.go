@@ -94,12 +94,47 @@ func TestAsyncCreateResources(t *testing.T) {
 	}
 }
 
-func newTestResourceMeta(resourceID uint64) metadata.Resource {
+func TestPutPlacementRule(t *testing.T) {
+	p := newTestSingleProphet(t)
+	defer p.Stop()
+
+	c := p.GetClient()
+	assert.NoError(t, c.PutPlacementRule(rpcpb.PlacementRule{
+		GroupID: "group01",
+		ID:      "rule01",
+		Count:   3,
+	}))
+
+	assert.NoError(t, c.PutContainer(newTestContainerMeta(1)))
+	_, err := c.ContainerHeartbeat(newTestContainerHeartbeat(1, 1))
+	assert.NoError(t, err)
+
+	peer := metapb.Peer{ID: 1, ContainerID: 1}
+	assert.NoError(t, c.ResourceHeartbeat(newTestResourceMeta(2, peer), rpcpb.ResourceHeartbeatReq{
+		ContainerID: 1,
+		Leader:      &peer}))
+	rules, err := c.GetAppliedRules(2)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(rules))
+
+	peer = metapb.Peer{ID: 2, ContainerID: 1}
+	res := newTestResourceMeta(3, peer)
+	res.SetRuleGroups("group01")
+	assert.NoError(t, c.ResourceHeartbeat(res, rpcpb.ResourceHeartbeatReq{
+		ContainerID: 1,
+		Leader:      &peer}))
+	rules, err = c.GetAppliedRules(3)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(rules))
+}
+
+func newTestResourceMeta(resourceID uint64, peers ...metapb.Peer) metadata.Resource {
 	return &metadata.TestResource{
 		ResID:    resourceID,
 		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
 		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
 		ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1},
+		ResPeers: peers,
 	}
 }
 

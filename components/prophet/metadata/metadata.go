@@ -33,6 +33,10 @@ type Resource interface {
 	Unique() string
 	// SetUnique set Unique
 	SetUnique(string)
+	// RuleGroups used for placement rule engine to use, all rule group will used if nil returned.
+	RuleGroups() []string
+	// SetRuleGroups set rule groups
+	SetRuleGroups(...string)
 	// Clone returns the cloned value
 	Clone() Resource
 	// Marshal returns error if marshal failed

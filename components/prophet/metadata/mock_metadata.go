@@ -16,16 +16,17 @@ var (
 
 // TestResource test resource
 type TestResource struct {
-	ResID     uint64               `json:"id"`
-	Version   uint64               `json:"version"`
-	ResPeers  []metapb.Peer        `json:"peers"`
-	ResLabels []metapb.Pair        `json:"labels"`
-	Start     []byte               `json:"start"`
-	End       []byte               `json:"end"`
-	ResEpoch  metapb.ResourceEpoch `json:"epoch"`
-	ResState  metapb.ResourceState `json:"state"`
-	ResUnique string               `json:"unique"`
-	Err       bool                 `json:"-"`
+	ResID         uint64               `json:"id"`
+	Version       uint64               `json:"version"`
+	ResPeers      []metapb.Peer        `json:"peers"`
+	ResLabels     []metapb.Pair        `json:"labels"`
+	Start         []byte               `json:"start"`
+	End           []byte               `json:"end"`
+	ResEpoch      metapb.ResourceEpoch `json:"epoch"`
+	ResState      metapb.ResourceState `json:"state"`
+	ResUnique     string               `json:"unique"`
+	ResRuleGroups []string             `json:"rule-groups"`
+	Err           bool                 `json:"-"`
 }
 
 // NewTestResource create test resource
@@ -103,12 +104,24 @@ func (res *TestResource) Labels() []metapb.Pair {
 	return res.ResLabels
 }
 
+// Unique mock
 func (res *TestResource) Unique() string {
 	return res.ResUnique
 }
 
+// SetUnique mock
 func (res *TestResource) SetUnique(value string) {
 	res.ResUnique = value
+}
+
+// RuleGroups mock
+func (res *TestResource) RuleGroups() []string {
+	return res.ResRuleGroups
+}
+
+// SetRuleGroups mock
+func (res *TestResource) SetRuleGroups(ruleGroups ...string) {
+	res.ResRuleGroups = ruleGroups
 }
 
 // Clone mock

@@ -347,6 +347,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		newShard.ID = req.NewShardID
 		newShard.Group = derived.Group
 		newShard.Unique = derived.Unique
+		newShard.RuleGroups = derived.RuleGroups
 		newShard.DisableSplit = derived.DisableSplit
 		newShard.Epoch = derived.Epoch
 		newShard.Start = keys.PopFront().Value.([]byte)

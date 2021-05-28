@@ -11,6 +11,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
+	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
@@ -387,5 +388,23 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 func (c *RaftCluster) HandleCheckResourceState(request *rpcpb.Request) (*rpcpb.CheckResourceStateRsp, error) {
 	return &rpcpb.CheckResourceStateRsp{
 		Removed: c.core.GetRemovedResources(util.MustUnmarshalBM64(request.CheckResourceState.IDs)),
+	}, nil
+}
+
+// HandlePutPlacementRule handle put placement rule
+func (c *RaftCluster) HandlePutPlacementRule(request *rpcpb.Request) error {
+	return c.GetRuleManager().SetRule(placement.NewRuleFromRPC(request.PutPlacementRule.Rule))
+}
+
+// HandleAppliedRules handle get applied rules
+func (c *RaftCluster) HandleAppliedRules(request *rpcpb.Request) (*rpcpb.GetAppliedRulesRsp, error) {
+	res := c.GetResource(request.GetAppliedRules.ResourceID)
+	if res == nil {
+		return nil, fmt.Errorf("resource %d not found", request.GetAppliedRules.ResourceID)
+	}
+
+	rules := c.GetRuleManager().GetRulesForApplyResource(res)
+	return &rpcpb.GetAppliedRulesRsp{
+		Rules: placement.RPCRules(rules),
 	}, nil
 }

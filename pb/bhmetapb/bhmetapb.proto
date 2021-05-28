@@ -32,6 +32,7 @@ message Shard {
     bool                  disableSplit    = 7;
     uint64                group           = 8;
     string                unique          = 10;
+    repeated string       ruleGroups      = 11;
 }
 
 // Store the host store metadata

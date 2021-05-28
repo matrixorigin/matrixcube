@@ -282,7 +282,7 @@ func (m *RuleManager) GetRulesForApplyResource(res *core.CachedResource) []*Rule
 	defer m.RUnlock()
 
 	start, end := res.Meta.Range()
-	return m.ruleList.getRulesForApplyResource(start, end)
+	return filterRules(m.ruleList.getRulesForApplyResource(start, end), res)
 }
 
 // FitResource fits a resource to the rules it matches.
@@ -668,4 +668,22 @@ func checkRule(rule *Rule, containers []*core.CachedContainer) bool {
 		}
 	}
 	return false
+}
+
+func filterRules(src []*Rule, res *core.CachedResource) []*Rule {
+	targets := res.Meta.RuleGroups()
+	if len(targets) == 0 {
+		return src
+	}
+
+	var values []*Rule
+	for _, r := range src {
+		for _, target := range targets {
+			if target == r.GroupID {
+				values = append(values, r)
+			}
+		}
+	}
+
+	return values
 }

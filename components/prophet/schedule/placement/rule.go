@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
 // PeerRoleType is the expected peer type of the placement rule.
@@ -22,6 +23,20 @@ const (
 	Learner PeerRoleType = "learner"
 )
 
+func getPeerRoleTypeFromRPC(tpe rpcpb.PeerRoleType) PeerRoleType {
+	switch tpe {
+	case rpcpb.Voter:
+		return Voter
+	case rpcpb.Leader:
+		return Leader
+	case rpcpb.Follower:
+		return Follower
+	case rpcpb.Learner:
+		return Learner
+	}
+	return Voter
+}
+
 func validateRole(s PeerRoleType) bool {
 	return s == Voter || s == Leader || s == Follower || s == Learner
 }
@@ -32,6 +47,21 @@ func (s PeerRoleType) MetaPeerRole() metapb.PeerRole {
 		return metapb.PeerRole_Learner
 	}
 	return metapb.PeerRole_Voter
+}
+
+// RPCPeerRole converts placement.PeerRoleType to rpcpb.PeerRoleType.
+func (s PeerRoleType) RPCPeerRole() rpcpb.PeerRoleType {
+	switch s {
+	case Voter:
+		return rpcpb.Voter
+	case Leader:
+		return rpcpb.Leader
+	case Follower:
+		return rpcpb.Follower
+	case Learner:
+		return rpcpb.Learner
+	}
+	return rpcpb.Voter
 }
 
 // Rule is the placement rule that can be checked against a resource. When
@@ -53,6 +83,44 @@ type Rule struct {
 	IsolationLevel   string            `json:"isolation_level,omitempty"`   // used to isolate replicas explicitly and forcibly
 
 	group *RuleGroup // only set at runtime, no need to {,un}marshal or persist.
+}
+
+// RPCRules convert rules to rpc placement rules
+func RPCRules(rules []*Rule) []rpcpb.PlacementRule {
+	var values []rpcpb.PlacementRule
+	for _, rule := range rules {
+		values = append(values, rpcpb.PlacementRule{
+			GroupID:          rule.GroupID,
+			ID:               rule.ID,
+			Index:            uint32(rule.Index),
+			Override:         rule.Override,
+			StartKey:         rule.StartKey,
+			EndKey:           rule.EndKey,
+			Role:             rule.Role.RPCPeerRole(),
+			Count:            uint32(rule.Count),
+			LabelConstraints: toRPCLabelConstraints(rule.LabelConstraints),
+			LocationLabels:   rule.LocationLabels,
+			IsolationLevel:   rule.IsolationLevel,
+		})
+	}
+	return values
+}
+
+// NewRuleFromRPC creates the rule from rpc
+func NewRuleFromRPC(rule rpcpb.PlacementRule) *Rule {
+	return &Rule{
+		GroupID:          rule.GroupID,
+		ID:               rule.ID,
+		Index:            int(rule.Index),
+		Override:         rule.Override,
+		StartKeyHex:      hex.EncodeToString(rule.StartKey),
+		EndKeyHex:        hex.EncodeToString(rule.EndKey),
+		Role:             getPeerRoleTypeFromRPC(rule.Role),
+		Count:            int(rule.Count),
+		LabelConstraints: newLabelConstraintsFromRPC(rule.LabelConstraints),
+		LocationLabels:   rule.LocationLabels,
+		IsolationLevel:   rule.IsolationLevel,
+	}
 }
 
 func (r *Rule) String() string {

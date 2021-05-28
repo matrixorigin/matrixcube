@@ -7,6 +7,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/stretchr/testify/assert"
 )
@@ -45,6 +46,47 @@ func TestDefault(t *testing.T) {
 	assert.Empty(t, rules[0].EndKey)
 	assert.Equal(t, Voter, rules[0].Role)
 	assert.True(t, reflect.DeepEqual([]string{"zone", "rack", "host"}, rules[0].LocationLabels))
+}
+
+func TestApplyRule(t *testing.T) {
+	s := &testManager{}
+	s.setup(t)
+
+	s.manager.SetRule(&Rule{
+		GroupID:     "group1",
+		ID:          "id1",
+		StartKeyHex: hex.EncodeToString([]byte("a")),
+		EndKeyHex:   hex.EncodeToString([]byte("c")),
+		Role:        "voter",
+		Count:       4,
+	})
+	s.manager.SetRule(&Rule{
+		GroupID:     "group2",
+		ID:          "id2",
+		StartKeyHex: hex.EncodeToString([]byte("a")),
+		EndKeyHex:   hex.EncodeToString([]byte("c")),
+		Role:        "voter",
+		Count:       5,
+	})
+
+	rules := s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
+		ResID:    1,
+		Start:    []byte("a"),
+		End:      []byte("c"),
+		ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1}},
+	}, nil))
+	assert.Equal(t, 3, len(rules))
+
+	rules = s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
+		ResID:         1,
+		Start:         []byte("a"),
+		End:           []byte("c"),
+		ResPeers:      []metapb.Peer{{ID: 1, ContainerID: 1}},
+		ResRuleGroups: []string{"group1", "group2"},
+	}, nil))
+	assert.Equal(t, 2, len(rules))
+	assert.Equal(t, "id1", rules[0].ID)
+	assert.Equal(t, "id2", rules[1].ID)
 }
 
 func TestAdjustRule(t *testing.T) {

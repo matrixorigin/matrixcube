@@ -454,6 +454,7 @@ func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg.Group = pr.ps.shard.Group
 	sendMsg.DisableSplit = pr.ps.shard.DisableSplit
 	sendMsg.Unique = pr.ps.shard.Unique
+	sendMsg.RuleGroups = pr.ps.shard.RuleGroups
 	sendMsg.From = pr.peer
 	sendMsg.To, _ = pr.store.getPeer(msg.To)
 	if sendMsg.To.ID == 0 {
