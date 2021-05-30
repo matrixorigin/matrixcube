@@ -594,7 +594,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
 	if saveKV {
-		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetContainerID(), false, false)
+		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
 	}
 	if saveCache {
 		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
