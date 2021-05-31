@@ -395,7 +395,7 @@ func (c *asyncClient) CheckResourceState(resources *roaring.Bitmap) (rpcpb.Check
 	}
 
 	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeCheckResourceStateRsp
+	req.Type = rpcpb.TypeCheckResourceStateReq
 	req.CheckResourceState.IDs = util.MustMarshalBM64(resources)
 
 	rsp, err := c.syncDo(req)

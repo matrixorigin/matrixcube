@@ -9,6 +9,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/pilosa/pilosa/roaring"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -92,6 +93,16 @@ func TestAsyncCreateResources(t *testing.T) {
 			assert.FailNow(t, "timeout")
 		}
 	}
+}
+
+func TestCheckResourceState(t *testing.T) {
+	p := newTestSingleProphet(t)
+	defer p.Stop()
+
+	c := p.GetClient()
+	rsp, err := c.CheckResourceState(roaring.NewBitmap(2))
+	assert.NoError(t, err)
+	assert.Empty(t, rsp.Removed)
 }
 
 func TestPutPlacementRule(t *testing.T) {
