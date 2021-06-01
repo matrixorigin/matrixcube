@@ -118,8 +118,8 @@ const initialSleepDuration = 100 * time.Millisecond
 const maxRetryLimit = 30
 
 // ScatterResourcesByRange directly scatter resources by ScatterResources
-func (r *ResourceScatterer) ScatterResourcesByRange(startKey, endKey []byte, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
-	resources := r.cluster.ScanResources(startKey, endKey, -1)
+func (r *ResourceScatterer) ScatterResourcesByRange(resGroup uint64, startKey, endKey []byte, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
+	resources := r.cluster.ScanResources(resGroup, startKey, endKey, -1)
 	if len(resources) < 1 {
 		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, nil, errors.New("empty resource")

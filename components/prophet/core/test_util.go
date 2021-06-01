@@ -103,8 +103,8 @@ func NewTestContainerInfoWithLabel(id uint64, resourceCount int, labels map[stri
 			CLabels: containerLabels,
 		},
 		SetContainerStats(stats),
-		SetResourceCount(resourceCount),
-		SetResourceSize(int64(resourceCount)*10),
+		SetResourceCount(0, resourceCount),
+		SetResourceSize(0, int64(resourceCount)*10),
 	)
 	return container
 }
@@ -119,10 +119,10 @@ func NewTestCachedContainerWithSizeCount(id uint64, resourceCount, leaderCount i
 			CID: id,
 		},
 		SetContainerStats(stats),
-		SetResourceCount(resourceCount),
-		SetResourceSize(resourceSize),
-		SetLeaderCount(leaderCount),
-		SetLeaderSize(leaderSize),
+		SetResourceCount(0, resourceCount),
+		SetResourceSize(0, resourceSize),
+		SetLeaderCount(0, leaderCount),
+		SetLeaderSize(0, leaderSize),
 	)
 	return container
 }

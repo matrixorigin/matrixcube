@@ -17,6 +17,7 @@ var (
 // TestResource test resource
 type TestResource struct {
 	ResID         uint64               `json:"id"`
+	ResGroup      uint64               `json:"group"`
 	Version       uint64               `json:"version"`
 	ResPeers      []metapb.Peer        `json:"peers"`
 	ResLabels     []metapb.Pair        `json:"labels"`
@@ -44,14 +45,24 @@ func (res *TestResource) SetState(state metapb.ResourceState) {
 	res.ResState = state
 }
 
+// ID mock
+func (res *TestResource) ID() uint64 {
+	return res.ResID
+}
+
 // SetID mock
 func (res *TestResource) SetID(id uint64) {
 	res.ResID = id
 }
 
-// ID mock
-func (res *TestResource) ID() uint64 {
-	return res.ResID
+// Group resource group
+func (res *TestResource) Group() uint64 {
+	return res.ResGroup
+}
+
+// SetGroup set raft group
+func (res *TestResource) SetGroup(group uint64) {
+	res.ResGroup = group
 }
 
 // Peers mock

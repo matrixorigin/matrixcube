@@ -128,11 +128,11 @@ func TestBalanceLimit(t *testing.T) {
 	tc.AddLeaderContainer(3, 30)
 
 	// StandDeviation is sqrt((10^2+0+10^2)/3).
-	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit(tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit(0, tc, metapb.ResourceKind_LeaderKind))
 
 	tc.SetContainerOffline(1)
 	// StandDeviation is sqrt((5^2+5^2)/2).
-	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit(tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit(0, tc, metapb.ResourceKind_LeaderKind))
 }
 
 func TestTolerantRatio(t *testing.T) {
@@ -261,9 +261,9 @@ func TestBalanceLeaderTolerantRatio(t *testing.T) {
 
 	assert.Equal(t, core.ByCount.String(), s.tc.GetScheduleConfig().LeaderSchedulePolicy) // default by count
 	assert.Nil(t, s.schedule())
-	assert.Equal(t, 14, s.tc.GetContainer(1).GetLeaderCount())
+	assert.Equal(t, 14, s.tc.GetContainer(1).GetLeaderCount(0))
 	s.tc.AddLeaderContainer(1, 15, 100)
-	assert.Equal(t, 15, s.tc.GetContainer(1).GetLeaderCount())
+	assert.Equal(t, 15, s.tc.GetContainer(1).GetLeaderCount(0))
 	assert.NotNil(t, s.schedule())
 	s.tc.SetTolerantSizeRatio(6) // (15-10)<6
 	assert.Nil(t, s.schedule())

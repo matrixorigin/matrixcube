@@ -7,10 +7,14 @@ import (
 // Resource is an abstraction of data shard in a distributed system.
 // Each Resource has multiple replication and is distributed on different nodes.
 type Resource interface {
-	// SetID update the resource id
-	SetID(id uint64)
 	// ID returns the resource id
 	ID() uint64
+	// SetID update the resource id
+	SetID(id uint64)
+	// Group resource group
+	Group() uint64
+	// SetGroup set raft group
+	SetGroup(uint64)
 	// Peers returns the repication peers
 	Peers() []metapb.Peer
 	// SetPeers update the repication peers

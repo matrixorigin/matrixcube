@@ -52,8 +52,8 @@ func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int
 	stats.Available = stats.Capacity - stats.UsedSize
 	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(resourceCount),
-		core.SetResourceSize(int64(resourceSize)),
+		core.SetResourceCount(0, resourceCount),
+		core.SetResourceSize(0, int64(resourceSize)),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 
@@ -80,8 +80,8 @@ func (c *testCluster) addLeaderResource(resourceID uint64, leaderContainerID uin
 func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) error {
 	container := c.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetLeaderCount(leaderCount),
-		core.SetLeaderSize(int64(leaderCount)*10),
+		core.SetLeaderCount(0, leaderCount),
+		core.SetLeaderSize(0, int64(leaderCount)*10),
 	)
 	c.Lock()
 	defer c.Unlock()
@@ -92,8 +92,8 @@ func (c *testCluster) addLeaderContainer(containerID uint64, leaderCount int) er
 	stats := &metapb.ContainerStats{}
 	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(leaderCount),
-		core.SetLeaderSize(int64(leaderCount)*10),
+		core.SetLeaderCount(0, leaderCount),
+		core.SetLeaderSize(0, int64(leaderCount)*10),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 

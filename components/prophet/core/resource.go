@@ -525,7 +525,7 @@ func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedR
 // CachedResources for export
 type CachedResources struct {
 	factory      func() metadata.Resource
-	tree         *resourceTree
+	trees        map[uint64]*resourceTree
 	resources    *resourceMap                // resourceID -> CachedResource
 	leaders      map[uint64]*resourceSubTree // containerID -> resourceSubTree
 	followers    map[uint64]*resourceSubTree // containerID -> resourceSubTree
@@ -537,7 +537,7 @@ type CachedResources struct {
 func NewCachedResources(factory func() metadata.Resource) *CachedResources {
 	return &CachedResources{
 		factory:      factory,
-		tree:         newResourceTree(factory),
+		trees:        make(map[uint64]*resourceTree),
 		resources:    newResourceMap(),
 		leaders:      make(map[uint64]*resourceSubTree),
 		followers:    make(map[uint64]*resourceSubTree),
@@ -573,24 +573,29 @@ func (r *CachedResources) Length() int {
 	return r.resources.Len()
 }
 
-// TreeLength returns the resourcesInfo tree length(now only used in test)
-func (r *CachedResources) TreeLength() int {
-	return r.tree.length()
-}
-
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
 func (r *CachedResources) GetOverlaps(res *CachedResource) []*CachedResource {
-	return r.tree.getOverlaps(res)
+	if tree, ok := r.trees[res.Meta.Group()]; ok {
+		return tree.getOverlaps(res)
+	}
+
+	return nil
 }
 
 // AddResource adds CachedResource to resourceTree and resourceMap, also update leaders and followers by resource peers
 func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
+	if _, ok := r.trees[res.Meta.Group()]; !ok {
+		r.trees[res.Meta.Group()] = newResourceTree(r.factory)
+	}
+
+	tree := r.trees[res.Meta.Group()]
+
 	// the resources which are overlapped with the specified resource range.
 	var overlaps []*CachedResource
 	// when the value is true, add the resource to the tree. otherwise use the resource replace the origin resource in the tree.
 	treeNeedAdd := true
 	if origin := r.GetResource(res.Meta.ID()); origin != nil {
-		if resOld := r.tree.find(res); resOld != nil {
+		if resOld := tree.find(res); resOld != nil {
 			// Update to tree.
 			if bytes.Equal(resOld.res.GetStartKey(), res.GetStartKey()) &&
 				bytes.Equal(resOld.res.GetEndKey(), res.GetEndKey()) &&
@@ -602,7 +607,7 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 	}
 	if treeNeedAdd {
 		// Add to tree.
-		overlaps = r.tree.update(res)
+		overlaps = tree.update(res)
 		for _, item := range overlaps {
 			r.RemoveResource(r.GetResource(item.Meta.ID()))
 		}
@@ -667,7 +672,9 @@ func (r *CachedResources) RemoveResource(res *CachedResource) {
 // removeResourceFromTreeAndMap removes CachedResource from resourceTree and resourceMap
 func (r *CachedResources) removeResourceFromTreeAndMap(res *CachedResource) {
 	// Remove from tree and resources.
-	r.tree.remove(res)
+	if tree, ok := r.trees[res.Meta.Group()]; ok {
+		tree.remove(res)
+	}
 	r.resources.Delete(res.Meta.ID())
 }
 
@@ -758,21 +765,29 @@ func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *C
 }
 
 // SearchResource searches CachedResource from resourceTree
-func (r *CachedResources) SearchResource(resKey []byte) *CachedResource {
-	res := r.tree.search(resKey)
-	if res == nil {
-		return nil
+func (r *CachedResources) SearchResource(group uint64, resKey []byte) *CachedResource {
+	if tree, ok := r.trees[group]; ok {
+		res := tree.search(resKey)
+		if res == nil {
+			return nil
+		}
+		return r.GetResource(res.Meta.ID())
 	}
-	return r.GetResource(res.Meta.ID())
+
+	return nil
 }
 
 // SearchPrevResource searches previous CachedResource from resourceTree
-func (r *CachedResources) SearchPrevResource(resKey []byte) *CachedResource {
-	res := r.tree.searchPrev(resKey)
-	if res == nil {
-		return nil
+func (r *CachedResources) SearchPrevResource(group uint64, resKey []byte) *CachedResource {
+	if tree, ok := r.trees[group]; ok {
+		res := tree.searchPrev(resKey)
+		if res == nil {
+			return nil
+		}
+		return r.GetResource(res.Meta.ID())
 	}
-	return r.GetResource(res.Meta.ID())
+
+	return nil
 }
 
 // GetResources gets all CachedResource from resourceMap
@@ -916,37 +931,43 @@ func (r *CachedResources) GetFollower(containerID uint64, res *CachedResource) *
 
 // ScanRange scans resources intersecting [start key, end key), returns at most
 // `limit` resources. limit <= 0 means no limit.
-func (r *CachedResources) ScanRange(startKey, endKey []byte, limit int) []*CachedResource {
+func (r *CachedResources) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedResource {
 	var resources []*CachedResource
-	r.tree.scanRange(startKey, func(resource *CachedResource) bool {
-		if len(endKey) > 0 && bytes.Compare(resource.GetStartKey(), endKey) >= 0 {
-			return false
-		}
-		if limit > 0 && len(resources) >= limit {
-			return false
-		}
-		resources = append(resources, r.GetResource(resource.Meta.ID()))
-		return true
-	})
+	if tree, ok := r.trees[group]; ok {
+		tree.scanRange(startKey, func(resource *CachedResource) bool {
+			if len(endKey) > 0 && bytes.Compare(resource.GetStartKey(), endKey) >= 0 {
+				return false
+			}
+			if limit > 0 && len(resources) >= limit {
+				return false
+			}
+			resources = append(resources, r.GetResource(resource.Meta.ID()))
+			return true
+		})
+	}
 	return resources
 }
 
 // ScanRangeWithIterator scans from the first resource containing or behind start key,
 // until iterator returns false.
-func (r *CachedResources) ScanRangeWithIterator(startKey []byte, iterator func(res *CachedResource) bool) {
-	r.tree.scanRange(startKey, iterator)
+func (r *CachedResources) ScanRangeWithIterator(group uint64, startKey []byte, iterator func(res *CachedResource) bool) {
+	if tree, ok := r.trees[group]; ok {
+		tree.scanRange(startKey, iterator)
+	}
 }
 
 // GetAdjacentResources returns resource's info that is adjacent with specific resource
 func (r *CachedResources) GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource) {
-	p, n := r.tree.getAdjacentResources(res)
 	var prev, next *CachedResource
-	// check key to avoid key range hole
-	if p != nil && bytes.Equal(p.res.GetEndKey(), res.GetStartKey()) {
-		prev = r.GetResource(p.res.Meta.ID())
-	}
-	if n != nil && bytes.Equal(res.GetEndKey(), n.res.GetStartKey()) {
-		next = r.GetResource(n.res.Meta.ID())
+	if tree, ok := r.trees[res.Meta.Group()]; ok {
+		p, n := tree.getAdjacentResources(res)
+		// check key to avoid key range hole
+		if p != nil && bytes.Equal(p.res.GetEndKey(), res.GetStartKey()) {
+			prev = r.GetResource(p.res.Meta.ID())
+		}
+		if n != nil && bytes.Equal(res.GetEndKey(), n.res.GetStartKey()) {
+			next = r.GetResource(n.res.Meta.ID())
+		}
 	}
 	return prev, next
 }
