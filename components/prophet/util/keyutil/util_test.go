@@ -9,6 +9,8 @@ import (
 func TestKeyUtil(t *testing.T) {
 	startKey := []byte("a")
 	endKey := []byte("b")
-	key := BuildKeyRangeKey(startKey, endKey)
-	assert.Equal(t, "61-62", key)
+	key := BuildKeyRangeKey(1, startKey, endKey)
+	assert.Equal(t, "1-61-62", key)
+
+	assert.Equal(t, uint64(1), GetGroupFromRangeKey(key))
 }

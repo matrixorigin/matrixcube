@@ -101,39 +101,41 @@ func (c *coordinator) patrolResources() {
 		// Check resources in the waiting list
 		c.checkWaitingResources()
 
-		resources := c.cluster.ScanResources(key, nil, patrolScanResourceLimit)
-		if len(resources) == 0 {
-			// Resets the scan key.
-			key = nil
-			continue
-		}
-
-		for _, res := range resources {
-			// Skips the resource if there is already a pending operator.
-			if c.opController.GetOperator(res.Meta.ID()) != nil {
+		for _, group := range c.cluster.GetReplicationConfig().Groups {
+			resources := c.cluster.ScanResources(group, key, nil, patrolScanResourceLimit)
+			if len(resources) == 0 {
+				// Resets the scan key.
+				key = nil
 				continue
 			}
 
-			ops := c.checkers.CheckResource(res)
+			for _, res := range resources {
+				// Skips the resource if there is already a pending operator.
+				if c.opController.GetOperator(res.Meta.ID()) != nil {
+					continue
+				}
 
-			key = res.GetEndKey()
-			if len(ops) == 0 {
-				continue
-			}
+				ops := c.checkers.CheckResource(res)
 
-			if !c.opController.ExceedContainerLimit(ops...) {
-				c.opController.AddWaitingOperator(ops...)
-				c.checkers.RemoveWaitingResource(res.Meta.ID())
-				c.cluster.RemoveSuspectResource(res.Meta.ID())
-			} else {
-				c.checkers.AddWaitingResource(res)
+				key = res.GetEndKey()
+				if len(ops) == 0 {
+					continue
+				}
+
+				if !c.opController.ExceedContainerLimit(ops...) {
+					c.opController.AddWaitingOperator(ops...)
+					c.checkers.RemoveWaitingResource(res.Meta.ID())
+					c.cluster.RemoveSuspectResource(res.Meta.ID())
+				} else {
+					c.checkers.AddWaitingResource(res)
+				}
 			}
-		}
-		// Updates the label level isolation statistics.
-		c.cluster.updateResourcesLabelLevelStats(resources)
-		if len(key) == 0 {
-			patrolCheckResourcesGauge.Set(time.Since(start).Seconds())
-			start = time.Now()
+			// Updates the label level isolation statistics.
+			c.cluster.updateResourcesLabelLevelStats(resources)
+			if len(key) == 0 {
+				patrolCheckResourcesGauge.Set(time.Since(start).Seconds())
+				start = time.Now()
+			}
 		}
 	}
 }
@@ -165,12 +167,12 @@ func (c *coordinator) checkSuspectResources() {
 // The resources of new version key range and old version key range would be placed into
 // the suspect resources map
 func (c *coordinator) checkSuspectKeyRanges() {
-	keyRange, success := c.cluster.PopOneSuspectKeyRange()
+	group, keyRange, success := c.cluster.PopOneSuspectKeyRange()
 	if !success {
 		return
 	}
 	limit := 1024
-	resources := c.cluster.ScanResources(keyRange[0], keyRange[1], limit)
+	resources := c.cluster.ScanResources(group, keyRange[0], keyRange[1], limit)
 	if len(resources) == 0 {
 		return
 	}
@@ -183,7 +185,7 @@ func (c *coordinator) checkSuspectKeyRanges() {
 	// keyRange[0] and keyRange[1] after scan resources, so we put the end key and keyRange[1] into Suspect KeyRanges
 	lastRes := resources[len(resources)-1]
 	if lastRes.GetEndKey() != nil && bytes.Compare(lastRes.GetEndKey(), keyRange[1]) < 0 {
-		c.cluster.AddSuspectKeyRange(lastRes.GetEndKey(), keyRange[1])
+		c.cluster.AddSuspectKeyRange(group, lastRes.GetEndKey(), keyRange[1])
 	}
 	c.cluster.AddSuspectResources(resourceIDList...)
 }

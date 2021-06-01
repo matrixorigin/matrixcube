@@ -347,27 +347,27 @@ func (c *RaftCluster) RemoveSuspectResource(id uint64) {
 // AddSuspectKeyRange adds the key range with the its ruleID as the key
 // The instance of each keyRange is like following format:
 // [2][]byte: start key/end key
-func (c *RaftCluster) AddSuspectKeyRange(start, end []byte) {
+func (c *RaftCluster) AddSuspectKeyRange(group uint64, start, end []byte) {
 	c.Lock()
 	defer c.Unlock()
-	c.suspectKeyRanges.Put(keyutil.BuildKeyRangeKey(start, end), [2][]byte{start, end})
+	c.suspectKeyRanges.Put(keyutil.BuildKeyRangeKey(group, start, end), [2][]byte{start, end})
 }
 
 // PopOneSuspectKeyRange gets one suspect keyRange group.
 // it would return value and true if pop success, or return empty [][2][]byte and false
 // if suspectKeyRanges couldn't pop keyRange group.
-func (c *RaftCluster) PopOneSuspectKeyRange() ([2][]byte, bool) {
+func (c *RaftCluster) PopOneSuspectKeyRange() (uint64, [2][]byte, bool) {
 	c.Lock()
 	defer c.Unlock()
-	_, value, success := c.suspectKeyRanges.Pop()
+	key, value, success := c.suspectKeyRanges.Pop()
 	if !success {
-		return [2][]byte{}, false
+		return 0, [2][]byte{}, false
 	}
 	v, ok := value.([2][]byte)
 	if !ok {
-		return [2][]byte{}, false
+		return 0, [2][]byte{}, false
 	}
-	return v, true
+	return keyutil.GetGroupFromRangeKey(key), v, true
 }
 
 // ClearSuspectKeyRanges clears the suspect keyRanges, only for unit test
@@ -388,7 +388,7 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 		return fmt.Errorf("container %v not found", containerID)
 	}
 	newContainer := container.Clone(core.SetContainerStats(stats), core.SetLastHeartbeatTS(time.Now()))
-	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio()) {
+	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio(), c.GetReplicationConfig().Groups) {
 		util.GetLogger().Warningf("container %d does not have enough disk space, capacity %d, available %d",
 			newContainer.Meta.ID(),
 			newContainer.GetCapacity(),
@@ -560,7 +560,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			}
 		}
 		for key := range containerMap {
-			c.updateContainerStatusLocked(key)
+			c.updateContainerStatusLocked(res.Meta.Group(), key)
 		}
 		resourceEventCounter.WithLabelValues("update_cache").Inc()
 	}
@@ -603,29 +603,29 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-func (c *RaftCluster) updateContainerStatusLocked(id uint64) {
+func (c *RaftCluster) updateContainerStatusLocked(group, id uint64) {
 	leaderCount := c.core.GetContainerLeaderCount(id)
 	resourceCount := c.core.GetContainerResourceCount(id)
 	pendingPeerCount := c.core.GetContainerPendingPeerCount(id)
 	leaderResourceSize := c.core.GetContainerLeaderResourceSize(id)
 	resourceSize := c.core.GetContainerResourceSize(id)
-	c.core.UpdateContainerStatus(id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
+	c.core.UpdateContainerStatus(group, id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
 }
 
 // GetResourceByKey gets CachedResource by resource key from cluster.
-func (c *RaftCluster) GetResourceByKey(resourceKey []byte) *core.CachedResource {
-	return c.core.SearchResource(resourceKey)
+func (c *RaftCluster) GetResourceByKey(group uint64, resourceKey []byte) *core.CachedResource {
+	return c.core.SearchResource(group, resourceKey)
 }
 
 // GetPrevResourceByKey gets previous resource and leader peer by the resource key from cluster.
-func (c *RaftCluster) GetPrevResourceByKey(resourceKey []byte) *core.CachedResource {
-	return c.core.SearchPrevResource(resourceKey)
+func (c *RaftCluster) GetPrevResourceByKey(group uint64, resourceKey []byte) *core.CachedResource {
+	return c.core.SearchPrevResource(group, resourceKey)
 }
 
 // ScanResources scans resource with start key, until the resource contains endKey, or
 // total number greater than limit.
-func (c *RaftCluster) ScanResources(startKey, endKey []byte, limit int) []*core.CachedResource {
-	return c.core.ScanRange(startKey, endKey, limit)
+func (c *RaftCluster) ScanResources(group uint64, startKey, endKey []byte, limit int) []*core.CachedResource {
+	return c.core.ScanRange(group, startKey, endKey, limit)
 }
 
 // GetResource searches for a resource by ID.
@@ -715,10 +715,10 @@ func (c *RaftCluster) GetAverageResourceSize() int64 {
 }
 
 // GetResourceStats returns resource statistics from cluster.
-func (c *RaftCluster) GetResourceStats(startKey, endKey []byte) *statistics.ResourceStats {
+func (c *RaftCluster) GetResourceStats(group uint64, startKey, endKey []byte) *statistics.ResourceStats {
 	c.RLock()
 	defer c.RUnlock()
-	return statistics.GetResourceStats(c.core.ScanRange(startKey, endKey, -1))
+	return statistics.GetResourceStats(c.core.ScanRange(group, startKey, endKey, -1))
 }
 
 // GetContainersStats returns containers' statistics from cluster.
@@ -1026,6 +1026,7 @@ func (c *RaftCluster) checkContainers() {
 	var offlineContainers []metadata.Container
 	var upContainerCount int
 	containers := c.GetContainers()
+	groups := c.GetReplicationConfig().Groups
 	for _, container := range containers {
 		// the container has already been tombstone
 		if container.IsTombstone() {
@@ -1033,7 +1034,7 @@ func (c *RaftCluster) checkContainers() {
 		}
 
 		if container.IsUp() {
-			if !container.IsLowSpace(c.opt.GetLowSpaceRatio()) {
+			if !container.IsLowSpace(c.opt.GetLowSpaceRatio(), groups) {
 				upContainerCount++
 			}
 			continue
@@ -1072,27 +1073,28 @@ func (c *RaftCluster) checkContainers() {
 func (c *RaftCluster) RemoveTombStoneRecords() error {
 	c.Lock()
 	defer c.Unlock()
+	for _, group := range c.GetReplicationConfig().Groups {
+		for _, container := range c.GetContainers() {
+			if container.IsTombstone() {
+				if container.GetResourceCount(group) > 0 {
+					util.GetLogger().Warningf("skip removing tombstone container %+v", container.Meta)
+					continue
+				}
 
-	for _, container := range c.GetContainers() {
-		if container.IsTombstone() {
-			if container.GetResourceCount() > 0 {
-				util.GetLogger().Warningf("skip removing tombstone container %+v", container.Meta)
-				continue
-			}
+				// the container has already been tombstone
+				err := c.deleteContainerLocked(container)
+				if err != nil {
+					util.GetLogger().Errorf("delete container %d/%s failed with %+v",
+						container.Meta.ID(),
+						container.Meta.Addr(), err)
+					return err
+				}
+				c.RemoveContainerLimit(container.Meta.ID())
 
-			// the container has already been tombstone
-			err := c.deleteContainerLocked(container)
-			if err != nil {
-				util.GetLogger().Errorf("delete container %d/%s failed with %+v",
+				util.GetLogger().Infof("delete container %d/%s succeeded",
 					container.Meta.ID(),
-					container.Meta.Addr(), err)
-				return err
+					container.Meta.Addr())
 			}
-			c.RemoveContainerLimit(container.Meta.ID())
-
-			util.GetLogger().Infof("delete container %d/%s succeeded",
-				container.Meta.ID(),
-				container.Meta.Addr())
 		}
 	}
 	return nil

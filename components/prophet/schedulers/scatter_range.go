@@ -58,6 +58,7 @@ const (
 type scatterRangeSchedulerConfig struct {
 	mu        sync.RWMutex
 	storage   storage.Storage
+	Group     uint64 `json:"group"`
 	RangeName string `json:"range-name"`
 	StartKey  string `json:"start-key"`
 	EndKey    string `json:"end-key"`
@@ -190,8 +191,9 @@ func (l *scatterRangeScheduler) allowBalanceResource(cluster opt.Cluster) bool {
 
 func (l *scatterRangeScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(l.GetName(), "schedule").Inc()
+
 	// isolate a new cluster according to the key range
-	c := schedule.GenRangeCluster(cluster, l.config.GetStartKey(), l.config.GetEndKey())
+	c := schedule.GenRangeCluster(l.config.Group, cluster, l.config.GetStartKey(), l.config.GetEndKey())
 	c.SetTolerantSizeRatio(2)
 	if l.allowBalanceLeader(cluster) {
 		ops := l.balanceLeader.Schedule(c)

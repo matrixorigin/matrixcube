@@ -28,11 +28,20 @@ func NewResourceAdapterWithShard(meta bhmetapb.Shard) metadata.Resource {
 	return &resourceAdapter{meta: meta}
 }
 
+func (ra *resourceAdapter) ID() uint64 {
+	return ra.meta.ID
+}
+
 func (ra *resourceAdapter) SetID(id uint64) {
 	ra.meta.ID = id
 }
-func (ra *resourceAdapter) ID() uint64 {
-	return ra.meta.ID
+
+func (ra *resourceAdapter) Group() uint64 {
+	return ra.meta.Group
+}
+
+func (ra *resourceAdapter) SetGroup(group uint64) {
+	ra.meta.Group = group
 }
 
 func (ra *resourceAdapter) Peers() []metapb.Peer {

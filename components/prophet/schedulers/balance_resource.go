@@ -127,60 +127,63 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 	containers = filter.SelectSourceContainers(containers, s.filters, opts)
 	opInfluence := s.opController.GetOpInfluence(cluster)
 	kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
-	sort.Slice(containers, func(i, j int) bool {
-		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
-		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
-		return containers[i].ResourceScore(opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
-			containers[j].ResourceScore(opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
-	})
-	for _, source := range containers {
-		sourceID := source.Meta.ID()
 
-		for i := 0; i < balanceResourceRetryLimit; i++ {
-			// Priority pick the Resource that has a pending peer.
-			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-			res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-			if res == nil {
-				// Then pick the Resource that has a follower in the source store.
-				res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-			}
-			if res == nil {
-				// Then pick the Resource has the leader in the source store.
-				res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-			}
-			if res == nil {
-				// Finally pick learner.
-				res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-			}
-			if res == nil {
-				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
-				continue
-			}
-			util.GetLogger().Debugf("scheduler %s select resource %d",
-				s.GetName(),
-				res.Meta.ID())
+	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+		sort.Slice(containers, func(i, j int) bool {
+			iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
+			jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
+			return containers[i].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
+				containers[j].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
+		})
+		for _, source := range containers {
+			sourceID := source.Meta.ID()
 
-			// Skip hot resources.
-			if cluster.IsResourceHot(res) {
-				util.GetLogger().Debugf("scheduler %s skip hot resource %d",
+			for i := 0; i < balanceResourceRetryLimit; i++ {
+				// Priority pick the Resource that has a pending peer.
+				// Pending Resource may means the disk is overload, remove the pending Resource firstly.
+				res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				if res == nil {
+					// Then pick the Resource that has a follower in the source store.
+					res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				}
+				if res == nil {
+					// Then pick the Resource has the leader in the source store.
+					res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				}
+				if res == nil {
+					// Finally pick learner.
+					res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				}
+				if res == nil {
+					schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
+					continue
+				}
+				util.GetLogger().Debugf("scheduler %s select resource %d",
 					s.GetName(),
 					res.Meta.ID())
-				schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
-				continue
-			}
-			// Check resource whether have leader
-			if res.GetLeader() == nil {
-				util.GetLogger().Warningf("scheduler %s check resource %d have no leader",
-					s.GetName(),
-					res.Meta.ID())
-				schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
-				continue
-			}
 
-			oldPeer, _ := res.GetContainerPeer(sourceID)
-			if op := s.transferPeer(cluster, res, oldPeer); op != nil {
-				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
-				return []*operator.Operator{op}
+				// Skip hot resources.
+				if cluster.IsResourceHot(res) {
+					util.GetLogger().Debugf("scheduler %s skip hot resource %d",
+						s.GetName(),
+						res.Meta.ID())
+					schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
+					continue
+				}
+				// Check resource whether have leader
+				if res.GetLeader() == nil {
+					util.GetLogger().Warningf("scheduler %s check resource %d have no leader",
+						s.GetName(),
+						res.Meta.ID())
+					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
+					continue
+				}
+
+				oldPeer, _ := res.GetContainerPeer(sourceID)
+				if op := s.transferPeer(group, cluster, res, oldPeer); op != nil {
+					op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
+					return []*operator.Operator{op}
+				}
 			}
 		}
 	}
@@ -188,7 +191,7 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 }
 
 // transferPeer selects the best container to create a new peer to replace the old peer.
-func (s *balanceResourceScheduler) transferPeer(cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Peer) *operator.Operator {
+func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Peer) *operator.Operator {
 	// scoreGuard guarantees that the distinct score will not decrease.
 	sourceContainerID := oldPeer.GetContainerID()
 	source := cluster.GetContainer(sourceContainerID)
@@ -207,7 +210,7 @@ func (s *balanceResourceScheduler) transferPeer(cluster opt.Cluster, res *core.C
 
 	candidates := filter.NewCandidates(cluster.GetContainers()).
 		FilterTarget(cluster.GetOpts(), filters...).
-		Sort(filter.ResourceScoreComparer(cluster.GetOpts()))
+		Sort(filter.ResourceScoreComparer(group, cluster.GetOpts()))
 
 	for _, target := range candidates.Containers {
 		resID := res.Meta.ID()

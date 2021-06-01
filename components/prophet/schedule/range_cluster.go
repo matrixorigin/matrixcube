@@ -10,20 +10,22 @@ import (
 // RangeCluster isolates the cluster by range.
 type RangeCluster struct {
 	opt.Cluster
+	group             uint64
 	subCluster        *core.BasicCluster // Collect all resources belong to the range.
 	tolerantSizeRatio float64
 }
 
 // GenRangeCluster gets a range cluster by specifying start key and end key.
 // The cluster can only know the resources within [startKey, endKey].
-func GenRangeCluster(cluster opt.Cluster, startKey, endKey []byte) *RangeCluster {
+func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte) *RangeCluster {
 	subCluster := core.NewBasicCluster(cluster.GetResourceFactory())
-	for _, r := range cluster.ScanResources(startKey, endKey, -1) {
+	for _, r := range cluster.ScanResources(group, startKey, endKey, -1) {
 		subCluster.Resources.AddResource(r)
 	}
 	return &RangeCluster{
 		Cluster:    cluster,
 		subCluster: subCluster,
+		group:      group,
 	}
 }
 
@@ -35,7 +37,7 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 		return s
 	}
 
-	amplification := float64(s.GetResourceSize()) / used
+	amplification := float64(s.GetResourceSize(r.group)) / used
 	leaderCount := r.subCluster.GetContainerLeaderCount(id)
 	leaderSize := r.subCluster.GetContainerLeaderResourceSize(id)
 	resourceCount := r.subCluster.GetContainerResourceCount(id)
@@ -46,11 +48,11 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
 	newContainer := s.Clone(
 		core.SetNewContainerStats(newStats), // it means to use instant value directly
-		core.SetLeaderCount(leaderCount),
-		core.SetResourceCount(resourceCount),
-		core.SetPendingPeerCount(pendingPeerCount),
-		core.SetLeaderSize(leaderSize),
-		core.SetResourceSize(resourceSize),
+		core.SetLeaderCount(r.group, leaderCount),
+		core.SetResourceCount(r.group, resourceCount),
+		core.SetPendingPeerCount(r.group, pendingPeerCount),
+		core.SetLeaderSize(r.group, leaderSize),
+		core.SetResourceSize(r.group, resourceSize),
 	)
 	return newContainer
 }

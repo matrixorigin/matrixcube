@@ -382,10 +382,10 @@ func TestResourceHeartbeat(t *testing.T) {
 	}
 
 	for _, container := range cluster.core.Containers.GetContainers() {
-		assert.Equal(t, container.GetLeaderCount(), cluster.core.Resources.GetContainerLeaderCount(container.Meta.ID()))
-		assert.Equal(t, container.GetResourceCount(), cluster.core.Resources.GetContainerResourceCount(container.Meta.ID()))
-		assert.Equal(t, container.GetLeaderSize(), cluster.core.Resources.GetContainerLeaderResourceSize(container.Meta.ID()))
-		assert.Equal(t, container.GetResourceSize(), cluster.core.Resources.GetContainerResourceSize(container.Meta.ID()))
+		assert.Equal(t, container.GetLeaderCount(0), cluster.core.Resources.GetContainerLeaderCount(container.Meta.ID()))
+		assert.Equal(t, container.GetResourceCount(0), cluster.core.Resources.GetContainerResourceCount(container.Meta.ID()))
+		assert.Equal(t, container.GetLeaderSize(0), cluster.core.Resources.GetContainerLeaderResourceSize(container.Meta.ID()))
+		assert.Equal(t, container.GetResourceSize(0), cluster.core.Resources.GetContainerResourceSize(container.Meta.ID()))
 	}
 
 	// Test with storage.
@@ -499,7 +499,7 @@ func TestHeartbeatSplit(t *testing.T) {
 	// 1: [nil, nil)
 	resource1 := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1}}, nil)
 	assert.NoError(t, cluster.processResourceHeartbeat(resource1))
-	checkResource(t, cluster.GetResourceByKey([]byte("foo")), resource1)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("foo")), resource1)
 
 	// split 1 to 2: [nil, m) 1: [m, nil), sync 2 first.
 	resource1 = resource1.Clone(
@@ -508,12 +508,12 @@ func TestHeartbeatSplit(t *testing.T) {
 	)
 	resource2 := core.NewCachedResource(&metadata.TestResource{ResID: 2, End: []byte("m"), ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1}}, nil)
 	assert.NoError(t, cluster.processResourceHeartbeat(resource2))
-	checkResource(t, cluster.GetResourceByKey([]byte("a")), resource2)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("a")), resource2)
 	// [m, nil) is missing before r1's heartbeat.
-	assert.Nil(t, cluster.GetResourceByKey([]byte("z")))
+	assert.Nil(t, cluster.GetResourceByKey(0, []byte("z")))
 
 	assert.NoError(t, cluster.processResourceHeartbeat(resource1))
-	checkResource(t, cluster.GetResourceByKey([]byte("z")), resource1)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("z")), resource1)
 
 	// split 1 to 3: [m, q) 1: [q, nil), sync 1 first.
 	resource1 = resource1.Clone(
@@ -522,12 +522,12 @@ func TestHeartbeatSplit(t *testing.T) {
 	)
 	resource3 := core.NewCachedResource(&metadata.TestResource{ResID: 3, Start: []byte("m"), End: []byte("q"), ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1}}, nil)
 	assert.NoError(t, cluster.processResourceHeartbeat(resource1))
-	checkResource(t, cluster.GetResourceByKey([]byte("z")), resource1)
-	checkResource(t, cluster.GetResourceByKey([]byte("a")), resource2)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("z")), resource1)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("a")), resource2)
 	// [m, q) is missing before r3's heartbeat.
-	assert.Nil(t, cluster.GetResourceByKey([]byte("n")))
+	assert.Nil(t, cluster.GetResourceByKey(0, []byte("n")))
 	assert.Nil(t, cluster.processResourceHeartbeat(resource3))
-	checkResource(t, cluster.GetResourceByKey([]byte("n")), resource3)
+	checkResource(t, cluster.GetResourceByKey(0, []byte("n")), resource3)
 }
 
 func TestResourceSplitAndMerge(t *testing.T) {
@@ -640,30 +640,30 @@ func TestResources(t *testing.T) {
 		resKey := []byte{byte(i)}
 
 		assert.Nil(t, cache.GetResource(i))
-		assert.Nil(t, cache.SearchResource(resKey))
+		assert.Nil(t, cache.SearchResource(0, resKey))
 		checkResources(t, cache, resources[0:i])
 
 		cache.AddResource(res)
 		checkResource(t, cache.GetResource(i), res)
-		checkResource(t, cache.SearchResource(resKey), res)
+		checkResource(t, cache.SearchResource(0, resKey), res)
 		checkResources(t, cache, resources[0:(i+1)])
 		// previous resource
 		if i == 0 {
-			assert.Nil(t, cache.SearchPrevResource(resKey))
+			assert.Nil(t, cache.SearchPrevResource(0, resKey))
 		} else {
-			checkResource(t, cache.SearchPrevResource(resKey), resources[i-1])
+			checkResource(t, cache.SearchPrevResource(0, resKey), resources[i-1])
 		}
 		// Update leader to peer np-1.
 		newResource := res.Clone(core.WithLeader(&res.Meta.Peers()[np-1]))
 		resources[i] = newResource
 		cache.SetResource(newResource)
 		checkResource(t, cache.GetResource(i), newResource)
-		checkResource(t, cache.SearchResource(resKey), newResource)
+		checkResource(t, cache.SearchResource(0, resKey), newResource)
 		checkResources(t, cache, resources[0:(i+1)])
 
 		cache.RemoveResource(res)
 		assert.Nil(t, cache.GetResource(i))
-		assert.Nil(t, cache.SearchResource(resKey))
+		assert.Nil(t, cache.SearchResource(0, resKey))
 		checkResources(t, cache, resources[0:i])
 
 		// Reset leader to peer 0.
@@ -672,7 +672,7 @@ func TestResources(t *testing.T) {
 		cache.AddResource(newResource)
 		checkResource(t, cache.GetResource(i), newResource)
 		checkResources(t, cache, resources[0:(i+1)])
-		checkResource(t, cache.SearchResource(resKey), newResource)
+		checkResource(t, cache.SearchResource(0, resKey), newResource)
 	}
 
 	for i := uint64(0); i < n; i++ {
@@ -819,23 +819,23 @@ func heartbeatResources(t *testing.T, cluster *RaftCluster, resources []*core.Ca
 		assert.NoError(t, cluster.processResourceHeartbeat(r))
 
 		checkResource(t, cluster.GetResource(r.Meta.ID()), r)
-		checkResource(t, cluster.GetResourceByKey(r.GetStartKey()), r)
+		checkResource(t, cluster.GetResourceByKey(0, r.GetStartKey()), r)
 
 		if len(r.GetEndKey()) > 0 {
 			end := r.GetEndKey()[0]
-			checkResource(t, cluster.GetResourceByKey([]byte{end - 1}), r)
+			checkResource(t, cluster.GetResourceByKey(0, []byte{end - 1}), r)
 		}
 	}
 
 	// Check all resources after handling all heartbeats.
 	for _, r := range resources {
 		checkResource(t, cluster.GetResource(r.Meta.ID()), r)
-		checkResource(t, cluster.GetResourceByKey(r.GetStartKey()), r)
+		checkResource(t, cluster.GetResourceByKey(0, r.GetStartKey()), r)
 
 		if len(r.GetEndKey()) > 0 {
 			end := r.GetEndKey()[0]
-			checkResource(t, cluster.GetResourceByKey([]byte{end - 1}), r)
-			result := cluster.GetResourceByKey([]byte{end + 1})
+			checkResource(t, cluster.GetResourceByKey(0, []byte{end - 1}), r)
+			result := cluster.GetResourceByKey(0, []byte{end + 1})
 			assert.NotEqual(t, r.Meta.ID(), result.Meta.ID())
 		}
 	}

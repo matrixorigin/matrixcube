@@ -109,37 +109,45 @@ func ResumeLeaderTransfer() ContainerCreateOption {
 }
 
 // SetLeaderCount sets the leader count for the container.
-func SetLeaderCount(leaderCount int) ContainerCreateOption {
+func SetLeaderCount(group uint64, leaderCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.leaderCount = leaderCount
+		info := container.leaderInfo[group]
+		info.count = leaderCount
+		container.leaderInfo[group] = info
 	}
 }
 
 // SetResourceCount sets the Resource count for the container.
-func SetResourceCount(resourceCount int) ContainerCreateOption {
+func SetResourceCount(group uint64, resourceCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.resourceCount = resourceCount
+		info := container.resourceInfo[group]
+		info.count = resourceCount
+		container.resourceInfo[group] = info
 	}
 }
 
 // SetPendingPeerCount sets the pending peer count for the container.
-func SetPendingPeerCount(pendingPeerCount int) ContainerCreateOption {
+func SetPendingPeerCount(group uint64, pendingPeerCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.pendingPeerCount = pendingPeerCount
+		container.pendingPeerCounts[group] = pendingPeerCount
 	}
 }
 
 // SetLeaderSize sets the leader size for the container.
-func SetLeaderSize(leaderSize int64) ContainerCreateOption {
+func SetLeaderSize(group uint64, leaderSize int64) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.leaderSize = leaderSize
+		info := container.leaderInfo[group]
+		info.size = leaderSize
+		container.leaderInfo[group] = info
 	}
 }
 
 // SetResourceSize sets the Resource size for the container.
-func SetResourceSize(resourceSize int64) ContainerCreateOption {
+func SetResourceSize(group uint64, resourceSize int64) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.resourceSize = resourceSize
+		info := container.resourceInfo[group]
+		info.size = resourceSize
+		container.resourceInfo[group] = info
 	}
 }
 
