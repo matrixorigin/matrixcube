@@ -249,6 +249,13 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		size, keys, splitKeys, err = pr.store.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard)
 	}
 
+	logger.Debugf("shard %d split check result, total size %d(%d), total keys %d, split keys %+v",
+		pr.shardID,
+		size,
+		uint64(pr.store.cfg.Replication.ShardCapacityBytes),
+		keys,
+		splitKeys)
+
 	if err != nil {
 		logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
 			pr.shardID,

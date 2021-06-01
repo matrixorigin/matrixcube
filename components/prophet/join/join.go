@@ -13,6 +13,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/etcdserver"
 )
 
 const (
@@ -130,11 +131,22 @@ func PrepareJoinCluster(cfg *config.Config) {
 	// - A new Prophet joins an existing cluster.
 	// - A deleted Prophet joins to previous cluster.
 	{
-		// First adds member through the API
-		addResp, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
-		if err != nil {
-			util.GetLogger().Fatalf("add member to embed etcd failed with %+v", err)
+		for {
+			// First adds member through the API
+			addResp, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
+			if err != nil && err.Error() != etcdserver.ErrUnhealthy.Error() {
+				util.GetLogger().Fatalf("add member to embed etcd failed with %+v", err)
+			}
+
+			if err != nil && err.Error() == etcdserver.ErrUnhealthy.Error() {
+				util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
+				time.Sleep(time.Millisecond * 500)
+				continue
+			}
+
+			break
 		}
+
 	}
 
 	var (

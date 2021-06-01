@@ -28,7 +28,8 @@ func (s *store) handleSplitCheck() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
-			pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes) {
+			(s.cfg.Customize.CustomSplitCheckFunc != nil ||
+				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
 			pr.addAction(action{actionType: checkSplitAction})
 		}
 
@@ -71,7 +72,7 @@ func (s *store) onSnapshotMessage(msg *bhraftpb.SnapshotMessage) {
 		s.addApplyJob(pr.applyWorker, "onSnapshotData", func() error {
 			err := s.snapshotManager.ReceiveSnapData(msg)
 			if err != nil {
-				logger.Fatalf("sahrd %s received snap data failed, errors:\n%+v",
+				logger.Fatalf("shard %s received snap data failed, errors:\n%+v",
 					msg.Header.Shard.ID,
 					err)
 			}
