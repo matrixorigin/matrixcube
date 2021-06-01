@@ -42,11 +42,11 @@ func shouldBalance(cluster opt.Cluster, source, target *core.CachedContainer, re
 	opts := cluster.GetOpts()
 	switch kind.ResourceKind {
 	case metapb.ResourceKind_LeaderKind:
-		sourceScore = source.LeaderScore(kind.Policy, sourceDelta)
-		targetScore = target.LeaderScore(kind.Policy, targetDelta)
+		sourceScore = source.LeaderScore(res.Meta.Group(), kind.Policy, sourceDelta)
+		targetScore = target.LeaderScore(res.Meta.Group(), kind.Policy, targetDelta)
 	case metapb.ResourceKind_ReplicaKind:
-		sourceScore = source.ResourceScore(opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
-		targetScore = target.ResourceScore(opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
+		sourceScore = source.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
+		targetScore = target.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
 	if opts.IsDebugMetricsEnabled() {
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), "source").Set(float64(sourceInfluence))
@@ -63,10 +63,10 @@ func shouldBalance(cluster opt.Cluster, source, target *core.CachedContainer, re
 			res.Meta.ID(),
 			sourceID,
 			targetID,
-			source.GetResourceSize(),
+			source.GetResourceSize(res.Meta.Group()),
 			sourceScore,
 			sourceInfluence,
-			target.GetResourceSize(),
+			target.GetResourceSize(res.Meta.Group()),
 			targetScore,
 			targetInfluence,
 			cluster.GetAverageResourceSize(),
@@ -112,12 +112,12 @@ func adjustTolerantRatio(cluster opt.Cluster) float64 {
 	return tolerantSizeRatio
 }
 
-func adjustBalanceLimit(cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
+func adjustBalanceLimit(group uint64, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
 	containers := cluster.GetContainers()
 	counts := make([]float64, 0, len(containers))
 	for _, s := range containers {
 		if s.IsUp() {
-			counts = append(counts, float64(s.ResourceCount(kind)))
+			counts = append(counts, float64(s.ResourceCount(group, kind)))
 		}
 	}
 	limit, _ := stats.StandardDeviation(counts)

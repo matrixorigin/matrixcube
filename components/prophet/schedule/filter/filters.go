@@ -171,7 +171,7 @@ func (f *storageThresholdFilter) Source(opt *config.PersistOptions, container *c
 }
 
 func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
-	return !container.IsLowSpace(opt.GetLowSpaceRatio())
+	return !container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups)
 }
 
 // distinctScoreFilter ensures that distinct score will not decrease.
@@ -661,7 +661,7 @@ func (f *specialUseFilter) Type() string {
 }
 
 func (f *specialUseFilter) Source(opt *config.PersistOptions, container *core.CachedContainer) bool {
-	if container.IsLowSpace(opt.GetLowSpaceRatio()) {
+	if container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups) {
 		return true
 	}
 	return !f.constraint.MatchContainer(container)

@@ -21,17 +21,20 @@ const (
 	initialMinSpace          = 1 << 33 // 2^3=8GB
 )
 
+type counterAndSize struct {
+	count int
+	size  int64
+}
+
 // CachedContainer is the container runtime info cached in the cache
 type CachedContainer struct {
 	Meta metadata.Container
 	*containerStats
 
 	pauseLeaderTransfer bool // not allow to be used as source or target of transfer leader
-	leaderCount         int
-	resourceCount       int
-	leaderSize          int64
-	resourceSize        int64
-	pendingPeerCount    int
+	resourceInfo        map[uint64]counterAndSize
+	leaderInfo          map[uint64]counterAndSize
+	pendingPeerCounts   map[uint64]int
 	lastPersistTime     time.Time
 	leaderWeight        float64
 	resourceWeight      float64
@@ -41,10 +44,13 @@ type CachedContainer struct {
 // NewCachedContainer creates CachedContainer with meta data.
 func NewCachedContainer(meta metadata.Container, opts ...ContainerCreateOption) *CachedContainer {
 	container := &CachedContainer{
-		Meta:           meta,
-		containerStats: newContainerStats(),
-		leaderWeight:   1.0,
-		resourceWeight: 1.0,
+		Meta:              meta,
+		containerStats:    newContainerStats(),
+		resourceInfo:      make(map[uint64]counterAndSize),
+		leaderInfo:        make(map[uint64]counterAndSize),
+		pendingPeerCounts: make(map[uint64]int),
+		leaderWeight:      1.0,
+		resourceWeight:    1.0,
 	}
 	for _, opt := range opts {
 		opt(container)
@@ -58,15 +64,23 @@ func (cr *CachedContainer) Clone(opts ...ContainerCreateOption) *CachedContainer
 		Meta:                cr.Meta.Clone(),
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
-		leaderCount:         cr.leaderCount,
-		resourceCount:       cr.resourceCount,
-		leaderSize:          cr.leaderSize,
-		resourceSize:        cr.resourceSize,
-		pendingPeerCount:    cr.pendingPeerCount,
+		resourceInfo:        make(map[uint64]counterAndSize),
+		leaderInfo:          make(map[uint64]counterAndSize),
+		pendingPeerCounts:   make(map[uint64]int),
 		lastPersistTime:     cr.lastPersistTime,
 		leaderWeight:        cr.leaderWeight,
 		resourceWeight:      cr.resourceWeight,
 		available:           cr.available,
+	}
+
+	for k, v := range cr.resourceInfo {
+		container.resourceInfo[k] = v
+	}
+	for k, v := range cr.leaderInfo {
+		container.leaderInfo[k] = v
+	}
+	for k, v := range cr.pendingPeerCounts {
+		container.pendingPeerCounts[k] = v
 	}
 
 	for _, opt := range opts {
@@ -81,15 +95,23 @@ func (cr *CachedContainer) ShallowClone(opts ...ContainerCreateOption) *CachedCo
 		Meta:                cr.Meta,
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
-		leaderCount:         cr.leaderCount,
-		resourceCount:       cr.resourceCount,
-		leaderSize:          cr.leaderSize,
-		resourceSize:        cr.resourceSize,
-		pendingPeerCount:    cr.pendingPeerCount,
+		resourceInfo:        make(map[uint64]counterAndSize),
+		leaderInfo:          make(map[uint64]counterAndSize),
+		pendingPeerCounts:   make(map[uint64]int),
 		lastPersistTime:     cr.lastPersistTime,
 		leaderWeight:        cr.leaderWeight,
 		resourceWeight:      cr.resourceWeight,
 		available:           cr.available,
+	}
+
+	for k, v := range cr.resourceInfo {
+		container.resourceInfo[k] = v
+	}
+	for k, v := range cr.leaderInfo {
+		container.leaderInfo[k] = v
+	}
+	for k, v := range cr.pendingPeerCounts {
+		container.pendingPeerCounts[k] = v
 	}
 
 	for _, opt := range opts {
@@ -143,28 +165,32 @@ func (cr *CachedContainer) GetState() metapb.ContainerState {
 }
 
 // GetLeaderCount returns the leader count of the container.
-func (cr *CachedContainer) GetLeaderCount() int {
-	return cr.leaderCount
+func (cr *CachedContainer) GetLeaderCount(group uint64) int {
+	return cr.leaderInfo[group].count
 }
 
 // GetResourceCount returns the Resource count of the container.
-func (cr *CachedContainer) GetResourceCount() int {
-	return cr.resourceCount
+func (cr *CachedContainer) GetResourceCount(group uint64) int {
+	return cr.resourceInfo[group].count
 }
 
 // GetLeaderSize returns the leader size of the container.
-func (cr *CachedContainer) GetLeaderSize() int64 {
-	return cr.leaderSize
+func (cr *CachedContainer) GetLeaderSize(group uint64) int64 {
+	return cr.leaderInfo[group].size
 }
 
 // GetResourceSize returns the Resource size of the container.
-func (cr *CachedContainer) GetResourceSize() int64 {
-	return cr.resourceSize
+func (cr *CachedContainer) GetResourceSize(group uint64) int64 {
+	return cr.resourceInfo[group].size
 }
 
 // GetPendingPeerCount returns the pending peer count of the container.
 func (cr *CachedContainer) GetPendingPeerCount() int {
-	return cr.pendingPeerCount
+	cnt := 0
+	for _, v := range cr.pendingPeerCounts {
+		cnt += v
+	}
+	return cnt
 }
 
 // GetLeaderWeight returns the leader weight of the container.
@@ -191,12 +217,12 @@ const minWeight = 1e-6
 const maxScore = 1024 * 1024 * 1024
 
 // LeaderScore returns the container's leader score.
-func (cr *CachedContainer) LeaderScore(policy SchedulePolicy, delta int64) float64 {
+func (cr *CachedContainer) LeaderScore(group uint64, policy SchedulePolicy, delta int64) float64 {
 	switch policy {
 	case BySize:
-		return float64(cr.GetLeaderSize()+delta) / math.Max(cr.GetLeaderWeight(), minWeight)
+		return float64(cr.GetLeaderSize(group)+delta) / math.Max(cr.GetLeaderWeight(), minWeight)
 	case ByCount:
-		return float64(int64(cr.GetLeaderCount())+delta) / math.Max(cr.GetLeaderWeight(), minWeight)
+		return float64(int64(cr.GetLeaderCount(group))+delta) / math.Max(cr.GetLeaderWeight(), minWeight)
 	default:
 		return 0
 	}
@@ -206,29 +232,29 @@ func (cr *CachedContainer) LeaderScore(policy SchedulePolicy, delta int64) float
 // Deviation It is used to control the direction of the deviation considered
 // when calculating the resource score. It is set to -1 when it is the source
 // container of balance, 1 when it is the target, and 0 in the rest of cases.
-func (cr *CachedContainer) ResourceScore(version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
+func (cr *CachedContainer) ResourceScore(group uint64, version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
 	switch version {
 	case "v2":
-		return cr.resourceScoreV2(delta, deviation, lowSpaceRatio)
+		return cr.resourceScoreV2(group, delta, deviation, lowSpaceRatio)
 	case "v1":
 		fallthrough
 	default:
-		return cr.resourceScoreV1(highSpaceRatio, lowSpaceRatio, delta)
+		return cr.resourceScoreV1(group, highSpaceRatio, lowSpaceRatio, delta)
 	}
 }
 
-func (cr *CachedContainer) resourceScoreV1(highSpaceRatio, lowSpaceRatio float64, delta int64) float64 {
+func (cr *CachedContainer) resourceScoreV1(group uint64, highSpaceRatio, lowSpaceRatio float64, delta int64) float64 {
 	var score float64
 	var amplification float64
 	available := float64(cr.GetAvailable()) / mb
 	used := float64(cr.GetUsedSize()) / mb
 	capacity := float64(cr.GetCapacity()) / mb
 
-	if cr.GetResourceSize() == 0 || used == 0 {
+	if cr.GetResourceSize(group) == 0 || used == 0 {
 		amplification = 1
 	} else {
 		// because of db compression, resource size is larger than actual used size
-		amplification = float64(cr.GetResourceSize()) / used
+		amplification = float64(cr.GetResourceSize(group)) / used
 	}
 
 	// highSpaceBound is the lower bound of the high space stage.
@@ -236,7 +262,7 @@ func (cr *CachedContainer) resourceScoreV1(highSpaceRatio, lowSpaceRatio float64
 	// lowSpaceBound is the upper bound of the low space stage.
 	lowSpaceBound := (1 - lowSpaceRatio) * capacity
 	if available-float64(delta)/amplification >= highSpaceBound {
-		score = float64(cr.GetResourceSize() + delta)
+		score = float64(cr.GetResourceSize(group) + delta)
 	} else if available-float64(delta)/amplification <= lowSpaceBound {
 		score = maxScore - (available - float64(delta)/amplification)
 	} else {
@@ -256,16 +282,16 @@ func (cr *CachedContainer) resourceScoreV1(highSpaceRatio, lowSpaceRatio float64
 
 		k := (y2 - y1) / (x2 - x1)
 		b := y1 - k*x1
-		score = k*float64(cr.GetResourceSize()+delta) + b
+		score = k*float64(cr.GetResourceSize(group)+delta) + b
 	}
 
 	return score / math.Max(cr.GetResourceWeight(), minWeight)
 }
 
-func (cr *CachedContainer) resourceScoreV2(delta int64, deviation int, lowSpaceRatio float64) float64 {
+func (cr *CachedContainer) resourceScoreV2(group uint64, delta int64, deviation int, lowSpaceRatio float64) float64 {
 	A := float64(float64(cr.GetAvgAvailable())-float64(deviation)*float64(cr.GetAvailableDeviation())) / gb
 	C := float64(cr.GetCapacity()) / gb
-	R := float64(cr.GetResourceSize() + delta)
+	R := float64(cr.GetResourceSize(group) + delta)
 	var (
 		K, M float64 = 1, 256 // Experience value to control the weight of the available influence on score
 		F    float64 = 50     // Experience value to prevent some nodes from running out of disk space prematurely.
@@ -301,36 +327,39 @@ func (cr *CachedContainer) AvailableRatio() float64 {
 }
 
 // IsLowSpace checks if the container is lack of space.
-func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64) bool {
+func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64, groups []uint64) bool {
 	if cr.GetContainerStats() == nil {
 		return false
 	}
 	// issue #3444
-	if cr.resourceCount < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
-		return false
+	for _, group := range groups {
+		if cr.GetResourceCount(group) < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
+			return false
+		}
 	}
+
 	return cr.AvailableRatio() < 1-lowSpaceRatio
 }
 
 // ResourceCount returns count of leader/resource-replica in the container.
-func (cr *CachedContainer) ResourceCount(kind metapb.ResourceKind) uint64 {
+func (cr *CachedContainer) ResourceCount(group uint64, kind metapb.ResourceKind) uint64 {
 	switch kind {
 	case metapb.ResourceKind_LeaderKind:
-		return uint64(cr.GetLeaderCount())
+		return uint64(cr.GetLeaderCount(group))
 	case metapb.ResourceKind_ReplicaKind:
-		return uint64(cr.GetResourceCount())
+		return uint64(cr.GetResourceCount(group))
 	default:
 		return 0
 	}
 }
 
 // ResourceSize returns size of leader/resource-replica in the container
-func (cr *CachedContainer) ResourceSize(kind metapb.ResourceKind) int64 {
+func (cr *CachedContainer) ResourceSize(group uint64, kind metapb.ResourceKind) int64 {
 	switch kind {
 	case metapb.ResourceKind_LeaderKind:
-		return cr.GetLeaderSize()
+		return cr.GetLeaderSize(group)
 	case metapb.ResourceKind_ReplicaKind:
-		return cr.GetResourceSize()
+		return cr.GetResourceSize(group)
 	default:
 		return 0
 	}
@@ -549,48 +578,48 @@ func (s *CachedContainers) GetContainerCount() int {
 }
 
 // SetLeaderCount sets the leader count to a CachedContainer.
-func (s *CachedContainers) SetLeaderCount(containerID uint64, leaderCount int) {
+func (s *CachedContainers) SetLeaderCount(group, containerID uint64, leaderCount int) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetLeaderCount(leaderCount))
+		s.containers[containerID] = container.Clone(SetLeaderCount(group, leaderCount))
 	}
 }
 
 // SetResourceCount sets the resource count to a CachedContainer.
-func (s *CachedContainers) SetResourceCount(containerID uint64, resourceCount int) {
+func (s *CachedContainers) SetResourceCount(group, containerID uint64, resourceCount int) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetResourceCount(resourceCount))
+		s.containers[containerID] = container.Clone(SetResourceCount(group, resourceCount))
 	}
 }
 
 // SetPendingPeerCount sets the pending count to a CachedContainer.
-func (s *CachedContainers) SetPendingPeerCount(containerID uint64, pendingPeerCount int) {
+func (s *CachedContainers) SetPendingPeerCount(group, containerID uint64, pendingPeerCount int) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetPendingPeerCount(pendingPeerCount))
+		s.containers[containerID] = container.Clone(SetPendingPeerCount(group, pendingPeerCount))
 	}
 }
 
 // SetLeaderSize sets the leader size to a CachedContainer.
-func (s *CachedContainers) SetLeaderSize(containerID uint64, leaderSize int64) {
+func (s *CachedContainers) SetLeaderSize(group, containerID uint64, leaderSize int64) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetLeaderSize(leaderSize))
+		s.containers[containerID] = container.Clone(SetLeaderSize(group, leaderSize))
 	}
 }
 
 // SetResourceSize sets the resource size to a CachedContainer.
-func (s *CachedContainers) SetResourceSize(containerID uint64, resourceSize int64) {
+func (s *CachedContainers) SetResourceSize(group, containerID uint64, resourceSize int64) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetResourceSize(resourceSize))
+		s.containers[containerID] = container.Clone(SetResourceSize(group, resourceSize))
 	}
 }
 
 // UpdateContainerStatus updates the information of the container.
-func (s *CachedContainers) UpdateContainerStatus(containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
+func (s *CachedContainers) UpdateContainerStatus(group, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
 	if container, ok := s.containers[containerID]; ok {
-		newContainer := container.ShallowClone(SetLeaderCount(leaderCount),
-			SetResourceCount(resourceCount),
-			SetPendingPeerCount(pendingPeerCount),
-			SetLeaderSize(leaderSize),
-			SetResourceSize(resourceSize))
+		newContainer := container.ShallowClone(SetLeaderCount(group, leaderCount),
+			SetResourceCount(group, resourceCount),
+			SetPendingPeerCount(group, pendingPeerCount),
+			SetLeaderSize(group, leaderSize),
+			SetResourceSize(group, resourceSize))
 		s.SetContainer(newContainer)
 	}
 }

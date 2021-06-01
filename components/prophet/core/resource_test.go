@@ -197,7 +197,7 @@ func TestSetResource(t *testing.T) {
 
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
-	assert.Equal(t, 97, resources.tree.length(), "TestSetResource failed")
+	assert.Equal(t, 97, resources.trees[0].length(), "TestSetResource failed")
 	assert.Equal(t, 97, len(resources.GetResources()), "TestSetResource failed")
 
 	resources.SetResource(res)
@@ -215,7 +215,7 @@ func TestSetResource(t *testing.T) {
 
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
-	assert.Equal(t, 97, resources.tree.length(), "TestSetResource failed")
+	assert.Equal(t, 97, resources.trees[0].length(), "TestSetResource failed")
 	assert.Equal(t, 97, len(resources.GetResources()), "TestSetResource failed")
 
 	// Test remove overlaps.
@@ -224,7 +224,7 @@ func TestSetResource(t *testing.T) {
 	assert.NotNil(t, resources.GetResource(18), "TestSetResource failed")
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
-	assert.Equal(t, 96, resources.tree.length(), "TestSetResource failed")
+	assert.Equal(t, 96, resources.trees[0].length(), "TestSetResource failed")
 	assert.Equal(t, 96, len(resources.GetResources()), "TestSetResource failed")
 	assert.NotNil(t, resources.GetResource(201), "TestSetResource failed")
 	assert.Nil(t, resources.GetResource(21), "TestSetResource failed")
@@ -236,7 +236,7 @@ func TestSetResource(t *testing.T) {
 	res.stats.ApproximateSize = 30
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
-	assert.Equal(t, 96, resources.tree.length(), "TestSetResource failed")
+	assert.Equal(t, 96, resources.trees[0].length(), "TestSetResource failed")
 	assert.Equal(t, 96, len(resources.GetResources()), "TestSetResource failed")
 	assert.NotNil(t, resources.GetResource(201), "TestSetResource failed")
 	assert.Equal(t, int64(20), resources.resources.totalKeys, "TestSetResource failed")

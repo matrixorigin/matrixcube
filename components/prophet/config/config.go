@@ -401,6 +401,9 @@ type ReplicationConfig struct {
 	// Even if a zone is down, Prophet will not try to make up replicas in other zone
 	// because other zones already have replicas on it.
 	IsolationLevel string `toml:"isolation-level" json:"isolation-level"`
+
+	// Groups resources groups
+	Groups []uint64 `toml:"groups" json:"groups"`
 }
 
 // Clone makes a deep copy of the config.
@@ -440,6 +443,9 @@ func (c *ReplicationConfig) adjust(meta *configMetaData) error {
 	}
 	if !meta.IsDefined("location-labels") {
 		c.LocationLabels = defaultLocationLabels
+	}
+	if !meta.IsDefined("groups") {
+		c.Groups = []uint64{0}
 	}
 	return c.Validate()
 }

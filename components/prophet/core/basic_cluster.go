@@ -194,10 +194,10 @@ func (bc *BasicCluster) AttachAvailableFunc(containerID uint64, limitType limit.
 }
 
 // UpdateContainerStatus updates the information of the container.
-func (bc *BasicCluster) UpdateContainerStatus(containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
+func (bc *BasicCluster) UpdateContainerStatus(group, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Containers.UpdateContainerStatus(containerID, leaderCount, resourceCount, pendingPeerCount, leaderSize, resourceSize)
+	bc.Containers.UpdateContainerStatus(group, containerID, leaderCount, resourceCount, pendingPeerCount, leaderSize, resourceSize)
 }
 
 const randomResourceMaxRetry = 10
@@ -367,6 +367,7 @@ func (bc *BasicCluster) PreCheckPutResource(res *CachedResource) (*CachedResourc
 func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 	bc.Lock()
 	defer bc.Unlock()
+
 	return bc.Resources.SetResource(res)
 }
 
@@ -400,25 +401,25 @@ func (bc *BasicCluster) RemoveResource(res *CachedResource) {
 }
 
 // SearchResource searches CachedResource from resourceTree.
-func (bc *BasicCluster) SearchResource(resKey []byte) *CachedResource {
+func (bc *BasicCluster) SearchResource(group uint64, resKey []byte) *CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.SearchResource(resKey)
+	return bc.Resources.SearchResource(group, resKey)
 }
 
 // SearchPrevResource searches previous CachedResource from resourceTree.
-func (bc *BasicCluster) SearchPrevResource(resKey []byte) *CachedResource {
+func (bc *BasicCluster) SearchPrevResource(group uint64, resKey []byte) *CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.SearchPrevResource(resKey)
+	return bc.Resources.SearchPrevResource(group, resKey)
 }
 
 // ScanRange scans resources intersecting [start key, end key), returns at most
 // `limit` resources. limit <= 0 means no limit.
-func (bc *BasicCluster) ScanRange(startKey, endKey []byte, limit int) []*CachedResource {
+func (bc *BasicCluster) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.ScanRange(startKey, endKey, limit)
+	return bc.Resources.ScanRange(group, startKey, endKey, limit)
 }
 
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
@@ -439,8 +440,8 @@ type ResourceSetInformer interface {
 	GetContainerResourceCount(containerID uint64) int
 	GetResource(id uint64) *CachedResource
 	GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource)
-	ScanResources(startKey, endKey []byte, limit int) []*CachedResource
-	GetResourceByKey(resKey []byte) *CachedResource
+	ScanResources(group uint64, startKey, endKey []byte, limit int) []*CachedResource
+	GetResourceByKey(group uint64, resKey []byte) *CachedResource
 }
 
 // ContainerSetInformer provides access to a shared informer of containers.
@@ -463,6 +464,7 @@ type ContainerSetController interface {
 
 // KeyRange is a key range.
 type KeyRange struct {
+	Group    uint64 `json:"group"`
 	StartKey []byte `json:"start-key"`
 	EndKey   []byte `json:"end-key"`
 }

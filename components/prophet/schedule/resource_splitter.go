@@ -23,7 +23,7 @@ const (
 // SplitResourcesHandler used to handle resource splitting
 type SplitResourcesHandler interface {
 	SplitResourceByKeys(res *core.CachedResource, splitKeys [][]byte) error
-	ScanResourcesByKeyRange(groupKeys *resourceGroupKeys, results *splitKeyResults)
+	ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults)
 }
 
 // NewSplitResourcesHandler return SplitResourcesHandler
@@ -49,14 +49,14 @@ func NewResourceSplitter(cluster opt.Cluster, handler SplitResourcesHandler) *Re
 }
 
 // SplitResources support splitResources by given split keys.
-func (r *ResourceSplitter) SplitResources(ctx context.Context, splitKeys [][]byte, retryLimit int) (int, []uint64) {
+func (r *ResourceSplitter) SplitResources(ctx context.Context, group uint64, splitKeys [][]byte, retryLimit int) (int, []uint64) {
 	if len(splitKeys) < 1 {
 		return 0, nil
 	}
 	unprocessedKeys := splitKeys
 	newResources := make(map[uint64]struct{}, len(splitKeys))
 	for i := 0; i <= retryLimit; i++ {
-		unprocessedKeys = r.splitResourcesByKeys(ctx, unprocessedKeys, newResources)
+		unprocessedKeys = r.splitResourcesByKeys(ctx, group, unprocessedKeys, newResources)
 		if len(unprocessedKeys) < 1 {
 			break
 		}
@@ -70,8 +70,8 @@ func (r *ResourceSplitter) SplitResources(ctx context.Context, splitKeys [][]byt
 	return 100 - len(unprocessedKeys)*100/len(splitKeys), returned
 }
 
-func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, splitKeys [][]byte, newResources map[uint64]struct{}) [][]byte {
-	validGroups := r.groupKeysByResource(splitKeys)
+func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, resGroup uint64, splitKeys [][]byte, newResources map[uint64]struct{}) [][]byte {
+	validGroups := r.groupKeysByResource(resGroup, splitKeys)
 	for key, group := range validGroups {
 		err := r.handler.SplitResourceByKeys(group.resource, group.keys)
 		if err != nil {
@@ -93,7 +93,7 @@ func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, splitKey
 				if groupKeys.finished {
 					continue
 				}
-				r.handler.ScanResourcesByKeyRange(groupKeys, results)
+				r.handler.ScanResourcesByKeyRange(resGroup, groupKeys, results)
 			}
 		case <-ctx.Done():
 		}
@@ -114,10 +114,10 @@ func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, splitKey
 }
 
 // groupKeysByResource separates keys into groups by their belonging Resources.
-func (r *ResourceSplitter) groupKeysByResource(keys [][]byte) map[uint64]*resourceGroupKeys {
+func (r *ResourceSplitter) groupKeysByResource(group uint64, keys [][]byte) map[uint64]*resourceGroupKeys {
 	groups := make(map[uint64]*resourceGroupKeys, len(keys))
 	for _, key := range keys {
-		res := r.cluster.GetResourceByKey(key)
+		res := r.cluster.GetResourceByKey(group, key)
 		if res == nil {
 			util.GetLogger().Errorf("resource hollow, key %+v", key)
 			continue
@@ -163,28 +163,28 @@ type splitResourcesHandler struct {
 	oc      *OperatorController
 }
 
-func (h *splitResourcesHandler) SplitResourceByKeys(re *core.CachedResource, splitKeys [][]byte) error {
-	op, err := operator.CreateSplitResourceOperator("resource-splitter", re, 0, metapb.CheckPolicy_USEKEY, splitKeys)
+func (h *splitResourcesHandler) SplitResourceByKeys(res *core.CachedResource, splitKeys [][]byte) error {
+	op, err := operator.CreateSplitResourceOperator("resource-splitter", res, 0, metapb.CheckPolicy_USEKEY, splitKeys)
 	if err != nil {
 		return err
 	}
 
 	if ok := h.oc.AddOperator(op); !ok {
 		util.GetLogger().Warningf("resource %s add split operator failed",
-			re.Meta.ID())
+			res.Meta.ID())
 		return errors.New("add resource split operator failed")
 	}
 	return nil
 }
 
-func (h *splitResourcesHandler) ScanResourcesByKeyRange(groupKeys *resourceGroupKeys, results *splitKeyResults) {
+func (h *splitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
 	splitKeys := groupKeys.keys
 	startKey, endKey := groupKeys.resource.GetStartKey(), groupKeys.resource.GetEndKey()
 	createdResources := make(map[uint64][]byte, len(splitKeys))
 	defer func() {
 		results.addResourcesID(createdResources)
 	}()
-	resources := h.cluster.ScanResources(startKey, endKey, -1)
+	resources := h.cluster.ScanResources(group, startKey, endKey, -1)
 	for _, res := range resources {
 		for _, splitKey := range splitKeys {
 			if bytes.Equal(splitKey, res.GetStartKey()) {

@@ -75,7 +75,7 @@ func (c *RaftCluster) HandleAskSplit(request *rpcpb.Request) (*rpcpb.AskSplitRsp
 // ValidRequestResource is used to decide if the resource is valid.
 func (c *RaftCluster) ValidRequestResource(reqResource metadata.Resource) error {
 	startKey, _ := reqResource.Range()
-	res := c.GetResourceByKey(startKey)
+	res := c.GetResourceByKey(reqResource.Group(), startKey)
 	if res == nil {
 		return fmt.Errorf("resource not found, request resource: %v", reqResource)
 	}
@@ -251,6 +251,10 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 	if len(request.CreateResources.Resources) > 4 {
 		return nil, fmt.Errorf("exceed the maximum batch size of create resources, max is %d current %d",
 			4, len(request.CreateResources.Resources))
+	}
+
+	if request.CreateResources.LeastPeers == nil {
+		request.CreateResources.LeastPeers = make([]uint64, len(request.CreateResources.Resources))
 	}
 
 	c.RLock()

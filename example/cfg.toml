@@ -83,6 +83,9 @@ shard-capacity-bytes = "96MB"
 # Shard的Leader副本会发起异步的Check操作，这个操作会检查磁盘中真实的Shard占用大小，用来决定是否发起Split操作。
 shard-split-check-bytes = "64MB"
 
+# Cube中raft-group的分组，每个组内的所有的raft-group的range是不能有冲突的，组之间相互独立。
+groups = [0]
+
 # snapshot的相关配置
 [snapshot]
 # Cube中Raft相关的通信做了优化，并不是一个Shard的所有副本之间建立独立的TCP链接，这样一旦整个集群的Shard个数一旦很多，

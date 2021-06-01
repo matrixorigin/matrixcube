@@ -33,7 +33,7 @@ func (m *mockSplitResourcesHandler) SplitResourceByKeys(resource *core.CachedRes
 }
 
 // WatchresourcesByKeyRange mock SplitresourcesHandler
-func (m *mockSplitResourcesHandler) ScanResourcesByKeyRange(groupKeys *resourceGroupKeys, results *splitKeyResults) {
+func (m *mockSplitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
 	splitKeys := groupKeys.keys
 	startKey, endKey := groupKeys.resource.GetStartKey(), groupKeys.resource.GetEndKey()
 	for resourceID, keyRange := range m.resources {
@@ -58,20 +58,20 @@ func TestResourceSplitter(t *testing.T) {
 	splitter := NewResourceSplitter(tc, handler)
 	newresources := map[uint64]struct{}{}
 	// assert success
-	failureKeys := splitter.splitResourcesByKeys(ctx, [][]byte{[]byte("fff"), []byte("ggg")}, newresources)
+	failureKeys := splitter.splitResourcesByKeys(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, newresources)
 	assert.Empty(t, failureKeys)
 	assert.Equal(t, 2, len(newresources))
 
-	percentage, newresourcesID := splitter.SplitResources(ctx, [][]byte{[]byte("fff"), []byte("ggg")}, 1)
+	percentage, newresourcesID := splitter.SplitResources(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, 1)
 	assert.Equal(t, 100, percentage)
 	assert.Equal(t, 2, len(newresourcesID))
 	// assert out of range
 	newresources = map[uint64]struct{}{}
-	failureKeys = splitter.splitResourcesByKeys(ctx, [][]byte{[]byte("aaa"), []byte("bbb")}, newresources)
+	failureKeys = splitter.splitResourcesByKeys(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, newresources)
 	assert.Equal(t, len(failureKeys), 2)
 	assert.Empty(t, len(newresources))
 
-	percentage, newresourcesID = splitter.SplitResources(ctx, [][]byte{[]byte("aaa"), []byte("bbb")}, 1)
+	percentage, newresourcesID = splitter.SplitResources(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, 1)
 	assert.Equal(t, 0, percentage)
 	assert.Empty(t, newresourcesID)
 }
@@ -85,7 +85,7 @@ func TestGroupKeysByResource(t *testing.T) {
 	tc.AddLeaderResourceWithRange(2, "ccc", "eee", 2, 3, 4)
 	tc.AddLeaderResourceWithRange(3, "fff", "ggg", 2, 3, 4)
 	splitter := NewResourceSplitter(tc, handler)
-	groupKeys := splitter.groupKeysByResource([][]byte{
+	groupKeys := splitter.groupKeysByResource(0, [][]byte{
 		[]byte("bbb"),
 		[]byte("ddd"),
 		[]byte("fff"),

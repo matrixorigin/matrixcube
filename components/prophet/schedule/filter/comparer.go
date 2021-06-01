@@ -11,10 +11,10 @@ type ContainerComparer func(a, b *core.CachedContainer) int
 
 // ResourceScoreComparer creates a ContainerComparer to sort container by resource
 // score.
-func ResourceScoreComparer(opt *config.PersistOptions) ContainerComparer {
+func ResourceScoreComparer(group uint64, opt *config.PersistOptions) ContainerComparer {
 	return func(a, b *core.CachedContainer) int {
-		sa := a.ResourceScore(opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
-		sb := b.ResourceScore(opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+		sa := a.ResourceScore(group, opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+		sb := b.ResourceScore(group, opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
 		switch {
 		case sa > sb:
 			return 1

@@ -79,8 +79,8 @@ func (mc *Cluster) AllocID() (uint64, error) {
 }
 
 // ScanResources scans resource with start key, until number greater than limit.
-func (mc *Cluster) ScanResources(startKey, endKey []byte, limit int) []*core.CachedResource {
-	return mc.Resources.ScanRange(startKey, endKey, limit)
+func (mc *Cluster) ScanResources(group uint64, startKey, endKey []byte, limit int) []*core.CachedResource {
+	return mc.Resources.ScanRange(group, startKey, endKey, limit)
 }
 
 // LoadResource puts resource info without leader
@@ -226,8 +226,8 @@ func (mc *Cluster) AddLeaderContainer(containerID uint64, leaderCount int, leade
 	container := core.NewCachedContainer(
 		metadata.NewTestContainer(containerID),
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(leaderCount),
-		core.SetLeaderSize(leaderSize),
+		core.SetLeaderCount(0, leaderCount),
+		core.SetLeaderSize(0, leaderSize),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -249,8 +249,8 @@ func (mc *Cluster) AddResourceContainer(containerID uint64, resourceCount int) {
 			},
 		}},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(resourceCount),
-		core.SetResourceSize(int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount(0, resourceCount),
+		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -287,8 +287,8 @@ func (mc *Cluster) AddLabelsContainer(containerID uint64, resourceCount int, lab
 			CLabels: newLabels,
 		},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(resourceCount),
-		core.SetResourceSize(int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount(0, resourceCount),
+		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -393,10 +393,10 @@ func (mc *Cluster) UpdateContainerResourceWeight(containerID uint64, weight floa
 func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
 	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.Available = newStats.Capacity - uint64(container.GetLeaderSize())
+	newStats.Available = newStats.Capacity - uint64(container.GetLeaderSize(0))
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
-		core.SetLeaderSize(size),
+		core.SetLeaderSize(0, size),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -405,10 +405,10 @@ func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 func (mc *Cluster) UpdateContainerResourceSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
 	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.Available = newStats.Capacity - uint64(container.GetResourceSize())
+	newStats.Available = newStats.Capacity - uint64(container.GetResourceSize(0))
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
-		core.SetResourceSize(size),
+		core.SetResourceSize(0, size),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -417,8 +417,8 @@ func (mc *Cluster) UpdateContainerResourceSize(containerID uint64, size int64) {
 func (mc *Cluster) UpdateLeaderCount(containerID uint64, leaderCount int) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetLeaderCount(leaderCount),
-		core.SetLeaderSize(int64(leaderCount)*defaultResourceSize/mb),
+		core.SetLeaderCount(0, leaderCount),
+		core.SetLeaderSize(0, int64(leaderCount)*defaultResourceSize/mb),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -427,8 +427,8 @@ func (mc *Cluster) UpdateLeaderCount(containerID uint64, leaderCount int) {
 func (mc *Cluster) UpdateResourceCount(containerID uint64, resourceCount int) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetResourceCount(resourceCount),
-		core.SetResourceSize(int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount(0, resourceCount),
+		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -445,7 +445,7 @@ func (mc *Cluster) UpdateSnapshotCount(containerID uint64, snapshotCount int) {
 // UpdatePendingPeerCount updates container pending peer count.
 func (mc *Cluster) UpdatePendingPeerCount(containerID uint64, pendingPeerCount int) {
 	container := mc.GetContainer(containerID)
-	newContainer := container.Clone(core.SetPendingPeerCount(pendingPeerCount))
+	newContainer := container.Clone(core.SetPendingPeerCount(0, pendingPeerCount))
 	mc.PutContainer(newContainer)
 }
 
@@ -554,15 +554,15 @@ func (mc *Cluster) UpdateContainerStatus(id uint64) {
 	container := mc.Containers.GetContainer(id)
 	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
-	stats.Available = stats.Capacity - uint64(container.GetResourceSize()*mb)
-	stats.UsedSize = uint64(container.GetResourceSize() * mb)
+	stats.Available = stats.Capacity - uint64(container.GetResourceSize(0)*mb)
+	stats.UsedSize = uint64(container.GetResourceSize(0) * mb)
 	newContainer := container.Clone(
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(leaderCount),
-		core.SetResourceCount(resourceCount),
-		core.SetPendingPeerCount(pendingPeerCount),
-		core.SetLeaderSize(leaderSize),
-		core.SetResourceSize(resourceSize),
+		core.SetLeaderCount(0, leaderCount),
+		core.SetResourceCount(0, resourceCount),
+		core.SetPendingPeerCount(0, pendingPeerCount),
+		core.SetLeaderSize(0, leaderSize),
+		core.SetResourceSize(0, resourceSize),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.PutContainer(newContainer)
@@ -670,8 +670,8 @@ func (mc *Cluster) ResetSuspectResources() {
 }
 
 // GetResourceByKey get resource by key
-func (mc *Cluster) GetResourceByKey(resKey []byte) *core.CachedResource {
-	return mc.SearchResource(resKey)
+func (mc *Cluster) GetResourceByKey(group uint64, resKey []byte) *core.CachedResource {
+	return mc.SearchResource(group, resKey)
 }
 
 // SetContainerLastHeartbeatInterval set the last heartbeat to the target container
