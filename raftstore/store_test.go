@@ -1,80 +1,62 @@
 package raftstore
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStartAndStop(t *testing.T) {
-	s, closer := newTestStore()
-	defer closer()
-
-	s.Start()
-
-	time.Sleep(time.Second)
-	cnt := 0
-	s.foreachPR(func(pr *peerReplica) bool {
-		cnt++
-		return true
-	})
-	assert.Equal(t, 1, cnt)
-}
-
 func TestClusterStartAndStop(t *testing.T) {
-	c := newTestClusterStore(t, nil)
-	defer c.stop()
+	c := NewTestClusterStore(t, "", nil, nil, nil)
+	defer c.Stop()
 
-	c.start()
+	c.Start()
 
-	time.Sleep(time.Second * 10)
-	for i := 0; i < 3; i++ {
-		assert.Equal(t, 1, c.getPRCount(i))
-	}
+	c.WaitShardByCount(t, 1, time.Second*10)
+	c.CheckShardCount(t, 1)
 }
 
 func TestAddAndRemoveShard(t *testing.T) {
-	c := newTestClusterStore(t, func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} })
-	defer c.stop()
+	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+	}, nil, nil)
+	defer c.Stop()
 
-	c.start()
+	c.Start()
+	c.WaitShardByCount(t, 1, time.Second*10)
 
-	time.Sleep(time.Second * 2)
-	err := c.stores[0].pd.GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
+	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second * 10)
-	for i := 0; i < 3; i++ {
-		assert.Equal(t, 2, c.getPRCount(i))
-	}
-	res, err := c.stores[0].pd.GetStorage().GetResource(9)
-	assert.NoError(t, err)
-	assert.Equal(t, metapb.ResourceState_Running, res.State())
+	c.WaitShardByCount(t, 2, time.Second*10)
+	c.CheckShardCount(t, 2)
 
-	assert.NoError(t, c.stores[0].pd.GetClient().AsyncRemoveResources(9))
-	time.Sleep(time.Second * 2)
+	id := c.GetShardByIndex(1).ID
+	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, time.Second*10)
 
-	for i := 0; i < 3; i++ {
-		assert.Equal(t, 1, c.getPRCount(i))
-	}
-	res, err = c.stores[0].pd.GetStorage().GetResource(9)
-	assert.NoError(t, err)
-	assert.Equal(t, metapb.ResourceState_Removed, res.State())
+	assert.NoError(t, c.GetProphet().GetClient().AsyncRemoveResources(id))
+	c.WaitRemovedByShardID(t, id, time.Second*10)
+	c.CheckShardCount(t, 1)
+	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Removed, time.Second*10)
 }
 
 func TestAppliedRules(t *testing.T) {
-	c := newTestClusterStore(t, func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} })
-	defer c.stop()
+	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+	}, nil, nil)
+	defer c.Stop()
 
-	c.start()
+	c.Start()
+	c.WaitShardByCount(t, 1, time.Second*10)
 
-	time.Sleep(time.Second * 2)
-	assert.NoError(t, c.stores[0].pd.GetClient().PutPlacementRule(rpcpb.PlacementRule{
+	assert.NoError(t, c.GetProphet().GetClient().PutPlacementRule(rpcpb.PlacementRule{
 		GroupID: "g1",
 		ID:      "id1",
 		Count:   3,
@@ -87,11 +69,67 @@ func TestAppliedRules(t *testing.T) {
 		},
 	}))
 	res := NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
-	err := c.stores[0].pd.GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
+	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
 	assert.NoError(t, err)
 
-	time.Sleep(time.Second * 10)
-	assert.Equal(t, 2, c.getPRCount(0))
-	assert.Equal(t, 2, c.getPRCount(1))
-	assert.Equal(t, 1, c.getPRCount(2))
+	c.WaitShardByCounts(t, [3]int{2, 2, 1}, time.Second*10)
+}
+
+func TestSplit(t *testing.T) {
+	c := NewTestClusterStore(t, "", nil, nil, nil)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitShardByCount(t, 1, time.Second*10)
+
+	c.Set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+
+	c.WaitShardByCount(t, 3, time.Second*10)
+	c.CheckShardRange(t, 0, nil, []byte("key2"))
+	c.CheckShardRange(t, 1, []byte("key2"), []byte("key3"))
+	c.CheckShardRange(t, 2, []byte("key3"), nil)
+}
+
+func TestCustomSplit(t *testing.T) {
+	target := EncodeDataKey(0, []byte("key2"))
+	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+		cfg.Customize.CustomSplitCheckFunc = func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
+			store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID)
+			endGroup := shard.Group
+			if len(shard.End) == 0 {
+				endGroup++
+			}
+			size := uint64(0)
+			keys := uint64(0)
+			hasTarget := false
+			store.Scan(EncodeDataKey(shard.Group, shard.Start), EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
+				size += uint64(len(key) + len(value))
+				keys++
+				if bytes.Equal(key, target) {
+					hasTarget = true
+				}
+				return true, nil
+			}, false)
+
+			if len(shard.End) == 0 && len(shard.Start) == 0 && hasTarget {
+				return size, keys, [][]byte{target}, nil
+			}
+
+			return size, keys, nil, nil
+		}
+	}, nil, nil)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitShardByCount(t, 1, time.Second*10)
+
+	c.Set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+
+	c.WaitShardByCount(t, 2, time.Second*10)
+	c.CheckShardRange(t, 0, nil, []byte("key2"))
+	c.CheckShardRange(t, 1, []byte("key2"), nil)
 }
