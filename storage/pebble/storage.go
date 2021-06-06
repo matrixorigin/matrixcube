@@ -140,7 +140,7 @@ func (s *Storage) RangeDelete(start, end []byte) error {
 	return s.db.DeleteRange(start, end, pebble.NoSync)
 }
 
-// Scan scans the key-value paire in [start, end), and perform with a handler function, if the function
+// Scan scans the key-value pairs in [start, end), and perform with a handler function, if the function
 // returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
 // scan completed.
 func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
@@ -169,6 +169,34 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 		iter.Next()
 	}
 
+	return nil
+}
+
+// PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
+// while perform with a handler function, if the function returns false, the scan will be terminated.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error)) error {
+	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: prefix})
+	defer iter.Close()
+	iter.First()
+	for iter.Valid() {
+		err := iter.Error()
+		if err != nil {
+			return err
+		}
+		if ok := bytes.HasPrefix(iter.Key(), prefix); !ok {
+			break
+		}
+		ok, err := handler(clone(iter.Key()), clone(iter.Value()))
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&s.stats.ReadKeys, 1)
+		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
+		if !ok {
+			break
+		}
+		iter.Next()
+	}
 	return nil
 }
 
