@@ -28,6 +28,11 @@ type MetadataStorage interface {
 	// returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
 	// scan completed.
 	Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error
+	// PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
+	// while perform with a handler function, if the function returns false, the scan will be terminated.
+	// if the `pooledKey` is true, raftstore will call `Free` when
+	// scan completed.
+	PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error
 	// Free free the pooled bytes
 	Free(pooled []byte)
 
