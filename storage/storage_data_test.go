@@ -23,7 +23,7 @@ func createDataMem(t *testing.T) DataStorage {
 }
 
 func createDataPebble(t *testing.T) DataStorage {
-	path := fmt.Sprintf("./pebble/%d", time.Now().UnixNano())
+	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
 	os.MkdirAll(path, os.ModeDir)
 	s, err := pebble.NewStorage(path)
