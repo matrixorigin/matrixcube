@@ -174,7 +174,9 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 // while perform with a handler function, if the function returns false, the scan will be terminated.
-func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error)) error {
+// if the `pooledKey` is true, raftstore will call `Free` when
+// scan completed.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
 	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: prefix})
 	defer iter.Close()
 	iter.First()

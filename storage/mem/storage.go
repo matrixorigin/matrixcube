@@ -118,6 +118,14 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 	return s.kv.Scan(start, end, handler)
 }
 
+// PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
+// while perform with a handler function, if the function returns false, the scan will be terminated.
+// if the `pooledKey` is true, raftstore will call `Free` when
+// scan completed.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
+	return s.kv.PrefixScan(prefix, handler)
+}
+
 // Free free the pooled bytes
 func (s *Storage) Free(pooled []byte) {
 
