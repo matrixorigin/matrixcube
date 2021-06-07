@@ -151,3 +151,28 @@ func (kv *KVTree) Scan(start, end []byte, handler func(key, value []byte) (bool,
 
 	return nil
 }
+
+// PrefixScan Scan scans all keys startswith pre
+func (kv *KVTree) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error)) error {
+	kv.RLock()
+	var items []*treeItem
+	item := &treeItem{key: prefix}
+	kv.tree.AscendGreaterOrEqual(item, func(i btree.Item) bool {
+		target := i.(*treeItem)
+		if bytes.HasPrefix(target.key, prefix) {
+			items = append(items, target)
+			return true
+		}
+		return false
+	})
+	kv.RUnlock()
+
+	for _, target := range items {
+		c, err := handler(target.key, target.value)
+		if err != nil || !c {
+			return err
+		}
+	}
+
+	return nil
+}

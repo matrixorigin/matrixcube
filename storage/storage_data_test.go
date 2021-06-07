@@ -14,7 +14,7 @@ import (
 var (
 	dataDactories = map[string]func(*testing.T) DataStorage{
 		"memory": createDataMem,
-		// "pebble": createDataPebble,
+		"pebble": createDataPebble,
 	}
 )
 
@@ -62,6 +62,26 @@ func TestRangeDelete(t *testing.T) {
 			value, err = s.Get(key3)
 			assert.NoError(t, err, "TestRangeDelete failed")
 			assert.Equal(t, len(value3), len(value), "TestRangeDelete failed")
+		})
+	}
+}
+
+func TestPrefixScan(t *testing.T) {
+	for name, factory := range dataDactories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(t)
+			prefix := "/m/db"
+			for i := 1; i <= 3; i++ {
+				key := []byte(fmt.Sprintf("%v/%v/%d", prefix, "defaultdb", i))
+				err := s.Set(key, []byte{byte(0)})
+				assert.NoError(t, err)
+			}
+			err := s.PrefixScan([]byte(fmt.Sprintf("%v/%v", prefix, "defaultdb")),
+				func(key, value []byte) (bool, error) {
+					println(string(key), value[0])
+					return true, nil
+				}, false)
+			assert.NoError(t, err)
 		})
 	}
 }
