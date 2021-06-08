@@ -324,17 +324,27 @@ type StorageConfig struct {
 
 // CustomizeConfig customize config
 type CustomizeConfig struct {
+	// CustomShardStateAwareFactory is a factory func to create aware.ShardStateAware to handled shard life cycle.
 	CustomShardStateAwareFactory func() aware.ShardStateAware
-	CustomInitShardsFactory      func() []bhmetapb.Shard
+	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
+	CustomInitShardsFactory func() []bhmetapb.Shard
+	// CustomSnapshotManagerFactory is a factory func to create a snapshot.SnapshotManager to handle snapshot by youself.
 	CustomSnapshotManagerFactory func() snapshot.SnapshotManager
-	CustomTransportFactory       func() transport.Transport
-	CustomSnapshotDataCreateFunc func(string, bhmetapb.Shard) error
-	CustomSnapshotDataApplyFunc  func(string, bhmetapb.Shard) error
-	CustomSplitCheckFunc         func(bhmetapb.Shard) (uint64, uint64, [][]byte, error)
-	CustomSplitCompletedFunc     func(*bhmetapb.Shard, *bhmetapb.Shard)
-	CustomCanReadLocalFunc       func(bhmetapb.Shard) bool
-	CustomShardAddHandleFunc     func(bhmetapb.Shard) error
-	CustomAdjustCompactFunc      func(bhmetapb.Shard, uint64) (uint64, error)
+	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
+	CustomTransportFactory func() transport.Transport
+	// CustomSnapshotDataCreateFunc called by cube if a snapshot need to create.
+	CustomSnapshotDataCreateFunc func(dataPath string, shard bhmetapb.Shard) error
+	// CustomSnapshotDataApplyFunc called by cube if a snapshot need to apply.
+	CustomSnapshotDataApplyFunc func(dataPath string, shard bhmetapb.Shard) error
+	// CustomSplitCheckFunc called periodically by cube to check if the shard needs to be split
+	CustomSplitCheckFunc func(bhmetapb.Shard) (totalSize uint64, totalKeys uint64, splitKeys [][]byte, err error)
+	// CustomSplitCompletedFunc called by cube when the split operation of the shard is completed.
+	// We can update the attributes of old and news shards in this func
+	CustomSplitCompletedFunc func(old *bhmetapb.Shard, news []bhmetapb.Shard)
+	// CustomCanReadLocalFunc returns true if the shard can read without raft
+	CustomCanReadLocalFunc func(bhmetapb.Shard) bool
+	// CustomAdjustCompactFunc to adjust raft log compactIdx
+	CustomAdjustCompactFunc func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
 }
 
 // GetLabels returns lables
