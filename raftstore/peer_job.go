@@ -243,10 +243,16 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 	var splitKeys [][]byte
 	var err error
 
-	if pr.store.cfg.Customize.CustomSplitCheckFunc == nil {
+	useDefault := true
+	if pr.store.cfg.Customize.CustomSplitCheckFuncFactory != nil {
+		if fn := pr.store.cfg.Customize.CustomSplitCheckFuncFactory(pr.ps.shard.Group); fn != nil {
+			size, keys, splitKeys, err = fn(pr.ps.shard)
+			useDefault = false
+		}
+	}
+
+	if useDefault {
 		size, keys, splitKeys, err = pr.store.DataStorageByGroup(pr.ps.shard.Group, pr.ps.shard.ID).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
-	} else {
-		size, keys, splitKeys, err = pr.store.cfg.Customize.CustomSplitCheckFunc(pr.ps.shard)
 	}
 
 	logger.Debugf("shard %d split check result, total size %d(%d), total keys %d, split keys %+v",
