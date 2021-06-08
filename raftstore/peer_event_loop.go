@@ -469,31 +469,34 @@ func (pr *peerReplica) doCheckCompact() {
 	}
 
 	compactIdx--
-	if pr.store.cfg.Customize.CustomAdjustCompactFunc != nil {
-		idx, err := pr.store.cfg.Customize.CustomAdjustCompactFunc(pr.ps.shard, compactIdx)
-		if err != nil {
-			logger.Errorf("shard %d adjust compact idx %d failed with %+v",
-				pr.shardID,
-				compactIdx,
-				err)
-			return
-		}
 
-		if idx > compactIdx {
-			logger.Fatalf("shard %d adjust compact idx %d failed, invalid adjust idx %d",
+	if pr.store.cfg.Customize.CustomAdjustCompactFuncFactory != nil {
+		if fn := pr.store.cfg.Customize.CustomAdjustCompactFuncFactory(pr.ps.shard.Group); fn != nil {
+			idx, err := fn(pr.ps.shard, compactIdx)
+			if err != nil {
+				logger.Errorf("shard %d adjust compact idx %d failed with %+v",
+					pr.shardID,
+					compactIdx,
+					err)
+				return
+			}
+
+			if idx > compactIdx {
+				logger.Fatalf("shard %d adjust compact idx %d failed, invalid adjust idx %d",
+					pr.shardID,
+					compactIdx,
+					idx,
+					err)
+				return
+			}
+
+			logger.Infof("shard %d compact idx %d updated to %d",
 				pr.shardID,
 				compactIdx,
 				idx,
 				err)
-			return
+			compactIdx = idx
 		}
-
-		logger.Infof("shard %d compact idx %d updated to %d",
-			pr.shardID,
-			compactIdx,
-			idx,
-			err)
-		compactIdx = idx
 	}
 
 	if compactIdx < firstIdx {

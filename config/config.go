@@ -332,19 +332,19 @@ type CustomizeConfig struct {
 	CustomSnapshotManagerFactory func() snapshot.SnapshotManager
 	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
 	CustomTransportFactory func() transport.Transport
-	// CustomSnapshotDataCreateFunc called by cube if a snapshot need to create.
-	CustomSnapshotDataCreateFunc func(dataPath string, shard bhmetapb.Shard) error
-	// CustomSnapshotDataApplyFunc called by cube if a snapshot need to apply.
-	CustomSnapshotDataApplyFunc func(dataPath string, shard bhmetapb.Shard) error
-	// CustomSplitCheckFunc called periodically by cube to check if the shard needs to be split
-	CustomSplitCheckFunc func(bhmetapb.Shard) (totalSize uint64, totalKeys uint64, splitKeys [][]byte, err error)
-	// CustomSplitCompletedFunc called by cube when the split operation of the shard is completed.
+	// CustomSnapshotDataCreateFuncFactory is factory create a func which called by cube if a snapshot need to create.
+	CustomSnapshotDataCreateFuncFactory func(group uint64) func(dataPath string, shard bhmetapb.Shard) error
+	// CustomSnapshotDataApplyFuncFactory is factory create a func which called by cube if a snapshot need to apply.
+	CustomSnapshotDataApplyFuncFactory func(group uint64) func(dataPath string, shard bhmetapb.Shard) error
+	// CustomSplitCheckFuncFactory  is factory create a func which called periodically by cube to check if the shard needs to be split
+	CustomSplitCheckFuncFactory func(group uint64) func(bhmetapb.Shard) (totalSize uint64, totalKeys uint64, splitKeys [][]byte, err error)
+	// CustomSplitCompletedFuncFactory  is factory create a func which called by cube when the split operation of the shard is completed.
 	// We can update the attributes of old and news shards in this func
-	CustomSplitCompletedFunc func(old *bhmetapb.Shard, news []bhmetapb.Shard)
+	CustomSplitCompletedFuncFactory func(group uint64) func(old *bhmetapb.Shard, news []bhmetapb.Shard)
 	// CustomCanReadLocalFunc returns true if the shard can read without raft
 	CustomCanReadLocalFunc func(bhmetapb.Shard) bool
-	// CustomAdjustCompactFunc to adjust raft log compactIdx
-	CustomAdjustCompactFunc func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
+	// CustomAdjustCompactFunc is factory create a func which used to adjust raft log compactIdx
+	CustomAdjustCompactFuncFactory func(group uint64) func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
 }
 
 // GetLabels returns lables

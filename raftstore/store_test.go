@@ -95,29 +95,31 @@ func TestSplit(t *testing.T) {
 func TestCustomSplit(t *testing.T) {
 	target := EncodeDataKey(0, []byte("key2"))
 	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
-		cfg.Customize.CustomSplitCheckFunc = func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
-			store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID)
-			endGroup := shard.Group
-			if len(shard.End) == 0 {
-				endGroup++
-			}
-			size := uint64(0)
-			keys := uint64(0)
-			hasTarget := false
-			store.Scan(EncodeDataKey(shard.Group, shard.Start), EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
-				size += uint64(len(key) + len(value))
-				keys++
-				if bytes.Equal(key, target) {
-					hasTarget = true
+		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
+			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
+				store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID)
+				endGroup := shard.Group
+				if len(shard.End) == 0 {
+					endGroup++
 				}
-				return true, nil
-			}, false)
+				size := uint64(0)
+				keys := uint64(0)
+				hasTarget := false
+				store.Scan(EncodeDataKey(shard.Group, shard.Start), EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
+					size += uint64(len(key) + len(value))
+					keys++
+					if bytes.Equal(key, target) {
+						hasTarget = true
+					}
+					return true, nil
+				}, false)
 
-			if len(shard.End) == 0 && len(shard.Start) == 0 && hasTarget {
-				return size, keys, [][]byte{target}, nil
+				if len(shard.End) == 0 && len(shard.Start) == 0 && hasTarget {
+					return size, keys, [][]byte{target}, nil
+				}
+
+				return size, keys, nil, nil
 			}
-
-			return size, keys, nil, nil
 		}
 	}, nil, nil)
 	defer c.Stop()
