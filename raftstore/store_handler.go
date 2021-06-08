@@ -28,13 +28,17 @@ func (s *store) handleSplitCheck() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
-			(s.cfg.Customize.CustomSplitCheckFunc != nil ||
+			(s.handledCustomSplitCheck(pr.ps.shard.Group) ||
 				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
 			pr.addAction(action{actionType: checkSplitAction})
 		}
 
 		return true
 	})
+}
+
+func (s *store) handledCustomSplitCheck(group uint64) bool {
+	return s.cfg.Customize.CustomSplitCheckFuncFactory != nil && s.cfg.Customize.CustomSplitCheckFuncFactory(group) != nil
 }
 
 func (s *store) handleShardStateCheck() {

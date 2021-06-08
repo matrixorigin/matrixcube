@@ -151,10 +151,12 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 				return err
 			}
 
-			if m.s.cfg.Customize.CustomSnapshotDataCreateFunc != nil {
-				err := m.s.cfg.Customize.CustomSnapshotDataCreateFunc(path, msg.Header.Shard)
-				if err != nil {
-					return err
+			if m.s.cfg.Customize.CustomSnapshotDataCreateFuncFactory != nil {
+				if fn := m.s.cfg.Customize.CustomSnapshotDataCreateFuncFactory(msg.Header.Shard.Group); fn != nil {
+					err := fn(path, msg.Header.Shard)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -359,10 +361,12 @@ func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 		return err
 	}
 
-	if m.s.cfg.Customize.CustomSnapshotDataApplyFunc != nil {
-		err := m.s.cfg.Customize.CustomSnapshotDataApplyFunc(dir, msg.Header.Shard)
-		if err != nil {
-			return err
+	if m.s.cfg.Customize.CustomSnapshotDataApplyFuncFactory != nil {
+		if fn := m.s.cfg.Customize.CustomSnapshotDataApplyFuncFactory(msg.Header.Shard.Group); fn != nil {
+			err := fn(dir, msg.Header.Shard)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

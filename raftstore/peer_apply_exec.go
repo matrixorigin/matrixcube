@@ -363,8 +363,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	if d.store.cfg.Customize.CustomSplitCompletedFunc != nil {
-		d.store.cfg.Customize.CustomSplitCompletedFunc(&derived, shards)
+	if d.store.cfg.Customize.CustomSplitCompletedFuncFactory != nil {
+		if fn := d.store.cfg.Customize.CustomSplitCompletedFuncFactory(derived.Group); fn != nil {
+			fn(&derived, shards)
+		}
 	}
 
 	d.ps.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
