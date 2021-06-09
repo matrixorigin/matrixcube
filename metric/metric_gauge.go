@@ -7,7 +7,7 @@ import (
 var (
 	queueGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "queue_size",
 			Help:      "Total size of queue size.",
@@ -15,7 +15,7 @@ var (
 
 	batchGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "batch_size",
 			Help:      "Total size of batch size.",
@@ -23,7 +23,7 @@ var (
 
 	shardCountGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "store_shard_total",
 			Help:      "Total number of store shards.",
@@ -31,7 +31,7 @@ var (
 
 	storeStorageGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "store_storage_bytes",
 			Help:      "Size of raftstore storage.",

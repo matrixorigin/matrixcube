@@ -7,7 +7,7 @@ import (
 var (
 	raftReadyCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_ready_handled_total",
 			Help:      "Total number of raft ready handled.",
@@ -15,7 +15,7 @@ var (
 
 	raftMsgsCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_sent_msg_total",
 			Help:      "Total number of raft ready sent messages.",
@@ -23,7 +23,7 @@ var (
 
 	raftCommandCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "command_normal_total",
 			Help:      "Total number of normal commands received.",
@@ -31,7 +31,7 @@ var (
 
 	raftAdminCommandCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "command_admin_total",
 			Help:      "Total number of admin commands processed.",

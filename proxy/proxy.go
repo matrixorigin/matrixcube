@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	logger = log.NewLoggerWithPrefix("[beehive-proxy]")
+	logger = log.NewLoggerWithPrefix("[matrixcube-proxy]")
 )
 
 var (

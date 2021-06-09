@@ -41,14 +41,14 @@ var (
 	defaultShardHeartbeatDuration          = time.Second * 2
 	defaultStoreHeartbeatDuration          = time.Second * 10
 	defaultMaxInflightMsgs                 = 8
-	defaultDataPath                        = "/tmp/beehive"
+	defaultDataPath                        = "/tmp/matrixcube"
 	defaultSnapshotDirName                 = "snapshots"
 	defaultProphetDirName                  = "prophet"
 	defaultRaftAddr                        = "127.0.0.1:20001"
 	defaultRPCAddr                         = "127.0.0.1:20002"
 )
 
-// Config beehive config
+// Config matrixcube config
 type Config struct {
 	RaftAddr   string     `toml:"addr-raft"`
 	ClientAddr string     `toml:"addr-client"`

@@ -10,7 +10,7 @@ addr-raft = "127.0.0.1:20001"
 addr-client = "127.0.0.1:20002"
 
 # cube的数据存放目录，每个节点会根据这个目录所在的磁盘统计存储的使用情况，上报给调度节点。
-dir-data = "/tmp/beehive"
+dir-data = "/tmp/matrixcube"
 
 # cube的发布版本号
 version = "版本号"
