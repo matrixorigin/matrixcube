@@ -12,6 +12,7 @@ import (
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/proxy"
 	"github.com/matrixorigin/matrixcube/util"
@@ -306,7 +307,8 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 	var shards []uint64
 	var forwards []string
 	max := after
-	s.shardsProxy.Router().Every(group, mustLeader, func(id uint64, store string) {
+	s.shardsProxy.Router().Every(group, mustLeader, func(shard *bhmetapb.Shard, store string) {
+		id := shard.ID
 		if store == "" {
 			err = fmt.Errorf("missing forward store of shard %d", id)
 			return
