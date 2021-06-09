@@ -51,7 +51,7 @@ func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 		return true, msg, nil
 	}
 
-	return false, nil, fmt.Errorf("[beehive]: bug, not support msg type %d", t)
+	return false, nil, fmt.Errorf("[matrixcube]: bug, not support msg type %d", t)
 }
 
 func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
@@ -65,7 +65,7 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 		t = typeSnap
 		m = v
 	} else {
-		log.Fatalf("[beehive]: bug, not support msg type %T", data)
+		log.Fatalf("[matrixcube]: bug, not support msg type %T", data)
 	}
 
 	size := m.Size()

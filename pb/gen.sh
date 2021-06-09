@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Generate all beehive protobuf bindings.
+# Generate all matrixcube protobuf bindings.
 # Run from repository root.
 #
 set -e

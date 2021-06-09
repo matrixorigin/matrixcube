@@ -10,22 +10,22 @@ dist_dir: ; $(info ======== prepare distribute dir:)
 	#@rm -rf $(DIST_DIR)*
 
 .PHONY: redis
-redis: dist_dir; $(info ======== compiled beehive example redis:)
+redis: dist_dir; $(info ======== compiled matrixcube example redis:)
 	env GO111MODULE=off GOOS=$(GOOS) go build -o $(DIST_DIR)redis $(LD_FLAGS) $(ROOT_DIR)example/redis/*.go
 
 .PHONY: http
-http: dist_dir; $(info ======== compiled beehive example http:)
+http: dist_dir; $(info ======== compiled matrixcube example http:)
 	env CGO_ENABLED=0 GOOS=$(GOOS) go build -mod vendor -a -installsuffix cgo -o $(DIST_DIR)http $(LD_FLAGS) $(ROOT_DIR)example/http/*.go
 
 .PHONY: example-redis
-example-redis: ; $(info ======== compiled beehive redis example:)
-	docker build -t deepfabric/beehive-redis -f Dockerfile-redis .
+example-redis: ; $(info ======== compiled matrixcube redis example:)
+	docker build -t deepfabric/matrixcube-redis -f Dockerfile-redis .
 
 .PHONY: example-http
-example-http: http; $(info ======== compiled beehive http example:)
-	docker build -t deepfabric/beehive-http -f Dockerfile-http .
+example-http: http; $(info ======== compiled matrixcube http example:)
+	docker build -t deepfabric/matrixcube-http -f Dockerfile-http .
 
 .PHONY: test
-test: ; $(info ======== test beehive)
+test: ; $(info ======== test matrixcube)
 	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/storage
 	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/raftstore

@@ -1,5 +1,5 @@
-# Beehive
-Beehive是一个用于构建Multi-Raft的强一致系统的类库。应用程序完全不需要关心分布式的问题，只需要编写自己的数据存储的单机代码即可。
+# Matrixcube
+Matrixcube是一个用于构建Multi-Raft的强一致系统的类库。应用程序完全不需要关心分布式的问题，只需要编写自己的数据存储的单机代码即可。
 
 ## 特性
 * Strong consistent persistence storage

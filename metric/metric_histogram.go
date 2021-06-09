@@ -9,7 +9,7 @@ import (
 var (
 	raftProposalSizeHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_proposal_log_bytes",
 			Help:      "Bucketed histogram of peer proposing log size.",
@@ -18,7 +18,7 @@ var (
 
 	raftLogAppendDurationHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_log_append_duration_seconds",
 			Help:      "Bucketed histogram of peer appending log duration.",
@@ -27,7 +27,7 @@ var (
 
 	raftLogApplyDurationHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_log_apply_duration_seconds",
 			Help:      "Bucketed histogram of peer appending log duration.",
@@ -36,7 +36,7 @@ var (
 
 	snapshotSizeHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "snapshot_size_bytes",
 			Help:      "Bytes of per snapshot.",
@@ -45,7 +45,7 @@ var (
 
 	snapshotBuildingDurationHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "snapshot_building_duration_seconds",
 			Help:      "Bucketed histogram of snapshot build time duration.",
@@ -54,7 +54,7 @@ var (
 
 	snapshotSendingDurationHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "snapshot_sending_duration_seconds",
 			Help:      "Bucketed histogram of server send snapshots duration.",
@@ -62,7 +62,7 @@ var (
 
 	raftLogLagHistogram = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
-			Namespace: "beehive",
+			Namespace: "matrixcube",
 			Subsystem: "raftstore",
 			Name:      "raft_log_lag",
 			Help:      "Bucketed histogram of log lag in a shard.",
