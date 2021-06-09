@@ -445,7 +445,9 @@ func (c *ReplicationConfig) adjust(meta *configMetaData) error {
 		c.LocationLabels = defaultLocationLabels
 	}
 	if !meta.IsDefined("groups") {
-		c.Groups = []uint64{0}
+		if len(c.Groups) == 0 {
+			c.Groups = []uint64{0}
+		}
 	}
 	return c.Validate()
 }

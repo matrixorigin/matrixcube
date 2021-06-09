@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	logger = log.NewLoggerWithPrefix("[beehive-metric]")
+	logger = log.NewLoggerWithPrefix("[matrixcube-metric]")
 )
 
 // StartPush start push metric

@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	folderName = "Beehive"
+	folderName = "Matrixcube"
 )
 
-// DashboardCreator beehive grafana dashboard creator
+// DashboardCreator matrixcube grafana dashboard creator
 type DashboardCreator struct {
 	cli        *grabana.Client
 	dataSource string
@@ -82,53 +82,53 @@ func (c *DashboardCreator) raftLogRow() grabana.DashboardBuilderOption {
 	return grabana.Row(
 		"Raft log status",
 		c.withGraph("50% raft log append time", 4,
-			`histogram_quantile(0.50, sum(rate(beehive_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.50, sum(rate(matrixcube_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99% raft log append time", 4,
-			`histogram_quantile(0.99, sum(rate(beehive_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.99, sum(rate(matrixcube_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99.99% raft log append time", 4,
-			`histogram_quantile(0.9999, sum(rate(beehive_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.9999, sum(rate(matrixcube_raftstore_raft_log_append_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 
 		c.withGraph("50% raft log applied time", 4,
-			`histogram_quantile(0.50, sum(rate(beehive_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.50, sum(rate(matrixcube_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99% raft log applied time", 4,
-			`histogram_quantile(0.99, sum(rate(beehive_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.99, sum(rate(matrixcube_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99.99% raft log applied time", 4,
-			`histogram_quantile(0.9999, sum(rate(beehive_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.9999, sum(rate(matrixcube_raftstore_raft_log_apply_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 
 		c.withGraph("50% raft log size", 4,
-			`histogram_quantile(0.50, sum(rate(beehive_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.50, sum(rate(matrixcube_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 		c.withGraph("99% raft log size", 4,
-			`histogram_quantile(0.99, sum(rate(beehive_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.99, sum(rate(matrixcube_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 		c.withGraph("99.99% raft log size", 4,
-			`histogram_quantile(0.9999, sum(rate(beehive_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.9999, sum(rate(matrixcube_raftstore_raft_proposal_log_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 
 		c.withGraph("50% raft snapshot size", 4,
-			`histogram_quantile(0.50, sum(rate(beehive_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.50, sum(rate(matrixcube_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 		c.withGraph("99% raft snapshot size", 4,
-			`histogram_quantile(0.99, sum(rate(beehive_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.99, sum(rate(matrixcube_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 		c.withGraph("99.99% raft snapshot size", 4,
-			`histogram_quantile(0.9999, sum(rate(beehive_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.9999, sum(rate(matrixcube_raftstore_snapshot_size_bytes_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("bytes"), axis.Min(0)),
 
 		c.withGraph("50% raft snapshot build time", 4,
-			`histogram_quantile(0.50, sum(rate(beehive_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.50, sum(rate(matrixcube_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99% raft snapshot build time", 4,
-			`histogram_quantile(0.99, sum(rate(beehive_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.99, sum(rate(matrixcube_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 		c.withGraph("99.99% raft snapshot build time", 4,
-			`histogram_quantile(0.9999, sum(rate(beehive_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
+			`histogram_quantile(0.9999, sum(rate(matrixcube_raftstore_snapshot_building_duration_seconds_bucket[$interval])) by (le, instance))`,
 			"{{ instance }}", axis.Unit("s"), axis.Min(0)),
 	)
 }
@@ -137,16 +137,16 @@ func (c *DashboardCreator) raftInternalRow() grabana.DashboardBuilderOption {
 	return grabana.Row(
 		"Raft internal status",
 		c.withGraph("Raft normal commands", 3,
-			"sum(rate(beehive_raftstore_command_normal_total[$interval])) by (type)",
+			"sum(rate(matrixcube_raftstore_command_normal_total[$interval])) by (type)",
 			"{{ type }}"),
 		c.withGraph("Raft admin commands", 3,
-			"sum(rate(beehive_raftstore_command_admin_total[$interval])) by (type, status)",
+			"sum(rate(matrixcube_raftstore_command_admin_total[$interval])) by (type, status)",
 			"{{ type }}({{ status }})"),
 		c.withGraph("Handled raft event", 3,
-			"sum(rate(beehive_raftstore_raft_ready_handled_total[$interval])) by (type)",
+			"sum(rate(matrixcube_raftstore_raft_ready_handled_total[$interval])) by (type)",
 			"{{ type }}"),
 		c.withGraph("Sended raft messages", 3,
-			"sum(rate(beehive_raftstore_raft_sent_msg_total[$interval])) by (type)",
+			"sum(rate(matrixcube_raftstore_raft_sent_msg_total[$interval])) by (type)",
 			"{{ type }}"),
 	)
 }
@@ -155,13 +155,13 @@ func (c *DashboardCreator) shardsRow() grabana.DashboardBuilderOption {
 	return grabana.Row(
 		"Shards status",
 		c.withTable("Shards count overview", 4,
-			"sum(beehive_raftstore_store_shard_total) by (type)",
+			"sum(matrixcube_raftstore_store_shard_total) by (type)",
 			"{{ type }}"),
 		c.withTable("Shards count per node", 4,
-			`sum(beehive_raftstore_store_shard_total{type="shards"}) by (instance)`,
+			`sum(matrixcube_raftstore_store_shard_total{type="shards"}) by (instance)`,
 			"{{ instance }}"),
 		c.withTable("Leader count per node", 4,
-			`sum(beehive_raftstore_store_shard_total{type="leader"}) by (instance)`,
+			`sum(matrixcube_raftstore_store_shard_total{type="leader"}) by (instance)`,
 			"{{ instance }}"),
 	)
 }
@@ -170,10 +170,10 @@ func (c *DashboardCreator) promgramInternalRow() grabana.DashboardBuilderOption 
 	return grabana.Row(
 		"Promgram internal status",
 		c.withGraph("Queue", 6,
-			"sum(beehive_raftstore_queue_size) by (type)",
+			"sum(matrixcube_raftstore_queue_size) by (type)",
 			"{{ type }}"),
 		c.withGraph("Batching", 6,
-			"sum(beehive_raftstore_batch_size) by (type)",
+			"sum(matrixcube_raftstore_batch_size) by (type)",
 			"{{ type }}"),
 	)
 }
@@ -182,7 +182,7 @@ func (c *DashboardCreator) requestRow() grabana.DashboardBuilderOption {
 	return grabana.Row(
 		"Request status",
 		c.withGraph("Requests received", 12,
-			"sum(rate(beehive_raftstore_command_normal_total[$interval]))",
+			"sum(rate(matrixcube_raftstore_command_normal_total[$interval]))",
 			"All requests"),
 	)
 }
@@ -195,7 +195,7 @@ func (c *DashboardCreator) storageRow() grabana.DashboardBuilderOption {
 			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
-				"sum(beehive_raftstore_store_storage_bytes{type='total'})"),
+				"sum(matrixcube_raftstore_store_storage_bytes{type='total'})"),
 			singlestat.Unit("bytes"),
 		),
 		row.WithSingleStat(
@@ -203,7 +203,7 @@ func (c *DashboardCreator) storageRow() grabana.DashboardBuilderOption {
 			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
-				"sum(beehive_raftstore_store_storage_bytes{type='total'})-sum(beehive_raftstore_store_storage_bytes{type='free'})"),
+				"sum(matrixcube_raftstore_store_storage_bytes{type='total'})-sum(matrixcube_raftstore_store_storage_bytes{type='free'})"),
 			singlestat.Unit("bytes"),
 		),
 		row.WithSingleStat(
@@ -211,7 +211,7 @@ func (c *DashboardCreator) storageRow() grabana.DashboardBuilderOption {
 			singlestat.Height("200px"),
 			singlestat.Span(4),
 			singlestat.WithPrometheusTarget(
-				"sum(beehive_raftstore_store_storage_bytes{type='free'})"),
+				"sum(matrixcube_raftstore_store_storage_bytes{type='free'})"),
 			singlestat.Unit("bytes"),
 		),
 	)

@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	logger = log.NewLoggerWithPrefix("[beehive-app]")
+	logger = log.NewLoggerWithPrefix("[matrixcube-app]")
 )
 
 // Application a tcp application server
