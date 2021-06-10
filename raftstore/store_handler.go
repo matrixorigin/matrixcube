@@ -55,7 +55,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.doDestroy(id)
+			s.doDestroy(id, true)
 		}
 	}
 }

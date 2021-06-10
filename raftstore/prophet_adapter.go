@@ -88,6 +88,14 @@ func (ra *resourceAdapter) SetUnique(value string) {
 	ra.meta.Unique = value
 }
 
+func (ra *resourceAdapter) Data() []byte {
+	return ra.meta.Data
+}
+
+func (ra *resourceAdapter) SetData(value []byte) {
+	ra.meta.Data = value
+}
+
 func (ra *resourceAdapter) RuleGroups() []string {
 	return ra.meta.RuleGroups
 }
@@ -359,7 +367,7 @@ func (s *store) startHandleResourceHeartbeat() {
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	if rsp.DestoryDirectly {
-		s.doDestroy(rsp.ResourceID)
+		s.doDestroy(rsp.ResourceID, true)
 		return
 	}
 

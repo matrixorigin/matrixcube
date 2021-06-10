@@ -195,7 +195,9 @@ func (s *store) GetRouter() Router {
 
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
-		r, err := newRouter(s.pd, s.runner, s.doDestroy, s.doCreate)
+		r, err := newRouter(s.pd, s.runner, func(id uint64) {
+			s.doDestroy(id, true)
+		}, s.doCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
 		}

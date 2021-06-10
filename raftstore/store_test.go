@@ -47,6 +47,24 @@ func TestAddAndRemoveShard(t *testing.T) {
 	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Removed, time.Second*10)
 }
 
+func TestAddShardWithMultiGroups(t *testing.T) {
+	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+		cfg.ShardGroups = 2
+		cfg.Prophet.Replication.Groups = []uint64{0, 1}
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
+			return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}, {Group: 1, Start: []byte("a"), End: []byte("b")}}
+		}
+	}, nil, nil)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitShardByCount(t, 2, time.Second*10)
+
+	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
+	assert.NoError(t, err)
+	c.WaitShardByCount(t, 3, time.Second*10)
+}
+
 func TestAppliedRules(t *testing.T) {
 	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
