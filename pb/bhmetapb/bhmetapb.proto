@@ -33,6 +33,7 @@ message Shard {
     uint64                group           = 8;
     string                unique          = 10;
     repeated string       ruleGroups      = 11;
+    bytes                 data            = 12;
 }
 
 // Store the host store metadata

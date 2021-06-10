@@ -9,6 +9,7 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -40,7 +41,7 @@ func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
 	return nil
 }
 
-func (s *store) doDestroy(shardID uint64) {
+func (s *store) doDestroy(shardID uint64, tombstone bool) {
 	if value, ok := s.delegates.Load(shardID); ok {
 		s.delegates.Delete(shardID)
 		delegate := value.(*applyDelegate)
@@ -49,6 +50,9 @@ func (s *store) doDestroy(shardID uint64) {
 
 	pr := s.getPR(shardID, false)
 	if pr != nil {
+		if tombstone {
+			pr.ps.shard.State = metapb.ResourceState_Removed
+		}
 		pr.mustDestroy()
 	}
 }

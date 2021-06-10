@@ -37,6 +37,10 @@ type Resource interface {
 	Unique() string
 	// SetUnique set Unique
 	SetUnique(string)
+	// Data resource data
+	Data() []byte
+	// SetData set resource data
+	SetData([]byte)
 	// RuleGroups used for placement rule engine to use, all rule group will used if nil returned.
 	RuleGroups() []string
 	// SetRuleGroups set rule groups

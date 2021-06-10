@@ -135,7 +135,7 @@ func (p *defaultProphet) Start() {
 		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
 		p.cfg.Adapter)
 	p.basicCluster = core.NewBasicCluster(p.cfg.Adapter.NewResource)
-	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Adapter)
+	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Adapter, p.cfg.ResourceStateChangedHandler)
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster)
 
 	p.startSystemMonitor(context.Background())

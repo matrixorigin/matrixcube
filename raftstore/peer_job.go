@@ -64,7 +64,7 @@ func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer) error {
 	pr := s.getPR(shardID, false)
 	if pr != nil {
 		err := s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
-			s.doDestroy(shardID)
+			s.doDestroy(shardID, false)
 			return nil
 		}, nil)
 		return err

@@ -37,8 +37,9 @@ type Config struct {
 	Replication   ReplicationConfig   `toml:"replication"`
 	LabelProperty LabelPropertyConfig `toml:"label-property"`
 
-	Handler metadata.RoleChangeHandler
-	Adapter metadata.Adapter
+	Handler                     metadata.RoleChangeHandler
+	Adapter                     metadata.Adapter
+	ResourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
 
 	// Only test can change them.
 	DisableStrictReconfigCheck bool

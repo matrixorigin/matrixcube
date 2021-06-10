@@ -63,6 +63,15 @@ func TestCreateResources(t *testing.T) {
 
 	cluster.coordinator = co
 
+	var changedRes metadata.Resource
+	var changedResFrom metapb.ResourceState
+	var changedResTo metapb.ResourceState
+	cluster.resourceStateChangedHandler = func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState) {
+		changedRes = res
+		changedResFrom = from
+		changedResTo = to
+	}
+
 	res := newTestResourceMeta(1)
 	res.SetUnique("res1")
 	data, err := res.Marshal()
@@ -106,6 +115,9 @@ func TestCreateResources(t *testing.T) {
 		assert.NoError(t, cluster.HandleResourceHeartbeat(core.NewCachedResource(res, &res.Peers()[0])))
 		assert.Equal(t, 1, cluster.GetResourceCount())
 		assert.Equal(t, 0, len(cluster.core.WaittingCreateResources))
+		assert.NotNil(t, changedRes)
+		assert.Equal(t, changedResFrom, metapb.ResourceState_WaittingCreate)
+		assert.Equal(t, changedResTo, metapb.ResourceState_Running)
 
 		v, err = cluster.storage.GetResource(res.ID())
 		assert.NoError(t, err)
