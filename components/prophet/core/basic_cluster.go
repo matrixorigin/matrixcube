@@ -66,11 +66,16 @@ func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
 }
 
 // CompleteCreateResource create resource complete
-func (bc *BasicCluster) CompleteCreateResource(id uint64) {
+func (bc *BasicCluster) CompleteCreateResource(id uint64) metadata.Resource {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	delete(bc.WaittingCreateResources, id)
+	if waittingRes, ok := bc.WaittingCreateResources[id]; ok {
+		delete(bc.WaittingCreateResources, id)
+		return waittingRes
+	}
+
+	return nil
 }
 
 // GetRemovedResources get removed state resources

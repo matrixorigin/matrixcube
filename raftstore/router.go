@@ -23,6 +23,8 @@ type Router interface {
 	SelectShard(group uint64, key []byte) (uint64, string)
 	// Every do with all shards
 	Every(group uint64, mustLeader bool, fn func(shard *bhmetapb.Shard, address string))
+	// ForeachShards foreach shards
+	ForeachShards(group uint64, fn func(shard *bhmetapb.Shard) bool)
 
 	// LeaderAddress return leader peer store address
 	LeaderAddress(uint64) string
@@ -105,6 +107,17 @@ func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*bhmeta
 				storeID := r.selectStore(&shard)
 				doFunc(&shard, r.mustGetStore(storeID).ClientAddr)
 			}
+		}
+
+		return true
+	})
+}
+
+func (r *defaultRouter) ForeachShards(group uint64, fn func(shard *bhmetapb.Shard) bool) {
+	r.shards.Range(func(key, value interface{}) bool {
+		shard := value.(bhmetapb.Shard)
+		if shard.Group == group {
+			return fn(&shard)
 		}
 
 		return true

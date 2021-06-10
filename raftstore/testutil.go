@@ -93,12 +93,15 @@ type testShardAware struct {
 	shards  []bhmetapb.Shard
 	leaders map[uint64]bool
 	applied map[uint64]int
+
+	removed map[uint64]bhmetapb.Shard
 }
 
 func newTestShardAware() *testShardAware {
 	return &testShardAware{
 		leaders: make(map[uint64]bool),
 		applied: make(map[uint64]int),
+		removed: make(map[uint64]bhmetapb.Shard),
 	}
 }
 
@@ -110,6 +113,7 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
 		default:
 			if !ts.hasShard(id) {
+				assert.Equal(t, metapb.ResourceState_Removed, ts.removed[id].State)
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -189,6 +193,7 @@ func (ts *testShardAware) Destory(shard bhmetapb.Shard) {
 	}
 	ts.shards = newShards
 	delete(ts.leaders, shard.ID)
+	ts.removed[shard.ID] = shard
 }
 
 func (ts *testShardAware) BecomeLeader(shard bhmetapb.Shard) {

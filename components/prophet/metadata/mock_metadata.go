@@ -14,7 +14,6 @@ var (
 	}
 )
 
-// TestResource test resource
 type TestResource struct {
 	ResID         uint64               `json:"id"`
 	ResGroup      uint64               `json:"group"`
@@ -26,21 +25,19 @@ type TestResource struct {
 	ResEpoch      metapb.ResourceEpoch `json:"epoch"`
 	ResState      metapb.ResourceState `json:"state"`
 	ResUnique     string               `json:"unique"`
+	ResData       []byte               `json:"data"`
 	ResRuleGroups []string             `json:"rule-groups"`
 	Err           bool                 `json:"-"`
 }
 
-// NewTestResource create test resource
 func NewTestResource(id uint64) *TestResource {
 	return &TestResource{ResID: id}
 }
 
-// State resource state
 func (res *TestResource) State() metapb.ResourceState {
 	return res.ResState
 }
 
-// SetState set resource state
 func (res *TestResource) SetState(state metapb.ResourceState) {
 	res.ResState = state
 }
@@ -55,7 +52,6 @@ func (res *TestResource) SetID(id uint64) {
 	res.ResID = id
 }
 
-// Group resource group
 func (res *TestResource) Group() uint64 {
 	return res.ResGroup
 }
@@ -100,14 +96,14 @@ func (res *TestResource) SetEpoch(value metapb.ResourceEpoch) {
 	res.ResEpoch = value
 }
 
-// Stale mock
-func (res *TestResource) Stale(other Resource) bool {
-	return res.Version > other.(*TestResource).Version
+// Data mock
+func (res *TestResource) Data() []byte {
+	return res.ResData
 }
 
-// Changed mock
-func (res *TestResource) Changed(other Resource) bool {
-	return res.Version < other.(*TestResource).Version
+// SetData mock
+func (res *TestResource) SetData(data []byte) {
+	res.ResData = data
 }
 
 // Labels mock

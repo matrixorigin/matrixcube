@@ -93,20 +93,27 @@ type RaftCluster struct {
 	wg   sync.WaitGroup
 	quit chan struct{}
 
-	ruleManager *placement.RuleManager
-	etcdClient  *clientv3.Client
-	adapter     metadata.Adapter
+	ruleManager                 *placement.RuleManager
+	etcdClient                  *clientv3.Client
+	adapter                     metadata.Adapter
+	resourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
 }
 
 // NewRaftCluster create a new cluster.
-func NewRaftCluster(ctx context.Context, root string, clusterID uint64, etcdClient *clientv3.Client, adapter metadata.Adapter) *RaftCluster {
+func NewRaftCluster(ctx context.Context,
+	root string,
+	clusterID uint64,
+	etcdClient *clientv3.Client,
+	adapter metadata.Adapter,
+	resourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)) *RaftCluster {
 	return &RaftCluster{
-		ctx:         ctx,
-		running:     false,
-		clusterID:   clusterID,
-		clusterRoot: root,
-		etcdClient:  etcdClient,
-		adapter:     adapter,
+		ctx:                         ctx,
+		running:                     false,
+		clusterID:                   clusterID,
+		clusterRoot:                 root,
+		etcdClient:                  etcdClient,
+		adapter:                     adapter,
+		resourceStateChangedHandler: resourceStateChangedHandler,
 	}
 }
 
@@ -518,8 +525,14 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	c.Lock()
 	if isNew {
 		if c.core.IsWaittingCreateResource(res.Meta.ID()) {
-			c.core.CompleteCreateResource(res.Meta.ID())
+			waittingRes := c.core.CompleteCreateResource(res.Meta.ID())
 			res.Meta.SetState(metapb.ResourceState_Running)
+			res.Meta.SetData(waittingRes.Data())
+
+			if c.resourceStateChangedHandler != nil {
+				c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_WaittingCreate,
+					metapb.ResourceState_Running)
+			}
 		}
 	}
 
