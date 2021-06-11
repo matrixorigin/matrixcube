@@ -90,7 +90,7 @@ github.com/dgrijalva/jwt-go
 github.com/docker/go-units
 # github.com/dustin/go-humanize v1.0.0
 github.com/dustin/go-humanize
-# github.com/fagongzi/goetty v2.0.2+incompatible
+# github.com/fagongzi/goetty v1.8.0
 ## explicit
 github.com/fagongzi/goetty
 github.com/fagongzi/goetty/buf
@@ -232,7 +232,7 @@ github.com/tmc/grpc-websocket-proxy/wsproxy
 github.com/xiang90/probing
 # go.etcd.io/bbolt v1.3.3
 go.etcd.io/bbolt
-# go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b => github.com/deepfabric/etcd v3.4.15+incompatible
+# go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b => github.com/deepfabric/etcd v1.4.15
 ## explicit
 go.etcd.io/etcd/auth
 go.etcd.io/etcd/auth/authpb
@@ -438,4 +438,4 @@ gopkg.in/yaml.v2
 gopkg.in/yaml.v3
 # sigs.k8s.io/yaml v1.1.0
 sigs.k8s.io/yaml
-# go.etcd.io/etcd => github.com/deepfabric/etcd v3.4.15+incompatible
+# go.etcd.io/etcd => github.com/deepfabric/etcd v1.4.15
