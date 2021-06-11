@@ -9,7 +9,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20210503173641-1387689d3d7c
 	github.com/coreos/go-semver v0.2.0
 	github.com/docker/go-units v0.4.0
-	github.com/fagongzi/goetty v2.0.2+incompatible
+	github.com/fagongzi/goetty v1.8.0
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
 	github.com/fagongzi/util v0.0.0-20210409031311-a10fdf8fbd7a
 	github.com/gogo/protobuf v1.3.1
@@ -25,4 +25,4 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )
 
-replace go.etcd.io/etcd => github.com/deepfabric/etcd v3.4.15+incompatible
+replace go.etcd.io/etcd => github.com/deepfabric/etcd v1.4.15
