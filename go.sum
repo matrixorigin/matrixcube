@@ -73,8 +73,8 @@ github.com/creack/pty v1.1.7/go.mod h1:lj5s0c3V2DBrqTV7llrYr5NG6My20zk30Fl46Y7Do
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/deepfabric/etcd v3.4.15+incompatible h1:0yLN0+FdbuqUSIEtd5bnalSEKdyTT2gNhI/14kv75Ok=
-github.com/deepfabric/etcd v3.4.15+incompatible/go.mod h1:WWRiAtnzDdtuCMxtFwME/Knea11a6fJgJkwtC1QSc/k=
+github.com/deepfabric/etcd v1.4.15 h1:muzf41L5kFKuIc1kWAGCkud+3zpoOoBDLVxx1RtWYs4=
+github.com/deepfabric/etcd v1.4.15/go.mod h1:WWRiAtnzDdtuCMxtFwME/Knea11a6fJgJkwtC1QSc/k=
 github.com/dgraph-io/badger v1.6.0/go.mod h1:zwt7syl517jmP8s94KqSxTlM6IMsdhYy6psNgSztDR4=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
@@ -91,8 +91,8 @@ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.m
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
-github.com/fagongzi/goetty v2.0.2+incompatible h1:F/zl6B26mVNRv8AJ7DMuFofej8/s3ihp9lvEaYt48dE=
-github.com/fagongzi/goetty v2.0.2+incompatible/go.mod h1:ZM6XMFvc63G9G3F/hxBWGrE6amp9+1PnvDCBDQfLY+I=
+github.com/fagongzi/goetty v1.8.0 h1:fZIp86YxwhLgx9Ajt/OcwmTwlwNIVT9aEy8N6MPry3I=
+github.com/fagongzi/goetty v1.8.0/go.mod h1:ZM6XMFvc63G9G3F/hxBWGrE6amp9+1PnvDCBDQfLY+I=
 github.com/fagongzi/log v0.0.0-20191122063922-293b75312445 h1:XhTJpo5oMYnjgQPq28pufQ/XDGoQXi1x8qa87A4Fsb8=
 github.com/fagongzi/log v0.0.0-20191122063922-293b75312445/go.mod h1:1aUifpZCjAdZK7L3vRRl2cpSktbKasAU5vOSyLSCODs=
 github.com/fagongzi/util v0.0.0-20201116094402-221cc40c4593/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=
