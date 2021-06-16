@@ -34,6 +34,10 @@ func (c *cmd) isFull(n, max int) bool {
 	return max-64 <= c.size+n
 }
 
+func (c *cmd) canAppend(req *raftcmdpb.Request) bool {
+	return c.req.Header.IgnoreEpochCheck == req.IgnoreEpochCheck
+}
+
 func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
 	c := cmd{}
 	c.req = req
