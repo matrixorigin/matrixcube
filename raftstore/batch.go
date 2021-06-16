@@ -129,7 +129,9 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	added := false
 	if !isAdmin {
 		for idx := range b.cmds {
-			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, int(b.pr.store.cfg.Raft.MaxEntryBytes)) {
+			if b.cmds[idx].tp == tp &&
+				!b.cmds[idx].isFull(n, int(b.pr.store.cfg.Raft.MaxEntryBytes)) &&
+				b.cmds[idx].canAppend(c.req) {
 				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
 				b.cmds[idx].size += n
 				added = true
@@ -150,6 +152,7 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 		if isAdmin {
 			raftCMD.AdminRequest = adminReq
 		} else {
+			raftCMD.Header.IgnoreEpochCheck = req.IgnoreEpochCheck
 			raftCMD.Requests = append(raftCMD.Requests, req)
 		}
 
