@@ -859,6 +859,10 @@ func checkEpoch(shard bhmetapb.Shard, req *raftcmdpb.RaftCMDRequest) bool {
 	fromEpoch := req.Header.Epoch
 	lastestEpoch := shard.Epoch
 
+	if req.Header.IgnoreEpochCheck {
+		checkVer = false
+	}
+
 	if (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
 		(checkVer && fromEpoch.Version < lastestEpoch.Version) {
 		if logger.DebugEnabled() {

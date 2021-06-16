@@ -33,11 +33,12 @@ enum AdminCmdType {
 
 // RaftRequestHeader raft request header, it contains the shard's metadata
 message RaftRequestHeader {
-    bytes             id         = 1 [(gogoproto.customname) = "ID"];
-    uint64            shardID    = 2;
-    metapb.Peer       peer       = 3 [(gogoproto.nullable) = false]; 
-    metapb.ResourceEpoch epoch = 5 [(gogoproto.nullable) = false];
-    uint64            term       = 6;
+    bytes                id               = 1 [(gogoproto.customname) = "ID"];
+    uint64               shardID          = 2;
+    metapb.Peer          peer             = 3 [(gogoproto.nullable) = false]; 
+    metapb.ResourceEpoch epoch            = 5 [(gogoproto.nullable) = false];
+    uint64               term             = 6;
+    bool                 ignoreEpochCheck = 7;
 }
 
 message RaftResponseHeader {
@@ -84,18 +85,19 @@ message AdminResponse {
 
 // Request request
 message Request {
-    bytes   id            = 1 [(gogoproto.customname) = "ID"];
-    uint64  group         = 2;
-    CMDType type          = 3;
-    uint64  custemType    = 4;
-    bytes   key           = 5;
-    bytes   cmd           = 6;
-    int64   sid           = 7 [(gogoproto.customname) = "SID"];
-    int64   pid           = 8 [(gogoproto.customname) = "PID"];
-    int64   stopAt        = 9;
-    uint64  toShard       = 10;
-    bool    allowFollower = 11;
-    bool    lastBroadcast = 12;
+    bytes   id               = 1 [(gogoproto.customname) = "ID"];
+    uint64  group            = 2;
+    CMDType type             = 3;
+    uint64  custemType       = 4;
+    bytes   key              = 5;
+    bytes   cmd              = 6;
+    int64   sid              = 7 [(gogoproto.customname) = "SID"];
+    int64   pid              = 8 [(gogoproto.customname) = "PID"];
+    int64   stopAt           = 9;
+    uint64  toShard          = 10;
+    bool    allowFollower    = 11;
+    bool    lastBroadcast    = 12;
+    bool    ignoreEpochCheck = 13;
 }
 
 // Response response
