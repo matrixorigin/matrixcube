@@ -67,8 +67,8 @@ func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
 
 // CompleteCreateResource create resource complete
 func (bc *BasicCluster) CompleteCreateResource(id uint64) metadata.Resource {
-	bc.RLock()
-	defer bc.RUnlock()
+	bc.Lock()
+	defer bc.Unlock()
 
 	if waittingRes, ok := bc.WaittingCreateResources[id]; ok {
 		delete(bc.WaittingCreateResources, id)
@@ -80,8 +80,8 @@ func (bc *BasicCluster) CompleteCreateResource(id uint64) metadata.Resource {
 
 // GetRemovedResources get removed state resources
 func (bc *BasicCluster) GetRemovedResources(bm *roaring.Bitmap) []uint64 {
-	bc.RLock()
-	defer bc.RUnlock()
+	bc.Lock()
+	defer bc.Unlock()
 
 	return bc.RemovedResources.Intersect(bm).Slice()
 }
