@@ -421,7 +421,7 @@ func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.Raft
 		return nil, nil, err
 	}
 
-	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_CompactLog, &raftcmdpb.CompactLogRequest{})
+	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_CompactLog, &raftcmdpb.CompactLogResponse{})
 	result := &execResult{
 		adminType: raftcmdpb.AdminCmdType_CompactLog,
 		raftGCResult: &raftGCResult{
