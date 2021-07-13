@@ -34,7 +34,7 @@ func createDataPebble(t *testing.T) DataStorage {
 func TestRangeDelete(t *testing.T) {
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(t).(KVStorage)
 			key1 := []byte("k1")
 			value1 := []byte("value1")
 
@@ -69,7 +69,7 @@ func TestRangeDelete(t *testing.T) {
 func TestPrefixScan(t *testing.T) {
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(t).(KVStorage)
 			prefix := "/m/db"
 			for i := 1; i <= 3; i++ {
 				key := []byte(fmt.Sprintf("%v/%v/%d", prefix, "defaultdb", i))
@@ -90,6 +90,7 @@ func TestSplitCheck(t *testing.T) {
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
 			s := factory(t)
+			kv := s.(KVStorage)
 			totalSize := uint64(16)
 			totalKeys := uint64(4)
 			key1 := []byte("k1")
@@ -106,10 +107,10 @@ func TestSplitCheck(t *testing.T) {
 
 			end := []byte("k5")
 
-			assert.NoError(t, s.Set(key1, value1))
-			assert.NoError(t, s.Set(key2, value2))
-			assert.NoError(t, s.Set(key3, value3))
-			assert.NoError(t, s.Set(key4, value4))
+			assert.NoError(t, kv.Set(key1, value1))
+			assert.NoError(t, kv.Set(key2, value2))
+			assert.NoError(t, kv.Set(key3, value3))
+			assert.NoError(t, kv.Set(key4, value4))
 
 			// [key1, key5), after split ranges: [key1, key2), [key2, key3), [key3, key4), [key4, key5)
 			total, keys, splitKeys, err := s.SplitCheck(key1, end, 4)
@@ -151,7 +152,10 @@ func TestCreateAndApply(t *testing.T) {
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
 			s1 := factory(t)
+			kv1 := s1.(KVStorage)
+
 			s2 := factory(t)
+			kv2 := s2.(KVStorage)
 
 			path := fmt.Sprintf("/tmp/%s-snap", name)
 			os.RemoveAll(path)
@@ -164,28 +168,28 @@ func TestCreateAndApply(t *testing.T) {
 			key2 := []byte("key2")
 			value2 := []byte("value2")
 
-			assert.NoError(t, s1.Set(key1, value1), "TestCreateAndApply failed")
-			assert.NoError(t, s1.Set(key2, value2), "TestCreateAndApply failed")
+			assert.NoError(t, kv1.Set(key1, value1), "TestCreateAndApply failed")
+			assert.NoError(t, kv1.Set(key2, value2), "TestCreateAndApply failed")
 
 			err = s1.CreateSnapshot(path, key1, key2)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
 			key4 := []byte("key4")
 			value4 := []byte("value4")
-			assert.NoError(t, s2.Set(key4, value4), "TestCreateAndApply failed")
+			assert.NoError(t, kv2.Set(key4, value4), "TestCreateAndApply failed")
 
 			err = s2.ApplySnapshot(path)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
-			value, err := s2.Get(key2)
+			value, err := kv2.Get(key2)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 			assert.Equal(t, 0, len(value), "TestCreateAndApply failed")
 
-			value, err = s2.Get(key4)
+			value, err = kv2.Get(key4)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 			assert.Equal(t, len(value4), len(value), "TestCreateAndApply failed")
 
-			value, err = s2.Get(key1)
+			value, err = kv2.Get(key1)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 			assert.Equal(t, string(value1), string(value), "TestCreateAndApply failed")
 		})

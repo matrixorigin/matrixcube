@@ -169,7 +169,7 @@ func (t *slowLogTxn) Commit() (*clientv3.TxnResponse, error) {
 
 	cost := time.Since(start)
 	if cost > option.DefaultSlowRequestTime {
-		GetLogger().Warningf("txn runs too slow, resp=<%+v> cost=<%s> errors:\n %+v",
+		GetLogger().Warningf("txn runs too slow, resp=<%+v> cost=<%s> errors %+v",
 			resp,
 			cost,
 			err)

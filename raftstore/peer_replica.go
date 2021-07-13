@@ -172,6 +172,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		}
 	}
 	pr.batch = newBatch(pr)
+
 	c := getRaftConfig(peer.ID, ps.getAppliedIndex(), ps, store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
@@ -247,22 +248,16 @@ func (pr *peerReplica) mustDestroy() {
 	pr.stopEventLoop()
 	pr.store.removeDroppedVoteMsg(pr.shardID)
 
+	// Shard destory need 2 phase
+	// Phase1, clean metadata and update the state to Tombstone
+	// Phase2, clean up data asynchronously and remove the state key
+	// When we restart store, we can see partially data, because Phase1 and Phase2 are not atomic.
+	// We will execute cleanup if we found the Tombstone key.
+
 	wb := util.NewWriteBatch()
-	err := pr.store.clearMeta(pr.shardID, wb)
-	if err != nil {
-		logger.Fatal("shard %d do destroy failed with %+v",
-			pr.shardID,
-			err)
-	}
-
-	err = pr.ps.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Tombstone, wb)
-	if err != nil {
-		logger.Fatal("shard %d do destroy failed with %+v",
-			pr.shardID,
-			err)
-	}
-
-	err = pr.store.MetadataStorage().Write(wb, false)
+	pr.store.clearMeta(pr.shardID, wb)
+	pr.store.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Tombstone, wb)
+	err := pr.store.MetadataStorage().Write(wb, false)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
 			pr.shardID,
@@ -270,7 +265,7 @@ func (pr *peerReplica) mustDestroy() {
 	}
 
 	if pr.ps.isInitialized() {
-		err := pr.ps.clearData()
+		err := pr.store.startClearDataJob(pr.ps.shard)
 		if err != nil {
 			logger.Fatal("shard %d do destroy failed with %+v",
 				pr.shardID,
@@ -410,7 +405,24 @@ func (pr *peerReplica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, store raft.Storage, cfg *config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config) *raft.Config {
+	if cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil {
+		factory := cfg.Customize.CustomAdjustInitAppliedIndexFactory(ps.shard.Group)
+		if factory != nil {
+			newAppliedIndex := factory(ps.shard, appliedIndex)
+			if newAppliedIndex > appliedIndex {
+				logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must <= real applied index %d",
+					ps.shard.ID,
+					newAppliedIndex,
+					appliedIndex)
+			}
+
+			logger.Infof("shard %d change init applied index from %d to %d",
+				ps.shard.ID, appliedIndex, newAppliedIndex)
+			appliedIndex = newAppliedIndex
+		}
+	}
+
 	return &raft.Config{
 		ID:              id,
 		Applied:         appliedIndex,
@@ -418,7 +430,7 @@ func getRaftConfig(id, appliedIndex uint64, store raft.Storage, cfg *config.Conf
 		HeartbeatTick:   cfg.Raft.HeartbeatTicks,
 		MaxSizePerMsg:   uint64(cfg.Raft.MaxSizePerMsg),
 		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
-		Storage:         store,
+		Storage:         ps,
 		CheckQuorum:     true,
 		PreVote:         cfg.Raft.EnablePreVote,
 	}

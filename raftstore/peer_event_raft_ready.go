@@ -147,7 +147,7 @@ func (pr *peerReplica) handleAppendSnapshot(ctx *readyContext, rd *raft.Ready) {
 	if !raft.IsEmptySnap(rd.Snapshot) {
 		err := pr.doAppendSnapshot(ctx, rd.Snapshot)
 		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
+			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
 				err)
 		}
@@ -170,16 +170,16 @@ func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap raftpb.Snapshot)
 	if pr.ps.isInitialized() {
 		err := pr.ps.store.clearMeta(pr.shardID, ctx.wb)
 		if err != nil {
-			logger.Errorf("shard %d clear meta failed, errors:\n %+v",
+			logger.Errorf("shard %d clear meta failed with %+v",
 				pr.shardID,
 				err)
 			return err
 		}
 	}
 
-	err := pr.ps.updatePeerState(ctx.snap.Header.Shard, bhraftpb.PeerState_Applying, ctx.wb)
+	err := pr.store.updatePeerState(ctx.snap.Header.Shard, bhraftpb.PeerState_Applying, ctx.wb)
 	if err != nil {
-		logger.Errorf("shard %d write peer state failed, errors:\n %+v",
+		logger.Errorf("shard %d write peer state failed with %+v",
 			pr.shardID,
 			err)
 		return err
@@ -207,7 +207,7 @@ func (pr *peerReplica) handleAppendEntries(ctx *readyContext, rd *raft.Ready) {
 	if len(rd.Entries) > 0 {
 		err := pr.doAppendEntries(ctx, rd.Entries)
 		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
+			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
 				err)
 		}
@@ -233,7 +233,7 @@ func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []raftpb.Entry
 		d := protoc.MustMarshal(&e)
 		err := ctx.wb.Set(getRaftLogKey(pr.shardID, e.Index), d)
 		if err != nil {
-			logger.Fatalf("shard %d append entry failure, entry=<%s> errors:\n %+v",
+			logger.Fatalf("shard %d append entry <%s> failed with %+v",
 				pr.shardID,
 				e.String(),
 				err)
@@ -245,7 +245,7 @@ func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []raftpb.Entry
 	for index := lastIndex + 1; index < prevLastIndex+1; index++ {
 		err := ctx.wb.Delete(getRaftLogKey(pr.shardID, index))
 		if err != nil {
-			logger.Fatalf("shard %d delete any previously appended log entries failure, index=<%d> errors:\n %+v",
+			logger.Fatalf("shard %d delete any previously appended log entries %d failed with %+v",
 				pr.shardID,
 				index,
 				err)
@@ -268,7 +268,7 @@ func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
 		ctx.raftState.HardState = ctx.hardState
 		err := ctx.wb.Set(getRaftStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
 		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
+			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
 				err)
 		}
@@ -284,7 +284,7 @@ func (pr *peerReplica) doSaveApplyState(ctx *readyContext) {
 		tmp.TruncatedState.Term != origin.TruncatedState.Term {
 		err := ctx.wb.Set(getApplyStateKey(pr.shardID), protoc.MustMarshal(&ctx.applyState))
 		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failure, errors:\n %+v",
+			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
 				err)
 		}
@@ -337,13 +337,13 @@ func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *apply
 
 	// cleanup data before apply snap job
 	if pr.ps.isInitialized() {
-		err := pr.ps.clearExtraData(pr.ps.shard)
+		err := pr.store.clearExtraData(pr.applyWorker, pr.ps.shard, ctx.snap.Header.Shard)
 		if err != nil {
 			// No need panic here, when applying snapshot, the deletion will be tried
 			// again. But if the shard range changes, like [a, c) -> [a, b) and [b, c),
 			// [b, c) will be kept in rocksdb until a covered snapshot is applied or
 			// store is restarted.
-			logger.Errorf("shard %d cleanup data failed, may leave some dirty data, errors:\n %+v",
+			logger.Errorf("shard %d cleanup data failed with %+v",
 				pr.shardID,
 				err)
 			return nil
@@ -377,7 +377,7 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 
 			err := pr.startApplyCommittedEntriesJob(pr.shardID, pr.getCurrentTerm(), rd.CommittedEntries)
 			if err != nil {
-				logger.Fatalf("shard %d add apply committed entries job failed, errors:\n %+v",
+				logger.Fatalf("shard %d add apply committed entries job failed with %+v",
 					pr.shardID,
 					err)
 			}

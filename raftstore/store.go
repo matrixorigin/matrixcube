@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -404,6 +405,7 @@ func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 	applyingCount := 0
+	var tomebstoneShards []bhmetapb.Shard
 
 	wb := util.NewWriteBatch()
 	err := s.MetadataStorage().Scan(metaMinKey, metaMaxKey, func(key, value []byte) (bool, error) {
@@ -426,7 +428,7 @@ func (s *store) startShards() {
 		}
 
 		if localState.State == bhraftpb.PeerState_Tombstone {
-			s.clearMeta(shardID, wb)
+			tomebstoneShards = append(tomebstoneShards, localState.Shard)
 			tomebstoneCount++
 			logger.Infof("shard %d is tombstone in store",
 				shardID)
@@ -453,12 +455,12 @@ func (s *store) startShards() {
 	}, false)
 
 	if err != nil {
-		logger.Fatalf("init store failed, errors:\n %+v", err)
+		logger.Fatalf("init store failed with %+v", err)
 	}
 
 	err = s.MetadataStorage().Write(wb, false)
 	if err != nil {
-		logger.Fatalf("init store failed, errors:\n %+v", err)
+		logger.Fatalf("init store failed with %+v", err)
 	}
 
 	logger.Infof("starts with %d shards, including %d tombstones and %d applying shards",
@@ -466,7 +468,7 @@ func (s *store) startShards() {
 		tomebstoneCount,
 		applyingCount)
 
-	s.cleanup()
+	s.cleanup(tomebstoneShards)
 }
 
 func (s *store) startTimerTasks() {
@@ -610,38 +612,10 @@ func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
 	return nil
 }
 
-func (s *store) cleanup() {
-	s.keyRanges.Range(func(key, value interface{}) bool {
-		// clean up all possible garbage data
-		lastStartKey := EncodeDataKey(key.(uint64), nil)
-
-		value.(*util.ShardTree).Ascend(func(shard *bhmetapb.Shard) bool {
-			start := encStartKey(shard)
-			err := s.DataStorageByGroup(shard.Group, shard.ID).RangeDelete(lastStartKey, start)
-			if err != nil {
-				logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
-					lastStartKey,
-					start,
-					err)
-			}
-
-			lastStartKey = encEndKey(shard)
-			return true
-		})
-
-		dataMaxKey := getDataMaxKey(key.(uint64))
-		s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
-			err := ds.RangeDelete(lastStartKey, dataMaxKey)
-			if err != nil {
-				logger.Fatalf("cleanup possible garbage data failed, [%+v, %+v) failed with %+v",
-					lastStartKey,
-					dataMaxKey,
-					err)
-			}
-		})
-
-		return true
-	})
+func (s *store) cleanup(shards []bhmetapb.Shard) {
+	for _, shard := range shards {
+		s.doClearData(shard)
+	}
 
 	logger.Infof("cleanup possible garbage data complete")
 }
@@ -945,6 +919,106 @@ func (s *store) searchShard(group uint64, key []byte) bhmetapb.Shard {
 func (s *store) nextShard(shard bhmetapb.Shard) *bhmetapb.Shard {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		return value.(*util.ShardTree).NextShard(shard.Start)
+	}
+
+	return nil
+}
+
+func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, wb *util.WriteBatch) error {
+	shardState := &bhraftpb.ShardLocalState{}
+	shardState.State = state
+	shardState.Shard = shard
+
+	if wb != nil {
+		return wb.Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+	}
+
+	return s.MetadataStorage().Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+}
+
+func (s *store) removePeerState(shard bhmetapb.Shard) error {
+	return s.MetadataStorage().Delete(getStateKey(shard.ID))
+}
+
+func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
+	raftState := new(bhraftpb.RaftLocalState)
+	raftState.LastIndex = raftInitLogIndex
+	raftState.HardState.Term = raftInitLogTerm
+	raftState.HardState.Commit = raftInitLogIndex
+
+	applyState := new(bhraftpb.RaftApplyState)
+	applyState.AppliedIndex = raftInitLogIndex
+	applyState.TruncatedState.Index = raftInitLogIndex
+	applyState.TruncatedState.Term = raftInitLogTerm
+
+	err := wb.Set(getRaftStateKey(shardID), protoc.MustMarshal(raftState))
+	if err != nil {
+		return err
+	}
+
+	return wb.Set(getApplyStateKey(shardID), protoc.MustMarshal(applyState))
+}
+
+// doClearData Delete all data belong to the shard.
+// If return Err, data may get partial deleted.
+func (s *store) doClearData(shard bhmetapb.Shard) error {
+	logger.Infof("shard %d deleting data", shard.ID)
+	err := s.removeShardData(shard, nil)
+	if err != nil {
+		logger.Errorf("shard %d delete data failed with %+v",
+			shard.ID,
+			err)
+		return err
+	}
+
+	return s.removePeerState(shard)
+}
+
+func (s *store) startClearDataJob(shard bhmetapb.Shard) error {
+	return s.addSnapJob(shard.Group, func() error {
+		return s.doClearData(shard)
+	}, nil)
+}
+
+func (s *store) removeShardData(shard bhmetapb.Shard, job *task.Job) error {
+	if job != nil &&
+		job.IsCancelling() {
+		return task.ErrJobCancelled
+	}
+
+	start := encStartKey(&shard)
+	end := encEndKey(&shard)
+	return s.DataStorageByGroup(shard.Group, shard.ID).RemovedShardData(shard, start, end)
+}
+
+// Delete all data that is not covered by `newShard`.
+func (s *store) clearExtraData(appliedWorker string, shard, newShard bhmetapb.Shard) error {
+	kv, ok := s.DataStorageByGroup(shard.Group, shard.ID).(storage.KVStorage)
+	if !ok {
+		return nil
+	}
+
+	oldStartKey := encStartKey(&shard)
+	oldEndKey := encEndKey(&shard)
+	newStartKey := encStartKey(&newShard)
+	newEndKey := encEndKey(&newShard)
+
+	if bytes.Compare(oldStartKey, newStartKey) < 0 {
+		err := s.addApplyJob(appliedWorker, "doRemoveKVBasedRangeData", func() error {
+			return kv.RangeDelete(oldStartKey, newStartKey)
+		}, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if bytes.Compare(newEndKey, oldEndKey) < 0 {
+		err := s.addApplyJob(appliedWorker, "doRemoveKVBasedRangeData", func() error {
+			return kv.RangeDelete(newEndKey, oldEndKey)
+		}, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

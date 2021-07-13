@@ -149,7 +149,7 @@ func (ls *Leadership) ElectionLoop(ctx context.Context) {
 					util.GetLogger().Warningf("%s/loop: matched, resign and campaign again",
 						ls.tag)
 					if err = ls.resign(); err != nil {
-						util.GetLogger().Warningf("%s: resign leader failure, leader peer %+v, errors:\n %+v",
+						util.GetLogger().Warningf("%s: resign leader %+v failed with %+v",
 							ls.tag,
 							currentLeader,
 							err)

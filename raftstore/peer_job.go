@@ -39,7 +39,7 @@ func (pr *peerReplica) startRegistrationJob() {
 	}, nil)
 
 	if err != nil {
-		logger.Fatalf("shard %d add registration job failed, errors:\n %+v",
+		logger.Fatalf("shard %d add registration job failed with %+v",
 			pr.ps.shard.ID,
 			err)
 	}
@@ -161,7 +161,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 
 	applyState, err := ps.loadApplyState()
 	if err != nil {
-		logger.Fatalf("shard %d load snapshot failure, errors:\n %+v",
+		logger.Fatalf("shard %d load snapshot failed with %+v",
 			ps.shard.ID,
 			err)
 		return nil
@@ -263,7 +263,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		splitKeys)
 
 	if err != nil {
-		logger.Errorf("shard %d failed to scan split key, errors:\n %+v",
+		logger.Errorf("shard %d scan split key failed with %+v",
 			pr.shardID,
 			err)
 		return err
