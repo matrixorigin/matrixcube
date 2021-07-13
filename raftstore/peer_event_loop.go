@@ -228,9 +228,8 @@ func (pr *peerReplica) handleAction(items []interface{}) {
 		case doCampaignAction:
 			_, err := pr.maybeCampaign()
 			if err != nil {
-				logger.Fatalf("shard %d new split campaign failed, newShard=<%+v> errors:\n %+v",
+				logger.Fatalf("shard %d new split campaign failed with %+v",
 					pr.shardID,
-					pr.ps.shard,
 					err)
 			}
 		case heartbeatAction:
@@ -353,7 +352,7 @@ func (pr *peerReplica) doCheckSplit() {
 
 	err := pr.startSplitCheckJob()
 	if err != nil {
-		logger.Fatalf("shard %d add split check job failed, errors:\n %+v",
+		logger.Fatalf("shard %d add split check job failed with %+v",
 			pr.shardID,
 			err)
 		return

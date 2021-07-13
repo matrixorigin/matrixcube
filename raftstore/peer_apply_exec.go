@@ -110,7 +110,7 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	}
 
 	d.shard = res
-	d.ps.updatePeerState(d.shard, state, ctx.raftWB)
+	d.store.updatePeerState(d.shard, state, ctx.raftWB)
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: d.shard,
@@ -154,7 +154,7 @@ func (d *applyDelegate) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCM
 	}
 
 	d.shard = res
-	d.ps.updatePeerState(d.shard, state, ctx.raftWB)
+	d.store.updatePeerState(d.shard, state, ctx.raftWB)
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: d.shard,
@@ -332,7 +332,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 
 	err := checkKeyInShard(keys.MustBack().Value.([]byte), &d.shard)
 	if err != nil {
-		logger.Errorf("shard %d split key not in shard, errors:\n %+v",
+		logger.Errorf("shard %d split key failed with %+v",
 			d.shard.ID,
 			err)
 		return nil, nil, nil
@@ -369,10 +369,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		}
 	}
 
-	d.ps.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
+	d.store.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
 	for _, region := range shards {
-		d.ps.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftWB)
-		d.ps.writeInitialState(region.ID, ctx.raftWB)
+		d.store.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftWB)
+		d.store.writeInitialState(region.ID, ctx.raftWB)
 	}
 
 	if d.store.cfg.Storage.DataMoveFunc != nil {

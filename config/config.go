@@ -345,6 +345,8 @@ type CustomizeConfig struct {
 	CustomCanReadLocalFunc func(bhmetapb.Shard) bool
 	// CustomAdjustCompactFunc is factory create a func which used to adjust raft log compactIdx
 	CustomAdjustCompactFuncFactory func(group uint64) func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
+	// CustomAdjustInitAppliedIndexFactory is factory create a func which used to adjust init applied raft log index
+	CustomAdjustInitAppliedIndexFactory func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64)
 }
 
 // GetLabels returns lables

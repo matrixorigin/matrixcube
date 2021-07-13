@@ -15,6 +15,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/raftpb"
 )
@@ -105,15 +106,15 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 	logger.Infof("shard %d begin apply snapshot data", pr.shardID)
 	localState, err := pr.ps.loadLocalState(pr.ps.applySnapJob)
 	if err != nil {
-		logger.Fatalf("shard %d apply snap load local state failed, errors:\n %+v",
+		logger.Fatalf("shard %d apply snap load local state failed with %+v",
 			pr.shardID,
 			err)
 		return err
 	}
 
-	err = pr.ps.deleteAllInRange(encStartKey(&localState.Shard), encEndKey(&localState.Shard), pr.ps.applySnapJob)
+	err = pr.store.removeShardData(localState.Shard, pr.ps.applySnapJob)
 	if err != nil {
-		logger.Fatalf("shard %d apply snap delete range data failed, errors:\n %+v",
+		logger.Fatalf("shard %d apply snap delete range data failed with %+v",
 			pr.shardID,
 			err)
 		return err
@@ -121,15 +122,17 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 
 	err = pr.ps.applySnapshot(pr.ps.applySnapJob)
 	if err != nil {
-		logger.Errorf("shard %d apply snap snapshot failed, errors:\n %+v",
+		logger.Errorf("shard %d apply snap snapshot failed with %+v",
 			pr.shardID,
 			err)
 		return err
 	}
 
-	err = pr.ps.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, nil)
+	wb := util.NewWriteBatch()
+	pr.store.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, wb)
+	err = pr.store.MetadataStorage().Write(wb, true)
 	if err != nil {
-		logger.Fatalf("shard %d apply snap update peer state failed, errors:\n %+v",
+		logger.Fatalf("shard %d apply snap update peer state failed with %+v",
 			pr.shardID,
 			err)
 		return err
@@ -431,7 +434,7 @@ func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 
 	err := d.store.MetadataStorage().Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
 	if err != nil {
-		logger.Fatalf("shard %d apply empty entry failed, entry=<%s> errors:\n %+v",
+		logger.Fatalf("shard %d apply empty entry <%s> failed with %+v",
 			d.shard.ID,
 			entry.String(),
 			err)
@@ -533,16 +536,19 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 		d.ctx.raftWB.Set(getApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
 	}
 
-	err = d.store.DataStorageByGroup(d.shard.Group, d.shard.ID).Write(d.ctx.dataWB, true)
-	if err != nil {
-		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
-			d.shard.ID,
-			err)
+	ds := d.store.DataStorageByGroup(d.shard.Group, d.shard.ID)
+	if kv, ok := ds.(storage.KVStorage); ok {
+		err = kv.Write(d.ctx.dataWB, true)
+		if err != nil {
+			logger.Fatalf("shard %d commit apply result failed with %+v",
+				d.shard.ID,
+				err)
+		}
 	}
 
 	err = d.store.MetadataStorage().Write(d.ctx.raftWB, true)
 	if err != nil {
-		logger.Fatalf("shard %d commit apply result failed, errors:\n %+v",
+		logger.Fatalf("shard %d commit apply result failed with %+v",
 			d.shard.ID,
 			err)
 	}
