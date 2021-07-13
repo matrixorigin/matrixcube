@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 )
@@ -180,6 +181,11 @@ func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 		}
 	}
 	return nil
+}
+
+// RemovedShardData remove shard data
+func (s *Storage) RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
+	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 
 // CreateSnapshot create a snapshot file under the giving path

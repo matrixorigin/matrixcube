@@ -222,9 +222,8 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		if err != nil {
 			// peer information is already written into db, can't recover.
 			// there is probably a bug.
-			logger.Fatalf("shard %d create new split shard failed, new shard=<%+v> errors:\n %+v",
+			logger.Fatalf("shard %d create new split shard failed with %+v",
 				pr.shardID,
-				shard,
 				err)
 		}
 
@@ -280,7 +279,7 @@ func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
 		endIndex)
 	err := pr.startCompactRaftLogJob(pr.shardID, startIndex, endIndex)
 	if err != nil {
-		logger.Errorf("shard %s add raft gc job failed, errors:\n %+v",
+		logger.Errorf("shard %s add raft gc job failed with %+v",
 			pr.shardID,
 			err)
 	}

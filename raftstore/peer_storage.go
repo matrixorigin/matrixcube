@@ -1,7 +1,6 @@
 package raftstore
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"sync"
@@ -13,7 +12,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
 )
@@ -328,135 +326,6 @@ func (ps *peerStorage) unmarshal(v []byte, expectIndex uint64) (raftpb.Entry, er
 	return e, nil
 }
 
-/// Delete all data belong to the shard.
-/// If return Err, data may get partial deleted.
-func (ps *peerStorage) clearData() error {
-	shard := ps.shard
-
-	shardID := shard.ID
-	startKey := encStartKey(&shard)
-	endKey := encEndKey(&shard)
-
-	err := ps.store.addSnapJob(ps.shard.Group, func() error {
-		logger.Infof("shard %d deleting data in [%+v, %+v)",
-			shardID,
-			startKey,
-			endKey)
-		err := ps.deleteAllInRange(startKey, endKey, nil)
-		if err != nil {
-			logger.Errorf("shard %d failed to delete data in [%+v, %+v) with %+v",
-				shardID,
-				startKey,
-				endKey,
-				err)
-		}
-
-		return err
-	}, nil)
-
-	return err
-}
-
-// Delete all data that is not covered by `newShard`.
-func (ps *peerStorage) clearExtraData(newShard bhmetapb.Shard) error {
-	shard := ps.shard
-
-	oldStartKey := encStartKey(&shard)
-	oldEndKey := encEndKey(&shard)
-
-	newStartKey := encStartKey(&newShard)
-	newEndKey := encEndKey(&newShard)
-
-	if bytes.Compare(oldStartKey, newStartKey) < 0 {
-		err := ps.startDestroyDataJob(newShard.ID, oldStartKey, newStartKey)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if bytes.Compare(newEndKey, oldEndKey) < 0 {
-		err := ps.startDestroyDataJob(newShard.ID, newEndKey, oldEndKey)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (ps *peerStorage) startDestroyDataJob(shardID uint64, start, end []byte) error {
-	pr := ps.store.getPR(shardID, false)
-	if pr != nil {
-		err := ps.store.addApplyJob(pr.applyWorker, "doDestroyDataJob", func() error {
-			return ps.doDestroyDataJob(shardID, start, end)
-		}, nil)
-
-		return err
-	}
-
-	return nil
-}
-
-func (ps *peerStorage) doDestroyDataJob(shardID uint64, startKey, endKey []byte) error {
-	logger.Infof("shard %d deleting data, start=<%v>, end=<%v>",
-		shardID,
-		startKey,
-		endKey)
-
-	err := ps.deleteAllInRange(startKey, endKey, nil)
-	if err != nil {
-		logger.Errorf("shard %d failed to delete data, start=<%v> end=<%v> errors:\n %+v",
-			shardID,
-			startKey,
-			endKey,
-			err)
-	}
-
-	return err
-}
-
-func (ps *peerStorage) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, wb *util.WriteBatch) error {
-	shardState := &bhraftpb.ShardLocalState{}
-	shardState.State = state
-	shardState.Shard = shard
-
-	if wb != nil {
-		return wb.Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
-	}
-
-	return ps.store.MetadataStorage().Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
-}
-
-func (ps *peerStorage) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
-	raftState := new(bhraftpb.RaftLocalState)
-	raftState.LastIndex = raftInitLogIndex
-	raftState.HardState.Term = raftInitLogTerm
-	raftState.HardState.Commit = raftInitLogIndex
-
-	applyState := new(bhraftpb.RaftApplyState)
-	applyState.AppliedIndex = raftInitLogIndex
-	applyState.TruncatedState.Index = raftInitLogIndex
-	applyState.TruncatedState.Term = raftInitLogTerm
-
-	err := wb.Set(getRaftStateKey(shardID), protoc.MustMarshal(raftState))
-	if err != nil {
-		return err
-	}
-
-	return wb.Set(getApplyStateKey(shardID), protoc.MustMarshal(applyState))
-}
-
-func (ps *peerStorage) deleteAllInRange(start, end []byte, job *task.Job) error {
-	if job != nil &&
-		job.IsCancelling() {
-		return task.ErrJobCancelled
-	}
-
-	return ps.store.DataStorageByGroup(ps.shard.Group, ps.shard.ID).RangeDelete(start, end)
-}
-
 func compactRaftLog(shardID uint64, state *bhraftpb.RaftApplyState, compactIndex, compactTerm uint64) error {
 	logger.Debugf("shard %d compact log entries to index %d",
 		shardID,
@@ -672,7 +541,7 @@ func (ps *peerStorage) Snapshot() (raftpb.Snapshot, error) {
 
 	err := ps.store.addSnapJob(ps.shard.Group, ps.doGenerateSnapshotJob, ps.setGenSnapJob)
 	if err != nil {
-		logger.Fatalf("shard %d add generate job failed, errors:\n %+v",
+		logger.Fatalf("shard %d add generate job failed with %+v",
 			ps.shard.ID,
 			err)
 	}

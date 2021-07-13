@@ -14,6 +14,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -142,7 +143,7 @@ func (h *testHandler) get(shard bhmetapb.Shard, req *raftcmdpb.Request, ctx comm
 		return resp, 0
 	}
 
-	value, err := h.store.DataStorageByGroup(0, 0).Get(req.Key)
+	value, err := h.store.DataStorageByGroup(0, 0).(storage.KVStorage).Get(req.Key)
 	if err != nil {
 		resp.Value = []byte(err.Error())
 		return resp, 0

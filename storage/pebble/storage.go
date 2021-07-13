@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 )
@@ -205,6 +206,11 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 // Free free the pooled bytes
 func (s *Storage) Free(pooled []byte) {
 
+}
+
+// RemovedShardData remove shard data
+func (s *Storage) RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
+	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 
 // SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,

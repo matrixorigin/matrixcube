@@ -10,6 +10,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,7 +116,7 @@ func TestCustomSplit(t *testing.T) {
 	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
-				store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID)
+				store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID).(storage.KVStorage)
 				endGroup := shard.Group
 				if len(shard.End) == 0 {
 					endGroup++

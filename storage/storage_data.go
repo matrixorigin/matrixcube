@@ -1,8 +1,15 @@
 package storage
 
+import (
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+)
+
 // DataStorage responsible for maintaining the data storage of a set of shards for the application.
 type DataStorage interface {
-	MetadataStorage
+	StatisticalStorage
+
+	// RemovedShardData remove shard data
+	RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error
 
 	// SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
 	// returns the current bytes in [start,end), and the founded key
