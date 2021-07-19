@@ -74,6 +74,13 @@ type Storage interface {
 	// GetTimestamp returns tso timestamp
 	GetTimestamp() (time.Time, error)
 
+	// PutJob puts the job metadata to the storage
+	PutJob(key []byte, data []byte) error
+	// RemoveJob remove job from storage
+	RemoveJob(key []byte) error
+	// LoadJobs load all jobs
+	LoadJobs(limit int64, do func(k, v []byte)) error
+
 	// AlreadyBootstrapped returns the cluster was already bootstrapped
 	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
@@ -93,6 +100,7 @@ type storage struct {
 	clusterPath              string
 	customScheduleConfigPath string
 	schedulePath             string
+	jobPath                  string
 }
 
 // NewTestStorage create test storage
@@ -115,6 +123,7 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		clusterPath:              fmt.Sprintf("%s/cluster", rootPath),
 		customScheduleConfigPath: fmt.Sprintf("%s/scheduler_config", rootPath),
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
+		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
 	}
 }
 
@@ -372,6 +381,22 @@ func (s *storage) GetTimestamp() (time.Time, error) {
 func (s *storage) PutTimestamp(ts time.Time) error {
 	data := format.Uint64ToBytes(uint64(ts.UnixNano()))
 	return s.kv.Save(s.timestampPath, string(data))
+}
+
+func (s *storage) PutJob(key []byte, data []byte) error {
+	return s.kv.SaveWithoutLeader(path.Join(s.jobPath, string(key)), string(data))
+}
+
+func (s *storage) RemoveJob(key []byte) error {
+	return s.kv.RemoveWithoutLeader(path.Join(s.jobPath, string(key)))
+}
+
+func (s *storage) LoadJobs(limit int64, do func(k, v []byte)) error {
+	return s.LoadRangeByPrefix(limit, s.jobPath+"/", func(k, v string) error {
+		_, f := path.Split(string(k))
+		do([]byte(f), []byte(v))
+		return nil
+	})
 }
 
 func (s *storage) PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error) {

@@ -205,6 +205,30 @@ func (s *etcdKV) AllocID() (uint64, error) {
 	return s.base, nil
 }
 
+func (s *etcdKV) SaveWithoutLeader(key, value string) error {
+	var ops []clientv3.Op
+	ops = append(ops, clientv3.OpPut(key, value))
+
+	_, err := util.Txn(s.client).Then(ops...).Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *etcdKV) RemoveWithoutLeader(key string) error {
+	var ops []clientv3.Op
+	ops = append(ops, clientv3.OpDelete(key))
+
+	_, err := util.Txn(s.client).Then(ops...).Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *etcdKV) generate() (uint64, error) {
 	value, err := s.getID()
 	if err != nil {

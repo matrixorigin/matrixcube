@@ -39,11 +39,14 @@ type Config struct {
 
 	Handler                     metadata.RoleChangeHandler
 	Adapter                     metadata.Adapter
+	JobHandler                  func(k, v []byte)
+	JobCheckerDuration          time.Duration
 	ResourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
 
 	// Only test can change them.
 	DisableStrictReconfigCheck bool
 	DisableResponse            bool
+	TestCtx                    *sync.Map
 }
 
 // NewConfig creates a new config.

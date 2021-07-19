@@ -12,7 +12,7 @@ import (
 )
 
 func TestSingleStart(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	assert.NotNil(t, p.GetMember())
@@ -21,7 +21,7 @@ func TestSingleStart(t *testing.T) {
 }
 
 func TestClusterStart(t *testing.T) {
-	cluster := newTestClusterProphet(t, 4)
+	cluster := newTestClusterProphet(t, 4, nil)
 	defer func() {
 		for _, p := range cluster {
 			p.Stop()
@@ -43,13 +43,16 @@ func TestClusterStart(t *testing.T) {
 	assert.Equal(t, 3, followerCount)
 }
 
-func newTestSingleProphet(t *testing.T) Prophet {
+func newTestSingleProphet(t *testing.T, adjustFunc func(*config.Config)) Prophet {
 	c := config.NewConfig()
 	c.StorageNode = true
+	if adjustFunc != nil {
+		adjustFunc(c)
+	}
 	return newTestProphet(t, c)
 }
 
-func newTestClusterProphet(t *testing.T, n int) []Prophet {
+func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*config.Config)) []Prophet {
 	if n < 3 {
 		assert.FailNow(t, "cluster count must >= 3")
 	}
@@ -76,6 +79,9 @@ func newTestClusterProphet(t *testing.T, n int) []Prophet {
 			c.ExternalEtcd = []string{"http://127.0.0.1:20001", "http://127.0.0.1:20002", "http://127.0.0.1:20003"}
 		}
 
+		if adjustFunc != nil {
+			adjustFunc(c)
+		}
 		cluster = append(cluster, newTestProphet(t, c))
 	}
 
