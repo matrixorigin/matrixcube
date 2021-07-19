@@ -14,7 +14,7 @@ import (
 )
 
 func TestClientLeaderChange(t *testing.T) {
-	cluster := newTestClusterProphet(t, 3)
+	cluster := newTestClusterProphet(t, 3, nil)
 	defer func() {
 		for _, p := range cluster {
 			p.Stop()
@@ -46,7 +46,7 @@ func TestClientLeaderChange(t *testing.T) {
 }
 
 func TestClientGetContainer(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
@@ -56,7 +56,7 @@ func TestClientGetContainer(t *testing.T) {
 }
 
 func TestAsyncCreateResources(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
@@ -96,7 +96,7 @@ func TestAsyncCreateResources(t *testing.T) {
 }
 
 func TestCheckResourceState(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
@@ -106,7 +106,7 @@ func TestCheckResourceState(t *testing.T) {
 }
 
 func TestPutPlacementRule(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()

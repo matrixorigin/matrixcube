@@ -78,6 +78,10 @@ type defaultProphet struct {
 	trans      goetty.NetApplication
 	client     Client
 	clientOnce sync.Once
+
+	// job task ctx
+	jobCtx    context.Context
+	jobCancel context.CancelFunc
 }
 
 // NewProphet returns a prophet instance

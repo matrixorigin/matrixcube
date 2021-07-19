@@ -32,4 +32,8 @@ type KV interface {
 	SaveIfNotExists(key string, value string, batch *Batch) (bool, string, error)
 	// RemoveIfValueMatched returns true if the expect value is and the exists value are matched
 	RemoveIfValueMatched(key string, expect string) (bool, error)
+	// SaveWithoutLeader save without leader
+	SaveWithoutLeader(key, value string) error
+	// RemoveWithoutLeader remove without leader
+	RemoveWithoutLeader(key string) error
 }

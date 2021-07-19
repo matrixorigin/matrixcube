@@ -7,7 +7,7 @@ import (
 )
 
 func TestSingleTransport(t *testing.T) {
-	p := newTestSingleProphet(t)
+	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	id, err := p.GetClient().AllocID()
@@ -16,7 +16,7 @@ func TestSingleTransport(t *testing.T) {
 }
 
 func TestClusterTransport(t *testing.T) {
-	cluster := newTestClusterProphet(t, 3)
+	cluster := newTestClusterProphet(t, 3, nil)
 	defer func() {
 		for _, p := range cluster {
 			p.Stop()

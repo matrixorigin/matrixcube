@@ -69,13 +69,12 @@ type Config struct {
 	Worker WorkerConfig `toml:"worker"`
 	// Prophet prophet config
 	Prophet pconfig.Config `toml:"prophet"`
-	// Metric Config
-	Metric metric.Cfg `toml:"metric"`
 	// Storage config
 	Storage StorageConfig
-	// Worker config
 	// Customize config
 	Customize CustomizeConfig
+	// Metric Config
+	Metric metric.Cfg `toml:"metric"`
 }
 
 // Adjust adjust

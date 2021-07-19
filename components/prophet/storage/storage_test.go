@@ -194,3 +194,42 @@ func TestPutAndGetTimestamp(t *testing.T) {
 
 	assert.Equal(t, now.Nanosecond(), v.Nanosecond(), "TestPutAndGetTimestamp failed")
 }
+
+func TestPutAndDeleteAndLoadJobs(t *testing.T) {
+	stopC, port := mock.StartTestSingleEtcd(t)
+	defer close(stopC)
+
+	client := mock.NewEtcdClient(t, port)
+	defer client.Close()
+
+	e, err := election.NewElector(client)
+	assert.NoError(t, err, "TestPutAndGetContainer failed")
+	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
+	defer ls.Stop()
+
+	go ls.ElectionLoop(context.Background())
+	time.Sleep(time.Millisecond * 200)
+
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	assert.NoError(t, storage.PutJob([]byte("job1"), []byte("job1")))
+	assert.NoError(t, storage.PutJob([]byte("job2"), []byte("job2")))
+	assert.NoError(t, storage.PutJob([]byte("job3"), []byte("job3")))
+
+	var loadedValues [][]byte
+	assert.NoError(t, storage.LoadJobs(1, func(k, v []byte) {
+		loadedValues = append(loadedValues, k)
+	}))
+	assert.Equal(t, 3, len(loadedValues))
+	assert.Equal(t, []byte("job1"), loadedValues[0])
+	assert.NoError(t, storage.RemoveJob(loadedValues[0]))
+	assert.Equal(t, []byte("job2"), loadedValues[1])
+	assert.NoError(t, storage.RemoveJob(loadedValues[1]))
+	assert.Equal(t, []byte("job3"), loadedValues[2])
+	assert.NoError(t, storage.RemoveJob(loadedValues[2]))
+
+	c := 0
+	assert.NoError(t, storage.LoadJobs(1, func(k, v []byte) {
+		c++
+	}))
+	assert.Equal(t, 0, c)
+}
