@@ -153,6 +153,20 @@ func (s *memStorage) AllocID() (uint64, error) {
 	return s.id, nil
 }
 
+func (s *memStorage) SaveWithoutLeader(key, value string) error {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.doSave(string(key), string(value))
+}
+
+func (s *memStorage) RemoveWithoutLeader(key string) error {
+	s.Lock()
+	defer s.Unlock()
+
+	return s.doRemove(key)
+}
+
 func (s *memStorage) doLoad(key string) (string, error) {
 	item := s.tree.Get(memoryKVItem{key, ""})
 	if item == nil {
