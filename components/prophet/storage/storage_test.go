@@ -233,3 +233,44 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	}))
 	assert.Equal(t, 0, c)
 }
+
+func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
+	stopC, port := mock.StartTestSingleEtcd(t)
+	defer close(stopC)
+
+	client := mock.NewEtcdClient(t, port)
+	defer client.Close()
+
+	e, err := election.NewElector(client)
+	assert.NoError(t, err)
+	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
+	defer ls.Stop()
+
+	go ls.ElectionLoop(context.Background())
+	time.Sleep(time.Millisecond * 200)
+
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
+	assert.NoError(t, storage.PutCustomData([]byte("k2"), []byte("v2")))
+	assert.NoError(t, storage.PutCustomData([]byte("k3"), []byte("v3")))
+
+	var loadedValues [][]byte
+	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
+		loadedValues = append(loadedValues, k)
+		return nil
+	}))
+	assert.Equal(t, 3, len(loadedValues))
+	assert.Equal(t, []byte("k1"), loadedValues[0])
+	assert.NoError(t, storage.RemoveCustomData(loadedValues[0]))
+	assert.Equal(t, []byte("k2"), loadedValues[1])
+	assert.NoError(t, storage.RemoveCustomData(loadedValues[1]))
+	assert.Equal(t, []byte("k3"), loadedValues[2])
+	assert.NoError(t, storage.RemoveCustomData(loadedValues[2]))
+
+	c := 0
+	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
+		c++
+		return nil
+	}))
+	assert.Equal(t, 0, c)
+}

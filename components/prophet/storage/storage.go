@@ -81,6 +81,13 @@ type Storage interface {
 	// LoadJobs load all jobs
 	LoadJobs(limit int64, do func(k, v []byte)) error
 
+	// PutCustomData puts the custom data to the storage
+	PutCustomData(key []byte, data []byte) error
+	// LoadCustomData load all custom data
+	LoadCustomData(limit int64, f func(k, v []byte) error) error
+	// RemoveCustomData remove custom data
+	RemoveCustomData(key []byte) error
+
 	// AlreadyBootstrapped returns the cluster was already bootstrapped
 	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
@@ -101,6 +108,7 @@ type storage struct {
 	customScheduleConfigPath string
 	schedulePath             string
 	jobPath                  string
+	customDataPath           string
 }
 
 // NewTestStorage create test storage
@@ -124,6 +132,7 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		customScheduleConfigPath: fmt.Sprintf("%s/scheduler_config", rootPath),
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
 		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
+		customDataPath:           fmt.Sprintf("%s/custom", rootPath),
 	}
 }
 
@@ -397,6 +406,22 @@ func (s *storage) LoadJobs(limit int64, do func(k, v []byte)) error {
 		do([]byte(f), []byte(v))
 		return nil
 	})
+}
+
+func (s *storage) PutCustomData(key []byte, data []byte) error {
+	return s.kv.Save(path.Join(s.customDataPath, string(key)), string(data))
+}
+
+func (s *storage) LoadCustomData(limit int64, do func(k, v []byte) error) error {
+	return s.LoadRangeByPrefix(limit, s.customDataPath+"/", func(k, v string) error {
+		_, f := path.Split(string(k))
+		do([]byte(f), []byte(v))
+		return nil
+	})
+}
+
+func (s *storage) RemoveCustomData(key []byte) error {
+	return s.kv.Remove(path.Join(s.customDataPath, string(key)))
 }
 
 func (s *storage) PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error) {
