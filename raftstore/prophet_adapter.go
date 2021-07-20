@@ -339,9 +339,21 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		End:   uint64(time.Now().Unix()),
 	}
 
-	_, err = s.pd.GetClient().ContainerHeartbeat(rpcpb.ContainerHeartbeatReq{Stats: stats})
+	var data []byte
+	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
+		data = s.cfg.Customize.CustomStoreHeartbeatDataProcessor.CollectData()
+	}
+
+	rsp, err := s.pd.GetClient().ContainerHeartbeat(rpcpb.ContainerHeartbeatReq{Stats: stats, Data: data})
 	if err != nil {
 		logger.Errorf("send store heartbeat failed with %+v", err)
+		return
+	}
+	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
+		err := s.cfg.Customize.CustomStoreHeartbeatDataProcessor.HandleHeartbeatRsp(rsp.Data)
+		if err != nil {
+			logger.Errorf("handle store heartbeat rsp data failed with %+v", err)
+		}
 	}
 }
 

@@ -109,6 +109,7 @@ func (c *Config) Adjust() {
 	(&c.Replication).adjust()
 	(&c.Raft).adjust(uint64(c.Replication.ShardCapacityBytes))
 	c.Prophet.DataDir = path.Join(c.DataPath, defaultProphetDirName)
+	c.Prophet.ContainerHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
 	(&c.Prophet).Adjust(nil, false)
 	(&c.Worker).adjust()
 }
@@ -346,6 +347,8 @@ type CustomizeConfig struct {
 	CustomAdjustCompactFuncFactory func(group uint64) func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
 	// CustomAdjustInitAppliedIndexFactory is factory create a func which used to adjust init applied raft log index
 	CustomAdjustInitAppliedIndexFactory func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64)
+	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
+	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
 }
 
 // GetLabels returns lables
@@ -359,4 +362,14 @@ func (c *Config) GetLabels() []metapb.Pair {
 	}
 
 	return labels
+}
+
+// StoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
+type StoreHeartbeatDataProcessor interface {
+	pconfig.ContainerHeartbeatDataProcessor
+
+	// HandleHeartbeatRsp handle the data from store heartbeat at the each worker node
+	HandleHeartbeatRsp(data []byte) error
+	// CollectData collect data at every heartbeat
+	CollectData() []byte
 }

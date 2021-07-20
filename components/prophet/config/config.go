@@ -10,6 +10,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"go.etcd.io/etcd/embed"
@@ -37,11 +38,12 @@ type Config struct {
 	Replication   ReplicationConfig   `toml:"replication"`
 	LabelProperty LabelPropertyConfig `toml:"label-property"`
 
-	Handler                     metadata.RoleChangeHandler
-	Adapter                     metadata.Adapter
-	JobHandler                  func(k, v []byte)
-	JobCheckerDuration          time.Duration
-	ResourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
+	Handler                         metadata.RoleChangeHandler
+	Adapter                         metadata.Adapter
+	JobHandler                      func(k, v []byte)
+	JobCheckerDuration              time.Duration
+	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
+	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor
 
 	// Only test can change them.
 	DisableStrictReconfigCheck bool
@@ -509,4 +511,14 @@ func (sl *ContainerLimit) GetDefaultContainerLimit(typ limit.Type) float64 {
 	default:
 		panic("invalid type")
 	}
+}
+
+// ContainerHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
+type ContainerHeartbeatDataProcessor interface {
+	// Start init all customize data if the current node became the prophet leader
+	Start(storage.Storage) error
+	// Stop clear all customize data at current node, and other node became leader and will call `Start`
+	Stop(storage.Storage) error
+	// HandleHeartbeatReq handle the data from store heartbeat at the prophet leader node
+	HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) error
 }
