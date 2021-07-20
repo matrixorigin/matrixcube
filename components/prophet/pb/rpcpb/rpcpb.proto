@@ -141,11 +141,13 @@ message PutContainerRsp {
 
 // ContainerHeartbeatReq container heartbeat request
 message ContainerHeartbeatReq {
-    metapb.ContainerStats stats = 1 [(gogoproto.nullable) = false];        
+    metapb.ContainerStats stats = 1 [(gogoproto.nullable) = false];  
+    bytes                 data  = 2;      
 }
 
 // ContainerHeartbeatRsp container heartbeat response
 message ContainerHeartbeatRsp {
+    bytes                 data  = 1;
 }
 
 // GetContainerReq get container request
