@@ -93,6 +93,7 @@ func NewDefaultTransport(
 	app, err := goetty.NewTCPApplication(addr, t.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(t.encoder, t.decoder),
 			goetty.WithTimeout(t.opts.readTimeout, t.opts.writeTimeout),
+			goetty.WithLogger(logger),
 			goetty.WithEnableAsyncWrite(t.opts.sendBatch)))
 	if err != nil {
 		logger.Fatalf("create transport failed with %+v", err)
