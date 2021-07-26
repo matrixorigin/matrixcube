@@ -48,6 +48,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 		app, err := goetty.NewTCPApplication(cfg.Addr, s.onMessage,
 			goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 				goetty.WithEnableAsyncWrite(16),
+				goetty.WithLogger(logger),
 				goetty.WithReleaseMsgFunc(s.releaseResponse)))
 		if err != nil {
 			logger.Fatalf("create internal tcp server failed with %+v", err)
