@@ -22,8 +22,8 @@ func (p *testContainerHeartbeatDataProcessor) Stop(storage.Storage) error {
 	return nil
 }
 
-func (p *testContainerHeartbeatDataProcessor) HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) error {
-	return nil
+func (p *testContainerHeartbeatDataProcessor) HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) ([]byte, error) {
+	return nil, nil
 }
 
 func TestCustomStartAndStop(t *testing.T) {

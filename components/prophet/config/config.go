@@ -520,5 +520,5 @@ type ContainerHeartbeatDataProcessor interface {
 	// Stop clear all customize data at current node, and other node became leader and will call `Start`
 	Stop(storage.Storage) error
 	// HandleHeartbeatReq handle the data from store heartbeat at the prophet leader node
-	HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) error
+	HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) (responseData []byte, err error)
 }
