@@ -274,3 +274,34 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	}))
 	assert.Equal(t, 0, c)
 }
+
+func TestBatchPutCustomData(t *testing.T) {
+	stopC, port := mock.StartTestSingleEtcd(t)
+	defer close(stopC)
+
+	client := mock.NewEtcdClient(t, port)
+	defer client.Close()
+
+	e, err := election.NewElector(client)
+	assert.NoError(t, err)
+	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
+	defer ls.Stop()
+
+	go ls.ElectionLoop(context.Background())
+	time.Sleep(time.Millisecond * 200)
+
+	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
+	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	assert.NoError(t, storage.BatchPutCustomData(keys, data))
+
+	var loadedValues [][]byte
+	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
+		loadedValues = append(loadedValues, v)
+		return nil
+	}))
+	assert.Equal(t, len(keys), len(loadedValues))
+	for i := 0; i < len(keys); i++ {
+		assert.Equal(t, data[i], loadedValues[i])
+	}
+}
