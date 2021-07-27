@@ -217,8 +217,12 @@ func (p *defaultProphet) handleContainerHeartbeat(rc *cluster.RaftCluster, req *
 	}
 
 	if p.cfg.ContainerHeartbeatDataProcessor != nil {
-		return p.cfg.ContainerHeartbeatDataProcessor.HandleHeartbeatReq(req.ContainerHeartbeat.Stats.ContainerID,
+		data, err := p.cfg.ContainerHeartbeatDataProcessor.HandleHeartbeatReq(req.ContainerHeartbeat.Stats.ContainerID,
 			req.ContainerHeartbeat.Data, p.GetStorage())
+		if err != nil {
+			return err
+		}
+		resp.ContainerHeartbeat.Data = data
 	}
 
 	return nil
