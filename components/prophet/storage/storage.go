@@ -83,6 +83,8 @@ type Storage interface {
 
 	// PutCustomData puts the custom data to the storage
 	PutCustomData(key []byte, data []byte) error
+	// BatchPutCustomData batch puts the custom data to the storage
+	BatchPutCustomData(keys [][]byte, data [][]byte) error
 	// LoadCustomData load all custom data
 	LoadCustomData(limit int64, f func(k, v []byte) error) error
 	// RemoveCustomData remove custom data
@@ -410,6 +412,21 @@ func (s *storage) LoadJobs(limit int64, do func(k, v []byte)) error {
 
 func (s *storage) PutCustomData(key []byte, data []byte) error {
 	return s.kv.Save(path.Join(s.customDataPath, string(key)), string(data))
+}
+
+func (s *storage) BatchPutCustomData(keys [][]byte, data [][]byte) error {
+	if len(keys) != len(data) {
+		return fmt.Errorf("key length %d != data length %d",
+			len(keys),
+			len(data))
+	}
+
+	batch := &Batch{}
+	for i := 0; i < len(keys); i++ {
+		batch.SaveKeys = append(batch.SaveKeys, path.Join(s.customDataPath, string(keys[i])))
+		batch.SaveValues = append(batch.SaveValues, string(data[i]))
+	}
+	return s.kv.Batch(batch)
 }
 
 func (s *storage) LoadCustomData(limit int64, do func(k, v []byte) error) error {
