@@ -8,6 +8,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -153,4 +154,24 @@ func TestCustomSplit(t *testing.T) {
 	c.WaitShardByCount(t, 2, time.Second*10)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), nil)
+}
+
+func TestSpeedupAddShard(t *testing.T) {
+	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+		cfg.Raft.TickInterval = typeutil.NewDuration(time.Second * 2)
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+	}, nil, nil)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitShardByCount(t, 1, time.Second*10)
+
+	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
+	assert.NoError(t, err)
+
+	c.WaitShardByCount(t, 2, time.Second*10)
+	c.CheckShardCount(t, 2)
+
+	id := c.GetShardByIndex(1).ID
+	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, time.Second*5)
 }

@@ -208,6 +208,14 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 			pr.shardID)
 	}
 
+	// If dynamically created shard, invoke raft tick
+	if shard.State == metapb.ResourceState_WaittingCreate &&
+		shard.Peers[0].ContainerID == pr.store.Meta().ID {
+		for i := 0; i < pr.store.cfg.Raft.ElectionTimeoutTicks; i++ {
+			pr.onRaftTick(nil)
+		}
+	}
+
 	if pr.store.aware != nil {
 		pr.store.aware.Created(pr.ps.shard)
 	}
