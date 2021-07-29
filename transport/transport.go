@@ -373,7 +373,7 @@ func (t *defaultTransport) getConnLocked(id uint64) (goetty.IOSession, error) {
 	if old, loaded := t.conns.LoadOrStore(id, p); loaded {
 		return old.(pool.IOSessionPool).Get()
 	}
-	return p.(pool.IOSessionPool).Get()
+	return p.Get()
 }
 
 func (t *defaultTransport) checkConnect(id uint64, conn goetty.IOSession) bool {
