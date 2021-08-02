@@ -35,7 +35,7 @@ type Router interface {
 	// If returns leader address is "", means the current shard has no leader
 	SelectShard(group uint64, key []byte) (uint64, string)
 	// Every do with all shards
-	Every(group uint64, mustLeader bool, fn func(shard *bhmetapb.Shard, address string))
+	Every(group uint64, mustLeader bool, fn func(shard *bhmetapb.Shard, store bhmetapb.Store))
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard *bhmetapb.Shard) bool)
 
@@ -110,15 +110,15 @@ func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
 	return shard.ID, r.LeaderPeerStore(shard.ID).ClientAddr
 }
 
-func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*bhmetapb.Shard, string)) {
+func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*bhmetapb.Shard, bhmetapb.Store)) {
 	r.shards.Range(func(key, value interface{}) bool {
 		shard := value.(bhmetapb.Shard)
 		if shard.Group == group {
 			if mustLeader {
-				doFunc(&shard, r.LeaderPeerStore(shard.ID).ClientAddr)
+				doFunc(&shard, r.LeaderPeerStore(shard.ID))
 			} else {
 				storeID := r.selectStore(&shard)
-				doFunc(&shard, r.mustGetStore(storeID).ClientAddr)
+				doFunc(&shard, r.mustGetStore(storeID))
 			}
 		}
 
