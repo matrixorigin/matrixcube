@@ -321,9 +321,9 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 	var shards []uint64
 	var forwards []string
 	max := after
-	s.shardsProxy.Router().Every(group, mustLeader, func(shard *bhmetapb.Shard, store string) {
+	s.shardsProxy.Router().Every(group, mustLeader, func(shard *bhmetapb.Shard, store bhmetapb.Store) {
 		id := shard.ID
-		if store == "" {
+		if store.ClientAddr == "" {
 			err = fmt.Errorf("missing forward store of shard %d", id)
 			return
 		}
@@ -334,7 +334,7 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 
 		if id > after {
 			shards = append(shards, id)
-			forwards = append(forwards, store)
+			forwards = append(forwards, store.ClientAddr)
 		}
 	})
 	return max, shards, forwards, err
