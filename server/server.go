@@ -389,9 +389,9 @@ func (s *Application) retryForward(arg interface{}) {
 	req := arg.(*raftcmdpb.Request)
 	to := ""
 	if req.AllowFollower {
-		to = s.shardsProxy.Router().RandomPeerAddress(req.ToShard)
+		to = s.shardsProxy.Router().RandomPeerStore(req.ToShard).ClientAddr
 	} else {
-		to = s.shardsProxy.Router().LeaderAddress(req.ToShard)
+		to = s.shardsProxy.Router().LeaderPeerStore(req.ToShard).ClientAddr
 	}
 
 	err := s.shardsProxy.DispatchTo(req, req.ToShard, to)

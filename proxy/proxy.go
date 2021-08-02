@@ -184,9 +184,9 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 
 	to := ""
 	if req.AllowFollower {
-		to = p.router.RandomPeerAddress(req.ToShard)
+		to = p.router.RandomPeerStore(req.ToShard).ClientAddr
 	} else {
-		to = p.router.LeaderAddress(req.ToShard)
+		to = p.router.LeaderPeerStore(req.ToShard).ClientAddr
 	}
 
 	p.DispatchTo(&req, req.ToShard, to)
