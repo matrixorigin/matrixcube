@@ -39,10 +39,10 @@ type Router interface {
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard *bhmetapb.Shard) bool)
 
-	// LeaderAddress return leader peer store address
-	LeaderAddress(uint64) string
-	// RandomPeerAddress return random peer store address
-	RandomPeerAddress(uint64) string
+	// LeaderStore return leader peer store
+	LeaderPeerStore(shardID uint64) bhmetapb.Store
+	// RandomPeerStore return random peer store
+	RandomPeerStore(shardID uint64) bhmetapb.Store
 
 	// GetShardStats returns the runtime stats info of the shard
 	GetShardStats(id uint64) *metapb.ResourceStats
@@ -66,8 +66,8 @@ type defaultRouter struct {
 	eventTaskID uint64
 
 	keyRanges                 sync.Map // group id -> *util.ShardTree
-	leaders                   sync.Map // shard id -> leader peer store address string
-	stores                    sync.Map // store id -> metapb.Store
+	leaders                   sync.Map // shard id -> leader peer store
+	stores                    sync.Map // store id -> metapb.Store metadata
 	shards                    sync.Map // shard id -> metapb.Shard
 	missingStoreLeaderChanged sync.Map //
 	opts                      sync.Map // shard id -> *op
@@ -107,7 +107,7 @@ func (r *defaultRouter) Start() error {
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
 	shard := r.searchShard(group, key)
-	return shard.ID, r.LeaderAddress(shard.ID)
+	return shard.ID, r.LeaderPeerStore(shard.ID).ClientAddr
 }
 
 func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*bhmetapb.Shard, string)) {
@@ -115,7 +115,7 @@ func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*bhmeta
 		shard := value.(bhmetapb.Shard)
 		if shard.Group == group {
 			if mustLeader {
-				doFunc(&shard, r.LeaderAddress(shard.ID))
+				doFunc(&shard, r.LeaderPeerStore(shard.ID).ClientAddr)
 			} else {
 				storeID := r.selectStore(&shard)
 				doFunc(&shard, r.mustGetStore(storeID).ClientAddr)
@@ -137,21 +137,21 @@ func (r *defaultRouter) ForeachShards(group uint64, fn func(shard *bhmetapb.Shar
 	})
 }
 
-func (r *defaultRouter) LeaderAddress(id uint64) string {
-	if value, ok := r.leaders.Load(id); ok {
-		return value.(string)
+func (r *defaultRouter) LeaderPeerStore(shardID uint64) bhmetapb.Store {
+	if value, ok := r.leaders.Load(shardID); ok {
+		return value.(bhmetapb.Store)
 	}
 
-	return ""
+	return bhmetapb.Store{}
 }
 
-func (r *defaultRouter) RandomPeerAddress(id uint64) string {
-	if value, ok := r.shards.Load(id); ok {
+func (r *defaultRouter) RandomPeerStore(shardID uint64) bhmetapb.Store {
+	if value, ok := r.shards.Load(shardID); ok {
 		shard := value.(bhmetapb.Shard)
-		return r.mustGetStore(r.selectStore(&shard)).ClientAddr
+		return r.mustGetStore(r.selectStore(&shard))
 	}
 
-	return ""
+	return bhmetapb.Store{}
 }
 
 func (r *defaultRouter) GetShardStats(id uint64) *metapb.ResourceStats {
@@ -285,7 +285,7 @@ func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 	for _, p := range shard.Peers {
 		if p.ID == leader {
 			r.missingStoreLeaderChanged.Delete(shardID)
-			r.leaders.Store(shard.ID, r.mustGetStore(p.ContainerID).ClientAddr)
+			r.leaders.Store(shard.ID, r.mustGetStore(p.ContainerID))
 			return
 		}
 	}
