@@ -460,16 +460,10 @@ func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminReq
 }
 
 func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
-	req := &raftcmdpb.AdminRequest{
+	return &raftcmdpb.AdminRequest{
 		CmdType: raftcmdpb.AdminCmdType_TransferLeader,
 		TransferLeader: &raftcmdpb.TransferLeaderRequest{
 			Peer: rsp.TransferLeader.Peer,
 		},
 	}
-
-	req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
-		ChangeType: rsp.ChangePeer.ChangeType,
-		Peer:       rsp.ChangePeer.Peer,
-	})
-	return req
 }
