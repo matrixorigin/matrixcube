@@ -337,7 +337,7 @@ func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	err := os.MkdirAll(path, os.ModeDir)
+	err := os.MkdirAll(path, 0755)
 	if err != nil {
 		return err
 	}

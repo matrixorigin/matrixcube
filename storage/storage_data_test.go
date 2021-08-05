@@ -38,7 +38,7 @@ func createDataMem(t *testing.T) DataStorage {
 func createDataPebble(t *testing.T) DataStorage {
 	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
-	os.MkdirAll(path, os.ModeDir)
+	os.MkdirAll(path, 0755)
 	s, err := pebble.NewStorage(path)
 	assert.NoError(t, err, "createDataPebble failed")
 	return s
@@ -172,7 +172,7 @@ func TestCreateAndApply(t *testing.T) {
 
 			path := fmt.Sprintf("/tmp/%s-snap", name)
 			os.RemoveAll(path)
-			err := os.MkdirAll(path, os.ModeDir)
+			err := os.MkdirAll(path, 0755)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
 			key1 := []byte("key1")
