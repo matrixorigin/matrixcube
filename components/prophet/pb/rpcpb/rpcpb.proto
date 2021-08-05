@@ -42,6 +42,12 @@ enum Type {
     TypePutPlacementRuleRsp   = 28;
     TypeGetAppliedRulesReq    = 29;
     TypeGetAppliedRulesRsp    = 30;
+    TypeCreateJobReq          = 31;
+    TypeCreateJobRsp          = 32;
+    TypeRemoveJobReq          = 33;
+    TypeRemoveJobRsp          = 34;
+    TypeExecuteJobReq         = 35;
+    TypeExecuteJobRsp         = 36;
 }
 
 // Request the prophet rpc request
@@ -64,6 +70,9 @@ message Request {
     CheckResourceStateReq checkResourceState = 16 [(gogoproto.nullable) = false];
     PutPlacementRuleReq   putPlacementRule   = 17 [(gogoproto.nullable) = false];
     GetAppliedRulesReq    getAppliedRules    = 18 [(gogoproto.nullable) = false];
+    CreateJobReq          createJob          = 19 [(gogoproto.nullable) = false];
+    RemoveJobReq          removeJob          = 20 [(gogoproto.nullable) = false];
+    ExecuteJobReq         executeJob         = 21 [(gogoproto.nullable) = false];
 }
 
 // Response the prophet rpc response
@@ -87,6 +96,9 @@ message Response {
     CheckResourceStateRsp checkResourceState = 17 [(gogoproto.nullable) = false];
     PutPlacementRuleRsp   putPlacementRule   = 18 [(gogoproto.nullable) = false];
     GetAppliedRulesRsp    getAppliedRules    = 19 [(gogoproto.nullable) = false];
+    CreateJobRsp          createJob          = 20 [(gogoproto.nullable) = false];
+    RemoveJobRsp          removeJob          = 21 [(gogoproto.nullable) = false];
+    ExecuteJobRsp         executeJob         = 22 [(gogoproto.nullable) = false];
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -268,6 +280,37 @@ message GetAppliedRulesReq {
 // GetAppliedRulesRsp get applied rules rsp
 message GetAppliedRulesRsp {
     repeated PlacementRule rules = 1 [(gogoproto.nullable) = false];
+}
+
+// CreateJobReq create job req
+message CreateJobReq {
+    metapb.Job job = 1 [(gogoproto.nullable) = false];
+}
+
+// CreateJobRsp create job rsp
+message CreateJobRsp {
+
+}
+
+// RemoveJobReq Remove job req
+message RemoveJobReq {
+    metapb.Job job = 1 [(gogoproto.nullable) = false];
+}
+
+// RemoveJobRsp Remove job rsp
+message RemoveJobRsp {
+
+}
+
+// ExecuteJobReq execute on job request
+message ExecuteJobReq {
+    metapb.Job job  = 1 [(gogoproto.nullable) = false];
+    bytes      data = 2;
+}
+
+// ExecuteJobRsp execute on job response
+message ExecuteJobRsp {
+    bytes      data = 1;
 }
 
 // EventNotify event notify
