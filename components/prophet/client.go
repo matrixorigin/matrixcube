@@ -22,6 +22,7 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/pilosa/pilosa/roaring"
@@ -74,6 +75,13 @@ type Client interface {
 	PutPlacementRule(rule rpcpb.PlacementRule) error
 	// GetAppliedRules returns applied rules of the resource
 	GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error)
+
+	// CreateJob create job
+	CreateJob(metapb.Job) error
+	// RemoveJob remove job
+	RemoveJob(metapb.Job) error
+	// ExecuteJob execute on job and returns the execute result
+	ExecuteJob(metapb.Job, []byte) ([]byte, error)
 }
 
 type asyncClient struct {
@@ -453,6 +461,58 @@ func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) 
 	return rsp.GetAppliedRules.Rules, nil
 }
 
+func (c *asyncClient) CreateJob(job metapb.Job) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeCreateJobReq
+	req.CreateJob.Job = job
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *asyncClient) RemoveJob(job metapb.Job) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeRemoveJobReq
+	req.RemoveJob.Job = job
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *asyncClient) ExecuteJob(job metapb.Job, data []byte) ([]byte, error) {
+	if !c.running() {
+		return nil, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeExecuteJobReq
+	req.ExecuteJob.Job = job
+	req.ExecuteJob.Data = data
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.ExecuteJob.Data, nil
+}
+
 func (c *asyncClient) doClose() {
 	c.cancel()
 	close(c.resourceHeartbeatRspC)
@@ -484,10 +544,6 @@ func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
 
 	if ctx.err != nil {
 		return nil, ctx.err
-	}
-
-	if ctx.resp.Error != "" {
-		return nil, errors.New(ctx.resp.Error)
 	}
 
 	return ctx.resp, nil
@@ -572,7 +628,7 @@ func (c *asyncClient) readLoop() {
 						msg)
 					resp := msg.(*rpcpb.Response)
 					if resp.Type == rpcpb.TypeResourceHeartbeatRsp && resp.Error == "" && resp.ResourceHeartbeat.ResourceID > 0 {
-						util.GetLogger().Infof("resource hb resp %+v added",
+						util.GetLogger().Debugf("resource hb resp %+v added",
 							resp.ResourceHeartbeat)
 						c.resourceHeartbeatRspC <- resp.ResourceHeartbeat
 						continue
@@ -586,7 +642,11 @@ func (c *asyncClient) readLoop() {
 						}
 
 						c.contexts.Delete(resp.ID)
-						v.(*ctx).done(resp, nil)
+						if resp.Error != "" {
+							v.(*ctx).done(nil, errors.New(resp.Error))
+						} else {
+							v.(*ctx).done(resp, nil)
+						}
 					}
 				}
 			}

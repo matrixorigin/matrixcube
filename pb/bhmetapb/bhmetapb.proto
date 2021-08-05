@@ -50,3 +50,47 @@ message Store {
     string                deployPath          = 10;
     bool                  physicallyDestroyed = 11;
 }
+
+// ShardsPool shards pool
+message ShardsPool {
+    map<uint64, ShardPool> pools = 1;
+}
+
+// ShardPool shard pool
+message ShardPool {
+    uint64          capacity                = 1;
+    bytes           rangePrefix             = 2;
+    repeated AllocatedShard allocatedShards = 3;
+    uint64          seq                     = 4;
+    uint64          allocatedOffset         = 5;
+}
+
+// AllocatedShard allocated shard info
+message AllocatedShard {
+    uint64 shardID     = 1;
+    uint64 allocatedAt = 2;
+    bytes  purpose     = 3;
+}
+
+// ShardsPoolCmdType shards pool cmd
+enum ShardsPoolCmdType {
+    CreateShard = 0;
+    AllocShard  = 1;
+}
+
+// ShardsPoolCmd shards pool cmd
+message ShardsPoolCmd {
+    ShardsPoolCmdType   type   = 1;
+    ShardsPoolCreateCmd create = 2;
+    ShardsPoolAllocCmd  alloc  = 3;
+}
+
+// ShardsPoolCreateCmd shards pool create cmd
+message ShardsPoolCreateCmd {
+}
+
+// ShardsPoolAllocCmd shards pool create cmd
+message ShardsPoolAllocCmd {
+    uint64 group   = 1;
+    bytes  purpose = 2;
+}

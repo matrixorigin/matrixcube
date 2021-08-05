@@ -155,6 +155,24 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
+	case rpcpb.TypeCreateJobReq:
+		resp.Type = rpcpb.TypeCreateJobRsp
+		err := p.handleCreateJob(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeRemoveJobReq:
+		resp.Type = rpcpb.TypeCreateJobRsp
+		err := p.handleRemoveJob(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeExecuteJobReq:
+		resp.Type = rpcpb.TypeExecuteJobRsp
+		err := p.handleExecuteJob(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
 	default:
 		return fmt.Errorf("type %s not support", req.Type.String())
 	}

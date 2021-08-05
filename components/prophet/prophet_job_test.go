@@ -19,54 +19,115 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestJobTask(t *testing.T) {
-	jobs := make(map[string]string)
-	cb := func(k, v []byte) {
-		jobs[string(k)] = string(v)
+type testJobProcessor struct {
+	sync.Mutex
+	starts  map[metapb.JobType]metapb.Job
+	stops   map[metapb.JobType]metapb.Job
+	removes map[metapb.JobType]metapb.Job
+}
+
+func newTestJobProcessor() *testJobProcessor {
+	return &testJobProcessor{
+		starts:  make(map[metapb.JobType]metapb.Job),
+		stops:   make(map[metapb.JobType]metapb.Job),
+		removes: make(map[metapb.JobType]metapb.Job),
 	}
-	cluster := newTestClusterProphet(t, 3, func(c *config.Config) {
-		c.JobCheckerDuration = time.Second
-		c.JobHandler = cb
-	})
+}
+
+func (p *testJobProcessor) Start(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.starts[job.Type] = job
+	delete(p.stops, job.Type)
+}
+
+func (p *testJobProcessor) Stop(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.stops[job.Type] = job
+	delete(p.starts, job.Type)
+}
+
+func (p *testJobProcessor) Remove(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.removes[job.Type] = job
+}
+
+func (p *testJobProcessor) Execute([]byte, storage.JobStorage, config.ResourcesAware) ([]byte, error) {
+	return nil, nil
+}
+
+func TestStartAndStopAndRemoveJobs(t *testing.T) {
+	cluster := newTestClusterProphet(t, 3, nil)
 	defer func() {
 		for _, p := range cluster {
 			p.Stop()
 		}
 	}()
 
-	assert.NoError(t, cluster[1].GetStorage().PutJob([]byte("k1"), []byte("v1")))
-	assert.NoError(t, cluster[1].GetStorage().PutJob([]byte("k2"), []byte("v2")))
-	assert.NoError(t, cluster[1].GetStorage().PutJob([]byte("k3"), []byte("v3")))
+	jp := newTestJobProcessor()
+	config.RegisterJobProcessor(metapb.JobType(1), jp)
+	config.RegisterJobProcessor(metapb.JobType(2), jp)
+	config.RegisterJobProcessor(metapb.JobType(3), jp)
 
-	time.Sleep(time.Second * 2)
-	assert.Equal(t, 3, len(jobs))
-	assert.Equal(t, "v1", jobs["k1"])
-	assert.Equal(t, "v2", jobs["k2"])
-	assert.Equal(t, "v3", jobs["k3"])
-}
+	p := cluster[0].(*defaultProphet)
+	rc := p.GetRaftCluster()
 
-func TestJobTaskRestart(t *testing.T) {
-	p := newTestSingleProphet(t, func(c *config.Config) {
-		c.JobCheckerDuration = time.Second
-		c.JobHandler = func(k, v []byte) {}
-		c.TestCtx = &sync.Map{}
-	})
-	defer p.Stop()
+	assert.NoError(t, p.handleCreateJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+	assert.NoError(t, p.handleCreateJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+	assert.NoError(t, p.handleCreateJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
 
+	assert.Equal(t, 3, len(jp.starts))
+	assert.Equal(t, 0, len(jp.stops))
+
+	p.stopJobs()
 	time.Sleep(time.Second)
-	v, _ := p.GetConfig().TestCtx.Load("jobTask")
-	assert.Equal(t, "started", v)
+	assert.Equal(t, 3, len(jp.stops))
+	assert.Equal(t, 0, len(jp.starts))
 
-	p.(*defaultProphet).stopJobTask()
+	jp = newTestJobProcessor()
+	config.RegisterJobProcessor(metapb.JobType(1), jp)
+	config.RegisterJobProcessor(metapb.JobType(2), jp)
+	config.RegisterJobProcessor(metapb.JobType(3), jp)
+	p.startJobs()
 	time.Sleep(time.Second)
-	v, _ = p.GetConfig().TestCtx.Load("jobTask")
-	assert.Equal(t, "stopped", v)
+	assert.Equal(t, 3, len(jp.starts))
+	assert.Equal(t, 0, len(jp.stops))
 
-	p.(*defaultProphet).startJobTask()
-	time.Sleep(time.Second)
-	v, _ = p.GetConfig().TestCtx.Load("jobTask")
-	assert.Equal(t, "started", v)
+	jp = newTestJobProcessor()
+	config.RegisterJobProcessor(metapb.JobType(1), jp)
+	config.RegisterJobProcessor(metapb.JobType(2), jp)
+	config.RegisterJobProcessor(metapb.JobType(3), jp)
+	assert.NoError(t, p.handleRemoveJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+	assert.NoError(t, p.handleRemoveJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+	assert.NoError(t, p.handleRemoveJob(rc,
+		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
+		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+	assert.Equal(t, 0, len(jp.removes))
 }
