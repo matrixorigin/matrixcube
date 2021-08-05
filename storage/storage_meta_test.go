@@ -39,7 +39,7 @@ func createMem(t *testing.T) MetadataStorage {
 func createPebble(t *testing.T) MetadataStorage {
 	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
 	os.RemoveAll(path)
-	os.MkdirAll(path, os.ModeDir)
+	os.MkdirAll(path, 0755)
 	s, err := pebble.NewStorage(path)
 	assert.NoError(t, err, "createPebble failed")
 	return s
