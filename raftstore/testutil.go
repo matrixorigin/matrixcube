@@ -33,7 +33,7 @@ import (
 
 func recreateTestTempDir(tmpDir string) {
 	os.RemoveAll(tmpDir)
-	os.MkdirAll(tmpDir, os.ModeDir)
+	os.MkdirAll(tmpDir, 0755)
 }
 
 // NewTestClusterStore create test cluster with 3 nodes
