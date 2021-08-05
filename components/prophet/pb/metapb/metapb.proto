@@ -30,7 +30,7 @@ enum ContainerState {
     Tombstone = 2;
 }
 
-// State the resource state
+// ResourceState the resource state
 enum ResourceState {
     // Running is serve state
     Running        = 0;
@@ -73,6 +73,26 @@ enum OperatorStatus {
 	RUNNING = 4;
 }
 
+// JobType job type
+enum JobType {
+    // RemoveResource remove resource job
+    RemoveResource = 0;
+    // CreateResourcePool create resource pool
+    CreateResourcePool = 1;
+    // CustomStartAt custom job
+	CustomStartAt = 100;
+}
+
+// JobState job state
+enum JobState {
+    // Created wait to running
+    Created = 0;
+    // Working job is working
+    Working = 1;
+    // Completed job completed, need to gc
+	Completed = 2;
+}
+
 // ResourceEpoch resource epoch
 message ResourceEpoch {
     // Conf change version, auto increment when add or remove peer
@@ -98,12 +118,6 @@ message PeerStats {
 message Pair {
     string key   = 1;
     string value = 2;
-}
-
-// Timestamp tso timestamp
-message Timestamp {
-    int64 physical = 1;
-    int64 logical  = 2;
 }
 
 // ResourceStats resource stats
@@ -195,8 +209,27 @@ message TimeInterval {
     uint64 end   = 2;
 }
 
+// Job job 
+message Job {
+    JobType type    = 1;
+    bytes   content = 2;
+    JobState state  = 3;
+}
+
 // RemoveResourceJob remove resources job
 message RemoveResourceJob {
-             uint64 id  = 1 [(gogoproto.customname) = "ID"];
-    repeated Peer peers = 2 [(gogoproto.nullable) = false];
+    uint64        resourceID = 1 [(gogoproto.customname) = "ID"];
+    repeated Peer peers      = 2 [(gogoproto.nullable) = false];
+}
+
+// ResourcePoolJob resource pool job
+message ResourcePoolJob {
+    repeated ResourcePool pools = 1 [(gogoproto.nullable) = false];
+}
+
+// ResourcePool resource pool
+message ResourcePool {
+    uint64 group       = 1;
+    uint64 capacity    = 2;
+    bytes  rangePrefix = 3;
 }

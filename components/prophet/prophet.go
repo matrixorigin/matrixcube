@@ -61,11 +61,11 @@ type Prophet interface {
 	GetConfig() *config.Config
 	// GetClusterID return cluster id
 	GetClusterID() uint64
+	// GetBasicCluster returns basic cluster
+	GetBasicCluster() *core.BasicCluster
 }
 
 type defaultProphet struct {
-	sync.Mutex
-
 	ctx            context.Context
 	cancel         context.CancelFunc
 	cfg            *config.Config
@@ -93,8 +93,10 @@ type defaultProphet struct {
 	clientOnce sync.Once
 
 	// job task ctx
-	jobCtx    context.Context
-	jobCancel context.CancelFunc
+	jobMu struct {
+		sync.RWMutex
+		jobs map[metapb.JobType]metapb.Job
+	}
 }
 
 // NewProphet returns a prophet instance
@@ -139,6 +141,7 @@ func NewProphet(cfg *config.Config) Prophet {
 	p.member = member.NewMember(etcdClient, etcd, elector, cfg.StorageNode, p.enableLeader, p.disableLeader)
 	p.runner = task.NewRunner()
 	p.completeC = make(chan struct{})
+	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
 	return p
 }
 

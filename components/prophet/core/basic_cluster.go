@@ -62,12 +62,20 @@ func (bc *BasicCluster) AddWaittingCreateResources(resources ...metadata.Resourc
 }
 
 // ForeachWaittingCreateResources do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateResources(do func(res metadata.Resource)) {
+func (bc *BasicCluster) ForeachWaittingCreateResources(fn func(res metadata.Resource)) {
 	bc.RLock()
 	defer bc.RUnlock()
 	for _, res := range bc.WaittingCreateResources {
-		do(res)
+		fn(res)
 	}
+}
+
+// ForeachResources foreach resources by group
+func (bc *BasicCluster) ForeachResources(group uint64, fn func(res metadata.Resource)) {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	bc.Resources.ForeachResources(group, fn)
 }
 
 // IsWaittingCreateResource returns true means the resource is waitting create
@@ -392,12 +400,11 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 
 // CheckAndPutResource checks if the resource is valid to put,if valid then put.
 func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
-	if res.Meta.State() == metapb.ResourceState_Removed {
+	switch res.Meta.State() {
+	case metapb.ResourceState_Removed:
 		bc.AddRemovedResources(res.Meta.ID())
 		return nil
-	}
-
-	if res.Meta.State() == metapb.ResourceState_WaittingCreate {
+	case metapb.ResourceState_WaittingCreate:
 		bc.AddWaittingCreateResources(res.Meta)
 		return nil
 	}

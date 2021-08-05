@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -183,32 +184,6 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	assert.True(t, yes, "TestAlreadyBootstrapped failed")
 }
 
-func TestPutAndGetTimestamp(t *testing.T) {
-	stopC, port := mock.StartTestSingleEtcd(t)
-	defer close(stopC)
-
-	client := mock.NewEtcdClient(t, port)
-	defer client.Close()
-
-	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetTimestamp failed")
-	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
-	defer ls.Stop()
-
-	go ls.ElectionLoop(context.Background())
-	time.Sleep(time.Millisecond * 200)
-
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
-
-	now := time.Now()
-	assert.NoError(t, s.PutTimestamp(now), "TestPutAndGetTimestamp failed")
-
-	v, err := s.GetTimestamp()
-	assert.NoError(t, err, "TestPutAndGetTimestamp failed")
-
-	assert.Equal(t, now.Nanosecond(), v.Nanosecond(), "TestPutAndGetTimestamp failed")
-}
-
 func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
@@ -225,24 +200,23 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
-	assert.NoError(t, storage.PutJob([]byte("job1"), []byte("job1")))
-	assert.NoError(t, storage.PutJob([]byte("job2"), []byte("job2")))
-	assert.NoError(t, storage.PutJob([]byte("job3"), []byte("job3")))
-
-	var loadedValues [][]byte
-	assert.NoError(t, storage.LoadJobs(1, func(k, v []byte) {
-		loadedValues = append(loadedValues, k)
+	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}))
+	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}))
+	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}))
+	var loadedValues []metapb.Job
+	assert.NoError(t, storage.LoadJobs(1, func(job metapb.Job) {
+		loadedValues = append(loadedValues, job)
 	}))
 	assert.Equal(t, 3, len(loadedValues))
-	assert.Equal(t, []byte("job1"), loadedValues[0])
-	assert.NoError(t, storage.RemoveJob(loadedValues[0]))
-	assert.Equal(t, []byte("job2"), loadedValues[1])
-	assert.NoError(t, storage.RemoveJob(loadedValues[1]))
-	assert.Equal(t, []byte("job3"), loadedValues[2])
-	assert.NoError(t, storage.RemoveJob(loadedValues[2]))
+	assert.Equal(t, []byte("job1"), loadedValues[0].Content)
+	assert.NoError(t, storage.RemoveJob(loadedValues[0].Type))
+	assert.Equal(t, []byte("job2"), loadedValues[1].Content)
+	assert.NoError(t, storage.RemoveJob(loadedValues[1].Type))
+	assert.Equal(t, []byte("job3"), loadedValues[2].Content)
+	assert.NoError(t, storage.RemoveJob(loadedValues[2].Type))
 
 	c := 0
-	assert.NoError(t, storage.LoadJobs(1, func(k, v []byte) {
+	assert.NoError(t, storage.LoadJobs(1, func(job metapb.Job) {
 		c++
 	}))
 	assert.Equal(t, 0, c)

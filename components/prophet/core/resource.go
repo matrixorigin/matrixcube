@@ -560,6 +560,15 @@ func NewCachedResources(factory func() metadata.Resource) *CachedResources {
 	}
 }
 
+// ForeachResources foreach resource by group
+func (r *CachedResources) ForeachResources(group uint64, fn func(res metadata.Resource)) {
+	for _, res := range r.resources.m {
+		if res.Meta.Group() == group {
+			fn(res.Meta)
+		}
+	}
+}
+
 // GetResource returns the CachedResource with resourceID
 func (r *CachedResources) GetResource(resourceID uint64) *CachedResource {
 	res := r.resources.Get(resourceID)

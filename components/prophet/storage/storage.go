@@ -20,32 +20,33 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
-// Storage meta storage
-type Storage interface {
-	// KV return KV
-	KV() KV
+// JobStorage job  storage
+type JobStorage interface {
+	// PutJob puts the job metadata to the storage
+	PutJob(metapb.Job) error
+	// RemoveJob remove job from storage
+	RemoveJob(jobType metapb.JobType) error
+	// LoadJobs load all jobs
+	LoadJobs(limit int64, do func(metapb.Job)) error
 
-	// SaveConfig stores marshallable cfg to the configPath.
-	SaveConfig(cfg interface{}) error
-	// LoadConfig loads config from configPath then unmarshal it to cfg.
-	LoadConfig(cfg interface{}) (bool, error)
+	// PutJobData put job data
+	PutJobData(metapb.Job, []byte) error
+	// GetJobData  returns job data
+	GetJobData(metapb.Job) ([]byte, error)
+	// RemoveJobData removes job data
+	RemoveJobData(metapb.Job) error
+}
 
-	// SaveScheduleConfig saves the config of scheduler.
-	SaveScheduleConfig(scheduleName string, data []byte) error
-	// RemoveScheduleConfig removes the config of scheduler.
-	RemoveScheduleConfig(scheduleName string) error
-	// LoadScheduleConfig loads the config of scheduler.
-	LoadScheduleConfig(scheduleName string) (string, error)
-	// LoadAllScheduleConfig loads all schedulers' config.
-	LoadAllScheduleConfig() ([]string, []string, error)
-
+// RuleStorage rule storage
+type RuleStorage interface {
 	// PutRule puts the meta to the storage
 	PutRule(key string, rule interface{}) error
 	// LoadRules load all rules
@@ -59,7 +60,22 @@ type Storage interface {
 	RemoveRuleGroup(groupID string) error
 	// LoadResources load all rule groups
 	LoadRuleGroups(limit int64, f func(k, v string) error) error
+}
 
+// CustomDataStorage custom data storage
+type CustomDataStorage interface {
+	// PutCustomData puts the custom data to the storage
+	PutCustomData(key []byte, data []byte) error
+	// BatchPutCustomData batch puts the custom data to the storage
+	BatchPutCustomData(keys [][]byte, data [][]byte) error
+	// LoadCustomData load all custom data
+	LoadCustomData(limit int64, f func(k, v []byte) error) error
+	// RemoveCustomData remove custom data
+	RemoveCustomData(key []byte) error
+}
+
+// ResourceStorage resource storage
+type ResourceStorage interface {
 	// PutResource puts the meta to the storage
 	PutResource(meta metadata.Resource) error
 	// PutResources put resource in batch
@@ -70,7 +86,27 @@ type Storage interface {
 	GetResource(id uint64) (metadata.Resource, error)
 	// LoadResources load all resources
 	LoadResources(limit int64, do func(metadata.Resource)) error
+}
 
+// ConfigStorage  config storage
+type ConfigStorage interface {
+	// SaveConfig stores marshallable cfg to the configPath.
+	SaveConfig(cfg interface{}) error
+	// LoadConfig loads config from configPath then unmarshal it to cfg.
+	LoadConfig(cfg interface{}) (bool, error)
+
+	// SaveScheduleConfig saves the config of scheduler.
+	SaveScheduleConfig(scheduleName string, data []byte) error
+	// RemoveScheduleConfig removes the config of scheduler.
+	RemoveScheduleConfig(scheduleName string) error
+	// LoadScheduleConfig loads the config of scheduler.
+	LoadScheduleConfig(scheduleName string) (string, error)
+	// LoadAllScheduleConfig loads all schedulers' config.
+	LoadAllScheduleConfig() ([]string, []string, error)
+}
+
+// ContainerStorage container storage
+type ContainerStorage interface {
 	// PutContainer returns nil if container is add or update succ
 	PutContainer(meta metadata.Container) error
 	// RemoveContainer remove container from storage
@@ -79,35 +115,31 @@ type Storage interface {
 	GetContainer(id uint64) (metadata.Container, error)
 	// LoadContainers load all containers
 	LoadContainers(limit int64, do func(meta metadata.Container, leaderWeight float64, resourceWeight float64)) error
-
 	//PutContainerWeight saves a container's leader and resource weight to storage.
 	PutContainerWeight(id uint64, leaderWeight, resourceWeight float64) error
+}
 
-	// PutTimestamp puts the timestamp to storage
-	PutTimestamp(time.Time) error
-	// GetTimestamp returns tso timestamp
-	GetTimestamp() (time.Time, error)
-
-	// PutJob puts the job metadata to the storage
-	PutJob(key []byte, data []byte) error
-	// RemoveJob remove job from storage
-	RemoveJob(key []byte) error
-	// LoadJobs load all jobs
-	LoadJobs(limit int64, do func(k, v []byte)) error
-
-	// PutCustomData puts the custom data to the storage
-	PutCustomData(key []byte, data []byte) error
-	// BatchPutCustomData batch puts the custom data to the storage
-	BatchPutCustomData(keys [][]byte, data [][]byte) error
-	// LoadCustomData load all custom data
-	LoadCustomData(limit int64, f func(k, v []byte) error) error
-	// RemoveCustomData remove custom data
-	RemoveCustomData(key []byte) error
-
+// ClusterStorage cluster storage
+type ClusterStorage interface {
 	// AlreadyBootstrapped returns the cluster was already bootstrapped
 	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
 	PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error)
+}
+
+// Storage meta storage
+type Storage interface {
+	JobStorage
+	CustomDataStorage
+	RuleStorage
+	ConfigStorage
+	ContainerStorage
+	ResourceStorage
+	ContainerStorage
+	ClusterStorage
+
+	// KV return KV storage
+	KV() KV
 }
 
 type storage struct {
@@ -115,7 +147,6 @@ type storage struct {
 	adapter                  metadata.Adapter
 	rootPath                 string
 	configPath               string
-	timestampPath            string
 	resourcePath             string
 	containerPath            string
 	rulePath                 string
@@ -124,6 +155,7 @@ type storage struct {
 	customScheduleConfigPath string
 	schedulePath             string
 	jobPath                  string
+	jobDataPath              string
 	customDataPath           string
 }
 
@@ -139,7 +171,6 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		adapter:                  adapter,
 		rootPath:                 rootPath,
 		configPath:               fmt.Sprintf("%s/config", rootPath),
-		timestampPath:            fmt.Sprintf("%s/timestamp", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
 		containerPath:            fmt.Sprintf("%s/containers", rootPath),
 		rulePath:                 fmt.Sprintf("%s/rules", rootPath),
@@ -148,6 +179,7 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		customScheduleConfigPath: fmt.Sprintf("%s/scheduler_config", rootPath),
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
 		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
+		jobDataPath:              fmt.Sprintf("%s/job-data", rootPath),
 		customDataPath:           fmt.Sprintf("%s/custom", rootPath),
 	}
 }
@@ -385,43 +417,42 @@ func (s *storage) PutContainerWeight(id uint64, leaderWeight, resourceWeight flo
 	return s.kv.Batch(batch)
 }
 
-func (s *storage) GetTimestamp() (time.Time, error) {
-	data, err := s.kv.Load(s.timestampPath)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if len(data) == 0 {
-		return time.Time{}, nil
-	}
-
-	nano, err := format.BytesToUint64([]byte(data))
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return time.Unix(0, int64(nano)), nil
+func (s *storage) PutJob(job metapb.Job) error {
+	return s.kv.Save(s.jobKey(job.Type),
+		string(protoc.MustMarshal(&job)))
 }
 
-func (s *storage) PutTimestamp(ts time.Time) error {
-	data := format.Uint64ToBytes(uint64(ts.UnixNano()))
-	return s.kv.Save(s.timestampPath, string(data))
+func (s *storage) RemoveJob(jobType metapb.JobType) error {
+	b := &Batch{}
+	b.RemoveKeys = append(b.RemoveKeys, s.jobKey(jobType))
+	b.RemoveKeys = append(b.RemoveKeys, s.jobDataKey(jobType))
+	return s.kv.Batch(b)
 }
 
-func (s *storage) PutJob(key []byte, data []byte) error {
-	return s.kv.SaveWithoutLeader(path.Join(s.jobPath, string(key)), string(data))
-}
-
-func (s *storage) RemoveJob(key []byte) error {
-	return s.kv.RemoveWithoutLeader(path.Join(s.jobPath, string(key)))
-}
-
-func (s *storage) LoadJobs(limit int64, do func(k, v []byte)) error {
+func (s *storage) LoadJobs(limit int64, fn func(metapb.Job)) error {
 	return s.LoadRangeByPrefix(limit, s.jobPath+"/", func(k, v string) error {
-		_, f := path.Split(string(k))
-		do([]byte(f), []byte(v))
+		job := metapb.Job{}
+		protoc.MustUnmarshal(&job, []byte(v))
+		fn(job)
 		return nil
 	})
+}
+
+func (s *storage) PutJobData(job metapb.Job, data []byte) error {
+	return s.kv.Save(s.jobDataKey(job.Type), string(data))
+}
+
+func (s *storage) GetJobData(job metapb.Job) ([]byte, error) {
+	v, err := s.kv.Load(s.jobDataKey(job.Type))
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(v), nil
+}
+
+func (s *storage) RemoveJobData(job metapb.Job) error {
+	return s.kv.Remove(s.jobDataKey(job.Type))
 }
 
 func (s *storage) PutCustomData(key []byte, data []byte) error {
@@ -513,4 +544,12 @@ func (s *storage) loadFloatWithDefaultValue(path string, def float64) (float64, 
 
 func (s *storage) containerWeightPath(id uint64, typ string) string {
 	return path.Join(s.schedulePath, "weight", fmt.Sprintf("%020d", id), typ)
+}
+
+func (s *storage) jobKey(jobType metapb.JobType) string {
+	return path.Join(s.jobPath, string(format.UInt64ToString(uint64(jobType))))
+}
+
+func (s *storage) jobDataKey(jobType metapb.JobType) string {
+	return path.Join(s.jobDataPath, string(format.UInt64ToString(uint64(jobType))))
 }

@@ -54,8 +54,6 @@ type Config struct {
 
 	Handler                         metadata.RoleChangeHandler
 	Adapter                         metadata.Adapter
-	JobHandler                      func(k, v []byte)
-	JobCheckerDuration              time.Duration
 	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
 	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor
 

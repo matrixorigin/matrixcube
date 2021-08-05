@@ -33,7 +33,7 @@ func (p *defaultProphet) enableLeader() error {
 	p.initClient()
 	p.createEventNotifer()
 	p.notifyElectionComplete()
-	p.startJobTask()
+	p.startJobs()
 	p.startCustom()
 	p.cfg.Handler.ProphetBecomeLeader()
 	return nil
@@ -46,7 +46,7 @@ func (p *defaultProphet) disableLeader() error {
 	p.stopRaftCluster()
 	p.stopEventNotifer()
 	p.notifyElectionComplete()
-	p.stopJobTask()
+	p.stopJobs()
 	p.stopCustom()
 	p.cfg.Handler.ProphetBecomeFollower()
 	return nil

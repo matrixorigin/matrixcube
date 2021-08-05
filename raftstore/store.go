@@ -83,6 +83,11 @@ type Store interface {
 	Prophet() prophet.Prophet
 	// CreateRPCCliendSideCodec returns the rpc codec at client side
 	CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder)
+
+	// CreateResourcePool create resource pools, the resource pool will create shards,
+	// and try to maintain the number of shards in the pool not less than the `capacity`
+	// parameter. This is an idempotent operation.
+	CreateResourcePool(...metapb.ResourcePool) (ShardsPool, error)
 }
 
 const (
@@ -126,6 +131,9 @@ type store struct {
 	eventWorkers    []map[uint64]int
 
 	aware aware.ShardStateAware
+
+	// shard pool processor
+	shardPool *dynamicShardsPool
 }
 
 // NewStore returns a raft store
@@ -138,6 +146,7 @@ func NewStore(cfg *config.Config) Store {
 		writeHandlers: make(map[uint64]command.WriteCommandFunc),
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
 		runner:        task.NewRunner(),
+		shardPool:     newDynamicShardsPool(),
 	}
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
@@ -348,6 +357,7 @@ func (s *store) startProphet() {
 	s.pd = prophet.NewProphet(&s.cfg.Prophet)
 	s.pd.Start()
 	<-s.pdStartedC
+	s.shardPool.setProphetClient(s.pd.GetClient())
 }
 
 func (s *store) startTransport() {
