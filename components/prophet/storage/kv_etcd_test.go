@@ -74,6 +74,7 @@ func TestEtcdKV(t *testing.T) {
 	keys, values, err = kv.LoadRange(key1, key3, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(keys))
+	assert.Equal(t, key1, keys[0])
 	assert.Equal(t, 1, len(values))
 	keys, values, err = kv.LoadRange(key1, key3, 3)
 	assert.NoError(t, err)
