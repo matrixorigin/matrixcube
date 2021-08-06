@@ -149,6 +149,7 @@ func (pr *peerReplica) propose(c cmd) {
 	if err != nil {
 		c.respOtherError(err)
 	}
+	pr.notifyWorker()
 }
 
 func (pr *peerReplica) execReadIndex(c cmd) {

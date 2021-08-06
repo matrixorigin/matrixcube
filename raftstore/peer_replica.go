@@ -240,6 +240,10 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	return pr, nil
 }
 
+func (pr *peerReplica) notifyWorker() {
+	pr.store.workReady.notify(pr.ps.shard.Group, pr.eventWorker)
+}
+
 func (pr *peerReplica) maybeCampaign() (bool, error) {
 	if len(pr.ps.shard.Peers) <= 1 {
 		// The peer campaigned when it was created, no need to do it again.

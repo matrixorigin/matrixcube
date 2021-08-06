@@ -121,6 +121,7 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 
 		metric.SetRaftTickQueueMetric(pr.ticks.Len())
 		pr.addEvent()
+		pr.notifyWorker()
 	}
 
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)

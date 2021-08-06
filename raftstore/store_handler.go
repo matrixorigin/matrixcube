@@ -96,8 +96,9 @@ func (s *store) onSnapshotMessage(msg *bhraftpb.SnapshotMessage) {
 
 			return err
 		}, nil)
+		// TODO (lni): probably don't need this
+		pr.notifyWorker()
 	}
-
 }
 
 func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
@@ -123,6 +124,7 @@ func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
 	s.peers.Store(msg.From.ID, msg.From)
 	pr := s.getPR(msg.ShardID, false)
 	pr.step(msg.Message)
+	pr.notifyWorker()
 }
 
 func (s *store) isRaftMsgValid(msg *bhraftpb.RaftMessage) bool {
