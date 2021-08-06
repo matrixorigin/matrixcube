@@ -129,6 +129,7 @@ type store struct {
 	allocWorkerLock sync.Mutex
 	applyWorkers    []map[string]int
 	eventWorkers    []map[uint64]int
+	workReady       *workReady
 
 	aware aware.ShardStateAware
 
@@ -146,6 +147,7 @@ func NewStore(cfg *config.Config) Store {
 		writeHandlers: make(map[uint64]command.WriteCommandFunc),
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
 		runner:        task.NewRunner(),
+		workReady:     newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
 		shardPool:     newDynamicShardsPool(),
 	}
 
@@ -400,18 +402,9 @@ func (s *store) startRaftWorkers() {
 func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 	logger.Infof("raft worker %d/%d start", g, id)
 
-	hasEvent := true
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof("raft worker worker %d/%d exit", g, id)
-			return
-		default:
-			if !hasEvent {
-				time.Sleep(time.Millisecond * 10)
-			}
-
-			hasEvent = false
+	run := func() {
+		for {
+			hasEvent := false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
 				if pr.eventWorker == id && pr.ps.shard.Group == g && pr.handleEvent() {
@@ -420,6 +413,28 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 
 				return true
 			})
+
+			if !hasEvent {
+				return
+			}
+		}
+	}
+
+	// TODO (lni): the ticker below is just for fool proof, remove this when all
+	// events are covered
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Infof("raft worker worker %d/%d exit", g, id)
+			return
+		case <-s.workReady.waitC(g, id):
+			run()
+		case <-ticker.C:
+			// just fool proof
+			// TODO (lni): remove this when all events are covered
+			run()
 		}
 	}
 }
