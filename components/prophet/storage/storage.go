@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -271,7 +272,7 @@ func (s *storage) LoadRangeByPrefix(limit int64, prefix string, f func(k, v stri
 		}
 
 		for i := range keys {
-			err := f(strings.TrimPrefix(keys[i], prefix), values[i])
+			err := f(filepath.Base(keys[i]), values[i])
 			if err != nil {
 				return err
 			}
@@ -476,8 +477,7 @@ func (s *storage) BatchPutCustomData(keys [][]byte, data [][]byte) error {
 
 func (s *storage) LoadCustomData(limit int64, do func(k, v []byte) error) error {
 	return s.LoadRangeByPrefix(limit, s.customDataPath+"/", func(k, v string) error {
-		_, f := path.Split(string(k))
-		do([]byte(f), []byte(v))
+		do([]byte(k), []byte(v))
 		return nil
 	})
 }
