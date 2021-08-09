@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -31,23 +33,71 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestClusterOption is the option for create TestCluster
+type TestClusterOption func(*testClusterOptions)
+
+type testClusterOptions struct {
+	tmpDir           string
+	nodes            int
+	recreate         bool
+	adjustConfigFunc func(node int, cfg *config.Config)
+	nodeStartFunc    func(node int, store Store)
+}
+
+func (opts *testClusterOptions) adjust() {
+	if opts.tmpDir == "" {
+		opts.tmpDir = "/tmp/cube"
+	}
+	if opts.nodes == 0 {
+		opts.nodes = 3
+	}
+}
+
+// WithTestClusterNodeStartFunc custom node start func
+func WithTestClusterNodeStartFunc(value func(node int, store Store)) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.nodeStartFunc = value
+	}
+}
+
+// WithTestClusterRecreate if true, the test cluster will clean and recreate the data dir
+func WithTestClusterRecreate(value bool) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.recreate = value
+	}
+}
+
+// WithTestClusterAdjustConfigFunc adjust config
+func WithTestClusterAdjustConfigFunc(value func(node int, cfg *config.Config)) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.adjustConfigFunc = value
+	}
+}
+
 func recreateTestTempDir(tmpDir string) {
 	os.RemoveAll(tmpDir)
 	os.MkdirAll(tmpDir, 0755)
 }
 
-// NewTestClusterStore create test cluster with 3 nodes
-func NewTestClusterStore(t *testing.T, tmpDir string, adjustFunc func(cfg *config.Config), initAttrsFunc func(int, *config.Config, Store, map[string]interface{}), startNodeFunc func(map[string]interface{})) *TestCluster {
-	if tmpDir == "" {
-		tmpDir = "/tmp/cube"
+// NewTestClusterStore create test cluster with 3 nodes, and the data dir is not empty
+func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
+	log.SetHighlighting(false)
+	log.SetLevelByString("error")
+	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
+	c := &TestRaftCluster{t: t, opts: &testClusterOptions{recreate: true}}
+	for _, opt := range opts {
+		opt(c.opts)
+	}
+	c.opts.adjust()
+
+	if c.opts.recreate {
+		recreateTestTempDir(c.opts.tmpDir)
 	}
 
-	recreateTestTempDir(tmpDir)
-	c := &TestCluster{t: t, startNodeFunc: startNodeFunc}
-	for i := 0; i < 3; i++ {
-		dataStorage := mem.NewStorage()
+	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
-		cfg.DataPath = fmt.Sprintf("%s/node-%d", tmpDir, i)
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
 		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
 		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
@@ -57,7 +107,7 @@ func NewTestClusterStore(t *testing.T, tmpDir string, adjustFunc func(cfg *confi
 		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
 		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
 		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
-		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 300)
 
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.StorageNode = true
@@ -70,31 +120,35 @@ func NewTestClusterStore(t *testing.T, tmpDir string, adjustFunc func(cfg *confi
 		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
 		cfg.Prophet.Schedule.EnableJointConsensus = true
 
-		cfg.Storage.MetaStorage = mem.NewStorage()
-		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
-			return dataStorage
-		}
-		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
-			cb(dataStorage)
+		if c.opts.adjustConfigFunc != nil {
+			c.opts.adjustConfigFunc(i, cfg)
 		}
 
-		if adjustFunc != nil {
-			adjustFunc(cfg)
+		if cfg.Storage.MetaStorage == nil {
+			cfg.Storage.MetaStorage = mem.NewStorage()
+		}
+		if cfg.Storage.DataStorageFactory == nil {
+			dataStorage := mem.NewStorage()
+			cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
+				return dataStorage
+			}
+			cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
+				cb(dataStorage)
+			}
+			c.storages = append(c.storages, dataStorage)
 		}
 
-		ts := newTestShardAware()
+		var wrapper aware.ShardStateAware
+		if cfg.Customize.CustomShardStateAwareFactory != nil {
+			wrapper = cfg.Customize.CustomShardStateAwareFactory()
+		}
+		ts := newTestShardAware(wrapper)
 		cfg.Customize.CustomShardStateAwareFactory = func() aware.ShardStateAware {
 			return ts
 		}
 
 		c.stores = append(c.stores, NewStore(cfg).(*store))
 		c.awares = append(c.awares, ts)
-		c.storages = append(c.storages, dataStorage)
-		c.attrs = append(c.attrs, make(map[string]interface{}))
-
-		if initAttrsFunc != nil {
-			initAttrsFunc(i, cfg, c.stores[i], c.attrs[i])
-		}
 	}
 
 	return c
@@ -103,6 +157,7 @@ func NewTestClusterStore(t *testing.T, tmpDir string, adjustFunc func(cfg *confi
 type testShardAware struct {
 	sync.RWMutex
 
+	wrapper aware.ShardStateAware
 	shards  []bhmetapb.Shard
 	leaders map[uint64]bool
 	applied map[uint64]int
@@ -110,8 +165,9 @@ type testShardAware struct {
 	removed map[uint64]bhmetapb.Shard
 }
 
-func newTestShardAware() *testShardAware {
+func newTestShardAware(wrapper aware.ShardStateAware) *testShardAware {
 	return &testShardAware{
+		wrapper: wrapper,
 		leaders: make(map[uint64]bool),
 		applied: make(map[uint64]int),
 		removed: make(map[uint64]bhmetapb.Shard),
@@ -181,6 +237,10 @@ func (ts *testShardAware) Created(shard bhmetapb.Shard) {
 
 	ts.shards = append(ts.shards, shard)
 	ts.leaders[shard.ID] = false
+
+	if ts.wrapper != nil {
+		ts.wrapper.Created(shard)
+	}
 }
 
 func (ts *testShardAware) Splited(shard bhmetapb.Shard) {
@@ -191,6 +251,10 @@ func (ts *testShardAware) Splited(shard bhmetapb.Shard) {
 		if ts.shards[idx].ID == shard.ID {
 			ts.shards[idx] = shard
 		}
+	}
+
+	if ts.wrapper != nil {
+		ts.wrapper.Splited(shard)
 	}
 }
 
@@ -207,6 +271,10 @@ func (ts *testShardAware) Destory(shard bhmetapb.Shard) {
 	ts.shards = newShards
 	delete(ts.leaders, shard.ID)
 	ts.removed[shard.ID] = shard
+
+	if ts.wrapper != nil {
+		ts.wrapper.Destory(shard)
+	}
 }
 
 func (ts *testShardAware) BecomeLeader(shard bhmetapb.Shard) {
@@ -214,6 +282,10 @@ func (ts *testShardAware) BecomeLeader(shard bhmetapb.Shard) {
 	defer ts.Unlock()
 
 	ts.leaders[shard.ID] = true
+
+	if ts.wrapper != nil {
+		ts.wrapper.BecomeLeader(shard)
+	}
 }
 
 func (ts *testShardAware) BecomeFollower(shard bhmetapb.Shard) {
@@ -221,6 +293,10 @@ func (ts *testShardAware) BecomeFollower(shard bhmetapb.Shard) {
 	defer ts.Unlock()
 
 	ts.leaders[shard.ID] = false
+
+	if ts.wrapper != nil {
+		ts.wrapper.BecomeFollower(shard)
+	}
 }
 
 func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
@@ -228,40 +304,74 @@ func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
 	defer ts.Unlock()
 
 	ts.applied[shard.ID]++
-}
 
-// TestCluster test cluster
-type TestCluster struct {
-	sync.RWMutex
-
-	t             *testing.T
-	stores        []*store
-	awares        []*testShardAware
-	storages      []*mem.Storage
-	attrs         []map[string]interface{}
-	startNodeFunc func(map[string]interface{})
-}
-
-// Start start the test cluster
-func (c *TestCluster) Start() {
-	for i, s := range c.stores {
-		if c.startNodeFunc == nil {
-			s.Start()
-		} else {
-			c.startNodeFunc(c.attrs[i])
-		}
+	if ts.wrapper != nil {
+		ts.wrapper.SnapshotApplied(shard)
 	}
 }
 
+// TestRaftCluster test cluster
+type TestRaftCluster struct {
+	sync.RWMutex
+
+	opts     *testClusterOptions
+	t        *testing.T
+	stores   []*store
+	awares   []*testShardAware
+	storages []*mem.Storage
+}
+
+// EveryStore do every store, it can be used to init some store register
+func (c *TestRaftCluster) EveryStore(fn func(i int, store Store)) {
+	for idx, store := range c.stores {
+		fn(idx, store)
+	}
+}
+
+// GetStore returns the node store
+func (c *TestRaftCluster) GetStore(node int) Store {
+	return c.stores[node]
+}
+
+// GetWatcher returns the node store router watcher
+func (c *TestRaftCluster) GetWatcher(node int) prophet.Watcher {
+	return c.stores[node].router.(*defaultRouter).watcher
+}
+
+// Start start the test raft cluster
+func (c *TestRaftCluster) Start() {
+	var wg sync.WaitGroup
+	for i, s := range c.stores {
+		wg.Add(1)
+		fn := func(i int) {
+			defer wg.Done()
+
+			if c.opts.nodeStartFunc != nil {
+				c.opts.nodeStartFunc(i, c.stores[i])
+			} else {
+				s.Start()
+			}
+		}
+
+		if c.opts.recreate {
+			fn(i)
+		} else {
+			go fn(i)
+		}
+	}
+
+	wg.Wait()
+}
+
 // Stop stop the test cluster
-func (c *TestCluster) Stop() {
+func (c *TestRaftCluster) Stop() {
 	for _, s := range c.stores {
 		s.Stop()
 	}
 }
 
 // GetPRCount returns peer replica count of node
-func (c *TestCluster) GetPRCount(nodeIndex int) int {
+func (c *TestRaftCluster) GetPRCount(nodeIndex int) int {
 	cnt := 0
 	c.stores[nodeIndex].replicas.Range(func(k, v interface{}) bool {
 		cnt++
@@ -270,8 +380,7 @@ func (c *TestCluster) GetPRCount(nodeIndex int) int {
 	return cnt
 }
 
-// Set set key, values to storage for all nodes
-func (c *TestCluster) Set(key, value []byte) {
+func (c *TestRaftCluster) set(key, value []byte) {
 	shard := c.GetShardByIndex(0)
 	for idx, s := range c.stores {
 		c.storages[idx].Set(key, value)
@@ -281,19 +390,19 @@ func (c *TestCluster) Set(key, value []byte) {
 }
 
 // GetShardByIndex returns the shard by index
-func (c *TestCluster) GetShardByIndex(index int) bhmetapb.Shard {
+func (c *TestRaftCluster) GetShardByIndex(index int) bhmetapb.Shard {
 	return c.awares[0].getShardByIndex(index)
 }
 
 // CheckShardCount check shard count
-func (c *TestCluster) CheckShardCount(t *testing.T, count int) {
+func (c *TestRaftCluster) CheckShardCount(t *testing.T, count int) {
 	for idx := range c.stores {
 		assert.Equal(t, count, c.GetPRCount(idx))
 	}
 }
 
 // CheckShardRange check shard range
-func (c *TestCluster) CheckShardRange(t *testing.T, index int, start, end []byte) {
+func (c *TestRaftCluster) CheckShardRange(t *testing.T, index int, start, end []byte) {
 	for idx := range c.stores {
 		shard := c.awares[idx].getShardByIndex(index)
 		assert.Equal(t, start, shard.Start)
@@ -302,28 +411,28 @@ func (c *TestCluster) CheckShardRange(t *testing.T, index int, start, end []byte
 }
 
 // WaitRemovedByShardID check whether the specific shard removed until timeout
-func (c *TestCluster) WaitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {
+func (c *TestRaftCluster) WaitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitRemovedByShardID(t, id, timeout)
 	}
 }
 
 // WaitShardByCount check whether the number of shards reaches a specific value until timeout
-func (c *TestCluster) WaitShardByCount(t *testing.T, count int, timeout time.Duration) {
+func (c *TestRaftCluster) WaitShardByCount(t *testing.T, count int, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(t, count, timeout)
 	}
 }
 
 // WaitShardByCounts check whether the number of shards reaches a specific value until timeout
-func (c *TestCluster) WaitShardByCounts(t *testing.T, counts [3]int, timeout time.Duration) {
+func (c *TestRaftCluster) WaitShardByCounts(t *testing.T, counts [3]int, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(t, counts[idx], timeout)
 	}
 }
 
 // WaitShardStateChangedTo check whether the state of shard changes to the specific value until timeout
-func (c *TestCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to metapb.ResourceState, timeout time.Duration) {
+func (c *TestRaftCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to metapb.ResourceState, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
@@ -341,22 +450,6 @@ func (c *TestCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to metapb
 }
 
 // GetProphet returns prophet
-func (c *TestCluster) GetProphet() prophet.Prophet {
+func (c *TestRaftCluster) GetProphet() prophet.Prophet {
 	return c.stores[0].pd
-}
-
-// GetAttr get node attr
-func (c *TestCluster) GetAttr(node int, attr string) interface{} {
-	c.RLock()
-	defer c.RUnlock()
-
-	return c.attrs[node][attr]
-}
-
-// SetAttr set node attr
-func (c *TestCluster) SetAttr(node int, attr string, value interface{}) {
-	c.Lock()
-	defer c.Unlock()
-
-	c.attrs[node][attr] = value
 }

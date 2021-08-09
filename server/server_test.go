@@ -14,154 +14,124 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/fagongzi/goetty/codec"
-	"github.com/matrixorigin/matrixcube/command"
+	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterStartAndStop(t *testing.T) {
-	c := raftstore.NewTestClusterStore(t, "", nil, func(node int, cfg *config.Config, store raftstore.Store, attrs map[string]interface{}) {
+	c, closer := createDiskDataStorageCluster(t)
+	defer closer()
+
+	c.RaftCluster.WaitShardByCount(t, 1, time.Second*10)
+
+	app := c.Applications[0]
+	resp, err := app.Exec(&testRequest{
+		Op:    "SET",
+		Key:   "key",
+		Value: "value",
+	}, 10*time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resp))
+
+	value, err := app.Exec(&testRequest{
+		Op:  "GET",
+		Key: "key",
+	}, 10*time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, "value", string(value))
+}
+
+func TestIssue81(t *testing.T) {
+	// issue 81, lost event notification after cluster restart
+	c, closer := createDiskDataStorageCluster(t)
+	app := c.Applications[0]
+	cmdSet := testRequest{
+		Op:    "SET",
+		Key:   "key",
+		Value: "value",
+	}
+	resp, err := app.Exec(&cmdSet, 10*time.Second)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resp))
+	closer()
+
+	// restart
+	fn := func(i int) {
+		c, closer := createDiskDataStorageCluster(t, raftstore.WithTestClusterRecreate(false))
+		defer closer()
+
+		st := time.Now()
+		app = c.Applications[0]
+		value, err := app.Exec(&testRequest{
+			Op:  "GET",
+			Key: "key",
+		}, 10*time.Second)
+		assert.NoErrorf(t, err, "cost %+v, %p", time.Since(st), c.RaftCluster.GetWatcher(0))
+		assert.Equal(t, "value", string(value))
+		if err != nil {
+			log.Fatalf("failed %d", i)
+		}
+	}
+
+	for i := 0; i < 20; i++ {
+		fn(i)
+	}
+}
+
+func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOption) (*TestApplicationCluster, func()) {
+	var storages []storage.DataStorage
+	var metaStorages []storage.MetadataStorage
+	opts = append(opts, raftstore.WithTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath))
+		assert.NoError(t, err)
+		storages = append(storages, s)
+		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
+			return s
+		}
+		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
+			for _, s := range storages {
+				cb(s)
+			}
+		}
+
+		sm, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-meta", cfg.DataPath))
+		assert.NoError(t, err)
+		cfg.Storage.MetaStorage = sm
+		metaStorages = append(metaStorages, sm)
+	}))
+
+	c := NewTestApplicationCluster(t, func(i int, store raftstore.Store) Cfg {
 		h := &testHandler{
 			store: store,
 		}
 		store.RegisterWriteFunc(1, h.set)
 		store.RegisterReadFunc(2, h.get)
-		attrs["app"] = NewApplication(Cfg{
-			Addr:    fmt.Sprintf("127.0.0.1:808%d", node),
+		return Cfg{
+			Addr:    fmt.Sprintf("127.0.0.1:808%d", i),
 			Store:   store,
 			Handler: h,
-		})
-	}, func(attrs map[string]interface{}) {
-		app := attrs["app"]
-		assert.NoError(t, app.(*Application).Start())
-	})
-	defer c.Stop()
+		}
+	}, opts...)
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.RaftCluster.WaitShardByCount(t, 1, time.Second*10)
+	return c, func() {
+		c.Stop()
+		for _, s := range storages {
+			assert.NoError(t, s.(*pebble.Storage).Close())
+		}
 
-	app := c.GetAttr(0, "app").(*Application)
-
-	cmdSet := testRequest{
-		Op:    "SET",
-		Key:   "hello",
-		Value: "world",
+		for _, s := range metaStorages {
+			assert.NoError(t, s.(*pebble.Storage).Close())
+		}
 	}
-	resp, err := app.Exec(&cmdSet, 10*time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resp))
-
-	cmdGet := testRequest{
-		Op:  "GET",
-		Key: "hello",
-	}
-	value, err := app.Exec(&cmdGet, 10*time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, value, []byte("world"))
-	println("QSQ: ", string(value))
-}
-
-type testRequest struct {
-	Op    string `json:"json:op"`
-	Key   string `json:"key"`
-	Value string `json:"value,omitempty"`
-}
-
-type testHandler struct {
-	store raftstore.Store
-}
-
-func (h *testHandler) BuildRequest(req *raftcmdpb.Request, msg interface{}) error {
-	cmd := msg.(*testRequest)
-
-	cmdName := strings.ToUpper(cmd.Op)
-
-	if cmdName != "SET" && cmdName != "GET" {
-		return fmt.Errorf("%s not support", cmd)
-	}
-
-	data, err := json.Marshal(cmd)
-	if err != nil {
-		return err
-	}
-
-	req.Key = []byte(cmd.Key)
-	switch cmdName {
-	case "SET":
-		req.CustemType = 1
-		req.Type = raftcmdpb.CMDType_Write
-	case "GET":
-		req.CustemType = 2
-		req.Type = raftcmdpb.CMDType_Read
-
-	}
-	req.Key = []byte(cmd.Key)
-	req.Cmd = data
-	return nil
-}
-
-func (h *testHandler) Codec() (codec.Encoder, codec.Decoder) {
-	return nil, nil
-}
-
-func (h *testHandler) AddReadFunc(cmdType uint64, cb command.ReadCommandFunc) {
-	h.store.RegisterReadFunc(cmdType, cb)
-}
-
-func (h *testHandler) AddWriteFunc(cmdType uint64, cb command.WriteCommandFunc) {
-	h.store.RegisterWriteFunc(cmdType, cb)
-}
-
-func (h *testHandler) set(shard bhmetapb.Shard, req *raftcmdpb.Request, ctx command.Context) (uint64, int64, *raftcmdpb.Response) {
-	resp := pb.AcquireResponse()
-
-	cmd := testRequest{}
-	err := json.Unmarshal(req.Cmd, &cmd)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return 0, 0, resp
-	}
-
-	err = ctx.WriteBatch().Set(req.Key, []byte(cmd.Value))
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return 0, 0, resp
-	}
-
-	writtenBytes := uint64(len(req.Key) + len(cmd.Value))
-	changedBytes := int64(writtenBytes)
-	resp.Value = []byte("OK")
-	return writtenBytes, changedBytes, resp
-}
-
-func (h *testHandler) get(shard bhmetapb.Shard, req *raftcmdpb.Request, ctx command.Context) (*raftcmdpb.Response, uint64) {
-	resp := pb.AcquireResponse()
-
-	cmd := testRequest{}
-	err := json.Unmarshal(req.Cmd, &cmd)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return resp, 0
-	}
-
-	value, err := h.store.DataStorageByGroup(0, 0).(storage.KVStorage).Get(req.Key)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return resp, 0
-	}
-
-	resp.Value = value
-	return resp, uint64(len(value))
 }

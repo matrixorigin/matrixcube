@@ -505,7 +505,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 				util.GetLogger().Infof("resource %d leader changed from container %d to container %d",
 					res.Meta.ID(),
 					origin.GetLeader().GetContainerID(),
-					origin.GetLeader().GetContainerID())
+					res.GetLeader().GetContainerID())
 			}
 			saveCache = true
 		}
@@ -620,7 +620,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		}
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
-	if saveKV {
+	if saveKV || saveCache || isNew {
 		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
 	}
 	if saveCache {

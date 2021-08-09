@@ -276,15 +276,6 @@ func (ls *Leadership) campaign() error {
 		util.GetLogger().Infof("%s/keepalive: get lock", ls.tag)
 	}
 
-	// if ls.elector.options.tso != nil {
-	// 	if err := ls.elector.options.tso.SyncTimestamp(l); err != nil {
-	// 		util.GetLogger().Error("sync timestamp failed with %+v", err)
-	// 		return err
-	// 	}
-
-	// 	defer ls.elector.options.tso.ResetTimestamp()
-	// }
-
 	if !ls.becomeLeader(ls.nodeValue) {
 		util.GetLogger().Infof("%s/keepalive: become leader func return false",
 			ls.tag)
@@ -300,8 +291,11 @@ func (ls *Leadership) campaign() error {
 		}
 	}()
 
-	// tsTicker := time.NewTicker(UpdateTimestampStep)
-	// defer tsTicker.Stop()
+	currentEtcdLeader := uint64(0)
+	if ls.elector.options.etcd != nil {
+		currentEtcdLeader = ls.elector.options.etcd.Server.Lead()
+	}
+
 	leaderTicker := time.NewTicker(leaderTickInterval)
 	defer leaderTicker.Stop()
 
@@ -315,20 +309,12 @@ func (ls *Leadership) campaign() error {
 			}
 
 			if ls.elector.options.etcd != nil {
-				etcdLeader := ls.elector.options.etcd.Server.Lead()
-				if etcdLeader != uint64(ls.elector.options.etcd.Server.ID()) {
+				if ls.elector.options.etcd.Server.Lead() != currentEtcdLeader {
 					util.GetLogger().Infof("%s/keepalive: exit with etcd leader changed",
 						ls.tag)
 					return nil
 				}
 			}
-		// case <-tsTicker.C:
-		// 	if ls.elector.options.tso != nil {
-		// 		if err = ls.elector.options.tso.UpdateTimestamp(); err != nil {
-		// 			util.GetLogger().Errorf("update timestamp failed with %+v", err)
-		// 			return err
-		// 		}
-		// 	}
 		case <-ls.elector.client.Ctx().Done():
 			util.GetLogger().Infof("%s/keepalive: exit with client context done",
 				ls.tag)

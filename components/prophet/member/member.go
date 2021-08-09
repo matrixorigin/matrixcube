@@ -155,7 +155,7 @@ func (m *Member) MemberInfo(name, addr string) {
 
 // IsLeader returns whether the server is prophet leader or not by checking its leadership's lease and leader info.
 func (m *Member) IsLeader() bool {
-	return m.leadership.Check() && m.GetLeader().Name == m.member.Name
+	return m.leadership.Check() && m.GetLeader().GetName() == m.member.Name
 }
 
 // Client etcd client

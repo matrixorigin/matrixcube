@@ -48,6 +48,9 @@ type Router interface {
 	GetShardStats(id uint64) *metapb.ResourceStats
 	// GetStoreStats returns the runtime stats info of the store
 	GetStoreStats(id uint64) *metapb.ContainerStats
+
+	// GetWatcher returns the prophet event watcher
+	GetWatcher() prophet.Watcher
 }
 
 type op struct {
@@ -69,7 +72,7 @@ type defaultRouter struct {
 	leaders                   sync.Map // shard id -> leader peer store
 	stores                    sync.Map // store id -> metapb.Store metadata
 	shards                    sync.Map // shard id -> metapb.Shard
-	missingStoreLeaderChanged sync.Map //
+	missingStoreLeaderChanged sync.Map // shard id -> ledaer peer id
 	opts                      sync.Map // shard id -> *op
 
 	shardStats sync.Map // shard id -> ResourceStats
@@ -93,6 +96,10 @@ func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(i
 		removedHandleFunc: removedHandleFunc,
 		createHandleFunc:  createHandleFunc,
 	}, nil
+}
+
+func (r *defaultRouter) GetWatcher() prophet.Watcher {
+	return r.watcher
 }
 
 func (r *defaultRouter) Start() error {
@@ -141,7 +148,7 @@ func (r *defaultRouter) LeaderPeerStore(shardID uint64) bhmetapb.Store {
 	if value, ok := r.leaders.Load(shardID); ok {
 		return value.(bhmetapb.Store)
 	}
-
+	logger.Debugf("shard %d missing leader", shardID)
 	return bhmetapb.Store{}
 }
 
@@ -189,7 +196,7 @@ func (r *defaultRouter) searchShard(group uint64, key []byte) bhmetapb.Shard {
 	if value, ok := r.keyRanges.Load(group); ok {
 		return value.(*util.ShardTree).Search(key)
 	}
-
+	logger.Debugf("missing group %d for key %+v", group, key)
 	return bhmetapb.Shard{}
 }
 

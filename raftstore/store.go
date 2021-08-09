@@ -511,6 +511,8 @@ func (s *store) startShards() {
 
 func (s *store) startTimerTasks() {
 	s.runner.RunCancelableTask(func(ctx context.Context) {
+		last := time.Now()
+
 		compactTicker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
 		defer compactTicker.Stop()
 
@@ -519,6 +521,12 @@ func (s *store) startTimerTasks() {
 
 		stateCheckTicker := time.NewTicker(s.cfg.Replication.ShardStateCheckDuration.Duration)
 		defer stateCheckTicker.Stop()
+
+		shardLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.ShardHeartbeatDuration.Duration)
+		defer shardLeaderheartbeatTicker.Stop()
+
+		storeLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
+		defer storeLeaderheartbeatTicker.Stop()
 
 		for {
 			select {
@@ -533,6 +541,11 @@ func (s *store) startTimerTasks() {
 				}
 			case <-stateCheckTicker.C:
 				s.handleShardStateCheck()
+			case <-shardLeaderheartbeatTicker.C:
+				s.doShardHeartbeat()
+			case <-storeLeaderheartbeatTicker.C:
+				s.doStoreHeartbeat(last)
+				last = time.Now()
 			}
 		}
 	})
