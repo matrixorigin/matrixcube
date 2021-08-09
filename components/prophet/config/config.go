@@ -48,19 +48,19 @@ type Config struct {
 	// Etcd only supports seconds TTL, so here is second too.
 	LeaderLease int64 `toml:"lease" json:"lease"`
 
-	Schedule      ScheduleConfig      `toml:"schedule"`
-	Replication   ReplicationConfig   `toml:"replication"`
-	LabelProperty LabelPropertyConfig `toml:"label-property"`
+	Schedule      ScheduleConfig      `toml:"schedule" json:"schedule"`
+	Replication   ReplicationConfig   `toml:"replication" json:"replication"`
+	LabelProperty LabelPropertyConfig `toml:"label-property" json:"label-property"`
 
-	Handler                         metadata.RoleChangeHandler
-	Adapter                         metadata.Adapter
-	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
-	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor
+	Handler                         metadata.RoleChangeHandler                                                      `toml:"-" json:"-"`
+	Adapter                         metadata.Adapter                                                                `toml:"-" json:"-"`
+	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState) `toml:"-" json:"-"`
+	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
 
 	// Only test can change them.
-	DisableStrictReconfigCheck bool
-	DisableResponse            bool
-	TestCtx                    *sync.Map
+	DisableStrictReconfigCheck bool      `toml:"-" json:"-"`
+	DisableResponse            bool      `toml:"-" json:"-"`
+	TestCtx                    *sync.Map `toml:"-" json:"-"`
 }
 
 // NewConfig creates a new config.
