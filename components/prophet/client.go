@@ -98,7 +98,7 @@ type asyncClient struct {
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	resetReadC            chan struct{}
-	resetLeaderConnC      chan string
+	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
 	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
 	allocIDC              chan uint64
@@ -110,8 +110,8 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		opts:                  &options{},
 		adapter:               adapter,
 		leaderConn:            createConn(),
-		resetReadC:            make(chan struct{}, 1),
-		resetLeaderConnC:      make(chan string, 1),
+		resetReadC:            make(chan struct{}),
+		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
 		resourceHeartbeatRspC: make(chan rpcpb.ResourceHeartbeatRsp, 128),
 		allocIDC:              make(chan uint64, 128),
@@ -129,7 +129,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 
 func (c *asyncClient) Close() error {
 	if atomic.CompareAndSwapInt32(&c.state, stateRunning, stateStopped) {
-		c.doClose()
+		c.writeC <- newCloseCtx()
 
 	}
 	return nil
@@ -523,13 +523,9 @@ func (c *asyncClient) doClose() {
 }
 
 func (c *asyncClient) start() {
-	err := c.initLeaderConn(c.leaderConn, "", time.Minute, true)
-	if err != nil {
-		util.GetLogger().Fatalf("connect to leader failed after 1 minute, error %+v", err)
-	}
-
-	go c.writeLoop()
 	go c.readLoop()
+	go c.writeLoop()
+	c.scheduleResetLeaderConn()
 	util.GetLogger().Infof("client started")
 }
 
@@ -559,6 +555,7 @@ func (c *asyncClient) do(ctx *ctx) {
 		c.contexts.Store(ctx.req.ID, ctx)
 		util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
 	}
+
 	c.writeC <- ctx
 }
 
@@ -566,19 +563,21 @@ func (c *asyncClient) timeout(arg interface{}) {
 	if v, ok := c.contexts.Load(arg); ok {
 		c.contexts.Delete(arg)
 		v.(*ctx).done(nil, ErrTimeout)
-		c.scheduleResetLeaderConn("")
 	}
 }
 
-func (c *asyncClient) scheduleResetLeaderConn(newLeader string) {
+func (c *asyncClient) scheduleResetLeaderConn() bool {
 	if atomic.LoadInt32(&c.state) != stateRunning {
-		return
+		return false
 	}
 
 	select {
-	case c.resetLeaderConnC <- newLeader:
-	default:
+	case c.resetLeaderConnC <- struct{}{}:
+		util.GetLogger().Debugf("client schedule reset leader conn")
+	case <-time.After(time.Second * 10):
+		util.GetLogger().Fatalf("BUG: client schedule reset leader conn")
 	}
+	return true
 }
 
 func (c *asyncClient) nextID() uint64 {
@@ -592,13 +591,17 @@ func (c *asyncClient) writeLoop() {
 			return
 		case ctx, ok := <-c.writeC:
 			if ok {
+				if ctx.close {
+					c.doClose()
+					return
+				}
+
 				c.doWrite(ctx)
 			}
-		case newLeader, ok := <-c.resetLeaderConnC:
+		case _, ok := <-c.resetLeaderConnC:
 			if ok {
-				if err := c.resetLeaderConn(newLeader); err != nil {
+				if err := c.resetLeaderConn(); err != nil {
 					util.GetLogger().Errorf("reset leader connection failed with %+v",
-						newLeader,
 						err)
 				}
 			}
@@ -607,26 +610,38 @@ func (c *asyncClient) writeLoop() {
 }
 
 func (c *asyncClient) readLoop() {
+	util.GetLogger().Info("client read loop started")
+	defer util.GetLogger().Errorf("client read loop stopped")
+
+OUTER:
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
 		case _, ok := <-c.resetReadC:
 			if ok {
-				util.GetLogger().Infof("client read loop started")
+				util.GetLogger().Infof("client read loop actived, ready to read from leader")
 				for {
 					msg, err := c.leaderConn.Read()
 					if err != nil {
-						util.GetLogger().Errorf("read resp from leader %s failed with %+v",
+						util.GetLogger().Errorf("client read resp from leader %s failed with %+v",
 							c.currentLeader,
 							err)
-						c.scheduleResetLeaderConn("")
-						break
+						if !c.scheduleResetLeaderConn() {
+							return
+						}
+						continue OUTER
 					}
 
-					util.GetLogger().Debugf("read msg %+v",
-						msg)
 					resp := msg.(*rpcpb.Response)
+					if resp.Error != "" && util.IsNotLeaderError(resp.Error) {
+						if !c.scheduleResetLeaderConn() {
+							return
+						}
+
+						continue OUTER
+					}
+
 					if resp.Type == rpcpb.TypeResourceHeartbeatRsp && resp.Error == "" && resp.ResourceHeartbeat.ResourceID > 0 {
 						util.GetLogger().Debugf("resource hb resp %+v added",
 							resp.ResourceHeartbeat)
@@ -635,12 +650,6 @@ func (c *asyncClient) readLoop() {
 					}
 
 					if v, ok := c.contexts.Load(resp.ID); ok {
-						if resp.Error != "" && util.IsNotLeaderError(resp.Error) {
-							c.scheduleResetLeaderConn(resp.Leader)
-							c.writeC <- v.(*ctx)
-							break
-						}
-
 						c.contexts.Delete(resp.ID)
 						if resp.Error != "" {
 							v.(*ctx).done(nil, errors.New(resp.Error))
@@ -657,46 +666,47 @@ func (c *asyncClient) readLoop() {
 func (c *asyncClient) doWrite(ctx *ctx) {
 	err := c.leaderConn.Write(ctx.req)
 	if err != nil {
-		util.GetLogger().Errorf("write %+v failed with %+v",
+		util.GetLogger().Errorf("client write %+v failed with %+v",
 			ctx.req, err)
 	}
 }
 
-func (c *asyncClient) resetLeaderConn(newLeader string) error {
-	if c.currentLeader == newLeader {
-		util.GetLogger().Infof("skip reset leader, current leader is %s", newLeader)
-		return nil
-	}
-
+func (c *asyncClient) resetLeaderConn() error {
 	c.leaderConn.Close()
-	return c.initLeaderConn(c.leaderConn, newLeader, c.opts.rpcTimeout, true)
+	return c.initLeaderConn(c.leaderConn, c.opts.rpcTimeout, true)
 }
 
-func (c *asyncClient) initLeaderConn(conn goetty.IOSession, newLeader string, timeout time.Duration, registerContainer bool) error {
-	addr := newLeader
+func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) error {
+	addr := ""
 	for {
 		select {
 		case <-time.After(timeout):
 			return ErrTimeout
 		default:
-			if addr == "" {
-				leader := c.opts.leaderGetter()
-				if leader != nil {
-					addr = leader.Addr
-				}
+			leader := c.opts.leaderGetter()
+			if leader != nil {
+				addr = leader.Addr
 			}
 
 			if addr != "" {
-				util.GetLogger().Infof("start init connection to leader %+v", addr)
+				util.GetLogger().Infof("client start init connection to leader %+s", addr)
 				conn.Close()
 				ok, err := conn.Connect(addr, c.opts.rpcTimeout)
 				if err == nil && ok {
 					if registerContainer {
 						c.maybeRegisterContainer()
 					}
+
 					c.currentLeader = addr
-					c.resetReadC <- struct{}{}
-					util.GetLogger().Infof("client conn connected to leader %s", addr)
+					util.GetLogger().Infof("client start connect to leader %s", addr)
+					if registerContainer {
+						select {
+						case c.resetReadC <- struct{}{}:
+						case <-time.After(time.Second * 10):
+							util.GetLogger().Fatalf("BUG: active read loop timeout")
+						}
+					}
+
 					return nil
 				}
 
@@ -705,9 +715,6 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, newLeader string, ti
 		}
 
 		time.Sleep(time.Millisecond * 200)
-		// to prevent the given leader from being unreachable,
-		// use LeaderGetter for the next retry
-		addr = ""
 	}
 }
 
@@ -728,6 +735,13 @@ type ctx struct {
 	c     chan struct{}
 	cb    func(resp *rpcpb.Response, err error)
 	sync  bool
+	close bool
+}
+
+func newCloseCtx() *ctx {
+	return &ctx{
+		close: true,
+	}
 }
 
 func newSyncCtx(req *rpcpb.Request) *ctx {

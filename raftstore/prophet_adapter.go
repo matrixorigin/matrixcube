@@ -250,22 +250,12 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 	return newContainer()
 }
 
-func (s *store) startStoreHeartbeat() {
-	s.runner.RunCancelableTask(func(ctx context.Context) {
-		ticker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
-		defer ticker.Stop()
-
-		last := time.Now()
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Infof("store heartbeat task stopped")
-				return
-			case <-ticker.C:
-				s.doStoreHeartbeat(last)
-				last = time.Now()
-			}
+func (s *store) doShardHeartbeat() {
+	s.foreachPR(func(pr *peerReplica) bool {
+		if pr.isLeader() {
+			pr.addAction(action{actionType: heartbeatAction})
 		}
+		return true
 	})
 }
 
