@@ -47,10 +47,12 @@ func TestClusterStartAndStop(t *testing.T) {
 	}, 10*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, "value", string(value))
+	t.Fail()
 }
 
-func TestIssue81(t *testing.T) {
-	// issue 81, lost event notification after cluster restart
+func TestIssue84(t *testing.T) {
+	// issue 84, lost event notification after cluster restart
+	// See https://github.com/matrixorigin/matrixcube/issues/84
 	c, closer := createDiskDataStorageCluster(t)
 	app := c.Applications[0]
 	cmdSet := testRequest{
@@ -82,7 +84,7 @@ func TestIssue81(t *testing.T) {
 		}
 	}
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 1; i++ {
 		fn(i)
 	}
 }
