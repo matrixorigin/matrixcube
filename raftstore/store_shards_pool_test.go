@@ -36,9 +36,9 @@ func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResour
 }
 
 func TestShardPool(t *testing.T) {
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()

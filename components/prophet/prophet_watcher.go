@@ -58,6 +58,8 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 		session.RemoteAddr())
 
 	if wn != nil {
+		wn.cluster.RLock()
+		defer wn.cluster.RUnlock()
 		if event.MatchEvent(event.EventInit, req.CreateWatcher.Flag) {
 			snap := event.Snapshot{
 				Leaders: make(map[uint64]uint64),
@@ -69,7 +71,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 				snap.Resources = append(snap.Resources, res.Meta.Clone())
 				leader := res.GetLeader()
 				if leader != nil {
-					snap.Leaders[res.Meta.ID()] = leader.ContainerID
+					snap.Leaders[res.Meta.ID()] = leader.ID
 				}
 			}
 

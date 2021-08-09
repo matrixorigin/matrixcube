@@ -164,6 +164,9 @@ func (p *defaultProphet) Start() {
 }
 
 func (p *defaultProphet) Stop() {
+	if p.client != nil {
+		p.client.Close()
+	}
 	p.trans.Stop()
 	p.runner.Stop()
 	p.member.Stop()

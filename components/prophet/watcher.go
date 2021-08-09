@@ -31,13 +31,12 @@ type Watcher interface {
 }
 
 type watcher struct {
-	ctx           context.Context
-	cancel        context.CancelFunc
-	flag          uint32
-	currentLeader string
-	client        *asyncClient
-	eventC        chan rpcpb.EventNotify
-	conn          goetty.IOSession
+	ctx    context.Context
+	cancel context.CancelFunc
+	flag   uint32
+	client *asyncClient
+	eventC chan rpcpb.EventNotify
+	conn   goetty.IOSession
 }
 
 func newWatcher(flag uint32, client *asyncClient) Watcher {
@@ -89,20 +88,20 @@ func (w *watcher) watchDog() {
 				w.startReadLoop()
 			}
 
-			util.GetLogger().Errorf("reset watcher conn failed with %+v, leader %s, retry later",
-				err,
-				w.currentLeader)
+			util.GetLogger().Errorf("reset watcher conn failed with %+v, retry later",
+				err)
 			time.Sleep(time.Second)
 		}
 	}
 }
 
 func (w *watcher) resetConn() error {
-	err := w.client.initLeaderConn(w.conn, w.currentLeader, w.client.opts.rpcTimeout, false)
+	err := w.client.initLeaderConn(w.conn, w.client.opts.rpcTimeout, false)
 	if err != nil {
 		return err
 	}
-	util.GetLogger().Infof("watcher init leader connection %s succeed", w.conn.RemoteAddr())
+	util.GetLogger().Infof("watcher init leader connection %s succeed",
+		w.conn.RemoteAddr())
 	return w.conn.WriteAndFlush(&rpcpb.Request{
 		Type: rpcpb.TypeCreateWatcherReq,
 		CreateWatcher: rpcpb.CreateWatcherReq{
@@ -117,26 +116,24 @@ func (w *watcher) startReadLoop() {
 	for {
 		data, err := w.conn.Read()
 		if err != nil {
-			util.GetLogger().Errorf("watcher read events failed with %+v", err)
+			util.GetLogger().Errorf("watcher read events failed with %+v",
+				err)
 			return
 		}
 
 		resp := data.(*rpcpb.Response)
-		if resp.Type != rpcpb.TypeEventNotify {
+		if resp.Error != "" {
+			util.GetLogger().Errorf("watcher read events failed with %+v", resp.Error)
 			return
 		}
 
-		if resp.Error != "" {
-			if util.IsNotLeaderError(resp.Error) {
-				w.currentLeader = resp.Leader
-			}
-
+		if resp.Type != rpcpb.TypeEventNotify {
 			return
 		}
 
 		// we lost some event notify, close the conection, and retry
 		if expectSeq != resp.Event.Seq {
-			util.GetLogger().Warningf("watch lost some event notify, expect seq %d, but %d, close and retry",
+			util.GetLogger().Errorf("watch lost some event notify, expect seq %d, but %d, close and retry",
 				expectSeq,
 				resp.Event.Seq)
 			return

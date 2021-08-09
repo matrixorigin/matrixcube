@@ -105,7 +105,6 @@ func (s *store) doBootstrapCluster() {
 		logger.Fatalf("put container to prophet failed with %+v", err)
 	}
 
-	s.startStoreHeartbeat()
 	s.startHandleResourceHeartbeat()
 }
 

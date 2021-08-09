@@ -29,7 +29,7 @@ import (
 )
 
 func TestClusterStartAndStop(t *testing.T) {
-	c := NewTestClusterStore(t, "", nil, nil, nil)
+	c := NewTestClusterStore(t)
 	defer c.Stop()
 
 	c.Start()
@@ -39,9 +39,9 @@ func TestClusterStartAndStop(t *testing.T) {
 }
 
 func TestAddAndRemoveShard(t *testing.T) {
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()
@@ -63,13 +63,13 @@ func TestAddAndRemoveShard(t *testing.T) {
 }
 
 func TestAddShardWithMultiGroups(t *testing.T) {
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
 			return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}, {Group: 1, Start: []byte("a"), End: []byte("b")}}
 		}
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()
@@ -81,9 +81,9 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 }
 
 func TestAppliedRules(t *testing.T) {
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()
@@ -109,15 +109,15 @@ func TestAppliedRules(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	c := NewTestClusterStore(t, "", nil, nil, nil)
+	c := NewTestClusterStore(t)
 	defer c.Stop()
 
 	c.Start()
 	c.WaitShardByCount(t, 1, time.Second*10)
 
-	c.Set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.Set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.Set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 3, time.Second*10)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
@@ -127,7 +127,7 @@ func TestSplit(t *testing.T) {
 
 func TestCustomSplit(t *testing.T) {
 	target := EncodeDataKey(0, []byte("key2"))
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 				store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID).(storage.KVStorage)
@@ -154,15 +154,15 @@ func TestCustomSplit(t *testing.T) {
 				return size, keys, nil, nil
 			}
 		}
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()
 	c.WaitShardByCount(t, 1, time.Second*10)
 
-	c.Set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.Set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.Set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 2, time.Second*10)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
@@ -170,10 +170,10 @@ func TestCustomSplit(t *testing.T) {
 }
 
 func TestSpeedupAddShard(t *testing.T) {
-	c := NewTestClusterStore(t, "", func(cfg *config.Config) {
+	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Second * 2)
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}, nil, nil)
+	}))
 	defer c.Stop()
 
 	c.Start()
