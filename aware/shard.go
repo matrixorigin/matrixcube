@@ -32,3 +32,9 @@ type ShardStateAware interface {
 	// SnapshotApplied snapshot applied
 	SnapshotApplied(bhmetapb.Shard)
 }
+
+// TestShardStateAware just for test
+type TestShardStateAware interface {
+	ShardStateAware
+	SetWrapper(ShardStateAware)
+}

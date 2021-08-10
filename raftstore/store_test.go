@@ -39,7 +39,7 @@ func TestClusterStartAndStop(t *testing.T) {
 }
 
 func TestAddAndRemoveShard(t *testing.T) {
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
@@ -63,7 +63,7 @@ func TestAddAndRemoveShard(t *testing.T) {
 }
 
 func TestAddShardWithMultiGroups(t *testing.T) {
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
@@ -81,7 +81,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 }
 
 func TestAppliedRules(t *testing.T) {
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
@@ -109,7 +109,10 @@ func TestAppliedRules(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	c := NewTestClusterStore(t)
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
+		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
+	}))
 	defer c.Stop()
 
 	c.Start()
@@ -127,7 +130,7 @@ func TestSplit(t *testing.T) {
 
 func TestCustomSplit(t *testing.T) {
 	target := EncodeDataKey(0, []byte("key2"))
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 				store := cfg.Storage.DataStorageFactory(shard.Group, shard.ID).(storage.KVStorage)
@@ -170,7 +173,7 @@ func TestCustomSplit(t *testing.T) {
 }
 
 func TestSpeedupAddShard(t *testing.T) {
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Second * 2)
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))

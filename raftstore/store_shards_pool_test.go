@@ -36,7 +36,7 @@ func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResour
 }
 
 func TestShardPool(t *testing.T) {
-	c := NewTestClusterStore(t, WithTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
@@ -59,6 +59,7 @@ func TestShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose1"), allocated.Purpose)
+	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
 
 	// create 3 shards
 	c.WaitShardByCount(t, 4, time.Second*10)
@@ -67,6 +68,7 @@ func TestShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose2"), allocated.Purpose)
+	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
 
 	// create 4 shards
 	c.WaitShardByCount(t, 5, time.Second*10)
