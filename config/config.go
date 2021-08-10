@@ -125,6 +125,16 @@ func (c *Config) Adjust() {
 	c.Prophet.ContainerHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
 	(&c.Prophet).Adjust(nil, false)
 	(&c.Worker).adjust()
+
+	if c.Customize.TestShardStateAware != nil {
+		if c.Customize.CustomShardStateAwareFactory != nil {
+			c.Customize.TestShardStateAware.SetWrapper(c.Customize.CustomShardStateAwareFactory())
+		}
+
+		c.Customize.CustomShardStateAwareFactory = func() aware.ShardStateAware {
+			return c.Customize.TestShardStateAware
+		}
+	}
 }
 
 func (c *Config) validate() {
@@ -362,6 +372,8 @@ type CustomizeConfig struct {
 	CustomAdjustInitAppliedIndexFactory func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64)
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
+	// TestShardStateAware just for test
+	TestShardStateAware aware.TestShardStateAware
 }
 
 // GetLabels returns lables

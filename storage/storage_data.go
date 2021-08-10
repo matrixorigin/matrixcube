@@ -20,6 +20,7 @@ import (
 // DataStorage responsible for maintaining the data storage of a set of shards for the application.
 type DataStorage interface {
 	StatisticalStorage
+	CloseableStorage
 
 	// RemovedShardData remove shard data
 	RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error

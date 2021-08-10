@@ -63,9 +63,9 @@ type dynamicShardsPool struct {
 	}
 }
 
-func newDynamicShardsPool() *dynamicShardsPool {
+func newDynamicShardsPool(cfg *config.Config) *dynamicShardsPool {
 	p := &dynamicShardsPool{pdC: make(chan struct{}, 1)}
-	config.RegisterJobProcessor(metapb.JobType_CreateResourcePool, p)
+	cfg.RegisterJobProcessor(metapb.JobType_CreateResourcePool, p)
 	return p
 }
 

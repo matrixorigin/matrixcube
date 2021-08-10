@@ -1,8 +1,6 @@
 package config
 
 import (
-	"sync"
-
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -31,23 +29,26 @@ type JobProcessor interface {
 	Execute([]byte, storage.JobStorage, ResourcesAware) ([]byte, error)
 }
 
-var (
-	jobMu         sync.RWMutex
-	jobProcessors = make(map[metapb.JobType]JobProcessor)
-)
-
 // RegisterJobProcessor register job processor
-func RegisterJobProcessor(jobType metapb.JobType, processor JobProcessor) {
-	jobMu.Lock()
-	defer jobMu.Unlock()
+func (c *Config) RegisterJobProcessor(jobType metapb.JobType, processor JobProcessor) {
+	c.jobMu.Lock()
+	defer c.jobMu.Unlock()
 
-	jobProcessors[jobType] = processor
+	if c.jobMu.jobProcessors == nil {
+		c.jobMu.jobProcessors = make(map[metapb.JobType]JobProcessor)
+	}
+
+	c.jobMu.jobProcessors[jobType] = processor
 }
 
 // GetJobProcessor returns the job handler
-func GetJobProcessor(jobType metapb.JobType) JobProcessor {
-	jobMu.RLock()
-	defer jobMu.RUnlock()
+func (c *Config) GetJobProcessor(jobType metapb.JobType) JobProcessor {
+	c.jobMu.RLock()
+	defer c.jobMu.RUnlock()
 
-	return jobProcessors[jobType]
+	if c.jobMu.jobProcessors == nil {
+		c.jobMu.jobProcessors = make(map[metapb.JobType]JobProcessor)
+	}
+
+	return c.jobMu.jobProcessors[jobType]
 }
