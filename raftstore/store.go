@@ -148,7 +148,7 @@ func NewStore(cfg *config.Config) Store {
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
 		runner:        task.NewRunner(),
 		workReady:     newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
-		shardPool:     newDynamicShardsPool(),
+		shardPool:     newDynamicShardsPool(&cfg.Prophet),
 	}
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {

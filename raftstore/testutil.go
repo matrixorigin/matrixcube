@@ -37,11 +37,13 @@ import (
 type TestClusterOption func(*testClusterOptions)
 
 type testClusterOptions struct {
-	tmpDir           string
-	nodes            int
-	recreate         bool
-	adjustConfigFunc func(node int, cfg *config.Config)
-	nodeStartFunc    func(node int, store Store)
+	tmpDir            string
+	nodes             int
+	recreate          bool
+	adjustConfigFuncs []func(node int, cfg *config.Config)
+	storeFactory      func(node int, cfg *config.Config) Store
+	nodeStartFunc     func(node int, store Store)
+	logLevel          string
 }
 
 func (opts *testClusterOptions) adjust() {
@@ -50,6 +52,23 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3
+	}
+	if opts.logLevel == "" {
+		opts.logLevel = "error"
+	}
+}
+
+// WithTestClusterLogLevel set raftstore log level
+func WithTestClusterLogLevel(level string) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.logLevel = level
+	}
+}
+
+// WithTestClusterStoreFactory custom create raftstore factory
+func WithTestClusterStoreFactory(value func(node int, cfg *config.Config) Store) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.storeFactory = value
 	}
 }
 
@@ -67,10 +86,10 @@ func WithTestClusterRecreate(value bool) TestClusterOption {
 	}
 }
 
-// WithTestClusterAdjustConfigFunc adjust config
-func WithTestClusterAdjustConfigFunc(value func(node int, cfg *config.Config)) TestClusterOption {
+// WithAppendTestClusterAdjustConfigFunc adjust config
+func WithAppendTestClusterAdjustConfigFunc(value func(node int, cfg *config.Config)) TestClusterOption {
 	return func(opts *testClusterOptions) {
-		opts.adjustConfigFunc = value
+		opts.adjustConfigFuncs = append(opts.adjustConfigFuncs, value)
 	}
 }
 
@@ -81,15 +100,15 @@ func recreateTestTempDir(tmpDir string) {
 
 // NewTestClusterStore create test cluster with 3 nodes, and the data dir is not empty
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
-	log.SetHighlighting(false)
-	log.SetLevelByString("error")
-	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
-
 	c := &TestRaftCluster{t: t, opts: &testClusterOptions{recreate: true}}
 	for _, opt := range opts {
 		opt(c.opts)
 	}
 	c.opts.adjust()
+
+	log.SetHighlighting(false)
+	log.SetLevelByString(c.opts.logLevel)
+	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
 
 	if c.opts.recreate {
 		recreateTestTempDir(c.opts.tmpDir)
@@ -105,8 +124,6 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
 		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
 		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
-		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 300)
 
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
@@ -120,8 +137,8 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
 		cfg.Prophet.Schedule.EnableJointConsensus = true
 
-		if c.opts.adjustConfigFunc != nil {
-			c.opts.adjustConfigFunc(i, cfg)
+		for _, fn := range c.opts.adjustConfigFuncs {
+			fn(i, cfg)
 		}
 
 		if cfg.Storage.MetaStorage == nil {
@@ -138,16 +155,15 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 			c.storages = append(c.storages, dataStorage)
 		}
 
-		var wrapper aware.ShardStateAware
-		if cfg.Customize.CustomShardStateAwareFactory != nil {
-			wrapper = cfg.Customize.CustomShardStateAwareFactory()
-		}
-		ts := newTestShardAware(wrapper)
-		cfg.Customize.CustomShardStateAwareFactory = func() aware.ShardStateAware {
-			return ts
+		ts := newTestShardAware()
+		cfg.Customize.TestShardStateAware = ts
+
+		if c.opts.storeFactory != nil {
+			c.stores = append(c.stores, c.opts.storeFactory(i, cfg).(*store))
+		} else {
+			c.stores = append(c.stores, NewStore(cfg).(*store))
 		}
 
-		c.stores = append(c.stores, NewStore(cfg).(*store))
 		c.awares = append(c.awares, ts)
 	}
 
@@ -165,13 +181,16 @@ type testShardAware struct {
 	removed map[uint64]bhmetapb.Shard
 }
 
-func newTestShardAware(wrapper aware.ShardStateAware) *testShardAware {
+func newTestShardAware() *testShardAware {
 	return &testShardAware{
-		wrapper: wrapper,
 		leaders: make(map[uint64]bool),
 		applied: make(map[uint64]int),
 		removed: make(map[uint64]bhmetapb.Shard),
 	}
+}
+
+func (ts *testShardAware) SetWrapper(wrapper aware.ShardStateAware) {
+	ts.wrapper = wrapper
 }
 
 func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {

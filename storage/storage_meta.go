@@ -17,7 +17,5 @@ package storage
 type MetadataStorage interface {
 	StatisticalStorage
 	KVStorage
-
-	// Close close the storage
-	Close() error
+	CloseableStorage
 }
