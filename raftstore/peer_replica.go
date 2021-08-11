@@ -335,13 +335,7 @@ func (pr *peerReplica) stopEventLoop() {
 
 func (pr *peerReplica) maybeExecRead() {
 	if pr.readyToHandleRead() {
-		for {
-			if c, ok := pr.pendingReads.pop(pr.ps.applyState.AppliedIndex); ok {
-				pr.doExecReadCmd(c)
-			} else {
-				break
-			}
-		}
+		pr.pendingReads.doReadLEAppliedIndex(pr.ps.applyState.AppliedIndex, pr)
 	}
 }
 

@@ -56,24 +56,32 @@ func (q *readIndexQueue) ready(state raft.ReadState) {
 		logger.Fatalf("shard %d apply read failed, uuid not match",
 			q.shardID)
 	}
-	q.reads[q.readyToRead].readIndexCommittedIndex = state.Index
-	q.readyToRead++
+
+	for idx := range q.reads {
+		if bytes.Equal(state.RequestCtx, q.reads[idx].getUUID()) {
+			q.reads[idx].readIndexCommittedIndex = state.Index
+			q.readyToRead++
+			return
+		}
+	}
 }
 
-func (q *readIndexQueue) pop(index uint64) (cmd, bool) {
+func (q *readIndexQueue) doReadLEAppliedIndex(appliedIndex uint64, pr *peerReplica) {
 	if len(q.reads) == 0 || q.readyToRead <= 0 {
-		return emptyCMD, false
+		return
 	}
 
-	if q.reads[0].readIndexCommittedIndex > index {
-		return emptyCMD, false
+	newCmds := q.reads[:0] // avoid alloc new slice
+	for _, c := range q.reads {
+		if c.readIndexCommittedIndex > 0 && c.readIndexCommittedIndex <= appliedIndex {
+			pr.doExecReadCmd(c)
+			q.readyToRead--
+		} else {
+			newCmds = append(newCmds, c)
+		}
 	}
 
-	value := q.reads[0]
-	q.reads[0] = emptyCMD
-	q.reads = q.reads[1:]
-	q.readyToRead--
-	return value, true
+	q.reads = newCmds
 }
 
 type reqCtx struct {
