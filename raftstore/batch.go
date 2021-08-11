@@ -42,6 +42,11 @@ type readIndexQueue struct {
 	readyToRead int
 }
 
+func (q *readIndexQueue) reset() {
+	q.reads = q.reads[:0]
+	q.readyToRead = 0
+}
+
 func (q *readIndexQueue) push(c cmd) {
 	q.reads = append(q.reads, c)
 }
@@ -69,10 +74,6 @@ func (q *readIndexQueue) pop(index uint64) (cmd, bool) {
 	q.reads = q.reads[1:]
 	q.readyToRead--
 	return value, true
-}
-
-func (q *readIndexQueue) size() int {
-	return len(q.reads)
 }
 
 type reqCtx struct {

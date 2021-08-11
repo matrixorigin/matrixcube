@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/fagongzi/util/protoc"
@@ -424,15 +423,11 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	// actually stale.
 	if rd.SoftState != nil {
 		if rd.SoftState.RaftState != raft.StateLeader {
-			n := int(pr.pendingReads.size())
-			if n > 0 {
-				// all uncommitted reads will be dropped silently in raft.
-				for index := 0; index < n; index++ {
-					if c, ok := pr.pendingReads.pop(math.MaxUint64); ok {
-						c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-					}
-				}
+			// all uncommitted reads will be dropped silently in raft.
+			for _, c := range pr.pendingReads.reads {
+				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
 			}
+			pr.pendingReads.reset()
 
 			// we are not leader now, so all writes in the batch is actually stale
 			for i := 0; i < pr.batch.size(); i++ {
