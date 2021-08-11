@@ -17,6 +17,7 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
@@ -34,14 +35,18 @@ type Context interface {
 	Attrs() map[string]interface{}
 	// ByteBuf returns the bytebuf
 	ByteBuf() *buf.ByteBuf
+	// DataStorage returns data storage
+	DataStorage() storage.DataStorage
+	// StoreID returns store id
+	StoreID() uint64
 }
 
 // ReadCommandFunc the read command handler func
-type ReadCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, Context) (*raftcmdpb.Response, uint64)
+type ReadCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, Context) (resp *raftcmdpb.Response, readedBytes uint64)
 
 // WriteCommandFunc the write command handler func, returns write bytes and the diff bytes
 // that used to modify the size of the current shard
-type WriteCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, Context) (uint64, int64, *raftcmdpb.Response)
+type WriteCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request, Context) (writeBytes uint64, diffBytes int64, resp *raftcmdpb.Response)
 
 // LocalCommandFunc directly exec on local func
 type LocalCommandFunc func(bhmetapb.Shard, *raftcmdpb.Request) (*raftcmdpb.Response, error)

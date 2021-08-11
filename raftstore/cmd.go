@@ -22,16 +22,16 @@ import (
 )
 
 type cmd struct {
-	req  *raftcmdpb.RaftCMDRequest
-	cb   func(*raftcmdpb.RaftCMDResponse)
-	term uint64
-	tp   int
-	size int
+	req                     *raftcmdpb.RaftCMDRequest
+	cb                      func(*raftcmdpb.RaftCMDResponse)
+	readIndexCommittedIndex uint64
+	term                    uint64
+	tp                      int
+	size                    int
 }
 
 func (c *cmd) isFull(n, max int) bool {
-	// -64 means exclude etcd raft entry other fields
-	return max-64 <= c.size+n
+	return max <= c.size+n || (testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
 }
 
 func (c *cmd) canAppend(req *raftcmdpb.Request) bool {

@@ -79,16 +79,7 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 		pr.sizeDiffHint += result.metrics.sizeDiffHint
 	}
 
-	readyCnt := int(pr.pendingReads.getReadyCnt())
-	if readyCnt > 0 && pr.readyToHandleRead() {
-		for index := 0; index < readyCnt; index++ {
-			if c, ok := pr.pendingReads.pop(); ok {
-				pr.doExecReadCmd(c)
-			}
-		}
-
-		pr.pendingReads.resetReadyCnt()
-	}
+	pr.maybeExecRead()
 }
 
 func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {

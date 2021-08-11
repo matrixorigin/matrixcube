@@ -14,13 +14,14 @@
 package raftstore
 
 import (
-	"sync/atomic"
+	"bytes"
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"go.etcd.io/etcd/raft"
 )
 
 const (
@@ -31,40 +32,43 @@ const (
 
 var (
 	emptyCMD = cmd{}
+	// testMaxProposalRequestCount just for test, how many requests can be aggregated in a batch, 0 is disabled
+	testMaxProposalRequestCount = 0
 )
 
 type readIndexQueue struct {
-	shardID  uint64
-	reads    []cmd
-	readyCnt int32
+	shardID     uint64
+	reads       []cmd
+	readyToRead int
 }
 
 func (q *readIndexQueue) push(c cmd) {
 	q.reads = append(q.reads, c)
 }
 
-func (q *readIndexQueue) pop() (cmd, bool) {
-	if len(q.reads) == 0 {
+func (q *readIndexQueue) ready(state raft.ReadState) {
+	if !bytes.Equal(state.RequestCtx, q.reads[q.readyToRead].getUUID()) {
+		logger.Fatalf("shard %d apply read failed, uuid not match",
+			q.shardID)
+	}
+	q.reads[q.readyToRead].readIndexCommittedIndex = state.Index
+	q.readyToRead++
+}
+
+func (q *readIndexQueue) pop(index uint64) (cmd, bool) {
+	if len(q.reads) == 0 || q.readyToRead <= 0 {
+		return emptyCMD, false
+	}
+
+	if q.reads[0].readIndexCommittedIndex > index {
 		return emptyCMD, false
 	}
 
 	value := q.reads[0]
 	q.reads[0] = emptyCMD
 	q.reads = q.reads[1:]
+	q.readyToRead--
 	return value, true
-}
-
-func (q *readIndexQueue) incrReadyCnt() int32 {
-	q.readyCnt++
-	return q.readyCnt
-}
-
-func (q *readIndexQueue) resetReadyCnt() {
-	q.readyCnt = 0
-}
-
-func (q *readIndexQueue) getReadyCnt() int32 {
-	return atomic.LoadInt32(&q.readyCnt)
 }
 
 func (q *readIndexQueue) size() int {
