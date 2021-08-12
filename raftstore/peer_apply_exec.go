@@ -471,7 +471,10 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 			writeBytes += written
 			diffBytes += diff
 		} else {
-			logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
+			logger.Fatalf("%s missing write handle func for type %d, registers %+v",
+				hex.EncodeToString(req.ID),
+				req.CustemType,
+				d.store.writeHandlers)
 		}
 		ctx.metrics.writtenKeys++
 	}

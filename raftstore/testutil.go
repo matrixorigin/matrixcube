@@ -22,7 +22,9 @@ import (
 
 	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/aware"
+	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
+	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
@@ -44,6 +46,19 @@ type testClusterOptions struct {
 	storeFactory      func(node int, cfg *config.Config) Store
 	nodeStartFunc     func(node int, store Store)
 	logLevel          string
+
+	writeHandlers map[uint64]command.WriteCommandFunc
+	readHandlers  map[uint64]command.ReadCommandFunc
+
+	disableSchedule bool
+}
+
+func newTestClusterOptions() *testClusterOptions {
+	return &testClusterOptions{
+		recreate:      true,
+		writeHandlers: make(map[uint64]command.WriteCommandFunc),
+		readHandlers:  make(map[uint64]command.ReadCommandFunc),
+	}
 }
 
 func (opts *testClusterOptions) adjust() {
@@ -55,6 +70,26 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.logLevel == "" {
 		opts.logLevel = "error"
+	}
+}
+
+func WithTestClusterDisableSchedule() TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.disableSchedule = true
+	}
+}
+
+// WithTestClusterWriteHandler write handlers
+func WithTestClusterWriteHandler(cmd uint64, value command.WriteCommandFunc) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.writeHandlers[cmd] = value
+	}
+}
+
+// WithTestClusterReadHandler read handlers
+func WithTestClusterReadHandler(cmd uint64, value command.ReadCommandFunc) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.readHandlers[cmd] = value
 	}
 }
 
@@ -100,7 +135,7 @@ func recreateTestTempDir(tmpDir string) {
 
 // NewTestClusterStore create test cluster with 3 nodes, and the data dir is not empty
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
-	c := &TestRaftCluster{t: t, opts: &testClusterOptions{recreate: true}}
+	c := &TestRaftCluster{t: t, opts: newTestClusterOptions()}
 	for _, opt := range opts {
 		opt(c.opts)
 	}
@@ -109,6 +144,10 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 	log.SetHighlighting(false)
 	log.SetLevelByString(c.opts.logLevel)
 	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
+	if c.opts.disableSchedule {
+		pconfig.DefaultSchedulers = nil
+	}
 
 	if c.opts.recreate {
 		recreateTestTempDir(c.opts.tmpDir)
@@ -125,6 +164,10 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
 		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 300)
+
+		cfg.Worker.RaftEventWorkers = 1
+		cfg.Worker.ApplyWorkerCount = 1
+		cfg.Worker.SendRaftMsgWorkerCount = 1
 
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.StorageNode = true
@@ -158,12 +201,22 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftClust
 		ts := newTestShardAware()
 		cfg.Customize.TestShardStateAware = ts
 
+		var s *store
 		if c.opts.storeFactory != nil {
-			c.stores = append(c.stores, c.opts.storeFactory(i, cfg).(*store))
+			s = c.opts.storeFactory(i, cfg).(*store)
 		} else {
-			c.stores = append(c.stores, NewStore(cfg).(*store))
+			s = NewStore(cfg).(*store)
 		}
 
+		for k, h := range c.opts.writeHandlers {
+			s.RegisterWriteFunc(k, h)
+		}
+
+		for k, h := range c.opts.readHandlers {
+			s.RegisterReadFunc(k, h)
+		}
+
+		c.stores = append(c.stores, s)
 		c.awares = append(c.awares, ts)
 	}
 
@@ -248,6 +301,26 @@ func (ts *testShardAware) shardCount() int {
 	defer ts.RUnlock()
 
 	return len(ts.shards)
+}
+
+func (ts *testShardAware) leaderCount() int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for _, ok := range ts.leaders {
+		if ok {
+			c++
+		}
+	}
+	return c
+}
+
+func (ts *testShardAware) isLeader(id uint64) bool {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	return ts.leaders[id]
 }
 
 func (ts *testShardAware) Created(shard bhmetapb.Shard) {
@@ -434,6 +507,36 @@ func (c *TestRaftCluster) WaitRemovedByShardID(t *testing.T, id uint64, timeout 
 	for idx := range c.stores {
 		c.awares[idx].waitRemovedByShardID(t, id, timeout)
 	}
+}
+
+// WaitLeadersByCount check whether the number of shards leaders reaches a specific value until timeout
+func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(t, "", "wait leader count %d timeout", count)
+		default:
+			leaders := 0
+			for idx := range c.stores {
+				leaders += c.awares[idx].leaderCount()
+			}
+			if leaders >= count {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+// GetShardLeaderStore returns the shard leader store
+func (c *TestRaftCluster) GetShardLeaderStore(id uint64) Store {
+	for idx, s := range c.stores {
+		if c.awares[idx].isLeader(id) {
+			return s
+		}
+	}
+	return nil
 }
 
 // WaitShardByCount check whether the number of shards reaches a specific value until timeout

@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -26,6 +25,11 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
+)
+
+var (
+	// testMaxOnceCommitEntryCount how many submitted entries are processed each time. 0 is unlimited
+	testMaxOnceCommitEntryCount = 0
 )
 
 type readyContext struct {
@@ -381,13 +385,17 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 	if pr.ps.isApplyingSnapshot() {
 		pr.ps.lastReadyIndex = pr.ps.getTruncatedIndex()
 	} else {
+		if testMaxOnceCommitEntryCount > 0 &&
+			testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
+			rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
+		}
+
 		for _, entry := range rd.CommittedEntries {
 			pr.raftLogSizeHint += uint64(len(entry.Data))
 		}
 
 		if len(rd.CommittedEntries) > 0 {
 			pr.ps.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
-
 			err := pr.startApplyCommittedEntriesJob(pr.shardID, pr.getCurrentTerm(), rd.CommittedEntries)
 			if err != nil {
 				logger.Fatalf("shard %d add apply committed entries job failed with %+v",
@@ -403,18 +411,11 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	if pr.readyToHandleRead() {
 		for _, state := range rd.ReadStates {
-			if c, ok := pr.pendingReads.pop(); ok {
-				if !bytes.Equal(state.RequestCtx, c.getUUID()) {
-					logger.Fatalf("shard %d apply read failed, uuid not match",
-						pr.shardID)
-				}
-
-				pr.doExecReadCmd(c)
-			}
+			pr.pendingReads.ready(state)
 		}
-	} else {
-		for range rd.ReadStates {
-			pr.pendingReads.incrReadyCnt()
+
+		if len(rd.ReadStates) > 0 {
+			pr.maybeExecRead()
 		}
 	}
 
@@ -422,17 +423,11 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	// actually stale.
 	if rd.SoftState != nil {
 		if rd.SoftState.RaftState != raft.StateLeader {
-			n := int(pr.pendingReads.size())
-			if n > 0 {
-				// all uncommitted reads will be dropped silently in raft.
-				for index := 0; index < n; index++ {
-					if c, ok := pr.pendingReads.pop(); ok {
-						c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-					}
-				}
+			// all uncommitted reads will be dropped silently in raft.
+			for _, c := range pr.pendingReads.reads {
+				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
 			}
-
-			pr.pendingReads.resetReadyCnt()
+			pr.pendingReads.reset()
 
 			// we are not leader now, so all writes in the batch is actually stale
 			for i := 0; i < pr.batch.size(); i++ {

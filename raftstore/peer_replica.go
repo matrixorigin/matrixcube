@@ -31,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 )
@@ -40,12 +41,14 @@ type readContext struct {
 	batchSize int
 	buf       *buf.ByteBuf
 	attrs     map[string]interface{}
+	pr        *peerReplica
 }
 
-func newReadContext() *readContext {
+func newReadContext(pr *peerReplica) *readContext {
 	return &readContext{
 		buf:   buf.NewByteBuf(512),
 		attrs: make(map[string]interface{}),
+		pr:    pr,
 	}
 }
 
@@ -82,6 +85,14 @@ func (ctx *readContext) Offset() int {
 
 func (ctx *readContext) BatchSize() int {
 	return ctx.batchSize
+}
+
+func (ctx *readContext) DataStorage() storage.DataStorage {
+	return ctx.pr.store.DataStorageByGroup(ctx.pr.ps.shard.Group, ctx.pr.shardID)
+}
+
+func (ctx *readContext) StoreID() uint64 {
+	return ctx.pr.store.Meta().ID
 }
 
 type peerReplica struct {
@@ -192,7 +203,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		return nil, err
 	}
 	pr.rn = rn
-	pr.readCtx = newReadContext()
+	pr.readCtx = newReadContext(pr)
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
 	pr.steps = &task.Queue{}
@@ -206,8 +217,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 
 	pr.store = store
 	pr.pendingReads = &readIndexQueue{
-		shardID:  shard.ID,
-		readyCnt: 0,
+		shardID: shard.ID,
 	}
 
 	// If this shard has only one peer and I am the one, campaign directly.
@@ -323,6 +333,12 @@ func (pr *peerReplica) stopEventLoop() {
 	pr.events.Dispose()
 }
 
+func (pr *peerReplica) maybeExecRead() {
+	if pr.readyToHandleRead() {
+		pr.pendingReads.doReadLEAppliedIndex(pr.ps.applyState.AppliedIndex, pr)
+	}
+}
+
 func (pr *peerReplica) doExecReadCmd(c cmd) {
 	resp := pb.AcquireRaftCMDResponse()
 
@@ -342,7 +358,10 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
 			}
 		} else {
-			logger.Fatalf("%s missing handle func", hex.EncodeToString(req.ID))
+			logger.Fatalf("%s missing read handle func for type %d, registers %+v",
+				hex.EncodeToString(req.ID),
+				req.CustemType,
+				pr.store.readHandlers)
 		}
 	}
 

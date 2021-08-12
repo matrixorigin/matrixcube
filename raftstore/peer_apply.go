@@ -221,6 +221,7 @@ type raftGCResult struct {
 }
 
 type applyContext struct {
+	pr         *peerReplica
 	raftWB     *util.WriteBatch
 	dataWB     *util.WriteBatch
 	attrs      map[string]interface{}
@@ -234,12 +235,13 @@ type applyContext struct {
 	metrics    applyMetrics
 }
 
-func newApplyContext(id uint64, store *store) *applyContext {
+func newApplyContext(pr *peerReplica) *applyContext {
 	return &applyContext{
 		raftWB: util.NewWriteBatch(),
 		dataWB: util.NewWriteBatch(),
 		buf:    buf.NewByteBuf(512),
 		attrs:  make(map[string]interface{}),
+		pr:     pr,
 	}
 }
 
@@ -279,6 +281,14 @@ func (ctx *applyContext) Offset() int {
 
 func (ctx *applyContext) BatchSize() int {
 	return ctx.batchSize
+}
+
+func (ctx *applyContext) DataStorage() storage.DataStorage {
+	return ctx.pr.store.DataStorageByGroup(ctx.pr.ps.shard.Group, ctx.pr.shardID)
+}
+
+func (ctx *applyContext) StoreID() uint64 {
+	return ctx.pr.store.Meta().ID
 }
 
 type applyDelegate struct {
