@@ -44,7 +44,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		term:             pr.getCurrentTerm(),
 		applyState:       pr.ps.applyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
-		ctx:              newApplyContext(pr.shardID, pr.store),
+		ctx:              newApplyContext(pr),
 	}
 
 	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {

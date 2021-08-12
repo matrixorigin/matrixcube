@@ -86,8 +86,10 @@ func AcquireRequest() *raftcmdpb.Request {
 
 // ReleaseRequest returns a request to pool
 func ReleaseRequest(req *raftcmdpb.Request) {
-	req.Reset()
-	requestsPool.Put(req)
+	if req != nil {
+		req.Reset()
+		requestsPool.Put(req)
+	}
 }
 
 // AcquireResponse returns a response from pool

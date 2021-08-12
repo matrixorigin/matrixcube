@@ -260,6 +260,10 @@ func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raf
 }
 
 func (s *store) OnRequest(req *raftcmdpb.Request) error {
+	return s.onRequestWithCB(req, s.cb)
+}
+
+func (s *store) onRequestWithCB(req *raftcmdpb.Request, cb func(resp *raftcmdpb.RaftCMDResponse)) error {
 	if logger.DebugEnabled() {
 		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
@@ -269,14 +273,14 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 	if req.ToShard > 0 {
 		pr = s.getPR(req.ToShard, !req.AllowFollower)
 		if pr == nil {
-			respStoreNotMatch(errStoreNotMatch, req, s.cb)
+			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil
 		}
 	} else {
 		pr, err = s.selectShard(req.Group, req.Key)
 		if err != nil {
 			if err == errStoreNotMatch {
-				respStoreNotMatch(err, req, s.cb)
+				respStoreNotMatch(err, req, cb)
 				return nil
 			}
 
@@ -284,7 +288,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 		}
 	}
 
-	return pr.onReq(req, s.cb)
+	return pr.onReq(req, cb)
 }
 
 func (s *store) MetadataStorage() storage.MetadataStorage {
