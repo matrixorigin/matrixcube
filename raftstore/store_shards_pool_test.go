@@ -42,7 +42,6 @@ func TestShardPool(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
 
 	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
