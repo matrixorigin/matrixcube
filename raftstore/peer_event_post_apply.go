@@ -58,13 +58,14 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 			pr.shardID)
 	}
 
-	pr.ps.applyState = result.applyState
+	pr.ps.raftApplyState = result.applyState
 	pr.ps.appliedIndexTerm = result.appliedIndexTerm
 	pr.rn.AdvanceApply(result.applyState.AppliedIndex)
 
-	logger.Debugf("shard %d async apply committied entries finished at %d",
+	logger.Errorf("shard %d async apply committied entries finished at %d, last %d",
 		pr.shardID,
-		result.applyState.AppliedIndex)
+		result.applyState.AppliedIndex,
+		pr.rn.LastIndex())
 
 	pr.metrics.admin.incBy(result.metrics.admin)
 
@@ -183,7 +184,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 func (pr *peerReplica) doApplySplit(result *splitResult) {
 	logger.Infof("shard %d update to %+v by post applt split",
 		pr.ps.shard.ID,
-		pr.ps.shard)
+		result.derived)
 
 	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
 	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)

@@ -42,7 +42,7 @@ func (pr *peerReplica) startRegistrationJob() {
 		peerID:           pr.peer.ID,
 		shard:            pr.ps.shard,
 		term:             pr.getCurrentTerm(),
-		applyState:       pr.ps.applyState,
+		applyState:       pr.ps.raftApplyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
 		ctx:              newApplyContext(pr),
 	}
@@ -172,7 +172,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 		logger.Fatalf("shard %d generating snapshot job is nil", ps.shard.ID)
 	}
 
-	applyState, err := ps.loadApplyState()
+	applyState, err := ps.loadRaftApplyState()
 	if err != nil {
 		logger.Fatalf("shard %d load snapshot failed with %+v",
 			ps.shard.ID,
@@ -195,7 +195,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 		term = entry.Term
 	}
 
-	state, err := ps.loadLocalState(nil)
+	state, err := ps.loadShardLocalState(nil)
 	if err != nil {
 		return nil
 	}

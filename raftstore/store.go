@@ -985,14 +985,14 @@ func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, 
 	shardState.Shard = shard
 
 	if wb != nil {
-		return wb.Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+		return wb.Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
 	}
 
-	return s.MetadataStorage().Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+	return s.MetadataStorage().Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
 func (s *store) removePeerState(shard bhmetapb.Shard) error {
-	return s.MetadataStorage().Delete(getStateKey(shard.ID))
+	return s.MetadataStorage().Delete(getShardLocaleStateKey(shard.ID))
 }
 
 func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
@@ -1006,12 +1006,12 @@ func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
 	applyState.TruncatedState.Index = raftInitLogIndex
 	applyState.TruncatedState.Term = raftInitLogTerm
 
-	err := wb.Set(getRaftStateKey(shardID), protoc.MustMarshal(raftState))
+	err := wb.Set(getRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
 	if err != nil {
 		return err
 	}
 
-	return wb.Set(getApplyStateKey(shardID), protoc.MustMarshal(applyState))
+	return wb.Set(getRaftApplyStateKey(shardID), protoc.MustMarshal(applyState))
 }
 
 // doClearData Delete all data belong to the shard.

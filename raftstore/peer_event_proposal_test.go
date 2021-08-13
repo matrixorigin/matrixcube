@@ -1,7 +1,6 @@
 package raftstore
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,13 +36,7 @@ func TestIssue90(t *testing.T) {
 		assert.NoError(t, c.WriteBatch().Set(r.Key, r.Cmd))
 		resp.Value = []byte("OK")
 		return 0, 0, resp
-	}), WithTestClusterReadHandler(2, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (*raftcmdpb.Response, uint64) {
-		resp := pb.AcquireResponse()
-		value, err := c.DataStorage().(storage.KVStorage).Get(r.Key)
-		assert.NoError(t, err)
-		resp.Value = value
-		return resp, 0
-	}), WithTestClusterDisableSchedule(), WithTestClusterLogLevel("info"))
+	}), GetCMDTestClusterHandler, DisableScheduleTestCluster)
 	c.Start()
 	defer c.Stop()
 
@@ -57,31 +49,10 @@ func TestIssue90(t *testing.T) {
 
 	// send w1(set k1=1), r1(k1, at w1 committed), w2(k1=2), r2(k1, (k1, at w2 committed))
 	// r1 read 1, r2 read 2
-	w1 := pb.AcquireRequest()
-	w1.ID = []byte("w1")
-	w1.CustemType = 1
-	w1.Type = raftcmdpb.CMDType_Write
-	w1.Key = []byte("key1")
-	w1.Cmd = []byte("1")
-
-	r1 := pb.AcquireRequest()
-	r1.ID = []byte("r1")
-	r1.CustemType = 2
-	r1.Type = raftcmdpb.CMDType_Read
-	r1.Key = []byte("key1")
-
-	w2 := pb.AcquireRequest()
-	w2.ID = []byte("w2")
-	w2.CustemType = 1
-	w2.Type = raftcmdpb.CMDType_Write
-	w2.Key = []byte("key1")
-	w2.Cmd = []byte("2")
-
-	r2 := pb.AcquireRequest()
-	r2.ID = []byte("r2")
-	r2.CustemType = 2
-	r2.Type = raftcmdpb.CMDType_Read
-	r2.Key = []byte("key1")
+	w1 := createTestWriteReq("w1", "key1", "1")
+	r1 := createTestReadReq("r1", "key1")
+	w2 := createTestWriteReq("w2", "key1", "2")
+	r2 := createTestReadReq("r2", "key1")
 
 	resps, err := sendTestReqs(s,
 		time.Second*10,
@@ -99,50 +70,4 @@ func TestIssue90(t *testing.T) {
 	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
 	assert.Nil(t, resps["r2"].Header)
 	assert.Equal(t, "2", string(resps["r2"].Responses[0].Value))
-}
-
-func sendTestReqs(s Store, timeout time.Duration, waiterC chan string, waiters map[string]string, reqs ...*raftcmdpb.Request) (map[string]*raftcmdpb.RaftCMDResponse, error) {
-	if waiters == nil {
-		waiters = make(map[string]string)
-	}
-
-	resps := make(map[string]*raftcmdpb.RaftCMDResponse)
-	c := make(chan *raftcmdpb.RaftCMDResponse, len(reqs))
-	defer close(c)
-
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
-		c <- resp
-	}
-
-	for _, req := range reqs {
-		if v, ok := waiters[string(req.ID)]; ok {
-		OUTER:
-			for {
-				select {
-				case <-time.After(timeout):
-					return nil, errors.New("timeout error")
-				case c := <-waiterC:
-					if c == v {
-						break OUTER
-					}
-				}
-			}
-		}
-		err := s.(*store).onRequestWithCB(req, cb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for {
-		select {
-		case <-time.After(timeout):
-			return nil, errors.New("timeout error")
-		case resp := <-c:
-			resps[string(resp.Responses[0].ID)] = resp
-			if len(resps) == len(reqs) {
-				return resps, nil
-			}
-		}
-	}
 }
