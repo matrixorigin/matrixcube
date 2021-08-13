@@ -47,7 +47,6 @@ func TestClusterStartAndStop(t *testing.T) {
 	}, 10*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, "value", string(value))
-	t.Fail()
 }
 
 func TestIssue84(t *testing.T) {
