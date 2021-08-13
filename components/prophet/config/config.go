@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"go.etcd.io/etcd/embed"
 )
 
@@ -67,11 +68,12 @@ type Config struct {
 	DisableStrictReconfigCheck bool      `toml:"-" json:"-"`
 	DisableResponse            bool      `toml:"-" json:"-"`
 	TestCtx                    *sync.Map `toml:"-" json:"-"`
+	FS                         vfs.FS    `toml:"-" json:"-"`
 }
 
 // NewConfig creates a new config.
 func NewConfig() *Config {
-	return &Config{}
+	return &Config{FS: vfs.Default}
 }
 
 // NewConfigWithFile new config with config file
