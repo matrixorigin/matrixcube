@@ -247,6 +247,8 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	pr.items = make([]interface{}, readyBatch)
 	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
+
+	logger.Errorf(">>>>>>>>>>>>>>>>>>>>> shard %d create with %+v", pr.shardID, shard)
 	return pr, nil
 }
 
@@ -335,7 +337,7 @@ func (pr *peerReplica) stopEventLoop() {
 
 func (pr *peerReplica) maybeExecRead() {
 	if pr.readyToHandleRead() {
-		pr.pendingReads.doReadLEAppliedIndex(pr.ps.applyState.AppliedIndex, pr)
+		pr.pendingReads.doReadLEAppliedIndex(pr.ps.raftApplyState.AppliedIndex, pr)
 	}
 }
 

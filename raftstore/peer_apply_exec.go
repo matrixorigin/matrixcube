@@ -383,9 +383,9 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	}
 
 	d.store.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
-	for _, region := range shards {
-		d.store.updatePeerState(region, bhraftpb.PeerState_Normal, ctx.raftWB)
-		d.store.writeInitialState(region.ID, ctx.raftWB)
+	for _, shard := range shards {
+		d.store.updatePeerState(shard, bhraftpb.PeerState_Normal, ctx.raftWB)
+		d.store.writeInitialState(shard.ID, ctx.raftWB)
 	}
 
 	if d.store.cfg.Storage.DataMoveFunc != nil {

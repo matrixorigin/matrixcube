@@ -48,8 +48,8 @@ type peerStorage struct {
 	appliedIndexTerm uint64
 	lastReadyIndex   uint64
 	lastCompactIndex uint64
-	raftState        bhraftpb.RaftLocalState
-	applyState       bhraftpb.RaftApplyState
+	raftLocalState   bhraftpb.RaftLocalState
+	raftApplyState   bhraftpb.RaftApplyState
 
 	genSnapJob       *task.Job
 	applySnapJob     *task.Job
@@ -64,21 +64,21 @@ func newPeerStorage(store *store, shard bhmetapb.Shard) (*peerStorage, error) {
 	s.shard = shard
 	s.appliedIndexTerm = raftInitLogTerm
 
-	err := s.initRaftState()
+	err := s.initRaftLocalState()
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("shard %d init with raft state %+v",
+	logger.Infof("shard %d init with raft local state %+v",
 		shard.ID,
-		s.raftState)
+		s.raftLocalState)
 
-	err = s.initApplyState()
+	err = s.initRaftApplyState()
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("shard %d init apply state, state=<%+v>",
+	logger.Infof("shard %d init raft apply state, state=<%+v>",
 		shard.ID,
-		s.applyState)
+		s.raftApplyState)
 
 	err = s.initLastTerm()
 	if err != nil {
@@ -94,8 +94,8 @@ func newPeerStorage(store *store, shard bhmetapb.Shard) (*peerStorage, error) {
 	return s, nil
 }
 
-func (ps *peerStorage) initRaftState() error {
-	v, err := ps.store.MetadataStorage().Get(getRaftStateKey(ps.shard.ID))
+func (ps *peerStorage) initRaftLocalState() error {
+	v, err := ps.store.MetadataStorage().Get(getRaftLocalStateKey(ps.shard.ID))
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (ps *peerStorage) initRaftState() error {
 			return err
 		}
 
-		ps.raftState = *s
+		ps.raftLocalState = *s
 		return nil
 	}
 
@@ -117,12 +117,12 @@ func (ps *peerStorage) initRaftState() error {
 		s.HardState.Term = raftInitLogTerm
 	}
 
-	ps.raftState = *s
+	ps.raftLocalState = *s
 	return nil
 }
 
-func (ps *peerStorage) initApplyState() error {
-	v, err := ps.store.MetadataStorage().Get(getApplyStateKey(ps.shard.ID))
+func (ps *peerStorage) initRaftApplyState() error {
+	v, err := ps.store.MetadataStorage().Get(getRaftApplyStateKey(ps.shard.ID))
 	if err != nil {
 		return err
 	}
@@ -133,21 +133,21 @@ func (ps *peerStorage) initApplyState() error {
 			return err
 		}
 
-		ps.applyState = *s
+		ps.raftApplyState = *s
 		return nil
 	}
 
 	if len(ps.shard.Peers) > 0 {
-		ps.applyState.AppliedIndex = raftInitLogIndex
-		ps.applyState.TruncatedState.Index = raftInitLogIndex
-		ps.applyState.TruncatedState.Term = raftInitLogTerm
+		ps.raftApplyState.AppliedIndex = raftInitLogIndex
+		ps.raftApplyState.TruncatedState.Index = raftInitLogIndex
+		ps.raftApplyState.TruncatedState.Term = raftInitLogTerm
 	}
 
 	return nil
 }
 
 func (ps *peerStorage) initLastTerm() error {
-	lastIndex := ps.raftState.LastIndex
+	lastIndex := ps.raftLocalState.LastIndex
 
 	if lastIndex == 0 {
 		ps.lastTerm = lastIndex
@@ -155,8 +155,8 @@ func (ps *peerStorage) initLastTerm() error {
 	} else if lastIndex == raftInitLogIndex {
 		ps.lastTerm = raftInitLogTerm
 		return nil
-	} else if lastIndex == ps.applyState.TruncatedState.Index {
-		ps.lastTerm = ps.applyState.TruncatedState.Term
+	} else if lastIndex == ps.raftApplyState.TruncatedState.Index {
+		ps.lastTerm = ps.raftApplyState.TruncatedState.Term
 		return nil
 	} else if lastIndex < raftInitLogIndex {
 		logger.Fatalf("shard %d error raft last index %d",
@@ -191,19 +191,19 @@ func (ps *peerStorage) isApplyComplete() bool {
 }
 
 func (ps *peerStorage) getAppliedIndex() uint64 {
-	return ps.applyState.AppliedIndex
+	return ps.raftApplyState.AppliedIndex
 }
 
 func (ps *peerStorage) getCommittedIndex() uint64 {
-	return ps.raftState.HardState.Commit
+	return ps.raftLocalState.HardState.Commit
 }
 
 func (ps *peerStorage) getTruncatedIndex() uint64 {
-	return ps.applyState.TruncatedState.Index
+	return ps.raftApplyState.TruncatedState.Index
 }
 
 func (ps *peerStorage) getTruncatedTerm() uint64 {
-	return ps.applyState.TruncatedState.Term
+	return ps.raftApplyState.TruncatedState.Term
 }
 
 func (ps *peerStorage) validateSnap(snap *raftpb.Snapshot) bool {
@@ -282,13 +282,13 @@ func (ps *peerStorage) loadLogEntry(index uint64) (raftpb.Entry, error) {
 	return ps.unmarshal(v, index)
 }
 
-func (ps *peerStorage) loadLocalState(job *task.Job) (*bhraftpb.ShardLocalState, error) {
+func (ps *peerStorage) loadShardLocalState(job *task.Job) (*bhraftpb.ShardLocalState, error) {
 	if nil != job &&
 		job.IsCancelling() {
 		return nil, task.ErrJobCancelled
 	}
 
-	return loadLocalState(ps.shard.ID, ps.store.MetadataStorage(), false)
+	return loadShardLocalState(ps.shard.ID, ps.store.MetadataStorage(), false)
 }
 
 func (ps *peerStorage) applySnapshot(job *task.Job) error {
@@ -300,15 +300,15 @@ func (ps *peerStorage) applySnapshot(job *task.Job) error {
 	snap := &bhraftpb.SnapshotMessage{}
 	snap.Header = bhraftpb.SnapshotMessageHeader{
 		Shard: ps.shard,
-		Term:  ps.applyState.TruncatedState.Term,
-		Index: ps.applyState.TruncatedState.Index,
+		Term:  ps.raftApplyState.TruncatedState.Term,
+		Index: ps.raftApplyState.TruncatedState.Index,
 	}
 
 	return ps.store.snapshotManager.Apply(snap)
 }
 
-func (ps *peerStorage) loadApplyState() (*bhraftpb.RaftApplyState, error) {
-	key := getApplyStateKey(ps.shard.ID)
+func (ps *peerStorage) loadRaftApplyState() (*bhraftpb.RaftApplyState, error) {
+	key := getRaftApplyStateKey(ps.shard.ID)
 	v, err := ps.store.MetadataStorage().Get(key)
 	if err != nil {
 		logger.Errorf("shard %d load apply state failed with %d",
@@ -356,8 +356,8 @@ func compactRaftLog(shardID uint64, state *bhraftpb.RaftApplyState, compactIndex
 	return nil
 }
 
-func loadLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFound bool) (*bhraftpb.ShardLocalState, error) {
-	key := getStateKey(shardID)
+func loadShardLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFound bool) (*bhraftpb.ShardLocalState, error) {
+	key := getShardLocaleStateKey(shardID)
 	v, err := driver.Get(key)
 	if err != nil {
 		logger.Errorf("shard %d load raft state failed with %+v",
@@ -389,16 +389,16 @@ func (ps *peerStorage) isGenSnapJobComplete() bool {
 // ============================ etcd raft storage interface method
 func (ps *peerStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error) {
 	confState := raftpb.ConfState{}
-	if ps.raftState.HardState.Commit == 0 &&
-		ps.raftState.HardState.Term == 0 &&
-		ps.raftState.HardState.Vote == 0 {
+	if ps.raftLocalState.HardState.Commit == 0 &&
+		ps.raftLocalState.HardState.Term == 0 &&
+		ps.raftLocalState.HardState.Vote == 0 {
 		if ps.isInitialized() {
 			logger.Fatalf("shard %d shard is initialized but local state has empty hard state, hardState=<%v>",
 				ps.shard.ID,
-				ps.raftState.HardState)
+				ps.raftLocalState.HardState)
 		}
 
-		return ps.raftState.HardState, confState, nil
+		return ps.raftLocalState.HardState, confState, nil
 	}
 
 	for _, p := range ps.shard.Peers {
@@ -409,7 +409,7 @@ func (ps *peerStorage) InitialState() (raftpb.HardState, raftpb.ConfState, error
 		}
 	}
 
-	return ps.raftState.HardState, confState, nil
+	return ps.raftLocalState.HardState, confState, nil
 }
 
 func (ps *peerStorage) Entries(low, high, maxSize uint64) ([]raftpb.Entry, error) {
@@ -521,7 +521,7 @@ func (ps *peerStorage) Term(idx uint64) (uint64, error) {
 }
 
 func (ps *peerStorage) LastIndex() (uint64, error) {
-	return atomic.LoadUint64(&ps.raftState.LastIndex), nil
+	return atomic.LoadUint64(&ps.raftLocalState.LastIndex), nil
 }
 
 func (ps *peerStorage) FirstIndex() (uint64, error) {
