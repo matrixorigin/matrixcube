@@ -29,10 +29,44 @@ import (
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/mem"
+	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/stretchr/testify/assert"
+)
+
+var (
+	// SingleTestCluster single test raft cluster
+	SingleTestCluster = WithTestClusterNodeCount(1)
+	// DiskTestCluster using pebble storage test raft store
+	DiskTestCluster = WithTestClusterUseDisk()
+	// DisableScheduleTestCluster disable prophet schedulers  test raft store
+	DisableScheduleTestCluster = WithTestClusterDisableSchedule()
+	// NewTestCluster clean data before test cluster start
+	NewTestCluster = WithTestClusterRecreate(true)
+	// NoCleanTestCluster using exists data before test cluster start
+	OldTestCluster = WithTestClusterRecreate(true)
+	// SetCMDTestClusterHandler set cmd handler
+	SetCMDTestClusterHandler = WithTestClusterWriteHandler(1, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (uint64, int64, *raftcmdpb.Response) {
+		resp := pb.AcquireResponse()
+		c.WriteBatch().Set(r.Key, r.Cmd)
+		resp.Value = []byte("OK")
+		changed := uint64(len(r.Key)) + uint64(len(r.Cmd))
+		return changed, int64(changed), resp
+	})
+	// GetCMDTestClusterHandler get cmd handler
+	GetCMDTestClusterHandler = WithTestClusterReadHandler(2, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (*raftcmdpb.Response, uint64) {
+		resp := pb.AcquireResponse()
+		value, err := c.DataStorage().(storage.KVStorage).Get(r.Key)
+		if err != nil {
+			panic("BUG: can not error")
+		}
+		resp.Value = value
+		return resp, uint64(len(value))
+	})
 )
 
 // TestClusterOption is the option for create TestCluster
@@ -46,6 +80,7 @@ type testClusterOptions struct {
 	storeFactory      func(node int, cfg *config.Config) Store
 	nodeStartFunc     func(node int, store Store)
 	logLevel          string
+	useDisk           bool
 
 	writeHandlers map[uint64]command.WriteCommandFunc
 	readHandlers  map[uint64]command.ReadCommandFunc
@@ -73,6 +108,21 @@ func (opts *testClusterOptions) adjust() {
 	}
 }
 
+// WithTestClusterNodeCount set node count of test cluster
+func WithTestClusterNodeCount(n int) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.nodes = n
+	}
+}
+
+// WithTestClusterUseDisk use disk storage for testing
+func WithTestClusterUseDisk() TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.useDisk = true
+	}
+}
+
+// WithTestClusterDisableSchedule disable pd schedule
 func WithTestClusterDisableSchedule() TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.disableSchedule = true
@@ -131,96 +181,6 @@ func WithAppendTestClusterAdjustConfigFunc(value func(node int, cfg *config.Conf
 func recreateTestTempDir(tmpDir string) {
 	os.RemoveAll(tmpDir)
 	os.MkdirAll(tmpDir, 0755)
-}
-
-// NewTestClusterStore create test cluster with 3 nodes, and the data dir is not empty
-func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
-	c := &TestRaftCluster{t: t, opts: newTestClusterOptions()}
-	for _, opt := range opts {
-		opt(c.opts)
-	}
-	c.opts.adjust()
-
-	log.SetHighlighting(false)
-	log.SetLevelByString(c.opts.logLevel)
-	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
-
-	if c.opts.disableSchedule {
-		pconfig.DefaultSchedulers = nil
-	}
-
-	if c.opts.recreate {
-		recreateTestTempDir(c.opts.tmpDir)
-	}
-
-	for i := 0; i < c.opts.nodes; i++ {
-		cfg := &config.Config{}
-		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
-		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
-		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
-		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
-
-		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
-		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 300)
-
-		cfg.Worker.RaftEventWorkers = 1
-		cfg.Worker.ApplyWorkerCount = 1
-		cfg.Worker.SendRaftMsgWorkerCount = 1
-
-		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
-		cfg.Prophet.StorageNode = true
-		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
-		if i != 0 {
-			cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
-		}
-		cfg.Prophet.EmbedEtcd.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
-		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
-		cfg.Prophet.Schedule.EnableJointConsensus = true
-
-		for _, fn := range c.opts.adjustConfigFuncs {
-			fn(i, cfg)
-		}
-
-		if cfg.Storage.MetaStorage == nil {
-			cfg.Storage.MetaStorage = mem.NewStorage()
-		}
-		if cfg.Storage.DataStorageFactory == nil {
-			dataStorage := mem.NewStorage()
-			cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
-				return dataStorage
-			}
-			cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
-				cb(dataStorage)
-			}
-			c.storages = append(c.storages, dataStorage)
-		}
-
-		ts := newTestShardAware()
-		cfg.Customize.TestShardStateAware = ts
-
-		var s *store
-		if c.opts.storeFactory != nil {
-			s = c.opts.storeFactory(i, cfg).(*store)
-		} else {
-			s = NewStore(cfg).(*store)
-		}
-
-		for k, h := range c.opts.writeHandlers {
-			s.RegisterWriteFunc(k, h)
-		}
-
-		for k, h := range c.opts.readHandlers {
-			s.RegisterReadFunc(k, h)
-		}
-
-		c.stores = append(c.stores, s)
-		c.awares = append(c.awares, ts)
-	}
-
-	return c
 }
 
 type testShardAware struct {
@@ -294,6 +254,19 @@ func (ts *testShardAware) getShardByIndex(index int) bhmetapb.Shard {
 	defer ts.RUnlock()
 
 	return ts.shards[index]
+}
+
+func (ts *testShardAware) getShardByID(id uint64) bhmetapb.Shard {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	for _, s := range ts.shards {
+		if s.ID == id {
+			return s
+		}
+	}
+
+	return bhmetapb.Shard{}
 }
 
 func (ts *testShardAware) shardCount() int {
@@ -406,11 +379,140 @@ func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
 type TestRaftCluster struct {
 	sync.RWMutex
 
-	opts     *testClusterOptions
+	// init fields
 	t        *testing.T
-	stores   []*store
-	awares   []*testShardAware
-	storages []*mem.Storage
+	initOpts []TestClusterOption
+
+	// reset fields
+	opts             *testClusterOptions
+	stores           []*store
+	awares           []*testShardAware
+	dataStorages     []storage.DataStorage
+	metadataStorages []storage.MetadataStorage
+}
+
+// NewSingleTestClusterStore create test cluster with 1 node
+func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
+	return NewTestClusterStore(t, append(opts, WithTestClusterNodeCount(1))...)
+}
+
+// NewTestClusterStore create test cluster using options
+func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
+	c := &TestRaftCluster{t: t, initOpts: opts}
+	c.reset(opts...)
+	return c
+}
+
+func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
+	c.opts = newTestClusterOptions()
+	c.stores = nil
+	c.awares = nil
+	c.dataStorages = nil
+	c.metadataStorages = nil
+
+	for _, opt := range opts {
+		opt(c.opts)
+	}
+	c.opts.adjust()
+
+	log.SetHighlighting(false)
+	log.SetLevelByString(c.opts.logLevel)
+	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
+	if c.opts.disableSchedule {
+		pconfig.DefaultSchedulers = nil
+	}
+
+	if c.opts.recreate {
+		recreateTestTempDir(c.opts.tmpDir)
+	}
+
+	for i := 0; i < c.opts.nodes; i++ {
+		cfg := &config.Config{}
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
+		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
+		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
+		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
+
+		if c.opts.nodes < 3 {
+			cfg.Prophet.Replication.MaxReplicas = uint64(c.opts.nodes)
+		}
+
+		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
+		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
+
+		cfg.Worker.RaftEventWorkers = 1
+		cfg.Worker.ApplyWorkerCount = 1
+		cfg.Worker.SendRaftMsgWorkerCount = 1
+
+		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
+		cfg.Prophet.StorageNode = true
+		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
+		if i != 0 {
+			cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
+		}
+		cfg.Prophet.EmbedEtcd.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
+		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
+		cfg.Prophet.Schedule.EnableJointConsensus = true
+
+		for _, fn := range c.opts.adjustConfigFuncs {
+			fn(i, cfg)
+		}
+
+		if cfg.Storage.MetaStorage == nil {
+			var metaStorage storage.MetadataStorage
+			metaStorage = mem.NewStorage()
+			if c.opts.useDisk {
+				s, err := pebble.NewStorage(fmt.Sprintf("%s-meta", cfg.DataPath))
+				assert.NoError(c.t, err)
+				metaStorage = s
+			}
+			cfg.Storage.MetaStorage = metaStorage
+			c.metadataStorages = append(c.metadataStorages, metaStorage)
+		}
+		if cfg.Storage.DataStorageFactory == nil {
+			var dataStorage storage.DataStorage
+			dataStorage = mem.NewStorage()
+			if c.opts.useDisk {
+				s, err := pebble.NewStorage(fmt.Sprintf("%s-data", cfg.DataPath))
+				assert.NoError(c.t, err)
+				dataStorage = s
+			}
+
+			cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
+				return dataStorage
+			}
+			cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
+				cb(dataStorage)
+			}
+			c.dataStorages = append(c.dataStorages, dataStorage)
+		}
+
+		ts := newTestShardAware()
+		cfg.Customize.TestShardStateAware = ts
+
+		var s *store
+		if c.opts.storeFactory != nil {
+			s = c.opts.storeFactory(i, cfg).(*store)
+		} else {
+			s = NewStore(cfg).(*store)
+		}
+
+		for k, h := range c.opts.writeHandlers {
+			s.RegisterWriteFunc(k, h)
+		}
+
+		for k, h := range c.opts.readHandlers {
+			s.RegisterReadFunc(k, h)
+		}
+
+		c.stores = append(c.stores, s)
+		c.awares = append(c.awares, ts)
+	}
+
 }
 
 // EveryStore do every store, it can be used to init some store register
@@ -433,7 +535,7 @@ func (c *TestRaftCluster) GetWatcher(node int) prophet.Watcher {
 // Start start the test raft cluster
 func (c *TestRaftCluster) Start() {
 	var wg sync.WaitGroup
-	for i, s := range c.stores {
+	for i := range c.stores {
 		wg.Add(1)
 		fn := func(i int) {
 			defer wg.Done()
@@ -441,7 +543,7 @@ func (c *TestRaftCluster) Start() {
 			if c.opts.nodeStartFunc != nil {
 				c.opts.nodeStartFunc(i, c.stores[i])
 			} else {
-				s.Start()
+				c.stores[i].Start()
 			}
 		}
 
@@ -455,10 +557,25 @@ func (c *TestRaftCluster) Start() {
 	wg.Wait()
 }
 
+func (c *TestRaftCluster) Restart() {
+	c.Stop()
+	opts := append(c.initOpts, WithTestClusterRecreate(false))
+	c.reset(opts...)
+	c.Start()
+}
+
 // Stop stop the test cluster
 func (c *TestRaftCluster) Stop() {
 	for _, s := range c.stores {
 		s.Stop()
+	}
+
+	for _, s := range c.dataStorages {
+		s.Close()
+	}
+
+	for _, s := range c.metadataStorages {
+		s.Close()
 	}
 }
 
@@ -475,7 +592,7 @@ func (c *TestRaftCluster) GetPRCount(nodeIndex int) int {
 func (c *TestRaftCluster) set(key, value []byte) {
 	shard := c.GetShardByIndex(0)
 	for idx, s := range c.stores {
-		c.storages[idx].Set(key, value)
+		c.dataStorages[idx].(storage.KVStorage).Set(key, value)
 		pr := s.getPR(shard.ID, false)
 		pr.sizeDiffHint += uint64(len(key) + len(value))
 	}
@@ -484,6 +601,11 @@ func (c *TestRaftCluster) set(key, value []byte) {
 // GetShardByIndex returns the shard by index
 func (c *TestRaftCluster) GetShardByIndex(index int) bhmetapb.Shard {
 	return c.awares[0].getShardByIndex(index)
+}
+
+// GetShardByID returns the shard by id
+func (c *TestRaftCluster) GetShardByID(id uint64) bhmetapb.Shard {
+	return c.awares[0].getShardByID(id)
 }
 
 // CheckShardCount check shard count

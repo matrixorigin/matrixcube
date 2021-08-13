@@ -22,12 +22,10 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
-// for meta
+// suffix for local metadata
 const (
 	stateSuffix = 0x01
-)
 
-const (
 	// Following are the suffix after the local prefix.
 	// For shard id
 	raftLogSuffix    = 0x01
@@ -98,10 +96,6 @@ func decodeMetaKey(key []byte) (uint64, byte, error) {
 	return binary.BigEndian.Uint64(key[prefixLen:keyLen]), key[keyLen-1], nil
 }
 
-func getStateKey(shardID uint64) []byte {
-	return getMetaKey(shardID, stateSuffix)
-}
-
 func getMetaKey(shardID uint64, suffix byte) []byte {
 	buf := acquireBuf()
 	buf.Write(metaPrefixKey)
@@ -123,11 +117,15 @@ func getMetaPrefix(shardID uint64) []byte {
 	return data
 }
 
-func getRaftStateKey(shardID uint64) []byte {
+func getShardLocaleStateKey(shardID uint64) []byte {
+	return getMetaKey(shardID, stateSuffix)
+}
+
+func getRaftLocalStateKey(shardID uint64) []byte {
 	return getIDKey(shardID, raftStateSuffix, 0, 0)
 }
 
-func getApplyStateKey(shardID uint64) []byte {
+func getRaftApplyStateKey(shardID uint64) []byte {
 	return getIDKey(shardID, applyStateSuffix, 0, 0)
 }
 

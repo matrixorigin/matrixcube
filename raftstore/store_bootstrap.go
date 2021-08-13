@@ -171,12 +171,12 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 	wb := util.NewWriteBatch()
 	for _, shard := range shards {
 		// shard local state
-		wb.Set(getStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
+		wb.Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
 			Shard: shard,
 		}))
 
 		// shard raft state
-		wb.Set(getRaftStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{
+		wb.Set(getRaftLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{
 			LastIndex: raftInitLogIndex,
 			HardState: raftpb.HardState{
 				Term:   raftInitLogTerm,
@@ -185,7 +185,7 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 		}))
 
 		// shard raft apply state
-		wb.Set(getApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{
+		wb.Set(getRaftApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{
 			AppliedIndex: raftInitLogIndex,
 			TruncatedState: bhraftpb.RaftTruncatedState{
 				Term:  raftInitLogTerm,
@@ -215,9 +215,9 @@ func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
 func (s *store) mustRemoveShards(ids ...uint64) {
 	wb := util.NewWriteBatch()
 	for _, id := range ids {
-		wb.Delete(getStateKey(id))
-		wb.Delete(getRaftStateKey(id))
-		wb.Delete(getApplyStateKey(id))
+		wb.Delete(getShardLocaleStateKey(id))
+		wb.Delete(getRaftLocalStateKey(id))
+		wb.Delete(getRaftApplyStateKey(id))
 	}
 	err := s.cfg.Storage.MetaStorage.Write(wb, true)
 	if err != nil {

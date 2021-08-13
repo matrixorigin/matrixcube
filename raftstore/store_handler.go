@@ -202,7 +202,7 @@ func (s *store) isMsgStale(msg *bhraftpb.RaftMessage) (bool, error) {
 	}
 
 	// no exist, check with tombstone key.
-	localState, err := loadLocalState(shardID, s.MetadataStorage(), true)
+	localState, err := loadShardLocalState(shardID, s.MetadataStorage(), true)
 	if err != nil {
 		return false, err
 	}
@@ -338,8 +338,8 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 			if p := s.getPR(item.ID, false); p != nil {
 				state = fmt.Sprintf("overlappedShard=<%d> local=<%s> apply=<%s>",
 					p.shardID,
-					p.ps.raftState.String(),
-					p.ps.applyState.String())
+					p.ps.raftLocalState.String(),
+					p.ps.raftApplyState.String())
 
 				// Maybe split, but not registered yet.
 				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
