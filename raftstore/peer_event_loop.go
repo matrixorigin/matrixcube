@@ -127,35 +127,9 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
-func (pr *peerReplica) doubleCheck() bool {
-	if pr.ticks.Len() > 0 {
-		return true
-	}
-
-	if pr.steps.Len() > 0 {
-		return true
-	}
-	if pr.reports.Len() > 0 {
-		return true
-	}
-	if pr.applyResults.Len() > 0 {
-		return true
-	}
-	if pr.requests.Len() > 0 {
-		return true
-	}
-	if pr.actions.Len() > 0 {
-		return true
-	}
-
-	return !pr.ps.isApplyingSnapshot() && pr.rn.HasReadySince(pr.ps.lastReadyIndex)
-}
-
 func (pr *peerReplica) handleEvent() bool {
 	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
-		if !pr.doubleCheck() {
-			return false
-		}
+		return false
 	}
 
 	stop := false

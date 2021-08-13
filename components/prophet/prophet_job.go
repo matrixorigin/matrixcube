@@ -17,7 +17,6 @@ import (
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
@@ -53,7 +52,7 @@ func (p *defaultProphet) startJobs() {
 				continue
 			}
 
-			processor := config.GetJobProcessor(job.Type)
+			processor := p.cfg.GetJobProcessor(job.Type)
 			if processor != nil {
 				processor.Start(job, p.storage, p.basicCluster)
 				p.updateJobStatus(job, metapb.JobState_Working)
@@ -81,7 +80,7 @@ func (p *defaultProphet) stopJobs() {
 				continue
 			}
 
-			processor := config.GetJobProcessor(job.Type)
+			processor := p.cfg.GetJobProcessor(job.Type)
 			if processor != nil {
 				processor.Stop(job, p.storage, p.basicCluster)
 				continue
@@ -99,7 +98,7 @@ func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	defer p.jobMu.Unlock()
 
 	job := req.CreateJob.Job
-	processor := config.GetJobProcessor(job.Type)
+	processor := p.cfg.GetJobProcessor(job.Type)
 	if processor == nil {
 		return fmt.Errorf("missing job processor for type %d", job.Type)
 	}
@@ -123,9 +122,9 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	defer p.jobMu.Unlock()
 
 	job := req.RemoveJob.Job
-	processor := config.GetJobProcessor(job.Type)
+	processor := p.cfg.GetJobProcessor(job.Type)
 	if processor == nil {
-		return fmt.Errorf("missing job processor for type %d", job.Type)
+		return fmt.Errorf("missing job processor for type %d, %+v", job.Type, job)
 	}
 
 	if _, ok := p.jobMu.jobs[job.Type]; !ok {
@@ -143,7 +142,7 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Req
 
 func (p *defaultProphet) handleExecuteJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
 	job := req.ExecuteJob.Job
-	processor := config.GetJobProcessor(job.Type)
+	processor := p.cfg.GetJobProcessor(job.Type)
 	if processor == nil {
 		return fmt.Errorf("missing job processor for type %d", job.Type)
 	}

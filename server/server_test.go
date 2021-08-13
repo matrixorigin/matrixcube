@@ -91,7 +91,7 @@ func TestIssue84(t *testing.T) {
 func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOption) (*TestApplicationCluster, func()) {
 	var storages []storage.DataStorage
 	var metaStorages []storage.MetadataStorage
-	opts = append(opts, raftstore.WithTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+	opts = append(opts, raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath))
 		assert.NoError(t, err)
 		storages = append(storages, s)
@@ -110,17 +110,17 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 		metaStorages = append(metaStorages, sm)
 	}))
 
-	c := NewTestApplicationCluster(t, func(i int, store raftstore.Store) Cfg {
+	c := NewTestApplicationCluster(t, func(i int, store raftstore.Store) *Application {
 		h := &testHandler{
 			store: store,
 		}
 		store.RegisterWriteFunc(1, h.set)
 		store.RegisterReadFunc(2, h.get)
-		return Cfg{
+		return NewApplication(Cfg{
 			Addr:    fmt.Sprintf("127.0.0.1:808%d", i),
 			Store:   store,
 			Handler: h,
-		}
+		})
 	}, opts...)
 
 	c.Start()

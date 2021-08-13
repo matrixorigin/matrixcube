@@ -57,6 +57,12 @@ type Config struct {
 	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState) `toml:"-" json:"-"`
 	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
 
+	// Job processor register
+	jobMu struct {
+		sync.RWMutex
+		jobProcessors map[metapb.JobType]JobProcessor
+	} `toml:"-" json:"-"`
+
 	// Only test can change them.
 	DisableStrictReconfigCheck bool      `toml:"-" json:"-"`
 	DisableResponse            bool      `toml:"-" json:"-"`

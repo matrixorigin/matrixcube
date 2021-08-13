@@ -18,6 +18,12 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 )
 
+// CloseableStorage is a closeable storage
+type CloseableStorage interface {
+	// Close close the storage
+	Close() error
+}
+
 // StatisticalStorage statistical storage
 type StatisticalStorage interface {
 	// Stats storage status

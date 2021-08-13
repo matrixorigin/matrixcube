@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -26,6 +25,11 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft"
 	"go.etcd.io/etcd/raft/raftpb"
+)
+
+var (
+	// testMaxOnceCommitEntryCount how many submitted entries are processed each time. 0 is unlimited
+	testMaxOnceCommitEntryCount = 0
 )
 
 type readyContext struct {
@@ -98,9 +102,9 @@ func (pr *peerReplica) handleReady() {
 		}
 	}
 
-	ctx.hardState = pr.ps.raftState.HardState
-	ctx.raftState = pr.ps.raftState
-	ctx.applyState = pr.ps.applyState
+	ctx.hardState = pr.ps.raftLocalState.HardState
+	ctx.raftState = pr.ps.raftLocalState
+	ctx.applyState = pr.ps.raftApplyState
 	ctx.lastTerm = pr.ps.lastTerm
 
 	pr.handleRaftReadyAppend(ctx, &rd)
@@ -273,13 +277,13 @@ func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []raftpb.Entry
 }
 
 func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
-	if ctx.raftState.LastIndex != pr.ps.raftState.LastIndex ||
-		ctx.hardState.Commit != pr.ps.raftState.HardState.Commit ||
-		ctx.hardState.Term != pr.ps.raftState.HardState.Term ||
-		ctx.hardState.Vote != pr.ps.raftState.HardState.Vote {
+	if ctx.raftState.LastIndex != pr.ps.raftLocalState.LastIndex ||
+		ctx.hardState.Commit != pr.ps.raftLocalState.HardState.Commit ||
+		ctx.hardState.Term != pr.ps.raftLocalState.HardState.Term ||
+		ctx.hardState.Vote != pr.ps.raftLocalState.HardState.Vote {
 
 		ctx.raftState.HardState = ctx.hardState
-		err := ctx.wb.Set(getRaftStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
+		err := ctx.wb.Set(getRaftLocalStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
 		if err != nil {
 			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
@@ -290,12 +294,12 @@ func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
 
 func (pr *peerReplica) doSaveApplyState(ctx *readyContext) {
 	tmp := ctx.applyState
-	origin := pr.ps.applyState
+	origin := pr.ps.raftApplyState
 
 	if tmp.AppliedIndex != origin.AppliedIndex ||
 		tmp.TruncatedState.Index != origin.TruncatedState.Index ||
 		tmp.TruncatedState.Term != origin.TruncatedState.Term {
-		err := ctx.wb.Set(getApplyStateKey(pr.shardID), protoc.MustMarshal(&ctx.applyState))
+		err := ctx.wb.Set(getRaftApplyStateKey(pr.shardID), protoc.MustMarshal(&ctx.applyState))
 		if err != nil {
 			logger.Fatalf("shard %d handle raft ready failed with %+v",
 				pr.ps.shard.ID,
@@ -338,9 +342,9 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 }
 
 func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *applySnapResult {
-	pr.ps.raftState = ctx.raftState
-	pr.ps.raftState.HardState = ctx.hardState
-	pr.ps.applyState = ctx.applyState
+	pr.ps.raftLocalState = ctx.raftState
+	pr.ps.raftLocalState.HardState = ctx.hardState
+	pr.ps.raftApplyState = ctx.applyState
 	pr.ps.lastTerm = ctx.lastTerm
 
 	// If we apply snapshot ok, we should update some infos like applied index too.
@@ -381,13 +385,17 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 	if pr.ps.isApplyingSnapshot() {
 		pr.ps.lastReadyIndex = pr.ps.getTruncatedIndex()
 	} else {
+		if testMaxOnceCommitEntryCount > 0 &&
+			testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
+			rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
+		}
+
 		for _, entry := range rd.CommittedEntries {
 			pr.raftLogSizeHint += uint64(len(entry.Data))
 		}
 
 		if len(rd.CommittedEntries) > 0 {
 			pr.ps.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
-
 			err := pr.startApplyCommittedEntriesJob(pr.shardID, pr.getCurrentTerm(), rd.CommittedEntries)
 			if err != nil {
 				logger.Fatalf("shard %d add apply committed entries job failed with %+v",
@@ -403,18 +411,11 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
 func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	if pr.readyToHandleRead() {
 		for _, state := range rd.ReadStates {
-			if c, ok := pr.pendingReads.pop(); ok {
-				if !bytes.Equal(state.RequestCtx, c.getUUID()) {
-					logger.Fatalf("shard %d apply read failed, uuid not match",
-						pr.shardID)
-				}
-
-				pr.doExecReadCmd(c)
-			}
+			pr.pendingReads.ready(state)
 		}
-	} else {
-		for range rd.ReadStates {
-			pr.pendingReads.incrReadyCnt()
+
+		if len(rd.ReadStates) > 0 {
+			pr.maybeExecRead()
 		}
 	}
 
@@ -422,17 +423,11 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	// actually stale.
 	if rd.SoftState != nil {
 		if rd.SoftState.RaftState != raft.StateLeader {
-			n := int(pr.pendingReads.size())
-			if n > 0 {
-				// all uncommitted reads will be dropped silently in raft.
-				for index := 0; index < n; index++ {
-					if c, ok := pr.pendingReads.pop(); ok {
-						c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-					}
-				}
+			// all uncommitted reads will be dropped silently in raft.
+			for _, c := range pr.pendingReads.reads {
+				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
 			}
-
-			pr.pendingReads.resetReadyCnt()
+			pr.pendingReads.reset()
 
 			// we are not leader now, so all writes in the batch is actually stale
 			for i := 0; i < pr.batch.size(); i++ {

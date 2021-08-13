@@ -148,7 +148,7 @@ func NewStore(cfg *config.Config) Store {
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
 		runner:        task.NewRunner(),
 		workReady:     newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
-		shardPool:     newDynamicShardsPool(),
+		shardPool:     newDynamicShardsPool(&cfg.Prophet),
 	}
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
@@ -260,6 +260,10 @@ func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raf
 }
 
 func (s *store) OnRequest(req *raftcmdpb.Request) error {
+	return s.onRequestWithCB(req, s.cb)
+}
+
+func (s *store) onRequestWithCB(req *raftcmdpb.Request, cb func(resp *raftcmdpb.RaftCMDResponse)) error {
 	if logger.DebugEnabled() {
 		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
@@ -269,14 +273,14 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 	if req.ToShard > 0 {
 		pr = s.getPR(req.ToShard, !req.AllowFollower)
 		if pr == nil {
-			respStoreNotMatch(errStoreNotMatch, req, s.cb)
+			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil
 		}
 	} else {
 		pr, err = s.selectShard(req.Group, req.Key)
 		if err != nil {
 			if err == errStoreNotMatch {
-				respStoreNotMatch(err, req, s.cb)
+				respStoreNotMatch(err, req, cb)
 				return nil
 			}
 
@@ -284,7 +288,7 @@ func (s *store) OnRequest(req *raftcmdpb.Request) error {
 		}
 	}
 
-	return pr.onReq(req, s.cb)
+	return pr.onReq(req, cb)
 }
 
 func (s *store) MetadataStorage() storage.MetadataStorage {
@@ -981,14 +985,14 @@ func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, 
 	shardState.Shard = shard
 
 	if wb != nil {
-		return wb.Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+		return wb.Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
 	}
 
-	return s.MetadataStorage().Set(getStateKey(shard.ID), protoc.MustMarshal(shardState))
+	return s.MetadataStorage().Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
 func (s *store) removePeerState(shard bhmetapb.Shard) error {
-	return s.MetadataStorage().Delete(getStateKey(shard.ID))
+	return s.MetadataStorage().Delete(getShardLocaleStateKey(shard.ID))
 }
 
 func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
@@ -1002,12 +1006,12 @@ func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
 	applyState.TruncatedState.Index = raftInitLogIndex
 	applyState.TruncatedState.Term = raftInitLogTerm
 
-	err := wb.Set(getRaftStateKey(shardID), protoc.MustMarshal(raftState))
+	err := wb.Set(getRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
 	if err != nil {
 		return err
 	}
 
-	return wb.Set(getApplyStateKey(shardID), protoc.MustMarshal(applyState))
+	return wb.Set(getRaftApplyStateKey(shardID), protoc.MustMarshal(applyState))
 }
 
 // doClearData Delete all data belong to the shard.

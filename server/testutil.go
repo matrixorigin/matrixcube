@@ -18,21 +18,21 @@ import (
 
 // TestApplicationCluster test application cluster, it based on raftstore.TestClusterStore.
 type TestApplicationCluster struct {
-	t            *testing.T
-	RaftCluster  *raftstore.TestRaftCluster
-	Applications []*Application
-	initFunc     func(i int, store raftstore.Store) Cfg
+	t                  *testing.T
+	RaftCluster        *raftstore.TestRaftCluster
+	Applications       []*Application
+	applicationFactory func(i int, store raftstore.Store) *Application
 }
 
 // NewTestApplicationCluster returns TestApplicationCluster
-func NewTestApplicationCluster(t *testing.T, initFunc func(i int, store raftstore.Store) Cfg, opts ...raftstore.TestClusterOption) *TestApplicationCluster {
-	c := &TestApplicationCluster{t: t, initFunc: initFunc}
+func NewTestApplicationCluster(t *testing.T, applicationFactory func(i int, store raftstore.Store) *Application, opts ...raftstore.TestClusterOption) *TestApplicationCluster {
+	c := &TestApplicationCluster{t: t, applicationFactory: applicationFactory}
 	opts = append(opts, raftstore.WithTestClusterNodeStartFunc(func(node int, store raftstore.Store) {
 		assert.NoError(t, c.Applications[node].Start())
 	}))
 	rc := raftstore.NewTestClusterStore(t, opts...)
 	rc.EveryStore(func(i int, s raftstore.Store) {
-		c.Applications = append(c.Applications, NewApplication(initFunc(i, s)))
+		c.Applications = append(c.Applications, applicationFactory(i, s))
 	})
 	c.RaftCluster = rc
 	return c
