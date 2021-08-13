@@ -48,7 +48,7 @@ var (
 	// NewTestCluster clean data before test cluster start
 	NewTestCluster = WithTestClusterRecreate(true)
 	// NoCleanTestCluster using exists data before test cluster start
-	OldTestCluster = WithTestClusterRecreate(true)
+	OldTestCluster = WithTestClusterRecreate(false)
 	// SetCMDTestClusterHandler set cmd handler
 	SetCMDTestClusterHandler = WithTestClusterWriteHandler(1, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (uint64, int64, *raftcmdpb.Response) {
 		resp := pb.AcquireResponse()

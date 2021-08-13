@@ -271,7 +271,7 @@ func (s *store) onRequestWithCB(req *raftcmdpb.Request, cb func(resp *raftcmdpb.
 	var pr *peerReplica
 	var err error
 	if req.ToShard > 0 {
-		pr = s.getPR(req.ToShard, !req.AllowFollower)
+		pr = s.getPR(req.ToShard, false)
 		if pr == nil {
 			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil

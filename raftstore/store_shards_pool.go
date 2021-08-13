@@ -262,15 +262,22 @@ func (dsp *dynamicShardsPool) startLocked(ctx context.Context, c chan struct{}, 
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 
+		checkTicker := time.NewTicker(time.Second)
+		defer checkTicker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
 				logger.Infof("dynamic shards pool job stopped")
 				return
 			case <-c:
-				logger.Infof("dynamic shards pool job maybeCreate")
+				logger.Debugf("dynamic shards pool job maybeCreate")
 				dsp.maybeCreate(store)
-				logger.Infof("dynamic shards pool job maybeCreate completed")
+				logger.Debugf("dynamic shards pool job maybeCreate completed")
+			case <-checkTicker.C:
+				logger.Debugf("dynamic shards pool check create")
+				dsp.maybeCreate(store)
+				logger.Debugf("dynamic shards pool job maybeCreate completed")
 			case <-ticker.C:
 				logger.Infof("dynamic shards pool job gcAllocating")
 				dsp.gcAllocating(store, aware)
