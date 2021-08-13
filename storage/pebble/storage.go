@@ -18,19 +18,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 // Storage returns a kv storage based on badger
 type Storage struct {
 	db    *pebble.DB
+	fs    vfs.FS
 	stats stats.Stats
 }
 
@@ -46,8 +46,20 @@ func NewStorageWithOptions(dir string, opts *pebble.Options) (*Storage, error) {
 		return nil, err
 	}
 
+	fs := vfs.Default
+	if opts.FS != nil {
+		if pfs, ok := opts.FS.(*vfs.PebbleFS); ok {
+			fs = pfs.GetVFS()
+		} else {
+			panic("not a pebble fs")
+		}
+	} else {
+		panic("fs not set for pebble")
+	}
+
 	return &Storage{
 		db: db,
+		fs: fs,
 	}, nil
 }
 
@@ -337,18 +349,16 @@ func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	err := os.MkdirAll(path, 0755)
+	err := s.fs.MkdirAll(path, 0755)
 	if err != nil {
 		return err
 	}
-
-	file := filepath.Join(path, "db.data")
-	f, err := os.Create(file)
+	file := s.fs.PathJoin(path, "db.data")
+	f, err := s.fs.Create(file)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-
 	err = writeBytes(f, start)
 	if err != nil {
 		return err
@@ -399,7 +409,7 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 
 // ApplySnapshot apply a snapshort file from giving path
 func (s *Storage) ApplySnapshot(path string) error {
-	f, err := os.Open(filepath.Join(path, "db.data"))
+	f, err := s.fs.Open(s.fs.PathJoin(path, "db.data"))
 	if err != nil {
 		return err
 	}
@@ -468,7 +478,7 @@ func clone(value []byte) []byte {
 	return v
 }
 
-func writeBytes(f *os.File, data []byte) error {
+func writeBytes(f vfs.File, data []byte) error {
 	size := make([]byte, 4)
 	binary.BigEndian.PutUint32(size, uint32(len(data)))
 	_, err := f.Write(size)
@@ -483,7 +493,7 @@ func writeBytes(f *os.File, data []byte) error {
 	return nil
 }
 
-func readBytes(f *os.File) ([]byte, error) {
+func readBytes(f vfs.File) ([]byte, error) {
 	size := make([]byte, 4)
 	n, err := f.Read(size)
 	if n == 0 && err == io.EOF {

@@ -69,6 +69,11 @@ func NewPebbleFS(fs FS) pbvfs.FS {
 	return &PebbleFS{fs}
 }
 
+// GetVFS returns the underlying pvfs.FS.
+func (p *PebbleFS) GetVFS() FS {
+	return p.fs
+}
+
 // GetFreeSpace ...
 func (p *PebbleFS) GetFreeSpace(path string) (uint64, error) {
 	return p.fs.GetFreeSpace(path)
