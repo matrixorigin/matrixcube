@@ -25,7 +25,8 @@ github.com/StackExchange/wmi
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
-# github.com/cockroachdb/errors v1.8.1
+# github.com/cockroachdb/errors v1.8.2
+## explicit
 github.com/cockroachdb/errors
 github.com/cockroachdb/errors/assert
 github.com/cockroachdb/errors/barriers
@@ -172,6 +173,9 @@ github.com/konsorten/go-windows-terminal-sequences
 github.com/kr/pretty
 # github.com/kr/text v0.1.0
 github.com/kr/text
+# github.com/lni/vfs v0.2.1-0.20210810090357-27c7525cf64f
+## explicit
+github.com/lni/vfs
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -211,7 +215,7 @@ github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/rainycape/unidecode v0.0.0-20150907023854-cb7f23ec59be
 github.com/rainycape/unidecode
-# github.com/shirou/gopsutil v2.19.9+incompatible
+# github.com/shirou/gopsutil v3.21.7+incompatible
 ## explicit
 github.com/shirou/gopsutil/cpu
 github.com/shirou/gopsutil/disk
@@ -226,6 +230,11 @@ github.com/spf13/pflag
 # github.com/stretchr/testify v1.7.0
 ## explicit
 github.com/stretchr/testify/assert
+# github.com/tklauser/go-sysconf v0.3.7
+## explicit
+github.com/tklauser/go-sysconf
+# github.com/tklauser/numcpus v0.2.3
+github.com/tklauser/numcpus
 # github.com/tmc/grpc-websocket-proxy v0.0.0-20200427203606-3cfed13b9966
 github.com/tmc/grpc-websocket-proxy/wsproxy
 # github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
@@ -335,7 +344,7 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/sys v0.0.0-20200519105757-fe76b779f299
+# golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
