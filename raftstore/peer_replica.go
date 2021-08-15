@@ -461,6 +461,9 @@ func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config)
 		factory := cfg.Customize.CustomAdjustInitAppliedIndexFactory(ps.shard.Group)
 		if factory != nil {
 			newAppliedIndex := factory(ps.shard, appliedIndex)
+			if newAppliedIndex <= raftInitLogIndex {
+				newAppliedIndex = appliedIndex
+			}
 			if newAppliedIndex > appliedIndex {
 				logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must <= real applied index %d",
 					ps.shard.ID,

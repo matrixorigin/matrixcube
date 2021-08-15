@@ -32,11 +32,23 @@ func (d *applyDelegate) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDR
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case raftcmdpb.AdminCmdType_ChangePeer:
-		return d.doExecChangePeer(ctx)
+		resp, result, err := d.doExecChangePeer(ctx)
+		if result != nil {
+			result.needSyncData = true
+		}
+		return resp, result, err
 	case raftcmdpb.AdminCmdType_ChangePeerV2:
-		return d.doExecChangePeerV2(ctx)
+		resp, result, err := d.doExecChangePeerV2(ctx)
+		if result != nil {
+			result.needSyncData = true
+		}
+		return resp, result, err
 	case raftcmdpb.AdminCmdType_BatchSplit:
-		return d.doExecSplit(ctx)
+		resp, result, err := d.doExecSplit(ctx)
+		if result != nil {
+			result.needSyncData = true
+		}
+		return resp, result, err
 	case raftcmdpb.AdminCmdType_CompactLog:
 		return d.doExecCompactRaftLog(ctx)
 	}

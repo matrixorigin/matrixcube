@@ -32,6 +32,9 @@ import (
 type Storage struct {
 	db    *pebble.DB
 	stats stats.Stats
+
+	// SyncCount number of `Sync` method called
+	SyncCount uint64
 }
 
 // NewStorage returns pebble kv store on a default options
@@ -221,8 +224,8 @@ func (s *Storage) Free(pooled []byte) {
 
 }
 
-// RemovedShardData remove shard data
-func (s *Storage) RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
+// RemoveShardData remove shard data
+func (s *Storage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
 	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 
@@ -333,6 +336,12 @@ func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 	}
 
 	return s.db.Apply(b, opts)
+}
+
+// Sync sync data to disk
+func (s *Storage) Sync() error {
+	atomic.AddUint64(&s.SyncCount, 1)
+	return s.db.Flush()
 }
 
 // CreateSnapshot create a snapshot file under the giving path

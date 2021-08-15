@@ -22,9 +22,10 @@ type DataStorage interface {
 	StatisticalStorage
 	CloseableStorage
 
-	// RemovedShardData remove shard data
-	RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error
-
+	// Sync sync data data to persistent device
+	Sync() error
+	// RemoveShardData remove shard data
+	RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error
 	// SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
 	// returns the current bytes in [start,end), and the founded key
 	SplitCheck(start []byte, end []byte, size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error)

@@ -88,6 +88,9 @@ type Config struct {
 	Customize CustomizeConfig
 	// Metric Config
 	Metric metric.Cfg `toml:"metric"`
+
+	// Test only used in testing
+	Test TestConfig
 }
 
 // Adjust adjust
@@ -134,6 +137,10 @@ func (c *Config) Adjust() {
 		c.Customize.CustomShardStateAwareFactory = func() aware.ShardStateAware {
 			return c.Customize.TestShardStateAware
 		}
+	}
+
+	if c.Test.Shards == nil {
+		c.Test.Shards = make(map[uint64]*TestShardConfig)
 	}
 }
 
@@ -397,4 +404,17 @@ type StoreHeartbeatDataProcessor interface {
 	HandleHeartbeatRsp(data []byte) error
 	// CollectData collect data at every heartbeat
 	CollectData() []byte
+}
+
+// TestConfig all test config
+type TestConfig struct {
+	Shards map[uint64]*TestShardConfig
+}
+
+// TestShardConfig shard test config
+type TestShardConfig struct {
+	// SkipSaveRaftApplyState skip save raft apply state to metastorage after applied a raft log
+	SkipSaveRaftApplyState bool
+	// SkipApply skip apply any raft log
+	SkipApply bool
 }
