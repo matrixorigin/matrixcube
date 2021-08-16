@@ -76,7 +76,7 @@ func newPeerStorage(store *store, shard bhmetapb.Shard) (*peerStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Infof("shard %d init raft apply state, state=<%+v>",
+	logger.Errorf("shard %d init raft apply state, state=<%+v>",
 		shard.ID,
 		s.raftApplyState)
 
