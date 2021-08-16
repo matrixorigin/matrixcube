@@ -427,12 +427,11 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
 		cfg.FS = vfs.GetTestFS()
-
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
 		if c.opts.recreate {
-			recreateTestTempDir(cfg.FS, c.opts.tmpDir)
+			recreateTestTempDir(cfg.FS, cfg.DataPath)
 		}
 
-		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
 		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
 		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})

@@ -43,7 +43,7 @@ func GZIP(fs vfs.FS, path string) error {
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
 
-	return compress(fs, file, fs.PathDir(path), tw)
+	return compress(fs, file, path, "", tw)
 }
 
 // UnGZIP ungip file
@@ -51,23 +51,27 @@ func UnGZIP(fs vfs.FS, file string, dest string) error {
 	return deCompress(fs, file, dest)
 }
 
-func compress(fs vfs.FS, file vfs.File, prefix string, tw *tar.Writer) error {
+// both file and filePath are provided here as we can no longer assume that the
+// full path of the specified file is still accessible from the file object. we
+// do need the full path info to list the directory when file is a directory.
+func compress(fs vfs.FS, file vfs.File, filePath string, prefix string, tw *tar.Writer) error {
 	info, err := file.Stat()
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
 		prefix = prefix + "/" + info.Name()
-		files, err := fs.List(prefix)
+		files, err := fs.List(filePath)
 		if err != nil {
 			return err
 		}
 		for _, fi := range files {
-			f, err := fs.Open(fs.PathJoin(prefix, fi))
+			path := fs.PathJoin(filePath, fi)
+			f, err := fs.Open(path)
 			if err != nil {
 				return err
 			}
-			err = compress(fs, f, prefix, tw)
+			err = compress(fs, f, path, prefix, tw)
 			if err != nil {
 				return err
 			}
