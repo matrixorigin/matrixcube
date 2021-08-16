@@ -1043,7 +1043,7 @@ func (s *store) removeShardData(shard bhmetapb.Shard, job *task.Job) error {
 
 	start := encStartKey(&shard)
 	end := encEndKey(&shard)
-	return s.DataStorageByGroup(shard.Group, shard.ID).RemovedShardData(shard, start, end)
+	return s.DataStorageByGroup(shard.Group, shard.ID).RemoveShardData(shard, start, end)
 }
 
 // Delete all data that is not covered by `newShard`.
