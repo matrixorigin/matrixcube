@@ -58,7 +58,7 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) err
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
-	fit := c.cluster.FitResource(res)
+	fit := c.ruleManager.FitResource(c.cluster, res)
 	if len(fit.RuleFits) == 0 {
 		return fmt.Errorf("fill resource replicas cann't matches no rules")
 	}
