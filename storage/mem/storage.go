@@ -31,6 +31,9 @@ type Storage struct {
 	fs    vfs.FS
 	kv    *util.KVTree
 	stats stats.Stats
+
+	// SyncCount number of `Sync` method called
+	SyncCount uint64
 }
 
 // NewStorage returns a mem data storage
@@ -190,6 +193,12 @@ func (s *Storage) Seek(key []byte) ([]byte, []byte, error) {
 	return k, v, nil
 }
 
+// Sync sync data
+func (s *Storage) Sync() error {
+	atomic.AddUint64(&s.SyncCount, 1)
+	return nil
+}
+
 // Write write the data in batch
 func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 	if len(wb.Ops) == 0 {
@@ -207,8 +216,8 @@ func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
 	return nil
 }
 
-// RemovedShardData remove shard data
-func (s *Storage) RemovedShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
+// RemoveShardData remove shard data
+func (s *Storage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
 	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 

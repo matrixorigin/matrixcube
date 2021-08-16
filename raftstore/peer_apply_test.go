@@ -6,6 +6,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -82,9 +84,11 @@ func TestIssue97(t *testing.T) {
 	assert.Equal(t, "OK", string(resps["w4"].Responses[0].Value))
 
 	// step4 write data to shard2 and only change shard2's raft local state
+	c.stores[0].cfg.Test.Shards[c.GetShardByID(5).ID] = &config.TestShardConfig{
+		SkipSaveRaftApplyState: true,
+	}
 	v, _ := c.stores[0].delegates.Load(c.GetShardByID(5).ID)
 	d := v.(*applyDelegate)
-	d.skipSaveRaftApplyState = true
 	d.ctx.raftWB.Reset()
 	resps, err = sendTestReqs(c.stores[0], time.Second*10, nil, nil,
 		createTestWriteReq("w5", "key2", "1"))
@@ -98,4 +102,56 @@ func TestIssue97(t *testing.T) {
 	_, err = sendTestReqs(c.stores[0], time.Second*10, nil, nil,
 		createTestReadReq("w5", "key2"))
 	assert.NoError(t, err)
+}
+
+func TestSyncData(t *testing.T) {
+	c := NewTestClusterStore(t,
+		DisableScheduleTestCluster,
+		SetCMDTestClusterHandler,
+		GetCMDTestClusterHandler,
+		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
+			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
+			cfg.Customize.CustomAdjustInitAppliedIndexFactory = func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64) {
+				return func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64) {
+					return initAppliedIndex
+				}
+			}
+		}))
+	defer c.Stop()
+
+	c.StartNode(0)
+	c.WaitLeadersByCount(t, 1, time.Second*10)
+	assert.Equal(t, uint64(0), c.dataStorages[0].(*mem.Storage).SyncCount)
+
+	cfg := c.stores[0].cfg
+	cfg.Replication.DisableShardSplit = true
+
+	// check change peer
+	c.StartNode(1)
+	c.WaitShardByCounts(t, [3]int{1, 1, 0}, time.Second*10)
+	assert.Equal(t, uint64(2), c.dataStorages[0].(*mem.Storage).SyncCount)
+
+	c.StartNode(2)
+	c.WaitShardByCounts(t, [3]int{1, 1, 1}, time.Second*10)
+	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+
+	// write key1
+	resps, err := sendTestReqs(c.stores[0], time.Second*10, nil, nil,
+		createTestWriteReq("w1", "key1", "value11"))
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
+	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+
+	// write key2
+	resps, err = sendTestReqs(c.stores[0], time.Second*10, nil, nil,
+		createTestWriteReq("w2", "key2", "value22"))
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
+	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+
+	// split
+	cfg.Replication.DisableShardSplit = false
+	c.WaitLeadersByCount(t, 2, time.Second*10)
+	assert.Equal(t, uint64(5), c.dataStorages[0].(*mem.Storage).SyncCount)
 }

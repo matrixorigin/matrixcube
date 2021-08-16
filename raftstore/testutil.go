@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	pebblePkg "github.com/cockroachdb/pebble"
+	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
@@ -49,7 +49,7 @@ var (
 	// NewTestCluster clean data before test cluster start
 	NewTestCluster = WithTestClusterRecreate(true)
 	// NoCleanTestCluster using exists data before test cluster start
-	OldTestCluster = WithTestClusterRecreate(true)
+	OldTestCluster = WithTestClusterRecreate(false)
 	// SetCMDTestClusterHandler set cmd handler
 	SetCMDTestClusterHandler = WithTestClusterWriteHandler(1, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (uint64, int64, *raftcmdpb.Response) {
 		resp := pb.AcquireResponse()
@@ -74,14 +74,15 @@ var (
 type TestClusterOption func(*testClusterOptions)
 
 type testClusterOptions struct {
-	tmpDir            string
-	nodes             int
-	recreate          bool
-	adjustConfigFuncs []func(node int, cfg *config.Config)
-	storeFactory      func(node int, cfg *config.Config) Store
-	nodeStartFunc     func(node int, store Store)
-	logLevel          string
-	useDisk           bool
+	tmpDir             string
+	nodes              int
+	recreate           bool
+	adjustConfigFuncs  []func(node int, cfg *config.Config)
+	storeFactory       func(node int, cfg *config.Config) Store
+	nodeStartFunc      func(node int, store Store)
+	logLevel           string
+	useDisk            bool
+	dataOpts, metaOpts *cpebble.Options
 
 	writeHandlers map[uint64]command.WriteCommandFunc
 	readHandlers  map[uint64]command.ReadCommandFunc
@@ -92,6 +93,8 @@ type testClusterOptions struct {
 func newTestClusterOptions() *testClusterOptions {
 	return &testClusterOptions{
 		recreate:      true,
+		dataOpts:      &cpebble.Options{},
+		metaOpts:      &cpebble.Options{},
 		writeHandlers: make(map[uint64]command.WriteCommandFunc),
 		readHandlers:  make(map[uint64]command.ReadCommandFunc),
 	}
@@ -169,6 +172,20 @@ func WithTestClusterNodeStartFunc(value func(node int, store Store)) TestCluster
 func WithTestClusterRecreate(value bool) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.recreate = value
+	}
+}
+
+// WithDataStorageOption set options to create data storage
+func WithDataStorageOption(dataOpts *cpebble.Options) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.dataOpts = dataOpts
+	}
+}
+
+// WithMetadataStorageOption set options to create metadata storage
+func WithMetadataStorageOption(metaOpts *cpebble.Options) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.metaOpts = metaOpts
 	}
 }
 
@@ -470,8 +487,8 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 			var metaStorage storage.MetadataStorage
 			metaStorage = mem.NewStorageWithFS(cfg.FS)
 			if c.opts.useDisk {
-				opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
-				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-meta", cfg.DataPath), opts)
+				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
+				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-meta", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				metaStorage = s
 			}
@@ -482,8 +499,8 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 			var dataStorage storage.DataStorage
 			dataStorage = mem.NewStorageWithFS(cfg.FS)
 			if c.opts.useDisk {
-				opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
-				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-data", cfg.DataPath), opts)
+				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
+				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-data", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				dataStorage = s
 			}
@@ -518,7 +535,6 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		c.stores = append(c.stores, s)
 		c.awares = append(c.awares, ts)
 	}
-
 }
 
 // EveryStore do every store, it can be used to init some store register
@@ -536,6 +552,16 @@ func (c *TestRaftCluster) GetStore(node int) Store {
 // GetWatcher returns the node store router watcher
 func (c *TestRaftCluster) GetWatcher(node int) prophet.Watcher {
 	return c.stores[node].router.(*defaultRouter).watcher
+}
+
+// StartNode start node
+func (c *TestRaftCluster) StartNode(node int) {
+	c.stores[node].Start()
+}
+
+// StopNode start node
+func (c *TestRaftCluster) StopNode(node int) {
+	c.stores[node].Stop()
 }
 
 // Start start the test raft cluster
@@ -563,10 +589,19 @@ func (c *TestRaftCluster) Start() {
 	wg.Wait()
 }
 
+// Restart restart the test cluster
 func (c *TestRaftCluster) Restart() {
+	c.RestartWithFunc(nil)
+}
+
+// RestartWithFunc restart the test cluster
+func (c *TestRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 	c.Stop()
 	opts := append(c.initOpts, WithTestClusterRecreate(false))
 	c.reset(opts...)
+	if beforeStartFunc != nil {
+		beforeStartFunc()
+	}
 	c.Start()
 }
 
@@ -645,6 +680,16 @@ func (c *TestRaftCluster) WaitRemovedByShardID(t *testing.T, id uint64, timeout 
 	}
 }
 
+// GetShardLeaderStore returns the shard leader store
+func (c *TestRaftCluster) GetShardLeaderStore(id uint64) Store {
+	for idx, s := range c.stores {
+		if c.awares[idx].isLeader(id) {
+			return s
+		}
+	}
+	return nil
+}
+
 // WaitLeadersByCount check whether the number of shards leaders reaches a specific value until timeout
 func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout time.Duration) {
 	timeoutC := time.After(timeout)
@@ -663,16 +708,6 @@ func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout ti
 			time.Sleep(time.Millisecond * 100)
 		}
 	}
-}
-
-// GetShardLeaderStore returns the shard leader store
-func (c *TestRaftCluster) GetShardLeaderStore(id uint64) Store {
-	for idx, s := range c.stores {
-		if c.awares[idx].isLeader(id) {
-			return s
-		}
-	}
-	return nil
 }
 
 // WaitShardByCount check whether the number of shards reaches a specific value until timeout

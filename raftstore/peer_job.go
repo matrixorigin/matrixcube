@@ -45,6 +45,8 @@ func (pr *peerReplica) startRegistrationJob() {
 		applyState:       pr.ps.raftApplyState,
 		appliedIndexTerm: pr.ps.appliedIndexTerm,
 		ctx:              newApplyContext(pr),
+		syncData: pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil &&
+			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.ps.shard.Group) != nil,
 	}
 
 	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {

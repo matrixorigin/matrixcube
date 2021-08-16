@@ -222,21 +222,27 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 
 	// If this shard has only one peer and I am the one, campaign directly.
 	if len(shard.Peers) == 1 && shard.Peers[0].ContainerID == store.meta.meta.ID {
+		logger.Infof("shard %d try to campaign leader, because only self",
+			pr.shardID)
+
 		err = rn.Campaign()
 		if err != nil {
 			return nil, err
 		}
 
-		logger.Debugf("shard %d try to campaign leader",
-			pr.shardID)
 	}
 
 	// If dynamically created shard, invoke raft tick
 	if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Peers[0].ContainerID == pr.store.Meta().ID {
-		for i := 0; i < pr.store.cfg.Raft.ElectionTimeoutTicks; i++ {
-			pr.onRaftTick(nil)
+		logger.Infof("shard %d try to campaign leader, because first peer of dynamically created",
+			pr.shardID)
+
+		err = rn.Campaign()
+		if err != nil {
+			return nil, err
 		}
+
 	}
 
 	if pr.store.aware != nil {
@@ -248,7 +254,6 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
 
-	logger.Errorf(">>>>>>>>>>>>>>>>>>>>> shard %d create with %+v", pr.shardID, shard)
 	return pr, nil
 }
 
@@ -456,6 +461,16 @@ func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config)
 		factory := cfg.Customize.CustomAdjustInitAppliedIndexFactory(ps.shard.Group)
 		if factory != nil {
 			newAppliedIndex := factory(ps.shard, appliedIndex)
+			if newAppliedIndex <= raftInitLogIndex {
+				if newAppliedIndex == 0 {
+					newAppliedIndex = appliedIndex
+				} else {
+					logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must >= init applied index %d",
+						ps.shard.ID,
+						newAppliedIndex,
+						raftInitLogIndex)
+				}
+			}
 			if newAppliedIndex > appliedIndex {
 				logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must <= real applied index %d",
 					ps.shard.ID,
