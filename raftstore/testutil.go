@@ -113,6 +113,13 @@ func (opts *testClusterOptions) adjust() {
 	}
 }
 
+// WithTestClusterDataPath set data data storage directory
+func WithTestClusterDataPath(path string) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.tmpDir = path
+	}
+}
+
 // WithTestClusterNodeCount set node count of test cluster
 func WithTestClusterNodeCount(n int) TestClusterOption {
 	return func(opts *testClusterOptions) {
