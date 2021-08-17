@@ -33,7 +33,7 @@ import (
 )
 
 func TestClusterStartAndStop(t *testing.T) {
-	c := NewTestClusterStore(t)
+	c := NewTestClusterStore(t, WithTestClusterLogLevel("info"))
 	defer c.Stop()
 
 	c.Start()
