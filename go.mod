@@ -21,6 +21,7 @@ require (
 	github.com/prometheus/client_golang v1.4.1
 	github.com/shirou/gopsutil v2.19.9+incompatible
 	github.com/stretchr/testify v1.7.0
+	go.etcd.io/bbolt v1.3.6 // indirect
 	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )
