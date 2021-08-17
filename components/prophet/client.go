@@ -609,6 +609,12 @@ OUTER:
 	for {
 		select {
 		case <-c.ctx.Done():
+			c.contexts.Range(func(key, value interface{}) bool {
+				if value != nil {
+					value.(*ctx).done(nil, ErrClosed)
+				}
+				return true
+			})
 			return
 		case _, ok := <-c.resetReadC:
 			if ok {
@@ -676,6 +682,10 @@ func (c *asyncClient) resetLeaderConn() error {
 func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) error {
 	addr := ""
 	for {
+		if !c.running() {
+			return ErrClosed
+		}
+
 		select {
 		case <-time.After(timeout):
 			return ErrTimeout
@@ -764,7 +774,9 @@ func (c *ctx) done(resp *rpcpb.Response, err error) {
 			c.err = err
 			close(c.c)
 		} else {
-			c.cb(resp, err)
+			if c.cb != nil {
+				c.cb(resp, err)
+			}
 		}
 	}
 }
