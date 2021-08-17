@@ -176,6 +176,46 @@ func TestIssue106(t *testing.T) {
 	assert.True(t, id > 0)
 }
 
+func TestIssue112(t *testing.T) {
+	p := newTestSingleProphet(t, nil)
+	defer p.Stop()
+
+	m := p.GetMember().Member()
+	leader := &metapb.Member{
+		ID:   m.ID,
+		Addr: m.Addr,
+		Name: m.Name,
+	}
+	c := NewClient(metadata.NewTestAdapter(), WithLeaderGetter(func() *metapb.Member {
+		return leader
+	}))
+	id, err := c.AllocID()
+	assert.NoError(t, err)
+	assert.True(t, id > 0)
+
+	p.GetConfig().EnableResponseNotLeader = true
+	leader.Addr = "127.0.0.1:60000"
+
+	ch := make(chan error)
+	go func() {
+		_, err := c.AllocID()
+		assert.Error(t, err)
+		ch <- err
+	}()
+
+	go func() {
+		time.Sleep(time.Millisecond * 200)
+		assert.NoError(t, c.Close())
+	}()
+
+	select {
+	case err := <-ch:
+		assert.Equal(t, ErrClosed, err)
+	case <-time.After(time.Second * 2):
+		assert.FailNow(t, "timeout")
+	}
+}
+
 func newTestResourceMeta(resourceID uint64, peers ...metapb.Peer) metadata.Resource {
 	return &metadata.TestResource{
 		ResID:    resourceID,
