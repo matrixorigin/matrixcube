@@ -36,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -102,7 +103,7 @@ func newTestClusterOptions() *testClusterOptions {
 
 func (opts *testClusterOptions) adjust() {
 	if opts.tmpDir == "" {
-		opts.tmpDir = "/tmp/cube"
+		opts.tmpDir = util.GetTestDir()
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3

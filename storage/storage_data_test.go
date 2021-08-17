@@ -16,11 +16,13 @@ package storage
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +38,7 @@ func createDataMem(t *testing.T) DataStorage {
 }
 
 func createDataPebble(t *testing.T) DataStorage {
-	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
+	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	os.RemoveAll(path)
 	os.MkdirAll(path, 0755)
 	s, err := pebble.NewStorage(path)
@@ -169,8 +171,8 @@ func TestCreateAndApply(t *testing.T) {
 
 			s2 := factory(t)
 			kv2 := s2.(KVStorage)
-
-			path := fmt.Sprintf("/tmp/%s-snap", name)
+			path := fmt.Sprintf("%s-snap", name)
+			path = filepath.Join(util.GetTestDir(), path)
 			os.RemoveAll(path)
 			err := os.MkdirAll(path, 0755)
 			assert.NoError(t, err, "TestCreateAndApply failed")

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +18,8 @@ func TestSync(t *testing.T) {
 	opts := pebble.Options{}
 	opts.DisableWAL = true
 
-	s, err := NewStorageWithOptions("/tmp/cube/storage/pebble", &opts)
+	path := filepath.Join(util.GetTestDir(), "storage/pebble")
+	s, err := NewStorageWithOptions(path, &opts)
 	assert.NoError(t, err)
 
 	k := []byte("k")
@@ -25,7 +27,7 @@ func TestSync(t *testing.T) {
 	assert.NoError(t, s.Set(k, v))
 
 	s.Close()
-	s, err = NewStorageWithOptions("/tmp/cube/storage/pebble", &opts)
+	s, err = NewStorageWithOptions(path, &opts)
 	assert.NoError(t, err)
 	d, err := s.Get(k)
 	assert.NoError(t, err)
@@ -34,7 +36,7 @@ func TestSync(t *testing.T) {
 	assert.NoError(t, s.Sync())
 
 	s.Close()
-	s, err = NewStorageWithOptions("/tmp/cube/storage/pebble", &opts)
+	s, err = NewStorageWithOptions(path, &opts)
 	assert.NoError(t, err)
 	d, err = s.Get(k)
 	assert.NoError(t, err)

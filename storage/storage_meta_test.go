@@ -16,6 +16,7 @@ package storage
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func createMem(t *testing.T) MetadataStorage {
 }
 
 func createPebble(t *testing.T) MetadataStorage {
-	path := fmt.Sprintf("/tmp/pebble/%d", time.Now().UnixNano())
+	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	os.RemoveAll(path)
 	os.MkdirAll(path, 0755)
 	s, err := pebble.NewStorage(path)

@@ -30,6 +30,7 @@ func NewTestApplicationCluster(t *testing.T, applicationFactory func(i int, stor
 	opts = append(opts, raftstore.WithTestClusterNodeStartFunc(func(node int, store raftstore.Store) {
 		assert.NoError(t, c.Applications[node].Start())
 	}))
+	opts = append(opts, raftstore.WithTestClusterLogLevel("info"))
 	rc := raftstore.NewTestClusterStore(t, opts...)
 	rc.EveryStore(func(i int, s raftstore.Store) {
 		c.Applications = append(c.Applications, applicationFactory(i, s))
