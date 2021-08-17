@@ -56,7 +56,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	resp := &rpcpb.Response{}
 	resp.ID = req.ID
 	rc := p.GetRaftCluster()
-	if rc == nil || (p.member != nil && !p.member.IsLeader()) {
+	if p.cfg.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
 		resp.Error = util.ErrNotLeader.Error()
 		resp.Leader = p.member.GetLeader().GetAddr()
 		return rs.WriteAndFlush(resp)

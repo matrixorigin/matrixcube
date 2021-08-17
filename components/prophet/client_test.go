@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -150,6 +151,29 @@ func TestPutPlacementRule(t *testing.T) {
 	rules, err = c.GetAppliedRules(3)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(rules))
+}
+
+func TestIssue106(t *testing.T) {
+	cluster := newTestClusterProphet(t, 3, func(c *config.Config) {
+		c.RPCTimeout.Duration = time.Millisecond * 200
+	})
+	defer func() {
+		for _, p := range cluster {
+			p.Stop()
+		}
+	}()
+
+	cfg := cluster[0].GetConfig()
+	cli := cluster[0].GetClient()
+	assert.Equal(t, cluster[0].GetMember().ID(), cluster[0].GetLeader().ID)
+	cfg.EnableResponseNotLeader = true
+	go func() {
+		time.Sleep(time.Millisecond * 50)
+		cfg.EnableResponseNotLeader = false
+	}()
+	id, err := cli.AllocID()
+	assert.NoError(t, err)
+	assert.True(t, id > 0)
 }
 
 func newTestResourceMeta(resourceID uint64, peers ...metapb.Peer) metadata.Resource {
