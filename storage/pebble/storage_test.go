@@ -2,6 +2,7 @@ package pebble
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/cockroachdb/pebble"
