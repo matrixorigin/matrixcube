@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,6 +50,7 @@ func createPebble(fs vfs.FS, t *testing.T) MetadataStorage {
 }
 
 func TestWriteBatch(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -98,6 +100,7 @@ func TestWriteBatch(t *testing.T) {
 }
 
 func TestSetAndGet(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -139,6 +142,7 @@ func TestSetAndGet(t *testing.T) {
 }
 
 func TestSetAndMGet(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -173,6 +177,7 @@ func TestSetAndMGet(t *testing.T) {
 }
 
 func TestSetAndGetWithTTL(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -209,6 +214,7 @@ func TestSetAndGetWithTTL(t *testing.T) {
 }
 
 func TestWritebatchWithTTL(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -248,6 +254,7 @@ func TestWritebatchWithTTL(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -277,6 +284,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestMetaRangeDelete(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -315,6 +323,7 @@ func TestMetaRangeDelete(t *testing.T) {
 }
 
 func TestSeek(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
@@ -344,6 +353,7 @@ func TestSeek(t *testing.T) {
 }
 
 func TestScan(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {

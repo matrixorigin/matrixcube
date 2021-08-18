@@ -8,6 +8,7 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/mem"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +33,7 @@ func TestIssue97(t *testing.T) {
 	// 6. shard2 has wrong initial state, and the split req will be executed again, and a new shard3 will be generated,
 	//    So shard3 duplicated, cluster crash.
 
+	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
 		DisableScheduleTestCluster,
 		DiskTestCluster,
@@ -105,6 +107,7 @@ func TestIssue97(t *testing.T) {
 }
 
 func TestSyncData(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t,
 		DisableScheduleTestCluster,
 		SetCMDTestClusterHandler,
