@@ -29,29 +29,32 @@ import (
 )
 
 var (
-	factories = map[string]func(*testing.T) MetadataStorage{
+	factories = map[string]func(vfs.FS, *testing.T) MetadataStorage{
 		"memory": createMem,
 		"pebble": createPebble,
 	}
 )
 
-func createMem(t *testing.T) MetadataStorage {
-	return mem.NewStorage(vfs.Default)
+func createMem(fs vfs.FS, t *testing.T) MetadataStorage {
+	return mem.NewStorage(fs)
 }
 
-func createPebble(t *testing.T) MetadataStorage {
+func createPebble(fs vfs.FS, t *testing.T) MetadataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	os.RemoveAll(path)
 	os.MkdirAll(path, 0755)
-	s, err := pebble.NewStorage(path, &cpebble.Options{FS: vfs.NewPebbleFS(vfs.Default)})
+	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
+	s, err := pebble.NewStorage(path, opts)
 	assert.NoError(t, err, "createPebble failed")
 	return s
 }
 
 func TestWriteBatch(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 			wb := util.NewWriteBatch()
 
 			key1 := []byte("k1")
@@ -95,9 +98,11 @@ func TestWriteBatch(t *testing.T) {
 }
 
 func TestSetAndGet(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 			key1 := []byte("k1")
 			value1 := []byte("v1")
 
@@ -133,9 +138,11 @@ func TestSetAndGet(t *testing.T) {
 }
 
 func TestSetAndMGet(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 			key1 := []byte("k1")
 			value1 := []byte("v1")
 
@@ -164,13 +171,15 @@ func TestSetAndMGet(t *testing.T) {
 }
 
 func TestSetAndGetWithTTL(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
 			if name == "pebble" {
 				return
 			}
 
-			s := factory(t)
+			s := factory(fs, t)
 			key1 := []byte("k1")
 			value1 := []byte("v1")
 
@@ -197,13 +206,15 @@ func TestSetAndGetWithTTL(t *testing.T) {
 }
 
 func TestWritebatchWithTTL(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
 			if name == "pebble" {
 				return
 			}
 
-			s := factory(t)
+			s := factory(fs, t)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -234,9 +245,11 @@ func TestWritebatchWithTTL(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -261,9 +274,11 @@ func TestDelete(t *testing.T) {
 }
 
 func TestMetaRangeDelete(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -297,9 +312,11 @@ func TestMetaRangeDelete(t *testing.T) {
 }
 
 func TestSeek(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -324,9 +341,11 @@ func TestSeek(t *testing.T) {
 }
 
 func TestScan(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range factories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -361,5 +380,4 @@ func TestScan(t *testing.T) {
 			assert.Equal(t, 1, count, "TestScan failed")
 		})
 	}
-
 }
