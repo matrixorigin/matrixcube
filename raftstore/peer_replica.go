@@ -229,11 +229,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		if err != nil {
 			return nil, err
 		}
-
-	}
-
-	// If dynamically created shard, invoke raft tick
-	if shard.State == metapb.ResourceState_WaittingCreate &&
+	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Peers[0].ContainerID == pr.store.Meta().ID {
 		logger.Infof("shard %d try to campaign leader, because first peer of dynamically created",
 			pr.shardID)
@@ -242,7 +238,6 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		if err != nil {
 			return nil, err
 		}
-
 	}
 
 	if pr.store.aware != nil {

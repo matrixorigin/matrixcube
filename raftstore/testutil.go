@@ -419,7 +419,9 @@ type TestRaftCluster struct {
 
 // NewSingleTestClusterStore create test cluster with 1 node
 func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
-	return NewTestClusterStore(t, append(opts, WithTestClusterNodeCount(1))...)
+	return NewTestClusterStore(t, append(opts, WithTestClusterNodeCount(1), WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Prophet.Replication.MaxReplicas = 1
+	}))...)
 }
 
 // NewTestClusterStore create test cluster using options

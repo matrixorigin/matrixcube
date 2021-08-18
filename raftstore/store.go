@@ -189,6 +189,8 @@ func (s *store) Start() {
 
 	s.startRouter()
 	logger.Infof("router started")
+
+	s.doStoreHeartbeat(time.Now())
 }
 
 func (s *store) Stop() {
@@ -529,8 +531,8 @@ func (s *store) startTimerTasks() {
 		shardLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.ShardHeartbeatDuration.Duration)
 		defer shardLeaderheartbeatTicker.Stop()
 
-		storeLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
-		defer storeLeaderheartbeatTicker.Stop()
+		storeheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
+		defer storeheartbeatTicker.Stop()
 
 		for {
 			select {
@@ -547,7 +549,7 @@ func (s *store) startTimerTasks() {
 				s.handleShardStateCheck()
 			case <-shardLeaderheartbeatTicker.C:
 				s.doShardHeartbeat()
-			case <-storeLeaderheartbeatTicker.C:
+			case <-storeheartbeatTicker.C:
 				s.doStoreHeartbeat(last)
 				last = time.Now()
 			}
