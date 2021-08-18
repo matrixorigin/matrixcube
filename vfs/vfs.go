@@ -34,6 +34,10 @@ type FS = pvfs.FS
 // backed by the underlying operating system's file system.
 var Default = pvfs.Default
 
+// DefaultPebbleFS is the default vfs for pebble suppose to be used in
+// production. It is backed by the underlying operating system's file system.
+var DefaultPebbleFS = NewPebbleFS(Default)
+
 // NewMemFS returns a new memory based FS implementation that can be used in
 // tests. You are not suppose to use this in production as nothing is
 // persistently stored.

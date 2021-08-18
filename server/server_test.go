@@ -98,7 +98,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 			panic("cfg.FS not set")
 		}
 		opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
-		s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s/pebble-data", cfg.DataPath), opts)
+		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath), opts)
 		assert.NoError(t, err)
 		storages = append(storages, s)
 		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
@@ -110,7 +110,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 			}
 		}
 
-		sm, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s/pebble-meta", cfg.DataPath), opts)
+		sm, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-meta", cfg.DataPath), opts)
 		assert.NoError(t, err)
 		cfg.Storage.MetaStorage = sm
 		metaStorages = append(metaStorages, sm)

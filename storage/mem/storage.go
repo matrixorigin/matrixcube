@@ -36,18 +36,9 @@ type Storage struct {
 	SyncCount uint64
 }
 
-// NewStorage returns a mem data storage
-func NewStorage() *Storage {
-	return newStorageWithFS(vfs.Default)
-}
-
-// NewStorageWithFS returns a mem data storage with snapshot data backed by the
+// NewStorage returns a mem data storage with snapshot data backed by the
 // specified vfs
-func NewStorageWithFS(fs vfs.FS) *Storage {
-	return newStorageWithFS(fs)
-}
-
-func newStorageWithFS(fs vfs.FS) *Storage {
+func NewStorage(fs vfs.FS) *Storage {
 	return &Storage{
 		kv: util.NewKVTree(),
 		fs: fs,
