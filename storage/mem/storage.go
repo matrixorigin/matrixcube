@@ -17,18 +17,18 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 // Storage memory storage
 type Storage struct {
+	fs    vfs.FS
 	kv    *util.KVTree
 	stats stats.Stats
 
@@ -38,8 +38,19 @@ type Storage struct {
 
 // NewStorage returns a mem data storage
 func NewStorage() *Storage {
+	return newStorageWithFS(vfs.Default)
+}
+
+// NewStorageWithFS returns a mem data storage with snapshot data backed by the
+// specified vfs
+func NewStorageWithFS(fs vfs.FS) *Storage {
+	return newStorageWithFS(fs)
+}
+
+func newStorageWithFS(fs vfs.FS) *Storage {
 	return &Storage{
 		kv: util.NewKVTree(),
+		fs: fs,
 	}
 }
 
@@ -212,12 +223,11 @@ func (s *Storage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encoded
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	err := os.MkdirAll(path, 0755)
+	err := s.fs.MkdirAll(path, 0755)
 	if err != nil {
 		return err
 	}
-
-	f, err := os.Create(filepath.Join(path, "db.data"))
+	f, err := s.fs.Create(s.fs.PathJoin(path, "db.data"))
 	if err != nil {
 		return err
 	}
@@ -250,7 +260,7 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 
 // ApplySnapshot apply a snapshort file from giving path
 func (s *Storage) ApplySnapshot(path string) error {
-	f, err := os.Open(filepath.Join(path, "db.data"))
+	f, err := s.fs.Open(s.fs.PathJoin(path, "db.data"))
 	if err != nil {
 		return err
 	}
@@ -303,7 +313,7 @@ func (s *Storage) Close() error {
 	return nil
 }
 
-func writeBytes(f *os.File, data []byte) error {
+func writeBytes(f vfs.File, data []byte) error {
 	size := make([]byte, 4)
 	binary.BigEndian.PutUint32(size, uint32(len(data)))
 	_, err := f.Write(size)
@@ -318,7 +328,7 @@ func writeBytes(f *os.File, data []byte) error {
 	return nil
 }
 
-func readBytes(f *os.File) ([]byte, error) {
+func readBytes(f vfs.File) ([]byte, error) {
 	size := make([]byte, 4)
 	n, err := f.Read(size)
 	if n == 0 && err == io.EOF {
