@@ -493,10 +493,10 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 
 		if cfg.Storage.MetaStorage == nil {
 			var metaStorage storage.MetadataStorage
-			metaStorage = mem.NewStorageWithFS(cfg.FS)
+			metaStorage = mem.NewStorage(cfg.FS)
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-meta", cfg.DataPath), c.opts.metaOpts)
+				s, err := pebble.NewStorage(fmt.Sprintf("%s-meta", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				metaStorage = s
 			}
@@ -505,10 +505,10 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		}
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
-			dataStorage = mem.NewStorageWithFS(cfg.FS)
+			dataStorage = mem.NewStorage(cfg.FS)
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-data", cfg.DataPath), c.opts.metaOpts)
+				s, err := pebble.NewStorage(fmt.Sprintf("%s-data", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				dataStorage = s
 			}

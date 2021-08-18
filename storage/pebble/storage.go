@@ -37,13 +37,8 @@ type Storage struct {
 	SyncCount uint64
 }
 
-// NewStorage returns pebble kv store on a default options
-func NewStorage(dir string) (*Storage, error) {
-	return NewStorageWithOptions(dir, &pebble.Options{})
-}
-
-// NewStorageWithOptions returns badger kv store
-func NewStorageWithOptions(dir string, opts *pebble.Options) (*Storage, error) {
+// NewStorage returns a pebble backed kv store
+func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
 	db, err := pebble.Open(dir, opts)
 	if err != nil {
 		return nil, err
