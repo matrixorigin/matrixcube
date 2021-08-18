@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 var (
@@ -88,7 +89,8 @@ type Config struct {
 	Customize CustomizeConfig
 	// Metric Config
 	Metric metric.Cfg `toml:"metric"`
-
+	// FS used in MatrixCube
+	FS vfs.FS
 	// Test only used in testing
 	Test TestConfig
 }
@@ -96,6 +98,10 @@ type Config struct {
 // Adjust adjust
 func (c *Config) Adjust() {
 	c.validate()
+
+	if c.FS == nil {
+		c.FS = vfs.Default
+	}
 
 	if c.RaftAddr == "" {
 		c.RaftAddr = defaultRaftAddr

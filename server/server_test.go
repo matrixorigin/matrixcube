@@ -18,11 +18,13 @@ import (
 	"testing"
 	"time"
 
+	pebblePkg "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -92,7 +94,11 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 	var storages []storage.DataStorage
 	var metaStorages []storage.MetadataStorage
 	opts = append(opts, raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath))
+		if cfg.FS == nil {
+			panic("cfg.FS not set")
+		}
+		opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
+		s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s/pebble-data", cfg.DataPath), opts)
 		assert.NoError(t, err)
 		storages = append(storages, s)
 		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
@@ -104,7 +110,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 			}
 		}
 
-		sm, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-meta", cfg.DataPath))
+		sm, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s/pebble-meta", cfg.DataPath), opts)
 		assert.NoError(t, err)
 		cfg.Storage.MetaStorage = sm
 		metaStorages = append(metaStorages, sm)

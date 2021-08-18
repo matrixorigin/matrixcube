@@ -18,50 +18,60 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"os"
 	"strings"
+
+	"github.com/fagongzi/log"
+	"github.com/matrixorigin/matrixcube/vfs"
+)
+
+var (
+	logger = log.NewLoggerWithPrefix("[util]")
 )
 
 // GZIP compress a path to a gzip file
-func GZIP(path string) error {
-	file, err := os.Open(path)
+func GZIP(fs vfs.FS, path string) error {
+	file, err := fs.Open(path)
 	if err != nil {
 		return err
 	}
 
 	dest := fmt.Sprintf("%s.gz", path)
-	d, _ := os.Create(dest)
+	d, _ := fs.Create(dest)
 	defer d.Close()
 	gw := gzip.NewWriter(d)
 	defer gw.Close()
 	tw := tar.NewWriter(gw)
 	defer tw.Close()
 
-	return compress(file, "", tw)
+	return compress(fs, file, path, "", tw)
 }
 
 // UnGZIP ungip file
-func UnGZIP(file string, dest string) error {
-	return deCompress(file, dest)
+func UnGZIP(fs vfs.FS, file string, dest string) error {
+	return deCompress(fs, file, dest)
 }
 
-func compress(file *os.File, prefix string, tw *tar.Writer) error {
+// both file and filePath are provided here as we can no longer assume that the
+// full path of the specified file is still accessible from the file object. we
+// do need the full path info to list the directory when file is a directory.
+func compress(fs vfs.FS, file vfs.File, filePath string, prefix string, tw *tar.Writer) error {
 	info, err := file.Stat()
 	if err != nil {
 		return err
 	}
 	if info.IsDir() {
 		prefix = prefix + "/" + info.Name()
-		fileInfos, err := file.Readdir(-1)
+		files, err := fs.List(filePath)
 		if err != nil {
 			return err
 		}
-		for _, fi := range fileInfos {
-			f, err := os.Open(file.Name() + "/" + fi.Name())
+		for _, fi := range files {
+			path := fs.PathJoin(filePath, fi)
+			f, err := fs.Open(path)
 			if err != nil {
 				return err
 			}
-			err = compress(f, prefix, tw)
+			err = compress(fs, f, path, prefix, tw)
 			if err != nil {
 				return err
 			}
@@ -85,8 +95,8 @@ func compress(file *os.File, prefix string, tw *tar.Writer) error {
 	return nil
 }
 
-func deCompress(tarFile, dest string) error {
-	srcFile, err := os.Open(tarFile)
+func deCompress(fs vfs.FS, tarFile, dest string) error {
+	srcFile, err := fs.Open(tarFile)
 	if err != nil {
 		return err
 	}
@@ -107,7 +117,7 @@ func deCompress(tarFile, dest string) error {
 			}
 		}
 		filename := dest + hdr.Name
-		file, err := createFile(filename)
+		file, err := createFile(fs, filename)
 		if err != nil {
 			return err
 		}
@@ -116,10 +126,10 @@ func deCompress(tarFile, dest string) error {
 	return nil
 }
 
-func createFile(name string) (*os.File, error) {
-	err := os.MkdirAll(string([]rune(name)[0:strings.LastIndex(name, "/")]), 0755)
+func createFile(fs vfs.FS, name string) (vfs.File, error) {
+	err := fs.MkdirAll(string([]rune(name)[0:strings.LastIndex(name, "/")]), 0755)
 	if err != nil {
 		return nil, err
 	}
-	return os.Create(name)
+	return fs.Create(name)
 }

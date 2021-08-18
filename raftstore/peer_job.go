@@ -229,7 +229,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 
 		err = ps.store.snapshotManager.Create(msg)
 		if err != nil {
-			logger.Errorf("shard %d create snapshot failed with %+v",
+			logger.Errorf(" shard %d create snapshot failed with %+v",
 				ps.shard.ID,
 				err)
 			return nil

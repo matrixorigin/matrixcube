@@ -17,14 +17,13 @@ package join
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path"
 	"strings"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/embed"
 	"go.etcd.io/etcd/etcdserver"
@@ -86,11 +85,17 @@ func PrepareJoinCluster(cfg *config.Config) {
 	if cfg.EmbedEtcd.Join == cfg.EmbedEtcd.AdvertiseClientUrls {
 		util.GetLogger().Fatalf("join self is forbidden")
 	}
-
-	filePath := path.Join(cfg.DataDir, "join")
+	fs := cfg.FS
+	filePath := fs.PathJoin(cfg.DataDir, "join")
 	// Read the persist join config
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		s, err := ioutil.ReadFile(filePath)
+	if _, err := fs.Stat(filePath); !vfs.IsNotExist(err) {
+		f, err := fs.Open(filePath)
+		if err != nil {
+			util.GetLogger().Fatalf("read the join config failed with %+v",
+				err)
+		}
+		defer f.Close()
+		s, err := ioutil.ReadAll(f)
 		if err != nil {
 			util.GetLogger().Fatalf("read the join config failed with %+v",
 				err)
@@ -102,7 +107,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 
 	initialCluster := ""
 	// Cases with data directory.
-	if isDataExist(path.Join(cfg.DataDir, "member")) {
+	if isDataExist(fs, fs.PathJoin(cfg.DataDir, "member")) {
 		cfg.EmbedEtcd.InitialCluster = initialCluster
 		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
 		return
@@ -204,32 +209,35 @@ func PrepareJoinCluster(cfg *config.Config) {
 	initialCluster = strings.Join(prophets, ",")
 	cfg.EmbedEtcd.InitialCluster = initialCluster
 	cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-	err = os.MkdirAll(cfg.DataDir, privateDirMode)
-	if err != nil && !os.IsExist(err) {
+	err = fs.MkdirAll(cfg.DataDir, privateDirMode)
+	if err != nil && !vfs.IsExist(err) {
 		util.GetLogger().Fatalf("create data path failed with %+v",
 			err)
 	}
 
-	err = ioutil.WriteFile(filePath, []byte(cfg.EmbedEtcd.InitialCluster), privateFileMode)
+	f, err := fs.Create(filePath)
 	if err != nil {
 		util.GetLogger().Fatalf("write data path failed with %+v",
 			err)
 	}
-
+	defer f.Close()
+	_, err = f.Write([]byte(cfg.EmbedEtcd.InitialCluster))
+	if err != nil {
+		util.GetLogger().Fatalf("write data path failed with %+v",
+			err)
+	}
 }
 
-func isDataExist(d string) bool {
-	dir, err := os.Open(d)
+func isDataExist(fs vfs.FS, d string) bool {
+	names, err := fs.List(d)
+	if vfs.IsNotExist(err) {
+		return false
+	}
+
 	if err != nil {
 		util.GetLogger().Errorf("open directory %s failed with %+v", d, err)
 		return false
 	}
-	defer dir.Close()
 
-	names, err := dir.Readdirnames(-1)
-	if err != nil {
-		util.GetLogger().Errorf("list directory %s failed with %+v", d, err)
-		return false
-	}
 	return len(names) != 0
 }
