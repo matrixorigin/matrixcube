@@ -30,10 +30,12 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterStartAndStop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithTestClusterLogLevel("info"))
 	defer c.Stop()
 
@@ -44,6 +46,7 @@ func TestClusterStartAndStop(t *testing.T) {
 }
 
 func TestIssue123(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
 		SetCMDTestClusterHandler,
 		WithTestClusterLogLevel("info"),
@@ -76,6 +79,7 @@ func TestIssue123(t *testing.T) {
 }
 
 func TestAddShardWithMultiGroups(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
@@ -94,6 +98,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 }
 
 func TestAppliedRules(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
@@ -122,6 +127,7 @@ func TestAppliedRules(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
 		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
@@ -142,6 +148,7 @@ func TestSplit(t *testing.T) {
 }
 
 func TestCustomSplit(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	target := EncodeDataKey(0, []byte("key2"))
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
@@ -186,6 +193,7 @@ func TestCustomSplit(t *testing.T) {
 }
 
 func TestSpeedupAddShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Second * 2)
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }

@@ -24,11 +24,13 @@ import (
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestClusterStartAndStop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	c, closer := createDiskDataStorageCluster(t)
 	defer closer()
 
@@ -52,6 +54,7 @@ func TestClusterStartAndStop(t *testing.T) {
 }
 
 func TestIssue84(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	// issue 84, lost event notification after cluster restart
 	// See https://github.com/matrixorigin/matrixcube/issues/84
 	c, closer := createDiskDataStorageCluster(t)
