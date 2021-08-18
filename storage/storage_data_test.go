@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	cpebble "github.com/cockroachdb/pebble"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,14 +36,14 @@ var (
 )
 
 func createDataMem(t *testing.T) DataStorage {
-	return mem.NewStorage()
+	return mem.NewStorage(vfs.Default)
 }
 
 func createDataPebble(t *testing.T) DataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	os.RemoveAll(path)
 	os.MkdirAll(path, 0755)
-	s, err := pebble.NewStorage(path)
+	s, err := pebble.NewStorage(path, &cpebble.Options{FS: vfs.NewPebbleFS(vfs.Default)})
 	assert.NoError(t, err, "createDataPebble failed")
 	return s
 }
