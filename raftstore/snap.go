@@ -34,6 +34,8 @@ import (
 type defaultSnapshotManager struct {
 	sync.RWMutex
 
+	wg               sync.WaitGroup
+	stopC            chan struct{}
 	limiter          *rate.Limiter
 	s                *store
 	dir              string
@@ -52,9 +54,21 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 		}
 	}
 
+	m := &defaultSnapshotManager{
+		stopC: make(chan struct{}),
+		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
+			int(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
+		dir:      dir,
+		s:        s,
+		registry: make(map[string]struct{}),
+	}
+
+	m.wg.Add(1)
 	snapshotDirName := path.Base(dir)
 	go func() {
-		interval := time.Hour * 2
+		interval := 2 * time.Hour
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 
 		for {
 			logger.Infof("start scan gc snap files")
@@ -89,17 +103,17 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 				}
 			}
 
-			time.Sleep(interval)
+			select {
+			case <-ticker.C:
+				continue
+			case <-m.stopC:
+				m.wg.Done()
+				return
+			}
 		}
 	}()
 
-	return &defaultSnapshotManager{
-		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
-			int(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
-		dir:      dir,
-		s:        s,
-		registry: make(map[string]struct{}),
-	}
+	return m
 }
 
 func formatKey(msg *bhraftpb.SnapshotMessage) string {
@@ -108,6 +122,11 @@ func formatKey(msg *bhraftpb.SnapshotMessage) string {
 
 func formatKeyStep(msg *bhraftpb.SnapshotMessage, step int) string {
 	return fmt.Sprintf("%s_%d", formatKey(msg), step)
+}
+
+func (m *defaultSnapshotManager) Close() {
+	close(m.stopC)
+	m.wg.Wait()
 }
 
 func (m *defaultSnapshotManager) getPathOfSnapKey(msg *bhraftpb.SnapshotMessage) string {

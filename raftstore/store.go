@@ -204,6 +204,7 @@ func (s *store) Stop() {
 	})
 	s.stopWG.Wait()
 
+	s.snapshotManager.Close()
 	s.runner.Stop()
 	s.trans.Stop()
 	s.rpc.Stop()

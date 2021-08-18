@@ -27,6 +27,7 @@ var (
 
 // SnapshotManager manager snapshot
 type SnapshotManager interface {
+	Close()
 	Register(msg *bhraftpb.SnapshotMessage, step int) bool
 	Deregister(msg *bhraftpb.SnapshotMessage, step int)
 	Create(msg *bhraftpb.SnapshotMessage) error
