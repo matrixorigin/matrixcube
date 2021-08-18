@@ -7,13 +7,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/shirou/gopsutil/internal/common"
-	"github.com/tklauser/go-sysconf"
 	"golang.org/x/sys/unix"
 )
 
@@ -32,6 +32,7 @@ const (
 	CTLKern     = 1  // "high kernel": proc, limits
 	CTLHw       = 6  // CTL_HW
 	SMT         = 24 // HW_SMT
+	NCpuOnline  = 25 // HW_NCPUONLINE
 	KernCptime  = 40 // KERN_CPTIME
 	KernCptime2 = 71 // KERN_CPTIME2
 )
@@ -39,12 +40,20 @@ const (
 var ClocksPerSec = float64(128)
 
 func init() {
-	clkTck, err := sysconf.Sysconf(sysconf.SC_CLK_TCK)
-	// ignore errors
-	if err == nil {
-		ClocksPerSec = float64(clkTck)
-	}
-
+	func() {
+		getconf, err := exec.LookPath("getconf")
+		if err != nil {
+			return
+		}
+		out, err := invoke.Command(getconf, "CLK_TCK")
+		// ignore errors
+		if err == nil {
+			i, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+			if err == nil {
+				ClocksPerSec = float64(i)
+			}
+		}
+	}()
 	func() {
 		v, err := unix.Sysctl("kern.osrelease") // can't reuse host.PlatformInformation because of circular import
 		if err != nil {
@@ -154,17 +163,25 @@ func InfoWithContext(ctx context.Context) ([]InfoStat, error) {
 
 	c := InfoStat{}
 
-	mhz, err := unix.SysctlUint32("hw.cpuspeed")
-	if err != nil {
+	var u32 uint32
+	if u32, err = unix.SysctlUint32("hw.cpuspeed"); err != nil {
 		return nil, err
 	}
-	c.Mhz = float64(mhz)
+	c.Mhz = float64(u32)
 
-	ncpu, err := unix.SysctlUint32("hw.ncpuonline")
+	mib := []int32{CTLHw, NCpuOnline}
+	buf, _, err := common.CallSyscall(mib)
 	if err != nil {
 		return nil, err
 	}
-	c.Cores = int32(ncpu)
+
+	var ncpu int32
+	br := bytes.NewReader(buf)
+	err = binary.Read(br, binary.LittleEndian, &ncpu)
+	if err != nil {
+		return nil, err
+	}
+	c.Cores = ncpu
 
 	if c.ModelName, err = unix.Sysctl("hw.model"); err != nil {
 		return nil, err

@@ -14,7 +14,8 @@ import (
 )
 
 // TimesStat contains the amounts of time the CPU has spent performing different
-// kinds of work. Time units are in seconds. It is based on linux /proc/stat file.
+// kinds of work. Time units are in USER_HZ or Jiffies (typically hundredths of
+// a second). It is based on linux /proc/stat file.
 type TimesStat struct {
 	CPU       string  `json:"cpu"`
 	User      float64 `json:"user"`
@@ -86,8 +87,8 @@ func (c TimesStat) String() string {
 
 // Total returns the total number of seconds in a CPUTimesStat
 func (c TimesStat) Total() float64 {
-	total := c.User + c.System + c.Nice + c.Iowait + c.Irq + c.Softirq +
-		c.Steal + c.Idle
+	total := c.User + c.System + c.Nice + c.Iowait + c.Irq + c.Softirq + c.Steal +
+		c.Guest + c.GuestNice + c.Idle
 	return total
 }
 
@@ -98,7 +99,7 @@ func (c InfoStat) String() string {
 
 func getAllBusy(t TimesStat) (float64, float64) {
 	busy := t.User + t.System + t.Nice + t.Iowait + t.Irq +
-		t.Softirq + t.Steal
+		t.Softirq + t.Steal + t.Guest + t.GuestNice
 	return busy + t.Idle, busy
 }
 
@@ -149,9 +150,7 @@ func PercentWithContext(ctx context.Context, interval time.Duration, percpu bool
 		return nil, err
 	}
 
-	if err := common.Sleep(ctx, interval); err != nil {
-		return nil, err
-	}
+	time.Sleep(interval)
 
 	// And at the end of the interval.
 	cpuTimes2, err := Times(percpu)

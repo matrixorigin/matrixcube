@@ -5,7 +5,6 @@ package cpu
 import (
 	"context"
 	"fmt"
-	"strings"
 	"unsafe"
 
 	"github.com/StackExchange/wmi"
@@ -19,14 +18,7 @@ var (
 )
 
 type Win32_Processor struct {
-	Win32_ProcessorWithoutLoadPct
-	LoadPercentage *uint16
-}
-
-// LoadPercentage takes a linearly more time as the number of sockets increases.
-// For vSphere by default corespersocket = 1, meaning for a 40 vCPU VM Get Processor Info
-// could take more than half a minute.
-type Win32_ProcessorWithoutLoadPct struct {
+	LoadPercentage            *uint16
 	Family                    uint16
 	Manufacturer              string
 	Name                      string
@@ -58,7 +50,7 @@ type Win32_PerfFormattedData_PerfOS_System struct {
 }
 
 const (
-	ClocksPerSec = 10000000.0
+	win32_TicksPerSecond = 10000000.0
 
 	// systemProcessorPerformanceInformationClass information class to query with NTQuerySystemInformation
 	// https://processhacker.sourceforge.io/doc/ntexapi_8h.html#ad5d815b48e8f4da1ef2eb7a2f18a54e0
@@ -112,9 +104,8 @@ func Info() ([]InfoStat, error) {
 
 func InfoWithContext(ctx context.Context) ([]InfoStat, error) {
 	var ret []InfoStat
-	var dst []Win32_ProcessorWithoutLoadPct
+	var dst []Win32_Processor
 	q := wmi.CreateQuery(&dst, "")
-	q = strings.ReplaceAll(q, "Win32_ProcessorWithoutLoadPct", "Win32_Processor")
 	if err := common.WMIQueryWithContext(ctx, q, &dst); err != nil {
 		return ret, err
 	}
@@ -168,10 +159,10 @@ func perCPUTimes() ([]TimesStat, error) {
 	for core, v := range stats {
 		c := TimesStat{
 			CPU:    fmt.Sprintf("cpu%d", core),
-			User:   float64(v.UserTime) / ClocksPerSec,
-			System: float64(v.KernelTime-v.IdleTime) / ClocksPerSec,
-			Idle:   float64(v.IdleTime) / ClocksPerSec,
-			Irq:    float64(v.InterruptTime) / ClocksPerSec,
+			User:   float64(v.UserTime) / win32_TicksPerSecond,
+			System: float64(v.KernelTime-v.IdleTime) / win32_TicksPerSecond,
+			Idle:   float64(v.IdleTime) / win32_TicksPerSecond,
+			Irq:    float64(v.InterruptTime) / win32_TicksPerSecond,
 		}
 		ret = append(ret, c)
 	}
@@ -251,9 +242,8 @@ func CountsWithContext(ctx context.Context, logical bool) (int, error) {
 	}
 	// physical cores https://github.com/giampaolo/psutil/blob/d01a9eaa35a8aadf6c519839e987a49d8be2d891/psutil/_psutil_windows.c#L499
 	// for the time being, try with unreliable and slow WMI call…
-	var dst []Win32_ProcessorWithoutLoadPct
+	var dst []Win32_Processor
 	q := wmi.CreateQuery(&dst, "")
-	q = strings.ReplaceAll(q, "Win32_ProcessorWithoutLoadPct", "Win32_Processor")
 	if err := common.WMIQueryWithContext(ctx, q, &dst); err != nil {
 		return 0, err
 	}
