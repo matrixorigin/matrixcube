@@ -24,6 +24,7 @@ require (
 	github.com/shirou/gopsutil v3.21.7+incompatible
 	github.com/stretchr/testify v1.7.0
 	github.com/tklauser/go-sysconf v0.3.7 // indirect
+	go.etcd.io/bbolt v1.3.6 // indirect
 	go.etcd.io/etcd v0.0.0-20201125193152-8a03d2e9614b
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 )

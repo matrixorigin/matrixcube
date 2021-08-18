@@ -194,6 +194,7 @@ func (s *store) Start() {
 func (s *store) Stop() {
 	atomic.StoreUint32(&s.state, 1)
 
+	s.pd.Stop()
 	s.foreachPR(func(pr *peerReplica) bool {
 		s.stopWG.Add(1)
 		pr.stopEventLoop()
@@ -204,7 +205,6 @@ func (s *store) Stop() {
 	s.runner.Stop()
 	s.trans.Stop()
 	s.rpc.Stop()
-	s.pd.Stop()
 }
 
 func (s *store) prStopped() {

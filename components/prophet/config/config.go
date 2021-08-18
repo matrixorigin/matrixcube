@@ -65,10 +65,13 @@ type Config struct {
 	} `toml:"-" json:"-"`
 
 	// Only test can change them.
-	DisableStrictReconfigCheck bool      `toml:"-" json:"-"`
-	DisableResponse            bool      `toml:"-" json:"-"`
-	TestCtx                    *sync.Map `toml:"-" json:"-"`
-	FS                         vfs.FS    `toml:"-" json:"-"`
+	DisableStrictReconfigCheck bool `toml:"-" json:"-"`
+	// DisableResponse skip all client request
+	DisableResponse bool `toml:"-" json:"-"`
+	// EnableResponseNotLeader return not leader error for all client request
+	EnableResponseNotLeader bool      `toml:"-" json:"-"`
+	TestCtx                 *sync.Map `toml:"-" json:"-"`
+	FS                      vfs.FS    `toml:"-" json:"-"`
 }
 
 // NewConfig creates a new config.

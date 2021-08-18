@@ -101,7 +101,6 @@ type asyncClient struct {
 	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
 	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
-	allocIDC              chan uint64
 }
 
 // NewClient create a prophet client
@@ -114,7 +113,6 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
 		resourceHeartbeatRspC: make(chan rpcpb.ResourceHeartbeatRsp, 128),
-		allocIDC:              make(chan uint64, 128),
 	}
 
 	for _, opt := range opts {
@@ -143,24 +141,12 @@ func (c *asyncClient) AllocID() (uint64, error) {
 	req := &rpcpb.Request{}
 	req.Type = rpcpb.TypeAllocIDReq
 
-	c.asyncDo(req, func(resp *rpcpb.Response, err error) {
-		if err != nil {
-			util.GetLogger().Errorf("alloc id failed with %+v", err)
-		} else {
-			c.allocIDC <- resp.AllocID.ID
-		}
-	})
-
-	select {
-	case id, ok := <-c.allocIDC:
-		if !ok {
-			return 0, ErrClosed
-		}
-
-		return id, nil
-	case <-time.After(c.opts.rpcTimeout):
-		return 0, ErrTimeout
+	resp, err := c.syncDo(req)
+	if err != nil {
+		return 0, err
 	}
+
+	return resp.AllocID.ID, nil
 }
 
 func (c *asyncClient) ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error {
@@ -518,7 +504,6 @@ func (c *asyncClient) doClose() {
 	close(c.resourceHeartbeatRspC)
 	close(c.resetLeaderConnC)
 	close(c.writeC)
-	close(c.allocIDC)
 	c.leaderConn.Close()
 }
 
@@ -534,15 +519,22 @@ func (c *asyncClient) running() bool {
 }
 
 func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
-	ctx := newSyncCtx(req)
-	c.do(ctx)
-	ctx.wait()
+	for {
+		ctx := newSyncCtx(req)
+		c.do(ctx)
+		ctx.wait()
 
-	if ctx.err != nil {
-		return nil, ctx.err
+		if ctx.err != nil {
+			if ctx.err == util.ErrNotLeader && c.running() {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+
+			return nil, ctx.err
+		}
+
+		return ctx.resp, nil
 	}
-
-	return ctx.resp, nil
 }
 
 func (c *asyncClient) asyncDo(req *rpcpb.Request, cb func(*rpcpb.Response, error)) {
@@ -617,6 +609,12 @@ OUTER:
 	for {
 		select {
 		case <-c.ctx.Done():
+			c.contexts.Range(func(key, value interface{}) bool {
+				if value != nil {
+					value.(*ctx).done(nil, ErrClosed)
+				}
+				return true
+			})
 			return
 		case _, ok := <-c.resetReadC:
 			if ok {
@@ -634,11 +632,16 @@ OUTER:
 					}
 
 					resp := msg.(*rpcpb.Response)
+					v, ok := c.contexts.Load(resp.ID)
 					if resp.Error != "" && util.IsNotLeaderError(resp.Error) {
 						if !c.scheduleResetLeaderConn() {
 							return
 						}
 
+						// retry
+						if ok && v != nil {
+							v.(*ctx).done(nil, util.ErrNotLeader)
+						}
 						continue OUTER
 					}
 
@@ -649,7 +652,7 @@ OUTER:
 						continue
 					}
 
-					if v, ok := c.contexts.Load(resp.ID); ok {
+					if ok && v != nil {
 						c.contexts.Delete(resp.ID)
 						if resp.Error != "" {
 							v.(*ctx).done(nil, errors.New(resp.Error))
@@ -679,6 +682,10 @@ func (c *asyncClient) resetLeaderConn() error {
 func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) error {
 	addr := ""
 	for {
+		if !c.running() {
+			return ErrClosed
+		}
+
 		select {
 		case <-time.After(timeout):
 			return ErrTimeout
@@ -767,7 +774,9 @@ func (c *ctx) done(resp *rpcpb.Response, err error) {
 			c.err = err
 			close(c.c)
 		} else {
-			c.cb(resp, err)
+			if c.cb != nil {
+				c.cb(resp, err)
+			}
 		}
 	}
 }
