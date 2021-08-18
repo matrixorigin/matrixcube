@@ -15,7 +15,6 @@ package storage
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,8 +40,8 @@ func createDataMem(fs vfs.FS, t *testing.T) DataStorage {
 
 func createDataPebble(fs vfs.FS, t *testing.T) DataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
-	os.RemoveAll(path)
-	os.MkdirAll(path, 0755)
+	fs.RemoveAll(path)
+	fs.MkdirAll(path, 0755)
 	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
 	s, err := pebble.NewStorage(path, opts)
 	assert.NoError(t, err, "createDataPebble failed")
@@ -195,8 +194,8 @@ func TestCreateAndApply(t *testing.T) {
 				kv2 := s2.(KVStorage)
 				path := fmt.Sprintf("%s-snap", name)
 				path = filepath.Join(util.GetTestDir(), path)
-				os.RemoveAll(path)
-				err := os.MkdirAll(path, 0755)
+				fs.RemoveAll(path)
+				err := fs.MkdirAll(path, 0755)
 				assert.NoError(t, err, "TestCreateAndApply failed")
 
 				key1 := []byte("key1")
