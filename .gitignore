@@ -13,4 +13,4 @@
 
 dist
 .vscode/
-example/redis/main
+vendor/
