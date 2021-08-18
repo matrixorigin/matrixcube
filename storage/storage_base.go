@@ -32,6 +32,7 @@ type StatisticalStorage interface {
 
 // KVStorage is KV based storage
 type KVStorage interface {
+	CloseableStorage
 	// Write write the data in batch
 	Write(wb *util.WriteBatch, sync bool) error
 
