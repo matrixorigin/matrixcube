@@ -19,7 +19,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -28,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"golang.org/x/time/rate"
 )
 
@@ -42,9 +42,10 @@ type defaultSnapshotManager struct {
 }
 
 func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
+	fs := s.cfg.FS
 	dir := s.cfg.SnapshotDir()
-	if !exist(dir) {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+	if !exist(fs, dir) {
+		if err := fs.MkdirAll(dir, 0750); err != nil {
 			logger.Fatalf("cannot create snapshot dir %s failed with %+v",
 				dir,
 				err)
@@ -59,35 +60,28 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 			logger.Infof("start scan gc snap files")
 
 			var paths []string
-			err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
-				if f == nil {
-					return nil
+			files, err := fs.List(dir)
+			if err != nil {
+				panic(err)
+			}
+			for _, cur := range files {
+				fi, err := fs.Stat(fs.PathJoin(dir, cur))
+				if err != nil {
+					panic(err)
 				}
 
-				if f.IsDir() && f.Name() == snapshotDirName {
-					return nil
-				}
-
-				var skip error
-				if f.IsDir() && f.Name() != snapshotDirName {
-					skip = filepath.SkipDir
+				if fi.IsDir() && fi.Name() == snapshotDirName {
+					continue
 				}
 
 				now := time.Now()
-				if now.Sub(f.ModTime()) > interval {
-					paths = append(paths, path)
+				if now.Sub(fi.ModTime()) > interval {
+					paths = append(paths, fs.PathJoin(dir, cur))
 				}
-
-				return skip
-			})
-
-			if err != nil {
-				logger.Errorf("scan snap file failed with %+v",
-					err)
 			}
 
 			for _, path := range paths {
-				err := os.RemoveAll(path)
+				err := fs.RemoveAll(path)
 				if err != nil {
 					logger.Errorf("scan snap file %s failed with %+v",
 						path,
@@ -156,9 +150,10 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 	start := encStartKey(&msg.Header.Shard)
 	end := encEndKey(&msg.Header.Shard)
 	db := m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID)
+	fs := m.s.cfg.FS
 
-	if !exist(gzPath) {
-		if !exist(path) {
+	if !exist(fs, gzPath) {
+		if !exist(fs, path) {
 			err := db.CreateSnapshot(path, start, end)
 			if err != nil {
 				return err
@@ -173,13 +168,13 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 				}
 			}
 		}
-		err := util.GZIP(path)
+		err := util.GZIP(fs, path)
 		if err != nil {
 			return err
 		}
 	}
 
-	info, err := os.Stat(fmt.Sprintf("%s.gz", path))
+	info, err := fs.Stat(fmt.Sprintf("%s.gz", path))
 	if err != nil {
 		return err
 	}
@@ -190,7 +185,8 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 
 func (m *defaultSnapshotManager) Exists(msg *bhraftpb.SnapshotMessage) bool {
 	file := m.getPathOfSnapKeyGZ(msg)
-	return exist(file)
+	fs := m.s.cfg.FS
+	return exist(fs, file)
 }
 
 func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error) {
@@ -200,13 +196,14 @@ func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goe
 		return 0, fmt.Errorf("missing snapshot file: %s", file)
 	}
 
-	info, err := os.Stat(file)
+	fs := m.s.cfg.FS
+	info, err := fs.Stat(file)
 	if err != nil {
 		return 0, err
 	}
 	fileSize := info.Size()
 
-	f, err := os.Open(file)
+	f, err := fs.Open(file)
 	if err != nil {
 		return 0, err
 	}
@@ -258,13 +255,14 @@ func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goe
 func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error {
 	var err error
 
+	fs := m.s.cfg.FS
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
-	if exist(tmpFile) {
+	if exist(fs, tmpFile) {
 		logger.Infof("shard %d delete exists snap tmp file %s, header is %s",
 			msg.Header.Shard.ID,
 			tmpFile,
 			msg.Header.String())
-		err = os.RemoveAll(tmpFile)
+		err = fs.RemoveAll(tmpFile)
 	}
 
 	if err != nil {
@@ -272,12 +270,12 @@ func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error 
 	}
 
 	file := m.getPathOfSnapKeyGZ(msg)
-	if exist(file) {
+	if exist(fs, file) {
 		logger.Infof("shard %d delete exists snap gz file %s, header is %s",
 			msg.Header.Shard.ID,
 			file,
 			msg.Header.String())
-		err = os.RemoveAll(file)
+		err = fs.RemoveAll(file)
 	}
 
 	if err != nil {
@@ -285,12 +283,12 @@ func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error 
 	}
 
 	dir := m.getPathOfSnapKey(msg)
-	if exist(dir) {
+	if exist(fs, dir) {
 		logger.Infof("shard %d delete exists snap dir, file=<%s>, header=<%s>",
 			msg.Header.Shard.ID,
 			dir,
 			msg.Header.String())
-		err = os.RemoveAll(dir)
+		err = fs.RemoveAll(dir)
 	}
 
 	return err
@@ -298,7 +296,7 @@ func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error 
 
 func (m *defaultSnapshotManager) ReceiveSnapData(msg *bhraftpb.SnapshotMessage) error {
 	var err error
-	var f *os.File
+	var f vfs.File
 
 	if msg.First {
 		m.Lock()
@@ -311,15 +309,16 @@ func (m *defaultSnapshotManager) ReceiveSnapData(msg *bhraftpb.SnapshotMessage) 
 		return err
 	}
 
+	fs := m.s.cfg.FS
 	file := m.getTmpPathOfSnapKeyGZ(msg)
-	if exist(file) {
-		f, err = os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0600)
+	if exist(fs, file) {
+		f, err = fs.OpenForAppend(file)
 		if err != nil {
 			f.Close()
 			return err
 		}
 	} else {
-		f, err = os.Create(file)
+		f, err = fs.Create(file)
 		if err != nil {
 			f.Close()
 			return err
@@ -361,7 +360,7 @@ func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 
 	defer m.CleanSnap(msg)
 
-	err := util.UnGZIP(file, m.dir)
+	err := util.UnGZIP(m.s.cfg.FS, file, m.dir)
 	if err != nil {
 		return err
 	}
@@ -395,12 +394,13 @@ func (m *defaultSnapshotManager) ReceiveSnapCount() uint64 {
 func (m *defaultSnapshotManager) cleanTmp(msg *bhraftpb.SnapshotMessage) error {
 	var err error
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
-	if exist(tmpFile) {
+	fs := m.s.cfg.FS
+	if exist(fs, tmpFile) {
 		logger.Infof("shard %d delete exists snap tmp file, file=<%s>, header=<%s>",
 			msg.Header.Shard.ID,
 			tmpFile,
 			msg.Header.String())
-		err = os.RemoveAll(tmpFile)
+		err = fs.RemoveAll(tmpFile)
 	}
 
 	if err != nil {
@@ -412,8 +412,9 @@ func (m *defaultSnapshotManager) cleanTmp(msg *bhraftpb.SnapshotMessage) error {
 
 func (m *defaultSnapshotManager) check(msg *bhraftpb.SnapshotMessage) error {
 	file := m.getTmpPathOfSnapKeyGZ(msg)
-	if exist(file) {
-		info, err := os.Stat(file)
+	fs := m.s.cfg.FS
+	if exist(fs, file) {
+		info, err := fs.Stat(file)
 		if err != nil {
 			return err
 		}
@@ -425,13 +426,19 @@ func (m *defaultSnapshotManager) check(msg *bhraftpb.SnapshotMessage) error {
 				file)
 		}
 
-		return os.Rename(file, m.getPathOfSnapKeyGZ(msg))
+		return fs.Rename(file, m.getPathOfSnapKeyGZ(msg))
 	}
 
 	return fmt.Errorf("missing snapshot file, path=%s", file)
 }
 
-func exist(name string) bool {
-	_, err := os.Stat(name)
-	return err == nil
+func exist(fs vfs.FS, name string) bool {
+	_, err := fs.Stat(name)
+	if err == nil {
+		return true
+	}
+	if vfs.IsNotExist(err) {
+		return false
+	}
+	panic(err)
 }

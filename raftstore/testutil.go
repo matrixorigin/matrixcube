@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -37,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -204,9 +204,9 @@ func WithAppendTestClusterAdjustConfigFunc(value func(node int, cfg *config.Conf
 	}
 }
 
-func recreateTestTempDir(tmpDir string) {
-	os.RemoveAll(tmpDir)
-	os.MkdirAll(tmpDir, 0755)
+func recreateTestTempDir(fs vfs.FS, tmpDir string) {
+	fs.RemoveAll(tmpDir)
+	fs.MkdirAll(tmpDir, 0755)
 }
 
 type testShardAware struct {
@@ -449,13 +449,14 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		pconfig.DefaultSchedulers = nil
 	}
 
-	if c.opts.recreate {
-		recreateTestTempDir(c.opts.tmpDir)
-	}
-
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
+		cfg.FS = vfs.GetTestFS()
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
+		if c.opts.recreate {
+			recreateTestTempDir(cfg.FS, cfg.DataPath)
+		}
+
 		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
 		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
@@ -473,6 +474,8 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		cfg.Worker.ApplyWorkerCount = 1
 		cfg.Worker.SendRaftMsgWorkerCount = 1
 
+		// TODO: duplicated field
+		cfg.Prophet.FS = cfg.FS
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.StorageNode = true
 		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
@@ -490,8 +493,9 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 
 		if cfg.Storage.MetaStorage == nil {
 			var metaStorage storage.MetadataStorage
-			metaStorage = mem.NewStorage()
+			metaStorage = mem.NewStorageWithFS(cfg.FS)
 			if c.opts.useDisk {
+				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
 				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-meta", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				metaStorage = s
@@ -501,8 +505,9 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		}
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
-			dataStorage = mem.NewStorage()
+			dataStorage = mem.NewStorageWithFS(cfg.FS)
 			if c.opts.useDisk {
+				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
 				s, err := pebble.NewStorageWithOptions(fmt.Sprintf("%s-data", cfg.DataPath), c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				dataStorage = s
@@ -620,6 +625,14 @@ func (c *TestRaftCluster) Stop() {
 
 	for _, s := range c.metadataStorages {
 		s.Close()
+	}
+
+	for _, s := range c.stores {
+		fs := s.cfg.FS
+		if fs == nil {
+			panic("fs not set")
+		}
+		vfs.ReportLeakedFD(fs, c.t)
 	}
 }
 
