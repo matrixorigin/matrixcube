@@ -20,36 +20,41 @@ import (
 	"testing"
 	"time"
 
+	cpebble "github.com/cockroachdb/pebble"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
 var (
-	dataDactories = map[string]func(*testing.T) DataStorage{
+	dataDactories = map[string]func(vfs.FS, *testing.T) DataStorage{
 		"memory": createDataMem,
 		"pebble": createDataPebble,
 	}
 )
 
-func createDataMem(t *testing.T) DataStorage {
-	return mem.NewStorage()
+func createDataMem(fs vfs.FS, t *testing.T) DataStorage {
+	return mem.NewStorage(fs)
 }
 
-func createDataPebble(t *testing.T) DataStorage {
+func createDataPebble(fs vfs.FS, t *testing.T) DataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	os.RemoveAll(path)
 	os.MkdirAll(path, 0755)
-	s, err := pebble.NewStorage(path)
+	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
+	s, err := pebble.NewStorage(path, opts)
 	assert.NoError(t, err, "createDataPebble failed")
 	return s
 }
 
 func TestRangeDelete(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t).(KVStorage)
+			s := factory(fs, t).(KVStorage)
 			key1 := []byte("k1")
 			value1 := []byte("value1")
 
@@ -82,9 +87,11 @@ func TestRangeDelete(t *testing.T) {
 }
 
 func TestPrefixScan(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t).(KVStorage)
+			s := factory(fs, t).(KVStorage)
 			prefix := "/m/db"
 			for i := 1; i <= 3; i++ {
 				key := []byte(fmt.Sprintf("%v/%v/%d", prefix, "defaultdb", i))
@@ -102,9 +109,11 @@ func TestPrefixScan(t *testing.T) {
 }
 
 func TestSplitCheck(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(t)
+			s := factory(fs, t)
 			kv := s.(KVStorage)
 			totalSize := uint64(16)
 			totalKeys := uint64(4)
@@ -164,12 +173,14 @@ func TestSplitCheck(t *testing.T) {
 }
 
 func TestCreateAndApply(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s1 := factory(t)
+			s1 := factory(fs, t)
 			kv1 := s1.(KVStorage)
 
-			s2 := factory(t)
+			s2 := factory(fs, t)
 			kv2 := s2.(KVStorage)
 			path := fmt.Sprintf("%s-snap", name)
 			path = filepath.Join(util.GetTestDir(), path)
