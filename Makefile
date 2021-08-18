@@ -1,13 +1,12 @@
-ROOT_DIR = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
-LD_FLAGS = -ldflags "-w -s"
-
-GOOS 		= linux
+PKGNAME   = $(shell go list)
+ROOT_DIR  = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
+LD_FLAGS  = -ldflags "-w -s"
+GOOS 		  = linux
 DIST_DIR 	= $(ROOT_DIR)dist/
 
 .PHONY: dist_dir
 dist_dir: ; $(info ======== prepare distribute dir:)
 	mkdir -p $(DIST_DIR)
-	#@rm -rf $(DIST_DIR)*
 
 .PHONY: redis
 redis: dist_dir; $(info ======== compiled matrixcube example redis:)
@@ -27,5 +26,9 @@ example-http: http; $(info ======== compiled matrixcube http example:)
 
 .PHONY: test
 test: ; $(info ======== test matrixcube)
-	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/storage
-	go test -count=1 -timeout 600s github.com/matrixorigin/matrixcube/raftstore
+	go test $(RACE) -count=1 -timeout 600s $(PKGNAME)/storage
+	go test $(RACE) -count=1 -timeout 600s $(PKGNAME)/raftstore
+
+.PHONY: race-test
+race-test: override RACE=-race
+race-test: test
