@@ -325,7 +325,7 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 		pr.startRegistrationJob()
 	}
 
-	pr.applyCommittedEntries(rd)
+	pr.applyCommittedEntries(rd, result)
 
 	pr.doApplyReads(rd)
 
@@ -381,8 +381,8 @@ func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *apply
 	}
 }
 
-func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready) {
-	if pr.ps.isApplyingSnapshot() {
+func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapResult) {
+	if result != nil || pr.ps.isApplyingSnapshot() {
 		pr.ps.lastReadyIndex = pr.ps.getTruncatedIndex()
 	} else {
 		// make sure the delegate already registered

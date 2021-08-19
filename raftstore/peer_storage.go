@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
@@ -567,5 +568,8 @@ func (ps *peerStorage) setGenSnapJob(job *task.Job) {
 }
 
 func (ps *peerStorage) setApplySnapJob(job *task.Job) {
+	if ps.store.cfg.Test.PeerReplicaSetSnapshotJobWait > 0 {
+		time.Sleep(ps.store.cfg.Test.PeerReplicaSetSnapshotJobWait)
+	}
 	ps.applySnapJob = job
 }
