@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"runtime"
 
-	roaring64 "github.com/pilosa/pilosa/roaring"
+	"github.com/RoaringBitmap/roaring/roaring64"
 )
 
 const (
@@ -55,12 +55,8 @@ func MustMarshalBM64(bm *roaring64.Bitmap) []byte {
 
 // MustMarshalBM64To must marshal BM
 func MustMarshalBM64To(bm *roaring64.Bitmap, buf *bytes.Buffer) {
-	n, err := bm.WriteTo(buf)
+	_, err := bm.WriteTo(buf)
 	if err != nil {
 		log.Fatalf("BUG: write bm failed with %+v", err)
-	}
-
-	if n != int64(len(buf.Bytes())) {
-		GetLogger().Fatalf("BUG: write bm failed with %d != %d, %+v", n, len(buf.Bytes()), bm.Slice())
 	}
 }

@@ -17,10 +17,10 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/pilosa/pilosa/roaring"
 	"go.etcd.io/etcd/raft/raftpb"
 )
 
@@ -55,13 +55,13 @@ func (s *store) handledCustomSplitCheck(group uint64) bool {
 }
 
 func (s *store) handleShardStateCheck() {
-	bm := roaring.NewBitmap()
+	bm := roaring64.NewBitmap()
 	s.foreachPR(func(pr *peerReplica) bool {
 		bm.Add(pr.shardID)
 		return true
 	})
 
-	if bm.Count() > 0 {
+	if bm.GetCardinality() > 0 {
 		rsp, err := s.pd.GetClient().CheckResourceState(bm)
 		if err != nil {
 			logger.Errorf("check shards state failed with %+v", err)

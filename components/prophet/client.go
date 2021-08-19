@@ -20,12 +20,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
-	"github.com/pilosa/pilosa/roaring"
 )
 
 var (
@@ -69,7 +69,7 @@ type Client interface {
 	// c) If received a resource removed event.
 	AsyncRemoveResources(ids ...uint64) error
 	// CheckResourceState returns resources state
-	CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error)
+	CheckResourceState(resources *roaring64.Bitmap) (rpcpb.CheckResourceStateRsp, error)
 
 	// PutPlacementRule put placement rule
 	PutPlacementRule(rule rpcpb.PlacementRule) error
@@ -396,7 +396,7 @@ func (c *asyncClient) AsyncRemoveResources(ids ...uint64) error {
 	return nil
 }
 
-func (c *asyncClient) CheckResourceState(resources *roaring.Bitmap) (rpcpb.CheckResourceStateRsp, error) {
+func (c *asyncClient) CheckResourceState(resources *roaring64.Bitmap) (rpcpb.CheckResourceStateRsp, error) {
 	if !c.running() {
 		return rpcpb.CheckResourceStateRsp{}, ErrClosed
 	}

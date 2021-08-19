@@ -18,12 +18,12 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
-	"github.com/pilosa/pilosa/roaring"
 )
 
 // BasicCluster provides basic data member and interface for a storage application cluster.
@@ -31,7 +31,7 @@ type BasicCluster struct {
 	sync.RWMutex
 	Containers              *CachedContainers
 	Resources               *CachedResources
-	RemovedResources        *roaring.Bitmap
+	RemovedResources        *roaring64.Bitmap
 	WaittingCreateResources map[uint64]metadata.Resource
 }
 
@@ -40,7 +40,7 @@ func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
 	return &BasicCluster{
 		Containers:              NewCachedContainers(),
 		Resources:               NewCachedResources(factory),
-		RemovedResources:        roaring.NewBitmap(),
+		RemovedResources:        roaring64.NewBitmap(),
 		WaittingCreateResources: make(map[uint64]metadata.Resource),
 	}
 }
@@ -49,7 +49,7 @@ func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
 func (bc *BasicCluster) AddRemovedResources(ids ...uint64) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.RemovedResources.Add(ids...)
+	bc.RemovedResources.AddMany(ids)
 }
 
 // AddWaittingCreateResources add waitting create resources
@@ -101,11 +101,13 @@ func (bc *BasicCluster) CompleteCreateResource(id uint64) metadata.Resource {
 }
 
 // GetRemovedResources get removed state resources
-func (bc *BasicCluster) GetRemovedResources(bm *roaring.Bitmap) []uint64 {
+func (bc *BasicCluster) GetRemovedResources(bm *roaring64.Bitmap) []uint64 {
 	bc.Lock()
 	defer bc.Unlock()
 
-	return bc.RemovedResources.Intersect(bm).Slice()
+	v := bc.RemovedResources.Clone()
+	v.And(bm)
+	return v.ToArray()
 }
 
 // GetContainers returns all Containers in the cluster.
