@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,6 +50,7 @@ func createDataPebble(fs vfs.FS, t *testing.T) DataStorage {
 }
 
 func TestRangeDelete(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
@@ -87,6 +89,7 @@ func TestRangeDelete(t *testing.T) {
 }
 
 func TestPrefixScan(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
@@ -110,6 +113,7 @@ func TestPrefixScan(t *testing.T) {
 }
 
 func TestSplitCheck(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
@@ -175,6 +179,7 @@ func TestSplitCheck(t *testing.T) {
 }
 
 func TestCreateAndApply(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {

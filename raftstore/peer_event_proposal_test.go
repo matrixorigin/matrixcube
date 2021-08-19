@@ -8,6 +8,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,6 +16,7 @@ func TestIssue90(t *testing.T) {
 	// Incorrect implementation of ReadIndex
 	// See https://github.com/matrixorigin/matrixcube/issues/90
 
+	defer leaktest.AfterTest(t)()
 	testMaxProposalRequestCount = 1
 	testMaxOnceCommitEntryCount = 1
 	defer func() {

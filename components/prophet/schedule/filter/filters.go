@@ -31,6 +31,11 @@ import (
 
 // revive:disable:unused-parameter
 
+var (
+	// LogWhySkipped cause why the filter skip a container
+	LogWhySkipped = false
+)
+
 // SelectSourceContainers selects containers that be selected as source container from the list.
 func SelectSourceContainers(containers []*core.CachedContainer, filters []Filter, opt *config.PersistOptions) []*core.CachedContainer {
 	return filterContainersBy(containers, func(s *core.CachedContainer) bool {
@@ -156,12 +161,26 @@ func (f *excludedFilter) Type() string {
 
 func (f *excludedFilter) Source(opt *config.PersistOptions, container *core.CachedContainer) bool {
 	_, ok := f.sources[container.Meta.ID()]
+	if ok && LogWhySkipped {
+		f.maybeLogWhy(container)
+	}
 	return !ok
 }
 
 func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
 	_, ok := f.targets[container.Meta.ID()]
+	if ok && LogWhySkipped {
+		f.maybeLogWhy(container)
+	}
 	return !ok
+}
+
+func (f *excludedFilter) maybeLogWhy(container *core.CachedContainer) {
+	if LogWhySkipped {
+		util.GetLogger().Errorf("excludedFilter skip container %d, excluded: %+v",
+			container.Meta.ID(),
+			f.sources)
+	}
 }
 
 type storageThresholdFilter struct{ scope string }
@@ -185,7 +204,15 @@ func (f *storageThresholdFilter) Source(opt *config.PersistOptions, container *c
 }
 
 func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
-	return !container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups)
+	v := !container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups)
+	if !v && LogWhySkipped {
+		util.GetLogger().Errorf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
+			container.Meta.ID(),
+			opt.GetLowSpaceRatio(),
+			container.GetContainerStats(),
+			container.AvailableRatio())
+	}
+	return v
 }
 
 // distinctScoreFilter ensures that distinct score will not decrease.
