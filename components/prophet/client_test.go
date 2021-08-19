@@ -18,12 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/pilosa/pilosa/roaring"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -114,7 +114,7 @@ func TestCheckResourceState(t *testing.T) {
 	defer p.Stop()
 
 	c := p.GetClient()
-	rsp, err := c.CheckResourceState(roaring.NewBitmap(2))
+	rsp, err := c.CheckResourceState(roaring64.BitmapOf(2))
 	assert.NoError(t, err)
 	assert.Empty(t, rsp.Removed)
 }

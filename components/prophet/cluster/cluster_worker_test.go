@@ -17,6 +17,7 @@ package cluster
 import (
 	"testing"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -26,7 +27,6 @@ import (
 	_ "github.com/matrixorigin/matrixcube/components/prophet/schedulers"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
-	"github.com/pilosa/pilosa/roaring"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -188,7 +188,7 @@ func TestRemoveResources(t *testing.T) {
 		RemoveResources: rpcpb.RemoveResourcesReq{IDs: removed[:1]},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(1), cluster.core.RemovedResources.Count())
+	assert.Equal(t, uint64(1), cluster.core.RemovedResources.GetCardinality())
 	assert.True(t, cluster.core.RemovedResources.Contains(removed[0]))
 	assert.Error(t, cluster.processResourceHeartbeat(resources[1]))
 	checkNotifyCount(t, nc, event.EventResource)
@@ -203,7 +203,7 @@ func TestRemoveResources(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	checkNotifyCount(t, nc, event.EventResource, event.EventResource, event.EventResource, event.EventResource)
-	assert.Equal(t, uint64(5), cluster.core.RemovedResources.Count())
+	assert.Equal(t, uint64(5), cluster.core.RemovedResources.GetCardinality())
 	for _, id := range removed {
 		assert.True(t, cluster.core.RemovedResources.Contains(id))
 	}
@@ -228,7 +228,7 @@ func TestRemoveResources(t *testing.T) {
 	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory))
 	cluster.LoadClusterInfo()
 	cache = cluster.core.Resources
-	assert.Equal(t, uint64(len(removed)), cluster.core.RemovedResources.Count())
+	assert.Equal(t, uint64(len(removed)), cluster.core.RemovedResources.GetCardinality())
 	for _, id := range removed {
 		assert.True(t, cluster.core.RemovedResources.Contains(id))
 	}
@@ -275,7 +275,7 @@ func TestHandleCheckResourceState(t *testing.T) {
 	}
 
 	ids := []uint64{1, 2, 3, 4, 5, 6}
-	bm := util.MustMarshalBM64(roaring.NewBitmap(ids...))
+	bm := util.MustMarshalBM64(roaring64.BitmapOf(ids...))
 	rsp, err := cluster.HandleCheckResourceState(&rpcpb.Request{
 		CheckResourceState: rpcpb.CheckResourceStateReq{
 			IDs: bm,
