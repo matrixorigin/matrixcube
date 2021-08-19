@@ -36,7 +36,7 @@ import (
 
 func TestClusterStartAndStop(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t, WithTestClusterLogLevel("info"))
+	c := NewTestClusterStore(t)
 	defer c.Stop()
 
 	c.Start()
