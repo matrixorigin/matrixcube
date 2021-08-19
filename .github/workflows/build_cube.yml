@@ -31,7 +31,7 @@ jobs:
         go-version:
           - 1.16
           - 1.17
-    name: ${{ matrix.architecture }}/${{ matrix.os }}-Go v${{ matrix.go-version }}
+    name: Build on ${{ matrix.architecture }}/${{ matrix.os }}/Go v${{ matrix.go-version }}
     
     # Steps represent a sequence of tasks that will be executed as part of the job.
     steps:
