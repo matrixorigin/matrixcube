@@ -39,8 +39,6 @@ func (s *store) handleSplitCheck() {
 	}
 
 	s.foreachPR(func(pr *peerReplica) bool {
-		pr.raftMu.Lock()
-		defer pr.raftMu.Unlock()
 		if pr.supportSplit() &&
 			pr.isLeader() &&
 			(s.handledCustomSplitCheck(pr.ps.shard.Group) ||

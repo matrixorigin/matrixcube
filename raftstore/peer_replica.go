@@ -103,7 +103,6 @@ type peerReplica struct {
 	disableCompactProtect bool
 	peer                  metapb.Peer
 	rn                    *raft.RawNode
-	raftMu                sync.Mutex
 	stopRaftTick          bool
 	leaderID              uint64
 	currentTerm           uint64

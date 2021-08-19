@@ -139,8 +139,6 @@ func (pr *peerReplica) handleEvent() bool {
 	default:
 	}
 
-	pr.raftMu.Lock()
-	defer pr.raftMu.Unlock()
 	_, err := pr.events.Get()
 	if err != nil || stop {
 		pr.stopOnce.Do(func() {

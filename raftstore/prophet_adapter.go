@@ -252,8 +252,6 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 
 func (s *store) doShardHeartbeat() {
 	s.foreachPR(func(pr *peerReplica) bool {
-		pr.raftMu.Lock()
-		defer pr.raftMu.Unlock()
 		if pr.isLeader() {
 			pr.addAction(action{actionType: heartbeatAction})
 		}
