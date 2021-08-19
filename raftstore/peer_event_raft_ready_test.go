@@ -30,6 +30,7 @@ func TestIssue133(t *testing.T) {
 
 		if node > 0 {
 			cfg.Test.PeerReplicaDelegateWait = time.Second
+			cfg.Test.PeerReplicaSetSnapshotJobWait = time.Second
 		}
 	}))
 	defer c.Stop()

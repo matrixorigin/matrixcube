@@ -416,6 +416,8 @@ type StoreHeartbeatDataProcessor interface {
 type TestConfig struct {
 	// PeerReplicaDelegateWait sleep before add PeerReplicaDelegate to store
 	PeerReplicaDelegateWait time.Duration
+	// PeerReplicaSetSnapshotJobWait sleep before set snapshot job
+	PeerReplicaSetSnapshotJobWait time.Duration
 	// Shards test config for shards
 	Shards map[uint64]*TestShardConfig
 }
