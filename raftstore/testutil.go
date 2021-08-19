@@ -109,7 +109,7 @@ func (opts *testClusterOptions) adjust() {
 		opts.nodes = 3
 	}
 	if opts.logLevel == "" {
-		opts.logLevel = "error"
+		opts.logLevel = "info"
 	}
 }
 

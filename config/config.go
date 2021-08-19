@@ -414,6 +414,9 @@ type StoreHeartbeatDataProcessor interface {
 
 // TestConfig all test config
 type TestConfig struct {
+	// PeerReplicaDelegateWait sleep before add PeerReplicaDelegate to store
+	PeerReplicaDelegateWait time.Duration
+	// Shards test config for shards
 	Shards map[uint64]*TestShardConfig
 }
 

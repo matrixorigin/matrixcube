@@ -50,6 +50,9 @@ func (pr *peerReplica) startRegistrationJob() {
 	}
 
 	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {
+		if pr.store.cfg.Test.PeerReplicaDelegateWait > 0 {
+			time.Sleep(pr.store.cfg.Test.PeerReplicaDelegateWait)
+		}
 		return pr.doRegistrationJob(delegate)
 	}, nil)
 

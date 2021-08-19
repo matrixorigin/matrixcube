@@ -120,8 +120,9 @@ type store struct {
 	writeHandlers map[uint64]command.WriteCommandFunc
 	localHandlers map[uint64]command.LocalCommandFunc
 
-	stopWG sync.WaitGroup
-	state  uint32
+	stopWG   sync.WaitGroup
+	state    uint32
+	stopOnce sync.Once
 
 	localCB func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
 	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
@@ -196,18 +197,20 @@ func (s *store) Start() {
 func (s *store) Stop() {
 	atomic.StoreUint32(&s.state, 1)
 
-	s.pd.Stop()
-	s.foreachPR(func(pr *peerReplica) bool {
-		s.stopWG.Add(1)
-		pr.stopEventLoop()
-		return true
-	})
-	s.stopWG.Wait()
+	s.stopOnce.Do(func() {
+		s.pd.Stop()
+		s.foreachPR(func(pr *peerReplica) bool {
+			s.stopWG.Add(1)
+			pr.stopEventLoop()
+			return true
+		})
+		s.stopWG.Wait()
 
-	s.snapshotManager.Close()
-	s.runner.Stop()
-	s.trans.Stop()
-	s.rpc.Stop()
+		s.snapshotManager.Close()
+		s.runner.Stop()
+		s.trans.Stop()
+		s.rpc.Stop()
+	})
 }
 
 func (s *store) prStopped() {
