@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fagongzi/goetty/buf"
@@ -103,6 +104,8 @@ type peerReplica struct {
 	peer                  metapb.Peer
 	rn                    *raft.RawNode
 	stopRaftTick          bool
+	leaderID              uint64
+	currentTerm           uint64
 
 	store *store
 	ps    *peerStorage
@@ -252,6 +255,26 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	return pr, nil
 }
 
+func (pr *peerReplica) setCurrentTerm(term uint64) {
+	atomic.StoreUint64(&pr.currentTerm, term)
+}
+
+func (pr *peerReplica) getCurrentTerm() uint64 {
+	return atomic.LoadUint64(&pr.currentTerm)
+}
+
+func (pr *peerReplica) setLeaderPeerID(id uint64) {
+	atomic.StoreUint64(&pr.leaderID, id)
+}
+
+func (pr *peerReplica) isLeader() bool {
+	return pr.getLeaderPeerID() == pr.peer.ID
+}
+
+func (pr *peerReplica) getLeaderPeerID() uint64 {
+	return atomic.LoadUint64(&pr.leaderID)
+}
+
 func (pr *peerReplica) notifyWorker() {
 	pr.store.workReady.notify(pr.ps.shard.Group, pr.eventWorker)
 }
@@ -374,14 +397,6 @@ func (pr *peerReplica) supportSplit() bool {
 	return !pr.ps.shard.DisableSplit
 }
 
-func (pr *peerReplica) isLeader() bool {
-	return pr.rn.Status().RaftState == raft.StateLeader
-}
-
-func (pr *peerReplica) getLeaderPeerID() uint64 {
-	return pr.rn.Status().Lead
-}
-
 func (pr *peerReplica) pendingReadCount() int {
 	return pr.rn.PendingReadCount()
 }
@@ -441,10 +456,6 @@ func (pr *peerReplica) readyToHandleRead() bool {
 	// If applied_index_term isn't equal to current term, there may be some values that are not
 	// applied by this leader yet but the old leader.
 	return pr.ps.appliedIndexTerm == pr.getCurrentTerm()
-}
-
-func (pr *peerReplica) getCurrentTerm() uint64 {
-	return pr.rn.Status().Term
 }
 
 func (pr *peerReplica) nextProposalIndex() uint64 {

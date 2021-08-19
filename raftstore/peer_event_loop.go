@@ -179,6 +179,7 @@ func (pr *peerReplica) handleEvent() bool {
 		return false
 	}
 
+	pr.cacheRaftStatus()
 	pr.handleStep(pr.items)
 	pr.handleTick(pr.items)
 	pr.handleReport(pr.items)
@@ -191,6 +192,12 @@ func (pr *peerReplica) handleEvent() bool {
 
 	pr.handleAction(pr.items)
 	return true
+}
+
+func (pr *peerReplica) cacheRaftStatus() {
+	st := pr.rn.Status()
+	pr.setLeaderPeerID(st.Lead)
+	pr.setCurrentTerm(st.Term)
 }
 
 func (pr *peerReplica) handleAction(items []interface{}) {
