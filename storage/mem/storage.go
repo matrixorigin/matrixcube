@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
@@ -60,12 +61,11 @@ func (s *Storage) Set(key []byte, value []byte) error {
 func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
-	s.kv.Put(key, value)
+
 	if ttl > 0 {
-		after := time.Second * time.Duration(ttl)
-		util.DefaultTimeoutWheel().Schedule(after, func(arg interface{}) {
-			s.Delete(arg.([]byte))
-		}, key)
+		s.kv.Put(key, encodeValue(value, time.Now().Add(time.Second*time.Duration(ttl)).Unix()))
+	} else {
+		s.kv.Put(key, encodeValue(value, 0))
 	}
 	return nil
 }
@@ -88,14 +88,14 @@ func (s *Storage) BatchSet(pairs ...[]byte) error {
 // Get returns the value of the key
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	v := s.kv.Get(key)
-	return v, nil
+	return decodeValue(v), nil
 }
 
 // MGet returns multi values
 func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
 	var values [][]byte
 	for _, key := range keys {
-		values = append(values, s.kv.Get(key))
+		values = append(values, decodeValue(s.kv.Get(key)))
 	}
 
 	return values, nil
@@ -134,7 +134,14 @@ func (s *Storage) RangeDelete(start, end []byte) error {
 // returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
 // scan completed.
 func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
-	return s.kv.Scan(start, end, handler)
+	return s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
+		value = decodeValue(value)
+		if len(value) == 0 {
+			return true, nil
+		}
+
+		return handler(key, value)
+	})
 }
 
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
@@ -142,7 +149,14 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 // if the `pooledKey` is true, raftstore will call `Free` when
 // scan completed.
 func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
-	return s.kv.PrefixScan(prefix, handler)
+	return s.kv.PrefixScan(prefix, func(key, value []byte) (bool, error) {
+		value = decodeValue(value)
+		if len(value) == 0 {
+			return true, nil
+		}
+
+		return handler(key, value)
+	})
 }
 
 // Free free the pooled bytes
@@ -159,6 +173,11 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 	appendSplitKey := false
 	var splitKeys [][]byte
 	s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
+		value = decodeValue(value)
+		if len(value) == 0 {
+			return true, nil
+		}
+
 		if appendSplitKey {
 			splitKeys = append(splitKeys, key)
 			appendSplitKey = false
@@ -181,7 +200,7 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 // Seek returns the first key-value that >= key
 func (s *Storage) Seek(key []byte) ([]byte, []byte, error) {
 	k, v := s.kv.Seek(key)
-	return k, v, nil
+	return k, decodeValue(v), nil
 }
 
 // Sync sync data
@@ -339,4 +358,25 @@ func readBytes(f vfs.File) ([]byte, error) {
 			return data, nil
 		}
 	}
+}
+
+func encodeValue(value []byte, expireAt int64) []byte {
+	data := make([]byte, len(value)+8)
+	buf.Int64ToBytesTo(expireAt, data)
+	copy(data[8:], value)
+	return data
+}
+
+func decodeValue(value []byte) []byte {
+	if len(value) == 0 {
+		return nil
+	}
+
+	expireAt := buf.Byte2Int64(value)
+	now := time.Now().Unix()
+	if expireAt != 0 && expireAt < now {
+		return nil
+	}
+
+	return value[8:]
 }

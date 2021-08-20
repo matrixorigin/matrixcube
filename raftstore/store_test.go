@@ -65,7 +65,7 @@ func TestIssue123(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitShardByCount(t, 21, time.Second)
+	c.WaitShardByCount(t, 21, time.Second*10)
 
 	for i := 0; i < 20; i++ {
 		s, err := p.Alloc(0, []byte(fmt.Sprintf("%d", i)))
