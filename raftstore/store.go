@@ -442,8 +442,6 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 		case <-s.workReady.waitC(g, id):
 			run()
 		case <-ticker.C:
-			// just fool proof
-			// TODO (lni): remove this when all events are covered
 			run()
 		}
 	}
