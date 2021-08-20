@@ -179,9 +179,9 @@ func (pr *peerReplica) handleEvent() bool {
 		return false
 	}
 
-	pr.cacheRaftStatus()
 	pr.handleStep(pr.items)
 	pr.handleTick(pr.items)
+	pr.cacheRaftStatus()
 	pr.handleReport(pr.items)
 	pr.handleApplyResult(pr.items)
 	pr.handleRequest(pr.items)
