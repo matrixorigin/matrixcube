@@ -21,7 +21,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-11
         # Configures the node version used on GitHub-hosted runners.
         node_version:
           - 16
@@ -58,7 +58,9 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Build
-        run: cd $GITHUB_WORKSPACE && make test
+        run: |
+          cd $GITHUB_WORKSPACE && make test
+          sleep 5
 
       - name: Show system resource statistics
         if: ${{ matrix.os == 'ubuntu-latest' }} && ${{ always() }}
