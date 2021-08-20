@@ -130,31 +130,36 @@ func TestSyncData(t *testing.T) {
 	cfg := c.stores[0].cfg
 	cfg.Replication.DisableShardSplit = true
 
+	changedCount := uint64(0)
 	// check change peer
 	c.StartNode(1)
 	c.WaitShardByCounts(t, [3]int{1, 1, 0}, time.Second*10)
-	assert.Equal(t, uint64(2), c.dataStorages[0].(*mem.Storage).SyncCount)
+	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
+	assert.True(t, changedCount > 0)
 
 	c.StartNode(2)
 	c.WaitShardByCounts(t, [3]int{1, 1, 1}, time.Second*10)
-	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+	assert.True(t, c.dataStorages[0].(*mem.Storage).SyncCount > changedCount)
+	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
 
 	// write key1
 	resps, err := sendTestReqs(c.stores[0], time.Second*10, nil, nil,
 		createTestWriteReq("w1", "key1", "value11"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
-	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+	assert.Equal(t, changedCount, c.dataStorages[0].(*mem.Storage).SyncCount)
+	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
 
 	// write key2
 	resps, err = sendTestReqs(c.stores[0], time.Second*10, nil, nil,
 		createTestWriteReq("w2", "key2", "value22"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
-	assert.Equal(t, uint64(4), c.dataStorages[0].(*mem.Storage).SyncCount)
+	assert.Equal(t, changedCount, c.dataStorages[0].(*mem.Storage).SyncCount)
+	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
 
 	// split
 	cfg.Replication.DisableShardSplit = false
 	c.WaitLeadersByCount(t, 2, time.Second*10)
-	assert.Equal(t, uint64(5), c.dataStorages[0].(*mem.Storage).SyncCount)
+	assert.True(t, c.dataStorages[0].(*mem.Storage).SyncCount > changedCount)
 }
