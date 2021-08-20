@@ -28,7 +28,6 @@ jobs:
         architecture:
           - x64
         go-version:
-          - 1.16
           - 1.17
     name: Build on ${{ matrix.architecture }}/${{ matrix.os }}/Go v${{ matrix.go-version }}
     
@@ -43,7 +42,16 @@ jobs:
         with:
           node-version: ${{ matrix.node_version }}
           architecture: ${{ matrix.architecture }}
-      
+
+      - name: Pre-configue build environment on ${{ matrix.os }}
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt -y install dstat inxi
+          SRS_LOG="srs.log"
+          inxi -F -m -c 0 > "$SRS_LOG"
+          seq -s = 80|tr -d '[:digit:]' >> "$SRS_LOG"
+          nohup dstat -tcmdngspy 2 >> "$SRS_LOG" 2>&1 &
+
       - name: Install compiler Go 
         uses: actions/setup-go@v2
         with:
@@ -52,3 +60,7 @@ jobs:
       - name: Build
         run: cd $GITHUB_WORKSPACE && make test
 
+      - name: Show system resource statistics
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          [ -f srs.log ] && cat srs.log
