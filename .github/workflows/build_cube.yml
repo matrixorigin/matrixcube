@@ -61,6 +61,6 @@ jobs:
         run: cd $GITHUB_WORKSPACE && make test
 
       - name: Show system resource statistics
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ matrix.os == 'ubuntu-latest' }} && ${{ always() }}
         run: |
           [ -f srs.log ] && cat srs.log
