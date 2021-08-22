@@ -260,8 +260,6 @@ type ShardConfig struct {
 
 // RaftConfig raft config
 type RaftConfig struct {
-	// EnablePreVote minimizes disruption when a partitioned node rejoins the cluster by using a two phase election
-	EnablePreVote bool `toml:"enable-pre-vote"`
 	// TickInterval raft tick interval
 	TickInterval typeutil.Duration `toml:"tick-interval"`
 	// HeartbeatTicks how many ticks to send raft heartbeat message
@@ -414,8 +412,6 @@ type StoreHeartbeatDataProcessor interface {
 
 // TestConfig all test config
 type TestConfig struct {
-	// PeerReplicaDelegateWait sleep before add PeerReplicaDelegate to store
-	PeerReplicaDelegateWait time.Duration
 	// PeerReplicaSetSnapshotJobWait sleep before set snapshot job
 	PeerReplicaSetSnapshotJobWait time.Duration
 	// Shards test config for shards

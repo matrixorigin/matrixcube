@@ -174,8 +174,9 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		}
 	}
 
-	logger.Infof("shard %d applied changes %+v at epoch %+v, new peers %+v",
+	logger.Infof("shard %d peer %d applied changes %+v at epoch %+v, new peers %+v",
 		pr.shardID,
+		pr.peer.ID,
 		cp.changes,
 		pr.ps.shard.Epoch,
 		pr.ps.shard.Peers)
@@ -237,7 +238,6 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		newPR.approximateKeys = estimatedKeys
 		newPR.approximateSize = estimatedSize
 		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
-		newPR.startRegistrationJob()
 		pr.store.addPR(newPR)
 
 		// If this peer is the leader of the shard before split, it's intuitional for

@@ -65,8 +65,9 @@ func (pr *peerReplica) handleReady() {
 	// leader will send all the remaining messages to this follower, which can lead
 	// to full message queue under high load.
 	if pr.ps.isApplyingSnapshot() {
-		logger.Debugf("shard %d still applying snapshot, skip further handling",
-			pr.shardID)
+		logger.Debugf("shard %d peer %d still applying snapshot, skip further handling",
+			pr.shardID,
+			pr.peer.ID)
 		return
 	}
 
@@ -75,8 +76,9 @@ func (pr *peerReplica) handleReady() {
 	// wait apply committed entries complete
 	if pr.rn.HasPendingSnapshot() &&
 		!pr.ps.isApplyComplete() {
-		logger.Debugf("shard %d apply index and committed index not match, skip applying snapshot, apply=<%d> commit=<%d>",
+		logger.Debugf("shard %d peer %d apply index and committed index not match, skip applying snapshot, apply=<%d> commit=<%d>",
 			pr.shardID,
+			pr.peer.ID,
 			pr.ps.getAppliedIndex(),
 			pr.ps.getCommittedIndex())
 		return
@@ -96,10 +98,16 @@ func (pr *peerReplica) handleReady() {
 		}
 
 		if !pr.store.snapshotManager.Exists(ctx.snap) {
-			logger.Infof("shard %d receiving snapshot, skip further handling",
-				pr.shardID)
+			logger.Infof("shard %d peer %d receiving snapshot, skip further handling",
+				pr.shardID,
+				pr.peer.ID)
 			return
 		}
+
+		logger.Infof("shard %d peer %d received a snapshot at %d",
+			pr.shardID,
+			pr.peer.ID,
+			rd.Snapshot.Metadata.Index)
 	}
 
 	ctx.hardState = pr.ps.raftLocalState.HardState
@@ -119,14 +127,19 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 	// If we become leader, send heartbeat to pd
 	if rd.SoftState != nil {
 		if rd.SoftState.RaftState == raft.StateLeader {
-			logger.Infof("shard %d ********become leader now********",
-				pr.shardID)
+			logger.Infof("shard %d peer %d ********become leader now********",
+				pr.shardID,
+				pr.peer.ID)
 			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.ps.shard)
 			}
 		} else {
+			logger.Infof("shard %d peer %d ********become follower now********",
+				pr.shardID,
+				pr.peer.ID)
+
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeFollower(pr.ps.shard)
 			}
@@ -174,10 +187,15 @@ func (pr *peerReplica) handleAppendSnapshot(ctx *readyContext, rd *raft.Ready) {
 }
 
 func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap raftpb.Snapshot) error {
-	logger.Infof("shard %d begin to apply snapshot",
-		pr.shardID)
+	logger.Infof("shard %d peer %d begin to apply snapshot",
+		pr.shardID,
+		pr.peer.ID)
 
 	if ctx.snap.Header.Shard.ID != pr.shardID {
+		logger.Errorf("shard %d peer %d snapshot not match, snapshot shard %d",
+			pr.shardID,
+			pr.peer.ID,
+			ctx.snap.Header.Shard.ID)
 		return fmt.Errorf("shard %d not match, snapShard=<%d> currShard=<%d>",
 			pr.shardID,
 			ctx.snap.Header.Shard.ID,
@@ -214,8 +232,9 @@ func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap raftpb.Snapshot)
 	ctx.applyState.TruncatedState.Index = lastIndex
 	ctx.applyState.TruncatedState.Term = lastTerm
 
-	logger.Infof("shard %d apply snapshot state completed, apply state %+v",
+	logger.Infof("shard %d peer %d apply snapshot state completed, apply state %+v",
 		pr.shardID,
+		pr.peer.ID,
 		ctx.applyState)
 	return nil
 }
@@ -322,7 +341,7 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 	}
 
 	if result != nil {
-		pr.startRegistrationJob()
+		pr.registerDelegate()
 	}
 
 	pr.applyCommittedEntries(rd, result)
@@ -385,11 +404,6 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapRe
 	if result != nil || pr.ps.isApplyingSnapshot() {
 		pr.ps.lastReadyIndex = pr.ps.getTruncatedIndex()
 	} else {
-		// make sure the delegate already registered
-		if _, ok := pr.store.delegates.Load(pr.shardID); !ok {
-			return
-		}
-
 		if testMaxOnceCommitEntryCount > 0 &&
 			testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
 			rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
@@ -450,7 +464,7 @@ func (pr *peerReplica) send(msgs []raftpb.Message) {
 		err := pr.sendRaftMsg(msg)
 		if err != nil {
 			// We don't care that the message is sent failed, so here just log this error
-			logger.Debugf("shard %d send msg failure, from_peer=<%d> to_peer=<%d>, errors:\n%s",
+			logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
 				pr.shardID,
 				msg.From,
 				msg.To,
@@ -469,7 +483,7 @@ func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg.Unique = pr.ps.shard.Unique
 	sendMsg.RuleGroups = pr.ps.shard.RuleGroups
 	sendMsg.From = pr.peer
-	sendMsg.To, _ = pr.store.getPeer(msg.To)
+	sendMsg.To, _ = pr.getPeer(msg.To)
 	if sendMsg.To.ID == 0 {
 		return fmt.Errorf("can not found peer<%d>", msg.To)
 	}

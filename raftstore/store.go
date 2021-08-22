@@ -228,7 +228,7 @@ func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		r, err := newRouter(s.pd, s.runner, func(id uint64) {
 			s.doDestroy(id, true)
-		}, s.doCreate)
+		}, s.doDynamicallyCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
 		}
@@ -396,17 +396,21 @@ func (s *store) startTransport() {
 }
 
 func (s *store) startRaftWorkers() {
+	var wg sync.WaitGroup
 	for i := uint64(0); i < s.cfg.ShardGroups; i++ {
 		s.eventWorkers = append(s.eventWorkers, make(map[uint64]int))
 		g := i
 		for j := uint64(0); j < s.cfg.Worker.RaftEventWorkers; j++ {
 			s.eventWorkers[g][j] = 0
 			idx := j
+			wg.Add(1)
 			s.runner.RunCancelableTask(func(ctx context.Context) {
+				wg.Done()
 				s.runPRTask(ctx, g, idx)
 			})
 		}
 	}
+	wg.Wait()
 }
 
 func (s *store) runPRTask(ctx context.Context, g, id uint64) {
@@ -430,20 +434,12 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 		}
 	}
 
-	// TODO (lni): the ticker below is just for fool proof, remove this when all
-	// events are covered
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Infof("raft worker worker %d/%d exit", g, id)
 			return
 		case <-s.workReady.waitC(g, id):
-			run()
-		case <-ticker.C:
-			// just fool proof
-			// TODO (lni): remove this when all events are covered
 			run()
 		}
 	}
@@ -493,8 +489,6 @@ func (s *store) startShards() {
 			logger.Infof("shard %d is applying in store", shardID)
 			pr.startApplyingSnapJob()
 		}
-
-		pr.startRegistrationJob()
 
 		s.updateShardKeyRange(localState.Shard)
 		s.addPR(pr)
@@ -561,43 +555,15 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func (s *store) doCreate(shard bhmetapb.Shard) {
-	if _, ok := s.replicas.Load(shard.ID); ok {
-		return
-	}
-
-	pr, err := createPeerReplica(s, &shard)
-	if err != nil {
-		s.revokeWorker(pr)
-		return
-	}
-
-	if s.addPR(pr) {
-		for _, p := range shard.Peers {
-			s.peers.Store(p.ID, p)
-		}
-		s.mustSaveShards(shard)
-		s.updateShardKeyRange(shard)
-		pr.startRegistrationJob()
-	} else {
-		pr.stopEventLoop()
-	}
-}
-
-func (s *store) addPR(pr *peerReplica) bool {
-	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
-	if loaded {
-		return false
-	}
-
-	logger.Infof("shard %d added with peer %+v, epoch %+v, peers %+v, raft worker %d, apply worker %s",
+func (s *store) addPR(pr *peerReplica) {
+	s.replicas.Store(pr.shardID, pr)
+	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
-		pr.peer,
+		pr.peer.ID,
 		pr.ps.shard.Epoch,
 		pr.ps.shard.Peers,
 		pr.eventWorker,
 		pr.applyWorker)
-	return true
 }
 
 func (s *store) removePR(pr *peerReplica) {
