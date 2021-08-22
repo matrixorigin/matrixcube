@@ -21,7 +21,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-11
         # Configures the node version used on GitHub-hosted runners.
         node_version:
           - 16
@@ -47,7 +47,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           sudo apt -y install dstat inxi
-          SRS_LOG="srs.log"
+          SRS_LOG="srs-lnx.log"
           inxi -F -m -c 0 > "$SRS_LOG"
           seq -s = 80|tr -d '[:digit:]' >> "$SRS_LOG"
           nohup dstat -tcmdngspy 2 >> "$SRS_LOG" 2>&1 &
@@ -58,9 +58,16 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Build
-        run: cd $GITHUB_WORKSPACE && make test
+        run: |
+          cd $GITHUB_WORKSPACE && make test
+          sleep 2
 
       - name: Show system resource statistics
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ always() }}
         run: |
-          [ -f srs.log ] && cat srs.log
+          SRS_LOG="srs-lnx.log"
+          if [ -f "$SRS_LOG" ]; then
+            cat "$SRS_LOG"
+          else
+            system_profiler SPHardwareDataType
+          fi

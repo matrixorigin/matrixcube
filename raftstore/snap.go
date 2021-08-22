@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -376,7 +375,6 @@ func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 	if !m.Exists(msg) {
 		return fmt.Errorf("missing snapshot file, path=%s", file)
 	}
-
 	defer m.CleanSnap(msg)
 
 	err := util.UnGZIP(m.s.cfg.FS, file, m.dir)
@@ -384,7 +382,7 @@ func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 		return err
 	}
 	dir := m.getPathOfSnapKey(msg)
-	defer os.RemoveAll(dir)
+	defer m.s.cfg.FS.RemoveAll(dir)
 
 	// apply snapshot of data
 	err = m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID).ApplySnapshot(dir)
