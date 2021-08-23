@@ -28,6 +28,7 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -228,6 +229,33 @@ func TestSpeedupAddShard(t *testing.T) {
 
 	id := c.GetShardByIndex(1).ID
 	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, testWaitTimeout)
+}
+
+func TestIssue166(t *testing.T) {
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Test.SaveDynamicallyShardInitStateWait = time.Second
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+	}), WithTestClusterLogLevel("error"))
+	defer c.Stop()
+
+	c.Start()
+	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+
+	_, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{
+		Capacity:    1,
+		Group:       0,
+		RangePrefix: []byte("b"),
+	})
+	assert.NoError(t, err)
+	c.WaitLeadersByCount(t, 2, testWaitTimeout)
+	// make sure slow point
+	time.Sleep(time.Second)
+
+	v, err := c.stores[0].MetadataStorage().Get(getRaftLocalStateKey(c.GetShardByIndex(1).ID))
+	assert.NoError(t, err)
+	state := &bhraftpb.RaftLocalState{}
+	protoc.MustUnmarshal(state, v)
+	assert.Equal(t, uint64(6), state.HardState.Commit)
 }
 
 func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
