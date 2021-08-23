@@ -79,7 +79,9 @@ func (pr *peerReplica) addReport(report interface{}) {
 }
 
 func (pr *peerReplica) addEvent() (bool, error) {
-	return pr.events.Offer(struct{}{})
+	ok, err := pr.events.Offer(struct{}{})
+	pr.notifyWorker()
+	return ok, err
 }
 
 func (pr *peerReplica) addApplyResult(result asyncApplyResult) {
@@ -121,7 +123,6 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 
 		metric.SetRaftTickQueueMetric(pr.ticks.Len())
 		pr.addEvent()
-		pr.notifyWorker()
 	}
 
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)

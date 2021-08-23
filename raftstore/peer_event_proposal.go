@@ -112,6 +112,9 @@ func (pr *peerReplica) propose(c cmd) {
 		return
 	}
 
+	// after propose, raft need to send message to peers
+	defer pr.addEvent()
+
 	// Note:
 	// The peer that is being checked is a leader. It might step down to be a follower later. It
 	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
@@ -149,7 +152,6 @@ func (pr *peerReplica) propose(c cmd) {
 	if err != nil {
 		c.respOtherError(err)
 	}
-	pr.notifyWorker()
 }
 
 func (pr *peerReplica) execReadIndex(c cmd) {

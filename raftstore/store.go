@@ -227,6 +227,10 @@ func (s *store) GetRouter() Router {
 	return s.router
 }
 
+func (s *store) isStopped() bool {
+	return atomic.LoadUint32(&s.state) == 1
+}
+
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		r, err := newRouter(s.pd, s.runner, func(id uint64) {

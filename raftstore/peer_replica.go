@@ -310,9 +310,11 @@ func (pr *peerReplica) registerDelegate() {
 		}, nil)
 
 		if err != nil {
-			logger.Fatalf("shard %d add registration job failed with %+v",
-				pr.ps.shard.ID,
-				err)
+			if !pr.store.isStopped() {
+				logger.Fatalf("shard %d add registration job failed with %+v",
+					pr.ps.shard.ID,
+					err)
+			}
 		}
 	}
 }
