@@ -358,7 +358,7 @@ func compactRaftLog(shardID uint64, state *bhraftpb.RaftApplyState, compactIndex
 }
 
 func loadShardLocalState(shardID uint64, driver storage.MetadataStorage, allowNotFound bool) (*bhraftpb.ShardLocalState, error) {
-	key := getShardLocaleStateKey(shardID)
+	key := getShardLocalStateKey(shardID)
 	v, err := driver.Get(key)
 	if err != nil {
 		logger.Errorf("shard %d load raft state failed with %+v",

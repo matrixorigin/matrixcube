@@ -424,6 +424,8 @@ type StoreHeartbeatDataProcessor interface {
 type TestConfig struct {
 	// PeerReplicaSetSnapshotJobWait sleep before set snapshot job
 	PeerReplicaSetSnapshotJobWait time.Duration
+	// SaveDynamicallyShardInitStateWait wait before save dynamically shard init state
+	SaveDynamicallyShardInitStateWait time.Duration
 	// Shards test config for shards
 	Shards map[uint64]*TestShardConfig
 }

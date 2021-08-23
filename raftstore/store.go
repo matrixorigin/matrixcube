@@ -961,14 +961,14 @@ func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, 
 	shardState.Shard = shard
 
 	if wb != nil {
-		return wb.Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
+		return wb.Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
 	}
 
-	return s.MetadataStorage().Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(shardState))
+	return s.MetadataStorage().Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
 func (s *store) removePeerState(shard bhmetapb.Shard) error {
-	return s.MetadataStorage().Delete(getShardLocaleStateKey(shard.ID))
+	return s.MetadataStorage().Delete(getShardLocalStateKey(shard.ID))
 }
 
 func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {

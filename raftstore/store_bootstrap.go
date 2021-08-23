@@ -171,7 +171,7 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 	wb := util.NewWriteBatch()
 	for _, shard := range shards {
 		// shard local state
-		wb.Set(getShardLocaleStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
+		wb.Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
 			Shard: shard,
 		}))
 
@@ -215,7 +215,7 @@ func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
 func (s *store) mustRemoveShards(ids ...uint64) {
 	wb := util.NewWriteBatch()
 	for _, id := range ids {
-		wb.Delete(getShardLocaleStateKey(id))
+		wb.Delete(getShardLocalStateKey(id))
 		wb.Delete(getRaftLocalStateKey(id))
 		wb.Delete(getRaftApplyStateKey(id))
 	}

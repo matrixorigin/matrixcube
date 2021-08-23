@@ -117,7 +117,7 @@ func getMetaPrefix(shardID uint64) []byte {
 	return data
 }
 
-func getShardLocaleStateKey(shardID uint64) []byte {
+func getShardLocalStateKey(shardID uint64) []byte {
 	return getMetaKey(shardID, stateSuffix)
 }
 

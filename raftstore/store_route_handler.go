@@ -14,6 +14,8 @@
 package raftstore
 
 import (
+	"time"
+
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
 
@@ -31,10 +33,15 @@ func (s *store) doDynamicallyCreate(shard bhmetapb.Shard) {
 		return
 	}
 
-	s.addPR(pr)
+	// fix issue 166, we must store the initialization state before pr joins the store
+	// to avoid data problems caused by concurrent modification of this state.
+	if s.cfg.Test.SaveDynamicallyShardInitStateWait > 0 {
+		time.Sleep(s.cfg.Test.SaveDynamicallyShardInitStateWait)
+	}
+	s.mustSaveShards(shard)
 	for _, p := range shard.Peers {
 		s.peers.Store(p.ID, p)
 	}
-	s.mustSaveShards(shard)
+	s.addPR(pr)
 	s.updateShardKeyRange(shard)
 }
