@@ -278,6 +278,16 @@ type RaftConfig struct {
 	RaftLog RaftLogConfig `toml:"raft-log"`
 }
 
+// GetElectionTimeoutDuration returns ElectionTimeoutTicks * TickInterval
+func (c *RaftConfig) GetElectionTimeoutDuration() time.Duration {
+	return time.Duration(c.ElectionTimeoutTicks) * c.TickInterval.Duration
+}
+
+// GetHeartbeatDuration returns HeartbeatTicks * TickInterval
+func (c *RaftConfig) GetHeartbeatDuration() time.Duration {
+	return time.Duration(c.HeartbeatTicks) * c.TickInterval.Duration
+}
+
 func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 	if c.TickInterval.Duration == 0 {
 		c.TickInterval.Duration = defaultRaftTickDuration

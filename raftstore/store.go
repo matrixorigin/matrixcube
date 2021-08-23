@@ -120,7 +120,6 @@ type store struct {
 	writeHandlers map[uint64]command.WriteCommandFunc
 	localHandlers map[uint64]command.LocalCommandFunc
 
-	stopWG   sync.WaitGroup
 	state    uint32
 	stopOnce sync.Once
 
@@ -198,25 +197,29 @@ func (s *store) Stop() {
 	atomic.StoreUint32(&s.state, 1)
 
 	s.stopOnce.Do(func() {
+		logger.Infof("store %d begin to stop", s.Meta().ID)
+
 		s.pd.Stop()
+		logger.Infof("store %d pd stopped", s.Meta().ID)
+
 		s.foreachPR(func(pr *peerReplica) bool {
-			s.stopWG.Add(1)
 			pr.stopEventLoop()
 			return true
 		})
-		s.stopWG.Wait()
+		logger.Infof("store %d all shards stopped", s.Meta().ID)
 
 		s.snapshotManager.Close()
-		s.runner.Stop()
-		s.trans.Stop()
-		s.rpc.Stop()
-	})
-}
+		logger.Infof("store %d all snapshot manager stopped", s.Meta().ID)
 
-func (s *store) prStopped() {
-	if atomic.LoadUint32(&s.state) == 1 {
-		s.stopWG.Done()
-	}
+		s.runner.Stop()
+		logger.Infof("store %d task runner stopped", s.Meta().ID)
+
+		s.trans.Stop()
+		logger.Infof("store %d transport stopped", s.Meta().ID)
+
+		s.rpc.Stop()
+		logger.Infof("store %d rpc stopped", s.Meta().ID)
+	})
 }
 
 func (s *store) GetRouter() Router {
@@ -382,7 +385,8 @@ func (s *store) startTransport() {
 			s.handle,
 			s.pd.GetStorage().GetContainer,
 			transport.WithMaxBodyBytes(int(s.cfg.Raft.MaxEntryBytes)*2),
-			transport.WithTimeout(3*time.Duration(s.cfg.Raft.HeartbeatTicks)*s.cfg.Raft.TickInterval.Duration, time.Minute),
+			transport.WithTimeout(10*s.cfg.Raft.GetElectionTimeoutDuration(),
+				10*s.cfg.Raft.GetElectionTimeoutDuration()),
 			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
 			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
 			transport.WithErrorHandler(func(msg *bhraftpb.RaftMessage, err error) {
