@@ -41,8 +41,25 @@ func TestClusterStartAndStop(t *testing.T) {
 
 	c.Start()
 
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 	c.CheckShardCount(t, 1)
+}
+
+func TestAdjustRaftTickerInterval(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Raft.TickInterval.Duration = time.Millisecond
+	}))
+	defer c.Stop()
+
+	c.Start()
+
+	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.CheckShardCount(t, 1)
+
+	for _, s := range c.stores {
+		assert.False(t, s.cfg.Raft.TickInterval.Duration == time.Millisecond)
+	}
 }
 
 func TestIssue123(t *testing.T) {
@@ -56,7 +73,7 @@ func TestIssue123(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 
 	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{
 		RangePrefix: []byte("b"),
@@ -65,14 +82,14 @@ func TestIssue123(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitShardByCount(t, 21, time.Second*10)
+	c.WaitShardByCount(t, 21, testWaitTimeout)
 
 	for i := 0; i < 20; i++ {
 		s, err := p.Alloc(0, []byte(fmt.Sprintf("%d", i)))
 		assert.NoError(t, err)
 
 		id := fmt.Sprintf("w%d", i)
-		resp, err := sendTestReqs(c.stores[0], time.Second*10, nil, nil, createTestWriteReq(id, string(c.GetShardByID(s.ShardID).Start), id))
+		resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestWriteReq(id, string(c.GetShardByID(s.ShardID).Start), id))
 		assert.NoError(t, err)
 		assert.Equal(t, "OK", string(resp[id].Responses[0].Value))
 	}
@@ -90,11 +107,11 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 2, time.Second*10)
+	c.WaitShardByCount(t, 2, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
 	assert.NoError(t, err)
-	c.WaitShardByCount(t, 3, time.Second*10)
+	c.WaitShardByCount(t, 3, testWaitTimeout)
 }
 
 func TestAppliedRules(t *testing.T) {
@@ -105,7 +122,7 @@ func TestAppliedRules(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 
 	assert.NoError(t, c.GetProphet().GetClient().PutPlacementRule(rpcpb.PlacementRule{
 		GroupID: "g1",
@@ -123,7 +140,7 @@ func TestAppliedRules(t *testing.T) {
 	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
 	assert.NoError(t, err)
 
-	c.WaitShardByCounts(t, [3]int{2, 2, 1}, time.Second*10)
+	c.WaitShardByCounts(t, [3]int{2, 2, 1}, testWaitTimeout)
 }
 
 func TestSplit(t *testing.T) {
@@ -135,13 +152,13 @@ func TestSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 
 	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
 	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(t, 3, time.Second*10)
+	c.WaitShardByCount(t, 3, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), []byte("key3"))
 	c.CheckShardRange(t, 2, []byte("key3"), nil)
@@ -181,13 +198,13 @@ func TestCustomSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 
 	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
 	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(t, 2, time.Second*10)
+	c.WaitShardByCount(t, 2, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), nil)
 }
@@ -201,16 +218,16 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, time.Second*10)
+	c.WaitShardByCount(t, 1, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
-	c.WaitShardByCount(t, 2, time.Second*10)
+	c.WaitShardByCount(t, 2, testWaitTimeout)
 	c.CheckShardCount(t, 2)
 
 	id := c.GetShardByIndex(1).ID
-	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, time.Second*5)
+	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, testWaitTimeout)
 }
 
 func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
