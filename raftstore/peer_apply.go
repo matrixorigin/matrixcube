@@ -16,7 +16,6 @@ package raftstore
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"math"
 	"time"
 
@@ -32,28 +31,6 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/raftpb"
 )
-
-func (pr *peerReplica) doRegistrationJob(delegate *applyDelegate) error {
-	value, loaded := pr.store.delegates.LoadOrStore(delegate.shard.ID, delegate)
-	if loaded {
-		old := value.(*applyDelegate)
-		if old.peerID != delegate.peerID {
-			logger.Fatalf("shard %d delegate peer id not match, old=<%d> curr=<%d>",
-				pr.shardID,
-				old.peerID,
-				delegate.peerID)
-		}
-
-		old.peerID = delegate.peerID
-		old.shard = delegate.shard
-		old.term = delegate.term
-		old.applyState = delegate.applyState
-		old.appliedIndexTerm = delegate.appliedIndexTerm
-		old.clearAllCommandsAsStale()
-	}
-
-	return nil
-}
 
 func (s *store) doDestroy(shardID uint64, tombstone bool) {
 	if value, ok := s.delegates.Load(shardID); ok {
@@ -162,14 +139,19 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 }
 
 func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
-	logger.Debugf("shard %d async apply raft log with %d entries at term %d",
+	logger.Debugf("shard %d peer %d async apply raft log with %d entries at term %d",
 		shardID,
+		pr.peer.ID,
 		len(commitedEntries),
 		term)
 
 	value, ok := pr.store.delegates.Load(shardID)
 	if !ok {
-		return fmt.Errorf("shard %d missing delegate", pr.shardID)
+		logger.Fatalf("shard %d pper %d async apply raft log with %d entries at term %d, error missing delegate",
+			shardID,
+			pr.peer.ID,
+			len(commitedEntries),
+			term)
 	}
 
 	delegate := value.(*applyDelegate)
@@ -402,8 +384,9 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		}
 		expectIndex := d.applyState.AppliedIndex + 1
 		if expectIndex != entry.Index {
-			logger.Fatalf("shard %d index not match, expect=<%d> get=<%d> state=<%+v> entry=<%+v>",
+			logger.Fatalf("shard %d peer %d index not match, expect=<%d> get=<%d> state=<%+v> entry=<%+v>",
 				d.shard.ID,
+				d.peerID,
 				expectIndex,
 				entry.Index,
 				d.applyState,

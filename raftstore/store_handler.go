@@ -65,6 +65,7 @@ func (s *store) handleShardStateCheck() {
 		rsp, err := s.pd.GetClient().CheckResourceState(bm)
 		if err != nil {
 			logger.Errorf("check shards state failed with %+v", err)
+			return
 		}
 
 		for _, id := range rsp.Removed {

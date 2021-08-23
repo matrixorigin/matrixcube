@@ -35,34 +35,6 @@ func (pr *peerReplica) startApplyingSnapJob() {
 	pr.ps.applySnapJobLock.Unlock()
 }
 
-func (pr *peerReplica) startRegistrationJob() {
-	delegate := &applyDelegate{
-		store:            pr.store,
-		ps:               pr.ps,
-		peerID:           pr.peer.ID,
-		shard:            pr.ps.shard,
-		term:             pr.getCurrentTerm(),
-		applyState:       pr.ps.raftApplyState,
-		appliedIndexTerm: pr.ps.appliedIndexTerm,
-		ctx:              newApplyContext(pr),
-		syncData: pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil &&
-			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.ps.shard.Group) != nil,
-	}
-
-	err := pr.store.addApplyJob(pr.applyWorker, "doRegistrationJob", func() error {
-		if pr.store.cfg.Test.PeerReplicaDelegateWait > 0 {
-			time.Sleep(pr.store.cfg.Test.PeerReplicaDelegateWait)
-		}
-		return pr.doRegistrationJob(delegate)
-	}, nil)
-
-	if err != nil {
-		logger.Fatalf("shard %d add registration job failed with %+v",
-			pr.ps.shard.ID,
-			err)
-	}
-}
-
 func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
 		return pr.doApplyCommittedEntries(shardID, term, commitedEntries)

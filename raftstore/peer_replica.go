@@ -144,6 +144,10 @@ type peerReplica struct {
 	readCtx *readContext
 }
 
+// createPeerReplica called in:
+// 1. Event worker goroutine: After the split of the old shard, to create new shard.
+// 2. Goroutine that calls start method of store: Load all local shards.
+// 3. Prophet event loop: Create shard dynamically.
 func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
@@ -155,15 +159,10 @@ func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error
 	return newPeerReplica(store, shard, *peer)
 }
 
-// The peer can be created from another node with raft membership changes, and we only
+// createPeerReplicaWithRaftMessage the peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
 func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peer metapb.Peer) (*peerReplica, error) {
-	// We will remove tombstone key when apply snapshot
-	logger.Infof("shard %d replicate peer %+v",
-		msg.ShardID,
-		peer)
-
 	shard := &bhmetapb.Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
@@ -178,6 +177,11 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 }
 
 func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*peerReplica, error) {
+	// We will remove tombstone key when apply snapshot
+	logger.Infof("shard %d peer %d begin to create",
+		shard.ID,
+		peer.ID)
+
 	if peer.ID == 0 {
 		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
@@ -223,22 +227,41 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		shardID: shard.ID,
 	}
 
+	pr.ctx, pr.cancel = context.WithCancel(context.Background())
+	pr.items = make([]interface{}, readyBatch)
+	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
+	pr.registerDelegate()
+
+	logger.Infof("shard %d peer %d delegate register completed",
+		shard.ID,
+		peer.ID)
+
 	// If this shard has only one peer and I am the one, campaign directly.
 	if len(shard.Peers) == 1 && shard.Peers[0].ContainerID == store.meta.meta.ID {
-		logger.Infof("shard %d try to campaign leader, because only self",
-			pr.shardID)
+		logger.Infof("shard %d peer %d try to campaign leader, because only self",
+			pr.shardID,
+			peer.ID)
 
 		err = rn.Campaign()
 		if err != nil {
+			logger.Errorf("shard %d peer %d campaign failed with %+v",
+				pr.shardID,
+				peer.ID,
+				err)
 			return nil, err
 		}
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Peers[0].ContainerID == pr.store.Meta().ID {
-		logger.Infof("shard %d try to campaign leader, because first peer of dynamically created",
-			pr.shardID)
+		logger.Infof("shard %d peer %d try to campaign leader, because first peer of dynamically created",
+			pr.shardID,
+			peer.ID)
 
 		err = rn.Campaign()
 		if err != nil {
+			logger.Errorf("shard %d peer %d campaign failed with %+v",
+				pr.shardID,
+				peer.ID,
+				err)
 			return nil, err
 		}
 	}
@@ -247,12 +270,67 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		pr.store.aware.Created(pr.ps.shard)
 	}
 
-	pr.ctx, pr.cancel = context.WithCancel(context.Background())
-	pr.items = make([]interface{}, readyBatch)
-	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
 	pr.onRaftTick(nil)
-
 	return pr, nil
+}
+
+func (pr *peerReplica) registerDelegate() {
+	delegate := &applyDelegate{
+		store:            pr.store,
+		ps:               pr.ps,
+		peerID:           pr.peer.ID,
+		shard:            pr.ps.shard,
+		term:             pr.getCurrentTerm(),
+		applyState:       pr.ps.raftApplyState,
+		appliedIndexTerm: pr.ps.appliedIndexTerm,
+		ctx:              newApplyContext(pr),
+		syncData: pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil &&
+			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.ps.shard.Group) != nil,
+	}
+
+	value, loaded := pr.store.delegates.LoadOrStore(delegate.shard.ID, delegate)
+	if loaded {
+		err := pr.store.addApplyJob(pr.applyWorker, "clearOldDelegate", func() error {
+			old := value.(*applyDelegate)
+			if old.peerID != delegate.peerID {
+				logger.Fatalf("shard %d delegate peer id not match, old=<%d> curr=<%d>",
+					pr.shardID,
+					old.peerID,
+					delegate.peerID)
+			}
+
+			// upgrade old delgate to new
+			old.peerID = delegate.peerID
+			old.shard = delegate.shard
+			old.term = delegate.term
+			old.applyState = delegate.applyState
+			old.appliedIndexTerm = delegate.appliedIndexTerm
+			old.clearAllCommandsAsStale()
+			return nil
+		}, nil)
+
+		if err != nil {
+			logger.Fatalf("shard %d add registration job failed with %+v",
+				pr.ps.shard.ID,
+				err)
+		}
+	}
+}
+
+func (pr *peerReplica) getPeer(id uint64) (metapb.Peer, bool) {
+	value, ok := pr.store.getPeer(id)
+	if ok {
+		return value, ok
+	}
+
+	for _, p := range pr.ps.shard.Peers {
+		if p.ID == id {
+			pr.store.peers.Store(id, p)
+			return p, true
+		}
+	}
+
+	return metapb.Peer{}, false
 }
 
 func (pr *peerReplica) setCurrentTerm(term uint64) {
@@ -499,6 +577,6 @@ func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config)
 		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
 		Storage:         ps,
 		CheckQuorum:     true,
-		PreVote:         cfg.Raft.EnablePreVote,
+		PreVote:         true,
 	}
 }
