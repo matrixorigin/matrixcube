@@ -69,6 +69,8 @@ var (
 		resp.Value = value
 		return resp, uint64(len(value))
 	})
+
+	testWaitTimeout = time.Minute
 )
 
 // TestClusterOption is the option for create TestCluster
@@ -493,6 +495,21 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 			fn(i, cfg)
 		}
 
+		// check whether the raft tickinterval is set properly.
+		// If the time that the raft log persists to disk is longer
+		// than the election timeout time, then the entire cluster
+		// cannot work normally
+		electionDuration := cfg.Raft.GetElectionTimeoutDuration()
+		testFsyncDuration := getRTTMillisecond(cfg.FS, cfg.DataPath)
+		if !(electionDuration > 10*testFsyncDuration) {
+			old := cfg.Raft.TickInterval.Duration
+			cfg.Raft.TickInterval.Duration = 10 * testFsyncDuration
+			logger.Warningf("########## adjust Raft.TickInterval from %s to %s, because current fsync on current fs is %s",
+				old,
+				cfg.Raft.TickInterval.Duration,
+				testFsyncDuration)
+		}
+
 		if cfg.Storage.MetaStorage == nil {
 			var metaStorage storage.MetadataStorage
 			metaStorage = mem.NewStorage(cfg.FS)
@@ -755,4 +772,54 @@ func (c *TestRaftCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to me
 // GetProphet returns prophet
 func (c *TestRaftCluster) GetProphet() prophet.Prophet {
 	return c.stores[0].pd
+}
+
+var rttMillisecond uint64
+var mu sync.Mutex
+var rttValues = []uint64{10, 20, 30, 50, 100, 200, 500}
+
+func getRTTMillisecond(fs vfs.FS, dir string) time.Duration {
+	mu.Lock()
+	defer mu.Unlock()
+
+	rttMillisecond = calcRTTMillisecond(fs, dir)
+	return time.Duration(rttMillisecond) * time.Millisecond
+}
+
+func calcRTTMillisecond(fs vfs.FS, dir string) uint64 {
+	testFile := fs.PathJoin(dir, ".cube_test_file_safe_to_delete")
+	defer func() {
+		_ = fs.RemoveAll(testFile)
+	}()
+	_ = fs.MkdirAll(dir, 0755)
+	f, err := fs.Create(testFile)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		f.Close()
+	}()
+	data := make([]byte, 512)
+	total := uint64(0)
+	repeat := 5
+	for i := 0; i < repeat; i++ {
+		if _, err := f.Write(data); err != nil {
+			panic(err)
+		}
+		start := time.Now()
+		if err := f.Sync(); err != nil {
+			panic(err)
+		}
+		total += uint64(time.Since(start).Milliseconds())
+	}
+	rtt := total / uint64(repeat)
+	for i := range rttValues {
+		if rttValues[i] > rtt {
+			if i == 0 {
+				return rttValues[0]
+			}
+			return rttValues[i-1]
+		}
+	}
+	return rttValues[len(rttValues)-1]
 }

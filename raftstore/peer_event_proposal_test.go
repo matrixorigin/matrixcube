@@ -42,7 +42,7 @@ func TestIssue90(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	c.WaitLeadersByCount(t, 1, time.Second*10)
+	c.WaitLeadersByCount(t, 1, testWaitTimeout)
 	id := c.GetShardByIndex(0).ID
 	s := c.GetShardLeaderStore(id)
 	assert.NotNil(t, s)
@@ -57,7 +57,7 @@ func TestIssue90(t *testing.T) {
 	r2 := createTestReadReq("r2", "key1")
 
 	resps, err := sendTestReqs(s,
-		time.Second*10,
+		testWaitTimeout,
 		committedC,
 		map[string]string{
 			"r1": "w1", // r1 wait w1 commit

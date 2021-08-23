@@ -50,7 +50,7 @@ func TestShardPool(t *testing.T) {
 	assert.NotNil(t, p)
 
 	// create 2 shards
-	c.WaitShardByCount(t, 3, time.Second*10)
+	c.WaitShardByCount(t, 3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
 	assert.NoError(t, err)
@@ -63,7 +63,7 @@ func TestShardPool(t *testing.T) {
 	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
 
 	// create 3 shards
-	c.WaitShardByCount(t, 4, time.Second*10)
+	c.WaitShardByCount(t, 4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
@@ -72,7 +72,7 @@ func TestShardPool(t *testing.T) {
 	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
 
 	// create 4 shards
-	c.WaitShardByCount(t, 5, time.Second*10)
+	c.WaitShardByCount(t, 5, testWaitTimeout)
 
 	store := c.GetProphet().GetStorage()
 	v, err := store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
