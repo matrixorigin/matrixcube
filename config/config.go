@@ -135,13 +135,13 @@ func (c *Config) Adjust() {
 	(&c.Prophet).Adjust(nil, false)
 	(&c.Worker).adjust()
 
-	if c.Customize.TestShardStateAware != nil {
+	if c.Test.ShardStateAware != nil {
 		if c.Customize.CustomShardStateAwareFactory != nil {
-			c.Customize.TestShardStateAware.SetWrapper(c.Customize.CustomShardStateAwareFactory())
+			c.Test.ShardStateAware.SetWrapper(c.Customize.CustomShardStateAwareFactory())
 		}
 
 		c.Customize.CustomShardStateAwareFactory = func() aware.ShardStateAware {
-			return c.Customize.TestShardStateAware
+			return c.Test.ShardStateAware
 		}
 	}
 
@@ -393,8 +393,9 @@ type CustomizeConfig struct {
 	CustomAdjustInitAppliedIndexFactory func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64)
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
-	// TestShardStateAware just for test
-	TestShardStateAware aware.TestShardStateAware
+	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
+	// `ShardPool` based on `offsetInPool`, these can be modified, provided that the only non-conflict.
+	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard
 }
 
 // GetLabels returns lables
@@ -422,6 +423,9 @@ type StoreHeartbeatDataProcessor interface {
 
 // TestConfig all test config
 type TestConfig struct {
+	// ShardStateAware is a ShardStateAware wrapper for the aware which created by
+	// `CustomizeConfig.CustomShardStateAwareFactory`
+	ShardStateAware aware.TestShardStateAware
 	// PeerReplicaSetSnapshotJobWait sleep before set snapshot job
 	PeerReplicaSetSnapshotJobWait time.Duration
 	// SaveDynamicallyShardInitStateWait wait before save dynamically shard init state
