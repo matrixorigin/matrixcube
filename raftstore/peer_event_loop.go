@@ -16,15 +16,17 @@ package raftstore
 import (
 	"time"
 
+	"github.com/cockroachdb/errors"
+	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/tracker"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft"
-	"go.etcd.io/etcd/raft/raftpb"
-	"go.etcd.io/etcd/raft/tracker"
 )
 
 const (
@@ -129,8 +131,16 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 }
 
 func (pr *peerReplica) handleEvent() bool {
+	hasEvent, err := pr.doHandleEvent()
+	if err != nil {
+		logger.Fatalf("shard %d handleEvent failed %+v", pr.shardID, err)
+	}
+	return hasEvent
+}
+
+func (pr *peerReplica) doHandleEvent() (bool, error) {
 	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
-		return false
+		return false, nil
 	}
 
 	stop := false
@@ -176,22 +186,28 @@ func (pr *peerReplica) handleEvent() bool {
 			logger.Infof("shard %d handle serve raft stopped",
 				pr.shardID)
 		})
-		return false
+		return false, nil
 	}
 
 	pr.handleStep(pr.items)
 	pr.handleTick(pr.items)
 	pr.cacheRaftStatus()
 	pr.handleReport(pr.items)
-	pr.handleApplyResult(pr.items)
+	if err := pr.handleApplyResult(pr.items); err != nil {
+		return false, err
+	}
 	pr.handleRequest(pr.items)
 
 	if pr.rn.HasReadySince(pr.ps.lastReadyIndex) {
-		pr.handleReady()
+		if err := pr.handleReady(); err != nil {
+			return false, err
+		}
 	}
 
-	pr.handleAction(pr.items)
-	return true
+	if err := pr.handleAction(pr.items); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (pr *peerReplica) cacheRaftStatus() {
@@ -200,22 +216,24 @@ func (pr *peerReplica) cacheRaftStatus() {
 	pr.setCurrentTerm(st.Term)
 }
 
-func (pr *peerReplica) handleAction(items []interface{}) {
+func (pr *peerReplica) handleAction(items []interface{}) error {
 	size := pr.actions.Len()
 	if size == 0 {
-		return
+		return nil
 	}
 
 	n, err := pr.actions.Get(readyBatch, items)
 	if err != nil {
-		return
+		return nil
 	}
 
 	for i := int64(0); i < n; i++ {
 		a := items[i].(action)
 		switch a.actionType {
 		case checkSplitAction:
-			pr.doCheckSplit()
+			if err := pr.doCheckSplit(); err != nil {
+				return err
+			}
 		case doSplitAction:
 			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
 		case checkCompactAction:
@@ -235,6 +253,8 @@ func (pr *peerReplica) handleAction(items []interface{}) {
 	if pr.actions.Len() > 0 {
 		pr.addEvent()
 	}
+
+	return nil
 }
 
 func (pr *peerReplica) handleStep(items []interface{}) {
@@ -326,13 +346,13 @@ func (pr *peerReplica) handleReport(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) doCheckSplit() {
+func (pr *peerReplica) doCheckSplit() error {
 	if !pr.isLeader() {
-		return
+		return nil
 	}
 
 	if pr.store.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
-		return
+		return nil
 	}
 
 	for id, p := range pr.rn.Status().Progress {
@@ -341,19 +361,17 @@ func (pr *peerReplica) doCheckSplit() {
 			logger.Infof("shard %d peer %d is applying snapshot",
 				pr.shardID,
 				id)
-			return
+			return nil
 		}
 	}
 
 	err := pr.startSplitCheckJob()
 	if err != nil {
-		logger.Fatalf("shard %d add split check job failed with %+v",
-			pr.shardID,
-			err)
-		return
+		return errors.Wrapf(err, "shard %d add split check job failed", pr.shardID)
 	}
 
 	pr.sizeDiffHint = 0
+	return nil
 }
 
 func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {

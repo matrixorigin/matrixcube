@@ -16,59 +16,61 @@ package raftstore
 import (
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft/raftpb"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	sn "github.com/matrixorigin/matrixcube/snapshot"
-	"go.etcd.io/etcd/raft/raftpb"
 )
 
-func (pr *peerReplica) startApplyingSnapJob() {
+func (pr *peerReplica) startApplyingSnapJob() error {
 	pr.ps.applySnapJobLock.Lock()
-	err := pr.store.addApplyJob(pr.applyWorker, "doApplyingSnapshotJob", pr.doApplyingSnapshotJob, pr.ps.setApplySnapJob)
-	if err != nil {
-		logger.Fatalf("shard %d add apply snapshot task failed with %+v",
-			pr.shardID,
-			err)
-	}
-	pr.ps.applySnapJobLock.Unlock()
+	defer pr.ps.applySnapJobLock.Unlock()
+	return pr.store.addApplyJob(pr.applyWorker, "doApplyingSnapshotJob",
+		func() error {
+			if err := pr.doApplyingSnapshotJob(); err != nil {
+				logger.Fatalf("apply snapshot failed with %+v", err)
+			}
+			return nil
+		}, pr.ps.setApplySnapJob)
 }
 
 func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
-		return pr.doApplyCommittedEntries(shardID, term, commitedEntries)
+	return pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
+		if err := pr.doApplyCommittedEntries(shardID, term, commitedEntries); err != nil {
+			logger.Fatalf("apply committed entries failed with %+v", err)
+		}
+		return nil
 	}, nil)
-	return err
 }
 
 func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint64) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
-		return pr.doCompactRaftLog(shardID, startIndex, endIndex)
+	return pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
+		if err := pr.doCompactRaftLog(shardID, startIndex, endIndex); err != nil {
+			logger.Fatalf("raft log compaction failed with %+v", err)
+		}
+		return nil
 	}, nil)
-
-	return err
 }
 
 func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer) error {
-	pr := s.getPR(shardID, false)
-	if pr != nil {
-		err := s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
+	if pr := s.getPR(shardID, false); pr != nil {
+		return s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
 			s.doDestroy(shardID, false)
 			return nil
 		}, nil)
-		return err
 	}
 
 	return nil
 }
 
 func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
+	return pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
 		return pr.doPropose(c, isConfChange)
 	}, nil)
-
-	return err
 }
 
 func (pr *peerReplica) startSplitCheckJob() error {
@@ -149,6 +151,7 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 		logger.Fatalf("shard %d generating snapshot job is nil", ps.shard.ID)
 	}
 
+	// TODO: quite a few errors below are ignored. review all of them
 	applyState, err := ps.loadRaftApplyState()
 	if err != nil {
 		logger.Fatalf("shard %d load snapshot failed with %+v",
@@ -202,12 +205,9 @@ func (ps *peerStorage) doGenerateSnapshotJob() error {
 	if ps.store.snapshotManager.Register(msg, sn.Creating) {
 		defer ps.store.snapshotManager.Deregister(msg, sn.Creating)
 
-		err = ps.store.snapshotManager.Create(msg)
-		if err != nil {
-			logger.Errorf(" shard %d create snapshot failed with %+v",
-				ps.shard.ID,
-				err)
-			return nil
+		if err := ps.store.snapshotManager.Create(msg); err != nil {
+			return errors.Wrapf(err, "shard %d create snapshot failed",
+				ps.shard.ID)
 		}
 	}
 
@@ -253,10 +253,8 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		splitKeys)
 
 	if err != nil {
-		logger.Errorf("shard %d scan split key failed with %+v",
-			pr.shardID,
-			err)
-		return err
+		return errors.Wrapf(err, "shard %d scan split key",
+			pr.shardID)
 	}
 
 	pr.approximateSize = size
@@ -282,10 +280,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 
 	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
 	if err != nil {
-		logger.Errorf("shard %d ask batch split failed with %+v",
-			pr.shardID,
-			err)
-		return err
+		return errors.Wrapf(err, "shard %d ask batch split", pr.shardID)
 	}
 
 	pr.addAction(action{actionType: doSplitAction, splitKeys: splitKeys, splitIDs: newIDs, epoch: epoch})

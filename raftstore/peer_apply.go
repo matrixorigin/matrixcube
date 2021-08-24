@@ -19,8 +19,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft/raftpb"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -29,7 +32,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func (s *store) doDestroy(shardID uint64, tombstone bool) {
@@ -39,8 +41,7 @@ func (s *store) doDestroy(shardID uint64, tombstone bool) {
 		delegate.destroy()
 	}
 
-	pr := s.getPR(shardID, false)
-	if pr != nil {
+	if pr := s.getPR(shardID, false); pr != nil {
 		if tombstone {
 			pr.ps.shard.State = metapb.ResourceState_Removed
 		}
@@ -68,8 +69,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	}
 
 	if firstIndex >= endIndex {
-		logger.Infof("shard %d no need to gc raft log",
-			shardID)
+		logger.Infof("shard %d no need to gc raft log", shardID)
 		return nil
 	}
 
@@ -96,36 +96,25 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 	logger.Infof("shard %d begin apply snapshot data", pr.shardID)
 	localState, err := pr.ps.loadShardLocalState(pr.ps.applySnapJob)
 	if err != nil {
-		logger.Fatalf("shard %d apply snap load local state failed with %+v",
-			pr.shardID,
-			err)
-		return err
+		return errors.Wrapf(err, "shard %d apply snap load local state",
+			pr.shardID)
 	}
 
-	err = pr.store.removeShardData(localState.Shard, pr.ps.applySnapJob)
-	if err != nil {
-		logger.Fatalf("shard %d apply snap delete range data failed with %+v",
-			pr.shardID,
-			err)
-		return err
+	if err := pr.store.removeShardData(localState.Shard, pr.ps.applySnapJob); err != nil {
+		return errors.Wrapf(err, "shard %d apply snap delete range data",
+			pr.shardID)
 	}
 
-	err = pr.ps.applySnapshot(pr.ps.applySnapJob)
-	if err != nil {
-		logger.Errorf("shard %d apply snap snapshot failed with %+v",
-			pr.shardID,
-			err)
-		return err
+	if err := pr.ps.applySnapshot(pr.ps.applySnapJob); err != nil {
+		return errors.Wrapf(err, "shard %d apply snap snapshot",
+			pr.shardID)
 	}
 
 	wb := util.NewWriteBatch()
 	pr.store.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, wb)
-	err = pr.store.MetadataStorage().Write(wb, true)
-	if err != nil {
-		logger.Fatalf("shard %d apply snap update peer state failed with %+v",
-			pr.shardID,
-			err)
-		return err
+	if err := pr.store.MetadataStorage().Write(wb, true); err != nil {
+		return errors.Wrapf(err, "shard %d apply snap update peer state",
+			pr.shardID)
 	}
 
 	if pr.store.aware != nil {
@@ -147,7 +136,7 @@ func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, comm
 
 	value, ok := pr.store.delegates.Load(shardID)
 	if !ok {
-		logger.Fatalf("shard %d pper %d async apply raft log with %d entries at term %d, error missing delegate",
+		return errors.Newf("shard %d pper %d async apply raft log with %d entries at term %d, error missing delegate",
 			shardID,
 			pr.peer.ID,
 			len(commitedEntries),
@@ -156,7 +145,9 @@ func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, comm
 
 	delegate := value.(*applyDelegate)
 	delegate.term = term
-	delegate.applyCommittedEntries(commitedEntries)
+	if err := delegate.applyCommittedEntries(commitedEntries); err != nil {
+		return err
+	}
 
 	if delegate.isPendingRemove() {
 		delegate.destroy()
@@ -369,9 +360,10 @@ func (d *applyDelegate) notifyShardRemoved(c cmd) {
 	c.respShardNotFound(d.shard.ID)
 }
 
-func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
+// TODO: return error on failure
+func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) error {
 	if len(commitedEntries) <= 0 {
-		return
+		return nil
 	}
 
 	start := time.Now()
@@ -402,14 +394,23 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		d.ctx.term = entry.Term
 
 		var result *execResult
-
+		var err error
 		switch entry.Type {
 		case raftpb.EntryNormal:
-			result = d.applyEntry(&entry)
+			result, err = d.applyEntry(&entry)
+			if err != nil {
+				return err
+			}
 		case raftpb.EntryConfChange:
-			result = d.applyConfChange(&entry)
+			result, err = d.applyConfChange(&entry)
+			if err != nil {
+				return err
+			}
 		case raftpb.EntryConfChangeV2:
-			result = d.applyConfChange(&entry)
+			result, err = d.applyConfChange(&entry)
+			if err != nil {
+				return err
+			}
 		}
 
 		asyncResult := asyncApplyResult{}
@@ -430,11 +431,11 @@ func (d *applyDelegate) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 
 	// only release RaftCMDRequest. Header and Requests fields is pb created in Unmarshal
 	pb.ReleaseRaftCMDRequest(req)
-
 	metric.ObserveRaftLogApplyDuration(start)
+	return nil
 }
 
-func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
+func (d *applyDelegate) applyEntry(entry *raftpb.Entry) (*execResult, error) {
 	if len(entry.Data) > 0 {
 		protoc.MustUnmarshal(d.ctx.req, entry.Data)
 		return d.doApplyRaftCMD()
@@ -444,12 +445,10 @@ func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 	state := d.applyState
 	state.AppliedIndex = entry.Index
 
-	err := d.store.MetadataStorage().Set(getRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
-	if err != nil {
-		logger.Fatalf("shard %d apply empty entry <%s> failed with %+v",
+	if err := d.store.MetadataStorage().Set(getRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&state)); err != nil {
+		return nil, errors.Wrapf(err, "shard %d apply empty entry <%s> failed",
 			d.shard.ID,
-			entry.String(),
-			err)
+			entry.String())
 	}
 
 	d.applyState.AppliedIndex = entry.Index
@@ -459,17 +458,20 @@ func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 	}
 
 	for {
+		// FIXME: this is strange at best. why term value is used here?
 		c, ok := d.popPendingCMD(entry.Term - 1)
 		if !ok {
-			return nil
+			return nil, nil
 		}
 
 		// apprently, all the callbacks whose term is less than entry's term are stale.
 		d.notifyStaleCMD(c)
 	}
+
+	panic("not suppose to reach here")
 }
 
-func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
+func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) (*execResult, error) {
 	var v2cc raftpb.ConfChangeV2
 	if entry.Type == raftpb.EntryConfChange {
 		cc := raftpb.ConfChange{}
@@ -482,21 +484,24 @@ func (d *applyDelegate) applyConfChange(entry *raftpb.Entry) *execResult {
 		protoc.MustUnmarshal(d.ctx.req, v2cc.Context)
 	}
 
-	result := d.doApplyRaftCMD()
+	result, err := d.doApplyRaftCMD()
+	if err != nil {
+		return result, err
+	}
 	if nil == result {
 		return &execResult{
 			adminType:  raftcmdpb.AdminCmdType_ChangePeer,
 			changePeer: &changePeer{},
-		}
+		}, nil
 	}
 
 	result.changePeer.confChange = v2cc
-	return result
+	return result, nil
 }
 
-func (d *applyDelegate) doApplyRaftCMD() *execResult {
+func (d *applyDelegate) doApplyRaftCMD() (*execResult, error) {
 	if sc, ok := d.store.cfg.Test.Shards[d.shard.ID]; ok && sc.SkipApply {
-		return nil
+		return nil, nil
 	}
 
 	if d.ctx.index == 0 {
@@ -506,7 +511,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 
 	c, ok := d.findCB(d.ctx)
 	if d.isPendingRemove() {
-		logger.Fatalf("shard %d apply raft comand can not pending remove",
+		logger.Fatalf("shard %d apply raft comand failed, pending remove",
 			d.shard.ID)
 	}
 
@@ -521,6 +526,8 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 	} else {
 		if d.ctx.req.AdminRequest != nil {
 			resp, result, err = d.execAdminRequest(d.ctx)
+			// TODO: when an admin request is failed to be executed, shall we just
+			// ignore the error
 			if err != nil {
 				resp = errorStaleEpochResp(d.ctx.req.Header.ID, d.term, d.shard)
 			}
@@ -556,26 +563,20 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 
 	ds := d.store.DataStorageByGroup(d.shard.Group, d.shard.ID)
 	if kv, ok := ds.(storage.KVStorage); ok {
-		err = kv.Write(d.ctx.dataWB, true)
-		if err != nil {
-			logger.Fatalf("shard %d commit apply result failed with %+v",
-				d.shard.ID,
-				err)
+		if err := kv.Write(d.ctx.dataWB, true); err != nil {
+			return nil, errors.Wrapf(err, "shard %d commit apply result failed", d.shard.ID)
 		}
 	}
 
 	if d.syncData && result != nil && result.needSyncData {
 		err := d.store.DataStorageByGroup(d.shard.Group, d.shard.ID).Sync()
 		if err != nil {
-			logger.Fatalf("shard %d sync data failed with %+v")
+			return nil, errors.Wrapf(err, "shard %d sync data failed", d.shard.ID)
 		}
 	}
 
-	err = d.store.MetadataStorage().Write(d.ctx.raftWB, true)
-	if err != nil {
-		logger.Fatalf("shard %d commit apply result failed with %+v",
-			d.shard.ID,
-			err)
+	if err := d.store.MetadataStorage().Write(d.ctx.raftWB, true); err != nil {
+		return nil, errors.Wrapf(err, "shard %d commit apply result failed", d.shard.ID)
 	}
 
 	d.applyState = d.ctx.applyState
@@ -590,7 +591,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func (d *applyDelegate) destroy() {
