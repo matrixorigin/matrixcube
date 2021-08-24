@@ -69,7 +69,6 @@ func StartTestSingleEtcd(t *testing.T) (chan interface{}, int) {
 	cfg.InitialCluster = fmt.Sprintf("p1=http://127.0.0.1:%d", peerPort)
 	cfg.ClusterState = embed.ClusterStateFlagNew
 	cfg.EnablePprof = false
-	cfg.Debug = false
 	cfg.LPUrls, _ = util.ParseUrls(fmt.Sprintf("http://127.0.0.1:%d", peerPort))
 	cfg.APUrls = cfg.LPUrls
 	cfg.LCUrls, _ = util.ParseUrls(fmt.Sprintf("http://127.0.0.1:%d", port))

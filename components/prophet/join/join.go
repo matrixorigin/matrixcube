@@ -24,20 +24,15 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/vfs"
-	"go.etcd.io/etcd/client/v3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.etcd.io/etcd/server/v3/etcdserver"
 )
 
 const (
-	// privateFileMode grants owner to read/write a file.
-	privateFileMode = 0600
 	// privateDirMode grants owner to make/remove files inside the directory.
 	privateDirMode = 0700
 )
-
-// listMemberRetryTimes is the retry times of list member.
-var listMemberRetryTimes = 20
 
 // PrepareJoinCluster sends MemberAdd command to Prophet cluster,
 // and returns the initial configuration of the Prophet cluster.
@@ -124,6 +119,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 	}
 	defer client.Close()
 
+	var prophets []string
 	listResp, err := util.ListEtcdMembers(client)
 	if err != nil {
 		util.GetLogger().Fatalf("list embed etcd members failed with %+v",
@@ -139,6 +135,10 @@ func PrepareJoinCluster(cfg *config.Config) {
 		if m.Name == cfg.Name {
 			existed = true
 		}
+
+		for _, u := range m.PeerURLs {
+			prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
+		}
 	}
 
 	// - A failed Prophet re-joins the previous cluster.
@@ -146,13 +146,13 @@ func PrepareJoinCluster(cfg *config.Config) {
 		util.GetLogger().Fatalf("missing data or join a duplicated prophet")
 	}
 
-	var addResp *clientv3.MemberAddResponse
+	// var addResp *clientv3.MemberAddResponse
 	// - A new Prophet joins an existing cluster.
 	// - A deleted Prophet joins to previous cluster.
 	{
 		for {
 			// First adds member through the API
-			addResp, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
+			_, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
 			if err != nil && err.Error() != etcdserver.ErrUnhealthy.Error() {
 				util.GetLogger().Fatalf("add member to embed etcd failed with %+v", err)
 			}
@@ -165,45 +165,10 @@ func PrepareJoinCluster(cfg *config.Config) {
 
 			break
 		}
-
 	}
 
-	var (
-		prophets []string
-		listSucc bool
-	)
-
-	for i := 0; i < listMemberRetryTimes; i++ {
-		listResp, err = util.ListEtcdMembers(client)
-		if err != nil {
-			util.GetLogger().Fatalf("list embed etcd members failed with %+v",
-				err)
-		}
-
-		prophets = []string{}
-		for _, memb := range listResp.Members {
-			n := memb.Name
-			if addResp != nil && memb.ID == addResp.Member.ID {
-				n = cfg.Name
-				listSucc = true
-			}
-			if len(n) == 0 {
-				util.GetLogger().Fatalf("there is a member that has not joined successfully",
-					err)
-			}
-			for _, m := range memb.PeerURLs {
-				prophets = append(prophets, fmt.Sprintf("%s=%s", n, m))
-			}
-		}
-
-		if listSucc {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if !listSucc {
-		util.GetLogger().Fatalf("join failed, adds the new member %s may failed",
-			cfg.Name)
+	if !existed {
+		prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
 	}
 
 	initialCluster = strings.Join(prophets, ",")

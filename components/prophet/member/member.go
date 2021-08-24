@@ -87,6 +87,9 @@ func (m *Member) Stop() {
 func (m *Member) disableLeader(newLeader string) bool {
 	if newLeader == "" {
 		m.leader.Store(&metapb.Member{})
+		if err := m.becomeFollowerFunc(); err != nil {
+			return false
+		}
 		return true
 	}
 

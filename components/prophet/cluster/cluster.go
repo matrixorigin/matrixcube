@@ -140,6 +140,7 @@ func (c *RaftCluster) GetReplicationConfig() *config.ReplicationConfig {
 
 // InitCluster initializes the raft cluster.
 func (c *RaftCluster) InitCluster(opt *config.PersistOptions, storage storage.Storage, basicCluster *core.BasicCluster) {
+	basicCluster.Reset()
 	c.core = basicCluster
 	c.opt = opt
 	c.storage = storage
