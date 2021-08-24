@@ -16,7 +16,7 @@ package election
 import (
 	"fmt"
 
-	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 // ElectorOption elector option
