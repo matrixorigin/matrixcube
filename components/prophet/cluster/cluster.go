@@ -38,7 +38,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/keyutil"
-	"go.etcd.io/etcd/clientv3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
@@ -140,6 +140,7 @@ func (c *RaftCluster) GetReplicationConfig() *config.ReplicationConfig {
 
 // InitCluster initializes the raft cluster.
 func (c *RaftCluster) InitCluster(opt *config.PersistOptions, storage storage.Storage, basicCluster *core.BasicCluster) {
+	basicCluster.Reset()
 	c.core = basicCluster
 	c.opt = opt
 	c.storage = storage

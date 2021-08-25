@@ -12,7 +12,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	metapb "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	bhmetapb "github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	raftpb "go.etcd.io/etcd/raft/raftpb"
+	raftpb "go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
