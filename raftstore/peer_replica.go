@@ -439,9 +439,7 @@ func (pr *peerReplica) stopEventLoop() {
 }
 
 func (pr *peerReplica) maybeExecRead() {
-	if pr.readyToHandleRead() {
-		pr.pendingReads.doReadLEAppliedIndex(pr.ps.raftApplyState.AppliedIndex, pr)
-	}
+	pr.pendingReads.doReadLEAppliedIndex(pr.ps.raftApplyState.AppliedIndex, pr)
 }
 
 func (pr *peerReplica) doExecReadCmd(c cmd) {
@@ -532,44 +530,11 @@ func (pr *peerReplica) collectPendingPeers() []metapb.Peer {
 	return pendingPeers
 }
 
-func (pr *peerReplica) readyToHandleRead() bool {
-	// If applied_index_term isn't equal to current term, there may be some values that are not
-	// applied by this leader yet but the old leader.
-	return pr.ps.appliedIndexTerm == pr.getCurrentTerm()
-}
-
 func (pr *peerReplica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
 func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config) *raft.Config {
-	if cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil {
-		factory := cfg.Customize.CustomAdjustInitAppliedIndexFactory(ps.shard.Group)
-		if factory != nil {
-			newAppliedIndex := factory(ps.shard, appliedIndex)
-			if newAppliedIndex < raftInitLogIndex {
-				if newAppliedIndex == 0 {
-					newAppliedIndex = appliedIndex
-				} else {
-					logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must >= init applied index %d",
-						ps.shard.ID,
-						newAppliedIndex,
-						raftInitLogIndex)
-				}
-			}
-			if newAppliedIndex > appliedIndex {
-				logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must <= real applied index %d",
-					ps.shard.ID,
-					newAppliedIndex,
-					appliedIndex)
-			}
-
-			logger.Infof("shard %d change init applied index from %d to %d",
-				ps.shard.ID, appliedIndex, newAppliedIndex)
-			appliedIndex = newAppliedIndex
-		}
-	}
-
 	return &raft.Config{
 		ID:              id,
 		Applied:         appliedIndex,

@@ -258,6 +258,39 @@ func TestIssue166(t *testing.T) {
 	assert.Equal(t, uint64(6), state.HardState.Commit)
 }
 
+func TestIssue180(t *testing.T) {
+	var adjustAppliedIndex uint64
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Customize.CustomAdjustInitAppliedIndexFactory = func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) uint64 {
+			return func(shard bhmetapb.Shard, initAppliedIndex uint64) uint64 {
+				return adjustAppliedIndex
+			}
+		}
+	}), DiskTestCluster, GetCMDTestClusterHandler, SetCMDTestClusterHandler)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+
+	resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestWriteReq("w1", "k1", "v1"))
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
+
+	c.set(EncodeDataKey(0, []byte("k1")), []byte("v2"))
+	v, err := c.stores[0].MetadataStorage().Get(getRaftApplyStateKey(c.GetShardByIndex(0).ID))
+	assert.NoError(t, err)
+	state := &bhraftpb.RaftApplyState{}
+	protoc.MustUnmarshal(state, v)
+	adjustAppliedIndex = state.AppliedIndex - 1
+
+	c.Restart()
+	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+
+	resp, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestReadReq("r1", "k1"))
+	assert.NoError(t, err)
+	assert.Equal(t, "v1", string(resp["r1"].Responses[0].Value))
+}
+
 func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
