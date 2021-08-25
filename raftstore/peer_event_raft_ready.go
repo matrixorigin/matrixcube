@@ -146,11 +146,10 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		}
 	}
 
-	// The leader can write to disk and replicate to the followers concurrently
-	// For more details, check raft thesis 10.2.1.
-	if pr.isLeader() {
-		pr.send(rd.Messages)
-	}
+	// MsgApp can be immediately sent to followers so leader and followers can
+	// concurrently persist the logs to disk. For more details, check raft thesis
+	// section 10.2.1.
+	pr.send(rd.Messages, true)
 
 	ctx.wb.Reset()
 	pr.handleAppendSnapshot(ctx, rd)
@@ -336,9 +335,9 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
 	}
 
 	result := pr.doApplySnapshot(ctx, rd)
-	if !pr.isLeader() {
-		pr.send(rd.Messages)
-	}
+
+	// send all non-MsgApp messages
+	pr.send(rd.Messages, false)
 
 	if result != nil {
 		pr.registerDelegate()
@@ -437,19 +436,30 @@ func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
 	}
 }
 
-func (pr *peerReplica) send(msgs []raftpb.Message) {
+func (pr *peerReplica) isMsgApp(m raftpb.Message) bool {
+	return m.Type == raftpb.MsgApp
+}
+
+func (pr *peerReplica) send(msgs []raftpb.Message, msgAppOnly bool) {
 	for _, msg := range msgs {
-		err := pr.sendRaftMsg(msg)
-		if err != nil {
-			// We don't care that the message is sent failed, so here just log this error
-			logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
-				pr.shardID,
-				msg.From,
-				msg.To,
-				err)
+		if pr.isMsgApp(msg) && msgAppOnly {
+			pr.sendMessage(msg)
+		} else if !pr.isMsgApp(msg) && !msgAppOnly {
+			pr.sendMessage(msg)
 		}
-		pr.metrics.ready.message++
 	}
+}
+
+func (pr *peerReplica) sendMessage(msg raftpb.Message) {
+	if err := pr.sendRaftMsg(msg); err != nil {
+		// We don't care such failed message transmission, just log the error
+		logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
+			pr.shardID,
+			msg.From,
+			msg.To,
+			err)
+	}
+	pr.metrics.ready.message++
 }
 
 func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
