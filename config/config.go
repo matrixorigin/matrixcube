@@ -430,6 +430,8 @@ type TestConfig struct {
 	PeerReplicaSetSnapshotJobWait time.Duration
 	// SaveDynamicallyShardInitStateWait wait before save dynamically shard init state
 	SaveDynamicallyShardInitStateWait time.Duration
+	// ShardPoolCreateWaitC waiting delay for shard creation
+	ShardPoolCreateWaitC chan struct{}
 	// Shards test config for shards
 	Shards map[uint64]*TestShardConfig
 }

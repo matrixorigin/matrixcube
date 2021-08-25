@@ -2,6 +2,7 @@ package raftstore
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,4 +143,25 @@ func TestShardPoolWithFactory(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "b1", string(resp["r1"].Responses[0].Value))
 	assert.Equal(t, "b2", string(resp["r2"].Responses[0].Value))
+}
+
+func TestIssue192(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	wc := make(chan struct{})
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Test.ShardPoolCreateWaitC = wc
+	}))
+	defer c.Stop()
+
+	c.Start()
+
+	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	_, err = p.Alloc(0, []byte("purpose"))
+	assert.Error(t, err)
+	assert.False(t, strings.Contains(err.Error(), "timeout"))
 }
