@@ -62,6 +62,9 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		return rs.WriteAndFlush(resp)
 	}
 
+	util.GetLogger().Errorf("%s received %+v(%d)", p.cfg.Name, req.Type.String(), req.ID)
+	defer util.GetLogger().Errorf("%s received %+v(%d) completed", p.cfg.Name, req.Type.String(), req.ID)
+
 	switch req.Type {
 	case rpcpb.TypePutContainerReq:
 		resp.Type = rpcpb.TypePutContainerRsp
