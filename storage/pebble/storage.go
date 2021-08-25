@@ -39,6 +39,9 @@ type Storage struct {
 
 // NewStorage returns a pebble backed kv store
 func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
+	if !hasEventListener(opts.EventListener) {
+		opts.EventListener = getEventListener()
+	}
 	db, err := pebble.Open(dir, opts)
 	if err != nil {
 		return nil, err
