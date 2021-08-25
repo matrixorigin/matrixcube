@@ -4,7 +4,7 @@ package bhraftpb;
 import "github.com/matrixorigin/matrixcube/pb/bhmetapb/bhmetapb.proto";
 import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "go.etcd.io/etcd/raft/raftpb/raft.proto";
+import "go.etcd.io/etcd/raft/v3/raftpb/raft.proto";
 
 
 option (gogoproto.marshaler_all) = true;

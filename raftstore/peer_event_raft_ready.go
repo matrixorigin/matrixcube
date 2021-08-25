@@ -151,14 +151,10 @@ func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) 
 		}
 	}
 
-	// FIXME (critical): only send replicate message below
-	// FIXME: move the following message transport call out of this method.
-
-	// The leader can write to disk and replicate to the followers concurrently
-	// For more details, check raft thesis 10.2.1.
-	if pr.isLeader() {
-		pr.send(rd.Messages)
-	}
+	// MsgApp can be immediately sent to followers so leader and followers can
+	// concurrently persist the logs to disk. For more details, check raft thesis
+	// section 10.2.1.
+	pr.send(rd.Messages, true)
 
 	ctx.wb.Reset()
 	if err := pr.handleAppendSnapshot(ctx, rd); err != nil {
@@ -335,10 +331,8 @@ func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) e
 
 	result := pr.doApplySnapshot(ctx, rd)
 
-	// FIXME: fix this by only send non replication messages.
-	if !pr.isLeader() {
-		pr.send(rd.Messages)
-	}
+	// send all non-MsgApp messages
+	pr.send(rd.Messages, false)
 
 	if result != nil {
 		pr.registerDelegate()
@@ -432,50 +426,39 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapRe
 }
 
 func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
-	if pr.readyToHandleRead() {
-		for _, state := range rd.ReadStates {
-			pr.pendingReads.ready(state)
-		}
-
-		if len(rd.ReadStates) > 0 {
-			pr.maybeExecRead()
-		}
+	for _, state := range rd.ReadStates {
+		pr.pendingReads.ready(state)
 	}
 
-	// Note that only after handle read_states can we identify what requests are
-	// actually stale.
-	if rd.SoftState != nil {
-		if rd.SoftState.RaftState != raft.StateLeader {
-			// all uncommitted reads will be dropped silently in raft.
-			for _, c := range pr.pendingReads.reads {
-				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-			}
-			pr.pendingReads.reset()
+	if len(rd.ReadStates) > 0 {
+		pr.maybeExecRead()
+	}
+}
 
-			// we are not leader now, so all writes in the batch is actually stale
-			for i := 0; i < pr.batch.size(); i++ {
-				if c, ok := pr.batch.pop(); ok {
-					c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-				}
-			}
-			pr.resetBatch()
+func (pr *peerReplica) isMsgApp(m raftpb.Message) bool {
+	return m.Type == raftpb.MsgApp
+}
+
+func (pr *peerReplica) send(msgs []raftpb.Message, msgAppOnly bool) {
+	for _, msg := range msgs {
+		if pr.isMsgApp(msg) && msgAppOnly {
+			pr.sendMessage(msg)
+		} else if !pr.isMsgApp(msg) && !msgAppOnly {
+			pr.sendMessage(msg)
 		}
 	}
 }
 
-func (pr *peerReplica) send(msgs []raftpb.Message) {
-	for _, msg := range msgs {
-		err := pr.sendRaftMsg(msg)
-		if err != nil {
-			// We don't care that the message is sent failed, so here just log this error
-			logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
-				pr.shardID,
-				msg.From,
-				msg.To,
-				err)
-		}
-		pr.metrics.ready.message++
+func (pr *peerReplica) sendMessage(msg raftpb.Message) {
+	if err := pr.sendRaftMsg(msg); err != nil {
+		// We don't care such failed message transmission, just log the error
+		logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
+			pr.shardID,
+			msg.From,
+			msg.To,
+			err)
 	}
+	pr.metrics.ready.message++
 }
 
 func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
