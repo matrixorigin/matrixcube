@@ -428,34 +428,12 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapRe
 }
 
 func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
-	if pr.readyToHandleRead() {
-		for _, state := range rd.ReadStates {
-			pr.pendingReads.ready(state)
-		}
-
-		if len(rd.ReadStates) > 0 {
-			pr.maybeExecRead()
-		}
+	for _, state := range rd.ReadStates {
+		pr.pendingReads.ready(state)
 	}
 
-	// Note that only after handle read_states can we identify what requests are
-	// actually stale.
-	if rd.SoftState != nil {
-		if rd.SoftState.RaftState != raft.StateLeader {
-			// all uncommitted reads will be dropped silently in raft.
-			for _, c := range pr.pendingReads.reads {
-				c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-			}
-			pr.pendingReads.reset()
-
-			// we are not leader now, so all writes in the batch is actually stale
-			for i := 0; i < pr.batch.size(); i++ {
-				if c, ok := pr.batch.pop(); ok {
-					c.resp(errorStaleCMDResp(c.getUUID(), pr.getCurrentTerm()))
-				}
-			}
-			pr.resetBatch()
-		}
+	if len(rd.ReadStates) > 0 {
+		pr.maybeExecRead()
 	}
 }
 

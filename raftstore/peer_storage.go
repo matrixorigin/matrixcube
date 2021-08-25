@@ -135,6 +135,35 @@ func (ps *peerStorage) initRaftApplyState() error {
 		}
 
 		ps.raftApplyState = *s
+		appliedIndex := ps.raftApplyState.AppliedIndex
+		if ps.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil {
+			factory := ps.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(ps.shard.Group)
+			if factory != nil {
+				newAppliedIndex := factory(ps.shard, appliedIndex)
+				if newAppliedIndex < raftInitLogIndex {
+					if newAppliedIndex == 0 {
+						newAppliedIndex = appliedIndex
+					} else {
+						logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must >= init applied index %d",
+							ps.shard.ID,
+							newAppliedIndex,
+							raftInitLogIndex)
+					}
+				}
+				if newAppliedIndex > appliedIndex {
+					logger.Fatalf("shard %d unexpect adjust applied index, ajdust index %d must <= real applied index %d",
+						ps.shard.ID,
+						newAppliedIndex,
+						appliedIndex)
+				}
+
+				logger.Infof("shard %d change init applied index from %d to %d",
+					ps.shard.ID, appliedIndex, newAppliedIndex)
+				appliedIndex = newAppliedIndex
+			}
+		}
+		ps.raftApplyState.AppliedIndex = appliedIndex
+
 		return nil
 	}
 
