@@ -29,6 +29,7 @@ import (
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
+	factory                 func() metadata.Resource
 	Containers              *CachedContainers
 	Resources               *CachedResources
 	RemovedResources        *roaring64.Bitmap
@@ -37,12 +38,20 @@ type BasicCluster struct {
 
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
-	return &BasicCluster{
-		Containers:              NewCachedContainers(),
-		Resources:               NewCachedResources(factory),
-		RemovedResources:        roaring64.NewBitmap(),
-		WaittingCreateResources: make(map[uint64]metadata.Resource),
-	}
+	bc := &BasicCluster{factory: factory}
+	bc.Reset()
+	return bc
+}
+
+// Reset reset Basic Cluster info
+func (bc *BasicCluster) Reset() {
+	bc.Lock()
+	defer bc.Unlock()
+
+	bc.Containers = NewCachedContainers()
+	bc.Resources = NewCachedResources(bc.factory)
+	bc.RemovedResources = roaring64.NewBitmap()
+	bc.WaittingCreateResources = make(map[uint64]metadata.Resource)
 }
 
 // AddRemovedResources add removed resources

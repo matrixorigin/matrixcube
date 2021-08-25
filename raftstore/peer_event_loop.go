@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
-	"go.etcd.io/etcd/raft"
-	"go.etcd.io/etcd/raft/raftpb"
-	"go.etcd.io/etcd/raft/tracker"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.etcd.io/etcd/raft/v3/tracker"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"

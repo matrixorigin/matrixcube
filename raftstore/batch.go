@@ -21,7 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/v3"
 )
 
 const (

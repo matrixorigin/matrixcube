@@ -84,6 +84,8 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*config.Config))
 			c.StorageNode = true
 			c.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:2000%d", i)
 			c.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:3000%d", i)
+			c.EmbedEtcd.TickInterval.Duration = time.Millisecond * 50
+			c.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 300
 
 			if i != 0 {
 				c.EmbedEtcd.Join = fmt.Sprintf("http://127.0.0.1:3000%d", 0)

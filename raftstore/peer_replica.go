@@ -34,7 +34,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/v3"
 )
 
 type readContext struct {

@@ -72,7 +72,7 @@ type defaultRouter struct {
 	leaders                   sync.Map // shard id -> leader peer store
 	stores                    sync.Map // store id -> metapb.Store metadata
 	shards                    sync.Map // shard id -> metapb.Shard
-	missingStoreLeaderChanged sync.Map // shard id -> ledaer peer id
+	missingStoreLeaderChanged sync.Map // shard id -> leader peer id
 	opts                      sync.Map // shard id -> *op
 
 	shardStats sync.Map // shard id -> ResourceStats

@@ -25,8 +25,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/embed"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 var (
@@ -69,7 +69,6 @@ func StartTestSingleEtcd(t *testing.T) (chan interface{}, int) {
 	cfg.InitialCluster = fmt.Sprintf("p1=http://127.0.0.1:%d", peerPort)
 	cfg.ClusterState = embed.ClusterStateFlagNew
 	cfg.EnablePprof = false
-	cfg.Debug = false
 	cfg.LPUrls, _ = util.ParseUrls(fmt.Sprintf("http://127.0.0.1:%d", peerPort))
 	cfg.APUrls = cfg.LPUrls
 	cfg.LCUrls, _ = util.ParseUrls(fmt.Sprintf("http://127.0.0.1:%d", port))
