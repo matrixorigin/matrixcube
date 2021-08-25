@@ -30,7 +30,7 @@ func (tra *testResourcesAware) ForeachResources(group uint64, fn func(res metada
 
 func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResource {
 	res := tra.aware.GetResource(resourceID)
-	if tra.adjust != nil {
+	if tra.adjust != nil && res != nil {
 		return tra.adjust(res)
 	}
 
