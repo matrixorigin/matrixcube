@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -100,4 +101,45 @@ func TestShardPool(t *testing.T) {
 	assert.Equal(t, uint64(4), sp.Pools[0].Seq)
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
 	assert.Equal(t, 0, len(sp.Pools[0].AllocatedShards))
+}
+
+func TestShardPoolWithFactory(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewSingleTestClusterStore(t,
+		SetCMDTestClusterHandler,
+		GetCMDTestClusterHandler,
+		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+			cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard {
+				return bhmetapb.Shard{
+					Group:  g,
+					Start:  []byte(fmt.Sprintf("b-%d", offsetInPool)),
+					End:    []byte(fmt.Sprintf("b-%d", offsetInPool+1)),
+					Unique: fmt.Sprintf("b-%d", offsetInPool),
+				}
+			}
+		}))
+	defer c.Stop()
+
+	c.Start()
+
+	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	c.WaitLeadersByCount(t, 3, testWaitTimeout)
+
+	resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+		createTestWriteReq("w1", "b-1", "b1"),
+		createTestWriteReq("w2", "b-2", "b2"))
+	assert.NoError(t, err)
+	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
+	assert.Equal(t, "OK", string(resp["w2"].Responses[0].Value))
+
+	resp, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+		createTestReadReq("r1", "b-1"),
+		createTestReadReq("r2", "b-2"))
+	assert.NoError(t, err)
+	assert.Equal(t, "b1", string(resp["r1"].Responses[0].Value))
+	assert.Equal(t, "b2", string(resp["r2"].Responses[0].Value))
 }

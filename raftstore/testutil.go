@@ -545,7 +545,7 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		}
 
 		ts := newTestShardAware()
-		cfg.Customize.TestShardStateAware = ts
+		cfg.Test.ShardStateAware = ts
 
 		var s *store
 		if c.opts.storeFactory != nil {
