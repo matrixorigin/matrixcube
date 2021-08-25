@@ -26,7 +26,6 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
-	"go.etcd.io/etcd/server/v3/etcdserver"
 )
 
 const (
@@ -120,30 +119,36 @@ func PrepareJoinCluster(cfg *config.Config) {
 	defer client.Close()
 
 	var prophets []string
-	listResp, err := util.ListEtcdMembers(client)
-	if err != nil {
-		util.GetLogger().Fatalf("list embed etcd members failed with %+v",
-			err)
-	}
-
 	existed := false
-	for _, m := range listResp.Members {
-		if len(m.Name) == 0 {
-			util.GetLogger().Fatalf("there is a member that has not joined successfully",
+	for {
+		listResp, err := util.ListEtcdMembers(client)
+		if err != nil {
+			util.GetLogger().Errorf("list embed etcd members failed with %+v, retry later",
 				err)
-		}
-		if m.Name == cfg.Name {
-			existed = true
+			time.Sleep(time.Second)
+			continue
 		}
 
-		for _, u := range m.PeerURLs {
-			prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
-		}
-	}
+		for _, m := range listResp.Members {
+			if len(m.Name) == 0 {
+				util.GetLogger().Fatalf("there is a member that has not joined successfully",
+					err)
+			}
+			if m.Name == cfg.Name {
+				existed = true
+			}
 
-	// - A failed Prophet re-joins the previous cluster.
-	if existed {
-		util.GetLogger().Fatalf("missing data or join a duplicated prophet")
+			for _, u := range m.PeerURLs {
+				prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
+			}
+		}
+
+		// - A failed Prophet re-joins the previous cluster.
+		if existed {
+			util.GetLogger().Fatalf("missing data or join a duplicated prophet")
+		}
+
+		break
 	}
 
 	// var addResp *clientv3.MemberAddResponse
@@ -153,11 +158,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 		for {
 			// First adds member through the API
 			_, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
-			if err != nil && err.Error() != etcdserver.ErrUnhealthy.Error() {
-				util.GetLogger().Fatalf("add member to embed etcd failed with %+v", err)
-			}
-
-			if err != nil && err.Error() == etcdserver.ErrUnhealthy.Error() {
+			if err != nil {
 				util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
 				time.Sleep(time.Millisecond * 500)
 				continue
@@ -167,10 +168,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 		}
 	}
 
-	if !existed {
-		prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
-	}
-
+	prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
 	initialCluster = strings.Join(prophets, ",")
 	cfg.EmbedEtcd.InitialCluster = initialCluster
 	cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
