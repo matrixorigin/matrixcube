@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/etcdserver"
-	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/client/pkg/v3/types"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/etcdserver"
 )
 
 // GetPrefixRangeEnd get prefix range end

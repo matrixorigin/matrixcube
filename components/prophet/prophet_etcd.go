@@ -16,19 +16,20 @@ package prophet
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
-	"go.etcd.io/etcd/clientv3"
-	"go.etcd.io/etcd/embed"
-	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/client/pkg/v3/types"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/server/v3/embed"
 )
 
 var (
 	etcdTimeout = time.Second * 3
+	// listMemberRetryTimes is the retry times of list member.
+	listMemberRetryTimes = 20
 )
 
 func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, *embed.Etcd, error) {
@@ -74,23 +75,20 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, 
 		return nil, nil, err
 	}
 
-	etcdServerID := uint64(etcd.Server.ID())
-	// update advertise peer urls.
-	etcdMembers, err := util.ListEtcdMembers(client)
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, m := range etcdMembers.Members {
-		if etcdServerID == m.ID {
-			etcdPeerURLs := strings.Join(m.PeerURLs, ",")
-			if cfg.EmbedEtcd.AdvertisePeerUrls != etcdPeerURLs {
-				util.GetLogger().Infof("update advertise peer urls %+v to %+v",
-					cfg.EmbedEtcd.AdvertisePeerUrls,
-					etcdPeerURLs)
-				cfg.EmbedEtcd.AdvertisePeerUrls = etcdPeerURLs
+	for i := 0; i < listMemberRetryTimes; i++ {
+		etcdServerID := uint64(etcd.Server.ID())
+		etcdMembers, err := util.ListEtcdMembers(client)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, m := range etcdMembers.Members {
+			if etcdServerID == m.ID && m.Name == cfg.Name {
+				return client, etcd, nil
 			}
 		}
+		time.Sleep(time.Second * 1)
 	}
 
-	return client, etcd, nil
+	util.GetLogger().Fatalf("start etcd server timeout")
+	return nil, nil, nil
 }

@@ -71,6 +71,7 @@ func (p *defaultProphet) stopRaftCluster() {
 }
 
 func (p *defaultProphet) createEventNotifer() {
+	p.stopEventNotifer()
 	p.wn = newWatcherNotifier(p.cluster)
 	p.wn.start()
 }

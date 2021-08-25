@@ -486,7 +486,8 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		if i != 0 {
 			cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
 		}
-		cfg.Prophet.EmbedEtcd.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
+		cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
+		cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
 		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
 		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
 		cfg.Prophet.Schedule.EnableJointConsensus = true
@@ -501,9 +502,11 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		// cannot work normally
 		electionDuration := cfg.Raft.GetElectionTimeoutDuration()
 		testFsyncDuration := getRTTMillisecond(cfg.FS, cfg.DataPath)
-		if !(electionDuration > 10*testFsyncDuration) {
+		if !(electionDuration >= 10*testFsyncDuration) {
 			old := cfg.Raft.TickInterval.Duration
 			cfg.Raft.TickInterval.Duration = 10 * testFsyncDuration
+			cfg.Prophet.EmbedEtcd.TickInterval.Duration = 10 * testFsyncDuration
+			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
 			logger.Warningf("########## adjust Raft.TickInterval from %s to %s, because current fsync on current fs is %s",
 				old,
 				cfg.Raft.TickInterval.Duration,
