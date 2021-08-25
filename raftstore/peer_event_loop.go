@@ -163,6 +163,15 @@ func (pr *peerReplica) handleEvent() bool {
 				}
 			}
 
+			// resp all pending requests in batch and queue
+			for _, c := range pr.pendingReads.reads {
+				for _, req := range c.req.Requests {
+					req.Key = DecodeDataKey(req.Key)
+					respStoreNotMatch(errStoreNotMatch, req, c.cb)
+				}
+			}
+			pr.pendingReads.reset()
+
 			requests := pr.requests.Dispose()
 			for _, r := range requests {
 				req := r.(reqCtx)
