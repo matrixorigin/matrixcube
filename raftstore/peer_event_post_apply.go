@@ -16,40 +16,49 @@ package raftstore
 import (
 	"time"
 
+	"github.com/cockroachdb/errors"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 )
 
-func (pr *peerReplica) handleApplyResult(items []interface{}) {
+func (pr *peerReplica) handleApplyResult(items []interface{}) error {
 	for {
-		size := pr.applyResults.Len()
-		if size == 0 {
+		if size := pr.applyResults.Len(); size == 0 {
 			metric.SetRaftApplyResultQueueMetric(size)
 			break
 		}
 
 		n, err := pr.applyResults.Get(readyBatch, items)
 		if err != nil {
-			return
+			return nil
 		}
 
 		for i := int64(0); i < n; i++ {
 			result := items[i].(asyncApplyResult)
-			pr.doPollApply(result)
+			if err := pr.doPollApply(result); err != nil {
+				return err
+			}
 		}
 
 		if n < readyBatch {
 			break
 		}
 	}
+
+	return nil
 }
 
-func (pr *peerReplica) doPollApply(result asyncApplyResult) {
+func (pr *peerReplica) doPollApply(result asyncApplyResult) error {
 	pr.doPostApply(result)
 	if result.result != nil {
-		pr.doPostApplyResult(result)
+		if err := pr.doPostApplyResult(result); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func (pr *peerReplica) doPostApply(result asyncApplyResult) {
@@ -83,15 +92,19 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 	pr.maybeExecRead()
 }
 
-func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
+func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) error {
 	switch result.result.adminType {
 	case raftcmdpb.AdminCmdType_ChangePeer:
 		pr.doApplyConfChange(result.result.changePeer)
 	case raftcmdpb.AdminCmdType_BatchSplit:
-		pr.doApplySplit(result.result.splitResult)
+		if err := pr.doApplySplit(result.result.splitResult); err != nil {
+			return err
+		}
 	case raftcmdpb.AdminCmdType_CompactLog:
 		pr.doApplyCompactRaftLog(result.result.raftGCResult)
 	}
+
+	return nil
 }
 
 func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
@@ -182,7 +195,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		pr.ps.shard.Peers)
 }
 
-func (pr *peerReplica) doApplySplit(result *splitResult) {
+func (pr *peerReplica) doApplySplit(result *splitResult) error {
 	logger.Infof("shard %d update to %+v by post applt split",
 		pr.ps.shard.ID,
 		result.derived)
@@ -228,9 +241,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		if err != nil {
 			// peer information is already written into db, can't recover.
 			// there is probably a bug.
-			logger.Fatalf("shard %d create new split shard failed with %+v",
-				pr.shardID,
-				err)
+			return errors.Wrapf(err, "shard %d create new split shard failed", pr.shardID)
 		}
 
 		pr.store.updateShardKeyRange(shard)
@@ -267,6 +278,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	logger.Infof("shard %d new shard added, new shards %+v",
 		pr.shardID,
 		result.shards)
+	return nil
 }
 
 func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
@@ -282,9 +294,8 @@ func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
 		pr.shardID,
 		startIndex,
 		endIndex)
-	err := pr.startCompactRaftLogJob(pr.shardID, startIndex, endIndex)
-	if err != nil {
-		logger.Errorf("shard %s add raft gc job failed with %+v",
+	if err := pr.startCompactRaftLogJob(pr.shardID, startIndex, endIndex); err != nil {
+		logger.Errorf("shard %s add raft compaction job failed with %+v",
 			pr.shardID,
 			err)
 	}
