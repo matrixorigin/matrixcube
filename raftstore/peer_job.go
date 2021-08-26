@@ -50,11 +50,11 @@ func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint
 	return err
 }
 
-func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer) error {
+func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer, why string) error {
 	pr := s.getPR(shardID, false)
 	if pr != nil {
 		err := s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
-			s.doDestroy(shardID, false)
+			s.doDestroy(shardID, false, why)
 			return nil
 		}, nil)
 		return err

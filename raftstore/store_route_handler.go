@@ -27,7 +27,7 @@ func (s *store) doDynamicallyCreate(shard bhmetapb.Shard) {
 		return
 	}
 
-	pr, err := createPeerReplica(s, &shard)
+	pr, err := createPeerReplica(s, &shard, "event")
 	if err != nil {
 		return
 	}

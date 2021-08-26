@@ -234,7 +234,7 @@ func (s *store) isStopped() bool {
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		r, err := newRouter(s.pd, s.runner, func(id uint64) {
-			s.doDestroy(id, true)
+			s.doDestroy(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
@@ -487,7 +487,7 @@ func (s *store) startShards() {
 			return true, nil
 		}
 
-		pr, err := createPeerReplica(s, &localState.Shard)
+		pr, err := createPeerReplica(s, &localState.Shard, "bootstrap")
 		if err != nil {
 			return false, err
 		}

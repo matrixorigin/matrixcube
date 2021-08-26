@@ -127,9 +127,9 @@ func TestSyncData(t *testing.T) {
 	c.WaitLeadersByCount(t, 1, testWaitTimeout)
 	assert.Equal(t, uint64(0), c.dataStorages[0].(*mem.Storage).SyncCount)
 
-	cfg := c.stores[0].cfg
-	cfg.Replication.DisableShardSplit = true
-
+	for _, s := range c.stores {
+		s.cfg.Replication.DisableShardSplit = true
+	}
 	changedCount := uint64(0)
 	// check change peer
 	c.StartNode(1)
@@ -159,7 +159,9 @@ func TestSyncData(t *testing.T) {
 	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
 
 	// split
-	cfg.Replication.DisableShardSplit = false
+	for _, s := range c.stores {
+		s.cfg.Replication.DisableShardSplit = false
+	}
 	c.WaitLeadersByCount(t, 2, testWaitTimeout)
 	assert.True(t, c.dataStorages[0].(*mem.Storage).SyncCount > changedCount)
 }

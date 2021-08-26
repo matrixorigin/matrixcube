@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -170,7 +171,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		}
 
 		if remove_self {
-			pr.mustDestroy()
+			pr.mustDestroy("conf change")
 		}
 	}
 
@@ -224,7 +225,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			}
 		}
 
-		newPR, err := createPeerReplica(pr.store, &shard)
+		newPR, err := createPeerReplica(pr.store, &shard, fmt.Sprintf("split by shard %d", pr.shardID))
 		if err != nil {
 			// peer information is already written into db, can't recover.
 			// there is probably a bug.

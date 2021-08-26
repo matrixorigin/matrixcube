@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
@@ -367,6 +368,9 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	keys.PushBack(derived.End)
 	derived.End = keys.MustFront().Value.([]byte)
 
+	sort.Slice(derived.Peers, func(i, j int) bool {
+		return derived.Peers[i].ID < derived.Peers[j].ID
+	})
 	for _, req := range splitReqs.Requests {
 		newShard := bhmetapb.Shard{}
 		newShard.ID = req.NewShardID

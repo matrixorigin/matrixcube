@@ -78,24 +78,27 @@ func (ps *peerStorage) start(peer metapb.Peer) {
 	if err != nil {
 		panicFunc(err)
 	}
-	logger.Infof("shard %d init with raft local state %+v",
+	logger.Infof("shard %d peer %d init with raft local state %+v",
 		ps.shard.ID,
+		peer.ID,
 		ps.raftLocalState)
 
 	err = ps.initRaftApplyState()
 	if err != nil {
 		panicFunc(err)
 	}
-	logger.Infof("shard %d init raft apply state, state=<%+v>",
+	logger.Infof("shard %d peer %d init raft apply state, state=<%+v>",
 		ps.shard.ID,
+		peer.ID,
 		ps.raftApplyState)
 
 	err = ps.initLastTerm()
 	if err != nil {
 		panicFunc(err)
 	}
-	logger.Infof("shard %d init last term, last term=<%d>",
+	logger.Infof("shard %d peer %d init last term, last term=<%d>",
 		ps.shard.ID,
+		peer.ID,
 		ps.lastTerm)
 
 }

@@ -32,7 +32,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
-func (s *store) doDestroy(shardID uint64, tombstone bool) {
+func (s *store) doDestroy(shardID uint64, tombstone bool, why string) {
 	if value, ok := s.delegates.Load(shardID); ok {
 		s.delegates.Delete(shardID)
 		delegate := value.(*applyDelegate)
@@ -44,7 +44,7 @@ func (s *store) doDestroy(shardID uint64, tombstone bool) {
 		if tombstone {
 			pr.ps.shard.State = metapb.ResourceState_Removed
 		}
-		pr.mustDestroy()
+		pr.mustDestroy(why)
 	}
 }
 

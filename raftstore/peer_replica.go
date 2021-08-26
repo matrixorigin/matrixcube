@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -148,7 +149,7 @@ type peerReplica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error) {
+func createPeerReplica(store *store, shard *bhmetapb.Shard, why string) (*peerReplica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
 		return nil, fmt.Errorf("no peer found on store %d in shard %+v",
@@ -156,13 +157,13 @@ func createPeerReplica(store *store, shard *bhmetapb.Shard) (*peerReplica, error
 			shard)
 	}
 
-	return newPeerReplica(store, shard, *peer)
+	return newPeerReplica(store, shard, *peer, why)
 }
 
 // createPeerReplicaWithRaftMessage the peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peer metapb.Peer) (*peerReplica, error) {
+func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peer metapb.Peer, why string) (*peerReplica, error) {
 	shard := &bhmetapb.Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
@@ -173,20 +174,24 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 		Unique:       msg.Unique,
 	}
 
-	return newPeerReplica(store, shard, peer)
+	return newPeerReplica(store, shard, peer, why)
 }
 
-func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*peerReplica, error) {
+func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why string) (*peerReplica, error) {
 	// We will remove tombstone key when apply snapshot
-	logger.Infof("shard %d peer %d begin to create",
+	logger.Infof("shard %d peer %d begin to create at store %d, peers: %+v, because %s",
 		shard.ID,
-		peer.ID)
+		peer.ID,
+		store.Meta().ID,
+		shard.Peers,
+		why)
 
 	if peer.ID == 0 {
 		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
 
 	pr := new(peerReplica)
+	pr.eventWorker = math.MaxUint64
 	pr.store = store
 	pr.peer = peer
 	pr.shardID = shard.ID
@@ -227,6 +232,16 @@ func (pr *peerReplica) start() {
 
 	pr.ps.start(pr.peer)
 
+	c := getRaftConfig(pr.peer.ID, pr.ps.getAppliedIndex(), pr.ps, pr.store.cfg)
+	rn, err := raft.NewRawNode(c)
+	if err != nil {
+		logger.Fatalf("shard %d peer %d create raft node failed with %+v",
+			pr.ps.shard.ID,
+			pr.peer.ID,
+			err)
+	}
+	pr.rn = rn
+
 	pr.applyWorker, pr.eventWorker = pr.store.allocWorker(pr.ps.shard.Group)
 	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
@@ -240,16 +255,6 @@ func (pr *peerReplica) start() {
 	logger.Infof("shard %d peer %d delegate register completed",
 		pr.ps.shard.ID,
 		pr.peer.ID)
-
-	c := getRaftConfig(pr.peer.ID, pr.ps.getAppliedIndex(), pr.ps, pr.store.cfg)
-	rn, err := raft.NewRawNode(c)
-	if err != nil {
-		logger.Fatalf("shard %d peer %d create raft node failed with %+v",
-			pr.ps.shard.ID,
-			pr.peer.ID,
-			err)
-	}
-	pr.rn = rn
 
 	// If this shard has only one peer and I am the one, campaign directly.
 	if len(pr.ps.shard.Peers) == 1 && pr.ps.shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
@@ -381,17 +386,21 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 	return true, nil
 }
 
-func (pr *peerReplica) mustDestroy() {
+func (pr *peerReplica) mustDestroy(why string) {
 	if pr.ps.isApplyingSnapshot() {
 		util.DefaultTimeoutWheel().Schedule(time.Second*30, func(interface{}) {
-			pr.mustDestroy()
+			pr.mustDestroy(why)
 		}, nil)
-		logger.Infof("shard %d is applying snapshot, retry destory later", pr.shardID)
+		logger.Infof("shard %d peer %d  is applying snapshot, retry destory later",
+			pr.shardID,
+			pr.peer.ID)
 		return
 	}
 
-	logger.Infof("shard %d begin to destroy",
-		pr.shardID)
+	logger.Infof("shard %d peer %d begin to destroy, because %s",
+		pr.shardID,
+		pr.peer.ID,
+		why)
 
 	pr.stopEventLoop()
 	pr.store.removeDroppedVoteMsg(pr.shardID)

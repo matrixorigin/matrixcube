@@ -48,7 +48,7 @@ func TestClusterStartAndStop(t *testing.T) {
 
 func TestAdjustRaftTickerInterval(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Raft.TickInterval.Duration = time.Millisecond
 	}))
 	defer c.Stop()
@@ -98,7 +98,7 @@ func TestIssue123(t *testing.T) {
 
 func TestAddShardWithMultiGroups(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
