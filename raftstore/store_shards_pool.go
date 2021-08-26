@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	errNoIdleShard = errors.New("no idle shard")
+	errNoIdleShard   = errors.New("no idle shard")
+	batchCreateCount = 4
 )
 
 // ShardsPool is a shards pool, it will always create shards until the number of available shards reaches the
@@ -49,6 +50,7 @@ func (s *store) CreateResourcePool(pools ...metapb.ResourcePool) (ShardsPool, er
 
 // dynamicShardsPool a dynamic shard pool
 type dynamicShardsPool struct {
+	cfg     *config.Config
 	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard
 	job     metapb.Job
 	ctx     context.Context
@@ -66,7 +68,7 @@ type dynamicShardsPool struct {
 }
 
 func newDynamicShardsPool(cfg *config.Config) *dynamicShardsPool {
-	p := &dynamicShardsPool{pdC: make(chan struct{}, 1)}
+	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg}
 	p.factory = p.shardFactory
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
 		p.factory = cfg.Customize.CustomShardPoolShardFactory
@@ -305,39 +307,57 @@ func (dsp *dynamicShardsPool) triggerCreateLocked() {
 }
 
 func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
-
 	dsp.mu.Lock()
-	defer dsp.mu.Unlock()
-
 	if !dsp.isStartedLocked() {
+		dsp.mu.Unlock()
 		return
 	}
 
-	old := dsp.cloneDataLocked()
+	// we don't modify directly
+	modified := dsp.cloneDataLocked()
 	var creates []metadata.Resource
-	for g, p := range dsp.mu.pools.Pools {
-		if p.Seq == 0 ||
-			(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < 8) {
-			p.Seq++
-			creates = append(creates, NewResourceAdapterWithShard(dsp.factory(g,
-				addPrefix(p.RangePrefix, p.Seq),
-				addPrefix(p.RangePrefix, p.Seq+1),
-				dsp.unique(g, p.Seq),
-				p.Seq)))
+	for {
+		changed := false
+		for g, p := range modified.Pools {
+			if p.Seq == 0 ||
+				(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < batchCreateCount) {
+				p.Seq++
+				creates = append(creates, NewResourceAdapterWithShard(dsp.factory(g,
+					addPrefix(p.RangePrefix, p.Seq),
+					addPrefix(p.RangePrefix, p.Seq+1),
+					dsp.unique(g, p.Seq),
+					p.Seq)))
+				changed = true
+			}
+		}
+
+		if !changed {
+			break
 		}
 	}
+	dsp.mu.Unlock()
 
 	if len(creates) > 0 {
+		if dsp.cfg.Test.ShardPoolCreateWaitC != nil {
+			<-dsp.cfg.Test.ShardPoolCreateWaitC
+		}
 		err := dsp.pd.AsyncAddResources(creates...)
 		if err != nil {
 			logger.Errorf("shards pool create shards failed with %+v", err)
-			dsp.mu.pools = old
 			return
 		}
 
+		// only update seq, all operation to update seq are in the same goroutine.
+		dsp.mu.Lock()
+		defer dsp.mu.Unlock()
+
+		backup := dsp.cloneDataLocked()
+		for g, p := range dsp.mu.pools.Pools {
+			p.Seq = modified.Pools[g].Seq
+		}
 		if err := dsp.saveLocked(store); err != nil {
-			logger.Errorf("save shard pool job data failed with %+v", err)
-			dsp.mu.pools = old
+			logger.Errorf("save shard pool job data failed with %+v, retry later", err)
+			dsp.mu.pools = backup
 		}
 
 		dsp.triggerCreateLocked()

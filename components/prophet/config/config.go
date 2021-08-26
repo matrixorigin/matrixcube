@@ -64,6 +64,7 @@ type Config struct {
 		jobProcessors map[metapb.JobType]JobProcessor
 	} `toml:"-" json:"-"`
 
+	// TODO(fagongzi): the following test-related configurations are moved to a separate struct
 	// Only test can change them.
 	DisableStrictReconfigCheck bool `toml:"-" json:"-"`
 	// DisableResponse skip all client request
