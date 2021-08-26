@@ -46,9 +46,24 @@ func TestClusterStartAndStop(t *testing.T) {
 	c.CheckShardCount(t, 1)
 }
 
+func TestClusterStartConcurrent(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewTestClusterStore(t, DiskTestCluster)
+	defer c.Stop()
+
+	c.StartWithConcurrent(true)
+
+	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.CheckShardCount(t, 1)
+
+	c.Restart()
+	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.CheckShardCount(t, 1)
+}
+
 func TestAdjustRaftTickerInterval(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Raft.TickInterval.Duration = time.Millisecond
 	}))
 	defer c.Stop()
@@ -98,7 +113,7 @@ func TestIssue123(t *testing.T) {
 
 func TestAddShardWithMultiGroups(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
 		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
@@ -160,6 +175,7 @@ func TestSplit(t *testing.T) {
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 3, testWaitTimeout)
+	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), []byte("key3"))
 	c.CheckShardRange(t, 2, []byte("key3"), nil)
@@ -206,6 +222,7 @@ func TestCustomSplit(t *testing.T) {
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 2, testWaitTimeout)
+	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), nil)
 }

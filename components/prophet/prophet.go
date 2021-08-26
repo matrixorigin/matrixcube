@@ -111,7 +111,8 @@ func NewProphet(cfg *config.Config) Prophet {
 		join.PrepareJoinCluster(cfg)
 		etcdClient, etcd, err = startEmbedEtcd(ctx, cfg)
 		if err != nil {
-			util.GetLogger().Fatalf("start embed etcd failed with %+v", err)
+			ecfg, _ := cfg.GenEmbedEtcdConfig()
+			util.GetLogger().Fatalf("%s start embed etcd cfg %+v failed with %+v", cfg.Name, ecfg, err)
 		}
 	} else {
 		etcdClient, err = clientv3.New(clientv3.Config{

@@ -234,7 +234,7 @@ func (s *store) isStopped() bool {
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		r, err := newRouter(s.pd, s.runner, func(id uint64) {
-			s.doDestroy(id, true)
+			s.doDestroy(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
@@ -487,7 +487,7 @@ func (s *store) startShards() {
 			return true, nil
 		}
 
-		pr, err := createPeerReplica(s, &localState.Shard)
+		pr, err := createPeerReplica(s, &localState.Shard, "bootstrap")
 		if err != nil {
 			return false, err
 		}
@@ -500,7 +500,7 @@ func (s *store) startShards() {
 
 		s.updateShardKeyRange(localState.Shard)
 		s.addPR(pr)
-
+		pr.start()
 		return true, nil
 	}, false)
 
@@ -563,15 +563,9 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func (s *store) addPR(pr *peerReplica) {
-	s.replicas.Store(pr.shardID, pr)
-	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
-		pr.shardID,
-		pr.peer.ID,
-		pr.ps.shard.Epoch,
-		pr.ps.shard.Peers,
-		pr.eventWorker,
-		pr.applyWorker)
+func (s *store) addPR(pr *peerReplica) bool {
+	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
+	return !loaded
 }
 
 func (s *store) removePR(pr *peerReplica) {

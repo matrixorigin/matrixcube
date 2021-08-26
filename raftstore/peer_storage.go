@@ -59,40 +59,48 @@ type peerStorage struct {
 	pendingReads *readIndexQueue
 }
 
-func newPeerStorage(store *store, shard bhmetapb.Shard) (*peerStorage, error) {
+func newPeerStorage(store *store, shard bhmetapb.Shard) *peerStorage {
 	s := new(peerStorage)
 	s.store = store
 	s.shard = shard
 	s.appliedIndexTerm = raftInitLogTerm
-
-	err := s.initRaftLocalState()
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("shard %d init with raft local state %+v",
-		shard.ID,
-		s.raftLocalState)
-
-	err = s.initRaftApplyState()
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("shard %d init raft apply state, state=<%+v>",
-		shard.ID,
-		s.raftApplyState)
-
-	err = s.initLastTerm()
-	if err != nil {
-		return nil, err
-	}
-	logger.Infof("shard %d init last term, last term=<%d>",
-		shard.ID,
-		s.lastTerm)
-
 	s.lastReadyIndex = s.getAppliedIndex()
 	s.pendingReads = new(readIndexQueue)
+	return s
+}
 
-	return s, nil
+func (ps *peerStorage) start(peer metapb.Peer) {
+	panicFunc := func(err error) {
+		logger.Fatalf("shard %d peer %d init with raft local state %+v", ps.shard.ID, peer.ID, err)
+	}
+
+	err := ps.initRaftLocalState()
+	if err != nil {
+		panicFunc(err)
+	}
+	logger.Infof("shard %d peer %d init with raft local state %+v",
+		ps.shard.ID,
+		peer.ID,
+		ps.raftLocalState)
+
+	err = ps.initRaftApplyState()
+	if err != nil {
+		panicFunc(err)
+	}
+	logger.Infof("shard %d peer %d init raft apply state, state=<%+v>",
+		ps.shard.ID,
+		peer.ID,
+		ps.raftApplyState)
+
+	err = ps.initLastTerm()
+	if err != nil {
+		panicFunc(err)
+	}
+	logger.Infof("shard %d peer %d init last term, last term=<%d>",
+		ps.shard.ID,
+		peer.ID,
+		ps.lastTerm)
+
 }
 
 func (ps *peerStorage) initRaftLocalState() error {

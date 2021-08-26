@@ -69,7 +69,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.doDestroy(id, true)
+			s.doDestroy(id, true, "shard state check")
 		}
 	}
 }
@@ -152,13 +152,13 @@ func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 
 			if !pr.ps.isInitialized() {
 				needRemove = false
-				pr.mustDestroy()
+				pr.mustDestroy("gc")
 			}
 		}
 	}
 
 	if needRemove {
-		s.startDestroyJob(shardID, msg.To)
+		s.startDestroyJob(shardID, msg.To, "gc")
 	}
 }
 
@@ -296,7 +296,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 
 			stalePeer = p.peer
 			if !p.ps.isInitialized() {
-				p.mustDestroy()
+				p.mustDestroy("tryToCreatePeerReplicate")
 				return false
 			}
 		} else if p.peer.ID > target.ID {
@@ -310,7 +310,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
-		s.startDestroyJob(msg.ShardID, stalePeer)
+		s.startDestroyJob(msg.ShardID, stalePeer, "found stale peer")
 		hasPeer = false
 	}
 
@@ -356,7 +356,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	}
 
 	// now we can create a replicate
-	pr, err := createPeerReplicaWithRaftMessage(s, msg, target)
+	pr, err := createPeerReplicaWithRaftMessage(s, msg, target, "receive raft message")
 	if err != nil {
 		logger.Errorf("shard %d peer replica failed with %+v",
 			msg.ShardID,
@@ -364,14 +364,16 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 		return false
 	}
 
-	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
-	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
-	s.updateShardKeyRange(pr.ps.shard)
+	// Following snapshot may overlap, should insert into keyRanges after snapshot is applied.
+	if s.addPR(pr) {
+		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
+		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
+		s.updateShardKeyRange(pr.ps.shard)
 
-	// following snapshot may overlap, should insert into keyRanges after
-	// snapshot is applied.
-	s.addPR(pr)
-	s.peers.Store(msg.From.ID, msg.From)
-	s.peers.Store(msg.To.ID, msg.To)
+		pr.start()
+		s.peers.Store(msg.From.ID, msg.From)
+		s.peers.Store(msg.To.ID, msg.To)
+	}
+
 	return true
 }
