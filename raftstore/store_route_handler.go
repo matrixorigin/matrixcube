@@ -29,7 +29,11 @@ func (s *store) doDynamicallyCreate(shard bhmetapb.Shard) {
 
 	pr, err := createPeerReplica(s, &shard)
 	if err != nil {
-		s.revokeWorker(pr)
+		return
+	}
+
+	// already created by raft message
+	if !s.addPR(pr) {
 		return
 	}
 
@@ -39,9 +43,10 @@ func (s *store) doDynamicallyCreate(shard bhmetapb.Shard) {
 		time.Sleep(s.cfg.Test.SaveDynamicallyShardInitStateWait)
 	}
 	s.mustSaveShards(shard)
+	pr.start()
+
 	for _, p := range shard.Peers {
 		s.peers.Store(p.ID, p)
 	}
-	s.addPR(pr)
 	s.updateShardKeyRange(shard)
 }

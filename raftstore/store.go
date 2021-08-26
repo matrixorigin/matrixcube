@@ -500,7 +500,7 @@ func (s *store) startShards() {
 
 		s.updateShardKeyRange(localState.Shard)
 		s.addPR(pr)
-
+		pr.start()
 		return true, nil
 	}, false)
 
@@ -563,15 +563,14 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func (s *store) addPR(pr *peerReplica) {
-	s.replicas.Store(pr.shardID, pr)
-	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
-		pr.shardID,
-		pr.peer.ID,
-		pr.ps.shard.Epoch,
-		pr.ps.shard.Peers,
-		pr.eventWorker,
-		pr.applyWorker)
+func (s *store) addPR(pr *peerReplica) bool {
+	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
+	if loaded {
+		return false
+	}
+
+	pr.start()
+	return true
 }
 
 func (s *store) removePR(pr *peerReplica) {

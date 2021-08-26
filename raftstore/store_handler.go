@@ -364,14 +364,16 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 		return false
 	}
 
-	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
-	pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
-	s.updateShardKeyRange(pr.ps.shard)
+	// Following snapshot may overlap, should insert into keyRanges after snapshot is applied.
+	if s.addPR(pr) {
+		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
+		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
+		s.updateShardKeyRange(pr.ps.shard)
 
-	// following snapshot may overlap, should insert into keyRanges after
-	// snapshot is applied.
-	s.addPR(pr)
-	s.peers.Store(msg.From.ID, msg.From)
-	s.peers.Store(msg.To.ID, msg.To)
+		pr.start()
+		s.peers.Store(msg.From.ID, msg.From)
+		s.peers.Store(msg.To.ID, msg.To)
+	}
+
 	return true
 }

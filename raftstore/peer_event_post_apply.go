@@ -238,7 +238,11 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 		newPR.approximateKeys = estimatedKeys
 		newPR.approximateSize = estimatedSize
 		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
-		pr.store.addPR(newPR)
+		if !pr.store.addPR(newPR) {
+			logger.Fatalf("shard %d peer %d, created by split, must add sucessful", newPR.shardID, newPR.peer.ID)
+		}
+
+		newPR.start()
 
 		// If this peer is the leader of the shard before split, it's intuitional for
 		// it to become the leader of new split shard.

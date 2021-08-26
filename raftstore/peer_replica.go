@@ -186,30 +186,23 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
 
-	ps, err := newPeerStorage(store, *shard)
-	if err != nil {
-		return nil, err
-	}
-
 	pr := new(peerReplica)
+	pr.store = store
 	pr.peer = peer
 	pr.shardID = shard.ID
-	pr.ps = ps
+	pr.ps = newPeerStorage(store, *shard)
+	return pr, nil
+}
 
-	for _, g := range store.cfg.Raft.RaftLog.DisableCompactProtect {
-		if shard.Group == g {
+func (pr *peerReplica) start() {
+	for _, g := range pr.store.cfg.Raft.RaftLog.DisableCompactProtect {
+		if pr.ps.shard.Group == g {
 			pr.disableCompactProtect = true
 			break
 		}
 	}
-	pr.batch = newBatch(pr)
 
-	c := getRaftConfig(peer.ID, ps.getAppliedIndex(), ps, store.cfg)
-	rn, err := raft.NewRawNode(c)
-	if err != nil {
-		return nil, err
-	}
-	pr.rn = rn
+	pr.batch = newBatch(pr)
 	pr.readCtx = newReadContext(pr)
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
@@ -221,57 +214,72 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer) (*pee
 	pr.readyCtx = &readyContext{
 		wb: util.NewWriteBatch(),
 	}
-
-	pr.store = store
 	pr.pendingReads = &readIndexQueue{
-		shardID: shard.ID,
+		shardID: pr.ps.shard.ID,
 	}
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
 	pr.items = make([]interface{}, readyBatch)
-	pr.applyWorker, pr.eventWorker = store.allocWorker(shard.Group)
-	pr.registerDelegate()
-
-	logger.Infof("shard %d peer %d delegate register completed",
-		shard.ID,
-		peer.ID)
-
-	// If this shard has only one peer and I am the one, campaign directly.
-	if len(shard.Peers) == 1 && shard.Peers[0].ContainerID == store.meta.meta.ID {
-		logger.Infof("shard %d peer %d try to campaign leader, because only self",
-			pr.shardID,
-			peer.ID)
-
-		err = rn.Campaign()
-		if err != nil {
-			logger.Errorf("shard %d peer %d campaign failed with %+v",
-				pr.shardID,
-				peer.ID,
-				err)
-			return nil, err
-		}
-	} else if shard.State == metapb.ResourceState_WaittingCreate &&
-		shard.Peers[0].ContainerID == pr.store.Meta().ID {
-		logger.Infof("shard %d peer %d try to campaign leader, because first peer of dynamically created",
-			pr.shardID,
-			peer.ID)
-
-		err = rn.Campaign()
-		if err != nil {
-			logger.Errorf("shard %d peer %d campaign failed with %+v",
-				pr.shardID,
-				peer.ID,
-				err)
-			return nil, err
-		}
-	}
 
 	if pr.store.aware != nil {
 		pr.store.aware.Created(pr.ps.shard)
 	}
 
+	pr.ps.start(pr.peer)
+
+	pr.applyWorker, pr.eventWorker = pr.store.allocWorker(pr.ps.shard.Group)
+	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
+		pr.shardID,
+		pr.peer.ID,
+		pr.ps.shard.Epoch,
+		pr.ps.shard.Peers,
+		pr.eventWorker,
+		pr.applyWorker)
+
+	pr.registerDelegate()
+	logger.Infof("shard %d peer %d delegate register completed",
+		pr.ps.shard.ID,
+		pr.peer.ID)
+
+	c := getRaftConfig(pr.peer.ID, pr.ps.getAppliedIndex(), pr.ps, pr.store.cfg)
+	rn, err := raft.NewRawNode(c)
+	if err != nil {
+		logger.Fatalf("shard %d peer %d create raft node failed with %+v",
+			pr.ps.shard.ID,
+			pr.peer.ID,
+			err)
+	}
+	pr.rn = rn
+
+	// If this shard has only one peer and I am the one, campaign directly.
+	if len(pr.ps.shard.Peers) == 1 && pr.ps.shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
+		logger.Infof("shard %d peer %d try to campaign leader, because only self",
+			pr.shardID,
+			pr.peer.ID)
+
+		err := pr.rn.Campaign()
+		if err != nil {
+			logger.Fatalf("shard %d peer %d campaign failed with %+v",
+				pr.shardID,
+				pr.peer.ID,
+				err)
+		}
+	} else if pr.ps.shard.State == metapb.ResourceState_WaittingCreate &&
+		pr.ps.shard.Peers[0].ContainerID == pr.store.Meta().ID {
+		logger.Infof("shard %d peer %d try to campaign leader, because first peer of dynamically created",
+			pr.shardID,
+			pr.peer.ID)
+
+		err := pr.rn.Campaign()
+		if err != nil {
+			logger.Fatalf("shard %d peer %d campaign failed with %+v",
+				pr.shardID,
+				pr.peer.ID,
+				err)
+		}
+	}
+
 	pr.onRaftTick(nil)
-	return pr, nil
 }
 
 func (pr *peerReplica) registerDelegate() {
