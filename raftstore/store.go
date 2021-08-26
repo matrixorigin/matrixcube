@@ -565,12 +565,7 @@ func (s *store) startTimerTasks() {
 
 func (s *store) addPR(pr *peerReplica) bool {
 	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
-	if loaded {
-		return false
-	}
-
-	pr.start()
-	return true
+	return !loaded
 }
 
 func (s *store) removePR(pr *peerReplica) {
