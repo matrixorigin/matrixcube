@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -330,6 +331,10 @@ func (ts *testShardAware) Created(shard bhmetapb.Shard) {
 
 	ts.shards = append(ts.shards, shard)
 	ts.leaders[shard.ID] = false
+
+	sort.Slice(ts.shards, func(i, j int) bool {
+		return ts.shards[i].ID < ts.shards[j].ID
+	})
 
 	if ts.wrapper != nil {
 		ts.wrapper.Created(shard)
