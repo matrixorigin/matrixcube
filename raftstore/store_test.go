@@ -175,6 +175,7 @@ func TestSplit(t *testing.T) {
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 3, testWaitTimeout)
+	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), []byte("key3"))
 	c.CheckShardRange(t, 2, []byte("key3"), nil)
@@ -221,6 +222,7 @@ func TestCustomSplit(t *testing.T) {
 	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCount(t, 2, testWaitTimeout)
+	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(t, 0, nil, []byte("key2"))
 	c.CheckShardRange(t, 1, []byte("key2"), nil)
 }

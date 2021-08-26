@@ -215,19 +215,21 @@ func recreateTestTempDir(fs vfs.FS, tmpDir string) {
 type testShardAware struct {
 	sync.RWMutex
 
-	wrapper aware.ShardStateAware
-	shards  []bhmetapb.Shard
-	leaders map[uint64]bool
-	applied map[uint64]int
+	wrapper      aware.ShardStateAware
+	shards       []bhmetapb.Shard
+	leaders      map[uint64]bool
+	applied      map[uint64]int
+	splitedCount map[uint64]int
 
 	removed map[uint64]bhmetapb.Shard
 }
 
 func newTestShardAware() *testShardAware {
 	return &testShardAware{
-		leaders: make(map[uint64]bool),
-		applied: make(map[uint64]int),
-		removed: make(map[uint64]bhmetapb.Shard),
+		leaders:      make(map[uint64]bool),
+		applied:      make(map[uint64]int),
+		removed:      make(map[uint64]bhmetapb.Shard),
+		splitedCount: make(map[uint64]int),
 	}
 }
 
@@ -259,6 +261,21 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 			assert.FailNowf(t, "", "wait shard count %d timeout", count)
 		default:
 			if ts.shardCount() >= count {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(t, "", "wait shard %d split count %d timeout", id, count)
+		default:
+			if ts.shardSplitedCount(id) >= count {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -305,6 +322,13 @@ func (ts *testShardAware) shardCount() int {
 	return len(ts.shards)
 }
 
+func (ts *testShardAware) shardSplitedCount(id uint64) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	return ts.splitedCount[id]
+}
+
 func (ts *testShardAware) leaderCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
@@ -331,6 +355,7 @@ func (ts *testShardAware) Created(shard bhmetapb.Shard) {
 
 	ts.shards = append(ts.shards, shard)
 	ts.leaders[shard.ID] = false
+	ts.splitedCount[shard.ID] = 0
 
 	sort.Slice(ts.shards, func(i, j int) bool {
 		return ts.shards[i].ID < ts.shards[j].ID
@@ -348,6 +373,7 @@ func (ts *testShardAware) Splited(shard bhmetapb.Shard) {
 	for idx := range ts.shards {
 		if ts.shards[idx].ID == shard.ID {
 			ts.shards[idx] = shard
+			ts.splitedCount[shard.ID]++
 		}
 	}
 
@@ -758,6 +784,13 @@ func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout ti
 func (c *TestRaftCluster) WaitShardByCount(t *testing.T, count int, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(t, count, timeout)
+	}
+}
+
+// WaitShardSplitByCount check whether the count of shard split reaches a specific value until timeout
+func (c *TestRaftCluster) WaitShardSplitByCount(t *testing.T, id uint64, count int, timeout time.Duration) {
+	for idx := range c.stores {
+		c.awares[idx].waitByShardSplitCount(t, id, count, timeout)
 	}
 }
 
