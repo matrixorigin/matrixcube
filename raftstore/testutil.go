@@ -601,6 +601,11 @@ func (c *TestRaftCluster) StopNode(node int) {
 
 // Start start the test raft cluster
 func (c *TestRaftCluster) Start() {
+	c.StartWithConcurrent(false)
+}
+
+// StartWithConcurrent start the test raft cluster, if concurrent set to true, the nodes will concurrent start exclude first
+func (c *TestRaftCluster) StartWithConcurrent(concurrent bool) {
 	var wg sync.WaitGroup
 	for i := range c.stores {
 		wg.Add(1)
@@ -615,7 +620,11 @@ func (c *TestRaftCluster) Start() {
 		}
 
 		if c.opts.recreate {
-			fn(i)
+			if concurrent && i != 0 {
+				go fn(i)
+			} else {
+				fn(i)
+			}
 		} else {
 			go fn(i)
 		}

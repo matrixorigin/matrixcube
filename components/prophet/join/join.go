@@ -118,8 +118,6 @@ func PrepareJoinCluster(cfg *config.Config) {
 	}
 	defer client.Close()
 
-	var prophets []string
-	existed := false
 	for {
 		listResp, err := util.ListEtcdMembers(client)
 		if err != nil {
@@ -134,36 +132,37 @@ func PrepareJoinCluster(cfg *config.Config) {
 				util.GetLogger().Fatalf("there is a member that has not joined successfully",
 					err)
 			}
+			// - A failed Prophet re-joins the previous cluster.
 			if m.Name == cfg.Name {
-				existed = true
+				util.GetLogger().Fatalf("missing data or join a duplicated prophet")
 			}
-
-			for _, u := range m.PeerURLs {
-				prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
-			}
-		}
-
-		// - A failed Prophet re-joins the previous cluster.
-		if existed {
-			util.GetLogger().Fatalf("missing data or join a duplicated prophet")
 		}
 
 		break
 	}
 
-	// var addResp *clientv3.MemberAddResponse
+	var prophets []string
 	// - A new Prophet joins an existing cluster.
 	// - A deleted Prophet joins to previous cluster.
 	{
 		for {
 			// First adds member through the API
-			_, err = util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
+			resp, err := util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
 			if err != nil {
 				util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
 				time.Sleep(time.Millisecond * 500)
 				continue
 			}
 
+			util.GetLogger().Infof("%s added into embed etcd cluster with resp %+v", cfg.Name, resp)
+
+			for _, m := range resp.Members {
+				if m.Name != "" {
+					for _, u := range m.PeerURLs {
+						prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
+					}
+				}
+			}
 			break
 		}
 	}

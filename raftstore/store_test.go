@@ -46,6 +46,21 @@ func TestClusterStartAndStop(t *testing.T) {
 	c.CheckShardCount(t, 1)
 }
 
+func TestClusterStartConcurrent(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewTestClusterStore(t, DiskTestCluster)
+	defer c.Stop()
+
+	c.StartWithConcurrent(true)
+
+	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.CheckShardCount(t, 1)
+
+	c.Restart()
+	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.CheckShardCount(t, 1)
+}
+
 func TestAdjustRaftTickerInterval(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
