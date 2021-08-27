@@ -118,6 +118,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 	}
 	defer client.Close()
 
+OUTER:
 	for {
 		listResp, err := util.ListEtcdMembers(client)
 		if err != nil {
@@ -129,8 +130,10 @@ func PrepareJoinCluster(cfg *config.Config) {
 
 		for _, m := range listResp.Members {
 			if len(m.Name) == 0 {
-				util.GetLogger().Fatalf("there is a member that has not joined successfully",
-					err)
+				// A new member added, but not started
+				util.GetLogger().Warningf("there is a member that has not joined successfully")
+				time.Sleep(time.Second)
+				continue OUTER
 			}
 			// - A failed Prophet re-joins the previous cluster.
 			if m.Name == cfg.Name {
