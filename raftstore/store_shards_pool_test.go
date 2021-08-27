@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/fagongzi/util/protoc"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -51,7 +50,7 @@ func TestShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	// create 2 shards
+	// create 2th shards
 	c.WaitShardByCount(t, 3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
@@ -62,19 +61,19 @@ func TestShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose1"), allocated.Purpose)
-	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
+	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
-	// create 3 shards
+	// create 3th shards
 	c.WaitShardByCount(t, 4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose2"), allocated.Purpose)
-	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, 10*time.Second)
+	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
-	// create 4 shards
-	c.WaitShardByCount(t, 5, testWaitTimeout)
+	// create 4th shards
+	c.WaitLeadersByCount(t, 5, testWaitTimeout)
 
 	store := c.GetProphet().GetStorage()
 	v, err := store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
@@ -85,6 +84,8 @@ func TestShardPool(t *testing.T) {
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
 	assert.Equal(t, 2, len(sp.Pools[0].AllocatedShards))
 
+	// ensure the 4th shard is saved into prophet storage
+	c.WaitShardStateChangedTo(t, c.GetShardByIndex(4).ID, metapb.ResourceState_Running, testWaitTimeout)
 	tra := &testResourcesAware{aware: c.GetProphet().GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
 		v := res.Clone(core.SetWrittenKeys(1))
 		return v
