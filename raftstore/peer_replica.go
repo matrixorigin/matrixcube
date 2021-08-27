@@ -242,7 +242,16 @@ func (pr *peerReplica) start() {
 	}
 	pr.rn = rn
 
-	pr.applyWorker, pr.eventWorker = pr.store.allocWorker(pr.ps.shard.Group)
+	applyWorker, eventWorker := pr.store.allocWorker(pr.ps.shard.Group)
+	pr.applyWorker = applyWorker
+	pr.registerDelegate()
+	logger.Infof("shard %d peer %d delegate register completed",
+		pr.ps.shard.ID,
+		pr.peer.ID)
+
+	// start drive raft
+	pr.eventWorker = eventWorker
+
 	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
 		pr.peer.ID,
@@ -250,11 +259,6 @@ func (pr *peerReplica) start() {
 		pr.ps.shard.Peers,
 		pr.eventWorker,
 		pr.applyWorker)
-
-	pr.registerDelegate()
-	logger.Infof("shard %d peer %d delegate register completed",
-		pr.ps.shard.ID,
-		pr.peer.ID)
 
 	// If this shard has only one peer and I am the one, campaign directly.
 	if len(pr.ps.shard.Peers) == 1 && pr.ps.shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
