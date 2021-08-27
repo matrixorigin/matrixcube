@@ -202,6 +202,9 @@ func (s *store) Stop() {
 		s.pd.Stop()
 		logger.Infof("store %d pd stopped", s.Meta().ID)
 
+		s.trans.Stop()
+		logger.Infof("store %d transport stopped", s.Meta().ID)
+
 		s.foreachPR(func(pr *peerReplica) bool {
 			pr.stopEventLoop()
 			return true
@@ -213,9 +216,6 @@ func (s *store) Stop() {
 
 		s.runner.Stop()
 		logger.Infof("store %d task runner stopped", s.Meta().ID)
-
-		s.trans.Stop()
-		logger.Infof("store %d transport stopped", s.Meta().ID)
 
 		s.rpc.Stop()
 		logger.Infof("store %d rpc stopped", s.Meta().ID)
