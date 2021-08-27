@@ -320,6 +320,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 
 	// arrive here means target peer not found, we will try to create it
 	if msg.Message.Type != raftpb.MsgVote &&
+		msg.Message.Type != raftpb.MsgPreVote &&
 		(msg.Message.Type != raftpb.MsgHeartbeat || msg.Message.Commit != invalidIndex) {
 		logger.Infof("shard %d target peer doesn't exist, peer=<%+v> message=<%s>",
 			msg.ShardID,
