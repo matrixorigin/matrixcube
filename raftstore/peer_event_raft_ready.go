@@ -415,7 +415,7 @@ func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapRe
 		if len(rd.CommittedEntries) > 0 {
 			pr.ps.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
 			err := pr.startApplyCommittedEntriesJob(pr.shardID, pr.getCurrentTerm(), rd.CommittedEntries)
-			if err != nil {
+			if err != nil && !pr.store.isStopped() {
 				logger.Fatalf("shard %d add apply committed entries job failed with %+v",
 					pr.shardID,
 					err)
