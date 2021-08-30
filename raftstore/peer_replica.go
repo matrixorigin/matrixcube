@@ -101,6 +101,7 @@ type peerReplica struct {
 	shardID               uint64
 	eventWorker           uint64
 	applyWorker           string
+	startedC              chan struct{}
 	disableCompactProtect bool
 	peer                  metapb.Peer
 	rn                    *raft.RawNode
@@ -196,6 +197,7 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why s
 	pr.peer = peer
 	pr.shardID = shard.ID
 	pr.ps = newPeerStorage(store, *shard)
+	pr.startedC = make(chan struct{})
 	return pr, nil
 }
 
@@ -251,7 +253,7 @@ func (pr *peerReplica) start() {
 
 	// start drive raft
 	pr.eventWorker = eventWorker
-
+	close(pr.startedC)
 	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
 		pr.peer.ID,
@@ -372,7 +374,12 @@ func (pr *peerReplica) getLeaderPeerID() uint64 {
 	return atomic.LoadUint64(&pr.leaderID)
 }
 
+func (pr *peerReplica) waitStarted() {
+	<-pr.startedC
+}
+
 func (pr *peerReplica) notifyWorker() {
+	pr.waitStarted()
 	pr.store.workReady.notify(pr.ps.shard.Group, pr.eventWorker)
 }
 
