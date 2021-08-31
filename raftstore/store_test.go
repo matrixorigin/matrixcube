@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -26,10 +25,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -316,79 +313,4 @@ func TestIssue180(t *testing.T) {
 	resp, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil, createTestReadReq("r1", "k1"))
 	assert.NoError(t, err)
 	assert.Equal(t, "v1", string(resp["r1"].Responses[0].Value))
-}
-
-func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
-	req := pb.AcquireRequest()
-	req.ID = []byte(id)
-	req.CustemType = 1
-	req.Type = raftcmdpb.CMDType_Write
-	req.Key = []byte(k)
-	req.Cmd = []byte(v)
-	return req
-}
-
-func createTestReadReq(id, k string) *raftcmdpb.Request {
-	req := pb.AcquireRequest()
-	req.ID = []byte(id)
-	req.CustemType = 2
-	req.Type = raftcmdpb.CMDType_Read
-	req.Key = []byte(k)
-	return req
-}
-
-func sendTestReqs(s Store, timeout time.Duration, waiterC chan string, waiters map[string]string, reqs ...*raftcmdpb.Request) (map[string]*raftcmdpb.RaftCMDResponse, error) {
-	if waiters == nil {
-		waiters = make(map[string]string)
-	}
-
-	resps := make(map[string]*raftcmdpb.RaftCMDResponse)
-	c := make(chan *raftcmdpb.RaftCMDResponse, len(reqs))
-	defer close(c)
-
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
-		c <- resp
-	}
-
-	for _, req := range reqs {
-		if v, ok := waiters[string(req.ID)]; ok {
-		OUTER:
-			for {
-				select {
-				case <-time.After(timeout):
-					return nil, errors.New("timeout error")
-				case c := <-waiterC:
-					if c == v {
-						break OUTER
-					}
-				}
-			}
-		}
-		err := s.(*store).onRequestWithCB(req, cb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for {
-		select {
-		case <-time.After(timeout):
-			return nil, errors.New("timeout error")
-		case resp := <-c:
-			if len(resp.Responses) <= 1 {
-				resps[string(resp.Responses[0].ID)] = resp
-			} else {
-				for i := range resp.Responses {
-					r := &raftcmdpb.RaftCMDResponse{}
-					protoc.MustUnmarshal(r, protoc.MustMarshal(resp))
-					r.Responses = resp.Responses[i : i+1]
-					resps[string(r.Responses[0].ID)] = r
-				}
-			}
-
-			if len(resps) == len(reqs) {
-				return resps, nil
-			}
-		}
-	}
 }

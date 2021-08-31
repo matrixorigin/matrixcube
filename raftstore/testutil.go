@@ -14,14 +14,17 @@
 package raftstore
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -488,6 +491,122 @@ type TestRaftCluster interface {
 	GetProphet() prophet.Prophet
 	// Set write key-value pairs to the `DataStorage` of the node
 	Set(node int, key, value []byte)
+}
+
+// TestKVClient is a kv client that uses `TestRaftCluster` as Backend's KV storage engine
+type TestKVClient interface {
+	// Set set key-value to the backend kv storage
+	Set(proxyNode int, key, value string, timeout time.Duration) error
+	// Get returns the value of the specific key from backend kv storage
+	Get(proxyNode int, key string, timeout time.Duration) (string, error)
+}
+
+// NewTestKVClient create a TestKVClient use TestRaftCluster
+func NewTestKVClient(cluster TestRaftCluster) TestKVClient {
+	return &testKVClient{
+		cluster: cluster,
+	}
+}
+
+type testKVClient struct {
+	id      uint64
+	cluster TestRaftCluster
+}
+
+func (kv *testKVClient) Set(proxyNode int, key, value string, timeout time.Duration) error {
+	_, err := sendTestReqs(kv.cluster.GetStore(proxyNode), timeout, nil, nil, createTestWriteReq(kv.nextID(), key, value))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (kv *testKVClient) Get(proxyNode int, key string, timeout time.Duration) (string, error) {
+	id := kv.nextID()
+	resp, err := sendTestReqs(kv.cluster.GetStore(proxyNode), timeout, nil, nil, createTestReadReq(id, key))
+	if err != nil {
+		return "", err
+	}
+	return string(resp["id"].Responses[0].Value), nil
+}
+
+func (kv *testKVClient) nextID() string {
+	return fmt.Sprintf("%d", atomic.AddUint64(&kv.id, 1))
+}
+
+func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
+	req := pb.AcquireRequest()
+	req.ID = []byte(id)
+	req.CustemType = 1
+	req.Type = raftcmdpb.CMDType_Write
+	req.Key = []byte(k)
+	req.Cmd = []byte(v)
+	return req
+}
+
+func createTestReadReq(id, k string) *raftcmdpb.Request {
+	req := pb.AcquireRequest()
+	req.ID = []byte(id)
+	req.CustemType = 2
+	req.Type = raftcmdpb.CMDType_Read
+	req.Key = []byte(k)
+	return req
+}
+
+func sendTestReqs(s Store, timeout time.Duration, waiterC chan string, waiters map[string]string, reqs ...*raftcmdpb.Request) (map[string]*raftcmdpb.RaftCMDResponse, error) {
+	if waiters == nil {
+		waiters = make(map[string]string)
+	}
+
+	resps := make(map[string]*raftcmdpb.RaftCMDResponse)
+	c := make(chan *raftcmdpb.RaftCMDResponse, len(reqs))
+	defer close(c)
+
+	cb := func(resp *raftcmdpb.RaftCMDResponse) {
+		c <- resp
+	}
+
+	for _, req := range reqs {
+		if v, ok := waiters[string(req.ID)]; ok {
+		OUTER:
+			for {
+				select {
+				case <-time.After(timeout):
+					return nil, errors.New("timeout error")
+				case c := <-waiterC:
+					if c == v {
+						break OUTER
+					}
+				}
+			}
+		}
+		err := s.(*store).onRequestWithCB(req, cb)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for {
+		select {
+		case <-time.After(timeout):
+			return nil, errors.New("timeout error")
+		case resp := <-c:
+			if len(resp.Responses) <= 1 {
+				resps[string(resp.Responses[0].ID)] = resp
+			} else {
+				for i := range resp.Responses {
+					r := &raftcmdpb.RaftCMDResponse{}
+					protoc.MustUnmarshal(r, protoc.MustMarshal(resp))
+					r.Responses = resp.Responses[i : i+1]
+					resps[string(r.Responses[0].ID)] = r
+				}
+			}
+
+			if len(resps) == len(reqs) {
+				return resps, nil
+			}
+		}
+	}
 }
 
 type testRaftCluster struct {
