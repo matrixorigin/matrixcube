@@ -36,6 +36,6 @@ func TestIssue133(t *testing.T) {
 
 	c.Start()
 	c.WaitShardByCounts([]int{3, 3, 3}, testWaitTimeout)
-	c.StopNode(0)
+	c.GetStore(0).Stop()
 	time.Sleep(time.Second)
 }

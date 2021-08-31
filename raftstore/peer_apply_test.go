@@ -123,45 +123,45 @@ func TestSyncData(t *testing.T) {
 		}))
 	defer c.Stop()
 
-	c.StartNode(0)
+	c.GetStore(0).Start()
 	c.WaitLeadersByCount(1, testWaitTimeout)
-	assert.Equal(t, uint64(0), c.GetDataStorage(0).(*mem.Storage).SyncCount)
+	assert.Equal(t, uint64(0), c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
 
 	c.EveryStore(func(i int, s Store) {
 		s.GetConfig().Replication.DisableShardSplit = true
 	})
 	changedCount := uint64(0)
 	// check change peer
-	c.StartNode(1)
+	c.GetStore(1).Start()
 	c.WaitShardByCounts([]int{1, 1, 0}, testWaitTimeout)
-	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
+	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 	assert.True(t, changedCount > 0)
 
-	c.StartNode(2)
+	c.GetStore(2).Start()
 	c.WaitShardByCounts([]int{1, 1, 1}, testWaitTimeout)
-	assert.True(t, c.GetDataStorage(0).(*mem.Storage).SyncCount > changedCount)
-	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
+	assert.True(t, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount > changedCount)
+	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
 	// write key1
 	resps, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w1", "key1", "value11"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
-	assert.Equal(t, changedCount, c.GetDataStorage(0).(*mem.Storage).SyncCount)
-	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
+	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
+	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
 	// write key2
 	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w2", "key2", "value22"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
-	assert.Equal(t, changedCount, c.GetDataStorage(0).(*mem.Storage).SyncCount)
-	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
+	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
+	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
 	// split
 	c.EveryStore(func(i int, s Store) {
 		s.GetConfig().Replication.DisableShardSplit = false
 	})
 	c.WaitLeadersByCount(2, testWaitTimeout)
-	assert.True(t, c.GetDataStorage(0).(*mem.Storage).SyncCount > changedCount)
+	assert.True(t, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount > changedCount)
 }

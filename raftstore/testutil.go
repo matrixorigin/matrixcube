@@ -441,10 +441,6 @@ type TestRaftCluster interface {
 	EveryStore(fn func(i int, store Store))
 	// GetStore returns the node store
 	GetStore(node int) Store
-	// GetDataStorage returns the DataStorage of node
-	GetDataStorage(node int) storage.DataStorage
-	// GetMetadataStorage returns the MetadataStorage of node
-	GetMetadataStorage(node int) storage.MetadataStorage
 	// GetWatcher returns event watcher of the node
 	GetWatcher(node int) prophet.Watcher
 	// Start start each node sequentially
@@ -457,10 +453,6 @@ type TestRaftCluster interface {
 	Restart()
 	// RestartWithFunc restart the cluster, `beforeStartFunc` is called before starting
 	RestartWithFunc(beforeStartFunc func())
-	// StartNode start the specified node
-	StartNode(node int)
-	// StopNode stop the specified node
-	StopNode(node int)
 	// GetPRCount returns the number of replicas on the node
 	GetPRCount(node int) int
 	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
@@ -473,15 +465,17 @@ type TestRaftCluster interface {
 	// CheckShardRange check whether the range field of the shard on each node is correct,
 	// `shardIndex` is the order in which the shard is created on the node
 	CheckShardRange(shardIndex int, start, end []byte)
-
 	// WaitRemovedByShardID check whether the specific shard removed from every node until timeout
 	WaitRemovedByShardID(shardID uint64, timeout time.Duration)
-	// WaitLeadersByCount check that the number of leaders of each node reaches at least the specified value
+	// WaitLeadersByCount check that the number of leaders of the cluster reaches at least the specified value
 	// until the timeout
 	WaitLeadersByCount(count int, timeout time.Duration)
-	// WaitShardByCount check that the number of shard of each node reaches at least the specified value
+	// WaitShardByCount check that the number of shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitShardByCount(count int, timeout time.Duration)
+	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
+	// until the timeout
+	WaitShardByCountPerNode(count int, timeout time.Duration)
 	// WaitShardSplitByCount check whether the count of shard split reaches a specific value until timeout
 	WaitShardSplitByCount(id uint64, count int, timeout time.Duration)
 	// WaitShardByCounts check whether the number of shards reaches a specific value until timeout
@@ -674,24 +668,8 @@ func (c *testRaftCluster) GetStore(node int) Store {
 	return c.stores[node]
 }
 
-func (c *testRaftCluster) GetDataStorage(node int) storage.DataStorage {
-	return c.dataStorages[node]
-}
-
-func (c *testRaftCluster) GetMetadataStorage(node int) storage.MetadataStorage {
-	return c.metadataStorages[node]
-}
-
 func (c *testRaftCluster) GetWatcher(node int) prophet.Watcher {
 	return c.stores[node].router.(*defaultRouter).watcher
-}
-
-func (c *testRaftCluster) StartNode(node int) {
-	c.stores[node].Start()
-}
-
-func (c *testRaftCluster) StopNode(node int) {
-	c.stores[node].Stop()
 }
 
 func (c *testRaftCluster) Start() {
@@ -834,6 +812,25 @@ func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 }
 
 func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait shards count %d of cluster timeout", count)
+		default:
+			shards := 0
+			for idx := range c.stores {
+				shards += c.awares[idx].shardCount()
+			}
+			if shards >= count {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitShardByCountPerNode(count int, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(c.t, count, timeout)
 	}

@@ -34,7 +34,7 @@ func TestClusterStartAndStop(t *testing.T) {
 	c, closer := createDiskDataStorageCluster(t)
 	defer closer()
 
-	c.RaftCluster.WaitShardByCount(1, time.Second*10)
+	c.RaftCluster.WaitShardByCountPerNode(1, time.Second*10)
 
 	app := c.Applications[0]
 	resp, err := app.Exec(&testRequest{
@@ -133,7 +133,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 	}, opts...)
 
 	c.Start()
-	c.RaftCluster.WaitShardByCount(1, time.Second*10)
+	c.RaftCluster.WaitShardByCountPerNode(1, time.Second*10)
 	return c, func() {
 		c.Stop()
 		for _, s := range storages {

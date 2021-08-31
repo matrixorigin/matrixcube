@@ -42,7 +42,7 @@ func TestClusterStartAndStop(t *testing.T) {
 
 	c.Start()
 
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.CheckShardCount(1)
 }
 
@@ -63,11 +63,11 @@ func TestClusterStartConcurrent(t *testing.T) {
 
 	c.StartWithConcurrent(true)
 
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.CheckShardCount(1)
 
 	c.Restart()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.CheckShardCount(1)
 }
 
@@ -80,7 +80,7 @@ func TestAdjustRaftTickerInterval(t *testing.T) {
 
 	c.Start()
 
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.CheckShardCount(1)
 
 	c.EveryStore(func(i int, store Store) {
@@ -99,7 +99,7 @@ func TestIssue123(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{
 		RangePrefix: []byte("b"),
@@ -108,7 +108,7 @@ func TestIssue123(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitShardByCount(21, testWaitTimeout)
+	c.WaitShardByCountPerNode(21, testWaitTimeout)
 
 	for i := 0; i < 20; i++ {
 		s, err := p.Alloc(0, []byte(fmt.Sprintf("%d", i)))
@@ -133,11 +133,11 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(2, testWaitTimeout)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
 	assert.NoError(t, err)
-	c.WaitShardByCount(3, testWaitTimeout)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
 }
 
 func TestAppliedRules(t *testing.T) {
@@ -148,7 +148,7 @@ func TestAppliedRules(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	assert.NoError(t, c.GetProphet().GetClient().PutPlacementRule(rpcpb.PlacementRule{
 		GroupID: "g1",
@@ -178,13 +178,13 @@ func TestSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
 	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
 	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(3, testWaitTimeout)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(0, nil, []byte("key2"))
 	c.CheckShardRange(1, []byte("key2"), []byte("key3"))
@@ -225,13 +225,13 @@ func TestCustomSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
 	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
 	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(2, testWaitTimeout)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
 	c.CheckShardRange(0, nil, []byte("key2"))
 	c.CheckShardRange(1, []byte("key2"), nil)
@@ -246,12 +246,12 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
-	c.WaitShardByCount(2, testWaitTimeout)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
 	c.CheckShardCount(2)
 
 	id := c.GetShardByIndex(0, 1).ID

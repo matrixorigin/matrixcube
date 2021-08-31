@@ -51,7 +51,7 @@ func TestShardPool(t *testing.T) {
 	assert.NotNil(t, p)
 
 	// create 2th shards
-	c.WaitShardByCount(3, testWaitTimeout)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
 	assert.NoError(t, err)
@@ -64,7 +64,7 @@ func TestShardPool(t *testing.T) {
 	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
 	// create 3th shards
-	c.WaitShardByCount(4, testWaitTimeout)
+	c.WaitShardByCountPerNode(4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
