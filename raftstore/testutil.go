@@ -434,8 +434,69 @@ func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
 	}
 }
 
-// TestRaftCluster test cluster
-type TestRaftCluster struct {
+// TestRaftCluster is the test cluster is used to test starting N nodes in a process, and to provide
+// the start and stop capabilities of a single node, which is used to test `raftstore` more easily.
+type TestRaftCluster interface {
+	// EveryStore do fn at every store, it can be used to init some store register
+	EveryStore(fn func(i int, store Store))
+	// GetStore returns the node store
+	GetStore(node int) Store
+	// GetDataStorage returns the DataStorage of node
+	GetDataStorage(node int) storage.DataStorage
+	// GetMetadataStorage returns the MetadataStorage of node
+	GetMetadataStorage(node int) storage.MetadataStorage
+	// GetWatcher returns event watcher of the node
+	GetWatcher(node int) prophet.Watcher
+	// Start start each node sequentially
+	Start()
+	// Stop stop each node sequentially
+	Stop()
+	// StartWithConcurrent after starting the first node, other nodes start concurrently
+	StartWithConcurrent(bool)
+	// Restart restart the cluster
+	Restart()
+	// RestartWithFunc restart the cluster, `beforeStartFunc` is called before starting
+	RestartWithFunc(beforeStartFunc func())
+	// StartNode start the specified node
+	StartNode(node int)
+	// StopNode stop the specified node
+	StopNode(node int)
+	// GetPRCount returns the number of replicas on the node
+	GetPRCount(node int) int
+	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
+	// the shard is created on the node
+	GetShardByIndex(node int, shardIndex int) bhmetapb.Shard
+	// GetShardByID returns the shard from the node by shard id
+	GetShardByID(node int, shardID uint64) bhmetapb.Shard
+	// CheckShardCount check whether the number of shards on each node is correct
+	CheckShardCount(countPerNode int)
+	// CheckShardRange check whether the range field of the shard on each node is correct,
+	// `shardIndex` is the order in which the shard is created on the node
+	CheckShardRange(shardIndex int, start, end []byte)
+
+	// WaitRemovedByShardID check whether the specific shard removed from every node until timeout
+	WaitRemovedByShardID(shardID uint64, timeout time.Duration)
+	// WaitLeadersByCount check that the number of leaders of each node reaches at least the specified value
+	// until the timeout
+	WaitLeadersByCount(count int, timeout time.Duration)
+	// WaitShardByCount check that the number of shard of each node reaches at least the specified value
+	// until the timeout
+	WaitShardByCount(count int, timeout time.Duration)
+	// WaitShardSplitByCount check whether the count of shard split reaches a specific value until timeout
+	WaitShardSplitByCount(id uint64, count int, timeout time.Duration)
+	// WaitShardByCounts check whether the number of shards reaches a specific value until timeout
+	WaitShardByCounts(counts []int, timeout time.Duration)
+	// WaitShardStateChangedTo check whether the state of shard changes to the specific value until timeout
+	WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration)
+	// GetShardLeaderStore return the leader node of the shard
+	GetShardLeaderStore(shardID uint64) Store
+	// GetProphet returns the prophet instance
+	GetProphet() prophet.Prophet
+	// Set write key-value pairs to the `DataStorage` of the node
+	Set(node int, key, value []byte)
+}
+
+type testRaftCluster struct {
 	sync.RWMutex
 
 	// init fields
@@ -451,20 +512,20 @@ type TestRaftCluster struct {
 }
 
 // NewSingleTestClusterStore create test cluster with 1 node
-func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
+func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
 	return NewTestClusterStore(t, append(opts, WithTestClusterNodeCount(1), WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Prophet.Replication.MaxReplicas = 1
 	}))...)
 }
 
 // NewTestClusterStore create test cluster using options
-func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) *TestRaftCluster {
-	c := &TestRaftCluster{t: t, initOpts: opts}
+func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
+	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(opts...)
 	return c
 }
 
-func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
+func (c *testRaftCluster) reset(opts ...TestClusterOption) {
 	c.opts = newTestClusterOptions()
 	c.stores = nil
 	c.awares = nil
@@ -512,16 +573,21 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 		// TODO: duplicated field
 		cfg.Prophet.FS = cfg.FS
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
-		cfg.Prophet.StorageNode = true
 		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
-		if i != 0 {
-			cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
-		}
-		cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
-		cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
-		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
-		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
 		cfg.Prophet.Schedule.EnableJointConsensus = true
+		if i < 3 {
+			cfg.Prophet.StorageNode = true
+			if i != 0 {
+				cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
+			}
+			cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
+			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
+			cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
+			cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
+		} else {
+			cfg.Prophet.StorageNode = false
+			cfg.Prophet.ExternalEtcd = []string{"http://127.0.0.1:40000", "http://127.0.0.1:40001", "http://127.0.0.1:40002"}
+		}
 
 		for _, fn := range c.opts.adjustConfigFuncs {
 			fn(i, cfg)
@@ -598,53 +664,61 @@ func (c *TestRaftCluster) reset(opts ...TestClusterOption) {
 	}
 }
 
-// EveryStore do every store, it can be used to init some store register
-func (c *TestRaftCluster) EveryStore(fn func(i int, store Store)) {
+func (c *testRaftCluster) EveryStore(fn func(i int, store Store)) {
 	for idx, store := range c.stores {
 		fn(idx, store)
 	}
 }
 
-// GetStore returns the node store
-func (c *TestRaftCluster) GetStore(node int) Store {
+func (c *testRaftCluster) GetStore(node int) Store {
 	return c.stores[node]
 }
 
-// GetWatcher returns the node store router watcher
-func (c *TestRaftCluster) GetWatcher(node int) prophet.Watcher {
+func (c *testRaftCluster) GetDataStorage(node int) storage.DataStorage {
+	return c.dataStorages[node]
+}
+
+func (c *testRaftCluster) GetMetadataStorage(node int) storage.MetadataStorage {
+	return c.metadataStorages[node]
+}
+
+func (c *testRaftCluster) GetWatcher(node int) prophet.Watcher {
 	return c.stores[node].router.(*defaultRouter).watcher
 }
 
-// StartNode start node
-func (c *TestRaftCluster) StartNode(node int) {
+func (c *testRaftCluster) StartNode(node int) {
 	c.stores[node].Start()
 }
 
-// StopNode start node
-func (c *TestRaftCluster) StopNode(node int) {
+func (c *testRaftCluster) StopNode(node int) {
 	c.stores[node].Stop()
 }
 
-// Start start the test raft cluster
-func (c *TestRaftCluster) Start() {
+func (c *testRaftCluster) Start() {
 	c.StartWithConcurrent(false)
 }
 
-// StartWithConcurrent start the test raft cluster, if concurrent set to true, the nodes will concurrent start exclude first
-func (c *TestRaftCluster) StartWithConcurrent(concurrent bool) {
+func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
+	var notProphetNodes []int
 	var wg sync.WaitGroup
-	for i := range c.stores {
-		wg.Add(1)
-		fn := func(i int) {
-			defer wg.Done()
+	fn := func(i int) {
+		defer wg.Done()
 
-			if c.opts.nodeStartFunc != nil {
-				c.opts.nodeStartFunc(i, c.stores[i])
-			} else {
-				c.stores[i].Start()
-			}
+		s := c.stores[i]
+		if c.opts.nodeStartFunc != nil {
+			c.opts.nodeStartFunc(i, s)
+		} else {
+			s.Start()
+		}
+	}
+
+	for i := range c.stores {
+		if i > 2 {
+			notProphetNodes = append(notProphetNodes, i)
+			continue
 		}
 
+		wg.Add(1)
 		if c.opts.recreate {
 			if concurrent && i != 0 {
 				go fn(i)
@@ -655,17 +729,23 @@ func (c *TestRaftCluster) StartWithConcurrent(concurrent bool) {
 			go fn(i)
 		}
 	}
-
 	wg.Wait()
+
+	if len(notProphetNodes) > 0 {
+		for _, idx := range notProphetNodes {
+			wg.Add(1)
+			go fn(idx)
+		}
+
+		wg.Wait()
+	}
 }
 
-// Restart restart the test cluster
-func (c *TestRaftCluster) Restart() {
+func (c *testRaftCluster) Restart() {
 	c.RestartWithFunc(nil)
 }
 
-// RestartWithFunc restart the test cluster
-func (c *TestRaftCluster) RestartWithFunc(beforeStartFunc func()) {
+func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 	c.Stop()
 	opts := append(c.initOpts, WithTestClusterRecreate(false))
 	c.reset(opts...)
@@ -675,8 +755,7 @@ func (c *TestRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 	c.Start()
 }
 
-// Stop stop the test cluster
-func (c *TestRaftCluster) Stop() {
+func (c *testRaftCluster) Stop() {
 	for _, s := range c.stores {
 		s.Stop()
 	}
@@ -698,75 +777,49 @@ func (c *TestRaftCluster) Stop() {
 	}
 }
 
-// GetPRCount returns peer replica count of node
-func (c *TestRaftCluster) GetPRCount(nodeIndex int) int {
+func (c *testRaftCluster) GetPRCount(node int) int {
 	cnt := 0
-	c.stores[nodeIndex].replicas.Range(func(k, v interface{}) bool {
+	c.stores[node].replicas.Range(func(k, v interface{}) bool {
 		cnt++
 		return true
 	})
 	return cnt
 }
 
-func (c *TestRaftCluster) set(key, value []byte) {
-	shard := c.GetShardByIndex(0)
-	for idx, s := range c.stores {
-		c.dataStorages[idx].(storage.KVStorage).Set(key, value)
-		pr := s.getPR(shard.ID, false)
-		pr.sizeDiffHint += uint64(len(key) + len(value))
-	}
+func (c *testRaftCluster) GetShardByIndex(node int, shardIndex int) bhmetapb.Shard {
+	return c.awares[node].getShardByIndex(shardIndex)
 }
 
-// GetShardByIndex returns the shard by index
-func (c *TestRaftCluster) GetShardByIndex(index int) bhmetapb.Shard {
-	return c.awares[0].getShardByIndex(index)
+func (c *testRaftCluster) GetShardByID(node int, shardID uint64) bhmetapb.Shard {
+	return c.awares[node].getShardByID(shardID)
 }
 
-// GetShardByID returns the shard by id
-func (c *TestRaftCluster) GetShardByID(id uint64) bhmetapb.Shard {
-	return c.awares[0].getShardByID(id)
-}
-
-// CheckShardCount check shard count
-func (c *TestRaftCluster) CheckShardCount(t *testing.T, count int) {
+func (c *testRaftCluster) CheckShardCount(countPerNode int) {
 	for idx := range c.stores {
-		assert.Equal(t, count, c.GetPRCount(idx))
+		assert.Equal(c.t, countPerNode, c.GetPRCount(idx))
 	}
 }
 
-// CheckShardRange check shard range
-func (c *TestRaftCluster) CheckShardRange(t *testing.T, index int, start, end []byte) {
+func (c *testRaftCluster) CheckShardRange(shardIndex int, start, end []byte) {
 	for idx := range c.stores {
-		shard := c.awares[idx].getShardByIndex(index)
-		assert.Equal(t, start, shard.Start)
-		assert.Equal(t, end, shard.End)
+		shard := c.awares[idx].getShardByIndex(shardIndex)
+		assert.Equal(c.t, start, shard.Start)
+		assert.Equal(c.t, end, shard.End)
 	}
 }
 
-// WaitRemovedByShardID check whether the specific shard removed until timeout
-func (c *TestRaftCluster) WaitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {
+func (c *testRaftCluster) WaitRemovedByShardID(shardID uint64, timeout time.Duration) {
 	for idx := range c.stores {
-		c.awares[idx].waitRemovedByShardID(t, id, timeout)
+		c.awares[idx].waitRemovedByShardID(c.t, shardID, timeout)
 	}
 }
 
-// GetShardLeaderStore returns the shard leader store
-func (c *TestRaftCluster) GetShardLeaderStore(id uint64) Store {
-	for idx, s := range c.stores {
-		if c.awares[idx].isLeader(id) {
-			return s
-		}
-	}
-	return nil
-}
-
-// WaitLeadersByCount check whether the number of shards leaders reaches a specific value until timeout
-func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout time.Duration) {
+func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait leader count %d timeout", count)
+			assert.FailNowf(c.t, "", "wait leader count %d timeout", count)
 		default:
 			leaders := 0
 			for idx := range c.stores {
@@ -780,37 +833,33 @@ func (c *TestRaftCluster) WaitLeadersByCount(t *testing.T, count int, timeout ti
 	}
 }
 
-// WaitShardByCount check whether the number of shards reaches a specific value until timeout
-func (c *TestRaftCluster) WaitShardByCount(t *testing.T, count int, timeout time.Duration) {
+func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 	for idx := range c.stores {
-		c.awares[idx].waitByShardCount(t, count, timeout)
+		c.awares[idx].waitByShardCount(c.t, count, timeout)
 	}
 }
 
-// WaitShardSplitByCount check whether the count of shard split reaches a specific value until timeout
-func (c *TestRaftCluster) WaitShardSplitByCount(t *testing.T, id uint64, count int, timeout time.Duration) {
+func (c *testRaftCluster) WaitShardSplitByCount(id uint64, count int, timeout time.Duration) {
 	for idx := range c.stores {
-		c.awares[idx].waitByShardSplitCount(t, id, count, timeout)
+		c.awares[idx].waitByShardSplitCount(c.t, id, count, timeout)
 	}
 }
 
-// WaitShardByCounts check whether the number of shards reaches a specific value until timeout
-func (c *TestRaftCluster) WaitShardByCounts(t *testing.T, counts [3]int, timeout time.Duration) {
+func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration) {
 	for idx := range c.stores {
-		c.awares[idx].waitByShardCount(t, counts[idx], timeout)
+		c.awares[idx].waitByShardCount(c.t, counts[idx], timeout)
 	}
 }
 
-// WaitShardStateChangedTo check whether the state of shard changes to the specific value until timeout
-func (c *TestRaftCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to metapb.ResourceState, timeout time.Duration) {
+func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shard state changed to %+v timeout", to)
+			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
-			res, err := c.GetProphet().GetStorage().GetResource(id)
-			assert.NoError(t, err)
+			res, err := c.GetProphet().GetStorage().GetResource(shardID)
+			assert.NoError(c.t, err)
 			if res != nil && res.State() == to {
 				return
 			}
@@ -819,9 +868,26 @@ func (c *TestRaftCluster) WaitShardStateChangedTo(t *testing.T, id uint64, to me
 	}
 }
 
-// GetProphet returns prophet
-func (c *TestRaftCluster) GetProphet() prophet.Prophet {
+func (c *testRaftCluster) GetShardLeaderStore(shardID uint64) Store {
+	for idx, s := range c.stores {
+		if c.awares[idx].isLeader(shardID) {
+			return s
+		}
+	}
+	return nil
+}
+
+func (c *testRaftCluster) GetProphet() prophet.Prophet {
 	return c.stores[0].pd
+}
+
+func (c *testRaftCluster) Set(node int, key, value []byte) {
+	shard := c.GetShardByIndex(node, 0)
+	for idx, s := range c.stores {
+		c.dataStorages[idx].(storage.KVStorage).Set(key, value)
+		pr := s.getPR(shard.ID, false)
+		pr.sizeDiffHint += uint64(len(key) + len(value))
+	}
 }
 
 var rttMillisecond uint64

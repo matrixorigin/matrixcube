@@ -46,10 +46,10 @@ func TestIssue97(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
 
 	// step1 write to shard2 => split to 2 shards [nil, key2), [key2, nil)
-	resps, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w1", "key1", "value11"),
 		createTestWriteReq("w2", "key2", "value22"))
 	assert.NoError(t, err)
@@ -57,51 +57,51 @@ func TestIssue97(t *testing.T) {
 	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
 	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
 
-	c.WaitLeadersByCount(t, 2, testWaitTimeout)
-	assert.Empty(t, c.GetShardByIndex(0).Start)
-	assert.Equal(t, "key2", string(c.GetShardByIndex(0).End))
-	assert.Equal(t, "key2", string(c.GetShardByIndex(1).Start))
-	assert.Empty(t, c.GetShardByIndex(1).End)
+	c.WaitLeadersByCount(2, testWaitTimeout)
+	assert.Empty(t, c.GetShardByIndex(0, 0).Start)
+	assert.Equal(t, "key2", string(c.GetShardByIndex(0, 0).End))
+	assert.Equal(t, "key2", string(c.GetShardByIndex(0, 1).Start))
+	assert.Empty(t, c.GetShardByIndex(0, 1).End)
 
 	// step2 write to shard2 => split to 3 shards [nil, key2), [key2, key3), [key3, nil)
-	resps, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w3", "key3", "value33"))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(resps))
 	assert.Equal(t, "OK", string(resps["w3"].Responses[0].Value))
 
-	c.WaitLeadersByCount(t, 3, testWaitTimeout)
-	assert.Empty(t, c.GetShardByIndex(0).Start)
-	assert.Equal(t, "key2", string(c.GetShardByIndex(0).End))
-	assert.Equal(t, "key2", string(c.GetShardByIndex(1).Start))
-	assert.Equal(t, "key3", string(c.GetShardByIndex(1).End))
-	assert.Equal(t, "key3", string(c.GetShardByIndex(2).Start))
-	assert.Empty(t, c.GetShardByIndex(2).End)
+	c.WaitLeadersByCount(3, testWaitTimeout)
+	assert.Empty(t, c.GetShardByIndex(0, 0).Start)
+	assert.Equal(t, "key2", string(c.GetShardByIndex(0, 0).End))
+	assert.Equal(t, "key2", string(c.GetShardByIndex(0, 1).Start))
+	assert.Equal(t, "key3", string(c.GetShardByIndex(0, 1).End))
+	assert.Equal(t, "key3", string(c.GetShardByIndex(0, 2).Start))
+	assert.Empty(t, c.GetShardByIndex(0, 2).End)
 
 	// step3 write to shard1, rewrite shard2's state
-	resps, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w4", "a", "1"))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(resps))
 	assert.Equal(t, "OK", string(resps["w4"].Responses[0].Value))
 
 	// step4 write data to shard2 and only change shard2's raft local state
-	c.stores[0].cfg.Test.Shards[c.GetShardByID(5).ID] = &config.TestShardConfig{
+	c.GetStore(0).GetConfig().Test.Shards[c.GetShardByID(0, 5).ID] = &config.TestShardConfig{
 		SkipSaveRaftApplyState: true,
 	}
-	v, _ := c.stores[0].delegates.Load(c.GetShardByID(5).ID)
+	v, _ := c.GetStore(0).(*store).delegates.Load(c.GetShardByID(0, 5).ID)
 	d := v.(*applyDelegate)
 	d.ctx.raftWB.Reset()
-	resps, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w5", "key2", "1"))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(resps))
 	assert.Equal(t, "OK", string(resps["w5"].Responses[0].Value))
 
 	c.Restart()
-	c.WaitLeadersByCount(t, 3, time.Second*5)
+	c.WaitLeadersByCount(3, time.Second*5)
 
-	_, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	_, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestReadReq("w5", "key2"))
 	assert.NoError(t, err)
 }
@@ -124,44 +124,44 @@ func TestSyncData(t *testing.T) {
 	defer c.Stop()
 
 	c.StartNode(0)
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
-	assert.Equal(t, uint64(0), c.dataStorages[0].(*mem.Storage).SyncCount)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	assert.Equal(t, uint64(0), c.GetDataStorage(0).(*mem.Storage).SyncCount)
 
-	for _, s := range c.stores {
-		s.cfg.Replication.DisableShardSplit = true
-	}
+	c.EveryStore(func(i int, s Store) {
+		s.GetConfig().Replication.DisableShardSplit = true
+	})
 	changedCount := uint64(0)
 	// check change peer
 	c.StartNode(1)
-	c.WaitShardByCounts(t, [3]int{1, 1, 0}, testWaitTimeout)
-	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
+	c.WaitShardByCounts([]int{1, 1, 0}, testWaitTimeout)
+	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
 	assert.True(t, changedCount > 0)
 
 	c.StartNode(2)
-	c.WaitShardByCounts(t, [3]int{1, 1, 1}, testWaitTimeout)
-	assert.True(t, c.dataStorages[0].(*mem.Storage).SyncCount > changedCount)
-	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
+	c.WaitShardByCounts([]int{1, 1, 1}, testWaitTimeout)
+	assert.True(t, c.GetDataStorage(0).(*mem.Storage).SyncCount > changedCount)
+	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
 
 	// write key1
-	resps, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w1", "key1", "value11"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
-	assert.Equal(t, changedCount, c.dataStorages[0].(*mem.Storage).SyncCount)
-	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
+	assert.Equal(t, changedCount, c.GetDataStorage(0).(*mem.Storage).SyncCount)
+	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
 
 	// write key2
-	resps, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
+	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
 		createTestWriteReq("w2", "key2", "value22"))
 	assert.NoError(t, err)
 	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
-	assert.Equal(t, changedCount, c.dataStorages[0].(*mem.Storage).SyncCount)
-	changedCount = c.dataStorages[0].(*mem.Storage).SyncCount
+	assert.Equal(t, changedCount, c.GetDataStorage(0).(*mem.Storage).SyncCount)
+	changedCount = c.GetDataStorage(0).(*mem.Storage).SyncCount
 
 	// split
-	for _, s := range c.stores {
-		s.cfg.Replication.DisableShardSplit = false
-	}
-	c.WaitLeadersByCount(t, 2, testWaitTimeout)
-	assert.True(t, c.dataStorages[0].(*mem.Storage).SyncCount > changedCount)
+	c.EveryStore(func(i int, s Store) {
+		s.GetConfig().Replication.DisableShardSplit = false
+	})
+	c.WaitLeadersByCount(2, testWaitTimeout)
+	assert.True(t, c.GetDataStorage(0).(*mem.Storage).SyncCount > changedCount)
 }

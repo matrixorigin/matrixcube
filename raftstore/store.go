@@ -55,6 +55,8 @@ type Store interface {
 	Start()
 	// Stop the raft store
 	Stop()
+	// GetConfig returns the config of the store
+	GetConfig() *config.Config
 	// Meta returns store meta
 	Meta() bhmetapb.Store
 	// GetRouter returns a router
@@ -88,6 +90,8 @@ type Store interface {
 	// and try to maintain the number of shards in the pool not less than the `capacity`
 	// parameter. This is an idempotent operation.
 	CreateResourcePool(...metapb.ResourcePool) (ShardsPool, error)
+	// GetResourcePool returns `ShardsPool`, nil if `CreateResourcePool` not completed
+	GetResourcePool() ShardsPool
 }
 
 const (
@@ -164,6 +168,10 @@ func NewStore(cfg *config.Config) Store {
 	s.rpc = newRPC(s)
 	s.initWorkers()
 	return s
+}
+
+func (s *store) GetConfig() *config.Config {
+	return s.cfg
 }
 
 func (s *store) Start() {

@@ -42,8 +42,8 @@ func TestIssue90(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
-	id := c.GetShardByIndex(0).ID
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	id := c.GetShardByIndex(0, 0).ID
 	s := c.GetShardLeaderStore(id)
 	assert.NotNil(t, s)
 
