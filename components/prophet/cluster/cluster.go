@@ -538,16 +538,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 
 	c.Lock()
-	if isNew {
-		if c.core.IsWaittingCreateResource(res.Meta.ID()) {
-			waittingRes := c.core.CompleteCreateResource(res.Meta.ID())
-			res.Meta.SetState(metapb.ResourceState_Running)
-			res.Meta.SetData(waittingRes.Data())
-
-			if c.resourceStateChangedHandler != nil {
-				c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_WaittingCreate,
-					metapb.ResourceState_Running)
-			}
+	if isNew && c.core.IsWaittingCreateResource(res.Meta.ID()) {
+		if c.resourceStateChangedHandler != nil {
+			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_WaittingCreate,
+				metapb.ResourceState_Running)
 		}
 	}
 
@@ -560,6 +554,8 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			c.Unlock()
 			return err
 		}
+
+		res.Meta.SetState(metapb.ResourceState_Running)
 		overlaps := c.core.PutResource(res)
 		if c.storage != nil {
 			for _, item := range overlaps {
