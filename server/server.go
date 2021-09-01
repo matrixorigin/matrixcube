@@ -27,7 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/matrixorigin/matrixcube/proxy"
+	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
@@ -39,9 +39,9 @@ var (
 type Application struct {
 	cfg         Cfg
 	server      goetty.NetApplication
-	shardsProxy proxy.ShardsProxy
+	shardsProxy raftstore.ShardsProxy
 	libaryCB    sync.Map // id -> application cb
-	dispatcher  func(req *raftcmdpb.Request, cmd interface{}, proxy proxy.ShardsProxy) error
+	dispatcher  func(req *raftcmdpb.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
 }
 
 // NewApplication returns a tcp application server
@@ -50,7 +50,7 @@ func NewApplication(cfg Cfg) *Application {
 }
 
 // NewApplication returns a tcp application server
-func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Request, cmd interface{}, proxy proxy.ShardsProxy) error) *Application {
+func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Request, cmd interface{}, proxy raftstore.ShardsProxy) error) *Application {
 	s := &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
@@ -74,7 +74,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 // Start start the application server
 func (s *Application) Start() error {
 	s.cfg.Store.Start()
-	sp, err := proxy.NewShardsProxyWithStore(s.cfg.Store, s.done, s.doneError)
+	sp, err := raftstore.NewShardsProxyWithStore(s.cfg.Store, s.done, s.doneError)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (s *Application) Stop() {
 }
 
 // ShardProxy returns the shard proxy
-func (s *Application) ShardProxy() proxy.ShardsProxy {
+func (s *Application) ShardProxy() raftstore.ShardsProxy {
 	return s.shardsProxy
 }
 
@@ -207,7 +207,7 @@ func (s *Application) execTimeout(arg interface{}) {
 	id := hack.SliceToString(arg.([]byte))
 	if value, ok := s.libaryCB.Load(id); ok {
 		s.libaryCB.Delete(id)
-		value.(asyncCtx).resp(nil, proxy.ErrTimeout, false)
+		value.(asyncCtx).resp(nil, raftstore.ErrTimeout, false)
 	}
 }
 

@@ -62,7 +62,6 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
-	pd          prophet.Prophet
 	watcher     prophet.Watcher
 	runner      *task.Runner
 	eventC      chan rpcpb.EventNotify
@@ -82,14 +81,8 @@ type defaultRouter struct {
 	createHandleFunc  func(shard bhmetapb.Shard)
 }
 
-func newRouter(pd prophet.Prophet, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard bhmetapb.Shard)) (Router, error) {
-	watcher, err := pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
-	if err != nil {
-		return nil, err
-	}
-
+func newRouter(watcher prophet.Watcher, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard bhmetapb.Shard)) (Router, error) {
 	return &defaultRouter{
-		pd:                pd,
 		runner:            runner,
 		watcher:           watcher,
 		eventC:            watcher.GetNotify(),

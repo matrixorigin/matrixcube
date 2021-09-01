@@ -25,6 +25,7 @@ import (
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
+	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -496,38 +497,127 @@ type TestRaftCluster interface {
 // TestKVClient is a kv client that uses `TestRaftCluster` as Backend's KV storage engine
 type TestKVClient interface {
 	// Set set key-value to the backend kv storage
-	Set(proxyNode int, key, value string, timeout time.Duration) error
+	Set(key, value string, timeout time.Duration) error
 	// Get returns the value of the specific key from backend kv storage
-	Get(proxyNode int, key string, timeout time.Duration) (string, error)
+	Get(key string, timeout time.Duration) (string, error)
+	// Close close the test client
+	Close()
 }
 
-// NewTestKVClient create a TestKVClient use TestRaftCluster
-func NewTestKVClient(cluster TestRaftCluster) TestKVClient {
-	return &testKVClient{
-		cluster: cluster,
+func newTestKVClient(t *testing.T, watcher prophet.Watcher) TestKVClient {
+	kv := &testKVClient{}
+	runner := task.NewRunner()
+
+	r, err := newRouter(watcher, task.NewRunner(), nil, nil)
+	if err != nil {
+		assert.FailNowf(t, "", "create TestKVClient failed with %+v", err)
 	}
+
+	kv.proxy = NewShardsProxy(r, kv.done, kv.errorDone)
+	kv.runner = runner
+	return kv
 }
 
 type testKVClient struct {
+	sync.RWMutex
+
 	id      uint64
-	cluster TestRaftCluster
+	runner  *task.Runner
+	proxy   ShardsProxy
+	doneCtx map[string]chan string
+	errCtx  map[string]chan error
 }
 
-func (kv *testKVClient) Set(proxyNode int, key, value string, timeout time.Duration) error {
-	_, err := sendTestReqs(kv.cluster.GetStore(proxyNode), timeout, nil, nil, createTestWriteReq(kv.nextID(), key, value))
+func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
+	doneC := make(chan string, 1)
+	defer close(doneC)
+
+	errorC := make(chan error, 1)
+	defer close(errorC)
+
+	id := kv.nextID()
+	kv.addContext(id, doneC, errorC)
+	defer kv.clearContext(id)
+
+	req := createTestWriteReq(kv.nextID(), key, value)
+	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	select {
+	case <-doneC:
+		return nil
+	case err := <-errorC:
+		return err
+	case <-time.After(timeout):
+		return ErrTimeout
+	}
 }
 
-func (kv *testKVClient) Get(proxyNode int, key string, timeout time.Duration) (string, error) {
+func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
+	doneC := make(chan string, 1)
+	defer close(doneC)
+
+	errorC := make(chan error, 1)
+	defer close(errorC)
+
 	id := kv.nextID()
-	resp, err := sendTestReqs(kv.cluster.GetStore(proxyNode), timeout, nil, nil, createTestReadReq(id, key))
+	kv.addContext(id, doneC, errorC)
+	defer kv.clearContext(id)
+
+	req := createTestReadReq(kv.nextID(), key)
+	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return "", err
 	}
-	return string(resp["id"].Responses[0].Value), nil
+
+	select {
+	case v := <-doneC:
+		return v, nil
+	case err := <-errorC:
+		return "", err
+	case <-time.After(timeout):
+		return "", ErrTimeout
+	}
+}
+
+func (kv *testKVClient) Close() {
+	kv.runner.Stop()
+}
+
+func (kv *testKVClient) addContext(id string, c chan string, ec chan error) {
+	kv.Lock()
+	defer kv.Unlock()
+
+	kv.errCtx[id] = ec
+	kv.doneCtx[id] = c
+}
+
+func (kv *testKVClient) clearContext(id string) {
+	kv.Lock()
+	defer kv.Unlock()
+
+	delete(kv.errCtx, id)
+	delete(kv.doneCtx, id)
+}
+
+func (kv *testKVClient) done(resp *raftcmdpb.Response) {
+	kv.Lock()
+	defer kv.Unlock()
+
+	if c, ok := kv.doneCtx[string(resp.ID)]; ok {
+		c <- string(resp.Value)
+	}
+}
+
+func (kv *testKVClient) errorDone(req *raftcmdpb.Request, err error) {
+	kv.Lock()
+	defer kv.Unlock()
+
+	if c, ok := kv.errCtx[string(req.ID)]; ok {
+		c <- err
+	}
 }
 
 func (kv *testKVClient) nextID() string {

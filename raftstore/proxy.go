@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package proxy
+package raftstore
 
 import (
 	"encoding/hex"
@@ -20,16 +20,10 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
-	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[matrixcube-proxy]")
 )
 
 var (
@@ -50,11 +44,11 @@ type errorDoneFunc func(*raftcmdpb.Request, error)
 type ShardsProxy interface {
 	Dispatch(req *raftcmdpb.Request) error
 	DispatchTo(req *raftcmdpb.Request, shard uint64, store string) error
-	Router() raftstore.Router
+	Router() Router
 }
 
 // NewShardsProxy returns a shard proxy
-func NewShardsProxy(router raftstore.Router,
+func NewShardsProxy(router Router,
 	doneCB doneFunc,
 	errorDoneCB errorDoneFunc) ShardsProxy {
 	return &shardsProxy{
@@ -65,7 +59,7 @@ func NewShardsProxy(router raftstore.Router,
 }
 
 // NewShardsProxyWithStore returns a shard proxy with a raftstore
-func NewShardsProxyWithStore(store raftstore.Store,
+func NewShardsProxyWithStore(store Store,
 	doneCB doneFunc,
 	errorDoneCB errorDoneFunc,
 ) (ShardsProxy, error) {
@@ -83,8 +77,8 @@ func NewShardsProxyWithStore(store raftstore.Store,
 
 type shardsProxy struct {
 	local       bhmetapb.Store
-	store       raftstore.Store
-	router      raftstore.Router
+	store       Store
+	router      Router
 	doneCB      doneFunc
 	errorDoneCB errorDoneFunc
 	backends    sync.Map // store addr -> *backend
@@ -112,7 +106,7 @@ func (p *shardsProxy) DispatchTo(req *raftcmdpb.Request, shard uint64, to string
 	return p.forwardToBackend(req, to)
 }
 
-func (p *shardsProxy) Router() raftstore.Router {
+func (p *shardsProxy) Router() Router {
 	return p.router
 }
 
