@@ -236,7 +236,9 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *bhmetapb.ShardsPoolAllocCmd, st
 		aware.ForeachResources(group, fn)
 	}
 	if id == 0 {
-		logger.Fatalf("BUG: missing alloced shard")
+		// Anyway the prophet leader node has no corresponding data in memory,
+		// Client retry alloc again.
+		return nil, nil
 	}
 
 	allocated := &bhmetapb.AllocatedShard{

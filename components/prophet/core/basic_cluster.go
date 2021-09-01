@@ -96,19 +96,6 @@ func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
 	return ok
 }
 
-// CompleteCreateResource create resource complete
-func (bc *BasicCluster) CompleteCreateResource(id uint64) metadata.Resource {
-	bc.Lock()
-	defer bc.Unlock()
-
-	if waittingRes, ok := bc.WaittingCreateResources[id]; ok {
-		delete(bc.WaittingCreateResources, id)
-		return waittingRes
-	}
-
-	return nil
-}
-
 // GetRemovedResources get removed state resources
 func (bc *BasicCluster) GetRemovedResources(bm *roaring64.Bitmap) []uint64 {
 	bc.Lock()
@@ -406,6 +393,7 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 	bc.Lock()
 	defer bc.Unlock()
 
+	delete(bc.WaittingCreateResources, res.Meta.ID())
 	return bc.Resources.SetResource(res)
 }
 

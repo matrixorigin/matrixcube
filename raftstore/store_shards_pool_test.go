@@ -52,6 +52,7 @@ func TestShardPool(t *testing.T) {
 
 	// create 2th shards
 	c.WaitShardByCount(t, 3, testWaitTimeout)
+	c.WaitLeadersByCount(t, 3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
 	assert.NoError(t, err)
@@ -65,6 +66,7 @@ func TestShardPool(t *testing.T) {
 
 	// create 3th shards
 	c.WaitShardByCount(t, 4, testWaitTimeout)
+	c.WaitLeadersByCount(t, 4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
@@ -73,6 +75,7 @@ func TestShardPool(t *testing.T) {
 	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
 	// create 4th shards
+	c.WaitShardByCount(t, 5, testWaitTimeout)
 	c.WaitLeadersByCount(t, 5, testWaitTimeout)
 
 	store := c.GetProphet().GetStorage()
@@ -86,13 +89,13 @@ func TestShardPool(t *testing.T) {
 
 	// ensure the 4th shard is saved into prophet storage
 	c.WaitShardStateChangedTo(t, c.GetShardByIndex(4).ID, metapb.ResourceState_Running, testWaitTimeout)
-	tra := &testResourcesAware{aware: c.GetProphet().GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
-		v := res.Clone(core.SetWrittenKeys(1))
-		return v
-	}}
 	for _, s := range c.stores {
 		if s.shardPool.isStartedLocked() {
-			s.shardPool.gcAllocating(store, tra)
+			tra := &testResourcesAware{aware: s.pd.GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
+				v := res.Clone(core.SetWrittenKeys(1))
+				return v
+			}}
+			s.shardPool.gcAllocating(s.pd.GetStorage(), tra)
 		}
 	}
 

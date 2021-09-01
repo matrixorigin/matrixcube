@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -345,12 +344,10 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 		util.GetLogger().Infof("resource %d created with peers %+v", res.ID(), res.Peers())
 	}
 
-	st := time.Now()
 	err := c.storage.PutResources(createResources...)
 	if err != nil {
 		return nil, err
 	}
-	util.GetLogger().Infof("resource %d save cost %+v", createResources[0].ID(), time.Since(st))
 
 	c.core.AddWaittingCreateResources(createResources...)
 	c.triggerNotifyCreateResources()
