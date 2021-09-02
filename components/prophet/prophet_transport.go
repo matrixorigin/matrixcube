@@ -18,6 +18,7 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/components/prophet/codec"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 func (p *defaultProphet) startListen() {
@@ -26,7 +27,7 @@ func (p *defaultProphet) startListen() {
 		p.handleRPCRequest,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(util.GetLogger())))
+			goetty.WithLogger(zap.L().Named("cube-prophet-rpc"))))
 	if err != nil {
 		util.GetLogger().Fatalf("start transport failed with %+v", err)
 	}
