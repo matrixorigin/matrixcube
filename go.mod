@@ -11,7 +11,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20210503173641-1387689d3d7c
 	github.com/coreos/go-semver v0.3.0
 	github.com/docker/go-units v0.4.0
-	github.com/fagongzi/goetty v1.8.0
+	github.com/fagongzi/goetty v1.10.1
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
 	github.com/fagongzi/util v0.0.0-20210409031311-a10fdf8fbd7a
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -30,6 +30,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.0
 	go.etcd.io/etcd/raft/v3 v3.5.0
 	go.etcd.io/etcd/server/v3 v3.5.0
+	go.uber.org/zap v1.18.1
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 )
 
