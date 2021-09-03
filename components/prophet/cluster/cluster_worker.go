@@ -315,7 +315,6 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 		res.SetID(id)
-		res.SetEpoch(metapb.ResourceEpoch{ConfVer: 3})
 		res.SetState(metapb.ResourceState_WaittingCreate)
 
 		_, err = c.core.PreCheckPutResource(core.NewCachedResource(res, nil))
@@ -332,6 +331,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 
+		res.SetEpoch(metapb.ResourceEpoch{ConfVer: uint64(len(res.Peers()))})
 		for idx := range res.Peers() {
 			id, err := c.storage.KV().AllocID()
 			if err != nil {
@@ -339,6 +339,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			}
 
 			res.Peers()[idx].ID = id
+			res.Peers()[idx].InitialMember = true
 		}
 
 		util.GetLogger().Infof("resource %d created with peers %+v", res.ID(), res.Peers())

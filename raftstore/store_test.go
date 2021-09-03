@@ -308,6 +308,37 @@ func TestIssue180(t *testing.T) {
 	assert.Equal(t, "v1", string(resp["r1"].Responses[0].Value))
 }
 
+func TestInitialMember(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+	}))
+	defer c.Stop()
+	c.Start()
+
+	c.WaitShardByCounts(t, [3]int{1, 1, 1}, testWaitTimeout)
+	initialMembers := 0
+	for _, p := range c.GetShardByIndex(0).Peers {
+		if p.InitialMember {
+			initialMembers++
+		}
+	}
+	assert.Equal(t, 1, initialMembers)
+
+	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
+	assert.NoError(t, err)
+	assert.NotNil(t, p)
+
+	c.WaitShardByCounts(t, [3]int{2, 2, 2}, testWaitTimeout)
+	initialMembers = 0
+	for _, p := range c.GetShardByIndex(1).Peers {
+		if p.InitialMember {
+			initialMembers++
+		}
+	}
+	assert.Equal(t, 3, initialMembers)
+}
+
 func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
