@@ -52,6 +52,7 @@ func TestShardPool(t *testing.T) {
 
 	// create 2th shards
 	c.WaitShardByCountPerNode(3, testWaitTimeout)
+	c.WaitLeadersByCount(3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
 	assert.NoError(t, err)
@@ -65,6 +66,7 @@ func TestShardPool(t *testing.T) {
 
 	// create 3th shards
 	c.WaitShardByCountPerNode(4, testWaitTimeout)
+	c.WaitLeadersByCount(4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
@@ -73,10 +75,10 @@ func TestShardPool(t *testing.T) {
 	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
 	// create 4th shards
+	c.WaitShardByCountPerNode(5, testWaitTimeout)
 	c.WaitLeadersByCount(5, testWaitTimeout)
 
-	store := c.GetProphet().GetStorage()
-	v, err := store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
 	sp := &bhmetapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
@@ -86,18 +88,18 @@ func TestShardPool(t *testing.T) {
 
 	// ensure the 4th shard is saved into prophet storage
 	c.WaitShardStateChangedTo(c.GetShardByIndex(0, 4).ID, metapb.ResourceState_Running, testWaitTimeout)
-	tra := &testResourcesAware{aware: c.GetProphet().GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
-		v := res.Clone(core.SetWrittenKeys(1))
-		return v
-	}}
-	c.EveryStore(func(i int, s Store) {
-		p := s.GetResourcePool().(*dynamicShardsPool)
-		if p.isStartedLocked() {
-			p.gcAllocating(store, tra)
+	c.EveryStore(func(i int, ss Store) {
+		s := ss.(*store)
+		if s.shardPool.isStartedLocked() {
+			tra := &testResourcesAware{aware: s.pd.GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
+				v := res.Clone(core.SetWrittenKeys(1))
+				return v
+			}}
+			s.shardPool.gcAllocating(s.pd.GetStorage(), tra)
 		}
 	})
 
-	v, err = store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
 	sp = &bhmetapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)

@@ -20,7 +20,7 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/components/prophet/codec"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // Option client option
@@ -54,7 +54,7 @@ func WithRPCTimeout(value time.Duration) Option {
 func createConn() goetty.IOSession {
 	encoder, decoder := codec.NewClientCodec(10 * buf.MB)
 	return goetty.NewIOSession(goetty.WithCodec(encoder, decoder),
-		goetty.WithLogger(util.GetLogger()),
+		goetty.WithLogger(zap.L().Named("cube-prophet-client")),
 		goetty.WithEnableAsyncWrite(16))
 
 }

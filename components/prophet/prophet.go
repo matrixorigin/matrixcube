@@ -108,8 +108,7 @@ func NewProphet(cfg *config.Config) Prophet {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if cfg.StorageNode {
-		join.PrepareJoinCluster(cfg)
-		etcdClient, etcd, err = startEmbedEtcd(ctx, cfg)
+		etcdClient, etcd, err = join.PrepareJoinCluster(ctx, cfg)
 		if err != nil {
 			ecfg, _ := cfg.GenEmbedEtcdConfig()
 			util.GetLogger().Fatalf("%s start embed etcd cfg %+v failed with %+v", cfg.Name, ecfg, err)
@@ -118,7 +117,7 @@ func NewProphet(cfg *config.Config) Prophet {
 		etcdClient, err = clientv3.New(clientv3.Config{
 			Endpoints:        cfg.ExternalEtcd,
 			AutoSyncInterval: time.Second * 30,
-			DialTimeout:      etcdTimeout,
+			DialTimeout:      time.Second * 10,
 		})
 		if err != nil {
 			util.GetLogger().Fatalf("create external etcd client failed with %+v", err)

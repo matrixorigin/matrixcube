@@ -29,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 var (
@@ -61,7 +62,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 		app, err := goetty.NewTCPApplication(cfg.Addr, s.onMessage,
 			goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 				goetty.WithEnableAsyncWrite(16),
-				goetty.WithLogger(logger),
+				goetty.WithLogger(zap.L().Named("cube-app")),
 				goetty.WithReleaseMsgFunc(s.releaseResponse)))
 		if err != nil {
 			logger.Fatalf("create internal tcp server failed with %+v", err)

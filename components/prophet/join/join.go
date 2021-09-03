@@ -15,6 +15,8 @@
 package join
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -24,8 +26,15 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"go.etcd.io/etcd/client/pkg/v3/types"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
+)
+
+var (
+	etcdTimeout = time.Second * 3
+	// listMemberRetryTimes is the retry times of list member.
+	listMemberRetryTimes = 20
 )
 
 const (
@@ -70,10 +79,10 @@ const (
 //      What join does: return "" (as etcd will read data directory and find
 //                      that the Prophet itself has been removed, so an empty string
 //                      is fine.)
-func PrepareJoinCluster(cfg *config.Config) {
+func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Client, *embed.Etcd, error) {
 	// - A Prophet tries to join itself.
 	if cfg.EmbedEtcd.Join == "" {
-		return
+		return startEmbedEtcd(ctx, cfg)
 	}
 
 	if cfg.EmbedEtcd.Join == cfg.EmbedEtcd.AdvertiseClientUrls {
@@ -96,7 +105,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 		}
 		cfg.EmbedEtcd.InitialCluster = strings.TrimSpace(string(s))
 		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-		return
+		return startEmbedEtcd(ctx, cfg)
 	}
 
 	initialCluster := ""
@@ -104,7 +113,7 @@ func PrepareJoinCluster(cfg *config.Config) {
 	if isDataExist(fs, fs.PathJoin(cfg.DataDir, "member")) {
 		cfg.EmbedEtcd.InitialCluster = initialCluster
 		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-		return
+		return startEmbedEtcd(ctx, cfg)
 	}
 
 	// Below are cases without data directory.
@@ -118,6 +127,71 @@ func PrepareJoinCluster(cfg *config.Config) {
 	}
 	defer client.Close()
 
+	for {
+		checkMembers(client, cfg)
+
+		var prophets []string
+		// - A new Prophet joins an existing cluster.
+		// - A deleted Prophet joins to previous cluster.
+		{
+			for {
+				// First adds member through the API
+				resp, err := util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
+				if err != nil {
+					util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
+					time.Sleep(time.Millisecond * 500)
+					continue
+				}
+
+				util.GetLogger().Infof("%s added into embed etcd cluster with resp %+v", cfg.Name, resp)
+
+				for _, m := range resp.Members {
+					if m.Name != "" {
+						for _, u := range m.PeerURLs {
+							prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
+						}
+					}
+				}
+				break
+			}
+		}
+
+		prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
+		initialCluster = strings.Join(prophets, ",")
+		cfg.EmbedEtcd.InitialCluster = initialCluster
+		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
+
+		c, e, err := startEmbedEtcd(ctx, cfg)
+		if err != nil && strings.Contains(err.Error(), "member count is unequal") {
+			continue
+		}
+		if err != nil {
+			return c, e, err
+		}
+
+		err = fs.MkdirAll(cfg.DataDir, privateDirMode)
+		if err != nil && !vfs.IsExist(err) {
+			util.GetLogger().Fatalf("create data path failed with %+v",
+				err)
+		}
+
+		f, err := fs.Create(filePath)
+		if err != nil {
+			util.GetLogger().Fatalf("write data path failed with %+v",
+				err)
+		}
+		defer f.Close()
+		_, err = f.Write([]byte(cfg.EmbedEtcd.InitialCluster))
+		if err != nil {
+			util.GetLogger().Fatalf("write data path failed with %+v",
+				err)
+		}
+
+		return c, e, nil
+	}
+}
+
+func checkMembers(client *clientv3.Client, cfg *config.Config) {
 OUTER:
 	for {
 		listResp, err := util.ListEtcdMembers(client)
@@ -141,55 +215,7 @@ OUTER:
 			}
 		}
 
-		break
-	}
-
-	var prophets []string
-	// - A new Prophet joins an existing cluster.
-	// - A deleted Prophet joins to previous cluster.
-	{
-		for {
-			// First adds member through the API
-			resp, err := util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
-			if err != nil {
-				util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
-				time.Sleep(time.Millisecond * 500)
-				continue
-			}
-
-			util.GetLogger().Infof("%s added into embed etcd cluster with resp %+v", cfg.Name, resp)
-
-			for _, m := range resp.Members {
-				if m.Name != "" {
-					for _, u := range m.PeerURLs {
-						prophets = append(prophets, fmt.Sprintf("%s=%s", m.Name, u))
-					}
-				}
-			}
-			break
-		}
-	}
-
-	prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
-	initialCluster = strings.Join(prophets, ",")
-	cfg.EmbedEtcd.InitialCluster = initialCluster
-	cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-	err = fs.MkdirAll(cfg.DataDir, privateDirMode)
-	if err != nil && !vfs.IsExist(err) {
-		util.GetLogger().Fatalf("create data path failed with %+v",
-			err)
-	}
-
-	f, err := fs.Create(filePath)
-	if err != nil {
-		util.GetLogger().Fatalf("write data path failed with %+v",
-			err)
-	}
-	defer f.Close()
-	_, err = f.Write([]byte(cfg.EmbedEtcd.InitialCluster))
-	if err != nil {
-		util.GetLogger().Fatalf("write data path failed with %+v",
-			err)
+		return
 	}
 }
 
@@ -205,4 +231,65 @@ func isDataExist(fs vfs.FS, d string) bool {
 	}
 
 	return len(names) != 0
+}
+
+func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, *embed.Etcd, error) {
+	etcdCfg, err := cfg.GenEmbedEtcdConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	newCtx, cancel := context.WithTimeout(ctx, option.EtcdStartTimeout)
+	defer cancel()
+
+	etcd, err := embed.StartEtcd(etcdCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Check cluster ID
+	urlMap, err := types.NewURLsMap(cfg.EmbedEtcd.InitialCluster)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err = util.CheckClusterID(etcd.Server.Cluster().ID(), urlMap); err != nil {
+		return nil, nil, err
+	}
+
+	select {
+	// Wait etcd until it is ready to use
+	case <-etcd.Server.ReadyNotify():
+	case <-newCtx.Done():
+		return nil, nil, errors.New("context cancaled")
+	}
+
+	endpoints := []string{etcdCfg.ACUrls[0].String()}
+	util.GetLogger().Infof("create etcd v3 client with endpoints %+v", endpoints)
+
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:        endpoints,
+		AutoSyncInterval: time.Second * 30,
+		DialTimeout:      etcdTimeout,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for i := 0; i < listMemberRetryTimes; i++ {
+		etcdServerID := uint64(etcd.Server.ID())
+		etcdMembers, err := util.ListEtcdMembers(client)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, m := range etcdMembers.Members {
+			if etcdServerID == m.ID && m.Name == cfg.Name {
+				return client, etcd, nil
+			}
+		}
+		time.Sleep(time.Second * 1)
+	}
+
+	util.GetLogger().Fatalf("start etcd server timeout")
+	return nil, nil, nil
 }

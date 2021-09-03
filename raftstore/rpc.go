@@ -20,6 +20,7 @@ import (
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"go.uber.org/zap"
 )
 
 type defaultRPC struct {
@@ -36,7 +37,7 @@ func newRPC(store *store) *defaultRPC {
 	app, err := goetty.NewTCPApplication(store.cfg.ClientAddr, rpc.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(logger),
+			goetty.WithLogger(zap.L().Named("raftstore-rpc")),
 			goetty.WithReleaseMsgFunc(releaseResponse)))
 	if err != nil {
 		logger.Fatalf("create rpc failed with %+v", err)

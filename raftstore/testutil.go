@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
+	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
@@ -492,6 +493,9 @@ type TestRaftCluster interface {
 	GetProphet() prophet.Prophet
 	// Set write key-value pairs to the `DataStorage` of the node
 	Set(node int, key, value []byte)
+
+	// CreateTestKVClient create and returns a kv client
+	CreateTestKVClient(node int) TestKVClient
 }
 
 // TestKVClient is a kv client that uses `TestRaftCluster` as Backend's KV storage engine
@@ -584,6 +588,7 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 
 func (kv *testKVClient) Close() {
 	kv.runner.Stop()
+	kv.proxy.Router().GetWatcher().Close()
 }
 
 func (kv *testKVClient) addContext(id string, c chan string, ec chan error) {
@@ -1094,6 +1099,14 @@ func (c *testRaftCluster) Set(node int, key, value []byte) {
 		pr := s.getPR(shard.ID, false)
 		pr.sizeDiffHint += uint64(len(key) + len(value))
 	}
+}
+
+func (c *testRaftCluster) CreateTestKVClient(node int) TestKVClient {
+	w, err := c.GetStore(node).Prophet().GetClient().NewWatcher(uint32(event.EventFlagAll))
+	if err != nil {
+		assert.FailNowf(c.t, "", "create watcher from store %d failed with %+v", node, err)
+	}
+	return newTestKVClient(c.t, w)
 }
 
 var rttMillisecond uint64

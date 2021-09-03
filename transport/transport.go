@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 var (
@@ -93,7 +94,7 @@ func NewDefaultTransport(
 	app, err := goetty.NewTCPApplication(addr, t.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(t.encoder, t.decoder),
 			goetty.WithTimeout(t.opts.readTimeout, t.opts.writeTimeout),
-			goetty.WithLogger(logger),
+			goetty.WithLogger(zap.L().Named("cube-trans")),
 			goetty.WithEnableAsyncWrite(t.opts.sendBatch)))
 	if err != nil {
 		logger.Fatalf("create transport failed with %+v", err)
