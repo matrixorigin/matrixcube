@@ -19,7 +19,7 @@ import (
 // TestApplicationCluster test application cluster, it based on raftstore.TestClusterStore.
 type TestApplicationCluster struct {
 	t                  *testing.T
-	RaftCluster        *raftstore.TestRaftCluster
+	RaftCluster        raftstore.TestRaftCluster
 	Applications       []*Application
 	applicationFactory func(i int, store raftstore.Store) *Application
 }

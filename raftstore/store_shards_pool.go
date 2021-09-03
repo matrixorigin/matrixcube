@@ -48,6 +48,10 @@ func (s *store) CreateResourcePool(pools ...metapb.ResourcePool) (ShardsPool, er
 	return s.shardPool, nil
 }
 
+func (s *store) GetResourcePool() ShardsPool {
+	return s.shardPool
+}
+
 // dynamicShardsPool a dynamic shard pool
 type dynamicShardsPool struct {
 	cfg     *config.Config

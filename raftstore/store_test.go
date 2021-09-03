@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -26,10 +25,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +39,18 @@ func TestClusterStartAndStop(t *testing.T) {
 
 	c.Start()
 
-	c.WaitShardByCount(t, 1, testWaitTimeout)
-	c.CheckShardCount(t, 1)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
+}
+
+func TestClusterStartWithMoreNodes(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewTestClusterStore(t, WithTestClusterNodeCount(5))
+	defer c.Stop()
+
+	c.Start()
+
+	c.WaitLeadersByCount(1, testWaitTimeout)
 }
 
 func TestClusterStartConcurrent(t *testing.T) {
@@ -53,12 +60,12 @@ func TestClusterStartConcurrent(t *testing.T) {
 
 	c.StartWithConcurrent(true)
 
-	c.WaitShardByCount(t, 1, testWaitTimeout)
-	c.CheckShardCount(t, 1)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
 
 	c.Restart()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
-	c.CheckShardCount(t, 1)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
 }
 
 func TestAdjustRaftTickerInterval(t *testing.T) {
@@ -70,12 +77,12 @@ func TestAdjustRaftTickerInterval(t *testing.T) {
 
 	c.Start()
 
-	c.WaitShardByCount(t, 1, testWaitTimeout)
-	c.CheckShardCount(t, 1)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
 
-	for _, s := range c.stores {
-		assert.False(t, s.cfg.Raft.TickInterval.Duration == time.Millisecond)
-	}
+	c.EveryStore(func(i int, store Store) {
+		assert.False(t, store.GetConfig().Raft.TickInterval.Duration == time.Millisecond)
+	})
 }
 
 func TestIssue123(t *testing.T) {
@@ -89,25 +96,24 @@ func TestIssue123(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{
+	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{
 		RangePrefix: []byte("b"),
 		Capacity:    20,
 	})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitShardByCount(t, 21, testWaitTimeout)
+	c.WaitShardByCountPerNode(21, testWaitTimeout)
+
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
 	for i := 0; i < 20; i++ {
 		s, err := p.Alloc(0, []byte(fmt.Sprintf("%d", i)))
 		assert.NoError(t, err)
-
-		id := fmt.Sprintf("w%d", i)
-		resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestWriteReq(id, string(c.GetShardByID(s.ShardID).Start), id))
-		assert.NoError(t, err)
-		assert.Equal(t, "OK", string(resp[id].Responses[0].Value))
+		assert.NoError(t, kv.Set(string(c.GetShardByID(0, s.ShardID).Start), "OK", time.Second))
 	}
 }
 
@@ -123,11 +129,11 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 2, testWaitTimeout)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
 	assert.NoError(t, err)
-	c.WaitShardByCount(t, 3, testWaitTimeout)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
 }
 
 func TestAppliedRules(t *testing.T) {
@@ -138,7 +144,7 @@ func TestAppliedRules(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	assert.NoError(t, c.GetProphet().GetClient().PutPlacementRule(rpcpb.PlacementRule{
 		GroupID: "g1",
@@ -156,7 +162,7 @@ func TestAppliedRules(t *testing.T) {
 	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
 	assert.NoError(t, err)
 
-	c.WaitShardByCounts(t, [3]int{2, 2, 1}, testWaitTimeout)
+	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
 }
 
 func TestSplit(t *testing.T) {
@@ -168,17 +174,17 @@ func TestSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(t, 3, testWaitTimeout)
-	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
-	c.CheckShardRange(t, 0, nil, []byte("key2"))
-	c.CheckShardRange(t, 1, []byte("key2"), []byte("key3"))
-	c.CheckShardRange(t, 2, []byte("key3"), nil)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
+	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
+	c.CheckShardRange(0, nil, []byte("key2"))
+	c.CheckShardRange(1, []byte("key2"), []byte("key3"))
+	c.CheckShardRange(2, []byte("key3"), nil)
 }
 
 func TestCustomSplit(t *testing.T) {
@@ -215,16 +221,16 @@ func TestCustomSplit(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	c.set(EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.set(EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.set(EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
-	c.WaitShardByCount(t, 2, testWaitTimeout)
-	c.WaitShardSplitByCount(t, c.GetShardByIndex(0).ID, 1, testWaitTimeout)
-	c.CheckShardRange(t, 0, nil, []byte("key2"))
-	c.CheckShardRange(t, 1, []byte("key2"), nil)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
+	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
+	c.CheckShardRange(0, nil, []byte("key2"))
+	c.CheckShardRange(1, []byte("key2"), nil)
 }
 
 func TestSpeedupAddShard(t *testing.T) {
@@ -236,16 +242,16 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitShardByCount(t, 1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
-	c.WaitShardByCount(t, 2, testWaitTimeout)
-	c.CheckShardCount(t, 2)
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
+	c.CheckShardCount(2)
 
-	id := c.GetShardByIndex(1).ID
-	c.WaitShardStateChangedTo(t, id, metapb.ResourceState_Running, testWaitTimeout)
+	id := c.GetShardByIndex(0, 1).ID
+	c.WaitShardStateChangedTo(id, metapb.ResourceState_Running, testWaitTimeout)
 }
 
 func TestIssue166(t *testing.T) {
@@ -256,19 +262,19 @@ func TestIssue166(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
 
-	_, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{
+	_, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{
 		Capacity:    1,
 		Group:       0,
 		RangePrefix: []byte("b"),
 	})
 	assert.NoError(t, err)
-	c.WaitLeadersByCount(t, 2, testWaitTimeout)
+	c.WaitLeadersByCount(2, testWaitTimeout)
 	// make sure slow point
 	time.Sleep(time.Second)
 
-	v, err := c.stores[0].MetadataStorage().Get(getRaftLocalStateKey(c.GetShardByIndex(1).ID))
+	v, err := c.GetStore(0).MetadataStorage().Get(getRaftLocalStateKey(c.GetShardByIndex(0, 1).ID))
 	assert.NoError(t, err)
 	state := &bhraftpb.RaftLocalState{}
 	protoc.MustUnmarshal(state, v)
@@ -287,25 +293,28 @@ func TestIssue180(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
 
-	resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestWriteReq("w1", "k1", "v1"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
-	c.set(EncodeDataKey(0, []byte("k1")), []byte("v2"))
-	v, err := c.stores[0].MetadataStorage().Get(getRaftApplyStateKey(c.GetShardByIndex(0).ID))
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
+	c.Set(0, EncodeDataKey(0, []byte("k1")), []byte("v2"))
+	v, err := c.GetStore(0).MetadataStorage().Get(getRaftApplyStateKey(c.GetShardByIndex(0, 0).ID))
 	assert.NoError(t, err)
 	state := &bhraftpb.RaftApplyState{}
 	protoc.MustUnmarshal(state, v)
 	adjustAppliedIndex = state.AppliedIndex - 1
 
 	c.Restart()
-	c.WaitLeadersByCount(t, 1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
 
-	resp, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil, createTestReadReq("r1", "k1"))
+	kv2 := c.CreateTestKVClient(0)
+	defer kv2.Close()
+
+	v2, err := kv2.Get("k1", testWaitTimeout)
 	assert.NoError(t, err)
-	assert.Equal(t, "v1", string(resp["r1"].Responses[0].Value))
+	assert.Equal(t, "v1", v2)
 }
 
 func TestInitialMember(t *testing.T) {
@@ -316,100 +325,27 @@ func TestInitialMember(t *testing.T) {
 	defer c.Stop()
 	c.Start()
 
-	c.WaitShardByCounts(t, [3]int{1, 1, 1}, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	initialMembers := 0
-	for _, p := range c.GetShardByIndex(0).Peers {
+	for _, p := range c.GetShardByIndex(0, 0).Peers {
 		if p.InitialMember {
 			initialMembers++
 		}
 	}
 	assert.Equal(t, 1, initialMembers)
 
-	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitShardByCounts(t, [3]int{2, 2, 2}, testWaitTimeout)
-	initialMembers = 0
-	for _, p := range c.GetShardByIndex(1).Peers {
-		if p.InitialMember {
-			initialMembers++
-		}
-	}
-	assert.Equal(t, 3, initialMembers)
-}
-
-func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
-	req := pb.AcquireRequest()
-	req.ID = []byte(id)
-	req.CustemType = 1
-	req.Type = raftcmdpb.CMDType_Write
-	req.Key = []byte(k)
-	req.Cmd = []byte(v)
-	return req
-}
-
-func createTestReadReq(id, k string) *raftcmdpb.Request {
-	req := pb.AcquireRequest()
-	req.ID = []byte(id)
-	req.CustemType = 2
-	req.Type = raftcmdpb.CMDType_Read
-	req.Key = []byte(k)
-	return req
-}
-
-func sendTestReqs(s Store, timeout time.Duration, waiterC chan string, waiters map[string]string, reqs ...*raftcmdpb.Request) (map[string]*raftcmdpb.RaftCMDResponse, error) {
-	if waiters == nil {
-		waiters = make(map[string]string)
-	}
-
-	resps := make(map[string]*raftcmdpb.RaftCMDResponse)
-	c := make(chan *raftcmdpb.RaftCMDResponse, len(reqs))
-	defer close(c)
-
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
-		c <- resp
-	}
-
-	for _, req := range reqs {
-		if v, ok := waiters[string(req.ID)]; ok {
-		OUTER:
-			for {
-				select {
-				case <-time.After(timeout):
-					return nil, errors.New("timeout error")
-				case c := <-waiterC:
-					if c == v {
-						break OUTER
-					}
-				}
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
+	for i := 0; i < 3; i++ {
+		initialMembers = 0
+		for _, p := range c.GetShardByIndex(i, 1).Peers {
+			if p.InitialMember {
+				initialMembers++
 			}
 		}
-		err := s.(*store).onRequestWithCB(req, cb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for {
-		select {
-		case <-time.After(timeout):
-			return nil, errors.New("timeout error")
-		case resp := <-c:
-			if len(resp.Responses) <= 1 {
-				resps[string(resp.Responses[0].ID)] = resp
-			} else {
-				for i := range resp.Responses {
-					r := &raftcmdpb.RaftCMDResponse{}
-					protoc.MustUnmarshal(r, protoc.MustMarshal(resp))
-					r.Responses = resp.Responses[i : i+1]
-					resps[string(r.Responses[0].ID)] = r
-				}
-			}
-
-			if len(resps) == len(reqs) {
-				return resps, nil
-			}
-		}
+		assert.Equal(t, 3, initialMembers)
 	}
 }

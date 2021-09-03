@@ -46,13 +46,13 @@ func TestShardPool(t *testing.T) {
 
 	c.Start()
 
-	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
 	// create 2th shards
-	c.WaitShardByCount(t, 3, testWaitTimeout)
-	c.WaitLeadersByCount(t, 3, testWaitTimeout)
+	c.WaitShardByCountPerNode(3, testWaitTimeout)
+	c.WaitLeadersByCount(3, testWaitTimeout)
 
 	allocated, err := p.Alloc(0, []byte("propose1"))
 	assert.NoError(t, err)
@@ -62,24 +62,23 @@ func TestShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose1"), allocated.Purpose)
-	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
 	// create 3th shards
-	c.WaitShardByCount(t, 4, testWaitTimeout)
-	c.WaitLeadersByCount(t, 4, testWaitTimeout)
+	c.WaitShardByCountPerNode(4, testWaitTimeout)
+	c.WaitLeadersByCount(4, testWaitTimeout)
 
 	allocated, err = p.Alloc(0, []byte("propose2"))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose2"), allocated.Purpose)
-	c.WaitShardStateChangedTo(t, allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
 
 	// create 4th shards
-	c.WaitShardByCount(t, 5, testWaitTimeout)
-	c.WaitLeadersByCount(t, 5, testWaitTimeout)
+	c.WaitShardByCountPerNode(5, testWaitTimeout)
+	c.WaitLeadersByCount(5, testWaitTimeout)
 
-	store := c.GetProphet().GetStorage()
-	v, err := store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
 	sp := &bhmetapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
@@ -88,8 +87,9 @@ func TestShardPool(t *testing.T) {
 	assert.Equal(t, 2, len(sp.Pools[0].AllocatedShards))
 
 	// ensure the 4th shard is saved into prophet storage
-	c.WaitShardStateChangedTo(t, c.GetShardByIndex(4).ID, metapb.ResourceState_Running, testWaitTimeout)
-	for _, s := range c.stores {
+	c.WaitShardStateChangedTo(c.GetShardByIndex(0, 4).ID, metapb.ResourceState_Running, testWaitTimeout)
+	c.EveryStore(func(i int, ss Store) {
+		s := ss.(*store)
 		if s.shardPool.isStartedLocked() {
 			tra := &testResourcesAware{aware: s.pd.GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
 				v := res.Clone(core.SetWrittenKeys(1))
@@ -97,9 +97,9 @@ func TestShardPool(t *testing.T) {
 			}}
 			s.shardPool.gcAllocating(s.pd.GetStorage(), tra)
 		}
-	}
+	})
 
-	v, err = store.GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
 	sp = &bhmetapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
@@ -128,25 +128,24 @@ func TestShardPoolWithFactory(t *testing.T) {
 
 	c.Start()
 
-	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
-	c.WaitLeadersByCount(t, 3, testWaitTimeout)
+	c.WaitLeadersByCount(3, testWaitTimeout)
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
-	resp, err := sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
-		createTestWriteReq("w1", "b-1", "b1"),
-		createTestWriteReq("w2", "b-2", "b2"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
-	assert.Equal(t, "OK", string(resp["w2"].Responses[0].Value))
+	assert.NoError(t, kv.Set("b-1", "b1", testWaitTimeout))
+	assert.NoError(t, kv.Set("b-2", "b2", testWaitTimeout))
 
-	resp, err = sendTestReqs(c.stores[0], testWaitTimeout, nil, nil,
-		createTestReadReq("r1", "b-1"),
-		createTestReadReq("r2", "b-2"))
+	v, err := kv.Get("b-1", testWaitTimeout)
 	assert.NoError(t, err)
-	assert.Equal(t, "b1", string(resp["r1"].Responses[0].Value))
-	assert.Equal(t, "b2", string(resp["r2"].Responses[0].Value))
+	assert.Equal(t, "b1", v)
+
+	v, err = kv.Get("b-2", testWaitTimeout)
+	assert.NoError(t, err)
+	assert.Equal(t, "b2", v)
 }
 
 func TestIssue192(t *testing.T) {
@@ -161,7 +160,7 @@ func TestIssue192(t *testing.T) {
 
 	c.Start()
 
-	p, err := c.stores[0].CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 

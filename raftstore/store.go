@@ -31,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
+	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -55,6 +56,8 @@ type Store interface {
 	Start()
 	// Stop the raft store
 	Stop()
+	// GetConfig returns the config of the store
+	GetConfig() *config.Config
 	// Meta returns store meta
 	Meta() bhmetapb.Store
 	// GetRouter returns a router
@@ -88,6 +91,8 @@ type Store interface {
 	// and try to maintain the number of shards in the pool not less than the `capacity`
 	// parameter. This is an idempotent operation.
 	CreateResourcePool(...metapb.ResourcePool) (ShardsPool, error)
+	// GetResourcePool returns `ShardsPool`, nil if `CreateResourcePool` not completed
+	GetResourcePool() ShardsPool
 }
 
 const (
@@ -166,6 +171,10 @@ func NewStore(cfg *config.Config) Store {
 	return s
 }
 
+func (s *store) GetConfig() *config.Config {
+	return s.cfg
+}
+
 func (s *store) Start() {
 	logger.Infof("begin start raftstore")
 
@@ -233,7 +242,12 @@ func (s *store) isStopped() bool {
 
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
-		r, err := newRouter(s.pd, s.runner, func(id uint64) {
+		watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
+		if err != nil {
+			logger.Fatalf("create router failed with %+v", err)
+		}
+
+		r, err := newRouter(watcher, s.runner, func(id uint64) {
 			s.doDestroy(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
