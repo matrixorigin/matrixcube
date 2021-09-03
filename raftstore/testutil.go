@@ -30,7 +30,6 @@ import (
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
@@ -508,17 +507,17 @@ type TestKVClient interface {
 	Close()
 }
 
-func newTestKVClient(t *testing.T, watcher prophet.Watcher) TestKVClient {
-	kv := &testKVClient{}
-	runner := task.NewRunner()
-
-	r, err := newRouter(watcher, task.NewRunner(), nil, nil)
-	if err != nil {
-		assert.FailNowf(t, "", "create TestKVClient failed with %+v", err)
+func newTestKVClient(t *testing.T, store Store) TestKVClient {
+	kv := &testKVClient{
+		errCtx:  make(map[string]chan error),
+		doneCtx: make(map[string]chan string),
+		runner:  task.NewRunner(),
 	}
-
-	kv.proxy = NewShardsProxy(r, kv.done, kv.errorDone)
-	kv.runner = runner
+	proxy, err := NewShardsProxyWithStore(store, kv.done, kv.errorDone)
+	if err != nil {
+		assert.FailNowf(t, "", "createtest kv client failed with %+v", err)
+	}
+	kv.proxy = proxy
 	return kv
 }
 
@@ -543,7 +542,8 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 	kv.addContext(id, doneC, errorC)
 	defer kv.clearContext(id)
 
-	req := createTestWriteReq(kv.nextID(), key, value)
+	req := createTestWriteReq(id, key, value)
+	req.StopAt = time.Now().Add(timeout).Unix()
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return err
@@ -570,7 +570,8 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 	kv.addContext(id, doneC, errorC)
 	defer kv.clearContext(id)
 
-	req := createTestReadReq(kv.nextID(), key)
+	req := createTestReadReq(id, key)
+	req.StopAt = time.Now().Add(timeout).Unix()
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return "", err
@@ -588,7 +589,6 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 
 func (kv *testKVClient) Close() {
 	kv.runner.Stop()
-	kv.proxy.Router().GetWatcher().Close()
 }
 
 func (kv *testKVClient) addContext(id string, c chan string, ec chan error) {
@@ -1102,11 +1102,7 @@ func (c *testRaftCluster) Set(node int, key, value []byte) {
 }
 
 func (c *testRaftCluster) CreateTestKVClient(node int) TestKVClient {
-	w, err := c.GetStore(node).Prophet().GetClient().NewWatcher(uint32(event.EventFlagAll))
-	if err != nil {
-		assert.FailNowf(c.t, "", "create watcher from store %d failed with %+v", node, err)
-	}
-	return newTestKVClient(c.t, w)
+	return newTestKVClient(c.t, c.GetStore(node))
 }
 
 var rttMillisecond uint64

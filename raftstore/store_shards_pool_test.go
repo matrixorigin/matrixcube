@@ -133,20 +133,19 @@ func TestShardPoolWithFactory(t *testing.T) {
 	assert.NotNil(t, p)
 
 	c.WaitLeadersByCount(3, testWaitTimeout)
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
-	resp, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w1", "b-1", "b1"),
-		createTestWriteReq("w2", "b-2", "b2"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
-	assert.Equal(t, "OK", string(resp["w2"].Responses[0].Value))
+	assert.NoError(t, kv.Set("b-1", "b1", testWaitTimeout))
+	assert.NoError(t, kv.Set("b-2", "b2", testWaitTimeout))
 
-	resp, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestReadReq("r1", "b-1"),
-		createTestReadReq("r2", "b-2"))
+	v, err := kv.Get("b-1", testWaitTimeout)
 	assert.NoError(t, err)
-	assert.Equal(t, "b1", string(resp["r1"].Responses[0].Value))
-	assert.Equal(t, "b2", string(resp["r2"].Responses[0].Value))
+	assert.Equal(t, "b1", v)
+
+	v, err = kv.Get("b-2", testWaitTimeout)
+	assert.NoError(t, err)
+	assert.Equal(t, "b2", v)
 }
 
 func TestIssue192(t *testing.T) {

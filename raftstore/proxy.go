@@ -92,8 +92,8 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 func (p *shardsProxy) DispatchTo(req *raftcmdpb.Request, shard uint64, to string) error {
 	// No leader, retry after a leader tick
 	if to == "" {
-		if logger.DebugEnabled() {
-			logger.Debugf("%s retry with no leader, shard %d, group %d",
+		if logger.ErrorEnabled() {
+			logger.Errorf("%s retry with no leader, shard %d, group %d",
 				hex.EncodeToString(req.ID),
 				shard,
 				req.Group)

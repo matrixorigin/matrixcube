@@ -107,14 +107,13 @@ func TestIssue123(t *testing.T) {
 
 	c.WaitShardByCountPerNode(21, testWaitTimeout)
 
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
 	for i := 0; i < 20; i++ {
 		s, err := p.Alloc(0, []byte(fmt.Sprintf("%d", i)))
 		assert.NoError(t, err)
-
-		id := fmt.Sprintf("w%d", i)
-		resp, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil, createTestWriteReq(id, string(c.GetShardByID(0, s.ShardID).Start), id))
-		assert.NoError(t, err)
-		assert.Equal(t, "OK", string(resp[id].Responses[0].Value))
+		assert.NoError(t, kv.Set(string(c.GetShardByID(0, s.ShardID).Start), "OK", time.Second))
 	}
 }
 
@@ -296,10 +295,10 @@ func TestIssue180(t *testing.T) {
 	c.Start()
 	c.WaitLeadersByCount(1, testWaitTimeout)
 
-	resp, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil, createTestWriteReq("w1", "k1", "v1"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resp["w1"].Responses[0].Value))
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
 	c.Set(0, EncodeDataKey(0, []byte("k1")), []byte("v2"))
 	v, err := c.GetStore(0).MetadataStorage().Get(getRaftApplyStateKey(c.GetShardByIndex(0, 0).ID))
 	assert.NoError(t, err)
@@ -310,9 +309,12 @@ func TestIssue180(t *testing.T) {
 	c.Restart()
 	c.WaitLeadersByCount(1, testWaitTimeout)
 
-	resp, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil, createTestReadReq("r1", "k1"))
+	kv2 := c.CreateTestKVClient(0)
+	defer kv2.Close()
+
+	v2, err := kv2.Get("k1", testWaitTimeout)
 	assert.NoError(t, err)
-	assert.Equal(t, "v1", string(resp["r1"].Responses[0].Value))
+	assert.Equal(t, "v1", v2)
 }
 
 func TestInitialMember(t *testing.T) {

@@ -48,14 +48,14 @@ func TestIssue97(t *testing.T) {
 	c.Start()
 	c.WaitLeadersByCount(1, testWaitTimeout)
 
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
+	testWaitTimeout = time.Second * 10
+
 	// step1 write to shard2 => split to 2 shards [nil, key2), [key2, nil)
-	resps, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w1", "key1", "value11"),
-		createTestWriteReq("w2", "key2", "value22"))
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(resps))
-	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
-	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
+	assert.NoError(t, kv.Set("key1", "value11", testWaitTimeout))
+	assert.NoError(t, kv.Set("key2", "value22", testWaitTimeout))
 
 	c.WaitLeadersByCount(2, testWaitTimeout)
 	assert.Empty(t, c.GetShardByIndex(0, 0).Start)
@@ -64,11 +64,7 @@ func TestIssue97(t *testing.T) {
 	assert.Empty(t, c.GetShardByIndex(0, 1).End)
 
 	// step2 write to shard2 => split to 3 shards [nil, key2), [key2, key3), [key3, nil)
-	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w3", "key3", "value33"))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(resps))
-	assert.Equal(t, "OK", string(resps["w3"].Responses[0].Value))
+	assert.NoError(t, kv.Set("key3", "value33", testWaitTimeout))
 
 	c.WaitLeadersByCount(3, testWaitTimeout)
 	assert.Empty(t, c.GetShardByIndex(0, 0).Start)
@@ -79,11 +75,7 @@ func TestIssue97(t *testing.T) {
 	assert.Empty(t, c.GetShardByIndex(0, 2).End)
 
 	// step3 write to shard1, rewrite shard2's state
-	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w4", "a", "1"))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(resps))
-	assert.Equal(t, "OK", string(resps["w4"].Responses[0].Value))
+	assert.NoError(t, kv.Set("a", "1", testWaitTimeout))
 
 	// step4 write data to shard2 and only change shard2's raft local state
 	c.GetStore(0).GetConfig().Test.Shards[c.GetShardByID(0, 5).ID] = &config.TestShardConfig{
@@ -92,17 +84,14 @@ func TestIssue97(t *testing.T) {
 	v, _ := c.GetStore(0).(*store).delegates.Load(c.GetShardByID(0, 5).ID)
 	d := v.(*applyDelegate)
 	d.ctx.raftWB.Reset()
-	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w5", "key2", "1"))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(resps))
-	assert.Equal(t, "OK", string(resps["w5"].Responses[0].Value))
+	assert.NoError(t, kv.Set("key2", "1", testWaitTimeout))
 
 	c.Restart()
-	c.WaitLeadersByCount(3, time.Second*5)
+	c.WaitLeadersByCount(3, testWaitTimeout)
 
-	_, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestReadReq("w5", "key2"))
+	kv2 := c.CreateTestKVClient(0)
+	defer kv2.Close()
+	_, err := kv2.Get("key2", testWaitTimeout)
 	assert.NoError(t, err)
 }
 
@@ -142,19 +131,16 @@ func TestSyncData(t *testing.T) {
 	assert.True(t, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount > changedCount)
 	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
 	// write key1
-	resps, err := sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w1", "key1", "value11"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resps["w1"].Responses[0].Value))
+	assert.NoError(t, kv.Set("key1", "value11", testWaitTimeout))
 	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
 	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
 	// write key2
-	resps, err = sendTestReqs(c.GetStore(0), testWaitTimeout, nil, nil,
-		createTestWriteReq("w2", "key2", "value22"))
-	assert.NoError(t, err)
-	assert.Equal(t, "OK", string(resps["w2"].Responses[0].Value))
+	assert.NoError(t, kv.Set("key2", "value22", testWaitTimeout))
 	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
 	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
 
