@@ -126,11 +126,20 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 }
 
 func (c *asyncClient) Close() error {
+	// 1. stop write loop
+	// 2. stop read loop
+	// 3. no read and write, close all channels
 	if atomic.CompareAndSwapInt32(&c.state, stateRunning, stateStopped) {
-		c.writeC <- newCloseCtx()
-
+		c.writeC <- newStopCtx()
 	}
 	return nil
+}
+
+func (c *asyncClient) doClose() {
+	close(c.resourceHeartbeatRspC)
+	close(c.resetLeaderConnC)
+	close(c.resetReadC)
+	close(c.writeC)
 }
 
 func (c *asyncClient) AllocID() (uint64, error) {
@@ -499,14 +508,6 @@ func (c *asyncClient) ExecuteJob(job metapb.Job, data []byte) ([]byte, error) {
 	return rsp.ExecuteJob.Data, nil
 }
 
-func (c *asyncClient) doClose() {
-	c.cancel()
-	close(c.resourceHeartbeatRspC)
-	close(c.resetLeaderConnC)
-	close(c.writeC)
-	c.leaderConn.Close()
-}
-
 func (c *asyncClient) start() {
 	go c.readLoop()
 	go c.writeLoop()
@@ -520,12 +521,16 @@ func (c *asyncClient) running() bool {
 
 func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
 	for {
+		if !c.running() {
+			return nil, ErrClosed
+		}
+
 		ctx := newSyncCtx(req)
 		c.do(ctx)
 		ctx.wait()
 
 		if ctx.err != nil {
-			if ctx.err == util.ErrNotLeader && c.running() {
+			if ctx.err == util.ErrNotLeader {
 				time.Sleep(time.Millisecond * 100)
 				continue
 			}
@@ -547,7 +552,6 @@ func (c *asyncClient) do(ctx *ctx) {
 		c.contexts.Store(ctx.req.ID, ctx)
 		util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
 	}
-
 	c.writeC <- ctx
 }
 
@@ -559,7 +563,7 @@ func (c *asyncClient) timeout(arg interface{}) {
 }
 
 func (c *asyncClient) scheduleResetLeaderConn() bool {
-	if atomic.LoadInt32(&c.state) != stateRunning {
+	if !c.running() {
 		return false
 	}
 
@@ -579,12 +583,11 @@ func (c *asyncClient) nextID() uint64 {
 func (c *asyncClient) writeLoop() {
 	for {
 		select {
-		case <-c.ctx.Done():
-			return
 		case ctx, ok := <-c.writeC:
 			if ok {
-				if ctx.close {
-					c.doClose()
+				if ctx.stop {
+					c.cancel()
+					c.leaderConn.Close()
 					return
 				}
 
@@ -603,7 +606,10 @@ func (c *asyncClient) writeLoop() {
 
 func (c *asyncClient) readLoop() {
 	util.GetLogger().Info("client read loop started")
-	defer util.GetLogger().Errorf("client read loop stopped")
+	defer func() {
+		c.doClose()
+		util.GetLogger().Errorf("client read loop stopped")
+	}()
 
 OUTER:
 	for {
@@ -742,12 +748,12 @@ type ctx struct {
 	c     chan struct{}
 	cb    func(resp *rpcpb.Response, err error)
 	sync  bool
-	close bool
+	stop  bool
 }
 
-func newCloseCtx() *ctx {
+func newStopCtx() *ctx {
 	return &ctx{
-		close: true,
+		stop: true,
 	}
 }
 
