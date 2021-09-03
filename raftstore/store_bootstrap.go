@@ -162,8 +162,9 @@ func (s *store) doCreateInitShard(shard *bhmetapb.Shard) {
 	shard.Epoch.Version = 1
 	shard.Epoch.ConfVer = 1
 	shard.Peers = append(shard.Peers, metapb.Peer{
-		ID:          peerID,
-		ContainerID: s.meta.meta.ID,
+		ID:            peerID,
+		ContainerID:   s.meta.meta.ID,
+		InitialMember: true,
 	})
 }
 

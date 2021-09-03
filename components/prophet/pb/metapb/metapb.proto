@@ -103,9 +103,10 @@ message ResourceEpoch {
 
 // Peer is a replica of the resource, we called peer
 message Peer {
-    uint64   id          = 1 [(gogoproto.customname) = "ID"];
-    uint64   containerID = 2;
-    PeerRole role        = 3;
+    uint64   id            = 1 [(gogoproto.customname) = "ID"];
+    uint64   containerID   = 2;
+    PeerRole role          = 3;
+    bool     initialMember = 4;
 }
 
 // PeerStats peer stats
