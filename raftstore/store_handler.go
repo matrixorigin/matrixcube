@@ -41,7 +41,7 @@ func (s *store) handleSplitCheck() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
-			(s.handledCustomSplitCheck(pr.ps.shard.Group) ||
+			(s.handledCustomSplitCheck(pr.shard.Group) ||
 				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
 			pr.addAction(action{actionType: checkSplitAction})
 		}
@@ -111,11 +111,6 @@ func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
 		return
 	}
 
-	yes, err := s.isMsgStale(msg)
-	if err != nil || yes {
-		return
-	}
-
 	if !s.tryToCreatePeerReplicate(msg) {
 		return
 	}
@@ -144,13 +139,13 @@ func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 		pr := value.(*peerReplica)
 		fromEpoch := msg.ShardEpoch
 
-		if isEpochStale(pr.ps.shard.Epoch, fromEpoch) {
+		if isEpochStale(pr.shard.Epoch, fromEpoch) {
 			logger.Infof("shard %d receives gc message, remove. msg=<%+v>",
 				shardID,
 				msg)
 			needRemove = true
 
-			if !pr.ps.isInitialized() {
+			if len(pr.shard.Peers) == 0 {
 				needRemove = false
 				pr.mustDestroy("gc")
 			}
@@ -160,82 +155,6 @@ func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 	if needRemove {
 		s.startDestroyJob(shardID, msg.To, "gc")
 	}
-}
-
-func (s *store) isMsgStale(msg *bhraftpb.RaftMessage) (bool, error) {
-	shardID := msg.ShardID
-	fromEpoch := msg.ShardEpoch
-	isVoteMsg := msg.Message.Type == raftpb.MsgVote
-	fromStoreID := msg.From.ContainerID
-
-	// Let's consider following cases with three nodes [1, 2, 3] and 1 is leader:
-	// a. 1 removes 2, 2 may still send MsgAppendResponse to 1.
-	//  We should ignore this stale message and let 2 remove itself after
-	//  applying the ConfChange log.
-	// b. 2 is isolated, 1 removes 2. When 2 rejoins the cluster, 2 will
-	//  send stale MsgRequestVote to 1 and 3, at this time, we should tell 2 to gc itself.
-	// c. 2 is isolated but can communicate with 3. 1 removes 3.
-	//  2 will send stale MsgRequestVote to 3, 3 should ignore this message.
-	// d. 2 is isolated but can communicate with 3. 1 removes 2, then adds 4, remove 3.
-	//  2 will send stale MsgRequestVote to 3, 3 should tell 2 to gc itself.
-	// e. 2 is isolated. 1 adds 4, 5, 6, removes 3, 1. Now assume 4 is leader.
-	//  After 2 rejoins the cluster, 2 may send stale MsgRequestVote to 1 and 3,
-	//  1 and 3 will ignore this message. Later 4 will send messages to 2 and 2 will
-	//  rejoin the raft group again.
-	// f. 2 is isolated. 1 adds 4, 5, 6, removes 3, 1. Now assume 4 is leader, and 4 removes 2.
-	//  unlike case e, 2 will be stale forever.
-	// TODO: for case f, if 2 is stale for a long time, 2 will communicate with pd and pd will
-	// tell 2 is stale, so 2 can remove itself.
-	pr := s.getPR(shardID, false)
-	if nil != pr {
-		current := pr.ps.shard
-		epoch := current.Epoch
-		if isEpochStale(fromEpoch, epoch) &&
-			findPeer(&current, fromStoreID) == nil {
-			s.handleStaleMsg(msg, epoch, true)
-			return true, nil
-		}
-
-		return false, nil
-	}
-
-	// no exist, check with tombstone key.
-	localState, err := loadShardLocalState(shardID, s.MetadataStorage(), true)
-	if err != nil {
-		return false, err
-	}
-
-	if localState != nil {
-		if localState.State != bhraftpb.PeerState_Tombstone {
-			// Maybe split, but not registered yet.
-			s.cacheDroppedVoteMsg(shardID, msg.Message)
-			return false, fmt.Errorf("shard<%d> not exist but not tombstone, local state: %s",
-				shardID,
-				localState.String())
-		}
-
-		shardEpoch := localState.Shard.Epoch
-		// The shard in this peer is already destroyed
-		if isEpochStale(fromEpoch, shardEpoch) {
-			logger.Infof("tombstone peer receive a a stale message, epoch=<%s> shard=<%d> msg=<%s>",
-				shardEpoch.String(),
-				shardID,
-				msg.String())
-			notExist := findPeer(&localState.Shard, fromStoreID) == nil
-			s.handleStaleMsg(msg, shardEpoch, isVoteMsg && notExist)
-
-			return true, nil
-		}
-
-		if fromEpoch.ConfVer == shardEpoch.ConfVer {
-			return false, fmt.Errorf("tombstone peer receive an invalid message, epoch=<%s> msg=<%s>",
-				shardEpoch.String(),
-				msg.String())
-
-		}
-	}
-
-	return false, nil
 }
 
 func (s *store) handleStaleMsg(msg *bhraftpb.RaftMessage, currEpoch metapb.ResourceEpoch, needGC bool) {
@@ -285,17 +204,19 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 		// we may encounter a message with larger peer id, which means
 		// current peer is stale, then we should remove current peer
 		if p.peer.ID < target.ID {
+			// TODO: check this.
 			// cancel snapshotting op
-			if p.ps.isApplyingSnapshot() && !p.ps.cancelApplyingSnapJob() {
-				logger.Infof("shard %d stale peer is applying snapshot, will destroy next time, peer=<%d>",
-					msg.ShardID,
-					p.peer.ID)
 
-				return false
-			}
+			//if p.ps.isApplyingSnapshot() && !p.ps.cancelApplyingSnapJob() {
+			//	logger.Infof("shard %d stale peer is applying snapshot, will destroy next time, peer=<%d>",
+			//		msg.ShardID,
+			//		p.peer.ID)
+
+			//	return false
+			//}
 
 			stalePeer = p.peer
-			if !p.ps.isInitialized() {
+			if len(p.shard.Peers) == 0 {
 				p.mustDestroy("tryToCreatePeerReplicate")
 				return false
 			}
@@ -335,10 +256,9 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.Group, msg.End)) < 0 {
 			var state string
 			if p := s.getPR(item.ID, false); p != nil {
-				state = fmt.Sprintf("overlappedShard=<%d> local=<%s> apply=<%s>",
+				state = fmt.Sprintf("overlappedShard=<%d> apply index %d",
 					p.shardID,
-					p.ps.raftLocalState.String(),
-					p.ps.raftApplyState.String())
+					p.appliedIndex)
 
 				// Maybe split, but not registered yet.
 				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
@@ -369,9 +289,9 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	if s.addPR(pr) {
 		pr.start()
 
-		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.To)
-		pr.ps.shard.Peers = append(pr.ps.shard.Peers, msg.From)
-		s.updateShardKeyRange(pr.ps.shard)
+		pr.shard.Peers = append(pr.shard.Peers, msg.To)
+		pr.shard.Peers = append(pr.shard.Peers, msg.From)
+		s.updateShardKeyRange(pr.shard)
 
 		s.peers.Store(msg.From.ID, msg.From)
 		s.peers.Store(msg.To.ID, msg.To)

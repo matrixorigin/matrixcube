@@ -28,12 +28,14 @@ import (
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
@@ -109,6 +111,7 @@ type store struct {
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
 
+	logdb           logdb.LogDB
 	runner          *task.Runner
 	trans           transport.Transport
 	snapshotManager snapshot.SnapshotManager
@@ -151,6 +154,7 @@ func NewStore(cfg *config.Config) Store {
 		readHandlers:  make(map[uint64]command.ReadCommandFunc),
 		writeHandlers: make(map[uint64]command.WriteCommandFunc),
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
+		logdb:         logdb.NewKVLogDB(cfg.Storage.MetaStorage),
 		runner:        task.NewRunner(),
 		workReady:     newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
 		shardPool:     newDynamicShardsPool(cfg),
@@ -443,7 +447,7 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 			hasEvent := false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
-				if pr.eventWorker == id && pr.ps.shard.Group == g && pr.handleEvent() {
+				if pr.eventWorker == id && pr.shard.Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
 
@@ -504,12 +508,6 @@ func (s *store) startShards() {
 		pr, err := createPeerReplica(s, &localState.Shard, "bootstrap")
 		if err != nil {
 			return false, err
-		}
-
-		if localState.State == bhraftpb.PeerState_Applying {
-			applyingCount++
-			logger.Infof("shard %d is applying in store", shardID)
-			pr.startApplyingSnapJob()
 		}
 
 		s.updateShardKeyRange(localState.Shard)
@@ -585,7 +583,7 @@ func (s *store) addPR(pr *peerReplica) bool {
 func (s *store) removePR(pr *peerReplica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destory(pr.ps.shard)
+		s.aware.Destory(pr.shard)
 	}
 	s.revokeWorker(pr)
 }
@@ -691,7 +689,7 @@ func (s *store) revokeWorker(pr *peerReplica) {
 	s.allocWorkerLock.Lock()
 	defer s.allocWorkerLock.Unlock()
 
-	g := pr.ps.shard.Group
+	g := pr.shard.Group
 	s.applyWorkers[g][pr.applyWorker]--
 	s.eventWorkers[g][pr.eventWorker]--
 }
@@ -825,7 +823,7 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 		}
 	}
 
-	shard := pr.ps.shard
+	shard := pr.shard
 	if !checkEpoch(shard, req) {
 		err := new(errorpb.StaleEpoch)
 		// Attach the next shard which might be split from the current shard. But it doesn't
@@ -985,15 +983,7 @@ func (s *store) removePeerState(shard bhmetapb.Shard) error {
 
 func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
 	raftState := new(bhraftpb.RaftLocalState)
-	raftState.LastIndex = raftInitLogIndex
-	raftState.HardState.Term = raftInitLogTerm
-	raftState.HardState.Commit = raftInitLogIndex
-
 	applyState := new(bhraftpb.RaftApplyState)
-	applyState.AppliedIndex = raftInitLogIndex
-	applyState.TruncatedState.Index = raftInitLogIndex
-	applyState.TruncatedState.Term = raftInitLogTerm
-
 	err := wb.Set(getRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
 	if err != nil {
 		return err

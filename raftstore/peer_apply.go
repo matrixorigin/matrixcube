@@ -42,7 +42,7 @@ func (s *store) doDestroy(shardID uint64, tombstone bool, why string) {
 	pr := s.getPR(shardID, false)
 	if pr != nil {
 		if tombstone {
-			pr.ps.shard.State = metapb.ResourceState_Removed
+			pr.shard.State = metapb.ResourceState_Removed
 		}
 		pr.mustDestroy(why)
 	}
@@ -92,70 +92,21 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	return err
 }
 
-func (pr *peerReplica) doApplyingSnapshotJob() error {
-	logger.Infof("shard %d begin apply snapshot data", pr.shardID)
-	localState, err := pr.ps.loadShardLocalState(pr.ps.applySnapJob)
-	if err != nil {
-		logger.Fatalf("shard %d apply snap load local state failed with %+v",
-			pr.shardID,
-			err)
-		return err
-	}
-
-	err = pr.store.removeShardData(localState.Shard, pr.ps.applySnapJob)
-	if err != nil {
-		logger.Fatalf("shard %d apply snap delete range data failed with %+v",
-			pr.shardID,
-			err)
-		return err
-	}
-
-	err = pr.ps.applySnapshot(pr.ps.applySnapJob)
-	if err != nil {
-		logger.Errorf("shard %d apply snap snapshot failed with %+v",
-			pr.shardID,
-			err)
-		return err
-	}
-
-	wb := util.NewWriteBatch()
-	pr.store.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Normal, wb)
-	err = pr.store.MetadataStorage().Write(wb, true)
-	if err != nil {
-		logger.Fatalf("shard %d apply snap update peer state failed with %+v",
-			pr.shardID,
-			err)
-		return err
-	}
-
-	if pr.store.aware != nil {
-		pr.store.aware.SnapshotApplied(pr.ps.shard)
-	}
-	pr.stopRaftTick = false
-	logger.Infof("shard %d apply snapshot data complete, %+v",
-		pr.shardID,
-		pr.ps.raftLocalState.HardState)
-	return nil
-}
-
-func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, term uint64, commitedEntries []raftpb.Entry) error {
-	logger.Debugf("shard %d peer %d async apply raft log with %d entries at term %d",
+func (pr *peerReplica) doApplyCommittedEntries(shardID uint64, commitedEntries []raftpb.Entry) error {
+	logger.Debugf("shard %d peer %d async apply raft log with %d entries",
 		shardID,
 		pr.peer.ID,
-		len(commitedEntries),
-		term)
+		len(commitedEntries))
 
 	value, ok := pr.store.delegates.Load(shardID)
 	if !ok {
-		logger.Fatalf("shard %d pper %d async apply raft log with %d entries at term %d, error missing delegate",
+		logger.Fatalf("shard %d pper %d async apply raft log with %d entries, error missing delegate",
 			shardID,
 			pr.peer.ID,
-			len(commitedEntries),
-			term)
+			len(commitedEntries))
 	}
 
 	delegate := value.(*applyDelegate)
-	delegate.term = term
 	delegate.applyCommittedEntries(commitedEntries)
 
 	if delegate.isPendingRemove() {
@@ -267,7 +218,7 @@ func (ctx *applyContext) BatchSize() int {
 }
 
 func (ctx *applyContext) DataStorage() storage.DataStorage {
-	return ctx.pr.store.DataStorageByGroup(ctx.pr.ps.shard.Group, ctx.pr.shardID)
+	return ctx.pr.store.DataStorageByGroup(ctx.pr.shard.Group, ctx.pr.shardID)
 }
 
 func (ctx *applyContext) StoreID() uint64 {
@@ -276,7 +227,6 @@ func (ctx *applyContext) StoreID() uint64 {
 
 type applyDelegate struct {
 	store  *store
-	ps     *peerStorage
 	peerID uint64
 	shard  bhmetapb.Shard
 	// if we remove ourself in ChangePeer remove, we should set this flag, then

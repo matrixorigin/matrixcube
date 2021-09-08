@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func (s *store) ProphetBecomeLeader() {
@@ -177,22 +176,10 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 		}))
 
 		// shard raft state
-		wb.Set(getRaftLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{
-			LastIndex: raftInitLogIndex,
-			HardState: raftpb.HardState{
-				Term:   raftInitLogTerm,
-				Commit: raftInitLogIndex,
-			},
-		}))
+		wb.Set(getRaftLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{}))
 
 		// shard raft apply state
-		wb.Set(getRaftApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{
-			AppliedIndex: raftInitLogIndex,
-			TruncatedState: bhraftpb.RaftTruncatedState{
-				Term:  raftInitLogTerm,
-				Index: raftInitLogIndex,
-			},
-		}))
+		wb.Set(getRaftApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{}))
 
 		logger.Infof("create init shard %+v", shard.String())
 	}

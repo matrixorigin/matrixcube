@@ -195,7 +195,7 @@ func (pr *peerReplica) handleEvent() bool {
 	pr.handleApplyResult(pr.items)
 	pr.handleRequest(pr.items)
 
-	if pr.rn.HasReadySince(pr.ps.lastReadyIndex) {
+	if pr.rn.HasReadySince(pr.lastReadyIndex) {
 		pr.handleReady()
 	}
 
@@ -370,7 +370,7 @@ func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epo
 		return
 	}
 
-	current := pr.ps.shard
+	current := pr.shard
 	if current.Epoch.Version != epoch.Version {
 		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
 			pr.shardID,
@@ -395,127 +395,6 @@ func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epo
 }
 
 func (pr *peerReplica) doCheckCompact() {
-	// Leader will replicate the compact log command to followers,
-	// If we use current replicated_index (like 10) as the compact index,
-	// when we replicate this log, the newest replicated_index will be 11,
-	// but we only compact the log to 10, not 11, at that time,
-	// the first index is 10, and replicated_index is 11, with an extra log,
-	// and we will do compact again with compact index 11, in cycles...
-	// So we introduce a threshold, if replicated index - first index > threshold,
-	// we will try to compact log.
-	// raft log entries[..............................................]
-	//                  ^                                       ^
-	//                  |-----------------threshold------------ |
-	//              first_index                         replicated_index
-
-	var replicatedIdx uint64
-	for _, p := range pr.rn.Status().Progress {
-		if replicatedIdx == 0 {
-			replicatedIdx = p.Match
-		}
-
-		if p.Match < replicatedIdx {
-			replicatedIdx = p.Match
-		}
-	}
-
-	// When an election happened or a new peer is added, replicated_idx can be 0.
-	if replicatedIdx > 0 {
-		lastIdx := pr.rn.LastIndex()
-		if lastIdx < replicatedIdx {
-			logger.Fatalf("shard %d expect last index >= replicated index, last=<%d> replicated=<%d>",
-				pr.shardID,
-				lastIdx,
-				replicatedIdx)
-		}
-
-		metric.ObserveRaftLogLag(lastIdx - replicatedIdx)
-	}
-
-	var compactIdx uint64
-	appliedIdx := pr.ps.getAppliedIndex()
-	firstIdx, _ := pr.ps.FirstIndex()
-
-	if replicatedIdx < firstIdx ||
-		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
-		return
-	}
-
-	if !pr.disableCompactProtect &&
-		appliedIdx > firstIdx &&
-		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
-		compactIdx = appliedIdx
-	} else if !pr.disableCompactProtect &&
-		pr.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
-		compactIdx = appliedIdx
-	} else {
-		compactIdx = replicatedIdx
-	}
-
-	// Have no idea why subtract 1 here, but original code did this by magic.
-	if compactIdx == 0 {
-		logger.Fatal("shard %d unexpect compactIdx",
-			pr.shardID)
-	}
-
-	// avoid leader send snapshot to the a little lag peer.
-	if !pr.disableCompactProtect {
-		if compactIdx > replicatedIdx {
-			if (compactIdx - replicatedIdx) <= pr.store.cfg.Raft.RaftLog.CompactProtectLag {
-				compactIdx = replicatedIdx
-			} else {
-				logger.Infof("shard %d peer lag is too large, maybe sent a snapshot later. lag=<%d>",
-					pr.shardID,
-					compactIdx-replicatedIdx)
-			}
-		}
-	}
-
-	compactIdx--
-
-	if pr.store.cfg.Customize.CustomAdjustCompactFuncFactory != nil {
-		if fn := pr.store.cfg.Customize.CustomAdjustCompactFuncFactory(pr.ps.shard.Group); fn != nil {
-			idx, err := fn(pr.ps.shard, compactIdx)
-			if err != nil {
-				logger.Errorf("shard %d adjust compact idx %d failed with %+v",
-					pr.shardID,
-					compactIdx,
-					err)
-				return
-			}
-
-			if idx > compactIdx {
-				logger.Fatalf("shard %d adjust compact idx %d failed, invalid adjust idx %d",
-					pr.shardID,
-					compactIdx,
-					idx,
-					err)
-				return
-			}
-
-			logger.Infof("shard %d compact idx %d updated to %d",
-				pr.shardID,
-				compactIdx,
-				idx,
-				err)
-			compactIdx = idx
-		}
-	}
-
-	if compactIdx < firstIdx {
-		// In case compactIdx == firstIdx before subtraction.
-		return
-	}
-
-	term, _ := pr.rn.Term(compactIdx)
-	req := new(raftcmdpb.AdminRequest)
-	req.CmdType = raftcmdpb.AdminCmdType_CompactLog
-	req.CompactLog = &raftcmdpb.CompactLogRequest{
-		CompactIndex: compactIdx,
-		CompactTerm:  term,
-	}
-
-	pr.onAdmin(req)
 }
 
 func (pr *peerReplica) doHeartbeat() {
@@ -540,7 +419,7 @@ func (pr *peerReplica) doHeartbeat() {
 	}
 	pr.lastHBTime = req.Stats.Interval.End
 
-	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.ps.shard), req)
+	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.shard), req)
 	if err != nil {
 		logger.Errorf("shard %d heartbeat to prophet failed with %+v",
 			pr.shardID,

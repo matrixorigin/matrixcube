@@ -72,7 +72,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			req := items[i].(reqCtx)
 			if req.req != nil {
 				if h, ok := pr.store.localHandlers[req.req.CustemType]; ok {
-					rsp, err := h(pr.ps.shard, req.req)
+					rsp, err := h(pr.shard, req.req)
 					if err != nil {
 						respWithRetry(req.req, req.cb)
 					} else {
@@ -85,7 +85,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			if logger.DebugEnabled() && req.req != nil {
 				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
 			}
-			pr.batch.push(pr.ps.shard.Group, req)
+			pr.batch.push(pr.shard.Group, req)
 		}
 	}
 
@@ -214,18 +214,10 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 }
 
 func (pr *peerReplica) proposeConfChange(c cmd) bool {
-	if pr.rn.PendingConfIndex() > pr.ps.getAppliedIndex() {
+	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		logger.Errorf("shard-%d there is a pending conf change, try later",
 			pr.shardID)
 		c.respOtherError(errors.New("there is a pending conf change, try later"))
-		return false
-	}
-
-	if pr.ps.appliedIndexTerm != pr.rn.BasicStatus().Term {
-		logger.Errorf("shard-%d has not applied to current term, applied_term %d, current_term %d",
-			pr.shardID,
-			pr.ps.appliedIndexTerm,
-			pr.rn.BasicStatus().Term)
 		return false
 	}
 
@@ -307,7 +299,7 @@ func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
 	req := c.req.AdminRequest.TransferLeader
 
 	// has pending conf, skip
-	if pr.rn.PendingConfIndex() > pr.ps.getAppliedIndex() {
+	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		logger.Infof("shard %d transfer leader ignored by pending conf, req=<%+v>",
 			pr.shardID,
 			req)
@@ -353,7 +345,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 		}
 	}
 
-	lastIndex, _ := pr.ps.LastIndex()
+	lastIndex, _ := pr.lr.LastIndex()
 	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
 }
 
@@ -443,19 +435,16 @@ func (pr *peerReplica) checkConfChange(changes []raftcmdpb.ChangePeerRequest, cc
 		return fmt.Errorf("invalid conf change request, multiple changes that only effect learner")
 	}
 
-	promoted_commit_index := currentProgress.Committed()
 	// It's always safe if there is only one node in the cluster.
-	if currentProgress.IsSingleton() || promoted_commit_index >= pr.ps.getTruncatedIndex() {
+	if currentProgress.IsSingleton() {
 		return nil
 	}
 
 	// Waking it up to replicate logs to candidate.
-	return fmt.Errorf("unsafe to perform conf change %+v, before %+v, after %+v, truncated index %+v, promoted commit index %+v",
+	return fmt.Errorf("unsafe to perform conf change %+v, before %+v, after %+v",
 		changes,
 		currentProgress,
-		afterProgress,
-		pr.ps.getTruncatedIndex(),
-		promoted_commit_index)
+		afterProgress)
 }
 
 func (pr *peerReplica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTracker, error) {
@@ -510,7 +499,7 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 	}
 
 	if pr.store.cfg.Customize.CustomCanReadLocalFunc != nil &&
-		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.ps.shard) {
+		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.shard) {
 		return readLocal, nil
 	}
 

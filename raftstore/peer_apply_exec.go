@@ -430,37 +430,7 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 }
 
 func (d *applyDelegate) doExecCompactRaftLog(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *execResult, error) {
-	ctx.metrics.admin.compact++
-
-	req := ctx.req.AdminRequest.CompactLog
-	compactIndex := req.CompactIndex
-	firstIndex := ctx.applyState.TruncatedState.Index + 1
-
-	if compactIndex <= firstIndex {
-		return nil, nil, nil
-	}
-
-	compactTerm := req.CompactTerm
-	if compactTerm == 0 {
-		return nil, nil, errors.New("command format is outdated, please upgrade leader")
-	}
-
-	err := compactRaftLog(d.shard.ID, &ctx.applyState, compactIndex, compactTerm)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_CompactLog, &raftcmdpb.CompactLogResponse{})
-	result := &execResult{
-		adminType: raftcmdpb.AdminCmdType_CompactLog,
-		raftGCResult: &raftGCResult{
-			state:      ctx.applyState.TruncatedState,
-			firstIndex: firstIndex,
-		},
-	}
-
-	ctx.metrics.admin.compactSucceed++
-	return rsp, result, nil
+	return nil, nil, nil
 }
 
 func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raftcmdpb.RaftCMDResponse) {

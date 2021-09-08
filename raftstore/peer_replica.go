@@ -22,12 +22,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cockroachdb/errors"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -35,8 +40,9 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft/v3"
 )
+
+var dn = util.DescribeReplica
 
 type readContext struct {
 	offset    int
@@ -90,7 +96,7 @@ func (ctx *readContext) BatchSize() int {
 }
 
 func (ctx *readContext) DataStorage() storage.DataStorage {
-	return ctx.pr.store.DataStorageByGroup(ctx.pr.ps.shard.Group, ctx.pr.shardID)
+	return ctx.pr.store.DataStorageByGroup(ctx.pr.shard.Group, ctx.pr.shardID)
 }
 
 func (ctx *readContext) StoreID() uint64 {
@@ -104,30 +110,30 @@ type peerReplica struct {
 	startedC              chan struct{}
 	disableCompactProtect bool
 	peer                  metapb.Peer
+	shard                 bhmetapb.Shard
 	rn                    *raft.RawNode
 	stopRaftTick          bool
 	leaderID              uint64
 	currentTerm           uint64
+	store                 *store
+	lr                    *LogReader
+	peerHeartbeatsMap     sync.Map
+	lastHBTime            uint64
+	batch                 *proposeBatch
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	items                 []interface{}
+	events                *task.RingBuffer
+	ticks                 *task.Queue
+	steps                 *task.Queue
+	reports               *task.Queue
+	applyResults          *task.Queue
+	requests              *task.Queue
+	actions               *task.Queue
 
-	store *store
-	ps    *peerStorage
-
-	peerHeartbeatsMap sync.Map
-	lastHBTime        uint64
-
-	batch        *proposeBatch
-	pendingReads *readIndexQueue
-	ctx          context.Context
-	cancel       context.CancelFunc
-	items        []interface{}
-	events       *task.RingBuffer
-	ticks        *task.Queue
-	steps        *task.Queue
-	reports      *task.Queue
-	applyResults *task.Queue
-	requests     *task.Queue
-	actions      *task.Queue
-
+	appliedIndex    uint64
+	lastReadyIndex  uint64
+	pendingReads    *readIndexQueue
 	writtenKeys     uint64
 	writtenBytes    uint64
 	readKeys        uint64
@@ -141,7 +147,6 @@ type peerReplica struct {
 
 	metrics  localMetrics
 	stopOnce sync.Once
-	readyCtx *readyContext
 
 	readCtx *readContext
 }
@@ -195,15 +200,16 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why s
 	pr.eventWorker = math.MaxUint64
 	pr.store = store
 	pr.peer = peer
+	pr.shard = *shard
 	pr.shardID = shard.ID
-	pr.ps = newPeerStorage(store, *shard)
 	pr.startedC = make(chan struct{})
+	pr.lr = NewLogReader(shard.ID, peer.ID, store.logdb)
 	return pr, nil
 }
 
 func (pr *peerReplica) start() {
 	for _, g := range pr.store.cfg.Raft.RaftLog.DisableCompactProtect {
-		if pr.ps.shard.Group == g {
+		if pr.shard.Group == g {
 			pr.disableCompactProtect = true
 			break
 		}
@@ -218,37 +224,51 @@ func (pr *peerReplica) start() {
 	pr.applyResults = &task.Queue{}
 	pr.requests = &task.Queue{}
 	pr.actions = &task.Queue{}
-	pr.readyCtx = &readyContext{
-		wb: util.NewWriteBatch(),
-	}
 	pr.pendingReads = &readIndexQueue{
-		shardID: pr.ps.shard.ID,
+		shardID: pr.shard.ID,
 	}
 
 	pr.ctx, pr.cancel = context.WithCancel(context.Background())
 	pr.items = make([]interface{}, readyBatch)
 
 	if pr.store.aware != nil {
-		pr.store.aware.Created(pr.ps.shard)
+		pr.store.aware.Created(pr.shard)
 	}
 
-	pr.ps.start(pr.peer)
+	if err := pr.initConfState(); err != nil {
+		panic(err)
+	}
+	if _, err := pr.initLogState(); err != nil {
+		panic(err)
+	}
 
-	c := getRaftConfig(pr.peer.ID, pr.ps.getAppliedIndex(), pr.ps, pr.store.cfg)
+	c := getRaftConfig(pr.peer.ID, pr.appliedIndex, pr.lr, pr.store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		logger.Fatalf("shard %d peer %d create raft node failed with %+v",
-			pr.ps.shard.ID,
+			pr.shard.ID,
 			pr.peer.ID,
 			err)
 	}
+
+	// TODO: restore confState, log range from persisted info
+	emptyLog, err := pr.isPersistedLogEmpty()
+	if err != nil {
+		panic(err)
+	}
+	if emptyLog {
+		if err := pr.bootstrap(rn, &pr.shard, pr.store.logdb); err != nil {
+			panic(err)
+		}
+	}
+
 	pr.rn = rn
 
-	applyWorker, eventWorker := pr.store.allocWorker(pr.ps.shard.Group)
+	applyWorker, eventWorker := pr.store.allocWorker(pr.shard.Group)
 	pr.applyWorker = applyWorker
 	pr.registerDelegate()
 	logger.Infof("shard %d peer %d delegate register completed",
-		pr.ps.shard.ID,
+		pr.shard.ID,
 		pr.peer.ID)
 
 	// start drive raft
@@ -257,13 +277,14 @@ func (pr *peerReplica) start() {
 	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
 		pr.shardID,
 		pr.peer.ID,
-		pr.ps.shard.Epoch,
-		pr.ps.shard.Peers,
+		pr.shard.Epoch,
+		pr.shard.Peers,
 		pr.eventWorker,
 		pr.applyWorker)
 
+	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one peer and I am the one, campaign directly.
-	if len(pr.ps.shard.Peers) == 1 && pr.ps.shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
+	if len(pr.shard.Peers) == 1 && pr.shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
 		logger.Infof("shard %d peer %d try to campaign leader, because only self",
 			pr.shardID,
 			pr.peer.ID)
@@ -275,8 +296,8 @@ func (pr *peerReplica) start() {
 				pr.peer.ID,
 				err)
 		}
-	} else if pr.ps.shard.State == metapb.ResourceState_WaittingCreate &&
-		pr.ps.shard.Peers[0].ContainerID == pr.store.Meta().ID {
+	} else if pr.shard.State == metapb.ResourceState_WaittingCreate &&
+		pr.shard.Peers[0].ContainerID == pr.store.Meta().ID {
 		logger.Infof("shard %d peer %d try to campaign leader, because first peer of dynamically created",
 			pr.shardID,
 			pr.peer.ID)
@@ -293,18 +314,63 @@ func (pr *peerReplica) start() {
 	pr.onRaftTick(nil)
 }
 
+func (pr *peerReplica) id() string {
+	return dn(pr.shard.ID, pr.peer.ID)
+}
+
+// initConfState initializes the ConfState of the LogReader which will be
+// applied to the raft module.
+func (pr *peerReplica) initConfState() error {
+	// FIXME: this is using the latest confState, should be using the confState
+	// consistent with the aoe state.
+	confState := raftpb.ConfState{}
+	for _, p := range pr.shard.Peers {
+		if p.Role == metapb.PeerRole_Voter {
+			confState.Voters = append(confState.Voters, p.ID)
+		} else if p.Role == metapb.PeerRole_Learner {
+			confState.Learners = append(confState.Learners, p.ID)
+		}
+	}
+	pr.lr.SetConfState(confState)
+	return nil
+}
+
+// initLogState returns a boolean flag indicating whether this is a new node.
+func (pr *peerReplica) initLogState() (bool, error) {
+	rs, err := pr.store.logdb.ReadRaftState(pr.shardID, pr.peer.ID)
+	if errors.Is(err, logdb.ErrNoSavedLog) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	hasRaftHardState := raft.IsEmptyHardState(rs.State)
+	if hasRaftHardState {
+		logger.Infof("%s initLogState, first index %d, count %d, commit %d, term %d",
+			pr.id(), rs.FirstIndex, rs.EntryCount, rs.State.Commit, rs.State.Term)
+		pr.lr.SetState(rs.State)
+	}
+	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
+	return !(rs.EntryCount > 0 || hasRaftHardState), nil
+}
+
+func (pr *peerReplica) isPersistedLogEmpty() (bool, error) {
+	lastIndex, err := pr.lr.LastIndex()
+	if err != nil {
+		return false, err
+	}
+	return lastIndex == 0, nil
+}
+
 func (pr *peerReplica) registerDelegate() {
 	delegate := &applyDelegate{
-		store:            pr.store,
-		ps:               pr.ps,
-		peerID:           pr.peer.ID,
-		shard:            pr.ps.shard,
-		term:             pr.getCurrentTerm(),
-		applyState:       pr.ps.raftApplyState,
-		appliedIndexTerm: pr.ps.appliedIndexTerm,
-		ctx:              newApplyContext(pr),
+		store:  pr.store,
+		peerID: pr.peer.ID,
+		shard:  pr.shard,
+		term:   pr.getCurrentTerm(),
+		ctx:    newApplyContext(pr),
 		syncData: pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil &&
-			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.ps.shard.Group) != nil,
+			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.shard.Group) != nil,
 	}
 
 	value, loaded := pr.store.delegates.LoadOrStore(delegate.shard.ID, delegate)
@@ -322,7 +388,6 @@ func (pr *peerReplica) registerDelegate() {
 			old.peerID = delegate.peerID
 			old.shard = delegate.shard
 			old.term = delegate.term
-			old.applyState = delegate.applyState
 			old.appliedIndexTerm = delegate.appliedIndexTerm
 			old.clearAllCommandsAsStale()
 			return nil
@@ -331,7 +396,7 @@ func (pr *peerReplica) registerDelegate() {
 		if err != nil {
 			if !pr.store.isStopped() {
 				logger.Fatalf("shard %d add registration job failed with %+v",
-					pr.ps.shard.ID,
+					pr.shard.ID,
 					err)
 			}
 		}
@@ -344,7 +409,7 @@ func (pr *peerReplica) getPeer(id uint64) (metapb.Peer, bool) {
 		return value, ok
 	}
 
-	for _, p := range pr.ps.shard.Peers {
+	for _, p := range pr.shard.Peers {
 		if p.ID == id {
 			pr.store.peers.Store(id, p)
 			return p, true
@@ -380,11 +445,11 @@ func (pr *peerReplica) waitStarted() {
 
 func (pr *peerReplica) notifyWorker() {
 	pr.waitStarted()
-	pr.store.workReady.notify(pr.ps.shard.Group, pr.eventWorker)
+	pr.store.workReady.notify(pr.shard.Group, pr.eventWorker)
 }
 
 func (pr *peerReplica) maybeCampaign() (bool, error) {
-	if len(pr.ps.shard.Peers) <= 1 {
+	if len(pr.shard.Peers) <= 1 {
 		// The peer campaigned when it was created, no need to do it again.
 		return false, nil
 	}
@@ -398,16 +463,6 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 }
 
 func (pr *peerReplica) mustDestroy(why string) {
-	if pr.ps.isApplyingSnapshot() {
-		util.DefaultTimeoutWheel().Schedule(time.Second*30, func(interface{}) {
-			pr.mustDestroy(why)
-		}, nil)
-		logger.Infof("shard %d peer %d  is applying snapshot, retry destory later",
-			pr.shardID,
-			pr.peer.ID)
-		return
-	}
-
 	logger.Infof("shard %d peer %d begin to destroy, because %s",
 		pr.shardID,
 		pr.peer.ID,
@@ -424,7 +479,7 @@ func (pr *peerReplica) mustDestroy(why string) {
 
 	wb := util.NewWriteBatch()
 	pr.store.clearMeta(pr.shardID, wb)
-	pr.store.updatePeerState(pr.ps.shard, bhraftpb.PeerState_Tombstone, wb)
+	pr.store.updatePeerState(pr.shard, bhraftpb.PeerState_Tombstone, wb)
 	err := pr.store.MetadataStorage().Write(wb, false)
 	if err != nil {
 		logger.Fatal("shard %d do destroy failed with %+v",
@@ -432,8 +487,8 @@ func (pr *peerReplica) mustDestroy(why string) {
 			err)
 	}
 
-	if pr.ps.isInitialized() {
-		err := pr.store.startClearDataJob(pr.ps.shard)
+	if len(pr.shard.Peers) > 0 {
+		err := pr.store.startClearDataJob(pr.shard)
 		if err != nil {
 			logger.Fatal("shard %d do destroy failed with %+v",
 				pr.shardID,
@@ -443,7 +498,7 @@ func (pr *peerReplica) mustDestroy(why string) {
 
 	pr.cancel()
 
-	if pr.ps.isInitialized() && !pr.store.removeShardKeyRange(pr.ps.shard) {
+	if len(pr.shard.Peers) > 0 && !pr.store.removeShardKeyRange(pr.shard) {
 		logger.Warningf("shard %d remove key range failed",
 			pr.shardID)
 	}
@@ -467,7 +522,7 @@ func (pr *peerReplica) stopEventLoop() {
 }
 
 func (pr *peerReplica) maybeExecRead() {
-	pr.pendingReads.doReadLEAppliedIndex(pr.ps.raftApplyState.AppliedIndex, pr)
+	pr.pendingReads.doReadLEAppliedIndex(pr.appliedIndex, pr)
 }
 
 func (pr *peerReplica) doExecReadCmd(c cmd) {
@@ -482,7 +537,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 		pr.readKeys++
 		pr.readCtx.offset = idx
 		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			rsp, readBytes := h(pr.ps.shard, req, pr.readCtx)
+			rsp, readBytes := h(pr.shard, req, pr.readCtx)
 			resp.Responses = append(resp.Responses, rsp)
 			pr.readBytes += readBytes
 			if logger.DebugEnabled() {
@@ -500,7 +555,7 @@ func (pr *peerReplica) doExecReadCmd(c cmd) {
 }
 
 func (pr *peerReplica) supportSplit() bool {
-	return !pr.ps.shard.DisableSplit
+	return !pr.shard.DisableSplit
 }
 
 func (pr *peerReplica) pendingReadCount() int {
@@ -518,7 +573,7 @@ func (pr *peerReplica) resetBatch() {
 func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {
 	now := time.Now()
 	var downPeers []metapb.PeerStats
-	for _, p := range pr.ps.shard.Peers {
+	for _, p := range pr.shard.Peers {
 		if p.ID == pr.peer.ID {
 			continue
 		}
@@ -537,32 +592,17 @@ func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {
 	return downPeers
 }
 
+// collectPendingPeers returns a list of peers that are potentially waiting for
+// snapshots from the leader.
 func (pr *peerReplica) collectPendingPeers() []metapb.Peer {
-	var pendingPeers []metapb.Peer
-	status := pr.rn.Status()
-	truncatedIdx := pr.ps.getTruncatedIndex()
-
-	for id, progress := range status.Progress {
-		if id == pr.peer.ID {
-			continue
-		}
-
-		if progress.Match < truncatedIdx {
-			if v, ok := pr.store.peers.Load(id); ok {
-				p := v.(metapb.Peer)
-				pendingPeers = append(pendingPeers, metapb.Peer{ID: p.ID, ContainerID: p.ContainerID})
-			}
-		}
-	}
-
-	return pendingPeers
+	return []metapb.Peer{}
 }
 
 func (pr *peerReplica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
 	return &raft.Config{
 		ID:              id,
 		Applied:         appliedIndex,
@@ -570,7 +610,7 @@ func getRaftConfig(id, appliedIndex uint64, ps *peerStorage, cfg *config.Config)
 		HeartbeatTick:   cfg.Raft.HeartbeatTicks,
 		MaxSizePerMsg:   uint64(cfg.Raft.MaxSizePerMsg),
 		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
-		Storage:         ps,
+		Storage:         lr,
 		CheckQuorum:     true,
 		PreVote:         true,
 	}

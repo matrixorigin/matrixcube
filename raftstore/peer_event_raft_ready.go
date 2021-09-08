@@ -17,423 +17,121 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 var (
-	// testMaxOnceCommitEntryCount how many submitted entries are processed each time. 0 is unlimited
+	// testMaxOnceCommitEntryCount defines how many committed entries can be
+	// applied each time. 0 means unlimited
 	testMaxOnceCommitEntryCount = 0
 )
-
-type readyContext struct {
-	hardState  raftpb.HardState
-	raftState  bhraftpb.RaftLocalState
-	applyState bhraftpb.RaftApplyState
-	lastTerm   uint64
-	snap       *bhraftpb.SnapshotMessage
-	wb         *util.WriteBatch
-}
-
-func (ctx *readyContext) reset() {
-	ctx.hardState = raftpb.HardState{}
-	ctx.raftState = bhraftpb.RaftLocalState{}
-	ctx.applyState = bhraftpb.RaftApplyState{}
-	ctx.lastTerm = 0
-	ctx.snap = nil
-	ctx.wb.Reset()
-}
 
 type applySnapResult struct {
 	prev    bhmetapb.Shard
 	current bhmetapb.Shard
 }
 
-// handle raft ready will do these things:
-// 1. append raft log
-// 2. send raft message to followers
-// 3. apply raft log
-// 4. exec read index request
-func (pr *peerReplica) handleReady() {
-	// If we continue to handle all the messages, it may cause too many messages because
-	// leader will send all the remaining messages to this follower, which can lead
-	// to full message queue under high load.
-	if pr.ps.isApplyingSnapshot() {
-		logger.Debugf("shard %d peer %d still applying snapshot, skip further handling",
-			pr.shardID,
-			pr.peer.ID)
-		return
+func (pr *peerReplica) handleReady() error {
+	rd := pr.rn.ReadySince(pr.lastReadyIndex)
+	pr.handleRaftState(rd)
+	pr.sendRaftReplicateMessages(rd)
+	if err := pr.handleRaftReadyAppend(rd); err != nil {
+		return err
 	}
-
-	pr.ps.resetApplyingSnapJob()
-
-	// wait apply committed entries complete
-	if pr.rn.HasPendingSnapshot() &&
-		!pr.ps.isApplyComplete() {
-		logger.Debugf("shard %d peer %d apply index and committed index not match, skip applying snapshot, apply=<%d> commit=<%d>",
-			pr.shardID,
-			pr.peer.ID,
-			pr.ps.getAppliedIndex(),
-			pr.ps.getCommittedIndex())
-		return
+	pr.sendRaftMessages(rd)
+	rd = pr.limitNumOfEntriesToApply(rd)
+	if err := pr.applyCommittedEntries(rd); err != nil {
+		return err
 	}
+	pr.handleReadyToRead(rd)
+	pr.rn.AdvanceAppend(rd)
 
-	rd := pr.rn.ReadySince(pr.ps.lastReadyIndex)
-	ctx := pr.readyCtx
-	ctx.reset()
-
-	// If snapshot is received, further handling
-	if !raft.IsEmptySnap(rd.Snapshot) {
-		ctx.snap = &bhraftpb.SnapshotMessage{}
-		protoc.MustUnmarshal(ctx.snap, rd.Snapshot.Data)
-		if !pr.stopRaftTick {
-			// When we apply snapshot, stop raft tick and resume until the snapshot applied
-			pr.stopRaftTick = true
-		}
-
-		if !pr.store.snapshotManager.Exists(ctx.snap) {
-			logger.Infof("shard %d peer %d receiving snapshot, skip further handling",
-				pr.shardID,
-				pr.peer.ID)
-			return
-		}
-
-		logger.Infof("shard %d peer %d received a snapshot at %d",
-			pr.shardID,
-			pr.peer.ID,
-			rd.Snapshot.Metadata.Index)
-	}
-
-	ctx.hardState = pr.ps.raftLocalState.HardState
-	ctx.raftState = pr.ps.raftLocalState
-	ctx.applyState = pr.ps.raftApplyState
-	ctx.lastTerm = pr.ps.lastTerm
-
-	pr.handleRaftReadyAppend(ctx, &rd)
-	pr.handleRaftReadyApply(ctx, &rd)
+	return nil
 }
 
-// ====================== append raft log methods
-
-func (pr *peerReplica) handleRaftReadyAppend(ctx *readyContext, rd *raft.Ready) {
-	start := time.Now()
-
-	// If we become leader, send heartbeat to pd
+func (pr *peerReplica) handleRaftState(rd raft.Ready) {
+	// etcd raft won't repeatedly return the same non-empty soft state
 	if rd.SoftState != nil {
+		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
-			logger.Infof("shard %d peer %d ********become leader now********",
-				pr.shardID,
-				pr.peer.ID)
+			logger.Infof("%s ********become leader now********",
+				pr.id())
 			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
-				pr.store.aware.BecomeLeader(pr.ps.shard)
+				pr.store.aware.BecomeLeader(pr.shard)
 			}
 		} else {
-			logger.Infof("shard %d peer %d ********become follower now********",
-				pr.shardID,
-				pr.peer.ID)
-
+			logger.Infof("%s ********become follower now********",
+				pr.id())
 			if pr.store.aware != nil {
-				pr.store.aware.BecomeFollower(pr.ps.shard)
+				pr.store.aware.BecomeFollower(pr.shard)
 			}
 		}
 	}
+}
 
+func (pr *peerReplica) handleRaftReadyAppend(rd raft.Ready) error {
+	start := time.Now()
+	defer metric.ObserveRaftLogAppendDuration(start)
+	return pr.handleAppendEntries(rd)
+}
+
+func (pr *peerReplica) handleAppendEntries(rd raft.Ready) error {
+	if len(rd.Entries) > 0 {
+		pr.lr.Append(rd.Entries)
+		pr.metrics.ready.append++
+		return pr.store.logdb.SaveRaftState(pr.shard.ID, pr.peer.ID, rd)
+	}
+	return nil
+}
+
+func (pr *peerReplica) limitNumOfEntriesToApply(rd raft.Ready) raft.Ready {
+	if testMaxOnceCommitEntryCount > 0 &&
+		testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
+		rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
+	}
+	return rd
+}
+
+func (pr *peerReplica) applyCommittedEntries(rd raft.Ready) error {
+	for _, entry := range rd.CommittedEntries {
+		pr.raftLogSizeHint += uint64(len(entry.Data))
+	}
+
+	if len(rd.CommittedEntries) > 0 {
+		pr.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
+		if err := pr.startApplyCommittedEntriesJob(pr.shardID, rd.CommittedEntries); err != nil {
+			return err
+		}
+		pr.metrics.ready.commit++
+	}
+	return nil
+}
+
+func (pr *peerReplica) handleReadyToRead(rd raft.Ready) {
+	for _, state := range rd.ReadStates {
+		pr.pendingReads.ready(state)
+	}
+	if len(rd.ReadStates) > 0 {
+		pr.maybeExecRead()
+	}
+}
+
+func (pr *peerReplica) sendRaftReplicateMessages(rd raft.Ready) {
 	// MsgApp can be immediately sent to followers so leader and followers can
 	// concurrently persist the logs to disk. For more details, check raft thesis
 	// section 10.2.1.
 	pr.send(rd.Messages, true)
-
-	ctx.wb.Reset()
-	pr.handleAppendSnapshot(ctx, rd)
-	pr.handleAppendEntries(ctx, rd)
-
-	if ctx.raftState.LastIndex > 0 && !raft.IsEmptyHardState(rd.HardState) {
-		ctx.hardState = rd.HardState
-	}
-
-	pr.doSaveRaftState(ctx)
-	pr.doSaveApplyState(ctx)
-
-	err := pr.store.MetadataStorage().Write(ctx.wb, !pr.store.cfg.Raft.RaftLog.DisableSync)
-	if err != nil {
-		logger.Fatalf("shard %d handle raft ready failure, errors\n %+v",
-			pr.shardID,
-			err)
-	}
-
-	metric.ObserveRaftLogAppendDuration(start)
 }
 
-func (pr *peerReplica) handleAppendSnapshot(ctx *readyContext, rd *raft.Ready) {
-	if !raft.IsEmptySnap(rd.Snapshot) {
-		err := pr.doAppendSnapshot(ctx, rd.Snapshot)
-		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failed with %+v",
-				pr.ps.shard.ID,
-				err)
-		}
-
-		pr.metrics.ready.snapshort++
-	}
-}
-
-func (pr *peerReplica) doAppendSnapshot(ctx *readyContext, snap raftpb.Snapshot) error {
-	logger.Infof("shard %d peer %d begin to apply snapshot",
-		pr.shardID,
-		pr.peer.ID)
-
-	if ctx.snap.Header.Shard.ID != pr.shardID {
-		logger.Errorf("shard %d peer %d snapshot not match, snapshot shard %d",
-			pr.shardID,
-			pr.peer.ID,
-			ctx.snap.Header.Shard.ID)
-		return fmt.Errorf("shard %d not match, snapShard=<%d> currShard=<%d>",
-			pr.shardID,
-			ctx.snap.Header.Shard.ID,
-			pr.shardID)
-	}
-
-	if pr.ps.isInitialized() {
-		err := pr.ps.store.clearMeta(pr.shardID, ctx.wb)
-		if err != nil {
-			logger.Errorf("shard %d clear meta failed with %+v",
-				pr.shardID,
-				err)
-			return err
-		}
-	}
-
-	err := pr.store.updatePeerState(ctx.snap.Header.Shard, bhraftpb.PeerState_Applying, ctx.wb)
-	if err != nil {
-		logger.Errorf("shard %d write peer state failed with %+v",
-			pr.shardID,
-			err)
-		return err
-	}
-
-	lastIndex := snap.Metadata.Index
-	lastTerm := snap.Metadata.Term
-
-	ctx.raftState.LastIndex = lastIndex
-	ctx.applyState.AppliedIndex = lastIndex
-	ctx.lastTerm = lastTerm
-
-	// The snapshot only contains log which index > applied index, so
-	// here the truncate state's (index, term) is in snapshot metadata.
-	ctx.applyState.TruncatedState.Index = lastIndex
-	ctx.applyState.TruncatedState.Term = lastTerm
-
-	logger.Infof("shard %d peer %d apply snapshot state completed, apply state %+v",
-		pr.shardID,
-		pr.peer.ID,
-		ctx.applyState)
-	return nil
-}
-
-func (pr *peerReplica) handleAppendEntries(ctx *readyContext, rd *raft.Ready) {
-	if len(rd.Entries) > 0 {
-		err := pr.doAppendEntries(ctx, rd.Entries)
-		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failed with %+v",
-				pr.ps.shard.ID,
-				err)
-		}
-
-		pr.metrics.ready.append++
-	}
-}
-
-// doAppendEntries the given entries to the raft log using previous last index or self.last_index.
-// Return the new last index for later update. After we commit in engine, we can set last_index
-// to the return one.
-func (pr *peerReplica) doAppendEntries(ctx *readyContext, entries []raftpb.Entry) error {
-	c := len(entries)
-	if c == 0 {
-		return nil
-	}
-
-	prevLastIndex := ctx.raftState.LastIndex
-	lastIndex := entries[c-1].Index
-	lastTerm := entries[c-1].Term
-
-	for _, e := range entries {
-		d := protoc.MustMarshal(&e)
-		err := ctx.wb.Set(getRaftLogKey(pr.shardID, e.Index), d)
-		if err != nil {
-			logger.Fatalf("shard %d append entry <%s> failed with %+v",
-				pr.shardID,
-				e.String(),
-				err)
-			return err
-		}
-	}
-
-	// Delete any previously appended log entries which never committed.
-	for index := lastIndex + 1; index < prevLastIndex+1; index++ {
-		err := ctx.wb.Delete(getRaftLogKey(pr.shardID, index))
-		if err != nil {
-			logger.Fatalf("shard %d delete any previously appended log entries %d failed with %+v",
-				pr.shardID,
-				index,
-				err)
-			return err
-		}
-	}
-
-	ctx.raftState.LastIndex = lastIndex
-	ctx.lastTerm = lastTerm
-
-	return nil
-}
-
-func (pr *peerReplica) doSaveRaftState(ctx *readyContext) {
-	if ctx.raftState.LastIndex != pr.ps.raftLocalState.LastIndex ||
-		ctx.hardState.Commit != pr.ps.raftLocalState.HardState.Commit ||
-		ctx.hardState.Term != pr.ps.raftLocalState.HardState.Term ||
-		ctx.hardState.Vote != pr.ps.raftLocalState.HardState.Vote {
-
-		ctx.raftState.HardState = ctx.hardState
-		err := ctx.wb.Set(getRaftLocalStateKey(pr.shardID), protoc.MustMarshal(&ctx.raftState))
-		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failed with %+v",
-				pr.ps.shard.ID,
-				err)
-		}
-	}
-}
-
-func (pr *peerReplica) doSaveApplyState(ctx *readyContext) {
-	tmp := ctx.applyState
-	origin := pr.ps.raftApplyState
-
-	if tmp.AppliedIndex != origin.AppliedIndex ||
-		tmp.TruncatedState.Index != origin.TruncatedState.Index ||
-		tmp.TruncatedState.Term != origin.TruncatedState.Term {
-		err := ctx.wb.Set(getRaftApplyStateKey(pr.shardID), protoc.MustMarshal(&ctx.applyState))
-		if err != nil {
-			logger.Fatalf("shard %d handle raft ready failed with %+v",
-				pr.ps.shard.ID,
-				err)
-		}
-	}
-}
-
-// ====================== apply raft log methods
-
-func (pr *peerReplica) handleRaftReadyApply(ctx *readyContext, rd *raft.Ready) {
-	if ctx.snap != nil {
-		// When apply snapshot, there is no log applied and not compacted yet.
-		pr.raftLogSizeHint = 0
-	}
-
-	result := pr.doApplySnapshot(ctx, rd)
-
-	// send all non-MsgApp messages
+func (pr *peerReplica) sendRaftMessages(rd raft.Ready) {
+	// send all other non-MsgApp messages
 	pr.send(rd.Messages, false)
-
-	if result != nil {
-		pr.registerDelegate()
-	}
-
-	pr.applyCommittedEntries(rd, result)
-
-	pr.doApplyReads(rd)
-
-	if result != nil {
-		pr.doUpdateKeyRange(result)
-	}
-
-	pr.rn.AdvanceAppend(*rd)
-	if result != nil {
-		// Because we only handle raft ready when not applying snapshot, so following
-		// line won't be called twice for the same snapshot.
-		pr.rn.AdvanceApply(pr.ps.lastReadyIndex)
-	}
-}
-
-func (pr *peerReplica) doApplySnapshot(ctx *readyContext, rd *raft.Ready) *applySnapResult {
-	pr.ps.raftLocalState = ctx.raftState
-	pr.ps.raftLocalState.HardState = ctx.hardState
-	pr.ps.raftApplyState = ctx.applyState
-	pr.ps.lastTerm = ctx.lastTerm
-
-	// If we apply snapshot ok, we should update some infos like applied index too.
-	if ctx.snap == nil {
-		return nil
-	}
-
-	// cleanup data before apply snap job
-	if pr.ps.isInitialized() {
-		err := pr.store.clearExtraData(pr.applyWorker, pr.ps.shard, ctx.snap.Header.Shard)
-		if err != nil {
-			// No need panic here, when applying snapshot, the deletion will be tried
-			// again. But if the shard range changes, like [a, c) -> [a, b) and [b, c),
-			// [b, c) will be kept in rocksdb until a covered snapshot is applied or
-			// store is restarted.
-			logger.Errorf("shard %d cleanup data failed with %+v",
-				pr.shardID,
-				err)
-			return nil
-		}
-	}
-
-	pr.startApplyingSnapJob()
-
-	// remove pending snapshots for sending
-	removedPeers(ctx.snap.Header.Shard, pr.ps.shard)
-
-	prev := pr.ps.shard
-	pr.ps.shard = ctx.snap.Header.Shard
-
-	return &applySnapResult{
-		prev:    prev,
-		current: pr.ps.shard,
-	}
-}
-
-func (pr *peerReplica) applyCommittedEntries(rd *raft.Ready, result *applySnapResult) {
-	if result != nil || pr.ps.isApplyingSnapshot() {
-		pr.ps.lastReadyIndex = pr.ps.getTruncatedIndex()
-	} else {
-		if testMaxOnceCommitEntryCount > 0 &&
-			testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
-			rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
-		}
-
-		for _, entry := range rd.CommittedEntries {
-			pr.raftLogSizeHint += uint64(len(entry.Data))
-		}
-
-		if len(rd.CommittedEntries) > 0 {
-			pr.ps.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
-			err := pr.startApplyCommittedEntriesJob(pr.shardID, pr.getCurrentTerm(), rd.CommittedEntries)
-			if err != nil && !pr.store.isStopped() {
-				logger.Fatalf("shard %d add apply committed entries job failed with %+v",
-					pr.shardID,
-					err)
-			}
-
-			pr.metrics.ready.commit++
-		}
-	}
-}
-
-func (pr *peerReplica) doApplyReads(rd *raft.Ready) {
-	for _, state := range rd.ReadStates {
-		pr.pendingReads.ready(state)
-	}
-
-	if len(rd.ReadStates) > 0 {
-		pr.maybeExecRead()
-	}
 }
 
 func (pr *peerReplica) isMsgApp(m raftpb.Message) bool {
@@ -465,11 +163,11 @@ func (pr *peerReplica) sendMessage(msg raftpb.Message) {
 func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg := pb.AcquireRaftMessage()
 	sendMsg.ShardID = pr.shardID
-	sendMsg.ShardEpoch = pr.ps.shard.Epoch
-	sendMsg.Group = pr.ps.shard.Group
-	sendMsg.DisableSplit = pr.ps.shard.DisableSplit
-	sendMsg.Unique = pr.ps.shard.Unique
-	sendMsg.RuleGroups = pr.ps.shard.RuleGroups
+	sendMsg.ShardEpoch = pr.shard.Epoch
+	sendMsg.Group = pr.shard.Group
+	sendMsg.DisableSplit = pr.shard.DisableSplit
+	sendMsg.Unique = pr.shard.Unique
+	sendMsg.RuleGroups = pr.shard.RuleGroups
 	sendMsg.From = pr.peer
 	sendMsg.To, _ = pr.getPeer(msg.To)
 	if sendMsg.To.ID == 0 {
@@ -484,12 +182,12 @@ func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	// Heartbeat message for the store of that peer to check whether to create a new peer
 	// when receiving these messages, or just to wait for a pending shard split to perform
 	// later.
-	if pr.ps.isInitialized() &&
+	if len(pr.shard.Peers) > 0 &&
 		(msg.Type == raftpb.MsgVote ||
 			// the peer has not been known to this leader, it may exist or not.
 			(msg.Type == raftpb.MsgHeartbeat && msg.Commit == 0)) {
-		sendMsg.Start = pr.ps.shard.Start
-		sendMsg.End = pr.ps.shard.End
+		sendMsg.Start = pr.shard.Start
+		sendMsg.End = pr.shard.End
 	}
 
 	sendMsg.Message = msg

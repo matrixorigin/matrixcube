@@ -77,3 +77,8 @@ message SnapshotMessage {
     uint64                fileSize  = 5;
     uint64                checkSum  = 6;
 }
+
+message BootstrapInfo {
+    repeated uint64 peers = 1;
+    bool            join  = 2;
+}

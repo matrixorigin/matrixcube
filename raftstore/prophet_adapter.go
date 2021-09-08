@@ -316,9 +316,10 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	}
 
 	s.foreachPR(func(pr *peerReplica) bool {
-		if pr.ps.isApplyingSnapshot() {
-			stats.ApplyingSnapCount++
-		}
+		// TODO: re-enable this
+		//if pr.ps.isApplyingSnapshot() {
+		//	stats.ApplyingSnapCount++
+		//}
 
 		stats.ResourceCount++
 		return true
@@ -406,7 +407,7 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitResource.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.ps.shard),
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.shard),
 				uint32(len(rsp.SplitResource.Keys)))
 			if err != nil {
 				logger.Errorf("shard-%d ask batch split failed with %+v",

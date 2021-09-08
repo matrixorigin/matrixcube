@@ -54,13 +54,7 @@ func (pr *peerReplica) doPollApply(result asyncApplyResult) {
 }
 
 func (pr *peerReplica) doPostApply(result asyncApplyResult) {
-	if pr.ps.isApplyingSnapshot() {
-		logger.Fatalf("shard %d should not applying snapshot, when do post apply.",
-			pr.shardID)
-	}
-
-	pr.ps.raftApplyState = result.applyState
-	pr.ps.appliedIndexTerm = result.appliedIndexTerm
+	pr.appliedIndex = result.applyState.AppliedIndex
 	pr.rn.AdvanceApply(result.applyState.AppliedIndex)
 
 	logger.Debugf("shard %d async apply committied entries finished at %d, last %d",
@@ -102,7 +96,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 	}
 
 	pr.rn.ApplyConfChange(cp.confChange)
-	pr.ps.shard = cp.shard
+	pr.shard = cp.shard
 
 	remove_self := false
 	need_ping := false
@@ -143,7 +137,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 			pr.shardID,
 			cp.confChange,
 			cp.changes,
-			pr.ps.shard.Epoch)
+			pr.shard.Epoch)
 		pr.addAction(action{actionType: heartbeatAction})
 
 		// Remove or demote leader will cause this raft group unavailable
@@ -179,18 +173,18 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		pr.shardID,
 		pr.peer.ID,
 		cp.changes,
-		pr.ps.shard.Epoch,
-		pr.ps.shard.Peers)
+		pr.shard.Epoch,
+		pr.shard.Peers)
 }
 
 func (pr *peerReplica) doApplySplit(result *splitResult) {
 	logger.Infof("shard %d update to %+v by post applt split",
-		pr.ps.shard.ID,
+		pr.shard.ID,
 		result.derived)
 
 	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
 	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)
-	pr.ps.shard = result.derived
+	pr.shard = result.derived
 	pr.sizeDiffHint = 0
 	pr.approximateKeys = 0
 	pr.approximateSize = 0
@@ -218,7 +212,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			// If the store received a raft msg with the new shard raft group
 			// before splitting, it will creates a uninitialized peer.
 			// We can remove this uninitialized peer directly.
-			if newPR.ps.isInitialized() {
+			if len(newPR.shard.Peers) > 0 {
 				logger.Fatalf("shard %d duplicated shard split to new shard %d",
 					pr.shardID,
 					newShardID)
@@ -266,7 +260,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	}
 
 	if pr.store.aware != nil {
-		pr.store.aware.Splited(pr.ps.shard)
+		pr.store.aware.Splited(pr.shard)
 	}
 
 	logger.Infof("shard %d new shard added, new shards %+v",
@@ -275,13 +269,12 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 }
 
 func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
-	total := pr.ps.lastReadyIndex - result.firstIndex
-	remain := pr.ps.lastReadyIndex - result.state.Index - 1
+	total := pr.lastReadyIndex - result.firstIndex
+	remain := pr.lastReadyIndex - result.state.Index - 1
 	pr.raftLogSizeHint = pr.raftLogSizeHint * remain / total
 
-	startIndex := pr.ps.lastCompactIndex
+	startIndex := uint64(0)
 	endIndex := result.state.Index + 1
-	pr.ps.lastCompactIndex = endIndex
 
 	logger.Debugf("shard %d start to compact raft log, start=<%d> end=<%d>",
 		pr.shardID,
