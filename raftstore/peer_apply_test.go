@@ -6,8 +6,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -93,61 +91,4 @@ func TestIssue97(t *testing.T) {
 	defer kv2.Close()
 	_, err := kv2.Get("key2", testWaitTimeout)
 	assert.NoError(t, err)
-}
-
-func TestSyncData(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := NewTestClusterStore(t,
-		DisableScheduleTestCluster,
-		SetCMDTestClusterHandler,
-		GetCMDTestClusterHandler,
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
-			cfg.Customize.CustomAdjustInitAppliedIndexFactory = func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64) {
-				return func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64) {
-					return initAppliedIndex
-				}
-			}
-		}))
-	defer c.Stop()
-
-	c.GetStore(0).Start()
-	c.WaitLeadersByCount(1, testWaitTimeout)
-	assert.Equal(t, uint64(0), c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
-
-	c.EveryStore(func(i int, s Store) {
-		s.GetConfig().Replication.DisableShardSplit = true
-	})
-	changedCount := uint64(0)
-	// check change peer
-	c.GetStore(1).Start()
-	c.WaitShardByCounts([]int{1, 1, 0}, testWaitTimeout)
-	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
-	assert.True(t, changedCount > 0)
-
-	c.GetStore(2).Start()
-	c.WaitShardByCounts([]int{1, 1, 1}, testWaitTimeout)
-	assert.True(t, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount > changedCount)
-	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
-
-	kv := c.CreateTestKVClient(0)
-	defer kv.Close()
-
-	// write key1
-	assert.NoError(t, kv.Set("key1", "value11", testWaitTimeout))
-	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
-	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
-
-	// write key2
-	assert.NoError(t, kv.Set("key2", "value22", testWaitTimeout))
-	assert.Equal(t, changedCount, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount)
-	changedCount = c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount
-
-	// split
-	c.EveryStore(func(i int, s Store) {
-		s.GetConfig().Replication.DisableShardSplit = false
-	})
-	c.WaitLeadersByCount(2, testWaitTimeout)
-	assert.True(t, c.GetStore(0).DataStorageByGroup(0, 0).(*mem.Storage).SyncCount > changedCount)
 }
