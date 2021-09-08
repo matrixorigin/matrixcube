@@ -41,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -708,8 +709,14 @@ type testRaftCluster struct {
 	sync.RWMutex
 
 	// init fields
-	t        *testing.T
-	initOpts []TestClusterOption
+	t               *testing.T
+	initOpts        []TestClusterOption
+	dataDirs        []string
+	portsRaftAddr   []int
+	portsClientAddr []int
+	portsRPCAddr    []int
+	portsEtcdClient []int
+	portsEtcdPeer   []int
 
 	// reset fields
 	opts             *testClusterOptions
@@ -728,12 +735,13 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
+	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
-	c.reset(opts...)
+	c.reset(true, opts...)
 	return c
 }
 
-func (c *testRaftCluster) reset(opts ...TestClusterOption) {
+func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	c.opts = newTestClusterOptions()
 	c.stores = nil
 	c.awares = nil
@@ -749,6 +757,17 @@ func (c *testRaftCluster) reset(opts ...TestClusterOption) {
 	log.SetLevelByString(c.opts.logLevel)
 	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
 
+	if init {
+		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
+		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
+		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
+		c.portsEtcdClient = testutil.GenTestPorts(c.opts.nodes)
+		c.portsEtcdPeer = testutil.GenTestPorts(c.opts.nodes)
+		for i := 0; i < c.opts.nodes; i++ {
+			c.dataDirs = append(c.dataDirs, fmt.Sprintf("%s/%d/node-%d", c.opts.tmpDir, time.Now().Nanosecond(), i))
+		}
+	}
+
 	if c.opts.disableSchedule {
 		pconfig.DefaultSchedulers = nil
 	}
@@ -756,13 +775,13 @@ func (c *testRaftCluster) reset(opts ...TestClusterOption) {
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
 		cfg.FS = vfs.GetTestFS()
-		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.opts.tmpDir, i)
+		cfg.DataPath = c.dataDirs[i]
 		if c.opts.recreate {
 			recreateTestTempDir(cfg.FS, cfg.DataPath)
 		}
 
-		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
-		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:2000%d", i)
+		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRaftAddr[i])
+		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:%d", c.portsClientAddr[i])
 		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
 
 		if c.opts.nodes < 3 {
@@ -781,20 +800,24 @@ func (c *testRaftCluster) reset(opts ...TestClusterOption) {
 		// TODO: duplicated field
 		cfg.Prophet.FS = cfg.FS
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
-		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:3000%d", i)
+		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[i])
 		cfg.Prophet.Schedule.EnableJointConsensus = true
 		if i < 3 {
 			cfg.Prophet.StorageNode = true
 			if i != 0 {
-				cfg.Prophet.EmbedEtcd.Join = "http://127.0.0.1:40000"
+				cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0])
 			}
 			cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
 			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
-			cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:4000%d", i)
-			cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:5000%d", i)
+			cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[i])
+			cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdPeer[i])
 		} else {
 			cfg.Prophet.StorageNode = false
-			cfg.Prophet.ExternalEtcd = []string{"http://127.0.0.1:40000", "http://127.0.0.1:40001", "http://127.0.0.1:40002"}
+			cfg.Prophet.ExternalEtcd = []string{
+				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0]),
+				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[1]),
+				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[2]),
+			}
 		}
 
 		for _, fn := range c.opts.adjustConfigFuncs {
@@ -940,7 +963,7 @@ func (c *testRaftCluster) Restart() {
 func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 	c.Stop()
 	opts := append(c.initOpts, WithTestClusterRecreate(false))
-	c.reset(opts...)
+	c.reset(false, opts...)
 	if beforeStartFunc != nil {
 		beforeStartFunc()
 	}

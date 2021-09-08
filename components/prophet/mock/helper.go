@@ -18,29 +18,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/stretchr/testify/assert"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 )
-
-var (
-	mutex sync.Mutex
-	ports = 10000
-)
-
-func nextTestPorts() int {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	ports++
-	return ports
-}
 
 // NewEtcdClient create a etcd client
 func NewEtcdClient(t *testing.T, port int) *clientv3.Client {
@@ -57,8 +44,8 @@ func NewEtcdClient(t *testing.T, port int) *clientv3.Client {
 
 // StartTestSingleEtcd start a single etcd server
 func StartTestSingleEtcd(t *testing.T) (chan interface{}, int) {
-	port := nextTestPorts()
-	peerPort := nextTestPorts()
+	port := testutil.GenTestPorts(1)[0]
+	peerPort := testutil.GenTestPorts(1)[0]
 
 	now := time.Now().UnixNano()
 
