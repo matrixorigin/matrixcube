@@ -21,19 +21,15 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[matrixcube-app]")
 )
 
 // Application a tcp application server
@@ -43,6 +39,8 @@ type Application struct {
 	shardsProxy raftstore.ShardsProxy
 	libaryCB    sync.Map // id -> application cb
 	dispatcher  func(req *raftcmdpb.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
+
+	logger *zap.Logger
 }
 
 // NewApplication returns a tcp application server
@@ -55,6 +53,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 	s := &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
+		logger:     logger.With(log.ListenAddressField(cfg.Addr)),
 	}
 
 	if !cfg.ExternalServer {
@@ -62,10 +61,11 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 		app, err := goetty.NewTCPApplication(cfg.Addr, s.onMessage,
 			goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 				goetty.WithEnableAsyncWrite(16),
-				goetty.WithLogger(zap.L().Named("cube-app")),
+				goetty.WithLogger(s.logger),
 				goetty.WithReleaseMsgFunc(s.releaseResponse)))
 		if err != nil {
-			logger.Fatalf("create internal tcp server failed with %+v", err)
+			s.logger.Panic("fail to create internal server",
+				zap.Error(err))
 		}
 		s.server = app
 	}
@@ -74,6 +74,8 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Reques
 
 // Start start the application server
 func (s *Application) Start() error {
+	s.logger.Info("begin to start server")
+
 	s.cfg.Store.Start()
 	sp, err := raftstore.NewShardsProxyWithStore(s.cfg.Store, s.done, s.doneError)
 	if err != nil {
@@ -82,11 +84,11 @@ func (s *Application) Start() error {
 
 	s.shardsProxy = sp
 	if s.cfg.ExternalServer {
-		logger.Infof("using external server, ignore embed tcp server")
+		s.logger.Info("using external server")
 		return nil
 	}
 
-	logger.Infof("start embed tcp server")
+	s.logger.Info("begin to start internal server")
 	return s.server.Start()
 }
 
@@ -152,9 +154,16 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
+		if ce := s.logger.Check(zap.DebugLevel, "fail to build request"); ce != nil {
+			ce.Write(log.RequestIDField(req.ID), zap.Error(err))
+		}
 		cb(arg, nil, err)
 		pb.ReleaseRequest(req)
 		return
+	}
+
+	if ce := s.logger.Check(zap.DebugLevel, "begin to send request"); ce != nil {
+		ce.Write(log.RequestIDField(req.ID))
 	}
 
 	s.libaryCB.Store(hack.SliceToString(req.ID), ctx{
@@ -208,7 +217,9 @@ func (s *Application) execTimeout(arg interface{}) {
 	id := hack.SliceToString(arg.([]byte))
 	if value, ok := s.libaryCB.Load(id); ok {
 		s.libaryCB.Delete(id)
-		value.(asyncCtx).resp(nil, raftstore.ErrTimeout, false)
+		value.(asyncCtx).resp(nil,
+			fmt.Errorf("exec timeout for request %s", hex.EncodeToString(arg.([]byte))),
+			false)
 	}
 }
 
@@ -241,9 +252,8 @@ func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint
 }
 
 func (s *Application) done(resp *raftcmdpb.Response) {
-	if logger.DebugEnabled() {
-		logger.Debugf("%s application received response",
-			hex.EncodeToString(resp.ID))
+	if ce := s.logger.Check(zap.DebugLevel, "response received"); ce != nil {
+		ce.Write(log.RequestIDField(resp.ID))
 	}
 
 	// libary call
@@ -258,9 +268,8 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 				return
 			}
 		} else {
-			if logger.DebugEnabled() {
-				logger.Debugf("%s application received response, missing ctx",
-					hex.EncodeToString(resp.ID))
+			if ce := s.logger.Check(zap.DebugLevel, "response skipped"); ce != nil {
+				ce.Write(log.RequestIDField(resp.ID), log.ReasonField("missing ctx"))
 			}
 		}
 
@@ -270,17 +279,20 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 	if conn, _ := s.server.GetSession(uint64(resp.SID)); conn != nil {
 		conn.WriteAndFlush(resp)
 	} else {
-		if logger.DebugEnabled() {
-			logger.Debugf("%s application received response, missing session",
-				hex.EncodeToString(resp.ID))
+		if ce := s.logger.Check(zap.DebugLevel, "response skipped"); ce != nil {
+			ce.Write(log.RequestIDField(resp.ID), log.ReasonField("missing session"))
 		}
 	}
 }
 
 func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 	if resp == nil && nil != err {
-		logger.Errorf("handle failed with %+v", err)
+		s.logger.Error("fail to response", zap.Error(err))
 		return
+	}
+
+	if ce := s.logger.Check(zap.DebugLevel, "error response received"); ce != nil {
+		ce.Write(log.RequestIDField(resp.ID), zap.Error(err))
 	}
 
 	// libary call
