@@ -105,7 +105,6 @@ func NewLogReader(shardID uint64, peerID uint64,
 func (lr *LogReader) id() string {
 	return fmt.Sprintf("logreader %s index %d term %d length %d",
 		dn(lr.shardID, lr.peerID), lr.markerIndex, lr.markerTerm, lr.length)
-	return ""
 }
 
 // InitialState returns the saved HardState and ConfState information.

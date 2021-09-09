@@ -28,7 +28,6 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
-	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
@@ -509,7 +508,7 @@ func (pr *peerReplica) mustDestroy(why string) {
 }
 
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
-	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
+	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 
 	r := reqCtx{}
 	r.req = req
