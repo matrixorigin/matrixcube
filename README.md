@@ -8,3 +8,5 @@ MatrixCube is a fundamental library to build distributed systems without conside
 * Horizontal scalability
 * Auto Rebalance
 
+## License
+MatrixCube is licensed under the Apache version 2.0 license. This repository contains source code licensed from 3rd parties, details are [here](https://github.com/matrixorigin/matrixcube/licenses).
