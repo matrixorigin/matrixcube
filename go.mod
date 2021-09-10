@@ -18,6 +18,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/btree v1.0.1
 	github.com/juju/ratelimit v1.0.1
+	github.com/lni/goutils v1.3.0
 	github.com/lni/vfs v0.2.1-0.20210810090357-27c7525cf64f
 	github.com/montanaflynn/stats v0.6.6
 	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d
