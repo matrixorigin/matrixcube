@@ -265,6 +265,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 }
 
 // TODO: check whether index below is larger than the max index
+// RemoveEntriesTo deletes all raft log entries between [0, index].
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
 	startKey := getRaftLogKey(shardID, 0)
 	endKey := getRaftLogKey(shardID, index+1)

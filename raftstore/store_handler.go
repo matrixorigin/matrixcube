@@ -41,7 +41,7 @@ func (s *store) handleSplitCheck() {
 	s.foreachPR(func(pr *peerReplica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
-			(s.handledCustomSplitCheck(pr.shard.Group) ||
+			(s.handledCustomSplitCheck(pr.getShard().Group) ||
 				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
 			pr.addAction(action{actionType: checkSplitAction})
 		}
@@ -138,14 +138,14 @@ func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 	if value, ok := s.replicas.Load(shardID); ok {
 		pr := value.(*peerReplica)
 		fromEpoch := msg.ShardEpoch
-
-		if isEpochStale(pr.shard.Epoch, fromEpoch) {
+		shard := pr.getShard()
+		if isEpochStale(shard.Epoch, fromEpoch) {
 			logger.Infof("shard %d receives gc message, remove. msg=<%+v>",
 				shardID,
 				msg)
 			needRemove = true
 
-			if len(pr.shard.Peers) == 0 {
+			if len(shard.Peers) == 0 {
 				needRemove = false
 				pr.mustDestroy("gc")
 			}
@@ -216,7 +216,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 			//}
 
 			stalePeer = p.peer
-			if len(p.shard.Peers) == 0 {
+			if len(p.getShard().Peers) == 0 {
 				p.mustDestroy("tryToCreatePeerReplicate")
 				return false
 			}
@@ -289,9 +289,10 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	if s.addPR(pr) {
 		pr.start()
 
-		pr.shard.Peers = append(pr.shard.Peers, msg.To)
-		pr.shard.Peers = append(pr.shard.Peers, msg.From)
-		s.updateShardKeyRange(pr.shard)
+		// FIXME: this seems to be wrong
+		// pr.shard.Peers = append(pr.shard.Peers, msg.To)
+		// pr.shard.Peers = append(pr.shard.Peers, msg.From)
+		s.updateShardKeyRange(pr.getShard())
 
 		s.peers.Store(msg.From.ID, msg.From)
 		s.peers.Store(msg.To.ID, msg.To)

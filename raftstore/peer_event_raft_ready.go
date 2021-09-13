@@ -63,13 +63,13 @@ func (pr *peerReplica) handleRaftState(rd raft.Ready) {
 			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
-				pr.store.aware.BecomeLeader(pr.shard)
+				pr.store.aware.BecomeLeader(pr.getShard())
 			}
 		} else {
 			logger.Infof("%s ********become follower now********",
 				pr.id())
 			if pr.store.aware != nil {
-				pr.store.aware.BecomeFollower(pr.shard)
+				pr.store.aware.BecomeFollower(pr.getShard())
 			}
 		}
 	}
@@ -85,7 +85,7 @@ func (pr *peerReplica) handleAppendEntries(rd raft.Ready) error {
 	if len(rd.Entries) > 0 {
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
-		return pr.store.logdb.SaveRaftState(pr.shard.ID, pr.peer.ID, rd)
+		return pr.store.logdb.SaveRaftState(pr.shardID, pr.peer.ID, rd)
 	}
 	return nil
 }
@@ -105,7 +105,7 @@ func (pr *peerReplica) applyCommittedEntries(rd raft.Ready) error {
 
 	if len(rd.CommittedEntries) > 0 {
 		pr.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
-		if err := pr.startApplyCommittedEntriesJob(pr.shardID, rd.CommittedEntries); err != nil {
+		if err := pr.startApplyCommittedEntriesJob(rd.CommittedEntries); err != nil {
 			return err
 		}
 		pr.metrics.ready.commit++
@@ -161,13 +161,14 @@ func (pr *peerReplica) sendMessage(msg raftpb.Message) {
 }
 
 func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
+	shard := pr.getShard()
 	sendMsg := pb.AcquireRaftMessage()
 	sendMsg.ShardID = pr.shardID
-	sendMsg.ShardEpoch = pr.shard.Epoch
-	sendMsg.Group = pr.shard.Group
-	sendMsg.DisableSplit = pr.shard.DisableSplit
-	sendMsg.Unique = pr.shard.Unique
-	sendMsg.RuleGroups = pr.shard.RuleGroups
+	sendMsg.ShardEpoch = shard.Epoch
+	sendMsg.Group = shard.Group
+	sendMsg.DisableSplit = shard.DisableSplit
+	sendMsg.Unique = shard.Unique
+	sendMsg.RuleGroups = shard.RuleGroups
 	sendMsg.From = pr.peer
 	sendMsg.To, _ = pr.getPeer(msg.To)
 	if sendMsg.To.ID == 0 {
@@ -182,12 +183,12 @@ func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	// Heartbeat message for the store of that peer to check whether to create a new peer
 	// when receiving these messages, or just to wait for a pending shard split to perform
 	// later.
-	if len(pr.shard.Peers) > 0 &&
+	if len(shard.Peers) > 0 &&
 		(msg.Type == raftpb.MsgVote ||
 			// the peer has not been known to this leader, it may exist or not.
 			(msg.Type == raftpb.MsgHeartbeat && msg.Commit == 0)) {
-		sendMsg.Start = pr.shard.Start
-		sendMsg.End = pr.shard.End
+		sendMsg.Start = shard.Start
+		sendMsg.End = shard.End
 	}
 
 	sendMsg.Message = msg

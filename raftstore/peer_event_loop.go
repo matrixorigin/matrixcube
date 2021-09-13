@@ -370,7 +370,7 @@ func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epo
 		return
 	}
 
-	current := pr.shard
+	current := pr.getShard()
 	if current.Epoch.Version != epoch.Version {
 		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
 			pr.shardID,
@@ -419,7 +419,7 @@ func (pr *peerReplica) doHeartbeat() {
 	}
 	pr.lastHBTime = req.Stats.Interval.End
 
-	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.shard), req)
+	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.getShard()), req)
 	if err != nil {
 		logger.Errorf("shard %d heartbeat to prophet failed with %+v",
 			pr.shardID,

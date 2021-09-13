@@ -25,9 +25,18 @@ type cmd struct {
 	req                     *raftcmdpb.RaftCMDRequest
 	cb                      func(*raftcmdpb.RaftCMDResponse)
 	readIndexCommittedIndex uint64
-	term                    uint64
 	tp                      int
 	size                    int
+}
+
+func (c *cmd) notifyStaleCmd() {
+	c.resp(errorStaleCMDResp(c.getUUID()))
+}
+
+func (c *cmd) notifyShardRemoved() {
+	if c.req != nil && c.req.Header != nil {
+		c.respShardNotFound(c.req.Header.ShardID)
+	}
 }
 
 func (c *cmd) isFull(n, max int) bool {
@@ -75,7 +84,7 @@ func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.Raf
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
-	}, uuid.NewV4().Bytes(), 0)
+	}, uuid.NewV4().Bytes())
 
 	resp := pb.AcquireResponse()
 	resp.ID = req.ID
@@ -135,7 +144,7 @@ func (c *cmd) respShardNotFound(shardID uint64) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
-	}, c.req.Header.ID, c.term)
+	}, c.req.Header.ID)
 
 	c.resp(rsp)
 }
@@ -149,7 +158,7 @@ func (c *cmd) respLargeRaftEntrySize(shardID uint64, size uint64) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:           errLargeRaftEntrySize.Error(),
 		RaftEntryTooLarge: err,
-	}, c.getUUID(), c.term)
+	}, c.getUUID())
 
 	c.resp(rsp)
 }
@@ -168,7 +177,7 @@ func (c *cmd) respNotLeader(shardID uint64, leader metapb.Peer) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:   errNotLeader.Error(),
 		NotLeader: err,
-	}, c.getUUID(), c.term)
+	}, c.getUUID())
 
 	c.resp(rsp)
 }

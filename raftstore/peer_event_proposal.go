@@ -72,7 +72,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			req := items[i].(reqCtx)
 			if req.req != nil {
 				if h, ok := pr.store.localHandlers[req.req.CustemType]; ok {
-					rsp, err := h(pr.shard, req.req)
+					rsp, err := h(pr.getShard(), req.req)
 					if err != nil {
 						respWithRetry(req.req, req.cb)
 					} else {
@@ -85,7 +85,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			if logger.DebugEnabled() && req.req != nil {
 				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
 			}
-			pr.batch.push(pr.shard.Group, req)
+			pr.batch.push(pr.getShard().Group, req)
 		}
 	}
 
@@ -119,7 +119,6 @@ func (pr *peerReplica) propose(c cmd) {
 	// The peer that is being checked is a leader. It might step down to be a follower later. It
 	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
 	// command log entry can't be committed.
-	c.term = pr.getCurrentTerm()
 	isConfChange := false
 	policy, err := pr.getHandlePolicy(c.req)
 	if err != nil {
@@ -362,10 +361,9 @@ func (pr *peerReplica) checkProposal(c cmd) bool {
 		return false
 	}
 
-	term := pr.getCurrentTerm()
 	pe := pr.store.validateShard(c.req)
 	if pe != nil {
-		c.resp(errorPbResp(pe, c.req.Header.ID, term))
+		c.resp(errorPbResp(pe, c.req.Header.ID))
 		return false
 	}
 
@@ -499,7 +497,7 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 	}
 
 	if pr.store.cfg.Customize.CustomCanReadLocalFunc != nil &&
-		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.shard) {
+		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.getShard()) {
 		return readLocal, nil
 	}
 

@@ -167,7 +167,7 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	}
 
 	if !added {
-		shard := b.pr.shard
+		shard := b.pr.getShard()
 		raftCMD := pb.AcquireRaftCMDRequest()
 		raftCMD.Header = pb.AcquireRaftRequestHeader()
 		raftCMD.Header.ShardID = shard.ID

@@ -407,7 +407,7 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitResource.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.shard),
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.getShard()),
 				uint32(len(rsp.SplitResource.Keys)))
 			if err != nil {
 				logger.Errorf("shard-%d ask batch split failed with %+v",

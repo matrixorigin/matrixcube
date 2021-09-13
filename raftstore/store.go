@@ -121,7 +121,6 @@ type store struct {
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	peers           sync.Map // peer  id -> peer
 	replicas        sync.Map // shard id -> *peerReplica
-	delegates       sync.Map // shard id -> *applyDelegate
 	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
 
 	readHandlers  map[uint64]command.ReadCommandFunc
@@ -447,7 +446,7 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 			hasEvent := false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
-				if pr.eventWorker == id && pr.shard.Group == g && pr.handleEvent() {
+				if pr.eventWorker == id && pr.getShard().Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
 
@@ -583,7 +582,7 @@ func (s *store) addPR(pr *peerReplica) bool {
 func (s *store) removePR(pr *peerReplica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destory(pr.shard)
+		s.aware.Destory(pr.getShard())
 	}
 	s.revokeWorker(pr)
 }
@@ -689,7 +688,7 @@ func (s *store) revokeWorker(pr *peerReplica) {
 	s.allocWorkerLock.Lock()
 	defer s.allocWorkerLock.Unlock()
 
-	g := pr.shard.Group
+	g := pr.getShard().Group
 	s.applyWorkers[g][pr.applyWorker]--
 	s.eventWorkers[g][pr.eventWorker]--
 }
@@ -814,16 +813,7 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 		}
 	}
 
-	// If header's term is 2 verions behind current term,
-	// leadership may have been changed away.
-	if req.Header.Term > 0 && pr.getCurrentTerm() > req.Header.Term+1 {
-		return &errorpb.Error{
-			Message:      errStaleCMD.Error(),
-			StaleCommand: infoStaleCMD,
-		}
-	}
-
-	shard := pr.shard
+	shard := pr.getShard()
 	if !checkEpoch(shard, req) {
 		err := new(errorpb.StaleEpoch)
 		// Attach the next shard which might be split from the current shard. But it doesn't
@@ -901,8 +891,6 @@ func newAdminRaftCMDResponse(adminType raftcmdpb.AdminCmdType, rsp protoc.PB) *r
 		adminResp.ChangePeer = rsp.(*raftcmdpb.ChangePeerResponse)
 	case raftcmdpb.AdminCmdType_TransferLeader:
 		adminResp.TransferLeader = rsp.(*raftcmdpb.TransferLeaderResponse)
-	case raftcmdpb.AdminCmdType_CompactLog:
-		adminResp.CompactLog = rsp.(*raftcmdpb.CompactLogResponse)
 	case raftcmdpb.AdminCmdType_BatchSplit:
 		adminResp.Splits = rsp.(*raftcmdpb.BatchSplitResponse)
 	}
