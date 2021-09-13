@@ -11,13 +11,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package logdb
+package keys
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"sync"
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -29,12 +28,14 @@ const (
 
 	// Following are the suffix after the local prefix.
 	// For shard id
-	raftLogSuffix       = 0x01
-	raftStateSuffix     = 0x02
-	applyStateSuffix    = 0x03
-	maxIndexSuffix      = 0x04
-	bootstrapInfoSuffix = 0x05
-	hardStateSuffix     = 0x06
+	raftLogSuffix                 = 0x01
+	raftStateSuffix               = 0x02
+	applyStateSuffix              = 0x03
+	maxIndexSuffix                = 0x04
+	bootstrapInfoSuffix           = 0x05
+	hardStateSuffix               = 0x06
+	dataStorageAppliedIndexSuffix = 0x07
+	dataStorageMetadataSuffix     = 0x08
 )
 
 // local is in (0x01, 0x02);
@@ -70,26 +71,8 @@ var (
 	metaMaxKey         = []byte{localPrefix, metaPrefix + 1}
 )
 
-var (
-	bufPool sync.Pool
-)
-
-func acquireBuf() *buf.ByteBuf {
-	value := bufPool.Get()
-	if value == nil {
-		return buf.NewByteBuf(64)
-	}
-
-	buf := value.(*buf.ByteBuf)
-	buf.Resume(64)
-
-	return buf
-}
-
-func releaseBuf(value *buf.ByteBuf) {
-	value.Clear()
-	value.Release()
-	bufPool.Put(value)
+func IsStateSuffix(suffix byte) bool {
+	return suffix == stateSuffix
 }
 
 // GetStoreIdentKey return key of StoreIdent
@@ -107,7 +90,18 @@ func GetMinKey() []byte {
 	return minKey
 }
 
-func decodeMetaKey(key []byte) (uint64, byte, error) {
+// GetMaxMetaKey return max metadata key
+func GetMaxMetaKey() []byte {
+	return metaMaxKey
+}
+
+// GetMinMetaKey return min metadata key
+func GetMinMetaKey() []byte {
+	return metaMinKey
+}
+
+// DecodeMetaKey decode metakey returns shard id, suffix
+func DecodeMetaKey(key []byte) (uint64, byte, error) {
 	prefixLen := len(metaPrefixKey)
 	keyLen := len(key)
 
@@ -133,7 +127,7 @@ func getMetaKey(shardID uint64, suffix byte) []byte {
 	return data
 }
 
-func getMetaPrefix(shardID uint64) []byte {
+func GetMetaPrefix(shardID uint64) []byte {
 	buf := acquireBuf()
 	buf.Write(metaPrefixKey)
 	buf.WriteInt64(int64(shardID))
@@ -143,31 +137,57 @@ func getMetaPrefix(shardID uint64) []byte {
 	return data
 }
 
-func getBootstrapInfoKey(shardID uint64, peerID uint64) []byte {
-	return getIDKey(shardID, bootstrapInfoSuffix, 8, peerID)
-}
-
-func getShardLocalStateKey(shardID uint64) []byte {
+// GetShardLocalStateKey returns key that used to store `bhraftpb.ShardLocalState`
+func GetShardLocalStateKey(shardID uint64) []byte {
 	return getMetaKey(shardID, stateSuffix)
 }
 
-func getHardStateKey(shardID uint64, peerID uint64) []byte {
-	return getIDKey(shardID, hardStateSuffix, 8, peerID)
-}
-
-func getRaftLocalStateKey(shardID uint64) []byte {
+// GetRaftLocalStateKey returns key that used to store `bhraftpb.RaftLocalState`
+func GetRaftLocalStateKey(shardID uint64) []byte {
 	return getIDKey(shardID, raftStateSuffix, 0, 0)
 }
 
-func getRaftApplyStateKey(shardID uint64) []byte {
+// GetRaftApplyStateKey returns key that used to store `bhraftpb.RaftApplyState`
+func GetRaftApplyStateKey(shardID uint64) []byte {
 	return getIDKey(shardID, applyStateSuffix, 0, 0)
 }
 
-func getMaxIndexKey(shardID uint64) []byte {
-	return getIDKey(shardID, maxIndexSuffix, 0, 0)
+// GetHardStateKey returns key that used to store `raftpb.HardState`
+func GetHardStateKey(shardID uint64, peerID uint64) []byte {
+	return getIDKey(shardID, hardStateSuffix, 8, peerID)
 }
 
-func getRaftPrefix(shardID uint64) []byte {
+// GetBootstrapInfoKey returns key that used to store `bhraftpb.BootstrapInfo`
+func GetBootstrapInfoKey(shardID uint64, peerID uint64) []byte {
+	return getIDKey(shardID, bootstrapInfoSuffix, 8, peerID)
+}
+
+// GetDataStorageAppliedIndexKey returns key that used to store `applied log index` for `storage.DataStorage`
+func GetDataStorageAppliedIndexKey(shardID uint64) []byte {
+	return getIDKey(shardID, dataStorageAppliedIndexSuffix, 0, 0)
+}
+
+// GetDataStorageMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
+func GetDataStorageMetadataKey(shardID uint64, index uint64) []byte {
+	return getIDKey(shardID, dataStorageMetadataSuffix, 8, index)
+}
+
+func isRaftSuffixKey(key []byte, suffix byte) bool {
+	if len(key) != len(raftPrefixKey)+8*2+1 {
+		return false
+	}
+	return key[len(raftPrefixKey)+8] == suffix
+}
+
+func IsDataStorageMetadataKey(key []byte) bool {
+	return isRaftSuffixKey(key, dataStorageMetadataSuffix)
+}
+
+func IsRaftLogKey(key []byte) bool {
+	return isRaftSuffixKey(key, raftLogSuffix)
+}
+
+func GetRaftPrefix(shardID uint64) []byte {
 	buf := acquireBuf()
 	buf.Write(raftPrefixKey)
 	buf.WriteInt64(int64(shardID))
@@ -177,18 +197,17 @@ func getRaftPrefix(shardID uint64) []byte {
 	return data
 }
 
-func getRaftLogKey(shardID uint64, logIndex uint64) []byte {
+// GetMaxIndexKey returns key that used to max applied log index
+func GetMaxIndexKey(shardID uint64) []byte {
+	return getIDKey(shardID, maxIndexSuffix, 0, 0)
+}
+
+// GetRaftLogKey returns key that used to store `raftpb.Entry`
+func GetRaftLogKey(shardID uint64, logIndex uint64) []byte {
 	return getIDKey(shardID, raftLogSuffix, 8, logIndex)
 }
 
-func isRaftLogKey(key []byte) bool {
-	if len(key) != len(raftPrefixKey)+8*2+1 {
-		return false
-	}
-	return key[len(raftPrefixKey)+8] == raftLogSuffix
-}
-
-func getRaftLogIndex(key []byte) (uint64, error) {
+func GetRaftLogIndex(key []byte) (uint64, error) {
 	expectKeyLen := len(raftPrefixKey) + 8*2 + 1
 	if len(key) != expectKeyLen {
 		return 0, fmt.Errorf("key<%v> is not a valid raft log key", key)
@@ -211,7 +230,7 @@ func getIDKey(shardID uint64, suffix byte, extraCap int, extra uint64) []byte {
 	return data
 }
 
-func getDataKey0(group uint64, key []byte, buf *buf.ByteBuf) []byte {
+func GetDataKeyWithBuf(group uint64, key []byte, buf *buf.ByteBuf) []byte {
 	buf.Write(dataPrefixKey)
 	buf.WriteUInt64(group)
 	if len(key) > 0 {
@@ -231,7 +250,7 @@ func WriteGroupPrefix(group uint64, key []byte) {
 // EncodeDataKey encode data key
 func EncodeDataKey(group uint64, key []byte) []byte {
 	buf := acquireBuf()
-	data := getDataKey0(group, key, buf)
+	data := GetDataKeyWithBuf(group, key, buf)
 	releaseBuf(buf)
 	return data
 }
@@ -250,14 +269,14 @@ func getDataMaxKey(group uint64) []byte {
 	return data
 }
 
-func getDataEndKey(group uint64, endKey []byte) []byte {
+func GetDataEndKey(group uint64, endKey []byte) []byte {
 	if len(endKey) == 0 {
 		return getDataMaxKey(group)
 	}
 	return EncodeDataKey(group, endKey)
 }
 
-func encStartKey(shard *bhmetapb.Shard) []byte {
+func EncStartKey(shard *bhmetapb.Shard) []byte {
 	// only initialized shard's startKey can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {
@@ -267,11 +286,11 @@ func encStartKey(shard *bhmetapb.Shard) []byte {
 	return EncodeDataKey(shard.Group, shard.Start)
 }
 
-func encEndKey(shard *bhmetapb.Shard) []byte {
+func EncEndKey(shard *bhmetapb.Shard) []byte {
 	// only initialized shard's end_key can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {
 		panic("bug: shard peers len is empty")
 	}
-	return getDataEndKey(shard.Group, shard.End)
+	return GetDataEndKey(shard.Group, shard.End)
 }

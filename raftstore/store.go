@@ -31,6 +31,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/command"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -64,10 +65,6 @@ type Store interface {
 	Meta() bhmetapb.Store
 	// GetRouter returns a router
 	GetRouter() Router
-	// RegisterReadFunc register read command handler
-	RegisterReadFunc(uint64, command.ReadCommandFunc)
-	// RegisterWriteFunc register write command handler
-	RegisterWriteFunc(uint64, command.WriteCommandFunc)
 	// RegisterLocalFunc register local command handler
 	RegisterLocalFunc(uint64, command.LocalCommandFunc)
 	// RegisterLocalRequestCB register local request cb to process response
@@ -124,8 +121,6 @@ type store struct {
 	delegates       sync.Map // shard id -> *applyDelegate
 	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
 
-	readHandlers  map[uint64]command.ReadCommandFunc
-	writeHandlers map[uint64]command.WriteCommandFunc
 	localHandlers map[uint64]command.LocalCommandFunc
 
 	state    uint32
@@ -151,8 +146,6 @@ func NewStore(cfg *config.Config) Store {
 	s := &store{
 		meta:          &containerAdapter{},
 		cfg:           cfg,
-		readHandlers:  make(map[uint64]command.ReadCommandFunc),
-		writeHandlers: make(map[uint64]command.WriteCommandFunc),
 		localHandlers: make(map[uint64]command.LocalCommandFunc),
 		logdb:         logdb.NewKVLogDB(cfg.Storage.MetaStorage),
 		runner:        task.NewRunner(),
@@ -268,14 +261,6 @@ func (s *store) startRouter() {
 
 func (s *store) Meta() bhmetapb.Store {
 	return s.meta.meta
-}
-
-func (s *store) RegisterReadFunc(ct uint64, handler command.ReadCommandFunc) {
-	s.readHandlers[ct] = handler
-}
-
-func (s *store) RegisterWriteFunc(ct uint64, handler command.WriteCommandFunc) {
-	s.writeHandlers[ct] = handler
 }
 
 func (s *store) RegisterLocalFunc(ct uint64, handler command.LocalCommandFunc) {
@@ -478,13 +463,13 @@ func (s *store) startShards() {
 	var tomebstoneShards []bhmetapb.Shard
 
 	wb := util.NewWriteBatch()
-	err := s.MetadataStorage().Scan(metaMinKey, metaMaxKey, func(key, value []byte) (bool, error) {
-		shardID, suffix, err := decodeMetaKey(key)
+	err := s.MetadataStorage().Scan(keys.GetMinMetaKey(), keys.GetMaxMetaKey(), func(key, value []byte) (bool, error) {
+		shardID, suffix, err := keys.DecodeMetaKey(key)
 		if err != nil {
 			return false, err
 		}
 
-		if suffix != stateSuffix {
+		if !keys.IsStateSuffix(suffix) {
 			return true, nil
 		}
 
@@ -601,19 +586,19 @@ func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
 	metaCount := 0
 	raftCount := 0
 
-	var keys [][]byte
+	var freeKeys [][]byte
 	defer func() {
-		for _, key := range keys {
+		for _, key := range freeKeys {
 			s.MetadataStorage().Free(key)
 		}
 	}()
 
 	// meta must in the range [id, id + 1)
-	metaStart := getMetaPrefix(id)
-	metaEnd := getMetaPrefix(id + 1)
+	metaStart := keys.GetMetaPrefix(id)
+	metaEnd := keys.GetMetaPrefix(id + 1)
 
 	err := s.MetadataStorage().Scan(metaStart, metaEnd, func(key, value []byte) (bool, error) {
-		keys = append(keys, key)
+		freeKeys = append(freeKeys, key)
 		err := wb.Delete(key)
 		if err != nil {
 			return false, err
@@ -627,11 +612,11 @@ func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
 		return err
 	}
 
-	raftStart := getRaftPrefix(id)
-	raftEnd := getRaftPrefix(id + 1)
+	raftStart := keys.GetRaftPrefix(id)
+	raftEnd := keys.GetRaftPrefix(id + 1)
 
 	err = s.MetadataStorage().Scan(raftStart, raftEnd, func(key, value []byte) (bool, error) {
-		keys = append(keys, key)
+		freeKeys = append(freeKeys, key)
 		err := wb.Delete(key)
 		if err != nil {
 			return false, err
@@ -971,25 +956,25 @@ func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, 
 	shardState.Shard = shard
 
 	if wb != nil {
-		return wb.Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
+		return wb.Set(keys.GetShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
 	}
 
-	return s.MetadataStorage().Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
+	return s.MetadataStorage().Set(keys.GetShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
 }
 
 func (s *store) removePeerState(shard bhmetapb.Shard) error {
-	return s.MetadataStorage().Delete(getShardLocalStateKey(shard.ID))
+	return s.MetadataStorage().Delete(keys.GetShardLocalStateKey(shard.ID))
 }
 
 func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
 	raftState := new(bhraftpb.RaftLocalState)
 	applyState := new(bhraftpb.RaftApplyState)
-	err := wb.Set(getRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
+	err := wb.Set(keys.GetRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
 	if err != nil {
 		return err
 	}
 
-	return wb.Set(getRaftApplyStateKey(shardID), protoc.MustMarshal(applyState))
+	return wb.Set(keys.GetRaftApplyStateKey(shardID), protoc.MustMarshal(applyState))
 }
 
 // doClearData Delete all data belong to the shard.
@@ -1019,8 +1004,8 @@ func (s *store) removeShardData(shard bhmetapb.Shard, job *task.Job) error {
 		return task.ErrJobCancelled
 	}
 
-	start := encStartKey(&shard)
-	end := encEndKey(&shard)
+	start := keys.EncStartKey(&shard)
+	end := keys.EncEndKey(&shard)
 	return s.DataStorageByGroup(shard.Group, shard.ID).RemoveShardData(shard, start, end)
 }
 
@@ -1031,10 +1016,10 @@ func (s *store) clearExtraData(appliedWorker string, shard, newShard bhmetapb.Sh
 		return nil
 	}
 
-	oldStartKey := encStartKey(&shard)
-	oldEndKey := encEndKey(&shard)
-	newStartKey := encStartKey(&newShard)
-	newEndKey := encEndKey(&newShard)
+	oldStartKey := keys.EncStartKey(&shard)
+	oldEndKey := keys.EncEndKey(&shard)
+	newStartKey := keys.EncStartKey(&newShard)
+	newEndKey := keys.EncEndKey(&newShard)
 
 	if bytes.Compare(oldStartKey, newStartKey) < 0 {
 		err := s.addApplyJob(appliedWorker, "doRemoveKVBasedRangeData", func() error {

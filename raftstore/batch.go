@@ -18,6 +18,7 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
@@ -147,7 +148,7 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 
 	// use data key to store
 	if !isAdmin {
-		req.Key = getDataKey0(group, req.Key, b.buf)
+		req.Key = keys.GetDataKeyWithBuf(group, req.Key, b.buf)
 		b.buf.Clear()
 	}
 

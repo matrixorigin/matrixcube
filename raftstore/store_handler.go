@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
@@ -253,7 +254,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	// check range overlapped
 	item := s.searchShard(msg.Group, msg.Start)
 	if item.ID > 0 {
-		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.Group, msg.End)) < 0 {
+		if bytes.Compare(keys.EncStartKey(&item), keys.GetDataEndKey(msg.Group, msg.End)) < 0 {
 			var state string
 			if p := s.getPR(item.ID, false); p != nil {
 				state = fmt.Sprintf("overlappedShard=<%d> apply index %d",

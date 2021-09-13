@@ -22,6 +22,7 @@ import (
 
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -331,16 +332,16 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	derived := bhmetapb.Shard{}
 	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&d.shard))
 	var shards []bhmetapb.Shard
-	keys := deque.New()
+	rangeKeys := deque.New()
 
 	for _, req := range splitReqs.Requests {
 		if len(req.SplitKey) == 0 {
 			return nil, nil, errors.New("missing split key")
 		}
 
-		splitKey := DecodeDataKey(req.SplitKey)
+		splitKey := keys.DecodeDataKey(req.SplitKey)
 		v := derived.Start
-		if e, ok := keys.Back(); ok {
+		if e, ok := rangeKeys.Back(); ok {
 			v = e.Value.([]byte)
 		}
 		if bytes.Compare(splitKey, v) <= 0 {
@@ -353,10 +354,10 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 				len(req.NewPeerIDs))
 		}
 
-		keys.PushBack(splitKey)
+		rangeKeys.PushBack(splitKey)
 	}
 
-	err := checkKeyInShard(keys.MustBack().Value.([]byte), &d.shard)
+	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), &d.shard)
 	if err != nil {
 		logger.Errorf("shard %d split key failed with %+v",
 			d.shard.ID,
@@ -365,8 +366,8 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 	}
 
 	derived.Epoch.Version += uint64(newShardsCount)
-	keys.PushBack(derived.End)
-	derived.End = keys.MustFront().Value.([]byte)
+	rangeKeys.PushBack(derived.End)
+	derived.End = rangeKeys.MustFront().Value.([]byte)
 
 	sort.Slice(derived.Peers, func(i, j int) bool {
 		return derived.Peers[i].ID < derived.Peers[j].ID
@@ -379,8 +380,8 @@ func (d *applyDelegate) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespon
 		newShard.RuleGroups = derived.RuleGroups
 		newShard.DisableSplit = derived.DisableSplit
 		newShard.Epoch = derived.Epoch
-		newShard.Start = keys.PopFront().Value.([]byte)
-		newShard.End = keys.MustFront().Value.([]byte)
+		newShard.Start = rangeKeys.PopFront().Value.([]byte)
+		newShard.End = rangeKeys.MustFront().Value.([]byte)
 		for idx, p := range derived.Peers {
 			newShard.Peers = append(newShard.Peers, metapb.Peer{
 				ID:          req.NewPeerIDs[idx],
@@ -450,7 +451,7 @@ func (d *applyDelegate) execWriteRequest(ctx *applyContext) (uint64, int64, *raf
 				rsp.Error.Message = errStaleCMD.Error()
 				rsp.Error.StaleCommand = infoStaleCMD
 				rsp.OriginRequest = req
-				rsp.OriginRequest.Key = DecodeDataKey(req.Key)
+				rsp.OriginRequest.Key = keys.DecodeDataKey(req.Key)
 			}
 
 			resp.Responses = append(resp.Responses, rsp)

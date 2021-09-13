@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
@@ -176,9 +177,9 @@ func TestSplit(t *testing.T) {
 	c.Start()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCountPerNode(3, testWaitTimeout)
 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
@@ -189,7 +190,7 @@ func TestSplit(t *testing.T) {
 
 func TestCustomSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	target := EncodeDataKey(0, []byte("key2"))
+	target := keys.EncodeDataKey(0, []byte("key2"))
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
 			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
@@ -199,11 +200,11 @@ func TestCustomSplit(t *testing.T) {
 					endGroup++
 				}
 				size := uint64(0)
-				keys := uint64(0)
+				totalKeys := uint64(0)
 				hasTarget := false
-				store.Scan(EncodeDataKey(shard.Group, shard.Start), EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
+				store.Scan(keys.EncodeDataKey(shard.Group, shard.Start), keys.EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
 					size += uint64(len(key) + len(value))
-					keys++
+					totalKeys++
 					if bytes.Equal(key, target) {
 						hasTarget = true
 					}
@@ -211,10 +212,10 @@ func TestCustomSplit(t *testing.T) {
 				}, false)
 
 				if len(shard.End) == 0 && len(shard.Start) == 0 && hasTarget {
-					return size, keys, [][]byte{target}, nil
+					return size, totalKeys, [][]byte{target}, nil
 				}
 
-				return size, keys, nil, nil
+				return size, totalKeys, nil, nil
 			}
 		}
 	}))
@@ -223,9 +224,9 @@ func TestCustomSplit(t *testing.T) {
 	c.Start()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	c.Set(0, EncodeDataKey(0, []byte("key1")), []byte("value11"))
-	c.Set(0, EncodeDataKey(0, []byte("key2")), []byte("value22"))
-	c.Set(0, EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key1")), []byte("value11"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key2")), []byte("value22"))
+	c.Set(0, keys.EncodeDataKey(0, []byte("key3")), []byte("value33"))
 
 	c.WaitShardByCountPerNode(2, testWaitTimeout)
 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
@@ -274,7 +275,7 @@ func TestIssue166(t *testing.T) {
 	// make sure slow point
 	time.Sleep(time.Second)
 
-	v, err := c.GetStore(0).MetadataStorage().Get(getRaftLocalStateKey(c.GetShardByIndex(0, 1).ID))
+	v, err := c.GetStore(0).MetadataStorage().Get(keys.GetRaftLocalStateKey(c.GetShardByIndex(0, 1).ID))
 	assert.NoError(t, err)
 	state := &bhraftpb.RaftLocalState{}
 	protoc.MustUnmarshal(state, v)
@@ -299,8 +300,8 @@ func TestIssue180(t *testing.T) {
 	defer kv.Close()
 
 	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
-	c.Set(0, EncodeDataKey(0, []byte("k1")), []byte("v2"))
-	v, err := c.GetStore(0).MetadataStorage().Get(getRaftApplyStateKey(c.GetShardByIndex(0, 0).ID))
+	c.Set(0, keys.EncodeDataKey(0, []byte("k1")), []byte("v2"))
+	v, err := c.GetStore(0).MetadataStorage().Get(keys.GetRaftApplyStateKey(c.GetShardByIndex(0, 0).ID))
 	assert.NoError(t, err)
 	state := &bhraftpb.RaftApplyState{}
 	protoc.MustUnmarshal(state, v)

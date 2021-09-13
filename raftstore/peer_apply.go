@@ -21,6 +21,7 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -52,7 +53,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 	firstIndex := startIndex
 
 	if firstIndex == 0 {
-		startKey := getRaftLogKey(shardID, 0)
+		startKey := keys.GetRaftLogKey(shardID, 0)
 		firstIndex = endIndex
 		key, _, err := pr.store.MetadataStorage().Seek(startKey)
 		if err != nil {
@@ -60,7 +61,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 		}
 
 		if len(key) > 0 {
-			firstIndex, err = getRaftLogIndex(key)
+			firstIndex, err = keys.GetRaftLogIndex(key)
 			if err != nil {
 				return err
 			}
@@ -75,7 +76,7 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 
 	wb := util.NewWriteBatch()
 	for index := firstIndex; index < endIndex; index++ {
-		key := getRaftLogKey(shardID, index)
+		key := keys.GetRaftLogKey(shardID, index)
 		err := wb.Delete(key)
 		if err != nil {
 			return err
@@ -238,13 +239,6 @@ type applyDelegate struct {
 	pendingCMDs          []cmd
 	pendingChangePeerCMD cmd
 	ctx                  *applyContext
-
-	// sync data after exec admin requests.
-	// Before restart we applied index is `100`, If `Customize.CustomAdjustInitAppliedIndexFactory` is set,
-	// after restart the init applied index maybe adjust to `10`. And raft will apply log again from [11, 100].
-	// If there has admin requests(e.g. `Split`, `ConfChange`) in [11, 100], we will encounter unknown errors.
-	// We use this flag to control whether Sync DataStorage is required after executing admin requests.
-	syncData bool
 }
 
 func (d *applyDelegate) clearAllCommandsAsStale() {
@@ -394,7 +388,7 @@ func (d *applyDelegate) applyEntry(entry *raftpb.Entry) *execResult {
 	state := d.applyState
 	state.AppliedIndex = entry.Index
 
-	err := d.store.MetadataStorage().Set(getRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
+	err := d.store.MetadataStorage().Set(keys.GetRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&state))
 	if err != nil {
 		logger.Fatalf("shard %d apply empty entry <%s> failed with %+v",
 			d.shard.ID,
@@ -500,7 +494,7 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 	d.ctx.applyState.AppliedIndex = d.ctx.index
 	if !d.isPendingRemove() {
 		if sc, ok := d.store.cfg.Test.Shards[d.shard.ID]; !ok || !sc.SkipSaveRaftApplyState {
-			d.ctx.raftWB.Set(getRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
+			d.ctx.raftWB.Set(keys.GetRaftApplyStateKey(d.shard.ID), protoc.MustMarshal(&d.ctx.applyState))
 		}
 	}
 
@@ -511,13 +505,6 @@ func (d *applyDelegate) doApplyRaftCMD() *execResult {
 			logger.Fatalf("shard %d commit apply result failed with %+v",
 				d.shard.ID,
 				err)
-		}
-	}
-
-	if d.syncData && result != nil && result.needSyncData {
-		err := d.store.DataStorageByGroup(d.shard.Group, d.shard.ID).Sync()
-		if err != nil {
-			logger.Fatalf("shard %d sync data failed with %+v")
 		}
 	}
 

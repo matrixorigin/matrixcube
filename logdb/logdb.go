@@ -36,6 +36,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
@@ -125,7 +126,7 @@ func (l *KVLogDB) SaveBootstrapInfo(shardID uint64, peerID uint64,
 	bootstrap bhraftpb.BootstrapInfo) error {
 	wb := util.NewWriteBatch()
 	v := protoc.MustMarshal(&bootstrap)
-	if err := wb.Set(getBootstrapInfoKey(shardID, peerID), v); err != nil {
+	if err := wb.Set(keys.GetBootstrapInfoKey(shardID, peerID), v); err != nil {
 		panic(err)
 	}
 	return l.ms.Write(wb, true)
@@ -133,7 +134,7 @@ func (l *KVLogDB) SaveBootstrapInfo(shardID uint64, peerID uint64,
 
 func (l *KVLogDB) GetBootstrapInfo(shardID uint64,
 	peerID uint64) (bhraftpb.BootstrapInfo, error) {
-	v, err := l.ms.Get(getBootstrapInfoKey(shardID, peerID))
+	v, err := l.ms.Get(keys.GetBootstrapInfoKey(shardID, peerID))
 	if err != nil {
 		return bhraftpb.BootstrapInfo{}, err
 	}
@@ -153,18 +154,18 @@ func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) er
 	l.wb.Reset()
 	for _, e := range rd.Entries {
 		d := protoc.MustMarshal(&e)
-		if err := l.wb.Set(getRaftLogKey(shardID, e.Index), d); err != nil {
+		if err := l.wb.Set(keys.GetRaftLogKey(shardID, e.Index), d); err != nil {
 			panic(err)
 		}
 	}
 
 	v := protoc.MustMarshal(&rd.HardState)
-	if err := l.wb.Set(getHardStateKey(shardID, peerID), v); err != nil {
+	if err := l.wb.Set(keys.GetHardStateKey(shardID, peerID), v); err != nil {
 		panic(err)
 	}
 
 	binary.BigEndian.PutUint64(l.wbuf, rd.Entries[len(rd.Entries)-1].Index)
-	if err := l.wb.Set(getMaxIndexKey(shardID), l.wbuf); err != nil {
+	if err := l.wb.Set(keys.GetMaxIndexKey(shardID), l.wbuf); err != nil {
 		panic(err)
 	}
 
@@ -176,7 +177,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error) {
 
 	nextIndex := low
-	startKey := getRaftLogKey(shardID, low)
+	startKey := keys.GetRaftLogKey(shardID, low)
 	if low+1 == high {
 		v, err := l.ms.Get(startKey)
 		if err != nil {
@@ -205,7 +206,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 		high = maxIndex + 1
 	}
 
-	endKey := getRaftLogKey(shardID, high)
+	endKey := keys.GetRaftLogKey(shardID, high)
 	if err := l.ms.Scan(startKey, endKey, func(key, value []byte) (bool, error) {
 		e := raftpb.Entry{}
 		protoc.MustUnmarshal(&e, value)
@@ -228,15 +229,15 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 }
 
 func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error) {
-	target := getRaftLogKey(shardID, 0)
+	target := keys.GetRaftLogKey(shardID, 0)
 	key, _, err := l.ms.Seek(target)
 	if err != nil {
 		return RaftState{}, err
 	}
-	if len(key) == 0 || !isRaftLogKey(key) {
+	if len(key) == 0 || !keys.IsRaftLogKey(key) {
 		return RaftState{}, ErrNoSavedLog
 	}
-	startIndex, err := getRaftLogIndex(key)
+	startIndex, err := keys.GetRaftLogIndex(key)
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -249,7 +250,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 	}
 
 	var st raftpb.HardState
-	v, err := l.ms.Get(getHardStateKey(shardID, peerID))
+	v, err := l.ms.Get(keys.GetHardStateKey(shardID, peerID))
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -266,13 +267,13 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 
 // TODO: check whether index below is larger than the max index
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
-	startKey := getRaftLogKey(shardID, 0)
-	endKey := getRaftLogKey(shardID, index+1)
+	startKey := keys.GetRaftLogKey(shardID, 0)
+	endKey := keys.GetRaftLogKey(shardID, index+1)
 	return l.ms.RangeDelete(startKey, endKey)
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, peerID uint64) (uint64, error) {
-	v, err := l.ms.Get(getMaxIndexKey(shardID))
+	v, err := l.ms.Get(keys.GetMaxIndexKey(shardID))
 	if err != nil {
 		return 0, err
 	}

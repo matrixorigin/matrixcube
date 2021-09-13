@@ -368,8 +368,6 @@ func (pr *peerReplica) registerDelegate() {
 		shard:  pr.shard,
 		term:   pr.getCurrentTerm(),
 		ctx:    newApplyContext(pr),
-		syncData: pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory != nil &&
-			pr.store.cfg.Customize.CustomAdjustInitAppliedIndexFactory(pr.shard.Group) != nil,
 	}
 
 	value, loaded := pr.store.delegates.LoadOrStore(delegate.shard.ID, delegate)

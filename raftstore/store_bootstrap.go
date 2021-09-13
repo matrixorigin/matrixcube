@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -109,7 +110,7 @@ func (s *store) doBootstrapCluster() {
 
 func (s *store) mustSaveStoreMetadata() {
 	count := 0
-	err := s.cfg.Storage.MetaStorage.Scan(minKey, maxKey, func([]byte, []byte) (bool, error) {
+	err := s.cfg.Storage.MetaStorage.Scan(keys.GetMinKey(), keys.GetMaxKey(), func([]byte, []byte) (bool, error) {
 		count++
 		return false, nil
 	}, false)
@@ -124,14 +125,14 @@ func (s *store) mustSaveStoreMetadata() {
 		StoreID:   s.meta.meta.ID,
 		ClusterID: s.pd.GetClusterID(),
 	}
-	err = s.cfg.Storage.MetaStorage.Set(storeIdentKey, protoc.MustMarshal(v))
+	err = s.cfg.Storage.MetaStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v))
 	if err != nil {
 		logger.Fatal("save local store id failed with %+v", err)
 	}
 }
 
 func (s *store) mustLoadStoreMetadata() bool {
-	data, err := s.cfg.Storage.MetaStorage.Get(storeIdentKey)
+	data, err := s.cfg.Storage.MetaStorage.Get(keys.GetStoreIdentKey())
 	if err != nil {
 		logger.Fatalf("load store meta failed with %+v", err)
 	}
@@ -171,15 +172,15 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 	wb := util.NewWriteBatch()
 	for _, shard := range shards {
 		// shard local state
-		wb.Set(getShardLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
+		wb.Set(keys.GetShardLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.ShardLocalState{
 			Shard: shard,
 		}))
 
 		// shard raft state
-		wb.Set(getRaftLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{}))
+		wb.Set(keys.GetRaftLocalStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftLocalState{}))
 
 		// shard raft apply state
-		wb.Set(getRaftApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{}))
+		wb.Set(keys.GetRaftApplyStateKey(shard.ID), protoc.MustMarshal(&bhraftpb.RaftApplyState{}))
 
 		logger.Infof("create init shard %+v", shard.String())
 	}
@@ -203,9 +204,9 @@ func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
 func (s *store) mustRemoveShards(ids ...uint64) {
 	wb := util.NewWriteBatch()
 	for _, id := range ids {
-		wb.Delete(getShardLocalStateKey(id))
-		wb.Delete(getRaftLocalStateKey(id))
-		wb.Delete(getRaftApplyStateKey(id))
+		wb.Delete(keys.GetShardLocalStateKey(id))
+		wb.Delete(keys.GetRaftLocalStateKey(id))
+		wb.Delete(keys.GetRaftApplyStateKey(id))
 	}
 	err := s.cfg.Storage.MetaStorage.Write(wb, true)
 	if err != nil {

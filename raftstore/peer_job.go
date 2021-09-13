@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
@@ -58,8 +59,8 @@ func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
 func (pr *peerReplica) startSplitCheckJob() error {
 	shard := pr.shard
 	epoch := shard.Epoch
-	startKey := encStartKey(&shard)
-	endKey := encEndKey(&shard)
+	startKey := keys.EncStartKey(&shard)
+	endKey := keys.EncEndKey(&shard)
 
 	logger.Infof("shard %d start split check job from %+v to %+v",
 		pr.shard.ID,

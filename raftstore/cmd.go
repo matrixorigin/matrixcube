@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
@@ -116,7 +117,7 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 			if resp.Header != nil {
 				for idx, rsp := range resp.Responses {
 					rsp.OriginRequest = c.req.Requests[idx]
-					rsp.OriginRequest.Key = DecodeDataKey(rsp.OriginRequest.Key)
+					rsp.OriginRequest.Key = keys.DecodeDataKey(rsp.OriginRequest.Key)
 					rsp.Error = resp.Header.Error
 				}
 			}

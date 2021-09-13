@@ -11,18 +11,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package internal
 
 import (
-	"github.com/fagongzi/goetty/codec"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
-// Handler is the request handler
-type Handler interface {
-	// BuildRequest build the request, fill the key, cmd, type,
-	// and the custom type
-	BuildRequest(*raftcmdpb.Request, interface{}) error
-	// Codec returns the decoder and encoder to transfer request and response
-	Codec() (codec.Encoder, codec.Decoder)
+type simpleKVCommandExecutor struct {
+	kv storage.KVStorage
+}
+
+// NewSimpleKVCommandExecutor returns a simple kv command executor to support set/get command
+func NewSimpleKVCommandExecutor(kv storage.KVStorage) storage.CommandExecutor {
+	return &simpleKVCommandExecutor{kv: kv}
+}
+
+func (ce *simpleKVCommandExecutor) ExecuteWrite(storage.Context) ([]raftcmdpb.Response, error) {
+	return nil, nil
+}
+
+func (ce *simpleKVCommandExecutor) ExecuteRead(storage.Context) ([]raftcmdpb.Response, error) {
+	return nil, nil
 }

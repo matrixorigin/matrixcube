@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -131,9 +130,9 @@ func (s *Storage) RangeDelete(start, end []byte) error {
 }
 
 // Scan scans the key-value paire in [start, end), and perform with a handler function, if the function
-// returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
-// scan completed.
-func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
+// returns false, the scan will be terminated.
+// The Handler func will received a cloned the key and value, if the `copy` is true.
+func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
 	return s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
 		value = decodeValue(value)
 		if len(value) == 0 {
@@ -146,9 +145,8 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 // while perform with a handler function, if the function returns false, the scan will be terminated.
-// if the `pooledKey` is true, raftstore will call `Free` when
-// scan completed.
-func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
+// The Handler func will received a cloned the key and value, if the `copy` is true.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error {
 	return s.kv.PrefixScan(prefix, func(key, value []byte) (bool, error) {
 		value = decodeValue(value)
 		if len(value) == 0 {
@@ -157,11 +155,6 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 
 		return handler(key, value)
 	})
-}
-
-// Free free the pooled bytes
-func (s *Storage) Free(pooled []byte) {
-
 }
 
 // SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
@@ -203,32 +196,26 @@ func (s *Storage) Seek(key []byte) ([]byte, []byte, error) {
 	return k, decodeValue(v), nil
 }
 
-// Sync sync data
-func (s *Storage) Sync() error {
-	atomic.AddUint64(&s.SyncCount, 1)
-	return nil
+func (s *Storage) NewWriteBatch() util.WriteBatch {
+	return newWriteBatch()
 }
 
 // Write write the data in batch
-func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
+func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
+	wb := uwb.(*writeBatch)
 	if len(wb.Ops) == 0 {
 		return nil
 	}
 
 	for idx, op := range wb.Ops {
 		switch op {
-		case util.OpDelete:
+		case delete:
 			s.Delete(wb.Keys[idx])
-		case util.OpSet:
+		case set:
 			s.SetWithTTL(wb.Keys[idx], wb.Values[idx], wb.TTLs[idx])
 		}
 	}
 	return nil
-}
-
-// RemoveShardData remove shard data
-func (s *Storage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
-	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 
 // CreateSnapshot create a snapshot file under the giving path
@@ -379,4 +366,58 @@ func decodeValue(value []byte) []byte {
 	}
 
 	return value[8:]
+}
+
+var (
+	// set op set
+	set int32 = 0
+	// delete op delete
+	delete int32 = 1
+)
+
+func newWriteBatch() util.WriteBatch {
+	return &writeBatch{}
+}
+
+type writeBatch struct {
+	Ops    []int32
+	Keys   [][]byte
+	Values [][]byte
+	TTLs   []int32
+}
+
+func (wb *writeBatch) Delete(key []byte) {
+	wb.Ops = append(wb.Ops, delete)
+	wb.Keys = append(wb.Keys, key)
+	wb.Values = append(wb.Values, nil)
+	wb.TTLs = append(wb.TTLs, 0)
+}
+
+func (wb *writeBatch) Set(key []byte, value []byte) {
+	wb.SetWithTTL(key, value, 0)
+}
+
+func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int32) {
+	wb.Ops = append(wb.Ops, set)
+	wb.Keys = append(wb.Keys, key)
+	wb.Values = append(wb.Values, value)
+	wb.TTLs = append(wb.TTLs, ttl)
+}
+
+func (wb *writeBatch) Reset() {
+	for idx := range wb.Keys {
+		wb.Keys[idx] = nil
+	}
+
+	for idx := range wb.Values {
+		wb.Values[idx] = nil
+	}
+
+	wb.Ops = wb.Ops[:0]
+	wb.Keys = wb.Keys[:0]
+	wb.Values = wb.Values[:0]
+	wb.TTLs = wb.TTLs[:0]
+}
+
+func (wb *writeBatch) Close() {
 }

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package logdb
+package keys
 
 import (
 	"math"
@@ -23,17 +23,17 @@ func TestIsRaftLogKey(t *testing.T) {
 		key    []byte
 		result bool
 	}{
-		{getRaftLogKey(1, 0), true},
-		{getRaftLogKey(1, 1), true},
-		{getRaftLogKey(1, math.MaxUint64), true},
-		{getBootstrapInfoKey(1, 1), false},
-		{getShardLocalStateKey(1), false},
-		{getHardStateKey(1, 1), false},
-		{getMaxIndexKey(1), false},
+		{GetRaftLogKey(1, 0), true},
+		{GetRaftLogKey(1, 1), true},
+		{GetRaftLogKey(1, math.MaxUint64), true},
+		{GetBootstrapInfoKey(1, 1), false},
+		{GetShardLocalStateKey(1), false},
+		{GetHardStateKey(1, 1), false},
+		{GetMaxIndexKey(1), false},
 	}
 
 	for idx, tt := range tests {
-		if v := isRaftLogKey(tt.key); v != tt.result {
+		if v := IsRaftLogKey(tt.key); v != tt.result {
 			t.Errorf("%d, got %t, want %t", idx, v, tt.result)
 		}
 	}
