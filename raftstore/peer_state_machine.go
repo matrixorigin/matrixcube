@@ -198,6 +198,9 @@ func (d *stateMachine) doApplyRaftCMD() *adminExecResult {
 	d.updateMetrics(writeBytes, diffBytes)
 	d.updateAppliedIndexTerm(d.ctx.index, d.ctx.term)
 
+	// TODO: remove the following write op once the storage refactoring is done
+	// such write should really be issued by the KV storage layer.
+
 	// eventually we would like the KV engine to drop the requirement of
 	// persistent data storage. For now, for simplicity, we always use
 	// fsync write when updating the KV data engine.
