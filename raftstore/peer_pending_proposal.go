@@ -66,6 +66,16 @@ func (p *pendingProposals) append(c cmd) {
 }
 
 func (p *pendingProposals) setConfigChange(c cmd) {
+	if c.req == nil {
+		panic("no req")
+	}
+	if c.req.AdminRequest == nil {
+		panic("no admin req")
+	}
+	if c.req.AdminRequest.CmdType != raftcmdpb.AdminCmdType_ChangePeer &&
+		c.req.AdminRequest.CmdType != raftcmdpb.AdminCmdType_ChangePeerV2 {
+		panic("not a config change request")
+	}
 	p.confChangeCmd = c
 }
 
