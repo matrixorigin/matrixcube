@@ -484,15 +484,6 @@ func (pr *peerReplica) doCheckCompact() {
 				return
 			}
 
-			if idx > compactIdx {
-				logger.Fatalf("shard %d adjust compact idx %d failed, invalid adjust idx %d",
-					pr.shardID,
-					compactIdx,
-					idx,
-					err)
-				return
-			}
-
 			logger.Infof("shard %d compact idx %d updated to %d",
 				pr.shardID,
 				compactIdx,
