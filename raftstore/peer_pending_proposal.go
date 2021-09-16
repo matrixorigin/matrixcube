@@ -90,6 +90,7 @@ func (p *pendingProposals) notify(id []byte,
 		if c.req != nil && bytes.Equal(id, c.getUUID()) {
 			buildUUID(id, resp)
 			c.resp(resp)
+			p.confChangeCmd = emptyCMD
 		}
 		return
 	}
@@ -102,7 +103,7 @@ func (p *pendingProposals) notify(id []byte,
 		if bytes.Equal(id, c.getUUID()) {
 			buildUUID(id, resp)
 			c.resp(resp)
-			continue
+			return
 		}
 		c.notifyStaleCmd()
 	}
