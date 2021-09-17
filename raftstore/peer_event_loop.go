@@ -168,7 +168,7 @@ func (pr *peerReplica) handleEvent() bool {
 			for _, c := range pr.pendingReads.reads {
 				for _, req := range c.req.Requests {
 					req.Key = keys.DecodeDataKey(req.Key)
-					respStoreNotMatch(errStoreNotMatch, req, c.cb)
+					respStoreNotMatch(errStoreNotMatch, req, pr.store.cb)
 				}
 			}
 			pr.pendingReads.reset()
