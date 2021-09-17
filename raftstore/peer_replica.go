@@ -371,7 +371,7 @@ func (pr *peerReplica) stopEventLoop() {
 }
 
 func (pr *peerReplica) maybeExecRead() {
-	pr.pendingReads.doReadLEAppliedIndex(pr.appliedIndex, pr)
+	pr.pendingReads.process(pr.appliedIndex, pr)
 }
 
 func (pr *peerReplica) supportSplit() bool {

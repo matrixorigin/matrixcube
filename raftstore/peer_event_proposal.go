@@ -142,6 +142,9 @@ func (pr *peerReplica) propose(c cmd) {
 }
 
 func (pr *peerReplica) execReadIndex(c cmd) {
+	if c.tp != read {
+		panic("not a read index request")
+	}
 	if !pr.isLeader() {
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
@@ -151,7 +154,7 @@ func (pr *peerReplica) execReadIndex(c cmd) {
 	lastPendingReadCount := pr.pendingReadCount()
 	lastReadyReadCount := pr.readyReadCount()
 
-	pr.rn.ReadIndex(c.getUUID())
+	pr.rn.ReadIndex(protoc.MustMarshal(c.req))
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()
@@ -162,8 +165,6 @@ func (pr *peerReplica) execReadIndex(c cmd) {
 		c.respNotLeader(pr.shardID, target)
 		return
 	}
-
-	pr.pendingReads.push(c)
 	pr.metrics.propose.readIndex++
 }
 
