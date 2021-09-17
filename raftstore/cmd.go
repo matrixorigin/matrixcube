@@ -23,6 +23,10 @@ import (
 	"go.uber.org/zap"
 )
 
+func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
+	return e1.ConfVer == e2.ConfVer && e1.Version == e2.Version
+}
+
 type cmd struct {
 	req                     *raftcmdpb.RaftCMDRequest
 	cb                      func(*raftcmdpb.RaftCMDResponse)
@@ -42,11 +46,14 @@ func (c *cmd) notifyShardRemoved() {
 }
 
 func (c *cmd) isFull(n, max int) bool {
-	return max <= c.size+n || (testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
+	return max <= c.size+n ||
+		(testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
 }
 
-func (c *cmd) canAppend(req *raftcmdpb.Request) bool {
-	return c.req.Header.IgnoreEpochCheck == req.IgnoreEpochCheck
+func (c *cmd) canAppend(epoch metapb.ResourceEpoch, req *raftcmdpb.Request) bool {
+	return (c.req.Header.IgnoreEpochCheck && req.IgnoreEpochCheck) ||
+		(epochMatch(c.req.Header.Epoch, epoch) &&
+			!c.req.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
 func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
