@@ -63,4 +63,7 @@ type KVStorage interface {
 	RangeDelete(start, end []byte) error
 	// Seek returns the first key-value that >= key
 	Seek(key []byte) ([]byte, []byte, error)
+
+	// Sync persist data to disk
+	Sync() error
 }

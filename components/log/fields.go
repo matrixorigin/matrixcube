@@ -171,7 +171,7 @@ func appendShard(shard bhmetapb.Shard, info *bytes.Buffer, first bool) {
 	info.WriteString("shard-id: ")
 	info.WriteString(format.Uint64ToString(shard.ID))
 
-	info.WriteString("shard-group: ")
+	info.WriteString(", shard-group: ")
 	info.WriteString(format.Uint64ToString(shard.Group))
 
 	appendResourceEpoch("shard-epoch", shard.Epoch, info, false)

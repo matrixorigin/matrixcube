@@ -19,33 +19,40 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
-func (pr *peerReplica) startApplyCommittedEntriesJob(shardID uint64,
-	commitedEntries []raftpb.Entry) error {
+func (pr *peerReplica) startApplyCommittedEntriesJob(commitedEntries []raftpb.Entry) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
-		return pr.doApplyCommittedEntries(shardID, commitedEntries)
+		return pr.doApplyCommittedEntries(commitedEntries)
 	}, nil)
 	return err
 }
 
-func (pr *peerReplica) startCompactRaftLogJob(shardID, startIndex, endIndex uint64) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
-		return pr.doCompactRaftLog(shardID, startIndex, endIndex)
+// remove replica from current node.
+// 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
+// 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
+// 3.
+func (pr *peerReplica) startApplyDestroy(tombstoneInCluster bool, why string) {
+	logger.Infof("shard %d peer %d begin to destroy, because %s",
+		pr.shardID,
+		pr.peer.ID,
+		why)
+
+	pr.store.removeDroppedVoteMsg(pr.shardID)
+	pr.stopEventLoop()
+
+	err := pr.store.addApplyJob(pr.applyWorker, "destory", func() error {
+		return pr.doApplyDestory(tombstoneInCluster)
 	}, nil)
-
-	return err
-}
-
-func (s *store) startDestroyJob(shardID uint64, peer metapb.Peer, why string) error {
-	pr := s.getPR(shardID, false)
-	if pr != nil {
-		err := s.addApplyJob(pr.applyWorker, "doDestroy", func() error {
-			s.doDestroy(shardID, false, why)
-			return nil
-		}, nil)
-		return err
+	if err != nil {
+		logger.Fatalf("%s destory failed with %+v", pr.id(), err)
 	}
+}
 
-	return nil
+func (pr *peerReplica) startCompactRaftLogJob(index uint64) error {
+	err := pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
+		return pr.doCompactRaftLog(index)
+	}, nil)
+
+	return err
 }
 
 func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
@@ -57,13 +64,13 @@ func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
 }
 
 func (pr *peerReplica) startSplitCheckJob() error {
-	shard := pr.shard
+	shard := pr.getShard()
 	epoch := shard.Epoch
 	startKey := keys.EncStartKey(&shard)
 	endKey := keys.EncEndKey(&shard)
 
 	logger.Infof("shard %d start split check job from %+v to %+v",
-		pr.shard.ID,
+		pr.shardID,
 		startKey,
 		endKey)
 	err := pr.store.addSplitJob(func() error {
@@ -74,25 +81,14 @@ func (pr *peerReplica) startSplitCheckJob() error {
 }
 
 func (pr *peerReplica) doPropose(c cmd, isConfChange bool) error {
-	value, ok := pr.store.delegates.Load(pr.shardID)
-	if !ok {
-		c.respShardNotFound(pr.shardID)
-		return nil
-	}
-
-	delegate := value.(*applyDelegate)
-	if delegate.shard.ID != pr.shardID {
-		logger.Fatal("BUG: delegate id not match")
-	}
-
 	if isConfChange {
-		changeC := delegate.pendingChangePeerCMD
+		changeC := pr.pendings.getConfigChange()
 		if changeC.req != nil && changeC.req.Header != nil {
-			delegate.notifyStaleCMD(changeC)
+			changeC.notifyStaleCmd()
 		}
-		delegate.pendingChangePeerCMD = c
+		pr.pendings.setConfigChange(c)
 	} else {
-		delegate.appendPendingCmd(c)
+		pr.pendings.append(c)
 	}
 
 	return nil
@@ -109,15 +105,16 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 	var err error
 
 	useDefault := true
+	shard := pr.getShard()
 	if pr.store.cfg.Customize.CustomSplitCheckFuncFactory != nil {
-		if fn := pr.store.cfg.Customize.CustomSplitCheckFuncFactory(pr.shard.Group); fn != nil {
-			size, keys, splitKeys, err = fn(pr.shard)
+		if fn := pr.store.cfg.Customize.CustomSplitCheckFuncFactory(shard.Group); fn != nil {
+			size, keys, splitKeys, err = fn(shard)
 			useDefault = false
 		}
 	}
 
 	if useDefault {
-		size, keys, splitKeys, err = pr.store.DataStorageByGroup(pr.shard.Group, pr.shard.ID).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
+		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
 	}
 
 	logger.Debugf("shard %d split check result, total size %d(%d), total keys %d, split keys %+v",
@@ -146,7 +143,7 @@ func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey
 		size,
 		splitKeys)
 
-	current := pr.shard
+	current := pr.getShard()
 	if current.Epoch.Version != epoch.Version {
 		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
 			pr.shardID,

@@ -16,6 +16,8 @@ package keys
 import (
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsRaftLogKey(t *testing.T) {
@@ -26,15 +28,30 @@ func TestIsRaftLogKey(t *testing.T) {
 		{GetRaftLogKey(1, 0), true},
 		{GetRaftLogKey(1, 1), true},
 		{GetRaftLogKey(1, math.MaxUint64), true},
-		{GetBootstrapInfoKey(1, 1), false},
-		{GetShardLocalStateKey(1), false},
 		{GetHardStateKey(1, 1), false},
 		{GetMaxIndexKey(1), false},
+		{GetDataStorageAppliedIndexKey(1), false},
+		{GetDataStorageMetadataKey(1, 1), false},
 	}
 
 	for idx, tt := range tests {
 		if v := IsRaftLogKey(tt.key); v != tt.result {
 			t.Errorf("%d, got %t, want %t", idx, v, tt.result)
 		}
+	}
+}
+
+func TestDecodeDataStorageAppliedIndexKey(t *testing.T) {
+	tests := []struct {
+		id     uint64
+		result uint64
+	}{
+		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(0)), 0},
+		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(1)), 1},
+		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(math.MaxUint64)), math.MaxUint64},
+	}
+
+	for idx, ct := range tests {
+		assert.Equal(t, ct.id, ct.result, "index %d", idx)
 	}
 }

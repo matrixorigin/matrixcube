@@ -14,6 +14,11 @@
 package kv
 
 import (
+	"math"
+	"sync"
+	"sync/atomic"
+
+	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
@@ -21,59 +26,171 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/stats"
 )
 
+// Option option func
+type Option func(*options)
+
+type options struct {
+	sampleSync uint64
+}
+
+// WithSampleSync set sync sample interval. `Cube` will call the `GetPersistentLogIndex` method of `DataStorage` to obtain
+// the last `PersistentLogIndex`, which is used for log compression. Since all the writes of `DataStorage` are not written
+// by fsync, we need to sample some sync writes to ensure that the returned `PersistentLogIndex` will not exceed the real
+// `PersistentLogIndex` to avoid the log being compressed by mistake.
+func WithSampleSync(value uint64) Option {
+	return func(opts *options) {
+		opts.sampleSync = value
+	}
+}
+
+func newOptions() *options {
+	return &options{}
+}
+
+func (opts *options) adjust() {
+	if opts.sampleSync == 0 {
+		opts.sampleSync = 100
+	}
+}
+
 type kvStorage struct {
-	base     storage.KVBaseDataStorage
-	executor storage.CommandExecutor
+	opts       *options
+	base       storage.KVBaseDataStorage
+	executor   storage.CommandExecutor
+	writeCount uint64
+	mu         struct {
+		sync.RWMutex
+		lastAppliedIndexes       map[uint64]uint64
+		persistentAppliedIndexes map[uint64]uint64
+	}
 }
 
 // NewKVStorage returns data storage based on a kv storage, support KV operations.
-func NewKVStorage(base storage.KVBaseDataStorage, executor storage.CommandExecutor) storage.DataStorage {
-	return &kvStorage{base: base, executor: executor}
+func NewKVStorage(base storage.KVBaseDataStorage, executor storage.CommandExecutor, opts ...Option) storage.DataStorage {
+	s := &kvStorage{base: base, executor: executor, opts: newOptions()}
+	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
+	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
+
+	for _, opt := range opts {
+		opt(s.opts)
+	}
+	s.opts.adjust()
+	return s
 }
 
 func (kv *kvStorage) GetCommandExecutor() storage.CommandExecutor {
-	return kv.executor
+	return kv
 }
 
-func (kv *kvStorage) SaveShardMetadata(shardID uint64, logIndex uint64, data []byte) error {
+func (kv *kvStorage) ExecuteWrite(ctx storage.Context) error {
+	err := kv.executor.ExecuteWrite(ctx)
+	if err != nil {
+		return err
+	}
+
+	kv.updateAppliedIndex(ctx.Shard().ID, ctx.Requests()[len(ctx.Requests())-1].Index)
+	return kv.simpleSync()
+}
+
+func (kv *kvStorage) ExecuteRead(ctx storage.Context) error {
+	return kv.executor.ExecuteRead(ctx)
+}
+
+func (kv *kvStorage) SaveShardMetadata(metadatas ...storage.ShardMetadata) error {
 	wb := kv.base.NewWriteBatch()
 	defer wb.Close()
 
-	wb.Set(keys.GetDataStorageMetadataKey(shardID, logIndex), data)
-	wb.Set(keys.GetDataStorageAppliedIndexKey(shardID), format.Uint64ToBytes(logIndex))
+	kv.mu.Lock()
+	for _, m := range metadatas {
+		wb.Set(keys.GetDataStorageMetadataKey(m.ShardID, m.LogIndex), m.Metadata)
+		wb.Set(keys.GetDataStorageAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
 
-	return kv.base.Write(wb, false)
+		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
+	}
+	kv.mu.Unlock()
+
+	err := kv.base.Write(wb, false)
+	if err != nil {
+		return err
+	}
+
+	return kv.simpleSync()
 }
 
-func (kv *kvStorage) GetShardMetadata(shardID uint64, logIndex uint64) ([]byte, error) {
-	min := keys.GetDataStorageMetadataKey(shardID, 0)
-	max := keys.GetDataStorageMetadataKey(shardID, logIndex+1)
-
-	var last []byte
-	err := kv.base.Scan(min, max, func(key, value []byte) (bool, error) {
-		last = value
+func (kv *kvStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
+	minApplied := keys.GetDataStorageAppliedIndexKey(0)
+	maxApplied := keys.GetDataStorageAppliedIndexKey(math.MaxUint64)
+	var shards []uint64
+	var lastAppliedIndexs []uint64
+	err := kv.base.Scan(minApplied, maxApplied, func(key, value []byte) (bool, error) {
+		if keys.IsDataStorageAppliedIndexKey(key) {
+			shards = append(shards, keys.DecodeDataStorageAppliedIndexKey(key))
+			lastAppliedIndexs = append(lastAppliedIndexs, buf.Byte2UInt64(value))
+		}
 		return true, nil
-	}, true)
+	}, false)
 	if err != nil {
 		return nil, err
 	}
-	return last, nil
+
+	var values []storage.ShardMetadata
+	for idx, shard := range shards {
+		v, err := kv.base.Get(keys.GetDataStorageMetadataKey(shard, lastAppliedIndexs[idx]))
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, storage.ShardMetadata{
+			ShardID:  shard,
+			LogIndex: lastAppliedIndexs[idx],
+			Metadata: v,
+		})
+	}
+	return values, nil
 }
 
-func (kv *kvStorage) GetAppliedLogIndex(shardID uint64) (uint64, error) {
-	v, err := kv.base.Get(keys.GetDataStorageAppliedIndexKey(shardID))
-	if err != nil {
-		return 0, err
-	}
-	if len(v) == 0 {
-		return 0, nil
-	}
+func (kv *kvStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
+	kv.mu.RLock()
+	defer kv.mu.RUnlock()
+	return kv.mu.persistentAppliedIndexes[shardID], nil
+}
 
-	return format.MustBytesToUint64(v), nil
+func (kv *kvStorage) Sync(...uint64) error {
+	return kv.base.Sync()
 }
 
 func (kv *kvStorage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
-	return kv.base.RangeDelete(encodedStartKey, encodedEndKey)
+	// This is not an atomic operation, but it is idempotent, and the metadata is deleted afterwards,
+	// so the cleanup will not be lost.
+
+	err := kv.base.RangeDelete(encodedStartKey, encodedEndKey)
+	if err != nil {
+		return err
+	}
+
+	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID), keys.GetRaftPrefix(shard.ID+1))
+}
+
+func (kv *kvStorage) updateAppliedIndex(shard uint64, index uint64) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	kv.mu.lastAppliedIndexes[shard] = index
+}
+
+// simpleSync we write and sync the data to disk every interval, and then record the appliedIndex value of
+// the raft log when sync.
+func (kv *kvStorage) simpleSync() error {
+	n := atomic.AddUint64(&kv.writeCount, 1)
+	if n%kv.opts.sampleSync != 0 {
+		return nil
+	}
+	kv.mu.Lock()
+	for k, v := range kv.mu.lastAppliedIndexes {
+		kv.mu.persistentAppliedIndexes[k] = v
+	}
+	kv.mu.Unlock()
+
+	return kv.base.Sync()
 }
 
 // delegate method

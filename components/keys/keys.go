@@ -14,7 +14,6 @@
 package keys
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -29,10 +28,7 @@ const (
 	// Following are the suffix after the local prefix.
 	// For shard id
 	raftLogSuffix                 = 0x01
-	raftStateSuffix               = 0x02
-	applyStateSuffix              = 0x03
 	maxIndexSuffix                = 0x04
-	bootstrapInfoSuffix           = 0x05
 	hardStateSuffix               = 0x06
 	dataStorageAppliedIndexSuffix = 0x07
 	dataStorageMetadataSuffix     = 0x08
@@ -41,9 +37,6 @@ const (
 // local is in (0x01, 0x02);
 var (
 	localPrefix byte = 0x01
-
-	maxKey = []byte{}
-	minKey = []byte{0xff}
 )
 
 // data is in (z, z+1)
@@ -63,12 +56,9 @@ var (
 	// When the store starts, we should iterate all shard meta data to
 	// construct peer, no need to travel large raft data, so we separate them
 	// with different prefixes.
-	raftPrefix    byte = 0x02
-	raftPrefixKey      = []byte{localPrefix, raftPrefix}
-	metaPrefix    byte = 0x03
-	metaPrefixKey      = []byte{localPrefix, metaPrefix}
-	metaMinKey         = []byte{localPrefix, metaPrefix}
-	metaMaxKey         = []byte{localPrefix, metaPrefix + 1}
+	raftPrefix            byte = 0x02
+	raftPrefixKey              = []byte{localPrefix, raftPrefix}
+	baseRaftSuffixKeySize      = len(raftPrefixKey) + 9
 )
 
 func IsStateSuffix(suffix byte) bool {
@@ -80,86 +70,9 @@ func GetStoreIdentKey() []byte {
 	return storeIdentKey
 }
 
-// GetMaxKey return max key
-func GetMaxKey() []byte {
-	return maxKey
-}
-
-// GetMinKey return min key
-func GetMinKey() []byte {
-	return minKey
-}
-
-// GetMaxMetaKey return max metadata key
-func GetMaxMetaKey() []byte {
-	return metaMaxKey
-}
-
-// GetMinMetaKey return min metadata key
-func GetMinMetaKey() []byte {
-	return metaMinKey
-}
-
-// DecodeMetaKey decode metakey returns shard id, suffix
-func DecodeMetaKey(key []byte) (uint64, byte, error) {
-	prefixLen := len(metaPrefixKey)
-	keyLen := len(key)
-
-	if prefixLen+9 != len(key) {
-		return 0, 0, fmt.Errorf("invalid shard meta key length for key %v", key)
-	}
-
-	if !bytes.HasPrefix(key, metaPrefixKey) {
-		return 0, 0, fmt.Errorf("invalid shard meta prefix for key %v", key)
-	}
-
-	return binary.BigEndian.Uint64(key[prefixLen:keyLen]), key[keyLen-1], nil
-}
-
-func getMetaKey(shardID uint64, suffix byte) []byte {
-	buf := acquireBuf()
-	buf.Write(metaPrefixKey)
-	buf.WriteInt64(int64(shardID))
-	buf.WriteByte(suffix)
-	_, data, _ := buf.ReadBytes(buf.Readable())
-
-	releaseBuf(buf)
-	return data
-}
-
-func GetMetaPrefix(shardID uint64) []byte {
-	buf := acquireBuf()
-	buf.Write(metaPrefixKey)
-	buf.WriteInt64(int64(shardID))
-	_, data, _ := buf.ReadBytes(buf.Readable())
-
-	releaseBuf(buf)
-	return data
-}
-
-// GetShardLocalStateKey returns key that used to store `bhraftpb.ShardLocalState`
-func GetShardLocalStateKey(shardID uint64) []byte {
-	return getMetaKey(shardID, stateSuffix)
-}
-
-// GetRaftLocalStateKey returns key that used to store `bhraftpb.RaftLocalState`
-func GetRaftLocalStateKey(shardID uint64) []byte {
-	return getIDKey(shardID, raftStateSuffix, 0, 0)
-}
-
-// GetRaftApplyStateKey returns key that used to store `bhraftpb.RaftApplyState`
-func GetRaftApplyStateKey(shardID uint64) []byte {
-	return getIDKey(shardID, applyStateSuffix, 0, 0)
-}
-
 // GetHardStateKey returns key that used to store `raftpb.HardState`
 func GetHardStateKey(shardID uint64, peerID uint64) []byte {
 	return getIDKey(shardID, hardStateSuffix, 8, peerID)
-}
-
-// GetBootstrapInfoKey returns key that used to store `bhraftpb.BootstrapInfo`
-func GetBootstrapInfoKey(shardID uint64, peerID uint64) []byte {
-	return getIDKey(shardID, bootstrapInfoSuffix, 8, peerID)
 }
 
 // GetDataStorageAppliedIndexKey returns key that used to store `applied log index` for `storage.DataStorage`
@@ -167,24 +80,33 @@ func GetDataStorageAppliedIndexKey(shardID uint64) []byte {
 	return getIDKey(shardID, dataStorageAppliedIndexSuffix, 0, 0)
 }
 
+// DecodeDataStorageAppliedIndexKey returns shard id
+func DecodeDataStorageAppliedIndexKey(key []byte) uint64 {
+	return buf.Byte2UInt64(key[raftPrefix:])
+}
+
 // GetDataStorageMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
 func GetDataStorageMetadataKey(shardID uint64, index uint64) []byte {
 	return getIDKey(shardID, dataStorageMetadataSuffix, 8, index)
 }
 
-func isRaftSuffixKey(key []byte, suffix byte) bool {
-	if len(key) != len(raftPrefixKey)+8*2+1 {
+func isRaftSuffixKey(key []byte, size int, suffix byte) bool {
+	if len(key) != size {
 		return false
 	}
-	return key[len(raftPrefixKey)+8] == suffix
+	return key[baseRaftSuffixKeySize-1] == suffix
 }
 
 func IsDataStorageMetadataKey(key []byte) bool {
-	return isRaftSuffixKey(key, dataStorageMetadataSuffix)
+	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, dataStorageMetadataSuffix)
+}
+
+func IsDataStorageAppliedIndexKey(key []byte) bool {
+	return isRaftSuffixKey(key, baseRaftSuffixKeySize, dataStorageAppliedIndexSuffix)
 }
 
 func IsRaftLogKey(key []byte) bool {
-	return isRaftSuffixKey(key, raftLogSuffix)
+	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, raftLogSuffix)
 }
 
 func GetRaftPrefix(shardID uint64) []byte {

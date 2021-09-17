@@ -1,0 +1,16 @@
+@startuml dynamic_create
+participant PD
+participant Node1
+
+note over PD: Shard A \n -ID: 1 \n -Epoch: [1, 3]\n -Range: [1, 10)\n -Peers: \n     [peer1, store1, initial] \n     [peer2, store2, initial] \n     [peer3, store3, initial]
+
+PD -> Node1: Create Peer1 of Shard A
+Node1 -> Node1: Sync Shard A data to disk at LogIndex 3
+note over Node1 #green : Shard A \n -ID: 1 \n -Epoch: [1, 3]\n -Range: [1, 10)\n -Peers: \n     [peer1, store1, initial] \n     [peer2, store2, initial] \n     [peer3, store3, initial]
+Node1 -> Node1: Bootstrap Shard A
+Node1 -> Node1: Write initial Raft-Log 1, 2, 3 into LogDB
+Node1 -> Node1: Use Shard A to start Raft-Group
+
+PD -> Node2: Create Peer2 of Shard A, same as node1
+PD -> Node3: Create Peer3 of Shard A, same as node1
+@enduml

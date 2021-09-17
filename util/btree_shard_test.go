@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTree(t *testing.T) {
@@ -104,4 +105,27 @@ func TestTree(t *testing.T) {
 	if tree.length() != 2 {
 		t.Error("tree failed, Remove failed")
 	}
+}
+
+func TestTreeOverlap(t *testing.T) {
+	tree := NewShardTree()
+	tree.Update(bhmetapb.Shard{
+		ID:    1,
+		Start: []byte{1},
+		End:   []byte{10},
+	})
+	tree.Update(bhmetapb.Shard{
+		ID:    2,
+		Start: []byte{5},
+		End:   []byte{10},
+	})
+	tree.Update(bhmetapb.Shard{
+		ID:    1,
+		Start: []byte{1},
+		End:   []byte{5},
+	})
+	s := tree.Search([]byte{5})
+	assert.Equal(t, uint64(2), s.ID)
+	s = tree.Search([]byte{1})
+	assert.Equal(t, uint64(1), s.ID)
 }

@@ -1,5 +1,6 @@
 package raftstore
 
+/*
 import (
 	"testing"
 	"time"
@@ -9,6 +10,8 @@ import (
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
+
+// TODO: re-enable this test
 
 func TestIssue97(t *testing.T) {
 	// We fogot reset raftWB in `delegate` every time as below. So a new commitedEntries will has it's prev
@@ -91,4 +94,4 @@ func TestIssue97(t *testing.T) {
 	defer kv2.Close()
 	_, err := kv2.Get("key2", testWaitTimeout)
 	assert.NoError(t, err)
-}
+}*/

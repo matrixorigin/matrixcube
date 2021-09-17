@@ -307,6 +307,12 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	return key, value, nil
 }
 
+// Sync persist data to disk
+func (s *Storage) Sync() error {
+	atomic.AddUint64(&s.stats.SyncCount, 1)
+	return s.db.Flush()
+}
+
 // NewWriteBatch create and returns write batch
 func (s *Storage) NewWriteBatch() util.WriteBatch {
 	return newWriteBatch(s.db.NewBatch(), &s.stats)

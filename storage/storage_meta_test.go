@@ -57,7 +57,7 @@ func TestWriteBatch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s := factory(fs, t)
 			defer s.Close()
-			wb := util.NewWriteBatch()
+			wb := s.NewWriteBatch()
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")
@@ -209,46 +209,6 @@ func TestSetAndGetWithTTL(t *testing.T) {
 			}, false)
 			assert.NoError(t, err, "TestSetAndGetWithTTL failed")
 			assert.Equal(t, 0, c, "TestSetAndGetWithTTL failed")
-		})
-	}
-}
-
-func TestWritebatchWithTTL(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range factories {
-		t.Run(name, func(t *testing.T) {
-			if name == "pebble" {
-				return
-			}
-
-			s := factory(fs, t)
-			defer s.Close()
-			key1 := []byte("k1")
-			value1 := []byte("v1")
-			wb := util.NewWriteBatch()
-			wb.SetWithTTL(key1, value1, 1)
-
-			err := s.Write(wb, false)
-			assert.NoError(t, err, "TestWritebatchWithTTL failed")
-
-			value, err := s.Get(key1)
-			assert.NoError(t, err, "TestWritebatchWithTTL failed")
-			assert.Equal(t, string(value1), string(value), "TestWritebatchWithTTL failed")
-
-			time.Sleep(time.Second * 2)
-			value, err = s.Get(key1)
-			assert.NoError(t, err, "TestWritebatchWithTTL failed")
-			assert.Equal(t, 0, len(value), "TestWritebatchWithTTL failed")
-
-			c := 0
-			err = s.Scan(key1, []byte("k2"), func(key, value []byte) (bool, error) {
-				c++
-				return true, nil
-			}, false)
-			assert.NoError(t, err, "TestWritebatchWithTTL failed")
-			assert.Equal(t, 0, c, "TestWritebatchWithTTL failed")
 		})
 	}
 }

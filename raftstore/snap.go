@@ -168,7 +168,7 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 	gzPath := m.getPathOfSnapKeyGZ(msg)
 	start := keys.EncStartKey(&msg.Header.Shard)
 	end := keys.EncEndKey(&msg.Header.Shard)
-	db := m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID)
+	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
 	fs := m.s.cfg.FS
 
 	if !exist(fs, gzPath) {
@@ -386,7 +386,7 @@ func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
 	defer m.s.cfg.FS.RemoveAll(dir)
 
 	// apply snapshot of data
-	err = m.s.DataStorageByGroup(msg.Header.Shard.Group, msg.Header.Shard.ID).ApplySnapshot(dir)
+	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(dir)
 	if err != nil {
 		return err
 	}

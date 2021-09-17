@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -30,7 +29,6 @@ import (
 	"github.com/fagongzi/util/task"
 
 	"github.com/matrixorigin/matrixcube/aware"
-	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -65,18 +63,14 @@ type Store interface {
 	Meta() bhmetapb.Store
 	// GetRouter returns a router
 	GetRouter() Router
-	// RegisterLocalFunc register local command handler
-	RegisterLocalFunc(uint64, command.LocalCommandFunc)
 	// RegisterLocalRequestCB register local request cb to process response
 	RegisterLocalRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
 	// RegisterRPCRequestCB register rpc request cb to process response
 	RegisterRPCRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
 	// OnRequest receive a request, and call cb while the request is completed
 	OnRequest(*raftcmdpb.Request) error
-	// MetadataStorage returns a MetadataStorage of the shard group
-	MetadataStorage() storage.MetadataStorage
 	// DataStorage returns a DataStorage of the shard group
-	DataStorageByGroup(uint64, uint64) storage.DataStorage
+	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
 	// AllocID returns a uint64 id, panic if has a error
@@ -118,10 +112,7 @@ type store struct {
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	peers           sync.Map // peer  id -> peer
 	replicas        sync.Map // shard id -> *peerReplica
-	delegates       sync.Map // shard id -> *applyDelegate
 	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
-
-	localHandlers map[uint64]command.LocalCommandFunc
 
 	state    uint32
 	stopOnce sync.Once
@@ -143,14 +134,14 @@ type store struct {
 // NewStore returns a raft store
 func NewStore(cfg *config.Config) Store {
 	cfg.Adjust()
+
 	s := &store{
-		meta:          &containerAdapter{},
-		cfg:           cfg,
-		localHandlers: make(map[uint64]command.LocalCommandFunc),
-		logdb:         logdb.NewKVLogDB(cfg.Storage.MetaStorage),
-		runner:        task.NewRunner(),
-		workReady:     newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
-		shardPool:     newDynamicShardsPool(cfg),
+		meta:      &containerAdapter{},
+		cfg:       cfg,
+		logdb:     logdb.NewKVLogDB(cfg.Storage.MetaStorage),
+		runner:    task.NewRunner(),
+		workReady: newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
+		shardPool: newDynamicShardsPool(cfg),
 	}
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
@@ -245,7 +236,7 @@ func (s *store) startRouter() {
 		}
 
 		r, err := newRouter(watcher, s.runner, func(id uint64) {
-			s.doDestroy(id, true, "remove by event")
+			s.destoryPR(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
@@ -261,10 +252,6 @@ func (s *store) startRouter() {
 
 func (s *store) Meta() bhmetapb.Store {
 	return s.meta.meta
-}
-
-func (s *store) RegisterLocalFunc(ct uint64, handler command.LocalCommandFunc) {
-	s.localHandlers[ct] = handler
 }
 
 func (s *store) RegisterLocalRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
@@ -307,12 +294,8 @@ func (s *store) onRequestWithCB(req *raftcmdpb.Request, cb func(resp *raftcmdpb.
 	return pr.onReq(req, cb)
 }
 
-func (s *store) MetadataStorage() storage.MetadataStorage {
-	return s.cfg.Storage.MetaStorage
-}
-
-func (s *store) DataStorageByGroup(group, shardID uint64) storage.DataStorage {
-	return s.cfg.Storage.DataStorageFactory(group, shardID)
+func (s *store) DataStorageByGroup(group uint64) storage.DataStorage {
+	return s.cfg.Storage.DataStorageFactory(group)
 }
 
 func (s *store) MaybeLeader(shard uint64) bool {
@@ -432,7 +415,7 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 			hasEvent := false
 			s.replicas.Range(func(key, value interface{}) bool {
 				pr := value.(*peerReplica)
-				if pr.eventWorker == id && pr.shard.Group == g && pr.handleEvent() {
+				if pr.eventWorker == id && pr.getShard().Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
 
@@ -459,63 +442,50 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
-	applyingCount := 0
-	var tomebstoneShards []bhmetapb.Shard
 
-	wb := util.NewWriteBatch()
-	err := s.MetadataStorage().Scan(keys.GetMinMetaKey(), keys.GetMaxMetaKey(), func(key, value []byte) (bool, error) {
-		shardID, suffix, err := keys.DecodeMetaKey(key)
+	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
+		initStates, err := ds.GetInitialStates()
 		if err != nil {
-			return false, err
+			logger.Fatalf("init store failed with %+v", err)
 		}
 
-		if !keys.IsStateSuffix(suffix) {
-			return true, nil
+		var tomebstoneShards []bhmetapb.Shard
+		for _, metadata := range initStates {
+			totalCount++
+			sls := &bhmetapb.ShardLocalState{}
+			protoc.MustUnmarshal(sls, metadata.Metadata)
+
+			if sls.Shard.ID != metadata.ShardID {
+				logger.Fatalf("BUG: shard id not match in metadata, %d != %d",
+					sls.Shard.ID,
+					metadata.ShardID)
+			}
+
+			if sls.State == bhmetapb.PeerState_Tombstone {
+				tomebstoneShards = append(tomebstoneShards, sls.Shard)
+				tomebstoneCount++
+				logger.Infof("shard %d is tombstone in store",
+					sls.Shard.ID)
+				continue
+			}
+
+			pr, err := createPeerReplica(s, &sls.Shard, "bootstrap")
+			if err != nil {
+				logger.Fatalf("init store failed with %+v", err)
+			}
+
+			s.updateShardKeyRange(sls.Shard)
+			s.addPR(pr)
+			pr.start()
 		}
 
-		totalCount++
+		s.cleanup(tomebstoneShards)
+	})
 
-		localState := new(bhraftpb.ShardLocalState)
-		protoc.MustUnmarshal(localState, value)
-
-		for _, p := range localState.Shard.Peers {
-			s.peers.Store(p.ID, p)
-		}
-
-		if localState.State == bhraftpb.PeerState_Tombstone {
-			tomebstoneShards = append(tomebstoneShards, localState.Shard)
-			tomebstoneCount++
-			logger.Infof("shard %d is tombstone in store",
-				shardID)
-			return true, nil
-		}
-
-		pr, err := createPeerReplica(s, &localState.Shard, "bootstrap")
-		if err != nil {
-			return false, err
-		}
-
-		s.updateShardKeyRange(localState.Shard)
-		s.addPR(pr)
-		pr.start()
-		return true, nil
-	}, false)
-
-	if err != nil {
-		logger.Fatalf("init store failed with %+v", err)
-	}
-
-	err = s.MetadataStorage().Write(wb, false)
-	if err != nil {
-		logger.Fatalf("init store failed with %+v", err)
-	}
-
-	logger.Infof("starts with %d shards, including %d tombstones and %d applying shards",
+	logger.Infof("starts with %d shards, including %d tombstones shards",
 		totalCount,
-		tomebstoneCount,
-		applyingCount)
+		tomebstoneCount)
 
-	s.cleanup(tomebstoneShards)
 }
 
 func (s *store) startTimerTasks() {
@@ -560,6 +530,13 @@ func (s *store) startTimerTasks() {
 	})
 }
 
+func (s *store) destoryPR(shardID uint64, tombstoneInCluster bool, why string) {
+	pr := s.getPR(shardID, false)
+	if pr != nil {
+		pr.startApplyDestroy(tombstoneInCluster, why)
+	}
+}
+
 func (s *store) addPR(pr *peerReplica) bool {
 	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
 	return !loaded
@@ -568,7 +545,7 @@ func (s *store) addPR(pr *peerReplica) bool {
 func (s *store) removePR(pr *peerReplica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destory(pr.shard)
+		s.aware.Destory(pr.getShard())
 	}
 	s.revokeWorker(pr)
 }
@@ -580,62 +557,6 @@ func (s *store) startRPC() {
 			s.cfg.ClientAddr,
 			err)
 	}
-}
-
-func (s *store) clearMeta(id uint64, wb *util.WriteBatch) error {
-	metaCount := 0
-	raftCount := 0
-
-	var freeKeys [][]byte
-	defer func() {
-		for _, key := range freeKeys {
-			s.MetadataStorage().Free(key)
-		}
-	}()
-
-	// meta must in the range [id, id + 1)
-	metaStart := keys.GetMetaPrefix(id)
-	metaEnd := keys.GetMetaPrefix(id + 1)
-
-	err := s.MetadataStorage().Scan(metaStart, metaEnd, func(key, value []byte) (bool, error) {
-		freeKeys = append(freeKeys, key)
-		err := wb.Delete(key)
-		if err != nil {
-			return false, err
-		}
-
-		metaCount++
-		return true, nil
-	}, true)
-
-	if err != nil {
-		return err
-	}
-
-	raftStart := keys.GetRaftPrefix(id)
-	raftEnd := keys.GetRaftPrefix(id + 1)
-
-	err = s.MetadataStorage().Scan(raftStart, raftEnd, func(key, value []byte) (bool, error) {
-		freeKeys = append(freeKeys, key)
-		err := wb.Delete(key)
-		if err != nil {
-			return false, err
-		}
-
-		raftCount++
-		return true, nil
-	}, true)
-
-	if err != nil {
-		return err
-	}
-
-	logger.Infof("shard %d clear %d meta keys and %d raft keys",
-		id,
-		metaCount,
-		raftCount)
-
-	return nil
 }
 
 func (s *store) cleanup(shards []bhmetapb.Shard) {
@@ -674,7 +595,7 @@ func (s *store) revokeWorker(pr *peerReplica) {
 	s.allocWorkerLock.Lock()
 	defer s.allocWorkerLock.Unlock()
 
-	g := pr.shard.Group
+	g := pr.getShard().Group
 	s.applyWorkers[g][pr.applyWorker]--
 	s.eventWorkers[g][pr.eventWorker]--
 }
@@ -799,16 +720,7 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 		}
 	}
 
-	// If header's term is 2 verions behind current term,
-	// leadership may have been changed away.
-	if req.Header.Term > 0 && pr.getCurrentTerm() > req.Header.Term+1 {
-		return &errorpb.Error{
-			Message:      errStaleCMD.Error(),
-			StaleCommand: infoStaleCMD,
-		}
-	}
-
-	shard := pr.shard
+	shard := pr.getShard()
 	if !checkEpoch(shard, req) {
 		err := new(errorpb.StaleEpoch)
 		// Attach the next shard which might be split from the current shard. But it doesn't
@@ -886,8 +798,6 @@ func newAdminRaftCMDResponse(adminType raftcmdpb.AdminCmdType, rsp protoc.PB) *r
 		adminResp.ChangePeer = rsp.(*raftcmdpb.ChangePeerResponse)
 	case raftcmdpb.AdminCmdType_TransferLeader:
 		adminResp.TransferLeader = rsp.(*raftcmdpb.TransferLeaderResponse)
-	case raftcmdpb.AdminCmdType_CompactLog:
-		adminResp.CompactLog = rsp.(*raftcmdpb.CompactLogResponse)
 	case raftcmdpb.AdminCmdType_BatchSplit:
 		adminResp.Splits = rsp.(*raftcmdpb.BatchSplitResponse)
 	}
@@ -950,33 +860,6 @@ func (s *store) nextShard(shard bhmetapb.Shard) *bhmetapb.Shard {
 	return nil
 }
 
-func (s *store) updatePeerState(shard bhmetapb.Shard, state bhraftpb.PeerState, wb *util.WriteBatch) error {
-	shardState := &bhraftpb.ShardLocalState{}
-	shardState.State = state
-	shardState.Shard = shard
-
-	if wb != nil {
-		return wb.Set(keys.GetShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
-	}
-
-	return s.MetadataStorage().Set(keys.GetShardLocalStateKey(shard.ID), protoc.MustMarshal(shardState))
-}
-
-func (s *store) removePeerState(shard bhmetapb.Shard) error {
-	return s.MetadataStorage().Delete(keys.GetShardLocalStateKey(shard.ID))
-}
-
-func (s *store) writeInitialState(shardID uint64, wb *util.WriteBatch) error {
-	raftState := new(bhraftpb.RaftLocalState)
-	applyState := new(bhraftpb.RaftApplyState)
-	err := wb.Set(keys.GetRaftLocalStateKey(shardID), protoc.MustMarshal(raftState))
-	if err != nil {
-		return err
-	}
-
-	return wb.Set(keys.GetRaftApplyStateKey(shardID), protoc.MustMarshal(applyState))
-}
-
 // doClearData Delete all data belong to the shard.
 // If return Err, data may get partial deleted.
 func (s *store) doClearData(shard bhmetapb.Shard) error {
@@ -986,10 +869,8 @@ func (s *store) doClearData(shard bhmetapb.Shard) error {
 		logger.Errorf("shard %d delete data failed with %+v",
 			shard.ID,
 			err)
-		return err
 	}
-
-	return s.removePeerState(shard)
+	return err
 }
 
 func (s *store) startClearDataJob(shard bhmetapb.Shard) error {
@@ -1006,38 +887,5 @@ func (s *store) removeShardData(shard bhmetapb.Shard, job *task.Job) error {
 
 	start := keys.EncStartKey(&shard)
 	end := keys.EncEndKey(&shard)
-	return s.DataStorageByGroup(shard.Group, shard.ID).RemoveShardData(shard, start, end)
-}
-
-// Delete all data that is not covered by `newShard`.
-func (s *store) clearExtraData(appliedWorker string, shard, newShard bhmetapb.Shard) error {
-	kv, ok := s.DataStorageByGroup(shard.Group, shard.ID).(storage.KVStorage)
-	if !ok {
-		return nil
-	}
-
-	oldStartKey := keys.EncStartKey(&shard)
-	oldEndKey := keys.EncEndKey(&shard)
-	newStartKey := keys.EncStartKey(&newShard)
-	newEndKey := keys.EncEndKey(&newShard)
-
-	if bytes.Compare(oldStartKey, newStartKey) < 0 {
-		err := s.addApplyJob(appliedWorker, "doRemoveKVBasedRangeData", func() error {
-			return kv.RangeDelete(oldStartKey, newStartKey)
-		}, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	if bytes.Compare(newEndKey, oldEndKey) < 0 {
-		err := s.addApplyJob(appliedWorker, "doRemoveKVBasedRangeData", func() error {
-			return kv.RangeDelete(newEndKey, oldEndKey)
-		}, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.DataStorageByGroup(shard.Group).RemoveShardData(shard, start, end)
 }

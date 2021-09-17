@@ -20,15 +20,25 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"go.uber.org/zap"
 )
 
 type cmd struct {
 	req                     *raftcmdpb.RaftCMDRequest
 	cb                      func(*raftcmdpb.RaftCMDResponse)
 	readIndexCommittedIndex uint64
-	term                    uint64
 	tp                      int
 	size                    int
+}
+
+func (c *cmd) notifyStaleCmd() {
+	c.resp(errorStaleCMDResp(c.getUUID()))
+}
+
+func (c *cmd) notifyShardRemoved() {
+	if c.req != nil && c.req.Header != nil {
+		c.respShardNotFound(c.req.Header.ShardID)
+	}
 }
 
 func (c *cmd) isFull(n, max int) bool {
@@ -76,7 +86,7 @@ func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.Raf
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
-	}, uuid.NewV4().Bytes(), 0)
+	}, uuid.NewV4().Bytes())
 
 	resp := pb.AcquireResponse()
 	resp.ID = req.ID
@@ -92,9 +102,9 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
 				if resp.Header == nil {
-					logger.Fatalf("BUG: requests and response count not match expect %d, but %d",
-						len(c.req.Requests),
-						len(resp.Responses))
+					logger2.Fatal("requests and response not match",
+						zap.Int("request-count", len(c.req.Requests)),
+						zap.Int("response-count", len(resp.Responses)))
 				} else if len(resp.Responses) != 0 {
 					logger.Fatalf("BUG: responses len must be 0")
 				}
@@ -136,7 +146,7 @@ func (c *cmd) respShardNotFound(shardID uint64) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
-	}, c.req.Header.ID, c.term)
+	}, c.req.Header.ID)
 
 	c.resp(rsp)
 }
@@ -150,7 +160,7 @@ func (c *cmd) respLargeRaftEntrySize(shardID uint64, size uint64) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:           errLargeRaftEntrySize.Error(),
 		RaftEntryTooLarge: err,
-	}, c.getUUID(), c.term)
+	}, c.getUUID())
 
 	c.resp(rsp)
 }
@@ -169,7 +179,7 @@ func (c *cmd) respNotLeader(shardID uint64, leader metapb.Peer) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:   errNotLeader.Error(),
 		NotLeader: err,
-	}, c.getUUID(), c.term)
+	}, c.getUUID())
 
 	c.resp(rsp)
 }

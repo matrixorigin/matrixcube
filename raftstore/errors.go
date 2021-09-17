@@ -37,14 +37,6 @@ var (
 	storeNotMatch = new(errorpb.StoreNotMatch)
 )
 
-func buildTerm(term uint64, resp *raftcmdpb.RaftCMDResponse) {
-	if resp.Header == nil {
-		return
-	}
-
-	resp.Header.CurrentTerm = term
-}
-
 func buildUUID(uuid []byte, resp *raftcmdpb.RaftCMDResponse) {
 	if resp.Header == nil {
 		return
@@ -56,29 +48,28 @@ func buildUUID(uuid []byte, resp *raftcmdpb.RaftCMDResponse) {
 }
 
 func errorOtherCMDResp(err error) *raftcmdpb.RaftCMDResponse {
-	resp := errorBaseResp(nil, 0)
+	resp := errorBaseResp(nil)
 	resp.Header.Error.Message = err.Error()
 	return resp
 }
 
-func errorPbResp(err *errorpb.Error, uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDResponse {
-	resp := errorBaseResp(uuid, currentTerm)
+func errorPbResp(err *errorpb.Error, uuid []byte) *raftcmdpb.RaftCMDResponse {
+	resp := errorBaseResp(uuid)
 	resp.Header.Error = *err
-
 	return resp
 }
 
-func errorStaleCMDResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDResponse {
-	resp := errorBaseResp(uuid, currentTerm)
+func errorStaleCMDResp(uuid []byte) *raftcmdpb.RaftCMDResponse {
+	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleCommand = infoStaleCMD
 
 	return resp
 }
 
-func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...bhmetapb.Shard) *raftcmdpb.RaftCMDResponse {
-	resp := errorBaseResp(uuid, currentTerm)
-
+func errorStaleEpochResp(uuid []byte,
+	newShards ...bhmetapb.Shard) *raftcmdpb.RaftCMDResponse {
+	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
 		NewShards: newShards,
@@ -87,17 +78,17 @@ func errorStaleEpochResp(uuid []byte, currentTerm uint64, newShards ...bhmetapb.
 	return resp
 }
 
-func errorBaseResp(uuid []byte, currentTerm uint64) *raftcmdpb.RaftCMDResponse {
+func errorBaseResp(uuid []byte) *raftcmdpb.RaftCMDResponse {
 	resp := pb.AcquireRaftCMDResponse()
 	resp.Header = pb.AcquireRaftResponseHeader()
-	buildTerm(currentTerm, resp)
 	buildUUID(uuid, resp)
 
 	return resp
 }
 
 func checkKeyInShard(key []byte, shard *bhmetapb.Shard) *errorpb.Error {
-	if bytes.Compare(key, shard.Start) >= 0 && (len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
+	if bytes.Compare(key, shard.Start) >= 0 &&
+		(len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil
 	}
 

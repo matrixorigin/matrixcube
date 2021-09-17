@@ -49,7 +49,6 @@ func getConfChangeKind(changeNum int) confChangeKind {
 type requestPolicy int
 
 const (
-	readLocal             = requestPolicy(0)
 	readIndex             = requestPolicy(1)
 	proposeNormal         = requestPolicy(2)
 	proposeTransferLeader = requestPolicy(3)
@@ -70,22 +69,10 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
-			if req.req != nil {
-				if h, ok := pr.store.localHandlers[req.req.CustemType]; ok {
-					rsp, err := h(pr.shard, req.req)
-					if err != nil {
-						respWithRetry(req.req, req.cb)
-					} else {
-						resp(req.req, rsp, req.cb)
-					}
-					continue
-				}
-			}
-
 			if logger.DebugEnabled() && req.req != nil {
 				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
 			}
-			pr.batch.push(pr.shard.Group, req)
+			pr.batch.push(pr.getShard().Group, req)
 		}
 	}
 
@@ -119,7 +106,6 @@ func (pr *peerReplica) propose(c cmd) {
 	// The peer that is being checked is a leader. It might step down to be a follower later. It
 	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
 	// command log entry can't be committed.
-	c.term = pr.getCurrentTerm()
 	isConfChange := false
 	policy, err := pr.getHandlePolicy(c.req)
 	if err != nil {
@@ -132,8 +118,6 @@ func (pr *peerReplica) propose(c cmd) {
 	switch policy {
 	case readIndex:
 		pr.execReadIndex(c)
-	case readLocal:
-		pr.doExecReadCmd(c)
 	case proposeNormal:
 		doPropose = pr.proposeNormal(c)
 	case proposeTransferLeader:
@@ -362,10 +346,9 @@ func (pr *peerReplica) checkProposal(c cmd) bool {
 		return false
 	}
 
-	term := pr.getCurrentTerm()
 	pe := pr.store.validateShard(c.req)
 	if pe != nil {
-		c.resp(errorPbResp(pe, c.req.Header.ID, term))
+		c.resp(errorPbResp(pe, c.req.Header.ID))
 		return false
 	}
 
@@ -496,11 +479,6 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 
 	if isWrite {
 		return proposeNormal, nil
-	}
-
-	if pr.store.cfg.Customize.CustomCanReadLocalFunc != nil &&
-		pr.store.cfg.Customize.CustomCanReadLocalFunc(pr.shard) {
-		return readLocal, nil
 	}
 
 	return readIndex, nil

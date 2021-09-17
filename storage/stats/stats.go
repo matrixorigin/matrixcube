@@ -19,4 +19,6 @@ type Stats struct {
 	WrittenBytes uint64
 	ReadKeys     uint64
 	ReadBytes    uint64
+	// SyncCount number of `Sync` method called
+	SyncCount uint64
 }

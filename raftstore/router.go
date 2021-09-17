@@ -19,12 +19,14 @@ import (
 	"sync/atomic"
 
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 // Router route the request to the corresponding shard
@@ -210,7 +212,10 @@ func (r *defaultRouter) eventLoop(ctx context.Context) {
 func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	switch evt.Type {
 	case event.EventInit:
-		logger.Infof("start init event")
+		logger2.Info("event",
+			zap.String("type", "init"),
+			zap.Int("shard-count", len(evt.InitEvent.Resources)),
+			zap.Int("store-count", len(evt.InitEvent.Containers)))
 		r.keyRanges.Range(func(key, value interface{}) bool {
 			r.keyRanges.Delete(key)
 			return true
@@ -241,6 +246,13 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, cr
 	if err != nil {
 		logger.Fatalf("unmarshal shard failed with %+v", err)
 	}
+
+	logger2.Info("event",
+		zap.String("type", "shard"),
+		log.ShardField("metadata", res.meta),
+		zap.Uint64("leader-peer-id", leader),
+		zap.Bool("removed", removed),
+		zap.Bool("create", create))
 
 	if removed {
 		r.removedHandleFunc(res.meta.ID)

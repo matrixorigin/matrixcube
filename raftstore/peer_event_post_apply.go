@@ -54,12 +54,12 @@ func (pr *peerReplica) doPollApply(result asyncApplyResult) {
 }
 
 func (pr *peerReplica) doPostApply(result asyncApplyResult) {
-	pr.appliedIndex = result.applyState.AppliedIndex
-	pr.rn.AdvanceApply(result.applyState.AppliedIndex)
+	pr.appliedIndex = result.index
+	pr.rn.AdvanceApply(result.index)
 
 	logger.Debugf("shard %d async apply committied entries finished at %d, last %d",
 		pr.shardID,
-		result.applyState.AppliedIndex,
+		result.index,
 		pr.rn.LastIndex())
 
 	pr.metrics.admin.incBy(result.metrics.admin)
@@ -81,53 +81,37 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
 	case raftcmdpb.AdminCmdType_ChangePeer:
-		pr.doApplyConfChange(result.result.changePeer)
+		pr.doApplyConfChange(result.result.changePeerResult)
 	case raftcmdpb.AdminCmdType_BatchSplit:
 		pr.doApplySplit(result.result.splitResult)
-	case raftcmdpb.AdminCmdType_CompactLog:
-		pr.doApplyCompactRaftLog(result.result.raftGCResult)
 	}
 }
 
-func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
+func (pr *peerReplica) doApplyConfChange(cp *changePeerResult) {
 	if cp.index == 0 {
 		// Apply failed, skip.
 		return
 	}
 
 	pr.rn.ApplyConfChange(cp.confChange)
-	pr.shard = cp.shard
 
-	remove_self := false
-	need_ping := false
+	needPing := false
 	now := time.Now()
 	for _, change := range cp.changes {
-		change_type := change.ChangeType
+		changeType := change.ChangeType
 		peer := change.Peer
-		store_id := peer.ContainerID
-		peer_id := peer.ID
+		peerID := peer.ID
 
-		switch change_type {
+		switch changeType {
 		case metapb.ChangePeerType_AddNode, metapb.ChangePeerType_AddLearnerNode:
-			pr.peerHeartbeatsMap.Store(peer_id, now)
-			pr.store.peers.Store(peer_id, peer)
+			pr.peerHeartbeatsMap.Store(peerID, now)
+			pr.store.peers.Store(peerID, peer)
 			if pr.isLeader() {
-				need_ping = true
+				needPing = true
 			}
 		case metapb.ChangePeerType_RemoveNode:
-			pr.peerHeartbeatsMap.Delete(peer_id)
-			pr.store.peers.Delete(peer_id)
-
-			// We only care remove itself now.
-			if pr.store.meta.meta.ID == store_id {
-				if pr.peer.ID == peer_id {
-					remove_self = true
-				} else {
-					logger.Fatalf("shard-%d trying to remove unknown peer %+v",
-						pr.shardID,
-						peer)
-				}
-			}
+			pr.peerHeartbeatsMap.Delete(peerID)
+			pr.store.peers.Delete(peerID)
 		}
 	}
 
@@ -137,54 +121,49 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 			pr.shardID,
 			cp.confChange,
 			cp.changes,
-			pr.shard.Epoch)
+			pr.getShard().Epoch)
 		pr.addAction(action{actionType: heartbeatAction})
 
 		// Remove or demote leader will cause this raft group unavailable
 		// until new leader elected, but we can't revert this operation
 		// because its result is already persisted in apply worker
 		// TODO: should we transfer leader here?
-		demote_self := pr.peer.Role == metapb.PeerRole_Learner
-		if remove_self || demote_self {
-			logger.Warningf("shard-%d removing or demoting leader, remove %+v, demote",
+		demoteSelf := pr.peer.Role == metapb.PeerRole_Learner
+		if demoteSelf {
+			logger.Warningf("shard-%d removing or demoting leader, demote",
 				pr.shardID,
-				remove_self,
-				demote_self)
+				demoteSelf)
 
-			if demote_self {
+			if demoteSelf {
 				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
 			}
 
 			// Don't ping to speed up leader election
-			need_ping = false
+			needPing = false
 		}
 
-		if need_ping {
+		if needPing {
 			// Speed up snapshot instead of waiting another heartbeat.
 			pr.rn.Ping()
 		}
-
-		if remove_self {
-			pr.mustDestroy("conf change")
-		}
 	}
 
+	shard := pr.getShard()
 	logger.Infof("shard %d peer %d applied changes %+v at epoch %+v, new peers %+v",
 		pr.shardID,
 		pr.peer.ID,
 		cp.changes,
-		pr.shard.Epoch,
-		pr.shard.Peers)
+		shard.Epoch,
+		shard.Peers)
 }
 
 func (pr *peerReplica) doApplySplit(result *splitResult) {
 	logger.Infof("shard %d update to %+v by post applt split",
-		pr.shard.ID,
+		pr.shardID,
 		result.derived)
 
 	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
 	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)
-	pr.shard = result.derived
 	pr.sizeDiffHint = 0
 	pr.approximateKeys = 0
 	pr.approximateSize = 0
@@ -212,7 +191,7 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 			// If the store received a raft msg with the new shard raft group
 			// before splitting, it will creates a uninitialized peer.
 			// We can remove this uninitialized peer directly.
-			if len(newPR.shard.Peers) > 0 {
+			if len(newPR.getShard().Peers) > 0 {
 				logger.Fatalf("shard %d duplicated shard split to new shard %d",
 					pr.shardID,
 					newShardID)
@@ -260,30 +239,10 @@ func (pr *peerReplica) doApplySplit(result *splitResult) {
 	}
 
 	if pr.store.aware != nil {
-		pr.store.aware.Splited(pr.shard)
+		pr.store.aware.Splited(pr.getShard())
 	}
 
 	logger.Infof("shard %d new shard added, new shards %+v",
 		pr.shardID,
 		result.shards)
-}
-
-func (pr *peerReplica) doApplyCompactRaftLog(result *raftGCResult) {
-	total := pr.lastReadyIndex - result.firstIndex
-	remain := pr.lastReadyIndex - result.state.Index - 1
-	pr.raftLogSizeHint = pr.raftLogSizeHint * remain / total
-
-	startIndex := uint64(0)
-	endIndex := result.state.Index + 1
-
-	logger.Debugf("shard %d start to compact raft log, start=<%d> end=<%d>",
-		pr.shardID,
-		startIndex,
-		endIndex)
-	err := pr.startCompactRaftLogJob(pr.shardID, startIndex, endIndex)
-	if err != nil {
-		logger.Errorf("shard %s add raft gc job failed with %+v",
-			pr.shardID,
-			err)
-	}
 }
