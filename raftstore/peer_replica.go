@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math"
 	"sync"
@@ -26,81 +25,19 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
 var dn = util.DescribeReplica
-
-type readContext struct {
-	offset    int
-	batchSize int
-	buf       *buf.ByteBuf
-	attrs     map[string]interface{}
-	pr        *peerReplica
-}
-
-func newReadContext(pr *peerReplica) *readContext {
-	return &readContext{
-		buf:   buf.NewByteBuf(512),
-		attrs: make(map[string]interface{}),
-		pr:    pr,
-	}
-}
-
-func (ctx *readContext) reset() {
-	for key := range ctx.attrs {
-		delete(ctx.attrs, key)
-	}
-	ctx.buf.Clear()
-	ctx.offset = 0
-	ctx.batchSize = 0
-}
-
-func (ctx *readContext) WriteBatch() *util.WriteBatch {
-	logger.Fatalf("read context can not call WriteBatch()")
-	return nil
-}
-
-func (ctx *readContext) Attrs() map[string]interface{} {
-	return ctx.attrs
-}
-
-func (ctx *readContext) ByteBuf() *buf.ByteBuf {
-	return ctx.buf
-}
-
-func (ctx *readContext) LogIndex() uint64 {
-	logger.Fatalf("read context can not call LogIndex()")
-	return 0
-}
-
-func (ctx *readContext) Offset() int {
-	return ctx.offset
-}
-
-func (ctx *readContext) BatchSize() int {
-	return ctx.batchSize
-}
-
-func (ctx *readContext) DataStorage() storage.DataStorage {
-	return ctx.pr.store.DataStorageByGroup(ctx.pr.getShard().Group, ctx.pr.shardID)
-}
-
-func (ctx *readContext) StoreID() uint64 {
-	return ctx.pr.store.Meta().ID
-}
 
 type peerReplica struct {
 	shardID               uint64
@@ -149,7 +86,7 @@ type peerReplica struct {
 	metrics  localMetrics
 	stopOnce sync.Once
 
-	readCtx *readContext
+	readCtx *executeContext
 }
 
 // createPeerReplica called in:
@@ -219,7 +156,7 @@ func (pr *peerReplica) start() {
 	}
 
 	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.peer)
-	pr.readCtx = newReadContext(pr)
+	pr.readCtx = newExecuteContext()
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
 	pr.steps = &task.Queue{}
@@ -253,18 +190,6 @@ func (pr *peerReplica) start() {
 			pr.peer.ID,
 			err)
 	}
-
-	// TODO: restore confState, log range from persisted info
-	emptyLog, err := pr.isPersistedLogEmpty()
-	if err != nil {
-		panic(err)
-	}
-	if emptyLog {
-		if err := pr.bootstrap(rn, &shard, pr.store.logdb); err != nil {
-			panic(err)
-		}
-	}
-
 	pr.rn = rn
 
 	applyWorker, eventWorker := pr.store.allocWorker(shard.Group)
@@ -361,20 +286,13 @@ func (pr *peerReplica) initLogState() (bool, error) {
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 
-func (pr *peerReplica) isPersistedLogEmpty() (bool, error) {
-	lastIndex, err := pr.lr.LastIndex()
-	if err != nil {
-		return false, err
-	}
-	return lastIndex == 0, nil
-}
-
 func (pr *peerReplica) createStateMachine(shard *bhmetapb.Shard) {
 	pr.sm = &stateMachine{
-		pr:     pr,
-		store:  pr.store,
-		peerID: pr.peer.ID,
-		ctx:    newApplyContext(pr),
+		pr:          pr,
+		store:       pr.store,
+		peerID:      pr.peer.ID,
+		executorCtx: newApplyContext(),
+		dataStorage: pr.store.DataStorageByGroup(shard.Group),
 	}
 	pr.sm.metadataMu.shard = *shard
 }
@@ -439,53 +357,6 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 	return true, nil
 }
 
-func (pr *peerReplica) mustDestroy(why string) {
-	logger.Infof("shard %d peer %d begin to destroy, because %s",
-		pr.shardID,
-		pr.peer.ID,
-		why)
-
-	pr.stopEventLoop()
-	pr.store.removeDroppedVoteMsg(pr.shardID)
-
-	// Shard destory need 2 phase
-	// Phase1, clean metadata and update the state to Tombstone
-	// Phase2, clean up data asynchronously and remove the state key
-	// When we restart store, we can see partially data, because Phase1 and Phase2 are not atomic.
-	// We will execute cleanup if we found the Tombstone key.
-
-	shard := pr.getShard()
-	wb := util.NewWriteBatch()
-	pr.store.clearMeta(pr.shardID, wb)
-	pr.store.updatePeerState(shard, bhraftpb.PeerState_Tombstone, wb)
-	err := pr.store.MetadataStorage().Write(wb, false)
-	if err != nil {
-		logger.Fatal("shard %d do destroy failed with %+v",
-			pr.shardID,
-			err)
-	}
-
-	if len(shard.Peers) > 0 {
-		err := pr.store.startClearDataJob(shard)
-		if err != nil {
-			logger.Fatal("shard %d do destroy failed with %+v",
-				pr.shardID,
-				err)
-		}
-	}
-
-	pr.cancel()
-
-	if len(shard.Peers) > 0 && !pr.store.removeShardKeyRange(shard) {
-		logger.Warningf("shard %d remove key range failed",
-			pr.shardID)
-	}
-
-	pr.store.removePR(pr)
-	logger.Infof("shard %d destroy self complete.",
-		pr.shardID)
-}
-
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 
@@ -501,35 +372,6 @@ func (pr *peerReplica) stopEventLoop() {
 
 func (pr *peerReplica) maybeExecRead() {
 	pr.pendingReads.doReadLEAppliedIndex(pr.appliedIndex, pr)
-}
-
-func (pr *peerReplica) doExecReadCmd(c cmd) {
-	resp := pb.AcquireRaftCMDResponse()
-
-	pr.readCtx.reset()
-	pr.readCtx.batchSize = len(c.req.Requests)
-	for idx, req := range c.req.Requests {
-		if logger.DebugEnabled() {
-			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
-		}
-		pr.readKeys++
-		pr.readCtx.offset = idx
-		if h, ok := pr.store.readHandlers[req.CustemType]; ok {
-			rsp, readBytes := h(pr.getShard(), req, pr.readCtx)
-			resp.Responses = append(resp.Responses, rsp)
-			pr.readBytes += readBytes
-			if logger.DebugEnabled() {
-				logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
-			}
-		} else {
-			logger.Fatalf("%s missing read handle func for type %d, registers %+v",
-				hex.EncodeToString(req.ID),
-				req.CustemType,
-				pr.store.readHandlers)
-		}
-	}
-
-	c.resp(resp)
 }
 
 func (pr *peerReplica) supportSplit() bool {

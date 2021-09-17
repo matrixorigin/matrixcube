@@ -17,20 +17,8 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 )
-
-func (s *store) doDestroy(shardID uint64, tombstone bool, why string) {
-	pr := s.getPR(shardID, false)
-	if pr != nil {
-		if pr.sm != nil {
-			pr.sm.destroy()
-		}
-		if tombstone {
-			pr.sm.setShardState(metapb.ResourceState_Removed)
-		}
-		pr.mustDestroy(why)
-	}
-}
 
 func (pr *peerReplica) doCompactRaftLog(index uint64) error {
 	return pr.store.logdb.RemoveEntriesTo(pr.shardID, pr.peer.ID, index)
@@ -43,10 +31,48 @@ func (pr *peerReplica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) e
 		len(commitedEntries))
 
 	pr.sm.applyCommittedEntries(commitedEntries)
-
 	if pr.sm.isPendingRemove() {
-		pr.sm.destroy()
+		pr.doApplyDestory(false)
 	}
 
+	return nil
+}
+
+func (pr *peerReplica) doApplyDestory(tombstoneInCluster bool) error {
+	// Shard destory need 2 phase
+	// Phase1, update the state to Tombstone
+	// Phase2, clean up data asynchronously and remove the state key
+	// When we restart store, we can see partially data, because Phase1 and Phase2 are not atomic.
+	// We will execute cleanup if we found the Tombstone key.
+
+	if tombstoneInCluster {
+		pr.sm.setShardState(metapb.ResourceState_Removed)
+	}
+	shard := pr.getShard()
+	index, _ := pr.sm.getAppliedIndexTerm()
+	err := pr.sm.saveShardMetedata(index, shard, bhmetapb.PeerState_Tombstone)
+	if err != nil {
+		logger.Fatalf("%s do apply destory failed with %+v",
+			pr.id(), err)
+	}
+
+	if len(shard.Peers) > 0 {
+		err := pr.store.startClearDataJob(shard)
+		if err != nil {
+			logger.Fatal("shard %d do destroy failed with %+v",
+				pr.shardID,
+				err)
+		}
+	}
+
+	pr.cancel()
+	if len(shard.Peers) > 0 && !pr.store.removeShardKeyRange(shard) {
+		logger.Warningf("shard %d remove key range failed",
+			pr.shardID)
+	}
+	pr.store.removePR(pr)
+	pr.sm.destroy()
+	logger.Infof("shard %d destroy self complete.",
+		pr.shardID)
 	return nil
 }

@@ -1,9 +1,10 @@
 package pebble
 
 import (
-	"os"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cockroachdb/pebble"
 	"github.com/matrixorigin/matrixcube/util"
@@ -11,16 +12,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	tmpDir = "/tmp/cube/storage/pebble"
-)
-
 func TestSync(t *testing.T) {
-	recreateTestTempDir(tmpDir)
-	opts := pebble.Options{FS: vfs.NewPebbleFS(vfs.Default)}
-	opts.DisableWAL = true
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 
-	path := filepath.Join(util.GetTestDir(), "storage/pebble")
+	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
+	fs.RemoveAll(path)
+	fs.MkdirAll(path, 0755)
+	opts := pebble.Options{}
+	opts.DisableWAL = true
+	opts.FS = vfs.NewPebbleFS(vfs.GetTestFS())
+
 	s, err := NewStorage(path, &opts)
 	assert.NoError(t, err)
 
@@ -43,9 +45,4 @@ func TestSync(t *testing.T) {
 	d, err = s.Get(k)
 	assert.NoError(t, err)
 	assert.Equal(t, v, d)
-}
-
-func recreateTestTempDir(tmpDir string) {
-	os.RemoveAll(tmpDir)
-	os.MkdirAll(tmpDir, 0755)
 }

@@ -7,12 +7,8 @@ import (
 	"testing"
 
 	"github.com/fagongzi/goetty/codec"
-	"github.com/matrixorigin/matrixcube/command"
-	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
-	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -92,54 +88,4 @@ func (h *testHandler) BuildRequest(req *raftcmdpb.Request, msg interface{}) erro
 
 func (h *testHandler) Codec() (codec.Encoder, codec.Decoder) {
 	return nil, nil
-}
-
-func (h *testHandler) AddReadFunc(cmdType uint64, cb command.ReadCommandFunc) {
-	h.store.RegisterReadFunc(cmdType, cb)
-}
-
-func (h *testHandler) AddWriteFunc(cmdType uint64, cb command.WriteCommandFunc) {
-	h.store.RegisterWriteFunc(cmdType, cb)
-}
-
-func (h *testHandler) set(shard bhmetapb.Shard, req *raftcmdpb.Request, ctx command.Context) (uint64, int64, *raftcmdpb.Response) {
-	resp := pb.AcquireResponse()
-
-	cmd := testRequest{}
-	err := json.Unmarshal(req.Cmd, &cmd)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return 0, 0, resp
-	}
-
-	err = ctx.WriteBatch().Set(req.Key, []byte(cmd.Value))
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return 0, 0, resp
-	}
-
-	writtenBytes := uint64(len(req.Key) + len(cmd.Value))
-	changedBytes := int64(writtenBytes)
-	resp.Value = []byte("OK")
-	return writtenBytes, changedBytes, resp
-}
-
-func (h *testHandler) get(shard bhmetapb.Shard, req *raftcmdpb.Request, ctx command.Context) (*raftcmdpb.Response, uint64) {
-	resp := pb.AcquireResponse()
-
-	cmd := testRequest{}
-	err := json.Unmarshal(req.Cmd, &cmd)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return resp, 0
-	}
-
-	value, err := h.store.DataStorageByGroup(0, 0).(storage.KVStorage).Get(req.Key)
-	if err != nil {
-		resp.Value = []byte(err.Error())
-		return resp, 0
-	}
-
-	resp.Value = value
-	return resp, uint64(len(value))
 }

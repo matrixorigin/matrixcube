@@ -29,17 +29,17 @@ import (
 )
 
 var (
-	dataDactories = map[string]func(vfs.FS, *testing.T) DataStorage{
+	dataDactories = map[string]func(vfs.FS, *testing.T) BaseDataStorage{
 		"memory": createDataMem,
 		"pebble": createDataPebble,
 	}
 )
 
-func createDataMem(fs vfs.FS, t *testing.T) DataStorage {
+func createDataMem(fs vfs.FS, t *testing.T) BaseDataStorage {
 	return mem.NewStorage(fs)
 }
 
-func createDataPebble(fs vfs.FS, t *testing.T) DataStorage {
+func createDataPebble(fs vfs.FS, t *testing.T) BaseDataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	fs.RemoveAll(path)
 	fs.MkdirAll(path, 0755)

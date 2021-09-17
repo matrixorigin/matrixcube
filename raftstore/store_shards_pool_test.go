@@ -111,8 +111,6 @@ func TestShardPool(t *testing.T) {
 func TestShardPoolWithFactory(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
-		SetCMDTestClusterHandler,
-		GetCMDTestClusterHandler,
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 			cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
 			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard {

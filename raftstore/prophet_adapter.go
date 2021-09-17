@@ -383,7 +383,7 @@ func (s *store) startHandleResourceHeartbeat() {
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	if rsp.DestoryDirectly {
-		s.doDestroy(rsp.ResourceID, true, "remove by pd")
+		s.destoryPR(rsp.ResourceID, true, "remove by pd")
 		return
 	}
 
@@ -393,6 +393,7 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			rsp.ResourceID)
 		return
 	}
+
 	if rsp.ChangePeer != nil {
 		logger.Infof("shard-%d %s peer %+v",
 			rsp.ResourceID,

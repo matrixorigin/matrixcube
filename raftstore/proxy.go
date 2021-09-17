@@ -14,16 +14,17 @@
 package raftstore
 
 import (
-	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 var (
@@ -90,15 +91,13 @@ func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
 }
 
 func (p *shardsProxy) DispatchTo(req *raftcmdpb.Request, shard uint64, to string) error {
+	logger2.Debug("dispatch request",
+		log.HexField("id", req.ID),
+		zap.Uint64("to-shard", shard),
+		zap.String("to-store", to))
+
 	// No leader, retry after a leader tick
 	if to == "" {
-		if logger.ErrorEnabled() {
-			logger.Errorf("%s retry with no leader, shard %d, group %d",
-				hex.EncodeToString(req.ID),
-				shard,
-				req.Group)
-		}
-
 		p.retryWithRaftError(req, "dispath to nil store", RetryInterval)
 		return nil
 	}
@@ -160,6 +159,10 @@ func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
 
 func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, err string, later time.Duration) {
 	if req != nil {
+		logger2.Debug("dispatch request failed, retry later",
+			log.HexField("id", req.ID),
+			zap.String("why", err))
+
 		if time.Now().Unix() >= req.StopAt {
 			p.errorDoneCB(req, errors.New(err))
 			return

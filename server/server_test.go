@@ -23,6 +23,8 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -103,9 +105,10 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 		opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
 		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath), opts)
 		assert.NoError(t, err)
-		storages = append(storages, s)
-		cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
-			return s
+		ds := kv.NewKVStorage(s, simple.NewSimpleKVCommandExecutor(s))
+		storages = append(storages, ds)
+		cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
+			return ds
 		}
 		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
 			for _, s := range storages {
@@ -123,8 +126,6 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 		h := &testHandler{
 			store: store,
 		}
-		store.RegisterWriteFunc(1, h.set)
-		store.RegisterReadFunc(2, h.get)
 		return NewApplication(Cfg{
 			Addr:    fmt.Sprintf("127.0.0.1:808%d", i),
 			Store:   store,
@@ -137,11 +138,11 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 	return c, func() {
 		c.Stop()
 		for _, s := range storages {
-			assert.NoError(t, s.(*pebble.Storage).Close())
+			assert.NoError(t, s.Close())
 		}
 
 		for _, s := range metaStorages {
-			assert.NoError(t, s.(*pebble.Storage).Close())
+			assert.NoError(t, s.Close())
 		}
 	}
 }

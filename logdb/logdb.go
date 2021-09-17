@@ -36,7 +36,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )
@@ -68,13 +68,7 @@ type LogDB interface {
 	Name() string
 	// Close closes the ILogDB instance.
 	Close() error
-	// SaveBootstrapInfo saves the specified bootstrap info to the log DB.
-	SaveBootstrapInfo(shardID uint64,
-		peerID uint64, bootstrap bhraftpb.BootstrapInfo) error
-	// GetBootstrapInfo returns saved bootstrap info from log DB. It returns
-	// ErrNoBootstrapInfo when there is no previously saved bootstrap info for
-	// the specified node.
-	GetBootstrapInfo(shardID uint64, peerID uint64) (bhraftpb.BootstrapInfo, error)
+
 	// SaveRaftState atomically saves the Raft states, log entries and snapshots
 	// metadata found in the pb.Update list to the log DB. shardID is a 1-based
 	// ID of the worker invoking the SaveRaftState method, as each worker
@@ -97,7 +91,7 @@ type LogDB interface {
 type KVLogDB struct {
 	state raftpb.HardState
 	ms    storage.MetadataStorage
-	wb    *util.WriteBatch
+	wb    util.WriteBatch
 	// FIXME: wbuf is unsafe as it will be concurrently accessed from multiple
 	// worker goroutines.
 	wbuf []byte
@@ -108,7 +102,7 @@ var _ LogDB = (*KVLogDB)(nil)
 func NewKVLogDB(ms storage.MetadataStorage) *KVLogDB {
 	return &KVLogDB{
 		ms:   ms,
-		wb:   util.NewWriteBatch(),
+		wb:   ms.NewWriteBatch(),
 		wbuf: make([]byte, 8),
 	}
 }
@@ -121,30 +115,6 @@ func (l *KVLogDB) Close() error {
 	return nil
 }
 
-func (l *KVLogDB) SaveBootstrapInfo(shardID uint64, peerID uint64,
-	bootstrap bhraftpb.BootstrapInfo) error {
-	wb := util.NewWriteBatch()
-	v := protoc.MustMarshal(&bootstrap)
-	if err := wb.Set(getBootstrapInfoKey(shardID, peerID), v); err != nil {
-		panic(err)
-	}
-	return l.ms.Write(wb, true)
-}
-
-func (l *KVLogDB) GetBootstrapInfo(shardID uint64,
-	peerID uint64) (bhraftpb.BootstrapInfo, error) {
-	v, err := l.ms.Get(getBootstrapInfoKey(shardID, peerID))
-	if err != nil {
-		return bhraftpb.BootstrapInfo{}, err
-	}
-	if len(v) == 0 {
-		return bhraftpb.BootstrapInfo{}, ErrNotFound
-	}
-	var result bhraftpb.BootstrapInfo
-	protoc.MustUnmarshal(&result, v)
-	return result, nil
-}
-
 func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) error {
 	if len(rd.Entries) == 0 {
 		return nil
@@ -153,21 +123,14 @@ func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) er
 	l.wb.Reset()
 	for _, e := range rd.Entries {
 		d := protoc.MustMarshal(&e)
-		if err := l.wb.Set(getRaftLogKey(shardID, e.Index), d); err != nil {
-			panic(err)
-		}
+		l.wb.Set(keys.GetRaftLogKey(shardID, e.Index), d)
 	}
 
 	v := protoc.MustMarshal(&rd.HardState)
-	if err := l.wb.Set(getHardStateKey(shardID, peerID), v); err != nil {
-		panic(err)
-	}
+	l.wb.Set(keys.GetHardStateKey(shardID, peerID), v)
 
 	binary.BigEndian.PutUint64(l.wbuf, rd.Entries[len(rd.Entries)-1].Index)
-	if err := l.wb.Set(getMaxIndexKey(shardID), l.wbuf); err != nil {
-		panic(err)
-	}
-
+	l.wb.Set(keys.GetMaxIndexKey(shardID), l.wbuf)
 	return l.ms.Write(l.wb, true)
 }
 
@@ -176,7 +139,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error) {
 
 	nextIndex := low
-	startKey := getRaftLogKey(shardID, low)
+	startKey := keys.GetRaftLogKey(shardID, low)
 	if low+1 == high {
 		v, err := l.ms.Get(startKey)
 		if err != nil {
@@ -205,7 +168,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 		high = maxIndex + 1
 	}
 
-	endKey := getRaftLogKey(shardID, high)
+	endKey := keys.GetRaftLogKey(shardID, high)
 	if err := l.ms.Scan(startKey, endKey, func(key, value []byte) (bool, error) {
 		e := raftpb.Entry{}
 		protoc.MustUnmarshal(&e, value)
@@ -228,15 +191,15 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 }
 
 func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error) {
-	target := getRaftLogKey(shardID, 0)
+	target := keys.GetRaftLogKey(shardID, 0)
 	key, _, err := l.ms.Seek(target)
 	if err != nil {
 		return RaftState{}, err
 	}
-	if len(key) == 0 || !isRaftLogKey(key) {
+	if len(key) == 0 || !keys.IsRaftLogKey(key) {
 		return RaftState{}, ErrNoSavedLog
 	}
-	startIndex, err := getRaftLogIndex(key)
+	startIndex, err := keys.GetRaftLogIndex(key)
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -249,7 +212,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 	}
 
 	var st raftpb.HardState
-	v, err := l.ms.Get(getHardStateKey(shardID, peerID))
+	v, err := l.ms.Get(keys.GetHardStateKey(shardID, peerID))
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -267,13 +230,13 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 // TODO: check whether index below is larger than the max index
 // RemoveEntriesTo deletes all raft log entries between [0, index].
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
-	startKey := getRaftLogKey(shardID, 0)
-	endKey := getRaftLogKey(shardID, index+1)
+	startKey := keys.GetRaftLogKey(shardID, 0)
+	endKey := keys.GetRaftLogKey(shardID, index+1)
 	return l.ms.RangeDelete(startKey, endKey)
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, peerID uint64) (uint64, error) {
-	v, err := l.ms.Get(getMaxIndexKey(shardID))
+	v, err := l.ms.Get(keys.GetMaxIndexKey(shardID))
 	if err != nil {
 		return 0, err
 	}

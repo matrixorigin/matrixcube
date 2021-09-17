@@ -18,6 +18,7 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -74,9 +75,10 @@ func (q *readIndexQueue) doReadLEAppliedIndex(appliedIndex uint64, pr *peerRepli
 	}
 
 	newCmds := q.reads[:0] // avoid alloc new slice
+	pr.readCtx.reset(pr.getShard())
 	for _, c := range q.reads {
 		if c.readIndexCommittedIndex > 0 && c.readIndexCommittedIndex <= appliedIndex {
-			pr.doExecReadCmd(c)
+			pr.readCtx.appendRequestByCmd(c)
 			q.readyToRead--
 		} else {
 			newCmds = append(newCmds, c)
@@ -84,6 +86,30 @@ func (q *readIndexQueue) doReadLEAppliedIndex(appliedIndex uint64, pr *peerRepli
 	}
 
 	q.reads = newCmds
+	if pr.readCtx.hasRequest() {
+		ds := pr.store.DataStorageByGroup(pr.getShard().Group)
+		if err := ds.GetCommandExecutor().ExecuteRead(pr.readCtx); err != nil {
+			logger.Fatalf("shard %d peer %d exec read cmd failed with %+v",
+				q.shardID,
+				pr.peer.ID,
+				err)
+		}
+
+		pr.readBytes += pr.readCtx.readBytes
+		pr.readKeys += uint64(len(pr.readCtx.cmds))
+		idx := 0
+		for _, c := range pr.readCtx.cmds {
+			resp := pb.AcquireRaftCMDResponse()
+			n := len(c.req.Requests)
+			for i := 0; i < n; i++ {
+				r := pb.AcquireResponse()
+				r.Value = pr.readCtx.responses[idx]
+				resp.Responses = append(resp.Responses, r)
+				idx++
+			}
+			c.resp(resp)
+		}
+	}
 }
 
 type reqCtx struct {
@@ -157,7 +183,7 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 
 	// use data key to store
 	if !isAdmin {
-		req.Key = getDataKey0(group, req.Key, b.buf)
+		req.Key = keys.GetDataKeyWithBuf(group, req.Key, b.buf)
 		b.buf.Clear()
 	}
 

@@ -1,0 +1,21 @@
+@startuml dynamic_create
+
+participant Node1
+
+note over Node1 #green : Shard A init state \n -ID: 1 \n -Epoch: [1, 3]\n -Range: [1, 10)\n -Peers: \n     [peer1, store1, initial] \n     [peer2, store2, initial] \n     [peer3, store3, initial]
+
+Node1 -> PD: Ask split shard A at log 100
+PD -> Node1: new shard B's metedata
+...
+Node1 -> Node1: proposal split admin request
+...
+Node1 -> Node1: apply split admin request
+Node1 -> Node1: change metadata in memory
+Node1 -> Node1: Call `Bind` defined in `DataStorage` with `A` and `B` as parameters
+note over Node1 #red : Now the data changes of A and B are atomic
+Node1 -> Node1: Save the metadata of Shard A and B
+note over Node1: Shard A after split \n -LogIndex: 100 \n -ID: 1 \n -Epoch: [2, 3]\n -Range: [1, 5)\n -Peers: \n     [peer1, store1, initial] \n     [peer2, store2, initial] \n     [peer3, store3, initial]
+note over Node1: Shard B init state \n -LogIndex: 3 \n -ID: 1 \n -Epoch: [1, 3]\n -Range: [5, 10)\n -Peers: \n     [peer1, store1, initial] \n     [peer2, store2, initial] \n     [peer3, store3, initial]
+...
+
+@enduml

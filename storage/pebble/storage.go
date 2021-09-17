@@ -21,7 +21,6 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -32,9 +31,6 @@ type Storage struct {
 	db    *pebble.DB
 	fs    vfs.FS
 	stats stats.Stats
-
-	// SyncCount number of `Sync` method called
-	SyncCount uint64
 }
 
 // NewStorage returns a pebble backed kv store
@@ -47,7 +43,7 @@ func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
 		return nil, err
 	}
 
-	fs := vfs.Default
+	var fs vfs.FS
 	if opts.FS != nil {
 		if pfs, ok := opts.FS.(*vfs.PebbleFS); ok {
 			fs = pfs.GetVFS()
@@ -168,9 +164,9 @@ func (s *Storage) RangeDelete(start, end []byte) error {
 }
 
 // Scan scans the key-value pairs in [start, end), and perform with a handler function, if the function
-// returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
-// scan completed.
-func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
+// returns false, the scan will be terminated.
+// The Handler func will received a cloned the key and value, if the `copy` is true.
+func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
 	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
 	defer iter.Close()
 
@@ -181,7 +177,12 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 			return err
 		}
 
-		ok, err := handler(clone(iter.Key()), clone(iter.Value()))
+		var ok bool
+		if copy {
+			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+		} else {
+			ok, err = handler(iter.Key(), iter.Value())
+		}
 		if err != nil {
 			return err
 		}
@@ -201,9 +202,8 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 // while perform with a handler function, if the function returns false, the scan will be terminated.
-// if the `pooledKey` is true, raftstore will call `Free` when
-// scan completed.
-func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error {
+// The Handler func will received a cloned the key and value, if the `copy` is true.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error {
 	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: prefix})
 	defer iter.Close()
 	iter.First()
@@ -215,10 +215,17 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 		if ok := bytes.HasPrefix(iter.Key(), prefix); !ok {
 			break
 		}
-		ok, err := handler(clone(iter.Key()), clone(iter.Value()))
+
+		var ok bool
+		if copy {
+			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+		} else {
+			ok, err = handler(iter.Key(), iter.Value())
+		}
 		if err != nil {
 			return err
 		}
+
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
 		if !ok {
@@ -227,16 +234,6 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 		iter.Next()
 	}
 	return nil
-}
-
-// Free free the pooled bytes
-func (s *Storage) Free(pooled []byte) {
-
-}
-
-// RemoveShardData remove shard data
-func (s *Storage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
-	return s.RangeDelete(encodedStartKey, encodedEndKey)
 }
 
 // SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
@@ -310,48 +307,28 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	return key, value, nil
 }
 
+// Sync persist data to disk
+func (s *Storage) Sync() error {
+	atomic.AddUint64(&s.stats.SyncCount, 1)
+	return s.db.Flush()
+}
+
+// NewWriteBatch create and returns write batch
+func (s *Storage) NewWriteBatch() util.WriteBatch {
+	return newWriteBatch(s.db.NewBatch(), &s.stats)
+}
+
 // Write write the data in batch
-func (s *Storage) Write(wb *util.WriteBatch, sync bool) error {
-	if len(wb.Ops) == 0 {
-		return nil
-	}
+func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
+	wb := uwb.(*writeBatch)
 
-	b := s.db.NewBatch()
-	defer b.Close()
-
-	var err error
-	for idx, op := range wb.Ops {
-		atomic.AddUint64(&s.stats.WrittenKeys, 1)
-		switch op {
-		case util.OpDelete:
-			atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(wb.Keys[idx])))
-			err = b.Delete(wb.Keys[idx], nil)
-		case util.OpSet:
-			if wb.TTLs[idx] > 0 {
-				return fmt.Errorf("pebble storage not support set key-value with TTL")
-			}
-
-			atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(wb.Keys[idx])+len(wb.Values[idx])))
-			err = b.Set(wb.Keys[idx], wb.Values[idx], nil)
-		}
-
-		if err != nil {
-			return err
-		}
-	}
-
+	b := wb.batch
 	opts := pebble.NoSync
 	if sync {
 		opts = pebble.Sync
 	}
 
 	return s.db.Apply(b, opts)
-}
-
-// Sync sync data to disk
-func (s *Storage) Sync() error {
-	atomic.AddUint64(&s.SyncCount, 1)
-	return s.db.Flush()
 }
 
 // CreateSnapshot create a snapshot file under the giving path
@@ -520,4 +497,35 @@ func readBytes(f vfs.File) ([]byte, error) {
 			return data, nil
 		}
 	}
+}
+
+func newWriteBatch(batch *pebble.Batch, stats *stats.Stats) util.WriteBatch {
+	return &writeBatch{batch: batch, stats: stats}
+}
+
+type writeBatch struct {
+	batch *pebble.Batch
+	stats *stats.Stats
+}
+
+func (wb *writeBatch) Delete(key []byte) {
+	wb.batch.Delete(key, nil)
+	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)))
+}
+
+func (wb *writeBatch) Set(key []byte, value []byte) {
+	wb.batch.Set(key, value, nil)
+	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)+len(value)))
+}
+
+func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int32) {
+	panic("pebble not support set with TTL")
+}
+
+func (wb *writeBatch) Reset() {
+	wb.batch.Reset()
+}
+
+func (wb *writeBatch) Close() {
+	wb.batch.Close()
 }

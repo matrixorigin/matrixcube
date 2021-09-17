@@ -6,7 +6,7 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
+// Unless assertd by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -17,22 +17,23 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPendingProposalsCanBeCreated(t *testing.T) {
 	p := newPendingProposals()
-	require.Empty(t, p.cmds)
-	require.Equal(t, cmd{}, p.confChangeCmd)
+	assert.Empty(t, p.cmds)
+	assert.Equal(t, cmd{}, p.confChangeCmd)
 }
 
 func TestPendingProposalAppend(t *testing.T) {
 	p := newPendingProposals()
 	p.append(cmd{})
 	p.append(cmd{})
-	require.Equal(t, 2, len(p.cmds))
+	assert.Equal(t, 2, len(p.cmds))
 }
 
 func TestPendingProposalPop(t *testing.T) {
@@ -41,17 +42,17 @@ func TestPendingProposalPop(t *testing.T) {
 	cmd2 := cmd{size: 200}
 	p.append(cmd1)
 	p.append(cmd2)
-	require.Equal(t, 2, len(p.cmds))
+	assert.Equal(t, 2, len(p.cmds))
 	v1, ok := p.pop()
-	require.True(t, ok)
-	require.Equal(t, 1, len(p.cmds))
-	require.Equal(t, cmd1, v1)
+	assert.True(t, ok)
+	assert.Equal(t, 1, len(p.cmds))
+	assert.Equal(t, cmd1, v1)
 	v2, ok := p.pop()
-	require.True(t, ok)
-	require.Equal(t, 0, len(p.cmds))
-	require.Equal(t, cmd2, v2)
+	assert.True(t, ok)
+	assert.Equal(t, 0, len(p.cmds))
+	assert.Equal(t, cmd2, v2)
 	_, ok = p.pop()
-	require.False(t, ok)
+	assert.False(t, ok)
 }
 
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
@@ -65,7 +66,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	}
 	p.setConfigChange(cmd)
 	v := p.getConfigChange()
-	require.Equal(t, cmd, v)
+	assert.Equal(t, cmd, v)
 }
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
@@ -90,7 +91,7 @@ func testPendingProposalClear(t *testing.T,
 	cmd1 := cmd{
 		req: &raftcmdpb.RaftCMDRequest{
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -101,7 +102,7 @@ func testPendingProposalClear(t *testing.T,
 	cmd2 := cmd{
 		req: &raftcmdpb.RaftCMDRequest{
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -115,7 +116,7 @@ func testPendingProposalClear(t *testing.T,
 				CmdType: raftcmdpb.AdminCmdType_ChangePeer,
 			},
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -132,22 +133,22 @@ func testPendingProposalClear(t *testing.T,
 	} else {
 		p.destroy()
 	}
-	require.Empty(t, p.cmds)
-	require.Equal(t, emptyCMD, p.confChangeCmd)
+	assert.Empty(t, p.cmds)
+	assert.Equal(t, emptyCMD, p.confChangeCmd)
 }
 
 func TestPendingProposalClear(t *testing.T) {
 	check := func(resp *raftcmdpb.RaftCMDResponse) {
-		require.Equal(t, 1, len(resp.Responses))
-		require.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, 1, len(resp.Responses))
+		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	testPendingProposalClear(t, true, check)
 }
 
 func TestPendingProposalDestroy(t *testing.T) {
 	check := func(resp *raftcmdpb.RaftCMDResponse) {
-		require.Equal(t, 1, len(resp.Responses))
-		require.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, 1, len(resp.Responses))
+		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
 	testPendingProposalClear(t, false, check)
 }
@@ -156,8 +157,8 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	called := false
 	cb := func(resp *raftcmdpb.RaftCMDResponse) {
 		called = true
-		require.Equal(t, 1, len(resp.Responses))
-		require.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, 1, len(resp.Responses))
+		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	ConfChangeCmd := cmd{
 		req: &raftcmdpb.RaftCMDRequest{
@@ -165,7 +166,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 				CmdType: raftcmdpb.AdminCmdType_ChangePeer,
 			},
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -177,8 +178,8 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	p.setConfigChange(ConfChangeCmd)
 	resp := errorStaleCMDResp(ConfChangeCmd.getUUID())
 	p.notify(ConfChangeCmd.req.Header.ID, resp, true)
-	require.True(t, called)
-	require.Equal(t, emptyCMD, p.confChangeCmd)
+	assert.True(t, called)
+	assert.Equal(t, emptyCMD, p.confChangeCmd)
 }
 
 func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
@@ -186,18 +187,18 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	staleCalled := false
 	staleCB := func(resp *raftcmdpb.RaftCMDResponse) {
 		staleCalled = true
-		require.Equal(t, 1, len(resp.Responses))
-		require.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, 1, len(resp.Responses))
+		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	cb := func(resp *raftcmdpb.RaftCMDResponse) {
 		called = true
-		require.Equal(t, 1, len(resp.Responses))
-		require.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, 1, len(resp.Responses))
+		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
 	cmd1 := cmd{
 		req: &raftcmdpb.RaftCMDRequest{
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -208,7 +209,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	cmd2 := cmd{
 		req: &raftcmdpb.RaftCMDRequest{
 			Requests: []*raftcmdpb.Request{
-				&raftcmdpb.Request{Key: getDataKey0(0, nil, acquireBuf())},
+				{Key: keys.EncodeDataKey(0, nil)},
 			},
 			Header: &raftcmdpb.RaftRequestHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -229,11 +230,11 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		ShardNotFound: err,
 	}, cmd2.req.Header.ID)
 	p.notify(cmd2.req.Header.ID, resp, false)
-	require.True(t, called)
-	require.True(t, staleCalled)
-	require.Equal(t, 1, len(p.cmds))
+	assert.True(t, called)
+	assert.True(t, staleCalled)
+	assert.Equal(t, 1, len(p.cmds))
 
 	v, ok := p.pop()
-	require.True(t, ok)
-	require.Equal(t, cmd3, v)
+	assert.True(t, ok)
+	assert.Equal(t, cmd3, v)
 }

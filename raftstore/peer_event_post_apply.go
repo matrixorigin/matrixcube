@@ -95,36 +95,23 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeerResult) {
 
 	pr.rn.ApplyConfChange(cp.confChange)
 
-	remove_self := false
-	need_ping := false
+	needPing := false
 	now := time.Now()
 	for _, change := range cp.changes {
-		change_type := change.ChangeType
+		changeType := change.ChangeType
 		peer := change.Peer
-		store_id := peer.ContainerID
-		peer_id := peer.ID
+		peerID := peer.ID
 
-		switch change_type {
+		switch changeType {
 		case metapb.ChangePeerType_AddNode, metapb.ChangePeerType_AddLearnerNode:
-			pr.peerHeartbeatsMap.Store(peer_id, now)
-			pr.store.peers.Store(peer_id, peer)
+			pr.peerHeartbeatsMap.Store(peerID, now)
+			pr.store.peers.Store(peerID, peer)
 			if pr.isLeader() {
-				need_ping = true
+				needPing = true
 			}
 		case metapb.ChangePeerType_RemoveNode:
-			pr.peerHeartbeatsMap.Delete(peer_id)
-			pr.store.peers.Delete(peer_id)
-
-			// We only care remove itself now.
-			if pr.store.meta.meta.ID == store_id {
-				if pr.peer.ID == peer_id {
-					remove_self = true
-				} else {
-					logger.Fatalf("shard-%d trying to remove unknown peer %+v",
-						pr.shardID,
-						peer)
-				}
-			}
+			pr.peerHeartbeatsMap.Delete(peerID)
+			pr.store.peers.Delete(peerID)
 		}
 	}
 
@@ -141,28 +128,23 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeerResult) {
 		// until new leader elected, but we can't revert this operation
 		// because its result is already persisted in apply worker
 		// TODO: should we transfer leader here?
-		demote_self := pr.peer.Role == metapb.PeerRole_Learner
-		if remove_self || demote_self {
-			logger.Warningf("shard-%d removing or demoting leader, remove %+v, demote",
+		demoteSelf := pr.peer.Role == metapb.PeerRole_Learner
+		if demoteSelf {
+			logger.Warningf("shard-%d removing or demoting leader, demote",
 				pr.shardID,
-				remove_self,
-				demote_self)
+				demoteSelf)
 
-			if demote_self {
+			if demoteSelf {
 				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
 			}
 
 			// Don't ping to speed up leader election
-			need_ping = false
+			needPing = false
 		}
 
-		if need_ping {
+		if needPing {
 			// Speed up snapshot instead of waiting another heartbeat.
 			pr.rn.Ping()
-		}
-
-		if remove_self {
-			pr.mustDestroy("conf change")
 		}
 	}
 

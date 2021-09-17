@@ -37,7 +37,6 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -64,30 +63,6 @@ func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
 	defer ms.Close()
 	db := NewKVLogDB(ms)
 	tf(t, db)
-}
-
-func TestLogDBSaveLoadBootstrapInfo(t *testing.T) {
-	tf := func(t *testing.T, db *KVLogDB) {
-		if _, err := db.GetBootstrapInfo(testShardID, testPeerID); err != ErrNotFound {
-			t.Errorf("unexpected err: %v", err)
-		}
-		bi := bhraftpb.BootstrapInfo{
-			Peers: []uint64{1, 2, 3, 4, 5},
-			Join:  true,
-		}
-		if err := db.SaveBootstrapInfo(testShardID, testPeerID, bi); err != nil {
-			t.Fatalf("failed to save bootstrap info, %v", err)
-		}
-		if result, err := db.GetBootstrapInfo(testShardID, testPeerID); err != nil {
-			t.Errorf("failed to get bootstrap info, %v", err)
-		} else {
-			if !reflect.DeepEqual(&bi, &result) {
-				t.Errorf("bootstrap info changed")
-			}
-		}
-	}
-	fs := vfs.NewMemFS()
-	runLogDBTest(t, tf, fs)
 }
 
 func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing.T) {

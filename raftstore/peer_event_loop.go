@@ -16,6 +16,7 @@ package raftstore
 import (
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -157,7 +158,7 @@ func (pr *peerReplica) handleEvent() bool {
 				}
 				if c, ok := pr.batch.pop(); ok {
 					for _, req := range c.req.Requests {
-						req.Key = DecodeDataKey(req.Key)
+						req.Key = keys.DecodeDataKey(req.Key)
 						respStoreNotMatch(errStoreNotMatch, req, c.cb)
 					}
 				}
@@ -166,7 +167,7 @@ func (pr *peerReplica) handleEvent() bool {
 			// resp all pending requests in batch and queue
 			for _, c := range pr.pendingReads.reads {
 				for _, req := range c.req.Requests {
-					req.Key = DecodeDataKey(req.Key)
+					req.Key = keys.DecodeDataKey(req.Key)
 					respStoreNotMatch(errStoreNotMatch, req, c.cb)
 				}
 			}

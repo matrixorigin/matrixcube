@@ -14,14 +14,13 @@
 package raftstore
 
 import (
-	"encoding/hex"
-	"math"
 	"sync"
 	"time"
 
 	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
@@ -31,11 +30,12 @@ import (
 )
 
 type stateMachine struct {
-	shardID uint64
-	peerID  uint64
-	ctx     *applyContext
-	pr      *peerReplica
-	store   *store
+	shardID     uint64
+	peerID      uint64
+	executorCtx *applyContext
+	pr          *peerReplica
+	store       *store
+	dataStorage storage.DataStorage
 
 	metadataMu struct {
 		sync.Mutex
@@ -73,30 +73,23 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		}
 		d.checkEntryIndexTerm(entry)
 
-		d.ctx.reset()
-		req.Reset()
-
-		d.ctx.req = req
-		d.ctx.index = entry.Index
-		d.ctx.term = entry.Term
-
-		var result *adminExecResult
+		d.executorCtx.reset(d.getShard(), entry)
 		switch entry.Type {
 		case raftpb.EntryNormal:
-			result = d.applyEntry(entry)
+			d.applyEntry(d.executorCtx)
 		case raftpb.EntryConfChange:
-			result = d.applyConfChange(entry)
+			d.applyConfChange(d.executorCtx)
 		case raftpb.EntryConfChangeV2:
-			result = d.applyConfChange(entry)
+			d.applyConfChange(d.executorCtx)
 		}
 
 		asyncResult := asyncApplyResult{}
 		asyncResult.shardID = d.shardID
-		asyncResult.result = result
+		asyncResult.result = d.executorCtx.adminResult
 		asyncResult.index = entry.Index
 
-		if d.ctx != nil {
-			asyncResult.metrics = d.ctx.metrics
+		if d.executorCtx != nil {
+			asyncResult.metrics = d.executorCtx.metrics
 		}
 
 		d.pr.addApplyResult(asyncResult)
@@ -107,16 +100,16 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
-func (d *stateMachine) applyEntry(entry raftpb.Entry) *adminExecResult {
+func (d *stateMachine) applyEntry(ctx *applyContext) {
 	// noop entry with empty payload proposed by the raft leader at the beginning
 	// of its term
-	if len(entry.Data) == 0 {
-		d.updateAppliedIndexTerm(entry.Index, entry.Term)
-		return nil
+	if len(ctx.entry.Data) == 0 {
+		d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
+		return
 	}
 
-	protoc.MustUnmarshal(d.ctx.req, entry.Data)
-	return d.doApplyRaftCMD()
+	protoc.MustUnmarshal(ctx.req, ctx.entry.Data)
+	d.doApplyRaftCMD(ctx)
 }
 
 func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
@@ -138,33 +131,32 @@ func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 	}
 }
 
-func (d *stateMachine) applyConfChange(entry raftpb.Entry) *adminExecResult {
+func (d *stateMachine) applyConfChange(ctx *applyContext) {
 	var v2cc raftpb.ConfChangeV2
-	if entry.Type == raftpb.EntryConfChange {
+	if ctx.entry.Type == raftpb.EntryConfChange {
 		cc := raftpb.ConfChange{}
-		protoc.MustUnmarshal(&cc, entry.Data)
-		protoc.MustUnmarshal(d.ctx.req, cc.Context)
+		protoc.MustUnmarshal(&cc, ctx.entry.Data)
+		protoc.MustUnmarshal(ctx.req, cc.Context)
 		v2cc = cc.AsV2()
 	} else {
-		protoc.MustUnmarshal(&v2cc, entry.Data)
-		protoc.MustUnmarshal(d.ctx.req, v2cc.Context)
+		protoc.MustUnmarshal(&v2cc, ctx.entry.Data)
+		protoc.MustUnmarshal(ctx.req, v2cc.Context)
 	}
 
-	result := d.doApplyRaftCMD()
-	if nil == result {
-		return &adminExecResult{
+	d.doApplyRaftCMD(ctx)
+	if nil == ctx.adminResult {
+		ctx.adminResult = &adminExecResult{
 			adminType:        raftcmdpb.AdminCmdType_ChangePeer,
 			changePeerResult: &changePeerResult{},
 		}
+		return
 	}
-
-	result.changePeerResult.confChange = v2cc
-	return result
+	ctx.adminResult.changePeerResult.confChange = v2cc
 }
 
-func (d *stateMachine) doApplyRaftCMD() *adminExecResult {
+func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
-		return nil
+		return
 	}
 
 	if d.isPendingRemove() {
@@ -174,63 +166,28 @@ func (d *stateMachine) doApplyRaftCMD() *adminExecResult {
 
 	var err error
 	var resp *raftcmdpb.RaftCMDResponse
-	var result *adminExecResult
-	var writeBytes uint64
-	var diffBytes int64
-	if !d.checkEpoch(d.ctx.req) {
-		resp = errorStaleEpochResp(d.ctx.req.Header.ID, d.getShard())
+	if !d.checkEpoch(ctx.req) {
+		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
-		if d.ctx.req.AdminRequest != nil {
-			resp, result, err = d.execAdminRequest(d.ctx)
+		if ctx.req.AdminRequest != nil {
+			resp, err = d.execAdminRequest(ctx)
 			if err != nil {
-				resp = errorStaleEpochResp(d.ctx.req.Header.ID, d.getShard())
+				resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 			}
 		} else {
-			writeBytes, diffBytes, resp = d.execWriteRequest(d.ctx)
+			resp = d.execWriteRequest(ctx)
 		}
 	}
 
 	if logger.DebugEnabled() {
-		for _, req := range d.ctx.req.Requests {
-			logger.Debugf("%s exec completed", hex.EncodeToString(req.ID))
-		}
-	}
-	d.updateMetrics(writeBytes, diffBytes)
-	d.updateAppliedIndexTerm(d.ctx.index, d.ctx.term)
-
-	// TODO: remove the following write op once the storage refactoring is done
-	// such write should really be issued by the KV storage layer.
-
-	// eventually we would like the KV engine to drop the requirement of
-	// persistent data storage. For now, for simplicity, we always use
-	// fsync write when updating the KV data engine.
-	ds := d.store.DataStorageByGroup(d.getShard().Group, d.shardID)
-	if kv, ok := ds.(storage.KVStorage); ok {
-		err = kv.Write(d.ctx.dataWB, true)
-		if err != nil {
-			logger.Fatalf("shard %d commit apply result failed with %+v",
-				d.shardID,
-				err)
+		for _, req := range ctx.req.Requests {
+			logger2.Debug("write request completed",
+				log.HexField("id", req.ID))
 		}
 	}
 
-	d.pr.pendings.notify(d.ctx.req.Header.ID, resp, isChangePeerCMD(d.ctx.req))
-
-	return result
-}
-
-func (d *stateMachine) updateMetrics(writeBytes uint64, diffBytes int64) {
-	d.ctx.metrics.writtenBytes += writeBytes
-	if diffBytes < 0 {
-		v := uint64(math.Abs(float64(diffBytes)))
-		if v >= d.ctx.metrics.sizeDiffHint {
-			d.ctx.metrics.sizeDiffHint = 0
-		} else {
-			d.ctx.metrics.sizeDiffHint -= v
-		}
-	} else {
-		d.ctx.metrics.sizeDiffHint += uint64(diffBytes)
-	}
+	d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
+	d.pr.pendings.notify(ctx.req.Header.ID, resp, isChangePeerCMD(ctx.req))
 }
 
 func (d *stateMachine) destroy() {

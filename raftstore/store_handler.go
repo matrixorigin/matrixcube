@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
@@ -69,7 +70,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.doDestroy(id, true, "shard state check")
+			s.destoryPR(id, true, "shard state check")
 		}
 	}
 }
@@ -133,56 +134,17 @@ func (s *store) isRaftMsgValid(msg *bhraftpb.RaftMessage) bool {
 
 func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 	shardID := msg.ShardID
-	needRemove := false
-
-	if value, ok := s.replicas.Load(shardID); ok {
-		pr := value.(*peerReplica)
+	pr := s.getPR(shardID, false)
+	if pr != nil {
 		fromEpoch := msg.ShardEpoch
 		shard := pr.getShard()
 		if isEpochStale(shard.Epoch, fromEpoch) {
 			logger.Infof("shard %d receives gc message, remove. msg=<%+v>",
 				shardID,
 				msg)
-			needRemove = true
-
-			if len(shard.Peers) == 0 {
-				needRemove = false
-				pr.mustDestroy("gc")
-			}
+			s.destoryPR(shardID, false, "gc")
 		}
 	}
-
-	if needRemove {
-		s.startDestroyJob(shardID, msg.To, "gc")
-	}
-}
-
-func (s *store) handleStaleMsg(msg *bhraftpb.RaftMessage, currEpoch metapb.ResourceEpoch, needGC bool) {
-	shardID := msg.ShardID
-	fromPeer := msg.From
-	toPeer := msg.To
-
-	if !needGC {
-		logger.Infof("shard %d raft msg is stale, ignore it, msg=<%+v> current=<%+v>",
-			shardID,
-			msg,
-			currEpoch)
-		return
-	}
-
-	logger.Infof("shard %d raft msg is stale, tell to gc, msg=<%+v> current=<%+v>",
-		shardID,
-		msg,
-		currEpoch)
-
-	gc := new(bhraftpb.RaftMessage)
-	gc.ShardID = shardID
-	gc.To = fromPeer
-	gc.From = toPeer
-	gc.ShardEpoch = currEpoch
-	gc.IsTombstone = true
-
-	s.trans.Send(gc)
 }
 
 func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
@@ -216,10 +178,6 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 			//}
 
 			stalePeer = p.peer
-			if len(p.getShard().Peers) == 0 {
-				p.mustDestroy("tryToCreatePeerReplicate")
-				return false
-			}
 		} else if p.peer.ID > target.ID {
 			logger.Infof("shard %d may be from peer is stale, targetID=<%d> currentID=<%d>",
 				msg.ShardID,
@@ -231,8 +189,8 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
-		s.startDestroyJob(msg.ShardID, stalePeer, "found stale peer")
-		hasPeer = false
+		s.destoryPR(msg.ShardID, false, "found stale peer")
+		return false
 	}
 
 	if hasPeer {
@@ -253,7 +211,7 @@ func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
 	// check range overlapped
 	item := s.searchShard(msg.Group, msg.Start)
 	if item.ID > 0 {
-		if bytes.Compare(encStartKey(&item), getDataEndKey(msg.Group, msg.End)) < 0 {
+		if bytes.Compare(keys.EncStartKey(&item), keys.GetDataEndKey(msg.Group, msg.End)) < 0 {
 			var state string
 			if p := s.getPR(item.ID, false); p != nil {
 				state = fmt.Sprintf("overlappedShard=<%d> apply index %d",

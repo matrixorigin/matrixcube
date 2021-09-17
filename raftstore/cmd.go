@@ -15,10 +15,12 @@ package raftstore
 
 import (
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"go.uber.org/zap"
 )
 
 func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
@@ -107,9 +109,9 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
 				if resp.Header == nil {
-					logger.Fatalf("BUG: requests and response count not match expect %d, but %d",
-						len(c.req.Requests),
-						len(resp.Responses))
+					logger2.Fatal("requests and response not match",
+						zap.Int("request-count", len(c.req.Requests)),
+						zap.Int("response-count", len(resp.Responses)))
 				} else if len(resp.Responses) != 0 {
 					logger.Fatalf("BUG: responses len must be 0")
 				}
@@ -132,7 +134,7 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 			if resp.Header != nil {
 				for idx, rsp := range resp.Responses {
 					rsp.OriginRequest = c.req.Requests[idx]
-					rsp.OriginRequest.Key = DecodeDataKey(rsp.OriginRequest.Key)
+					rsp.OriginRequest.Key = keys.DecodeDataKey(rsp.OriginRequest.Key)
 					rsp.Error = resp.Header.Error
 				}
 			}

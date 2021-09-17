@@ -15,21 +15,23 @@ package raftstore
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
-func (d *stateMachine) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *adminExecResult, error) {
+func (d *stateMachine) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case raftcmdpb.AdminCmdType_ChangePeer:
@@ -40,10 +42,10 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		return d.doExecSplit(ctx)
 	}
 
-	return nil, nil, nil
+	return nil, nil
 }
 
-func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *adminExecResult, error) {
+func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
 	req := ctx.req.AdminRequest.ChangePeer
 	peer := req.Peer
 	current := d.getShard()
@@ -64,7 +66,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		if p != nil {
 			exists = true
 			if p.Role != metapb.PeerRole_Learner || p.ID != peer.ID {
-				return nil, nil, fmt.Errorf("shard-%d can't add duplicated peer %+v",
+				return nil, fmt.Errorf("shard-%d can't add duplicated peer %+v",
 					res.ID,
 					peer)
 			}
@@ -82,7 +84,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 	case metapb.ChangePeerType_RemoveNode:
 		if p != nil {
 			if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
-				return nil, nil, fmt.Errorf("shard %+v ignore remove unmatched peer %+v",
+				return nil, fmt.Errorf("shard %+v ignore remove unmatched peer %+v",
 					res.ID,
 					peer)
 			}
@@ -93,7 +95,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 				d.setPendingRemove()
 			}
 		} else {
-			return nil, nil, fmt.Errorf("shard %+v remove missing peer %+v",
+			return nil, fmt.Errorf("shard %+v remove missing peer %+v",
 				res.ID,
 				peer)
 		}
@@ -104,7 +106,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 			res.Peers)
 	case metapb.ChangePeerType_AddLearnerNode:
 		if p != nil {
-			return nil, nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
+			return nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
 				res.ID,
 				peer)
 		}
@@ -116,30 +118,35 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 			res.Peers)
 	}
 
-	state := bhraftpb.PeerState_Normal
+	state := bhmetapb.PeerState_Normal
 	if d.isPendingRemove() {
-		state = bhraftpb.PeerState_Tombstone
+		state = bhmetapb.PeerState_Tombstone
 	}
 
 	d.updateShard(res)
-	d.store.updatePeerState(res, state, ctx.raftWB)
+	err := d.saveShardMetedata(ctx.entry.Index, res, state)
+	if err != nil {
+		logger.Fatalf("shard %d save metadata at index %d failed with %+v",
+			res.ID,
+			ctx.entry.Index,
+			err)
+	}
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: res,
 	})
-	result := &adminExecResult{
+	ctx.adminResult = &adminExecResult{
 		adminType: raftcmdpb.AdminCmdType_ChangePeer,
 		changePeerResult: &changePeerResult{
-			index:   d.ctx.index,
+			index:   ctx.entry.Index,
 			changes: []raftcmdpb.ChangePeerRequest{*req},
 			shard:   res,
 		},
 	}
-
-	return resp, result, nil
+	return resp, nil
 }
 
-func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *adminExecResult, error) {
+func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
 	req := ctx.req.AdminRequest.ChangePeerV2
 	changes := req.Changes
 	current := d.getShard()
@@ -158,30 +165,35 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 	}
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	state := bhraftpb.PeerState_Normal
+	state := bhmetapb.PeerState_Normal
 	if d.isPendingRemove() {
-		state = bhraftpb.PeerState_Tombstone
+		state = bhmetapb.PeerState_Tombstone
 	}
 
 	d.updateShard(res)
-	d.store.updatePeerState(res, state, ctx.raftWB)
+	err = d.saveShardMetedata(ctx.entry.Index, res, state)
+	if err != nil {
+		logger.Fatalf("shard %d save metadata at index %d failed with %+v",
+			res.ID,
+			ctx.entry.Index,
+			err)
+	}
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: res,
 	})
-	result := &adminExecResult{
+	ctx.adminResult = &adminExecResult{
 		adminType: raftcmdpb.AdminCmdType_ChangePeer,
 		changePeerResult: &changePeerResult{
-			index:   d.ctx.index,
+			index:   ctx.entry.Index,
 			changes: changes,
 			shard:   res,
 		},
 	}
-
-	return resp, result, nil
+	return resp, nil
 }
 
 func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []raftcmdpb.ChangePeerRequest) (bhmetapb.Shard, error) {
@@ -305,13 +317,13 @@ func (d *stateMachine) applyLeaveJoint() (bhmetapb.Shard, error) {
 	return region, nil
 }
 
-func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, *adminExecResult, error) {
+func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.AdminRequest.Splits
 
 	if len(splitReqs.Requests) == 0 {
 		logger.Errorf("shard %d missing splits request", d.shardID)
-		return nil, nil, errors.New("missing splits request")
+		return nil, errors.New("missing splits request")
 	}
 
 	newShardsCount := len(splitReqs.Requests)
@@ -319,42 +331,42 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 	current := d.getShard()
 	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&current))
 	var shards []bhmetapb.Shard
-	keys := deque.New()
+	rangeKeys := deque.New()
 
 	for _, req := range splitReqs.Requests {
 		if len(req.SplitKey) == 0 {
-			return nil, nil, errors.New("missing split key")
+			return nil, errors.New("missing split key")
 		}
 
-		splitKey := DecodeDataKey(req.SplitKey)
+		splitKey := keys.DecodeDataKey(req.SplitKey)
 		v := derived.Start
-		if e, ok := keys.Back(); ok {
+		if e, ok := rangeKeys.Back(); ok {
 			v = e.Value.([]byte)
 		}
 		if bytes.Compare(splitKey, v) <= 0 {
-			return nil, nil, fmt.Errorf("invalid split key %+v", splitKey)
+			return nil, fmt.Errorf("invalid split key %+v", splitKey)
 		}
 
 		if len(req.NewPeerIDs) != len(derived.Peers) {
-			return nil, nil, fmt.Errorf("invalid new peer id count, need %d, but got %d",
+			return nil, fmt.Errorf("invalid new peer id count, need %d, but got %d",
 				len(derived.Peers),
 				len(req.NewPeerIDs))
 		}
 
-		keys.PushBack(splitKey)
+		rangeKeys.PushBack(splitKey)
 	}
 
-	err := checkKeyInShard(keys.MustBack().Value.([]byte), &current)
+	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), &current)
 	if err != nil {
 		logger.Errorf("shard %d split key failed with %+v",
 			d.shardID,
 			err)
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	derived.Epoch.Version += uint64(newShardsCount)
-	keys.PushBack(derived.End)
-	derived.End = keys.MustFront().Value.([]byte)
+	rangeKeys.PushBack(derived.End)
+	derived.End = rangeKeys.MustFront().Value.([]byte)
 
 	sort.Slice(derived.Peers, func(i, j int) bool {
 		return derived.Peers[i].ID < derived.Peers[j].ID
@@ -367,8 +379,8 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 		newShard.RuleGroups = derived.RuleGroups
 		newShard.DisableSplit = derived.DisableSplit
 		newShard.Epoch = derived.Epoch
-		newShard.Start = keys.PopFront().Value.([]byte)
-		newShard.End = keys.MustFront().Value.([]byte)
+		newShard.Start = rangeKeys.PopFront().Value.([]byte)
+		newShard.End = rangeKeys.MustFront().Value.([]byte)
 		for idx, p := range derived.Peers {
 			newShard.Peers = append(newShard.Peers, metapb.Peer{
 				ID:          req.NewPeerIDs[idx],
@@ -380,74 +392,88 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	if d.store.cfg.Customize.CustomSplitCompletedFuncFactory != nil {
-		if fn := d.store.cfg.Customize.CustomSplitCompletedFuncFactory(derived.Group); fn != nil {
-			fn(&derived, shards)
-		}
-	}
+	// TODO(fagongzi): split with sync
+	// e := d.dataStorage.Sync(d.shardID)
+	// if e != nil {
+	// 	logger.Fatalf("%s sync failed with %+v", d.pr.id(), e)
+	// }
 
-	d.store.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
-	for _, shard := range shards {
-		d.store.updatePeerState(shard, bhraftpb.PeerState_Normal, ctx.raftWB)
-		d.store.writeInitialState(shard.ID, ctx.raftWB)
-	}
+	// if d.store.cfg.Customize.CustomSplitCompletedFuncFactory != nil {
+	// 	if fn := d.store.cfg.Customize.CustomSplitCompletedFuncFactory(derived.Group); fn != nil {
+	// 		fn(&derived, shards)
+	// 	}
+	// }
 
-	if d.store.cfg.Storage.DataMoveFunc != nil {
-		err := d.store.cfg.Storage.DataMoveFunc(derived, shards)
-		if err != nil {
-			logger.Fatalf("shard %d commit apply splits result, move data failed with %+v",
-				d.shardID,
-				err)
-		}
-	}
+	// d.updateShard(derived)
+	// d.saveShardMetedata(d.shardID, d.getShard(), bhraftpb.PeerState_Normal)
 
-	d.updateShard(derived)
-	rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.BatchSplitResponse{
-		Shards: shards,
-	})
+	// d.store.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
+	// for _, shard := range shards {
+	// 	d.store.updatePeerState(shard, bhraftpb.PeerState_Normal, ctx.raftWB)
+	// 	d.store.writeInitialState(shard.ID, ctx.raftWB)
+	// }
 
-	result := &adminExecResult{
-		adminType: raftcmdpb.AdminCmdType_BatchSplit,
-		splitResult: &splitResult{
-			derived: derived,
-			shards:  shards,
-		},
-	}
+	// rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.BatchSplitResponse{
+	// 	Shards: shards,
+	// })
 
-	return rsp, result, nil
+	// result := &adminExecResult{
+	// 	adminType: raftcmdpb.AdminCmdType_BatchSplit,
+	// 	splitResult: &splitResult{
+	// 		derived: derived,
+	// 		shards:  shards,
+	// 	},
+	// }
+	return nil, nil
 }
 
-func (d *stateMachine) execWriteRequest(ctx *applyContext) (uint64, int64, *raftcmdpb.RaftCMDResponse) {
-	writeBytes := uint64(0)
-	diffBytes := int64(0)
-	resp := pb.AcquireRaftCMDResponse()
-
-	ctx.batchSize = len(ctx.req.Requests)
-	shard := d.getShard()
-	for idx, req := range ctx.req.Requests {
-		if logger.DebugEnabled() {
-			logger.Debugf("%s exec", hex.EncodeToString(req.ID))
-		}
-		ctx.offset = idx
-		if h, ok := d.store.writeHandlers[req.CustemType]; ok {
-			written, diff, rsp := h(shard, req, ctx)
-			if rsp.Stale {
-				rsp.Error.Message = errStaleCMD.Error()
-				rsp.Error.StaleCommand = infoStaleCMD
-				rsp.OriginRequest = req
-				rsp.OriginRequest.Key = DecodeDataKey(req.Key)
-			}
-
-			resp.Responses = append(resp.Responses, rsp)
-			writeBytes += written
-			diffBytes += diff
-		} else {
-			logger.Fatalf("%s missing write handle func for type %d, registers %+v",
-				hex.EncodeToString(req.ID),
-				req.CustemType,
-				d.store.writeHandlers)
-		}
-		ctx.metrics.writtenKeys++
+func (d *stateMachine) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDResponse {
+	ctx.writeCtx.reset(d.getShard())
+	ctx.writeCtx.appendRequest(ctx.req)
+	for _, req := range ctx.req.Requests {
+		logger2.Debug("start to execute write", log.HexField("id", req.ID))
 	}
-	return writeBytes, diffBytes, resp
+	if err := d.dataStorage.GetCommandExecutor().ExecuteWrite(ctx.writeCtx); err != nil {
+		logger.Fatalf("%s exec read cmd failed with %+v",
+			d.pr.id(),
+			err)
+	}
+	for _, req := range ctx.req.Requests {
+		logger2.Debug("execute write completed", log.HexField("id", req.ID))
+	}
+
+	resp := pb.AcquireRaftCMDResponse()
+	for _, v := range ctx.writeCtx.responses {
+		ctx.metrics.writtenKeys++
+		r := pb.AcquireResponse()
+		r.Value = v
+		resp.Responses = append(resp.Responses, r)
+	}
+	d.updateWriteMetrics(ctx)
+	return resp
+}
+
+func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
+	ctx.metrics.writtenBytes += ctx.writeCtx.writtenBytes
+	if ctx.writeCtx.diffBytes < 0 {
+		v := uint64(math.Abs(float64(ctx.writeCtx.diffBytes)))
+		if v >= ctx.metrics.sizeDiffHint {
+			ctx.metrics.sizeDiffHint = 0
+		} else {
+			ctx.metrics.sizeDiffHint -= v
+		}
+	} else {
+		ctx.metrics.sizeDiffHint += uint64(ctx.writeCtx.diffBytes)
+	}
+}
+
+func (d *stateMachine) saveShardMetedata(index uint64, shard bhmetapb.Shard, state bhmetapb.PeerState) error {
+	return d.dataStorage.SaveShardMetadata(storage.ShardMetadata{
+		ShardID:  shard.ID,
+		LogIndex: index,
+		Metadata: protoc.MustMarshal(&bhmetapb.ShardLocalState{
+			State: state,
+			Shard: shard,
+		}),
+	})
 }

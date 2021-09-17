@@ -28,36 +28,6 @@ message RaftMessage  {
     repeated string      ruleGroups   = 12;      
 }
 
-// PeerState the state of the shard peer
-enum PeerState {
-    Normal    = 0;
-    Applying  = 1;
-    Tombstone = 2;
-}
-
-// ShardLocalState the shard state on the store
-message ShardLocalState {
-    PeerState    state = 1;
-    bhmetapb.Shard shard = 2 [(gogoproto.nullable) = false];
-}
-
-// RaftLocalState raft local state about raft log
-message RaftLocalState {
-    raftpb.HardState  hardState = 1 [(gogoproto.nullable) = false];
-    uint64 lastIndex = 2;
-}
-
-// RaftTruncatedState raft log truncated state
-message RaftTruncatedState {
-    uint64 index = 1;
-    uint64 term  = 2;
-}
-
-// RaftApplyState raft log applied state
-message RaftApplyState {
-    uint64             appliedIndex   = 1;
-    RaftTruncatedState truncatedState = 2 [(gogoproto.nullable) = false];
-}
 
 // SnapshotMessageHeader snapshot message header
 message SnapshotMessageHeader {
@@ -78,7 +48,3 @@ message SnapshotMessage {
     uint64                checkSum  = 6;
 }
 
-message BootstrapInfo {
-    repeated uint64 peers = 1;
-    bool            join  = 2;
-}

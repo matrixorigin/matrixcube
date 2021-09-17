@@ -33,8 +33,11 @@ type StatisticalStorage interface {
 // KVStorage is KV based storage
 type KVStorage interface {
 	CloseableStorage
+
+	// NewWriteBatch returns the write batch
+	NewWriteBatch() util.WriteBatch
 	// Write write the data in batch
-	Write(wb *util.WriteBatch, sync bool) error
+	Write(wb util.WriteBatch, sync bool) error
 
 	// Set put the key, value pair to the storage
 	Set(key []byte, value []byte) error
@@ -48,19 +51,19 @@ type KVStorage interface {
 	Delete(key []byte) error
 
 	// Scan scans the key-value paire in [start, end), and perform with a handler function, if the function
-	// returns false, the scan will be terminated, if the `pooledKey` is true, raftstore will call `Free` when
-	// scan completed.
-	Scan(start, end []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error
+	// returns false, the scan will be terminated.
+	// The Handler func will received a cloned the key and value, if the `copy` is true.
+	Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error
 	// PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 	// while perform with a handler function, if the function returns false, the scan will be terminated.
-	// if the `pooledKey` is true, raftstore will call `Free` when
-	// scan completed.
-	PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), pooledKey bool) error
-	// Free free the pooled bytes
-	Free(pooled []byte)
+	// The Handler func will received a cloned the key and value, if the `copy` is true.
+	PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error
 
 	// RangeDelete delete data in [start,end).
 	RangeDelete(start, end []byte) error
 	// Seek returns the first key-value that >= key
 	Seek(key []byte) ([]byte, []byte, error)
+
+	// Sync persist data to disk
+	Sync() error
 }

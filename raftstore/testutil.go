@@ -27,7 +27,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
-	"github.com/matrixorigin/matrixcube/command"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -38,12 +37,15 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/mem"
 	"github.com/matrixorigin/matrixcube/storage/pebble"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 var (
@@ -57,24 +59,6 @@ var (
 	NewTestCluster = WithTestClusterRecreate(true)
 	// NoCleanTestCluster using exists data before test cluster start
 	OldTestCluster = WithTestClusterRecreate(false)
-	// SetCMDTestClusterHandler set cmd handler
-	SetCMDTestClusterHandler = WithTestClusterWriteHandler(1, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (uint64, int64, *raftcmdpb.Response) {
-		resp := pb.AcquireResponse()
-		c.WriteBatch().Set(r.Key, r.Cmd)
-		resp.Value = []byte("OK")
-		changed := uint64(len(r.Key)) + uint64(len(r.Cmd))
-		return changed, int64(changed), resp
-	})
-	// GetCMDTestClusterHandler get cmd handler
-	GetCMDTestClusterHandler = WithTestClusterReadHandler(2, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (*raftcmdpb.Response, uint64) {
-		resp := pb.AcquireResponse()
-		value, err := c.DataStorage().(storage.KVStorage).Get(r.Key)
-		if err != nil {
-			panic("BUG: can not error")
-		}
-		resp.Value = value
-		return resp, uint64(len(value))
-	})
 
 	testWaitTimeout = time.Minute
 )
@@ -93,19 +77,14 @@ type testClusterOptions struct {
 	useDisk            bool
 	dataOpts, metaOpts *cpebble.Options
 
-	writeHandlers map[uint64]command.WriteCommandFunc
-	readHandlers  map[uint64]command.ReadCommandFunc
-
 	disableSchedule bool
 }
 
 func newTestClusterOptions() *testClusterOptions {
 	return &testClusterOptions{
-		recreate:      true,
-		dataOpts:      &cpebble.Options{},
-		metaOpts:      &cpebble.Options{},
-		writeHandlers: make(map[uint64]command.WriteCommandFunc),
-		readHandlers:  make(map[uint64]command.ReadCommandFunc),
+		recreate: true,
+		dataOpts: &cpebble.Options{},
+		metaOpts: &cpebble.Options{},
 	}
 }
 
@@ -146,20 +125,6 @@ func WithTestClusterUseDisk() TestClusterOption {
 func WithTestClusterDisableSchedule() TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.disableSchedule = true
-	}
-}
-
-// WithTestClusterWriteHandler write handlers
-func WithTestClusterWriteHandler(cmd uint64, value command.WriteCommandFunc) TestClusterOption {
-	return func(opts *testClusterOptions) {
-		opts.writeHandlers[cmd] = value
-	}
-}
-
-// WithTestClusterReadHandler read handlers
-func WithTestClusterReadHandler(cmd uint64, value command.ReadCommandFunc) TestClusterOption {
-	return func(opts *testClusterOptions) {
-		opts.readHandlers[cmd] = value
 	}
 }
 
@@ -491,9 +456,6 @@ type TestRaftCluster interface {
 	GetShardLeaderStore(shardID uint64) Store
 	// GetProphet returns the prophet instance
 	GetProphet() prophet.Prophet
-	// Set write key-value pairs to the `DataStorage` of the node
-	Set(node int, key, value []byte)
-
 	// CreateTestKVClient create and returns a kv client
 	CreateTestKVClient(node int) TestKVClient
 }
@@ -631,21 +593,25 @@ func (kv *testKVClient) nextID() string {
 }
 
 func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
+	wr := simple.NewWriteRequest([]byte(k), []byte(v))
+
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
-	req.CustemType = 1
+	req.CustemType = wr.CmdType
 	req.Type = raftcmdpb.CMDType_Write
-	req.Key = []byte(k)
-	req.Cmd = []byte(v)
+	req.Key = wr.Key
+	req.Cmd = wr.Cmd
 	return req
 }
 
 func createTestReadReq(id, k string) *raftcmdpb.Request {
+	rr := simple.NewReadRequest([]byte(k))
+
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
-	req.CustemType = 2
+	req.CustemType = rr.CmdType
 	req.Type = raftcmdpb.CMDType_Read
-	req.Key = []byte(k)
+	req.Key = rr.Key
 	return req
 }
 
@@ -735,6 +701,8 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
+	logger2.Core().Enabled(zap.DebugLevel)
+
 	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
@@ -855,15 +823,18 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
-			dataStorage = mem.NewStorage(cfg.FS)
+			var kvs storage.KVBaseDataStorage
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
 				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), c.opts.metaOpts)
 				assert.NoError(c.t, err)
-				dataStorage = s
+				kvs = s
+			} else {
+				kvs = mem.NewStorage(cfg.FS)
 			}
+			dataStorage = kv.NewKVStorage(kvs, simple.NewSimpleKVCommandExecutor(kvs))
 
-			cfg.Storage.DataStorageFactory = func(group, shardID uint64) storage.DataStorage {
+			cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
 				return dataStorage
 			}
 			cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
@@ -880,14 +851,6 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			s = c.opts.storeFactory(i, cfg).(*store)
 		} else {
 			s = NewStore(cfg).(*store)
-		}
-
-		for k, h := range c.opts.writeHandlers {
-			s.RegisterWriteFunc(k, h)
-		}
-
-		for k, h := range c.opts.readHandlers {
-			s.RegisterReadFunc(k, h)
 		}
 
 		c.stores = append(c.stores, s)
@@ -1113,15 +1076,6 @@ func (c *testRaftCluster) GetShardLeaderStore(shardID uint64) Store {
 
 func (c *testRaftCluster) GetProphet() prophet.Prophet {
 	return c.stores[0].pd
-}
-
-func (c *testRaftCluster) Set(node int, key, value []byte) {
-	shard := c.GetShardByIndex(node, 0)
-	for idx, s := range c.stores {
-		c.dataStorages[idx].(storage.KVStorage).Set(key, value)
-		pr := s.getPR(shard.ID, false)
-		pr.sizeDiffHint += uint64(len(key) + len(value))
-	}
 }
 
 func (c *testRaftCluster) CreateTestKVClient(node int) TestKVClient {

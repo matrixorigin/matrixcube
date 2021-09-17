@@ -36,6 +36,19 @@ message Shard {
     bytes                 data            = 12;
 }
 
+// PeerState the state of the shard peer
+enum PeerState {
+    Normal    = 0;
+    Applying  = 1;
+    Tombstone = 2;
+}
+
+// ShardLocalState shard local state
+message ShardLocalState {
+    Shard     shard = 1 [(gogoproto.nullable) = false];
+    PeerState state = 2;
+}
+
 // Store the host store metadata
 message Store {
     uint64                id                  = 1 [(gogoproto.customname) = "ID"];

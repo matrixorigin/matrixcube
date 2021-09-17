@@ -359,9 +359,7 @@ type StorageConfig struct {
 	// MetaStorage used to store raft, shards and store's metadata
 	MetaStorage storage.MetadataStorage
 	// DataStorageFactory is a storage factory  to store application's data
-	DataStorageFactory func(group uint64, shardID uint64) storage.DataStorage
-	// DataMoveFunc move data from a storage to others
-	DataMoveFunc func(bhmetapb.Shard, []bhmetapb.Shard) error
+	DataStorageFactory func(group uint64) storage.DataStorage
 	// ForeachDataStorageFunc do in every storage
 	ForeachDataStorageFunc func(cb func(storage.DataStorage))
 }
@@ -385,12 +383,8 @@ type CustomizeConfig struct {
 	// CustomSplitCompletedFuncFactory  is factory create a func which called by cube when the split operation of the shard is completed.
 	// We can update the attributes of old and news shards in this func
 	CustomSplitCompletedFuncFactory func(group uint64) func(old *bhmetapb.Shard, news []bhmetapb.Shard)
-	// CustomCanReadLocalFunc returns true if the shard can read without raft
-	CustomCanReadLocalFunc func(bhmetapb.Shard) bool
 	// CustomAdjustCompactFunc is factory create a func which used to adjust raft log compactIdx
 	CustomAdjustCompactFuncFactory func(group uint64) func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
-	// CustomAdjustInitAppliedIndexFactory is factory create a func which used to adjust init applied raft log index
-	CustomAdjustInitAppliedIndexFactory func(group uint64) func(shard bhmetapb.Shard, initAppliedIndex uint64) (adjustAppliedIndex uint64)
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by

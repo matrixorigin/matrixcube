@@ -18,7 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEpochMatch(t *testing.T) {
@@ -44,7 +44,7 @@ func TestEpochMatch(t *testing.T) {
 			ConfVer: tt.confVer2,
 			Version: tt.version2,
 		}
-		require.Equal(t, tt.match, epochMatch(e1, e2))
+		assert.Equal(t, tt.match, epochMatch(e1, e2))
 	}
 }
 
@@ -87,7 +87,7 @@ func TestCanAppendCmd(t *testing.T) {
 			ConfVer: tt.confVer2,
 			Version: tt.version2,
 		}
-		require.Equal(t, tt.canAppend, cmd.canAppend(epoch, req))
+		assert.Equal(t, tt.canAppend, cmd.canAppend(epoch, req))
 	}
 }
 
