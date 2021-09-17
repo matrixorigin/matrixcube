@@ -218,7 +218,7 @@ func (pr *peerReplica) start() {
 		}
 	}
 
-	pr.batch = newBatch(pr)
+	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.peer)
 	pr.readCtx = newReadContext(pr)
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = &task.Queue{}
@@ -545,7 +545,8 @@ func (pr *peerReplica) readyReadCount() int {
 }
 
 func (pr *peerReplica) resetBatch() {
-	pr.batch = newBatch(pr)
+	shard := pr.getShard()
+	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.peer)
 }
 
 func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {

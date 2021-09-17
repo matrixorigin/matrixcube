@@ -57,6 +57,7 @@ const (
 )
 
 func (pr *peerReplica) handleRequest(items []interface{}) {
+	shard := pr.getShard()
 	for {
 		size := pr.requests.Len()
 		if size == 0 {
@@ -85,7 +86,9 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 			if logger.DebugEnabled() && req.req != nil {
 				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
 			}
-			pr.batch.push(pr.getShard().Group, req)
+			// FIXME: still using the current epoch here. should use epoch value
+			// returned when routing the request.
+			pr.batch.push(pr.getShard().Group, shard.Epoch, req)
 		}
 	}
 

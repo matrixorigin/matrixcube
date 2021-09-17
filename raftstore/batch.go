@@ -18,12 +18,14 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"go.etcd.io/etcd/raft/v3"
 )
 
+// TODO: request type should has its own type
 const (
 	read = iota
 	write
@@ -90,21 +92,7 @@ type reqCtx struct {
 	cb    func(*raftcmdpb.RaftCMDResponse)
 }
 
-type proposeBatch struct {
-	pr *peerReplica
-
-	buf  *buf.ByteBuf
-	cmds []cmd
-}
-
-func newBatch(pr *peerReplica) *proposeBatch {
-	return &proposeBatch{
-		pr:  pr,
-		buf: buf.NewByteBuf(512),
-	}
-}
-
-func (b *proposeBatch) getType(c reqCtx) int {
+func (c reqCtx) getType() int {
 	if c.admin != nil {
 		return admin
 	}
@@ -114,6 +102,24 @@ func (b *proposeBatch) getType(c reqCtx) int {
 	}
 
 	return read
+}
+
+// TODO: rename this struct to proposalBatch
+type proposeBatch struct {
+	maxSize uint64
+	shardID uint64
+	peer    metapb.Peer
+	buf     *buf.ByteBuf
+	cmds    []cmd
+}
+
+func newBatch(maxSize uint64, shardID uint64, peer metapb.Peer) *proposeBatch {
+	return &proposeBatch{
+		maxSize: maxSize,
+		shardID: shardID,
+		peer:    peer,
+		buf:     buf.NewByteBuf(512),
+	}
 }
 
 func (b *proposeBatch) size() int {
@@ -137,11 +143,15 @@ func (b *proposeBatch) pop() (cmd, bool) {
 	return value, true
 }
 
-func (b *proposeBatch) push(group uint64, c reqCtx) {
+// TODO: might make sense to move the epoch value into c.req
+
+// push adds the specified req to a proposalBatch. The epoch value should
+// reflect client's view of the shard when the request is made.
+func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) {
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb
-	tp := b.getType(c)
+	tp := c.getType()
 
 	isAdmin := tp == admin
 
@@ -155,9 +165,8 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	added := false
 	if !isAdmin {
 		for idx := range b.cmds {
-			if b.cmds[idx].tp == tp &&
-				!b.cmds[idx].isFull(n, int(b.pr.store.cfg.Raft.MaxEntryBytes)) &&
-				b.cmds[idx].canAppend(c.req) {
+			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, int(b.maxSize)) &&
+				b.cmds[idx].canAppend(epoch, req) {
 				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
 				b.cmds[idx].size += n
 				added = true
@@ -167,13 +176,12 @@ func (b *proposeBatch) push(group uint64, c reqCtx) {
 	}
 
 	if !added {
-		shard := b.pr.getShard()
 		raftCMD := pb.AcquireRaftCMDRequest()
 		raftCMD.Header = pb.AcquireRaftRequestHeader()
-		raftCMD.Header.ShardID = shard.ID
-		raftCMD.Header.Peer = b.pr.peer
+		raftCMD.Header.ShardID = b.shardID
+		raftCMD.Header.Peer = b.peer
 		raftCMD.Header.ID = uuid.NewV4().Bytes()
-		raftCMD.Header.Epoch = shard.Epoch
+		raftCMD.Header.Epoch = epoch
 
 		if isAdmin {
 			raftCMD.AdminRequest = adminReq
