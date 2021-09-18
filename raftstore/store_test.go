@@ -339,3 +339,31 @@ func TestReadAndWriteAndRestart(t *testing.T) {
 		assert.Equal(t, fmt.Sprintf("v-%d", i), v)
 	}
 }
+
+func TestReadAndWriteAndRestartWithNodes(t *testing.T) {
+	c := NewTestClusterStore(t,
+		DiskTestCluster)
+	defer c.Stop()
+
+	c.Start()
+	c.WaitLeadersByCount(1, testWaitTimeout)
+
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
+	for i := 0; i < 100; i++ {
+		assert.NoError(t, kv.Set(fmt.Sprintf("k-%d", i), fmt.Sprintf("v-%d", i), testWaitTimeout))
+	}
+
+	c.Restart()
+	c.WaitLeadersByCount(1, testWaitTimeout)
+
+	kv2 := c.CreateTestKVClient(0)
+	defer kv2.Close()
+
+	for i := 0; i < 100; i++ {
+		v, err := kv2.Get(fmt.Sprintf("k-%d", i), testWaitTimeout)
+		assert.NoError(t, err)
+		assert.Equal(t, fmt.Sprintf("v-%d", i), v)
+	}
+}

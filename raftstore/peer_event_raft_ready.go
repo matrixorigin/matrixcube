@@ -58,16 +58,16 @@ func (pr *peerReplica) handleRaftState(rd raft.Ready) {
 	if rd.SoftState != nil {
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
-			logger.Infof("%s ********become leader now********",
-				pr.id())
+			logger2.Info("********become leader now********",
+				pr.field)
 			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.getShard())
 			}
 		} else {
-			logger.Infof("%s ********become follower now********",
-				pr.id())
+			logger2.Info("********become follower now********",
+				pr.field)
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeFollower(pr.getShard())
 			}

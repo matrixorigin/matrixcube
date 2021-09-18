@@ -206,6 +206,9 @@ func testLogReaderFirstIndex(t *testing.T, fs vfs.FS) {
 		t.Errorf("first = %d, want %d", first, 5)
 	}
 	li, err = s.LastIndex()
+	if err != nil {
+		t.Errorf("unexpected err: %v", err)
+	}
 	if li != 5 {
 		t.Errorf("last index = %d, want 5", li)
 	}

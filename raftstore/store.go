@@ -224,10 +224,6 @@ func (s *store) GetRouter() Router {
 	return s.router
 }
 
-func (s *store) isStopped() bool {
-	return atomic.LoadUint32(&s.state) == 1
-}
-
 func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))

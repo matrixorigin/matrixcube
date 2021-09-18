@@ -24,9 +24,11 @@ import (
 	"github.com/cockroachdb/errors"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
@@ -40,16 +42,16 @@ import (
 var dn = util.DescribeReplica
 
 type peerReplica struct {
+	field                 zap.Field
 	shardID               uint64
+	peer                  metapb.Peer
 	eventWorker           uint64
 	applyWorker           string
 	startedC              chan struct{}
 	disableCompactProtect bool
-	peer                  metapb.Peer
 	rn                    *raft.RawNode
 	stopRaftTick          bool
 	leaderID              uint64
-	currentTerm           uint64
 	store                 *store
 	lr                    *LogReader
 	peerHeartbeatsMap     sync.Map
@@ -122,18 +124,18 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 }
 
 func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why string) (*peerReplica, error) {
-	// We will remove tombstone key when apply snapshot
-	logger.Infof("shard %d peer %d begin to create at store %d, peers: %+v, because %s",
-		shard.ID,
-		peer.ID,
-		store.Meta().ID,
-		shard.Peers,
-		why)
+	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, peer.ID, peer.ContainerID))
+	logger2.Info("create shard",
+		f,
+		log.ReasonField(why),
+		log.ShardField("metadata", *shard))
+
 	if peer.ID == 0 {
 		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
 
 	pr := &peerReplica{
+		field:       f,
 		eventWorker: math.MaxUint64,
 		store:       store,
 		peer:        peer,
@@ -147,6 +149,8 @@ func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why s
 }
 
 func (pr *peerReplica) start() {
+	logger2.Info("begin to start shard", pr.field)
+
 	shard := pr.getShard()
 	for _, g := range pr.store.cfg.Raft.RaftLog.DisableCompactProtect {
 		if shard.Group == g {
@@ -185,64 +189,46 @@ func (pr *peerReplica) start() {
 	c := getRaftConfig(pr.peer.ID, pr.appliedIndex, pr.lr, pr.store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
-		logger.Fatalf("shard %d peer %d create raft node failed with %+v",
-			pr.shardID,
-			pr.peer.ID,
-			err)
+		logger2.Fatal("fail to create raft node", pr.field, zap.Error(err))
 	}
 	pr.rn = rn
 
-	applyWorker, eventWorker := pr.store.allocWorker(shard.Group)
-	pr.applyWorker = applyWorker
-	logger.Infof("shard %d peer %d delegate register completed",
-		pr.shardID,
-		pr.peer.ID)
-
-	// start drive raft
-	pr.eventWorker = eventWorker
+	pr.applyWorker, pr.eventWorker = pr.store.allocWorker(shard.Group)
 	close(pr.startedC)
-	logger.Infof("shard %d peer %d added, epoch %+v, peers %+v, raft worker %d, apply worker %s",
-		pr.shardID,
-		pr.peer.ID,
-		shard.Epoch,
-		shard.Peers,
-		pr.eventWorker,
-		pr.applyWorker)
 
 	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one peer and I am the one, campaign directly.
 	if len(shard.Peers) == 1 && shard.Peers[0].ContainerID == pr.store.meta.meta.ID {
-		logger.Infof("shard %d peer %d try to campaign leader, because only self",
-			pr.shardID,
-			pr.peer.ID)
+		logger2.Info("try to campaign",
+			pr.field,
+			log.ReasonField("only self"))
 
 		err := pr.rn.Campaign()
 		if err != nil {
-			logger.Fatalf("shard %d peer %d campaign failed with %+v",
-				pr.shardID,
-				pr.peer.ID,
-				err)
+			logger2.Fatal("fail to campaign",
+				pr.field,
+				zap.Error(err))
 		}
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Peers[0].ContainerID == pr.store.Meta().ID {
-		logger.Infof("shard %d peer %d try to campaign leader, because first peer of dynamically created",
-			pr.shardID,
-			pr.peer.ID)
+		logger2.Info("try to campaign",
+			pr.field,
+			log.ReasonField("first peer of dynamically created"))
 
 		err := pr.rn.Campaign()
 		if err != nil {
-			logger.Fatalf("shard %d peer %d campaign failed with %+v",
-				pr.shardID,
-				pr.peer.ID,
-				err)
+			logger2.Fatal("fail to campaign",
+				pr.field,
+				zap.Error(err))
 		}
 	}
 
 	pr.onRaftTick(nil)
-}
 
-func (pr *peerReplica) id() string {
-	return dn(pr.shardID, pr.peer.ID)
+	logger2.Info("shard started",
+		pr.field,
+		log.WorkerFieldWithIndex("event", pr.eventWorker),
+		log.WorkerField(pr.applyWorker))
 }
 
 func (pr *peerReplica) getShard() bhmetapb.Shard {
@@ -278,8 +264,12 @@ func (pr *peerReplica) initLogState() (bool, error) {
 	}
 	hasRaftHardState := !raft.IsEmptyHardState(rs.State)
 	if hasRaftHardState {
-		logger.Infof("%s initLogState, first index %d, count %d, commit %d, term %d",
-			pr.id(), rs.FirstIndex, rs.EntryCount, rs.State.Commit, rs.State.Term)
+		logger2.Info("init log state",
+			pr.field,
+			zap.Uint64("count", rs.EntryCount),
+			zap.Uint64("first-index", rs.FirstIndex),
+			zap.Uint64("commit-index", rs.State.Commit),
+			zap.Uint64("term", rs.State.Term))
 		pr.lr.SetState(rs.State)
 	}
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
@@ -312,14 +302,6 @@ func (pr *peerReplica) getPeer(id uint64) (metapb.Peer, bool) {
 	}
 
 	return metapb.Peer{}, false
-}
-
-func (pr *peerReplica) setCurrentTerm(term uint64) {
-	atomic.StoreUint64(&pr.currentTerm, term)
-}
-
-func (pr *peerReplica) getCurrentTerm() uint64 {
-	return atomic.LoadUint64(&pr.currentTerm)
 }
 
 func (pr *peerReplica) setLeaderPeerID(id uint64) {

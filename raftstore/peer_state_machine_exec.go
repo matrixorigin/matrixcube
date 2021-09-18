@@ -29,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
 	"github.com/matrixorigin/matrixcube/storage"
+	"go.uber.org/zap"
 )
 
 func (d *stateMachine) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
@@ -49,11 +50,12 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 	req := ctx.req.AdminRequest.ChangePeer
 	peer := req.Peer
 	current := d.getShard()
-	logger.Infof("shard %d do apply change peer %+v at epoch %+v, peers %+v",
-		d.shardID,
-		req,
-		current.Epoch,
-		current.Peers)
+
+	logger2.Info("begin to apply change peer",
+		d.pr.field,
+		zap.Uint64("index", ctx.entry.Index),
+		log.ShardField("current", current),
+		log.ChangePeerField("request", req))
 
 	res := bhmetapb.Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
@@ -66,7 +68,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		if p != nil {
 			exists = true
 			if p.Role != metapb.PeerRole_Learner || p.ID != peer.ID {
-				return nil, fmt.Errorf("shard-%d can't add duplicated peer %+v",
+				return nil, fmt.Errorf("shard %d can't add duplicated peer %+v",
 					res.ID,
 					peer)
 			}
@@ -76,11 +78,6 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		if !exists {
 			res.Peers = append(res.Peers, peer)
 		}
-
-		logger.Infof("shard-%d add peer %+v successfully, peers %+v",
-			res.ID,
-			peer,
-			res.Peers)
 	case metapb.ChangePeerType_RemoveNode:
 		if p != nil {
 			if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
@@ -99,11 +96,6 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 				res.ID,
 				peer)
 		}
-
-		logger.Infof("shard-%d remove peer %+v successfully, peers %+v",
-			res.ID,
-			peer,
-			res.Peers)
 	case metapb.ChangePeerType_AddLearnerNode:
 		if p != nil {
 			return nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
@@ -112,10 +104,6 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		}
 
 		res.Peers = append(res.Peers, peer)
-		logger.Infof("shard-%d add learner peer %+v successfully, peers %+v",
-			res.ID,
-			peer,
-			res.Peers)
 	}
 
 	state := bhmetapb.PeerState_Normal
@@ -126,11 +114,15 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 	d.updateShard(res)
 	err := d.saveShardMetedata(ctx.entry.Index, res, state)
 	if err != nil {
-		logger.Fatalf("shard %d save metadata at index %d failed with %+v",
-			res.ID,
-			ctx.entry.Index,
-			err)
+		logger2.Fatal("fail to save metadata",
+			d.pr.field,
+			zap.Error(err))
 	}
+
+	logger2.Info("apply change peer complete",
+		d.pr.field,
+		log.ShardField("metadata", res),
+		zap.String("state", state.String()))
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: res,
@@ -150,10 +142,12 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 	req := ctx.req.AdminRequest.ChangePeerV2
 	changes := req.Changes
 	current := d.getShard()
-	logger.Infof("shard %d do apply change peer v2 %+v at epoch %+v",
-		d.shardID,
-		changes,
-		current.Epoch)
+
+	logger2.Info("begin to apply change peer v2",
+		d.pr.field,
+		zap.Uint64("index", ctx.entry.Index),
+		log.ShardField("current", current),
+		log.ChangePeersField("requests", changes))
 
 	var res bhmetapb.Shard
 	var err error
@@ -176,11 +170,15 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 	d.updateShard(res)
 	err = d.saveShardMetedata(ctx.entry.Index, res, state)
 	if err != nil {
-		logger.Fatalf("shard %d save metadata at index %d failed with %+v",
-			res.ID,
-			ctx.entry.Index,
-			err)
+		logger2.Fatal("fail to save metadata",
+			d.pr.field,
+			zap.Error(err))
 	}
+
+	logger2.Info("apply change peer v2 complete",
+		d.pr.field,
+		log.ShardField("metadata", res),
+		zap.String("state", state.String()))
 
 	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
 		Shard: res,
@@ -282,39 +280,35 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []raft
 	}
 
 	res.Epoch.ConfVer += uint64(len(changes))
-	logger.Infof("shard-%d conf change successfully, changes %+v",
-		res.ID,
-		changes)
 	return res, nil
 }
 
 func (d *stateMachine) applyLeaveJoint() (bhmetapb.Shard, error) {
-	region := bhmetapb.Shard{}
+	shard := bhmetapb.Shard{}
 	current := d.getShard()
-	protoc.MustUnmarshal(&region, protoc.MustMarshal(&current))
+	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
 
 	change_num := uint64(0)
-	for idx := range region.Peers {
-		if region.Peers[idx].Role == metapb.PeerRole_IncomingVoter {
-			region.Peers[idx].Role = metapb.PeerRole_Voter
+	for idx := range shard.Peers {
+		if shard.Peers[idx].Role == metapb.PeerRole_IncomingVoter {
+			shard.Peers[idx].Role = metapb.PeerRole_Voter
 			continue
 		}
 
-		if region.Peers[idx].Role == metapb.PeerRole_DemotingVoter {
-			region.Peers[idx].Role = metapb.PeerRole_Learner
+		if shard.Peers[idx].Role == metapb.PeerRole_DemotingVoter {
+			shard.Peers[idx].Role = metapb.PeerRole_Learner
 			continue
 		}
 
 		change_num += 1
 	}
 	if change_num == 0 {
-		logger.Fatalf("shard-%d can't leave a non-joint config %+v",
-			d.shardID,
-			region)
+		logger2.Fatal("can't leave a non-joint config",
+			d.pr.field,
+			log.ShardField("shard", shard))
 	}
-	region.Epoch.ConfVer += change_num
-	logger.Infof("shard-%d leave joint state successfully", d.shardID)
-	return region, nil
+	shard.Epoch.ConfVer += change_num
+	return shard, nil
 }
 
 func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
@@ -431,15 +425,19 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDRes
 	ctx.writeCtx.reset(d.getShard())
 	ctx.writeCtx.appendRequest(ctx.req)
 	for _, req := range ctx.req.Requests {
-		logger2.Debug("start to execute write", log.HexField("id", req.ID))
+		logger2.Debug("start to execute write",
+			d.pr.field,
+			log.HexField("id", req.ID))
 	}
 	if err := d.dataStorage.GetCommandExecutor().ExecuteWrite(ctx.writeCtx); err != nil {
-		logger.Fatalf("%s exec read cmd failed with %+v",
-			d.pr.id(),
-			err)
+		logger.Fatal("fail to exec read cmd",
+			d.pr.field,
+			zap.Error(err))
 	}
 	for _, req := range ctx.req.Requests {
-		logger2.Debug("execute write completed", log.HexField("id", req.ID))
+		logger2.Debug("execute write completed",
+			d.pr.field,
+			log.HexField("id", req.ID))
 	}
 
 	resp := pb.AcquireRaftCMDResponse()

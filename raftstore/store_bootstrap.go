@@ -196,9 +196,7 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 
 func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []bhmetapb.Shard) {
-		var ids []uint64
 		for _, s := range v {
-			ids = append(ids, s.ID)
 			err := ds.RemoveShardData(s, keys.EncStartKey(&s), keys.EncEndKey(&s))
 			if err != nil {
 				logger.Fatalf("remove init shards failed with %+v", err)

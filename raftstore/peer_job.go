@@ -15,8 +15,10 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 func (pr *peerReplica) startApplyCommittedEntriesJob(commitedEntries []raftpb.Entry) error {
@@ -31,10 +33,10 @@ func (pr *peerReplica) startApplyCommittedEntriesJob(commitedEntries []raftpb.En
 // 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
 // 3.
 func (pr *peerReplica) startApplyDestroy(tombstoneInCluster bool, why string) {
-	logger.Infof("shard %d peer %d begin to destroy, because %s",
-		pr.shardID,
-		pr.peer.ID,
-		why)
+	logger2.Info("begin to destory",
+		pr.field,
+		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
+		log.ReasonField(why))
 
 	pr.store.removeDroppedVoteMsg(pr.shardID)
 	pr.stopEventLoop()
@@ -43,16 +45,10 @@ func (pr *peerReplica) startApplyDestroy(tombstoneInCluster bool, why string) {
 		return pr.doApplyDestory(tombstoneInCluster)
 	}, nil)
 	if err != nil {
-		logger.Fatalf("%s destory failed with %+v", pr.id(), err)
+		logger.Fatal("fail to destory",
+			pr.field,
+			zap.Error(err))
 	}
-}
-
-func (pr *peerReplica) startCompactRaftLogJob(index uint64) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doCompactRaftLog", func() error {
-		return pr.doCompactRaftLog(index)
-	}, nil)
-
-	return err
 }
 
 func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {

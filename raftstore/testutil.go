@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -24,7 +23,6 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
-	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -615,62 +613,6 @@ func createTestReadReq(id, k string) *raftcmdpb.Request {
 	return req
 }
 
-func sendTestReqs(s Store, timeout time.Duration, waiterC chan string, waiters map[string]string, reqs ...*raftcmdpb.Request) (map[string]*raftcmdpb.RaftCMDResponse, error) {
-	if waiters == nil {
-		waiters = make(map[string]string)
-	}
-
-	resps := make(map[string]*raftcmdpb.RaftCMDResponse)
-	c := make(chan *raftcmdpb.RaftCMDResponse, len(reqs))
-	defer close(c)
-
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
-		c <- resp
-	}
-
-	for _, req := range reqs {
-		if v, ok := waiters[string(req.ID)]; ok {
-		OUTER:
-			for {
-				select {
-				case <-time.After(timeout):
-					return nil, errors.New("timeout error")
-				case c := <-waiterC:
-					if c == v {
-						break OUTER
-					}
-				}
-			}
-		}
-		err := s.(*store).onRequestWithCB(req, cb)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for {
-		select {
-		case <-time.After(timeout):
-			return nil, errors.New("timeout error")
-		case resp := <-c:
-			if len(resp.Responses) <= 1 {
-				resps[string(resp.Responses[0].ID)] = resp
-			} else {
-				for i := range resp.Responses {
-					r := &raftcmdpb.RaftCMDResponse{}
-					protoc.MustUnmarshal(r, protoc.MustMarshal(resp))
-					r.Responses = resp.Responses[i : i+1]
-					resps[string(r.Responses[0].ID)] = r
-				}
-			}
-
-			if len(resps) == len(reqs) {
-				return resps, nil
-			}
-		}
-	}
-}
-
 type testRaftCluster struct {
 	sync.RWMutex
 
@@ -701,6 +643,7 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
+	logger2.WithOptions(zap.WithCaller(false))
 	logger2.Core().Enabled(zap.DebugLevel)
 
 	t.Parallel()
