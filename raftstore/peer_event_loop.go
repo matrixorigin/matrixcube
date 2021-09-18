@@ -207,7 +207,6 @@ func (pr *peerReplica) handleEvent() bool {
 func (pr *peerReplica) cacheRaftStatus() {
 	st := pr.rn.Status()
 	pr.setLeaderPeerID(st.Lead)
-	pr.setCurrentTerm(st.Term)
 }
 
 func (pr *peerReplica) handleAction(items []interface{}) {

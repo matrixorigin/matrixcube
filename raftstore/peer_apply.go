@@ -14,15 +14,11 @@
 package raftstore
 
 import (
-	"go.etcd.io/etcd/raft/v3/raftpb"
-
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
-
-func (pr *peerReplica) doCompactRaftLog(index uint64) error {
-	return pr.store.logdb.RemoveEntriesTo(pr.shardID, pr.peer.ID, index)
-}
 
 func (pr *peerReplica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
 	logger.Debugf("shard %d peer %d async apply raft log with %d entries",
@@ -52,27 +48,30 @@ func (pr *peerReplica) doApplyDestory(tombstoneInCluster bool) error {
 	index, _ := pr.sm.getAppliedIndexTerm()
 	err := pr.sm.saveShardMetedata(index, shard, bhmetapb.PeerState_Tombstone)
 	if err != nil {
-		logger.Fatalf("%s do apply destory failed with %+v",
-			pr.id(), err)
+		logger2.Fatal("fail to do apply destory",
+			pr.field,
+			zap.Error(err))
 	}
 
 	if len(shard.Peers) > 0 {
 		err := pr.store.startClearDataJob(shard)
 		if err != nil {
-			logger.Fatal("shard %d do destroy failed with %+v",
-				pr.shardID,
-				err)
+			logger2.Fatal("fail to do destroy",
+				pr.field,
+				zap.Error(err))
 		}
 	}
 
 	pr.cancel()
 	if len(shard.Peers) > 0 && !pr.store.removeShardKeyRange(shard) {
-		logger.Warningf("shard %d remove key range failed",
-			pr.shardID)
+		logger2.Warn("fail to remove key range",
+			pr.field,
+			zap.Error(err))
 	}
 	pr.store.removePR(pr)
 	pr.sm.destroy()
-	logger.Infof("shard %d destroy self complete.",
-		pr.shardID)
+	logger2.Info("destroy self complete.",
+		pr.field,
+		zap.Error(err))
 	return nil
 }

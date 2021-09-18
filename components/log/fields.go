@@ -16,6 +16,7 @@ package log
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
@@ -48,14 +49,14 @@ func ListenAddressField(address string) zap.Field {
 	return zap.String("listen-address", address)
 }
 
-// WorkerTypeField return worker type field
-func WorkerTypeField(name string) zap.Field {
-	return zap.String("worker-type", name)
+// WorkerFieldWithIndex return worker field
+func WorkerFieldWithIndex(name string, index uint64) zap.Field {
+	return zap.String("worker", fmt.Sprintf("%s-%d", name, index))
 }
 
-// WorkerIndexField return worker index field
-func WorkerIndexField(index int) zap.Field {
-	return zap.Int("worker-index", index)
+// WorkerField return worker field
+func WorkerField(name string) zap.Field {
+	return zap.String("worker", name)
 }
 
 // RaftMessageField return formated raft message zap string field
@@ -77,6 +78,13 @@ func RaftMessageField(key string, msg *bhraftpb.RaftMessage) zap.Field {
 func ShardField(key string, shard bhmetapb.Shard) zap.Field {
 	var info bytes.Buffer
 	appendShard(shard, &info, true)
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// EpochField return formated epoch zap string field
+func EpochField(key string, epoch metapb.ResourceEpoch) zap.Field {
+	var info bytes.Buffer
+	doAppendResourceEpoch(epoch, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
@@ -106,6 +114,33 @@ func PeerField(key string, peer metapb.Peer) zap.Field {
 	var info bytes.Buffer
 	appendPeer("", peer, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// ChangePeerField return formated change peer zap string field
+func ChangePeerField(key string, req *raftcmdpb.ChangePeerRequest) zap.Field {
+	var info bytes.Buffer
+	doAppendChangePeer(req, &info)
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// ChangePeersField return formated change peer zap string field
+func ChangePeersField(key string, changes []raftcmdpb.ChangePeerRequest) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("[")
+	for idx := range changes {
+		doAppendChangePeer(&changes[idx], &info)
+		if idx < len(changes)-1 {
+			info.WriteString(", ")
+		}
+	}
+	info.WriteString("]")
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+func doAppendChangePeer(req *raftcmdpb.ChangePeerRequest, info *bytes.Buffer) {
+	info.WriteString("type: ")
+	info.WriteString(req.ChangeType.String())
+	appendPeer("peer", req.Peer, info, false)
 }
 
 func appendRaftResponse(resp *raftcmdpb.Response, info *bytes.Buffer, first bool) {
@@ -269,9 +304,12 @@ func appendPeers(key string, peers []metapb.Peer, info *bytes.Buffer, first bool
 }
 
 func doAppendPeer(peer metapb.Peer, info *bytes.Buffer) {
+	info.WriteString("p")
 	info.WriteString(format.Uint64ToString(peer.ID))
-	info.WriteString("/")
+	info.WriteString("/s")
 	info.WriteString(format.Uint64ToString(peer.ContainerID))
+	info.WriteString("/")
+	info.WriteString(peer.Role.String())
 }
 
 func appendResourceEpoch(key string, epoch metapb.ResourceEpoch, info *bytes.Buffer, first bool) {
@@ -280,7 +318,12 @@ func appendResourceEpoch(key string, epoch metapb.ResourceEpoch, info *bytes.Buf
 	}
 	info.WriteString(key)
 	info.WriteString(": ")
+	doAppendResourceEpoch(epoch, info)
+}
+
+func doAppendResourceEpoch(epoch metapb.ResourceEpoch, info *bytes.Buffer) {
+	info.WriteString("v")
 	info.WriteString(format.Uint64ToString(epoch.Version))
-	info.WriteString("/")
+	info.WriteString("/cv")
 	info.WriteString(format.Uint64ToString(epoch.ConfVer))
 }
