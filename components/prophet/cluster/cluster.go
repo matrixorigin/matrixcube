@@ -503,9 +503,11 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			if origin.GetLeader().GetID() == 0 {
 				isNew = true
 			} else {
-				util.GetLogger().Infof("resource %d leader changed from container %d to container %d",
+				util.GetLogger().Infof("resource %d leader changed from peer %d-%d to peer %d-%d",
 					res.Meta.ID(),
+					origin.GetLeader().GetID(),
 					origin.GetLeader().GetContainerID(),
+					res.GetLeader().GetID(),
 					res.GetLeader().GetContainerID())
 			}
 			saveCache = true
@@ -618,7 +620,15 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
 	if saveKV || saveCache || isNew {
+		util.GetLogger().Infof("begin to add notify for resource %d leader changed to peer %d-%d",
+			res.Meta.ID(),
+			res.GetLeader().GetID(),
+			res.GetLeader().GetContainerID())
 		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+		util.GetLogger().Infof("end to add notify for resource %d leader changed to peer %d-%d",
+			res.Meta.ID(),
+			res.GetLeader().GetID(),
+			res.GetLeader().GetContainerID())
 	}
 	if saveCache {
 		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())

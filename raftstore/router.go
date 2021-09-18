@@ -141,7 +141,7 @@ func (r *defaultRouter) LeaderPeerStore(shardID uint64) bhmetapb.Store {
 	if value, ok := r.leaders.Load(shardID); ok {
 		return value.(bhmetapb.Store)
 	}
-	logger.Debugf("shard %d missing leader", shardID)
+	logger.Warningf("shard %d missing leader", shardID)
 	return bhmetapb.Store{}
 }
 
@@ -242,6 +242,10 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, cr
 		logger.Fatalf("unmarshal shard failed with %+v", err)
 	}
 
+	if leader > 0 {
+		logger.Infof("shard %d leader changed to %d", res.meta.ID, leader)
+	}
+
 	if removed {
 		r.removedHandleFunc(res.meta.ID)
 		if value, ok := r.keyRanges.Load(res.meta.Group); ok {
@@ -286,12 +290,14 @@ func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 		if p.ID == leader {
 			r.missingStoreLeaderChanged.Delete(shardID)
 			r.leaders.Store(shard.ID, r.mustGetStore(p.ContainerID))
+			logger.Infof("shard %d leader changed to %d, updated", shardID, leader)
 			return
 		}
 	}
 
 	// the shard updated will notify later
 	r.missingStoreLeaderChanged.Store(shardID, leader)
+	logger.Warningf("shard %d leader changed to %d, skipped, missing store", shardID, leader)
 }
 
 func (r *defaultRouter) mustGetStore(id uint64) bhmetapb.Store {
