@@ -86,8 +86,8 @@ func DecodeDataStorageAppliedIndexKey(key []byte) uint64 {
 }
 
 // GetDataStorageMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
-func GetDataStorageMetadataKey(shardID uint64, index uint64) []byte {
-	return getIDKey(shardID, dataStorageMetadataSuffix, 8, index)
+func GetDataStorageMetadataKey(shardID uint64) []byte {
+	return getIDKey(shardID, dataStorageMetadataSuffix, 0, 0)
 }
 
 func isRaftSuffixKey(key []byte, size int, suffix byte) bool {

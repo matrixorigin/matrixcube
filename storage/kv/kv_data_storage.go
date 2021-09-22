@@ -102,7 +102,7 @@ func (kv *kvStorage) SaveShardMetadata(metadatas ...storage.ShardMetadata) error
 
 	kv.mu.Lock()
 	for _, m := range metadatas {
-		wb.Set(keys.GetDataStorageMetadataKey(m.ShardID, m.LogIndex), m.Metadata)
+		wb.Set(keys.GetDataStorageMetadataKey(m.ShardID), m.Metadata)
 		wb.Set(keys.GetDataStorageAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
 
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
@@ -135,7 +135,7 @@ func (kv *kvStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 
 	var values []storage.ShardMetadata
 	for idx, shard := range shards {
-		v, err := kv.base.Get(keys.GetDataStorageMetadataKey(shard, lastAppliedIndexs[idx]))
+		v, err := kv.base.Get(keys.GetDataStorageMetadataKey(shard))
 		if err != nil {
 			return nil, err
 		}
