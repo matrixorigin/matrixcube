@@ -31,7 +31,7 @@ func TestIsRaftLogKey(t *testing.T) {
 		{GetHardStateKey(1, 1), false},
 		{GetMaxIndexKey(1), false},
 		{GetDataStorageAppliedIndexKey(1), false},
-		{GetDataStorageMetadataKey(1, 1), false},
+		{GetDataStorageMetadataKey(1), false},
 	}
 
 	for idx, tt := range tests {
