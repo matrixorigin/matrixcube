@@ -734,9 +734,10 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 func (c *asyncClient) maybeRegisterContainer() {
 	if c.containerID > 0 {
 		req := &rpcpb.Request{}
+		req.ID = c.nextID()
 		req.Type = rpcpb.TypeRegisterContainer
 		req.ContainerID = c.containerID
-		c.asyncDo(req, nil)
+		c.doWrite(newAsyncCtx(req, nil))
 	}
 }
 
