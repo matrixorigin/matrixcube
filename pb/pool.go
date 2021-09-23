@@ -16,8 +16,8 @@ package pb
 import (
 	"sync"
 
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 var (
@@ -31,61 +31,61 @@ var (
 )
 
 // AcquireRaftMessage returns a raft message from pool
-func AcquireRaftMessage() *bhraftpb.RaftMessage {
+func AcquireRaftMessage() *meta.RaftMessage {
 	v := raftMessagePool.Get()
 	if v == nil {
-		return &bhraftpb.RaftMessage{}
+		return &meta.RaftMessage{}
 	}
-	return v.(*bhraftpb.RaftMessage)
+	return v.(*meta.RaftMessage)
 }
 
 // ReleaseRaftMessage returns a raft message to pool
-func ReleaseRaftMessage(msg *bhraftpb.RaftMessage) {
+func ReleaseRaftMessage(msg *meta.RaftMessage) {
 	msg.Reset()
 	raftMessagePool.Put(msg)
 }
 
-// AcquireRaftCMDRequest returns a raft cmd request from pool
-func AcquireRaftCMDRequest() *raftcmdpb.RaftCMDRequest {
+// AcquireRequestBatch returns a raft cmd request from pool
+func AcquireRequestBatch() *rpc.RequestBatch {
 	v := raftCMDRequestPool.Get()
 	if v == nil {
-		return &raftcmdpb.RaftCMDRequest{}
+		return &rpc.RequestBatch{}
 	}
-	return v.(*raftcmdpb.RaftCMDRequest)
+	return v.(*rpc.RequestBatch)
 }
 
-// ReleaseRaftCMDRequest returns a raft cmd request to pool
-func ReleaseRaftCMDRequest(req *raftcmdpb.RaftCMDRequest) {
+// ReleaseRequestBatch returns a raft cmd request to pool
+func ReleaseRequestBatch(req *rpc.RequestBatch) {
 	req.Reset()
 	raftCMDRequestPool.Put(req)
 }
 
-// AcquireRaftRequestHeader returns a raft request header from pool
-func AcquireRaftRequestHeader() *raftcmdpb.RaftRequestHeader {
+// AcquireRequestBatchHeader returns a raft request header from pool
+func AcquireRequestBatchHeader() *rpc.RequestBatchHeader {
 	v := raftRequestHeaderPool.Get()
 	if v == nil {
-		return &raftcmdpb.RaftRequestHeader{}
+		return &rpc.RequestBatchHeader{}
 	}
-	return v.(*raftcmdpb.RaftRequestHeader)
+	return v.(*rpc.RequestBatchHeader)
 }
 
-// ReleaseRaftRequestHeader returns a raft request header to pool
-func ReleaseRaftRequestHeader(header *raftcmdpb.RaftRequestHeader) {
+// ReleaseRequestBatchHeader returns a raft request header to pool
+func ReleaseRequestBatchHeader(header *rpc.RequestBatchHeader) {
 	header.Reset()
 	raftRequestHeaderPool.Put(header)
 }
 
 // AcquireRequest returns a raft request from pool
-func AcquireRequest() *raftcmdpb.Request {
+func AcquireRequest() *rpc.Request {
 	v := requestsPool.Get()
 	if v == nil {
-		return &raftcmdpb.Request{}
+		return &rpc.Request{}
 	}
-	return v.(*raftcmdpb.Request)
+	return v.(*rpc.Request)
 }
 
 // ReleaseRequest returns a request to pool
-func ReleaseRequest(req *raftcmdpb.Request) {
+func ReleaseRequest(req *rpc.Request) {
 	if req != nil {
 		req.Reset()
 		requestsPool.Put(req)
@@ -93,76 +93,76 @@ func ReleaseRequest(req *raftcmdpb.Request) {
 }
 
 // AcquireResponse returns a response from pool
-func AcquireResponse() *raftcmdpb.Response {
+func AcquireResponse() *rpc.Response {
 	v := responsePool.Get()
 	if v == nil {
-		return &raftcmdpb.Response{}
+		return &rpc.Response{}
 	}
-	return v.(*raftcmdpb.Response)
+	return v.(*rpc.Response)
 }
 
 // ReleaseResponse returns a response to pool
-func ReleaseResponse(resp *raftcmdpb.Response) {
+func ReleaseResponse(resp *rpc.Response) {
 	resp.Reset()
 	responsePool.Put(resp)
 }
 
-// AcquireRaftCMDResponse returns a raft cmd response from pool
-func AcquireRaftCMDResponse() *raftcmdpb.RaftCMDResponse {
+// AcquireResponseBatch returns a raft cmd response from pool
+func AcquireResponseBatch() *rpc.ResponseBatch {
 	v := raftCMDResponsePool.Get()
 	if v == nil {
-		return &raftcmdpb.RaftCMDResponse{}
+		return &rpc.ResponseBatch{}
 	}
-	return v.(*raftcmdpb.RaftCMDResponse)
+	return v.(*rpc.ResponseBatch)
 }
 
-// ReleaseRaftCMDResponse returns a raft cmd response to pool
-func ReleaseRaftCMDResponse(resp *raftcmdpb.RaftCMDResponse) {
+// ReleaseResponseBatch returns a raft cmd response to pool
+func ReleaseResponseBatch(resp *rpc.ResponseBatch) {
 	if resp.Header != nil {
-		ReleaseRaftResponseHeader(resp.Header)
+		ReleaseResponseBatchHeader(resp.Header)
 	}
 
 	resp.Reset()
 	raftCMDResponsePool.Put(resp)
 }
 
-// AcquireRaftResponseHeader returns a raft response header from pool
-func AcquireRaftResponseHeader() *raftcmdpb.RaftResponseHeader {
+// AcquireResponseBatchHeader returns a raft response header from pool
+func AcquireResponseBatchHeader() *rpc.ResponseBatchHeader {
 	v := raftResponseHeaderPool.Get()
 	if v == nil {
-		return &raftcmdpb.RaftResponseHeader{}
+		return &rpc.ResponseBatchHeader{}
 	}
-	return v.(*raftcmdpb.RaftResponseHeader)
+	return v.(*rpc.ResponseBatchHeader)
 }
 
-// ReleaseRaftResponseHeader returns a raft response header to pool
-func ReleaseRaftResponseHeader(header *raftcmdpb.RaftResponseHeader) {
+// ReleaseResponseBatchHeader returns a raft response header to pool
+func ReleaseResponseBatchHeader(header *rpc.ResponseBatchHeader) {
 	header.Reset()
 	raftResponseHeaderPool.Put(header)
 }
 
 // ReleaseRaftRequestAll release requests, header and self to pool
-func ReleaseRaftRequestAll(req *raftcmdpb.RaftCMDRequest) {
+func ReleaseRaftRequestAll(req *rpc.RequestBatch) {
 	for _, req := range req.Requests {
 		ReleaseRequest(req)
 	}
 
 	if req.Header != nil {
-		ReleaseRaftRequestHeader(req.Header)
+		ReleaseRequestBatchHeader(req.Header)
 	}
 
-	ReleaseRaftCMDRequest(req)
+	ReleaseRequestBatch(req)
 }
 
 // ReleaseRaftResponseAll release responses, header and self to pool
-func ReleaseRaftResponseAll(resp *raftcmdpb.RaftCMDResponse) {
+func ReleaseRaftResponseAll(resp *rpc.ResponseBatch) {
 	for _, rsp := range resp.Responses {
 		ReleaseResponse(rsp)
 	}
 
 	if resp.Header != nil {
-		ReleaseRaftResponseHeader(resp.Header)
+		ReleaseResponseBatchHeader(resp.Header)
 	}
 
-	ReleaseRaftCMDResponse(resp)
+	ReleaseResponseBatch(resp)
 }

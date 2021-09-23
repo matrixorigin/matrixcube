@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 const (
@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	emptyShard bhmetapb.Shard
+	emptyShard meta.Shard
 	itemPool   sync.Pool
 )
 
@@ -44,7 +44,7 @@ func releaseItem(item *ShardItem) {
 
 // ShardItem is the Shard btree item
 type ShardItem struct {
-	Shard bhmetapb.Shard
+	Shard meta.Shard
 }
 
 // ShardTree is the btree for Shard
@@ -82,7 +82,7 @@ func (t *ShardTree) length() int {
 // Update updates the tree with the Shard.
 // It finds and deletes all the overlapped Shards first, and then
 // insert the Shard.
-func (t *ShardTree) Update(shard bhmetapb.Shard) {
+func (t *ShardTree) Update(shard meta.Shard) {
 	t.Lock()
 	item := &ShardItem{Shard: shard}
 
@@ -117,7 +117,7 @@ func (t *ShardTree) Update(shard bhmetapb.Shard) {
 // Remove removes a Shard if the Shard is in the tree.
 // It will do nothing if it cannot find the Shard or the found Shard
 // is not the same with the Shard.
-func (t *ShardTree) Remove(Shard bhmetapb.Shard) bool {
+func (t *ShardTree) Remove(Shard meta.Shard) bool {
 	t.Lock()
 
 	result := t.find(Shard)
@@ -132,7 +132,7 @@ func (t *ShardTree) Remove(Shard bhmetapb.Shard) bool {
 }
 
 // Ascend asc iterator the tree until fn returns false
-func (t *ShardTree) Ascend(fn func(Shard *bhmetapb.Shard) bool) {
+func (t *ShardTree) Ascend(fn func(Shard *meta.Shard) bool) {
 	t.RLock()
 	t.tree.Descend(func(item btree.Item) bool {
 		return fn(&item.(*ShardItem).Shard)
@@ -141,11 +141,11 @@ func (t *ShardTree) Ascend(fn func(Shard *bhmetapb.Shard) bool) {
 }
 
 // NextShard return the next bigger key range Shard
-func (t *ShardTree) NextShard(start []byte) *bhmetapb.Shard {
+func (t *ShardTree) NextShard(start []byte) *meta.Shard {
 	var value *ShardItem
 
 	p := &ShardItem{
-		Shard: bhmetapb.Shard{Start: start},
+		Shard: meta.Shard{Start: start},
 	}
 
 	t.RLock()
@@ -167,13 +167,13 @@ func (t *ShardTree) NextShard(start []byte) *bhmetapb.Shard {
 }
 
 // AscendRange asc iterator the tree in the range [start, end) until fn returns false
-func (t *ShardTree) AscendRange(start, end []byte, fn func(Shard *bhmetapb.Shard) bool) {
+func (t *ShardTree) AscendRange(start, end []byte, fn func(Shard *meta.Shard) bool) {
 	startItem := &ShardItem{
-		Shard: bhmetapb.Shard{Start: start},
+		Shard: meta.Shard{Start: start},
 	}
 
 	endItem := &ShardItem{
-		Shard: bhmetapb.Shard{Start: end},
+		Shard: meta.Shard{Start: end},
 	}
 
 	t.RLock()
@@ -184,8 +184,8 @@ func (t *ShardTree) AscendRange(start, end []byte, fn func(Shard *bhmetapb.Shard
 }
 
 // Search returns a Shard that contains the key.
-func (t *ShardTree) Search(key []byte) bhmetapb.Shard {
-	Shard := bhmetapb.Shard{Start: key}
+func (t *ShardTree) Search(key []byte) meta.Shard {
+	Shard := meta.Shard{Start: key}
 
 	t.RLock()
 	result := t.find(Shard)
@@ -198,7 +198,7 @@ func (t *ShardTree) Search(key []byte) bhmetapb.Shard {
 	return result.Shard
 }
 
-func (t *ShardTree) find(Shard bhmetapb.Shard) *ShardItem {
+func (t *ShardTree) find(Shard meta.Shard) *ShardItem {
 	item := acquireItem()
 	item.Shard = Shard
 

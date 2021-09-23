@@ -1,4 +1,4 @@
-// Copyright 2020 MatrixOrigin.
+// Copyright 2021 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,18 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package raftstore
 
 import (
-	"github.com/fagongzi/goetty/codec"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
-// Handler is the request handler
-type Handler interface {
-	// BuildRequest build the request, fill the key, cmd, type,
-	// and the custom type
-	BuildRequest(*rpc.Request, interface{}) error
-	// Codec returns the decoder and encoder to transfer request and response
-	Codec() (codec.Encoder, codec.Decoder)
-}
+type Shard = meta.Shard

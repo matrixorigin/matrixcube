@@ -17,7 +17,7 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 var (
@@ -48,9 +48,9 @@ func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 func (c *rpcCodec) Encode(data interface{}, out *buf.ByteBuf) error {
 	var rsp protoc.PB
 	if c.clientSide {
-		rsp = data.(*raftcmdpb.Request)
+		rsp = data.(*rpc.Request)
 	} else {
-		rsp = data.(*raftcmdpb.Response)
+		rsp = data.(*rpc.Response)
 	}
 
 	size := rsp.Size()

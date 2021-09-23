@@ -16,13 +16,13 @@ package raftstore
 import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 type applyContext struct {
 	writeCtx    *executeContext
-	req         *raftcmdpb.RaftCMDRequest
+	req         *rpc.RequestBatch
 	entry       raftpb.Entry
 	adminResult *adminExecResult
 	metrics     applyMetrics
@@ -31,11 +31,11 @@ type applyContext struct {
 func newApplyContext() *applyContext {
 	return &applyContext{
 		writeCtx: newExecuteContext(),
-		req:      &raftcmdpb.RaftCMDRequest{},
+		req:      &rpc.RequestBatch{},
 	}
 }
 
-func (ctx *applyContext) reset(shard bhmetapb.Shard, entry raftpb.Entry) {
+func (ctx *applyContext) reset(shard meta.Shard, entry raftpb.Entry) {
 	ctx.writeCtx.reset(shard)
 	ctx.req.Reset()
 	ctx.entry = entry
@@ -55,7 +55,7 @@ func (res *asyncApplyResult) hasSplitExecResult() bool {
 }
 
 type adminExecResult struct {
-	adminType        raftcmdpb.AdminCmdType
+	adminType        rpc.AdminCmdType
 	changePeerResult *changePeerResult
 	splitResult      *splitResult
 }
@@ -63,11 +63,11 @@ type adminExecResult struct {
 type changePeerResult struct {
 	index      uint64
 	confChange raftpb.ConfChangeV2
-	changes    []raftcmdpb.ChangePeerRequest
-	shard      bhmetapb.Shard
+	changes    []rpc.ConfigChangeRequest
+	shard      meta.Shard
 }
 
 type splitResult struct {
-	derived bhmetapb.Shard
-	shards  []bhmetapb.Shard
+	derived meta.Shard
+	shards  []meta.Shard
 }

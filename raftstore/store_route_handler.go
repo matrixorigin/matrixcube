@@ -16,13 +16,13 @@ package raftstore
 import (
 	"time"
 
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 // doCreateDynamically When we call the prophet client to dynamically create a shard,
 // the watcher will receive the creation command, and this callback will be triggered.
 // Called in prophet event handle goroutine.
-func (s *store) doDynamicallyCreate(shard bhmetapb.Shard) {
+func (s *store) doDynamicallyCreate(shard meta.Shard) {
 	if _, ok := s.replicas.Load(shard.ID); ok {
 		return
 	}

@@ -21,7 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -73,7 +73,7 @@ func (s *store) doBootstrapCluster() {
 
 	if !ok {
 		logger.Infof("begin to bootstrap the cluster with init shards")
-		var initShards []bhmetapb.Shard
+		var initShards []meta.Shard
 		var resources []metadata.Resource
 		if s.cfg.Customize.CustomInitShardsFactory != nil {
 			shards := s.cfg.Customize.CustomInitShardsFactory()
@@ -83,7 +83,7 @@ func (s *store) doBootstrapCluster() {
 				resources = append(resources, NewResourceAdapterWithShard(shard))
 			}
 		} else {
-			shard := bhmetapb.Shard{}
+			shard := meta.Shard{}
 			s.doCreateInitShard(&shard)
 			initShards = append(initShards, shard)
 			resources = append(resources, NewResourceAdapterWithShard(shard))
@@ -121,7 +121,7 @@ func (s *store) mustSaveStoreMetadata() {
 		logger.Fatalf("local store is not empty and has already hard data")
 	}
 
-	v := &bhmetapb.StoreIdent{
+	v := &meta.StoreIdent{
 		StoreID:   s.meta.meta.ID,
 		ClusterID: s.pd.GetClusterID(),
 	}
@@ -138,7 +138,7 @@ func (s *store) mustLoadStoreMetadata() bool {
 	}
 
 	if len(data) > 0 {
-		v := &bhmetapb.StoreIdent{}
+		v := &meta.StoreIdent{}
 		protoc.MustUnmarshal(v, data)
 
 		if v.ClusterID != s.pd.GetClusterID() {
@@ -155,7 +155,7 @@ func (s *store) mustLoadStoreMetadata() bool {
 	return false
 }
 
-func (s *store) doCreateInitShard(shard *bhmetapb.Shard) {
+func (s *store) doCreateInitShard(shard *meta.Shard) {
 	shardID := s.MustAllocID()
 	peerID := s.MustAllocID()
 	shard.ID = shardID
@@ -168,8 +168,8 @@ func (s *store) doCreateInitShard(shard *bhmetapb.Shard) {
 	})
 }
 
-func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []bhmetapb.Shard) {
+func (s *store) mustSaveShards(shards ...meta.Shard) {
+	s.doWithShardsByGroup(func(ds storage.DataStorage, v []meta.Shard) {
 		var sm []storage.ShardMetadata
 		var ids []uint64
 		for _, s := range v {
@@ -177,8 +177,8 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 			sm = append(sm, storage.ShardMetadata{
 				ShardID:  s.ID,
 				LogIndex: 0,
-				Metadata: protoc.MustMarshal(&bhmetapb.ShardLocalState{
-					State: bhmetapb.PeerState_Normal,
+				Metadata: protoc.MustMarshal(&meta.ShardLocalState{
+					State: meta.PeerState_Normal,
 					Shard: s,
 				}),
 			})
@@ -194,8 +194,8 @@ func (s *store) mustSaveShards(shards ...bhmetapb.Shard) {
 	}, shards...)
 }
 
-func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []bhmetapb.Shard) {
+func (s *store) removeInitShards(shards ...meta.Shard) {
+	s.doWithShardsByGroup(func(ds storage.DataStorage, v []meta.Shard) {
 		for _, s := range v {
 			err := ds.RemoveShardData(s, keys.EncStartKey(&s), keys.EncEndKey(&s))
 			if err != nil {
@@ -206,8 +206,8 @@ func (s *store) removeInitShards(shards ...bhmetapb.Shard) {
 	logger.Info("init shards has been removed from store")
 }
 
-func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []bhmetapb.Shard), shards ...bhmetapb.Shard) {
-	shardsByGroup := make(map[uint64][]bhmetapb.Shard)
+func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []meta.Shard), shards ...meta.Shard) {
+	shardsByGroup := make(map[uint64][]meta.Shard)
 	for _, s := range shards {
 		v := shardsByGroup[s.Group]
 		v = append(v, s)

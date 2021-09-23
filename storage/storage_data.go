@@ -15,7 +15,7 @@ package storage
 
 import (
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 // BaseDataStorage basic data storage interface
@@ -82,7 +82,7 @@ type DataStorage interface {
 	// RemoveShardData When a shard is deleted on the current node, cube will call this method to clean up local data.
 	// The specific data storage can be performed asynchronously or synchronously, and only needs to ensure that the final
 	// data can be cleaned up.
-	RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error
+	RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error
 	// Sync persistent data and metadata of the shards to disk.
 	Sync(...uint64) error
 }
@@ -99,7 +99,7 @@ type Context interface {
 	// ByteBuf returns the bytebuf that used to avoid memory allocation
 	ByteBuf() *buf.ByteBuf
 	// Shard returns the current shard id
-	Shard() bhmetapb.Shard
+	Shard() meta.Shard
 	// Requests returns LogRequests, a `LogRequest` corresponds to a Raft-Log.
 	// For write scenarios, the engine needs to ensure that each log write and applied Index write is atomic
 	// and does not require fsync to disk.
@@ -143,7 +143,7 @@ type CustomCmd struct {
 // SimpleContext simple context, just for testing
 type SimpleContext struct {
 	buf          *buf.ByteBuf
-	shard        bhmetapb.Shard
+	shard        meta.Shard
 	requests     []LogRequest
 	responses    [][]byte
 	writtenBytes uint64
@@ -159,7 +159,7 @@ func NewSimpleContext(shard uint64, requests ...LogRequest) *SimpleContext {
 }
 
 func (ctx *SimpleContext) ByteBuf() *buf.ByteBuf        { return ctx.buf }
-func (ctx *SimpleContext) Shard() bhmetapb.Shard        { return ctx.shard }
+func (ctx *SimpleContext) Shard() meta.Shard            { return ctx.shard }
 func (ctx *SimpleContext) Requests() []LogRequest       { return ctx.requests }
 func (ctx *SimpleContext) AppendResponse(value []byte)  { ctx.responses = append(ctx.responses, value) }
 func (ctx *SimpleContext) SetWrittenBytes(value uint64) { ctx.writtenBytes = value }

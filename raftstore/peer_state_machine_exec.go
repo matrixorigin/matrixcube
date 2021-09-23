@@ -26,28 +26,28 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"
 )
 
-func (d *stateMachine) execAdminRequest(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
+func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, error) {
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
-	case raftcmdpb.AdminCmdType_ChangePeer:
+	case rpc.AdminCmdType_ConfigChange:
 		return d.doExecChangePeer(ctx)
-	case raftcmdpb.AdminCmdType_ChangePeerV2:
+	case rpc.AdminCmdType_ConfigChangeV2:
 		return d.doExecChangePeerV2(ctx)
-	case raftcmdpb.AdminCmdType_BatchSplit:
+	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	}
 
 	return nil, nil
 }
 
-func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
-	req := ctx.req.AdminRequest.ChangePeer
+func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, error) {
+	req := ctx.req.AdminRequest.ConfigChange
 	peer := req.Peer
 	current := d.getShard()
 
@@ -55,9 +55,9 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		d.pr.field,
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
-		log.ChangePeerField("request", req))
+		log.ConfigChangeField("request", req))
 
-	res := bhmetapb.Shard{}
+	res := meta.Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
 
@@ -106,9 +106,9 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		res.Peers = append(res.Peers, peer)
 	}
 
-	state := bhmetapb.PeerState_Normal
+	state := meta.PeerState_Normal
 	if d.isPendingRemove() {
-		state = bhmetapb.PeerState_Tombstone
+		state = meta.PeerState_Tombstone
 	}
 
 	d.updateShard(res)
@@ -124,22 +124,22 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDRe
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
-	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
+	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
 	ctx.adminResult = &adminExecResult{
-		adminType: raftcmdpb.AdminCmdType_ChangePeer,
+		adminType: rpc.AdminCmdType_ConfigChange,
 		changePeerResult: &changePeerResult{
 			index:   ctx.entry.Index,
-			changes: []raftcmdpb.ChangePeerRequest{*req},
+			changes: []rpc.ConfigChangeRequest{*req},
 			shard:   res,
 		},
 	}
 	return resp, nil
 }
 
-func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
-	req := ctx.req.AdminRequest.ChangePeerV2
+func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch, error) {
+	req := ctx.req.AdminRequest.ConfigChangeV2
 	changes := req.Changes
 	current := d.getShard()
 
@@ -147,9 +147,9 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 		d.pr.field,
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
-		log.ChangePeersField("requests", changes))
+		log.ConfigChangesField("requests", changes))
 
-	var res bhmetapb.Shard
+	var res meta.Shard
 	var err error
 	kind := getConfChangeKind(len(changes))
 	if kind == leaveJointKind {
@@ -162,9 +162,9 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 		return nil, err
 	}
 
-	state := bhmetapb.PeerState_Normal
+	state := meta.PeerState_Normal
 	if d.isPendingRemove() {
-		state = bhmetapb.PeerState_Tombstone
+		state = meta.PeerState_Tombstone
 	}
 
 	d.updateShard(res)
@@ -180,11 +180,11 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
-	resp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_ChangePeer, &raftcmdpb.ChangePeerResponse{
+	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
 	ctx.adminResult = &adminExecResult{
-		adminType: raftcmdpb.AdminCmdType_ChangePeer,
+		adminType: rpc.AdminCmdType_ConfigChange,
 		changePeerResult: &changePeerResult{
 			index:   ctx.entry.Index,
 			changes: changes,
@@ -194,8 +194,8 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*raftcmdpb.RaftCMD
 	return resp, nil
 }
 
-func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []raftcmdpb.ChangePeerRequest) (bhmetapb.Shard, error) {
-	res := bhmetapb.Shard{}
+func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.ConfigChangeRequest) (meta.Shard, error) {
+	res := meta.Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 
@@ -283,8 +283,8 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []raft
 	return res, nil
 }
 
-func (d *stateMachine) applyLeaveJoint() (bhmetapb.Shard, error) {
-	shard := bhmetapb.Shard{}
+func (d *stateMachine) applyLeaveJoint() (meta.Shard, error) {
+	shard := meta.Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
 
@@ -311,7 +311,7 @@ func (d *stateMachine) applyLeaveJoint() (bhmetapb.Shard, error) {
 	return shard, nil
 }
 
-func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDResponse, error) {
+func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.AdminRequest.Splits
 
@@ -321,10 +321,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 	}
 
 	newShardsCount := len(splitReqs.Requests)
-	derived := bhmetapb.Shard{}
+	derived := meta.Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&current))
-	var shards []bhmetapb.Shard
+	var shards []meta.Shard
 	rangeKeys := deque.New()
 
 	for _, req := range splitReqs.Requests {
@@ -366,7 +366,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 		return derived.Peers[i].ID < derived.Peers[j].ID
 	})
 	for _, req := range splitReqs.Requests {
-		newShard := bhmetapb.Shard{}
+		newShard := meta.Shard{}
 		newShard.ID = req.NewShardID
 		newShard.Group = derived.Group
 		newShard.Unique = derived.Unique
@@ -407,12 +407,12 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 	// 	d.store.writeInitialState(shard.ID, ctx.raftWB)
 	// }
 
-	// rsp := newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_BatchSplit, &raftcmdpb.BatchSplitResponse{
+	// rsp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
 	// 	Shards: shards,
 	// })
 
 	// result := &adminExecResult{
-	// 	adminType: raftcmdpb.AdminCmdType_BatchSplit,
+	// 	adminType: rpc.AdminCmdType_BatchSplit,
 	// 	splitResult: &splitResult{
 	// 		derived: derived,
 	// 		shards:  shards,
@@ -421,7 +421,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*raftcmdpb.RaftCMDRespons
 	return nil, nil
 }
 
-func (d *stateMachine) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDResponse {
+func (d *stateMachine) execWriteRequest(ctx *applyContext) *rpc.ResponseBatch {
 	ctx.writeCtx.reset(d.getShard())
 	ctx.writeCtx.appendRequest(ctx.req)
 	for _, req := range ctx.req.Requests {
@@ -440,7 +440,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) *raftcmdpb.RaftCMDRes
 			log.HexField("id", req.ID))
 	}
 
-	resp := pb.AcquireRaftCMDResponse()
+	resp := pb.AcquireResponseBatch()
 	for _, v := range ctx.writeCtx.responses {
 		ctx.metrics.writtenKeys++
 		r := pb.AcquireResponse()
@@ -465,11 +465,11 @@ func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, shard bhmetapb.Shard, state bhmetapb.PeerState) error {
+func (d *stateMachine) saveShardMetedata(index uint64, shard meta.Shard, state meta.PeerState) error {
 	return d.dataStorage.SaveShardMetadata(storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,
-		Metadata: protoc.MustMarshal(&bhmetapb.ShardLocalState{
+		Metadata: protoc.MustMarshal(&meta.ShardLocalState{
 			State: state,
 			Shard: shard,
 		}),

@@ -24,8 +24,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -39,20 +39,20 @@ type stateMachine struct {
 
 	metadataMu struct {
 		sync.Mutex
-		shard   bhmetapb.Shard
+		shard   meta.Shard
 		removed bool
 		index   uint64
 		term    uint64
 	}
 }
 
-func (d *stateMachine) updateShard(shard bhmetapb.Shard) {
+func (d *stateMachine) updateShard(shard meta.Shard) {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	d.metadataMu.shard = shard
 }
 
-func (d *stateMachine) getShard() bhmetapb.Shard {
+func (d *stateMachine) getShard() meta.Shard {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.shard
@@ -64,7 +64,7 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 	}
 
 	start := time.Now()
-	req := pb.AcquireRaftCMDRequest()
+	req := pb.AcquireRequestBatch()
 
 	for _, entry := range commitedEntries {
 		if d.isPendingRemove() {
@@ -95,8 +95,8 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		d.pr.addApplyResult(asyncResult)
 	}
 
-	// only release RaftCMDRequest. Header and Requests fields is pb created in Unmarshal
-	pb.ReleaseRaftCMDRequest(req)
+	// only release RequestBatch. Header and Requests fields is pb created in Unmarshal
+	pb.ReleaseRequestBatch(req)
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
@@ -146,7 +146,7 @@ func (d *stateMachine) applyConfChange(ctx *applyContext) {
 	d.doApplyRaftCMD(ctx)
 	if nil == ctx.adminResult {
 		ctx.adminResult = &adminExecResult{
-			adminType:        raftcmdpb.AdminCmdType_ChangePeer,
+			adminType:        rpc.AdminCmdType_ConfigChange,
 			changePeerResult: &changePeerResult{},
 		}
 		return
@@ -165,7 +165,7 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	}
 
 	var err error
-	var resp *raftcmdpb.RaftCMDResponse
+	var resp *rpc.ResponseBatch
 	if !d.checkEpoch(ctx.req) {
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
@@ -187,7 +187,7 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	}
 
 	d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
-	d.pr.pendings.notify(ctx.req.Header.ID, resp, isChangePeerCMD(ctx.req))
+	d.pr.pendings.notify(ctx.req.Header.ID, resp, isConfigChangeCMD(ctx.req))
 }
 
 func (d *stateMachine) destroy() {
@@ -225,12 +225,12 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 	return d.metadataMu.index, d.metadataMu.term
 }
 
-func (d *stateMachine) checkEpoch(req *raftcmdpb.RaftCMDRequest) bool {
+func (d *stateMachine) checkEpoch(req *rpc.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
 }
 
-func isChangePeerCMD(req *raftcmdpb.RaftCMDRequest) bool {
+func isConfigChangeCMD(req *rpc.RequestBatch) bool {
 	return nil != req.AdminRequest &&
-		(req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeer ||
-			req.AdminRequest.CmdType == raftcmdpb.AdminCmdType_ChangePeerV2)
+		(req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChange ||
+			req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChangeV2)
 }

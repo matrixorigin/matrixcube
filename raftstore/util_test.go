@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +30,7 @@ func TestIsEpochStale(t *testing.T) {
 }
 
 func TestFindPeer(t *testing.T) {
-	shard := &bhmetapb.Shard{
+	shard := &meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
@@ -45,7 +45,7 @@ func TestFindPeer(t *testing.T) {
 }
 
 func TestRemovePeer(t *testing.T) {
-	shard := &bhmetapb.Shard{
+	shard := &meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
@@ -63,7 +63,7 @@ func TestRemovePeer(t *testing.T) {
 }
 
 func TestRemovedPeers(t *testing.T) {
-	old := bhmetapb.Shard{
+	old := meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
@@ -71,7 +71,7 @@ func TestRemovedPeers(t *testing.T) {
 		},
 	}
 
-	new := bhmetapb.Shard{
+	new := meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 1, ContainerID: 10000},
 			{ID: 5, ContainerID: 50000},
@@ -84,14 +84,14 @@ func TestRemovedPeers(t *testing.T) {
 	assert.Equal(t, uint64(2), ids[0])
 	assert.Equal(t, uint64(3), ids[1])
 
-	old = bhmetapb.Shard{
+	old = meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
 			{ID: 3, ContainerID: 30000},
 		},
 	}
-	new = bhmetapb.Shard{
+	new = meta.Shard{
 		Peers: []metapb.Peer{
 			{ID: 6, ContainerID: 60000},
 			{ID: 5, ContainerID: 50000},

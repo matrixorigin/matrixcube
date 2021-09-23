@@ -21,7 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
@@ -107,7 +107,7 @@ func (pr *peerReplica) step(msg raftpb.Message) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) onAdmin(req *raftcmdpb.AdminRequest) error {
+func (pr *peerReplica) onAdmin(req *rpc.AdminRequest) error {
 	r := reqCtx{}
 	r.admin = req
 	return pr.addRequest(r)
@@ -379,13 +379,13 @@ func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epo
 		return
 	}
 
-	req := &raftcmdpb.AdminRequest{
-		CmdType: raftcmdpb.AdminCmdType_BatchSplit,
-		Splits:  &raftcmdpb.BatchSplitRequest{},
+	req := &rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_BatchSplit,
+		Splits:  &rpc.BatchSplitRequest{},
 	}
 
 	for idx := range splitIDs {
-		req.Splits.Requests = append(req.Splits.Requests, raftcmdpb.SplitRequest{
+		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
 			SplitKey:   splitKeys[idx],
 			NewShardID: splitIDs[idx].NewID,
 			NewPeerIDs: splitIDs[idx].NewPeerIDs,

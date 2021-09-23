@@ -22,14 +22,14 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
 type resourceAdapter struct {
-	meta bhmetapb.Shard
+	meta meta.Shard
 }
 
 func newResourceAdapter() metadata.Resource {
@@ -37,7 +37,7 @@ func newResourceAdapter() metadata.Resource {
 }
 
 // NewResourceAdapterWithShard create a prophet resource use shard
-func NewResourceAdapterWithShard(meta bhmetapb.Shard) metadata.Resource {
+func NewResourceAdapterWithShard(meta meta.Shard) metadata.Resource {
 	return &resourceAdapter{meta: meta}
 }
 
@@ -134,7 +134,7 @@ func (ra *resourceAdapter) Clone() metadata.Resource {
 }
 
 type containerAdapter struct {
-	meta bhmetapb.Store
+	meta meta.Store
 }
 
 func newContainer() metadata.Container {
@@ -426,24 +426,24 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	}
 }
 
-func newChangePeerAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
-	return &raftcmdpb.AdminRequest{
-		CmdType: raftcmdpb.AdminCmdType_ChangePeer,
-		ChangePeer: &raftcmdpb.ChangePeerRequest{
+func newChangePeerAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
+	return &rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_ConfigChange,
+		ConfigChange: &rpc.ConfigChangeRequest{
 			ChangeType: rsp.ChangePeer.ChangeType,
 			Peer:       rsp.ChangePeer.Peer,
 		},
 	}
 }
 
-func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
-	req := &raftcmdpb.AdminRequest{
-		CmdType:      raftcmdpb.AdminCmdType_ChangePeerV2,
-		ChangePeerV2: &raftcmdpb.ChangePeerV2Request{},
+func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
+	req := &rpc.AdminRequest{
+		CmdType:        rpc.AdminCmdType_ConfigChangeV2,
+		ConfigChangeV2: &rpc.ConfigChangeV2Request{},
 	}
 
 	for _, ch := range rsp.ChangePeerV2.Changes {
-		req.ChangePeerV2.Changes = append(req.ChangePeerV2.Changes, raftcmdpb.ChangePeerRequest{
+		req.ConfigChangeV2.Changes = append(req.ConfigChangeV2.Changes, rpc.ConfigChangeRequest{
 			ChangeType: ch.ChangeType,
 			Peer:       ch.Peer,
 		})
@@ -451,10 +451,10 @@ func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminReq
 	return req
 }
 
-func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *raftcmdpb.AdminRequest {
-	return &raftcmdpb.AdminRequest{
-		CmdType: raftcmdpb.AdminCmdType_TransferLeader,
-		TransferLeader: &raftcmdpb.TransferLeaderRequest{
+func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
+	return &rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_TransferLeader,
+		TransferLeader: &rpc.TransferLeaderRequest{
 			Peer: rsp.TransferLeader.Peer,
 		},
 	}

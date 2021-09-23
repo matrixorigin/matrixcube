@@ -19,7 +19,7 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 )
 
@@ -48,22 +48,22 @@ func newRPC(store *store) *defaultRPC {
 	return rpc
 }
 
-func (rpc *defaultRPC) Start() error {
-	return rpc.app.Start()
+func (r *defaultRPC) Start() error {
+	return r.app.Start()
 }
 
-func (rpc *defaultRPC) Stop() {
-	rpc.app.Stop()
+func (r *defaultRPC) Stop() {
+	r.app.Stop()
 }
 
 func releaseResponse(resp interface{}) {
-	pb.ReleaseResponse(resp.(*raftcmdpb.Response))
+	pb.ReleaseResponse(resp.(*rpc.Response))
 }
 
-func (rpc *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {
-	req := value.(*raftcmdpb.Request)
+func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {
+	req := value.(*rpc.Request)
 	req.PID = int64(rs.ID())
-	err := rpc.store.OnRequest(req)
+	err := r.store.OnRequest(req)
 	if err != nil {
 		rsp := pb.AcquireResponse()
 		rsp.ID = req.ID
@@ -74,13 +74,13 @@ func (rpc *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uin
 	return nil
 }
 
-func (rpc *defaultRPC) onResp(header *raftcmdpb.RaftResponseHeader, rsp *raftcmdpb.Response) {
-	if rs, _ := rpc.app.GetSession(uint64(rsp.PID)); rs != nil {
+func (r *defaultRPC) onResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) {
+	if rs, _ := r.app.GetSession(uint64(rsp.PID)); rs != nil {
 		if header != nil {
 			if header.Error.RaftEntryTooLarge == nil {
-				rsp.Type = raftcmdpb.CMDType_RaftError
+				rsp.Type = rpc.CmdType_RaftError
 			} else {
-				rsp.Type = raftcmdpb.CMDType_Invalid
+				rsp.Type = rpc.CmdType_Invalid
 			}
 
 			rsp.Error = header.Error

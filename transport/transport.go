@@ -16,7 +16,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -37,7 +37,7 @@ type Transport interface {
 	// Stop stop the transport
 	Stop()
 	// Send send the raft message to other node
-	Send(*bhraftpb.RaftMessage)
+	Send(*meta.RaftMessage)
 	// SendingSnapshotCount returns the count of sending snapshots
 	SendingSnapshotCount() uint64
 }
@@ -152,7 +152,7 @@ func (t *defaultTransport) SendingSnapshotCount() uint64 {
 	return uint64(c)
 }
 
-func (t *defaultTransport) Send(msg *bhraftpb.RaftMessage) {
+func (t *defaultTransport) Send(msg *meta.RaftMessage) {
 	storeID := msg.To.ContainerID
 	if storeID == t.storeID {
 		t.handler(msg)
@@ -160,7 +160,7 @@ func (t *defaultTransport) Send(msg *bhraftpb.RaftMessage) {
 	}
 
 	if msg.Message.Type == raftpb.MsgSnap {
-		snapMsg := &bhraftpb.SnapshotMessage{}
+		snapMsg := &meta.SnapshotMessage{}
 		protoc.MustUnmarshal(snapMsg, msg.Message.Snapshot.Data)
 		snapMsg.Header.From = msg.From
 		snapMsg.Header.To = msg.To
@@ -182,7 +182,7 @@ func (t *defaultTransport) onMessage(rs goetty.IOSession, msg interface{}, seq u
 
 func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
 	items := make([]interface{}, t.opts.sendBatch)
-	buffers := make(map[uint64][]*bhraftpb.RaftMessage)
+	buffers := make(map[uint64][]*meta.RaftMessage)
 
 	for {
 		n, err := q.Get(t.opts.sendBatch, items)
@@ -192,8 +192,8 @@ func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
 		}
 
 		for i := int64(0); i < n; i++ {
-			msg := items[i].(*bhraftpb.RaftMessage)
-			var values []*bhraftpb.RaftMessage
+			msg := items[i].(*meta.RaftMessage)
+			var values []*meta.RaftMessage
 			if v, ok := buffers[msg.To.ContainerID]; ok {
 				values = v
 			}
@@ -230,7 +230,7 @@ func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
 		}
 
 		for i := int64(0); i < n; i++ {
-			msg := items[i].(*bhraftpb.SnapshotMessage)
+			msg := items[i].(*meta.SnapshotMessage)
 			id := msg.Header.To.ContainerID
 
 			conn, err := t.getConn(id)
@@ -257,7 +257,7 @@ func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
 	}
 }
 
-func (t *defaultTransport) doSendSnapshotMessage(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) error {
+func (t *defaultTransport) doSendSnapshotMessage(msg *meta.SnapshotMessage, conn goetty.IOSession) error {
 	if t.snapMgr.Register(msg, snapshot.Sending) {
 		defer t.snapMgr.Deregister(msg, snapshot.Sending)
 
@@ -292,7 +292,7 @@ func (t *defaultTransport) doSendSnapshotMessage(msg *bhraftpb.SnapshotMessage, 
 	return nil
 }
 
-func (t *defaultTransport) postSend(msg *bhraftpb.RaftMessage, err error) {
+func (t *defaultTransport) postSend(msg *meta.RaftMessage, err error) {
 	if err != nil {
 		logger.Errorf("shard %d send msg %+v from %d to %d failed with %+v",
 			msg.ShardID,
@@ -308,7 +308,7 @@ func (t *defaultTransport) postSend(msg *bhraftpb.RaftMessage, err error) {
 	pb.ReleaseRaftMessage(msg)
 }
 
-func (t *defaultTransport) doSend(msgs []*bhraftpb.RaftMessage, to uint64) error {
+func (t *defaultTransport) doSend(msgs []*meta.RaftMessage, to uint64) error {
 	conn, err := t.getConn(to)
 	if err != nil {
 		return err
@@ -319,7 +319,7 @@ func (t *defaultTransport) doSend(msgs []*bhraftpb.RaftMessage, to uint64) error
 	return err
 }
 
-func (t *defaultTransport) doBatchWrite(msgs []*bhraftpb.RaftMessage, conn goetty.IOSession) error {
+func (t *defaultTransport) doBatchWrite(msgs []*meta.RaftMessage, conn goetty.IOSession) error {
 	for _, m := range msgs {
 		err := conn.Write(m)
 		if err != nil {

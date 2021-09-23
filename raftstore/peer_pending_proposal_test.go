@@ -19,7 +19,7 @@ import (
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,9 +58,9 @@ func TestPendingProposalPop(t *testing.T) {
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	p := newPendingProposals()
 	cmd := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			AdminRequest: &raftcmdpb.AdminRequest{
-				CmdType: raftcmdpb.AdminCmdType_ChangePeer,
+		req: &rpc.RequestBatch{
+			AdminRequest: &rpc.AdminRequest{
+				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
 		},
 	}
@@ -71,9 +71,9 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 	cmd := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			AdminRequest: &raftcmdpb.AdminRequest{
-				CmdType: raftcmdpb.AdminCmdType_TransferLeader,
+		req: &rpc.RequestBatch{
+			AdminRequest: &rpc.AdminRequest{
+				CmdType: rpc.AdminCmdType_TransferLeader,
 			},
 		},
 	}
@@ -87,38 +87,38 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 }
 
 func testPendingProposalClear(t *testing.T,
-	clear bool, cb func(resp *raftcmdpb.RaftCMDResponse)) {
+	clear bool, cb func(resp *rpc.ResponseBatch)) {
 	cmd1 := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			Requests: []*raftcmdpb.Request{
+		req: &rpc.RequestBatch{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: cb,
 	}
 	cmd2 := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			Requests: []*raftcmdpb.Request{
+		req: &rpc.RequestBatch{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: cb,
 	}
 	ConfChangeCmd := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			AdminRequest: &raftcmdpb.AdminRequest{
-				CmdType: raftcmdpb.AdminCmdType_ChangePeer,
+		req: &rpc.RequestBatch{
+			AdminRequest: &rpc.AdminRequest{
+				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []*raftcmdpb.Request{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -138,7 +138,7 @@ func testPendingProposalClear(t *testing.T,
 }
 
 func TestPendingProposalClear(t *testing.T) {
-	check := func(resp *raftcmdpb.RaftCMDResponse) {
+	check := func(resp *rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
@@ -146,7 +146,7 @@ func TestPendingProposalClear(t *testing.T) {
 }
 
 func TestPendingProposalDestroy(t *testing.T) {
-	check := func(resp *raftcmdpb.RaftCMDResponse) {
+	check := func(resp *rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
@@ -155,20 +155,20 @@ func TestPendingProposalDestroy(t *testing.T) {
 
 func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	called := false
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
+	cb := func(resp *rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	ConfChangeCmd := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			AdminRequest: &raftcmdpb.AdminRequest{
-				CmdType: raftcmdpb.AdminCmdType_ChangePeer,
+		req: &rpc.RequestBatch{
+			AdminRequest: &rpc.AdminRequest{
+				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []*raftcmdpb.Request{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -185,33 +185,33 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	called := false
 	staleCalled := false
-	staleCB := func(resp *raftcmdpb.RaftCMDResponse) {
+	staleCB := func(resp *rpc.ResponseBatch) {
 		staleCalled = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
-	cb := func(resp *raftcmdpb.RaftCMDResponse) {
+	cb := func(resp *rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
 	cmd1 := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			Requests: []*raftcmdpb.Request{
+		req: &rpc.RequestBatch{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: staleCB,
 	}
 	cmd2 := cmd{
-		req: &raftcmdpb.RaftCMDRequest{
-			Requests: []*raftcmdpb.Request{
+		req: &rpc.RequestBatch{
+			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &raftcmdpb.RaftRequestHeader{
+			Header: &rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},

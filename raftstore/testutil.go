@@ -32,8 +32,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
@@ -184,19 +184,19 @@ type testShardAware struct {
 	sync.RWMutex
 
 	wrapper      aware.ShardStateAware
-	shards       []bhmetapb.Shard
+	shards       []meta.Shard
 	leaders      map[uint64]bool
 	applied      map[uint64]int
 	splitedCount map[uint64]int
 
-	removed map[uint64]bhmetapb.Shard
+	removed map[uint64]meta.Shard
 }
 
 func newTestShardAware() *testShardAware {
 	return &testShardAware{
 		leaders:      make(map[uint64]bool),
 		applied:      make(map[uint64]int),
-		removed:      make(map[uint64]bhmetapb.Shard),
+		removed:      make(map[uint64]meta.Shard),
 		splitedCount: make(map[uint64]int),
 	}
 }
@@ -263,14 +263,14 @@ func (ts *testShardAware) hasShard(id uint64) bool {
 	return false
 }
 
-func (ts *testShardAware) getShardByIndex(index int) bhmetapb.Shard {
+func (ts *testShardAware) getShardByIndex(index int) meta.Shard {
 	ts.RLock()
 	defer ts.RUnlock()
 
 	return ts.shards[index]
 }
 
-func (ts *testShardAware) getShardByID(id uint64) bhmetapb.Shard {
+func (ts *testShardAware) getShardByID(id uint64) meta.Shard {
 	ts.RLock()
 	defer ts.RUnlock()
 
@@ -280,7 +280,7 @@ func (ts *testShardAware) getShardByID(id uint64) bhmetapb.Shard {
 		}
 	}
 
-	return bhmetapb.Shard{}
+	return meta.Shard{}
 }
 
 func (ts *testShardAware) shardCount() int {
@@ -317,7 +317,7 @@ func (ts *testShardAware) isLeader(id uint64) bool {
 	return ts.leaders[id]
 }
 
-func (ts *testShardAware) Created(shard bhmetapb.Shard) {
+func (ts *testShardAware) Created(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -334,7 +334,7 @@ func (ts *testShardAware) Created(shard bhmetapb.Shard) {
 	}
 }
 
-func (ts *testShardAware) Splited(shard bhmetapb.Shard) {
+func (ts *testShardAware) Splited(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -350,11 +350,11 @@ func (ts *testShardAware) Splited(shard bhmetapb.Shard) {
 	}
 }
 
-func (ts *testShardAware) Destory(shard bhmetapb.Shard) {
+func (ts *testShardAware) Destory(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
-	var newShards []bhmetapb.Shard
+	var newShards []meta.Shard
 	for _, s := range ts.shards {
 		if s.ID != shard.ID {
 			newShards = append(newShards, s)
@@ -369,7 +369,7 @@ func (ts *testShardAware) Destory(shard bhmetapb.Shard) {
 	}
 }
 
-func (ts *testShardAware) BecomeLeader(shard bhmetapb.Shard) {
+func (ts *testShardAware) BecomeLeader(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -380,7 +380,7 @@ func (ts *testShardAware) BecomeLeader(shard bhmetapb.Shard) {
 	}
 }
 
-func (ts *testShardAware) BecomeFollower(shard bhmetapb.Shard) {
+func (ts *testShardAware) BecomeFollower(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -391,7 +391,7 @@ func (ts *testShardAware) BecomeFollower(shard bhmetapb.Shard) {
 	}
 }
 
-func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
+func (ts *testShardAware) SnapshotApplied(shard meta.Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -425,9 +425,9 @@ type TestRaftCluster interface {
 	GetPRCount(node int) int
 	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
 	// the shard is created on the node
-	GetShardByIndex(node int, shardIndex int) bhmetapb.Shard
+	GetShardByIndex(node int, shardIndex int) meta.Shard
 	// GetShardByID returns the shard from the node by shard id
-	GetShardByID(node int, shardID uint64) bhmetapb.Shard
+	GetShardByID(node int, shardID uint64) meta.Shard
 	// CheckShardCount check whether the number of shards on each node is correct
 	CheckShardCount(countPerNode int)
 	// CheckShardRange check whether the range field of the shard on each node is correct,
@@ -568,7 +568,7 @@ func (kv *testKVClient) clearContext(id string) {
 	delete(kv.doneCtx, id)
 }
 
-func (kv *testKVClient) done(resp *raftcmdpb.Response) {
+func (kv *testKVClient) done(resp *rpc.Response) {
 	kv.Lock()
 	defer kv.Unlock()
 
@@ -577,7 +577,7 @@ func (kv *testKVClient) done(resp *raftcmdpb.Response) {
 	}
 }
 
-func (kv *testKVClient) errorDone(req *raftcmdpb.Request, err error) {
+func (kv *testKVClient) errorDone(req *rpc.Request, err error) {
 	kv.Lock()
 	defer kv.Unlock()
 
@@ -590,25 +590,25 @@ func (kv *testKVClient) nextID() string {
 	return fmt.Sprintf("%d", atomic.AddUint64(&kv.id, 1))
 }
 
-func createTestWriteReq(id, k, v string) *raftcmdpb.Request {
+func createTestWriteReq(id, k, v string) *rpc.Request {
 	wr := simple.NewWriteRequest([]byte(k), []byte(v))
 
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
 	req.CustemType = wr.CmdType
-	req.Type = raftcmdpb.CMDType_Write
+	req.Type = rpc.CmdType_Write
 	req.Key = wr.Key
 	req.Cmd = wr.Cmd
 	return req
 }
 
-func createTestReadReq(id, k string) *raftcmdpb.Request {
+func createTestReadReq(id, k string) *rpc.Request {
 	rr := simple.NewReadRequest([]byte(k))
 
 	req := pb.AcquireRequest()
 	req.ID = []byte(id)
 	req.CustemType = rr.CmdType
-	req.Type = raftcmdpb.CMDType_Read
+	req.Type = rpc.CmdType_Read
 	req.Key = rr.Key
 	return req
 }
@@ -907,11 +907,11 @@ func (c *testRaftCluster) GetPRCount(node int) int {
 	return cnt
 }
 
-func (c *testRaftCluster) GetShardByIndex(node int, shardIndex int) bhmetapb.Shard {
+func (c *testRaftCluster) GetShardByIndex(node int, shardIndex int) meta.Shard {
 	return c.awares[node].getShardByIndex(shardIndex)
 }
 
-func (c *testRaftCluster) GetShardByID(node int, shardID uint64) bhmetapb.Shard {
+func (c *testRaftCluster) GetShardByID(node int, shardID uint64) meta.Shard {
 	return c.awares[node].getShardByID(shardID)
 }
 

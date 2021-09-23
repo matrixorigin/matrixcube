@@ -1,7 +1,7 @@
 syntax = "proto3";
-package raftcmdpb;
+package rpc;
 
-import "github.com/matrixorigin/matrixcube/pb/bhmetapb/bhmetapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/meta/meta.proto";
 import "github.com/matrixorigin/matrixcube/pb/errorpb/errorpb.proto";
 import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -11,7 +11,7 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
-enum CMDType {
+enum CmdType {
     Invalid   = 0;
     RaftError = 1;
     Snap      = 2;
@@ -22,72 +22,70 @@ enum CMDType {
 // AdminCmdType admin cmd type
 enum AdminCmdType {
     InvalidAdmin   = 0;
-    ChangePeer     = 1;
+    ConfigChange     = 1;
     CompactLog     = 2;
     TransferLeader = 3;
     ComputeHash    = 4;
     VerifyHash     = 5;
     BatchSplit     = 6;
-    ChangePeerV2   = 7;
+    ConfigChangeV2   = 7;
 }
 
-// RaftRequestHeader raft request header, it contains the shard's metadata
-message RaftRequestHeader {
+// RequestHeader raft request header, it contains the shard's metadata
+message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
     metapb.Peer          peer             = 3 [(gogoproto.nullable) = false]; 
     metapb.ResourceEpoch epoch            = 5 [(gogoproto.nullable) = false];
-    uint64               term             = 6;
     bool                 ignoreEpochCheck = 7;
 }
 
-message RaftResponseHeader {
+message ResponseBatchHeader {
     bytes         id          = 1 [(gogoproto.customname) = "ID"];
     errorpb.Error error       = 2 [(gogoproto.nullable) = false];
-    uint64        currentTerm = 3;
 }
 
-// RaftCMDRequest we can't include both normal requests and administrator request 
+// Request we can't include both normal requests and administrator request 
 // at same time. 
-message RaftCMDRequest {
-    RaftRequestHeader header       = 1;
+message RequestBatch {
+    RequestBatchHeader header      = 1;
     repeated Request  requests     = 2 [(gogoproto.nullable) = true];
     AdminRequest      adminRequest = 3 [(gogoproto.nullable) = true];
 }
 
-message RaftCMDResponse {
-    RaftResponseHeader header        = 1 [(gogoproto.nullable) = true];
-    repeated Response  responses     = 2 [(gogoproto.nullable) = true];
-    AdminResponse      adminResponse = 3 [(gogoproto.nullable) = true];
+message ResponseBatch {
+    ResponseBatchHeader header        = 1 [(gogoproto.nullable) = true];
+    repeated Response   responses     = 2 [(gogoproto.nullable) = true];
+    AdminResponse       adminResponse = 3 [(gogoproto.nullable) = true];
 }
 
 // AdminRequest admin request
 message AdminRequest {
     AdminCmdType          cmdType        = 1;
-    ChangePeerRequest     changePeer     = 2;
+    ConfigChangeRequest   configChange   = 2;
     CompactLogRequest     compactLog     = 3;
     TransferLeaderRequest transferLeader = 4;
     VerifyHashRequest     verifyHash     = 5;
     BatchSplitRequest     splits         = 6;
-    ChangePeerV2Request   changePeerV2   = 7;
+    ConfigChangeV2Request configChangeV2 = 7;
 }
 
 // AdminResponse admin response
 message AdminResponse {
     AdminCmdType           cmdType        = 1;
-    ChangePeerResponse     changePeer     = 2;
+    ConfigChangeResponse   configChange   = 2;
     CompactLogResponse     compactLog     = 3;
     TransferLeaderResponse transferLeader = 4;
     VerifyHashResponse     verifyHash     = 5;
     BatchSplitResponse     splits         = 9;
-    ChangePeerV2Response   changePeerV2   = 10;
+    ConfigChangeV2Response configChangeV2   = 10;
 }
 
 // Request request
 message Request {
     bytes   id               = 1 [(gogoproto.customname) = "ID"];
     uint64  group            = 2;
-    CMDType type             = 3;
+    CmdType type             = 3;
     uint64  custemType       = 4;
     bytes   key              = 5;
     bytes   cmd              = 6;
@@ -103,9 +101,9 @@ message Request {
 // Response response
 message Response {
     bytes         id                = 1 [(gogoproto.customname) = "ID"];
-    CMDType       type              = 2;
+    CmdType       type              = 2;
     bytes         value             = 3;
-    Request       originRequest     = 4 [(gogoproto.nullable) = true];
+    Request       request           = 4 [(gogoproto.nullable) = true];
     int64         sid               = 5 [(gogoproto.customname) = "SID"];
     int64         pid               = 6 [(gogoproto.customname) = "PID"];
     errorpb.Error error             = 7 [(gogoproto.nullable) = false];
@@ -113,16 +111,15 @@ message Response {
     bool          stale             = 9;
 }
 
-
-message ChangePeerRequest {
+message ConfigChangeRequest {
     // This can be only called in internal RaftStore now.
     metapb.ChangePeerType changeType = 1;
     metapb.Peer peer = 2 [(gogoproto.nullable) = false];
 }
 
-// ChangePeerResponse change peer response
-message ChangePeerResponse {
-    bhmetapb.Shard shard = 1 [(gogoproto.nullable) = false];
+// ConfigChangeResponse change peer response
+message ConfigChangeResponse {
+    meta.Shard shard = 1 [(gogoproto.nullable) = false];
 }
 
 // CompactLogRequest compact raft log
@@ -169,15 +166,13 @@ message BatchSplitRequest {
 }
 
 message BatchSplitResponse {
-    repeated bhmetapb.Shard shards = 1 [(gogoproto.nullable) = false];
+    repeated meta.Shard shards = 1 [(gogoproto.nullable) = false];
 }
 
-
-
-message ChangePeerV2Request {
-    repeated ChangePeerRequest changes = 1 [(gogoproto.nullable) = false];
+message ConfigChangeV2Request {
+    repeated ConfigChangeRequest changes = 1 [(gogoproto.nullable) = false];
 }
 
-message ChangePeerV2Response {
-    bhmetapb.Shard shard = 1;
+message ConfigChangeV2Response {
+    meta.Shard shard = 1;
 }

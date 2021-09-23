@@ -19,7 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 )
 
@@ -28,8 +28,8 @@ func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
 }
 
 type cmd struct {
-	req                     *raftcmdpb.RaftCMDRequest
-	cb                      func(*raftcmdpb.RaftCMDResponse)
+	req                     *rpc.RequestBatch
+	cb                      func(*rpc.ResponseBatch)
 	readIndexCommittedIndex uint64
 	tp                      int
 	size                    int
@@ -50,13 +50,13 @@ func (c *cmd) isFull(n, max int) bool {
 		(testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
 }
 
-func (c *cmd) canAppend(epoch metapb.ResourceEpoch, req *raftcmdpb.Request) bool {
+func (c *cmd) canAppend(epoch metapb.ResourceEpoch, req *rpc.Request) bool {
 	return (c.req.Header.IgnoreEpochCheck && req.IgnoreEpochCheck) ||
 		(epochMatch(c.req.Header.Epoch, epoch) &&
 			!c.req.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
-func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), tp int, size int) cmd {
+func newCMD(req *rpc.RequestBatch, cb func(*rpc.ResponseBatch), tp int, size int) cmd {
 	c := cmd{}
 	c.req = req
 	c.cb = cb
@@ -65,31 +65,31 @@ func newCMD(req *raftcmdpb.RaftCMDRequest, cb func(*raftcmdpb.RaftCMDResponse), 
 	return c
 }
 
-func resp(req *raftcmdpb.Request, resp *raftcmdpb.Response, cb func(*raftcmdpb.RaftCMDResponse)) {
+func resp(req *rpc.Request, resp *rpc.Response, cb func(*rpc.ResponseBatch)) {
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
 
-	rsp := pb.AcquireRaftCMDResponse()
+	rsp := pb.AcquireResponseBatch()
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }
 
-func respWithRetry(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
+func respWithRetry(req *rpc.Request, cb func(*rpc.ResponseBatch)) {
 	resp := pb.AcquireResponse()
-	resp.Type = raftcmdpb.CMDType_Invalid
+	resp.Type = rpc.CmdType_Invalid
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
-	resp.OriginRequest = req
+	resp.Request = req
 
-	rsp := pb.AcquireRaftCMDResponse()
+	rsp := pb.AcquireResponseBatch()
 	rsp.Responses = append(rsp.Responses, resp)
 
 	cb(rsp)
 }
 
-func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) {
+func respStoreNotMatch(err error, req *rpc.Request, cb func(*rpc.ResponseBatch)) {
 	rsp := errorPbResp(&errorpb.Error{
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
@@ -99,12 +99,12 @@ func respStoreNotMatch(err error, req *raftcmdpb.Request, cb func(*raftcmdpb.Raf
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
-	resp.OriginRequest = req
+	resp.Request = req
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }
 
-func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
+func (c *cmd) resp(resp *rpc.ResponseBatch) {
 	if c.cb != nil {
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
@@ -133,8 +133,8 @@ func (c *cmd) resp(resp *raftcmdpb.RaftCMDResponse) {
 
 			if resp.Header != nil {
 				for idx, rsp := range resp.Responses {
-					rsp.OriginRequest = c.req.Requests[idx]
-					rsp.OriginRequest.Key = keys.DecodeDataKey(rsp.OriginRequest.Key)
+					rsp.Request = c.req.Requests[idx]
+					rsp.Request.Key = keys.DecodeDataKey(rsp.Request.Key)
 					rsp.Error = resp.Header.Error
 				}
 			}

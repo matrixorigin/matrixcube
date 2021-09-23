@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,8 +70,8 @@ func TestCanAppendCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		cmd := &cmd{
-			req: &raftcmdpb.RaftCMDRequest{
-				Header: &raftcmdpb.RaftRequestHeader{
+			req: &rpc.RequestBatch{
+				Header: &rpc.RequestBatchHeader{
 					Epoch: metapb.ResourceEpoch{
 						ConfVer: tt.confVer1,
 						Version: tt.version1,
@@ -80,7 +80,7 @@ func TestCanAppendCmd(t *testing.T) {
 				},
 			},
 		}
-		req := &raftcmdpb.Request{
+		req := &rpc.Request{
 			IgnoreEpochCheck: tt.ignored2,
 		}
 		epoch := metapb.ResourceEpoch{

@@ -15,7 +15,7 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
@@ -46,7 +46,7 @@ func (pr *peerReplica) doApplyDestory(tombstoneInCluster bool) error {
 	}
 	shard := pr.getShard()
 	index, _ := pr.sm.getAppliedIndexTerm()
-	err := pr.sm.saveShardMetedata(index, shard, bhmetapb.PeerState_Tombstone)
+	err := pr.sm.saveShardMetedata(index, shard, meta.PeerState_Tombstone)
 	if err != nil {
 		logger2.Fatal("fail to do apply destory",
 			pr.field,

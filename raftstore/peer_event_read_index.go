@@ -16,12 +16,12 @@ package raftstore
 import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3"
 )
 
 type readyRead struct {
-	req   *raftcmdpb.RaftCMDRequest
+	req   *rpc.RequestBatch
 	index uint64
 }
 
@@ -35,7 +35,7 @@ func (q *readIndexQueue) reset() {
 }
 
 func (q *readIndexQueue) ready(state raft.ReadState) {
-	var req raftcmdpb.RaftCMDRequest
+	var req rpc.RequestBatch
 	protoc.MustUnmarshal(&req, state.RequestCtx)
 	q.reads = append(q.reads, readyRead{
 		req:   &req,
@@ -80,7 +80,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *peerReplica) {
 		pr.readKeys += uint64(len(pr.readCtx.cmds))
 		idx := 0
 		for _, c := range pr.readCtx.cmds {
-			resp := pb.AcquireRaftCMDResponse()
+			resp := pb.AcquireResponseBatch()
 			for i := 0; i < len(c.req.Requests); i++ {
 				r := pb.AcquireResponse()
 				r.Value = pr.readCtx.responses[idx]

@@ -21,8 +21,8 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
 )
@@ -37,14 +37,14 @@ var (
 	RetryInterval = time.Second
 )
 
-type doneFunc func(*raftcmdpb.Response)
-type errorDoneFunc func(*raftcmdpb.Request, error)
+type doneFunc func(*rpc.Response)
+type errorDoneFunc func(*rpc.Request, error)
 
 // ShardsProxy Shards proxy, distribute the appropriate request to the corresponding backend,
 // retry the request for the error
 type ShardsProxy interface {
-	Dispatch(req *raftcmdpb.Request) error
-	DispatchTo(req *raftcmdpb.Request, shard uint64, store string) error
+	Dispatch(req *rpc.Request) error
+	DispatchTo(req *rpc.Request, shard uint64, store string) error
 	Router() Router
 }
 
@@ -77,7 +77,7 @@ func NewShardsProxyWithStore(store Store,
 }
 
 type shardsProxy struct {
-	local       bhmetapb.Store
+	local       meta.Store
 	store       Store
 	router      Router
 	doneCB      doneFunc
@@ -85,12 +85,12 @@ type shardsProxy struct {
 	backends    sync.Map // store addr -> *backend
 }
 
-func (p *shardsProxy) Dispatch(req *raftcmdpb.Request) error {
+func (p *shardsProxy) Dispatch(req *rpc.Request) error {
 	shard, to := p.router.SelectShard(req.Group, req.Key)
 	return p.DispatchTo(req, shard, to)
 }
 
-func (p *shardsProxy) DispatchTo(req *raftcmdpb.Request, shard uint64, to string) error {
+func (p *shardsProxy) DispatchTo(req *rpc.Request, shard uint64, to string) error {
 	logger2.Debug("dispatch request",
 		log.HexField("id", req.ID),
 		zap.Uint64("to-shard", shard),
@@ -109,7 +109,7 @@ func (p *shardsProxy) Router() Router {
 	return p.router
 }
 
-func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, leader string) error {
+func (p *shardsProxy) forwardToBackend(req *rpc.Request, leader string) error {
 	if p.store != nil && p.local.ClientAddr == leader {
 		req.PID = 0
 		return p.store.OnRequest(req)
@@ -123,12 +123,12 @@ func (p *shardsProxy) forwardToBackend(req *raftcmdpb.Request, leader string) er
 	return bc.addReq(req)
 }
 
-func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raftcmdpb.Response) {
+func (p *shardsProxy) onLocalResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) {
 	if header != nil {
 		if header.Error.RaftEntryTooLarge == nil {
-			rsp.Type = raftcmdpb.CMDType_RaftError
+			rsp.Type = rpc.CmdType_RaftError
 		} else {
-			rsp.Type = raftcmdpb.CMDType_Invalid
+			rsp.Type = rpc.CmdType_Invalid
 		}
 
 		rsp.Error = header.Error
@@ -138,26 +138,26 @@ func (p *shardsProxy) onLocalResp(header *raftcmdpb.RaftResponseHeader, rsp *raf
 	pb.ReleaseResponse(rsp)
 }
 
-func (p *shardsProxy) done(rsp *raftcmdpb.Response) {
-	if rsp.Type == raftcmdpb.CMDType_Invalid && rsp.Error.Message != "" {
-		p.errorDoneCB(rsp.OriginRequest, errors.New(rsp.Error.String()))
+func (p *shardsProxy) done(rsp *rpc.Response) {
+	if rsp.Type == rpc.CmdType_Invalid && rsp.Error.Message != "" {
+		p.errorDoneCB(rsp.Request, errors.New(rsp.Error.String()))
 		return
 	}
 
-	if rsp.Type != raftcmdpb.CMDType_RaftError && !rsp.Stale {
+	if rsp.Type != rpc.CmdType_RaftError && !rsp.Stale {
 		p.doneCB(rsp)
 		return
 	}
 
-	p.retryWithRaftError(rsp.OriginRequest, rsp.Error.String(), RetryInterval)
+	p.retryWithRaftError(rsp.Request, rsp.Error.String(), RetryInterval)
 	pb.ReleaseResponse(rsp)
 }
 
-func (p *shardsProxy) errorDone(req *raftcmdpb.Request, err error) {
+func (p *shardsProxy) errorDone(req *rpc.Request, err error) {
 	p.errorDoneCB(req, err)
 }
 
-func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, err string, later time.Duration) {
+func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later time.Duration) {
 	if req != nil {
 		logger2.Debug("dispatch request failed, retry later",
 			log.HexField("id", req.ID),
@@ -173,7 +173,7 @@ func (p *shardsProxy) retryWithRaftError(req *raftcmdpb.Request, err string, lat
 }
 
 func (p *shardsProxy) doRetry(arg interface{}) {
-	req := arg.(raftcmdpb.Request)
+	req := arg.(rpc.Request)
 	if req.ToShard == 0 {
 		p.Dispatch(&req)
 		return

@@ -21,7 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
@@ -77,15 +77,15 @@ func (s *store) handleShardStateCheck() {
 
 // all raft message entrypoint
 func (s *store) handle(value interface{}) {
-	if msg, ok := value.(*bhraftpb.RaftMessage); ok {
+	if msg, ok := value.(*meta.RaftMessage); ok {
 		s.onRaftMessage(msg)
 		pb.ReleaseRaftMessage(msg)
-	} else if msg, ok := value.(*bhraftpb.SnapshotMessage); ok {
+	} else if msg, ok := value.(*meta.SnapshotMessage); ok {
 		s.onSnapshotMessage(msg)
 	}
 }
 
-func (s *store) onSnapshotMessage(msg *bhraftpb.SnapshotMessage) {
+func (s *store) onSnapshotMessage(msg *meta.SnapshotMessage) {
 	pr := s.getPR(msg.Header.Shard.ID, false)
 	if pr != nil {
 		s.addApplyJob(pr.applyWorker, "onSnapshotData", func() error {
@@ -101,7 +101,7 @@ func (s *store) onSnapshotMessage(msg *bhraftpb.SnapshotMessage) {
 	}
 }
 
-func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
+func (s *store) onRaftMessage(msg *meta.RaftMessage) {
 	if !s.isRaftMsgValid(msg) {
 		return
 	}
@@ -121,7 +121,7 @@ func (s *store) onRaftMessage(msg *bhraftpb.RaftMessage) {
 	pr.step(msg.Message)
 }
 
-func (s *store) isRaftMsgValid(msg *bhraftpb.RaftMessage) bool {
+func (s *store) isRaftMsgValid(msg *meta.RaftMessage) bool {
 	if msg.To.ContainerID != s.meta.meta.ID {
 		logger.Warningf("store not match, toPeerStoreID=<%d> mineStoreID=<%d>",
 			msg.To.ContainerID,
@@ -132,7 +132,7 @@ func (s *store) isRaftMsgValid(msg *bhraftpb.RaftMessage) bool {
 	return true
 }
 
-func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
+func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
 	shardID := msg.ShardID
 	pr := s.getPR(shardID, false)
 	if pr != nil {
@@ -147,7 +147,7 @@ func (s *store) handleGCPeerMsg(msg *bhraftpb.RaftMessage) {
 	}
 }
 
-func (s *store) tryToCreatePeerReplicate(msg *bhraftpb.RaftMessage) bool {
+func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 	// If target peer doesn't exist, create it.
 	//
 	// return false to indicate that target peer is in invalid state or

@@ -16,26 +16,26 @@ package util
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTree(t *testing.T) {
 	tree := NewShardTree()
 
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    1,
 		Start: []byte{0},
 		End:   []byte{1},
 	})
 
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},
 	})
 
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    3,
 		Start: []byte{4},
 		End:   []byte{5},
@@ -47,7 +47,7 @@ func TestTree(t *testing.T) {
 
 	expect := []byte{0, 2, 4}
 	count := 0
-	tree.Ascend(func(Shard *bhmetapb.Shard) bool {
+	tree.Ascend(func(Shard *meta.Shard) bool {
 		if expect[count] != Shard.Start[0] {
 			t.Error("tree failed, asc order is error")
 		}
@@ -67,7 +67,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{4}, func(Shard *bhmetapb.Shard) bool {
+	tree.AscendRange(nil, []byte{4}, func(Shard *meta.Shard) bool {
 		count++
 		return true
 	})
@@ -77,7 +77,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{5}, func(Shard *bhmetapb.Shard) bool {
+	tree.AscendRange(nil, []byte{5}, func(Shard *meta.Shard) bool {
 		count++
 		return true
 	})
@@ -87,7 +87,7 @@ func TestTree(t *testing.T) {
 	}
 
 	// it will replace with 0,1 Shard
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    10,
 		Start: nil,
 		End:   []byte{1},
@@ -97,7 +97,7 @@ func TestTree(t *testing.T) {
 		t.Error("tree failed, update overlaps failed")
 	}
 
-	tree.Remove(bhmetapb.Shard{
+	tree.Remove(meta.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},
@@ -109,17 +109,17 @@ func TestTree(t *testing.T) {
 
 func TestTreeOverlap(t *testing.T) {
 	tree := NewShardTree()
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    1,
 		Start: []byte{1},
 		End:   []byte{10},
 	})
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    2,
 		Start: []byte{5},
 		End:   []byte{10},
 	})
-	tree.Update(bhmetapb.Shard{
+	tree.Update(meta.Shard{
 		ID:    1,
 		Start: []byte{1},
 		End:   []byte{5},

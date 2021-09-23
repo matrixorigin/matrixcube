@@ -1,13 +1,50 @@
 syntax = "proto3";
-package bhmetapb;
+package meta;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "go.etcd.io/etcd/raft/v3/raftpb/raft.proto";
+
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
+
+// RaftMessage the message wrapped raft msg with shard info
+message RaftMessage  {
+    uint64               shardID      = 1;
+    uint64               group        = 2;
+    metapb.Peer          from         = 3 [(gogoproto.nullable) = false];
+    metapb.Peer          to           = 4 [(gogoproto.nullable) = false];
+    raftpb.Message       message      = 5 [(gogoproto.nullable) = false];
+    metapb.ResourceEpoch shardEpoch   = 6 [(gogoproto.nullable) = false];
+    bool                 isTombstone  = 7;
+    bytes                start        = 8;
+    bytes                end          = 9;
+    bool                 disableSplit = 10;
+    string               unique       = 11;
+    repeated string      ruleGroups   = 12;
+}
+
+// SnapshotMessageHeader snapshot message header
+message SnapshotMessageHeader {
+    Shard  shard = 1 [(gogoproto.nullable) = false];
+    metapb.Peer   from  = 2 [(gogoproto.nullable) = false];
+    metapb.Peer   to    = 3 [(gogoproto.nullable) = false];
+    uint64        term  = 4;
+    uint64        index = 5;
+}
+
+// SnapshotMessage snapshot message
+message SnapshotMessage {
+    SnapshotMessageHeader header    = 1 [(gogoproto.nullable) = false];
+    bytes                 data      = 2;
+    bool                  first     = 3;
+    bool                  last      = 4;
+    uint64                fileSize  = 5;
+    uint64                checkSum  = 6;
+}
 
 // StoreIdent store ident
 message StoreIdent {

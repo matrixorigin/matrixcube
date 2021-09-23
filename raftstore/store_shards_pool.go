@@ -17,7 +17,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 var (
@@ -34,7 +34,7 @@ var (
 type ShardsPool interface {
 	// Alloc alloc a shard from shards pool, returns error if no idle shards left. The `purpose` is used to avoid
 	// duplicate allocation.
-	Alloc(group uint64, purpose []byte) (bhmetapb.AllocatedShard, error)
+	Alloc(group uint64, purpose []byte) (meta.AllocatedShard, error)
 }
 
 func (s *store) CreateResourcePool(pools ...metapb.ResourcePool) (ShardsPool, error) {
@@ -55,7 +55,7 @@ func (s *store) GetResourcePool() ShardsPool {
 // dynamicShardsPool a dynamic shard pool
 type dynamicShardsPool struct {
 	cfg     *config.Config
-	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard
+	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard
 	job     metapb.Job
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -66,7 +66,7 @@ type dynamicShardsPool struct {
 		sync.RWMutex
 
 		state   int
-		pools   bhmetapb.ShardsPool
+		pools   meta.ShardsPool
 		createC chan struct{}
 	}
 }
@@ -94,13 +94,13 @@ func (dsp *dynamicShardsPool) waitProphetClientSetted() {
 	<-dsp.pdC
 }
 
-func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (bhmetapb.AllocatedShard, error) {
-	allocated := bhmetapb.AllocatedShard{}
+func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (meta.AllocatedShard, error) {
+	allocated := meta.AllocatedShard{}
 	retry := 0
 	for {
-		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateResourcePool}, protoc.MustMarshal(&bhmetapb.ShardsPoolCmd{
-			Type: bhmetapb.ShardsPoolCmdType_AllocShard,
-			Alloc: &bhmetapb.ShardsPoolAllocCmd{
+		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateResourcePool}, protoc.MustMarshal(&meta.ShardsPoolCmd{
+			Type: meta.ShardsPoolCmdType_AllocShard,
+			Alloc: &meta.ShardsPoolAllocCmd{
 				Group:   group,
 				Purpose: purpose,
 			},
@@ -140,15 +140,15 @@ func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aw
 		return
 	}
 	if len(value) > 0 {
-		dsp.mu.pools = bhmetapb.ShardsPool{}
+		dsp.mu.pools = meta.ShardsPool{}
 		protoc.MustUnmarshal(&dsp.mu.pools, value)
 	} else {
 		jobContent := &metapb.ResourcePoolJob{}
 		protoc.MustUnmarshal(jobContent, job.Content)
 
-		dsp.mu.pools.Pools = make(map[uint64]*bhmetapb.ShardPool)
+		dsp.mu.pools.Pools = make(map[uint64]*meta.ShardPool)
 		for _, p := range jobContent.Pools {
-			dsp.mu.pools.Pools[p.Group] = &bhmetapb.ShardPool{
+			dsp.mu.pools.Pools[p.Group] = &meta.ShardPool{
 				Capacity:    p.Capacity,
 				RangePrefix: p.RangePrefix,
 			}
@@ -187,7 +187,7 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 		return nil, errors.New("error execute data")
 	}
 
-	cmd := &bhmetapb.ShardsPoolCmd{}
+	cmd := &meta.ShardsPoolCmd{}
 	protoc.MustUnmarshal(cmd, data)
 
 	dsp.mu.Lock()
@@ -198,14 +198,14 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 	}
 
 	switch cmd.Type {
-	case bhmetapb.ShardsPoolCmdType_AllocShard:
+	case meta.ShardsPoolCmdType_AllocShard:
 		return dsp.doAllocLocked(cmd.Alloc, store, aware)
 	default:
 		return nil, fmt.Errorf("invalid execute cmd %d", cmd.Type)
 	}
 }
 
-func (dsp *dynamicShardsPool) doAllocLocked(cmd *bhmetapb.ShardsPoolAllocCmd, store storage.JobStorage, aware pconfig.ResourcesAware) ([]byte, error) {
+func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store storage.JobStorage, aware pconfig.ResourcesAware) ([]byte, error) {
 	group := cmd.Group
 	p := dsp.mu.pools.Pools[group]
 
@@ -245,7 +245,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *bhmetapb.ShardsPoolAllocCmd, st
 		return nil, nil
 	}
 
-	allocated := &bhmetapb.AllocatedShard{
+	allocated := &meta.AllocatedShard{
 		ShardID:     id,
 		AllocatedAt: p.AllocatedOffset,
 		Purpose:     cmd.Purpose,
@@ -428,14 +428,14 @@ func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) error {
 	return err
 }
 
-func (dsp *dynamicShardsPool) cloneDataLocked() bhmetapb.ShardsPool {
-	old := bhmetapb.ShardsPool{}
+func (dsp *dynamicShardsPool) cloneDataLocked() meta.ShardsPool {
+	old := meta.ShardsPool{}
 	protoc.MustUnmarshal(&old, protoc.MustMarshal(&dsp.mu.pools))
 	return old
 }
 
-func (dsp *dynamicShardsPool) shardFactory(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard {
-	return bhmetapb.Shard{
+func (dsp *dynamicShardsPool) shardFactory(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard {
+	return meta.Shard{
 		Group:  g,
 		Start:  start,
 		End:    end,

@@ -21,7 +21,7 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/components/keys"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 )
@@ -159,7 +159,7 @@ func (kv *kvStorage) Sync(...uint64) error {
 	return kv.base.Sync()
 }
 
-func (kv *kvStorage) RemoveShardData(shard bhmetapb.Shard, encodedStartKey, encodedEndKey []byte) error {
+func (kv *kvStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error {
 	// This is not an atomic operation, but it is idempotent, and the metadata is deleted afterwards,
 	// so the cleanup will not be lost.
 

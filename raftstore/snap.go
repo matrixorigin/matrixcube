@@ -24,7 +24,7 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -116,11 +116,11 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 	return m
 }
 
-func formatKey(msg *bhraftpb.SnapshotMessage) string {
+func formatKey(msg *meta.SnapshotMessage) string {
 	return fmt.Sprintf("%d_%d_%d", msg.Header.Shard.ID, msg.Header.Term, msg.Header.Index)
 }
 
-func formatKeyStep(msg *bhraftpb.SnapshotMessage, step int) string {
+func formatKeyStep(msg *meta.SnapshotMessage, step int) string {
 	return fmt.Sprintf("%s_%d", formatKey(msg), step)
 }
 
@@ -129,19 +129,19 @@ func (m *defaultSnapshotManager) Close() {
 	m.wg.Wait()
 }
 
-func (m *defaultSnapshotManager) getPathOfSnapKey(msg *bhraftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getPathOfSnapKey(msg *meta.SnapshotMessage) string {
 	return fmt.Sprintf("%s/%s", m.dir, formatKey(msg))
 }
 
-func (m *defaultSnapshotManager) getPathOfSnapKeyGZ(msg *bhraftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getPathOfSnapKeyGZ(msg *meta.SnapshotMessage) string {
 	return fmt.Sprintf("%s.gz", m.getPathOfSnapKey(msg))
 }
 
-func (m *defaultSnapshotManager) getTmpPathOfSnapKeyGZ(msg *bhraftpb.SnapshotMessage) string {
+func (m *defaultSnapshotManager) getTmpPathOfSnapKeyGZ(msg *meta.SnapshotMessage) string {
 	return fmt.Sprintf("%s.tmp", m.getPathOfSnapKey(msg))
 }
 
-func (m *defaultSnapshotManager) Register(msg *bhraftpb.SnapshotMessage, step int) bool {
+func (m *defaultSnapshotManager) Register(msg *meta.SnapshotMessage, step int) bool {
 	m.Lock()
 	defer m.Unlock()
 
@@ -155,7 +155,7 @@ func (m *defaultSnapshotManager) Register(msg *bhraftpb.SnapshotMessage, step in
 	return true
 }
 
-func (m *defaultSnapshotManager) Deregister(msg *bhraftpb.SnapshotMessage, step int) {
+func (m *defaultSnapshotManager) Deregister(msg *meta.SnapshotMessage, step int) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -163,7 +163,7 @@ func (m *defaultSnapshotManager) Deregister(msg *bhraftpb.SnapshotMessage, step 
 	delete(m.registry, fkey)
 }
 
-func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) Create(msg *meta.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
 	start := keys.EncStartKey(&msg.Header.Shard)
@@ -202,13 +202,13 @@ func (m *defaultSnapshotManager) Create(msg *bhraftpb.SnapshotMessage) error {
 	return nil
 }
 
-func (m *defaultSnapshotManager) Exists(msg *bhraftpb.SnapshotMessage) bool {
+func (m *defaultSnapshotManager) Exists(msg *meta.SnapshotMessage) bool {
 	file := m.getPathOfSnapKeyGZ(msg)
 	fs := m.s.cfg.FS
 	return exist(fs, file)
 }
 
-func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error) {
+func (m *defaultSnapshotManager) WriteTo(msg *meta.SnapshotMessage, conn goetty.IOSession) (uint64, error) {
 	file := m.getPathOfSnapKeyGZ(msg)
 
 	if !m.Exists(msg) {
@@ -240,7 +240,7 @@ func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goe
 	for {
 		nr, er := f.Read(buf)
 		if nr > 0 {
-			dst := &bhraftpb.SnapshotMessage{}
+			dst := &meta.SnapshotMessage{}
 			dst.Header = msg.Header
 			dst.Data = buf[0:nr]
 			dst.FileSize = uint64(fileSize)
@@ -271,7 +271,7 @@ func (m *defaultSnapshotManager) WriteTo(msg *bhraftpb.SnapshotMessage, conn goe
 	return uint64(written), nil
 }
 
-func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) CleanSnap(msg *meta.SnapshotMessage) error {
 	var err error
 
 	fs := m.s.cfg.FS
@@ -313,7 +313,7 @@ func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error 
 	return err
 }
 
-func (m *defaultSnapshotManager) ReceiveSnapData(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) ReceiveSnapData(msg *meta.SnapshotMessage) error {
 	var err error
 	var f vfs.File
 
@@ -371,7 +371,7 @@ func (m *defaultSnapshotManager) ReceiveSnapData(msg *bhraftpb.SnapshotMessage) 
 	return nil
 }
 
-func (m *defaultSnapshotManager) Apply(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) Apply(msg *meta.SnapshotMessage) error {
 	file := m.getPathOfSnapKeyGZ(msg)
 	if !m.Exists(msg) {
 		return fmt.Errorf("missing snapshot file, path=%s", file)
@@ -409,7 +409,7 @@ func (m *defaultSnapshotManager) ReceiveSnapCount() uint64 {
 	return m.receiveSnapCount
 }
 
-func (m *defaultSnapshotManager) cleanTmp(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) cleanTmp(msg *meta.SnapshotMessage) error {
 	var err error
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
 	fs := m.s.cfg.FS
@@ -428,7 +428,7 @@ func (m *defaultSnapshotManager) cleanTmp(msg *bhraftpb.SnapshotMessage) error {
 	return nil
 }
 
-func (m *defaultSnapshotManager) check(msg *bhraftpb.SnapshotMessage) error {
+func (m *defaultSnapshotManager) check(msg *meta.SnapshotMessage) error {
 	file := m.getTmpPathOfSnapKeyGZ(msg)
 	fs := m.s.cfg.FS
 	if exist(fs, file) {

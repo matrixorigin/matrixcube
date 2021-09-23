@@ -36,10 +36,9 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -60,15 +59,15 @@ type Store interface {
 	// GetConfig returns the config of the store
 	GetConfig() *config.Config
 	// Meta returns store meta
-	Meta() bhmetapb.Store
+	Meta() meta.Store
 	// GetRouter returns a router
 	GetRouter() Router
 	// RegisterLocalRequestCB register local request cb to process response
-	RegisterLocalRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
+	RegisterLocalRequestCB(func(*rpc.ResponseBatchHeader, *rpc.Response))
 	// RegisterRPCRequestCB register rpc request cb to process response
-	RegisterRPCRequestCB(func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response))
+	RegisterRPCRequestCB(func(*rpc.ResponseBatchHeader, *rpc.Response))
 	// OnRequest receive a request, and call cb while the request is completed
-	OnRequest(*raftcmdpb.Request) error
+	OnRequest(*rpc.Request) error
 	// DataStorage returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
@@ -117,8 +116,8 @@ type store struct {
 	state    uint32
 	stopOnce sync.Once
 
-	localCB func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
-	rpcCB   func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)
+	localCB func(*rpc.ResponseBatchHeader, *rpc.Response)
+	rpcCB   func(*rpc.ResponseBatchHeader, *rpc.Response)
 
 	allocWorkerLock sync.Mutex
 	applyWorkers    []map[string]int
@@ -246,23 +245,23 @@ func (s *store) startRouter() {
 	})
 }
 
-func (s *store) Meta() bhmetapb.Store {
+func (s *store) Meta() meta.Store {
 	return s.meta.meta
 }
 
-func (s *store) RegisterLocalRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
+func (s *store) RegisterLocalRequestCB(cb func(*rpc.ResponseBatchHeader, *rpc.Response)) {
 	s.localCB = cb
 }
 
-func (s *store) RegisterRPCRequestCB(cb func(*raftcmdpb.RaftResponseHeader, *raftcmdpb.Response)) {
+func (s *store) RegisterRPCRequestCB(cb func(*rpc.ResponseBatchHeader, *rpc.Response)) {
 	s.rpcCB = cb
 }
 
-func (s *store) OnRequest(req *raftcmdpb.Request) error {
+func (s *store) OnRequest(req *rpc.Request) error {
 	return s.onRequestWithCB(req, s.cb)
 }
 
-func (s *store) onRequestWithCB(req *raftcmdpb.Request, cb func(resp *raftcmdpb.RaftCMDResponse)) error {
+func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatch)) error {
 	if logger.DebugEnabled() {
 		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
@@ -298,7 +297,7 @@ func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getPR(shard, true)
 }
 
-func (s *store) cb(resp *raftcmdpb.RaftCMDResponse) {
+func (s *store) cb(resp *rpc.ResponseBatch) {
 	for _, rsp := range resp.Responses {
 		if rsp.PID != 0 {
 			s.rpcCB(resp.Header, rsp)
@@ -307,7 +306,7 @@ func (s *store) cb(resp *raftcmdpb.RaftCMDResponse) {
 		}
 	}
 
-	pb.ReleaseRaftCMDResponse(resp)
+	pb.ReleaseResponseBatch(resp)
 }
 
 func (s *store) MustAllocID() uint64 {
@@ -375,7 +374,7 @@ func (s *store) startTransport() {
 				10*s.cfg.Raft.GetElectionTimeoutDuration()),
 			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
 			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
-			transport.WithErrorHandler(func(msg *bhraftpb.RaftMessage, err error) {
+			transport.WithErrorHandler(func(msg *meta.RaftMessage, err error) {
 				if pr := s.getPR(msg.ShardID, true); pr != nil {
 					pr.addReport(msg.Message)
 				}
@@ -445,10 +444,10 @@ func (s *store) startShards() {
 			logger.Fatalf("init store failed with %+v", err)
 		}
 
-		var tomebstoneShards []bhmetapb.Shard
+		var tomebstoneShards []meta.Shard
 		for _, metadata := range initStates {
 			totalCount++
-			sls := &bhmetapb.ShardLocalState{}
+			sls := &meta.ShardLocalState{}
 			protoc.MustUnmarshal(sls, metadata.Metadata)
 
 			if sls.Shard.ID != metadata.ShardID {
@@ -457,7 +456,7 @@ func (s *store) startShards() {
 					metadata.ShardID)
 			}
 
-			if sls.State == bhmetapb.PeerState_Tombstone {
+			if sls.State == meta.PeerState_Tombstone {
 				tomebstoneShards = append(tomebstoneShards, sls.Shard)
 				tomebstoneCount++
 				logger.Infof("shard %d is tombstone in store",
@@ -555,7 +554,7 @@ func (s *store) startRPC() {
 	}
 }
 
-func (s *store) cleanup(shards []bhmetapb.Shard) {
+func (s *store) cleanup(shards []meta.Shard) {
 	for _, shard := range shards {
 		s.doClearData(shard)
 	}
@@ -674,7 +673,7 @@ func (s *store) removeDroppedVoteMsg(id uint64) (raftpb.Message, bool) {
 	return raftpb.Message{}, false
 }
 
-func (s *store) validateStoreID(req *raftcmdpb.RaftCMDRequest) error {
+func (s *store) validateStoreID(req *rpc.RequestBatch) error {
 	if req.Header.Peer.ContainerID != s.meta.meta.ID {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
 			req.Header.Peer.ContainerID,
@@ -684,7 +683,7 @@ func (s *store) validateStoreID(req *raftcmdpb.RaftCMDRequest) error {
 	return nil
 }
 
-func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
+func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	shardID := req.Header.ShardID
 	peerID := req.Header.Peer.ID
 
@@ -737,17 +736,17 @@ func (s *store) validateShard(req *raftcmdpb.RaftCMDRequest) *errorpb.Error {
 	return nil
 }
 
-func checkEpoch(shard bhmetapb.Shard, req *raftcmdpb.RaftCMDRequest) bool {
+func checkEpoch(shard meta.Shard, req *rpc.RequestBatch) bool {
 	checkVer := false
 	checkConfVer := false
 
 	if req.AdminRequest != nil {
 		switch req.AdminRequest.CmdType {
-		case raftcmdpb.AdminCmdType_BatchSplit:
+		case rpc.AdminCmdType_BatchSplit:
 			checkVer = true
-		case raftcmdpb.AdminCmdType_ChangePeer:
+		case rpc.AdminCmdType_ConfigChange:
 			checkConfVer = true
-		case raftcmdpb.AdminCmdType_TransferLeader:
+		case rpc.AdminCmdType_TransferLeader:
 			checkVer = true
 			checkConfVer = true
 		}
@@ -785,25 +784,25 @@ func checkEpoch(shard bhmetapb.Shard, req *raftcmdpb.RaftCMDRequest) bool {
 	return true
 }
 
-func newAdminRaftCMDResponse(adminType raftcmdpb.AdminCmdType, rsp protoc.PB) *raftcmdpb.RaftCMDResponse {
-	adminResp := new(raftcmdpb.AdminResponse)
+func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) *rpc.ResponseBatch {
+	adminResp := new(rpc.AdminResponse)
 	adminResp.CmdType = adminType
 
 	switch adminType {
-	case raftcmdpb.AdminCmdType_ChangePeer:
-		adminResp.ChangePeer = rsp.(*raftcmdpb.ChangePeerResponse)
-	case raftcmdpb.AdminCmdType_TransferLeader:
-		adminResp.TransferLeader = rsp.(*raftcmdpb.TransferLeaderResponse)
-	case raftcmdpb.AdminCmdType_BatchSplit:
-		adminResp.Splits = rsp.(*raftcmdpb.BatchSplitResponse)
+	case rpc.AdminCmdType_ConfigChange:
+		adminResp.ConfigChange = rsp.(*rpc.ConfigChangeResponse)
+	case rpc.AdminCmdType_TransferLeader:
+		adminResp.TransferLeader = rsp.(*rpc.TransferLeaderResponse)
+	case rpc.AdminCmdType_BatchSplit:
+		adminResp.Splits = rsp.(*rpc.BatchSplitResponse)
 	}
 
-	resp := pb.AcquireRaftCMDResponse()
+	resp := pb.AcquireResponseBatch()
 	resp.AdminResponse = adminResp
 	return resp
 }
 
-func (s *store) updateShardKeyRange(shard bhmetapb.Shard) {
+func (s *store) updateShardKeyRange(shard meta.Shard) {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		value.(*util.ShardTree).Update(shard)
 		return
@@ -818,7 +817,7 @@ func (s *store) updateShardKeyRange(shard bhmetapb.Shard) {
 	}
 }
 
-func (s *store) removeShardKeyRange(shard bhmetapb.Shard) bool {
+func (s *store) removeShardKeyRange(shard meta.Shard) bool {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		return value.(*util.ShardTree).Remove(shard)
 	}
@@ -840,15 +839,15 @@ func (s *store) selectShard(group uint64, key []byte) (*peerReplica, error) {
 	return pr.(*peerReplica), nil
 }
 
-func (s *store) searchShard(group uint64, key []byte) bhmetapb.Shard {
+func (s *store) searchShard(group uint64, key []byte) meta.Shard {
 	if value, ok := s.keyRanges.Load(group); ok {
 		return value.(*util.ShardTree).Search(key)
 	}
 
-	return bhmetapb.Shard{}
+	return meta.Shard{}
 }
 
-func (s *store) nextShard(shard bhmetapb.Shard) *bhmetapb.Shard {
+func (s *store) nextShard(shard meta.Shard) *meta.Shard {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		return value.(*util.ShardTree).NextShard(shard.Start)
 	}
@@ -858,7 +857,7 @@ func (s *store) nextShard(shard bhmetapb.Shard) *bhmetapb.Shard {
 
 // doClearData Delete all data belong to the shard.
 // If return Err, data may get partial deleted.
-func (s *store) doClearData(shard bhmetapb.Shard) error {
+func (s *store) doClearData(shard meta.Shard) error {
 	logger.Infof("shard %d deleting data", shard.ID)
 	err := s.removeShardData(shard, nil)
 	if err != nil {
@@ -869,13 +868,13 @@ func (s *store) doClearData(shard bhmetapb.Shard) error {
 	return err
 }
 
-func (s *store) startClearDataJob(shard bhmetapb.Shard) error {
+func (s *store) startClearDataJob(shard meta.Shard) error {
 	return s.addSnapJob(shard.Group, func() error {
 		return s.doClearData(shard)
 	}, nil)
 }
 
-func (s *store) removeShardData(shard bhmetapb.Shard, job *task.Job) error {
+func (s *store) removeShardData(shard meta.Shard, job *task.Job) error {
 	if job != nil &&
 		job.IsCancelling() {
 		return task.ErrJobCancelled

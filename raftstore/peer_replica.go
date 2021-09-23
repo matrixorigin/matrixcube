@@ -33,9 +33,8 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
@@ -95,7 +94,7 @@ type peerReplica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createPeerReplica(store *store, shard *bhmetapb.Shard, why string) (*peerReplica, error) {
+func createPeerReplica(store *store, shard *meta.Shard, why string) (*peerReplica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
 		return nil, fmt.Errorf("no peer found on store %d in shard %+v",
@@ -109,8 +108,8 @@ func createPeerReplica(store *store, shard *bhmetapb.Shard, why string) (*peerRe
 // createPeerReplicaWithRaftMessage the peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, peer metapb.Peer, why string) (*peerReplica, error) {
-	shard := &bhmetapb.Shard{
+func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer metapb.Peer, why string) (*peerReplica, error) {
+	shard := &meta.Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
 		Start:        msg.Start,
@@ -123,7 +122,7 @@ func createPeerReplicaWithRaftMessage(store *store, msg *bhraftpb.RaftMessage, p
 	return newPeerReplica(store, shard, peer, why)
 }
 
-func newPeerReplica(store *store, shard *bhmetapb.Shard, peer metapb.Peer, why string) (*peerReplica, error) {
+func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why string) (*peerReplica, error) {
 	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, peer.ID, peer.ContainerID))
 	logger2.Info("create shard",
 		f,
@@ -231,7 +230,7 @@ func (pr *peerReplica) start() {
 		log.WorkerField(pr.applyWorker))
 }
 
-func (pr *peerReplica) getShard() bhmetapb.Shard {
+func (pr *peerReplica) getShard() meta.Shard {
 	return pr.sm.getShard()
 }
 
@@ -276,7 +275,7 @@ func (pr *peerReplica) initLogState() (bool, error) {
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 
-func (pr *peerReplica) createStateMachine(shard *bhmetapb.Shard) {
+func (pr *peerReplica) createStateMachine(shard *meta.Shard) {
 	pr.sm = &stateMachine{
 		pr:          pr,
 		store:       pr.store,
@@ -339,7 +338,7 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 	return true, nil
 }
 
-func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
+func (pr *peerReplica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 
 	r := reqCtx{}

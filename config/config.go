@@ -23,7 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -369,27 +369,27 @@ type CustomizeConfig struct {
 	// CustomShardStateAwareFactory is a factory func to create aware.ShardStateAware to handled shard life cycle.
 	CustomShardStateAwareFactory func() aware.ShardStateAware
 	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
-	CustomInitShardsFactory func() []bhmetapb.Shard
+	CustomInitShardsFactory func() []meta.Shard
 	// CustomSnapshotManagerFactory is a factory func to create a snapshot.SnapshotManager to handle snapshot by youself.
 	CustomSnapshotManagerFactory func() snapshot.SnapshotManager
 	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
 	CustomTransportFactory func() transport.Transport
 	// CustomSnapshotDataCreateFuncFactory is factory create a func which called by cube if a snapshot need to create.
-	CustomSnapshotDataCreateFuncFactory func(group uint64) func(dataPath string, shard bhmetapb.Shard) error
+	CustomSnapshotDataCreateFuncFactory func(group uint64) func(dataPath string, shard meta.Shard) error
 	// CustomSnapshotDataApplyFuncFactory is factory create a func which called by cube if a snapshot need to apply.
-	CustomSnapshotDataApplyFuncFactory func(group uint64) func(dataPath string, shard bhmetapb.Shard) error
+	CustomSnapshotDataApplyFuncFactory func(group uint64) func(dataPath string, shard meta.Shard) error
 	// CustomSplitCheckFuncFactory  is factory create a func which called periodically by cube to check if the shard needs to be split
-	CustomSplitCheckFuncFactory func(group uint64) func(bhmetapb.Shard) (totalSize uint64, totalKeys uint64, splitKeys [][]byte, err error)
+	CustomSplitCheckFuncFactory func(group uint64) func(meta.Shard) (totalSize uint64, totalKeys uint64, splitKeys [][]byte, err error)
 	// CustomSplitCompletedFuncFactory  is factory create a func which called by cube when the split operation of the shard is completed.
 	// We can update the attributes of old and news shards in this func
-	CustomSplitCompletedFuncFactory func(group uint64) func(old *bhmetapb.Shard, news []bhmetapb.Shard)
+	CustomSplitCompletedFuncFactory func(group uint64) func(old *meta.Shard, news []meta.Shard)
 	// CustomAdjustCompactFunc is factory create a func which used to adjust raft log compactIdx
-	CustomAdjustCompactFuncFactory func(group uint64) func(shard bhmetapb.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
+	CustomAdjustCompactFuncFactory func(group uint64) func(shard meta.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
 	// `ShardPool` based on `offsetInPool`, these can be modified, provided that the only non-conflict.
-	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard
+	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard
 }
 
 // GetLabels returns lables

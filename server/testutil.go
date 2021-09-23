@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/fagongzi/goetty/codec"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/stretchr/testify/assert"
 )
@@ -57,7 +57,7 @@ type testHandler struct {
 	store raftstore.Store
 }
 
-func (h *testHandler) BuildRequest(req *raftcmdpb.Request, msg interface{}) error {
+func (h *testHandler) BuildRequest(req *rpc.Request, msg interface{}) error {
 	cmd := msg.(*testRequest)
 
 	cmdName := strings.ToUpper(cmd.Op)
@@ -75,10 +75,10 @@ func (h *testHandler) BuildRequest(req *raftcmdpb.Request, msg interface{}) erro
 	switch cmdName {
 	case "SET":
 		req.CustemType = 1
-		req.Type = raftcmdpb.CMDType_Write
+		req.Type = rpc.CmdType_Write
 	case "GET":
 		req.CustemType = 2
-		req.Type = raftcmdpb.CMDType_Read
+		req.Type = rpc.CmdType_Read
 
 	}
 	req.Key = []byte(cmd.Key)

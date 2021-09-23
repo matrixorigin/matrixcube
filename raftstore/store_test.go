@@ -23,7 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -86,7 +86,7 @@ func TestIssue123(t *testing.T) {
 	c := NewSingleTestClusterStore(t,
 		WithTestClusterLogLevel("info"),
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-			cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+			cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 		}))
 	defer c.Stop()
 
@@ -117,8 +117,8 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.ShardGroups = 2
 		cfg.Prophet.Replication.Groups = []uint64{0, 1}
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard {
-			return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}, {Group: 1, Start: []byte("a"), End: []byte("b")}}
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard {
+			return []meta.Shard{{Start: []byte("a"), End: []byte("b")}, {Group: 1, Start: []byte("a"), End: []byte("b")}}
 		}
 	}))
 	defer c.Stop()
@@ -126,7 +126,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 	c.Start()
 	c.WaitShardByCountPerNode(2, testWaitTimeout)
 
-	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
+	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(meta.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
 	assert.NoError(t, err)
 	c.WaitShardByCountPerNode(3, testWaitTimeout)
 }
@@ -134,7 +134,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 func TestAppliedRules(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
 
@@ -153,7 +153,7 @@ func TestAppliedRules(t *testing.T) {
 			},
 		},
 	}))
-	res := NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
+	res := NewResourceAdapterWithShard(meta.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
 	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
 	assert.NoError(t, err)
 
@@ -188,8 +188,8 @@ func TestAppliedRules(t *testing.T) {
 // 	defer leaktest.AfterTest(t)()
 // 	target := keys.EncodeDataKey(0, []byte("key2"))
 // 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-// 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
-// 			return func(shard bhmetapb.Shard) (uint64, uint64, [][]byte, error) {
+// 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard meta.Shard) (uint64, uint64, [][]byte, error) {
+// 			return func(shard meta.Shard) (uint64, uint64, [][]byte, error) {
 // 				store := cfg.Storage.DataStorageFactory(shard.Group).(storage.KVStorage)
 // 				endGroup := shard.Group
 // 				if len(shard.End) == 0 {
@@ -234,14 +234,14 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 		cfg.Raft.TickInterval = typeutil.NewDuration(time.Second * 2)
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
 
 	c.Start()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(bhmetapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
+	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(meta.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
 	c.WaitShardByCountPerNode(2, testWaitTimeout)
@@ -254,7 +254,7 @@ func TestSpeedupAddShard(t *testing.T) {
 func TestIssue166(t *testing.T) {
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Test.SaveDynamicallyShardInitStateWait = time.Second
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}), WithTestClusterLogLevel("error"))
 	defer c.Stop()
 
@@ -282,7 +282,7 @@ func TestIssue166(t *testing.T) {
 func TestInitialMember(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
 	c.Start()

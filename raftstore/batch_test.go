@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,10 +28,10 @@ var (
 func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
 	r1 := reqCtx{
-		admin: &raftcmdpb.AdminRequest{},
+		admin: &rpc.AdminRequest{},
 	}
 	r2 := reqCtx{
-		admin: &raftcmdpb.AdminRequest{},
+		admin: &rpc.AdminRequest{},
 	}
 	b.push(1, metapb.ResourceEpoch{}, r1)
 	b.push(1, metapb.ResourceEpoch{}, r2)
@@ -40,13 +40,13 @@ func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 
 func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 	r1 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	r2 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Read,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Read,
 		},
 	}
 	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
@@ -58,13 +58,13 @@ func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 
 func TestProposalBatchLimitsBatchSize(t *testing.T) {
 	r1 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	r2 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	b1 := newBatch(testMaxBatchSize, 10, metapb.Peer{})
@@ -85,13 +85,13 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 	epoch1 := metapb.ResourceEpoch{ConfVer: 1, Version: 1}
 	epoch2 := metapb.ResourceEpoch{ConfVer: 2, Version: 2}
 	r1 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	r2 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
@@ -107,13 +107,13 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 
 func TestProposalBatchPop(t *testing.T) {
 	r1 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Write,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Write,
 		},
 	}
 	r2 := reqCtx{
-		req: &raftcmdpb.Request{
-			Type: raftcmdpb.CMDType_Read,
+		req: &rpc.Request{
+			Type: rpc.CmdType_Read,
 		},
 	}
 	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})

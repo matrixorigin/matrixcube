@@ -7,8 +7,8 @@ package raftstore
 
 // 	"github.com/matrixorigin/matrixcube/command"
 // 	"github.com/matrixorigin/matrixcube/pb"
-// 	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-// 	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+// 	"github.com/matrixorigin/matrixcube/pb/meta"
+// 	"github.com/matrixorigin/matrixcube/pb/rpc"
 // 	"github.com/matrixorigin/matrixcube/util/leaktest"
 // 	"github.com/stretchr/testify/assert"
 // )
@@ -27,7 +27,7 @@ package raftstore
 
 // 	var storeID uint64
 // 	committedC := make(chan string, 2)
-// 	c := NewTestClusterStore(t, WithTestClusterWriteHandler(1, func(s bhmetapb.Shard, r *raftcmdpb.Request, c command.Context) (uint64, int64, *raftcmdpb.Response) {
+// 	c := NewTestClusterStore(t, WithTestClusterWriteHandler(1, func(s meta.Shard, r *rpc.Request, c command.Context) (uint64, int64, *rpc.Response) {
 // 		if storeID == c.StoreID() {
 // 			committedC <- string(r.ID)
 

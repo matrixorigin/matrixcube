@@ -11,7 +11,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,7 +40,7 @@ func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResour
 func TestShardPool(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
 
@@ -80,7 +80,7 @@ func TestShardPool(t *testing.T) {
 
 	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
-	sp := &bhmetapb.ShardsPool{}
+	sp := &meta.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
 	assert.True(t, sp.Pools[0].Seq >= 3)
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
@@ -101,7 +101,7 @@ func TestShardPool(t *testing.T) {
 
 	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
 	assert.NoError(t, err)
-	sp = &bhmetapb.ShardsPool{}
+	sp = &meta.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
 	assert.Equal(t, uint64(4), sp.Pools[0].Seq)
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
@@ -112,9 +112,9 @@ func TestShardPoolWithFactory(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-			cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
-			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) bhmetapb.Shard {
-				return bhmetapb.Shard{
+			cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
+			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard {
+				return meta.Shard{
 					Group:  g,
 					Start:  []byte(fmt.Sprintf("b-%d", offsetInPool)),
 					End:    []byte(fmt.Sprintf("b-%d", offsetInPool+1)),
@@ -151,7 +151,7 @@ func TestIssue192(t *testing.T) {
 
 	wc := make(chan struct{})
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []bhmetapb.Shard { return []bhmetapb.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
 		cfg.Test.ShardPoolCreateWaitC = wc
 	}))
 	defer c.Stop()

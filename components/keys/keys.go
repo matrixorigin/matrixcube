@@ -18,7 +18,7 @@ import (
 	"fmt"
 
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 // suffix for local metadata
@@ -198,7 +198,7 @@ func GetDataEndKey(group uint64, endKey []byte) []byte {
 	return EncodeDataKey(group, endKey)
 }
 
-func EncStartKey(shard *bhmetapb.Shard) []byte {
+func EncStartKey(shard *meta.Shard) []byte {
 	// only initialized shard's startKey can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {
@@ -208,7 +208,7 @@ func EncStartKey(shard *bhmetapb.Shard) []byte {
 	return EncodeDataKey(shard.Group, shard.Start)
 }
 
-func EncEndKey(shard *bhmetapb.Shard) []byte {
+func EncEndKey(shard *meta.Shard) []byte {
 	// only initialized shard's end_key can be encoded, otherwise there must be bugs
 	// somewhere.
 	if len(shard.Peers) == 0 {

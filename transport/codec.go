@@ -20,7 +20,7 @@ import (
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 const (
@@ -53,7 +53,7 @@ func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 
 	switch t {
 	case typeSnap:
-		msg := &bhraftpb.SnapshotMessage{}
+		msg := &meta.SnapshotMessage{}
 		protoc.MustUnmarshal(msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
@@ -71,10 +71,10 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	t := typeRaft
 	var m protoc.PB
 
-	if v, ok := data.(*bhraftpb.RaftMessage); ok {
+	if v, ok := data.(*meta.RaftMessage); ok {
 		t = typeRaft
 		m = v
-	} else if v, ok := data.(*bhraftpb.SnapshotMessage); ok {
+	} else if v, ok := data.(*meta.SnapshotMessage); ok {
 		t = typeSnap
 		m = v
 	} else {

@@ -15,7 +15,7 @@ package snapshot
 
 import (
 	"github.com/fagongzi/goetty"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 var (
@@ -28,13 +28,13 @@ var (
 // SnapshotManager manager snapshot
 type SnapshotManager interface {
 	Close()
-	Register(msg *bhraftpb.SnapshotMessage, step int) bool
-	Deregister(msg *bhraftpb.SnapshotMessage, step int)
-	Create(msg *bhraftpb.SnapshotMessage) error
-	Exists(msg *bhraftpb.SnapshotMessage) bool
-	WriteTo(msg *bhraftpb.SnapshotMessage, conn goetty.IOSession) (uint64, error)
-	CleanSnap(msg *bhraftpb.SnapshotMessage) error
-	ReceiveSnapData(msg *bhraftpb.SnapshotMessage) error
-	Apply(msg *bhraftpb.SnapshotMessage) error
+	Register(msg *meta.SnapshotMessage, step int) bool
+	Deregister(msg *meta.SnapshotMessage, step int)
+	Create(msg *meta.SnapshotMessage) error
+	Exists(msg *meta.SnapshotMessage) bool
+	WriteTo(msg *meta.SnapshotMessage, conn goetty.IOSession) (uint64, error)
+	CleanSnap(msg *meta.SnapshotMessage) error
+	ReceiveSnapData(msg *meta.SnapshotMessage) error
+	Apply(msg *meta.SnapshotMessage) error
 	ReceiveSnapCount() uint64
 }

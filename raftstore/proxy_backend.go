@@ -22,7 +22,7 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 var (
@@ -53,7 +53,7 @@ func newBackend(p *shardsProxy, addr string, conn goetty.IOSession) *backend {
 	return bc
 }
 
-func (bc *backend) addReq(req *raftcmdpb.Request) error {
+func (bc *backend) addReq(req *rpc.Request) error {
 	return bc.reqs.Put(req)
 }
 
@@ -93,12 +93,12 @@ func (bc *backend) writeLoop() {
 			err = bc.conn.Flush()
 			if err != nil {
 				for i := int64(0); i < n; i++ {
-					bc.p.errorDone(items[i].(*raftcmdpb.Request), err)
+					bc.p.errorDone(items[i].(*rpc.Request), err)
 				}
 			}
 
 			for i := int64(0); i < n; i++ {
-				pb.ReleaseRequest(items[i].(*raftcmdpb.Request))
+				pb.ReleaseRequest(items[i].(*rpc.Request))
 			}
 		}
 	}()
@@ -117,7 +117,7 @@ func (bc *backend) readLoop() {
 
 			}
 
-			if rsp, ok := data.(*raftcmdpb.Response); ok {
+			if rsp, ok := data.(*rpc.Response); ok {
 				if logger.DebugEnabled() {
 					logger.Debugf("%s proxy received response from %s",
 						hex.EncodeToString(rsp.ID),

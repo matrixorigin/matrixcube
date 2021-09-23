@@ -18,9 +18,9 @@ import (
 	"errors"
 
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 var (
@@ -37,7 +37,7 @@ var (
 	storeNotMatch = new(errorpb.StoreNotMatch)
 )
 
-func buildUUID(uuid []byte, resp *raftcmdpb.RaftCMDResponse) {
+func buildUUID(uuid []byte, resp *rpc.ResponseBatch) {
 	if resp.Header == nil {
 		return
 	}
@@ -47,19 +47,19 @@ func buildUUID(uuid []byte, resp *raftcmdpb.RaftCMDResponse) {
 	}
 }
 
-func errorOtherCMDResp(err error) *raftcmdpb.RaftCMDResponse {
+func errorOtherCMDResp(err error) *rpc.ResponseBatch {
 	resp := errorBaseResp(nil)
 	resp.Header.Error.Message = err.Error()
 	return resp
 }
 
-func errorPbResp(err *errorpb.Error, uuid []byte) *raftcmdpb.RaftCMDResponse {
+func errorPbResp(err *errorpb.Error, uuid []byte) *rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error = *err
 	return resp
 }
 
-func errorStaleCMDResp(uuid []byte) *raftcmdpb.RaftCMDResponse {
+func errorStaleCMDResp(uuid []byte) *rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleCommand = infoStaleCMD
@@ -68,7 +68,7 @@ func errorStaleCMDResp(uuid []byte) *raftcmdpb.RaftCMDResponse {
 }
 
 func errorStaleEpochResp(uuid []byte,
-	newShards ...bhmetapb.Shard) *raftcmdpb.RaftCMDResponse {
+	newShards ...meta.Shard) *rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
@@ -78,15 +78,15 @@ func errorStaleEpochResp(uuid []byte,
 	return resp
 }
 
-func errorBaseResp(uuid []byte) *raftcmdpb.RaftCMDResponse {
-	resp := pb.AcquireRaftCMDResponse()
-	resp.Header = pb.AcquireRaftResponseHeader()
+func errorBaseResp(uuid []byte) *rpc.ResponseBatch {
+	resp := pb.AcquireResponseBatch()
+	resp.Header = pb.AcquireResponseBatchHeader()
 	buildUUID(uuid, resp)
 
 	return resp
 }
 
-func checkKeyInShard(key []byte, shard *bhmetapb.Shard) *errorpb.Error {
+func checkKeyInShard(key []byte, shard *meta.Shard) *errorpb.Error {
 	if bytes.Compare(key, shard.Start) >= 0 &&
 		(len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil

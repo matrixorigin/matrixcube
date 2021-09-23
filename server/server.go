@@ -25,8 +25,8 @@ import (
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -38,7 +38,7 @@ type Application struct {
 	server      goetty.NetApplication
 	shardsProxy raftstore.ShardsProxy
 	libaryCB    sync.Map // id -> application cb
-	dispatcher  func(req *raftcmdpb.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
+	dispatcher  func(req *rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
 
 	logger *zap.Logger
 }
@@ -49,7 +49,7 @@ func NewApplication(cfg Cfg) *Application {
 }
 
 // NewApplication returns a tcp application server
-func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *raftcmdpb.Request, cmd interface{}, proxy raftstore.ShardsProxy) error) *Application {
+func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error) *Application {
 	s := &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
@@ -230,7 +230,7 @@ func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint
 
 	err := s.cfg.Handler.BuildRequest(req, cmd)
 	if err != nil {
-		resp := &raftcmdpb.Response{}
+		resp := &rpc.Response{}
 		resp.Error.Message = err.Error()
 		conn.WriteAndFlush(resp)
 		pb.ReleaseRequest(req)
@@ -244,14 +244,14 @@ func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint
 	}
 
 	if err != nil {
-		resp := &raftcmdpb.Response{}
+		resp := &rpc.Response{}
 		resp.Error.Message = err.Error()
 		conn.WriteAndFlush(resp)
 	}
 	return nil
 }
 
-func (s *Application) done(resp *raftcmdpb.Response) {
+func (s *Application) done(resp *rpc.Response) {
 	if ce := s.logger.Check(zap.DebugLevel, "response received"); ce != nil {
 		ce.Write(log.RequestIDField(resp.ID))
 	}
@@ -285,7 +285,7 @@ func (s *Application) done(resp *raftcmdpb.Response) {
 	}
 }
 
-func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
+func (s *Application) doneError(resp *rpc.Request, err error) {
 	if resp == nil && nil != err {
 		s.logger.Error("fail to response", zap.Error(err))
 		return
@@ -307,7 +307,7 @@ func (s *Application) doneError(resp *raftcmdpb.Request, err error) {
 	}
 
 	if conn, _ := s.server.GetSession(uint64(resp.SID)); conn != nil {
-		resp := &raftcmdpb.Response{}
+		resp := &rpc.Response{}
 		resp.Error.Message = err.Error()
 		conn.WriteAndFlush(resp)
 	}
@@ -334,7 +334,7 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 	var shards []uint64
 	var forwards []string
 	max := after
-	s.shardsProxy.Router().Every(group, mustLeader, func(shard *bhmetapb.Shard, store bhmetapb.Store) {
+	s.shardsProxy.Router().Every(group, mustLeader, func(shard *meta.Shard, store meta.Store) {
 		id := shard.ID
 		if store.ClientAddr == "" {
 			err = fmt.Errorf("missing forward store of shard %d", id)
@@ -355,7 +355,7 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 
 func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64, forwards []string) {
 	var err error
-	var requests []*raftcmdpb.Request
+	var requests []*rpc.Request
 	for _, shard := range shards {
 		req := pb.AcquireRequest()
 		req.ID = uuid.NewV4().Bytes()
@@ -399,7 +399,7 @@ func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64
 }
 
 func (s *Application) retryForward(arg interface{}) {
-	req := arg.(*raftcmdpb.Request)
+	req := arg.(*rpc.Request)
 	to := ""
 	if req.AllowFollower {
 		to = s.shardsProxy.Router().RandomPeerStore(req.ToShard).ClientAddr
@@ -415,7 +415,7 @@ func (s *Application) retryForward(arg interface{}) {
 }
 
 func (s *Application) releaseResponse(rsp interface{}) {
-	pb.ReleaseResponse(rsp.(*raftcmdpb.Response))
+	pb.ReleaseResponse(rsp.(*rpc.Response))
 }
 
 type asyncCtx interface {

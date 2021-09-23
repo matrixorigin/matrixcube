@@ -2,13 +2,13 @@ package raftstore
 
 import (
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type executeContext struct {
-	shard        bhmetapb.Shard
+	shard        meta.Shard
 	buf          *buf.ByteBuf
 	cmds         []cmd
 	requests     []storage.LogRequest
@@ -28,7 +28,7 @@ func (ctx *executeContext) close() {
 	ctx.buf.Release()
 }
 
-func (ctx *executeContext) appendRequest(req *raftcmdpb.RaftCMDRequest) {
+func (ctx *executeContext) appendRequest(req *rpc.RequestBatch) {
 	ctx.appendRequestByCmd(cmd{req: req})
 }
 
@@ -54,7 +54,7 @@ func (ctx *executeContext) ByteBuf() *buf.ByteBuf {
 	return ctx.buf
 }
 
-func (ctx *executeContext) Shard() bhmetapb.Shard {
+func (ctx *executeContext) Shard() meta.Shard {
 	return ctx.shard
 }
 
@@ -78,7 +78,7 @@ func (ctx *executeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *executeContext) reset(shard bhmetapb.Shard) {
+func (ctx *executeContext) reset(shard meta.Shard) {
 	ctx.buf.Clear()
 	ctx.shard = shard
 	ctx.cmds = ctx.cmds[:0]

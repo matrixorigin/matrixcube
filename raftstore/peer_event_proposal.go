@@ -21,7 +21,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.etcd.io/etcd/raft/v3/tracker"
 )
@@ -222,13 +222,13 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	return true
 }
 
-func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *raftcmdpb.AdminRequest, data []byte) error {
+func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *rpc.AdminRequest, data []byte) error {
 	cc := pr.toConfChangeI(admin, data)
-	var changes []raftcmdpb.ChangePeerRequest
-	if admin.ChangePeerV2 != nil {
-		changes = admin.ChangePeerV2.Changes
+	var changes []rpc.ConfigChangeRequest
+	if admin.ConfigChangeV2 != nil {
+		changes = admin.ConfigChangeV2.Changes
 	} else {
-		changes = append(changes, *admin.ChangePeer)
+		changes = append(changes, *admin.ConfigChange)
 	}
 
 	err := pr.checkConfChange(changes, cc)
@@ -257,16 +257,16 @@ func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *raftcmdpb.AdminRe
 	return nil
 }
 
-func (pr *peerReplica) toConfChangeI(admin *raftcmdpb.AdminRequest, data []byte) raftpb.ConfChangeI {
-	if admin.ChangePeer != nil {
+func (pr *peerReplica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
+	if admin.ConfigChange != nil {
 		return &raftpb.ConfChange{
-			Type:    raftpb.ConfChangeType(admin.ChangePeer.ChangeType),
-			NodeID:  admin.ChangePeer.Peer.ID,
+			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
+			NodeID:  admin.ConfigChange.Peer.ID,
 			Context: data,
 		}
 	} else {
 		cc := &raftpb.ConfChangeV2{}
-		for _, ch := range admin.ChangePeerV2.Changes {
+		for _, ch := range admin.ConfigChangeV2.Changes {
 			cc.Changes = append(cc.Changes, raftpb.ConfChangeSingle{
 				Type:   raftpb.ConfChangeType(ch.ChangeType),
 				NodeID: ch.Peer.ID,
@@ -304,7 +304,7 @@ func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
 
 	// transfer leader command doesn't need to replicate log and apply, so we
 	// return immediately. Note that this command may fail, we can view it just as an advice
-	c.resp(newAdminRaftCMDResponse(raftcmdpb.AdminCmdType_TransferLeader, &raftcmdpb.TransferLeaderResponse{}))
+	c.resp(newAdminResponseBatch(rpc.AdminCmdType_TransferLeader, &rpc.TransferLeaderResponse{}))
 	return false
 }
 
@@ -366,7 +366,7 @@ func (pr *peerReplica) checkProposal(c cmd) bool {
 /// right after all conf change is applied.
 /// If 'allow_remove_leader' is false then the peer to be removed should
 /// not be the leader.
-func (pr *peerReplica) checkConfChange(changes []raftcmdpb.ChangePeerRequest, cci raftpb.ConfChangeI) error {
+func (pr *peerReplica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb.ConfChangeI) error {
 	cc := cci.AsV2()
 	afterProgress, err := pr.checkJointState(cc)
 	if err != nil {
@@ -457,14 +457,14 @@ func (pr *peerReplica) checkJointState(cci raftpb.ConfChangeI) (*tracker.Progres
 	return trk, nil
 }
 
-func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPolicy, error) {
+func (pr *peerReplica) getHandlePolicy(req *rpc.RequestBatch) (requestPolicy, error) {
 	if req.AdminRequest != nil {
 		switch req.AdminRequest.CmdType {
-		case raftcmdpb.AdminCmdType_ChangePeer:
+		case rpc.AdminCmdType_ConfigChange:
 			return proposeChange, nil
-		case raftcmdpb.AdminCmdType_ChangePeerV2:
+		case rpc.AdminCmdType_ConfigChangeV2:
 			return proposeChange, nil
-		case raftcmdpb.AdminCmdType_TransferLeader:
+		case rpc.AdminCmdType_TransferLeader:
 			return proposeTransferLeader, nil
 		default:
 			return proposeNormal, nil
@@ -473,8 +473,8 @@ func (pr *peerReplica) getHandlePolicy(req *raftcmdpb.RaftCMDRequest) (requestPo
 
 	var isRead, isWrite bool
 	for _, r := range req.Requests {
-		isRead = r.Type == raftcmdpb.CMDType_Read
-		isWrite = r.Type == raftcmdpb.CMDType_Write
+		isRead = r.Type == rpc.CmdType_Read
+		isWrite = r.Type == rpc.CmdType_Write
 	}
 
 	if isRead && isWrite {

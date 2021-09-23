@@ -19,7 +19,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 func (pr *peerReplica) handleApplyResult(items []interface{}) {
@@ -80,9 +80,9 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 
 func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
-	case raftcmdpb.AdminCmdType_ChangePeer:
+	case rpc.AdminCmdType_ConfigChange:
 		pr.doApplyConfChange(result.result.changePeerResult)
-	case raftcmdpb.AdminCmdType_BatchSplit:
+	case rpc.AdminCmdType_BatchSplit:
 		pr.doApplySplit(result.result.splitResult)
 	}
 }

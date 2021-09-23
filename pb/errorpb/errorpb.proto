@@ -1,7 +1,7 @@
 syntax = "proto3";
 package errorpb;
 
-import "github.com/matrixorigin/matrixcube/pb/bhmetapb/bhmetapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/meta/meta.proto";
 import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
@@ -35,7 +35,7 @@ message KeyNotInShard {
 
 // StaleEpoch the current shard peer is stale
 message StaleEpoch {
-    repeated bhmetapb.Shard newShards = 1 [(gogoproto.nullable) = false];
+    repeated meta.Shard newShards = 1 [(gogoproto.nullable) = false];
 }
 
 // ServerIsBusy the server is busy

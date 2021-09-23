@@ -19,7 +19,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
@@ -31,8 +31,8 @@ var (
 )
 
 type applySnapResult struct {
-	prev    bhmetapb.Shard
-	current bhmetapb.Shard
+	prev    meta.Shard
+	current meta.Shard
 }
 
 func (pr *peerReplica) handleReady() error {

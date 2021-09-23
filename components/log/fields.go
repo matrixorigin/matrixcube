@@ -21,10 +21,9 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/bhmetapb"
-	"github.com/matrixorigin/matrixcube/pb/bhraftpb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
@@ -60,13 +59,13 @@ func WorkerField(name string) zap.Field {
 }
 
 // RaftMessageField return formated raft message zap string field
-func RaftMessageField(key string, msg *bhraftpb.RaftMessage) zap.Field {
+func RaftMessageField(key string, msg *meta.RaftMessage) zap.Field {
 	var info bytes.Buffer
 
 	appendRaftMessage(msg.Message, &info, true)
 	appendPeer("from", msg.From, &info, false)
 	appendPeer("to", msg.To, &info, false)
-	appendShard(bhmetapb.Shard{ID: msg.ShardID, Group: msg.Group, Epoch: msg.ShardEpoch, Start: msg.Start, End: msg.End}, &info, false)
+	appendShard(meta.Shard{ID: msg.ShardID, Group: msg.Group, Epoch: msg.ShardEpoch, Start: msg.Start, End: msg.End}, &info, false)
 
 	info.WriteString(", tombstone: ")
 	info.WriteString(format.BoolToString(msg.IsTombstone))
@@ -75,7 +74,7 @@ func RaftMessageField(key string, msg *bhraftpb.RaftMessage) zap.Field {
 }
 
 // ShardField return formated shard zap string field
-func ShardField(key string, shard bhmetapb.Shard) zap.Field {
+func ShardField(key string, shard meta.Shard) zap.Field {
 	var info bytes.Buffer
 	appendShard(shard, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
@@ -89,14 +88,14 @@ func EpochField(key string, epoch metapb.ResourceEpoch) zap.Field {
 }
 
 // RaftRequestField return formated raft request zap string field
-func RaftRequestField(key string, req *raftcmdpb.Request) zap.Field {
+func RaftRequestField(key string, req *rpc.Request) zap.Field {
 	var info bytes.Buffer
 	appendRaftRequest(req, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
 // RaftResponseField return formated raft response zap string field
-func RaftResponseField(key string, resp *raftcmdpb.Response) zap.Field {
+func RaftResponseField(key string, resp *rpc.Response) zap.Field {
 	var info bytes.Buffer
 	appendRaftResponse(resp, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
@@ -116,19 +115,19 @@ func PeerField(key string, peer metapb.Peer) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ChangePeerField return formated change peer zap string field
-func ChangePeerField(key string, req *raftcmdpb.ChangePeerRequest) zap.Field {
+// ConfigChangeField return formated change peer zap string field
+func ConfigChangeField(key string, req *rpc.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
-	doAppendChangePeer(req, &info)
+	doAppendConfigChange(req, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ChangePeersField return formated change peer zap string field
-func ChangePeersField(key string, changes []raftcmdpb.ChangePeerRequest) zap.Field {
+// ConfigChangesField return formated change peer zap string field
+func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
 	info.WriteString("[")
 	for idx := range changes {
-		doAppendChangePeer(&changes[idx], &info)
+		doAppendConfigChange(&changes[idx], &info)
 		if idx < len(changes)-1 {
 			info.WriteString(", ")
 		}
@@ -137,13 +136,13 @@ func ChangePeersField(key string, changes []raftcmdpb.ChangePeerRequest) zap.Fie
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-func doAppendChangePeer(req *raftcmdpb.ChangePeerRequest, info *bytes.Buffer) {
+func doAppendConfigChange(req *rpc.ConfigChangeRequest, info *bytes.Buffer) {
 	info.WriteString("type: ")
 	info.WriteString(req.ChangeType.String())
 	appendPeer("peer", req.Peer, info, false)
 }
 
-func appendRaftResponse(resp *raftcmdpb.Response, info *bytes.Buffer, first bool) {
+func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
 	if !first {
 		info.WriteString(", ")
 	}
@@ -170,7 +169,7 @@ func appendRaftResponse(resp *raftcmdpb.Response, info *bytes.Buffer, first bool
 	info.WriteString(format.BoolToString(resp.Stale))
 }
 
-func appendRaftRequest(req *raftcmdpb.Request, info *bytes.Buffer, first bool) {
+func appendRaftRequest(req *rpc.Request, info *bytes.Buffer, first bool) {
 	if !first {
 		info.WriteString(", ")
 	}
@@ -198,7 +197,7 @@ func appendRaftRequest(req *raftcmdpb.Request, info *bytes.Buffer, first bool) {
 	info.WriteString(format.Uint64ToString(req.ToShard))
 }
 
-func appendShard(shard bhmetapb.Shard, info *bytes.Buffer, first bool) {
+func appendShard(shard meta.Shard, info *bytes.Buffer, first bool) {
 	if !first {
 		info.WriteString(", ")
 	}

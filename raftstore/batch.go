@@ -20,7 +20,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/raftcmdpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 // TODO: request type should has its own type
@@ -37,9 +37,9 @@ var (
 )
 
 type reqCtx struct {
-	admin *raftcmdpb.AdminRequest
-	req   *raftcmdpb.Request
-	cb    func(*raftcmdpb.RaftCMDResponse)
+	admin *rpc.AdminRequest
+	req   *rpc.Request
+	cb    func(*rpc.ResponseBatch)
 }
 
 func (c reqCtx) getType() int {
@@ -47,7 +47,7 @@ func (c reqCtx) getType() int {
 		return admin
 	}
 
-	if c.req.Type == raftcmdpb.CMDType_Write {
+	if c.req.Type == rpc.CmdType_Write {
 		return write
 	}
 
@@ -126,8 +126,8 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 	}
 
 	if !added {
-		raftCMD := pb.AcquireRaftCMDRequest()
-		raftCMD.Header = pb.AcquireRaftRequestHeader()
+		raftCMD := pb.AcquireRequestBatch()
+		raftCMD.Header = pb.AcquireRequestBatchHeader()
 		raftCMD.Header.ShardID = b.shardID
 		raftCMD.Header.Peer = b.peer
 		raftCMD.Header.ID = uuid.NewV4().Bytes()
