@@ -735,7 +735,7 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
-	t.Parallel()
+	// t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
 	return c
