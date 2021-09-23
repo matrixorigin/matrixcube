@@ -711,7 +711,7 @@ type testRaftCluster struct {
 	// init fields
 	t               *testing.T
 	initOpts        []TestClusterOption
-	dataDirs        []string
+	baseDataDir     string
 	portsRaftAddr   []int
 	portsClientAddr []int
 	portsRPCAddr    []int
@@ -735,7 +735,7 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
-	// t.Parallel()
+	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
 	return c
@@ -758,14 +758,12 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
 
 	if init {
+		c.baseDataDir = fmt.Sprintf("%s/%d", c.opts.tmpDir, time.Now().Nanosecond())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdClient = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdPeer = testutil.GenTestPorts(c.opts.nodes)
-		for i := 0; i < c.opts.nodes; i++ {
-			c.dataDirs = append(c.dataDirs, fmt.Sprintf("%s/%d/node-%d", c.opts.tmpDir, time.Now().Nanosecond(), i))
-		}
 	}
 
 	if c.opts.disableSchedule {
@@ -775,7 +773,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
 		cfg.FS = vfs.GetTestFS()
-		cfg.DataPath = c.dataDirs[i]
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
 			recreateTestTempDir(cfg.FS, cfg.DataPath)
 		}
@@ -914,10 +912,16 @@ func (c *testRaftCluster) Start() {
 }
 
 func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
+	logger.Infof("begin to start test case %d", c.baseDataDir)
+	defer logger.Infof("end to start test case %d", c.baseDataDir)
+
 	var notProphetNodes []int
 	var wg sync.WaitGroup
 	fn := func(i int) {
 		defer wg.Done()
+
+		logger.Infof("begin to start test case %d, node %d", c.baseDataDir, i)
+		defer logger.Infof("end to start test case %d, node %d", c.baseDataDir, i)
 
 		s := c.stores[i]
 		if c.opts.nodeStartFunc != nil {
@@ -971,8 +975,13 @@ func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 }
 
 func (c *testRaftCluster) Stop() {
-	for _, s := range c.stores {
+	logger.Infof("begin to stop test case %d", c.baseDataDir)
+	defer logger.Infof("end to stop test case %d", c.baseDataDir)
+
+	for i, s := range c.stores {
+		logger.Infof("begin to close test case %d, node %d", c.baseDataDir, i)
 		s.Stop()
+		logger.Infof("end to close test case %d, node %d", c.baseDataDir, i)
 	}
 
 	for _, s := range c.dataStorages {
