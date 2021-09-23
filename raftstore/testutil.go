@@ -912,16 +912,16 @@ func (c *testRaftCluster) Start() {
 }
 
 func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
-	logger.Infof("begin to start test case %d", c.baseDataDir)
-	defer logger.Infof("end to start test case %d", c.baseDataDir)
+	logger.Infof("begin to start test case %s", c.baseDataDir)
+	defer logger.Infof("end to start test case %s", c.baseDataDir)
 
 	var notProphetNodes []int
 	var wg sync.WaitGroup
 	fn := func(i int) {
 		defer wg.Done()
 
-		logger.Infof("begin to start test case %d, node %d", c.baseDataDir, i)
-		defer logger.Infof("end to start test case %d, node %d", c.baseDataDir, i)
+		logger.Infof("begin to start test case %s, node %d", c.baseDataDir, i)
+		defer logger.Infof("end to start test case %s, node %d", c.baseDataDir, i)
 
 		s := c.stores[i]
 		if c.opts.nodeStartFunc != nil {
@@ -975,13 +975,13 @@ func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 }
 
 func (c *testRaftCluster) Stop() {
-	logger.Infof("begin to stop test case %d", c.baseDataDir)
-	defer logger.Infof("end to stop test case %d", c.baseDataDir)
+	logger.Infof("begin to stop test case %s", c.baseDataDir)
+	defer logger.Infof("end to stop test case %s", c.baseDataDir)
 
 	for i, s := range c.stores {
-		logger.Infof("begin to close test case %d, node %d", c.baseDataDir, i)
+		logger.Infof("begin to close test case %s, node %d", c.baseDataDir, i)
 		s.Stop()
-		logger.Infof("end to close test case %d, node %d", c.baseDataDir, i)
+		logger.Infof("end to close test case %s, node %d", c.baseDataDir, i)
 	}
 
 	for _, s := range c.dataStorages {

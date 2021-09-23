@@ -24,7 +24,6 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
-	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
@@ -212,12 +211,12 @@ func (pr *peerReplica) start() {
 	pr.batch = newBatch(pr)
 	pr.readCtx = newReadContext(pr)
 	pr.events = task.NewRingBuffer(2)
-	pr.ticks = &task.Queue{}
-	pr.steps = &task.Queue{}
-	pr.reports = &task.Queue{}
-	pr.applyResults = &task.Queue{}
-	pr.requests = &task.Queue{}
-	pr.actions = &task.Queue{}
+	pr.ticks = task.New(32)
+	pr.steps = task.New(32)
+	pr.reports = task.New(32)
+	pr.applyResults = task.New(32)
+	pr.requests = task.New(32)
+	pr.actions = task.New(32)
 	pr.readyCtx = &readyContext{
 		wb: util.NewWriteBatch(),
 	}
@@ -454,7 +453,7 @@ func (pr *peerReplica) mustDestroy(why string) {
 }
 
 func (pr *peerReplica) onReq(req *raftcmdpb.Request, cb func(*raftcmdpb.RaftCMDResponse)) error {
-	metric.IncComandCount(hack.SliceToString(format.UInt64ToString(req.CustemType)))
+	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 
 	r := reqCtx{}
 	r.req = req

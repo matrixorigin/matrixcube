@@ -365,11 +365,12 @@ func (s *store) startHandleResourceHeartbeat() {
 	if err != nil {
 		logger.Fatalf("start handle resource heartbeat resp task failed with %+v", err)
 	}
-	s.runner.RunCancelableTask(func(ctx context.Context) {
+	s.runner.RunCancelableTask("handler-resource-heartbeat", func(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof("handle resource heartbeat resp task stopped")
+				logger.Infof("store %d handle resource heartbeat resp task stopped",
+					s.Meta().ID)
 				return
 			case rsp, ok := <-c:
 				if ok {
