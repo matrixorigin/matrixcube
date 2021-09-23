@@ -765,12 +765,11 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	c.opts.adjust()
 
 	if init {
-		ts := time.Now().Nanosecond()
 		log.SetHighlighting(false)
 		log.SetLevelByString(c.opts.logLevel)
 		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
 
-		c.baseDataDir = fmt.Sprintf("%s/%d", c.opts.tmpDir, ts)
+		c.baseDataDir = fmt.Sprintf("%s/%s-%d", c.opts.tmpDir, c.t.Name(), time.Now().Nanosecond())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
