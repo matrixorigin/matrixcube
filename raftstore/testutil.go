@@ -324,7 +324,13 @@ func (ts *testShardAware) shardCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
 
-	return len(ts.shards)
+	c := 0
+	for _, s := range ts.shards {
+		if len(s.Peers) > 0 {
+			c++
+		}
+	}
+	return c
 }
 
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
@@ -433,6 +439,11 @@ func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
 	defer ts.Unlock()
 
 	ts.applied[shard.ID]++
+	for idx, s := range ts.shards {
+		if s.ID == shard.ID {
+			ts.shards[idx] = shard
+		}
+	}
 
 	if ts.wrapper != nil {
 		ts.wrapper.SnapshotApplied(shard)
@@ -753,12 +764,13 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	}
 	c.opts.adjust()
 
-	log.SetHighlighting(false)
-	log.SetLevelByString(c.opts.logLevel)
-	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
-
 	if init {
-		c.baseDataDir = fmt.Sprintf("%s/%d", c.opts.tmpDir, time.Now().Nanosecond())
+		ts := time.Now().Nanosecond()
+		log.SetHighlighting(false)
+		log.SetLevelByString(c.opts.logLevel)
+		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
+		c.baseDataDir = fmt.Sprintf("%s/%d", c.opts.tmpDir, ts)
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
