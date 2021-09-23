@@ -49,7 +49,7 @@ const (
 	heartbeatAction    = actionType(4)
 )
 
-func (pr *peerReplica) addRequest(req reqCtx) error {
+func (pr *replica) addRequest(req reqCtx) error {
 	err := pr.requests.Put(req)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (pr *peerReplica) addRequest(req reqCtx) error {
 	return nil
 }
 
-func (pr *peerReplica) addAction(act action) {
+func (pr *replica) addAction(act action) {
 	err := pr.actions.Put(act)
 	if err != nil {
 		return
@@ -68,7 +68,7 @@ func (pr *peerReplica) addAction(act action) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) addReport(report interface{}) {
+func (pr *replica) addReport(report interface{}) {
 	err := pr.reports.Put(report)
 	if err != nil {
 		logger.Infof("shard %d raft report stopped",
@@ -79,13 +79,13 @@ func (pr *peerReplica) addReport(report interface{}) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) addEvent() (bool, error) {
+func (pr *replica) addEvent() (bool, error) {
 	ok, err := pr.events.Offer(struct{}{})
 	pr.notifyWorker()
 	return ok, err
 }
 
-func (pr *peerReplica) addApplyResult(result asyncApplyResult) {
+func (pr *replica) addApplyResult(result asyncApplyResult) {
 	err := pr.applyResults.Put(result)
 	if err != nil {
 		logger.Infof("shard %d raft apply result stopped",
@@ -96,7 +96,7 @@ func (pr *peerReplica) addApplyResult(result asyncApplyResult) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) step(msg raftpb.Message) {
+func (pr *replica) step(msg raftpb.Message) {
 	err := pr.steps.Put(msg)
 	if err != nil {
 		logger.Infof("shard %d raft step stopped",
@@ -107,13 +107,13 @@ func (pr *peerReplica) step(msg raftpb.Message) {
 	pr.addEvent()
 }
 
-func (pr *peerReplica) onAdmin(req *rpc.AdminRequest) error {
+func (pr *replica) onAdmin(req *rpc.AdminRequest) error {
 	r := reqCtx{}
 	r.admin = req
 	return pr.addRequest(r)
 }
 
-func (pr *peerReplica) onRaftTick(arg interface{}) {
+func (pr *replica) onRaftTick(arg interface{}) {
 	if !pr.stopRaftTick {
 		err := pr.ticks.Put(struct{}{})
 		if err != nil {
@@ -129,7 +129,7 @@ func (pr *peerReplica) onRaftTick(arg interface{}) {
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
-func (pr *peerReplica) handleEvent() bool {
+func (pr *replica) handleEvent() bool {
 	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
 		return false
 	}
@@ -204,12 +204,12 @@ func (pr *peerReplica) handleEvent() bool {
 	return true
 }
 
-func (pr *peerReplica) cacheRaftStatus() {
+func (pr *replica) cacheRaftStatus() {
 	st := pr.rn.Status()
 	pr.setLeaderPeerID(st.Lead)
 }
 
-func (pr *peerReplica) handleAction(items []interface{}) {
+func (pr *replica) handleAction(items []interface{}) {
 	size := pr.actions.Len()
 	if size == 0 {
 		return
@@ -246,7 +246,7 @@ func (pr *peerReplica) handleAction(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) handleStep(items []interface{}) {
+func (pr *replica) handleStep(items []interface{}) {
 	size := pr.steps.Len()
 	if size == 0 {
 		return
@@ -285,7 +285,7 @@ func (pr *peerReplica) handleStep(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) handleTick(items []interface{}) {
+func (pr *replica) handleTick(items []interface{}) {
 	for {
 		size := pr.ticks.Len()
 		if size == 0 {
@@ -307,7 +307,7 @@ func (pr *peerReplica) handleTick(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) handleReport(items []interface{}) {
+func (pr *replica) handleReport(items []interface{}) {
 	size := pr.reports.Len()
 	if size == 0 {
 		return
@@ -335,7 +335,7 @@ func (pr *peerReplica) handleReport(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) doCheckSplit() {
+func (pr *replica) doCheckSplit() {
 	if !pr.isLeader() {
 		return
 	}
@@ -365,7 +365,7 @@ func (pr *peerReplica) doCheckSplit() {
 	pr.sizeDiffHint = 0
 }
 
-func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {
+func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {
 	if !pr.isLeader() {
 		return
 	}
@@ -394,10 +394,10 @@ func (pr *peerReplica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epo
 	pr.onAdmin(req)
 }
 
-func (pr *peerReplica) doCheckCompact() {
+func (pr *replica) doCheckCompact() {
 }
 
-func (pr *peerReplica) doHeartbeat() {
+func (pr *replica) doHeartbeat() {
 	if !pr.isLeader() {
 		return
 	}

@@ -33,7 +33,7 @@ type stateMachine struct {
 	shardID     uint64
 	peerID      uint64
 	executorCtx *applyContext
-	pr          *peerReplica
+	pr          *replica
 	store       *store
 	dataStorage storage.DataStorage
 

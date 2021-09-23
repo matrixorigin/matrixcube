@@ -251,7 +251,7 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 }
 
 func (s *store) doShardHeartbeat() {
-	s.foreachPR(func(pr *peerReplica) bool {
+	s.foreachPR(func(pr *replica) bool {
 		if pr.isLeader() {
 			pr.addAction(action{actionType: heartbeatAction})
 		}
@@ -315,7 +315,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		})
 	}
 
-	s.foreachPR(func(pr *peerReplica) bool {
+	s.foreachPR(func(pr *replica) bool {
 		// TODO: re-enable this
 		//if pr.ps.isApplyingSnapshot() {
 		//	stats.ApplyingSnapCount++

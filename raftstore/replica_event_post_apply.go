@@ -22,7 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
-func (pr *peerReplica) handleApplyResult(items []interface{}) {
+func (pr *replica) handleApplyResult(items []interface{}) {
 	for {
 		size := pr.applyResults.Len()
 		if size == 0 {
@@ -46,14 +46,14 @@ func (pr *peerReplica) handleApplyResult(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) doPollApply(result asyncApplyResult) {
+func (pr *replica) doPollApply(result asyncApplyResult) {
 	pr.doPostApply(result)
 	if result.result != nil {
 		pr.doPostApplyResult(result)
 	}
 }
 
-func (pr *peerReplica) doPostApply(result asyncApplyResult) {
+func (pr *replica) doPostApply(result asyncApplyResult) {
 	pr.appliedIndex = result.index
 	pr.rn.AdvanceApply(result.index)
 
@@ -78,7 +78,7 @@ func (pr *peerReplica) doPostApply(result asyncApplyResult) {
 	pr.maybeExecRead()
 }
 
-func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
+func (pr *replica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
 	case rpc.AdminCmdType_ConfigChange:
 		pr.doApplyConfChange(result.result.changePeerResult)
@@ -87,7 +87,7 @@ func (pr *peerReplica) doPostApplyResult(result asyncApplyResult) {
 	}
 }
 
-func (pr *peerReplica) doApplyConfChange(cp *changePeerResult) {
+func (pr *replica) doApplyConfChange(cp *changePeerResult) {
 	if cp.index == 0 {
 		// Apply failed, skip.
 		return
@@ -157,7 +157,7 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeerResult) {
 		shard.Peers)
 }
 
-func (pr *peerReplica) doApplySplit(result *splitResult) {
+func (pr *replica) doApplySplit(result *splitResult) {
 	logger.Infof("shard %d update to %+v by post applt split",
 		pr.shardID,
 		result.derived)

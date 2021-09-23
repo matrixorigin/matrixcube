@@ -35,7 +35,7 @@ type applySnapResult struct {
 	current meta.Shard
 }
 
-func (pr *peerReplica) handleReady() error {
+func (pr *replica) handleReady() error {
 	rd := pr.rn.ReadySince(pr.lastReadyIndex)
 	pr.handleRaftState(rd)
 	pr.sendRaftReplicateMessages(rd)
@@ -53,7 +53,7 @@ func (pr *peerReplica) handleReady() error {
 	return nil
 }
 
-func (pr *peerReplica) handleRaftState(rd raft.Ready) {
+func (pr *replica) handleRaftState(rd raft.Ready) {
 	// etcd raft won't repeatedly return the same non-empty soft state
 	if rd.SoftState != nil {
 		// If we become leader, send heartbeat to pd
@@ -75,13 +75,13 @@ func (pr *peerReplica) handleRaftState(rd raft.Ready) {
 	}
 }
 
-func (pr *peerReplica) handleRaftReadyAppend(rd raft.Ready) error {
+func (pr *replica) handleRaftReadyAppend(rd raft.Ready) error {
 	start := time.Now()
 	defer metric.ObserveRaftLogAppendDuration(start)
 	return pr.handleAppendEntries(rd)
 }
 
-func (pr *peerReplica) handleAppendEntries(rd raft.Ready) error {
+func (pr *replica) handleAppendEntries(rd raft.Ready) error {
 	if len(rd.Entries) > 0 {
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
@@ -90,7 +90,7 @@ func (pr *peerReplica) handleAppendEntries(rd raft.Ready) error {
 	return nil
 }
 
-func (pr *peerReplica) limitNumOfEntriesToApply(rd raft.Ready) raft.Ready {
+func (pr *replica) limitNumOfEntriesToApply(rd raft.Ready) raft.Ready {
 	if testMaxOnceCommitEntryCount > 0 &&
 		testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
 		rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
@@ -98,7 +98,7 @@ func (pr *peerReplica) limitNumOfEntriesToApply(rd raft.Ready) raft.Ready {
 	return rd
 }
 
-func (pr *peerReplica) applyCommittedEntries(rd raft.Ready) error {
+func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 	for _, entry := range rd.CommittedEntries {
 		pr.raftLogSizeHint += uint64(len(entry.Data))
 	}
@@ -113,7 +113,7 @@ func (pr *peerReplica) applyCommittedEntries(rd raft.Ready) error {
 	return nil
 }
 
-func (pr *peerReplica) handleReadyToRead(rd raft.Ready) {
+func (pr *replica) handleReadyToRead(rd raft.Ready) {
 	for _, state := range rd.ReadStates {
 		pr.pendingReads.ready(state)
 	}
@@ -122,23 +122,23 @@ func (pr *peerReplica) handleReadyToRead(rd raft.Ready) {
 	}
 }
 
-func (pr *peerReplica) sendRaftReplicateMessages(rd raft.Ready) {
+func (pr *replica) sendRaftReplicateMessages(rd raft.Ready) {
 	// MsgApp can be immediately sent to followers so leader and followers can
 	// concurrently persist the logs to disk. For more details, check raft thesis
 	// section 10.2.1.
 	pr.send(rd.Messages, true)
 }
 
-func (pr *peerReplica) sendRaftMessages(rd raft.Ready) {
+func (pr *replica) sendRaftMessages(rd raft.Ready) {
 	// send all other non-MsgApp messages
 	pr.send(rd.Messages, false)
 }
 
-func (pr *peerReplica) isMsgApp(m raftpb.Message) bool {
+func (pr *replica) isMsgApp(m raftpb.Message) bool {
 	return m.Type == raftpb.MsgApp
 }
 
-func (pr *peerReplica) send(msgs []raftpb.Message, msgAppOnly bool) {
+func (pr *replica) send(msgs []raftpb.Message, msgAppOnly bool) {
 	for _, msg := range msgs {
 		if pr.isMsgApp(msg) && msgAppOnly {
 			pr.sendMessage(msg)
@@ -148,7 +148,7 @@ func (pr *peerReplica) send(msgs []raftpb.Message, msgAppOnly bool) {
 	}
 }
 
-func (pr *peerReplica) sendMessage(msg raftpb.Message) {
+func (pr *replica) sendMessage(msg raftpb.Message) {
 	if err := pr.sendRaftMsg(msg); err != nil {
 		// We don't care such failed message transmission, just log the error
 		logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
@@ -160,7 +160,7 @@ func (pr *peerReplica) sendMessage(msg raftpb.Message) {
 	pr.metrics.ready.message++
 }
 
-func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
+func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	shard := pr.getShard()
 	sendMsg := pb.AcquireRaftMessage()
 	sendMsg.ShardID = pr.shardID
@@ -217,7 +217,7 @@ func (pr *peerReplica) sendRaftMsg(msg raftpb.Message) error {
 	return nil
 }
 
-func (pr *peerReplica) doUpdateKeyRange(result *applySnapResult) {
+func (pr *replica) doUpdateKeyRange(result *applySnapResult) {
 	logger.Infof("shard %d snapshot is applied, shard=<%+v>",
 		pr.shardID,
 		result.current)

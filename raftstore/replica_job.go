@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (pr *peerReplica) startApplyCommittedEntriesJob(commitedEntries []raftpb.Entry) error {
+func (pr *replica) startApplyCommittedEntriesJob(commitedEntries []raftpb.Entry) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
 		return pr.doApplyCommittedEntries(commitedEntries)
 	}, nil)
@@ -32,7 +32,7 @@ func (pr *peerReplica) startApplyCommittedEntriesJob(commitedEntries []raftpb.En
 // 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
 // 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
 // 3.
-func (pr *peerReplica) startApplyDestroy(tombstoneInCluster bool, why string) {
+func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
 	logger2.Info("begin to destory",
 		pr.field,
 		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
@@ -51,7 +51,7 @@ func (pr *peerReplica) startApplyDestroy(tombstoneInCluster bool, why string) {
 	}
 }
 
-func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
+func (pr *replica) startProposeJob(c cmd, isConfChange bool) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
 		return pr.doPropose(c, isConfChange)
 	}, nil)
@@ -59,7 +59,7 @@ func (pr *peerReplica) startProposeJob(c cmd, isConfChange bool) error {
 	return err
 }
 
-func (pr *peerReplica) startSplitCheckJob() error {
+func (pr *replica) startSplitCheckJob() error {
 	shard := pr.getShard()
 	epoch := shard.Epoch
 	startKey := keys.EncStartKey(&shard)
@@ -76,7 +76,7 @@ func (pr *peerReplica) startSplitCheckJob() error {
 	return err
 }
 
-func (pr *peerReplica) doPropose(c cmd, isConfChange bool) error {
+func (pr *replica) doPropose(c cmd, isConfChange bool) error {
 	if isConfChange {
 		changeC := pr.pendings.getConfigChange()
 		if changeC.req != nil && changeC.req.Header != nil {
@@ -90,7 +90,7 @@ func (pr *peerReplica) doPropose(c cmd, isConfChange bool) error {
 	return nil
 }
 
-func (pr *peerReplica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []byte) error {
+func (pr *replica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []byte) error {
 	if !pr.isLeader() {
 		return nil
 	}

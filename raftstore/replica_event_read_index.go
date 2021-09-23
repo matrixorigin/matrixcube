@@ -43,7 +43,7 @@ func (q *readIndexQueue) ready(state raft.ReadState) {
 	})
 }
 
-func (q *readIndexQueue) process(appliedIndex uint64, pr *peerReplica) {
+func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	if len(q.reads) == 0 {
 		return
 	}

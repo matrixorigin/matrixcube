@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (pr *peerReplica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
+func (pr *replica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
 	logger.Debugf("shard %d peer %d async apply raft log with %d entries",
 		pr.shardID,
 		pr.peer.ID,
@@ -34,7 +34,7 @@ func (pr *peerReplica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) e
 	return nil
 }
 
-func (pr *peerReplica) doApplyDestory(tombstoneInCluster bool) error {
+func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 	// Shard destory need 2 phase
 	// Phase1, update the state to Tombstone
 	// Phase2, clean up data asynchronously and remove the state key

@@ -26,7 +26,7 @@ import (
 )
 
 func (s *store) handleCompactRaftLog() {
-	s.foreachPR(func(pr *peerReplica) bool {
+	s.foreachPR(func(pr *replica) bool {
 		if pr.isLeader() {
 			pr.addAction(action{actionType: checkCompactAction})
 		}
@@ -39,7 +39,7 @@ func (s *store) handleSplitCheck() {
 		return
 	}
 
-	s.foreachPR(func(pr *peerReplica) bool {
+	s.foreachPR(func(pr *replica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
 			(s.handledCustomSplitCheck(pr.getShard().Group) ||
@@ -57,7 +57,7 @@ func (s *store) handledCustomSplitCheck(group uint64) bool {
 
 func (s *store) handleShardStateCheck() {
 	bm := roaring64.NewBitmap()
-	s.foreachPR(func(pr *peerReplica) bool {
+	s.foreachPR(func(pr *replica) bool {
 		bm.Add(pr.shardID)
 		return true
 	})

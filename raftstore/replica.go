@@ -40,7 +40,7 @@ import (
 
 var dn = util.DescribeReplica
 
-type peerReplica struct {
+type replica struct {
 	field                 zap.Field
 	shardID               uint64
 	peer                  metapb.Peer
@@ -94,7 +94,7 @@ type peerReplica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createPeerReplica(store *store, shard *meta.Shard, why string) (*peerReplica, error) {
+func createPeerReplica(store *store, shard *meta.Shard, why string) (*replica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
 		return nil, fmt.Errorf("no peer found on store %d in shard %+v",
@@ -108,7 +108,7 @@ func createPeerReplica(store *store, shard *meta.Shard, why string) (*peerReplic
 // createPeerReplicaWithRaftMessage the peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer metapb.Peer, why string) (*peerReplica, error) {
+func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer metapb.Peer, why string) (*replica, error) {
 	shard := &meta.Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
@@ -122,7 +122,7 @@ func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer 
 	return newPeerReplica(store, shard, peer, why)
 }
 
-func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why string) (*peerReplica, error) {
+func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why string) (*replica, error) {
 	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, peer.ID, peer.ContainerID))
 	logger2.Info("create shard",
 		f,
@@ -133,7 +133,7 @@ func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why strin
 		return nil, fmt.Errorf("invalid peer %+v", peer)
 	}
 
-	pr := &peerReplica{
+	pr := &replica{
 		field:       f,
 		eventWorker: math.MaxUint64,
 		store:       store,
@@ -147,7 +147,7 @@ func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why strin
 	return pr, nil
 }
 
-func (pr *peerReplica) start() {
+func (pr *replica) start() {
 	logger2.Info("begin to start shard", pr.field)
 
 	shard := pr.getShard()
@@ -230,13 +230,13 @@ func (pr *peerReplica) start() {
 		log.WorkerField(pr.applyWorker))
 }
 
-func (pr *peerReplica) getShard() meta.Shard {
+func (pr *replica) getShard() meta.Shard {
 	return pr.sm.getShard()
 }
 
 // initConfState initializes the ConfState of the LogReader which will be
 // applied to the raft module.
-func (pr *peerReplica) initConfState() error {
+func (pr *replica) initConfState() error {
 	// FIXME: this is using the latest confState, should be using the confState
 	// consistent with the aoe state.
 	confState := raftpb.ConfState{}
@@ -253,7 +253,7 @@ func (pr *peerReplica) initConfState() error {
 }
 
 // initLogState returns a boolean flag indicating whether this is a new node.
-func (pr *peerReplica) initLogState() (bool, error) {
+func (pr *replica) initLogState() (bool, error) {
 	rs, err := pr.store.logdb.ReadRaftState(pr.shardID, pr.peer.ID)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
@@ -275,7 +275,7 @@ func (pr *peerReplica) initLogState() (bool, error) {
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 
-func (pr *peerReplica) createStateMachine(shard *meta.Shard) {
+func (pr *replica) createStateMachine(shard *meta.Shard) {
 	pr.sm = &stateMachine{
 		pr:          pr,
 		store:       pr.store,
@@ -286,7 +286,7 @@ func (pr *peerReplica) createStateMachine(shard *meta.Shard) {
 	pr.sm.metadataMu.shard = *shard
 }
 
-func (pr *peerReplica) getPeer(id uint64) (metapb.Peer, bool) {
+func (pr *replica) getPeer(id uint64) (metapb.Peer, bool) {
 	value, ok := pr.store.getPeer(id)
 	if ok {
 		return value, true
@@ -303,28 +303,28 @@ func (pr *peerReplica) getPeer(id uint64) (metapb.Peer, bool) {
 	return metapb.Peer{}, false
 }
 
-func (pr *peerReplica) setLeaderPeerID(id uint64) {
+func (pr *replica) setLeaderPeerID(id uint64) {
 	atomic.StoreUint64(&pr.leaderID, id)
 }
 
-func (pr *peerReplica) isLeader() bool {
+func (pr *replica) isLeader() bool {
 	return pr.getLeaderPeerID() == pr.peer.ID
 }
 
-func (pr *peerReplica) getLeaderPeerID() uint64 {
+func (pr *replica) getLeaderPeerID() uint64 {
 	return atomic.LoadUint64(&pr.leaderID)
 }
 
-func (pr *peerReplica) waitStarted() {
+func (pr *replica) waitStarted() {
 	<-pr.startedC
 }
 
-func (pr *peerReplica) notifyWorker() {
+func (pr *replica) notifyWorker() {
 	pr.waitStarted()
 	pr.store.workReady.notify(pr.getShard().Group, pr.eventWorker)
 }
 
-func (pr *peerReplica) maybeCampaign() (bool, error) {
+func (pr *replica) maybeCampaign() (bool, error) {
 	if len(pr.getShard().Peers) <= 1 {
 		// The peer campaigned when it was created, no need to do it again.
 		return false, nil
@@ -338,7 +338,7 @@ func (pr *peerReplica) maybeCampaign() (bool, error) {
 	return true, nil
 }
 
-func (pr *peerReplica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) error {
+func (pr *replica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 
 	r := reqCtx{}
@@ -347,32 +347,32 @@ func (pr *peerReplica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) erro
 	return pr.addRequest(r)
 }
 
-func (pr *peerReplica) stopEventLoop() {
+func (pr *replica) stopEventLoop() {
 	pr.events.Dispose()
 }
 
-func (pr *peerReplica) maybeExecRead() {
+func (pr *replica) maybeExecRead() {
 	pr.pendingReads.process(pr.appliedIndex, pr)
 }
 
-func (pr *peerReplica) supportSplit() bool {
+func (pr *replica) supportSplit() bool {
 	return !pr.getShard().DisableSplit
 }
 
-func (pr *peerReplica) pendingReadCount() int {
+func (pr *replica) pendingReadCount() int {
 	return pr.rn.PendingReadCount()
 }
 
-func (pr *peerReplica) readyReadCount() int {
+func (pr *replica) readyReadCount() int {
 	return pr.rn.ReadyReadCount()
 }
 
-func (pr *peerReplica) resetBatch() {
+func (pr *replica) resetBatch() {
 	shard := pr.getShard()
 	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.peer)
 }
 
-func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {
+func (pr *replica) collectDownPeers() []metapb.PeerStats {
 	now := time.Now()
 	shard := pr.getShard()
 	var downPeers []metapb.PeerStats
@@ -397,11 +397,11 @@ func (pr *peerReplica) collectDownPeers() []metapb.PeerStats {
 
 // collectPendingPeers returns a list of peers that are potentially waiting for
 // snapshots from the leader.
-func (pr *peerReplica) collectPendingPeers() []metapb.Peer {
+func (pr *replica) collectPendingPeers() []metapb.Peer {
 	return []metapb.Peer{}
 }
 
-func (pr *peerReplica) nextProposalIndex() uint64 {
+func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 

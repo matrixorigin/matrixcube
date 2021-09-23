@@ -201,7 +201,7 @@ func (s *store) Stop() {
 		s.trans.Stop()
 		logger.Infof("store %d transport stopped", s.Meta().ID)
 
-		s.foreachPR(func(pr *peerReplica) bool {
+		s.foreachPR(func(pr *replica) bool {
 			pr.stopEventLoop()
 			return true
 		})
@@ -266,7 +266,7 @@ func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatc
 		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
 	}
 
-	var pr *peerReplica
+	var pr *replica
 	var err error
 	if req.ToShard > 0 {
 		pr = s.getPR(req.ToShard, false)
@@ -409,7 +409,7 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 		for {
 			hasEvent := false
 			s.replicas.Range(func(key, value interface{}) bool {
-				pr := value.(*peerReplica)
+				pr := value.(*replica)
 				if pr.eventWorker == id && pr.getShard().Group == g && pr.handleEvent() {
 					hasEvent = true
 				}
@@ -532,12 +532,12 @@ func (s *store) destoryPR(shardID uint64, tombstoneInCluster bool, why string) {
 	}
 }
 
-func (s *store) addPR(pr *peerReplica) bool {
+func (s *store) addPR(pr *replica) bool {
 	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
 	return !loaded
 }
 
-func (s *store) removePR(pr *peerReplica) {
+func (s *store) removePR(pr *replica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
 		s.aware.Destory(pr.getShard())
@@ -582,7 +582,7 @@ func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb fun
 	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
 }
 
-func (s *store) revokeWorker(pr *peerReplica) {
+func (s *store) revokeWorker(pr *replica) {
 	if pr == nil {
 		return
 	}
@@ -632,15 +632,15 @@ func (s *store) getPeer(id uint64) (metapb.Peer, bool) {
 	return value.(metapb.Peer), true
 }
 
-func (s *store) foreachPR(consumerFunc func(*peerReplica) bool) {
+func (s *store) foreachPR(consumerFunc func(*replica) bool) {
 	s.replicas.Range(func(key, value interface{}) bool {
-		return consumerFunc(value.(*peerReplica))
+		return consumerFunc(value.(*replica))
 	})
 }
 
-func (s *store) getPR(id uint64, mustLeader bool) *peerReplica {
+func (s *store) getPR(id uint64, mustLeader bool) *replica {
 	if value, ok := s.replicas.Load(id); ok {
-		pr := value.(*peerReplica)
+		pr := value.(*replica)
 		if mustLeader && !pr.isLeader() {
 			return nil
 		}
@@ -825,7 +825,7 @@ func (s *store) removeShardKeyRange(shard meta.Shard) bool {
 	return false
 }
 
-func (s *store) selectShard(group uint64, key []byte) (*peerReplica, error) {
+func (s *store) selectShard(group uint64, key []byte) (*replica, error) {
 	shard := s.searchShard(group, key)
 	if shard.ID == 0 {
 		return nil, errStoreNotMatch
@@ -836,7 +836,7 @@ func (s *store) selectShard(group uint64, key []byte) (*peerReplica, error) {
 		return nil, errStoreNotMatch
 	}
 
-	return pr.(*peerReplica), nil
+	return pr.(*replica), nil
 }
 
 func (s *store) searchShard(group uint64, key []byte) meta.Shard {

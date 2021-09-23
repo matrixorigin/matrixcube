@@ -55,7 +55,7 @@ const (
 	proposeChange         = requestPolicy(4)
 )
 
-func (pr *peerReplica) handleRequest(items []interface{}) {
+func (pr *replica) handleRequest(items []interface{}) {
 	shard := pr.getShard()
 	for {
 		size := pr.requests.Len()
@@ -97,7 +97,7 @@ func (pr *peerReplica) handleRequest(items []interface{}) {
 	}
 }
 
-func (pr *peerReplica) propose(c cmd) {
+func (pr *replica) propose(c cmd) {
 	if !pr.checkProposal(c) {
 		return
 	}
@@ -141,7 +141,7 @@ func (pr *peerReplica) propose(c cmd) {
 	}
 }
 
-func (pr *peerReplica) execReadIndex(c cmd) {
+func (pr *replica) execReadIndex(c cmd) {
 	if c.tp != read {
 		panic("not a read index request")
 	}
@@ -168,7 +168,7 @@ func (pr *peerReplica) execReadIndex(c cmd) {
 	pr.metrics.propose.readIndex++
 }
 
-func (pr *peerReplica) proposeNormal(c cmd) bool {
+func (pr *replica) proposeNormal(c cmd) bool {
 	if !pr.isLeader() {
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
@@ -201,7 +201,7 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 	return true
 }
 
-func (pr *peerReplica) proposeConfChange(c cmd) bool {
+func (pr *replica) proposeConfChange(c cmd) bool {
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		logger.Errorf("shard-%d there is a pending conf change, try later",
 			pr.shardID)
@@ -222,7 +222,7 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	return true
 }
 
-func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *rpc.AdminRequest, data []byte) error {
+func (pr *replica) proposeConfChangeInternal(c cmd, admin *rpc.AdminRequest, data []byte) error {
 	cc := pr.toConfChangeI(admin, data)
 	var changes []rpc.ConfigChangeRequest
 	if admin.ConfigChangeV2 != nil {
@@ -257,7 +257,7 @@ func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *rpc.AdminRequest,
 	return nil
 }
 
-func (pr *peerReplica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
+func (pr *replica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
 	if admin.ConfigChange != nil {
 		return &raftpb.ConfChange{
 			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
@@ -283,7 +283,7 @@ func (pr *peerReplica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftp
 	}
 }
 
-func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
+func (pr *replica) proposeTransferLeader(c cmd) bool {
 	req := c.req.AdminRequest.TransferLeader
 
 	// has pending conf, skip
@@ -308,7 +308,7 @@ func (pr *peerReplica) proposeTransferLeader(c cmd) bool {
 	return false
 }
 
-func (pr *peerReplica) doTransferLeader(peer metapb.Peer) {
+func (pr *replica) doTransferLeader(peer metapb.Peer) {
 	logger.Infof("shard %d transfer leader to peer %d",
 		pr.shardID,
 		peer.ID)
@@ -321,7 +321,7 @@ func (pr *peerReplica) doTransferLeader(peer metapb.Peer) {
 	pr.metrics.propose.transferLeader++
 }
 
-func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
+func (pr *replica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	status := pr.rn.Status()
 	if _, ok := status.Progress[newLeaderPeer.ID]; !ok {
 		return false
@@ -337,7 +337,7 @@ func (pr *peerReplica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
 }
 
-func (pr *peerReplica) checkProposal(c cmd) bool {
+func (pr *replica) checkProposal(c cmd) bool {
 	// we handle all read, write and admin cmd here
 	if c.req.Header == nil || len(c.req.Header.ID) == 0 {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))
@@ -366,7 +366,7 @@ func (pr *peerReplica) checkProposal(c cmd) bool {
 /// right after all conf change is applied.
 /// If 'allow_remove_leader' is false then the peer to be removed should
 /// not be the leader.
-func (pr *peerReplica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb.ConfChangeI) error {
+func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb.ConfChangeI) error {
 	cc := cci.AsV2()
 	afterProgress, err := pr.checkJointState(cc)
 	if err != nil {
@@ -434,7 +434,7 @@ func (pr *peerReplica) checkConfChange(changes []rpc.ConfigChangeRequest, cci ra
 		afterProgress)
 }
 
-func (pr *peerReplica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTracker, error) {
+func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTracker, error) {
 	changer := pr.rn.NewChanger()
 	var cfg tracker.Config
 	var changes *tracker.Changes
@@ -457,7 +457,7 @@ func (pr *peerReplica) checkJointState(cci raftpb.ConfChangeI) (*tracker.Progres
 	return trk, nil
 }
 
-func (pr *peerReplica) getHandlePolicy(req *rpc.RequestBatch) (requestPolicy, error) {
+func (pr *replica) getHandlePolicy(req *rpc.RequestBatch) (requestPolicy, error) {
 	if req.AdminRequest != nil {
 		switch req.AdminRequest.CmdType {
 		case rpc.AdminCmdType_ConfigChange:
