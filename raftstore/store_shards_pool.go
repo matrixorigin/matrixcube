@@ -55,7 +55,7 @@ func (s *store) GetResourcePool() ShardsPool {
 // dynamicShardsPool a dynamic shard pool
 type dynamicShardsPool struct {
 	cfg     *config.Config
-	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard
+	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) Shard
 	job     metapb.Job
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -98,13 +98,14 @@ func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (meta.Allocate
 	allocated := meta.AllocatedShard{}
 	retry := 0
 	for {
-		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateResourcePool}, protoc.MustMarshal(&meta.ShardsPoolCmd{
-			Type: meta.ShardsPoolCmdType_AllocShard,
-			Alloc: &meta.ShardsPoolAllocCmd{
-				Group:   group,
-				Purpose: purpose,
-			},
-		}))
+		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateResourcePool},
+			protoc.MustMarshal(&meta.ShardsPoolCmd{
+				Type: meta.ShardsPoolCmdType_AllocShard,
+				Alloc: &meta.ShardsPoolAllocCmd{
+					Group:   group,
+					Purpose: purpose,
+				},
+			}))
 		if err == nil && len(v) > 0 {
 			protoc.MustUnmarshal(&allocated, v)
 			return allocated, nil
@@ -434,8 +435,8 @@ func (dsp *dynamicShardsPool) cloneDataLocked() meta.ShardsPool {
 	return old
 }
 
-func (dsp *dynamicShardsPool) shardFactory(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard {
-	return meta.Shard{
+func (dsp *dynamicShardsPool) shardFactory(g uint64, start, end []byte, unique string, offsetInPool uint64) Shard {
+	return Shard{
 		Group:  g,
 		Start:  start,
 		End:    end,

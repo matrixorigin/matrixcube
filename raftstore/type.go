@@ -14,7 +14,11 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
+// alias are provided for two most commonly used types
 type Shard = meta.Shard
+
+type Peer = metapb.Peer

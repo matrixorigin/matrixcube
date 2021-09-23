@@ -57,7 +57,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, 
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", req))
 
-	res := meta.Shard{}
+	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
 
@@ -149,7 +149,7 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch
 		log.ShardField("current", current),
 		log.ConfigChangesField("requests", changes))
 
-	var res meta.Shard
+	var res Shard
 	var err error
 	kind := getConfChangeKind(len(changes))
 	if kind == leaveJointKind {
@@ -194,8 +194,8 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch
 	return resp, nil
 }
 
-func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.ConfigChangeRequest) (meta.Shard, error) {
-	res := meta.Shard{}
+func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.ConfigChangeRequest) (Shard, error) {
+	res := Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 
@@ -283,8 +283,8 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 	return res, nil
 }
 
-func (d *stateMachine) applyLeaveJoint() (meta.Shard, error) {
-	shard := meta.Shard{}
+func (d *stateMachine) applyLeaveJoint() (Shard, error) {
+	shard := Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
 
@@ -321,10 +321,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	}
 
 	newShardsCount := len(splitReqs.Requests)
-	derived := meta.Shard{}
+	derived := Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&current))
-	var shards []meta.Shard
+	var shards []Shard
 	rangeKeys := deque.New()
 
 	for _, req := range splitReqs.Requests {
@@ -366,7 +366,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 		return derived.Peers[i].ID < derived.Peers[j].ID
 	})
 	for _, req := range splitReqs.Requests {
-		newShard := meta.Shard{}
+		newShard := Shard{}
 		newShard.ID = req.NewShardID
 		newShard.Group = derived.Group
 		newShard.Unique = derived.Unique
@@ -376,7 +376,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 		newShard.Start = rangeKeys.PopFront().Value.([]byte)
 		newShard.End = rangeKeys.MustFront().Value.([]byte)
 		for idx, p := range derived.Peers {
-			newShard.Peers = append(newShard.Peers, metapb.Peer{
+			newShard.Peers = append(newShard.Peers, Peer{
 				ID:          req.NewPeerIDs[idx],
 				ContainerID: p.ContainerID,
 			})
@@ -465,7 +465,7 @@ func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, shard meta.Shard, state meta.PeerState) error {
+func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.PeerState) error {
 	return d.dataStorage.SaveShardMetadata(storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,

@@ -19,7 +19,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -68,7 +67,7 @@ func errorStaleCMDResp(uuid []byte) *rpc.ResponseBatch {
 }
 
 func errorStaleEpochResp(uuid []byte,
-	newShards ...meta.Shard) *rpc.ResponseBatch {
+	newShards ...Shard) *rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
@@ -86,7 +85,7 @@ func errorBaseResp(uuid []byte) *rpc.ResponseBatch {
 	return resp
 }
 
-func checkKeyInShard(key []byte, shard *meta.Shard) *errorpb.Error {
+func checkKeyInShard(key []byte, shard *Shard) *errorpb.Error {
 	if bytes.Compare(key, shard.Start) >= 0 &&
 		(len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil

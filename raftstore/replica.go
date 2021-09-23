@@ -43,7 +43,7 @@ var dn = util.DescribeReplica
 type replica struct {
 	field                 zap.Field
 	shardID               uint64
-	peer                  metapb.Peer
+	peer                  Peer
 	eventWorker           uint64
 	applyWorker           string
 	startedC              chan struct{}
@@ -94,7 +94,7 @@ type replica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createPeerReplica(store *store, shard *meta.Shard, why string) (*replica, error) {
+func createPeerReplica(store *store, shard *Shard, why string) (*replica, error) {
 	peer := findPeer(shard, store.meta.meta.ID)
 	if peer == nil {
 		return nil, fmt.Errorf("no peer found on store %d in shard %+v",
@@ -108,8 +108,8 @@ func createPeerReplica(store *store, shard *meta.Shard, why string) (*replica, e
 // createPeerReplicaWithRaftMessage the peer can be created from another node with raft membership changes, and we only
 // know the shard_id and peer_id when creating this replicated peer, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer metapb.Peer, why string) (*replica, error) {
-	shard := &meta.Shard{
+func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer Peer, why string) (*replica, error) {
+	shard := &Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
 		Start:        msg.Start,
@@ -122,7 +122,7 @@ func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, peer 
 	return newPeerReplica(store, shard, peer, why)
 }
 
-func newPeerReplica(store *store, shard *meta.Shard, peer metapb.Peer, why string) (*replica, error) {
+func newPeerReplica(store *store, shard *Shard, peer Peer, why string) (*replica, error) {
 	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, peer.ID, peer.ContainerID))
 	logger2.Info("create shard",
 		f,
@@ -230,7 +230,7 @@ func (pr *replica) start() {
 		log.WorkerField(pr.applyWorker))
 }
 
-func (pr *replica) getShard() meta.Shard {
+func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
 }
 
@@ -275,7 +275,7 @@ func (pr *replica) initLogState() (bool, error) {
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 
-func (pr *replica) createStateMachine(shard *meta.Shard) {
+func (pr *replica) createStateMachine(shard *Shard) {
 	pr.sm = &stateMachine{
 		pr:          pr,
 		store:       pr.store,
@@ -286,7 +286,7 @@ func (pr *replica) createStateMachine(shard *meta.Shard) {
 	pr.sm.metadataMu.shard = *shard
 }
 
-func (pr *replica) getPeer(id uint64) (metapb.Peer, bool) {
+func (pr *replica) getPeer(id uint64) (Peer, bool) {
 	value, ok := pr.store.getPeer(id)
 	if ok {
 		return value, true
@@ -300,7 +300,7 @@ func (pr *replica) getPeer(id uint64) (metapb.Peer, bool) {
 		}
 	}
 
-	return metapb.Peer{}, false
+	return Peer{}, false
 }
 
 func (pr *replica) setLeaderPeerID(id uint64) {
@@ -385,7 +385,7 @@ func (pr *replica) collectDownPeers() []metapb.PeerStats {
 			last := value.(time.Time)
 			if now.Sub(last) >= pr.store.cfg.Replication.MaxPeerDownTime.Duration {
 				state := metapb.PeerStats{}
-				state.Peer = metapb.Peer{ID: p.ID, ContainerID: p.ContainerID}
+				state.Peer = Peer{ID: p.ID, ContainerID: p.ContainerID}
 				state.DownSeconds = uint64(now.Sub(last).Seconds())
 
 				downPeers = append(downPeers, state)
@@ -397,8 +397,8 @@ func (pr *replica) collectDownPeers() []metapb.PeerStats {
 
 // collectPendingPeers returns a list of peers that are potentially waiting for
 // snapshots from the leader.
-func (pr *replica) collectPendingPeers() []metapb.Peer {
-	return []metapb.Peer{}
+func (pr *replica) collectPendingPeers() []Peer {
+	return []Peer{}
 }
 
 func (pr *replica) nextProposalIndex() uint64 {

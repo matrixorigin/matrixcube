@@ -58,12 +58,12 @@ func (c reqCtx) getType() int {
 type proposeBatch struct {
 	maxSize uint64
 	shardID uint64
-	peer    metapb.Peer
+	peer    Peer
 	buf     *buf.ByteBuf
 	cmds    []batch
 }
 
-func newBatch(maxSize uint64, shardID uint64, peer metapb.Peer) *proposeBatch {
+func newBatch(maxSize uint64, shardID uint64, peer Peer) *proposeBatch {
 	return &proposeBatch{
 		maxSize: maxSize,
 		shardID: shardID,

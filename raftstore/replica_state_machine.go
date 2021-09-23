@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
@@ -39,20 +38,20 @@ type stateMachine struct {
 
 	metadataMu struct {
 		sync.Mutex
-		shard   meta.Shard
+		shard   Shard
 		removed bool
 		index   uint64
 		term    uint64
 	}
 }
 
-func (d *stateMachine) updateShard(shard meta.Shard) {
+func (d *stateMachine) updateShard(shard Shard) {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	d.metadataMu.shard = shard
 }
 
-func (d *stateMachine) getShard() meta.Shard {
+func (d *stateMachine) getShard() Shard {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.shard

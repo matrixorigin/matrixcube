@@ -14,7 +14,6 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 const (
@@ -27,7 +26,7 @@ func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) b
 		epoch.ConfVer < checkEpoch.ConfVer
 }
 
-func findPeer(shard *meta.Shard, storeID uint64) *metapb.Peer {
+func findPeer(shard *Shard, storeID uint64) *Peer {
 	for idx := range shard.Peers {
 		if shard.Peers[idx].ContainerID == storeID {
 			return &shard.Peers[idx]
@@ -37,9 +36,9 @@ func findPeer(shard *meta.Shard, storeID uint64) *metapb.Peer {
 	return nil
 }
 
-func removePeer(shard *meta.Shard, storeID uint64) *metapb.Peer {
-	var removed *metapb.Peer
-	var newPeers []metapb.Peer
+func removePeer(shard *Shard, storeID uint64) *Peer {
+	var removed *Peer
+	var newPeers []Peer
 	for _, peer := range shard.Peers {
 		if peer.ContainerID == storeID {
 			p := peer
@@ -53,7 +52,7 @@ func removePeer(shard *meta.Shard, storeID uint64) *metapb.Peer {
 	return removed
 }
 
-func removedPeers(new, old meta.Shard) []uint64 {
+func removedPeers(new, old Shard) []uint64 {
 	var ids []uint64
 
 	for _, o := range old.Peers {

@@ -19,7 +19,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
@@ -31,8 +30,8 @@ var (
 )
 
 type applySnapResult struct {
-	prev    meta.Shard
-	current meta.Shard
+	prev    Shard
+	current Shard
 }
 
 func (pr *replica) handleReady() error {

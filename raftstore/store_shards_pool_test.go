@@ -40,7 +40,7 @@ func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResour
 func TestShardPool(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
 	}))
 	defer c.Stop()
 
@@ -112,9 +112,9 @@ func TestShardPoolWithFactory(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-			cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
-			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard {
-				return meta.Shard{
+			cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
+			cfg.Customize.CustomShardPoolShardFactory = func(g uint64, start, end []byte, unique string, offsetInPool uint64) Shard {
+				return Shard{
 					Group:  g,
 					Start:  []byte(fmt.Sprintf("b-%d", offsetInPool)),
 					End:    []byte(fmt.Sprintf("b-%d", offsetInPool+1)),
@@ -151,7 +151,7 @@ func TestIssue192(t *testing.T) {
 
 	wc := make(chan struct{})
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard { return []meta.Shard{{Start: []byte("a"), End: []byte("b")}} }
+		cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
 		cfg.Test.ShardPoolCreateWaitC = wc
 	}))
 	defer c.Stop()

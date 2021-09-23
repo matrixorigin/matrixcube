@@ -177,7 +177,7 @@ func (c *batch) respOtherError(err error) {
 	c.resp(rsp)
 }
 
-func (c *batch) respNotLeader(shardID uint64, leader metapb.Peer) {
+func (c *batch) respNotLeader(shardID uint64, leader Peer) {
 	err := &errorpb.NotLeader{
 		ShardID: shardID,
 		Leader:  leader,

@@ -29,7 +29,7 @@ import (
 )
 
 type resourceAdapter struct {
-	meta meta.Shard
+	meta Shard
 }
 
 func newResourceAdapter() metadata.Resource {
@@ -37,7 +37,7 @@ func newResourceAdapter() metadata.Resource {
 }
 
 // NewResourceAdapterWithShard create a prophet resource use shard
-func NewResourceAdapterWithShard(meta meta.Shard) metadata.Resource {
+func NewResourceAdapterWithShard(meta Shard) metadata.Resource {
 	return &resourceAdapter{meta: meta}
 }
 
@@ -57,11 +57,11 @@ func (ra *resourceAdapter) SetGroup(group uint64) {
 	ra.meta.Group = group
 }
 
-func (ra *resourceAdapter) Peers() []metapb.Peer {
+func (ra *resourceAdapter) Peers() []Peer {
 	return ra.meta.Peers
 }
 
-func (ra *resourceAdapter) SetPeers(peers []metapb.Peer) {
+func (ra *resourceAdapter) SetPeers(peers []Peer) {
 	ra.meta.Peers = peers
 }
 

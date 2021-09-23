@@ -19,7 +19,6 @@ import (
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/keys"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
@@ -155,7 +154,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 
 	var (
 		hasPeer   = false
-		stalePeer metapb.Peer
+		stalePeer Peer
 	)
 
 	target := msg.To

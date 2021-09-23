@@ -2,13 +2,12 @@ package raftstore
 
 import (
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type executeContext struct {
-	shard        meta.Shard
+	shard        Shard
 	buf          *buf.ByteBuf
 	cmds         []batch
 	requests     []storage.LogRequest
@@ -54,7 +53,7 @@ func (ctx *executeContext) ByteBuf() *buf.ByteBuf {
 	return ctx.buf
 }
 
-func (ctx *executeContext) Shard() meta.Shard {
+func (ctx *executeContext) Shard() Shard {
 	return ctx.shard
 }
 
@@ -78,7 +77,7 @@ func (ctx *executeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *executeContext) reset(shard meta.Shard) {
+func (ctx *executeContext) reset(shard Shard) {
 	ctx.buf.Clear()
 	ctx.shard = shard
 	ctx.cmds = ctx.cmds[:0]

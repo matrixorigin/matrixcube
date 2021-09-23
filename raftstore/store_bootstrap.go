@@ -20,7 +20,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 )
@@ -73,7 +72,7 @@ func (s *store) doBootstrapCluster() {
 
 	if !ok {
 		logger.Infof("begin to bootstrap the cluster with init shards")
-		var initShards []meta.Shard
+		var initShards []Shard
 		var resources []metadata.Resource
 		if s.cfg.Customize.CustomInitShardsFactory != nil {
 			shards := s.cfg.Customize.CustomInitShardsFactory()
@@ -83,7 +82,7 @@ func (s *store) doBootstrapCluster() {
 				resources = append(resources, NewResourceAdapterWithShard(shard))
 			}
 		} else {
-			shard := meta.Shard{}
+			shard := Shard{}
 			s.doCreateInitShard(&shard)
 			initShards = append(initShards, shard)
 			resources = append(resources, NewResourceAdapterWithShard(shard))
@@ -155,21 +154,21 @@ func (s *store) mustLoadStoreMetadata() bool {
 	return false
 }
 
-func (s *store) doCreateInitShard(shard *meta.Shard) {
+func (s *store) doCreateInitShard(shard *Shard) {
 	shardID := s.MustAllocID()
 	peerID := s.MustAllocID()
 	shard.ID = shardID
 	shard.Epoch.Version = 1
 	shard.Epoch.ConfVer = 1
-	shard.Peers = append(shard.Peers, metapb.Peer{
+	shard.Peers = append(shard.Peers, Peer{
 		ID:            peerID,
 		ContainerID:   s.meta.meta.ID,
 		InitialMember: true,
 	})
 }
 
-func (s *store) mustSaveShards(shards ...meta.Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []meta.Shard) {
+func (s *store) mustSaveShards(shards ...Shard) {
+	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		var sm []storage.ShardMetadata
 		var ids []uint64
 		for _, s := range v {
@@ -194,8 +193,8 @@ func (s *store) mustSaveShards(shards ...meta.Shard) {
 	}, shards...)
 }
 
-func (s *store) removeInitShards(shards ...meta.Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []meta.Shard) {
+func (s *store) removeInitShards(shards ...Shard) {
+	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		for _, s := range v {
 			err := ds.RemoveShardData(s, keys.EncStartKey(&s), keys.EncEndKey(&s))
 			if err != nil {
@@ -206,8 +205,8 @@ func (s *store) removeInitShards(shards ...meta.Shard) {
 	logger.Info("init shards has been removed from store")
 }
 
-func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []meta.Shard), shards ...meta.Shard) {
-	shardsByGroup := make(map[uint64][]meta.Shard)
+func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []Shard), shards ...Shard) {
+	shardsByGroup := make(map[uint64][]Shard)
 	for _, s := range shards {
 		v := shardsByGroup[s.Group]
 		v = append(v, s)

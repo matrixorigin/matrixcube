@@ -444,7 +444,7 @@ func (s *store) startShards() {
 			logger.Fatalf("init store failed with %+v", err)
 		}
 
-		var tomebstoneShards []meta.Shard
+		var tomebstoneShards []Shard
 		for _, metadata := range initStates {
 			totalCount++
 			sls := &meta.ShardLocalState{}
@@ -554,7 +554,7 @@ func (s *store) startRPC() {
 	}
 }
 
-func (s *store) cleanup(shards []meta.Shard) {
+func (s *store) cleanup(shards []Shard) {
 	for _, shard := range shards {
 		s.doClearData(shard)
 	}
@@ -623,13 +623,13 @@ func (s *store) allocWorker(g uint64) (string, uint64) {
 	return applyWorker, raftEventWorker
 }
 
-func (s *store) getPeer(id uint64) (metapb.Peer, bool) {
+func (s *store) getPeer(id uint64) (Peer, bool) {
 	value, ok := s.peers.Load(id)
 	if !ok {
-		return metapb.Peer{}, false
+		return Peer{}, false
 	}
 
-	return value.(metapb.Peer), true
+	return value.(Peer), true
 }
 
 func (s *store) foreachPR(consumerFunc func(*replica) bool) {
@@ -736,7 +736,7 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	return nil
 }
 
-func checkEpoch(shard meta.Shard, req *rpc.RequestBatch) bool {
+func checkEpoch(shard Shard, req *rpc.RequestBatch) bool {
 	checkVer := false
 	checkConfVer := false
 
@@ -802,7 +802,7 @@ func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) *rpc.Respo
 	return resp
 }
 
-func (s *store) updateShardKeyRange(shard meta.Shard) {
+func (s *store) updateShardKeyRange(shard Shard) {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		value.(*util.ShardTree).Update(shard)
 		return
@@ -817,7 +817,7 @@ func (s *store) updateShardKeyRange(shard meta.Shard) {
 	}
 }
 
-func (s *store) removeShardKeyRange(shard meta.Shard) bool {
+func (s *store) removeShardKeyRange(shard Shard) bool {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		return value.(*util.ShardTree).Remove(shard)
 	}
@@ -839,15 +839,15 @@ func (s *store) selectShard(group uint64, key []byte) (*replica, error) {
 	return pr.(*replica), nil
 }
 
-func (s *store) searchShard(group uint64, key []byte) meta.Shard {
+func (s *store) searchShard(group uint64, key []byte) Shard {
 	if value, ok := s.keyRanges.Load(group); ok {
 		return value.(*util.ShardTree).Search(key)
 	}
 
-	return meta.Shard{}
+	return Shard{}
 }
 
-func (s *store) nextShard(shard meta.Shard) *meta.Shard {
+func (s *store) nextShard(shard Shard) *Shard {
 	if value, ok := s.keyRanges.Load(shard.Group); ok {
 		return value.(*util.ShardTree).NextShard(shard.Start)
 	}
@@ -857,7 +857,7 @@ func (s *store) nextShard(shard meta.Shard) *meta.Shard {
 
 // doClearData Delete all data belong to the shard.
 // If return Err, data may get partial deleted.
-func (s *store) doClearData(shard meta.Shard) error {
+func (s *store) doClearData(shard Shard) error {
 	logger.Infof("shard %d deleting data", shard.ID)
 	err := s.removeShardData(shard, nil)
 	if err != nil {
@@ -868,13 +868,13 @@ func (s *store) doClearData(shard meta.Shard) error {
 	return err
 }
 
-func (s *store) startClearDataJob(shard meta.Shard) error {
+func (s *store) startClearDataJob(shard Shard) error {
 	return s.addSnapJob(shard.Group, func() error {
 		return s.doClearData(shard)
 	}, nil)
 }
 
-func (s *store) removeShardData(shard meta.Shard, job *task.Job) error {
+func (s *store) removeShardData(shard Shard, job *task.Job) error {
 	if job != nil &&
 		job.IsCancelling() {
 		return task.ErrJobCancelled

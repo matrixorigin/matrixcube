@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
@@ -20,8 +19,8 @@ func TestIssue133(t *testing.T) {
 
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard {
-			return []meta.Shard{
+		cfg.Customize.CustomInitShardsFactory = func() []Shard {
+			return []Shard{
 				{Start: []byte("a"), End: []byte("b")},
 				{Start: []byte("b"), End: []byte("c")},
 				{Start: []byte("c"), End: []byte("d")},

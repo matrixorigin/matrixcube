@@ -16,7 +16,6 @@ package raftstore
 import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -35,7 +34,7 @@ func newApplyContext() *applyContext {
 	}
 }
 
-func (ctx *applyContext) reset(shard meta.Shard, entry raftpb.Entry) {
+func (ctx *applyContext) reset(shard Shard, entry raftpb.Entry) {
 	ctx.writeCtx.reset(shard)
 	ctx.req.Reset()
 	ctx.entry = entry
@@ -64,10 +63,10 @@ type changePeerResult struct {
 	index      uint64
 	confChange raftpb.ConfChangeV2
 	changes    []rpc.ConfigChangeRequest
-	shard      meta.Shard
+	shard      Shard
 }
 
 type splitResult struct {
-	derived meta.Shard
-	shards  []meta.Shard
+	derived Shard
+	shards  []Shard
 }

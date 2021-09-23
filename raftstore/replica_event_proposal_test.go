@@ -27,7 +27,7 @@ package raftstore
 
 // 	var storeID uint64
 // 	committedC := make(chan string, 2)
-// 	c := NewTestClusterStore(t, WithTestClusterWriteHandler(1, func(s meta.Shard, r *rpc.Request, c command.Context) (uint64, int64, *rpc.Response) {
+// 	c := NewTestClusterStore(t, WithTestClusterWriteHandler(1, func(s Shard, r *rpc.Request, c command.Context) (uint64, int64, *rpc.Response) {
 // 		if storeID == c.StoreID() {
 // 			committedC <- string(r.ID)
 

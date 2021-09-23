@@ -32,7 +32,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -184,19 +183,19 @@ type testShardAware struct {
 	sync.RWMutex
 
 	wrapper      aware.ShardStateAware
-	shards       []meta.Shard
+	shards       []Shard
 	leaders      map[uint64]bool
 	applied      map[uint64]int
 	splitedCount map[uint64]int
 
-	removed map[uint64]meta.Shard
+	removed map[uint64]Shard
 }
 
 func newTestShardAware() *testShardAware {
 	return &testShardAware{
 		leaders:      make(map[uint64]bool),
 		applied:      make(map[uint64]int),
-		removed:      make(map[uint64]meta.Shard),
+		removed:      make(map[uint64]Shard),
 		splitedCount: make(map[uint64]int),
 	}
 }
@@ -263,14 +262,14 @@ func (ts *testShardAware) hasShard(id uint64) bool {
 	return false
 }
 
-func (ts *testShardAware) getShardByIndex(index int) meta.Shard {
+func (ts *testShardAware) getShardByIndex(index int) Shard {
 	ts.RLock()
 	defer ts.RUnlock()
 
 	return ts.shards[index]
 }
 
-func (ts *testShardAware) getShardByID(id uint64) meta.Shard {
+func (ts *testShardAware) getShardByID(id uint64) Shard {
 	ts.RLock()
 	defer ts.RUnlock()
 
@@ -280,7 +279,7 @@ func (ts *testShardAware) getShardByID(id uint64) meta.Shard {
 		}
 	}
 
-	return meta.Shard{}
+	return Shard{}
 }
 
 func (ts *testShardAware) shardCount() int {
@@ -317,7 +316,7 @@ func (ts *testShardAware) isLeader(id uint64) bool {
 	return ts.leaders[id]
 }
 
-func (ts *testShardAware) Created(shard meta.Shard) {
+func (ts *testShardAware) Created(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -334,7 +333,7 @@ func (ts *testShardAware) Created(shard meta.Shard) {
 	}
 }
 
-func (ts *testShardAware) Splited(shard meta.Shard) {
+func (ts *testShardAware) Splited(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -350,11 +349,11 @@ func (ts *testShardAware) Splited(shard meta.Shard) {
 	}
 }
 
-func (ts *testShardAware) Destory(shard meta.Shard) {
+func (ts *testShardAware) Destory(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
-	var newShards []meta.Shard
+	var newShards []Shard
 	for _, s := range ts.shards {
 		if s.ID != shard.ID {
 			newShards = append(newShards, s)
@@ -369,7 +368,7 @@ func (ts *testShardAware) Destory(shard meta.Shard) {
 	}
 }
 
-func (ts *testShardAware) BecomeLeader(shard meta.Shard) {
+func (ts *testShardAware) BecomeLeader(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -380,7 +379,7 @@ func (ts *testShardAware) BecomeLeader(shard meta.Shard) {
 	}
 }
 
-func (ts *testShardAware) BecomeFollower(shard meta.Shard) {
+func (ts *testShardAware) BecomeFollower(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -391,7 +390,7 @@ func (ts *testShardAware) BecomeFollower(shard meta.Shard) {
 	}
 }
 
-func (ts *testShardAware) SnapshotApplied(shard meta.Shard) {
+func (ts *testShardAware) SnapshotApplied(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -425,9 +424,9 @@ type TestRaftCluster interface {
 	GetPRCount(node int) int
 	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
 	// the shard is created on the node
-	GetShardByIndex(node int, shardIndex int) meta.Shard
+	GetShardByIndex(node int, shardIndex int) Shard
 	// GetShardByID returns the shard from the node by shard id
-	GetShardByID(node int, shardID uint64) meta.Shard
+	GetShardByID(node int, shardID uint64) Shard
 	// CheckShardCount check whether the number of shards on each node is correct
 	CheckShardCount(countPerNode int)
 	// CheckShardRange check whether the range field of the shard on each node is correct,
@@ -907,11 +906,11 @@ func (c *testRaftCluster) GetPRCount(node int) int {
 	return cnt
 }
 
-func (c *testRaftCluster) GetShardByIndex(node int, shardIndex int) meta.Shard {
+func (c *testRaftCluster) GetShardByIndex(node int, shardIndex int) Shard {
 	return c.awares[node].getShardByIndex(shardIndex)
 }
 
-func (c *testRaftCluster) GetShardByID(node int, shardID uint64) meta.Shard {
+func (c *testRaftCluster) GetShardByID(node int, shardID uint64) Shard {
 	return c.awares[node].getShardByID(shardID)
 }
 

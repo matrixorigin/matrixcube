@@ -308,7 +308,7 @@ func (pr *replica) proposeTransferLeader(c batch) bool {
 	return false
 }
 
-func (pr *replica) doTransferLeader(peer metapb.Peer) {
+func (pr *replica) doTransferLeader(peer Peer) {
 	logger.Infof("shard %d transfer leader to peer %d",
 		pr.shardID,
 		peer.ID)
@@ -321,7 +321,7 @@ func (pr *replica) doTransferLeader(peer metapb.Peer) {
 	pr.metrics.propose.transferLeader++
 }
 
-func (pr *replica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
+func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Peer) bool {
 	status := pr.rn.Status()
 	if _, ok := status.Progress[newLeaderPeer.ID]; !ok {
 		return false
