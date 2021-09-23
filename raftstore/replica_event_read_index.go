@@ -52,7 +52,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	pr.readCtx.reset(pr.getShard())
 	for _, r := range q.reads {
 		if r.index > 0 && r.index <= appliedIndex {
-			c := cmd{
+			c := batch{
 				req: r.req,
 				cb:  pr.store.cb,
 				tp:  read,

@@ -97,7 +97,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 	}
 }
 
-func (pr *replica) propose(c cmd) {
+func (pr *replica) propose(c batch) {
 	if !pr.checkProposal(c) {
 		return
 	}
@@ -141,7 +141,7 @@ func (pr *replica) propose(c cmd) {
 	}
 }
 
-func (pr *replica) execReadIndex(c cmd) {
+func (pr *replica) execReadIndex(c batch) {
 	if c.tp != read {
 		panic("not a read index request")
 	}
@@ -168,7 +168,7 @@ func (pr *replica) execReadIndex(c cmd) {
 	pr.metrics.propose.readIndex++
 }
 
-func (pr *replica) proposeNormal(c cmd) bool {
+func (pr *replica) proposeNormal(c batch) bool {
 	if !pr.isLeader() {
 		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
@@ -201,7 +201,7 @@ func (pr *replica) proposeNormal(c cmd) bool {
 	return true
 }
 
-func (pr *replica) proposeConfChange(c cmd) bool {
+func (pr *replica) proposeConfChange(c batch) bool {
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		logger.Errorf("shard-%d there is a pending conf change, try later",
 			pr.shardID)
@@ -222,7 +222,7 @@ func (pr *replica) proposeConfChange(c cmd) bool {
 	return true
 }
 
-func (pr *replica) proposeConfChangeInternal(c cmd, admin *rpc.AdminRequest, data []byte) error {
+func (pr *replica) proposeConfChangeInternal(c batch, admin *rpc.AdminRequest, data []byte) error {
 	cc := pr.toConfChangeI(admin, data)
 	var changes []rpc.ConfigChangeRequest
 	if admin.ConfigChangeV2 != nil {
@@ -283,7 +283,7 @@ func (pr *replica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.Co
 	}
 }
 
-func (pr *replica) proposeTransferLeader(c cmd) bool {
+func (pr *replica) proposeTransferLeader(c batch) bool {
 	req := c.req.AdminRequest.TransferLeader
 
 	// has pending conf, skip
@@ -337,7 +337,7 @@ func (pr *replica) isTransferLeaderAllowed(newLeaderPeer metapb.Peer) bool {
 	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
 }
 
-func (pr *replica) checkProposal(c cmd) bool {
+func (pr *replica) checkProposal(c batch) bool {
 	// we handle all read, write and admin cmd here
 	if c.req.Header == nil || len(c.req.Header.ID) == 0 {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))

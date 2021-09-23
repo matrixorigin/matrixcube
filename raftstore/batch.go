@@ -14,132 +14,183 @@
 package raftstore
 
 import (
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.uber.org/zap"
 )
 
-// TODO: request type should has its own type
-const (
-	read = iota
-	write
-	admin
-)
-
-var (
-	emptyCMD = cmd{}
-	// testMaxProposalRequestCount just for test, how many requests can be aggregated in a batch, 0 is disabled
-	testMaxProposalRequestCount = 0
-)
-
-type reqCtx struct {
-	admin *rpc.AdminRequest
-	req   *rpc.Request
-	cb    func(*rpc.ResponseBatch)
+func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
+	return e1.ConfVer == e2.ConfVer && e1.Version == e2.Version
 }
 
-func (c reqCtx) getType() int {
-	if c.admin != nil {
-		return admin
-	}
-
-	if c.req.Type == rpc.CmdType_Write {
-		return write
-	}
-
-	return read
+type batch struct {
+	req                     *rpc.RequestBatch
+	cb                      func(*rpc.ResponseBatch)
+	readIndexCommittedIndex uint64
+	tp                      int
+	size                    int
 }
 
-// TODO: rename this struct to proposalBatch
-type proposeBatch struct {
-	maxSize uint64
-	shardID uint64
-	peer    metapb.Peer
-	buf     *buf.ByteBuf
-	cmds    []cmd
+func (c *batch) notifyStaleCmd() {
+	c.resp(errorStaleCMDResp(c.getUUID()))
 }
 
-func newBatch(maxSize uint64, shardID uint64, peer metapb.Peer) *proposeBatch {
-	return &proposeBatch{
-		maxSize: maxSize,
-		shardID: shardID,
-		peer:    peer,
-		buf:     buf.NewByteBuf(512),
+func (c *batch) notifyShardRemoved() {
+	if c.req != nil && c.req.Header != nil {
+		c.respShardNotFound(c.req.Header.ShardID)
 	}
 }
 
-func (b *proposeBatch) size() int {
-	return len(b.cmds)
+func (c *batch) isFull(n, max int) bool {
+	return max <= c.size+n ||
+		(testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
 }
 
-func (b *proposeBatch) isEmpty() bool {
-	return b.size() == 0
+func (c *batch) canAppend(epoch metapb.ResourceEpoch, req *rpc.Request) bool {
+	return (c.req.Header.IgnoreEpochCheck && req.IgnoreEpochCheck) ||
+		(epochMatch(c.req.Header.Epoch, epoch) &&
+			!c.req.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
-func (b *proposeBatch) pop() (cmd, bool) {
-	if b.isEmpty() {
-		return emptyCMD, false
-	}
-
-	value := b.cmds[0]
-	b.cmds[0] = emptyCMD
-	b.cmds = b.cmds[1:]
-
-	metric.SetRaftProposalBatchMetric(int64(len(value.req.Requests)))
-	return value, true
+func newCMD(req *rpc.RequestBatch, cb func(*rpc.ResponseBatch), tp int, size int) batch {
+	c := batch{}
+	c.req = req
+	c.cb = cb
+	c.tp = tp
+	c.size = size
+	return c
 }
 
-// TODO: might make sense to move the epoch value into c.req
+func resp(req *rpc.Request, resp *rpc.Response, cb func(*rpc.ResponseBatch)) {
+	resp.ID = req.ID
+	resp.SID = req.SID
+	resp.PID = req.PID
 
-// push adds the specified req to a proposalBatch. The epoch value should
-// reflect client's view of the shard when the request is made.
-func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) {
-	adminReq := c.admin
-	req := c.req
-	cb := c.cb
-	tp := c.getType()
+	rsp := pb.AcquireResponseBatch()
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
 
-	isAdmin := tp == admin
+func respWithRetry(req *rpc.Request, cb func(*rpc.ResponseBatch)) {
+	resp := pb.AcquireResponse()
+	resp.Type = rpc.CmdType_Invalid
+	resp.ID = req.ID
+	resp.SID = req.SID
+	resp.PID = req.PID
+	resp.Request = req
 
-	// use data key to store
-	if !isAdmin {
-		req.Key = keys.GetDataKeyWithBuf(group, req.Key, b.buf)
-		b.buf.Clear()
-	}
+	rsp := pb.AcquireResponseBatch()
+	rsp.Responses = append(rsp.Responses, resp)
 
-	n := req.Size()
-	added := false
-	if !isAdmin {
-		for idx := range b.cmds {
-			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, int(b.maxSize)) &&
-				b.cmds[idx].canAppend(epoch, req) {
-				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
-				b.cmds[idx].size += n
-				added = true
-				break
+	cb(rsp)
+}
+
+func respStoreNotMatch(err error, req *rpc.Request, cb func(*rpc.ResponseBatch)) {
+	rsp := errorPbResp(&errorpb.Error{
+		Message:       err.Error(),
+		StoreNotMatch: storeNotMatch,
+	}, uuid.NewV4().Bytes())
+
+	resp := pb.AcquireResponse()
+	resp.ID = req.ID
+	resp.SID = req.SID
+	resp.PID = req.PID
+	resp.Request = req
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func (c *batch) resp(resp *rpc.ResponseBatch) {
+	if c.cb != nil {
+		if len(c.req.Requests) > 0 {
+			if len(c.req.Requests) != len(resp.Responses) {
+				if resp.Header == nil {
+					logger2.Fatal("requests and response not match",
+						zap.Int("request-count", len(c.req.Requests)),
+						zap.Int("response-count", len(resp.Responses)))
+				} else if len(resp.Responses) != 0 {
+					logger.Fatalf("BUG: responses len must be 0")
+				}
+
+				for _, req := range c.req.Requests {
+					rsp := pb.AcquireResponse()
+					rsp.ID = req.ID
+					rsp.SID = req.SID
+					rsp.PID = req.PID
+					resp.Responses = append(resp.Responses, rsp)
+				}
+			} else {
+				for idx, req := range c.req.Requests {
+					resp.Responses[idx].ID = req.ID
+					resp.Responses[idx].SID = req.SID
+					resp.Responses[idx].PID = req.PID
+				}
+			}
+
+			if resp.Header != nil {
+				for idx, rsp := range resp.Responses {
+					rsp.Request = c.req.Requests[idx]
+					rsp.Request.Key = keys.DecodeDataKey(rsp.Request.Key)
+					rsp.Error = resp.Header.Error
+				}
 			}
 		}
+
+		c.cb(resp)
+	} else {
+		pb.ReleaseRaftResponseAll(resp)
+	}
+}
+
+func (c *batch) respShardNotFound(shardID uint64) {
+	err := new(errorpb.ShardNotFound)
+	err.ShardID = shardID
+
+	rsp := errorPbResp(&errorpb.Error{
+		Message:       errShardNotFound.Error(),
+		ShardNotFound: err,
+	}, c.req.Header.ID)
+
+	c.resp(rsp)
+}
+
+func (c *batch) respLargeRaftEntrySize(shardID uint64, size uint64) {
+	err := &errorpb.RaftEntryTooLarge{
+		ShardID:   shardID,
+		EntrySize: size,
 	}
 
-	if !added {
-		raftCMD := pb.AcquireRequestBatch()
-		raftCMD.Header = pb.AcquireRequestBatchHeader()
-		raftCMD.Header.ShardID = b.shardID
-		raftCMD.Header.Peer = b.peer
-		raftCMD.Header.ID = uuid.NewV4().Bytes()
-		raftCMD.Header.Epoch = epoch
+	rsp := errorPbResp(&errorpb.Error{
+		Message:           errLargeRaftEntrySize.Error(),
+		RaftEntryTooLarge: err,
+	}, c.getUUID())
 
-		if isAdmin {
-			raftCMD.AdminRequest = adminReq
-		} else {
-			raftCMD.Header.IgnoreEpochCheck = req.IgnoreEpochCheck
-			raftCMD.Requests = append(raftCMD.Requests, req)
-		}
+	c.resp(rsp)
+}
 
-		b.cmds = append(b.cmds, newCMD(raftCMD, cb, tp, n))
+func (c *batch) respOtherError(err error) {
+	rsp := errorOtherCMDResp(err)
+	c.resp(rsp)
+}
+
+func (c *batch) respNotLeader(shardID uint64, leader metapb.Peer) {
+	err := &errorpb.NotLeader{
+		ShardID: shardID,
+		Leader:  leader,
 	}
+
+	rsp := errorPbResp(&errorpb.Error{
+		Message:   errNotLeader.Error(),
+		NotLeader: err,
+	}, c.getUUID())
+
+	c.resp(rsp)
+}
+
+func (c *batch) getUUID() []byte {
+	return c.req.Header.ID
 }

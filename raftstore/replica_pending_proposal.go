@@ -20,8 +20,8 @@ import (
 )
 
 type pendingProposals struct {
-	cmds          []cmd
-	confChangeCmd cmd
+	cmds          []batch
+	confChangeCmd batch
 }
 
 func newPendingProposals() *pendingProposals {
@@ -50,7 +50,7 @@ func (p *pendingProposals) clear() {
 	p.cmds = p.cmds[:0]
 }
 
-func (p *pendingProposals) pop() (cmd, bool) {
+func (p *pendingProposals) pop() (batch, bool) {
 	if len(p.cmds) == 0 {
 		return emptyCMD, false
 	}
@@ -61,11 +61,11 @@ func (p *pendingProposals) pop() (cmd, bool) {
 	return c, true
 }
 
-func (p *pendingProposals) append(c cmd) {
+func (p *pendingProposals) append(c batch) {
 	p.cmds = append(p.cmds, c)
 }
 
-func (p *pendingProposals) setConfigChange(c cmd) {
+func (p *pendingProposals) setConfigChange(c batch) {
 	if c.req == nil {
 		panic("no req")
 	}
@@ -79,7 +79,7 @@ func (p *pendingProposals) setConfigChange(c cmd) {
 	p.confChangeCmd = c
 }
 
-func (p *pendingProposals) getConfigChange() cmd {
+func (p *pendingProposals) getConfigChange() batch {
 	return p.confChangeCmd
 }
 

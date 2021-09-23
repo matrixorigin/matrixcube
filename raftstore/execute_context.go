@@ -10,7 +10,7 @@ import (
 type executeContext struct {
 	shard        meta.Shard
 	buf          *buf.ByteBuf
-	cmds         []cmd
+	cmds         []batch
 	requests     []storage.LogRequest
 	responses    [][]byte
 	writtenBytes uint64
@@ -29,10 +29,10 @@ func (ctx *executeContext) close() {
 }
 
 func (ctx *executeContext) appendRequest(req *rpc.RequestBatch) {
-	ctx.appendRequestByCmd(cmd{req: req})
+	ctx.appendRequestByCmd(batch{req: req})
 }
 
-func (ctx *executeContext) appendRequestByCmd(c cmd) {
+func (ctx *executeContext) appendRequestByCmd(c batch) {
 	lq := storage.LogRequest{}
 	for _, req := range c.req.Requests {
 		lq.Requests = append(lq.Requests, storage.CustomCmd{

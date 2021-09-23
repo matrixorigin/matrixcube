@@ -51,7 +51,7 @@ func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
 	}
 }
 
-func (pr *replica) startProposeJob(c cmd, isConfChange bool) error {
+func (pr *replica) startProposeJob(c batch, isConfChange bool) error {
 	err := pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
 		return pr.doPropose(c, isConfChange)
 	}, nil)
@@ -76,7 +76,7 @@ func (pr *replica) startSplitCheckJob() error {
 	return err
 }
 
-func (pr *replica) doPropose(c cmd, isConfChange bool) error {
+func (pr *replica) doPropose(c batch, isConfChange bool) error {
 	if isConfChange {
 		changeC := pr.pendings.getConfigChange()
 		if changeC.req != nil && changeC.req.Header != nil {

@@ -21,112 +21,74 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	testMaxBatchSize uint64 = 1024 * 1024
-)
+func TestEpochMatch(t *testing.T) {
+	tests := []struct {
+		confVer1 uint64
+		version1 uint64
+		confVer2 uint64
+		version2 uint64
+		match    bool
+	}{
+		{1, 1, 1, 1, true},
+		{1, 1, 1, 2, false},
+		{1, 1, 2, 1, false},
+		{1, 1, 2, 2, false},
+	}
 
-func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
-	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	r1 := reqCtx{
-		admin: &rpc.AdminRequest{},
+	for _, tt := range tests {
+		e1 := metapb.ResourceEpoch{
+			ConfVer: tt.confVer1,
+			Version: tt.version1,
+		}
+		e2 := metapb.ResourceEpoch{
+			ConfVer: tt.confVer2,
+			Version: tt.version2,
+		}
+		assert.Equal(t, tt.match, epochMatch(e1, e2))
 	}
-	r2 := reqCtx{
-		admin: &rpc.AdminRequest{},
-	}
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
-	assert.Equal(t, 2, b.size())
 }
 
-func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
-	r1 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
+func TestCanAppendCmd(t *testing.T) {
+	tests := []struct {
+		ignored1  bool
+		confVer1  uint64
+		version1  uint64
+		ignored2  bool
+		confVer2  uint64
+		version2  uint64
+		canAppend bool
+	}{
+		{true, 1, 1, true, 1, 1, true},
+		{true, 1, 1, true, 2, 2, true},
+		{true, 1, 1, false, 1, 1, false},
+		{true, 1, 1, false, 2, 2, false},
+		{false, 1, 1, false, 1, 1, true},
+		{false, 1, 1, false, 1, 2, false},
+		{false, 1, 1, false, 2, 1, false},
+		{false, 1, 1, false, 2, 2, false},
 	}
-	r2 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Read,
-		},
+
+	for _, tt := range tests {
+		cmd := &batch{
+			req: &rpc.RequestBatch{
+				Header: &rpc.RequestBatchHeader{
+					Epoch: metapb.ResourceEpoch{
+						ConfVer: tt.confVer1,
+						Version: tt.version1,
+					},
+					IgnoreEpochCheck: tt.ignored1,
+				},
+			},
+		}
+		req := &rpc.Request{
+			IgnoreEpochCheck: tt.ignored2,
+		}
+		epoch := metapb.ResourceEpoch{
+			ConfVer: tt.confVer2,
+			Version: tt.version2,
+		}
+		assert.Equal(t, tt.canAppend, cmd.canAppend(epoch, req))
 	}
-	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
-	assert.True(t, r1.req.Size()+r2.req.Size() < int(b.maxSize))
-	assert.Equal(t, 2, b.size())
 }
 
-func TestProposalBatchLimitsBatchSize(t *testing.T) {
-	r1 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	r2 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	b1 := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	b1.push(1, metapb.ResourceEpoch{}, r1)
-	b1.push(1, metapb.ResourceEpoch{}, r2)
-	assert.True(t, r1.req.Size()+r2.req.Size() < int(b1.maxSize))
-	assert.Equal(t, 1, b1.size())
-	assert.Equal(t, 2, len(b1.cmds[0].req.Requests))
-
-	b2 := newBatch(1, 10, metapb.Peer{})
-	b2.push(1, metapb.ResourceEpoch{}, r1)
-	b2.push(1, metapb.ResourceEpoch{}, r2)
-	assert.True(t, r1.req.Size()+r2.req.Size() > int(b2.maxSize))
-	assert.Equal(t, 2, b2.size())
-}
-
-func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
-	epoch1 := metapb.ResourceEpoch{ConfVer: 1, Version: 1}
-	epoch2 := metapb.ResourceEpoch{ConfVer: 2, Version: 2}
-	r1 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	r2 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	b.push(1, epoch1, r1)
-	b.push(1, epoch2, r2)
-	assert.Equal(t, 2, b.size())
-
-	b2 := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	b2.push(1, epoch1, r1)
-	b2.push(1, epoch1, r2)
-	assert.Equal(t, 1, b2.size())
-}
-
-func TestProposalBatchPop(t *testing.T) {
-	r1 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	r2 := reqCtx{
-		req: &rpc.Request{
-			Type: rpc.CmdType_Read,
-		},
-	}
-	b := newBatch(testMaxBatchSize, 10, metapb.Peer{})
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
-	assert.Equal(t, 2, b.size())
-	v1, ok := b.pop()
-	assert.True(t, ok)
-	assert.Equal(t, r1.req, v1.req.Requests[0])
-	v2, ok := b.pop()
-	assert.True(t, ok)
-	assert.Equal(t, r2.req, v2.req.Requests[0])
-	v3, ok := b.pop()
-	assert.False(t, ok)
-	assert.Equal(t, emptyCMD, v3)
-}
+// TODO: add more tests for cmd.go

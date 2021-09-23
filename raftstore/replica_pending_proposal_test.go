@@ -26,20 +26,20 @@ import (
 func TestPendingProposalsCanBeCreated(t *testing.T) {
 	p := newPendingProposals()
 	assert.Empty(t, p.cmds)
-	assert.Equal(t, cmd{}, p.confChangeCmd)
+	assert.Equal(t, batch{}, p.confChangeCmd)
 }
 
 func TestPendingProposalAppend(t *testing.T) {
 	p := newPendingProposals()
-	p.append(cmd{})
-	p.append(cmd{})
+	p.append(batch{})
+	p.append(batch{})
 	assert.Equal(t, 2, len(p.cmds))
 }
 
 func TestPendingProposalPop(t *testing.T) {
 	p := newPendingProposals()
-	cmd1 := cmd{size: 100}
-	cmd2 := cmd{size: 200}
+	cmd1 := batch{size: 100}
+	cmd2 := batch{size: 200}
 	p.append(cmd1)
 	p.append(cmd2)
 	assert.Equal(t, 2, len(p.cmds))
@@ -57,7 +57,7 @@ func TestPendingProposalPop(t *testing.T) {
 
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	p := newPendingProposals()
-	cmd := cmd{
+	cmd := batch{
 		req: &rpc.RequestBatch{
 			AdminRequest: &rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
@@ -70,7 +70,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 }
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
-	cmd := cmd{
+	cmd := batch{
 		req: &rpc.RequestBatch{
 			AdminRequest: &rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_TransferLeader,
@@ -88,7 +88,7 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 
 func testPendingProposalClear(t *testing.T,
 	clear bool, cb func(resp *rpc.ResponseBatch)) {
-	cmd1 := cmd{
+	cmd1 := batch{
 		req: &rpc.RequestBatch{
 			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
@@ -99,7 +99,7 @@ func testPendingProposalClear(t *testing.T,
 		},
 		cb: cb,
 	}
-	cmd2 := cmd{
+	cmd2 := batch{
 		req: &rpc.RequestBatch{
 			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
@@ -110,7 +110,7 @@ func testPendingProposalClear(t *testing.T,
 		},
 		cb: cb,
 	}
-	ConfChangeCmd := cmd{
+	ConfChangeCmd := batch{
 		req: &rpc.RequestBatch{
 			AdminRequest: &rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
@@ -160,7 +160,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
-	ConfChangeCmd := cmd{
+	ConfChangeCmd := batch{
 		req: &rpc.RequestBatch{
 			AdminRequest: &rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
@@ -195,7 +195,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
-	cmd1 := cmd{
+	cmd1 := batch{
 		req: &rpc.RequestBatch{
 			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
@@ -206,7 +206,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		},
 		cb: staleCB,
 	}
-	cmd2 := cmd{
+	cmd2 := batch{
 		req: &rpc.RequestBatch{
 			Requests: []*rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
@@ -217,7 +217,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		},
 		cb: cb,
 	}
-	cmd3 := cmd{}
+	cmd3 := batch{}
 	p := newPendingProposals()
 	p.append(cmd1)
 	p.append(cmd2)
