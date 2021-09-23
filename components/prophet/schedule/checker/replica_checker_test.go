@@ -79,11 +79,11 @@ func (s *testReplicaChecker) setup() {
 	s.cluster.AddLabelsContainer(2, 1, map[string]string{"noleader": "true"})
 }
 
-func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.PeerRole) *operator.Operator {
+func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.ReplicaRole) *operator.Operator {
 	s.cluster.SetMaxReplicas(2)
 	s.cluster.SetContainerUP(1)
 	downContainerID := uint64(3)
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{
 			ID:          4,
 			ContainerID: 1,
@@ -101,8 +101,8 @@ func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.Pee
 	r := core.NewCachedResource(&metadata.TestResource{ResID: 2, ResPeers: peers}, &peers[0])
 	s.cluster.PutResource(r)
 	s.cluster.SetContainerDown(downContainerID)
-	downPeer := metapb.PeerStats{
-		Peer: metapb.Peer{
+	downPeer := metapb.ReplicaStats{
+		Replica: metapb.Replica{
 			ID:          14,
 			ContainerID: downContainerID,
 		},
@@ -117,7 +117,7 @@ func TestReplacePendingPeer(t *testing.T) {
 	s := &testReplicaChecker{}
 	s.setup()
 
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{
 			ID:          2,
 			ContainerID: 1,
@@ -147,7 +147,7 @@ func TestReplaceOfflinePeer(t *testing.T) {
 	s.cluster.SetLabelPropertyConfig(config.LabelPropertyConfig{
 		opt.RejectLeader: {{Key: "noleader", Value: "true"}},
 	})
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{
 			ID:          4,
 			ContainerID: 1,
@@ -176,7 +176,7 @@ func TestOfflineWithOneReplica(t *testing.T) {
 	s.setup()
 
 	s.cluster.SetMaxReplicas(1)
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{
 			ID:          4,
 			ContainerID: 1,
@@ -204,7 +204,7 @@ func TestFillReplicas(t *testing.T) {
 	tc.AddResourceContainer(3, 1)
 
 	res := core.NewTestCachedResource(nil, nil)
-	res.Meta.SetPeers([]metapb.Peer{{ID: 1, ContainerID: 1}})
+	res.Meta.SetPeers([]metapb.Replica{{ID: 1, ContainerID: 1}})
 	err := rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
@@ -219,12 +219,12 @@ func TestDownPeer(t *testing.T) {
 	s.setup()
 
 	// down a peer, the number of normal peers(except learner) is enough.
-	op := s.downPeerAndCheck(t, metapb.PeerRole_Voter)
+	op := s.downPeerAndCheck(t, metapb.ReplicaRole_Voter)
 	assert.NotNil(t, op)
 	assert.Equal(t, "remove-extra-down-replica", op.Desc())
 
 	// down a peer,the number of peers(except learner) is not enough.
-	op = s.downPeerAndCheck(t, metapb.PeerRole_Learner)
+	op = s.downPeerAndCheck(t, metapb.ReplicaRole_Learner)
 	assert.NotNil(t, op)
 	assert.Equal(t, "replace-down-replica", op.Desc())
 }
@@ -293,8 +293,8 @@ func TestReplicaCheckerBasic(t *testing.T) {
 	tc.SetContainerDown(2)
 	p, ok = resource.GetContainerPeer(2)
 	assert.True(t, ok)
-	downPeer := metapb.PeerStats{
-		Peer:        p,
+	downPeer := metapb.ReplicaStats{
+		Replica:     p,
 		DownSeconds: 24 * 60 * 60,
 	}
 
@@ -553,9 +553,9 @@ func TestOpts(t *testing.T) {
 	tc.SetContainerDown(1)
 	p, ok := resource.GetContainerPeer(1)
 	assert.True(t, ok)
-	resource = resource.Clone(core.WithDownPeers([]metapb.PeerStats{
+	resource = resource.Clone(core.WithDownPeers([]metapb.ReplicaStats{
 		{
-			Peer:        p,
+			Replica:     p,
 			DownSeconds: 24 * 60 * 60,
 		},
 	}))

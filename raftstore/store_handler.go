@@ -154,7 +154,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 
 	var (
 		hasPeer   = false
-		stalePeer Peer
+		stalePeer Replica
 	)
 
 	target := msg.To
@@ -164,7 +164,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 
 		// we may encounter a message with larger peer id, which means
 		// current peer is stale, then we should remove current peer
-		if p.peer.ID < target.ID {
+		if p.replica.ID < target.ID {
 			// TODO: check this.
 			// cancel snapshotting op
 
@@ -176,12 +176,12 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 			//	return false
 			//}
 
-			stalePeer = p.peer
-		} else if p.peer.ID > target.ID {
+			stalePeer = p.replica
+		} else if p.replica.ID > target.ID {
 			logger.Infof("shard %d may be from peer is stale, targetID=<%d> currentID=<%d>",
 				msg.ShardID,
 				target.ID,
-				p.peer.ID)
+				p.replica.ID)
 			return false
 		}
 	}

@@ -23,21 +23,21 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 )
 
-// PeerRoleType is the expected peer type of the placement rule.
-type PeerRoleType string
+// ReplicaRoleType is the expected peer type of the placement rule.
+type ReplicaRoleType string
 
 const (
 	// Voter can either match a leader peer or follower peer
-	Voter PeerRoleType = "voter"
+	Voter ReplicaRoleType = "voter"
 	// Leader matches a leader.
-	Leader PeerRoleType = "leader"
+	Leader ReplicaRoleType = "leader"
 	// Follower matches a follower.
-	Follower PeerRoleType = "follower"
+	Follower ReplicaRoleType = "follower"
 	// Learner matches a learner.
-	Learner PeerRoleType = "learner"
+	Learner ReplicaRoleType = "learner"
 )
 
-func getPeerRoleTypeFromRPC(tpe rpcpb.PeerRoleType) PeerRoleType {
+func getReplicaRoleTypeFromRPC(tpe rpcpb.ReplicaRoleType) ReplicaRoleType {
 	switch tpe {
 	case rpcpb.Voter:
 		return Voter
@@ -51,20 +51,20 @@ func getPeerRoleTypeFromRPC(tpe rpcpb.PeerRoleType) PeerRoleType {
 	return Voter
 }
 
-func validateRole(s PeerRoleType) bool {
+func validateRole(s ReplicaRoleType) bool {
 	return s == Voter || s == Leader || s == Follower || s == Learner
 }
 
-// MetaPeerRole converts placement.PeerRoleType to metapb.PeerRole.
-func (s PeerRoleType) MetaPeerRole() metapb.PeerRole {
+// MetaPeerRole converts placement.ReplicaRoleType to metapb.PeerRole.
+func (s ReplicaRoleType) MetaPeerRole() metapb.ReplicaRole {
 	if s == Learner {
-		return metapb.PeerRole_Learner
+		return metapb.ReplicaRole_Learner
 	}
-	return metapb.PeerRole_Voter
+	return metapb.ReplicaRole_Voter
 }
 
-// RPCPeerRole converts placement.PeerRoleType to rpcpb.PeerRoleType.
-func (s PeerRoleType) RPCPeerRole() rpcpb.PeerRoleType {
+// RPCPeerRole converts placement.ReplicaRoleType to rpcpb.ReplicaRoleType.
+func (s ReplicaRoleType) RPCPeerRole() rpcpb.ReplicaRoleType {
 	switch s {
 	case Voter:
 		return rpcpb.Voter
@@ -90,7 +90,7 @@ type Rule struct {
 	StartKeyHex      string            `json:"start_key"`                   // hex format start key, for marshal/unmarshal
 	EndKey           []byte            `json:"-"`                           // range end key
 	EndKeyHex        string            `json:"end_key"`                     // hex format end key, for marshal/unmarshal
-	Role             PeerRoleType      `json:"role"`                        // expected role of the peers
+	Role             ReplicaRoleType   `json:"role"`                        // expected role of the peers
 	Count            int               `json:"count"`                       // expected count of the peers
 	LabelConstraints []LabelConstraint `json:"label_constraints,omitempty"` // used to select containers to place peers
 	LocationLabels   []string          `json:"location_labels,omitempty"`   // used to make peers isolated physically
@@ -129,7 +129,7 @@ func NewRuleFromRPC(rule rpcpb.PlacementRule) *Rule {
 		Override:         rule.Override,
 		StartKeyHex:      hex.EncodeToString(rule.StartKey),
 		EndKeyHex:        hex.EncodeToString(rule.EndKey),
-		Role:             getPeerRoleTypeFromRPC(rule.Role),
+		Role:             getReplicaRoleTypeFromRPC(rule.Role),
 		Count:            int(rule.Count),
 		LabelConstraints: newLabelConstraintsFromRPC(rule.LabelConstraints),
 		LocationLabels:   rule.LocationLabels,

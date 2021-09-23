@@ -50,7 +50,7 @@ func makeTestContainers() ContainerSet {
 // example: "1111_leader,1234,2111_learner"
 func makeTestResource(def string) *core.CachedResource {
 	var resourceMeta metadata.TestResource
-	var leader *metapb.Peer
+	var leader *metapb.Replica
 	for _, peerDef := range strings.Split(def, ",") {
 		role, idStr := Follower, peerDef
 		if strings.Contains(peerDef, "_") {
@@ -58,7 +58,7 @@ func makeTestResource(def string) *core.CachedResource {
 			idStr, role = splits[0], PeerRoleType(splits[1])
 		}
 		id, _ := strconv.Atoi(idStr)
-		peer := metapb.Peer{ID: uint64(id), ContainerID: uint64(id), Role: role.MetaPeerRole()}
+		peer := metapb.Replica{ID: uint64(id), ContainerID: uint64(id), Role: role.MetaPeerRole()}
 		resourceMeta.ResPeers = append(resourceMeta.ResPeers, peer)
 		if role == Leader {
 			leader = &peer
@@ -90,7 +90,7 @@ func makeTestRule(def string) *Rule {
 	return &rule
 }
 
-func checkPeerMatch(peers []metapb.Peer, expect string) bool {
+func checkPeerMatch(peers []metapb.Replica, expect string) bool {
 	if len(peers) == 0 && expect == "" {
 		return true
 	}
@@ -172,7 +172,7 @@ func TestIsolationScore(t *testing.T) {
 		var peers []*fitPeer
 		for _, id := range ids {
 			peers = append(peers, &fitPeer{
-				Peer:      metapb.Peer{ContainerID: id},
+				Replica:   metapb.Replica{ContainerID: id},
 				container: containers.GetContainer(id),
 			})
 		}

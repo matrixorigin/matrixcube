@@ -79,7 +79,7 @@ func (r *ReplicaChecker) FillReplicas(res *core.CachedResource, leastPeers int) 
 		}
 
 		peers := res.Meta.Peers()
-		peers = append(peers, metapb.Peer{ContainerID: container})
+		peers = append(peers, metapb.Replica{ContainerID: container})
 		res.Meta.SetPeers(peers)
 	}
 
@@ -126,7 +126,7 @@ func (r *ReplicaChecker) checkDownPeer(res *core.CachedResource) *operator.Opera
 	}
 
 	for _, stats := range res.GetDownPeers() {
-		peer := stats.GetPeer()
+		peer := stats.GetReplica()
 		if peer.ID == 0 {
 			continue
 		}
@@ -194,7 +194,7 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.
 		r.resourceWaitingList.Put(res.Meta.ID(), nil)
 		return nil
 	}
-	newPeer := metapb.Peer{ContainerID: target}
+	newPeer := metapb.Replica{ContainerID: target}
 	op, err := operator.CreateAddPeerOperator("make-up-replica", r.cluster, res, newPeer, operator.OpReplica)
 	if err != nil {
 		util.GetLogger().Debugf("create make-up-replica operator failed with %+v", err)
@@ -250,7 +250,7 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 		return nil
 	}
 
-	newPeer := metapb.Peer{ContainerID: newContainer}
+	newPeer := metapb.Replica{ContainerID: newContainer}
 	op, err := operator.CreateMovePeerOperator("move-to-better-location", r.cluster, res, operator.OpReplica, oldContainer, newPeer)
 	if err != nil {
 		checkerCounter.WithLabelValues("replica_checker", "create-operator-fail").Inc()
@@ -282,7 +282,7 @@ func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, s
 			res.Meta.ID())
 		return nil
 	}
-	newPeer := metapb.Peer{ContainerID: target}
+	newPeer := metapb.Replica{ContainerID: target}
 	replace := fmt.Sprintf("replace-%s-replica", status)
 	op, err := operator.CreateMovePeerOperator(replace, r.cluster, res, operator.OpReplica, containerID, newPeer)
 	if err != nil {

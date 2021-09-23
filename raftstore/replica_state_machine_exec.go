@@ -36,9 +36,9 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, 
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
-		return d.doExecChangePeer(ctx)
+		return d.doExecChangeReplica(ctx)
 	case rpc.AdminCmdType_ConfigChangeV2:
-		return d.doExecChangePeerV2(ctx)
+		return d.doExecChangeReplicaV2(ctx)
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	}
@@ -46,12 +46,12 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, 
 	return nil, nil
 }
 
-func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChange
-	peer := req.Peer
+	replica := req.Replica
 	current := d.getShard()
 
-	logger2.Info("begin to apply change peer",
+	logger2.Info("begin to apply change replica",
 		d.pr.field,
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
@@ -61,54 +61,54 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, 
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
 
-	p := findPeer(&res, req.Peer.ContainerID)
+	p := findReplica(&res, req.Replica.ContainerID)
 	switch req.ChangeType {
-	case metapb.ChangePeerType_AddNode:
+	case metapb.ConfigChangeType_AddNode:
 		exists := false
 		if p != nil {
 			exists = true
-			if p.Role != metapb.PeerRole_Learner || p.ID != peer.ID {
-				return nil, fmt.Errorf("shard %d can't add duplicated peer %+v",
+			if p.Role != metapb.ReplicaRole_Learner || p.ID != replica.ID {
+				return nil, fmt.Errorf("shard %d can't add duplicated replica %+v",
 					res.ID,
-					peer)
+					replica)
 			}
-			p.Role = metapb.PeerRole_Voter
+			p.Role = metapb.ReplicaRole_Voter
 		}
 
 		if !exists {
-			res.Peers = append(res.Peers, peer)
+			res.Replicas = append(res.Replicas, replica)
 		}
-	case metapb.ChangePeerType_RemoveNode:
+	case metapb.ConfigChangeType_RemoveNode:
 		if p != nil {
-			if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
-				return nil, fmt.Errorf("shard %+v ignore remove unmatched peer %+v",
+			if p.ID != replica.ID || p.ContainerID != replica.ContainerID {
+				return nil, fmt.Errorf("shard %+v ignore remove unmatched replica %+v",
 					res.ID,
-					peer)
+					replica)
 			}
 
-			if d.peerID == peer.ID {
+			if d.replicaID == replica.ID {
 				// Remove ourself, we will destroy all shard data later.
 				// So we need not to apply following logs.
 				d.setPendingRemove()
 			}
 		} else {
-			return nil, fmt.Errorf("shard %+v remove missing peer %+v",
+			return nil, fmt.Errorf("shard %+v remove missing replica %+v",
 				res.ID,
-				peer)
+				replica)
 		}
-	case metapb.ChangePeerType_AddLearnerNode:
+	case metapb.ConfigChangeType_AddLearnerNode:
 		if p != nil {
 			return nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
 				res.ID,
-				peer)
+				replica)
 		}
 
-		res.Peers = append(res.Peers, peer)
+		res.Replicas = append(res.Replicas, replica)
 	}
 
-	state := meta.PeerState_Normal
+	state := meta.ReplicaState_Normal
 	if d.isPendingRemove() {
-		state = meta.PeerState_Tombstone
+		state = meta.ReplicaState_Tombstone
 	}
 
 	d.updateShard(res)
@@ -119,7 +119,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, 
 			zap.Error(err))
 	}
 
-	logger2.Info("apply change peer complete",
+	logger2.Info("apply change replica complete",
 		d.pr.field,
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
@@ -129,7 +129,7 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, 
 	})
 	ctx.adminResult = &adminExecResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
-		changePeerResult: &changePeerResult{
+		configChangeResult: &configChangeResult{
 			index:   ctx.entry.Index,
 			changes: []rpc.ConfigChangeRequest{*req},
 			shard:   res,
@@ -138,12 +138,12 @@ func (d *stateMachine) doExecChangePeer(ctx *applyContext) (*rpc.ResponseBatch, 
 	return resp, nil
 }
 
-func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (*rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChangeV2
 	changes := req.Changes
 	current := d.getShard()
 
-	logger2.Info("begin to apply change peer v2",
+	logger2.Info("begin to apply change replica v2",
 		d.pr.field,
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
@@ -162,9 +162,9 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch
 		return nil, err
 	}
 
-	state := meta.PeerState_Normal
+	state := meta.ReplicaState_Normal
 	if d.isPendingRemove() {
-		state = meta.PeerState_Tombstone
+		state = meta.ReplicaState_Tombstone
 	}
 
 	d.updateShard(res)
@@ -175,7 +175,7 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch
 			zap.Error(err))
 	}
 
-	logger2.Info("apply change peer v2 complete",
+	logger2.Info("apply change replica v2 complete",
 		d.pr.field,
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
@@ -185,7 +185,7 @@ func (d *stateMachine) doExecChangePeerV2(ctx *applyContext) (*rpc.ResponseBatch
 	})
 	ctx.adminResult = &adminExecResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
-		changePeerResult: &changePeerResult{
+		configChangeResult: &configChangeResult{
 			index:   ctx.entry.Index,
 			changes: changes,
 			shard:   res,
@@ -201,76 +201,76 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 
 	for _, cp := range changes {
 		change_type := cp.ChangeType
-		peer := cp.Peer
-		store_id := peer.ContainerID
+		replica := cp.Replica
+		store_id := replica.ContainerID
 
-		exist_peer := findPeer(&current, peer.ContainerID)
-		if exist_peer != nil {
-			r := exist_peer.Role
-			if r == metapb.PeerRole_IncomingVoter || r == metapb.PeerRole_DemotingVoter {
+		exist_replica := findReplica(&current, replica.ContainerID)
+		if exist_replica != nil {
+			r := exist_replica.Role
+			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
 				logger.Fatalf("shard-%d can't apply confchange because configuration is still in joint state",
 					res.ID)
 			}
 		}
 
-		if exist_peer == nil && change_type == metapb.ChangePeerType_AddNode {
+		if exist_replica == nil && change_type == metapb.ConfigChangeType_AddNode {
 			if kind == simpleKind {
-				peer.Role = metapb.PeerRole_Voter
+				replica.Role = metapb.ReplicaRole_Voter
 			} else if kind == enterJointKind {
-				peer.Role = metapb.PeerRole_IncomingVoter
+				replica.Role = metapb.ReplicaRole_IncomingVoter
 			}
 
-			res.Peers = append(res.Peers, peer)
-		} else if exist_peer == nil && change_type == metapb.ChangePeerType_AddLearnerNode {
-			peer.Role = metapb.PeerRole_Learner
-			res.Peers = append(res.Peers, peer)
-		} else if exist_peer == nil && change_type == metapb.ChangePeerType_RemoveNode {
-			return res, fmt.Errorf("remove missing peer %+v", peer)
-		} else if exist_peer != nil &&
-			(change_type == metapb.ChangePeerType_AddNode || change_type == metapb.ChangePeerType_AddLearnerNode) {
+			res.Replicas = append(res.Replicas, replica)
+		} else if exist_replica == nil && change_type == metapb.ConfigChangeType_AddLearnerNode {
+			replica.Role = metapb.ReplicaRole_Learner
+			res.Replicas = append(res.Replicas, replica)
+		} else if exist_replica == nil && change_type == metapb.ConfigChangeType_RemoveNode {
+			return res, fmt.Errorf("remove missing replica %+v", replica)
+		} else if exist_replica != nil &&
+			(change_type == metapb.ConfigChangeType_AddNode || change_type == metapb.ConfigChangeType_AddLearnerNode) {
 			// add node
-			role := exist_peer.Role
-			exist_id := exist_peer.ID
-			incoming_id := peer.ID
+			role := exist_replica.Role
+			exist_id := exist_replica.ID
+			incoming_id := replica.ID
 
-			// Add peer with different id to the same store
+			// Add replica with different id to the same store
 			if exist_id != incoming_id ||
-				// The peer is already the requested role
-				(role == metapb.PeerRole_Voter && change_type == metapb.ChangePeerType_AddNode) ||
-				(role == metapb.PeerRole_Learner && change_type == metapb.ChangePeerType_AddLearnerNode) {
-				return res, fmt.Errorf("can't add duplicated peer %+v, duplicated with exist peer %+v",
-					peer, exist_peer)
+				// The replica is already the requested role
+				(role == metapb.ReplicaRole_Voter && change_type == metapb.ConfigChangeType_AddNode) ||
+				(role == metapb.ReplicaRole_Learner && change_type == metapb.ConfigChangeType_AddLearnerNode) {
+				return res, fmt.Errorf("can't add duplicated replica %+v, duplicated with exist replica %+v",
+					replica, exist_replica)
 			}
 
-			if role == metapb.PeerRole_Voter && change_type == metapb.ChangePeerType_AddLearnerNode {
+			if role == metapb.ReplicaRole_Voter && change_type == metapb.ConfigChangeType_AddLearnerNode {
 				switch kind {
 				case simpleKind:
-					exist_peer.Role = metapb.PeerRole_Learner
+					exist_replica.Role = metapb.ReplicaRole_Learner
 				case enterJointKind:
-					exist_peer.Role = metapb.PeerRole_DemotingVoter
+					exist_replica.Role = metapb.ReplicaRole_DemotingVoter
 				}
-			} else if role == metapb.PeerRole_Learner && change_type == metapb.ChangePeerType_AddNode {
+			} else if role == metapb.ReplicaRole_Learner && change_type == metapb.ConfigChangeType_AddNode {
 				switch kind {
 				case simpleKind:
-					exist_peer.Role = metapb.PeerRole_Voter
+					exist_replica.Role = metapb.ReplicaRole_Voter
 				case enterJointKind:
-					exist_peer.Role = metapb.PeerRole_IncomingVoter
+					exist_replica.Role = metapb.ReplicaRole_IncomingVoter
 				}
 			}
-		} else if exist_peer != nil && change_type == metapb.ChangePeerType_RemoveNode {
+		} else if exist_replica != nil && change_type == metapb.ConfigChangeType_RemoveNode {
 			// Remove node
-			if kind == enterJointKind && exist_peer.Role == metapb.PeerRole_Voter {
-				return res, fmt.Errorf("can't remove voter peer %+v directly",
-					peer)
+			if kind == enterJointKind && exist_replica.Role == metapb.ReplicaRole_Voter {
+				return res, fmt.Errorf("can't remove voter replica %+v directly",
+					replica)
 			}
 
-			p := removePeer(&res, store_id)
+			p := removeReplica(&res, store_id)
 			if p != nil {
-				if p.ID != peer.ID || p.ContainerID != peer.ContainerID {
-					return res, fmt.Errorf("ignore remove unmatched peer %+v", peer)
+				if p.ID != replica.ID || p.ContainerID != replica.ContainerID {
+					return res, fmt.Errorf("ignore remove unmatched replica %+v", replica)
 				}
 
-				if d.peerID == peer.ID {
+				if d.replicaID == replica.ID {
 					// Remove ourself, we will destroy all region data later.
 					// So we need not to apply following logs.
 					d.setPendingRemove()
@@ -289,14 +289,14 @@ func (d *stateMachine) applyLeaveJoint() (Shard, error) {
 	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
 
 	change_num := uint64(0)
-	for idx := range shard.Peers {
-		if shard.Peers[idx].Role == metapb.PeerRole_IncomingVoter {
-			shard.Peers[idx].Role = metapb.PeerRole_Voter
+	for idx := range shard.Replicas {
+		if shard.Replicas[idx].Role == metapb.ReplicaRole_IncomingVoter {
+			shard.Replicas[idx].Role = metapb.ReplicaRole_Voter
 			continue
 		}
 
-		if shard.Peers[idx].Role == metapb.PeerRole_DemotingVoter {
-			shard.Peers[idx].Role = metapb.PeerRole_Learner
+		if shard.Replicas[idx].Role == metapb.ReplicaRole_DemotingVoter {
+			shard.Replicas[idx].Role = metapb.ReplicaRole_Learner
 			continue
 		}
 
@@ -341,10 +341,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 			return nil, fmt.Errorf("invalid split key %+v", splitKey)
 		}
 
-		if len(req.NewPeerIDs) != len(derived.Peers) {
-			return nil, fmt.Errorf("invalid new peer id count, need %d, but got %d",
-				len(derived.Peers),
-				len(req.NewPeerIDs))
+		if len(req.NewReplicaIDs) != len(derived.Replicas) {
+			return nil, fmt.Errorf("invalid new replica id count, need %d, but got %d",
+				len(derived.Replicas),
+				len(req.NewReplicaIDs))
 		}
 
 		rangeKeys.PushBack(splitKey)
@@ -362,8 +362,8 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	rangeKeys.PushBack(derived.End)
 	derived.End = rangeKeys.MustFront().Value.([]byte)
 
-	sort.Slice(derived.Peers, func(i, j int) bool {
-		return derived.Peers[i].ID < derived.Peers[j].ID
+	sort.Slice(derived.Replicas, func(i, j int) bool {
+		return derived.Replicas[i].ID < derived.Replicas[j].ID
 	})
 	for _, req := range splitReqs.Requests {
 		newShard := Shard{}
@@ -375,9 +375,9 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 		newShard.Epoch = derived.Epoch
 		newShard.Start = rangeKeys.PopFront().Value.([]byte)
 		newShard.End = rangeKeys.MustFront().Value.([]byte)
-		for idx, p := range derived.Peers {
-			newShard.Peers = append(newShard.Peers, Peer{
-				ID:          req.NewPeerIDs[idx],
+		for idx, p := range derived.Replicas {
+			newShard.Replicas = append(newShard.Replicas, Replica{
+				ID:          req.NewReplicaIDs[idx],
 				ContainerID: p.ContainerID,
 			})
 		}
@@ -399,11 +399,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	// }
 
 	// d.updateShard(derived)
-	// d.saveShardMetedata(d.shardID, d.getShard(), bhraftpb.PeerState_Normal)
+	// d.saveShardMetedata(d.shardID, d.getShard(), bhraftpb.ReplicaState_Normal)
 
-	// d.store.updatePeerState(derived, bhraftpb.PeerState_Normal, ctx.raftWB)
+	// d.store.updateReplicaState(derived, bhraftpb.ReplicaState_Normal, ctx.raftWB)
 	// for _, shard := range shards {
-	// 	d.store.updatePeerState(shard, bhraftpb.PeerState_Normal, ctx.raftWB)
+	// 	d.store.updateReplicaState(shard, bhraftpb.ReplicaState_Normal, ctx.raftWB)
 	// 	d.store.writeInitialState(shard.ID, ctx.raftWB)
 	// }
 
@@ -465,7 +465,7 @@ func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.PeerState) error {
+func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.ReplicaState) error {
 	return d.dataStorage.SaveShardMetadata(storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,

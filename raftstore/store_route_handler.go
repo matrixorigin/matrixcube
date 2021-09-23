@@ -43,8 +43,8 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 	s.mustSaveShards(shard)
 	pr.start()
 
-	for _, p := range shard.Peers {
-		s.peers.Store(p.ID, p)
+	for _, p := range shard.Replicas {
+		s.replicas.Store(p.ID, p)
 	}
 	s.updateShardKeyRange(shard)
 }

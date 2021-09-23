@@ -51,10 +51,10 @@ func (s *testBuilder) setup() {
 }
 
 func (s *testBuilder) newBuilder() *Builder {
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{ID: 11, ContainerID: 1},
 		{ID: 12, ContainerID: 2},
-		{ID: 13, ContainerID: 3, Role: metapb.PeerRole_Learner},
+		{ID: 13, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 	}
 	resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: peers}, &peers[0])
 	return NewBuilder("test", s.cluster, resource)
@@ -64,22 +64,22 @@ func TestRecord(t *testing.T) {
 	s := &testBuilder{}
 	s.setup()
 
-	assert.Error(t, s.newBuilder().AddPeer(metapb.Peer{ContainerID: 1}).err)
-	assert.NoError(t, s.newBuilder().AddPeer(metapb.Peer{ContainerID: 4}).err)
+	assert.Error(t, s.newBuilder().AddPeer(metapb.Replica{ContainerID: 1}).err)
+	assert.NoError(t, s.newBuilder().AddPeer(metapb.Replica{ContainerID: 4}).err)
 	assert.Error(t, s.newBuilder().PromoteLearner(1).err)
 	assert.NoError(t, s.newBuilder().PromoteLearner(3).err)
 	assert.NoError(t, s.newBuilder().SetLeader(1).SetLeader(2).err)
 	assert.Error(t, s.newBuilder().SetLeader(3).err)
 	assert.Error(t, s.newBuilder().RemovePeer(4).err)
-	assert.NoError(t, s.newBuilder().AddPeer(metapb.Peer{ContainerID: 4, Role: metapb.PeerRole_Learner}).RemovePeer(4).err)
+	assert.NoError(t, s.newBuilder().AddPeer(metapb.Replica{ContainerID: 4, Role: metapb.ReplicaRole_Learner}).RemovePeer(4).err)
 	assert.Error(t, s.newBuilder().SetLeader(2).RemovePeer(2).err)
 	assert.Error(t, s.newBuilder().PromoteLearner(4).err)
 	assert.Error(t, s.newBuilder().SetLeader(4).err)
-	assert.Error(t, s.newBuilder().SetPeers(map[uint64]metapb.Peer{2: {ID: 2}}).err)
+	assert.Error(t, s.newBuilder().SetPeers(map[uint64]metapb.Replica{2: {ID: 2}}).err)
 
-	m := map[uint64]metapb.Peer{
+	m := map[uint64]metapb.Replica{
 		2: {ContainerID: 2},
-		3: {ContainerID: 3, Role: metapb.PeerRole_Learner},
+		3: {ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 		4: {ContainerID: 4},
 	}
 	builder := s.newBuilder().SetPeers(m).EnableLightWeight()
@@ -95,7 +95,7 @@ func TestNewBuilder(t *testing.T) {
 	s := &testBuilder{}
 	s.setup()
 
-	peers := []metapb.Peer{{ID: 11, ContainerID: 1}, {ID: 12, ContainerID: 2, Role: metapb.PeerRole_Learner}}
+	peers := []metapb.Replica{{ID: 11, ContainerID: 1}, {ID: 12, ContainerID: 2, Role: metapb.ReplicaRole_Learner}}
 	resource := core.NewCachedResource(&metadata.TestResource{ResID: 42, ResPeers: peers}, &peers[0])
 	builder := NewBuilder("test", s.cluster, resource)
 	assert.NoError(t, builder.err)
@@ -117,22 +117,22 @@ func TestPrepareBuild(t *testing.T) {
 	s.setup()
 
 	// no voter.
-	_, err := s.newBuilder().SetPeers(map[uint64]metapb.Peer{4: {ContainerID: 4, Role: metapb.PeerRole_Learner}}).prepareBuild()
+	_, err := s.newBuilder().SetPeers(map[uint64]metapb.Replica{4: {ContainerID: 4, Role: metapb.ReplicaRole_Learner}}).prepareBuild()
 	assert.Error(t, err)
 
 	// use joint consensus
-	builder := s.newBuilder().SetPeers(map[uint64]metapb.Peer{
-		1: {ContainerID: 1, Role: metapb.PeerRole_Learner},
+	builder := s.newBuilder().SetPeers(map[uint64]metapb.Replica{
+		1: {ContainerID: 1, Role: metapb.ReplicaRole_Learner},
 		3: {ContainerID: 3},
 		4: {ContainerID: 4, ID: 14},
-		5: {ContainerID: 5, Role: metapb.PeerRole_Learner},
+		5: {ContainerID: 5, Role: metapb.ReplicaRole_Learner},
 	})
 	_, err = builder.prepareBuild()
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(builder.toAdd))
-	assert.NotEqual(t, metapb.PeerRole_Learner, builder.toAdd[4].Role)
+	assert.NotEqual(t, metapb.ReplicaRole_Learner, builder.toAdd[4].Role)
 	assert.Equal(t, uint64(14), builder.toAdd[4].ID)
-	assert.Equal(t, metapb.PeerRole_Learner, builder.toAdd[5].Role)
+	assert.Equal(t, metapb.ReplicaRole_Learner, builder.toAdd[5].Role)
 	assert.NotEqual(t, uint64(0), builder.toAdd[5].ID)
 	assert.Equal(t, 1, len(builder.toRemove))
 	assert.NotNil(t, builder.toRemove[2])
@@ -143,23 +143,23 @@ func TestPrepareBuild(t *testing.T) {
 	assert.Equal(t, uint64(1), builder.currentLeaderContainerID)
 
 	// do not use joint consensus
-	builder = s.newBuilder().SetPeers(map[uint64]metapb.Peer{
-		1: {ContainerID: 1, Role: metapb.PeerRole_Learner},
+	builder = s.newBuilder().SetPeers(map[uint64]metapb.Replica{
+		1: {ContainerID: 1, Role: metapb.ReplicaRole_Learner},
 		2: {ContainerID: 2},
 		3: {ContainerID: 3},
 		4: {ContainerID: 4, ID: 14},
-		5: {ContainerID: 5, Role: metapb.PeerRole_Learner},
+		5: {ContainerID: 5, Role: metapb.ReplicaRole_Learner},
 	})
 	builder.allowDemote = false
 	builder.useJointConsensus = false
 	_, err = builder.prepareBuild()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(builder.toAdd))
-	assert.Equal(t, metapb.PeerRole_Learner, builder.toAdd[1].Role)
+	assert.Equal(t, metapb.ReplicaRole_Learner, builder.toAdd[1].Role)
 	assert.NotEqual(t, uint64(0), builder.toAdd[1].ID)
-	assert.NotEqual(t, metapb.PeerRole_Learner, builder.toAdd[4].Role)
+	assert.NotEqual(t, metapb.ReplicaRole_Learner, builder.toAdd[4].Role)
 	assert.Equal(t, uint64(14), builder.toAdd[4].ID)
-	assert.Equal(t, metapb.PeerRole_Learner, builder.toAdd[5].Role)
+	assert.Equal(t, metapb.ReplicaRole_Learner, builder.toAdd[5].Role)
 	assert.NotEqual(t, uint64(0), builder.toAdd[5].ID)
 	assert.Equal(t, 1, len(builder.toRemove))
 	assert.NotNil(t, builder.toRemove[1])
@@ -175,44 +175,44 @@ func TestBuild(t *testing.T) {
 	type testCase struct {
 		allowDemote       bool
 		useJointConsensus bool
-		originPeers       []metapb.Peer // first is leader
-		targetPeers       []metapb.Peer // first is leader
+		originPeers       []metapb.Replica // first is leader
+		targetPeers       []metapb.Replica // first is leader
 		kind              OpKind
 		steps             []OpStep // empty means error
 	}
 	cases := []testCase{
 		{ // empty step
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
 			0,
 			[]OpStep{},
 		},
 		{ // empty step
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
 			0,
 			[]OpStep{},
 		},
 		{ // no valid leader
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}},
-			[]metapb.Peer{{ID: 10, ContainerID: 10}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ID: 10, ContainerID: 10}},
 			0,
 			[]OpStep{},
 		},
 		{ // no valid leader
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}},
-			[]metapb.Peer{{ID: 10, ContainerID: 10}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ID: 10, ContainerID: 10}},
 			0,
 			[]OpStep{},
 		},
 		{ // promote learner
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 2, ContainerID: 2}, {ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 2, ContainerID: 2}, {ID: 1, ContainerID: 1}},
 			OpLeader,
 			[]OpStep{
 				PromoteLearner{ToContainer: 2},
@@ -221,8 +221,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // promote learner
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 2, ContainerID: 2}, {ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 2, ContainerID: 2}, {ID: 1, ContainerID: 1}},
 			OpLeader,
 			[]OpStep{
 				PromoteLearner{ToContainer: 2},
@@ -231,8 +231,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // not use joint consensus: prefer replace
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ContainerID: 4}, {ContainerID: 5, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ContainerID: 4}, {ContainerID: 5, Role: metapb.ReplicaRole_Learner}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 4},
@@ -246,8 +246,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // use joint consensus: transfer leader in joint state
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ContainerID: 4}, {ContainerID: 5, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ContainerID: 4}, {ContainerID: 5, Role: metapb.ReplicaRole_Learner}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 4},
@@ -268,8 +268,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // not use joint consensus: transfer leader before remove leader
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}},
-			[]metapb.Peer{{ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ContainerID: 2}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 2},
@@ -280,8 +280,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // use joint consensus: transfer leader in joint state
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}},
-			[]metapb.Peer{{ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ContainerID: 2}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 2},
@@ -299,8 +299,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // not use joint consensus: replace voter with learner
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
 			OpResource,
 			[]OpStep{
 				RemovePeer{FromContainer: 2},
@@ -309,8 +309,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // use joint consensus: demote directly
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
-			[]metapb.Peer{{ContainerID: 1}, {ContainerID: 2, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}},
+			[]metapb.Replica{{ContainerID: 1}, {ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
 			0, // Note that there is no OpResource here
 			[]OpStep{
 				DemoteFollower{ToContainer: 2},
@@ -319,9 +319,9 @@ func TestBuild(t *testing.T) {
 		// not use joint consensus
 		{ // prefer replace with nearest peer
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 6, ContainerID: 6}, {ID: 8, ContainerID: 8}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 6, ContainerID: 6}, {ID: 8, ContainerID: 8}},
 			//             z1,h1                z1,h2                 z2,h1
-			[]metapb.Peer{{ContainerID: 9}, {ContainerID: 7}, {ContainerID: 10}},
+			[]metapb.Replica{{ContainerID: 9}, {ContainerID: 7}, {ContainerID: 10}},
 			//             z2,h2         z1,h1         z3,h1
 			OpLeader | OpResource,
 			[]OpStep{
@@ -344,8 +344,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // promote learner + demote voter
 			true, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter}, {ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter}, {ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
 			OpLeader | OpResource,
 			[]OpStep{
 				PromoteLearner{ToContainer: 2},
@@ -356,8 +356,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // add learner + promote learner + remove voter
 			false, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 3},
@@ -368,8 +368,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // add voter + demote voter + remove learner.
 			true, false,
-			[]metapb.Peer{{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter}, {ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter}, {ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter}, {ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner}},
 			OpLeader | OpResource,
 			[]OpStep{
 				AddLearner{ToContainer: 3},
@@ -382,8 +382,8 @@ func TestBuild(t *testing.T) {
 		// use joint consensus
 		{ // transfer leader before entering joint state
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3}},
 			OpLeader | OpResource,
 			[]OpStep{
 				TransferLeader{FromContainer: 1, ToContainer: 2},
@@ -400,8 +400,8 @@ func TestBuild(t *testing.T) {
 		},
 		{ // transfer leader after leaving joint state
 			true, true,
-			[]metapb.Peer{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}},
-			[]metapb.Peer{{ID: 3, ContainerID: 3}, {ID: 1, ContainerID: 1}},
+			[]metapb.Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}, {ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}},
+			[]metapb.Replica{{ID: 3, ContainerID: 3}, {ID: 1, ContainerID: 1}},
 			OpLeader | OpResource,
 			[]OpStep{
 				ChangePeerV2Enter{
@@ -423,7 +423,7 @@ func TestBuild(t *testing.T) {
 		builder := NewBuilder("test", s.cluster, resource)
 		builder.allowDemote = tc.allowDemote
 		builder.useJointConsensus = tc.useJointConsensus
-		m := make(map[uint64]metapb.Peer)
+		m := make(map[uint64]metapb.Replica)
 		for _, p := range tc.targetPeers {
 			m[p.GetContainerID()] = p
 		}
@@ -483,26 +483,26 @@ func TestTargetUnhealthyPeer(t *testing.T) {
 	s := &testBuilder{}
 	s.setup()
 
-	p := metapb.Peer{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner}
-	resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1},
-		p}}, &metapb.Peer{ID: 1, ContainerID: 1}, core.WithPendingPeers([]metapb.Peer{p}))
+	p := metapb.Replica{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner}
+	resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1},
+		p}}, &metapb.Replica{ID: 1, ContainerID: 1}, core.WithPendingPeers([]metapb.Replica{p}))
 	builder := NewBuilder("test", s.cluster, resource)
 	builder.PromoteLearner(2)
 	assert.Error(t, builder.err)
-	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1},
-		p}}, &metapb.Peer{ID: 1, ContainerID: 1}, core.WithDownPeers([]metapb.PeerStats{{Peer: p}}))
+	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1},
+		p}}, &metapb.Replica{ID: 1, ContainerID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.PromoteLearner(2)
 	assert.Error(t, builder.err)
 
-	p = metapb.Peer{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter}
-	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1},
-		p}}, &metapb.Peer{ID: 1, ContainerID: 1}, core.WithPendingPeers([]metapb.Peer{p}))
+	p = metapb.Replica{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter}
+	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1},
+		p}}, &metapb.Replica{ID: 1, ContainerID: 1}, core.WithPendingPeers([]metapb.Replica{p}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.SetLeader(2)
 	assert.Error(t, builder.err)
-	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1},
-		p}}, &metapb.Peer{ID: 1, ContainerID: 1}, core.WithDownPeers([]metapb.PeerStats{{Peer: p}}))
+	resource = core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1},
+		p}}, &metapb.Replica{ID: 1, ContainerID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.SetLeader(2)
 	assert.Error(t, builder.err)

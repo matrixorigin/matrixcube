@@ -61,7 +61,7 @@ func TestGCPendingOpInfos(t *testing.T) {
 		var err error
 		switch ty {
 		case movePeer:
-			op, err = operator.CreateMovePeerOperator("move-peer-test", tc, resource, operator.OpAdmin, 2, metapb.Peer{ID: resource.Meta.ID()*10000 + 1, ContainerID: 4})
+			op, err = operator.CreateMovePeerOperator("move-peer-test", tc, resource, operator.OpAdmin, 2, metapb.Replica{ID: resource.Meta.ID()*10000 + 1, ContainerID: 4})
 		case transferLeader:
 			op, err = operator.CreateTransferLeaderOperator("transfer-leader-test", tc, resource, 1, 2, operator.OpAdmin)
 		}
@@ -1069,7 +1069,7 @@ func addCachedResource(tc *mockcluster.Cluster, rwTy rwType, resources []testCac
 }
 
 func newTestresource(id uint64) *core.CachedResource {
-	peers := []metapb.Peer{{ID: id*100 + 1, ContainerID: 1}, {ID: id*100 + 2, ContainerID: 2}, {ID: id*100 + 3, ContainerID: 3}}
+	peers := []metapb.Replica{{ID: id*100 + 1, ContainerID: 1}, {ID: id*100 + 2, ContainerID: 2}, {ID: id*100 + 3, ContainerID: 3}}
 	return core.NewCachedResource(&metadata.TestResource{ResID: id, ResPeers: peers}, &peers[0])
 }
 

@@ -205,7 +205,7 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 }
 
 // transferPeer selects the best container to create a new peer to replace the old peer.
-func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Peer) *operator.Operator {
+func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) *operator.Operator {
 	// scoreGuard guarantees that the distinct score will not decrease.
 	sourceContainerID := oldPeer.GetContainerID()
 	source := cluster.GetContainer(sourceContainerID)
@@ -243,7 +243,7 @@ func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluste
 			continue
 		}
 
-		newPeer := metapb.Peer{ContainerID: target.Meta.ID(), Role: oldPeer.Role}
+		newPeer := metapb.Replica{ContainerID: target.Meta.ID(), Role: oldPeer.Role}
 		op, err := operator.CreateMovePeerOperator(BalanceResourceType, cluster, res, operator.OpResource, oldPeer.GetContainerID(), newPeer)
 		if err != nil {
 			schedulerCounter.WithLabelValues(s.GetName(), "create-operator-fail").Inc()

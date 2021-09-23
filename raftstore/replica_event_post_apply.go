@@ -81,13 +81,13 @@ func (pr *replica) doPostApply(result asyncApplyResult) {
 func (pr *replica) doPostApplyResult(result asyncApplyResult) {
 	switch result.result.adminType {
 	case rpc.AdminCmdType_ConfigChange:
-		pr.doApplyConfChange(result.result.changePeerResult)
+		pr.doApplyConfChange(result.result.configChangeResult)
 	case rpc.AdminCmdType_BatchSplit:
 		pr.doApplySplit(result.result.splitResult)
 	}
 }
 
-func (pr *replica) doApplyConfChange(cp *changePeerResult) {
+func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 	if cp.index == 0 {
 		// Apply failed, skip.
 		return
@@ -99,18 +99,18 @@ func (pr *replica) doApplyConfChange(cp *changePeerResult) {
 	now := time.Now()
 	for _, change := range cp.changes {
 		changeType := change.ChangeType
-		peer := change.Peer
+		peer := change.Replica
 		peerID := peer.ID
 
 		switch changeType {
-		case metapb.ChangePeerType_AddNode, metapb.ChangePeerType_AddLearnerNode:
-			pr.peerHeartbeatsMap.Store(peerID, now)
+		case metapb.ConfigChangeType_AddNode, metapb.ConfigChangeType_AddLearnerNode:
+			pr.replicaHeartbeatsMap.Store(peerID, now)
 			pr.store.peers.Store(peerID, peer)
 			if pr.isLeader() {
 				needPing = true
 			}
-		case metapb.ChangePeerType_RemoveNode:
-			pr.peerHeartbeatsMap.Delete(peerID)
+		case metapb.ConfigChangeType_RemoveNode:
+			pr.replicaHeartbeatsMap.Delete(peerID)
 			pr.store.peers.Delete(peerID)
 		}
 	}
@@ -128,7 +128,7 @@ func (pr *replica) doApplyConfChange(cp *changePeerResult) {
 		// until new leader elected, but we can't revert this operation
 		// because its result is already persisted in apply worker
 		// TODO: should we transfer leader here?
-		demoteSelf := pr.peer.Role == metapb.PeerRole_Learner
+		demoteSelf := pr.replica.Role == metapb.ReplicaRole_Learner
 		if demoteSelf {
 			logger.Warningf("shard-%d removing or demoting leader, demote",
 				pr.shardID,
@@ -151,10 +151,10 @@ func (pr *replica) doApplyConfChange(cp *changePeerResult) {
 	shard := pr.getShard()
 	logger.Infof("shard %d peer %d applied changes %+v at epoch %+v, new peers %+v",
 		pr.shardID,
-		pr.peer.ID,
+		pr.replica.ID,
 		cp.changes,
 		shard.Epoch,
-		shard.Peers)
+		shard.Replicas)
 }
 
 func (pr *replica) doApplySplit(result *splitResult) {
@@ -177,21 +177,21 @@ func (pr *replica) doApplySplit(result *splitResult) {
 
 	for _, shard := range result.shards {
 		// add new shard peers to cache
-		for _, p := range shard.Peers {
+		for _, p := range shard.Replicas {
 			pr.store.peers.Store(p.ID, p)
 		}
 
 		newShardID := shard.ID
 		newPR := pr.store.getPR(newShardID, false)
 		if newPR != nil {
-			for _, p := range shard.Peers {
+			for _, p := range shard.Replicas {
 				pr.store.peers.Store(p.ID, p)
 			}
 
 			// If the store received a raft msg with the new shard raft group
 			// before splitting, it will creates a uninitialized peer.
 			// We can remove this uninitialized peer directly.
-			if len(newPR.getShard().Peers) > 0 {
+			if len(newPR.getShard().Replicas) > 0 {
 				logger.Fatalf("shard %d duplicated shard split to new shard %d",
 					pr.shardID,
 					newShardID)
@@ -213,7 +213,7 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		newPR.approximateSize = estimatedSize
 		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
 		if !pr.store.addPR(newPR) {
-			logger.Fatalf("shard %d peer %d, created by split, must add sucessful", newPR.shardID, newPR.peer.ID)
+			logger.Fatalf("shard %d peer %d, created by split, must add sucessful", newPR.shardID, newPR.replica.ID)
 		}
 
 		newPR.start()
@@ -227,7 +227,7 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		// `MsgRequestVote` from this peer on its campaign.
 		// In this worst case scenario, the new split raft group will not be available
 		// since there is no leader established during one election timeout after the split.
-		if pr.isLeader() && len(shard.Peers) > 1 {
+		if pr.isLeader() && len(shard.Replicas) > 1 {
 			newPR.addAction(action{actionType: doCampaignAction})
 		}
 

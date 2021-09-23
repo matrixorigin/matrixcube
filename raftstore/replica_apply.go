@@ -23,7 +23,7 @@ import (
 func (pr *replica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
 	logger.Debugf("shard %d peer %d async apply raft log with %d entries",
 		pr.shardID,
-		pr.peer.ID,
+		pr.replica.ID,
 		len(commitedEntries))
 
 	pr.sm.applyCommittedEntries(commitedEntries)
@@ -46,14 +46,14 @@ func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 	}
 	shard := pr.getShard()
 	index, _ := pr.sm.getAppliedIndexTerm()
-	err := pr.sm.saveShardMetedata(index, shard, meta.PeerState_Tombstone)
+	err := pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
 	if err != nil {
 		logger2.Fatal("fail to do apply destory",
 			pr.field,
 			zap.Error(err))
 	}
 
-	if len(shard.Peers) > 0 {
+	if len(shard.Replicas) > 0 {
 		err := pr.store.startClearDataJob(shard)
 		if err != nil {
 			logger2.Fatal("fail to do destroy",
@@ -63,7 +63,7 @@ func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 	}
 
 	pr.cancel()
-	if len(shard.Peers) > 0 && !pr.store.removeShardKeyRange(shard) {
+	if len(shard.Replicas) > 0 && !pr.store.removeShardKeyRange(shard) {
 		logger2.Warn("fail to remove key range",
 			pr.field,
 			zap.Error(err))

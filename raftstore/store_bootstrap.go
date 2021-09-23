@@ -160,7 +160,7 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.ID = shardID
 	shard.Epoch.Version = 1
 	shard.Epoch.ConfVer = 1
-	shard.Peers = append(shard.Peers, Peer{
+	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
 		ContainerID:   s.meta.meta.ID,
 		InitialMember: true,
@@ -177,7 +177,7 @@ func (s *store) mustSaveShards(shards ...Shard) {
 				ShardID:  s.ID,
 				LogIndex: 0,
 				Metadata: protoc.MustMarshal(&meta.ShardLocalState{
-					State: meta.PeerState_Normal,
+					State: meta.ReplicaState_Normal,
 					Shard: s,
 				}),
 			})

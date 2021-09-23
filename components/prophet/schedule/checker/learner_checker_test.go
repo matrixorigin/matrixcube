@@ -36,12 +36,12 @@ func TestPromoteLearner(t *testing.T) {
 	resource := core.NewCachedResource(
 		&metadata.TestResource{
 			ResID: 1,
-			ResPeers: []metapb.Peer{
+			ResPeers: []metapb.Replica{
 				{ID: 101, ContainerID: 1},
 				{ID: 102, ContainerID: 2},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_Learner},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 			},
-		}, &metapb.Peer{ID: 101, ContainerID: 1})
+		}, &metapb.Replica{ID: 101, ContainerID: 1})
 
 	op := lc.Check(resource)
 
@@ -53,7 +53,7 @@ func TestPromoteLearner(t *testing.T) {
 
 	p, ok := resource.GetPeer(103)
 	assert.True(t, ok)
-	resource = resource.Clone(core.WithPendingPeers([]metapb.Peer{p}))
+	resource = resource.Clone(core.WithPendingPeers([]metapb.Replica{p}))
 	op = lc.Check(resource)
 	assert.Nil(t, op)
 }

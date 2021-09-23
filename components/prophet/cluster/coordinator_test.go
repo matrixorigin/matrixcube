@@ -44,12 +44,12 @@ func newTestOperator(resourceID uint64, resourceEpoch metapb.ResourceEpoch, kind
 	return operator.NewOperator("test", "test", resourceID, resourceEpoch, kind, steps...)
 }
 
-func (c *testCluster) AllocPeer(containerID uint64) (metapb.Peer, error) {
+func (c *testCluster) AllocPeer(containerID uint64) (metapb.Replica, error) {
 	id, err := c.AllocID()
 	if err != nil {
-		return metapb.Peer{}, err
+		return metapb.Replica{}, err
 	}
-	return metapb.Peer{ID: id, ContainerID: containerID}, nil
+	return metapb.Replica{ID: id, ContainerID: containerID}, nil
 }
 
 func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int, resourceSizes ...uint64) error {
@@ -81,7 +81,7 @@ func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int
 func (c *testCluster) addLeaderResource(resourceID uint64, leaderContainerID uint64, followerContainerIDs ...uint64) error {
 	resource := newTestResourceMeta(resourceID)
 	leader, _ := c.AllocPeer(leaderContainerID)
-	resource.SetPeers([]metapb.Peer{leader})
+	resource.SetPeers([]metapb.Replica{leader})
 	for _, followerContainerID := range followerContainerIDs {
 		peer, _ := c.AllocPeer(followerContainerID)
 		resource.SetPeers(append(resource.Peers(), peer))
@@ -140,7 +140,7 @@ func (c *testCluster) setContainerOffline(containerID uint64) error {
 func (c *testCluster) LoadResource(resourceID uint64, followerContainerIDs ...uint64) error {
 	//  resources load from etcd will have no leader
 	resource := newTestResourceMeta(resourceID)
-	resource.SetPeers([]metapb.Peer{})
+	resource.SetPeers([]metapb.Replica{})
 	for _, id := range followerContainerIDs {
 		peer, _ := c.AllocPeer(id)
 		resource.SetPeers(append(resource.Peers(), peer))
@@ -272,7 +272,7 @@ func TestCheckResource(t *testing.T) {
 	checkCOResource(t, tc, co, 1, false, 0)
 
 	r := tc.GetResource(1)
-	p := metapb.Peer{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner}
+	p := metapb.Replica{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner}
 	r = r.Clone(
 		core.WithAddPeer(p),
 		core.WithPendingPeers(append(r.GetPendingPeers(), p)),
@@ -363,8 +363,8 @@ func TestReplica(t *testing.T) {
 	// Peer in container 3 is down, remove peer in container 3 and add peer to container 4.
 	assert.Nil(t, tc.setContainerDown(3))
 	p, _ := resource.GetContainerPeer(3)
-	downPeer := metapb.PeerStats{
-		Peer:        p,
+	downPeer := metapb.ReplicaStats{
+		Replica:     p,
 		DownSeconds: 24 * 60 * 60,
 	}
 	resource = resource.Clone(
@@ -391,7 +391,7 @@ func TestReplica(t *testing.T) {
 	assert.Nil(t, tc.setContainerOffline(3))
 	resource = tc.GetResource(3)
 	p, _ = resource.GetContainerPeer(3)
-	resource = resource.Clone(core.WithPendingPeers([]metapb.Peer{p}))
+	resource = resource.Clone(core.WithPendingPeers([]metapb.Replica{p}))
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitNoResponse(t, stream)
 }
@@ -477,7 +477,7 @@ func TestShouldRun(t *testing.T) {
 		assert.Nil(t, tc.processResourceHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestResource{ResID: 6, ResPeers: []metapb.Peer{}}
+	nr := &metadata.TestResource{ResID: 6, ResPeers: []metapb.Replica{}}
 	newResource := core.NewCachedResource(nr, nil)
 	assert.NotNil(t, tc.processResourceHeartbeat(newResource))
 	assert.Equal(t, 7, co.cluster.prepareChecker.sum)
@@ -516,7 +516,7 @@ func TestShouldRunWithNonLeaderResources(t *testing.T) {
 		assert.Nil(t, tc.processResourceHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestResource{ResID: 8, ResPeers: []metapb.Peer{}}
+	nr := &metadata.TestResource{ResID: 8, ResPeers: []metapb.Replica{}}
 	newResource := core.NewCachedResource(nr, nil)
 	assert.NotNil(t, tc.processResourceHeartbeat(newResource))
 	assert.Equal(t, 8, co.cluster.prepareChecker.sum)

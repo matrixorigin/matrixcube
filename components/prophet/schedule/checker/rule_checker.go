@@ -75,16 +75,16 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) err
 				break
 			}
 
-			p := metapb.Peer{ContainerID: container}
+			p := metapb.Replica{ContainerID: container}
 			switch rf.Rule.Role {
 			case placement.Voter, placement.Follower, placement.Leader:
-				p.Role = metapb.PeerRole_Voter
+				p.Role = metapb.ReplicaRole_Voter
 			default:
-				p.Role = metapb.PeerRole_Learner
+				p.Role = metapb.ReplicaRole_Learner
 			}
 
 			peers := res.Meta.Peers()
-			peers = append(peers, metapb.Peer{ContainerID: container})
+			peers = append(peers, metapb.Replica{ContainerID: container})
 			res.Meta.SetPeers(peers)
 		}
 	}
@@ -187,11 +187,11 @@ func (c *RuleChecker) addRulePeer(res *core.CachedResource, rf *placement.RuleFi
 		c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		return nil, errors.New("no container to add peer")
 	}
-	peer := metapb.Peer{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
+	peer := metapb.Replica{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
 	return operator.CreateAddPeerOperator("add-rule-peer", c.cluster, res, peer, operator.OpReplica)
 }
 
-func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.RuleFit, peer metapb.Peer, status string) (*operator.Operator, error) {
+func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.RuleFit, peer metapb.Replica, status string) (*operator.Operator, error) {
 	ruleContainers := c.getRuleFitContainers(rf)
 	container := c.strategy(res, rf.Rule).SelectContainerToReplace(ruleContainers, peer.ContainerID)
 	if container == 0 {
@@ -199,12 +199,12 @@ func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.Ru
 		c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		return nil, errors.New("no container to replace peer")
 	}
-	newPeer := metapb.Peer{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
+	newPeer := metapb.Replica{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
 	return operator.CreateMovePeerOperator("replace-rule-"+status+"-peer",
 		c.cluster, res, operator.OpReplica, peer.ContainerID, newPeer)
 }
 
-func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit, peer metapb.Peer) (*operator.Operator, error) {
+func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit, peer metapb.Replica) (*operator.Operator, error) {
 	if metadata.IsLearner(peer) && rf.Rule.Role != placement.Learner {
 		checkerCounter.WithLabelValues("rule_checker", "fix-peer-role").Inc()
 		return operator.CreatePromoteLearnerOperator("fix-peer-role", c.cluster, res, peer)
@@ -232,7 +232,7 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement
 	return nil, nil
 }
 
-func (c *RuleChecker) allowLeader(fit *placement.ResourceFit, peer metapb.Peer) bool {
+func (c *RuleChecker) allowLeader(fit *placement.ResourceFit, peer metapb.Replica) bool {
 	if metadata.IsLearner(peer) {
 		return false
 	}
@@ -270,7 +270,7 @@ func (c *RuleChecker) fixBetterLocation(res *core.CachedResource, rf *placement.
 		return nil, nil
 	}
 	checkerCounter.WithLabelValues("rule_checker", "move-to-better-location").Inc()
-	newPeer := metapb.Peer{ContainerID: newContainer, Role: rf.Rule.Role.MetaPeerRole()}
+	newPeer := metapb.Replica{ContainerID: newContainer, Role: rf.Rule.Role.MetaPeerRole()}
 	return operator.CreateMovePeerOperator("move-to-better-location", c.cluster, res, operator.OpReplica, oldContainer, newPeer)
 }
 
@@ -290,9 +290,9 @@ func (c *RuleChecker) fixOrphanPeers(res *core.CachedResource, fit *placement.Re
 	return operator.CreateRemovePeerOperator("remove-orphan-peer", c.cluster, 0, res, peer.ContainerID)
 }
 
-func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Peer) bool {
+func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) bool {
 	for _, stats := range res.GetDownPeers() {
-		if stats.GetPeer().ID != peer.ID {
+		if stats.GetReplica().ID != peer.ID {
 			continue
 		}
 		containerID := peer.ContainerID
@@ -313,7 +313,7 @@ func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Peer) boo
 	return false
 }
 
-func (c *RuleChecker) isOfflinePeer(res *core.CachedResource, peer metapb.Peer) bool {
+func (c *RuleChecker) isOfflinePeer(res *core.CachedResource, peer metapb.Replica) bool {
 	container := c.cluster.GetContainer(peer.ContainerID)
 	if container == nil {
 		util.GetLogger().Warningf("lost the container %d, maybe you are recovering the Prophet cluster",

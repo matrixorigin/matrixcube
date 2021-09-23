@@ -107,9 +107,9 @@ message ResourceHeartbeatReq {
              bytes                resource        = 2;
              // Term is the term of raft group.
              uint64               term            = 3;
-             metapb.Peer          leader          = 4;
-    repeated metapb.PeerStats     downPeers       = 5 [(gogoproto.nullable) = false];
-    repeated metapb.Peer          pendingPeers    = 6 [(gogoproto.nullable) = false];
+             metapb.Replica          leader          = 4;
+    repeated metapb.ReplicaStats     downReplicas       = 5 [(gogoproto.nullable) = false];
+    repeated metapb.Replica          pendingReplicas    = 6 [(gogoproto.nullable) = false];
              metapb.ResourceStats stats           = 7 [(gogoproto.nullable) = false];
 }
    
@@ -118,7 +118,7 @@ message ResourceHeartbeatRsp {
     uint64               resourceID      = 1;
     metapb.ResourceEpoch resourceEpoch   = 2 [(gogoproto.nullable) = false];
     // Leader of the resource at the moment of the corresponding request was made.
-    metapb.Peer          targetPeer      = 3;
+    metapb.Replica         targetReplica      = 3;
     // Notice, prophet only allows handling reported epoch >= current prophet's.
     // Leader peer reports resource status with ResourceHeartbeatReq
     // to prophet regularly, prophet will determine whether this resource
@@ -133,11 +133,11 @@ message ResourceHeartbeatRsp {
     // 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
     // finished, pd stills responses ChangePeer Adding 2, of course, we must
     // guarantee the second ChangePeer can't be applied in your application.
-    ChangePeer           changePeer      = 4;
+    ConfigChange           configChange     = 4;
     TransferLeader       transferLeader  = 5;
     Merge                merge           = 6;
     SplitResource        splitResource   = 7;
-    ChangePeerV2         changePeerV2    = 8;
+    ConfigChangeV2         configChangeV2    = 8;
     // DestoryDirectly the resource has been removed, destory directly without raft.
     bool                 destoryDirectly = 9;
 }
@@ -226,7 +226,7 @@ message BatchReportSplitRsp {
 // SplitID split id
 message SplitID {
              uint64 newID      = 1;
-    repeated uint64 newPeerIDs = 2;
+    repeated uint64 newReplicaIDs = 2;
 }
 
 // CreateWatcherReq create watcher req
@@ -237,7 +237,7 @@ message CreateWatcherReq {
 // CreateResourcesReq create resources req
 message CreateResourcesReq {
     repeated bytes  resources   = 1;
-    repeated uint64 leastPeers  = 2;
+    repeated uint64 leastReplicas  = 2;
 }
 
 // CreateResourcesRsp create resources rsp
@@ -345,20 +345,20 @@ message ContainerEventData {
 }
 
 // ChangePeer change peer
-message ChangePeer {
-    metapb.Peer           peer       = 1 [(gogoproto.nullable) = false];
-    metapb.ChangePeerType changeType = 2;
+message ConfigChange {
+    metapb.Replica           replica       = 1 [(gogoproto.nullable) = false];
+    metapb.ConfigChangeType changeType = 2;
 }
 
 // TransferLeader transfer leader
 message TransferLeader {
-    metapb.Peer peer = 1 [(gogoproto.nullable) = false];
+    metapb.Replica replica = 1 [(gogoproto.nullable) = false];
 }
 
-// ChangePeerV2 change peer v2
-message ChangePeerV2 {
+// ConfigChangeV2 change peer v2
+message ConfigChangeV2 {
     // If changes is empty, it means that to exit joint state.
-    repeated ChangePeer changes = 1 [(gogoproto.nullable) = false];
+    repeated ConfigChange changes = 1 [(gogoproto.nullable) = false];
 }
 
 // Merge merge
@@ -374,7 +374,7 @@ message SplitResource {
 }
 
 // PeerRoleType is the expected peer type of the placement rule
-enum PeerRoleType {
+enum ReplicaRoleType {
     // Voter can either match a leader peer or follower peer
     Voter    = 0;
     // Leader matches a leader.
@@ -418,7 +418,7 @@ message PlacementRule {
     bytes        startKey = 5;
     bytes        endKey   = 6;
     // Role expected role of the peers
-    PeerRoleType role     = 7;
+    ReplicaRoleType role     = 7;
     // Count expected count of the peers
     uint32       count    = 8;
     // LabelConstraints used to select containers to place peers

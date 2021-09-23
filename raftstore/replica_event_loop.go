@@ -260,7 +260,7 @@ func (pr *replica) handleStep(items []interface{}) {
 	for i := int64(0); i < n; i++ {
 		msg := items[i].(raftpb.Message)
 		if pr.isLeader() && msg.From != 0 {
-			pr.peerHeartbeatsMap.Store(msg.From, time.Now())
+			pr.replicaHeartbeatsMap.Store(msg.From, time.Now())
 		}
 
 		err := pr.rn.Step(msg)
@@ -386,9 +386,9 @@ func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch m
 
 	for idx := range splitIDs {
 		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
-			SplitKey:   splitKeys[idx],
-			NewShardID: splitIDs[idx].NewID,
-			NewPeerIDs: splitIDs[idx].NewPeerIDs,
+			SplitKey:      splitKeys[idx],
+			NewShardID:    splitIDs[idx].NewID,
+			NewReplicaIDs: splitIDs[idx].NewReplicaIDs,
 		})
 	}
 	pr.onAdmin(req)
@@ -403,10 +403,10 @@ func (pr *replica) doHeartbeat() {
 	}
 	req := rpcpb.ResourceHeartbeatReq{}
 	req.Term = pr.rn.BasicStatus().Term
-	req.Leader = &pr.peer
+	req.Leader = &pr.replica
 	req.ContainerID = pr.store.Meta().ID
-	req.DownPeers = pr.collectDownPeers()
-	req.PendingPeers = pr.collectPendingPeers()
+	req.DownReplicas = pr.collectDownReplicas()
+	req.PendingReplicas = pr.collectPendingReplicas()
 	req.Stats.WrittenBytes = pr.writtenBytes
 	req.Stats.WrittenKeys = pr.writtenKeys
 	req.Stats.ReadBytes = pr.readBytes

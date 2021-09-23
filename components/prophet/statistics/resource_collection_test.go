@@ -45,11 +45,11 @@ func TestResourceStatistics(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{ID: 5, ContainerID: 1},
 		{ID: 6, ContainerID: 2},
 		{ID: 4, ContainerID: 3},
-		{ID: 8, ContainerID: 7, Role: metapb.PeerRole_Learner},
+		{ID: 8, ContainerID: 7, Role: metapb.ReplicaRole_Learner},
 	}
 
 	metaContainers := []*metadata.TestContainer{
@@ -65,9 +65,9 @@ func TestResourceStatistics(t *testing.T) {
 		containers = append(containers, s)
 	}
 
-	downPeers := []metapb.PeerStats{
-		{Peer: peers[0], DownSeconds: 3608},
-		{Peer: peers[1], DownSeconds: 3608},
+	downPeers := []metapb.ReplicaStats{
+		{Replica: peers[0], DownSeconds: 3608},
+		{Replica: peers[1], DownSeconds: 3608},
 	}
 
 	container3 := containers[3].Clone(core.OfflineContainer(false))
@@ -149,11 +149,11 @@ func TestResourceStatisticsWithPlacementRule(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(true)
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{ID: 5, ContainerID: 1},
 		{ID: 6, ContainerID: 2},
 		{ID: 4, ContainerID: 3},
-		{ID: 8, ContainerID: 7, Role: metapb.PeerRole_Learner},
+		{ID: 8, ContainerID: 7, Role: metapb.ReplicaRole_Learner},
 	}
 	metaContainers := []*metadata.TestContainer{
 		{CID: 1, CAddr: "mock://server-1"},

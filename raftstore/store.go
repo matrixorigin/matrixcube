@@ -456,7 +456,7 @@ func (s *store) startShards() {
 					metadata.ShardID)
 			}
 
-			if sls.State == meta.PeerState_Tombstone {
+			if sls.State == meta.ReplicaState_Tombstone {
 				tomebstoneShards = append(tomebstoneShards, sls.Shard)
 				tomebstoneCount++
 				logger.Infof("shard %d is tombstone in store",
@@ -623,13 +623,13 @@ func (s *store) allocWorker(g uint64) (string, uint64) {
 	return applyWorker, raftEventWorker
 }
 
-func (s *store) getPeer(id uint64) (Peer, bool) {
+func (s *store) getPeer(id uint64) (Replica, bool) {
 	value, ok := s.peers.Load(id)
 	if !ok {
-		return Peer{}, false
+		return Replica{}, false
 	}
 
-	return value.(Peer), true
+	return value.(Replica), true
 }
 
 func (s *store) foreachPR(consumerFunc func(*replica) bool) {
@@ -674,9 +674,9 @@ func (s *store) removeDroppedVoteMsg(id uint64) (raftpb.Message, bool) {
 }
 
 func (s *store) validateStoreID(req *rpc.RequestBatch) error {
-	if req.Header.Peer.ContainerID != s.meta.meta.ID {
+	if req.Header.Replica.ContainerID != s.meta.meta.ID {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
-			req.Header.Peer.ContainerID,
+			req.Header.Replica.ContainerID,
 			s.meta.meta.ID)
 	}
 
@@ -685,7 +685,7 @@ func (s *store) validateStoreID(req *rpc.RequestBatch) error {
 
 func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	shardID := req.Header.ShardID
-	peerID := req.Header.Peer.ID
+	peerID := req.Header.Replica.ID
 
 	pr := s.getPR(shardID, false)
 	if nil == pr {
@@ -709,9 +709,9 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 		}
 	}
 
-	if pr.peer.ID != peerID {
+	if pr.replica.ID != peerID {
 		return &errorpb.Error{
-			Message: fmt.Sprintf("mismatch peer id, give=<%d> want=<%d>", peerID, pr.peer.ID),
+			Message: fmt.Sprintf("mismatch peer id, give=<%d> want=<%d>", peerID, pr.replica.ID),
 		}
 	}
 

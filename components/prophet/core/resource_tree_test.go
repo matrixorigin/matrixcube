@@ -27,9 +27,9 @@ import (
 func TestCachedResource(t *testing.T) {
 	n := uint64(3)
 
-	peers := make([]metapb.Peer, 0, n)
+	peers := make([]metapb.Replica, 0, n)
 	for i := uint64(0); i < n; i++ {
-		p := metapb.Peer{
+		p := metapb.Replica{
 			ID:          i,
 			ContainerID: i,
 		}
@@ -43,8 +43,8 @@ func TestCachedResource(t *testing.T) {
 	info := NewCachedResource(
 		res,
 		&peers[0],
-		WithDownPeers([]metapb.PeerStats{{Peer: downPeer}}),
-		WithPendingPeers([]metapb.Peer{pendingPeer}))
+		WithDownPeers([]metapb.ReplicaStats{{Replica: downPeer}}),
+		WithPendingPeers([]metapb.Replica{pendingPeer}))
 
 	r := info.Clone()
 	assert.True(t, reflect.DeepEqual(r, info))
@@ -78,7 +78,7 @@ func TestCachedResource(t *testing.T) {
 	_, ok = r.GetContainerPeer(n)
 	assert.False(t, ok)
 
-	removePeer := metapb.Peer{
+	removePeer := metapb.Replica{
 		ID:          n,
 		ContainerID: n,
 	}

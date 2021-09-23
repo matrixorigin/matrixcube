@@ -240,10 +240,10 @@ func TestRole(t *testing.T) {
 	tc.AddResourceContainer(4, 9)
 
 	// Put a resource with 1leader + 1follower + 1learner
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{ID: 1, ContainerID: 1},
 		{ID: 2, ContainerID: 2},
-		{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
+		{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 	}
 	resource := core.NewCachedResource(&metadata.TestResource{
 		ResID:    1,

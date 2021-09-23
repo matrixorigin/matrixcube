@@ -195,7 +195,7 @@ func (s *shuffleHotResourceScheduler) randomSchedule(cluster opt.Cluster, loadDe
 		if _, ok := srcResource.GetContainerPeer(srcContainerID); !ok {
 			return nil
 		}
-		destPeer := metapb.Peer{ContainerID: destContainerID}
+		destPeer := metapb.Replica{ContainerID: destContainerID}
 		op, err := operator.CreateMoveLeaderOperator("random-move-hot-leader", cluster, srcResource, operator.OpResource|operator.OpLeader, srcContainerID, destPeer)
 		if err != nil {
 			util.GetLogger().Debugf("create move leader operator failed with %+v",

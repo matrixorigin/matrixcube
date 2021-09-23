@@ -28,29 +28,29 @@ type ResourceOption func(res *CachedResource) bool
 type ResourceCreateOption func(res *CachedResource)
 
 // WithDownPeers sets the down peers for the resource.
-func WithDownPeers(downPeers []metapb.PeerStats) ResourceCreateOption {
+func WithDownPeers(downReplicas []metapb.ReplicaStats) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.downPeers = append(downPeers[:0:0], downPeers...)
-		sort.Sort(peerStatsSlice(res.downPeers))
+		res.downReplicas = append(downReplicas[:0:0], downReplicas...)
+		sort.Sort(peerStatsSlice(res.downReplicas))
 	}
 }
 
 // WithPendingPeers sets the pending peers for the resource.
-func WithPendingPeers(pendingPeers []metapb.Peer) ResourceCreateOption {
+func WithPendingPeers(pendingReplicas []metapb.Replica) ResourceCreateOption {
 	return func(res *CachedResource) {
-		res.pendingPeers = append(pendingPeers[:0:0], pendingPeers...)
-		sort.Sort(peerSlice(res.pendingPeers))
+		res.pendingReplicas = append(pendingReplicas[:0:0], pendingReplicas...)
+		sort.Sort(peerSlice(res.pendingReplicas))
 	}
 }
 
 // WithLearners sets the learners for the resource.
-func WithLearners(learners []metapb.Peer) ResourceCreateOption {
+func WithLearners(learners []metapb.Replica) ResourceCreateOption {
 	return func(res *CachedResource) {
 		peers := res.Meta.Peers()
 		for i := range peers {
 			for _, l := range learners {
 				if peers[i].ID == l.ID {
-					peers[i] = metapb.Peer{ID: l.ID, ContainerID: l.ContainerID, Role: metapb.PeerRole_Learner}
+					peers[i] = metapb.Replica{ID: l.ID, ContainerID: l.ContainerID, Role: metapb.ReplicaRole_Learner}
 					break
 				}
 			}
@@ -59,7 +59,7 @@ func WithLearners(learners []metapb.Peer) ResourceCreateOption {
 }
 
 // WithLeader sets the leader for the resource.
-func WithLeader(leader *metapb.Peer) ResourceCreateOption {
+func WithLeader(leader *metapb.Replica) ResourceCreateOption {
 	return func(res *CachedResource) {
 		res.leader = leader
 	}
@@ -153,7 +153,7 @@ func SetWrittenKeys(v uint64) ResourceCreateOption {
 // WithRemoveContainerPeer removes the specified peer for the resource.
 func WithRemoveContainerPeer(containerID uint64) ResourceCreateOption {
 	return func(res *CachedResource) {
-		var peers []metapb.Peer
+		var peers []metapb.Replica
 		for _, peer := range res.Meta.Peers() {
 			if peer.ContainerID != containerID {
 				peers = append(peers, peer)
@@ -225,14 +225,14 @@ func SetResourceVersion(version uint64) ResourceCreateOption {
 }
 
 // SetPeers sets the peers for the resource.
-func SetPeers(peers []metapb.Peer) ResourceCreateOption {
+func SetPeers(peers []metapb.Replica) ResourceCreateOption {
 	return func(res *CachedResource) {
 		res.Meta.SetPeers(peers)
 	}
 }
 
 // WithAddPeer adds a peer for the resource.
-func WithAddPeer(peer metapb.Peer) ResourceCreateOption {
+func WithAddPeer(peer metapb.Replica) ResourceCreateOption {
 	return func(res *CachedResource) {
 		peers := res.Meta.Peers()
 		peers = append(peers, peer)
@@ -252,7 +252,7 @@ func WithPromoteLearner(peerID uint64) ResourceCreateOption {
 		peers := res.Meta.Peers()
 		for i := range res.Meta.Peers() {
 			if peers[i].ID == peerID {
-				peers[i].Role = metapb.PeerRole_Voter
+				peers[i].Role = metapb.ReplicaRole_Voter
 			}
 		}
 	}

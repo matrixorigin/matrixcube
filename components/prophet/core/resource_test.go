@@ -80,7 +80,7 @@ func TestSortedEqual(t *testing.T) {
 
 	meta := &metadata.TestResource{
 		ResID: 100,
-		ResPeers: []metapb.Peer{
+		ResPeers: []metapb.Replica{
 			{
 				ID:          1,
 				ContainerID: 10,
@@ -103,16 +103,16 @@ func TestSortedEqual(t *testing.T) {
 	res := NewCachedResource(meta, &meta.ResPeers[0])
 
 	for _, tc := range testcases {
-		downPeersA := make([]metapb.PeerStats, 0)
-		downPeersB := make([]metapb.PeerStats, 0)
-		pendingPeersA := make([]metapb.Peer, 0)
-		pendingPeersB := make([]metapb.Peer, 0)
+		downPeersA := make([]metapb.ReplicaStats, 0)
+		downPeersB := make([]metapb.ReplicaStats, 0)
+		pendingPeersA := make([]metapb.Replica, 0)
+		pendingPeersB := make([]metapb.Replica, 0)
 		for _, i := range tc.idsA {
-			downPeersA = append(downPeersA, metapb.PeerStats{Peer: meta.ResPeers[i]})
+			downPeersA = append(downPeersA, metapb.ReplicaStats{Replica: meta.ResPeers[i]})
 			pendingPeersA = append(pendingPeersA, meta.ResPeers[i])
 		}
 		for _, i := range tc.idsB {
-			downPeersB = append(downPeersB, metapb.PeerStats{Peer: meta.ResPeers[i]})
+			downPeersB = append(downPeersB, metapb.ReplicaStats{Replica: meta.ResPeers[i]})
 			pendingPeersB = append(pendingPeersB, meta.ResPeers[i])
 		}
 
@@ -185,24 +185,24 @@ func TestSetResource(t *testing.T) {
 		return &metadata.TestResource{}
 	})
 	for i := 0; i < 100; i++ {
-		peer1 := metapb.Peer{ContainerID: uint64(i%5 + 1), ID: uint64(i*5 + 1)}
-		peer2 := metapb.Peer{ContainerID: uint64((i+1)%5 + 1), ID: uint64(i*5 + 2)}
-		peer3 := metapb.Peer{ContainerID: uint64((i+2)%5 + 1), ID: uint64(i*5 + 3)}
+		peer1 := metapb.Replica{ContainerID: uint64(i%5 + 1), ID: uint64(i*5 + 1)}
+		peer2 := metapb.Replica{ContainerID: uint64((i+1)%5 + 1), ID: uint64(i*5 + 2)}
+		peer3 := metapb.Replica{ContainerID: uint64((i+2)%5 + 1), ID: uint64(i*5 + 3)}
 		res := NewCachedResource(&metadata.TestResource{
 			ResID:    uint64(i + 1),
-			ResPeers: []metapb.Peer{peer1, peer2, peer3},
+			ResPeers: []metapb.Replica{peer1, peer2, peer3},
 			Start:    []byte(fmt.Sprintf("%20d", i*10)),
 			End:      []byte(fmt.Sprintf("%20d", (i+1)*10)),
 		}, &peer1)
 		resources.SetResource(res)
 	}
 
-	peer1 := metapb.Peer{ContainerID: uint64(4), ID: uint64(101)}
-	peer2 := metapb.Peer{ContainerID: uint64(5), ID: uint64(102)}
-	peer3 := metapb.Peer{ContainerID: uint64(1), ID: uint64(103)}
+	peer1 := metapb.Replica{ContainerID: uint64(4), ID: uint64(101)}
+	peer2 := metapb.Replica{ContainerID: uint64(5), ID: uint64(102)}
+	peer3 := metapb.Replica{ContainerID: uint64(1), ID: uint64(103)}
 	res := NewCachedResource(&metadata.TestResource{
 		ResID:    uint64(21),
-		ResPeers: []metapb.Peer{peer1, peer2, peer3},
+		ResPeers: []metapb.Replica{peer1, peer2, peer3},
 		Start:    []byte(fmt.Sprintf("%20d", 184)),
 		End:      []byte(fmt.Sprintf("%20d", 211)),
 	}, &peer1)
@@ -215,12 +215,12 @@ func TestSetResource(t *testing.T) {
 	assert.Equal(t, 97, len(resources.GetResources()), "TestSetResource failed")
 
 	resources.SetResource(res)
-	peer1 = metapb.Peer{ContainerID: uint64(2), ID: uint64(101)}
-	peer2 = metapb.Peer{ContainerID: uint64(3), ID: uint64(102)}
-	peer3 = metapb.Peer{ContainerID: uint64(1), ID: uint64(103)}
+	peer1 = metapb.Replica{ContainerID: uint64(2), ID: uint64(101)}
+	peer2 = metapb.Replica{ContainerID: uint64(3), ID: uint64(102)}
+	peer3 = metapb.Replica{ContainerID: uint64(1), ID: uint64(103)}
 	res = NewCachedResource(&metadata.TestResource{
 		ResID:    uint64(21),
-		ResPeers: []metapb.Peer{peer1, peer2, peer3},
+		ResPeers: []metapb.Replica{peer1, peer2, peer3},
 		Start:    []byte(fmt.Sprintf("%20d", 184)),
 		End:      []byte(fmt.Sprintf("%20d", 211)),
 	}, &peer1)
@@ -261,20 +261,20 @@ func TestShouldRemoveFromSubTree(t *testing.T) {
 	resources := NewCachedResources(func() metadata.Resource {
 		return &metadata.TestResource{}
 	})
-	peer1 := metapb.Peer{ContainerID: uint64(1), ID: uint64(1)}
-	peer2 := metapb.Peer{ContainerID: uint64(2), ID: uint64(2)}
-	peer3 := metapb.Peer{ContainerID: uint64(3), ID: uint64(3)}
-	peer4 := metapb.Peer{ContainerID: uint64(3), ID: uint64(3)}
+	peer1 := metapb.Replica{ContainerID: uint64(1), ID: uint64(1)}
+	peer2 := metapb.Replica{ContainerID: uint64(2), ID: uint64(2)}
+	peer3 := metapb.Replica{ContainerID: uint64(3), ID: uint64(3)}
+	peer4 := metapb.Replica{ContainerID: uint64(3), ID: uint64(3)}
 	res := NewCachedResource(&metadata.TestResource{
 		ResID:    uint64(1),
-		ResPeers: []metapb.Peer{peer1, peer2, peer4},
+		ResPeers: []metapb.Replica{peer1, peer2, peer4},
 		Start:    []byte(fmt.Sprintf("%20d", 10)),
 		End:      []byte(fmt.Sprintf("%20d", 20)),
 	}, &peer1)
 
 	origin := NewCachedResource(&metadata.TestResource{
 		ResID:    uint64(2),
-		ResPeers: []metapb.Peer{peer1, peer2, peer3},
+		ResPeers: []metapb.Replica{peer1, peer2, peer3},
 		Start:    []byte(fmt.Sprintf("%20d", 10)),
 		End:      []byte(fmt.Sprintf("%20d", 20)),
 	}, &peer1)

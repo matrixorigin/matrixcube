@@ -84,7 +84,7 @@ func (pr *replica) handleAppendEntries(rd raft.Ready) error {
 	if len(rd.Entries) > 0 {
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
-		return pr.store.logdb.SaveRaftState(pr.shardID, pr.peer.ID, rd)
+		return pr.store.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg.DisableSplit = shard.DisableSplit
 	sendMsg.Unique = shard.Unique
 	sendMsg.RuleGroups = shard.RuleGroups
-	sendMsg.From = pr.peer
+	sendMsg.From = pr.replica
 	sendMsg.To, _ = pr.getPeer(msg.To)
 	if sendMsg.To.ID == 0 {
 		return fmt.Errorf("can not found peer<%d>", msg.To)
@@ -182,7 +182,7 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	// Heartbeat message for the store of that peer to check whether to create a new peer
 	// when receiving these messages, or just to wait for a pending shard split to perform
 	// later.
-	if len(shard.Peers) > 0 &&
+	if len(shard.Replicas) > 0 &&
 		(msg.Type == raftpb.MsgVote ||
 			// the peer has not been known to this leader, it may exist or not.
 			(msg.Type == raftpb.MsgHeartbeat && msg.Commit == 0)) {
@@ -221,7 +221,7 @@ func (pr *replica) doUpdateKeyRange(result *applySnapResult) {
 		pr.shardID,
 		result.current)
 
-	if len(result.prev.Peers) > 0 {
+	if len(result.prev.Replicas) > 0 {
 		logger.Infof("shard %d shard changed after apply snapshot, from=<%+v> to=<%+v>",
 			pr.shardID,
 			result.prev,

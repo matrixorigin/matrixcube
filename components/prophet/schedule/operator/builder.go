@@ -43,7 +43,7 @@ type Builder struct {
 	resourceID    uint64
 	resourceEpoch metapb.ResourceEpoch
 	rules         []*placement.Rule
-	expectedRoles map[uint64]placement.PeerRoleType
+	expectedRoles map[uint64]placement.ReplicaRoleType
 
 	// operation record
 	originPeers             peersMap
@@ -113,7 +113,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedResource, opts
 	}
 
 	for _, p := range res.GetDownPeers() {
-		unhealthyPeers.Set(p.Peer)
+		unhealthyPeers.Set(p.Replica)
 	}
 
 	// origin leader
@@ -157,7 +157,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedResource, opts
 
 // AddPeer records an add Peer operation in Builder. If peer.Id is 0, the builder
 // will allocate a new peer ID later.
-func (b *Builder) AddPeer(peer metapb.Peer) *Builder {
+func (b *Builder) AddPeer(peer metapb.Replica) *Builder {
 	if b.err != nil {
 		return b
 	}
@@ -200,10 +200,10 @@ func (b *Builder) PromoteLearner(containerID uint64) *Builder {
 	} else if _, ok := b.unhealthyPeers[containerID]; ok {
 		b.err = fmt.Errorf("cannot promote peer %d: unhealthy", containerID)
 	} else {
-		b.targetPeers.Set(metapb.Peer{
+		b.targetPeers.Set(metapb.Replica{
 			ID:          peer.ID,
 			ContainerID: peer.ContainerID,
-			Role:        metapb.PeerRole_Voter,
+			Role:        metapb.ReplicaRole_Voter,
 		})
 	}
 	return b
@@ -219,10 +219,10 @@ func (b *Builder) DemoteVoter(containerID uint64) *Builder {
 	} else if metadata.IsLearner(peer) {
 		b.err = fmt.Errorf("cannot demote voter %d: is already learner", containerID)
 	} else {
-		b.targetPeers.Set(metapb.Peer{
+		b.targetPeers.Set(metapb.Replica{
 			ID:          peer.ID,
 			ContainerID: peer.ContainerID,
-			Role:        metapb.PeerRole_Learner,
+			Role:        metapb.ReplicaRole_Learner,
 		})
 	}
 	return b
@@ -249,7 +249,7 @@ func (b *Builder) SetLeader(containerID uint64) *Builder {
 //
 // If peer's ID is 0, the builder will allocate a new ID later. If current
 // target leader does not exist in peers, it will be reset.
-func (b *Builder) SetPeers(peers map[uint64]metapb.Peer) *Builder {
+func (b *Builder) SetPeers(peers map[uint64]metapb.Replica) *Builder {
 	if b.err != nil {
 		return b
 	}
@@ -271,7 +271,7 @@ func (b *Builder) SetPeers(peers map[uint64]metapb.Peer) *Builder {
 
 // SetExpectedRoles records expected roles of target peers.
 // It may update `targetLeaderContainerID` if there is a peer has role `leader` or `follower`.
-func (b *Builder) SetExpectedRoles(roles map[uint64]placement.PeerRoleType) *Builder {
+func (b *Builder) SetExpectedRoles(roles map[uint64]placement.ReplicaRoleType) *Builder {
 	if b.err != nil {
 		return b
 	}
@@ -367,7 +367,7 @@ func (b *Builder) prepareBuild() (string, error) {
 		// If the peer id in the target is different from that in the origin,
 		// modify it to the peer id of the origin.
 		if o.ID != n.ID {
-			n = metapb.Peer{
+			n = metapb.Replica{
 				ID:          o.ID,
 				ContainerID: o.ContainerID,
 				Role:        n.Role,
@@ -401,7 +401,7 @@ func (b *Builder) prepareBuild() (string, error) {
 				if err != nil {
 					return "", err
 				}
-				n = metapb.Peer{
+				n = metapb.Replica{
 					ID:          id,
 					ContainerID: n.ContainerID,
 					Role:        n.Role,
@@ -466,10 +466,10 @@ func (b *Builder) buildStepsWithJointConsensus(kind OpKind) (OpKind, error) {
 	for _, add := range b.toAdd.IDs() {
 		peer := b.toAdd[add]
 		if !metadata.IsLearner(peer) {
-			b.execAddPeer(metapb.Peer{
+			b.execAddPeer(metapb.Replica{
 				ID:          peer.ID,
 				ContainerID: peer.ContainerID,
-				Role:        metapb.PeerRole_Learner,
+				Role:        metapb.ReplicaRole_Learner,
 			})
 			b.toPromote.Set(peer)
 		} else {
@@ -487,10 +487,10 @@ func (b *Builder) buildStepsWithJointConsensus(kind OpKind) (OpKind, error) {
 	for _, remove := range b.toRemove.IDs() {
 		peer := b.toRemove[remove]
 		if !metadata.IsLearner(peer) {
-			b.toDemote.Set(metapb.Peer{
+			b.toDemote.Set(metapb.Replica{
 				ID:          peer.ID,
 				ContainerID: peer.ContainerID,
-				Role:        metapb.PeerRole_Learner,
+				Role:        metapb.ReplicaRole_Learner,
 			})
 		}
 	}
@@ -639,19 +639,19 @@ func (b *Builder) execTransferLeader(id uint64) {
 	b.currentLeaderContainerID = id
 }
 
-func (b *Builder) execPromoteLearner(peer metapb.Peer) {
+func (b *Builder) execPromoteLearner(peer metapb.Replica) {
 	b.steps = append(b.steps, PromoteLearner{ToContainer: peer.ContainerID, PeerID: peer.ID})
 	b.currentPeers.Set(peer)
 	delete(b.toPromote, peer.ContainerID)
 }
 
-func (b *Builder) execDemoteFollower(peer metapb.Peer) {
+func (b *Builder) execDemoteFollower(peer metapb.Replica) {
 	b.steps = append(b.steps, DemoteFollower{ToContainer: peer.ContainerID, PeerID: peer.ID})
 	b.currentPeers.Set(peer)
 	delete(b.toDemote, peer.ContainerID)
 }
 
-func (b *Builder) execAddPeer(peer metapb.Peer) {
+func (b *Builder) execAddPeer(peer metapb.Replica) {
 	if b.lightWeight {
 		b.steps = append(b.steps, AddLightLearner{ToContainer: peer.ContainerID, PeerID: peer.ID})
 	} else {
@@ -665,7 +665,7 @@ func (b *Builder) execAddPeer(peer metapb.Peer) {
 	delete(b.toAdd, peer.ContainerID)
 }
 
-func (b *Builder) execRemovePeer(peer metapb.Peer) {
+func (b *Builder) execRemovePeer(peer metapb.Replica) {
 	b.steps = append(b.steps, RemovePeer{FromContainer: peer.ContainerID, PeerID: peer.ID})
 	delete(b.currentPeers, peer.ContainerID)
 	delete(b.toRemove, peer.ContainerID)
@@ -704,10 +704,10 @@ func (b *Builder) execChangePeerV2(needEnter bool, needTransferLeader bool) {
 }
 
 // check if the peer is allowed to become the leader.
-func (b *Builder) allowLeader(peer metapb.Peer, ignoreClusterLimit bool) bool {
+func (b *Builder) allowLeader(peer metapb.Replica, ignoreClusterLimit bool) bool {
 	// these peer roles are not allowed to become leader.
 	switch peer.Role {
-	case metapb.PeerRole_Learner, metapb.PeerRole_DemotingVoter:
+	case metapb.ReplicaRole_Learner, metapb.ReplicaRole_DemotingVoter:
 		return false
 	}
 
@@ -758,10 +758,10 @@ func (b *Builder) allowLeader(peer metapb.Peer, ignoreClusterLimit bool) bool {
 type stepPlan struct {
 	leaderBeforeAdd    uint64 // leader before adding peer.
 	leaderBeforeRemove uint64 // leader before removing peer.
-	add                *metapb.Peer
-	remove             *metapb.Peer
-	promote            *metapb.Peer
-	demote             *metapb.Peer
+	add                *metapb.Replica
+	remove             *metapb.Replica
+	promote            *metapb.Replica
+	demote             *metapb.Replica
 }
 
 func (p stepPlan) String() string {
@@ -1039,10 +1039,10 @@ func (b *Builder) planPreferAddOrPromoteTargetLeader(p stepPlan) int {
 }
 
 // Peers indexed by containerID.
-type peersMap map[uint64]metapb.Peer
+type peersMap map[uint64]metapb.Replica
 
 func newPeersMap() peersMap {
-	return make(map[uint64]metapb.Peer)
+	return make(map[uint64]metapb.Replica)
 }
 
 // IDs is used for iteration in order.
@@ -1055,7 +1055,7 @@ func (pm peersMap) IDs() []uint64 {
 	return ids
 }
 
-func (pm peersMap) Set(peer metapb.Peer) {
+func (pm peersMap) Set(peer metapb.Replica) {
 	pm[peer.ContainerID] = peer
 }
 
@@ -1068,7 +1068,7 @@ func (pm peersMap) String() string {
 }
 
 func (pm peersMap) Copy() peersMap {
-	var pm2 peersMap = make(map[uint64]metapb.Peer, len(pm))
+	var pm2 peersMap = make(map[uint64]metapb.Replica, len(pm))
 	for _, p := range pm {
 		pm2.Set(p)
 	}

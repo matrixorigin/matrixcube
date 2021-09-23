@@ -57,12 +57,12 @@ func (ra *resourceAdapter) SetGroup(group uint64) {
 	ra.meta.Group = group
 }
 
-func (ra *resourceAdapter) Peers() []Peer {
-	return ra.meta.Peers
+func (ra *resourceAdapter) Peers() []Replica {
+	return ra.meta.Replicas
 }
 
-func (ra *resourceAdapter) SetPeers(peers []Peer) {
-	ra.meta.Peers = peers
+func (ra *resourceAdapter) SetPeers(peers []Replica) {
+	ra.meta.Replicas = peers
 }
 
 func (ra *resourceAdapter) Range() ([]byte, []byte) {
@@ -394,14 +394,14 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 		return
 	}
 
-	if rsp.ChangePeer != nil {
+	if rsp.ConfigChange != nil {
 		logger.Infof("shard-%d %s peer %+v",
 			rsp.ResourceID,
-			rsp.ChangePeer.ChangeType.String(),
-			rsp.ChangePeer.Peer)
-		pr.onAdmin(newChangePeerAdminReq(rsp))
-	} else if rsp.ChangePeerV2 != nil {
-		pr.onAdmin(newChangePeerV2AdminReq(rsp))
+			rsp.ConfigChange.ChangeType.String(),
+			rsp.ConfigChange.Replica)
+		pr.onAdmin(newConfigChangeAdminReq(rsp))
+	} else if rsp.ConfigChangeV2 != nil {
+		pr.onAdmin(newConfigChangeV2AdminReq(rsp))
 	} else if rsp.TransferLeader != nil {
 		pr.onAdmin(newTransferLeaderAdminReq(rsp))
 	} else if rsp.SplitResource != nil {
@@ -426,26 +426,26 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	}
 }
 
-func newChangePeerAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
+func newConfigChangeAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
 	return &rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_ConfigChange,
 		ConfigChange: &rpc.ConfigChangeRequest{
-			ChangeType: rsp.ChangePeer.ChangeType,
-			Peer:       rsp.ChangePeer.Peer,
+			ChangeType: rsp.ConfigChange.ChangeType,
+			Replica:    rsp.ConfigChange.Replica,
 		},
 	}
 }
 
-func newChangePeerV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
+func newConfigChangeV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
 	req := &rpc.AdminRequest{
 		CmdType:        rpc.AdminCmdType_ConfigChangeV2,
 		ConfigChangeV2: &rpc.ConfigChangeV2Request{},
 	}
 
-	for _, ch := range rsp.ChangePeerV2.Changes {
+	for _, ch := range rsp.ConfigChangeV2.Changes {
 		req.ConfigChangeV2.Changes = append(req.ConfigChangeV2.Changes, rpc.ConfigChangeRequest{
 			ChangeType: ch.ChangeType,
-			Peer:       ch.Peer,
+			Replica:    ch.Replica,
 		})
 	}
 	return req
@@ -455,7 +455,7 @@ func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest
 	return &rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_TransferLeader,
 		TransferLeader: &rpc.TransferLeaderRequest{
-			Peer: rsp.TransferLeader.Peer,
+			Replica: rsp.TransferLeader.Replica,
 		},
 	}
 }

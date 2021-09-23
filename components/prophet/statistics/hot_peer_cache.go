@@ -353,7 +353,7 @@ func (f *hotPeerCache) isResourceHotWithAnyPeers(res *core.CachedResource, hotDe
 	return false
 }
 
-func (f *hotPeerCache) isResourceHotWithPeer(res *core.CachedResource, peer *metapb.Peer, hotDegree int) bool {
+func (f *hotPeerCache) isResourceHotWithPeer(res *core.CachedResource, peer *metapb.Replica, hotDegree int) bool {
 	if peer == nil {
 		return false
 	}

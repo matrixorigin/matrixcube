@@ -31,7 +31,7 @@ type TestResource struct {
 	ResID         uint64               `json:"id"`
 	ResGroup      uint64               `json:"group"`
 	Version       uint64               `json:"version"`
-	ResPeers      []metapb.Peer        `json:"peers"`
+	ResPeers      []metapb.Replica     `json:"peers"`
 	ResLabels     []metapb.Pair        `json:"labels"`
 	Start         []byte               `json:"start"`
 	End           []byte               `json:"end"`
@@ -75,12 +75,12 @@ func (res *TestResource) SetGroup(group uint64) {
 }
 
 // Peers mock
-func (res *TestResource) Peers() []metapb.Peer {
+func (res *TestResource) Peers() []metapb.Replica {
 	return res.ResPeers
 }
 
 // SetPeers mock
-func (res *TestResource) SetPeers(peers []metapb.Peer) {
+func (res *TestResource) SetPeers(peers []metapb.Replica) {
 	res.ResPeers = peers
 }
 

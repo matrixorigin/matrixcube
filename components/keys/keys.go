@@ -201,7 +201,7 @@ func GetDataEndKey(group uint64, endKey []byte) []byte {
 func EncStartKey(shard *meta.Shard) []byte {
 	// only initialized shard's startKey can be encoded, otherwise there must be bugs
 	// somewhere.
-	if len(shard.Peers) == 0 {
+	if len(shard.Replicas) == 0 {
 		panic("bug: shard peers len is empty")
 	}
 
@@ -211,7 +211,7 @@ func EncStartKey(shard *meta.Shard) []byte {
 func EncEndKey(shard *meta.Shard) []byte {
 	// only initialized shard's end_key can be encoded, otherwise there must be bugs
 	// somewhere.
-	if len(shard.Peers) == 0 {
+	if len(shard.Replicas) == 0 {
 		panic("bug: shard peers len is empty")
 	}
 	return GetDataEndKey(shard.Group, shard.End)

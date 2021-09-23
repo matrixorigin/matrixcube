@@ -36,7 +36,7 @@ func ApplyOperatorStep(resource *core.CachedResource, op *operator.Operator) *co
 			if _, ok := resource.GetContainerPeer(s.ToContainer); ok {
 				panic("Add peer that exists")
 			}
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID:          s.PeerID,
 				ContainerID: s.ToContainer,
 			}
@@ -45,7 +45,7 @@ func ApplyOperatorStep(resource *core.CachedResource, op *operator.Operator) *co
 			if _, ok := resource.GetContainerPeer(s.ToContainer); ok {
 				panic("Add peer that exists")
 			}
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID:          s.PeerID,
 				ContainerID: s.ToContainer,
 			}
@@ -62,27 +62,27 @@ func ApplyOperatorStep(resource *core.CachedResource, op *operator.Operator) *co
 			if _, ok := resource.GetContainerPeer(s.ToContainer); ok {
 				panic("Add learner that exists")
 			}
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID:          s.PeerID,
 				ContainerID: s.ToContainer,
-				Role:        metapb.PeerRole_Learner,
+				Role:        metapb.ReplicaRole_Learner,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
 		case operator.AddLightLearner:
 			if _, ok := resource.GetContainerPeer(s.ToContainer); ok {
 				panic("Add learner that exists")
 			}
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID:          s.PeerID,
 				ContainerID: s.ToContainer,
-				Role:        metapb.PeerRole_Learner,
+				Role:        metapb.ReplicaRole_Learner,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
 		case operator.PromoteLearner:
 			if _, ok := resource.GetContainerLearner(s.ToContainer); !ok {
 				panic("Promote peer that doesn't exist")
 			}
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID:          s.PeerID,
 				ContainerID: s.ToContainer,
 			}

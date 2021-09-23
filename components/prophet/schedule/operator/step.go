@@ -567,7 +567,7 @@ func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedResource) bool {
 			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
 				pl.String(), peer)
 		}
-		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.PeerRole_IncomingVoter {
+		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_IncomingVoter {
 			return false
 		}
 	}
@@ -577,7 +577,7 @@ func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedResource) bool {
 			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
 				dv.String(), peer)
 		}
-		if !ok || peer.ID != dv.PeerID || peer.Role != metapb.PeerRole_DemotingVoter {
+		if !ok || peer.ID != dv.PeerID || peer.Role != metapb.ReplicaRole_DemotingVoter {
 			return false
 		}
 	}
@@ -593,13 +593,13 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
 			return errors.New("peer does not exist")
 		}
 		switch peer.Role {
-		case metapb.PeerRole_Learner:
+		case metapb.ReplicaRole_Learner:
 			notInJointState = true
-		case metapb.PeerRole_IncomingVoter:
+		case metapb.ReplicaRole_IncomingVoter:
 			inJointState = true
-		case metapb.PeerRole_Voter:
+		case metapb.ReplicaRole_Voter:
 			return errors.New("peer already is a voter")
-		case metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_DemotingVoter:
 			return errors.New("cannot promote a demoting voter")
 		default:
 			return errors.New("unexpected peer role")
@@ -611,13 +611,13 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
 			return errors.New("peer does not exist")
 		}
 		switch peer.Role {
-		case metapb.PeerRole_Voter:
+		case metapb.ReplicaRole_Voter:
 			notInJointState = true
-		case metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_DemotingVoter:
 			inJointState = true
-		case metapb.PeerRole_Learner:
+		case metapb.ReplicaRole_Learner:
 			return errors.New("peer already is a learner")
-		case metapb.PeerRole_IncomingVoter:
+		case metapb.ReplicaRole_IncomingVoter:
 			return errors.New("cannot demote a incoming voter")
 		default:
 			return errors.New("unexpected peer role")
@@ -640,29 +640,29 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
 func (cpe ChangePeerV2Enter) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
 
 // GetRequest get the ChangePeerV2 request
-func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ChangePeerV2 {
-	changes := make([]rpcpb.ChangePeer, 0, len(cpe.PromoteLearners)+len(cpe.DemoteVoters))
+func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
+	changes := make([]rpcpb.ConfigChange, 0, len(cpe.PromoteLearners)+len(cpe.DemoteVoters))
 	for _, pl := range cpe.PromoteLearners {
-		changes = append(changes, rpcpb.ChangePeer{
-			ChangeType: metapb.ChangePeerType_AddNode,
-			Peer: metapb.Peer{
+		changes = append(changes, rpcpb.ConfigChange{
+			ChangeType: metapb.ConfigChangeType_AddNode,
+			Replica: metapb.Replica{
 				ID:          pl.PeerID,
 				ContainerID: pl.ToContainer,
-				Role:        metapb.PeerRole_Voter,
+				Role:        metapb.ReplicaRole_Voter,
 			},
 		})
 	}
 	for _, dv := range cpe.DemoteVoters {
-		changes = append(changes, rpcpb.ChangePeer{
-			ChangeType: metapb.ChangePeerType_AddLearnerNode,
-			Peer: metapb.Peer{
+		changes = append(changes, rpcpb.ConfigChange{
+			ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+			Replica: metapb.Replica{
 				ID:          dv.PeerID,
 				ContainerID: dv.ToContainer,
-				Role:        metapb.PeerRole_Learner,
+				Role:        metapb.ReplicaRole_Learner,
 			},
 		})
 	}
-	return &rpcpb.ChangePeerV2{
+	return &rpcpb.ConfigChangeV2{
 		Changes: changes,
 	}
 }
@@ -689,7 +689,7 @@ func (cpl ChangePeerV2Leave) String() string {
 func (cpl ChangePeerV2Leave) ConfVerChanged(res *core.CachedResource) uint64 {
 	for _, pl := range cpl.PromoteLearners {
 		peer, ok := res.GetContainerVoter(pl.ToContainer)
-		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.PeerRole_Voter {
+		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_Voter {
 			return 0
 		}
 	}
@@ -709,7 +709,7 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedResource) bool {
 			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
 				pl.String(), peer)
 		}
-		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.PeerRole_Voter {
+		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_Voter {
 			return false
 		}
 	}
@@ -737,13 +737,13 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 			return errors.New("peer does not exist")
 		}
 		switch peer.Role {
-		case metapb.PeerRole_Voter:
+		case metapb.ReplicaRole_Voter:
 			notInJointState = true
-		case metapb.PeerRole_IncomingVoter:
+		case metapb.ReplicaRole_IncomingVoter:
 			inJointState = true
-		case metapb.PeerRole_Learner:
+		case metapb.ReplicaRole_Learner:
 			return errors.New("peer is still a learner")
-		case metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_DemotingVoter:
 			return errors.New("cannot promote a demoting voter")
 		default:
 			return errors.New("unexpected peer role")
@@ -755,16 +755,16 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 			return errors.New("peer does not exist")
 		}
 		switch peer.Role {
-		case metapb.PeerRole_Learner:
+		case metapb.ReplicaRole_Learner:
 			notInJointState = true
-		case metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_DemotingVoter:
 			inJointState = true
 			if peer.ContainerID == leaderContainerID {
 				demoteLeader = true
 			}
-		case metapb.PeerRole_Voter:
+		case metapb.ReplicaRole_Voter:
 			return errors.New("peer is still a voter")
-		case metapb.PeerRole_IncomingVoter:
+		case metapb.ReplicaRole_IncomingVoter:
 			return errors.New("cannot demote a incoming voter")
 		default:
 			return errors.New("unexpected peer role")

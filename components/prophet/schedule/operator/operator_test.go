@@ -56,11 +56,11 @@ func (s *testOperator) setup() {
 func (s *testOperator) newTestResource(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedResource {
 	var (
 		resource = &metadata.TestResource{}
-		leader   *metapb.Peer
+		leader   *metapb.Replica
 	)
 	resource.SetID(resourceID)
 	for i := range peers {
-		peer := metapb.Peer{
+		peer := metapb.Replica{
 			ID:          peers[i][1],
 			ContainerID: peers[i][0],
 		}

@@ -622,7 +622,7 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 		p, _ := res.GetContainerPeer(st.ToContainer)
 		cmd = &rpcpb.ResourceHeartbeatRsp{
 			TransferLeader: &rpcpb.TransferLeader{
-				Peer: p,
+				Replica: p,
 			},
 		}
 	case operator.AddPeer:
@@ -631,12 +631,12 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 			return
 		}
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
-				ChangeType: metapb.ChangePeerType_AddNode,
-				Peer: metapb.Peer{
+			ConfigChange: &rpcpb.ConfigChange{
+				ChangeType: metapb.ConfigChangeType_AddNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Voter,
+					Role:        metapb.ReplicaRole_Voter,
 				},
 			},
 		}
@@ -646,12 +646,12 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 			return
 		}
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
-				ChangeType: metapb.ChangePeerType_AddNode,
-				Peer: metapb.Peer{
+			ConfigChange: &rpcpb.ConfigChange{
+				ChangeType: metapb.ConfigChangeType_AddNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Voter,
+					Role:        metapb.ReplicaRole_Voter,
 				},
 			},
 		}
@@ -661,12 +661,12 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 			return
 		}
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
-				ChangeType: metapb.ChangePeerType_AddLearnerNode,
-				Peer: metapb.Peer{
+			ConfigChange: &rpcpb.ConfigChange{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Learner,
+					Role:        metapb.ReplicaRole_Learner,
 				},
 			},
 		}
@@ -676,45 +676,45 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 			return
 		}
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
-				ChangeType: metapb.ChangePeerType_AddLearnerNode,
-				Peer: metapb.Peer{
+			ConfigChange: &rpcpb.ConfigChange{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Learner,
+					Role:        metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 	case operator.PromoteLearner:
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
+			ConfigChange: &rpcpb.ConfigChange{
 				// reuse AddNode type
-				ChangeType: metapb.ChangePeerType_AddNode,
-				Peer: metapb.Peer{
+				ChangeType: metapb.ConfigChangeType_AddNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Voter,
+					Role:        metapb.ReplicaRole_Voter,
 				},
 			},
 		}
 	case operator.DemoteFollower:
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
+			ConfigChange: &rpcpb.ConfigChange{
 				// reuse AddLearnerNode type
-				ChangeType: metapb.ChangePeerType_AddLearnerNode,
-				Peer: metapb.Peer{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica: metapb.Replica{
 					ID:          st.PeerID,
 					ContainerID: st.ToContainer,
-					Role:        metapb.PeerRole_Learner,
+					Role:        metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 	case operator.RemovePeer:
 		p, _ := res.GetContainerPeer(st.FromContainer)
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeer: &rpcpb.ChangePeer{
-				ChangeType: metapb.ChangePeerType_RemoveNode,
-				Peer:       p,
+			ConfigChange: &rpcpb.ConfigChange{
+				ChangeType: metapb.ConfigChangeType_RemoveNode,
+				Replica:    p,
 			},
 		}
 	case operator.MergeResource:
@@ -737,11 +737,11 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 		}
 	case operator.ChangePeerV2Enter:
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeerV2: st.GetRequest(),
+			ConfigChangeV2: st.GetRequest(),
 		}
 	case operator.ChangePeerV2Leave:
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			ChangePeerV2: &rpcpb.ChangePeerV2{},
+			ConfigChangeV2: &rpcpb.ConfigChangeV2{},
 		}
 	default:
 		util.GetLogger().Errorf("unknown operator step %s", step)

@@ -40,8 +40,8 @@ enum ResourceState {
     Removed        = 2;
 }
 
-// ChangePeerType change peer type
-enum ChangePeerType {
+// ConfigChangeType change replica type
+enum ConfigChangeType {
     AddNode        = 0;
     RemoveNode     = 1;
     UpdateNode     = 2;
@@ -49,8 +49,8 @@ enum ChangePeerType {
     ScalePeer      = 4;
 }
 
-// PeerRole role of current peer
-enum PeerRole {
+// ReplicaRole role of current replica
+enum ReplicaRole {
     Voter         = 0;
     Learner       = 1;
     IncomingVoter = 2;
@@ -95,23 +95,23 @@ enum JobState {
 
 // ResourceEpoch resource epoch
 message ResourceEpoch {
-    // Conf change version, auto increment when add or remove peer
+    // Conf change version, auto increment when add or remove replica
     uint64 confVer = 1;
     // Resource version, auto increment when split or merge
     uint64 version = 2;
 }
 
-// Peer is a replica of the resource, we called peer
-message Peer {
+// Replica of the resource
+message Replica {
     uint64   id            = 1 [(gogoproto.customname) = "ID"];
     uint64   containerID   = 2;
-    PeerRole role          = 3;
+    ReplicaRole role          = 3;
     bool     initialMember = 4;
 }
 
-// PeerStats peer stats
-message PeerStats {
-    Peer   peer        = 1 [(gogoproto.nullable) = false];
+// ReplicaStats replica stats
+message ReplicaStats {
+  Replica   replica        = 1 [(gogoproto.nullable) = false];
 	uint64 downSeconds = 2;
 }
 
@@ -199,7 +199,7 @@ message Member {
 // Cluster prophet cluster
 message Cluster {
     uint64 id           = 1 [(gogoproto.customname) = "ID"];
-    uint32 maxPeerCount = 2;
+    uint32 maxReplicaCount = 2;
 }
 
 // TimeInterval time interval
@@ -220,7 +220,7 @@ message Job {
 // RemoveResourceJob remove resources job
 message RemoveResourceJob {
     uint64        resourceID = 1 [(gogoproto.customname) = "ID"];
-    repeated Peer peers      = 2 [(gogoproto.nullable) = false];
+    repeated Replica replicass      = 2 [(gogoproto.nullable) = false];
 }
 
 // ResourcePoolJob resource pool job

@@ -58,16 +58,16 @@ func (c reqCtx) getType() int {
 type proposeBatch struct {
 	maxSize uint64
 	shardID uint64
-	peer    Peer
+	replica Replica
 	buf     *buf.ByteBuf
 	cmds    []batch
 }
 
-func newBatch(maxSize uint64, shardID uint64, peer Peer) *proposeBatch {
+func newBatch(maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
 	return &proposeBatch{
 		maxSize: maxSize,
 		shardID: shardID,
-		peer:    peer,
+		replica: replica,
 		buf:     buf.NewByteBuf(512),
 	}
 }
@@ -129,7 +129,7 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 		raftCMD := pb.AcquireRequestBatch()
 		raftCMD.Header = pb.AcquireRequestBatchHeader()
 		raftCMD.Header.ShardID = b.shardID
-		raftCMD.Header.Peer = b.peer
+		raftCMD.Header.Replica = b.replica
 		raftCMD.Header.ID = uuid.NewV4().Bytes()
 		raftCMD.Header.Epoch = epoch
 

@@ -38,17 +38,17 @@ var errResourceIsStale = func(res metadata.Resource, origin metadata.Resource) e
 type CachedResource struct {
 	Meta metadata.Resource
 
-	term         uint64
-	learners     []metapb.Peer
-	voters       []metapb.Peer
-	leader       *metapb.Peer
-	downPeers    []metapb.PeerStats
-	pendingPeers []metapb.Peer
-	stats        metapb.ResourceStats
+	term            uint64
+	learners        []metapb.Replica
+	voters          []metapb.Replica
+	leader          *metapb.Replica
+	downReplicas    []metapb.ReplicaStats
+	pendingReplicas []metapb.Replica
+	stats           metapb.ResourceStats
 }
 
 // NewCachedResource creates CachedResource with resource's meta and leader peer.
-func NewCachedResource(res metadata.Resource, leader *metapb.Peer, opts ...ResourceCreateOption) *CachedResource {
+func NewCachedResource(res metadata.Resource, leader *metapb.Replica, opts ...ResourceCreateOption) *CachedResource {
 	cr := &CachedResource{
 		Meta:   res,
 		leader: leader,
@@ -63,8 +63,8 @@ func NewCachedResource(res metadata.Resource, leader *metapb.Peer, opts ...Resou
 
 // classifyVoterAndLearner sorts out voter and learner from peers into different slice.
 func classifyVoterAndLearner(res *CachedResource) {
-	learners := make([]metapb.Peer, 0, 1)
-	voters := make([]metapb.Peer, 0, len(res.Meta.Peers()))
+	learners := make([]metapb.Replica, 0, 1)
+	voters := make([]metapb.Replica, 0, len(res.Meta.Peers()))
 	for _, p := range res.Meta.Peers() {
 		if metadata.IsLearner(p) {
 			learners = append(learners, p)
@@ -98,12 +98,12 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 	}
 
 	res := &CachedResource{
-		Meta:         meta,
-		term:         heartbeat.GetTerm(),
-		leader:       heartbeat.GetLeader(),
-		downPeers:    heartbeat.GetDownPeers(),
-		pendingPeers: heartbeat.GetPendingPeers(),
-		stats:        heartbeat.Stats,
+		Meta:            meta,
+		term:            heartbeat.GetTerm(),
+		leader:          heartbeat.GetLeader(),
+		downReplicas:    heartbeat.GetDownReplicas(),
+		pendingReplicas: heartbeat.GetPendingReplicas(),
+		stats:           heartbeat.Stats,
 	}
 
 	if res.stats.WrittenKeys >= ImpossibleFlowSize || res.stats.WrittenBytes >= ImpossibleFlowSize {
@@ -115,8 +115,8 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 		res.stats.ReadBytes = 0
 	}
 
-	sort.Sort(peerStatsSlice(res.downPeers))
-	sort.Sort(peerSlice(res.pendingPeers))
+	sort.Sort(peerStatsSlice(res.downReplicas))
+	sort.Sort(peerSlice(res.pendingReplicas))
 
 	classifyVoterAndLearner(res)
 	return res
@@ -124,22 +124,22 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 
 // Clone returns a copy of current CachedResource.
 func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
-	downPeers := make([]metapb.PeerStats, 0, len(r.downPeers))
-	for _, peer := range r.downPeers {
-		downPeers = append(downPeers, *(proto.Clone(&peer).(*metapb.PeerStats)))
+	downReplicas := make([]metapb.ReplicaStats, 0, len(r.downReplicas))
+	for _, peer := range r.downReplicas {
+		downReplicas = append(downReplicas, *(proto.Clone(&peer).(*metapb.ReplicaStats)))
 	}
-	pendingPeers := make([]metapb.Peer, 0, len(r.pendingPeers))
-	for _, peer := range r.pendingPeers {
-		pendingPeers = append(pendingPeers, *(proto.Clone(&peer).(*metapb.Peer)))
+	pendingReplicas := make([]metapb.Replica, 0, len(r.pendingReplicas))
+	for _, peer := range r.pendingReplicas {
+		pendingReplicas = append(pendingReplicas, *(proto.Clone(&peer).(*metapb.Replica)))
 	}
 
 	res := &CachedResource{
-		term:         r.term,
-		Meta:         r.Meta.Clone(),
-		leader:       proto.Clone(r.leader).(*metapb.Peer),
-		downPeers:    downPeers,
-		pendingPeers: pendingPeers,
-		stats:        r.stats,
+		term:            r.term,
+		Meta:            r.Meta.Clone(),
+		leader:          proto.Clone(r.leader).(*metapb.Replica),
+		downReplicas:    downReplicas,
+		pendingReplicas: pendingReplicas,
+		stats:           r.stats,
 	}
 	res.stats.Interval = proto.Clone(r.stats.Interval).(*metapb.TimeInterval)
 
@@ -156,113 +156,113 @@ func (r *CachedResource) GetTerm() uint64 {
 }
 
 // GetLearners returns the learners.
-func (r *CachedResource) GetLearners() []metapb.Peer {
+func (r *CachedResource) GetLearners() []metapb.Replica {
 	return r.learners
 }
 
 // GetVoters returns the voters.
-func (r *CachedResource) GetVoters() []metapb.Peer {
+func (r *CachedResource) GetVoters() []metapb.Replica {
 	return r.voters
 }
 
 // GetPeer returns the peer with specified peer id.
-func (r *CachedResource) GetPeer(peerID uint64) (metapb.Peer, bool) {
+func (r *CachedResource) GetPeer(peerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.Meta.Peers() {
 		if peer.ID == peerID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetDownPeer returns the down peer with specified peer id.
-func (r *CachedResource) GetDownPeer(peerID uint64) (metapb.Peer, bool) {
-	for _, down := range r.downPeers {
-		if down.Peer.ID == peerID {
-			return down.Peer, true
+func (r *CachedResource) GetDownPeer(peerID uint64) (metapb.Replica, bool) {
+	for _, down := range r.downReplicas {
+		if down.Replica.ID == peerID {
+			return down.Replica, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetDownVoter returns the down voter with specified peer id.
-func (r *CachedResource) GetDownVoter(peerID uint64) (metapb.Peer, bool) {
-	for _, down := range r.downPeers {
-		if down.Peer.ID == peerID && !metadata.IsLearner(down.Peer) {
-			return down.Peer, true
+func (r *CachedResource) GetDownVoter(peerID uint64) (metapb.Replica, bool) {
+	for _, down := range r.downReplicas {
+		if down.Replica.ID == peerID && !metadata.IsLearner(down.Replica) {
+			return down.Replica, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetDownLearner returns the down learner with soecified peer id.
-func (r *CachedResource) GetDownLearner(peerID uint64) (metapb.Peer, bool) {
-	for _, down := range r.downPeers {
-		if down.Peer.ID == peerID && metadata.IsLearner(down.Peer) {
-			return down.Peer, true
+func (r *CachedResource) GetDownLearner(peerID uint64) (metapb.Replica, bool) {
+	for _, down := range r.downReplicas {
+		if down.Replica.ID == peerID && metadata.IsLearner(down.Replica) {
+			return down.Replica, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetPendingPeer returns the pending peer with specified peer id.
-func (r *CachedResource) GetPendingPeer(peerID uint64) (metapb.Peer, bool) {
-	for _, peer := range r.pendingPeers {
+func (r *CachedResource) GetPendingPeer(peerID uint64) (metapb.Replica, bool) {
+	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetPendingVoter returns the pending voter with specified peer id.
-func (r *CachedResource) GetPendingVoter(peerID uint64) (metapb.Peer, bool) {
-	for _, peer := range r.pendingPeers {
+func (r *CachedResource) GetPendingVoter(peerID uint64) (metapb.Replica, bool) {
+	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID && !metadata.IsLearner(peer) {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetPendingLearner returns the pending learner peer with specified peer id.
-func (r *CachedResource) GetPendingLearner(peerID uint64) (metapb.Peer, bool) {
-	for _, peer := range r.pendingPeers {
+func (r *CachedResource) GetPendingLearner(peerID uint64) (metapb.Replica, bool) {
+	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID && metadata.IsLearner(peer) {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetContainerPeer returns the peer in specified container.
-func (r *CachedResource) GetContainerPeer(containerID uint64) (metapb.Peer, bool) {
+func (r *CachedResource) GetContainerPeer(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.Meta.Peers() {
 		if peer.ContainerID == containerID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetContainerVoter returns the voter in specified container.
-func (r *CachedResource) GetContainerVoter(containerID uint64) (metapb.Peer, bool) {
+func (r *CachedResource) GetContainerVoter(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.voters {
 		if peer.ContainerID == containerID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetContainerLearner returns the learner peer in specified container.
-func (r *CachedResource) GetContainerLearner(containerID uint64) (metapb.Peer, bool) {
+func (r *CachedResource) GetContainerLearner(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.learners {
 		if peer.ContainerID == containerID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetContainerIDs returns a map indicate the resource distributed.
@@ -276,9 +276,9 @@ func (r *CachedResource) GetContainerIDs() map[uint64]struct{} {
 }
 
 // GetFollowers returns a map indicate the follow peers distributed.
-func (r *CachedResource) GetFollowers() map[uint64]metapb.Peer {
+func (r *CachedResource) GetFollowers() map[uint64]metapb.Replica {
 	peers := r.GetVoters()
-	followers := make(map[uint64]metapb.Peer, len(peers))
+	followers := make(map[uint64]metapb.Replica, len(peers))
 	for _, peer := range peers {
 		if r.getLeaderID() != peer.ID {
 			followers[peer.ContainerID] = peer
@@ -288,19 +288,19 @@ func (r *CachedResource) GetFollowers() map[uint64]metapb.Peer {
 }
 
 // GetFollower randomly returns a follow peer.
-func (r *CachedResource) GetFollower() (metapb.Peer, bool) {
+func (r *CachedResource) GetFollower() (metapb.Replica, bool) {
 	for _, peer := range r.GetVoters() {
 		if r.getLeaderID() != peer.ID {
 			return peer, true
 		}
 	}
-	return metapb.Peer{}, false
+	return metapb.Replica{}, false
 }
 
 // GetDiffFollowers returns the followers which is not located in the same
 // container as any other followers of the another specified resource.
-func (r *CachedResource) GetDiffFollowers(other *CachedResource) []metapb.Peer {
-	res := make([]metapb.Peer, 0, len(r.Meta.Peers()))
+func (r *CachedResource) GetDiffFollowers(other *CachedResource) []metapb.Replica {
+	res := make([]metapb.Replica, 0, len(r.Meta.Peers()))
 	for _, p := range r.GetFollowers() {
 		diff := true
 		for _, o := range other.GetFollowers() {
@@ -341,13 +341,13 @@ func (r *CachedResource) GetInterval() *metapb.TimeInterval {
 }
 
 // GetDownPeers returns the down peers of the resource.
-func (r *CachedResource) GetDownPeers() []metapb.PeerStats {
-	return r.downPeers
+func (r *CachedResource) GetDownPeers() []metapb.ReplicaStats {
+	return r.downReplicas
 }
 
 // GetPendingPeers returns the pending peers of the resource.
-func (r *CachedResource) GetPendingPeers() []metapb.Peer {
-	return r.pendingPeers
+func (r *CachedResource) GetPendingPeers() []metapb.Replica {
+	return r.pendingReplicas
 }
 
 // GetBytesRead returns the read bytes of the resource.
@@ -371,7 +371,7 @@ func (r *CachedResource) GetKeysRead() uint64 {
 }
 
 // GetLeader returns the leader of the resource.
-func (r *CachedResource) GetLeader() *metapb.Peer {
+func (r *CachedResource) GetLeader() *metapb.Replica {
 	return r.leader
 }
 
@@ -538,25 +538,25 @@ func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedR
 
 // CachedResources for export
 type CachedResources struct {
-	factory      func() metadata.Resource
-	trees        map[uint64]*resourceTree
-	resources    *resourceMap                // resourceID -> CachedResource
-	leaders      map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	followers    map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	learners     map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	pendingPeers map[uint64]*resourceSubTree // containerID -> resourceSubTree
+	factory         func() metadata.Resource
+	trees           map[uint64]*resourceTree
+	resources       *resourceMap                // resourceID -> CachedResource
+	leaders         map[uint64]*resourceSubTree // containerID -> resourceSubTree
+	followers       map[uint64]*resourceSubTree // containerID -> resourceSubTree
+	learners        map[uint64]*resourceSubTree // containerID -> resourceSubTree
+	pendingReplicas map[uint64]*resourceSubTree // containerID -> resourceSubTree
 }
 
 // NewCachedResources creates CachedResources with tree, resources, leaders and followers
 func NewCachedResources(factory func() metadata.Resource) *CachedResources {
 	return &CachedResources{
-		factory:      factory,
-		trees:        make(map[uint64]*resourceTree),
-		resources:    newResourceMap(),
-		leaders:      make(map[uint64]*resourceSubTree),
-		followers:    make(map[uint64]*resourceSubTree),
-		learners:     make(map[uint64]*resourceSubTree),
-		pendingPeers: make(map[uint64]*resourceSubTree),
+		factory:         factory,
+		trees:           make(map[uint64]*resourceTree),
+		resources:       newResourceMap(),
+		leaders:         make(map[uint64]*resourceSubTree),
+		followers:       make(map[uint64]*resourceSubTree),
+		learners:        make(map[uint64]*resourceSubTree),
+		pendingReplicas: make(map[uint64]*resourceSubTree),
 	}
 }
 
@@ -671,12 +671,12 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 		container.update(res)
 	}
 
-	for _, peer := range res.pendingPeers {
+	for _, peer := range res.pendingReplicas {
 		containerID := peer.ContainerID
-		container, ok := r.pendingPeers[containerID]
+		container, ok := r.pendingReplicas[containerID]
 		if !ok {
 			container = newResourceSubTree(r.factory)
-			r.pendingPeers[containerID] = container
+			r.pendingReplicas[containerID] = container
 		}
 		container.update(res)
 	}
@@ -709,11 +709,11 @@ func (r *CachedResources) removeResourceFromSubTree(res *CachedResource) {
 		r.leaders[containerID].remove(res)
 		r.followers[containerID].remove(res)
 		r.learners[containerID].remove(res)
-		r.pendingPeers[containerID].remove(res)
+		r.pendingReplicas[containerID].remove(res)
 	}
 }
 
-type peerSlice []metapb.Peer
+type peerSlice []metapb.Replica
 
 func (s peerSlice) Len() int {
 	return len(s)
@@ -726,7 +726,7 @@ func (s peerSlice) Less(i, j int) bool {
 }
 
 // SortedPeersEqual judges whether two sorted `peerSlice` are equal
-func SortedPeersEqual(peersA, peersB []metapb.Peer) bool {
+func SortedPeersEqual(peersA, peersB []metapb.Replica) bool {
 	if len(peersA) != len(peersB) {
 		return false
 	}
@@ -738,7 +738,7 @@ func SortedPeersEqual(peersA, peersB []metapb.Peer) bool {
 	return true
 }
 
-type peerStatsSlice []metapb.PeerStats
+type peerStatsSlice []metapb.ReplicaStats
 
 func (s peerStatsSlice) Len() int {
 	return len(s)
@@ -747,16 +747,16 @@ func (s peerStatsSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 func (s peerStatsSlice) Less(i, j int) bool {
-	return s[i].GetPeer().ID < s[j].GetPeer().ID
+	return s[i].GetReplica().ID < s[j].GetReplica().ID
 }
 
 // SortedPeersStatsEqual judges whether two sorted `peerStatsSlice` are equal
-func SortedPeersStatsEqual(peersA, peersB []metapb.PeerStats) bool {
+func SortedPeersStatsEqual(peersA, peersB []metapb.ReplicaStats) bool {
 	if len(peersA) != len(peersB) {
 		return false
 	}
 	for i, peerStats := range peersA {
-		if peerStats.GetPeer().ID != peersB[i].GetPeer().ID {
+		if peerStats.GetReplica().ID != peersB[i].GetReplica().ID {
 			return false
 		}
 	}
@@ -764,9 +764,9 @@ func SortedPeersStatsEqual(peersA, peersB []metapb.PeerStats) bool {
 }
 
 // shouldRemoveFromSubTree return true when the resource leader changed, peer transferred,
-// new peer was created, learners changed, pendingPeers changed, and so on.
+// new peer was created, learners changed, pendingReplicas changed, and so on.
 func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *CachedResource) bool {
-	checkPeersChange := func(origin []metapb.Peer, other []metapb.Peer) bool {
+	checkPeersChange := func(origin []metapb.Replica, other []metapb.Replica) bool {
 		if len(origin) != len(other) {
 			return true
 		}
@@ -878,7 +878,7 @@ func (r *CachedResources) GetContainerResourceCount(containerID uint64) int {
 
 // GetContainerPendingPeerCount gets the total count of a container's resource that includes pending peer
 func (r *CachedResources) GetContainerPendingPeerCount(containerID uint64) int {
-	return r.pendingPeers[containerID].length()
+	return r.pendingReplicas[containerID].length()
 }
 
 // GetContainerLeaderCount get the total count of a container's leader CachedResource
@@ -898,12 +898,12 @@ func (r *CachedResources) GetContainerLearnerCount(containerID uint64) int {
 
 // RandPendingResource randomly gets a container's resource with a pending peer.
 func (r *CachedResources) RandPendingResource(containerID uint64, ranges []KeyRange) *CachedResource {
-	return r.pendingPeers[containerID].RandomResource(ranges)
+	return r.pendingReplicas[containerID].RandomResource(ranges)
 }
 
 // RandPendingResources randomly gets a container's n resources with a pending peer.
 func (r *CachedResources) RandPendingResources(containerID uint64, ranges []KeyRange, n int) []*CachedResource {
-	return r.pendingPeers[containerID].RandomResources(n, ranges)
+	return r.pendingReplicas[containerID].RandomResources(n, ranges)
 }
 
 // RandLeaderResource randomly gets a container's leader resource.

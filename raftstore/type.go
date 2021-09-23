@@ -21,4 +21,4 @@ import (
 // alias are provided for two most commonly used types
 type Shard = meta.Shard
 
-type Peer = metapb.Peer
+type Replica = metapb.Replica

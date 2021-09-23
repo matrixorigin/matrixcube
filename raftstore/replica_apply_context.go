@@ -54,12 +54,12 @@ func (res *asyncApplyResult) hasSplitExecResult() bool {
 }
 
 type adminExecResult struct {
-	adminType        rpc.AdminCmdType
-	changePeerResult *changePeerResult
-	splitResult      *splitResult
+	adminType          rpc.AdminCmdType
+	configChangeResult *configChangeResult
+	splitResult        *splitResult
 }
 
-type changePeerResult struct {
+type configChangeResult struct {
 	index      uint64
 	confChange raftpb.ConfChangeV2
 	changes    []rpc.ConfigChangeRequest

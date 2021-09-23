@@ -12,8 +12,8 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 
 // NotLeader the current shard peer is not leader
 message NotLeader {
-    uint64      shardID = 1;
-    metapb.Peer leader  = 2 [(gogoproto.nullable) = false];
+    uint64         shardID = 1;
+    metapb.Replica leader  = 2 [(gogoproto.nullable) = false];
 }
 
 // StoreNotMatch current store is not match

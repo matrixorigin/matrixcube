@@ -41,10 +41,10 @@ type Router interface {
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard *Shard) bool)
 
-	// LeaderStore return leader peer store
-	LeaderPeerStore(shardID uint64) meta.Store
-	// RandomPeerStore return random peer store
-	RandomPeerStore(shardID uint64) meta.Store
+	// LeaderStore return leader replica store
+	LeaderReplicaStore(shardID uint64) meta.Store
+	// RandomReplicaStore return random replica store
+	RandomReplicaStore(shardID uint64) meta.Store
 
 	// GetShardStats returns the runtime stats info of the shard
 	GetShardStats(id uint64) *metapb.ResourceStats
@@ -70,10 +70,10 @@ type defaultRouter struct {
 	eventTaskID uint64
 
 	keyRanges                 sync.Map // group id -> *util.ShardTree
-	leaders                   sync.Map // shard id -> leader peer store
+	leaders                   sync.Map // shard id -> leader replica store
 	stores                    sync.Map // store id -> metapb.Store metadata
 	shards                    sync.Map // shard id -> metapb.Shard
-	missingStoreLeaderChanged sync.Map // shard id -> leader peer id
+	missingStoreLeaderChanged sync.Map // shard id -> leader replica id
 	opts                      sync.Map // shard id -> *op
 
 	shardStats sync.Map // shard id -> ResourceStats
@@ -109,7 +109,7 @@ func (r *defaultRouter) Start() error {
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
 	shard := r.searchShard(group, key)
-	return shard.ID, r.LeaderPeerStore(shard.ID).ClientAddr
+	return shard.ID, r.LeaderReplicaStore(shard.ID).ClientAddr
 }
 
 func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*Shard, meta.Store)) {
@@ -117,7 +117,7 @@ func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(*Shard,
 		shard := value.(Shard)
 		if shard.Group == group {
 			if mustLeader {
-				doFunc(&shard, r.LeaderPeerStore(shard.ID))
+				doFunc(&shard, r.LeaderReplicaStore(shard.ID))
 			} else {
 				storeID := r.selectStore(&shard)
 				doFunc(&shard, r.mustGetStore(storeID))
@@ -139,7 +139,7 @@ func (r *defaultRouter) ForeachShards(group uint64, fn func(shard *Shard) bool) 
 	})
 }
 
-func (r *defaultRouter) LeaderPeerStore(shardID uint64) meta.Store {
+func (r *defaultRouter) LeaderReplicaStore(shardID uint64) meta.Store {
 	if value, ok := r.leaders.Load(shardID); ok {
 		return value.(meta.Store)
 	}
@@ -147,7 +147,7 @@ func (r *defaultRouter) LeaderPeerStore(shardID uint64) meta.Store {
 	return meta.Store{}
 }
 
-func (r *defaultRouter) RandomPeerStore(shardID uint64) meta.Store {
+func (r *defaultRouter) RandomReplicaStore(shardID uint64) meta.Store {
 	if value, ok := r.shards.Load(shardID); ok {
 		shard := value.(Shard)
 		return r.mustGetStore(r.selectStore(&shard))
@@ -184,7 +184,7 @@ func (r *defaultRouter) selectStore(shard *Shard) uint64 {
 		}
 	}
 
-	return shard.Peers[int(ops.next())%len(shard.Peers)].ContainerID
+	return shard.Replicas[int(ops.next())%len(shard.Replicas)].ContainerID
 }
 
 func (r *defaultRouter) searchShard(group uint64, key []byte) Shard {
@@ -250,7 +250,7 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, cr
 	logger2.Info("event",
 		zap.String("type", "shard"),
 		log.ShardField("metadata", res.meta),
-		zap.Uint64("leader-peer-id", leader),
+		zap.Uint64("leader-replica-id", leader),
 		zap.Bool("removed", removed),
 		zap.Bool("create", create))
 
@@ -294,7 +294,7 @@ func (r *defaultRouter) updateStore(data []byte) {
 func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 	shard := r.mustGetShard(shardID)
 
-	for _, p := range shard.Peers {
+	for _, p := range shard.Replicas {
 		if p.ID == leader {
 			r.missingStoreLeaderChanged.Delete(shardID)
 			r.leaders.Store(shard.ID, r.mustGetStore(p.ContainerID))

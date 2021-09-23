@@ -30,7 +30,7 @@ import (
 
 type stateMachine struct {
 	shardID     uint64
-	peerID      uint64
+	replicaID   uint64
 	executorCtx *applyContext
 	pr          *replica
 	store       *store
@@ -67,7 +67,7 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 
 	for _, entry := range commitedEntries {
 		if d.isPendingRemove() {
-			// This peer is about to be destroyed, skip everything.
+			// This replica is about to be destroyed, skip everything.
 			break
 		}
 		d.checkEntryIndexTerm(entry)
@@ -114,17 +114,17 @@ func (d *stateMachine) applyEntry(ctx *applyContext) {
 func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 	index, term := d.getAppliedIndexTerm()
 	if index+1 != entry.Index {
-		logger.Fatalf("shard %d peer %d index not match, expect=<%d> get=<%d> entry=<%+v>",
+		logger.Fatalf("shard %d replica %d index not match, expect=<%d> get=<%d> entry=<%+v>",
 			d.shardID,
-			d.peerID,
+			d.replicaID,
 			index,
 			entry.Index,
 			entry)
 	}
 	if term > entry.Term {
-		logger.Fatalf("shard %d peer %d term moving backwards, d.term %d, entry.term %d",
+		logger.Fatalf("shard %d replica %d term moving backwards, d.term %d, entry.term %d",
 			d.shardID,
-			d.peerID,
+			d.replicaID,
 			term,
 			entry.Term)
 	}
@@ -145,12 +145,12 @@ func (d *stateMachine) applyConfChange(ctx *applyContext) {
 	d.doApplyRaftCMD(ctx)
 	if nil == ctx.adminResult {
 		ctx.adminResult = &adminExecResult{
-			adminType:        rpc.AdminCmdType_ConfigChange,
-			changePeerResult: &changePeerResult{},
+			adminType:          rpc.AdminCmdType_ConfigChange,
+			configChangeResult: &configChangeResult{},
 		}
 		return
 	}
-	ctx.adminResult.changePeerResult.confChange = v2cc
+	ctx.adminResult.configChangeResult.confChange = v2cc
 }
 
 func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {

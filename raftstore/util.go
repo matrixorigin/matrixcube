@@ -26,38 +26,38 @@ func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) b
 		epoch.ConfVer < checkEpoch.ConfVer
 }
 
-func findPeer(shard *Shard, storeID uint64) *Peer {
-	for idx := range shard.Peers {
-		if shard.Peers[idx].ContainerID == storeID {
-			return &shard.Peers[idx]
+func findReplica(shard *Shard, storeID uint64) *Replica {
+	for idx := range shard.Replicas {
+		if shard.Replicas[idx].ContainerID == storeID {
+			return &shard.Replicas[idx]
 		}
 	}
 
 	return nil
 }
 
-func removePeer(shard *Shard, storeID uint64) *Peer {
-	var removed *Peer
-	var newPeers []Peer
-	for _, peer := range shard.Peers {
+func removeReplica(shard *Shard, storeID uint64) *Replica {
+	var removed *Replica
+	var newReplicas []Replica
+	for _, peer := range shard.Replicas {
 		if peer.ContainerID == storeID {
 			p := peer
 			removed = &p
 		} else {
-			newPeers = append(newPeers, peer)
+			newReplicas = append(newReplicas, peer)
 		}
 	}
 
-	shard.Peers = newPeers
+	shard.Replicas = newReplicas
 	return removed
 }
 
-func removedPeers(new, old Shard) []uint64 {
+func removedReplicas(new, old Shard) []uint64 {
 	var ids []uint64
 
-	for _, o := range old.Peers {
+	for _, o := range old.Replicas {
 		c := 0
-		for _, n := range new.Peers {
+		for _, n := range new.Replicas {
 			if n.ID == o.ID {
 				c++
 				break

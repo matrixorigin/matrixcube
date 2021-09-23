@@ -61,12 +61,12 @@ func (s *testMergeChecker) setup() {
 				ResID: 1,
 				Start: []byte(""),
 				End:   []byte("a"),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 101, ContainerID: 1},
 					{ID: 102, ContainerID: 2},
 				},
 			},
-			&metapb.Peer{ID: 101, ContainerID: 1},
+			&metapb.Replica{ID: 101, ContainerID: 1},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
@@ -75,13 +75,13 @@ func (s *testMergeChecker) setup() {
 				ResID: 2,
 				Start: []byte("a"),
 				End:   []byte("t"),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 103, ContainerID: 1},
 					{ID: 104, ContainerID: 4},
 					{ID: 105, ContainerID: 5},
 				},
 			},
-			&metapb.Peer{ID: 104, ContainerID: 4},
+			&metapb.Replica{ID: 104, ContainerID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
@@ -90,13 +90,13 @@ func (s *testMergeChecker) setup() {
 				ResID: 3,
 				Start: []byte("t"),
 				End:   []byte("x"),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 106, ContainerID: 2},
 					{ID: 107, ContainerID: 5},
 					{ID: 108, ContainerID: 6},
 				},
 			},
-			&metapb.Peer{ID: 108, ContainerID: 6},
+			&metapb.Replica{ID: 108, ContainerID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
@@ -105,11 +105,11 @@ func (s *testMergeChecker) setup() {
 				ResID: 4,
 				Start: []byte("x"),
 				End:   []byte(""),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 109, ContainerID: 4},
 				},
 			},
-			&metapb.Peer{ID: 109, ContainerID: 4},
+			&metapb.Replica{ID: 109, ContainerID: 4},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
@@ -184,8 +184,8 @@ func TestBasic(t *testing.T) {
 	s.cluster.SetEnableOneWayMerge(false)
 
 	// Make up peers for next resource.
-	s.resources[3] = s.resources[3].Clone(core.WithAddPeer(metapb.Peer{ID: 110, ContainerID: 1}),
-		core.WithAddPeer(metapb.Peer{ID: 111, ContainerID: 2}))
+	s.resources[3] = s.resources[3].Clone(core.WithAddPeer(metapb.Replica{ID: 110, ContainerID: 1}),
+		core.WithAddPeer(metapb.Replica{ID: 111, ContainerID: 2}))
 	s.cluster.PutResource(s.resources[3])
 	ops = s.mc.Check(s.resources[2])
 	assert.NotNil(t, ops)
@@ -263,12 +263,12 @@ func TestMatchPeers(t *testing.T) {
 
 	// partial Container overlap including leader
 	newresource := s.resources[2].Clone(
-		core.SetPeers([]metapb.Peer{
+		core.SetPeers([]metapb.Replica{
 			{ID: 106, ContainerID: 1},
 			{ID: 107, ContainerID: 5},
 			{ID: 108, ContainerID: 6},
 		}),
-		core.WithLeader(&metapb.Peer{ID: 106, ContainerID: 1}),
+		core.WithLeader(&metapb.Replica{ID: 106, ContainerID: 1}),
 	)
 	s.resources[2] = newresource
 	s.cluster.PutResource(s.resources[2])
@@ -292,7 +292,7 @@ func TestMatchPeers(t *testing.T) {
 	})
 
 	// all Containers overlap
-	s.resources[2] = s.resources[2].Clone(core.SetPeers([]metapb.Peer{
+	s.resources[2] = s.resources[2].Clone(core.SetPeers([]metapb.Replica{
 		{ID: 106, ContainerID: 1},
 		{ID: 107, ContainerID: 5},
 		{ID: 108, ContainerID: 4},
@@ -315,11 +315,11 @@ func TestMatchPeers(t *testing.T) {
 	})
 
 	// all Containers not overlap
-	s.resources[2] = s.resources[2].Clone(core.SetPeers([]metapb.Peer{
+	s.resources[2] = s.resources[2].Clone(core.SetPeers([]metapb.Replica{
 		{ID: 109, ContainerID: 2},
 		{ID: 110, ContainerID: 3},
 		{ID: 111, ContainerID: 6},
-	}), core.WithLeader(&metapb.Peer{ID: 109, ContainerID: 2}))
+	}), core.WithLeader(&metapb.Replica{ID: 109, ContainerID: 2}))
 	s.cluster.PutResource(s.resources[2])
 	ops = s.mc.Check(s.resources[2])
 	s.checkSteps(t, ops[0], []operator.OpStep{
@@ -349,12 +349,12 @@ func TestMatchPeers(t *testing.T) {
 
 	// no overlap with reject leader label
 	s.resources[1] = s.resources[1].Clone(
-		core.SetPeers([]metapb.Peer{
+		core.SetPeers([]metapb.Replica{
 			{ID: 112, ContainerID: 7},
 			{ID: 113, ContainerID: 8},
 			{ID: 114, ContainerID: 1},
 		}),
-		core.WithLeader(&metapb.Peer{ID: 114, ContainerID: 1}),
+		core.WithLeader(&metapb.Replica{ID: 114, ContainerID: 1}),
 	)
 	s.cluster.PutResource(s.resources[1])
 	ops = s.mc.Check(s.resources[2])
@@ -388,20 +388,20 @@ func TestMatchPeers(t *testing.T) {
 
 	// overlap with reject leader label
 	s.resources[1] = s.resources[1].Clone(
-		core.SetPeers([]metapb.Peer{
+		core.SetPeers([]metapb.Replica{
 			{ID: 115, ContainerID: 7},
 			{ID: 116, ContainerID: 8},
 			{ID: 117, ContainerID: 1},
 		}),
-		core.WithLeader(&metapb.Peer{ID: 117, ContainerID: 1}),
+		core.WithLeader(&metapb.Replica{ID: 117, ContainerID: 1}),
 	)
 	s.resources[2] = s.resources[2].Clone(
-		core.SetPeers([]metapb.Peer{
+		core.SetPeers([]metapb.Replica{
 			{ID: 118, ContainerID: 7},
 			{ID: 119, ContainerID: 3},
 			{ID: 120, ContainerID: 2},
 		}),
-		core.WithLeader(&metapb.Peer{ID: 120, ContainerID: 2}),
+		core.WithLeader(&metapb.Replica{ID: 120, ContainerID: 2}),
 	)
 	s.cluster.PutResource(s.resources[1])
 	ops = s.mc.Check(s.resources[2])
@@ -450,13 +450,13 @@ func TestCache(t *testing.T) {
 				ResID: 2,
 				Start: []byte("a"),
 				End:   []byte("t"),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 103, ContainerID: 1},
 					{ID: 104, ContainerID: 4},
 					{ID: 105, ContainerID: 5},
 				},
 			},
-			&metapb.Peer{ID: 104, ContainerID: 4},
+			&metapb.Replica{ID: 104, ContainerID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
@@ -465,13 +465,13 @@ func TestCache(t *testing.T) {
 				ResID: 3,
 				Start: []byte("t"),
 				End:   []byte("x"),
-				ResPeers: []metapb.Peer{
+				ResPeers: []metapb.Replica{
 					{ID: 106, ContainerID: 2},
 					{ID: 107, ContainerID: 5},
 					{ID: 108, ContainerID: 6},
 				},
 			},
-			&metapb.Peer{ID: 108, ContainerID: 6},
+			&metapb.Replica{ID: 108, ContainerID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),

@@ -87,7 +87,7 @@ func TestApplyRule(t *testing.T) {
 		ResID:    1,
 		Start:    []byte("a"),
 		End:      []byte("c"),
-		ResPeers: []metapb.Peer{{ID: 1, ContainerID: 1}},
+		ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1}},
 	}, nil))
 	assert.Equal(t, 3, len(rules))
 
@@ -95,7 +95,7 @@ func TestApplyRule(t *testing.T) {
 		ResID:         1,
 		Start:         []byte("a"),
 		End:           []byte("c"),
-		ResPeers:      []metapb.Peer{{ID: 1, ContainerID: 1}},
+		ResPeers:      []metapb.Replica{{ID: 1, ContainerID: 1}},
 		ResRuleGroups: []string{"group1", "group2"},
 	}, nil))
 	assert.Equal(t, 2, len(rules))

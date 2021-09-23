@@ -800,13 +800,13 @@ func (f *isolationFilter) Target(opt *config.PersistOptions, container *core.Cac
 // createResourceForRuleFit is used to create a clone resource with ResourceCreateOptions which is only used for
 // FitResource in filter
 func createResourceForRuleFit(startKey, endKey []byte,
-	peers []metapb.Peer, leader *metapb.Peer,
+	peers []metapb.Replica, leader *metapb.Replica,
 	factory func() metadata.Resource,
 	opts ...core.ResourceCreateOption) *core.CachedResource {
-	copyLeader := proto.Clone(leader).(*metapb.Peer)
-	copyPeers := make([]metapb.Peer, 0, len(peers))
+	copyLeader := proto.Clone(leader).(*metapb.Replica)
+	copyPeers := make([]metapb.Replica, 0, len(peers))
 	for _, p := range peers {
-		peer := metapb.Peer{
+		peer := metapb.Replica{
 			ID:          p.ID,
 			ContainerID: p.ContainerID,
 			Role:        p.Role,

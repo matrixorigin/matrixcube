@@ -704,7 +704,7 @@ func (s *testBalanceresourceScheduler) checkReplacePendingResource(t *testing.T,
 	tc.AddLeaderResource(3, 2, 1, 3)
 	resource := tc.GetResource(3)
 	p, _ := resource.GetContainerPeer(1)
-	resource = resource.Clone(core.WithPendingPeers([]metapb.Peer{p}))
+	resource = resource.Clone(core.WithPendingPeers([]metapb.Replica{p}))
 	tc.PutResource(resource)
 
 	assert.Equal(t, uint64(3), sb.Schedule(tc)[0].ResourceID())
@@ -832,12 +832,12 @@ func TestBalance1(t *testing.T) {
 			ResID: 1,
 			Start: []byte(""),
 			End:   []byte("a"),
-			ResPeers: []metapb.Peer{
+			ResPeers: []metapb.Replica{
 				{ID: 101, ContainerID: 1},
 				{ID: 102, ContainerID: 2},
 			},
 		},
-		&metapb.Peer{ID: 101, ContainerID: 1},
+		&metapb.Replica{ID: 101, ContainerID: 1},
 		core.SetApproximateSize(1),
 		core.SetApproximateKeys(1),
 	)
@@ -846,13 +846,13 @@ func TestBalance1(t *testing.T) {
 			ResID: 2,
 			Start: []byte("a"),
 			End:   []byte("t"),
-			ResPeers: []metapb.Peer{
+			ResPeers: []metapb.Replica{
 				{ID: 103, ContainerID: 1},
 				{ID: 104, ContainerID: 4},
 				{ID: 105, ContainerID: 5},
 			},
 		},
-		&metapb.Peer{ID: 104, ContainerID: 4},
+		&metapb.Replica{ID: 104, ContainerID: 4},
 		core.SetApproximateSize(200),
 		core.SetApproximateKeys(200),
 	)
@@ -973,7 +973,7 @@ func TestOpInfluence(t *testing.T) {
 	for i := 1; i <= 8; i++ {
 		id, _ := tc.AllocID()
 		origin := tc.AddLeaderResource(id, 4)
-		newPeer := metapb.Peer{ContainerID: 3, Role: metapb.PeerRole_Voter}
+		newPeer := metapb.Replica{ContainerID: 3, Role: metapb.ReplicaRole_Voter}
 		op, _ := operator.CreateMovePeerOperator("balance-resource", tc, origin, operator.OpKind(0), 4, newPeer)
 		assert.NotNil(t, op)
 		oc.AddOperator(op)
@@ -1022,13 +1022,13 @@ func TestEmptyResource(t *testing.T) {
 			ResID: 5,
 			Start: []byte("a"),
 			End:   []byte("b"),
-			ResPeers: []metapb.Peer{
+			ResPeers: []metapb.Replica{
 				{ID: 6, ContainerID: 1},
 				{ID: 7, ContainerID: 3},
 				{ID: 8, ContainerID: 4},
 			},
 		},
-		&metapb.Peer{ID: 7, ContainerID: 3},
+		&metapb.Replica{ID: 7, ContainerID: 3},
 		core.SetApproximateSize(1),
 		core.SetApproximateKeys(1),
 	)
@@ -1112,7 +1112,7 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 		resources []*metadata.TestResource
 	)
 	for i := 0; i < 50; i++ {
-		peers := []metapb.Peer{
+		peers := []metapb.Replica{
 			{ID: id + 1, ContainerID: 1},
 			{ID: id + 2, ContainerID: 2},
 			{ID: id + 3, ContainerID: 3},
@@ -1215,7 +1215,7 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 		resources []*metadata.TestResource
 	)
 	for i := 0; i < 10; i++ {
-		peers := []metapb.Peer{
+		peers := []metapb.Replica{
 			{ID: id + 1, ContainerID: 1},
 			{ID: id + 2, ContainerID: 2},
 			{ID: id + 3, ContainerID: 3},
@@ -1234,7 +1234,7 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 	// To simulate server prepared,
 	// container 1 contains 8 leader resource peers and leaders of 2 resources are unknown yet.
 	for _, meta := range resources {
-		var leader *metapb.Peer
+		var leader *metapb.Replica
 		if meta.ID() < 8 {
 			leader = &meta.Peers()[0]
 		}

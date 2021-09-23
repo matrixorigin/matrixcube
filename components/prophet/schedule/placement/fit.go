@@ -28,7 +28,7 @@ import (
 // rules, and the remaining Peers are placed in the OrphanPeers list.
 type ResourceFit struct {
 	RuleFits    []*RuleFit
-	OrphanPeers []metapb.Peer
+	OrphanPeers []metapb.Replica
 }
 
 // IsSatisfied returns if the rules are properly satisfied.
@@ -82,11 +82,11 @@ func CompareResourceFit(a, b *ResourceFit) int {
 type RuleFit struct {
 	Rule *Rule
 	// Peers of the Resource that are divided to this Rule.
-	Peers []metapb.Peer
+	Peers []metapb.Replica
 	// PeersWithDifferentRole is subset of `Peers`. It contains all Peers that have
 	// different Role from configuration (the Role can be migrated to target role
 	// by scheduling).
-	PeersWithDifferentRole []metapb.Peer
+	PeersWithDifferentRole []metapb.Replica
 	// IsolationScore indicates at which level of labeling these Peers are
 	// isolated. A larger value is better.
 	IsolationScore float64
@@ -140,7 +140,7 @@ func newFitWorker(containers ContainerSet, res *core.CachedResource, rules []*Ru
 	var peers []*fitPeer
 	for _, p := range res.Meta.Peers() {
 		peers = append(peers, &fitPeer{
-			Peer:      p,
+			Replica:   p,
 			container: containers.GetContainer(p.ContainerID),
 			isLeader:  res.GetLeader().GetID() == p.ID,
 		})
@@ -246,7 +246,7 @@ func (w *fitWorker) updateOrphanPeers(index int) {
 	w.bestFit.OrphanPeers = w.bestFit.OrphanPeers[:0]
 	for _, p := range w.peers {
 		if !p.selected {
-			w.bestFit.OrphanPeers = append(w.bestFit.OrphanPeers, p.Peer)
+			w.bestFit.OrphanPeers = append(w.bestFit.OrphanPeers, p.Replica)
 		}
 	}
 }
@@ -254,40 +254,40 @@ func (w *fitWorker) updateOrphanPeers(index int) {
 func newRuleFit(rule *Rule, peers []*fitPeer) *RuleFit {
 	rf := &RuleFit{Rule: rule, IsolationScore: isolationScore(peers, rule.LocationLabels)}
 	for _, p := range peers {
-		rf.Peers = append(rf.Peers, p.Peer)
+		rf.Peers = append(rf.Peers, p.Replica)
 		if !p.matchRoleStrict(rule.Role) {
-			rf.PeersWithDifferentRole = append(rf.PeersWithDifferentRole, p.Peer)
+			rf.PeersWithDifferentRole = append(rf.PeersWithDifferentRole, p.Replica)
 		}
 	}
 	return rf
 }
 
 type fitPeer struct {
-	metapb.Peer
+	metapb.Replica
 	container *core.CachedContainer
 	isLeader  bool
 	selected  bool
 }
 
-func (p *fitPeer) matchRoleStrict(role PeerRoleType) bool {
+func (p *fitPeer) matchRoleStrict(role ReplicaRoleType) bool {
 	switch role {
 	case Voter: // Voter matches either Leader or Follower.
-		return !metadata.IsLearner(p.Peer)
+		return !metadata.IsLearner(p.Replica)
 	case Leader:
 		return p.isLeader
 	case Follower:
-		return !metadata.IsLearner(p.Peer) && !p.isLeader
+		return !metadata.IsLearner(p.Replica) && !p.isLeader
 	case Learner:
-		return metadata.IsLearner(p.Peer)
+		return metadata.IsLearner(p.Replica)
 	}
 	return false
 }
 
-func (p *fitPeer) matchRoleLoose(role PeerRoleType) bool {
+func (p *fitPeer) matchRoleLoose(role ReplicaRoleType) bool {
 	// non-learner cannot become learner. All other roles can migrate to
 	// others by scheduling. For example, Leader->Follower, Learner->Leader
 	// are possible, but Voter->Learner is impossible.
-	return role != Learner || metadata.IsLearner(p.Peer)
+	return role != Learner || metadata.IsLearner(p.Replica)
 }
 
 func isolationScore(peers []*fitPeer, labels []string) float64 {

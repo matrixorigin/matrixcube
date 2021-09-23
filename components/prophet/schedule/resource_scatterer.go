@@ -246,8 +246,8 @@ func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*op
 
 func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group string) *operator.Operator {
 	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
-	ordinaryPeers := make(map[uint64]metapb.Peer)
-	specialPeers := make(map[string]map[uint64]metapb.Peer)
+	ordinaryPeers := make(map[uint64]metapb.Replica)
+	specialPeers := make(map[string]map[uint64]metapb.Replica)
 	// Group peers by the engine of their stores
 	for _, peer := range res.Meta.Peers() {
 		store := r.cluster.GetContainer(peer.GetContainerID())
@@ -256,15 +256,15 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 		} else {
 			engine := store.GetLabelValue(filter.EngineKey)
 			if _, ok := specialPeers[engine]; !ok {
-				specialPeers[engine] = make(map[uint64]metapb.Peer)
+				specialPeers[engine] = make(map[uint64]metapb.Replica)
 			}
 			specialPeers[engine][peer.ID] = peer
 		}
 	}
 
-	targetPeers := make(map[uint64]metapb.Peer)
+	targetPeers := make(map[uint64]metapb.Replica)
 	selectedStores := make(map[uint64]struct{})
-	scatterWithSameEngine := func(peers map[uint64]metapb.Peer, context engineContext) {
+	scatterWithSameEngine := func(peers map[uint64]metapb.Replica, context engineContext) {
 		for _, peer := range peers {
 			candidates := r.selectCandidates(res, peer.GetContainerID(), selectedStores, context)
 			newPeer := r.selectContainer(group, &peer, peer.GetContainerID(), candidates, context)
@@ -328,17 +328,17 @@ func (r *ResourceScatterer) selectCandidates(res *core.CachedResource, sourceCon
 	return candidates
 }
 
-func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Peer, sourceContainerID uint64, candidates []uint64, context engineContext) *metapb.Peer {
+func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Replica, sourceContainerID uint64, candidates []uint64, context engineContext) *metapb.Replica {
 	if len(candidates) < 1 {
 		return peer
 	}
-	var newPeer *metapb.Peer
+	var newPeer *metapb.Replica
 	minCount := uint64(math.MaxUint64)
 	for _, storeID := range candidates {
 		count := context.selectedPeer.get(storeID, group)
 		if count < minCount {
 			minCount = count
-			newPeer = &metapb.Peer{
+			newPeer = &metapb.Replica{
 				ContainerID: storeID,
 				Role:        peer.GetRole(),
 			}
@@ -358,7 +358,7 @@ func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Peer, sou
 
 // selectAvailableLeaderContainers select the target leader container from the candidates. The candidates would be collected by
 // the existed peers container depended on the leader counts in the group level.
-func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers map[uint64]metapb.Peer, context engineContext) uint64 {
+func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers map[uint64]metapb.Replica, context engineContext) uint64 {
 	minContainerGroupLeader := uint64(math.MaxUint64)
 	id := uint64(0)
 	for storeID := range peers {
@@ -375,7 +375,7 @@ func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers 
 }
 
 // Put put the final distribution in the context no matter the operator was created
-func (r *ResourceScatterer) Put(peers map[uint64]metapb.Peer, leaderContainerID uint64, group string) {
+func (r *ResourceScatterer) Put(peers map[uint64]metapb.Replica, leaderContainerID uint64, group string) {
 	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
 	// Group peers by the engine of their stores
 	for _, peer := range peers {

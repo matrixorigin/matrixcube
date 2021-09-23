@@ -29,14 +29,14 @@ import (
 )
 
 // CreateAddPeerOperator creates an operator that adds a new peer.
-func CreateAddPeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Peer, kind OpKind) (*Operator, error) {
+func CreateAddPeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Replica, kind OpKind) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		AddPeer(peer).
 		Build(kind)
 }
 
 // CreatePromoteLearnerOperator creates an operator that promotes a learner.
-func CreatePromoteLearnerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Peer) (*Operator, error) {
+func CreatePromoteLearnerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		PromoteLearner(peer.ContainerID).
 		Build(0)
@@ -65,11 +65,11 @@ func CreateForceTransferLeaderOperator(desc string, cluster opt.Cluster, res *co
 }
 
 // CreateMoveResourceOperator creates an operator that moves a resource to specified containers.
-func CreateMoveResourceOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, roles map[uint64]placement.PeerRoleType) (*Operator, error) {
+func CreateMoveResourceOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, roles map[uint64]placement.ReplicaRoleType) (*Operator, error) {
 	// construct the peers from roles
-	peers := make(map[uint64]metapb.Peer)
+	peers := make(map[uint64]metapb.Replica)
 	for containerID, role := range roles {
-		peers[containerID] = metapb.Peer{
+		peers[containerID] = metapb.Replica{
 			ContainerID: containerID,
 			Role:        role.MetaPeerRole(),
 		}
@@ -79,7 +79,7 @@ func CreateMoveResourceOperator(desc string, cluster opt.Cluster, res *core.Cach
 }
 
 // CreateMovePeerOperator creates an operator that replaces an old peer with a new peer.
-func CreateMovePeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Peer) (*Operator, error) {
+func CreateMovePeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		RemovePeer(oldContainer).
 		AddPeer(peer).
@@ -87,7 +87,7 @@ func CreateMovePeerOperator(desc string, cluster opt.Cluster, res *core.CachedRe
 }
 
 // CreateMoveLeaderOperator creates an operator that replaces an old leader with a new leader.
-func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Peer) (*Operator, error) {
+func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		RemovePeer(oldContainer).
 		AddPeer(peer).
@@ -127,9 +127,9 @@ func CreateMergeResourceOperator(desc string, cluster opt.Cluster, source *core.
 
 	var steps []OpStep
 	if !isResourceMatch(source, target) {
-		peers := make(map[uint64]metapb.Peer)
+		peers := make(map[uint64]metapb.Replica)
 		for _, p := range target.Meta.Peers() {
-			peers[p.ContainerID] = metapb.Peer{
+			peers[p.ContainerID] = metapb.Replica{
 				ContainerID: p.ContainerID,
 				Role:        p.Role,
 			}
@@ -176,7 +176,7 @@ func isResourceMatch(a, b *core.CachedResource) bool {
 }
 
 // CreateScatterResourceOperator creates an operator that scatters the specified resource.
-func CreateScatterResourceOperator(desc string, cluster opt.Cluster, origin *core.CachedResource, targetPeers map[uint64]metapb.Peer, targetLeader uint64) (*Operator, error) {
+func CreateScatterResourceOperator(desc string, cluster opt.Cluster, origin *core.CachedResource, targetPeers map[uint64]metapb.Replica, targetLeader uint64) (*Operator, error) {
 	// randomly pick a leader.
 	var ids []uint64
 	for id, peer := range targetPeers {
@@ -215,9 +215,9 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 	b.toPromote = newPeersMap()
 	for _, o := range b.originPeers {
 		switch o.Role {
-		case metapb.PeerRole_IncomingVoter:
+		case metapb.ReplicaRole_IncomingVoter:
 			b.toPromote.Set(o)
-		case metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_DemotingVoter:
 			b.toDemote.Set(o)
 		}
 	}

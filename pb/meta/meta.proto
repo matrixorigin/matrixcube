@@ -15,8 +15,8 @@ option (gogoproto.goproto_enum_prefix_all) = true;
 message RaftMessage  {
     uint64               shardID      = 1;
     uint64               group        = 2;
-    metapb.Peer          from         = 3 [(gogoproto.nullable) = false];
-    metapb.Peer          to           = 4 [(gogoproto.nullable) = false];
+    metapb.Replica       from         = 3 [(gogoproto.nullable) = false];
+    metapb.Replica       to           = 4 [(gogoproto.nullable) = false];
     raftpb.Message       message      = 5 [(gogoproto.nullable) = false];
     metapb.ResourceEpoch shardEpoch   = 6 [(gogoproto.nullable) = false];
     bool                 isTombstone  = 7;
@@ -29,11 +29,11 @@ message RaftMessage  {
 
 // SnapshotMessageHeader snapshot message header
 message SnapshotMessageHeader {
-    Shard  shard = 1 [(gogoproto.nullable) = false];
-    metapb.Peer   from  = 2 [(gogoproto.nullable) = false];
-    metapb.Peer   to    = 3 [(gogoproto.nullable) = false];
-    uint64        term  = 4;
-    uint64        index = 5;
+    Shard            shard = 1 [(gogoproto.nullable) = false];
+    metapb.Replica   from  = 2 [(gogoproto.nullable) = false];
+    metapb.Replica   to    = 3 [(gogoproto.nullable) = false];
+    uint64           term  = 4;
+    uint64           index = 5;
 }
 
 // SnapshotMessage snapshot message
@@ -60,21 +60,21 @@ message Cluster {
 
 // Shard a shard [start,end) of the data
 message Shard {
-    uint64                id              = 1 [(gogoproto.customname) = "ID"];
-    bytes                 start           = 2;
-    bytes                 end             = 3;
-    metapb.ResourceEpoch  epoch           = 4 [(gogoproto.nullable) = false];
-    metapb.ResourceState  state           = 5;
-    repeated metapb.Peer  peers           = 6 [(gogoproto.nullable) = false];
-    bool                  disableSplit    = 7;
-    uint64                group           = 8;
-    string                unique          = 10;
-    repeated string       ruleGroups      = 11;
-    bytes                 data            = 12;
+    uint64                   id              = 1 [(gogoproto.customname) = "ID"];
+    bytes                    start           = 2;
+    bytes                    end             = 3;
+    metapb.ResourceEpoch     epoch           = 4 [(gogoproto.nullable) = false];
+    metapb.ResourceState     state           = 5;
+    repeated metapb.Replica  replicas        = 6 [(gogoproto.nullable) = false];
+    bool                     disableSplit    = 7;
+    uint64                   group           = 8;
+    string                   unique          = 10;
+    repeated string          ruleGroups      = 11;
+    bytes                    data            = 12;
 }
 
-// PeerState the state of the shard peer
-enum PeerState {
+// ReplicaState the state of the shard peer
+enum ReplicaState {
     Normal    = 0;
     Applying  = 1;
     Tombstone = 2;
@@ -83,7 +83,7 @@ enum PeerState {
 // ShardLocalState shard local state
 message ShardLocalState {
     Shard     shard = 1 [(gogoproto.nullable) = false];
-    PeerState state = 2;
+    ReplicaState state = 2;
 }
 
 // Store the host store metadata

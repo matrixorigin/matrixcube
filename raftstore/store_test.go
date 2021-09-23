@@ -288,7 +288,7 @@ func TestInitialMember(t *testing.T) {
 
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	initialMembers := 0
-	for _, p := range c.GetShardByIndex(0, 0).Peers {
+	for _, p := range c.GetShardByIndex(0, 0).Replicas {
 		if p.InitialMember {
 			initialMembers++
 		}
@@ -302,7 +302,7 @@ func TestInitialMember(t *testing.T) {
 	c.WaitShardByCountPerNode(2, testWaitTimeout)
 	for i := 0; i < 3; i++ {
 		initialMembers = 0
-		for _, p := range c.GetShardByIndex(i, 1).Peers {
+		for _, p := range c.GetShardByIndex(i, 1).Replicas {
 			if p.InitialMember {
 				initialMembers++
 			}

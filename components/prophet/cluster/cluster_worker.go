@@ -77,7 +77,7 @@ func (c *RaftCluster) HandleAskSplit(request *rpcpb.Request) (*rpcpb.AskSplitRsp
 
 	split := &rpcpb.AskSplitRsp{}
 	split.SplitID.NewID = newResourceID
-	split.SplitID.NewPeerIDs = peerIDs
+	split.SplitID.NewReplicaIDs = peerIDs
 
 	util.GetLogger().Infof("alloc ids %+v for resource %d split",
 		newResourceID,
@@ -134,8 +134,8 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.Request) (*rpcpb.AskBat
 
 		recordResources = append(recordResources, newResourceID)
 		splitIDs = append(splitIDs, rpcpb.SplitID{
-			NewID:      newResourceID,
-			NewPeerIDs: peerIDs,
+			NewID:         newResourceID,
+			NewReplicaIDs: peerIDs,
 		})
 
 		util.GetLogger().Infof("alloc ids %+v for resource %d split",
@@ -267,8 +267,8 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			4, len(request.CreateResources.Resources))
 	}
 
-	if request.CreateResources.LeastPeers == nil {
-		request.CreateResources.LeastPeers = make([]uint64, len(request.CreateResources.Resources))
+	if request.CreateResources.LeastReplicas == nil {
+		request.CreateResources.LeastReplicas = make([]uint64, len(request.CreateResources.Resources))
 	}
 
 	c.RLock()
@@ -322,7 +322,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 		createResources = append(createResources, res)
-		leastPeers = append(leastPeers, int(request.CreateResources.LeastPeers[idx]))
+		leastPeers = append(leastPeers, int(request.CreateResources.LeastReplicas[idx]))
 	}
 
 	for idx, res := range createResources {

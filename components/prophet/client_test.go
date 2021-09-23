@@ -134,7 +134,7 @@ func TestPutPlacementRule(t *testing.T) {
 	_, err := c.ContainerHeartbeat(newTestContainerHeartbeat(1, 1))
 	assert.NoError(t, err)
 
-	peer := metapb.Peer{ID: 1, ContainerID: 1}
+	peer := metapb.Replica{ID: 1, ContainerID: 1}
 	assert.NoError(t, c.ResourceHeartbeat(newTestResourceMeta(2, peer), rpcpb.ResourceHeartbeatReq{
 		ContainerID: 1,
 		Leader:      &peer}))
@@ -142,7 +142,7 @@ func TestPutPlacementRule(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(rules))
 
-	peer = metapb.Peer{ID: 2, ContainerID: 1}
+	peer = metapb.Replica{ID: 2, ContainerID: 1}
 	res := newTestResourceMeta(3, peer)
 	res.SetRuleGroups("group01")
 	assert.NoError(t, c.ResourceHeartbeat(res, rpcpb.ResourceHeartbeatReq{
@@ -216,7 +216,7 @@ func TestIssue112(t *testing.T) {
 	}
 }
 
-func newTestResourceMeta(resourceID uint64, peers ...metapb.Peer) metadata.Resource {
+func newTestResourceMeta(resourceID uint64, peers ...metapb.Replica) metadata.Resource {
 	return &metadata.TestResource{
 		ResID:    resourceID,
 		Start:    []byte(fmt.Sprintf("%20d", resourceID)),

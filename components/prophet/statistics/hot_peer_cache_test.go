@@ -111,9 +111,9 @@ func checkAndUpdate(t *testing.T, cache *hotPeerCache, resource *core.CachedReso
 }
 
 func checkHit(t *testing.T, cache *hotPeerCache, resource *core.CachedResource, kind FlowKind, isHit bool) {
-	var peers []metapb.Peer
+	var peers []metapb.Replica
 	if kind == ReadFlow {
-		peers = []metapb.Peer{*resource.GetLeader()}
+		peers = []metapb.Replica{*resource.GetLeader()}
 	} else {
 		peers = resource.Meta.Peers()
 	}
@@ -142,18 +142,18 @@ func schedule(operator operator, resource *core.CachedResource, kind FlowKind) (
 		index, _ := pickFollower(resource)
 		meta := resource.Meta.(*metadata.TestResource)
 		srcContainer := meta.ResPeers[index].ContainerID
-		meta.ResPeers[index] = metapb.Peer{ID: 4, ContainerID: 4}
+		meta.ResPeers[index] = metapb.Replica{ID: 4, ContainerID: 4}
 		return srcContainer, buildresource(meta, resource.GetLeader(), kind)
 	case addReplica:
 		meta := resource.Meta.(*metadata.TestResource)
-		meta.ResPeers = append(meta.ResPeers, metapb.Peer{ID: 4, ContainerID: 4})
+		meta.ResPeers = append(meta.ResPeers, metapb.Replica{ID: 4, ContainerID: 4})
 		return 0, buildresource(meta, resource.GetLeader(), kind)
 	default:
 		return 0, nil
 	}
 }
 
-func pickFollower(resource *core.CachedResource) (index int, peer metapb.Peer) {
+func pickFollower(resource *core.CachedResource) (index int, peer metapb.Replica) {
 	var dst int
 	meta := resource.Meta.(*metadata.TestResource)
 
@@ -169,16 +169,16 @@ func pickFollower(resource *core.CachedResource) (index int, peer metapb.Peer) {
 	return dst, meta.ResPeers[dst]
 }
 
-func buildresource(meta metadata.Resource, leader *metapb.Peer, kind FlowKind) *core.CachedResource {
+func buildresource(meta metadata.Resource, leader *metapb.Replica, kind FlowKind) *core.CachedResource {
 	const interval = uint64(60)
 	if meta == nil {
-		peer1 := metapb.Peer{ID: 1, ContainerID: 1}
-		peer2 := metapb.Peer{ID: 2, ContainerID: 2}
-		peer3 := metapb.Peer{ID: 3, ContainerID: 3}
+		peer1 := metapb.Replica{ID: 1, ContainerID: 1}
+		peer2 := metapb.Replica{ID: 2, ContainerID: 2}
+		peer3 := metapb.Replica{ID: 3, ContainerID: 3}
 
 		meta = &metadata.TestResource{
 			ResID:    1000,
-			ResPeers: []metapb.Peer{peer1, peer2, peer3},
+			ResPeers: []metapb.Replica{peer1, peer2, peer3},
 			Start:    []byte(""),
 			End:      []byte(""),
 			ResEpoch: metapb.ResourceEpoch{ConfVer: 6, Version: 6},
@@ -200,10 +200,10 @@ func buildresource(meta metadata.Resource, leader *metapb.Peer, kind FlowKind) *
 
 type genID func(i int) uint64
 
-func newPeers(n int, pid genID, sid genID) []metapb.Peer {
-	peers := make([]metapb.Peer, 0, n)
+func newPeers(n int, pid genID, sid genID) []metapb.Replica {
+	peers := make([]metapb.Replica, 0, n)
 	for i := 1; i <= n; i++ {
-		peer := metapb.Peer{
+		peer := metapb.Replica{
 			ID: pid(i),
 		}
 		peer.ContainerID = sid(i)

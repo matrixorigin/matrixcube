@@ -26,7 +26,7 @@ var (
 )
 
 func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
-	b := newBatch(testMaxBatchSize, 10, Peer{})
+	b := newBatch(testMaxBatchSize, 10, Replica{})
 	r1 := reqCtx{
 		admin: &rpc.AdminRequest{},
 	}
@@ -49,7 +49,7 @@ func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 			Type: rpc.CmdType_Read,
 		},
 	}
-	b := newBatch(testMaxBatchSize, 10, Peer{})
+	b := newBatch(testMaxBatchSize, 10, Replica{})
 	b.push(1, metapb.ResourceEpoch{}, r1)
 	b.push(1, metapb.ResourceEpoch{}, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() < int(b.maxSize))
@@ -67,14 +67,14 @@ func TestProposalBatchLimitsBatchSize(t *testing.T) {
 			Type: rpc.CmdType_Write,
 		},
 	}
-	b1 := newBatch(testMaxBatchSize, 10, Peer{})
+	b1 := newBatch(testMaxBatchSize, 10, Replica{})
 	b1.push(1, metapb.ResourceEpoch{}, r1)
 	b1.push(1, metapb.ResourceEpoch{}, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() < int(b1.maxSize))
 	assert.Equal(t, 1, b1.size())
 	assert.Equal(t, 2, len(b1.cmds[0].req.Requests))
 
-	b2 := newBatch(1, 10, Peer{})
+	b2 := newBatch(1, 10, Replica{})
 	b2.push(1, metapb.ResourceEpoch{}, r1)
 	b2.push(1, metapb.ResourceEpoch{}, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() > int(b2.maxSize))
@@ -94,12 +94,12 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 			Type: rpc.CmdType_Write,
 		},
 	}
-	b := newBatch(testMaxBatchSize, 10, Peer{})
+	b := newBatch(testMaxBatchSize, 10, Replica{})
 	b.push(1, epoch1, r1)
 	b.push(1, epoch2, r2)
 	assert.Equal(t, 2, b.size())
 
-	b2 := newBatch(testMaxBatchSize, 10, Peer{})
+	b2 := newBatch(testMaxBatchSize, 10, Replica{})
 	b2.push(1, epoch1, r1)
 	b2.push(1, epoch1, r2)
 	assert.Equal(t, 1, b2.size())
@@ -116,7 +116,7 @@ func TestProposalBatchPop(t *testing.T) {
 			Type: rpc.CmdType_Read,
 		},
 	}
-	b := newBatch(testMaxBatchSize, 10, Peer{})
+	b := newBatch(testMaxBatchSize, 10, Replica{})
 	b.push(1, metapb.ResourceEpoch{}, r1)
 	b.push(1, metapb.ResourceEpoch{}, r2)
 	assert.Equal(t, 2, b.size())

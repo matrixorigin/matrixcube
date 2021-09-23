@@ -123,7 +123,7 @@ func (s *shuffleResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 	return []*operator.Operator{op}
 }
 
-func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.CachedResource, metapb.Peer) {
+func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.CachedResource, metapb.Replica) {
 	candidates := filter.NewCandidates(cluster.GetContainers()).
 		FilterSource(cluster.GetOpts(), s.filters...).
 		Shuffle()
@@ -144,16 +144,16 @@ func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*cor
 				return res, p
 			}
 
-			return nil, metapb.Peer{}
+			return nil, metapb.Replica{}
 		}
 		schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 	}
 
 	schedulerCounter.WithLabelValues(s.GetName(), "no-source-container").Inc()
-	return nil, metapb.Peer{}
+	return nil, metapb.Replica{}
 }
 
-func (s *shuffleResourceScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Peer) (metapb.Peer, bool) {
+func (s *shuffleResourceScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) (metapb.Replica, bool) {
 	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetContainer(oldPeer.ContainerID), s.OpController.GetCluster().GetResourceFactory())
 	excludedFilter := filter.NewExcludedFilter(s.GetName(), nil, res.GetContainerIDs())
 
@@ -162,7 +162,7 @@ func (s *shuffleResourceScheduler) scheduleAddPeer(cluster opt.Cluster, res *cor
 		FilterTarget(cluster.GetOpts(), scoreGuard, excludedFilter).
 		RandomPick()
 	if target == nil {
-		return metapb.Peer{}, false
+		return metapb.Replica{}, false
 	}
-	return metapb.Peer{ContainerID: target.Meta.ID(), Role: oldPeer.GetRole()}, true
+	return metapb.Replica{ContainerID: target.Meta.ID(), Role: oldPeer.GetRole()}, true
 }

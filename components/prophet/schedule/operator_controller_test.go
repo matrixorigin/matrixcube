@@ -534,9 +534,9 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 		// resource2 has peer 2 in pending state, so the AddPeer step
 		// is left unfinished
 		resource2 := resource.Clone(
-			core.WithAddPeer(metapb.Peer{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}),
-			core.WithPendingPeers([]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
+			core.WithAddPeer(metapb.Replica{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}),
+			core.WithPendingPeers([]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 			}),
 			core.WithIncConfVer(),
 		)
@@ -556,7 +556,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 
 		// Finish the step by clearing the pending state
 		resource3 := resource.Clone(
-			core.WithAddPeer(metapb.Peer{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner}),
+			core.WithAddPeer(metapb.Replica{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}),
 			core.WithIncConfVer(),
 		)
 		assert.True(t, steps[0].IsFinish(resource3))
@@ -630,12 +630,12 @@ func TestContainerLimitWithMerge(t *testing.T) {
 	oc := NewOperatorController(s.ctx, tc, stream)
 
 	resources[2] = resources[2].Clone(
-		core.SetPeers([]metapb.Peer{
+		core.SetPeers([]metapb.Replica{
 			{ID: 109, ContainerID: 2},
 			{ID: 110, ContainerID: 3},
 			{ID: 111, ContainerID: 6},
 		}),
-		core.WithLeader(&metapb.Peer{ID: 109, ContainerID: 2}),
+		core.WithLeader(&metapb.Replica{ID: 109, ContainerID: 2}),
 	)
 	tc.PutResource(resources[2])
 	// The size of resource is less or equal than 1MB.
@@ -684,7 +684,7 @@ func TestAddWaitingOperator(t *testing.T) {
 		end := fmt.Sprintf("%db", i)
 		resource := newresourceInfo(i, start, end, 1, 1, []uint64{101, 1}, []uint64{101, 1})
 		cluster.PutResource(resource)
-		peer := metapb.Peer{
+		peer := metapb.Replica{
 			ContainerID: 2,
 		}
 		op, err := operator.CreateAddPeerOperator("add-peer", cluster, resource, peer, operator.OpKind(0))
@@ -721,9 +721,9 @@ func checkRemoveOperatorSuccess(t *testing.T, oc *OperatorController, op *operat
 }
 
 func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leader []uint64, peers ...[]uint64) *core.CachedResource {
-	prs := make([]metapb.Peer, 0, len(peers))
+	prs := make([]metapb.Replica, 0, len(peers))
 	for _, peer := range peers {
-		prs = append(prs, metapb.Peer{ID: peer[0], ContainerID: peer[1]})
+		prs = append(prs, metapb.Replica{ID: peer[0], ContainerID: peer[1]})
 	}
 	return core.NewCachedResource(
 		&metadata.TestResource{
@@ -732,7 +732,7 @@ func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leade
 			End:      []byte(endKey),
 			ResPeers: prs,
 		},
-		&metapb.Peer{ID: leader[0], ContainerID: leader[1]},
+		&metapb.Replica{ID: leader[0], ContainerID: leader[1]},
 		core.SetApproximateSize(size),
 		core.SetApproximateKeys(keys),
 	)

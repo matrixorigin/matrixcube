@@ -120,7 +120,7 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 				res.Meta.ID())
 			excludeContainers := make(map[uint64]struct{})
 			for _, p := range res.GetDownPeers() {
-				excludeContainers[p.GetPeer().ContainerID] = struct{}{}
+				excludeContainers[p.GetReplica().ContainerID] = struct{}{}
 			}
 			for _, p := range res.GetPendingPeers() {
 				excludeContainers[p.GetContainerID()] = struct{}{}

@@ -35,7 +35,7 @@ enum AdminCmdType {
 message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
-    metapb.Peer          peer             = 3 [(gogoproto.nullable) = false]; 
+    metapb.Replica       replica          = 3 [(gogoproto.nullable) = false]; 
     metapb.ResourceEpoch epoch            = 5 [(gogoproto.nullable) = false];
     bool                 ignoreEpochCheck = 7;
 }
@@ -113,8 +113,8 @@ message Response {
 
 message ConfigChangeRequest {
     // This can be only called in internal RaftStore now.
-    metapb.ChangePeerType changeType = 1;
-    metapb.Peer peer = 2 [(gogoproto.nullable) = false];
+    metapb.ConfigChangeType changeType = 1;
+    metapb.Replica replica = 2 [(gogoproto.nullable) = false];
 }
 
 // ConfigChangeResponse change peer response
@@ -133,7 +133,7 @@ message CompactLogResponse {}
 
 // TransferLeaderRequest transfer leader
 message TransferLeaderRequest {
-    metapb.Peer peer = 1 [(gogoproto.nullable) = false];
+    metapb.Replica replica = 1 [(gogoproto.nullable) = false];
 }
 
 message TransferLeaderResponse {}
@@ -155,7 +155,7 @@ message SplitRequest {
     // We must guarantee that the new_region_id is global unique.
     uint64 newShardID = 2;
     // The peer ids for the new split region.
-    repeated uint64 newPeerIDs = 3;
+    repeated uint64 newReplicaIDs = 3;
 }
 
 message BatchSplitRequest {

@@ -89,7 +89,7 @@ func TestFillReplicasWithRule(t *testing.T) {
 	s.cluster.AddLeaderContainer(3, 1)
 
 	res := core.NewTestCachedResource(nil, nil)
-	res.Meta.SetPeers([]metapb.Peer{{ID: 1, ContainerID: 1}})
+	res.Meta.SetPeers([]metapb.Replica{{ID: 1, ContainerID: 1}})
 	err := s.rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
@@ -151,7 +151,7 @@ func TestFixPeer(t *testing.T) {
 	s.cluster.SetContainerDown(2)
 	r := s.cluster.GetResource(1)
 	p, _ := r.GetContainerPeer(2)
-	r = r.Clone(core.WithDownPeers([]metapb.PeerStats{{Peer: p, DownSeconds: 60000}}))
+	r = r.Clone(core.WithDownPeers([]metapb.ReplicaStats{{Replica: p, DownSeconds: 60000}}))
 	op = s.rc.Check(r)
 	assert.NotNil(t, op)
 	assert.Equal(t, "replace-rule-down-peer", op.Desc())
@@ -216,8 +216,8 @@ func TestFixRole(t *testing.T) {
 	s.cluster.AddLeaderResourceWithRange(1, "", "", 2, 1, 3)
 	r := s.cluster.GetResource(1)
 	p, _ := r.GetContainerPeer(1)
-	p.Role = metapb.PeerRole_Learner
-	r = r.Clone(core.WithLearners([]metapb.Peer{p}))
+	p.Role = metapb.ReplicaRole_Learner
+	r = r.Clone(core.WithLearners([]metapb.Replica{p}))
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
 	assert.Equal(t, "fix-peer-role", op.Desc())
@@ -380,7 +380,7 @@ func TestIssue2419(t *testing.T) {
 	s.cluster.SetContainerOffline(3)
 	s.cluster.AddLeaderResourceWithRange(1, "", "", 1, 2, 3)
 	r := s.cluster.GetResource(1)
-	r = r.Clone(core.WithAddPeer(metapb.Peer{ID: 5, ContainerID: 4, Role: metapb.PeerRole_Learner}))
+	r = r.Clone(core.WithAddPeer(metapb.Replica{ID: 5, ContainerID: 4, Role: metapb.ReplicaRole_Learner}))
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
 	assert.Equal(t, "remove-orphan-peer", op.Desc())
@@ -417,10 +417,10 @@ func TestIssue3521_PriorityFixOrphanPeer(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "replace-rule-offline-peer", op.Desc())
 	r := s.cluster.GetResource(1).Clone(core.WithAddPeer(
-		metapb.Peer{
+		metapb.Replica{
 			ID:          5,
 			ContainerID: 4,
-			Role:        metapb.PeerRole_Learner,
+			Role:        metapb.ReplicaRole_Learner,
 		}))
 	s.cluster.PutResource(r)
 	op = s.rc.Check(s.cluster.GetResource(1))

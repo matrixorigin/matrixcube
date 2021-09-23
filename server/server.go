@@ -402,9 +402,9 @@ func (s *Application) retryForward(arg interface{}) {
 	req := arg.(*rpc.Request)
 	to := ""
 	if req.AllowFollower {
-		to = s.shardsProxy.Router().RandomPeerStore(req.ToShard).ClientAddr
+		to = s.shardsProxy.Router().RandomReplicaStore(req.ToShard).ClientAddr
 	} else {
-		to = s.shardsProxy.Router().LeaderPeerStore(req.ToShard).ClientAddr
+		to = s.shardsProxy.Router().LeaderReplicaStore(req.ToShard).ClientAddr
 	}
 
 	err := s.shardsProxy.DispatchTo(req, req.ToShard, to)

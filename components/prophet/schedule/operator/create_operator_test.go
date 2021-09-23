@@ -61,7 +61,7 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 	type testCase struct {
 		startKey      []byte
 		endKey        []byte
-		originPeers   []metapb.Peer // first is leader
+		originPeers   []metapb.Replica // first is leader
 		policy        metapb.CheckPolicy
 		keys          [][]byte
 		expectedError bool
@@ -70,10 +70,10 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		{
 			startKey: []byte("a"),
 			endKey:   []byte("b"),
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: false,
@@ -81,10 +81,10 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		{
 			startKey: []byte("c"),
 			endKey:   []byte("d"),
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_SCAN,
 			expectedError: false,
@@ -92,10 +92,10 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		{
 			startKey: []byte("e"),
 			endKey:   []byte("h"),
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_USEKEY,
 			keys:          [][]byte{[]byte("f"), []byte("g")},
@@ -104,10 +104,10 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		{
 			startKey: []byte("i"),
 			endKey:   []byte("j"),
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: true,
@@ -115,10 +115,10 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		{
 			startKey: []byte("k"),
 			endKey:   []byte("l"),
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: true,
@@ -159,34 +159,34 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 	s.setup()
 
 	type testCase struct {
-		sourcePeers   []metapb.Peer // first is leader
-		targetPeers   []metapb.Peer // first is leader
+		sourcePeers   []metapb.Replica // first is leader
+		targetPeers   []metapb.Replica // first is leader
 		kind          OpKind
 		expectedError bool
 		prepareSteps  []OpStep
 	}
 	cases := []testCase{
 		{
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 			},
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			OpMerge,
 			false,
 			[]OpStep{},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 			},
-			[]metapb.Peer{
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			OpMerge | OpLeader | OpResource,
 			false,
@@ -205,26 +205,26 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 			},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
 			},
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			true,
 			nil,
 		},
 		{
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 			},
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			true,
@@ -288,73 +288,73 @@ func TestCreateTransferLeaderOperator(t *testing.T) {
 	s.setup()
 
 	type testCase struct {
-		originPeers             []metapb.Peer // first is leader
+		originPeers             []metapb.Replica // first is leader
 		targetLeaderContainerID uint64
 		isErr                   bool
 	}
 	cases := []testCase{
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetLeaderContainerID: 3,
 			isErr:                   false,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetLeaderContainerID: 1,
 			isErr:                   true,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetLeaderContainerID: 4,
 			isErr:                   true,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 			},
 			targetLeaderContainerID: 3,
 			isErr:                   true,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			targetLeaderContainerID: 3,
 			isErr:                   true,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			targetLeaderContainerID: 4,
 			isErr:                   false,
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			targetLeaderContainerID: 3,
 			isErr:                   false,
@@ -387,18 +387,18 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 	s.setup()
 
 	type testCase struct {
-		originPeers       []metapb.Peer // first is leader
+		originPeers       []metapb.Replica // first is leader
 		offlineContainers []uint64
 		kind              OpKind
 		steps             []OpStep // empty means error
 	}
 	cases := []testCase{
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: 0,
 			steps: []OpStep{
@@ -409,11 +409,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
@@ -425,11 +425,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			offlineContainers: []uint64{2},
 			kind:              OpLeader,
@@ -442,11 +442,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			offlineContainers: []uint64{2, 3},
 			kind:              OpLeader,
@@ -459,11 +459,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			offlineContainers: []uint64{1, 2, 3, 4},
 			kind:              OpLeader,
@@ -476,11 +476,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: 0,
 			steps: []OpStep{
@@ -491,11 +491,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
@@ -507,11 +507,11 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			},
 		},
 		{
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 10, ContainerID: 10, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 10, ContainerID: 10, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
@@ -574,7 +574,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 
 	type testCase struct {
 		name            string
-		originPeers     []metapb.Peer // first is leader
+		originPeers     []metapb.Replica // first is leader
 		targetPeerRoles map[uint64]placement.PeerRoleType
 		steps           []OpStep
 		expectedError   error
@@ -582,10 +582,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 	tt := []testCase{
 		{
 			name: "move resource partially with incoming voter, demote existed voter",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Leader,
@@ -615,10 +615,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming leader",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Voter,
@@ -642,10 +642,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming voter",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Voter,
@@ -669,10 +669,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming learner, demote leader",
-			originPeers: []metapb.Peer{
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Learner,
@@ -702,10 +702,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move entirely with incoming voter",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				4: placement.Leader,
@@ -749,10 +749,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming and old voter, leader step down",
-			originPeers: []metapb.Peer{
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Voter,
@@ -784,10 +784,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming voter and follower, leader step down",
-			originPeers: []metapb.Peer{
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				1: placement.Follower,
@@ -825,10 +825,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "move resource partially with all incoming follower, leader step down",
-			originPeers: []metapb.Peer{
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				1: placement.Follower,
@@ -840,10 +840,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "only leader transfer",
-			originPeers: []metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				3: placement.Follower,
@@ -856,10 +856,10 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		},
 		{
 			name: "add peer and transfer leader",
-			originPeers: []metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				3: placement.Follower,
@@ -931,7 +931,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 
 	type testCase struct {
 		name            string
-		originPeers     []metapb.Peer // first is leader
+		originPeers     []metapb.Replica // first is leader
 		targetPeerRoles map[uint64]placement.PeerRoleType
 		steps           []OpStep
 		expectedError   error
@@ -939,10 +939,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 	tt := []testCase{
 		{
 			name: "move resource partially with incoming voter, demote existed voter",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Leader,
@@ -960,10 +960,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming leader",
-			originPeers: []metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Voter,
@@ -980,10 +980,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		},
 		{
 			name: "move resource partially with incoming learner, demote leader",
-			originPeers: []metapb.Peer{
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				2: placement.Learner,
@@ -1000,10 +1000,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		},
 		{
 			name: "move resource partially with all incoming follower, leader step down",
-			originPeers: []metapb.Peer{
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				1: placement.Follower,
@@ -1015,10 +1015,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		},
 		{
 			name: "only leader transfer",
-			originPeers: []metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				3: placement.Follower,
@@ -1031,10 +1031,10 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		},
 		{
 			name: "add peer and transfer leader",
-			originPeers: []metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_Voter},
+			originPeers: []metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.PeerRoleType{
 				3: placement.Follower,

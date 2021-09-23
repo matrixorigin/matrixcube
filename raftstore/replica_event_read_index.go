@@ -72,7 +72,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 		if err := ds.GetCommandExecutor().ExecuteRead(pr.readCtx); err != nil {
 			logger.Fatalf("shard %d peer %d exec read cmd failed with %+v",
 				q.shardID,
-				pr.peer.ID,
+				pr.replica.ID,
 				err)
 		}
 

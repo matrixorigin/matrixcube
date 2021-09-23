@@ -146,13 +146,13 @@ func (mc *Cluster) RandHotResourceFromContainer(containerID uint64, kind statist
 }
 
 // AllocPeer allocs a new peer on a container.
-func (mc *Cluster) AllocPeer(containerID uint64) (metapb.Peer, error) {
+func (mc *Cluster) AllocPeer(containerID uint64) (metapb.Replica, error) {
 	peerID, err := mc.AllocID()
 	if err != nil {
-		return metapb.Peer{}, err
+		return metapb.Replica{}, err
 	}
 
-	return metapb.Peer{
+	return metapb.Replica{
 		ID:          peerID,
 		ContainerID: containerID,
 	}, nil
@@ -606,9 +606,9 @@ func (mc *Cluster) PutResourceContainers(id uint64, containerIDs ...uint64) {
 		End:   []byte(strconv.FormatUint(id+1, 10)),
 	}
 	for _, id := range containerIDs {
-		meta.ResPeers = append(meta.ResPeers, metapb.Peer{ContainerID: id})
+		meta.ResPeers = append(meta.ResPeers, metapb.Replica{ContainerID: id})
 	}
-	mc.PutResource(core.NewCachedResource(meta, &metapb.Peer{ContainerID: containerIDs[0]}))
+	mc.PutResource(core.NewCachedResource(meta, &metapb.Replica{ContainerID: containerIDs[0]}))
 }
 
 // PutContainerWithLabels mocks method.
@@ -636,7 +636,7 @@ func (mc *Cluster) MockCachedResource(resID uint64, leaderContainerID uint64,
 		End:      []byte(fmt.Sprintf("%20d", resID+1)),
 		ResEpoch: epoch,
 	}
-	var leader *metapb.Peer
+	var leader *metapb.Replica
 	if leaderContainerID != 0 {
 		peer, _ := mc.AllocPeer(leaderContainerID)
 		leader = &peer
@@ -648,7 +648,7 @@ func (mc *Cluster) MockCachedResource(resID uint64, leaderContainerID uint64,
 	}
 	for _, containerID := range learnerContainerIDs {
 		peer, _ := mc.AllocPeer(containerID)
-		peer.Role = metapb.PeerRole_Learner
+		peer.Role = metapb.ReplicaRole_Learner
 		res.ResPeers = append(res.ResPeers, peer)
 	}
 	return core.NewCachedResource(res, leader)

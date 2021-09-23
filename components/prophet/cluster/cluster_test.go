@@ -282,9 +282,9 @@ func TestResourceHeartbeat(t *testing.T) {
 		checkResourcesKV(t, cluster.storage, resources[:i+1])
 
 		// Add a down peer.
-		res = res.Clone(core.WithDownPeers([]metapb.PeerStats{
+		res = res.Clone(core.WithDownPeers([]metapb.ReplicaStats{
 			{
-				Peer:        res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))],
+				Replica:     res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))],
 				DownSeconds: 42,
 			},
 		}))
@@ -293,7 +293,7 @@ func TestResourceHeartbeat(t *testing.T) {
 		checkResources(t, cluster.core.Resources, resources[:i+1])
 
 		// Add a pending peer.
-		res = res.Clone(core.WithPendingPeers([]metapb.Peer{res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))]}))
+		res = res.Clone(core.WithPendingPeers([]metapb.Replica{res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))]}))
 		resources[i] = res
 		assert.NoError(t, cluster.processResourceHeartbeat(res))
 		checkResources(t, cluster.core.Resources, resources[:i+1])
@@ -585,7 +585,7 @@ func TestUpdateContainerPendingPeerCount(t *testing.T) {
 	for _, s := range containers {
 		assert.Nil(t, tc.putContainerLocked(s))
 	}
-	peers := []metapb.Peer{
+	peers := []metapb.Replica{
 		{
 			ID:          2,
 			ContainerID: 1,
@@ -807,9 +807,9 @@ func newTestContainers(n uint64, version string) []*core.CachedContainer {
 func newTestResources(n, np uint64) []*core.CachedResource {
 	resources := make([]*core.CachedResource, 0, n)
 	for i := uint64(0); i < n; i++ {
-		peers := make([]metapb.Peer, 0, np)
+		peers := make([]metapb.Replica, 0, np)
 		for j := uint64(0); j < np; j++ {
-			peer := metapb.Peer{
+			peer := metapb.Replica{
 				ID: i*np + j,
 			}
 			peer.ContainerID = (i + j) % n

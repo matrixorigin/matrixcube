@@ -261,7 +261,7 @@ func (pr *replica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.Co
 	if admin.ConfigChange != nil {
 		return &raftpb.ConfChange{
 			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
-			NodeID:  admin.ConfigChange.Peer.ID,
+			NodeID:  admin.ConfigChange.Replica.ID,
 			Context: data,
 		}
 	} else {
@@ -269,7 +269,7 @@ func (pr *replica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.Co
 		for _, ch := range admin.ConfigChangeV2.Changes {
 			cc.Changes = append(cc.Changes, raftpb.ConfChangeSingle{
 				Type:   raftpb.ConfChangeType(ch.ChangeType),
-				NodeID: ch.Peer.ID,
+				NodeID: ch.Replica.ID,
 			})
 		}
 
@@ -294,8 +294,8 @@ func (pr *replica) proposeTransferLeader(c batch) bool {
 		return false
 	}
 
-	if pr.isTransferLeaderAllowed(req.Peer) {
-		pr.doTransferLeader(req.Peer)
+	if pr.isTransferLeaderAllowed(req.Replica) {
+		pr.doTransferLeader(req.Replica)
 	} else {
 		logger.Infof("shard %d transfer leader ignored directly, req=<%+v>",
 			pr.shardID,
@@ -308,7 +308,7 @@ func (pr *replica) proposeTransferLeader(c batch) bool {
 	return false
 }
 
-func (pr *replica) doTransferLeader(peer Peer) {
+func (pr *replica) doTransferLeader(peer Replica) {
 	logger.Infof("shard %d transfer leader to peer %d",
 		pr.shardID,
 		peer.ID)
@@ -321,7 +321,7 @@ func (pr *replica) doTransferLeader(peer Peer) {
 	pr.metrics.propose.transferLeader++
 }
 
-func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Peer) bool {
+func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Replica) bool {
 	status := pr.rn.Status()
 	if _, ok := status.Progress[newLeaderPeer.ID]; !ok {
 		return false
@@ -385,33 +385,33 @@ func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb
 	only_learner_change := true
 	currentVoter := currentProgress.Config.Voters.IDs()
 	for _, cp := range changes {
-		if cp.ChangeType == metapb.ChangePeerType_RemoveNode &&
-			cp.Peer.Role == metapb.PeerRole_Voter &&
+		if cp.ChangeType == metapb.ConfigChangeType_RemoveNode &&
+			cp.Replica.Role == metapb.ReplicaRole_Voter &&
 			kind != simpleKind {
 			return fmt.Errorf("invalid conf change request %+v, can not remove voter directly", cp)
 		}
 
-		if !(cp.ChangeType == metapb.ChangePeerType_RemoveNode ||
-			(cp.ChangeType == metapb.ChangePeerType_AddNode && cp.Peer.Role == metapb.PeerRole_Voter) ||
-			(cp.ChangeType == metapb.ChangePeerType_AddLearnerNode && cp.Peer.Role == metapb.PeerRole_Learner)) {
+		if !(cp.ChangeType == metapb.ConfigChangeType_RemoveNode ||
+			(cp.ChangeType == metapb.ConfigChangeType_AddNode && cp.Replica.Role == metapb.ReplicaRole_Voter) ||
+			(cp.ChangeType == metapb.ConfigChangeType_AddLearnerNode && cp.Replica.Role == metapb.ReplicaRole_Learner)) {
 			return fmt.Errorf("invalid conf change request %+v", cp)
 		}
 
-		if _, ok := check_dup[cp.Peer.ID]; ok {
+		if _, ok := check_dup[cp.Replica.ID]; ok {
 			return fmt.Errorf("invalid conf change request %+v, , have multiple commands for the same peer %+v",
 				cp,
-				cp.Peer)
+				cp.Replica)
 		}
-		check_dup[cp.Peer.ID] = struct{}{}
+		check_dup[cp.Replica.ID] = struct{}{}
 
-		if cp.Peer.ID == pr.peer.ID &&
-			(cp.ChangeType == metapb.ChangePeerType_RemoveNode ||
-				(kind == simpleKind && cp.ChangeType == metapb.ChangePeerType_AddLearnerNode)) &&
+		if cp.Replica.ID == pr.replica.ID &&
+			(cp.ChangeType == metapb.ConfigChangeType_RemoveNode ||
+				(kind == simpleKind && cp.ChangeType == metapb.ConfigChangeType_AddLearnerNode)) &&
 			!pr.store.cfg.Replication.AllowRemoveLeader {
 			return fmt.Errorf("ignore remove leader or demote leader")
 		}
 
-		if _, ok := currentVoter[cp.Peer.ID]; ok || cp.ChangeType == metapb.ChangePeerType_AddNode {
+		if _, ok := currentVoter[cp.Replica.ID]; ok || cp.ChangeType == metapb.ConfigChangeType_AddNode {
 			only_learner_change = false
 		}
 	}

@@ -94,7 +94,7 @@ func (s *HeartbeatStreams) run() {
 		case update := <-s.streamCh:
 			s.streams[update.containerID] = update.stream
 		case msg := <-s.msgCh:
-			containerID := msg.GetTargetPeer().ContainerID
+			containerID := msg.GetTargetReplica().ContainerID
 			containerLabel := strconv.FormatUint(containerID, 10)
 			container := s.containerInformer.GetContainer(containerID)
 			if container == nil {
@@ -153,7 +153,7 @@ func (s *HeartbeatStreams) SendMsg(res *core.CachedResource, msg *rpcpb.Resource
 
 	msg.ResourceID = res.Meta.ID()
 	msg.ResourceEpoch = res.Meta.Epoch()
-	msg.TargetPeer = res.GetLeader()
+	msg.TargetReplica = res.GetLeader()
 
 	select {
 	case s.msgCh <- msg:

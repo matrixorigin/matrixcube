@@ -34,15 +34,15 @@ func TestLeaveJointState(t *testing.T) {
 	}
 
 	type testCase struct {
-		Peers   []metapb.Peer // first is leader
+		Peers   []metapb.Replica // first is leader
 		OpSteps []operator.OpStep
 	}
 	cases := []testCase{
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			[]operator.OpStep{
 				operator.ChangePeerV2Leave{
@@ -52,10 +52,10 @@ func TestLeaveJointState(t *testing.T) {
 			},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			[]operator.OpStep{
 				operator.ChangePeerV2Leave{
@@ -65,10 +65,10 @@ func TestLeaveJointState(t *testing.T) {
 			},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			[]operator.OpStep{
 				operator.ChangePeerV2Leave{
@@ -78,10 +78,10 @@ func TestLeaveJointState(t *testing.T) {
 			},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			[]operator.OpStep{
 				operator.TransferLeader{FromContainer: 1, ToContainer: 2},
@@ -92,18 +92,18 @@ func TestLeaveJointState(t *testing.T) {
 			},
 		},
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			nil,
 		},
 		{
-			[]metapb.Peer{
-				{ID: 101, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 102, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 103, ContainerID: 3, Role: metapb.PeerRole_Learner},
+			[]metapb.Replica{
+				{ID: 101, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 102, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
 			},
 			nil,
 		},

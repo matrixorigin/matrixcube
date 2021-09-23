@@ -29,9 +29,9 @@ type Resource interface {
 	// SetGroup set raft group
 	SetGroup(uint64)
 	// Peers returns the repication peers
-	Peers() []metapb.Peer
+	Peers() []metapb.Replica
 	// SetPeers update the repication peers
-	SetPeers(peers []metapb.Peer)
+	SetPeers(peers []metapb.Replica)
 	// Range resource range
 	Range() ([]byte, []byte)
 	// SetStartKey set startKey
@@ -118,15 +118,15 @@ type Container interface {
 }
 
 // IsLearner judges whether the Peer's Role is Learner.
-func IsLearner(peer metapb.Peer) bool {
-	return peer.Role == metapb.PeerRole_Learner
+func IsLearner(peer metapb.Replica) bool {
+	return peer.Role == metapb.ReplicaRole_Learner
 }
 
 // IsVoterOrIncomingVoter judges whether peer role will become Voter.
 // The peer is not nil and the role is equal to IncomingVoter or Voter.
-func IsVoterOrIncomingVoter(peer metapb.Peer) bool {
+func IsVoterOrIncomingVoter(peer metapb.Replica) bool {
 	switch peer.Role {
-	case metapb.PeerRole_IncomingVoter, metapb.PeerRole_Voter:
+	case metapb.ReplicaRole_IncomingVoter, metapb.ReplicaRole_Voter:
 		return true
 	}
 	return false
@@ -134,19 +134,19 @@ func IsVoterOrIncomingVoter(peer metapb.Peer) bool {
 
 // IsLearnerOrDemotingVoter judges whether peer role will become Learner.
 // The peer is not nil and the role is equal to DemotingVoter or Learner.
-func IsLearnerOrDemotingVoter(peer metapb.Peer) bool {
+func IsLearnerOrDemotingVoter(peer metapb.Replica) bool {
 	switch peer.Role {
-	case metapb.PeerRole_DemotingVoter, metapb.PeerRole_Learner:
+	case metapb.ReplicaRole_DemotingVoter, metapb.ReplicaRole_Learner:
 		return true
 	}
 	return false
 }
 
 // IsInJointState judges whether the Peer is in joint state.
-func IsInJointState(peers ...metapb.Peer) bool {
+func IsInJointState(peers ...metapb.Replica) bool {
 	for _, peer := range peers {
 		switch peer.Role {
-		case metapb.PeerRole_IncomingVoter, metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_IncomingVoter, metapb.ReplicaRole_DemotingVoter:
 			return true
 		default:
 		}
@@ -155,11 +155,11 @@ func IsInJointState(peers ...metapb.Peer) bool {
 }
 
 // CountInJointState count the peers are in joint state.
-func CountInJointState(peers ...metapb.Peer) int {
+func CountInJointState(peers ...metapb.Replica) int {
 	count := 0
 	for _, peer := range peers {
 		switch peer.Role {
-		case metapb.PeerRole_IncomingVoter, metapb.PeerRole_DemotingVoter:
+		case metapb.ReplicaRole_IncomingVoter, metapb.ReplicaRole_DemotingVoter:
 			count++
 		default:
 		}

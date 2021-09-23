@@ -377,7 +377,7 @@ func (c *asyncClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resou
 			return err
 		}
 		req.CreateResources.Resources = append(req.CreateResources.Resources, data)
-		req.CreateResources.LeastPeers = append(req.CreateResources.LeastPeers, uint64(leastPeers[idx]))
+		req.CreateResources.LeastReplicas = append(req.CreateResources.LeastReplicas, uint64(leastPeers[idx]))
 	}
 
 	_, err := c.syncDo(req)

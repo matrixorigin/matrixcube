@@ -28,42 +28,42 @@ func TestIsEpochStale(t *testing.T) {
 	assert.False(t, isEpochStale(metapb.ResourceEpoch{Version: 2}, metapb.ResourceEpoch{Version: 1}))
 }
 
-func TestFindPeer(t *testing.T) {
+func TestFindReplica(t *testing.T) {
 	shard := &Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
 			{ID: 3, ContainerID: 30000},
 		},
 	}
 
-	assert.NotNil(t, findPeer(shard, 10000))
-	assert.NotNil(t, findPeer(shard, 20000))
-	assert.NotNil(t, findPeer(shard, 30000))
-	assert.Nil(t, findPeer(shard, 40000))
+	assert.NotNil(t, findReplica(shard, 10000))
+	assert.NotNil(t, findReplica(shard, 20000))
+	assert.NotNil(t, findReplica(shard, 30000))
+	assert.Nil(t, findReplica(shard, 40000))
 }
 
-func TestRemovePeer(t *testing.T) {
+func TestRemoveReplica(t *testing.T) {
 	shard := &Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
 			{ID: 3, ContainerID: 30000},
 		},
 	}
 
-	v := removePeer(shard, 10000)
+	v := removeReplica(shard, 10000)
 	assert.NotNil(t, v)
-	assert.Equal(t, Peer{ID: 1, ContainerID: 10000}, *v)
-	assert.Equal(t, 2, len(shard.Peers))
+	assert.Equal(t, Replica{ID: 1, ContainerID: 10000}, *v)
+	assert.Equal(t, 2, len(shard.Replicas))
 
-	assert.Nil(t, removePeer(shard, 10000))
-	assert.Equal(t, 2, len(shard.Peers))
+	assert.Nil(t, removeReplica(shard, 10000))
+	assert.Equal(t, 2, len(shard.Replicas))
 }
 
-func TestRemovedPeers(t *testing.T) {
+func TestRemovedReplicas(t *testing.T) {
 	old := Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
 			{ID: 3, ContainerID: 30000},
@@ -71,39 +71,39 @@ func TestRemovedPeers(t *testing.T) {
 	}
 
 	new := Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 5, ContainerID: 50000},
 			{ID: 4, ContainerID: 40000},
 		},
 	}
 
-	ids := removedPeers(new, old)
+	ids := removedReplicas(new, old)
 	assert.Equal(t, 2, len(ids))
 	assert.Equal(t, uint64(2), ids[0])
 	assert.Equal(t, uint64(3), ids[1])
 
 	old = Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
 			{ID: 3, ContainerID: 30000},
 		},
 	}
 	new = Shard{
-		Peers: []Peer{
+		Replicas: []Replica{
 			{ID: 6, ContainerID: 60000},
 			{ID: 5, ContainerID: 50000},
 			{ID: 4, ContainerID: 40000},
 		},
 	}
 
-	ids = removedPeers(new, old)
+	ids = removedReplicas(new, old)
 	assert.Equal(t, 3, len(ids))
 	assert.Equal(t, uint64(1), ids[0])
 	assert.Equal(t, uint64(2), ids[1])
 	assert.Equal(t, uint64(3), ids[2])
 
-	ids = removedPeers(new, new)
+	ids = removedReplicas(new, new)
 	assert.Equal(t, 0, len(ids))
 }

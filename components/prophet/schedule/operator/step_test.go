@@ -24,7 +24,7 @@ import (
 )
 
 type testCase struct {
-	Peers          []metapb.Peer // first is leader
+	Peers          []metapb.Replica // first is leader
 	ConfVerChanged uint64
 	IsFinish       bool
 	CheckSafety    string
@@ -34,60 +34,60 @@ func TestDemoteFollower(t *testing.T) {
 	df := DemoteFollower{ToContainer: 2, PeerID: 2}
 	cases := []testCase{
 		{ // before step
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"IsNil",
 		},
 		{ // after step
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			1,
 			true,
 			"IsNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss container id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // demote leader
-			[]metapb.Peer{
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -104,102 +104,102 @@ func TestChangePeerV2Enter(t *testing.T) {
 	}
 	cases := []testCase{
 		{ // before step
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Learner},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
 			"IsNil",
 		},
 		{ // after step
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			4,
 			true,
 			"IsNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Learner},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss container id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 5, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Learner},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 5, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 5, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // change is not atomic
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // change is not atomic
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Learner},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // there are other peers in the joint state
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			4,
 			true,
 			"NotNil",
 		},
 		{ // there are other peers in the joint state
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Learner},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 6, ContainerID: 6, Role: metapb.PeerRole_DemotingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 6, ContainerID: 6, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			0,
 			false,
@@ -219,113 +219,113 @@ func TestChangePeerV2Leave(t *testing.T) {
 	}
 	cases := []testCase{
 		{ // before step
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"IsNil",
 		},
 		{ // after step
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			4,
 			true,
 			"IsNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 5, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss container id
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 1, ContainerID: 5, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, ContainerID: 5, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // miss peer id
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 1, Role: metapb.PeerRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // change is not atomic
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // change is not atomic
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // there are other peers in the joint state
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
 			"NotNil",
 		},
 		{ // there are other peers in the joint state
-			[]metapb.Peer{
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 6, ContainerID: 6, Role: metapb.PeerRole_DemotingVoter},
+			[]metapb.Replica{
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 6, ContainerID: 6, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			4,
 			false,
 			"NotNil",
 		},
 		{ // demote leader
-			[]metapb.Peer{
-				{ID: 1, ContainerID: 1, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.PeerRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.PeerRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.PeerRole_IncomingVoter},
+			[]metapb.Replica{
+				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,

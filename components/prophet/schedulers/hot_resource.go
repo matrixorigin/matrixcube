@@ -995,7 +995,7 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 	switch bs.opTy {
 	case movePeer:
 		srcPeer, _ := bs.cur.resource.GetContainerPeer(bs.cur.srcContainerID) // checked in getResourceAndSrcPeer
-		dstPeer := metapb.Peer{ContainerID: bs.cur.dstContainerID, Role: srcPeer.Role}
+		dstPeer := metapb.Replica{ContainerID: bs.cur.dstContainerID, Role: srcPeer.Role}
 		desc := "move-hot-" + bs.rwTy.String() + "-peer"
 		op, err = operator.CreateMovePeerOperator(
 			desc,

@@ -26,10 +26,10 @@ import (
 )
 
 func TestIsResourceHealthy(t *testing.T) {
-	peers := func(ids ...uint64) []metapb.Peer {
-		var peers []metapb.Peer
+	peers := func(ids ...uint64) []metapb.Replica {
+		var peers []metapb.Replica
 		for _, id := range ids {
-			p := metapb.Peer{
+			p := metapb.Replica{
 				ID:          id,
 				ContainerID: id,
 			}
@@ -38,7 +38,7 @@ func TestIsResourceHealthy(t *testing.T) {
 		return peers
 	}
 
-	resource := func(peers []metapb.Peer, opts ...core.ResourceCreateOption) *core.CachedResource {
+	resource := func(peers []metapb.Replica, opts ...core.ResourceCreateOption) *core.CachedResource {
 		return core.NewCachedResource(&metadata.TestResource{ResPeers: peers}, &peers[0], opts...)
 	}
 
@@ -58,7 +58,7 @@ func TestIsResourceHealthy(t *testing.T) {
 		{resource(peers(1, 2, 3)), true, true, true, true, true, true},
 		{resource(peers(1, 2, 3), core.WithPendingPeers(peers(1))), false, true, true, false, true, true},
 		{resource(peers(1, 2, 3), core.WithLearners(peers(1))), false, false, false, true, true, false},
-		{resource(peers(1, 2, 3), core.WithDownPeers([]metapb.PeerStats{{Peer: peers(1)[0]}})), false, false, true, false, false, true},
+		{resource(peers(1, 2, 3), core.WithDownPeers([]metapb.ReplicaStats{{Replica: peers(1)[0]}})), false, false, true, false, false, true},
 		{resource(peers(1, 2)), true, true, false, true, true, false},
 		{resource(peers(1, 2, 3, 4), core.WithLearners(peers(1))), false, false, false, true, true, false},
 	}

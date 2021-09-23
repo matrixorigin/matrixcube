@@ -63,8 +63,8 @@ func RaftMessageField(key string, msg *meta.RaftMessage) zap.Field {
 	var info bytes.Buffer
 
 	appendRaftMessage(msg.Message, &info, true)
-	appendPeer("from", msg.From, &info, false)
-	appendPeer("to", msg.To, &info, false)
+	appendReplica("from", msg.From, &info, false)
+	appendReplica("to", msg.To, &info, false)
 	appendShard(meta.Shard{ID: msg.ShardID, Group: msg.Group, Epoch: msg.ShardEpoch, Start: msg.Start, End: msg.End}, &info, false)
 
 	info.WriteString(", tombstone: ")
@@ -101,28 +101,28 @@ func RaftResponseField(key string, resp *rpc.Response) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// PeersField return peers zap field
-func PeersField(key string, peers []metapb.Peer) zap.Field {
+// ReplicasField return Replicas zap field
+func ReplicasField(key string, Replicas []metapb.Replica) zap.Field {
 	var info bytes.Buffer
-	appendPeers("", peers, &info, true)
+	appendReplicas("", Replicas, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// PeerField returns peer zap field
-func PeerField(key string, peer metapb.Peer) zap.Field {
+// ReplicaField returns Replica zap field
+func ReplicaField(key string, Replica metapb.Replica) zap.Field {
 	var info bytes.Buffer
-	appendPeer("", peer, &info, true)
+	appendReplica("", Replica, &info, true)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangeField return formated change peer zap string field
+// ConfigChangeField return formated change Replica zap string field
 func ConfigChangeField(key string, req *rpc.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
 	doAppendConfigChange(req, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-// ConfigChangesField return formated change peer zap string field
+// ConfigChangesField return formated change Replica zap string field
 func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
 	info.WriteString("[")
@@ -139,7 +139,7 @@ func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field
 func doAppendConfigChange(req *rpc.ConfigChangeRequest, info *bytes.Buffer) {
 	info.WriteString("type: ")
 	info.WriteString(req.ChangeType.String())
-	appendPeer("peer", req.Peer, info, false)
+	appendReplica("replica", req.Replica, info, false)
 }
 
 func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
@@ -216,7 +216,7 @@ func appendShard(shard meta.Shard, info *bytes.Buffer, first bool) {
 	info.WriteString(hex.EncodeToString(shard.End))
 	info.WriteString(")")
 
-	appendPeers("peers", shard.Peers, info, false)
+	appendReplicas("replicas", shard.Replicas, info, false)
 
 	info.WriteString(", shard-state: ")
 	info.WriteString(shard.State.String())
@@ -271,7 +271,7 @@ func appendError(err errorpb.Error, info *bytes.Buffer) {
 	info.WriteString(err.Message)
 }
 
-func appendPeer(key string, peer metapb.Peer, info *bytes.Buffer, first bool) {
+func appendReplica(key string, Replica metapb.Replica, info *bytes.Buffer, first bool) {
 	if !first {
 		info.WriteString(", ")
 	}
@@ -279,10 +279,10 @@ func appendPeer(key string, peer metapb.Peer, info *bytes.Buffer, first bool) {
 		info.WriteString(key)
 		info.WriteString(": ")
 	}
-	doAppendPeer(peer, info)
+	doAppendReplica(Replica, info)
 }
 
-func appendPeers(key string, peers []metapb.Peer, info *bytes.Buffer, first bool) {
+func appendReplicas(key string, Replicas []metapb.Replica, info *bytes.Buffer, first bool) {
 	if !first {
 		info.WriteString(", ")
 	}
@@ -292,9 +292,9 @@ func appendPeers(key string, peers []metapb.Peer, info *bytes.Buffer, first bool
 	}
 
 	info.WriteString("[")
-	n := len(peers)
-	for idx, peer := range peers {
-		doAppendPeer(peer, info)
+	n := len(Replicas)
+	for idx, Replica := range Replicas {
+		doAppendReplica(Replica, info)
 		if idx != (n - 1) {
 			info.WriteString(" ")
 		}
@@ -302,13 +302,13 @@ func appendPeers(key string, peers []metapb.Peer, info *bytes.Buffer, first bool
 	info.WriteString("]")
 }
 
-func doAppendPeer(peer metapb.Peer, info *bytes.Buffer) {
+func doAppendReplica(Replica metapb.Replica, info *bytes.Buffer) {
 	info.WriteString("p")
-	info.WriteString(format.Uint64ToString(peer.ID))
+	info.WriteString(format.Uint64ToString(Replica.ID))
 	info.WriteString("/s")
-	info.WriteString(format.Uint64ToString(peer.ContainerID))
+	info.WriteString(format.Uint64ToString(Replica.ContainerID))
 	info.WriteString("/")
-	info.WriteString(peer.Role.String())
+	info.WriteString(Replica.Role.String())
 }
 
 func appendResourceEpoch(key string, epoch metapb.ResourceEpoch, info *bytes.Buffer, first bool) {

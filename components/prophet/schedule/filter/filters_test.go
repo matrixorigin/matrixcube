@@ -95,11 +95,11 @@ func TestRuleFitFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
 	testCluster.SetEnablePlacementRules(true)
-	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Peer{
+	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
 		{ContainerID: 1, ID: 1},
 		{ContainerID: 3, ID: 3},
 		{ContainerID: 5, ID: 5},
-	}}, &metapb.Peer{ContainerID: 1, ID: 1})
+	}}, &metapb.Replica{ContainerID: 1, ID: 1})
 
 	testCases := []struct {
 		ContainerID   uint64
@@ -205,30 +205,30 @@ func TestIsolationFilter(t *testing.T) {
 		targetRes      []bool
 	}{
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Peer{
+			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
 				{ID: 1, ContainerID: 1},
 				{ID: 2, ContainerID: 6},
-			}}, &metapb.Peer{ContainerID: 1, ID: 1}),
+			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
 			"zone",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, false, false, true},
 		},
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Peer{
+			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
 				{ID: 1, ContainerID: 1},
 				{ID: 2, ContainerID: 4},
 				{ID: 3, ContainerID: 7},
-			}}, &metapb.Peer{ContainerID: 1, ID: 1}),
+			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
 			"rack",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, true, true, false},
 		},
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Peer{
+			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
 				{ID: 1, ContainerID: 1},
 				{ID: 2, ContainerID: 4},
 				{ID: 3, ContainerID: 6},
-			}}, &metapb.Peer{ContainerID: 1, ID: 1}),
+			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
 			"host",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, true, false, true, false, true},
@@ -254,11 +254,11 @@ func TestPlacementGuard(t *testing.T) {
 	testCluster.AddLabelsContainer(3, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsContainer(4, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsContainer(5, 1, map[string]string{"zone": "z3"})
-	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Peer{
+	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
 		{ContainerID: 1, ID: 1},
 		{ContainerID: 3, ID: 3},
 		{ContainerID: 5, ID: 5},
-	}}, &metapb.Peer{ContainerID: 1, ID: 1})
+	}}, &metapb.Replica{ContainerID: 1, ID: 1})
 	container := testCluster.GetContainer(1)
 
 	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container, metadata.TestResourceFactory))
