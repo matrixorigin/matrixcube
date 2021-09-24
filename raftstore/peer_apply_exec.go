@@ -77,8 +77,9 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 		if p != nil {
 			exists = true
 			if p.Role != metapb.PeerRole_Learner || p.ID != peer.ID {
-				return nil, nil, fmt.Errorf("shard-%d can't add duplicated peer %+v",
+				return nil, nil, fmt.Errorf("shard %d peer %d can't add duplicated peer %+v",
 					res.ID,
+					d.peerID,
 					peer)
 			}
 
@@ -89,8 +90,9 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 			res.Peers = append(res.Peers, peer)
 		}
 
-		logger.Infof("shard-%d add peer %+v successfully, peers %+v",
+		logger.Infof("shard %d peer %d add peer %+v successfully, peers %+v",
 			res.ID,
+			d.peerID,
 			peer,
 			res.Peers)
 	case metapb.ChangePeerType_RemoveNode:
@@ -112,20 +114,23 @@ func (d *applyDelegate) doExecChangePeer(ctx *applyContext) (*raftcmdpb.RaftCMDR
 				peer)
 		}
 
-		logger.Infof("shard-%d remove peer %+v successfully, peers %+v",
+		logger.Infof("shard %d peer %d remove peer %+v successfully, peers %+v",
 			res.ID,
+			d.peerID,
 			peer,
 			res.Peers)
 	case metapb.ChangePeerType_AddLearnerNode:
 		if p != nil {
-			return nil, nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
+			return nil, nil, fmt.Errorf("shard %d peer %d can't add duplicated learner %+v",
 				res.ID,
+				d.peerID,
 				peer)
 		}
 
 		res.Peers = append(res.Peers, peer)
-		logger.Infof("shard-%d add learner peer %+v successfully, peers %+v",
+		logger.Infof("shard %d peer %d add learner peer %+v successfully, peers %+v",
 			res.ID,
+			peer.ID,
 			peer,
 			res.Peers)
 	}
@@ -210,8 +215,9 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 		if exist_peer != nil {
 			r := exist_peer.Role
 			if r == metapb.PeerRole_IncomingVoter || r == metapb.PeerRole_DemotingVoter {
-				logger.Fatalf("shard-%d can't apply confchange because configuration is still in joint state",
-					res.ID)
+				logger.Fatalf("shard %d peer %d can't apply confchange because configuration is still in joint state",
+					res.ID,
+					d.peerID)
 			}
 		}
 
@@ -282,8 +288,9 @@ func (d *applyDelegate) applyConfChangeByKind(kind confChangeKind, changes []raf
 	}
 
 	res.Epoch.ConfVer += uint64(len(changes))
-	logger.Infof("shard-%d conf change successfully, changes %+v",
+	logger.Infof("shard %d peer %d conf change successfully, changes %+v",
 		res.ID,
+		d.peerID,
 		changes)
 	return res, nil
 }
@@ -307,13 +314,15 @@ func (d *applyDelegate) applyLeaveJoint() (bhmetapb.Shard, error) {
 		change_num += 1
 	}
 	if change_num == 0 {
-		logger.Fatalf("shard-%d can't leave a non-joint config %+v",
+		logger.Fatalf("shard %d peer %d can't leave a non-joint config %+v",
 			d.shard.ID,
+			d.peerID,
 			region)
 	}
 	region.Epoch.ConfVer += change_num
 	logger.Infof(
-		"shard-%d leave joint state successfully", d.shard.ID)
+		"shard %d peer %d leave joint state successfully",
+		d.shard.ID, d.peerID)
 	return region, nil
 }
 

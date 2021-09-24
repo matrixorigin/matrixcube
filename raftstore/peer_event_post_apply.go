@@ -129,8 +129,9 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 				if pr.peer.ID == peer_id {
 					remove_self = true
 				} else {
-					logger.Fatalf("shard-%d trying to remove unknown peer %+v",
+					logger.Fatalf("shard %d peer %d trying to remove unknown peer %+v",
 						pr.shardID,
+						pr.peer.ID,
 						peer)
 				}
 			}
@@ -152,8 +153,9 @@ func (pr *peerReplica) doApplyConfChange(cp *changePeer) {
 		// TODO: should we transfer leader here?
 		demote_self := pr.peer.Role == metapb.PeerRole_Learner
 		if remove_self || demote_self {
-			logger.Warningf("shard-%d removing or demoting leader, remove %+v, demote",
+			logger.Warningf("shard %d peer %d removing or demoting leader, remove %+v, demote",
 				pr.shardID,
+				pr.peer.ID,
 				remove_self,
 				demote_self)
 

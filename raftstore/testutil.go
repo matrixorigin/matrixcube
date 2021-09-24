@@ -883,7 +883,6 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 		ts := newTestShardAware()
 		cfg.Test.ShardStateAware = ts
-		cfg.Prophet.Schedule.EnableJointConsensus = false
 
 		var s *store
 		if c.opts.storeFactory != nil {

@@ -215,15 +215,17 @@ func (pr *peerReplica) proposeNormal(c cmd) bool {
 
 func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	if pr.rn.PendingConfIndex() > pr.ps.getAppliedIndex() {
-		logger.Errorf("shard-%d there is a pending conf change, try later",
-			pr.shardID)
+		logger.Errorf("shard %d peer %d there is a pending conf change, try later",
+			pr.shardID,
+			pr.peer.ID)
 		c.respOtherError(errors.New("there is a pending conf change, try later"))
 		return false
 	}
 
 	if pr.ps.appliedIndexTerm != pr.rn.BasicStatus().Term {
-		logger.Errorf("shard-%d has not applied to current term, applied_term %d, current_term %d",
+		logger.Errorf("shard %d peer %d has not applied to current term, applied_term %d, current_term %d",
 			pr.shardID,
+			pr.peer.ID,
 			pr.ps.appliedIndexTerm,
 			pr.rn.BasicStatus().Term)
 		return false
@@ -233,8 +235,9 @@ func (pr *peerReplica) proposeConfChange(c cmd) bool {
 	admin := c.req.AdminRequest
 	err := pr.proposeConfChangeInternal(c, admin, data)
 	if err != nil {
-		logger.Errorf("shard-%d proposal conf change failed with %+v",
+		logger.Errorf("shard %d peer %d proposal conf change failed with %+v",
 			pr.shardID,
+			pr.peer.ID,
 			err)
 		return false
 	}
@@ -256,8 +259,9 @@ func (pr *peerReplica) proposeConfChangeInternal(c cmd, admin *raftcmdpb.AdminRe
 		return err
 	}
 
-	logger.Infof("shard-%d propose conf change peer %+v",
+	logger.Infof("shard %d peer %d propose conf change peer %+v",
 		pr.shardID,
+		pr.peer.ID,
 		changes)
 
 	propose_index := pr.nextProposalIndex()

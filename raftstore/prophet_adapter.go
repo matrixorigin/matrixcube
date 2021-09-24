@@ -389,13 +389,14 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 
 	pr := s.getPR(rsp.ResourceID, true)
 	if pr == nil {
-		logger.Infof("shard-%d is not leader, skip heartbeat resp",
+		logger.Infof("shard %d is not leader, skip heartbeat resp",
 			rsp.ResourceID)
 		return
 	}
 	if rsp.ChangePeer != nil {
-		logger.Infof("shard-%d %s peer %+v",
+		logger.Infof("shard %d peer %d %s peer %+v",
 			rsp.ResourceID,
+			pr.peer.ID,
 			rsp.ChangePeer.ChangeType.String(),
 			rsp.ChangePeer.Peer)
 		pr.onAdmin(newChangePeerAdminReq(rsp))
@@ -410,8 +411,9 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.ps.shard),
 				uint32(len(rsp.SplitResource.Keys)))
 			if err != nil {
-				logger.Errorf("shard-%d ask batch split failed with %+v",
+				logger.Errorf("shard %d peer %d ask batch split failed with %+v",
 					rsp.ResourceID,
+					pr.peer.ID,
 					err)
 				return
 			}
