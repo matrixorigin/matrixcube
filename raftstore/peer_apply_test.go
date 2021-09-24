@@ -2,7 +2,6 @@ package raftstore
 
 import (
 	"testing"
-	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
@@ -48,8 +47,6 @@ func TestIssue97(t *testing.T) {
 
 	kv := c.CreateTestKVClient(0)
 	defer kv.Close()
-
-	testWaitTimeout = time.Second * 10
 
 	// step1 write to shard2 => split to 2 shards [nil, key2), [key2, nil)
 	assert.NoError(t, kv.Set("key1", "value11", testWaitTimeout))

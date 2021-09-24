@@ -243,10 +243,12 @@ func (ts *testShardAware) SetWrapper(wrapper aware.ShardStateAware) {
 }
 
 func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
 		default:
 			if !ts.hasShard(id) {
@@ -259,10 +261,12 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 }
 
 func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait shard count %d timeout", count)
 		default:
 			if ts.shardCount() >= count {
@@ -274,10 +278,12 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 }
 
 func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait shard %d split count %d timeout", id, count)
 		default:
 			if ts.shardSplitedCount(id) >= count {
@@ -527,6 +533,7 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 	}
 	proxy, err := NewShardsProxyWithStore(store, kv.done, kv.errorDone)
 	if err != nil {
+		logger.Fatalf("%s timeout", t.Name())
 		assert.FailNowf(t, "", "createtest kv client failed with %+v", err)
 	}
 	kv.proxy = proxy
@@ -1050,10 +1057,12 @@ func (c *testRaftCluster) WaitRemovedByShardID(shardID uint64, timeout time.Dura
 }
 
 func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait leader count %d timeout", count)
 		default:
 			leaders := 0
@@ -1069,10 +1078,12 @@ func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 }
 
 func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait shards count %d of cluster timeout", count)
 		default:
 			shards := 0
@@ -1106,10 +1117,12 @@ func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration)
 }
 
 func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
 			res, err := c.GetProphet().GetStorage().GetResource(shardID)

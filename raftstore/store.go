@@ -571,30 +571,19 @@ func (s *store) startTimerTasks() {
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof("store %d timer based tasks stopped", s.Meta().ID)
 				return
 			case <-compactTicker.C:
-				logger.Infof("store %d handleCompactRaftLog", s.Meta().ID)
 				s.handleCompactRaftLog()
-				logger.Infof("store %d handleCompactRaftLog completed", s.Meta().ID)
 			case <-splitCheckTicker.C:
-				logger.Infof("store %d handleSplitCheck", s.Meta().ID)
 				if !s.cfg.Replication.DisableShardSplit {
 					s.handleSplitCheck()
 				}
-				logger.Infof("store %d handleSplitCheck completed", s.Meta().ID)
 			case <-stateCheckTicker.C:
-				logger.Infof("store %d handleShardStateCheck", s.Meta().ID)
 				s.handleShardStateCheck()
-				logger.Infof("store %d handleShardStateCheck completed", s.Meta().ID)
 			case <-shardLeaderheartbeatTicker.C:
-				logger.Infof("store %d doShardHeartbeat", s.Meta().ID)
 				s.doShardHeartbeat()
-				logger.Infof("store %d doShardHeartbeat completed", s.Meta().ID)
 			case <-storeheartbeatTicker.C:
-				logger.Infof("store %d doStoreHeartbeat", s.Meta().ID)
 				s.doStoreHeartbeat(last)
-				logger.Infof("store %d doStoreHeartbeat completed", s.Meta().ID)
 				last = time.Now()
 			}
 		}
