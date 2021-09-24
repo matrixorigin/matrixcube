@@ -128,7 +128,13 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 	defer client.Close()
 
 	for {
+		util.GetLogger().Infof("%s(%s) begin to check etcd members",
+			cfg.Name,
+			cfg.DataDir)
 		checkMembers(client, cfg)
+		util.GetLogger().Infof("%s(%s) end to check etcd members",
+			cfg.Name,
+			cfg.DataDir)
 
 		var prophets []string
 		// - A new Prophet joins an existing cluster.
@@ -138,12 +144,18 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 				// First adds member through the API
 				resp, err := util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
 				if err != nil {
-					util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
+					util.GetLogger().Errorf("%s(%s) add member to embed etcd failed with %+v, retry later",
+						cfg.Name,
+						cfg.DataDir,
+						err)
 					time.Sleep(time.Millisecond * 500)
 					continue
 				}
 
-				util.GetLogger().Infof("%s added into embed etcd cluster with resp %+v", cfg.Name, resp)
+				util.GetLogger().Infof("%s(%s) added into embed etcd cluster with resp %+v",
+					cfg.Name,
+					cfg.DataDir,
+					resp)
 
 				for _, m := range resp.Members {
 					if m.Name != "" {
