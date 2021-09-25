@@ -818,6 +818,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[i])
 		cfg.Prophet.Schedule.EnableJointConsensus = true
+		cfg.Prophet.EmbedEtcd.PreVote = true
 		if i < 3 {
 			cfg.Prophet.StorageNode = true
 			if i != 0 {

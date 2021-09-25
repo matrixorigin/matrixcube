@@ -175,6 +175,10 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 
 		c, e, err := startEmbedEtcd(ctx, cfg)
 		if err != nil && strings.Contains(err.Error(), "member count is unequal") {
+			util.GetLogger().Infof("%s(%s) start embed etcd failed with %+v, retry",
+				cfg.Name,
+				cfg.DataDir,
+				err)
 			continue
 		}
 		if err != nil {
@@ -198,7 +202,10 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 			util.GetLogger().Fatalf("write data path failed with %+v",
 				err)
 		}
-
+		util.GetLogger().Errorf("%s(%s) save InitialCluster with %+v",
+			cfg.Name,
+			cfg.DataDir,
+			cfg.EmbedEtcd.InitialCluster)
 		return c, e, nil
 	}
 }
@@ -208,7 +215,9 @@ OUTER:
 	for {
 		listResp, err := util.ListEtcdMembers(client)
 		if err != nil {
-			util.GetLogger().Errorf("list embed etcd members failed with %+v, retry later",
+			util.GetLogger().Errorf("%s(%s) list embed etcd members failed with %+v, retry later",
+				cfg.Name,
+				cfg.DataDir,
 				err)
 			time.Sleep(time.Second)
 			continue
@@ -217,7 +226,11 @@ OUTER:
 		for _, m := range listResp.Members {
 			if len(m.Name) == 0 {
 				// A new member added, but not started
-				util.GetLogger().Warningf("there is a member that has not joined successfully")
+				util.GetLogger().Warningf("%s(%s) there is a member that has not joined successfully, member %+v, self %+v",
+					cfg.Name,
+					cfg.DataDir,
+					m.PeerURLs,
+					cfg.EmbedEtcd.PeerUrls)
 				time.Sleep(time.Second)
 				continue OUTER
 			}
