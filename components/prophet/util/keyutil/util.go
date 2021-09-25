@@ -29,5 +29,5 @@ func BuildKeyRangeKey(group uint64, startKey, endKey []byte) string {
 
 // GetGroupFromRangeKey return group from range key
 func GetGroupFromRangeKey(key string) uint64 {
-	return format.MustParseStrUInt64(strings.Split(key, "-")[0])
+	return format.MustParseStringUint64(strings.Split(key, "-")[0])
 }

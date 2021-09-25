@@ -221,9 +221,12 @@ func (s *store) Stop() {
 		logger.Infof("store %d all shards stopped", s.Meta().ID)
 
 		s.snapshotManager.Close()
-		logger.Infof("store %d all snapshot manager stopped", s.Meta().ID)
+		logger.Infof("store %d snapshot manager stopped", s.Meta().ID)
 
-		s.runner.Stop()
+		timeoutWorkers, err := s.runner.Stop()
+		if err != nil {
+			logger.Fatalf("store %d runner stop failed with %+v, timeout workers %+v", s.Meta().ID, err, timeoutWorkers)
+		}
 		logger.Infof("store %d task runner stopped", s.Meta().ID)
 
 		s.rpc.Stop()
@@ -247,7 +250,7 @@ func (s *store) startRouter() {
 			logger.Fatalf("create router failed with %+v", err)
 		}
 
-		r, err := newRouter(watcher, s.runner, func(id uint64) {
+		r, err := newRouter(s.Meta().ID, watcher, s.runner, func(id uint64) {
 			s.doDestroy(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
@@ -367,16 +370,26 @@ func (s *store) initWorkers() {
 		for i := uint64(0); i < s.cfg.Worker.ApplyWorkerCount; i++ {
 			name := fmt.Sprintf(applyWorkerName, g, i)
 			s.applyWorkers[g][name] = 0
-			s.runner.AddNamedWorker(name)
+			s.runner.AddNamedWorker(name, func(name string) func() {
+				return func() {
+					logger.Infof("store %d %s stopped", s.Meta().ID, name)
+				}
+			}(name))
 		}
 	}
 
 	for g := uint64(0); g < s.cfg.ShardGroups; g++ {
 		name := fmt.Sprintf(snapshotWorkerName, g)
-		s.runner.AddNamedWorker(name)
+		s.runner.AddNamedWorker(name, func(name string) func() {
+			return func() {
+				logger.Infof("store %d %s stopped", s.Meta().ID, name)
+			}
+		}(name))
 	}
 
-	s.runner.AddNamedWorker(splitCheckWorkerName)
+	s.runner.AddNamedWorker(splitCheckWorkerName, func() {
+		logger.Infof("store %d %s stopped", s.Meta().ID, splitCheckWorkerName)
+	})
 }
 
 func (s *store) startProphet() {
@@ -426,7 +439,7 @@ func (s *store) startRaftWorkers() {
 			s.eventWorkers[g][j] = 0
 			idx := j
 			wg.Add(1)
-			s.runner.RunCancelableTask(func(ctx context.Context) {
+			s.runner.RunCancelableTask(fmt.Sprintf("raft-event-worker(%d/%d)", g, idx), func(ctx context.Context) {
 				wg.Done()
 				s.runPRTask(ctx, g, idx)
 			})
@@ -459,7 +472,8 @@ func (s *store) runPRTask(ctx context.Context, g, id uint64) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infof("raft worker worker %d/%d exit", g, id)
+			logger.Infof("store %d raft worker %d/%d stopped",
+				s.Meta().ID, g, id)
 			return
 		case <-s.workReady.waitC(g, id):
 			run()
@@ -536,7 +550,7 @@ func (s *store) startShards() {
 }
 
 func (s *store) startTimerTasks() {
-	s.runner.RunCancelableTask(func(ctx context.Context) {
+	s.runner.RunCancelableTask("timer-based-task", func(ctx context.Context) {
 		last := time.Now()
 
 		compactTicker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
@@ -557,7 +571,6 @@ func (s *store) startTimerTasks() {
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof("timer based tasks stopped")
 				return
 			case <-compactTicker.C:
 				s.handleCompactRaftLog()

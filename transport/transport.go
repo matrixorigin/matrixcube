@@ -103,12 +103,12 @@ func NewDefaultTransport(
 	t.server = app
 
 	for i := uint64(0); i < t.opts.raftWorkerCount; i++ {
-		t.raftMsgs = append(t.raftMsgs, &task.Queue{})
+		t.raftMsgs = append(t.raftMsgs, task.New(32))
 	}
 	t.raftMask = t.opts.raftWorkerCount - 1
 
 	for i := uint64(0); i < t.opts.snapWorkerCount; i++ {
-		t.snapMsgs = append(t.snapMsgs, &task.Queue{})
+		t.snapMsgs = append(t.snapMsgs, task.New(32))
 	}
 	t.snapMask = t.opts.snapWorkerCount - 1
 

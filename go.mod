@@ -11,9 +11,9 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20210503173641-1387689d3d7c
 	github.com/coreos/go-semver v0.3.0
 	github.com/docker/go-units v0.4.0
-	github.com/fagongzi/goetty v1.11.0
+	github.com/fagongzi/goetty v1.11.1
 	github.com/fagongzi/log v0.0.0-20191122063922-293b75312445
-	github.com/fagongzi/util v0.0.0-20210409031311-a10fdf8fbd7a
+	github.com/fagongzi/util v0.0.0-20210923134909-bccc37b5040d
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/btree v1.0.1

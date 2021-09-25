@@ -289,8 +289,9 @@ func (m *defaultSnapshotManager) CleanSnap(msg *bhraftpb.SnapshotMessage) error 
 
 	file := m.getPathOfSnapKeyGZ(msg)
 	if exist(fs, file) {
-		logger.Infof("shard %d delete exists snap gz file %s, header is %s",
+		logger.Infof("shard %d peer %d delete exists snap gz file %s, header is %s",
 			msg.Header.Shard.ID,
+			msg.Header.To.ID,
 			file,
 			msg.Header.String())
 		err = fs.RemoveAll(file)

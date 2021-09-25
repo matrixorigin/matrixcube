@@ -93,7 +93,9 @@ func (pr *peerReplica) doCompactRaftLog(shardID, startIndex, endIndex uint64) er
 }
 
 func (pr *peerReplica) doApplyingSnapshotJob() error {
-	logger.Infof("shard %d begin apply snapshot data", pr.shardID)
+	logger.Infof("shard %d peer %d begin apply snapshot data",
+		pr.shardID,
+		pr.peer.ID)
 	localState, err := pr.ps.loadShardLocalState(pr.ps.applySnapJob)
 	if err != nil {
 		logger.Fatalf("shard %d apply snap load local state failed with %+v",
@@ -132,8 +134,9 @@ func (pr *peerReplica) doApplyingSnapshotJob() error {
 		pr.store.aware.SnapshotApplied(pr.ps.shard)
 	}
 	pr.stopRaftTick = false
-	logger.Infof("shard %d apply snapshot data complete, %+v",
+	logger.Infof("shard %d peer %d apply snapshot data complete, %+v",
 		pr.shardID,
+		pr.peer.ID,
 		pr.ps.raftLocalState.HardState)
 	return nil
 }

@@ -510,7 +510,7 @@ func (s *storage) PutBootstrapped(container metadata.Container, resources ...met
 		batch.SaveValues = append(batch.SaveValues, string(v))
 	}
 
-	ok, _, err := s.kv.SaveIfNotExists(s.clusterPath, string(format.UInt64ToString(clusterID)), batch)
+	ok, _, err := s.kv.SaveIfNotExists(s.clusterPath, format.Uint64ToString(clusterID), batch)
 	return ok, err
 }
 
@@ -547,9 +547,9 @@ func (s *storage) containerWeightPath(id uint64, typ string) string {
 }
 
 func (s *storage) jobKey(jobType metapb.JobType) string {
-	return path.Join(s.jobPath, string(format.UInt64ToString(uint64(jobType))))
+	return path.Join(s.jobPath, format.Uint64ToString(uint64(jobType)))
 }
 
 func (s *storage) jobDataKey(jobType metapb.JobType) string {
-	return path.Join(s.jobDataPath, string(format.UInt64ToString(uint64(jobType))))
+	return path.Join(s.jobDataPath, format.Uint64ToString(uint64(jobType)))
 }

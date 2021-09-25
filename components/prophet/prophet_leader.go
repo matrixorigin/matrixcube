@@ -79,6 +79,7 @@ func (p *defaultProphet) createEventNotifer() {
 func (p *defaultProphet) stopEventNotifer() {
 	if p.wn != nil {
 		p.wn.stop()
+		p.wn = nil
 	}
 }
 

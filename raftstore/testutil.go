@@ -243,10 +243,12 @@ func (ts *testShardAware) SetWrapper(wrapper aware.ShardStateAware) {
 }
 
 func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
 		default:
 			if !ts.hasShard(id) {
@@ -259,10 +261,12 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 }
 
 func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait shard count %d timeout", count)
 		default:
 			if ts.shardCount() >= count {
@@ -274,10 +278,12 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 }
 
 func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", t.Name(), startAt, now)
 			assert.FailNowf(t, "", "wait shard %d split count %d timeout", id, count)
 		default:
 			if ts.shardSplitedCount(id) >= count {
@@ -324,7 +330,13 @@ func (ts *testShardAware) shardCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
 
-	return len(ts.shards)
+	c := 0
+	for _, s := range ts.shards {
+		if len(s.Peers) > 0 {
+			c++
+		}
+	}
+	return c
 }
 
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
@@ -433,6 +445,11 @@ func (ts *testShardAware) SnapshotApplied(shard bhmetapb.Shard) {
 	defer ts.Unlock()
 
 	ts.applied[shard.ID]++
+	for idx, s := range ts.shards {
+		if s.ID == shard.ID {
+			ts.shards[idx] = shard
+		}
+	}
 
 	if ts.wrapper != nil {
 		ts.wrapper.SnapshotApplied(shard)
@@ -516,6 +533,7 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 	}
 	proxy, err := NewShardsProxyWithStore(store, kv.done, kv.errorDone)
 	if err != nil {
+		logger.Fatalf("%s timeout", t.Name())
 		assert.FailNowf(t, "", "createtest kv client failed with %+v", err)
 	}
 	kv.proxy = proxy
@@ -711,7 +729,7 @@ type testRaftCluster struct {
 	// init fields
 	t               *testing.T
 	initOpts        []TestClusterOption
-	dataDirs        []string
+	baseDataDir     string
 	portsRaftAddr   []int
 	portsClientAddr []int
 	portsRPCAddr    []int
@@ -753,19 +771,17 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	}
 	c.opts.adjust()
 
-	log.SetHighlighting(false)
-	log.SetLevelByString(c.opts.logLevel)
-	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
-
 	if init {
+		log.SetHighlighting(false)
+		log.SetLevelByString(c.opts.logLevel)
+		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
+		c.baseDataDir = fmt.Sprintf("%s/%s-%d", c.opts.tmpDir, c.t.Name(), time.Now().Nanosecond())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdClient = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdPeer = testutil.GenTestPorts(c.opts.nodes)
-		for i := 0; i < c.opts.nodes; i++ {
-			c.dataDirs = append(c.dataDirs, fmt.Sprintf("%s/%d/node-%d", c.opts.tmpDir, time.Now().Nanosecond(), i))
-		}
 	}
 
 	if c.opts.disableSchedule {
@@ -775,7 +791,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
 		cfg.FS = vfs.GetTestFS()
-		cfg.DataPath = c.dataDirs[i]
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
 			recreateTestTempDir(cfg.FS, cfg.DataPath)
 		}
@@ -802,6 +818,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[i])
 		cfg.Prophet.Schedule.EnableJointConsensus = true
+		cfg.Prophet.EmbedEtcd.PreVote = true
 		if i < 3 {
 			cfg.Prophet.StorageNode = true
 			if i != 0 {
@@ -914,10 +931,16 @@ func (c *testRaftCluster) Start() {
 }
 
 func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
+	logger.Infof("begin to start test case %s", c.baseDataDir)
+	defer logger.Infof("end to start test case %s", c.baseDataDir)
+
 	var notProphetNodes []int
 	var wg sync.WaitGroup
 	fn := func(i int) {
 		defer wg.Done()
+
+		logger.Infof("begin to start test case %s, node %d", c.baseDataDir, i)
+		defer logger.Infof("end to start test case %s, node %d", c.baseDataDir, i)
 
 		s := c.stores[i]
 		if c.opts.nodeStartFunc != nil {
@@ -971,8 +994,13 @@ func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 }
 
 func (c *testRaftCluster) Stop() {
-	for _, s := range c.stores {
+	logger.Infof("begin to stop test case %s", c.baseDataDir)
+	defer logger.Infof("end to stop test case %s", c.baseDataDir)
+
+	for i, s := range c.stores {
+		logger.Infof("begin to close test case %s, node %d", c.baseDataDir, i)
 		s.Stop()
+		logger.Infof("end to close test case %s, node %d", c.baseDataDir, i)
 	}
 
 	for _, s := range c.dataStorages {
@@ -1030,10 +1058,12 @@ func (c *testRaftCluster) WaitRemovedByShardID(shardID uint64, timeout time.Dura
 }
 
 func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait leader count %d timeout", count)
 		default:
 			leaders := 0
@@ -1049,10 +1079,12 @@ func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 }
 
 func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait shards count %d of cluster timeout", count)
 		default:
 			shards := 0
@@ -1086,10 +1118,12 @@ func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration)
 }
 
 func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration) {
+	startAt := time.Now()
 	timeoutC := time.After(timeout)
 	for {
 		select {
-		case <-timeoutC:
+		case now := <-timeoutC:
+			logger.Fatalf("%s timeout: start %+v, now: %+v", c.t.Name(), startAt, now)
 			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
 			res, err := c.GetProphet().GetStorage().GetResource(shardID)

@@ -62,6 +62,7 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
+	store       uint64
 	watcher     prophet.Watcher
 	runner      *task.Runner
 	eventC      chan rpcpb.EventNotify
@@ -81,8 +82,9 @@ type defaultRouter struct {
 	createHandleFunc  func(shard bhmetapb.Shard)
 }
 
-func newRouter(watcher prophet.Watcher, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard bhmetapb.Shard)) (Router, error) {
+func newRouter(store uint64, watcher prophet.Watcher, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard bhmetapb.Shard)) (Router, error) {
 	return &defaultRouter{
+		store:             store,
 		runner:            runner,
 		watcher:           watcher,
 		eventC:            watcher.GetNotify(),
@@ -96,7 +98,7 @@ func (r *defaultRouter) GetWatcher() prophet.Watcher {
 }
 
 func (r *defaultRouter) Start() error {
-	id, err := r.runner.RunCancelableTask(r.eventLoop)
+	id, err := r.runner.RunCancelableTask("router-event-loop", r.eventLoop)
 	if err != nil {
 		return err
 	}
@@ -199,7 +201,8 @@ func (r *defaultRouter) eventLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infof("router event loop task stopped")
+			logger.Infof("store %d router event loop task stopped",
+				r.store)
 			return
 		case evt := <-r.eventC:
 			r.handleEvent(evt)
