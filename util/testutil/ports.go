@@ -6,7 +6,7 @@ import (
 
 var (
 	mutex sync.Mutex
-	port  = 40000
+	port  = 30000
 )
 
 // GenTestPorts gen and return ports
