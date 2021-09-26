@@ -420,8 +420,8 @@ type TestConfig struct {
 	// ShardStateAware is a ShardStateAware wrapper for the aware which created by
 	// `CustomizeConfig.CustomShardStateAwareFactory`
 	ShardStateAware aware.TestShardStateAware
-	// PeerReplicaSetSnapshotJobWait sleep before set snapshot job
-	PeerReplicaSetSnapshotJobWait time.Duration
+	// ReplicaSetSnapshotJobWait sleep before set snapshot job
+	ReplicaSetSnapshotJobWait time.Duration
 	// SaveDynamicallyShardInitStateWait wait before save dynamically shard init state
 	SaveDynamicallyShardInitStateWait time.Duration
 	// ShardPoolCreateWaitC waiting delay for shard creation

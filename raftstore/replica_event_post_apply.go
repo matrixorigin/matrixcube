@@ -105,13 +105,13 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 		switch changeType {
 		case metapb.ConfigChangeType_AddNode, metapb.ConfigChangeType_AddLearnerNode:
 			pr.replicaHeartbeatsMap.Store(peerID, now)
-			pr.store.peers.Store(peerID, peer)
+			pr.store.replicaRecords.Store(peerID, peer)
 			if pr.isLeader() {
 				needPing = true
 			}
 		case metapb.ConfigChangeType_RemoveNode:
 			pr.replicaHeartbeatsMap.Delete(peerID)
-			pr.store.peers.Delete(peerID)
+			pr.store.replicaRecords.Delete(peerID)
 		}
 	}
 
@@ -178,14 +178,14 @@ func (pr *replica) doApplySplit(result *splitResult) {
 	for _, shard := range result.shards {
 		// add new shard peers to cache
 		for _, p := range shard.Replicas {
-			pr.store.peers.Store(p.ID, p)
+			pr.store.replicaRecords.Store(p.ID, p)
 		}
 
 		newShardID := shard.ID
-		newPR := pr.store.getPR(newShardID, false)
+		newPR := pr.store.getReplica(newShardID, false)
 		if newPR != nil {
 			for _, p := range shard.Replicas {
-				pr.store.peers.Store(p.ID, p)
+				pr.store.replicaRecords.Store(p.ID, p)
 			}
 
 			// If the store received a raft msg with the new shard raft group
@@ -198,7 +198,7 @@ func (pr *replica) doApplySplit(result *splitResult) {
 			}
 		}
 
-		newPR, err := createPeerReplica(pr.store, &shard, fmt.Sprintf("split by shard %d", pr.shardID))
+		newPR, err := createReplica(pr.store, &shard, fmt.Sprintf("split by shard %d", pr.shardID))
 		if err != nil {
 			// peer information is already written into db, can't recover.
 			// there is probably a bug.
@@ -212,7 +212,7 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		newPR.approximateKeys = estimatedKeys
 		newPR.approximateSize = estimatedSize
 		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
-		if !pr.store.addPR(newPR) {
+		if !pr.store.addReplica(newPR) {
 			logger.Fatalf("shard %d peer %d, created by split, must add sucessful", newPR.shardID, newPR.replica.ID)
 		}
 

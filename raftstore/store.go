@@ -14,10 +14,8 @@
 package raftstore
 
 import (
-	"context"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,6 +25,7 @@ import (
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
+	"github.com/lni/goutils/syncutil"
 
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/keys"
@@ -102,14 +101,13 @@ type store struct {
 	pdStartedC chan struct{}
 
 	logdb           logdb.LogDB
-	runner          *task.Runner
 	trans           transport.Transport
 	snapshotManager snapshot.SnapshotManager
 	rpc             *defaultRPC
 	router          Router
 	routerOnce      sync.Once
 	keyRanges       sync.Map // group id -> *util.ShardTree
-	peers           sync.Map // peer  id -> peer
+	replicaRecords  sync.Map // peer  id -> metapb.Replica
 	replicas        sync.Map // shard id -> *peerReplica
 	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
 
@@ -119,13 +117,10 @@ type store struct {
 	localCB func(*rpc.ResponseBatchHeader, *rpc.Response)
 	rpcCB   func(*rpc.ResponseBatchHeader, *rpc.Response)
 
-	allocWorkerLock sync.Mutex
-	applyWorkers    []map[string]int
-	eventWorkers    []map[uint64]int
-	workReady       *workReady
-
-	aware aware.ShardStateAware
-
+	aware   aware.ShardStateAware
+	stopper *syncutil.Stopper
+	// the worker pool used to drive all replicas
+	workerPool *workerPool
 	// shard pool processor
 	shardPool *dynamicShardsPool
 }
@@ -138,10 +133,11 @@ func NewStore(cfg *config.Config) Store {
 		meta:      &containerAdapter{},
 		cfg:       cfg,
 		logdb:     logdb.NewKVLogDB(cfg.Storage.MetaStorage),
-		runner:    task.NewRunner(),
-		workReady: newWorkReady(cfg.ShardGroups, cfg.Worker.RaftEventWorkers),
 		shardPool: newDynamicShardsPool(cfg),
+		stopper:   syncutil.NewStopper(),
 	}
+	// TODO: make workerCount configurable
+	s.workerPool = newWorkerPool(&storeReplicaLoader{s}, 64)
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
 		s.aware = cfg.Customize.CustomShardStateAwareFactory()
@@ -154,7 +150,6 @@ func NewStore(cfg *config.Config) Store {
 	}
 
 	s.rpc = newRPC(s)
-	s.initWorkers()
 	return s
 }
 
@@ -170,9 +165,6 @@ func (s *store) Start() {
 
 	s.startTransport()
 	logger.Infof("start listen at %s for raft", s.cfg.RaftAddr)
-
-	s.startRaftWorkers()
-	logger.Infof("raft shards workers started")
 
 	s.startShards()
 	logger.Infof("shards started")
@@ -201,17 +193,20 @@ func (s *store) Stop() {
 		s.trans.Stop()
 		logger.Infof("store %d transport stopped", s.Meta().ID)
 
-		s.foreachPR(func(pr *replica) bool {
+		s.forEachReplica(func(pr *replica) bool {
 			pr.stopEventLoop()
 			return true
 		})
 		logger.Infof("store %d all shards stopped", s.Meta().ID)
 
+		s.workerPool.close()
+		logger.Infof("store %d worker pool stopped", s.Meta().ID)
+
 		s.snapshotManager.Close()
 		logger.Infof("store %d all snapshot manager stopped", s.Meta().ID)
 
-		s.runner.Stop()
-		logger.Infof("store %d task runner stopped", s.Meta().ID)
+		s.stopper.Stop()
+		logger.Infof("store %d stoppers topped", s.Meta().ID)
 
 		s.rpc.Stop()
 		logger.Infof("store %d rpc stopped", s.Meta().ID)
@@ -230,8 +225,8 @@ func (s *store) startRouter() {
 			logger.Fatalf("create router failed with %+v", err)
 		}
 
-		r, err := newRouter(watcher, s.runner, func(id uint64) {
-			s.destoryPR(id, true, "remove by event")
+		r, err := newRouter(watcher, s.stopper, func(id uint64) {
+			s.destroyReplica(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
 			logger.Fatalf("create router failed with %+v", err)
@@ -269,7 +264,7 @@ func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatc
 	var pr *replica
 	var err error
 	if req.ToShard > 0 {
-		pr = s.getPR(req.ToShard, false)
+		pr = s.getReplica(req.ToShard, false)
 		if pr == nil {
 			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil
@@ -294,7 +289,7 @@ func (s *store) DataStorageByGroup(group uint64) storage.DataStorage {
 }
 
 func (s *store) MaybeLeader(shard uint64) bool {
-	return nil != s.getPR(shard, true)
+	return nil != s.getReplica(shard, true)
 }
 
 func (s *store) cb(resp *rpc.ResponseBatch) {
@@ -327,25 +322,6 @@ func (s *store) CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder) {
 	return length.NewWithSize(v, v, 0, 0, 0, int(s.cfg.Raft.MaxEntryBytes)*2)
 }
 
-func (s *store) initWorkers() {
-	for g := uint64(0); g < s.cfg.ShardGroups; g++ {
-		s.applyWorkers = append(s.applyWorkers, make(map[string]int))
-
-		for i := uint64(0); i < s.cfg.Worker.ApplyWorkerCount; i++ {
-			name := fmt.Sprintf(applyWorkerName, g, i)
-			s.applyWorkers[g][name] = 0
-			s.runner.AddNamedWorker(name)
-		}
-	}
-
-	for g := uint64(0); g < s.cfg.ShardGroups; g++ {
-		name := fmt.Sprintf(snapshotWorkerName, g)
-		s.runner.AddNamedWorker(name)
-	}
-
-	s.runner.AddNamedWorker(splitCheckWorkerName)
-}
-
 func (s *store) startProphet() {
 	logger.Infof("begin to start prophet")
 
@@ -375,63 +351,13 @@ func (s *store) startTransport() {
 			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
 			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
 			transport.WithErrorHandler(func(msg *meta.RaftMessage, err error) {
-				if pr := s.getPR(msg.ShardID, true); pr != nil {
+				if pr := s.getReplica(msg.ShardID, true); pr != nil {
 					pr.addReport(msg.Message)
 				}
 			}))
 	}
 
 	s.trans.Start()
-}
-
-func (s *store) startRaftWorkers() {
-	var wg sync.WaitGroup
-	for i := uint64(0); i < s.cfg.ShardGroups; i++ {
-		s.eventWorkers = append(s.eventWorkers, make(map[uint64]int))
-		g := i
-		for j := uint64(0); j < s.cfg.Worker.RaftEventWorkers; j++ {
-			s.eventWorkers[g][j] = 0
-			idx := j
-			wg.Add(1)
-			s.runner.RunCancelableTask(func(ctx context.Context) {
-				wg.Done()
-				s.runPRTask(ctx, g, idx)
-			})
-		}
-	}
-	wg.Wait()
-}
-
-func (s *store) runPRTask(ctx context.Context, g, id uint64) {
-	logger.Infof("raft worker %d/%d start", g, id)
-
-	run := func() {
-		for {
-			hasEvent := false
-			s.replicas.Range(func(key, value interface{}) bool {
-				pr := value.(*replica)
-				if pr.eventWorker == id && pr.getShard().Group == g && pr.handleEvent() {
-					hasEvent = true
-				}
-
-				return true
-			})
-
-			if !hasEvent {
-				return
-			}
-		}
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Infof("raft worker worker %d/%d exit", g, id)
-			return
-		case <-s.workReady.waitC(g, id):
-			run()
-		}
-	}
 }
 
 func (s *store) startShards() {
@@ -441,7 +367,7 @@ func (s *store) startShards() {
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
-			logger.Fatalf("init store failed with %+v", err)
+			logger.Fatalf("get initial state failed with %+v", err)
 		}
 
 		var tomebstoneShards []Shard
@@ -464,13 +390,13 @@ func (s *store) startShards() {
 				continue
 			}
 
-			pr, err := createPeerReplica(s, &sls.Shard, "bootstrap")
+			pr, err := createReplica(s, &sls.Shard, "bootstrap")
 			if err != nil {
-				logger.Fatalf("init store failed with %+v", err)
+				logger.Fatalf("create replica failed with %+v", err)
 			}
 
 			s.updateShardKeyRange(sls.Shard)
-			s.addPR(pr)
+			s.addReplica(pr)
 			pr.start()
 		}
 
@@ -484,7 +410,7 @@ func (s *store) startShards() {
 }
 
 func (s *store) startTimerTasks() {
-	s.runner.RunCancelableTask(func(ctx context.Context) {
+	s.stopper.RunWorker(func() {
 		last := time.Now()
 
 		compactTicker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
@@ -504,7 +430,7 @@ func (s *store) startTimerTasks() {
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-s.stopper.ShouldStop():
 				logger.Infof("timer based tasks stopped")
 				return
 			case <-compactTicker.C:
@@ -525,24 +451,22 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func (s *store) destoryPR(shardID uint64, tombstoneInCluster bool, why string) {
-	pr := s.getPR(shardID, false)
-	if pr != nil {
-		pr.startApplyDestroy(tombstoneInCluster, why)
+func (s *store) destroyReplica(shardID uint64, tombstoneInCluster bool, why string) {
+	if replica := s.getReplica(shardID, false); replica != nil {
+		replica.startApplyDestroy(tombstoneInCluster, why)
 	}
 }
 
-func (s *store) addPR(pr *replica) bool {
+func (s *store) addReplica(pr *replica) bool {
 	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
 	return !loaded
 }
 
-func (s *store) removePR(pr *replica) {
+func (s *store) removeReplica(pr *replica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
 		s.aware.Destory(pr.getShard())
 	}
-	s.revokeWorker(pr)
 }
 
 func (s *store) startRPC() {
@@ -562,69 +486,8 @@ func (s *store) cleanup(shards []Shard) {
 	logger.Infof("cleanup possible garbage data complete")
 }
 
-func (s *store) addSnapJob(g uint64, task func() error, cb func(*task.Job)) error {
-	return s.addNamedJobWithCB("", fmt.Sprintf(snapshotWorkerName, g), task, cb)
-}
-
-func (s *store) addApplyJob(worker string, desc string, task func() error, cb func(*task.Job)) error {
-	return s.addNamedJobWithCB(desc, worker, task, cb)
-}
-
-func (s *store) addSplitJob(task func() error) error {
-	return s.addNamedJob("", splitCheckWorkerName, task)
-}
-
-func (s *store) addNamedJob(desc, worker string, task func() error) error {
-	return s.runner.RunJobWithNamedWorker(desc, worker, task)
-}
-
-func (s *store) addNamedJobWithCB(desc, worker string, task func() error, cb func(*task.Job)) error {
-	return s.runner.RunJobWithNamedWorkerWithCB(desc, worker, task, cb)
-}
-
-func (s *store) revokeWorker(pr *replica) {
-	if pr == nil {
-		return
-	}
-
-	s.allocWorkerLock.Lock()
-	defer s.allocWorkerLock.Unlock()
-
-	g := pr.getShard().Group
-	s.applyWorkers[g][pr.applyWorker]--
-	s.eventWorkers[g][pr.eventWorker]--
-}
-
-func (s *store) allocWorker(g uint64) (string, uint64) {
-	s.allocWorkerLock.Lock()
-	defer s.allocWorkerLock.Unlock()
-
-	applyWorker := ""
-	value := math.MaxInt32
-	for name, c := range s.applyWorkers[g] {
-		if value > c {
-			value = c
-			applyWorker = name
-		}
-	}
-	s.applyWorkers[g][applyWorker]++
-
-	raftEventWorker := uint64(0)
-	value = math.MaxInt32
-	for k, v := range s.eventWorkers[g] {
-		if v < value {
-			value = v
-			raftEventWorker = k
-		}
-	}
-
-	s.eventWorkers[g][raftEventWorker]++
-
-	return applyWorker, raftEventWorker
-}
-
-func (s *store) getPeer(id uint64) (Replica, bool) {
-	value, ok := s.peers.Load(id)
+func (s *store) getReplicaRecord(id uint64) (Replica, bool) {
+	value, ok := s.replicaRecords.Load(id)
 	if !ok {
 		return Replica{}, false
 	}
@@ -632,13 +495,13 @@ func (s *store) getPeer(id uint64) (Replica, bool) {
 	return value.(Replica), true
 }
 
-func (s *store) foreachPR(consumerFunc func(*replica) bool) {
+func (s *store) forEachReplica(consumerFunc func(*replica) bool) {
 	s.replicas.Range(func(key, value interface{}) bool {
 		return consumerFunc(value.(*replica))
 	})
 }
 
-func (s *store) getPR(id uint64, mustLeader bool) *replica {
+func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 	if value, ok := s.replicas.Load(id); ok {
 		pr := value.(*replica)
 		if mustLeader && !pr.isLeader() {
@@ -687,7 +550,7 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	shardID := req.Header.ShardID
 	peerID := req.Header.Replica.ID
 
-	pr := s.getPR(shardID, false)
+	pr := s.getReplica(shardID, false)
 	if nil == pr {
 		err := new(errorpb.ShardNotFound)
 		err.ShardID = shardID
@@ -701,7 +564,7 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	if !allowFollow && !pr.isLeader() {
 		err := new(errorpb.NotLeader)
 		err.ShardID = shardID
-		err.Leader, _ = s.getPeer(pr.getLeaderPeerID())
+		err.Leader, _ = s.getReplicaRecord(pr.getLeaderPeerID())
 
 		return &errorpb.Error{
 			Message:   errNotLeader.Error(),
@@ -868,10 +731,10 @@ func (s *store) doClearData(shard Shard) error {
 	return err
 }
 
+// FIXME: move this to a suitable thread
+// FIXME: this should only be called when the replica is fully unloaded
 func (s *store) startClearDataJob(shard Shard) error {
-	return s.addSnapJob(shard.Group, func() error {
-		return s.doClearData(shard)
-	}, nil)
+	return s.doClearData(shard)
 }
 
 func (s *store) removeShardData(shard Shard, job *task.Job) error {

@@ -25,7 +25,7 @@ import (
 )
 
 func (s *store) handleCompactRaftLog() {
-	s.foreachPR(func(pr *replica) bool {
+	s.forEachReplica(func(pr *replica) bool {
 		if pr.isLeader() {
 			pr.addAction(action{actionType: checkCompactAction})
 		}
@@ -34,11 +34,12 @@ func (s *store) handleCompactRaftLog() {
 }
 
 func (s *store) handleSplitCheck() {
-	if s.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
+	// FIXME: do we need to do such busy check?
+	/*if s.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
 		return
-	}
+	}*/
 
-	s.foreachPR(func(pr *replica) bool {
+	s.forEachReplica(func(pr *replica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() &&
 			(s.handledCustomSplitCheck(pr.getShard().Group) ||
@@ -56,7 +57,7 @@ func (s *store) handledCustomSplitCheck(group uint64) bool {
 
 func (s *store) handleShardStateCheck() {
 	bm := roaring64.NewBitmap()
-	s.foreachPR(func(pr *replica) bool {
+	s.forEachReplica(func(pr *replica) bool {
 		bm.Add(pr.shardID)
 		return true
 	})
@@ -69,7 +70,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.destoryPR(id, true, "shard state check")
+			s.destroyReplica(id, true, "shard state check")
 		}
 	}
 }
@@ -85,19 +86,7 @@ func (s *store) handle(value interface{}) {
 }
 
 func (s *store) onSnapshotMessage(msg *meta.SnapshotMessage) {
-	pr := s.getPR(msg.Header.Shard.ID, false)
-	if pr != nil {
-		s.addApplyJob(pr.applyWorker, "onSnapshotData", func() error {
-			err := s.snapshotManager.ReceiveSnapData(msg)
-			if err != nil {
-				logger.Fatalf("shard %s received snap data failed, errors:\n%+v",
-					msg.Header.Shard.ID,
-					err)
-			}
-
-			return err
-		}, nil)
-	}
+	panic("snapshot not implemented")
 }
 
 func (s *store) onRaftMessage(msg *meta.RaftMessage) {
@@ -111,12 +100,12 @@ func (s *store) onRaftMessage(msg *meta.RaftMessage) {
 		return
 	}
 
-	if !s.tryToCreatePeerReplicate(msg) {
+	if !s.tryToCreateReplicate(msg) {
 		return
 	}
 
-	s.peers.Store(msg.From.ID, msg.From)
-	pr := s.getPR(msg.ShardID, false)
+	s.replicaRecords.Store(msg.From.ID, msg.From)
+	pr := s.getReplica(msg.ShardID, false)
 	pr.step(msg.Message)
 }
 
@@ -133,7 +122,7 @@ func (s *store) isRaftMsgValid(msg *meta.RaftMessage) bool {
 
 func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
 	shardID := msg.ShardID
-	pr := s.getPR(shardID, false)
+	pr := s.getReplica(shardID, false)
 	if pr != nil {
 		fromEpoch := msg.ShardEpoch
 		shard := pr.getShard()
@@ -141,12 +130,12 @@ func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
 			logger.Infof("shard %d receives gc message, remove. msg=<%+v>",
 				shardID,
 				msg)
-			s.destoryPR(shardID, false, "gc")
+			s.destroyReplica(shardID, false, "gc")
 		}
 	}
 }
 
-func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
+func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
 	// If target peer doesn't exist, create it.
 	//
 	// return false to indicate that target peer is in invalid state or
@@ -159,7 +148,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 
 	target := msg.To
 
-	if p := s.getPR(msg.ShardID, false); p != nil {
+	if p := s.getReplica(msg.ShardID, false); p != nil {
 		hasPeer = true
 
 		// we may encounter a message with larger peer id, which means
@@ -188,7 +177,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
-		s.destoryPR(msg.ShardID, false, "found stale peer")
+		s.destroyReplica(msg.ShardID, false, "found stale peer")
 		return false
 	}
 
@@ -212,7 +201,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 	if item.ID > 0 {
 		if bytes.Compare(keys.EncStartKey(&item), keys.GetDataEndKey(msg.Group, msg.End)) < 0 {
 			var state string
-			if p := s.getPR(item.ID, false); p != nil {
+			if p := s.getReplica(item.ID, false); p != nil {
 				state = fmt.Sprintf("overlappedShard=<%d> apply index %d",
 					p.shardID,
 					p.appliedIndex)
@@ -234,7 +223,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 	}
 
 	// now we can create a replicate
-	pr, err := createPeerReplicaWithRaftMessage(s, msg, target, "receive raft message")
+	pr, err := createReplicaWithRaftMessage(s, msg, target, "receive raft message")
 	if err != nil {
 		logger.Errorf("shard %d peer replica failed with %+v",
 			msg.ShardID,
@@ -243,7 +232,7 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 	}
 
 	// Following snapshot may overlap, should insert into keyRanges after snapshot is applied.
-	if s.addPR(pr) {
+	if s.addReplica(pr) {
 		pr.start()
 
 		// FIXME: this seems to be wrong
@@ -251,8 +240,8 @@ func (s *store) tryToCreatePeerReplicate(msg *meta.RaftMessage) bool {
 		// pr.shard.Peers = append(pr.shard.Peers, msg.From)
 		s.updateShardKeyRange(pr.getShard())
 
-		s.peers.Store(msg.From.ID, msg.From)
-		s.peers.Store(msg.To.ID, msg.To)
+		s.replicaRecords.Store(msg.From.ID, msg.From)
+		s.replicaRecords.Store(msg.To.ID, msg.To)
 	}
 
 	return true

@@ -68,7 +68,7 @@ func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 			pr.field,
 			zap.Error(err))
 	}
-	pr.store.removePR(pr)
+	pr.store.removeReplica(pr)
 	pr.sm.destroy()
 	logger2.Info("destroy self complete.",
 		pr.field,

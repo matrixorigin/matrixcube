@@ -25,13 +25,13 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 		return
 	}
 
-	pr, err := createPeerReplica(s, &shard, "event")
+	pr, err := createReplica(s, &shard, "event")
 	if err != nil {
 		return
 	}
 
 	// already created by raft message
-	if !s.addPR(pr) {
+	if !s.addReplica(pr) {
 		return
 	}
 
@@ -44,7 +44,7 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 	pr.start()
 
 	for _, p := range shard.Replicas {
-		s.replicas.Store(p.ID, p)
+		s.replicaRecords.Store(p.ID, p)
 	}
 	s.updateShardKeyRange(shard)
 }

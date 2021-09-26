@@ -16,7 +16,6 @@ package log
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
@@ -46,16 +45,6 @@ func HexField(key string, data []byte) zap.Field {
 // ListenAddressField return address field
 func ListenAddressField(address string) zap.Field {
 	return zap.String("listen-address", address)
-}
-
-// WorkerFieldWithIndex return worker field
-func WorkerFieldWithIndex(name string, index uint64) zap.Field {
-	return zap.String("worker", fmt.Sprintf("%s-%d", name, index))
-}
-
-// WorkerField return worker field
-func WorkerField(name string) zap.Field {
-	return zap.String("worker", name)
 }
 
 // RaftMessageField return formated raft message zap string field

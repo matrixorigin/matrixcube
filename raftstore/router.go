@@ -14,11 +14,12 @@
 package raftstore
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 
-	"github.com/fagongzi/util/task"
+	"github.com/lni/goutils/syncutil"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -26,7 +27,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.uber.org/zap"
 )
 
 // Router route the request to the corresponding shard
@@ -64,28 +64,27 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
-	watcher     prophet.Watcher
-	runner      *task.Runner
-	eventC      chan rpcpb.EventNotify
-	eventTaskID uint64
-
+	watcher                   prophet.Watcher
+	stopper                   *syncutil.Stopper
+	eventC                    chan rpcpb.EventNotify
 	keyRanges                 sync.Map // group id -> *util.ShardTree
 	leaders                   sync.Map // shard id -> leader replica store
 	stores                    sync.Map // store id -> metapb.Store metadata
 	shards                    sync.Map // shard id -> metapb.Shard
 	missingStoreLeaderChanged sync.Map // shard id -> leader replica id
 	opts                      sync.Map // shard id -> *op
-
-	shardStats sync.Map // shard id -> ResourceStats
-	storeStats sync.Map // store id -> ContainerStats
+	shardStats                sync.Map // shard id -> ResourceStats
+	storeStats                sync.Map // store id -> ContainerStats
 
 	removedHandleFunc func(id uint64)
 	createHandleFunc  func(shard Shard)
 }
 
-func newRouter(watcher prophet.Watcher, runner *task.Runner, removedHandleFunc func(id uint64), createHandleFunc func(shard Shard)) (Router, error) {
+func newRouter(watcher prophet.Watcher,
+	stopper *syncutil.Stopper,
+	removedHandleFunc func(id uint64), createHandleFunc func(shard Shard)) (Router, error) {
 	return &defaultRouter{
-		runner:            runner,
+		stopper:           stopper,
 		watcher:           watcher,
 		eventC:            watcher.GetNotify(),
 		removedHandleFunc: removedHandleFunc,
@@ -98,12 +97,7 @@ func (r *defaultRouter) GetWatcher() prophet.Watcher {
 }
 
 func (r *defaultRouter) Start() error {
-	id, err := r.runner.RunCancelableTask(r.eventLoop)
-	if err != nil {
-		return err
-	}
-
-	r.eventTaskID = id
+	r.stopper.RunWorker(r.eventLoop)
 	return nil
 }
 
@@ -195,12 +189,12 @@ func (r *defaultRouter) searchShard(group uint64, key []byte) Shard {
 	return Shard{}
 }
 
-func (r *defaultRouter) eventLoop(ctx context.Context) {
+func (r *defaultRouter) eventLoop() {
 	logger.Infof("router event loop task started")
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-r.stopper.ShouldStop():
 			logger.Infof("router event loop task stopped")
 			return
 		case evt := <-r.eventC:

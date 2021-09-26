@@ -27,6 +27,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSingleTestClusterStartAndStop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := NewSingleTestClusterStore(t,
+		DiskTestCluster)
+	defer c.Stop()
+
+	c.Start()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
+}
+
 func TestClusterStartAndStop(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t)

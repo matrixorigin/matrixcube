@@ -17,16 +17,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
-
-func (pr *replica) startApplyCommittedEntriesJob(commitedEntries []raftpb.Entry) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doApplyCommittedEntries", func() error {
-		return pr.doApplyCommittedEntries(commitedEntries)
-	}, nil)
-	return err
-}
 
 // remove replica from current node.
 // 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
@@ -41,22 +33,11 @@ func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
 	pr.store.removeDroppedVoteMsg(pr.shardID)
 	pr.stopEventLoop()
 
-	err := pr.store.addApplyJob(pr.applyWorker, "destory", func() error {
-		return pr.doApplyDestory(tombstoneInCluster)
-	}, nil)
-	if err != nil {
+	if err := pr.doApplyDestory(tombstoneInCluster); err != nil {
 		logger.Fatal("fail to destory",
 			pr.field,
 			zap.Error(err))
 	}
-}
-
-func (pr *replica) startProposeJob(c batch, isConfChange bool) error {
-	err := pr.store.addApplyJob(pr.applyWorker, "doPropose", func() error {
-		return pr.doPropose(c, isConfChange)
-	}, nil)
-
-	return err
 }
 
 func (pr *replica) startSplitCheckJob() error {
@@ -69,22 +50,18 @@ func (pr *replica) startSplitCheckJob() error {
 		pr.shardID,
 		startKey,
 		endKey)
-	err := pr.store.addSplitJob(func() error {
-		return pr.doSplitCheck(epoch, startKey, endKey)
-	})
-
-	return err
+	return pr.doSplitCheck(epoch, startKey, endKey)
 }
 
 func (pr *replica) doPropose(c batch, isConfChange bool) error {
 	if isConfChange {
-		changeC := pr.pendings.getConfigChange()
+		changeC := pr.pendingProposals.getConfigChange()
 		if changeC.req != nil && changeC.req.Header != nil {
 			changeC.notifyStaleCmd()
 		}
-		pr.pendings.setConfigChange(c)
+		pr.pendingProposals.setConfigChange(c)
 	} else {
-		pr.pendings.append(c)
+		pr.pendingProposals.append(c)
 	}
 
 	return nil

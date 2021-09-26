@@ -135,8 +135,7 @@ func (pr *replica) propose(c batch) {
 		return
 	}
 
-	err = pr.startProposeJob(c, isConfChange)
-	if err != nil {
+	if err := pr.doPropose(c, isConfChange); err != nil {
 		c.respOtherError(err)
 	}
 }
@@ -146,7 +145,7 @@ func (pr *replica) execReadIndex(c batch) {
 		panic("not a read index request")
 	}
 	if !pr.isLeader() {
-		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return
 	}
@@ -161,7 +160,7 @@ func (pr *replica) execReadIndex(c batch) {
 
 	if pendingReadCount == lastPendingReadCount &&
 		readyReadCount == lastReadyReadCount {
-		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return
 	}
@@ -170,7 +169,7 @@ func (pr *replica) execReadIndex(c batch) {
 
 func (pr *replica) proposeNormal(c batch) bool {
 	if !pr.isLeader() {
-		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return false
 	}
@@ -192,7 +191,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 	}
 	idx2 := pr.nextProposalIndex()
 	if idx == idx2 {
-		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return false
 	}
@@ -248,7 +247,7 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin *rpc.AdminRequest, d
 	if propose_index == pr.nextProposalIndex() {
 		// The message is dropped silently, this usually due to leader absence
 		// or transferring leader. Both cases can be considered as NotLeader error.
-		target, _ := pr.store.getPeer(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
 		c.respNotLeader(pr.shardID, target)
 		return errNotLeader
 	}
@@ -368,8 +367,7 @@ func (pr *replica) checkProposal(c batch) bool {
 /// not be the leader.
 func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb.ConfChangeI) error {
 	cc := cci.AsV2()
-	afterProgress, err := pr.checkJointState(cc)
-	if err != nil {
+	if _, err := pr.checkJointState(cc); err != nil {
 		return err
 	}
 	currentProgress := pr.rn.NewChanger().Tracker
@@ -422,16 +420,7 @@ func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb
 		return fmt.Errorf("invalid conf change request, multiple changes that only effect learner")
 	}
 
-	// It's always safe if there is only one node in the cluster.
-	if currentProgress.IsSingleton() {
-		return nil
-	}
-
-	// Waking it up to replicate logs to candidate.
-	return fmt.Errorf("unsafe to perform conf change %+v, before %+v, after %+v",
-		changes,
-		currentProgress,
-		afterProgress)
+	return nil
 }
 
 func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTracker, error) {

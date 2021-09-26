@@ -186,11 +186,12 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	}
 
 	d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
-	d.pr.pendings.notify(ctx.req.Header.ID, resp, isConfigChangeCMD(ctx.req))
+	d.pr.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeCMD(ctx.req))
 }
 
+// FIXME: move this out of the state machine
 func (d *stateMachine) destroy() {
-	d.pr.pendings.destroy()
+	d.pr.pendingProposals.destroy()
 }
 
 func (d *stateMachine) setPendingRemove() {

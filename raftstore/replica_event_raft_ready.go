@@ -104,7 +104,7 @@ func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 
 	if len(rd.CommittedEntries) > 0 {
 		pr.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
-		if err := pr.startApplyCommittedEntriesJob(rd.CommittedEntries); err != nil {
+		if err := pr.doApplyCommittedEntries(rd.CommittedEntries); err != nil {
 			return err
 		}
 		pr.metrics.ready.commit++
@@ -169,7 +169,7 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	sendMsg.Unique = shard.Unique
 	sendMsg.RuleGroups = shard.RuleGroups
 	sendMsg.From = pr.replica
-	sendMsg.To, _ = pr.getPeer(msg.To)
+	sendMsg.To, _ = pr.getReplicaRecord(msg.To)
 	if sendMsg.To.ID == 0 {
 		return fmt.Errorf("can not found peer<%d>", msg.To)
 	}

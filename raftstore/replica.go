@@ -16,7 +16,6 @@ package raftstore
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,8 +43,6 @@ type replica struct {
 	field                 zap.Field
 	shardID               uint64
 	replica               Replica
-	eventWorker           uint64
-	applyWorker           string
 	startedC              chan struct{}
 	disableCompactProtect bool
 	rn                    *raft.RawNode
@@ -56,23 +53,23 @@ type replica struct {
 	replicaHeartbeatsMap  sync.Map
 	lastHBTime            uint64
 	batch                 *proposeBatch
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	items                 []interface{}
-	events                *task.RingBuffer
-	ticks                 *task.Queue
-	steps                 *task.Queue
-	reports               *task.Queue
-	applyResults          *task.Queue
-	requests              *task.Queue
-	actions               *task.Queue
+	pendingReads          *readIndexQueue
+	pendingProposals      *pendingProposals
+	sm                    *stateMachine
 
-	sm       *stateMachine
-	pendings *pendingProposals
+	ctx          context.Context
+	cancel       context.CancelFunc
+	items        []interface{}
+	events       *task.RingBuffer
+	ticks        *task.Queue
+	steps        *task.Queue
+	reports      *task.Queue
+	applyResults *task.Queue
+	requests     *task.Queue
+	actions      *task.Queue
 
 	appliedIndex    uint64
 	lastReadyIndex  uint64
-	pendingReads    *readIndexQueue
 	writtenKeys     uint64
 	writtenBytes    uint64
 	readKeys        uint64
@@ -80,7 +77,7 @@ type replica struct {
 	sizeDiffHint    uint64
 	raftLogSizeHint uint64
 	deleteKeysHint  uint64
-	// TODO: setting on split check
+	// TODO: set these fields on split check
 	approximateSize uint64
 	approximateKeys uint64
 
@@ -90,11 +87,11 @@ type replica struct {
 	readCtx *executeContext
 }
 
-// createPeerReplica called in:
+// createReplica called in:
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createPeerReplica(store *store, shard *Shard, why string) (*replica, error) {
+func createReplica(store *store, shard *Shard, why string) (*replica, error) {
 	replica := findReplica(shard, store.meta.meta.ID)
 	if replica == nil {
 		return nil, fmt.Errorf("no replica found on store %d in shard %+v",
@@ -102,13 +99,13 @@ func createPeerReplica(store *store, shard *Shard, why string) (*replica, error)
 			shard)
 	}
 
-	return newPeerReplica(store, shard, *replica, why)
+	return newReplica(store, shard, *replica, why)
 }
 
-// createPeerReplicaWithRaftMessage the replica can be created from another node with raft membership changes, and we only
+// createReplicaWithRaftMessage the replica can be created from another node with raft membership changes, and we only
 // know the shard_id and replica_id when creating this replicated replica, the shard info
 // will be retrieved later after applying snapshot.
-func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, replica Replica, why string) (*replica, error) {
+func createReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, replica Replica, why string) (*replica, error) {
 	shard := &Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
@@ -119,10 +116,10 @@ func createPeerReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, repli
 		Unique:       msg.Unique,
 	}
 
-	return newPeerReplica(store, shard, replica, why)
+	return newReplica(store, shard, replica, why)
 }
 
-func newPeerReplica(store *store, shard *Shard, r Replica, why string) (*replica, error) {
+func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, error) {
 	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, r.ID, r.ContainerID))
 	logger2.Info("create shard",
 		f,
@@ -134,14 +131,13 @@ func newPeerReplica(store *store, shard *Shard, r Replica, why string) (*replica
 	}
 
 	pr := &replica{
-		field:       f,
-		eventWorker: math.MaxUint64,
-		store:       store,
-		replica:     r,
-		shardID:     shard.ID,
-		startedC:    make(chan struct{}),
-		lr:          NewLogReader(shard.ID, r.ID, store.logdb),
-		pendings:    newPendingProposals(),
+		field:            f,
+		store:            store,
+		replica:          r,
+		shardID:          shard.ID,
+		startedC:         make(chan struct{}),
+		lr:               NewLogReader(shard.ID, r.ID, store.logdb),
+		pendingProposals: newPendingProposals(),
 	}
 	pr.createStateMachine(shard)
 	return pr, nil
@@ -192,7 +188,6 @@ func (pr *replica) start() {
 	}
 	pr.rn = rn
 
-	pr.applyWorker, pr.eventWorker = pr.store.allocWorker(shard.Group)
 	close(pr.startedC)
 
 	// TODO: is it okay to invoke pr.rn methods from this thread?
@@ -225,13 +220,15 @@ func (pr *replica) start() {
 	pr.onRaftTick(nil)
 
 	logger2.Info("shard started",
-		pr.field,
-		log.WorkerFieldWithIndex("event", pr.eventWorker),
-		log.WorkerField(pr.applyWorker))
+		pr.field)
 }
 
 func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
+}
+
+func (pr *replica) getShardID() uint64 {
+	return pr.shardID
 }
 
 // initConfState initializes the ConfState of the LogReader which will be
@@ -286,17 +283,17 @@ func (pr *replica) createStateMachine(shard *Shard) {
 	pr.sm.metadataMu.shard = *shard
 }
 
-func (pr *replica) getPeer(id uint64) (Replica, bool) {
-	value, ok := pr.store.getPeer(id)
+func (pr *replica) getReplicaRecord(id uint64) (Replica, bool) {
+	rec, ok := pr.store.getReplicaRecord(id)
 	if ok {
-		return value, true
+		return rec, true
 	}
 
 	shard := pr.getShard()
-	for _, p := range shard.Replicas {
-		if p.ID == id {
-			pr.store.replicas.Store(id, p)
-			return p, true
+	for _, rec := range shard.Replicas {
+		if rec.ID == id {
+			pr.store.replicaRecords.Store(id, rec)
+			return rec, true
 		}
 	}
 
@@ -321,7 +318,7 @@ func (pr *replica) waitStarted() {
 
 func (pr *replica) notifyWorker() {
 	pr.waitStarted()
-	pr.store.workReady.notify(pr.getShard().Group, pr.eventWorker)
+	pr.store.workerPool.notify(pr.shardID)
 }
 
 func (pr *replica) maybeCampaign() (bool, error) {
@@ -340,11 +337,7 @@ func (pr *replica) maybeCampaign() (bool, error) {
 
 func (pr *replica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
-
-	r := reqCtx{}
-	r.req = req
-	r.cb = cb
-	return pr.addRequest(r)
+	return pr.addRequest(reqCtx{req: req, cb: cb})
 }
 
 func (pr *replica) stopEventLoop() {

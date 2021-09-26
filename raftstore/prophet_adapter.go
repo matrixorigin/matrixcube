@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -251,7 +250,7 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 }
 
 func (s *store) doShardHeartbeat() {
-	s.foreachPR(func(pr *replica) bool {
+	s.forEachReplica(func(pr *replica) bool {
 		if pr.isLeader() {
 			pr.addAction(action{actionType: heartbeatAction})
 		}
@@ -315,7 +314,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		})
 	}
 
-	s.foreachPR(func(pr *replica) bool {
+	s.forEachReplica(func(pr *replica) bool {
 		// TODO: re-enable this
 		//if pr.ps.isApplyingSnapshot() {
 		//	stats.ApplyingSnapCount++
@@ -366,10 +365,10 @@ func (s *store) startHandleResourceHeartbeat() {
 	if err != nil {
 		logger.Fatalf("start handle resource heartbeat resp task failed with %+v", err)
 	}
-	s.runner.RunCancelableTask(func(ctx context.Context) {
+	s.stopper.RunWorker(func() {
 		for {
 			select {
-			case <-ctx.Done():
+			case <-s.stopper.ShouldStop():
 				logger.Infof("handle resource heartbeat resp task stopped")
 				return
 			case rsp, ok := <-c:
@@ -383,11 +382,11 @@ func (s *store) startHandleResourceHeartbeat() {
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	if rsp.DestoryDirectly {
-		s.destoryPR(rsp.ResourceID, true, "remove by pd")
+		s.destroyReplica(rsp.ResourceID, true, "remove by pd")
 		return
 	}
 
-	pr := s.getPR(rsp.ResourceID, true)
+	pr := s.getReplica(rsp.ResourceID, true)
 	if pr == nil {
 		logger.Infof("shard-%d is not leader, skip heartbeat resp",
 			rsp.ResourceID)

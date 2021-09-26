@@ -50,8 +50,7 @@ const (
 )
 
 func (pr *replica) addRequest(req reqCtx) error {
-	err := pr.requests.Put(req)
-	if err != nil {
+	if err := pr.requests.Put(req); err != nil {
 		return err
 	}
 
@@ -108,9 +107,7 @@ func (pr *replica) step(msg raftpb.Message) {
 }
 
 func (pr *replica) onAdmin(req *rpc.AdminRequest) error {
-	r := reqCtx{}
-	r.admin = req
-	return pr.addRequest(r)
+	return pr.addRequest(reqCtx{admin: req})
 }
 
 func (pr *replica) onRaftTick(arg interface{}) {
@@ -129,63 +126,66 @@ func (pr *replica) onRaftTick(arg interface{}) {
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
+func (pr *replica) onStop() {
+	pr.stopOnce.Do(func() {
+		pr.metrics.flush()
+		pr.actions.Dispose()
+		pr.ticks.Dispose()
+		pr.steps.Dispose()
+		pr.reports.Dispose()
+		pr.applyResults.Dispose()
+
+		// resp all stale requests in batch and queue
+		for {
+			if pr.batch.isEmpty() {
+				break
+			}
+			if c, ok := pr.batch.pop(); ok {
+				for _, req := range c.req.Requests {
+					req.Key = keys.DecodeDataKey(req.Key)
+					respStoreNotMatch(errStoreNotMatch, req, c.cb)
+				}
+			}
+		}
+
+		// resp all pending requests in batch and queue
+		for _, c := range pr.pendingReads.reads {
+			for _, req := range c.req.Requests {
+				req.Key = keys.DecodeDataKey(req.Key)
+				respStoreNotMatch(errStoreNotMatch, req, pr.store.cb)
+			}
+		}
+		pr.pendingReads.reset()
+
+		requests := pr.requests.Dispose()
+		for _, r := range requests {
+			req := r.(reqCtx)
+			if req.cb != nil {
+				respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+			}
+
+			pb.ReleaseRequest(req.req)
+		}
+
+		logger.Infof("shard %d handle serve raft stopped",
+			pr.shardID)
+	})
+}
+
 func (pr *replica) handleEvent() bool {
 	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
 		return false
 	}
 
-	stop := false
 	select {
 	case <-pr.ctx.Done():
-		stop = true
+		pr.onStop()
+		return false
 	default:
 	}
 
-	_, err := pr.events.Get()
-	if err != nil || stop {
-		pr.stopOnce.Do(func() {
-			pr.metrics.flush()
-			pr.actions.Dispose()
-			pr.ticks.Dispose()
-			pr.steps.Dispose()
-			pr.reports.Dispose()
-			pr.applyResults.Dispose()
-
-			// resp all stale requests in batch and queue
-			for {
-				if pr.batch.isEmpty() {
-					break
-				}
-				if c, ok := pr.batch.pop(); ok {
-					for _, req := range c.req.Requests {
-						req.Key = keys.DecodeDataKey(req.Key)
-						respStoreNotMatch(errStoreNotMatch, req, c.cb)
-					}
-				}
-			}
-
-			// resp all pending requests in batch and queue
-			for _, c := range pr.pendingReads.reads {
-				for _, req := range c.req.Requests {
-					req.Key = keys.DecodeDataKey(req.Key)
-					respStoreNotMatch(errStoreNotMatch, req, pr.store.cb)
-				}
-			}
-			pr.pendingReads.reset()
-
-			requests := pr.requests.Dispose()
-			for _, r := range requests {
-				req := r.(reqCtx)
-				if req.cb != nil {
-					respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
-				}
-
-				pb.ReleaseRequest(req.req)
-			}
-
-			logger.Infof("shard %d handle serve raft stopped",
-				pr.shardID)
-		})
+	if _, err := pr.events.Get(); err != nil {
+		pr.onStop()
 		return false
 	}
 
@@ -340,9 +340,11 @@ func (pr *replica) doCheckSplit() {
 		return
 	}
 
-	if pr.store.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
+	// FIXME:
+	// do we need such busy check here?
+	/*if pr.store.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
 		return
-	}
+	}*/
 
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
@@ -354,14 +356,11 @@ func (pr *replica) doCheckSplit() {
 		}
 	}
 
-	err := pr.startSplitCheckJob()
-	if err != nil {
+	if err := pr.startSplitCheckJob(); err != nil {
 		logger.Fatalf("shard %d add split check job failed with %+v",
 			pr.shardID,
 			err)
-		return
 	}
-
 	pr.sizeDiffHint = 0
 }
 
