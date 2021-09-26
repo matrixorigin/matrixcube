@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -22,13 +21,12 @@ import (
 
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/lni/goutils/syncutil"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -43,10 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/v3/raftpb"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[raftstore]")
+	"go.uber.org/zap"
 )
 
 // Store manage a set of raft group
@@ -86,14 +81,9 @@ type Store interface {
 	GetResourcePool() ShardsPool
 }
 
-const (
-	applyWorkerName      = "apply-%d-%d"
-	snapshotWorkerName   = "snapshot-%d"
-	splitCheckWorkerName = "split"
-)
-
 type store struct {
-	cfg *config.Config
+	cfg    *config.Config
+	logger *zap.Logger
 
 	meta       *containerAdapter
 	pd         prophet.Prophet
@@ -130,14 +120,15 @@ func NewStore(cfg *config.Config) Store {
 	cfg.Adjust()
 
 	s := &store{
-		meta:      &containerAdapter{},
-		cfg:       cfg,
-		logdb:     logdb.NewKVLogDB(cfg.Storage.MetaStorage),
-		shardPool: newDynamicShardsPool(cfg),
-		stopper:   syncutil.NewStopper(),
+		meta:    &containerAdapter{},
+		cfg:     cfg,
+		logger:  cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name)),
+		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage),
+		stopper: syncutil.NewStopper(),
 	}
 	// TODO: make workerCount configurable
-	s.workerPool = newWorkerPool(&storeReplicaLoader{s}, 64)
+	s.workerPool = newWorkerPool(s.logger, &storeReplicaLoader{s}, 64)
+	s.shardPool = newDynamicShardsPool(cfg, s.logger)
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
 		s.aware = cfg.Customize.CustomShardStateAwareFactory()
@@ -158,25 +149,32 @@ func (s *store) GetConfig() *config.Config {
 }
 
 func (s *store) Start() {
-	logger.Infof("begin start raftstore")
-
+	s.logger.Info("begin to start raftstore")
 	s.startProphet()
-	logger.Infof("prophet started")
+	s.logger.Info("prophet started",
+		s.storeField())
 
 	s.startTransport()
-	logger.Infof("start listen at %s for raft", s.cfg.RaftAddr)
+	s.logger.Info("raft internal transport started",
+		s.storeField(),
+		log.ListenAddressField(s.cfg.RaftAddr))
 
 	s.startShards()
-	logger.Infof("shards started")
+	s.logger.Info("shards started",
+		s.storeField())
 
 	s.startTimerTasks()
-	logger.Infof("shard timer based tasks started")
+	s.logger.Info("shard timer based tasks started",
+		s.storeField())
 
 	s.startRPC()
-	logger.Infof("start listen at %s for client", s.cfg.ClientAddr)
+	s.logger.Info("client rpc started",
+		s.storeField(),
+		log.ListenAddressField(s.cfg.ClientAddr))
 
 	s.startRouter()
-	logger.Infof("router started")
+	s.logger.Info("router started",
+		s.storeField())
 
 	s.doStoreHeartbeat(time.Now())
 }
@@ -185,31 +183,38 @@ func (s *store) Stop() {
 	atomic.StoreUint32(&s.state, 1)
 
 	s.stopOnce.Do(func() {
-		logger.Infof("store %d begin to stop", s.Meta().ID)
-
+		s.logger.Info("begin to stop raftstore",
+			s.storeField())
 		s.pd.Stop()
-		logger.Infof("store %d pd stopped", s.Meta().ID)
+		s.logger.Info("pd stopped",
+			s.storeField())
 
 		s.trans.Stop()
-		logger.Infof("store %d transport stopped", s.Meta().ID)
+		s.logger.Info("raft internal transport stopped",
+			s.storeField())
 
 		s.forEachReplica(func(pr *replica) bool {
 			pr.stopEventLoop()
 			return true
 		})
-		logger.Infof("store %d all shards stopped", s.Meta().ID)
+		s.logger.Info("shards stopped",
+			s.storeField())
 
 		s.workerPool.close()
-		logger.Infof("store %d worker pool stopped", s.Meta().ID)
+		s.logger.Info("worker pool stopped",
+			s.storeField())
 
 		s.snapshotManager.Close()
-		logger.Infof("store %d all snapshot manager stopped", s.Meta().ID)
+		s.logger.Info("snapshot manager stopped",
+			s.storeField())
 
 		s.stopper.Stop()
-		logger.Infof("store %d stoppers topped", s.Meta().ID)
+		s.logger.Info("stoppers topped",
+			s.storeField())
 
 		s.rpc.Stop()
-		logger.Infof("store %d rpc stopped", s.Meta().ID)
+		s.logger.Info("client rpc stopped",
+			s.storeField())
 	})
 }
 
@@ -222,18 +227,24 @@ func (s *store) startRouter() {
 	s.routerOnce.Do(func() {
 		watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
 		if err != nil {
-			logger.Fatalf("create router failed with %+v", err)
+			s.logger.Fatal("fail to create router",
+				s.storeField(),
+				zap.Error(err))
 		}
 
-		r, err := newRouter(watcher, s.stopper, func(id uint64) {
+		r, err := newRouter(s, watcher, func(id uint64) {
 			s.destroyReplica(id, true, "remove by event")
 		}, s.doDynamicallyCreate)
 		if err != nil {
-			logger.Fatalf("create router failed with %+v", err)
+			s.logger.Fatal("fail to create router",
+				s.storeField(),
+				zap.Error(err))
 		}
 		err = r.Start()
 		if err != nil {
-			logger.Fatalf("start router failed with %+v", err)
+			s.logger.Fatal("fail to start router",
+				s.storeField(),
+				zap.Error(err))
 		}
 
 		s.router = r
@@ -257,8 +268,9 @@ func (s *store) OnRequest(req *rpc.Request) error {
 }
 
 func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatch)) error {
-	if logger.DebugEnabled() {
-		logger.Debugf("%s store received", hex.EncodeToString(req.ID))
+	if ce := s.logger.Check(zap.DebugLevel, "receive request"); ce != nil {
+		ce.Write(log.RequestIDField(req.ID),
+			s.storeField())
 	}
 
 	var pr *replica
@@ -266,12 +278,25 @@ func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatc
 	if req.ToShard > 0 {
 		pr = s.getReplica(req.ToShard, false)
 		if pr == nil {
+			if ce := s.logger.Check(zap.DebugLevel, "fail to handle request"); ce != nil {
+				ce.Write(log.RequestIDField(req.ID),
+					s.storeField(),
+					log.ShardIDField(req.ToShard),
+					log.ReasonField("shard not found"))
+			}
 			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil
 		}
 	} else {
 		pr, err = s.selectShard(req.Group, req.Key)
 		if err != nil {
+			if ce := s.logger.Check(zap.DebugLevel, "fail to handle request"); ce != nil {
+				ce.Write(log.RequestIDField(req.ID),
+					s.storeField(),
+					log.HexField("key", req.Key),
+					log.ReasonField("key not match"))
+			}
+
 			if err == errStoreNotMatch {
 				respStoreNotMatch(err, req, cb)
 				return nil
@@ -307,7 +332,9 @@ func (s *store) cb(resp *rpc.ResponseBatch) {
 func (s *store) MustAllocID() uint64 {
 	id, err := s.pd.GetClient().AllocID()
 	if err != nil {
-		logger.Fatalf("alloc id failed with %+v", err)
+		s.logger.Fatal("fail to alloc id",
+			s.storeField(),
+			zap.Error(err))
 	}
 
 	return id
@@ -323,8 +350,6 @@ func (s *store) CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder) {
 }
 
 func (s *store) startProphet() {
-	logger.Infof("begin to start prophet")
-
 	s.cfg.Prophet.Adapter = newProphetAdapter()
 	s.cfg.Prophet.Handler = s
 	s.cfg.Prophet.Adjust(nil, false)
@@ -367,7 +392,9 @@ func (s *store) startShards() {
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
-			logger.Fatalf("get initial state failed with %+v", err)
+			s.logger.Fatal("fail to get initial state",
+				s.storeField(),
+				zap.Error(err))
 		}
 
 		var tomebstoneShards []Shard
@@ -377,22 +404,26 @@ func (s *store) startShards() {
 			protoc.MustUnmarshal(sls, metadata.Metadata)
 
 			if sls.Shard.ID != metadata.ShardID {
-				logger.Fatalf("BUG: shard id not match in metadata, %d != %d",
-					sls.Shard.ID,
-					metadata.ShardID)
+				s.logger.Fatal("BUG: shard id not match in metadata",
+					s.storeField(),
+					zap.Uint64("expect", sls.Shard.ID),
+					zap.Uint64("actual", metadata.ShardID))
 			}
 
 			if sls.State == meta.ReplicaState_Tombstone {
 				tomebstoneShards = append(tomebstoneShards, sls.Shard)
 				tomebstoneCount++
-				logger.Infof("shard %d is tombstone in store",
-					sls.Shard.ID)
+				s.logger.Info("shard is tombstone in store",
+					s.storeField(),
+					log.ShardIDField(sls.Shard.ID))
 				continue
 			}
 
 			pr, err := createReplica(s, &sls.Shard, "bootstrap")
 			if err != nil {
-				logger.Fatalf("create replica failed with %+v", err)
+				s.logger.Fatal("fail to create replica",
+					s.storeField(),
+					zap.Error(err))
 			}
 
 			s.updateShardKeyRange(sls.Shard)
@@ -403,10 +434,10 @@ func (s *store) startShards() {
 		s.cleanup(tomebstoneShards)
 	})
 
-	logger.Infof("starts with %d shards, including %d tombstones shards",
-		totalCount,
-		tomebstoneCount)
-
+	s.logger.Info("shards started",
+		s.storeField(),
+		zap.Int("total", totalCount),
+		zap.Int("tomebstone", tomebstoneCount))
 }
 
 func (s *store) startTimerTasks() {
@@ -431,7 +462,8 @@ func (s *store) startTimerTasks() {
 		for {
 			select {
 			case <-s.stopper.ShouldStop():
-				logger.Infof("timer based tasks stopped")
+				s.logger.Info("timer based tasks stopped",
+					s.storeField())
 				return
 			case <-compactTicker.C:
 				s.handleCompactRaftLog()
@@ -472,9 +504,10 @@ func (s *store) removeReplica(pr *replica) {
 func (s *store) startRPC() {
 	err := s.rpc.Start()
 	if err != nil {
-		logger.Fatalf("start RPC at %s failed with %+v",
-			s.cfg.ClientAddr,
-			err)
+		s.logger.Fatal("fail to start RPC",
+			s.storeField(),
+			log.ListenAddressField(s.cfg.ClientAddr),
+			zap.Error(err))
 	}
 }
 
@@ -483,7 +516,8 @@ func (s *store) cleanup(shards []Shard) {
 		s.doClearData(shard)
 	}
 
-	logger.Infof("cleanup possible garbage data complete")
+	s.logger.Info("cleanup possible garbage data complete",
+		s.storeField())
 }
 
 func (s *store) getReplicaRecord(id uint64) (Replica, bool) {
@@ -635,12 +669,6 @@ func checkEpoch(shard Shard, req *rpc.RequestBatch) bool {
 
 	if (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
 		(checkVer && fromEpoch.Version < lastestEpoch.Version) {
-		if logger.DebugEnabled() {
-			logger.Debugf("shard %d reveiced stale epoch, lastest=<%s> reveived=<%s>",
-				shard.ID,
-				lastestEpoch.String(),
-				fromEpoch.String())
-		}
 		return false
 	}
 
@@ -721,12 +749,15 @@ func (s *store) nextShard(shard Shard) *Shard {
 // doClearData Delete all data belong to the shard.
 // If return Err, data may get partial deleted.
 func (s *store) doClearData(shard Shard) error {
-	logger.Infof("shard %d deleting data", shard.ID)
+	s.logger.Info("deleting shard data",
+		s.storeField(),
+		log.ShardIDField(shard.ID))
 	err := s.removeShardData(shard, nil)
 	if err != nil {
-		logger.Errorf("shard %d delete data failed with %+v",
-			shard.ID,
-			err)
+		s.logger.Fatal("fail to delete shard data",
+			s.storeField(),
+			log.ShardIDField(shard.ID),
+			zap.Error(err))
 	}
 	return err
 }
@@ -746,4 +777,8 @@ func (s *store) removeShardData(shard Shard, job *task.Job) error {
 	start := keys.EncStartKey(&shard)
 	end := keys.EncEndKey(&shard)
 	return s.DataStorageByGroup(shard.Group).RemoveShardData(shard, start, end)
+}
+
+func (s *store) storeField() zap.Field {
+	return log.StoreIDField(s.Meta().ID)
 }

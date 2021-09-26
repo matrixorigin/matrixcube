@@ -18,6 +18,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"go.uber.org/zap"
 )
 
 var (
@@ -55,6 +56,7 @@ func (s *store) GetResourcePool() ShardsPool {
 // dynamicShardsPool a dynamic shard pool
 type dynamicShardsPool struct {
 	cfg     *config.Config
+	logger  *zap.Logger
 	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) Shard
 	job     metapb.Job
 	ctx     context.Context
@@ -71,8 +73,8 @@ type dynamicShardsPool struct {
 	}
 }
 
-func newDynamicShardsPool(cfg *config.Config) *dynamicShardsPool {
-	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg}
+func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShardsPool {
+	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: logger.Named("shard-pool")}
 	p.factory = p.shardFactory
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
 		p.factory = cfg.Customize.CustomShardPoolShardFactory
@@ -255,8 +257,6 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	dsp.mu.pools.Pools[group] = p
 
 	if err := dsp.saveLocked(store); err != nil {
-		logger.Errorf("shards pool alloc failed with %+v, retry later",
-			err)
 		dsp.mu.pools = old
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 func (dsp *dynamicShardsPool) startLocked(ctx context.Context, c chan struct{}, store storage.JobStorage, aware pconfig.ResourcesAware) {
 	dsp.triggerCreateLocked()
 	go func(ctx context.Context, c chan struct{}) {
-		logger.Infof("dynamic shards pool job started")
+		dsp.logger.Info("dynamic shards pool job started")
 		defer func() {
 			close(c)
 		}()
@@ -284,18 +284,18 @@ func (dsp *dynamicShardsPool) startLocked(ctx context.Context, c chan struct{}, 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Infof("dynamic shards pool job stopped")
+				dsp.logger.Info("dynamic shards pool job stopped")
 				return
 			case <-c:
-				logger.Debugf("dynamic shards pool job maybeCreate")
+				dsp.logger.Debug("dynamic shards pool job maybeCreate")
 				dsp.maybeCreate(store)
-				logger.Debugf("dynamic shards pool job maybeCreate completed")
+				dsp.logger.Debug("dynamic shards pool job maybeCreate completed")
 			case <-checkTicker.C:
-				logger.Debugf("dynamic shards pool check create")
+				dsp.logger.Debug("dynamic shards pool check create")
 				dsp.maybeCreate(store)
-				logger.Debugf("dynamic shards pool job maybeCreate completed")
+				dsp.logger.Debug("dynamic shards pool job maybeCreate completed")
 			case <-ticker.C:
-				logger.Infof("dynamic shards pool job gcAllocating")
+				dsp.logger.Info("dynamic shards pool job gcAllocating")
 				dsp.gcAllocating(store, aware)
 			}
 		}
@@ -350,7 +350,8 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		}
 		err := dsp.pd.AsyncAddResources(creates...)
 		if err != nil {
-			logger.Errorf("shards pool create shards failed with %+v", err)
+			dsp.logger.Error("fail to create shard",
+				zap.Error(err))
 			return
 		}
 
@@ -363,7 +364,6 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 			p.Seq = modified.Pools[g].Seq
 		}
 		if err := dsp.saveLocked(store); err != nil {
-			logger.Errorf("save shard pool job data failed with %+v, retry later", err)
 			dsp.mu.pools = backup
 		}
 
@@ -424,8 +424,10 @@ func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconf
 func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) error {
 	err := store.PutJobData(dsp.job, protoc.MustMarshal(&dsp.mu.pools))
 	if err != nil {
-		logger.Errorf("put shards pool metadata to storage failed with %+v", err)
+		dsp.logger.Error("fail to save shard pool metadata, retry later",
+			zap.Error(err))
 	}
+
 	return err
 }
 

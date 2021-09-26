@@ -24,7 +24,7 @@ import (
 
 func TestWorkerPoolCanBeCreatedAndClosed(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, 32)
+	p := newWorkerPool(nil, nil, 32)
 	p.close()
 }
 
@@ -80,7 +80,7 @@ func TestWorkerPoolCanScheduleSimpleJob(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
 	h, _ := l.getReplica(10)
-	p := newWorkerPool(l, 32)
+	p := newWorkerPool(nil, l, 32)
 	defer func() {
 		p.close()
 		assert.Equal(t, 0, len(p.pending))
@@ -102,7 +102,7 @@ func TestWorkerPoolCanScheduleSimpleJob(t *testing.T) {
 
 func TestWorkerPoolWillNotReturnBusyWorker(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, 32)
+	p := newWorkerPool(nil, nil, 32)
 	defer p.close()
 	assert.Equal(t, 32, len(p.workers))
 	assert.Equal(t, 0, len(p.busy))
@@ -118,7 +118,7 @@ func TestWorkerPoolWillNotReturnBusyWorker(t *testing.T) {
 
 func TestWorkerPoolScheduleNothingWhenNotPendingJob(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, 32)
+	p := newWorkerPool(nil, nil, 32)
 	defer p.close()
 	assert.False(t, p.scheduleWorker())
 	w := p.getWorker()
@@ -127,7 +127,7 @@ func TestWorkerPoolScheduleNothingWhenNotPendingJob(t *testing.T) {
 
 func TestWorkerPoolScheduleNothingWhenNoIdleWorker(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, 32)
+	p := newWorkerPool(nil, nil, 32)
 	defer p.close()
 	p.pending[20] = nil
 	for _, w := range p.workers {
@@ -140,7 +140,7 @@ func TestWorkerPoolScheduleNothingWhenNoIdleWorker(t *testing.T) {
 
 func TestWorkerPoolWillNotConcurrentlyProcessTheSameShard(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, 32)
+	p := newWorkerPool(nil, nil, 32)
 	defer p.close()
 	p.pending[10] = nil
 	p.processing[10] = struct{}{}
@@ -150,7 +150,7 @@ func TestWorkerPoolWillNotConcurrentlyProcessTheSameShard(t *testing.T) {
 func TestWorkerPoolSetBusyAndProcessingAsExpected(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
-	p := newWorkerPool(l, 32)
+	p := newWorkerPool(nil, l, 32)
 	defer func() {
 		p.close()
 		assert.Equal(t, 0, len(p.busy))
@@ -168,7 +168,7 @@ func TestWorkerPoolSetBusyAndProcessingAsExpected(t *testing.T) {
 func testWorkerPoolConcurrentJobs(t *testing.T, moreJob bool) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
-	p := newWorkerPool(l, 32)
+	p := newWorkerPool(nil, l, 32)
 	defer func() {
 		p.close()
 		assert.Equal(t, 0, len(p.busy))

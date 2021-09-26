@@ -18,8 +18,6 @@ import (
 	"sync/atomic"
 
 	"github.com/lni/goutils/syncutil"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -27,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 // Router route the request to the corresponding shard
@@ -64,6 +63,7 @@ func (o *op) next() uint64 {
 }
 
 type defaultRouter struct {
+	logger                    *zap.Logger
 	watcher                   prophet.Watcher
 	stopper                   *syncutil.Stopper
 	eventC                    chan rpcpb.EventNotify
@@ -80,11 +80,10 @@ type defaultRouter struct {
 	createHandleFunc  func(shard Shard)
 }
 
-func newRouter(watcher prophet.Watcher,
-	stopper *syncutil.Stopper,
-	removedHandleFunc func(id uint64), createHandleFunc func(shard Shard)) (Router, error) {
+func newRouter(store *store, watcher prophet.Watcher, removedHandleFunc func(id uint64), createHandleFunc func(shard Shard)) (Router, error) {
 	return &defaultRouter{
-		stopper:           stopper,
+		logger:            store.logger.Named("router").With(store.storeField()),
+		stopper:           store.stopper,
 		watcher:           watcher,
 		eventC:            watcher.GetNotify(),
 		removedHandleFunc: removedHandleFunc,
@@ -137,7 +136,8 @@ func (r *defaultRouter) LeaderReplicaStore(shardID uint64) meta.Store {
 	if value, ok := r.leaders.Load(shardID); ok {
 		return value.(meta.Store)
 	}
-	logger.Debugf("shard %d missing leader", shardID)
+	r.logger.Debug("missing leader",
+		log.ShardIDField(shardID))
 	return meta.Store{}
 }
 
@@ -185,17 +185,19 @@ func (r *defaultRouter) searchShard(group uint64, key []byte) Shard {
 	if value, ok := r.keyRanges.Load(group); ok {
 		return value.(*util.ShardTree).Search(key)
 	}
-	logger.Debugf("missing group %d for key %+v", group, key)
+	r.logger.Debug("fail to search shard",
+		zap.Uint64("group", group),
+		log.HexField("key", key))
 	return Shard{}
 }
 
 func (r *defaultRouter) eventLoop() {
-	logger.Infof("router event loop task started")
+	r.logger.Info("router event loop task started")
 
 	for {
 		select {
 		case <-r.stopper.ShouldStop():
-			logger.Infof("router event loop task stopped")
+			r.logger.Info("router event loop task stopped")
 			return
 		case evt := <-r.eventC:
 			r.handleEvent(evt)
@@ -206,8 +208,8 @@ func (r *defaultRouter) eventLoop() {
 func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	switch evt.Type {
 	case event.EventInit:
-		logger2.Info("event",
-			zap.String("type", "init"),
+		r.logger.Info("reset",
+			zap.String("event", event.EventTypeName(evt.Type)),
 			zap.Int("shard-count", len(evt.InitEvent.Resources)),
 			zap.Int("store-count", len(evt.InitEvent.Containers)))
 		r.keyRanges.Range(func(key, value interface{}) bool {
@@ -238,17 +240,15 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, cr
 	res := &resourceAdapter{}
 	err := res.Unmarshal(data)
 	if err != nil {
-		logger.Fatalf("unmarshal shard failed with %+v", err)
+		r.logger.Fatal("fail to unmarshal shard",
+			zap.Error(err),
+			log.HexField("data", data))
 	}
 
-	logger2.Info("event",
-		zap.String("type", "shard"),
-		log.ShardField("metadata", res.meta),
-		zap.Uint64("leader-replica-id", leader),
-		zap.Bool("removed", removed),
-		zap.Bool("create", create))
-
 	if removed {
+		r.logger.Info("need to delete shard",
+			log.ShardField("shard", res.meta))
+
 		r.removedHandleFunc(res.meta.ID)
 		if value, ok := r.keyRanges.Load(res.meta.Group); ok {
 			value.(*util.ShardTree).Remove(res.meta)
@@ -260,12 +260,18 @@ func (r *defaultRouter) updateShard(data []byte, leader uint64, removed bool, cr
 	}
 
 	if create {
+		r.logger.Info("need to create shard",
+			log.ShardField("shard", res.meta))
 		r.createHandleFunc(res.meta)
 		return
 	}
 
 	r.shards.Store(res.meta.ID, res.meta)
 	r.updateShardKeyRange(res.meta)
+
+	r.logger.Info("shard metadata updated",
+		log.ShardField("shard", res.meta))
+
 	if leader > 0 {
 		r.updateLeader(res.meta.ID, leader)
 	}
@@ -279,7 +285,9 @@ func (r *defaultRouter) updateStore(data []byte) {
 	s := &containerAdapter{}
 	err := s.Unmarshal(data)
 	if err != nil {
-		logger.Fatalf("unmarshal store failed with %+v", err)
+		r.logger.Fatal("fail to unmarshal store",
+			zap.Error(err),
+			log.HexField("data", data))
 	}
 
 	r.stores.Store(s.meta.ID, s.meta)
@@ -290,20 +298,29 @@ func (r *defaultRouter) updateLeader(shardID, leader uint64) {
 
 	for _, p := range shard.Replicas {
 		if p.ID == leader {
+			s := r.mustGetStore(p.ContainerID)
 			r.missingStoreLeaderChanged.Delete(shardID)
-			r.leaders.Store(shard.ID, r.mustGetStore(p.ContainerID))
+			r.leaders.Store(shard.ID, s)
+			r.logger.Info("shard leader updated",
+				log.ShardIDField(shardID),
+				log.ReplicaField("leader-replica", p),
+				zap.String("address", s.ClientAddr))
 			return
 		}
 	}
 
 	// the shard updated will notify later
 	r.missingStoreLeaderChanged.Store(shardID, leader)
+	r.logger.Info("skip shard leader",
+		log.ShardIDField(shardID),
+		log.ReasonField("missing store"))
 }
 
 func (r *defaultRouter) mustGetStore(id uint64) meta.Store {
 	value, ok := r.stores.Load(id)
 	if !ok {
-		logger.Fatalf("BUG: store %d must exist", id)
+		r.logger.Fatal("store must exist",
+			log.StoreIDField(id))
 	}
 
 	return value.(meta.Store)
@@ -312,7 +329,8 @@ func (r *defaultRouter) mustGetStore(id uint64) meta.Store {
 func (r *defaultRouter) mustGetShard(id uint64) Shard {
 	value, ok := r.shards.Load(id)
 	if !ok {
-		logger.Fatalf("BUG: shard %d must exist", id)
+		r.logger.Fatal("shard must exist",
+			log.ShardIDField(id))
 	}
 
 	return value.(Shard)

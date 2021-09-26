@@ -14,16 +14,18 @@
 package raftstore
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type confChangeKind int
@@ -70,8 +72,8 @@ func (pr *replica) handleRequest(items []interface{}) {
 
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
-			if logger.DebugEnabled() && req.req != nil {
-				logger.Debugf("%s push to proposal batch", hex.EncodeToString(req.req.ID))
+			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil && req.req != nil {
+				ce.Write(log.HexField("id", req.req.ID))
 			}
 			// FIXME: still using the current epoch here. should use epoch value
 			// returned when routing the request.
@@ -202,8 +204,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 
 func (pr *replica) proposeConfChange(c batch) bool {
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
-		logger.Errorf("shard-%d there is a pending conf change, try later",
-			pr.shardID)
+		pr.logger.Error("there is a pending conf change, try later")
 		c.respOtherError(errors.New("there is a pending conf change, try later"))
 		return false
 	}
@@ -212,12 +213,10 @@ func (pr *replica) proposeConfChange(c batch) bool {
 	admin := c.req.AdminRequest
 	err := pr.proposeConfChangeInternal(c, admin, data)
 	if err != nil {
-		logger.Errorf("shard-%d proposal conf change failed with %+v",
-			pr.shardID,
-			err)
+		pr.logger.Error("fail to proposal conf change",
+			zap.Error(err))
 		return false
 	}
-
 	return true
 }
 
@@ -235,9 +234,8 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin *rpc.AdminRequest, d
 		return err
 	}
 
-	logger.Infof("shard-%d propose conf change peer %+v",
-		pr.shardID,
-		changes)
+	pr.logger.Info("propose conf change",
+		log.ConfigChangesField("changes", changes))
 
 	propose_index := pr.nextProposalIndex()
 	err = pr.rn.ProposeConfChange(cc)
@@ -287,18 +285,14 @@ func (pr *replica) proposeTransferLeader(c batch) bool {
 
 	// has pending conf, skip
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
-		logger.Infof("shard %d transfer leader ignored by pending conf, req=<%+v>",
-			pr.shardID,
-			req)
+		pr.logger.Info("transfer leader ignored by pending conf")
 		return false
 	}
 
 	if pr.isTransferLeaderAllowed(req.Replica) {
 		pr.doTransferLeader(req.Replica)
 	} else {
-		logger.Infof("shard %d transfer leader ignored directly, req=<%+v>",
-			pr.shardID,
-			req)
+		pr.logger.Info("transfer leader ignored directly")
 	}
 
 	// transfer leader command doesn't need to replicate log and apply, so we
@@ -308,9 +302,8 @@ func (pr *replica) proposeTransferLeader(c batch) bool {
 }
 
 func (pr *replica) doTransferLeader(peer Replica) {
-	logger.Infof("shard %d transfer leader to peer %d",
-		pr.shardID,
-		peer.ID)
+	pr.logger.Info("do transfer leader",
+		log.ReplicaField("to", peer))
 
 	// Broadcast heartbeat to make sure followers commit the entries immediately.
 	// It's only necessary to ping the target peer, but ping all for simplicity.

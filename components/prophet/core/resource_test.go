@@ -207,7 +207,7 @@ func TestSetResource(t *testing.T) {
 		End:      []byte(fmt.Sprintf("%20d", 211)),
 	}, &peer1)
 	res.learners = append(res.learners, peer2)
-	res.pendingPeers = append(res.pendingPeers, peer3)
+	res.pendingReplicas = append(res.pendingReplicas, peer3)
 
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
@@ -225,7 +225,7 @@ func TestSetResource(t *testing.T) {
 		End:      []byte(fmt.Sprintf("%20d", 211)),
 	}, &peer1)
 	res.learners = append(res.learners, peer2)
-	res.pendingPeers = append(res.pendingPeers, peer3)
+	res.pendingReplicas = append(res.pendingReplicas, peer3)
 
 	resources.SetResource(res)
 	checkResources(t, resources, "TestSetResource failed")
@@ -284,10 +284,10 @@ func TestShouldRemoveFromSubTree(t *testing.T) {
 	assert.True(t, resources.shouldRemoveFromSubTree(res, origin))
 
 	res.leader = &peer1
-	res.pendingPeers = append(res.pendingPeers, peer4)
+	res.pendingReplicas = append(res.pendingReplicas, peer4)
 	assert.True(t, resources.shouldRemoveFromSubTree(res, origin))
 
-	res.pendingPeers = nil
+	res.pendingReplicas = nil
 	res.learners = append(res.learners, peer2)
 	assert.True(t, resources.shouldRemoveFromSubTree(res, origin))
 
@@ -368,7 +368,7 @@ func checkResources(t *testing.T, resources *CachedResources, msg string) {
 	for key, value := range resources.learners {
 		assert.Equal(t, int(learnerMap[key]), value.length(), msg)
 	}
-	for key, value := range resources.pendingPeers {
+	for key, value := range resources.pendingReplicas {
 		assert.Equal(t, int(pendingPeerMap[key]), value.length(), msg)
 	}
 }

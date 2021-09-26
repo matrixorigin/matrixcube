@@ -18,9 +18,11 @@ import (
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.uber.org/zap"
 )
 
 // TODO: request type should has its own type
@@ -56,6 +58,7 @@ func (c reqCtx) getType() int {
 
 // TODO: rename this struct to proposalBatch
 type proposeBatch struct {
+	logger  *zap.Logger
 	maxSize uint64
 	shardID uint64
 	replica Replica
@@ -63,8 +66,13 @@ type proposeBatch struct {
 	cmds    []batch
 }
 
-func newBatch(maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
+func newBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
+	if logger == nil {
+		logger = config.GetDefaultZapLogger()
+	}
+
 	return &proposeBatch{
+		logger:  logger,
 		maxSize: maxSize,
 		shardID: shardID,
 		replica: replica,
@@ -140,6 +148,6 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 			raftCMD.Requests = append(raftCMD.Requests, req)
 		}
 
-		b.cmds = append(b.cmds, newCMD(raftCMD, cb, tp, n))
+		b.cmds = append(b.cmds, newCMD(b.logger, raftCMD, cb, tp, n))
 	}
 }

@@ -53,7 +53,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *rpc.Request, cmd
 	s := &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
-		logger:     logger.With(log.ListenAddressField(cfg.Addr)),
+		logger:     cfg.Store.GetConfig().Logger.With(log.ListenAddressField(cfg.Addr)),
 	}
 
 	if !cfg.ExternalServer {
@@ -77,7 +77,7 @@ func (s *Application) Start() error {
 	s.logger.Info("begin to start server")
 
 	s.cfg.Store.Start()
-	sp, err := raftstore.NewShardsProxyWithStore(s.cfg.Store, s.done, s.doneError)
+	sp, err := raftstore.NewShardsProxy(s.cfg.Store, s.done, s.doneError)
 	if err != nil {
 		return err
 	}

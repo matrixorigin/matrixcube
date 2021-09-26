@@ -28,6 +28,7 @@ func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
 }
 
 type batch struct {
+	logger                  *zap.Logger
 	req                     *rpc.RequestBatch
 	cb                      func(*rpc.ResponseBatch)
 	readIndexCommittedIndex uint64
@@ -56,8 +57,9 @@ func (c *batch) canAppend(epoch metapb.ResourceEpoch, req *rpc.Request) bool {
 			!c.req.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
-func newCMD(req *rpc.RequestBatch, cb func(*rpc.ResponseBatch), tp int, size int) batch {
+func newCMD(logger *zap.Logger, req *rpc.RequestBatch, cb func(*rpc.ResponseBatch), tp int, size int) batch {
 	c := batch{}
+	c.logger = logger
 	c.req = req
 	c.cb = cb
 	c.tp = tp
@@ -109,11 +111,11 @@ func (c *batch) resp(resp *rpc.ResponseBatch) {
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
 				if resp.Header == nil {
-					logger2.Fatal("requests and response not match",
+					c.logger.Fatal("requests and response not match",
 						zap.Int("request-count", len(c.req.Requests)),
 						zap.Int("response-count", len(resp.Responses)))
 				} else if len(resp.Responses) != 0 {
-					logger.Fatalf("BUG: responses len must be 0")
+					c.logger.Fatal("BUG: responses len must be 0")
 				}
 
 				for _, req := range c.req.Requests {

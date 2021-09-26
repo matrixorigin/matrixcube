@@ -55,7 +55,7 @@ func getTestLogReader(entries []pb.Entry, fs vfs.FS) (*LogReader, func()) {
 	if err := ldb.SaveRaftState(testShardID, testPeerID, rd); err != nil {
 		panic(err)
 	}
-	ls := NewLogReader(testShardID, testPeerID, ldb)
+	ls := NewLogReader(nil, testShardID, testPeerID, ldb)
 	ls.markerIndex = entries[0].Index
 	ls.markerTerm = entries[0].Term
 	ls.length = uint64(len(entries))

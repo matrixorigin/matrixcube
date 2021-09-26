@@ -17,9 +17,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.uber.org/zap"
 )
 
 func (pr *replica) handleApplyResult(items []interface{}) {
@@ -57,10 +59,9 @@ func (pr *replica) doPostApply(result asyncApplyResult) {
 	pr.appliedIndex = result.index
 	pr.rn.AdvanceApply(result.index)
 
-	logger.Debugf("shard %d async apply committied entries finished at %d, last %d",
-		pr.shardID,
-		result.index,
-		pr.rn.LastIndex())
+	pr.logger.Debug("async apply committied entries finished",
+		zap.Uint64("applied", pr.appliedIndex),
+		zap.Uint64("last", pr.rn.LastIndex()))
 
 	pr.metrics.admin.incBy(result.metrics.admin)
 
@@ -117,11 +118,9 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 
 	if pr.isLeader() {
 		// Notify pd immediately.
-		logger.Infof("shard %d notify pd with %+v with changes %+v at epoch %+v",
-			pr.shardID,
-			cp.confChange,
-			cp.changes,
-			pr.getShard().Epoch)
+		pr.logger.Info("notify conf changes to prophet",
+			log.ConfigChangesField("changes-v2", cp.changes),
+			log.EpochField("epoch", pr.getShard().Epoch))
 		pr.addAction(action{actionType: heartbeatAction})
 
 		// Remove or demote leader will cause this raft group unavailable
@@ -130,9 +129,8 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 		// TODO: should we transfer leader here?
 		demoteSelf := pr.replica.Role == metapb.ReplicaRole_Learner
 		if demoteSelf {
-			logger.Warningf("shard-%d removing or demoting leader, demote",
-				pr.shardID,
-				demoteSelf)
+			pr.logger.Warn("removing or demoting leader",
+				zap.Bool("demote-self", demoteSelf))
 
 			if demoteSelf {
 				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
@@ -149,18 +147,13 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 	}
 
 	shard := pr.getShard()
-	logger.Infof("shard %d peer %d applied changes %+v at epoch %+v, new peers %+v",
-		pr.shardID,
-		pr.replica.ID,
-		cp.changes,
-		shard.Epoch,
-		shard.Replicas)
+	pr.logger.Info("applied changes completed",
+		log.ShardField("epoch", shard))
 }
 
 func (pr *replica) doApplySplit(result *splitResult) {
-	logger.Infof("shard %d update to %+v by post applt split",
-		pr.shardID,
-		result.derived)
+	pr.logger.Info("shard metadata updated",
+		log.ShardField("new", result.derived))
 
 	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
 	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)
@@ -192,9 +185,8 @@ func (pr *replica) doApplySplit(result *splitResult) {
 			// before splitting, it will creates a uninitialized peer.
 			// We can remove this uninitialized peer directly.
 			if len(newPR.getShard().Replicas) > 0 {
-				logger.Fatalf("shard %d duplicated shard split to new shard %d",
-					pr.shardID,
-					newShardID)
+				pr.logger.Fatal("duplicated shard split to new shard",
+					log.ShardIDField(newShardID))
 			}
 		}
 
@@ -202,9 +194,8 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		if err != nil {
 			// peer information is already written into db, can't recover.
 			// there is probably a bug.
-			logger.Fatalf("shard %d create new split shard failed with %+v",
-				pr.shardID,
-				err)
+			pr.logger.Fatal("fail to create new split shard",
+				zap.Error(err))
 		}
 
 		pr.store.updateShardKeyRange(shard)
@@ -213,7 +204,8 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		newPR.approximateSize = estimatedSize
 		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
 		if !pr.store.addReplica(newPR) {
-			logger.Fatalf("shard %d peer %d, created by split, must add sucessful", newPR.shardID, newPR.replica.ID)
+			pr.logger.Fatal("fail to created new shard by split",
+				log.ShardField("new-shard", shard))
 		}
 
 		newPR.start()
@@ -236,13 +228,12 @@ func (pr *replica) doApplySplit(result *splitResult) {
 				newPR.step(vote)
 			}
 		}
+
+		pr.logger.Info("new shard added",
+			log.ShardField("new-shard", shard))
 	}
 
 	if pr.store.aware != nil {
 		pr.store.aware.Splited(pr.getShard())
 	}
-
-	logger.Infof("shard %d new shard added, new shards %+v",
-		pr.shardID,
-		result.shards)
 }

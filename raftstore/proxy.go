@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -48,23 +49,13 @@ type ShardsProxy interface {
 	Router() Router
 }
 
-// NewShardsProxy returns a shard proxy
-func NewShardsProxy(router Router,
-	doneCB doneFunc,
-	errorDoneCB errorDoneFunc) ShardsProxy {
-	return &shardsProxy{
-		router:      router,
-		doneCB:      doneCB,
-		errorDoneCB: errorDoneCB,
-	}
-}
-
-// NewShardsProxyWithStore returns a shard proxy with a raftstore
-func NewShardsProxyWithStore(store Store,
+// NewShardsProxy returns a shard proxy with a raftstore
+func NewShardsProxy(store Store,
 	doneCB doneFunc,
 	errorDoneCB errorDoneFunc,
 ) (ShardsProxy, error) {
 	sp := &shardsProxy{
+		logger:      store.GetConfig().Logger.Named("client-proxy").With(log.StoreIDField(store.Meta().ID)),
 		store:       store,
 		local:       store.Meta(),
 		router:      store.GetRouter(),
@@ -77,6 +68,7 @@ func NewShardsProxyWithStore(store Store,
 }
 
 type shardsProxy struct {
+	logger      *zap.Logger
 	local       meta.Store
 	store       Store
 	router      Router
@@ -91,10 +83,11 @@ func (p *shardsProxy) Dispatch(req *rpc.Request) error {
 }
 
 func (p *shardsProxy) DispatchTo(req *rpc.Request, shard uint64, to string) error {
-	logger2.Debug("dispatch request",
-		log.HexField("id", req.ID),
-		zap.Uint64("to-shard", shard),
-		zap.String("to-store", to))
+	if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request"); ce != nil {
+		ce.Write(log.HexField("id", req.ID),
+			zap.Uint64("to-shard", shard),
+			zap.String("to-store", to))
+	}
 
 	// No leader, retry after a leader tick
 	if to == "" {
@@ -159,9 +152,10 @@ func (p *shardsProxy) errorDone(req *rpc.Request, err error) {
 
 func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later time.Duration) {
 	if req != nil {
-		logger2.Debug("dispatch request failed, retry later",
-			log.HexField("id", req.ID),
-			zap.String("why", err))
+		if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request failed, retry later"); ce != nil {
+			ce.Write(log.HexField("id", req.ID),
+				log.ReasonField(err))
+		}
 
 		if time.Now().Unix() >= req.StopAt {
 			p.errorDoneCB(req, errors.New(err))
@@ -237,9 +231,9 @@ func (p *shardsProxy) checkConnect(bc *backend) bool {
 
 	ok, err := bc.conn.Connect(bc.addr, defaultConnectTimeout)
 	if err != nil {
-		logger.Errorf("connect to backend %s failed with %+v",
-			bc.addr,
-			err)
+		p.logger.Error("fail to connect to backend",
+			zap.String("backend", bc.addr),
+			zap.Error(err))
 		return false
 	}
 

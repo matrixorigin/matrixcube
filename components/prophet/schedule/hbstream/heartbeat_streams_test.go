@@ -37,9 +37,9 @@ func TestActivity(t *testing.T) {
 	cluster.AddLeaderResource(1, 1)
 	resource := cluster.GetResource(1)
 	msg := &rpcpb.ResourceHeartbeatRsp{
-		ChangePeer: &rpcpb.ChangePeer{
-			Peer:       metapb.Replica{ID: 2, ContainerID: 2},
-			ChangeType: metapb.ChangePeerType_AddLearnerNode,
+		ConfigChange: &rpcpb.ConfigChange{
+			Replica:    metapb.Replica{ID: 2, ContainerID: 2},
+			ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 		},
 	}
 

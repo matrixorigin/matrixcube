@@ -19,6 +19,8 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -29,6 +31,7 @@ import (
 )
 
 type stateMachine struct {
+	logger      *zap.Logger
 	shardID     uint64
 	replicaID   uint64
 	executorCtx *applyContext
@@ -114,19 +117,14 @@ func (d *stateMachine) applyEntry(ctx *applyContext) {
 func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 	index, term := d.getAppliedIndexTerm()
 	if index+1 != entry.Index {
-		logger.Fatalf("shard %d replica %d index not match, expect=<%d> get=<%d> entry=<%+v>",
-			d.shardID,
-			d.replicaID,
-			index,
-			entry.Index,
-			entry)
+		d.logger.Fatal("entry applied index not match, expect=<%d> get=<%d> entry=<%+v>",
+			zap.Uint64("applied", index),
+			zap.Uint64("entry", entry.Index))
 	}
 	if term > entry.Term {
-		logger.Fatalf("shard %d replica %d term moving backwards, d.term %d, entry.term %d",
-			d.shardID,
-			d.replicaID,
-			term,
-			entry.Term)
+		d.logger.Fatal("term moving backwards",
+			zap.Uint64("applied", term),
+			zap.Uint64("entry", entry.Term))
 	}
 }
 
@@ -159,8 +157,7 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	}
 
 	if d.isPendingRemove() {
-		logger.Fatalf("shard %d apply raft comand can not pending remove",
-			d.shardID)
+		d.logger.Fatal("apply raft comand can not pending remove")
 	}
 
 	var err error
@@ -178,10 +175,9 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 		}
 	}
 
-	if logger.DebugEnabled() {
-		for _, req := range ctx.req.Requests {
-			logger2.Debug("write request completed",
-				log.HexField("id", req.ID))
+	for _, req := range ctx.req.Requests {
+		if ce := d.logger.Check(zapcore.DebugLevel, "write request completed"); ce != nil {
+			ce.Write(log.HexField("id", req.ID))
 		}
 	}
 

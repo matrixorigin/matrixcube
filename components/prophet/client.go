@@ -736,7 +736,7 @@ func (c *asyncClient) maybeRegisterContainer() {
 		req := &rpcpb.Request{}
 		req.Type = rpcpb.TypeRegisterContainer
 		req.ContainerID = c.containerID
-		c.asyncDo(req, nil)
+		c.doWrite(newAsyncCtx(req, nil))
 	}
 }
 

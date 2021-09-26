@@ -32,7 +32,20 @@ var (
 	EventContainerStats uint32 = 1 << 5
 	// EventFlagAll all event
 	EventFlagAll = 0xffffffff
+
+	names = map[uint32]string{
+		EventInit:           "init",
+		EventResource:       "resource",
+		EventResourceStats:  "resource-stats",
+		EventContainer:      "container",
+		EventContainerStats: "container-stats",
+	}
 )
+
+// EventTypeName returns event type name
+func EventTypeName(value uint32) string {
+	return names[value]
+}
 
 // Snapshot cache snapshot
 type Snapshot struct {

@@ -286,7 +286,13 @@ func (ts *testShardAware) shardCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
 
-	return len(ts.shards)
+	c := 0
+	for _, s := range ts.shards {
+		if len(s.Replicas) > 0 {
+			c++
+		}
+	}
+	return c
 }
 
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
@@ -395,6 +401,11 @@ func (ts *testShardAware) SnapshotApplied(shard Shard) {
 	defer ts.Unlock()
 
 	ts.applied[shard.ID]++
+	for idx, s := range ts.shards {
+		if s.ID == shard.ID {
+			ts.shards[idx] = shard
+		}
+	}
 
 	if ts.wrapper != nil {
 		ts.wrapper.SnapshotApplied(shard)
@@ -473,7 +484,7 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 		doneCtx: make(map[string]chan string),
 		runner:  task.NewRunner(),
 	}
-	proxy, err := NewShardsProxyWithStore(store, kv.done, kv.errorDone)
+	proxy, err := NewShardsProxy(store, kv.done, kv.errorDone)
 	if err != nil {
 		assert.FailNowf(t, "", "createtest kv client failed with %+v", err)
 	}
@@ -618,7 +629,7 @@ type testRaftCluster struct {
 	// init fields
 	t               *testing.T
 	initOpts        []TestClusterOption
-	dataDirs        []string
+	baseDataDir     string
 	portsRaftAddr   []int
 	portsClientAddr []int
 	portsRPCAddr    []int
@@ -642,8 +653,8 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
-	logger2.WithOptions(zap.WithCaller(false))
-	logger2.Core().Enabled(zap.DebugLevel)
+	// logger2.WithOptions(zap.WithCaller(false))
+	// logger2.Core().Enabled(zap.DebugLevel)
 
 	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
@@ -663,19 +674,16 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	}
 	c.opts.adjust()
 
-	log.SetHighlighting(false)
-	log.SetLevelByString(c.opts.logLevel)
-	putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
-
 	if init {
+		log.SetHighlighting(false)
+		log.SetLevelByString(c.opts.logLevel)
+		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+		c.baseDataDir = fmt.Sprintf("%s/%s", c.opts.tmpDir, c.t.Name())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdClient = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdPeer = testutil.GenTestPorts(c.opts.nodes)
-		for i := 0; i < c.opts.nodes; i++ {
-			c.dataDirs = append(c.dataDirs, fmt.Sprintf("%s/%d/node-%d", c.opts.tmpDir, time.Now().Nanosecond(), i))
-		}
 	}
 
 	if c.opts.disableSchedule {
@@ -684,8 +692,9 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
+		cfg.Logger = config.GetDefaultZapLogger().With(zap.String("case", fmt.Sprintf("%s/node-%d", c.t.Name(), i)))
 		cfg.FS = vfs.GetTestFS()
-		cfg.DataPath = c.dataDirs[i]
+		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
 			recreateTestTempDir(cfg.FS, cfg.DataPath)
 		}
@@ -741,14 +750,9 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		electionDuration := cfg.Raft.GetElectionTimeoutDuration()
 		testFsyncDuration := getRTTMillisecond(cfg.FS, cfg.DataPath)
 		if !(electionDuration >= 10*testFsyncDuration) {
-			old := cfg.Raft.TickInterval.Duration
 			cfg.Raft.TickInterval.Duration = 10 * testFsyncDuration
 			cfg.Prophet.EmbedEtcd.TickInterval.Duration = 10 * testFsyncDuration
 			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
-			logger.Warningf("########## adjust Raft.TickInterval from %s to %s, because current fsync on current fs is %s",
-				old,
-				cfg.Raft.TickInterval.Duration,
-				testFsyncDuration)
 		}
 
 		if cfg.Storage.MetaStorage == nil {
