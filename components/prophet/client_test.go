@@ -35,26 +35,35 @@ func TestClientLeaderChange(t *testing.T) {
 		}
 	}()
 
-	id, err := cluster[2].GetClient().AllocID()
+	id, err := cluster[0].GetClient().AllocID()
 	assert.NoError(t, err)
 	assert.True(t, id > 0)
 
 	// stop current leader
-	cluster[0].Stop()
+	useIdx := 0
+	l := cluster[0].GetLeader()
+	assert.NotNil(t, l)
+	for i, c := range cluster {
+		if l.Name == c.GetConfig().Name {
+			c.Stop()
+		} else {
+			useIdx = i
+		}
+	}
 
 	for _, c := range cluster {
 		c.GetConfig().DisableResponse = true
 	}
 
 	// rpc timeout error
-	_, err = cluster[2].GetClient().AllocID()
+	_, err = cluster[useIdx].GetClient().AllocID()
 	assert.Error(t, err)
 
 	for _, c := range cluster {
 		c.GetConfig().DisableResponse = false
 	}
 
-	id, err = cluster[2].GetClient().AllocID()
+	id, err = cluster[useIdx].GetClient().AllocID()
 	assert.NoError(t, err)
 	assert.True(t, id > 0)
 }

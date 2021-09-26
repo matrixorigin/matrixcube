@@ -21,10 +21,8 @@ import (
 )
 
 func (pr *replica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
-	logger.Debugf("shard %d peer %d async apply raft log with %d entries",
-		pr.shardID,
-		pr.replica.ID,
-		len(commitedEntries))
+	pr.logger.Debug("begin to apply raft log",
+		zap.Int("count", len(commitedEntries)))
 
 	pr.sm.applyCommittedEntries(commitedEntries)
 	if pr.sm.isPendingRemove() {
@@ -48,30 +46,26 @@ func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 	index, _ := pr.sm.getAppliedIndexTerm()
 	err := pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
 	if err != nil {
-		logger2.Fatal("fail to do apply destory",
-			pr.field,
+		pr.logger.Fatal("fail to do apply destory",
 			zap.Error(err))
 	}
 
 	if len(shard.Replicas) > 0 {
 		err := pr.store.startClearDataJob(shard)
 		if err != nil {
-			logger2.Fatal("fail to do destroy",
-				pr.field,
+			pr.logger.Fatal("fail to do destroy",
 				zap.Error(err))
 		}
 	}
 
 	pr.cancel()
 	if len(shard.Replicas) > 0 && !pr.store.removeShardKeyRange(shard) {
-		logger2.Warn("fail to remove key range",
-			pr.field,
+		pr.logger.Warn("fail to remove key range",
 			zap.Error(err))
 	}
 	pr.store.removeReplica(pr)
 	pr.sm.destroy()
-	logger2.Info("destroy self complete.",
-		pr.field,
+	pr.logger.Info("destroy self complete.",
 		zap.Error(err))
 	return nil
 }

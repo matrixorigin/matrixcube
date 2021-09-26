@@ -14,6 +14,7 @@
 package prophet
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -43,13 +44,16 @@ func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 }
 
 type watcherNotifier struct {
-	watchers sync.Map
+	sync.Mutex
+
+	watchers map[uint64]*watcherSession
 	cluster  *cluster.RaftCluster
 }
 
 func newWatcherNotifier(cluster *cluster.RaftCluster) *watcherNotifier {
 	return &watcherNotifier{
-		cluster: cluster,
+		cluster:  cluster,
+		watchers: make(map[uint64]*watcherSession),
 	}
 }
 
@@ -84,19 +88,44 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 			resp.Event.InitEvent = rsp
 		}
 
-		wn.watchers.Store(session.ID(), &watcherSession{
-			flag:    req.CreateWatcher.Flag,
-			session: session,
-		})
+		return wn.addWatcher(req.CreateWatcher.Flag, session)
 	}
 
 	return nil
 }
 
-func (wn *watcherNotifier) clearWatcher(w *watcherSession) {
-	wn.watchers.Delete(w.session.ID())
+func (wn *watcherNotifier) addWatcher(flag uint32, session goetty.IOSession) error {
+	wn.Lock()
+	defer wn.Unlock()
+
+	if wn.watchers == nil {
+		return fmt.Errorf("watcher notifier stopped")
+	}
+
+	wn.watchers[session.ID()] = &watcherSession{
+		flag:    flag,
+		session: session,
+	}
+	return nil
+}
+
+func (wn *watcherNotifier) doClearWatcherLocked(w *watcherSession) {
+	delete(wn.watchers, w.session.ID())
+	w.session.Close()
 	util.GetLogger().Infof("watcher %s removed",
 		w.session.RemoteAddr())
+}
+
+func (wn *watcherNotifier) doNotify(evt rpcpb.EventNotify) {
+	wn.Lock()
+	defer wn.Unlock()
+
+	for _, wt := range wn.watchers {
+		err := wt.notify(evt)
+		if err != nil {
+			wn.doClearWatcherLocked(wt)
+		}
+	}
 }
 
 func (wn *watcherNotifier) start() {
@@ -108,7 +137,6 @@ func (wn *watcherNotifier) start() {
 			}
 		}()
 
-		var closed []*watcherSession
 		for {
 			evt, ok := <-wn.cluster.ChangedEventNotifier()
 			if !ok {
@@ -116,32 +144,18 @@ func (wn *watcherNotifier) start() {
 				return
 			}
 
-			if len(closed) > 0 {
-				closed = closed[:0]
-			}
-
-			wn.watchers.Range(func(key, value interface{}) bool {
-				wt := value.(*watcherSession)
-				err := wt.notify(evt)
-				if err != nil {
-					closed = append(closed, wt)
-				}
-				return true
-			})
-
-			for _, w := range closed {
-				wn.clearWatcher(w)
-			}
+			wn.doNotify(evt)
 		}
 	}()
 }
 
 func (wn *watcherNotifier) stop() {
-	wn.watchers.Range(func(key, value interface{}) bool {
-		wn.watchers.Delete(key)
-		value.(*watcherSession).session.Close()
-		return true
-	})
+	wn.Lock()
+	defer wn.Unlock()
 
+	for _, wt := range wn.watchers {
+		wn.doClearWatcherLocked(wt)
+	}
+	wn.watchers = nil
 	util.GetLogger().Infof("watcher notifier stopped")
 }

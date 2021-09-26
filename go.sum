@@ -118,13 +118,13 @@ github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad/go.m
 github.com/envoyproxy/go-control-plane v0.9.9-0.20210217033140-668b12f5399d/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
-github.com/fagongzi/goetty v1.11.0 h1:Ld65qimH2AnMX0O7KEIssiLGbFNNCRK5+m3pBFOMmCM=
-github.com/fagongzi/goetty v1.11.0/go.mod h1:42WH1Shi0NYzyop19JaY5oabuk1OzB9AWNDqbF/NdP4=
+github.com/fagongzi/goetty v1.11.1 h1:Y2jnmkpTXdBmpQ7dchfUgPLcZOdQHvfVhOjNapuYNFA=
+github.com/fagongzi/goetty v1.11.1/go.mod h1:42WH1Shi0NYzyop19JaY5oabuk1OzB9AWNDqbF/NdP4=
 github.com/fagongzi/log v0.0.0-20191122063922-293b75312445 h1:XhTJpo5oMYnjgQPq28pufQ/XDGoQXi1x8qa87A4Fsb8=
 github.com/fagongzi/log v0.0.0-20191122063922-293b75312445/go.mod h1:1aUifpZCjAdZK7L3vRRl2cpSktbKasAU5vOSyLSCODs=
 github.com/fagongzi/util v0.0.0-20201116094402-221cc40c4593/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=
-github.com/fagongzi/util v0.0.0-20210807025710-4199836bec94 h1:KV+/4cS37ksj1pYPnEYw7CfnjMd+HYl3i3L2bh5Ar1o=
-github.com/fagongzi/util v0.0.0-20210807025710-4199836bec94/go.mod h1:5cqSns2zMRcJeVGvAqeTrbXFqh5AqBFr5uVKP9T2kiE=
+github.com/fagongzi/util v0.0.0-20210923134909-bccc37b5040d h1:1pILVCatHj3eVo9i52dZyY4BwjTmSIeN+/hoJh8rD0Y=
+github.com/fagongzi/util v0.0.0-20210923134909-bccc37b5040d/go.mod h1:5cqSns2zMRcJeVGvAqeTrbXFqh5AqBFr5uVKP9T2kiE=
 github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072/go.mod h1:duJ4Jxv5lDcvg4QuQr0oowTf7dz4/CR8NtyCooz9HL8=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=

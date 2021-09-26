@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -26,6 +27,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
 )
 
 const (
@@ -70,8 +72,7 @@ func (pr *replica) addAction(act action) {
 func (pr *replica) addReport(report interface{}) {
 	err := pr.reports.Put(report)
 	if err != nil {
-		logger.Infof("shard %d raft report stopped",
-			pr.shardID)
+		pr.logger.Info("raft report stopped")
 		return
 	}
 
@@ -87,8 +88,7 @@ func (pr *replica) addEvent() (bool, error) {
 func (pr *replica) addApplyResult(result asyncApplyResult) {
 	err := pr.applyResults.Put(result)
 	if err != nil {
-		logger.Infof("shard %d raft apply result stopped",
-			pr.shardID)
+		pr.logger.Info("raft apply result stopped")
 		return
 	}
 
@@ -98,8 +98,7 @@ func (pr *replica) addApplyResult(result asyncApplyResult) {
 func (pr *replica) step(msg raftpb.Message) {
 	err := pr.steps.Put(msg)
 	if err != nil {
-		logger.Infof("shard %d raft step stopped",
-			pr.shardID)
+		pr.logger.Info("raft step stopped")
 		return
 	}
 
@@ -114,8 +113,7 @@ func (pr *replica) onRaftTick(arg interface{}) {
 	if !pr.stopRaftTick {
 		err := pr.ticks.Put(struct{}{})
 		if err != nil {
-			logger.Infof("shard %d raft tick stopped",
-				pr.shardID)
+			pr.logger.Info("raft tick stopped")
 			return
 		}
 
@@ -167,8 +165,7 @@ func (pr *replica) onStop() {
 			pb.ReleaseRequest(req.req)
 		}
 
-		logger.Infof("shard %d handle serve raft stopped",
-			pr.shardID)
+		pr.logger.Info("handle serve raft stopped")
 	})
 }
 
@@ -232,9 +229,8 @@ func (pr *replica) handleAction(items []interface{}) {
 		case doCampaignAction:
 			_, err := pr.maybeCampaign()
 			if err != nil {
-				logger.Fatalf("shard %d new split campaign failed with %+v",
-					pr.shardID,
-					err)
+				pr.logger.Fatal("tail to campaign raft",
+					zap.Error(err))
 			}
 		case heartbeatAction:
 			pr.doHeartbeat()
@@ -265,15 +261,8 @@ func (pr *replica) handleStep(items []interface{}) {
 
 		err := pr.rn.Step(msg)
 		if err != nil {
-			logger.Errorf("shard %d step failed with %+v",
-				pr.shardID,
-				err)
-		}
-
-		if logger.DebugEnabled() {
-			if len(msg.Entries) > 0 {
-				logger.Debugf("shard %d step raft", pr.shardID)
-			}
+			pr.logger.Error("fail to step raft",
+				zap.Error(err))
 		}
 	}
 
@@ -349,17 +338,16 @@ func (pr *replica) doCheckSplit() {
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
 		if p.State == tracker.StateSnapshot {
-			logger.Infof("shard %d peer %d is applying snapshot",
-				pr.shardID,
-				id)
+			pr.logger.Info("check split skipped",
+				log.ReplicaIDField(id),
+				log.ReasonField("applying snapshot"))
 			return
 		}
 	}
 
 	if err := pr.startSplitCheckJob(); err != nil {
-		logger.Fatalf("shard %d add split check job failed with %+v",
-			pr.shardID,
-			err)
+		pr.logger.Fatal("fail to add split check job",
+			zap.Error(err))
 	}
 	pr.sizeDiffHint = 0
 }
@@ -371,10 +359,9 @@ func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch m
 
 	current := pr.getShard()
 	if current.Epoch.Version != epoch.Version {
-		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
-			pr.shardID,
-			current.Epoch,
-			epoch)
+		pr.logger.Info("epoch changed, need re-check later",
+			log.EpochField("current-epoch", current.Epoch),
+			log.EpochField("check-epoch", epoch))
 		return
 	}
 
@@ -420,8 +407,7 @@ func (pr *replica) doHeartbeat() {
 
 	err := pr.store.pd.GetClient().ResourceHeartbeat(NewResourceAdapterWithShard(pr.getShard()), req)
 	if err != nil {
-		logger.Errorf("shard %d heartbeat to prophet failed with %+v",
-			pr.shardID,
-			err)
+		pr.logger.Error("fail to send heartbeat to prophet",
+			zap.Error(err))
 	}
 }

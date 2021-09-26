@@ -20,6 +20,7 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -27,9 +28,29 @@ import (
 	"go.uber.org/zap"
 )
 
+// WorkerField returns zap.StringField
+func WorkerField(id uint64) zap.Field {
+	return zap.Uint64("worker-index", id)
+}
+
 // ReasonField returns zap.StringField
 func ReasonField(why string) zap.Field {
 	return zap.String("reason", why)
+}
+
+// ShardIDField returns zap.Uint64Field
+func ShardIDField(id uint64) zap.Field {
+	return zap.Uint64("shard-id", id)
+}
+
+// StoreIDField returns zap.Uint64Field
+func StoreIDField(id uint64) zap.Field {
+	return zap.Uint64("store-id", id)
+}
+
+// ReplicaIDField returns zap.Uint64Field
+func ReplicaIDField(id uint64) zap.Field {
+	return zap.Uint64("replica-id", id)
 }
 
 // RequestIDField returns zap.StringField, use hex.EncodeToString as string value
@@ -104,10 +125,31 @@ func ReplicaField(key string, Replica metapb.Replica) zap.Field {
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
+// ConfigChangeFieldWithHeartbeatResp return formated change Replica zap string field
+func ConfigChangeFieldWithHeartbeatResp(key string, req rpcpb.ResourceHeartbeatRsp) zap.Field {
+	var info bytes.Buffer
+	doAppendConfigChange(req.ConfigChange.ChangeType, req.ConfigChange.Replica, &info)
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// ConfigChangesFieldWithHeartbeatResp return formated change Replica zap string field
+func ConfigChangesFieldWithHeartbeatResp(key string, req rpcpb.ResourceHeartbeatRsp) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("[")
+	for idx, change := range req.ConfigChangeV2.Changes {
+		doAppendConfigChange(change.ChangeType, change.Replica, &info)
+		if idx < len(req.ConfigChangeV2.Changes)-1 {
+			info.WriteString(", ")
+		}
+	}
+	info.WriteString("]")
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
 // ConfigChangeField return formated change Replica zap string field
 func ConfigChangeField(key string, req *rpc.ConfigChangeRequest) zap.Field {
 	var info bytes.Buffer
-	doAppendConfigChange(req, &info)
+	doAppendConfigChange(req.ChangeType, req.Replica, &info)
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
@@ -116,7 +158,7 @@ func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field
 	var info bytes.Buffer
 	info.WriteString("[")
 	for idx := range changes {
-		doAppendConfigChange(&changes[idx], &info)
+		doAppendConfigChange(changes[idx].ChangeType, changes[idx].Replica, &info)
 		if idx < len(changes)-1 {
 			info.WriteString(", ")
 		}
@@ -125,10 +167,10 @@ func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
-func doAppendConfigChange(req *rpc.ConfigChangeRequest, info *bytes.Buffer) {
+func doAppendConfigChange(confType metapb.ConfigChangeType, replica metapb.Replica, info *bytes.Buffer) {
 	info.WriteString("type: ")
-	info.WriteString(req.ChangeType.String())
-	appendReplica("replica", req.Replica, info, false)
+	info.WriteString(confType.String())
+	appendReplica("replica", replica, info, false)
 }
 
 func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
@@ -292,9 +334,8 @@ func appendReplicas(key string, Replicas []metapb.Replica, info *bytes.Buffer, f
 }
 
 func doAppendReplica(Replica metapb.Replica, info *bytes.Buffer) {
-	info.WriteString("p")
 	info.WriteString(format.Uint64ToString(Replica.ID))
-	info.WriteString("/s")
+	info.WriteString("/")
 	info.WriteString(format.Uint64ToString(Replica.ContainerID))
 	info.WriteString("/")
 	info.WriteString(Replica.Role.String())

@@ -18,6 +18,9 @@ import (
 	"sync"
 
 	"github.com/lni/goutils/syncutil"
+	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/config"
+	"go.uber.org/zap"
 )
 
 type replicaLoader interface {
@@ -106,6 +109,7 @@ func (w *replicaWorker) handleEvent(h replicaEventHandler) error {
 // raft replicas. Due to restrictions imposed by the raft implementation, the
 // same raft replica can not be concurrently processed by different workers.
 type workerPool struct {
+	logger  *zap.Logger
 	loader  replicaLoader
 	workers []*replicaWorker
 	// workerID -> replica
@@ -121,8 +125,12 @@ type workerPool struct {
 	poolStopper   *syncutil.Stopper
 }
 
-func newWorkerPool(loader replicaLoader, workerCount uint64) *workerPool {
+func newWorkerPool(logger *zap.Logger, loader replicaLoader, workerCount uint64) *workerPool {
+	if logger == nil {
+		logger = config.GetDefaultZapLogger()
+	}
 	p := &workerPool{
+		logger:        logger.Named("worker-pool"),
 		loader:        loader,
 		busy:          make(map[uint64]replicaEventHandler),
 		pending:       make(map[uint64]replicaEventHandler),
@@ -224,13 +232,14 @@ func (p *workerPool) removePending(shardID uint64) {
 func (p *workerPool) completed(workerID uint64) {
 	h, ok := p.busy[workerID]
 	if !ok {
-		logger.Fatalf("worker %d is not busy", workerID)
+		p.logger.Fatal("worker is not busy", log.WorkerField(workerID))
 	}
 	shardID := h.getShardID()
 	if _, ok := p.processing[shardID]; ok {
 		delete(p.processing, shardID)
 	} else {
-		logger.Fatalf("shard %d not marked as processing", shardID)
+		p.logger.Fatal("shard not marked as processing",
+			log.ShardIDField(shardID))
 	}
 	p.setIdle(workerID)
 }
@@ -239,13 +248,15 @@ func (p *workerPool) setIdle(workerID uint64) {
 	if _, ok := p.busy[workerID]; ok {
 		delete(p.busy, workerID)
 	} else {
-		logger.Fatalf("worker %d not marked as busy", workerID)
+		p.logger.Fatal("worker not marked as busy",
+			log.WorkerField(workerID))
 	}
 }
 
 func (p *workerPool) setBusy(h replicaEventHandler, workerID uint64) {
 	if _, ok := p.busy[workerID]; ok {
-		logger.Fatalf("trying to use a busy worker %d", workerID)
+		p.logger.Fatal("trying to use a busy worker",
+			log.WorkerField(workerID))
 	}
 	p.busy[workerID] = h
 }
@@ -253,7 +264,8 @@ func (p *workerPool) setBusy(h replicaEventHandler, workerID uint64) {
 func (p *workerPool) startProcessing(h replicaEventHandler) {
 	shardID := h.getShardID()
 	if _, ok := p.processing[shardID]; ok {
-		logger.Fatalf("trying to process shard %d in parallel", h.getShardID())
+		p.logger.Fatal("trying to process shard in parallel",
+			log.ShardIDField(h.getShardID()))
 	}
 	p.processing[shardID] = struct{}{}
 }

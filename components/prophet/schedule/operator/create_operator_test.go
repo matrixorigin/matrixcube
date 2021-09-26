@@ -575,7 +575,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 	type testCase struct {
 		name            string
 		originPeers     []metapb.Replica // first is leader
-		targetPeerRoles map[uint64]placement.PeerRoleType
+		targetPeerRoles map[uint64]placement.ReplicaRoleType
 		steps           []OpStep
 		expectedError   error
 	}
@@ -587,7 +587,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Leader,
 				3: placement.Learner,
 				4: placement.Voter,
@@ -620,7 +620,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
 				3: placement.Voter,
 				4: placement.Leader,
@@ -647,7 +647,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
 				3: placement.Voter,
 				4: placement.Voter,
@@ -674,7 +674,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Learner,
 				3: placement.Voter,
 				4: placement.Learner,
@@ -707,7 +707,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				4: placement.Leader,
 				5: placement.Voter,
 				6: placement.Voter,
@@ -754,7 +754,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
 				3: placement.Voter,
 				4: placement.Follower,
@@ -789,7 +789,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
 				2: placement.Voter,
 				4: placement.Follower,
@@ -830,7 +830,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
 				2: placement.Follower,
 				4: placement.Follower,
@@ -845,7 +845,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
 				4: placement.Voter,
 				5: placement.Follower,
@@ -861,7 +861,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
 				4: placement.Voter,
 				5: placement.Follower,
@@ -932,7 +932,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 	type testCase struct {
 		name            string
 		originPeers     []metapb.Replica // first is leader
-		targetPeerRoles map[uint64]placement.PeerRoleType
+		targetPeerRoles map[uint64]placement.ReplicaRoleType
 		steps           []OpStep
 		expectedError   error
 	}
@@ -944,7 +944,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Leader,
 				3: placement.Learner,
 				4: placement.Voter,
@@ -965,7 +965,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
 				3: placement.Voter,
 				4: placement.Leader,
@@ -985,7 +985,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Learner,
 				3: placement.Voter,
 				4: placement.Learner,
@@ -1005,7 +1005,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
 				2: placement.Follower,
 				4: placement.Follower,
@@ -1020,7 +1020,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
 				4: placement.Voter,
 				5: placement.Follower,
@@ -1036,7 +1036,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
 				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
 			},
-			targetPeerRoles: map[uint64]placement.PeerRoleType{
+			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
 				4: placement.Voter,
 				5: placement.Follower,

@@ -23,17 +23,20 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
 type defaultSnapshotManager struct {
 	sync.RWMutex
 
+	logger           *zap.Logger
 	wg               sync.WaitGroup
 	stopC            chan struct{}
 	limiter          *rate.Limiter
@@ -44,18 +47,20 @@ type defaultSnapshotManager struct {
 }
 
 func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
+	l := s.logger.Named("snapshot-manager").With(s.storeField())
 	fs := s.cfg.FS
 	dir := s.cfg.SnapshotDir()
 	if !exist(fs, dir) {
 		if err := fs.MkdirAll(dir, 0750); err != nil {
-			logger.Fatalf("cannot create snapshot dir %s failed with %+v",
-				dir,
-				err)
+			l.Fatal("fail to create snapshot dir",
+				zap.String("dir", dir),
+				zap.Error(err))
 		}
 	}
 
 	m := &defaultSnapshotManager{
-		stopC: make(chan struct{}),
+		logger: l,
+		stopC:  make(chan struct{}),
 		limiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
 			int(s.cfg.Snapshot.MaxConcurrencySnapChunks)),
 		dir:      dir,
@@ -71,7 +76,7 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 		defer ticker.Stop()
 
 		for {
-			logger.Infof("start scan gc snap files")
+			l.Info("start scan gc snap files")
 
 			var paths []string
 			files, err := fs.List(dir)
@@ -97,9 +102,9 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 			for _, path := range paths {
 				err := fs.RemoveAll(path)
 				if err != nil {
-					logger.Errorf("scan snap file %s failed with %+v",
-						path,
-						err)
+					l.Error("fail to scan snapshot path",
+						zap.String("path", path),
+						zap.Error(err))
 				}
 			}
 
@@ -232,10 +237,11 @@ func (m *defaultSnapshotManager) WriteTo(msg *meta.SnapshotMessage, conn goetty.
 	buf := make([]byte, m.s.cfg.Snapshot.SnapChunkSize)
 	ctx := context.TODO()
 
-	logger.Infof("shard %d try to send snap, header=<%s>,size=<%d>",
-		msg.Header.Shard.ID,
-		msg.Header.String(),
-		fileSize)
+	m.logger.Info("try to send snapshot",
+		log.ShardIDField(msg.Header.Shard.ID),
+		zap.Uint64("term", msg.Header.Term),
+		zap.Uint64("index", msg.Header.Index),
+		zap.Uint64("size", uint64(fileSize)))
 
 	for {
 		nr, er := f.Read(buf)
@@ -266,8 +272,11 @@ func (m *defaultSnapshotManager) WriteTo(msg *meta.SnapshotMessage, conn goetty.
 		}
 	}
 
-	logger.Infof("shard %d send snap complete",
-		msg.Header.Shard.ID)
+	m.logger.Info("send snapshot completed",
+		log.ShardIDField(msg.Header.Shard.ID),
+		zap.Uint64("term", msg.Header.Term),
+		zap.Uint64("index", msg.Header.Index),
+		zap.Uint64("size", uint64(fileSize)))
 	return uint64(written), nil
 }
 
@@ -277,10 +286,11 @@ func (m *defaultSnapshotManager) CleanSnap(msg *meta.SnapshotMessage) error {
 	fs := m.s.cfg.FS
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
 	if exist(fs, tmpFile) {
-		logger.Infof("shard %d delete exists snap tmp file %s, header is %s",
-			msg.Header.Shard.ID,
-			tmpFile,
-			msg.Header.String())
+		m.logger.Info("delete exists snapshot tmp file",
+			log.ShardIDField(msg.Header.Shard.ID),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index),
+			zap.String("file", tmpFile))
 		err = fs.RemoveAll(tmpFile)
 	}
 
@@ -290,10 +300,11 @@ func (m *defaultSnapshotManager) CleanSnap(msg *meta.SnapshotMessage) error {
 
 	file := m.getPathOfSnapKeyGZ(msg)
 	if exist(fs, file) {
-		logger.Infof("shard %d delete exists snap gz file %s, header is %s",
-			msg.Header.Shard.ID,
-			file,
-			msg.Header.String())
+		m.logger.Info("delete exists snapshot gz file",
+			log.ShardIDField(msg.Header.Shard.ID),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index),
+			zap.String("file", file))
 		err = fs.RemoveAll(file)
 	}
 
@@ -303,10 +314,11 @@ func (m *defaultSnapshotManager) CleanSnap(msg *meta.SnapshotMessage) error {
 
 	dir := m.getPathOfSnapKey(msg)
 	if exist(fs, dir) {
-		logger.Infof("shard %d delete exists snap dir, file=<%s>, header=<%s>",
-			msg.Header.Shard.ID,
-			dir,
-			msg.Header.String())
+		m.logger.Info("delete exists snapshot dir",
+			log.ShardIDField(msg.Header.Shard.ID),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index),
+			zap.String("dir", dir))
 		err = fs.RemoveAll(dir)
 	}
 
@@ -414,10 +426,11 @@ func (m *defaultSnapshotManager) cleanTmp(msg *meta.SnapshotMessage) error {
 	tmpFile := m.getTmpPathOfSnapKeyGZ(msg)
 	fs := m.s.cfg.FS
 	if exist(fs, tmpFile) {
-		logger.Infof("shard %d delete exists snap tmp file, file=<%s>, header=<%s>",
-			msg.Header.Shard.ID,
-			tmpFile,
-			msg.Header.String())
+		m.logger.Info("delete exists snapshot tmp file",
+			log.ShardIDField(msg.Header.Shard.ID),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index),
+			zap.String("dir", tmpFile))
 		err = fs.RemoveAll(tmpFile)
 	}
 

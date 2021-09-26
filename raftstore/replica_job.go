@@ -25,8 +25,7 @@ import (
 // 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
 // 3.
 func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
-	logger2.Info("begin to destory",
-		pr.field,
+	pr.logger.Info("begin to destory",
 		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
 		log.ReasonField(why))
 
@@ -34,8 +33,7 @@ func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
 	pr.stopEventLoop()
 
 	if err := pr.doApplyDestory(tombstoneInCluster); err != nil {
-		logger.Fatal("fail to destory",
-			pr.field,
+		pr.logger.Fatal("fail to destory",
 			zap.Error(err))
 	}
 }
@@ -46,10 +44,9 @@ func (pr *replica) startSplitCheckJob() error {
 	startKey := keys.EncStartKey(&shard)
 	endKey := keys.EncEndKey(&shard)
 
-	logger.Infof("shard %d start split check job from %+v to %+v",
-		pr.shardID,
-		startKey,
-		endKey)
+	pr.logger.Info("start split check job",
+		log.HexField("from", startKey),
+		log.HexField("end", endKey))
 	return pr.doSplitCheck(epoch, startKey, endKey)
 }
 
@@ -90,17 +87,15 @@ func (pr *replica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []b
 		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
 	}
 
-	logger.Debugf("shard %d split check result, total size %d(%d), total keys %d, split keys %+v",
-		pr.shardID,
-		size,
-		uint64(pr.store.cfg.Replication.ShardCapacityBytes),
-		keys,
-		splitKeys)
+	pr.logger.Debug("split check result",
+		zap.Uint64("size", size),
+		zap.Uint64("capacity", uint64(pr.store.cfg.Replication.ShardCapacityBytes)),
+		zap.Uint64("keys", keys),
+		zap.ByteStrings("split-keys", splitKeys))
 
 	if err != nil {
-		logger.Errorf("shard %d scan split key failed with %+v",
-			pr.shardID,
-			err)
+		pr.logger.Error("fail to scan split key",
+			zap.Error(err))
 		return err
 	}
 
@@ -111,25 +106,22 @@ func (pr *replica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []b
 		return nil
 	}
 
-	logger.Infof("shard %d try to split, size %d bytes splitKeys %+v",
-		pr.shardID,
-		size,
-		splitKeys)
+	pr.logger.Info("try to split",
+		zap.Uint64("keys", keys),
+		zap.ByteStrings("split-keys", splitKeys))
 
 	current := pr.getShard()
 	if current.Epoch.Version != epoch.Version {
-		logger.Infof("shard %d epoch changed, need re-check later, current=<%+v> split=<%+v>",
-			pr.shardID,
-			current.Epoch,
-			epoch)
+		pr.logger.Info("epoch changed, need re-check later",
+			log.EpochField("current-epoch", current.Epoch),
+			log.EpochField("check-epoch", epoch))
 		return nil
 	}
 
 	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
 	if err != nil {
-		logger.Errorf("shard %d ask batch split failed with %+v",
-			pr.shardID,
-			err)
+		pr.logger.Error("fail to ask batch split",
+			zap.Error(err))
 		return err
 	}
 

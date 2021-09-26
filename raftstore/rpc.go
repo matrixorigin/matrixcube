@@ -14,23 +14,25 @@
 package raftstore
 
 import (
-	"encoding/hex"
-
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type defaultRPC struct {
-	store *store
-	app   goetty.NetApplication
+	logger *zap.Logger
+	store  *store
+	app    goetty.NetApplication
 }
 
 func newRPC(store *store) *defaultRPC {
 	rpc := &defaultRPC{
-		store: store,
+		logger: store.logger.Named("rpc").With(store.storeField()),
+		store:  store,
 	}
 
 	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, int(store.cfg.Raft.MaxEntryBytes)*2)
@@ -40,7 +42,8 @@ func newRPC(store *store) *defaultRPC {
 			goetty.WithLogger(zap.L().Named("raftstore-rpc")),
 			goetty.WithReleaseMsgFunc(releaseResponse)))
 	if err != nil {
-		logger.Fatalf("create rpc failed with %+v", err)
+		rpc.logger.Fatal("fail to create rpc",
+			zap.Error(err))
 	}
 
 	store.RegisterRPCRequestCB(rpc.onResp)
@@ -86,13 +89,13 @@ func (r *defaultRPC) onResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) 
 			rsp.Error = header.Error
 		}
 
-		if logger.DebugEnabled() {
-			logger.Debugf("%s rpc received response", hex.EncodeToString(rsp.ID))
+		if ce := r.logger.Check(zapcore.DebugLevel, "receive response"); ce != nil {
+			ce.Write(log.HexField("id", rsp.ID))
 		}
 		rs.WriteAndFlush(rsp)
 	} else {
-		if logger.DebugEnabled() {
-			logger.Debugf("%s rpc received response, missing session", hex.EncodeToString(rsp.ID))
+		if ce := r.logger.Check(zapcore.DebugLevel, "skip receive response"); ce != nil {
+			ce.Write(log.HexField("id", rsp.ID), log.ReasonField("missing session"))
 		}
 		pb.ReleaseResponse(rsp)
 	}

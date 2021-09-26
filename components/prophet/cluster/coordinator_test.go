@@ -966,13 +966,13 @@ func waitAddLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource 
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
 			return res.GetResourceID() == resource.Meta.ID() &&
-				res.GetChangePeer().GetChangeType() == metapb.ChangePeerType_AddLearnerNode &&
-				res.GetChangePeer().GetPeer().ContainerID == containerID
+				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_AddLearnerNode &&
+				res.GetConfigChange().GetReplica().ContainerID == containerID
 		}
 		return false
 	})
 	return resource.Clone(
-		core.WithAddPeer(res.GetChangePeer().GetPeer()),
+		core.WithAddPeer(res.GetConfigChange().GetReplica()),
 		core.WithIncConfVer(),
 	)
 }
@@ -982,15 +982,15 @@ func waitPromoteLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resou
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
 			return res.GetResourceID() == resource.Meta.ID() &&
-				res.GetChangePeer().GetChangeType() == metapb.ChangePeerType_AddNode &&
-				res.GetChangePeer().GetPeer().ContainerID == containerID
+				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_AddNode &&
+				res.GetConfigChange().GetReplica().ContainerID == containerID
 		}
 		return false
 	})
 	// Remove learner than add voter.
 	return resource.Clone(
 		core.WithRemoveContainerPeer(containerID),
-		core.WithAddPeer(res.GetChangePeer().GetPeer()),
+		core.WithAddPeer(res.GetConfigChange().GetReplica()),
 	)
 }
 
@@ -999,8 +999,8 @@ func waitRemovePeer(t *testing.T, stream mockhbstream.HeartbeatStream, resource 
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
 			return res.GetResourceID() == resource.Meta.ID() &&
-				res.GetChangePeer().GetChangeType() == metapb.ChangePeerType_RemoveNode &&
-				res.GetChangePeer().GetPeer().ContainerID == containerID
+				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_RemoveNode &&
+				res.GetConfigChange().GetReplica().ContainerID == containerID
 		}
 		return false
 	})
@@ -1014,12 +1014,12 @@ func waitTransferLeader(t *testing.T, stream mockhbstream.HeartbeatStream, resou
 	var res *rpcpb.ResourceHeartbeatRsp
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
-			return res.GetResourceID() == resource.Meta.ID() && res.GetTransferLeader().GetPeer().ContainerID == containerID
+			return res.GetResourceID() == resource.Meta.ID() && res.GetTransferLeader().GetReplica().ContainerID == containerID
 		}
 		return false
 	})
 
-	p := res.GetTransferLeader().GetPeer()
+	p := res.GetTransferLeader().GetReplica()
 	return resource.Clone(
 		core.WithLeader(&p),
 	)

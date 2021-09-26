@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, error) {
@@ -51,8 +52,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 	replica := req.Replica
 	current := d.getShard()
 
-	logger2.Info("begin to apply change replica",
-		d.pr.field,
+	d.logger.Info("begin to apply change replica",
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", req))
@@ -114,13 +114,11 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 	d.updateShard(res)
 	err := d.saveShardMetedata(ctx.entry.Index, res, state)
 	if err != nil {
-		logger2.Fatal("fail to save metadata",
-			d.pr.field,
+		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
 	}
 
-	logger2.Info("apply change replica complete",
-		d.pr.field,
+	d.logger.Info("apply change replica complete",
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
@@ -143,8 +141,7 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (*rpc.ResponseBa
 	changes := req.Changes
 	current := d.getShard()
 
-	logger2.Info("begin to apply change replica v2",
-		d.pr.field,
+	d.logger.Info("begin to apply change replica v2",
 		zap.Uint64("index", ctx.entry.Index),
 		log.ShardField("current", current),
 		log.ConfigChangesField("requests", changes))
@@ -170,13 +167,11 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (*rpc.ResponseBa
 	d.updateShard(res)
 	err = d.saveShardMetedata(ctx.entry.Index, res, state)
 	if err != nil {
-		logger2.Fatal("fail to save metadata",
-			d.pr.field,
+		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
 	}
 
-	logger2.Info("apply change replica v2 complete",
-		d.pr.field,
+	d.logger.Info("apply change replica v2 complete",
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
@@ -208,8 +203,7 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 		if exist_replica != nil {
 			r := exist_replica.Role
 			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
-				logger.Fatalf("shard-%d can't apply confchange because configuration is still in joint state",
-					res.ID)
+				d.logger.Fatal("can't apply confchange because configuration is still in joint state")
 			}
 		}
 
@@ -303,8 +297,7 @@ func (d *stateMachine) applyLeaveJoint() (Shard, error) {
 		change_num += 1
 	}
 	if change_num == 0 {
-		logger2.Fatal("can't leave a non-joint config",
-			d.pr.field,
+		d.logger.Fatal("can't leave a non-joint config",
 			log.ShardField("shard", shard))
 	}
 	shard.Epoch.ConfVer += change_num
@@ -316,7 +309,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	splitReqs := ctx.req.AdminRequest.Splits
 
 	if len(splitReqs.Requests) == 0 {
-		logger.Errorf("shard %d missing splits request", d.shardID)
+		d.logger.Error("missing splits request")
 		return nil, errors.New("missing splits request")
 	}
 
@@ -352,9 +345,8 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 
 	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), &current)
 	if err != nil {
-		logger.Errorf("shard %d split key failed with %+v",
-			d.shardID,
-			err)
+		d.logger.Error("fail to split key",
+			zap.String("err", err.Message))
 		return nil, nil
 	}
 
@@ -425,18 +417,16 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) *rpc.ResponseBatch {
 	ctx.writeCtx.reset(d.getShard())
 	ctx.writeCtx.appendRequest(ctx.req)
 	for _, req := range ctx.req.Requests {
-		logger2.Debug("start to execute write",
-			d.pr.field,
-			log.HexField("id", req.ID))
+		if ce := d.logger.Check(zapcore.DebugLevel, "begin to execute write"); ce != nil {
+			ce.Write(log.HexField("id", req.ID))
+		}
 	}
 	if err := d.dataStorage.GetCommandExecutor().ExecuteWrite(ctx.writeCtx); err != nil {
-		logger.Fatal("fail to exec read cmd",
-			d.pr.field,
+		d.logger.Fatal("fail to exec read cmd",
 			zap.Error(err))
 	}
 	for _, req := range ctx.req.Requests {
-		logger2.Debug("execute write completed",
-			d.pr.field,
+		d.logger.Debug("execute write completed",
 			log.HexField("id", req.ID))
 	}
 

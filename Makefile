@@ -26,8 +26,9 @@ example-http: http; $(info ======== compiled matrixcube http example:)
 
 .PHONY: test
 test: ; $(info ======== test matrixcube)
-	go test $(RACE) -count=1 -v -timeout 600s $(PKGNAME)/storage
-	go test $(RACE) -count=1 -v -timeout 600s $(PKGNAME)/raftstore
+	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/components/prophet
+	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/storage
+	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/raftstore
 
 .PHONY: race-test
 race-test: override RACE=-race

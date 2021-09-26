@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
@@ -25,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 type resourceAdapter struct {
@@ -264,7 +266,9 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	if s.cfg.UseMemoryAsStorage {
 		ms, err := util.MemStats()
 		if err != nil {
-			logger.Errorf("get storage capacity status failed with %+v", err)
+			s.logger.Error("fail to get storage capacity status",
+				s.storeField(),
+				zap.Error(err))
 			return
 		}
 		stats.Capacity = ms.Total
@@ -273,7 +277,9 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	} else {
 		ms, err := util.DiskStats(s.cfg.DataPath)
 		if err != nil {
-			logger.Errorf("get storage capacity status failed with %+v", err)
+			s.logger.Error("fail to get storage capacity status",
+				s.storeField(),
+				zap.Error(err))
 			return
 		}
 		stats.Capacity = ms.Total
@@ -287,7 +293,9 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	// cpu usages
 	usages, err := util.CpuUsages()
 	if err != nil {
-		logger.Errorf("get cpu usages failed with %+v", err)
+		s.logger.Error("fail to get cpu status",
+			s.storeField(),
+			zap.Error(err))
 		return
 	}
 	for i, v := range usages {
@@ -300,7 +308,9 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	// io rates
 	rates, err := util.IORates(s.cfg.DataPath)
 	if err != nil {
-		logger.Errorf("get io rates failed with %+v", err)
+		s.logger.Error("fail to get io status",
+			s.storeField(),
+			zap.Error(err))
 		return
 	}
 	for name, v := range rates {
@@ -349,13 +359,17 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 
 	rsp, err := s.pd.GetClient().ContainerHeartbeat(rpcpb.ContainerHeartbeatReq{Stats: stats, Data: data})
 	if err != nil {
-		logger.Errorf("send store heartbeat failed with %+v", err)
+		s.logger.Error("fail to send store heartbeat",
+			s.storeField(),
+			zap.Error(err))
 		return
 	}
 	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
 		err := s.cfg.Customize.CustomStoreHeartbeatDataProcessor.HandleHeartbeatRsp(rsp.Data)
 		if err != nil {
-			logger.Errorf("handle store heartbeat rsp data failed with %+v", err)
+			s.logger.Error("fail to handle store heartbeat rsp data",
+				s.storeField(),
+				zap.Error(err))
 		}
 	}
 }
@@ -363,13 +377,16 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 func (s *store) startHandleResourceHeartbeat() {
 	c, err := s.pd.GetClient().GetResourceHeartbeatRspNotifier()
 	if err != nil {
-		logger.Fatalf("start handle resource heartbeat resp task failed with %+v", err)
+		s.logger.Fatal("tail to start handle resource heartbeat resp task",
+			s.storeField(),
+			zap.Error(err))
 	}
 	s.stopper.RunWorker(func() {
 		for {
 			select {
 			case <-s.stopper.ShouldStop():
-				logger.Infof("handle resource heartbeat resp task stopped")
+				s.logger.Info("handle resource heartbeat resp task stopped",
+					s.storeField())
 				return
 			case rsp, ok := <-c:
 				if ok {
@@ -388,18 +405,24 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 
 	pr := s.getReplica(rsp.ResourceID, true)
 	if pr == nil {
-		logger.Infof("shard-%d is not leader, skip heartbeat resp",
-			rsp.ResourceID)
+		s.logger.Info("skip heartbeat resp",
+			s.storeField(),
+			log.ShardIDField(rsp.ResourceID),
+			log.ReasonField("not leader"))
 		return
 	}
 
 	if rsp.ConfigChange != nil {
-		logger.Infof("shard-%d %s peer %+v",
-			rsp.ResourceID,
-			rsp.ConfigChange.ChangeType.String(),
-			rsp.ConfigChange.Replica)
+		s.logger.Info("send conf change request",
+			s.storeField(),
+			log.ShardIDField(rsp.ResourceID),
+			log.ConfigChangeFieldWithHeartbeatResp("change", rsp))
 		pr.onAdmin(newConfigChangeAdminReq(rsp))
 	} else if rsp.ConfigChangeV2 != nil {
+		s.logger.Info("send conf change request",
+			s.storeField(),
+			log.ShardIDField(rsp.ResourceID),
+			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
 		pr.onAdmin(newConfigChangeV2AdminReq(rsp))
 	} else if rsp.TransferLeader != nil {
 		pr.onAdmin(newTransferLeaderAdminReq(rsp))
@@ -410,9 +433,10 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.getShard()),
 				uint32(len(rsp.SplitResource.Keys)))
 			if err != nil {
-				logger.Errorf("shard-%d ask batch split failed with %+v",
-					rsp.ResourceID,
-					err)
+				s.logger.Error("fail to ask batch split",
+					s.storeField(),
+					log.ShardIDField(rsp.ResourceID),
+					zap.Error(err))
 				return
 			}
 			pr.addAction(action{

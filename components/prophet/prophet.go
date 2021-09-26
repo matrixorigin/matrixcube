@@ -72,6 +72,7 @@ type defaultProphet struct {
 	persistOptions *config.PersistOptions
 	runner         *task.Runner
 	wn             *watcherNotifier
+	stopOnce       sync.Once
 
 	// about leader election
 	etcd       *embed.Etcd
@@ -164,17 +165,19 @@ func (p *defaultProphet) Start() {
 }
 
 func (p *defaultProphet) Stop() {
-	if p.client != nil {
-		p.client.Close()
-	}
-	p.trans.Stop()
-	p.runner.Stop()
-	p.member.Stop()
-	p.cancel()
-	p.elector.Client().Close()
-	if p.etcd != nil {
-		p.etcd.Close()
-	}
+	p.stopOnce.Do(func() {
+		if p.client != nil {
+			p.client.Close()
+		}
+		p.trans.Stop()
+		p.runner.Stop()
+		p.member.Stop()
+		p.cancel()
+		p.elector.Client().Close()
+		if p.etcd != nil {
+			p.etcd.Close()
+		}
+	})
 }
 
 func (p *defaultProphet) GetStorage() storage.Storage {

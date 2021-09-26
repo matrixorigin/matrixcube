@@ -15,13 +15,14 @@ package raftstore
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 func (s *store) handleCompactRaftLog() {
@@ -65,7 +66,9 @@ func (s *store) handleShardStateCheck() {
 	if bm.GetCardinality() > 0 {
 		rsp, err := s.pd.GetClient().CheckResourceState(bm)
 		if err != nil {
-			logger.Errorf("check shards state failed with %+v", err)
+			s.logger.Error("fail to check shards state, retry later",
+				s.storeField(),
+				zap.Error(err))
 			return
 		}
 
@@ -111,9 +114,9 @@ func (s *store) onRaftMessage(msg *meta.RaftMessage) {
 
 func (s *store) isRaftMsgValid(msg *meta.RaftMessage) bool {
 	if msg.To.ContainerID != s.meta.meta.ID {
-		logger.Warningf("store not match, toPeerStoreID=<%d> mineStoreID=<%d>",
-			msg.To.ContainerID,
-			s.meta.meta.ID)
+		s.logger.Warn("raft msg store not match",
+			s.storeField(),
+			zap.Uint64("actual", msg.To.ContainerID))
 		return false
 	}
 
@@ -127,9 +130,11 @@ func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
 		fromEpoch := msg.ShardEpoch
 		shard := pr.getShard()
 		if isEpochStale(shard.Epoch, fromEpoch) {
-			logger.Infof("shard %d receives gc message, remove. msg=<%+v>",
-				shardID,
-				msg)
+			s.logger.Info("receives gc message, remove self",
+				s.storeField(),
+				log.ShardIDField(shardID),
+				log.EpochField("self-epoch", shard.Epoch),
+				log.EpochField("msg-epoch", fromEpoch))
 			s.destroyReplica(shardID, false, "gc")
 		}
 	}
@@ -167,10 +172,11 @@ func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
 
 			stalePeer = p.replica
 		} else if p.replica.ID > target.ID {
-			logger.Infof("shard %d may be from peer is stale, targetID=<%d> currentID=<%d>",
-				msg.ShardID,
-				target.ID,
-				p.replica.ID)
+			s.logger.Info("maybe current replica is stale",
+				s.storeField(),
+				log.ShardIDField(msg.ShardID),
+				log.ReplicaField("self-replica", p.replica),
+				log.ReplicaField("msg-replica", target))
 			return false
 		}
 	}
@@ -189,10 +195,10 @@ func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
 	if msg.Message.Type != raftpb.MsgVote &&
 		msg.Message.Type != raftpb.MsgPreVote &&
 		(msg.Message.Type != raftpb.MsgHeartbeat || msg.Message.Commit != invalidIndex) {
-		logger.Infof("shard %d target peer doesn't exist, peer=<%+v> message=<%s>",
-			msg.ShardID,
-			target,
-			msg.Message.Type)
+		s.logger.Info("replica doesn't exist",
+			s.storeField(),
+			log.ShardIDField(msg.ShardID),
+			log.ReplicaField("replica", target))
 		return false
 	}
 
@@ -200,22 +206,14 @@ func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
 	item := s.searchShard(msg.Group, msg.Start)
 	if item.ID > 0 {
 		if bytes.Compare(keys.EncStartKey(&item), keys.GetDataEndKey(msg.Group, msg.End)) < 0 {
-			var state string
 			if p := s.getReplica(item.ID, false); p != nil {
-				state = fmt.Sprintf("overlappedShard=<%d> apply index %d",
-					p.shardID,
-					p.appliedIndex)
-
 				// Maybe split, but not registered yet.
 				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
-			}
 
-			if logger.DebugEnabled() {
-				logger.Debugf("shard %d msg is overlapped with shard, shard=<%s> msg=<%s> state=<%s>",
-					msg.ShardID,
-					item.String(),
-					msg.String(),
-					state)
+				s.logger.Info("replica has overlapped range",
+					s.storeField(),
+					log.ShardField("overlapped-replica", item),
+					log.ShardField("local-replica", p.getShard()))
 			}
 
 			return false
@@ -225,9 +223,10 @@ func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
 	// now we can create a replicate
 	pr, err := createReplicaWithRaftMessage(s, msg, target, "receive raft message")
 	if err != nil {
-		logger.Errorf("shard %d peer replica failed with %+v",
-			msg.ShardID,
-			err)
+		s.logger.Error("fail to create replica",
+			s.storeField(),
+			log.ShardIDField(msg.ShardID),
+			zap.Error(err))
 		return false
 	}
 

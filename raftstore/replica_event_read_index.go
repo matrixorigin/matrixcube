@@ -18,6 +18,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3"
+	"go.uber.org/zap"
 )
 
 type readyRead struct {
@@ -70,10 +71,8 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	if pr.readCtx.hasRequest() {
 		ds := pr.store.DataStorageByGroup(pr.getShard().Group)
 		if err := ds.GetCommandExecutor().ExecuteRead(pr.readCtx); err != nil {
-			logger.Fatalf("shard %d peer %d exec read cmd failed with %+v",
-				q.shardID,
-				pr.replica.ID,
-				err)
+			pr.logger.Fatal("fail to exec read batch",
+				zap.Error(err))
 		}
 
 		pr.readBytes += pr.readCtx.readBytes

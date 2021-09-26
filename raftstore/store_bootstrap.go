@@ -22,10 +22,12 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
+	"go.uber.org/zap"
 )
 
 func (s *store) ProphetBecomeLeader() {
-	logger.Infof("*********Become prophet leader*********")
+	s.logger.Info("*********Become prophet leader*********",
+		s.storeField())
 	s.bootOnce.Do(func() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
@@ -33,7 +35,8 @@ func (s *store) ProphetBecomeLeader() {
 }
 
 func (s *store) ProphetBecomeFollower() {
-	logger.Infof("*********Become prophet follower*********")
+	s.logger.Info("*********Become prophet follower*********",
+		s.storeField())
 	s.bootOnce.Do(func() {
 		s.doBootstrapCluster()
 		close(s.pdStartedC)
@@ -47,31 +50,43 @@ func (s *store) initMeta() {
 	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
 	s.meta.SetAddrs(s.cfg.ClientAddr, s.cfg.RaftAddr)
 
-	logger.Infof("raftstore init with store %s", s.meta.meta.String())
+	s.logger.Info("store metadata init",
+		s.storeField(),
+		zap.String("raft-addr", s.Meta().RaftAddr),
+		zap.String("client-addr", s.Meta().ClientAddr),
+		zap.Any("labels", s.Meta().Labels))
 }
 
 func (s *store) doBootstrapCluster() {
-	logger.Infof("begin to bootstrap the cluster")
+	s.logger.Info("begin to bootstrap the cluster",
+		s.storeField())
 	s.initMeta()
 
 	if s.mustLoadStoreMetadata() {
 		return
 	}
 
-	logger.Infof("begin to create local store metadata")
+	s.logger.Info("begin to create local store metadata",
+		s.storeField())
 	id := s.MustAllocID()
 	s.meta.meta.ID = id
 	s.mustSaveStoreMetadata()
-	logger.Infof("create local store with id %d", id)
+	s.logger.Info("create local store",
+		s.storeField())
 
 	ok, err := s.pd.GetStorage().AlreadyBootstrapped()
 	if err != nil {
-		logger.Fatal("check the cluster whether bootstrapped failed with %+v", err)
+		s.logger.Fatal("fail to check the cluster whether bootstrapped",
+			s.storeField(),
+			zap.Error(err))
 	}
-	logger.Infof("the cluster already bootstrap: %+v", ok)
+	s.logger.Info("cluster bootstrap state",
+		s.storeField(),
+		zap.Bool("bootstrapped", ok))
 
 	if !ok {
-		logger.Infof("begin to bootstrap the cluster with init shards")
+		s.logger.Info("begin to bootstrap the cluster with init shards",
+			s.storeField())
 		var initShards []Shard
 		var resources []metadata.Resource
 		if s.cfg.Customize.CustomInitShardsFactory != nil {
@@ -92,16 +107,21 @@ func (s *store) doBootstrapCluster() {
 		ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
 		if err != nil {
 			s.removeInitShards(initShards...)
-			logger.Fatalf("bootstrap cluster failed with %+v", err)
+			s.logger.Fatal("fail to bootstrap cluster",
+				s.storeField(),
+				zap.Error(err))
 		}
 		if !ok {
-			logger.Info("the cluster is already bootstrapped")
+			s.logger.Info("the cluster is already bootstrapped, remove init shards",
+				s.storeField())
 			s.removeInitShards(initShards...)
 		}
 	}
 
 	if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
-		logger.Fatalf("put container to prophet failed with %+v", err)
+		s.logger.Fatal("fail to put container to prophet",
+			s.storeField(),
+			zap.Error(err))
 	}
 
 	s.startHandleResourceHeartbeat()
@@ -114,10 +134,13 @@ func (s *store) mustSaveStoreMetadata() {
 		return false, nil
 	}, false)
 	if err != nil {
-		logger.Fatalf("check store metadata failed with %+v", err)
+		s.logger.Fatal("fail to check store metadata",
+			s.storeField(),
+			zap.Error(err))
 	}
 	if count > 0 {
-		logger.Fatalf("local store is not empty and has already hard data")
+		s.logger.Fatal("local store is not empty and has already hard data",
+			s.storeField())
 	}
 
 	v := &meta.StoreIdent{
@@ -126,14 +149,18 @@ func (s *store) mustSaveStoreMetadata() {
 	}
 	err = s.cfg.Storage.MetaStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v))
 	if err != nil {
-		logger.Fatal("save local store id failed with %+v", err)
+		s.logger.Fatal("fail to save local store id",
+			s.storeField(),
+			zap.Error(err))
 	}
 }
 
 func (s *store) mustLoadStoreMetadata() bool {
 	data, err := s.cfg.Storage.MetaStorage.Get(keys.GetStoreIdentKey())
 	if err != nil {
-		logger.Fatalf("load store meta failed with %+v", err)
+		s.logger.Fatal("fail to load store metadata",
+			s.storeField(),
+			zap.Error(err))
 	}
 
 	if len(data) > 0 {
@@ -141,13 +168,15 @@ func (s *store) mustLoadStoreMetadata() bool {
 		protoc.MustUnmarshal(v, data)
 
 		if v.ClusterID != s.pd.GetClusterID() {
-			logger.Fatalf("unexpect cluster id, want %d, but %d",
-				v.ClusterID,
-				s.pd.GetClusterID())
+			s.logger.Fatal("cluster metadata mismatch",
+				s.storeField(),
+				zap.Uint64("local", v.ClusterID),
+				zap.Uint64("prophet", s.pd.GetClusterID()))
 		}
 
 		s.meta.meta.ID = v.StoreID
-		logger.Infof("load local store %d", s.meta.meta.ID)
+		s.logger.Info("load local store metadata",
+			s.storeField())
 		return true
 	}
 
@@ -184,25 +213,31 @@ func (s *store) mustSaveShards(shards ...Shard) {
 		}
 
 		if err := ds.SaveShardMetadata(sm...); err != nil {
-			logger.Fatalf("create init shards failed with %+v", err)
+			s.logger.Fatal("fail to create init shards",
+				s.storeField(),
+				zap.Error(err))
 		}
 
 		if err := ds.Sync(ids...); err != nil {
-			logger.Fatalf("create init shards failed with %+v", err)
+			s.logger.Fatal("fail to create init shards",
+				s.storeField(),
+				zap.Error(err))
 		}
 	}, shards...)
 }
 
 func (s *store) removeInitShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
-		for _, s := range v {
-			err := ds.RemoveShardData(s, keys.EncStartKey(&s), keys.EncEndKey(&s))
+		for _, shard := range v {
+			err := ds.RemoveShardData(shard, keys.EncStartKey(&shard), keys.EncEndKey(&shard))
 			if err != nil {
-				logger.Fatalf("remove init shards failed with %+v", err)
+				s.logger.Fatal("fail to remove init shards",
+					s.storeField(),
+					zap.Error(err))
 			}
 		}
 	}, shards...)
-	logger.Info("init shards has been removed from store")
+	s.logger.Info("init shards removed from store")
 }
 
 func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []Shard), shards ...Shard) {

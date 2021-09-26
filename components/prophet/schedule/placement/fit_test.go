@@ -55,7 +55,7 @@ func makeTestResource(def string) *core.CachedResource {
 		role, idStr := Follower, peerDef
 		if strings.Contains(peerDef, "_") {
 			splits := strings.Split(peerDef, "_")
-			idStr, role = splits[0], PeerRoleType(splits[1])
+			idStr, role = splits[0], ReplicaRoleType(splits[1])
 		}
 		id, _ := strconv.Atoi(idStr)
 		peer := metapb.Replica{ID: uint64(id), ContainerID: uint64(id), Role: role.MetaPeerRole()}
@@ -73,7 +73,7 @@ func makeTestRule(def string) *Rule {
 	var rule Rule
 	splits := strings.Split(def, "/")
 	rule.Count, _ = strconv.Atoi(splits[0])
-	rule.Role = PeerRoleType(splits[1])
+	rule.Role = ReplicaRoleType(splits[1])
 	// only support k=v type constraint
 	for _, c := range strings.Split(splits[2], ",") {
 		if c == "" {

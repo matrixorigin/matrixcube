@@ -40,7 +40,7 @@ import (
 var dn = util.DescribeReplica
 
 type replica struct {
-	field                 zap.Field
+	logger                *zap.Logger
 	shardID               uint64
 	replica               Replica
 	startedC              chan struct{}
@@ -120,9 +120,9 @@ func createReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, replica R
 }
 
 func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, error) {
-	f := zap.String("shard", fmt.Sprintf("%d-%d at %d", shard.ID, r.ID, r.ContainerID))
-	logger2.Info("create shard",
-		f,
+	l := store.logger.With(store.storeField(), log.ShardIDField(shard.ID), log.ReplicaIDField(r.ID))
+
+	l.Info("begin to create replica",
 		log.ReasonField(why),
 		log.ShardField("metadata", *shard))
 
@@ -131,12 +131,12 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 	}
 
 	pr := &replica{
-		field:            f,
+		logger:           l,
 		store:            store,
 		replica:          r,
 		shardID:          shard.ID,
 		startedC:         make(chan struct{}),
-		lr:               NewLogReader(shard.ID, r.ID, store.logdb),
+		lr:               NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals: newPendingProposals(),
 	}
 	pr.createStateMachine(shard)
@@ -144,7 +144,7 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 }
 
 func (pr *replica) start() {
-	logger2.Info("begin to start shard", pr.field)
+	pr.logger.Info("begin to start replica")
 
 	shard := pr.getShard()
 	for _, g := range pr.store.cfg.Raft.RaftLog.DisableCompactProtect {
@@ -154,15 +154,15 @@ func (pr *replica) start() {
 		}
 	}
 
-	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+	pr.batch = newBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 	pr.readCtx = newExecuteContext()
 	pr.events = task.NewRingBuffer(2)
-	pr.ticks = &task.Queue{}
-	pr.steps = &task.Queue{}
-	pr.reports = &task.Queue{}
-	pr.applyResults = &task.Queue{}
-	pr.requests = &task.Queue{}
-	pr.actions = &task.Queue{}
+	pr.ticks = task.New(32)
+	pr.steps = task.New(32)
+	pr.reports = task.New(32)
+	pr.applyResults = task.New(32)
+	pr.requests = task.New(32)
+	pr.actions = task.New(32)
 	pr.pendingReads = &readIndexQueue{
 		shardID: pr.shardID,
 	}
@@ -184,7 +184,8 @@ func (pr *replica) start() {
 	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, pr.store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
-		logger2.Fatal("fail to create raft node", pr.field, zap.Error(err))
+		pr.logger.Fatal("fail to create raft node",
+			zap.Error(err))
 	}
 	pr.rn = rn
 
@@ -193,34 +194,28 @@ func (pr *replica) start() {
 	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one replica and I am the one, campaign directly.
 	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.store.meta.meta.ID {
-		logger2.Info("try to campaign",
-			pr.field,
+		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 
 		err := pr.rn.Campaign()
 		if err != nil {
-			logger2.Fatal("fail to campaign",
-				pr.field,
+			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Replicas[0].ContainerID == pr.store.Meta().ID {
-		logger2.Info("try to campaign",
-			pr.field,
+		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
 
 		err := pr.rn.Campaign()
 		if err != nil {
-			logger2.Fatal("fail to campaign",
-				pr.field,
+			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
 	}
 
 	pr.onRaftTick(nil)
-
-	logger2.Info("shard started",
-		pr.field)
+	pr.logger.Info("replica started")
 }
 
 func (pr *replica) getShard() Shard {
@@ -260,8 +255,7 @@ func (pr *replica) initLogState() (bool, error) {
 	}
 	hasRaftHardState := !raft.IsEmptyHardState(rs.State)
 	if hasRaftHardState {
-		logger2.Info("init log state",
-			pr.field,
+		pr.logger.Info("init log state",
 			zap.Uint64("count", rs.EntryCount),
 			zap.Uint64("first-index", rs.FirstIndex),
 			zap.Uint64("commit-index", rs.State.Commit),
@@ -274,6 +268,7 @@ func (pr *replica) initLogState() (bool, error) {
 
 func (pr *replica) createStateMachine(shard *Shard) {
 	pr.sm = &stateMachine{
+		logger:      pr.logger,
 		pr:          pr,
 		store:       pr.store,
 		replicaID:   pr.replica.ID,
@@ -362,7 +357,7 @@ func (pr *replica) readyReadCount() int {
 
 func (pr *replica) resetBatch() {
 	shard := pr.getShard()
-	pr.batch = newBatch(uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+	pr.batch = newBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 }
 
 func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {

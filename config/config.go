@@ -28,6 +28,8 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -87,6 +89,8 @@ type Config struct {
 	Storage StorageConfig
 	// Customize config
 	Customize CustomizeConfig
+	// Logger logger used in cube
+	Logger *zap.Logger
 	// Metric Config
 	Metric metric.Cfg `toml:"metric"`
 	// FS used in MatrixCube
@@ -148,6 +152,11 @@ func (c *Config) Adjust() {
 	if c.Test.Shards == nil {
 		c.Test.Shards = make(map[uint64]*TestShardConfig)
 	}
+
+	if c.Logger == nil {
+		c.Logger = GetDefaultZapLogger()
+	}
+	c.Logger = c.Logger.Named("cube")
 }
 
 func (c *Config) validate() {
@@ -436,4 +445,14 @@ type TestShardConfig struct {
 	SkipSaveRaftApplyState bool
 	// SkipApply skip apply any raft log
 	SkipApply bool
+}
+
+// GetDefaultZapLogger get default zap logger
+func GetDefaultZapLogger(options ...zap.Option) *zap.Logger {
+	options = append(options, zap.AddStacktrace(zapcore.FatalLevel), zap.AddCaller())
+	cfg := zap.NewProductionConfig()
+	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05.000")
+	cfg.EncoderConfig.EncodeDuration = zapcore.MillisDurationEncoder
+	l, _ := cfg.Build(options...)
+	return l
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 var (
@@ -57,16 +58,14 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 	if rd.SoftState != nil {
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
-			logger2.Info("********become leader now********",
-				pr.field)
+			pr.logger.Info("********become leader now********")
 			pr.addAction(action{actionType: heartbeatAction})
 			pr.resetBatch()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.getShard())
 			}
 		} else {
-			logger2.Info("********become follower now********",
-				pr.field)
+			pr.logger.Info("********become follower now********")
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeFollower(pr.getShard())
 			}
@@ -150,11 +149,10 @@ func (pr *replica) send(msgs []raftpb.Message, msgAppOnly bool) {
 func (pr *replica) sendMessage(msg raftpb.Message) {
 	if err := pr.sendRaftMsg(msg); err != nil {
 		// We don't care such failed message transmission, just log the error
-		logger.Debugf("shard %d send msg failed, from_peer=<%d> to_peer=<%d>, errors:\n%s",
-			pr.shardID,
-			msg.From,
-			msg.To,
-			err)
+		pr.logger.Debug("fail to send msg",
+			zap.Uint64("from", msg.From),
+			zap.Uint64("from", msg.To),
+			zap.Error(err))
 	}
 	pr.metrics.ready.message++
 }
@@ -214,20 +212,4 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	}
 
 	return nil
-}
-
-func (pr *replica) doUpdateKeyRange(result *applySnapResult) {
-	logger.Infof("shard %d snapshot is applied, shard=<%+v>",
-		pr.shardID,
-		result.current)
-
-	if len(result.prev.Replicas) > 0 {
-		logger.Infof("shard %d shard changed after apply snapshot, from=<%+v> to=<%+v>",
-			pr.shardID,
-			result.prev,
-			result.current)
-		pr.store.removeShardKeyRange(result.prev)
-	}
-
-	pr.store.updateShardKeyRange(result.current)
 }
