@@ -21,7 +21,6 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -55,7 +54,7 @@ func newBackend(p *shardsProxy, addr string, conn goetty.IOSession) *backend {
 	return bc
 }
 
-func (bc *backend) addReq(req *rpc.Request) error {
+func (bc *backend) addReq(req rpc.Request) error {
 	return bc.reqs.Put(req)
 }
 
@@ -100,10 +99,6 @@ func (bc *backend) writeLoop() {
 					bc.p.errorDone(items[i].(*rpc.Request), err)
 				}
 			}
-
-			for i := int64(0); i < n; i++ {
-				pb.ReleaseRequest(items[i].(*rpc.Request))
-			}
 		}
 	}()
 }
@@ -123,7 +118,7 @@ func (bc *backend) readLoop() {
 
 			}
 
-			if rsp, ok := data.(*rpc.Response); ok {
+			if rsp, ok := data.(rpc.Response); ok {
 				if ce := bc.p.logger.Check(zapcore.DebugLevel, "received response"); ce != nil {
 					ce.Write(log.HexField("id", rsp.ID),
 						zap.String("backend", bc.addr))

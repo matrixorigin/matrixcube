@@ -449,8 +449,8 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	}
 }
 
-func newConfigChangeAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
-	return &rpc.AdminRequest{
+func newConfigChangeAdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {
+	return rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_ConfigChange,
 		ConfigChange: &rpc.ConfigChangeRequest{
 			ChangeType: rsp.ConfigChange.ChangeType,
@@ -459,8 +459,8 @@ func newConfigChangeAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
 	}
 }
 
-func newConfigChangeV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
-	req := &rpc.AdminRequest{
+func newConfigChangeV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {
+	req := rpc.AdminRequest{
 		CmdType:        rpc.AdminCmdType_ConfigChangeV2,
 		ConfigChangeV2: &rpc.ConfigChangeV2Request{},
 	}
@@ -474,8 +474,8 @@ func newConfigChangeV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest
 	return req
 }
 
-func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) *rpc.AdminRequest {
-	return &rpc.AdminRequest{
+func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {
+	return rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_TransferLeader,
 		TransferLeader: &rpc.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,

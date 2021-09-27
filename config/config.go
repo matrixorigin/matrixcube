@@ -447,12 +447,19 @@ type TestShardConfig struct {
 	SkipApply bool
 }
 
-// GetDefaultZapLogger get default zap logger
-func GetDefaultZapLogger(options ...zap.Option) *zap.Logger {
+// GetDefaultZapLoggerWithLevel get default zap logger
+func GetDefaultZapLoggerWithLevel(level zapcore.Level, options ...zap.Option) *zap.Logger {
 	options = append(options, zap.AddStacktrace(zapcore.FatalLevel), zap.AddCaller())
 	cfg := zap.NewProductionConfig()
+	cfg.Level = zap.NewAtomicLevel()
+	cfg.Level.SetLevel(level)
 	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05.000")
 	cfg.EncoderConfig.EncodeDuration = zapcore.MillisDurationEncoder
 	l, _ := cfg.Build(options...)
 	return l
+}
+
+// GetDefaultZapLogger get default zap logger
+func GetDefaultZapLogger(options ...zap.Option) *zap.Logger {
+	return GetDefaultZapLoggerWithLevel(zapcore.InfoLevel, options...)
 }

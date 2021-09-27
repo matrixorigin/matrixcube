@@ -27,7 +27,7 @@ func (ctx *executeContext) close() {
 	ctx.buf.Release()
 }
 
-func (ctx *executeContext) appendRequest(req *rpc.RequestBatch) {
+func (ctx *executeContext) appendRequest(req rpc.RequestBatch) {
 	ctx.appendRequestByCmd(batch{req: req})
 }
 

@@ -21,7 +21,7 @@ import (
 
 type applyContext struct {
 	writeCtx    *executeContext
-	req         *rpc.RequestBatch
+	req         rpc.RequestBatch
 	entry       raftpb.Entry
 	adminResult *adminExecResult
 	metrics     applyMetrics
@@ -30,13 +30,13 @@ type applyContext struct {
 func newApplyContext() *applyContext {
 	return &applyContext{
 		writeCtx: newExecuteContext(),
-		req:      &rpc.RequestBatch{},
+		req:      rpc.RequestBatch{},
 	}
 }
 
 func (ctx *applyContext) reset(shard Shard, entry raftpb.Entry) {
 	ctx.writeCtx.reset(shard)
-	ctx.req.Reset()
+	ctx.req = rpc.RequestBatch{}
 	ctx.entry = entry
 	ctx.adminResult = nil
 	ctx.metrics = applyMetrics{}

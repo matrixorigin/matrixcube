@@ -36,8 +36,8 @@ message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
     metapb.Replica       replica          = 3 [(gogoproto.nullable) = false]; 
-    metapb.ResourceEpoch epoch            = 5 [(gogoproto.nullable) = false];
-    bool                 ignoreEpochCheck = 7;
+    metapb.ResourceEpoch epoch            = 4 [(gogoproto.nullable) = false];
+    bool                 ignoreEpochCheck = 5;
 }
 
 message ResponseBatchHeader {
@@ -45,18 +45,19 @@ message ResponseBatchHeader {
     errorpb.Error error       = 2 [(gogoproto.nullable) = false];
 }
 
-// Request we can't include both normal requests and administrator request 
+// RequestBatch we can't include both normal requests and administrator request 
 // at same time. 
 message RequestBatch {
-    RequestBatchHeader header      = 1;
-    repeated Request  requests     = 2 [(gogoproto.nullable) = true];
-    AdminRequest      adminRequest = 3 [(gogoproto.nullable) = true];
+    RequestBatchHeader header       = 1 [(gogoproto.nullable) = false];
+    repeated Request   requests     = 2 [(gogoproto.nullable) = false];
+    AdminRequest       adminRequest = 3 [(gogoproto.nullable) = false];
 }
 
+// ResponseBatch response batch
 message ResponseBatch {
-    ResponseBatchHeader header        = 1 [(gogoproto.nullable) = true];
-    repeated Response   responses     = 2 [(gogoproto.nullable) = true];
-    AdminResponse       adminResponse = 3 [(gogoproto.nullable) = true];
+    ResponseBatchHeader header        = 1 [(gogoproto.nullable) = false];
+    repeated Response   responses     = 2 [(gogoproto.nullable) = false];
+    AdminResponse       adminResponse = 3 [(gogoproto.nullable) = false];
 }
 
 // AdminRequest admin request

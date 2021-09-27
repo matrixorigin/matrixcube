@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -33,7 +32,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, error) {
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
@@ -44,10 +43,10 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (*rpc.ResponseBatch, 
 		return d.doExecSplit(ctx)
 	}
 
-	return nil, nil
+	return rpc.ResponseBatch{}, nil
 }
 
-func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChange
 	replica := req.Replica
 	current := d.getShard()
@@ -68,7 +67,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 		if p != nil {
 			exists = true
 			if p.Role != metapb.ReplicaRole_Learner || p.ID != replica.ID {
-				return nil, fmt.Errorf("shard %d can't add duplicated replica %+v",
+				return rpc.ResponseBatch{}, fmt.Errorf("shard %d can't add duplicated replica %+v",
 					res.ID,
 					replica)
 			}
@@ -81,7 +80,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 	case metapb.ConfigChangeType_RemoveNode:
 		if p != nil {
 			if p.ID != replica.ID || p.ContainerID != replica.ContainerID {
-				return nil, fmt.Errorf("shard %+v ignore remove unmatched replica %+v",
+				return rpc.ResponseBatch{}, fmt.Errorf("shard %+v ignore remove unmatched replica %+v",
 					res.ID,
 					replica)
 			}
@@ -92,13 +91,13 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 				d.setPendingRemove()
 			}
 		} else {
-			return nil, fmt.Errorf("shard %+v remove missing replica %+v",
+			return rpc.ResponseBatch{}, fmt.Errorf("shard %+v remove missing replica %+v",
 				res.ID,
 				replica)
 		}
 	case metapb.ConfigChangeType_AddLearnerNode:
 		if p != nil {
-			return nil, fmt.Errorf("shard-%d can't add duplicated learner %+v",
+			return rpc.ResponseBatch{}, fmt.Errorf("shard-%d can't add duplicated learner %+v",
 				res.ID,
 				replica)
 		}
@@ -136,7 +135,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (*rpc.ResponseBatc
 	return resp, nil
 }
 
-func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChangeV2
 	changes := req.Changes
 	current := d.getShard()
@@ -156,7 +155,7 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (*rpc.ResponseBa
 	}
 
 	if err != nil {
-		return nil, err
+		return rpc.ResponseBatch{}, err
 	}
 
 	state := meta.ReplicaState_Normal
@@ -304,13 +303,13 @@ func (d *stateMachine) applyLeaveJoint() (Shard, error) {
 	return shard, nil
 }
 
-func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.AdminRequest.Splits
 
 	if len(splitReqs.Requests) == 0 {
 		d.logger.Error("missing splits request")
-		return nil, errors.New("missing splits request")
+		return rpc.ResponseBatch{}, errors.New("missing splits request")
 	}
 
 	newShardsCount := len(splitReqs.Requests)
@@ -322,7 +321,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 
 	for _, req := range splitReqs.Requests {
 		if len(req.SplitKey) == 0 {
-			return nil, errors.New("missing split key")
+			return rpc.ResponseBatch{}, errors.New("missing split key")
 		}
 
 		splitKey := keys.DecodeDataKey(req.SplitKey)
@@ -331,11 +330,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 			v = e.Value.([]byte)
 		}
 		if bytes.Compare(splitKey, v) <= 0 {
-			return nil, fmt.Errorf("invalid split key %+v", splitKey)
+			return rpc.ResponseBatch{}, fmt.Errorf("invalid split key %+v", splitKey)
 		}
 
 		if len(req.NewReplicaIDs) != len(derived.Replicas) {
-			return nil, fmt.Errorf("invalid new replica id count, need %d, but got %d",
+			return rpc.ResponseBatch{}, fmt.Errorf("invalid new replica id count, need %d, but got %d",
 				len(derived.Replicas),
 				len(req.NewReplicaIDs))
 		}
@@ -347,7 +346,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	if err != nil {
 		d.logger.Error("fail to split key",
 			zap.String("err", err.Message))
-		return nil, nil
+		return rpc.ResponseBatch{}, nil
 	}
 
 	derived.Epoch.Version += uint64(newShardsCount)
@@ -410,10 +409,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (*rpc.ResponseBatch, error
 	// 		shards:  shards,
 	// 	},
 	// }
-	return nil, nil
+	return rpc.ResponseBatch{}, nil
 }
 
-func (d *stateMachine) execWriteRequest(ctx *applyContext) *rpc.ResponseBatch {
+func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 	ctx.writeCtx.reset(d.getShard())
 	ctx.writeCtx.appendRequest(ctx.req)
 	for _, req := range ctx.req.Requests {
@@ -430,10 +429,10 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) *rpc.ResponseBatch {
 			log.HexField("id", req.ID))
 	}
 
-	resp := pb.AcquireResponseBatch()
+	resp := rpc.ResponseBatch{}
 	for _, v := range ctx.writeCtx.responses {
 		ctx.metrics.writtenKeys++
-		r := pb.AcquireResponse()
+		r := rpc.Response{}
 		r.Value = v
 		resp.Responses = append(resp.Responses, r)
 	}

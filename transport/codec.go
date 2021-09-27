@@ -19,7 +19,6 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
@@ -53,13 +52,13 @@ func (decoder raftDecoder) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 
 	switch t {
 	case typeSnap:
-		msg := &meta.SnapshotMessage{}
-		protoc.MustUnmarshal(msg, data)
+		msg := meta.SnapshotMessage{}
+		protoc.MustUnmarshal(&msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
 	case typeRaft:
-		msg := pb.AcquireRaftMessage()
-		protoc.MustUnmarshal(msg, data)
+		msg := meta.RaftMessage{}
+		protoc.MustUnmarshal(&msg, data)
 		in.MarkedBytesReaded()
 		return true, msg, nil
 	}
@@ -71,12 +70,12 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 	t := typeRaft
 	var m protoc.PB
 
-	if v, ok := data.(*meta.RaftMessage); ok {
+	if v, ok := data.(meta.RaftMessage); ok {
 		t = typeRaft
-		m = v
-	} else if v, ok := data.(*meta.SnapshotMessage); ok {
+		m = &v
+	} else if v, ok := data.(meta.SnapshotMessage); ok {
 		t = typeSnap
-		m = v
+		m = &v
 	} else {
 		log.Fatalf("[matrixcube]: bug, not support msg type %T", data)
 	}

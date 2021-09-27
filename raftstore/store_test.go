@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestSingleTestClusterStartAndStop(t *testing.T) {
@@ -95,7 +96,6 @@ func TestAdjustRaftTickerInterval(t *testing.T) {
 func TestIssue123(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := NewSingleTestClusterStore(t,
-		WithTestClusterLogLevel("info"),
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 			cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
 		}))
@@ -266,7 +266,7 @@ func TestIssue166(t *testing.T) {
 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 		cfg.Test.SaveDynamicallyShardInitStateWait = time.Second
 		cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}), WithTestClusterLogLevel("error"))
+	}))
 	defer c.Stop()
 
 	c.Start()
@@ -325,6 +325,7 @@ func TestInitialMember(t *testing.T) {
 
 func TestReadAndWriteAndRestart(t *testing.T) {
 	c := NewSingleTestClusterStore(t,
+		WithTestClusterLogLevel(zapcore.DebugLevel),
 		DiskTestCluster)
 	defer c.Stop()
 

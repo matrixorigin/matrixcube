@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"errors"
 
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
@@ -36,8 +35,8 @@ var (
 	storeNotMatch = new(errorpb.StoreNotMatch)
 )
 
-func buildUUID(uuid []byte, resp *rpc.ResponseBatch) {
-	if resp.Header == nil {
+func buildUUID(uuid []byte, resp rpc.ResponseBatch) {
+	if resp.Header.IsEmpty() {
 		return
 	}
 
@@ -46,19 +45,19 @@ func buildUUID(uuid []byte, resp *rpc.ResponseBatch) {
 	}
 }
 
-func errorOtherCMDResp(err error) *rpc.ResponseBatch {
+func errorOtherCMDResp(err error) rpc.ResponseBatch {
 	resp := errorBaseResp(nil)
 	resp.Header.Error.Message = err.Error()
 	return resp
 }
 
-func errorPbResp(err *errorpb.Error, uuid []byte) *rpc.ResponseBatch {
+func errorPbResp(err errorpb.Error, uuid []byte) rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
-	resp.Header.Error = *err
+	resp.Header.Error = err
 	return resp
 }
 
-func errorStaleCMDResp(uuid []byte) *rpc.ResponseBatch {
+func errorStaleCMDResp(uuid []byte) rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleCommand = infoStaleCMD
@@ -67,7 +66,7 @@ func errorStaleCMDResp(uuid []byte) *rpc.ResponseBatch {
 }
 
 func errorStaleEpochResp(uuid []byte,
-	newShards ...Shard) *rpc.ResponseBatch {
+	newShards ...Shard) rpc.ResponseBatch {
 	resp := errorBaseResp(uuid)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
@@ -77,11 +76,9 @@ func errorStaleEpochResp(uuid []byte,
 	return resp
 }
 
-func errorBaseResp(uuid []byte) *rpc.ResponseBatch {
-	resp := pb.AcquireResponseBatch()
-	resp.Header = pb.AcquireResponseBatchHeader()
+func errorBaseResp(uuid []byte) rpc.ResponseBatch {
+	resp := rpc.ResponseBatch{}
 	buildUUID(uuid, resp)
-
 	return resp
 }
 

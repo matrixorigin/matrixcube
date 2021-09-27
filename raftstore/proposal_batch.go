@@ -20,7 +20,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 )
@@ -39,21 +38,26 @@ var (
 )
 
 type reqCtx struct {
-	admin *rpc.AdminRequest
-	req   *rpc.Request
-	cb    func(*rpc.ResponseBatch)
+	reqType int
+	admin   rpc.AdminRequest
+	req     rpc.Request
+	cb      func(rpc.ResponseBatch)
 }
 
-func (c reqCtx) getType() int {
-	if c.admin != nil {
-		return admin
-	}
+func newAdminReqCtx(req rpc.AdminRequest) reqCtx {
+	ctx := reqCtx{admin: req}
+	ctx.reqType = admin
+	return ctx
+}
 
-	if c.req.Type == rpc.CmdType_Write {
-		return write
+func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
+	ctx := reqCtx{req: req, cb: cb}
+	if req.Type == rpc.CmdType_Read {
+		ctx.reqType = read
+	} else {
+		ctx.reqType = write
 	}
-
-	return read
+	return ctx
 }
 
 // TODO: rename this struct to proposalBatch
@@ -109,7 +113,7 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb
-	tp := c.getType()
+	tp := c.reqType
 
 	isAdmin := tp == admin
 
@@ -134,8 +138,7 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 	}
 
 	if !added {
-		raftCMD := pb.AcquireRequestBatch()
-		raftCMD.Header = pb.AcquireRequestBatchHeader()
+		raftCMD := rpc.RequestBatch{}
 		raftCMD.Header.ShardID = b.shardID
 		raftCMD.Header.Replica = b.replica
 		raftCMD.Header.ID = uuid.NewV4().Bytes()

@@ -19,7 +19,6 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -80,19 +79,18 @@ func (s *store) handleShardStateCheck() {
 
 // all raft message entrypoint
 func (s *store) handle(value interface{}) {
-	if msg, ok := value.(*meta.RaftMessage); ok {
+	if msg, ok := value.(meta.RaftMessage); ok {
 		s.onRaftMessage(msg)
-		pb.ReleaseRaftMessage(msg)
-	} else if msg, ok := value.(*meta.SnapshotMessage); ok {
+	} else if msg, ok := value.(meta.SnapshotMessage); ok {
 		s.onSnapshotMessage(msg)
 	}
 }
 
-func (s *store) onSnapshotMessage(msg *meta.SnapshotMessage) {
+func (s *store) onSnapshotMessage(msg meta.SnapshotMessage) {
 	panic("snapshot not implemented")
 }
 
-func (s *store) onRaftMessage(msg *meta.RaftMessage) {
+func (s *store) onRaftMessage(msg meta.RaftMessage) {
 	if !s.isRaftMsgValid(msg) {
 		return
 	}
@@ -112,7 +110,7 @@ func (s *store) onRaftMessage(msg *meta.RaftMessage) {
 	pr.step(msg.Message)
 }
 
-func (s *store) isRaftMsgValid(msg *meta.RaftMessage) bool {
+func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
 	if msg.To.ContainerID != s.meta.meta.ID {
 		s.logger.Warn("raft msg store not match",
 			s.storeField(),
@@ -123,7 +121,7 @@ func (s *store) isRaftMsgValid(msg *meta.RaftMessage) bool {
 	return true
 }
 
-func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
+func (s *store) handleGCPeerMsg(msg meta.RaftMessage) {
 	shardID := msg.ShardID
 	pr := s.getReplica(shardID, false)
 	if pr != nil {
@@ -140,7 +138,7 @@ func (s *store) handleGCPeerMsg(msg *meta.RaftMessage) {
 	}
 }
 
-func (s *store) tryToCreateReplicate(msg *meta.RaftMessage) bool {
+func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 	// If target peer doesn't exist, create it.
 	//
 	// return false to indicate that target peer is in invalid state or

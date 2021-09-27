@@ -17,7 +17,6 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -39,8 +38,8 @@ func newRPC(store *store) *defaultRPC {
 	app, err := goetty.NewTCPApplication(store.cfg.ClientAddr, rpc.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(zap.L().Named("raftstore-rpc")),
-			goetty.WithReleaseMsgFunc(releaseResponse)))
+			goetty.WithLogger(store.logger.Named("rpc").With(store.storeField()))))
+
 	if err != nil {
 		rpc.logger.Fatal("fail to create rpc",
 			zap.Error(err))
@@ -59,27 +58,22 @@ func (r *defaultRPC) Stop() {
 	r.app.Stop()
 }
 
-func releaseResponse(resp interface{}) {
-	pb.ReleaseResponse(resp.(*rpc.Response))
-}
-
 func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {
-	req := value.(*rpc.Request)
+	req := value.(rpc.Request)
 	req.PID = int64(rs.ID())
 	err := r.store.OnRequest(req)
 	if err != nil {
-		rsp := pb.AcquireResponse()
+		rsp := rpc.Response{}
 		rsp.ID = req.ID
 		rsp.Error.Message = err.Error()
 		rs.WriteAndFlush(rsp)
-		pb.ReleaseRequest(req)
 	}
 	return nil
 }
 
-func (r *defaultRPC) onResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) {
+func (r *defaultRPC) onResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
 	if rs, _ := r.app.GetSession(uint64(rsp.PID)); rs != nil {
-		if header != nil {
+		if !header.IsEmpty() {
 			if header.Error.RaftEntryTooLarge == nil {
 				rsp.Type = rpc.CmdType_RaftError
 			} else {
@@ -97,6 +91,5 @@ func (r *defaultRPC) onResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) 
 		if ce := r.logger.Check(zapcore.DebugLevel, "skip receive response"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID), log.ReasonField("missing session"))
 		}
-		pb.ReleaseResponse(rsp)
 	}
 }

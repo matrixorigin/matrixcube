@@ -20,7 +20,6 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
@@ -38,14 +37,14 @@ var (
 	RetryInterval = time.Second
 )
 
-type doneFunc func(*rpc.Response)
+type doneFunc func(rpc.Response)
 type errorDoneFunc func(*rpc.Request, error)
 
 // ShardsProxy Shards proxy, distribute the appropriate request to the corresponding backend,
 // retry the request for the error
 type ShardsProxy interface {
-	Dispatch(req *rpc.Request) error
-	DispatchTo(req *rpc.Request, shard uint64, store string) error
+	Dispatch(req rpc.Request) error
+	DispatchTo(req rpc.Request, shard uint64, store string) error
 	Router() Router
 }
 
@@ -77,12 +76,12 @@ type shardsProxy struct {
 	backends    sync.Map // store addr -> *backend
 }
 
-func (p *shardsProxy) Dispatch(req *rpc.Request) error {
+func (p *shardsProxy) Dispatch(req rpc.Request) error {
 	shard, to := p.router.SelectShard(req.Group, req.Key)
 	return p.DispatchTo(req, shard, to)
 }
 
-func (p *shardsProxy) DispatchTo(req *rpc.Request, shard uint64, to string) error {
+func (p *shardsProxy) DispatchTo(req rpc.Request, shard uint64, to string) error {
 	if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
 			zap.Uint64("to-shard", shard),
@@ -91,7 +90,7 @@ func (p *shardsProxy) DispatchTo(req *rpc.Request, shard uint64, to string) erro
 
 	// No leader, retry after a leader tick
 	if to == "" {
-		p.retryWithRaftError(req, "dispath to nil store", RetryInterval)
+		p.retryWithRaftError(&req, "dispath to nil store", RetryInterval)
 		return nil
 	}
 
@@ -102,7 +101,7 @@ func (p *shardsProxy) Router() Router {
 	return p.router
 }
 
-func (p *shardsProxy) forwardToBackend(req *rpc.Request, leader string) error {
+func (p *shardsProxy) forwardToBackend(req rpc.Request, leader string) error {
 	if p.store != nil && p.local.ClientAddr == leader {
 		req.PID = 0
 		return p.store.OnRequest(req)
@@ -116,8 +115,8 @@ func (p *shardsProxy) forwardToBackend(req *rpc.Request, leader string) error {
 	return bc.addReq(req)
 }
 
-func (p *shardsProxy) onLocalResp(header *rpc.ResponseBatchHeader, rsp *rpc.Response) {
-	if header != nil {
+func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
+	if !header.IsEmpty() {
 		if header.Error.RaftEntryTooLarge == nil {
 			rsp.Type = rpc.CmdType_RaftError
 		} else {
@@ -128,10 +127,9 @@ func (p *shardsProxy) onLocalResp(header *rpc.ResponseBatchHeader, rsp *rpc.Resp
 	}
 
 	p.done(rsp)
-	pb.ReleaseResponse(rsp)
 }
 
-func (p *shardsProxy) done(rsp *rpc.Response) {
+func (p *shardsProxy) done(rsp rpc.Response) {
 	if rsp.Type == rpc.CmdType_Invalid && rsp.Error.Message != "" {
 		p.errorDoneCB(rsp.Request, errors.New(rsp.Error.String()))
 		return
@@ -143,7 +141,6 @@ func (p *shardsProxy) done(rsp *rpc.Response) {
 	}
 
 	p.retryWithRaftError(rsp.Request, rsp.Error.String(), RetryInterval)
-	pb.ReleaseResponse(rsp)
 }
 
 func (p *shardsProxy) errorDone(req *rpc.Request, err error) {
@@ -169,7 +166,7 @@ func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later tim
 func (p *shardsProxy) doRetry(arg interface{}) {
 	req := arg.(rpc.Request)
 	if req.ToShard == 0 {
-		p.Dispatch(&req)
+		p.Dispatch(req)
 		return
 	}
 
@@ -180,7 +177,7 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 		to = p.router.LeaderReplicaStore(req.ToShard).ClientAddr
 	}
 
-	p.DispatchTo(&req, req.ToShard, to)
+	p.DispatchTo(req, req.ToShard, to)
 }
 
 func (p *shardsProxy) getConn(addr string) (*backend, error) {

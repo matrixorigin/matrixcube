@@ -53,7 +53,7 @@ func (pr *replica) startSplitCheckJob() error {
 func (pr *replica) doPropose(c batch, isConfChange bool) error {
 	if isConfChange {
 		changeC := pr.pendingProposals.getConfigChange()
-		if changeC.req != nil && changeC.req.Header != nil {
+		if !changeC.req.Header.IsEmpty() {
 			changeC.notifyStaleCmd()
 		}
 		pr.pendingProposals.setConfigChange(c)

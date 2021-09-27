@@ -21,7 +21,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/v3"
@@ -105,8 +104,8 @@ func (pr *replica) step(msg raftpb.Message) {
 	pr.addEvent()
 }
 
-func (pr *replica) onAdmin(req *rpc.AdminRequest) error {
-	return pr.addRequest(reqCtx{admin: req})
+func (pr *replica) onAdmin(req rpc.AdminRequest) error {
+	return pr.addRequest(newAdminReqCtx(req))
 }
 
 func (pr *replica) onRaftTick(arg interface{}) {
@@ -161,8 +160,6 @@ func (pr *replica) onStop() {
 			if req.cb != nil {
 				respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
 			}
-
-			pb.ReleaseRequest(req.req)
 		}
 
 		pr.logger.Info("handle serve raft stopped")
@@ -365,7 +362,7 @@ func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch m
 		return
 	}
 
-	req := &rpc.AdminRequest{
+	req := rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_BatchSplit,
 		Splits:  &rpc.BatchSplitRequest{},
 	}

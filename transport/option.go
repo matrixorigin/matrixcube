@@ -29,7 +29,7 @@ type options struct {
 	sendBatch        int64
 	raftWorkerCount  uint64
 	snapWorkerCount  uint64
-	errorHandlerFunc func(*meta.RaftMessage, error)
+	errorHandlerFunc func(meta.RaftMessage, error)
 }
 
 // WithTimeout set read and write timeout for rpc
@@ -63,7 +63,7 @@ func WithWorkerCount(raft, snap uint64) Option {
 }
 
 // WithErrorHandler set error handler
-func WithErrorHandler(value func(*meta.RaftMessage, error)) Option {
+func WithErrorHandler(value func(meta.RaftMessage, error)) Option {
 	return func(opts *options) {
 		opts.errorHandlerFunc = value
 	}

@@ -24,7 +24,6 @@ import (
 	"github.com/fagongzi/util/hack"
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/raftstore"
@@ -38,7 +37,7 @@ type Application struct {
 	server      goetty.NetApplication
 	shardsProxy raftstore.ShardsProxy
 	libaryCB    sync.Map // id -> application cb
-	dispatcher  func(req *rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
+	dispatcher  func(req rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error
 
 	logger *zap.Logger
 }
@@ -49,7 +48,7 @@ func NewApplication(cfg Cfg) *Application {
 }
 
 // NewApplication returns a tcp application server
-func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error) *Application {
+func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req rpc.Request, cmd interface{}, proxy raftstore.ShardsProxy) error) *Application {
 	s := &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
@@ -61,8 +60,7 @@ func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req *rpc.Request, cmd
 		app, err := goetty.NewTCPApplication(cfg.Addr, s.onMessage,
 			goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 				goetty.WithEnableAsyncWrite(16),
-				goetty.WithLogger(s.logger),
-				goetty.WithReleaseMsgFunc(s.releaseResponse)))
+				goetty.WithLogger(s.logger)))
 		if err != nil {
 			s.logger.Panic("fail to create internal server",
 				zap.Error(err))
@@ -147,18 +145,17 @@ func (s *Application) AsyncExecWithTimeout(cmd interface{}, cb func(interface{},
 
 // AsyncExecWithGroupAndTimeout async exec the request, if the err is ErrTimeout means the request is timeout
 func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
-	req := pb.AcquireRequest()
+	req := rpc.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.Group = group
 	req.StopAt = time.Now().Add(timeout).Unix()
 
-	err := s.cfg.Handler.BuildRequest(req, cmd)
+	err := s.cfg.Handler.BuildRequest(&req, cmd)
 	if err != nil {
 		if ce := s.logger.Check(zap.DebugLevel, "fail to build request"); ce != nil {
 			ce.Write(log.RequestIDField(req.ID), zap.Error(err))
 		}
 		cb(arg, nil, err)
-		pb.ReleaseRequest(req)
 		return
 	}
 
@@ -180,7 +177,6 @@ func (s *Application) AsyncExecWithGroupAndTimeout(cmd interface{}, group uint64
 		err = s.shardsProxy.Dispatch(req)
 	}
 	if err != nil {
-		pb.ReleaseRequest(req)
 		s.libaryCB.Delete(hack.SliceToString(req.ID))
 		cb(arg, nil, err)
 	}
@@ -224,16 +220,15 @@ func (s *Application) execTimeout(arg interface{}) {
 }
 
 func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint64) error {
-	req := pb.AcquireRequest()
+	req := rpc.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.SID = int64(conn.ID())
 
-	err := s.cfg.Handler.BuildRequest(req, cmd)
+	err := s.cfg.Handler.BuildRequest(&req, cmd)
 	if err != nil {
 		resp := &rpc.Response{}
 		resp.Error.Message = err.Error()
 		conn.WriteAndFlush(resp)
-		pb.ReleaseRequest(req)
 		return nil
 	}
 
@@ -251,7 +246,7 @@ func (s *Application) onMessage(conn goetty.IOSession, cmd interface{}, seq uint
 	return nil
 }
 
-func (s *Application) done(resp *rpc.Response) {
+func (s *Application) done(resp rpc.Response) {
 	if ce := s.logger.Check(zap.DebugLevel, "response received"); ce != nil {
 		ce.Write(log.RequestIDField(resp.ID))
 	}
@@ -355,16 +350,16 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 
 func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64, forwards []string) {
 	var err error
-	var requests []*rpc.Request
+	var requests []rpc.Request
 	for _, shard := range shards {
-		req := pb.AcquireRequest()
+		req := rpc.Request{}
 		req.ID = uuid.NewV4().Bytes()
 		req.Group = ctx.group
 		req.StopAt = time.Now().Add(ctx.timeout).Unix()
 		req.ToShard = shard
 		req.AllowFollower = !ctx.mustLeader
 
-		err = s.cfg.Handler.BuildRequest(req, ctx.cmd)
+		err = s.cfg.Handler.BuildRequest(&req, ctx.cmd)
 		if err != nil {
 			break
 		}
@@ -373,9 +368,6 @@ func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64
 	}
 
 	if err != nil {
-		for _, req := range requests {
-			pb.ReleaseRequest(req)
-		}
 		ctx.cb(ctx.arg, nil, err)
 		return
 	}
@@ -399,7 +391,7 @@ func (s *Application) doBroadcast(ctx *broadcastCtx, max uint64, shards []uint64
 }
 
 func (s *Application) retryForward(arg interface{}) {
-	req := arg.(*rpc.Request)
+	req := arg.(rpc.Request)
 	to := ""
 	if req.AllowFollower {
 		to = s.shardsProxy.Router().RandomReplicaStore(req.ToShard).ClientAddr
@@ -412,10 +404,6 @@ func (s *Application) retryForward(arg interface{}) {
 		// retry later
 		util.DefaultTimeoutWheel().Schedule(time.Second, s.retryForward, req)
 	}
-}
-
-func (s *Application) releaseResponse(rsp interface{}) {
-	pb.ReleaseResponse(rsp.(*rpc.Response))
 }
 
 type asyncCtx interface {
