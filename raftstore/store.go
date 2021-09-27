@@ -32,7 +32,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -57,11 +56,11 @@ type Store interface {
 	// GetRouter returns a router
 	GetRouter() Router
 	// RegisterLocalRequestCB register local request cb to process response
-	RegisterLocalRequestCB(func(*rpc.ResponseBatchHeader, *rpc.Response))
+	RegisterLocalRequestCB(func(rpc.ResponseBatchHeader, rpc.Response))
 	// RegisterRPCRequestCB register rpc request cb to process response
-	RegisterRPCRequestCB(func(*rpc.ResponseBatchHeader, *rpc.Response))
+	RegisterRPCRequestCB(func(rpc.ResponseBatchHeader, rpc.Response))
 	// OnRequest receive a request, and call cb while the request is completed
-	OnRequest(*rpc.Request) error
+	OnRequest(rpc.Request) error
 	// DataStorage returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
@@ -104,8 +103,8 @@ type store struct {
 	state    uint32
 	stopOnce sync.Once
 
-	localCB func(*rpc.ResponseBatchHeader, *rpc.Response)
-	rpcCB   func(*rpc.ResponseBatchHeader, *rpc.Response)
+	localCB func(rpc.ResponseBatchHeader, rpc.Response)
+	rpcCB   func(rpc.ResponseBatchHeader, rpc.Response)
 
 	aware   aware.ShardStateAware
 	stopper *syncutil.Stopper
@@ -255,19 +254,19 @@ func (s *store) Meta() meta.Store {
 	return s.meta.meta
 }
 
-func (s *store) RegisterLocalRequestCB(cb func(*rpc.ResponseBatchHeader, *rpc.Response)) {
+func (s *store) RegisterLocalRequestCB(cb func(rpc.ResponseBatchHeader, rpc.Response)) {
 	s.localCB = cb
 }
 
-func (s *store) RegisterRPCRequestCB(cb func(*rpc.ResponseBatchHeader, *rpc.Response)) {
+func (s *store) RegisterRPCRequestCB(cb func(rpc.ResponseBatchHeader, rpc.Response)) {
 	s.rpcCB = cb
 }
 
-func (s *store) OnRequest(req *rpc.Request) error {
+func (s *store) OnRequest(req rpc.Request) error {
 	return s.onRequestWithCB(req, s.cb)
 }
 
-func (s *store) onRequestWithCB(req *rpc.Request, cb func(resp *rpc.ResponseBatch)) error {
+func (s *store) onRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
 	if ce := s.logger.Check(zap.DebugLevel, "receive request"); ce != nil {
 		ce.Write(log.RequestIDField(req.ID),
 			s.storeField())
@@ -317,7 +316,7 @@ func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getReplica(shard, true)
 }
 
-func (s *store) cb(resp *rpc.ResponseBatch) {
+func (s *store) cb(resp rpc.ResponseBatch) {
 	for _, rsp := range resp.Responses {
 		if rsp.PID != 0 {
 			s.rpcCB(resp.Header, rsp)
@@ -325,8 +324,6 @@ func (s *store) cb(resp *rpc.ResponseBatch) {
 			s.localCB(resp.Header, rsp)
 		}
 	}
-
-	pb.ReleaseResponseBatch(resp)
 }
 
 func (s *store) MustAllocID() uint64 {
@@ -375,7 +372,7 @@ func (s *store) startTransport() {
 				10*s.cfg.Raft.GetElectionTimeoutDuration()),
 			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
 			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
-			transport.WithErrorHandler(func(msg *meta.RaftMessage, err error) {
+			transport.WithErrorHandler(func(msg meta.RaftMessage, err error) {
 				if pr := s.getReplica(msg.ShardID, true); pr != nil {
 					pr.addReport(msg.Message)
 				}
@@ -570,7 +567,7 @@ func (s *store) removeDroppedVoteMsg(id uint64) (raftpb.Message, bool) {
 	return raftpb.Message{}, false
 }
 
-func (s *store) validateStoreID(req *rpc.RequestBatch) error {
+func (s *store) validateStoreID(req rpc.RequestBatch) error {
 	if req.Header.Replica.ContainerID != s.meta.meta.ID {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
 			req.Header.Replica.ContainerID,
@@ -580,7 +577,7 @@ func (s *store) validateStoreID(req *rpc.RequestBatch) error {
 	return nil
 }
 
-func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
+func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	shardID := req.Header.ShardID
 	peerID := req.Header.Replica.ID
 
@@ -588,28 +585,28 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 	if nil == pr {
 		err := new(errorpb.ShardNotFound)
 		err.ShardID = shardID
-		return &errorpb.Error{
+		return errorpb.Error{
 			Message:       errShardNotFound.Error(),
 			ShardNotFound: err,
-		}
+		}, true
 	}
 
-	allowFollow := req.AdminRequest == nil && len(req.Requests) > 0 && req.Requests[0].AllowFollower
+	allowFollow := len(req.Requests) > 0 && req.Requests[0].AllowFollower
 	if !allowFollow && !pr.isLeader() {
 		err := new(errorpb.NotLeader)
 		err.ShardID = shardID
 		err.Leader, _ = s.getReplicaRecord(pr.getLeaderPeerID())
 
-		return &errorpb.Error{
+		return errorpb.Error{
 			Message:   errNotLeader.Error(),
 			NotLeader: err,
-		}
+		}, true
 	}
 
 	if pr.replica.ID != peerID {
-		return &errorpb.Error{
+		return errorpb.Error{
 			Message: fmt.Sprintf("mismatch peer id, give=<%d> want=<%d>", peerID, pr.replica.ID),
-		}
+		}, true
 	}
 
 	shard := pr.getShard()
@@ -624,20 +621,20 @@ func (s *store) validateShard(req *rpc.RequestBatch) *errorpb.Error {
 			err.NewShards = append(err.NewShards, *newShard)
 		}
 
-		return &errorpb.Error{
+		return errorpb.Error{
 			Message:    errStaleEpoch.Error(),
 			StaleEpoch: err,
-		}
+		}, true
 	}
 
-	return nil
+	return errorpb.Error{}, false
 }
 
-func checkEpoch(shard Shard, req *rpc.RequestBatch) bool {
+func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 	checkVer := false
 	checkConfVer := false
 
-	if req.AdminRequest != nil {
+	if req.IsAdmin() {
 		switch req.AdminRequest.CmdType {
 		case rpc.AdminCmdType_BatchSplit:
 			checkVer = true
@@ -656,7 +653,7 @@ func checkEpoch(shard Shard, req *rpc.RequestBatch) bool {
 		return true
 	}
 
-	if req.Header == nil {
+	if req.Header.IsEmpty() {
 		return false
 	}
 
@@ -675,8 +672,8 @@ func checkEpoch(shard Shard, req *rpc.RequestBatch) bool {
 	return true
 }
 
-func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) *rpc.ResponseBatch {
-	adminResp := new(rpc.AdminResponse)
+func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.ResponseBatch {
+	adminResp := rpc.AdminResponse{}
 	adminResp.CmdType = adminType
 
 	switch adminType {
@@ -688,7 +685,7 @@ func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) *rpc.Respo
 		adminResp.Splits = rsp.(*rpc.BatchSplitResponse)
 	}
 
-	resp := pb.AcquireResponseBatch()
+	resp := rpc.ResponseBatch{}
 	resp.AdminResponse = adminResp
 	return resp
 }

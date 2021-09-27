@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -159,7 +159,7 @@ func (pr *replica) sendMessage(msg raftpb.Message) {
 
 func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	shard := pr.getShard()
-	sendMsg := pb.AcquireRaftMessage()
+	sendMsg := meta.RaftMessage{}
 	sendMsg.ShardID = pr.shardID
 	sendMsg.ShardEpoch = shard.Epoch
 	sendMsg.Group = shard.Group

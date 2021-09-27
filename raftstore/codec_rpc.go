@@ -16,7 +16,6 @@ package raftstore
 import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -31,9 +30,9 @@ type rpcCodec struct {
 func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	var value protoc.PB
 	if c.clientSide {
-		value = pb.AcquireResponse()
+		value = &rpc.Response{}
 	} else {
-		value = pb.AcquireRequest()
+		value = &rpc.Request{}
 	}
 
 	err := value.Unmarshal(in.GetMarkedRemindData())

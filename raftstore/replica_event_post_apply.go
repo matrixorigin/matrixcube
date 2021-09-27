@@ -59,7 +59,7 @@ func (pr *replica) doPostApply(result asyncApplyResult) {
 	pr.appliedIndex = result.index
 	pr.rn.AdvanceApply(result.index)
 
-	pr.logger.Debug("async apply committied entries finished",
+	pr.logger.Debug("apply committied entries finished",
 		zap.Uint64("applied", pr.appliedIndex),
 		zap.Uint64("last", pr.rn.LastIndex()))
 

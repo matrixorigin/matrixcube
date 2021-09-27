@@ -72,7 +72,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
-			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil && req.req != nil {
+			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil {
 				ce.Write(log.HexField("id", req.req.ID))
 			}
 			// FIXME: still using the current epoch here. should use epoch value
@@ -155,7 +155,7 @@ func (pr *replica) execReadIndex(c batch) {
 	lastPendingReadCount := pr.pendingReadCount()
 	lastReadyReadCount := pr.readyReadCount()
 
-	pr.rn.ReadIndex(protoc.MustMarshal(c.req))
+	pr.rn.ReadIndex(protoc.MustMarshal(&c.req))
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()
@@ -176,7 +176,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 		return false
 	}
 
-	data := protoc.MustMarshal(c.req)
+	data := protoc.MustMarshal(&c.req)
 	size := len(data)
 	metric.ObserveProposalBytes(int64(size))
 
@@ -209,7 +209,7 @@ func (pr *replica) proposeConfChange(c batch) bool {
 		return false
 	}
 
-	data := protoc.MustMarshal(c.req)
+	data := protoc.MustMarshal(&c.req)
 	admin := c.req.AdminRequest
 	err := pr.proposeConfChangeInternal(c, admin, data)
 	if err != nil {
@@ -220,7 +220,7 @@ func (pr *replica) proposeConfChange(c batch) bool {
 	return true
 }
 
-func (pr *replica) proposeConfChangeInternal(c batch, admin *rpc.AdminRequest, data []byte) error {
+func (pr *replica) proposeConfChangeInternal(c batch, admin rpc.AdminRequest, data []byte) error {
 	cc := pr.toConfChangeI(admin, data)
 	var changes []rpc.ConfigChangeRequest
 	if admin.ConfigChangeV2 != nil {
@@ -254,7 +254,7 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin *rpc.AdminRequest, d
 	return nil
 }
 
-func (pr *replica) toConfChangeI(admin *rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
+func (pr *replica) toConfChangeI(admin rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
 	if admin.ConfigChange != nil {
 		return &raftpb.ConfChange{
 			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
@@ -331,7 +331,7 @@ func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Replica) bool {
 
 func (pr *replica) checkProposal(c batch) bool {
 	// we handle all read, write and admin cmd here
-	if c.req.Header == nil || len(c.req.Header.ID) == 0 {
+	if len(c.req.Header.ID) == 0 {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))
 		return false
 	}
@@ -342,8 +342,7 @@ func (pr *replica) checkProposal(c batch) bool {
 		return false
 	}
 
-	pe := pr.store.validateShard(c.req)
-	if pe != nil {
+	if pe, ok := pr.store.validateShard(c.req); ok {
 		c.resp(errorPbResp(pe, c.req.Header.ID))
 		return false
 	}
@@ -439,8 +438,8 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTra
 	return trk, nil
 }
 
-func (pr *replica) getHandlePolicy(req *rpc.RequestBatch) (requestPolicy, error) {
-	if req.AdminRequest != nil {
+func (pr *replica) getHandlePolicy(req rpc.RequestBatch) (requestPolicy, error) {
+	if req.IsAdmin() {
 		switch req.AdminRequest.CmdType {
 		case rpc.AdminCmdType_ConfigChange:
 			return proposeChange, nil

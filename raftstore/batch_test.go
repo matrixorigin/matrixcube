@@ -70,8 +70,8 @@ func TestCanAppendCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		cmd := &batch{
-			req: &rpc.RequestBatch{
-				Header: &rpc.RequestBatchHeader{
+			req: rpc.RequestBatch{
+				Header: rpc.RequestBatchHeader{
 					Epoch: metapb.ResourceEpoch{
 						ConfVer: tt.confVer1,
 						Version: tt.version1,
@@ -80,7 +80,7 @@ func TestCanAppendCmd(t *testing.T) {
 				},
 			},
 		}
-		req := &rpc.Request{
+		req := rpc.Request{
 			IgnoreEpochCheck: tt.ignored2,
 		}
 		epoch := metapb.ResourceEpoch{

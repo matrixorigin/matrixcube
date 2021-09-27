@@ -58,8 +58,8 @@ func TestPendingProposalPop(t *testing.T) {
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	p := newPendingProposals()
 	cmd := batch{
-		req: &rpc.RequestBatch{
-			AdminRequest: &rpc.AdminRequest{
+		req: rpc.RequestBatch{
+			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
 		},
@@ -71,8 +71,8 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 	cmd := batch{
-		req: &rpc.RequestBatch{
-			AdminRequest: &rpc.AdminRequest{
+		req: rpc.RequestBatch{
+			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_TransferLeader,
 			},
 		},
@@ -87,38 +87,38 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 }
 
 func testPendingProposalClear(t *testing.T,
-	clear bool, cb func(resp *rpc.ResponseBatch)) {
+	clear bool, cb func(resp rpc.ResponseBatch)) {
 	cmd1 := batch{
-		req: &rpc.RequestBatch{
-			Requests: []*rpc.Request{
+		req: rpc.RequestBatch{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: cb,
 	}
 	cmd2 := batch{
-		req: &rpc.RequestBatch{
-			Requests: []*rpc.Request{
+		req: rpc.RequestBatch{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: cb,
 	}
 	ConfChangeCmd := batch{
-		req: &rpc.RequestBatch{
-			AdminRequest: &rpc.AdminRequest{
+		req: rpc.RequestBatch{
+			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []*rpc.Request{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -138,7 +138,7 @@ func testPendingProposalClear(t *testing.T,
 }
 
 func TestPendingProposalClear(t *testing.T) {
-	check := func(resp *rpc.ResponseBatch) {
+	check := func(resp rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
@@ -146,7 +146,7 @@ func TestPendingProposalClear(t *testing.T) {
 }
 
 func TestPendingProposalDestroy(t *testing.T) {
-	check := func(resp *rpc.ResponseBatch) {
+	check := func(resp rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
@@ -155,20 +155,20 @@ func TestPendingProposalDestroy(t *testing.T) {
 
 func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	called := false
-	cb := func(resp *rpc.ResponseBatch) {
+	cb := func(resp rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	ConfChangeCmd := batch{
-		req: &rpc.RequestBatch{
-			AdminRequest: &rpc.AdminRequest{
+		req: rpc.RequestBatch{
+			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []*rpc.Request{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -185,33 +185,33 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	called := false
 	staleCalled := false
-	staleCB := func(resp *rpc.ResponseBatch) {
+	staleCB := func(resp rpc.ResponseBatch) {
 		staleCalled = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
-	cb := func(resp *rpc.ResponseBatch) {
+	cb := func(resp rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
 	cmd1 := batch{
-		req: &rpc.RequestBatch{
-			Requests: []*rpc.Request{
+		req: rpc.RequestBatch{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
 		cb: staleCB,
 	}
 	cmd2 := batch{
-		req: &rpc.RequestBatch{
-			Requests: []*rpc.Request{
+		req: rpc.RequestBatch{
+			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
-			Header: &rpc.RequestBatchHeader{
+			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -225,7 +225,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 
 	err := new(errorpb.ShardNotFound)
 	err.ShardID = 100
-	resp := errorPbResp(&errorpb.Error{
+	resp := errorPbResp(errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
 	}, cmd2.req.Header.ID)

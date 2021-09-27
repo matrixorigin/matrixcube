@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
@@ -66,8 +65,6 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 	}
 
 	start := time.Now()
-	req := pb.AcquireRequestBatch()
-
 	for _, entry := range commitedEntries {
 		if d.isPendingRemove() {
 			// This replica is about to be destroyed, skip everything.
@@ -96,9 +93,6 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 
 		d.pr.addApplyResult(asyncResult)
 	}
-
-	// only release RequestBatch. Header and Requests fields is pb created in Unmarshal
-	pb.ReleaseRequestBatch(req)
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
@@ -110,7 +104,7 @@ func (d *stateMachine) applyEntry(ctx *applyContext) {
 		return
 	}
 
-	protoc.MustUnmarshal(ctx.req, ctx.entry.Data)
+	protoc.MustUnmarshal(&ctx.req, ctx.entry.Data)
 	d.doApplyRaftCMD(ctx)
 }
 
@@ -133,11 +127,11 @@ func (d *stateMachine) applyConfChange(ctx *applyContext) {
 	if ctx.entry.Type == raftpb.EntryConfChange {
 		cc := raftpb.ConfChange{}
 		protoc.MustUnmarshal(&cc, ctx.entry.Data)
-		protoc.MustUnmarshal(ctx.req, cc.Context)
+		protoc.MustUnmarshal(&ctx.req, cc.Context)
 		v2cc = cc.AsV2()
 	} else {
 		protoc.MustUnmarshal(&v2cc, ctx.entry.Data)
-		protoc.MustUnmarshal(ctx.req, v2cc.Context)
+		protoc.MustUnmarshal(&ctx.req, v2cc.Context)
 	}
 
 	d.doApplyRaftCMD(ctx)
@@ -161,11 +155,11 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 	}
 
 	var err error
-	var resp *rpc.ResponseBatch
+	var resp rpc.ResponseBatch
 	if !d.checkEpoch(ctx.req) {
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
-		if ctx.req.AdminRequest != nil {
+		if ctx.req.IsAdmin() {
 			resp, err = d.execAdminRequest(ctx)
 			if err != nil {
 				resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
@@ -221,12 +215,12 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 	return d.metadataMu.index, d.metadataMu.term
 }
 
-func (d *stateMachine) checkEpoch(req *rpc.RequestBatch) bool {
+func (d *stateMachine) checkEpoch(req rpc.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
 }
 
-func isConfigChangeCMD(req *rpc.RequestBatch) bool {
-	return nil != req.AdminRequest &&
+func isConfigChangeCMD(req rpc.RequestBatch) bool {
+	return req.IsAdmin() &&
 		(req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChange ||
 			req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChangeV2)
 }

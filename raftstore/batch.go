@@ -17,7 +17,6 @@ import (
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
@@ -29,8 +28,8 @@ func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
 
 type batch struct {
 	logger                  *zap.Logger
-	req                     *rpc.RequestBatch
-	cb                      func(*rpc.ResponseBatch)
+	req                     rpc.RequestBatch
+	cb                      func(rpc.ResponseBatch)
 	readIndexCommittedIndex uint64
 	tp                      int
 	size                    int
@@ -41,7 +40,7 @@ func (c *batch) notifyStaleCmd() {
 }
 
 func (c *batch) notifyShardRemoved() {
-	if c.req != nil && c.req.Header != nil {
+	if !c.req.Header.IsEmpty() {
 		c.respShardNotFound(c.req.Header.ShardID)
 	}
 }
@@ -51,13 +50,13 @@ func (c *batch) isFull(n, max int) bool {
 		(testMaxProposalRequestCount > 0 && len(c.req.Requests) >= testMaxProposalRequestCount)
 }
 
-func (c *batch) canAppend(epoch metapb.ResourceEpoch, req *rpc.Request) bool {
+func (c *batch) canAppend(epoch metapb.ResourceEpoch, req rpc.Request) bool {
 	return (c.req.Header.IgnoreEpochCheck && req.IgnoreEpochCheck) ||
 		(epochMatch(c.req.Header.Epoch, epoch) &&
 			!c.req.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
-func newCMD(logger *zap.Logger, req *rpc.RequestBatch, cb func(*rpc.ResponseBatch), tp int, size int) batch {
+func newCMD(logger *zap.Logger, req rpc.RequestBatch, cb func(rpc.ResponseBatch), tp int, size int) batch {
 	c := batch{}
 	c.logger = logger
 	c.req = req
@@ -67,50 +66,50 @@ func newCMD(logger *zap.Logger, req *rpc.RequestBatch, cb func(*rpc.ResponseBatc
 	return c
 }
 
-func resp(req *rpc.Request, resp *rpc.Response, cb func(*rpc.ResponseBatch)) {
+func resp(req rpc.Request, resp rpc.Response, cb func(rpc.ResponseBatch)) {
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
 
-	rsp := pb.AcquireResponseBatch()
+	rsp := rpc.ResponseBatch{}
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }
 
-func respWithRetry(req *rpc.Request, cb func(*rpc.ResponseBatch)) {
-	resp := pb.AcquireResponse()
+func respWithRetry(req rpc.Request, cb func(rpc.ResponseBatch)) {
+	resp := rpc.Response{}
 	resp.Type = rpc.CmdType_Invalid
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
-	resp.Request = req
+	resp.Request = &req
 
-	rsp := pb.AcquireResponseBatch()
+	rsp := rpc.ResponseBatch{}
 	rsp.Responses = append(rsp.Responses, resp)
 
 	cb(rsp)
 }
 
-func respStoreNotMatch(err error, req *rpc.Request, cb func(*rpc.ResponseBatch)) {
-	rsp := errorPbResp(&errorpb.Error{
+func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
+	rsp := errorPbResp(errorpb.Error{
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
 	}, uuid.NewV4().Bytes())
 
-	resp := pb.AcquireResponse()
+	resp := rpc.Response{}
 	resp.ID = req.ID
 	resp.SID = req.SID
 	resp.PID = req.PID
-	resp.Request = req
+	resp.Request = &req
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }
 
-func (c *batch) resp(resp *rpc.ResponseBatch) {
+func (c *batch) resp(resp rpc.ResponseBatch) {
 	if c.cb != nil {
 		if len(c.req.Requests) > 0 {
 			if len(c.req.Requests) != len(resp.Responses) {
-				if resp.Header == nil {
+				if resp.Header.IsEmpty() {
 					c.logger.Fatal("requests and response not match",
 						zap.Int("request-count", len(c.req.Requests)),
 						zap.Int("response-count", len(resp.Responses)))
@@ -119,7 +118,7 @@ func (c *batch) resp(resp *rpc.ResponseBatch) {
 				}
 
 				for _, req := range c.req.Requests {
-					rsp := pb.AcquireResponse()
+					rsp := rpc.Response{}
 					rsp.ID = req.ID
 					rsp.SID = req.SID
 					rsp.PID = req.PID
@@ -133,9 +132,9 @@ func (c *batch) resp(resp *rpc.ResponseBatch) {
 				}
 			}
 
-			if resp.Header != nil {
+			if !resp.Header.IsEmpty() {
 				for idx, rsp := range resp.Responses {
-					rsp.Request = c.req.Requests[idx]
+					rsp.Request = &c.req.Requests[idx]
 					rsp.Request.Key = keys.DecodeDataKey(rsp.Request.Key)
 					rsp.Error = resp.Header.Error
 				}
@@ -143,8 +142,6 @@ func (c *batch) resp(resp *rpc.ResponseBatch) {
 		}
 
 		c.cb(resp)
-	} else {
-		pb.ReleaseRaftResponseAll(resp)
 	}
 }
 
@@ -152,7 +149,7 @@ func (c *batch) respShardNotFound(shardID uint64) {
 	err := new(errorpb.ShardNotFound)
 	err.ShardID = shardID
 
-	rsp := errorPbResp(&errorpb.Error{
+	rsp := errorPbResp(errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
 	}, c.req.Header.ID)
@@ -166,7 +163,7 @@ func (c *batch) respLargeRaftEntrySize(shardID uint64, size uint64) {
 		EntrySize: size,
 	}
 
-	rsp := errorPbResp(&errorpb.Error{
+	rsp := errorPbResp(errorpb.Error{
 		Message:           errLargeRaftEntrySize.Error(),
 		RaftEntryTooLarge: err,
 	}, c.getUUID())
@@ -185,7 +182,7 @@ func (c *batch) respNotLeader(shardID uint64, leader Replica) {
 		Leader:  leader,
 	}
 
-	rsp := errorPbResp(&errorpb.Error{
+	rsp := errorPbResp(errorpb.Error{
 		Message:   errNotLeader.Error(),
 		NotLeader: err,
 	}, c.getUUID())

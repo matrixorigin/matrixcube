@@ -105,7 +105,7 @@ func createReplica(store *store, shard *Shard, why string) (*replica, error) {
 // createReplicaWithRaftMessage the replica can be created from another node with raft membership changes, and we only
 // know the shard_id and replica_id when creating this replicated replica, the shard info
 // will be retrieved later after applying snapshot.
-func createReplicaWithRaftMessage(store *store, msg *meta.RaftMessage, replica Replica, why string) (*replica, error) {
+func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Replica, why string) (*replica, error) {
 	shard := &Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
@@ -330,9 +330,9 @@ func (pr *replica) maybeCampaign() (bool, error) {
 	return true, nil
 }
 
-func (pr *replica) onReq(req *rpc.Request, cb func(*rpc.ResponseBatch)) error {
+func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
-	return pr.addRequest(reqCtx{req: req, cb: cb})
+	return pr.addRequest(newReqCtx(req, cb))
 }
 
 func (pr *replica) stopEventLoop() {

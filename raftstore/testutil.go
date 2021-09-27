@@ -31,7 +31,6 @@ import (
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -43,6 +42,7 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -70,7 +70,7 @@ type testClusterOptions struct {
 	adjustConfigFuncs  []func(node int, cfg *config.Config)
 	storeFactory       func(node int, cfg *config.Config) Store
 	nodeStartFunc      func(node int, store Store)
-	logLevel           string
+	logLevel           zapcore.Level
 	useDisk            bool
 	dataOpts, metaOpts *cpebble.Options
 
@@ -91,9 +91,6 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3
-	}
-	if opts.logLevel == "" {
-		opts.logLevel = "info"
 	}
 }
 
@@ -126,7 +123,7 @@ func WithTestClusterDisableSchedule() TestClusterOption {
 }
 
 // WithTestClusterLogLevel set raftstore log level
-func WithTestClusterLogLevel(level string) TestClusterOption {
+func WithTestClusterLogLevel(level zapcore.Level) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.logLevel = level
 	}
@@ -578,7 +575,7 @@ func (kv *testKVClient) clearContext(id string) {
 	delete(kv.doneCtx, id)
 }
 
-func (kv *testKVClient) done(resp *rpc.Response) {
+func (kv *testKVClient) done(resp rpc.Response) {
 	kv.Lock()
 	defer kv.Unlock()
 
@@ -600,10 +597,10 @@ func (kv *testKVClient) nextID() string {
 	return fmt.Sprintf("%d", atomic.AddUint64(&kv.id, 1))
 }
 
-func createTestWriteReq(id, k, v string) *rpc.Request {
+func createTestWriteReq(id, k, v string) rpc.Request {
 	wr := simple.NewWriteRequest([]byte(k), []byte(v))
 
-	req := pb.AcquireRequest()
+	req := rpc.Request{}
 	req.ID = []byte(id)
 	req.CustemType = wr.CmdType
 	req.Type = rpc.CmdType_Write
@@ -612,10 +609,10 @@ func createTestWriteReq(id, k, v string) *rpc.Request {
 	return req
 }
 
-func createTestReadReq(id, k string) *rpc.Request {
+func createTestReadReq(id, k string) rpc.Request {
 	rr := simple.NewReadRequest([]byte(k))
 
-	req := pb.AcquireRequest()
+	req := rpc.Request{}
 	req.ID = []byte(id)
 	req.CustemType = rr.CmdType
 	req.Type = rpc.CmdType_Read
@@ -653,9 +650,6 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
-	// logger2.WithOptions(zap.WithCaller(false))
-	// logger2.Core().Enabled(zap.DebugLevel)
-
 	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
@@ -676,7 +670,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 	if init {
 		log.SetHighlighting(false)
-		log.SetLevelByString(c.opts.logLevel)
+		log.SetLevelByString("error")
 		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
 		c.baseDataDir = fmt.Sprintf("%s/%s", c.opts.tmpDir, c.t.Name())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
@@ -692,7 +686,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
-		cfg.Logger = config.GetDefaultZapLogger().With(zap.String("case", fmt.Sprintf("%s/node-%d", c.t.Name(), i)))
+		cfg.Logger = config.GetDefaultZapLoggerWithLevel(c.opts.logLevel).With(zap.String("case", c.t.Name()))
 		cfg.FS = vfs.GetTestFS()
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
