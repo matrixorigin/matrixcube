@@ -31,6 +31,7 @@ import (
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -74,7 +75,8 @@ type testClusterOptions struct {
 	useDisk            bool
 	dataOpts, metaOpts *cpebble.Options
 
-	disableSchedule bool
+	disableSchedule     bool
+	disableTestParallel bool
 }
 
 func newTestClusterOptions() *testClusterOptions {
@@ -119,6 +121,13 @@ func WithTestClusterUseDisk() TestClusterOption {
 func WithTestClusterDisableSchedule() TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.disableSchedule = true
+	}
+}
+
+// WithDisableTestParallel disable parallel testing
+func WithDisableTestParallel() TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.disableTestParallel = true
 	}
 }
 
@@ -650,7 +659,6 @@ func NewSingleTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaft
 
 // NewTestClusterStore create test cluster using options
 func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluster {
-	t.Parallel()
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
 	return c
@@ -669,6 +677,9 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	c.opts.adjust()
 
 	if init {
+		if !c.opts.disableTestParallel {
+			c.t.Parallel()
+		}
 		log.SetHighlighting(false)
 		log.SetLevelByString("error")
 		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
@@ -1070,4 +1081,18 @@ func calcRTTMillisecond(fs vfs.FS, dir string) uint64 {
 		}
 	}
 	return rttValues[len(rttValues)-1]
+}
+
+type testTransport struct {
+	sync.RWMutex
+	sendingSnapshotCount uint64
+}
+
+func (trans *testTransport) Start()                {}
+func (trans *testTransport) Stop()                 {}
+func (trans *testTransport) Send(meta.RaftMessage) {}
+func (trans *testTransport) SendingSnapshotCount() uint64 {
+	trans.RLock()
+	defer trans.RUnlock()
+	return trans.sendingSnapshotCount
 }

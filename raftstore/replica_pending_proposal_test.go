@@ -38,8 +38,8 @@ func TestPendingProposalAppend(t *testing.T) {
 
 func TestPendingProposalPop(t *testing.T) {
 	p := newPendingProposals()
-	cmd1 := batch{size: 100}
-	cmd2 := batch{size: 200}
+	cmd1 := batch{byteSize: 100}
+	cmd2 := batch{byteSize: 200}
 	p.append(cmd1)
 	p.append(cmd2)
 	assert.Equal(t, 2, len(p.cmds))
@@ -58,7 +58,7 @@ func TestPendingProposalPop(t *testing.T) {
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	p := newPendingProposals()
 	cmd := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
@@ -71,7 +71,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 	cmd := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_TransferLeader,
 			},
@@ -89,7 +89,7 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 func testPendingProposalClear(t *testing.T,
 	clear bool, cb func(resp rpc.ResponseBatch)) {
 	cmd1 := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
@@ -100,7 +100,7 @@ func testPendingProposalClear(t *testing.T,
 		cb: cb,
 	}
 	cmd2 := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
@@ -111,7 +111,7 @@ func testPendingProposalClear(t *testing.T,
 		cb: cb,
 	}
 	ConfChangeCmd := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
@@ -161,7 +161,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
 	}
 	ConfChangeCmd := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
@@ -176,8 +176,8 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	}
 	p := newPendingProposals()
 	p.setConfigChange(ConfChangeCmd)
-	resp := errorStaleCMDResp(ConfChangeCmd.getUUID())
-	p.notify(ConfChangeCmd.req.Header.ID, resp, true)
+	resp := errorStaleCMDResp(ConfChangeCmd.getRequestID())
+	p.notify(ConfChangeCmd.requestBatch.Header.ID, resp, true)
 	assert.True(t, called)
 	assert.Equal(t, emptyCMD, p.confChangeCmd)
 }
@@ -196,7 +196,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
 	cmd1 := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
@@ -207,7 +207,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		cb: staleCB,
 	}
 	cmd2 := batch{
-		req: rpc.RequestBatch{
+		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
 				{Key: keys.EncodeDataKey(0, nil)},
 			},
@@ -225,11 +225,11 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 
 	err := new(errorpb.ShardNotFound)
 	err.ShardID = 100
-	resp := errorPbResp(errorpb.Error{
+	resp := errorPbResp(cmd2.requestBatch.Header.ID, errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
-	}, cmd2.req.Header.ID)
-	p.notify(cmd2.req.Header.ID, resp, false)
+	})
+	p.notify(cmd2.requestBatch.Header.ID, resp, false)
 	assert.True(t, called)
 	assert.True(t, staleCalled)
 	assert.Equal(t, 1, len(p.cmds))

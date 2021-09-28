@@ -28,13 +28,18 @@ type rpcCodec struct {
 }
 
 func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
-	var value protoc.PB
 	if c.clientSide {
-		value = &rpc.Response{}
-	} else {
-		value = &rpc.Request{}
+		value := rpc.Response{}
+		err := value.Unmarshal(in.GetMarkedRemindData())
+		if err != nil {
+			return false, nil, err
+		}
+
+		in.MarkedBytesReaded()
+		return true, value, nil
 	}
 
+	value := rpc.Request{}
 	err := value.Unmarshal(in.GetMarkedRemindData())
 	if err != nil {
 		return false, nil, err

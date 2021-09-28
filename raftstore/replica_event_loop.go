@@ -138,7 +138,7 @@ func (pr *replica) onStop() {
 				break
 			}
 			if c, ok := pr.batch.pop(); ok {
-				for _, req := range c.req.Requests {
+				for _, req := range c.requestBatch.Requests {
 					req.Key = keys.DecodeDataKey(req.Key)
 					respStoreNotMatch(errStoreNotMatch, req, c.cb)
 				}

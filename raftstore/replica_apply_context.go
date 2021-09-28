@@ -34,6 +34,12 @@ func newApplyContext() *applyContext {
 	}
 }
 
+func (ctx *applyContext) close() {
+	if ctx != nil && ctx.writeCtx != nil {
+		ctx.writeCtx.close()
+	}
+}
+
 func (ctx *applyContext) reset(shard Shard, entry raftpb.Entry) {
 	ctx.writeCtx.reset(shard)
 	ctx.req = rpc.RequestBatch{}

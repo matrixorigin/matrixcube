@@ -112,7 +112,7 @@ func (pr *replica) propose(c batch) {
 	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
 	// command log entry can't be committed.
 	isConfChange := false
-	policy, err := pr.getHandlePolicy(c.req)
+	policy, err := pr.getHandlePolicy(c.requestBatch)
 	if err != nil {
 		resp := errorOtherCMDResp(err)
 		c.resp(resp)
@@ -155,7 +155,7 @@ func (pr *replica) execReadIndex(c batch) {
 	lastPendingReadCount := pr.pendingReadCount()
 	lastReadyReadCount := pr.readyReadCount()
 
-	pr.rn.ReadIndex(protoc.MustMarshal(&c.req))
+	pr.rn.ReadIndex(protoc.MustMarshal(&c.requestBatch))
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()
@@ -176,7 +176,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 		return false
 	}
 
-	data := protoc.MustMarshal(&c.req)
+	data := protoc.MustMarshal(&c.requestBatch)
 	size := len(data)
 	metric.ObserveProposalBytes(int64(size))
 
@@ -209,8 +209,8 @@ func (pr *replica) proposeConfChange(c batch) bool {
 		return false
 	}
 
-	data := protoc.MustMarshal(&c.req)
-	admin := c.req.AdminRequest
+	data := protoc.MustMarshal(&c.requestBatch)
+	admin := c.requestBatch.AdminRequest
 	err := pr.proposeConfChangeInternal(c, admin, data)
 	if err != nil {
 		pr.logger.Error("fail to proposal conf change",
@@ -281,7 +281,7 @@ func (pr *replica) toConfChangeI(admin rpc.AdminRequest, data []byte) raftpb.Con
 }
 
 func (pr *replica) proposeTransferLeader(c batch) bool {
-	req := c.req.AdminRequest.TransferLeader
+	req := c.requestBatch.AdminRequest.TransferLeader
 
 	// has pending conf, skip
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
@@ -331,19 +331,19 @@ func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Replica) bool {
 
 func (pr *replica) checkProposal(c batch) bool {
 	// we handle all read, write and admin cmd here
-	if len(c.req.Header.ID) == 0 {
+	if len(c.requestBatch.Header.ID) == 0 {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))
 		return false
 	}
 
-	err := pr.store.validateStoreID(c.req)
+	err := pr.store.validateStoreID(c.requestBatch)
 	if err != nil {
 		c.respOtherError(err)
 		return false
 	}
 
-	if pe, ok := pr.store.validateShard(c.req); ok {
-		c.resp(errorPbResp(pe, c.req.Header.ID))
+	if pe, ok := pr.store.validateShard(c.requestBatch); ok {
+		c.resp(errorPbResp(c.getRequestID(), pe))
 		return false
 	}
 

@@ -182,6 +182,7 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 // FIXME: move this out of the state machine
 func (d *stateMachine) destroy() {
 	d.pr.pendingProposals.destroy()
+	d.executorCtx.close()
 }
 
 func (d *stateMachine) setPendingRemove() {
