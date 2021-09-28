@@ -50,7 +50,6 @@ type BaseStorage interface {
 
 // KVStorage is key-value based storage.
 type KVStorage interface {
-	CloseableStorage
 	// NewWriteBatch returns a new write batch.
 	NewWriteBatch() util.WriteBatch
 	// Write writes the data in batch to the storage.

@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -32,6 +33,8 @@ type Storage struct {
 	fs    vfs.FS
 	stats stats.Stats
 }
+
+var _ storage.BaseStorage = (*Storage)(nil)
 
 // NewStorage returns a pebble backed kv store
 func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {

@@ -30,13 +30,15 @@ var (
 	OK = []byte("OK")
 )
 
+// simpleKVExecutor is a kv executor used for testing.
 type simpleKVExecutor struct {
 	kv storage.KVStorage
 }
 
 var _ storage.Executor = (*simpleKVExecutor)(nil)
 
-// NewSimpleKVExecutor returns a simple kv executor to support set/get command
+// NewSimpleKVExecutor returns a simple kv executor that supports set/get
+// commands.
 func NewSimpleKVExecutor(kv storage.KVStorage) storage.Executor {
 	return &simpleKVExecutor{kv: kv}
 }

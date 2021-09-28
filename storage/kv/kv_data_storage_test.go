@@ -90,7 +90,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 				k := []byte(fmt.Sprintf("%d", i))
 				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
 				ctx := storage.NewSimpleContext(0, batch)
-				assert.NoError(t, s.GetExecutor().Write(ctx), "index %d", i)
+				assert.NoError(t, s.Write(ctx), "index %d", i)
 			}
 
 			appliedIndex, err := s.GetPersistentLogIndex(0)

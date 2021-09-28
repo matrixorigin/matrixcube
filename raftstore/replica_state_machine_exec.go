@@ -420,7 +420,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-	if err := d.dataStorage.GetExecutor().Write(ctx.writeCtx); err != nil {
+	if err := d.dataStorage.Write(ctx.writeCtx); err != nil {
 		d.logger.Fatal("fail to exec read cmd",
 			zap.Error(err))
 	}

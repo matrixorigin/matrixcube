@@ -50,69 +50,6 @@ func createDataPebble(fs vfs.FS, t *testing.T) storage.BaseStorage {
 	return s
 }
 
-func TestRangeDelete(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range dataDactories {
-		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t).(storage.KVStorage)
-			defer s.Close()
-			key1 := []byte("k1")
-			value1 := []byte("value1")
-
-			key2 := []byte("k2")
-			value2 := []byte("value2")
-
-			key3 := []byte("k3")
-			value3 := []byte("value3")
-
-			assert.NoError(t, s.Set(key1, value1), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key2, value2), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key3, value3), "TestRangeDelete failed")
-
-			err := s.RangeDelete(key1, key3)
-			assert.NoError(t, err, "TestRangeDelete failed")
-
-			value, err := s.Get(key1)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, 0, len(value), "TestRangeDelete failed")
-
-			value, err = s.Get(key2)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, 0, len(value), "TestRangeDelete failed")
-
-			value, err = s.Get(key3)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, len(value3), len(value), "TestRangeDelete failed")
-		})
-	}
-}
-
-func TestPrefixScan(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range dataDactories {
-		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t).(storage.KVStorage)
-			defer s.Close()
-			prefix := "/m/db"
-			for i := 1; i <= 3; i++ {
-				key := []byte(fmt.Sprintf("%v/%v/%d", prefix, "defaultdb", i))
-				err := s.Set(key, []byte{byte(0)})
-				assert.NoError(t, err)
-			}
-			err := s.PrefixScan([]byte(fmt.Sprintf("%v/%v", prefix, "defaultdb")),
-				func(key, value []byte) (bool, error) {
-					println(string(key), value[0])
-					return true, nil
-				}, false)
-			assert.NoError(t, err)
-		})
-	}
-}
-
 func TestSplitCheck(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
