@@ -138,7 +138,7 @@ type containerAdapter struct {
 	meta meta.Store
 }
 
-func newContainer() metadata.Container {
+func newContainerAdapter() metadata.Container {
 	return &containerAdapter{}
 }
 
@@ -248,7 +248,7 @@ func (pa *prophetAdapter) NewResource() metadata.Resource {
 }
 
 func (pa *prophetAdapter) NewContainer() metadata.Container {
-	return newContainer()
+	return newContainerAdapter()
 }
 
 func (s *store) doShardHeartbeat() {
@@ -261,6 +261,29 @@ func (s *store) doShardHeartbeat() {
 }
 
 func (s *store) doStoreHeartbeat(last time.Time) {
+	req, err := s.getStoreHeartbeat(last)
+	if err != nil {
+		return
+	}
+
+	rsp, err := s.pd.GetClient().ContainerHeartbeat(req)
+	if err != nil {
+		s.logger.Error("fail to send store heartbeat",
+			s.storeField(),
+			zap.Error(err))
+		return
+	}
+	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
+		err := s.cfg.Customize.CustomStoreHeartbeatDataProcessor.HandleHeartbeatRsp(rsp.Data)
+		if err != nil {
+			s.logger.Error("fail to handle store heartbeat rsp data",
+				s.storeField(),
+				zap.Error(err))
+		}
+	}
+}
+
+func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, error) {
 	stats := metapb.ContainerStats{}
 	stats.ContainerID = s.Meta().ID
 	if s.cfg.UseMemoryAsStorage {
@@ -269,7 +292,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 			s.logger.Error("fail to get storage capacity status",
 				s.storeField(),
 				zap.Error(err))
-			return
+			return rpcpb.ContainerHeartbeatReq{}, err
 		}
 		stats.Capacity = ms.Total
 		stats.UsedSize = ms.Total - ms.Available
@@ -280,7 +303,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 			s.logger.Error("fail to get storage capacity status",
 				s.storeField(),
 				zap.Error(err))
-			return
+			return rpcpb.ContainerHeartbeatReq{}, err
 		}
 		stats.Capacity = ms.Total
 		stats.UsedSize = ms.Total - ms.Free
@@ -296,7 +319,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		s.logger.Error("fail to get cpu status",
 			s.storeField(),
 			zap.Error(err))
-		return
+		return rpcpb.ContainerHeartbeatReq{}, err
 	}
 	for i, v := range usages {
 		stats.CpuUsages = append(stats.CpuUsages, metapb.RecordPair{
@@ -311,7 +334,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 		s.logger.Error("fail to get io status",
 			s.storeField(),
 			zap.Error(err))
-		return
+		return rpcpb.ContainerHeartbeatReq{}, err
 	}
 	for name, v := range rates {
 		stats.WriteIORates = append(stats.WriteIORates, metapb.RecordPair{
@@ -356,22 +379,7 @@ func (s *store) doStoreHeartbeat(last time.Time) {
 	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
 		data = s.cfg.Customize.CustomStoreHeartbeatDataProcessor.CollectData()
 	}
-
-	rsp, err := s.pd.GetClient().ContainerHeartbeat(rpcpb.ContainerHeartbeatReq{Stats: stats, Data: data})
-	if err != nil {
-		s.logger.Error("fail to send store heartbeat",
-			s.storeField(),
-			zap.Error(err))
-		return
-	}
-	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
-		err := s.cfg.Customize.CustomStoreHeartbeatDataProcessor.HandleHeartbeatRsp(rsp.Data)
-		if err != nil {
-			s.logger.Error("fail to handle store heartbeat rsp data",
-				s.storeField(),
-				zap.Error(err))
-		}
-	}
+	return rpcpb.ContainerHeartbeatReq{Stats: stats, Data: data}, nil
 }
 
 func (s *store) startHandleResourceHeartbeat() {

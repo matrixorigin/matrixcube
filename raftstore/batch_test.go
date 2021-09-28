@@ -70,7 +70,7 @@ func TestCanAppendCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		cmd := &batch{
-			req: rpc.RequestBatch{
+			requestBatch: rpc.RequestBatch{
 				Header: rpc.RequestBatchHeader{
 					Epoch: metapb.ResourceEpoch{
 						ConfVer: tt.confVer1,
@@ -87,7 +87,7 @@ func TestCanAppendCmd(t *testing.T) {
 			ConfVer: tt.confVer2,
 			Version: tt.version2,
 		}
-		assert.Equal(t, tt.canAppend, cmd.canAppend(epoch, req))
+		assert.Equal(t, tt.canAppend, cmd.canBatches(epoch, req))
 	}
 }
 

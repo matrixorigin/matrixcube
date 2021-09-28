@@ -9,7 +9,7 @@ import (
 type executeContext struct {
 	shard        Shard
 	buf          *buf.ByteBuf
-	cmds         []batch
+	batches      []batch
 	requests     []storage.LogRequest
 	responses    [][]byte
 	writtenBytes uint64
@@ -27,13 +27,13 @@ func (ctx *executeContext) close() {
 	ctx.buf.Release()
 }
 
-func (ctx *executeContext) appendRequest(req rpc.RequestBatch) {
-	ctx.appendRequestByCmd(batch{req: req})
+func (ctx *executeContext) appendRequestBatch(req rpc.RequestBatch) {
+	ctx.appendBatch(batch{requestBatch: req})
 }
 
-func (ctx *executeContext) appendRequestByCmd(c batch) {
+func (ctx *executeContext) appendBatch(c batch) {
 	lq := storage.LogRequest{}
-	for _, req := range c.req.Requests {
+	for _, req := range c.requestBatch.Requests {
 		lq.Requests = append(lq.Requests, storage.CustomCmd{
 			CmdType: req.CustemType,
 			Key:     req.Key,
@@ -42,7 +42,7 @@ func (ctx *executeContext) appendRequestByCmd(c batch) {
 	}
 
 	ctx.requests = append(ctx.requests, lq)
-	ctx.cmds = append(ctx.cmds, c)
+	ctx.batches = append(ctx.batches, c)
 }
 
 func (ctx *executeContext) hasRequest() bool {
@@ -80,7 +80,7 @@ func (ctx *executeContext) SetDiffBytes(value int64) {
 func (ctx *executeContext) reset(shard Shard) {
 	ctx.buf.Clear()
 	ctx.shard = shard
-	ctx.cmds = ctx.cmds[:0]
+	ctx.batches = ctx.batches[:0]
 	ctx.requests = ctx.requests[:0]
 	ctx.responses = ctx.responses[:0]
 	ctx.writtenBytes = 0

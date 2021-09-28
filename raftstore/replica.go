@@ -154,7 +154,7 @@ func (pr *replica) start() {
 		}
 	}
 
-	pr.batch = newBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 	pr.readCtx = newExecuteContext()
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = task.New(32)
@@ -357,7 +357,7 @@ func (pr *replica) readyReadCount() int {
 
 func (pr *replica) resetBatch() {
 	shard := pr.getShard()
-	pr.batch = newBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 }
 
 func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {

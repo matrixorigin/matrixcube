@@ -35,13 +35,13 @@ var (
 	storeNotMatch = new(errorpb.StoreNotMatch)
 )
 
-func buildUUID(uuid []byte, resp rpc.ResponseBatch) {
+func buildID(id []byte, resp *rpc.ResponseBatch) {
 	if resp.Header.IsEmpty() {
 		return
 	}
 
-	if len(resp.Header.ID) != 0 {
-		resp.Header.ID = uuid
+	if len(resp.Header.ID) == 0 {
+		resp.Header.ID = id
 	}
 }
 
@@ -51,34 +51,32 @@ func errorOtherCMDResp(err error) rpc.ResponseBatch {
 	return resp
 }
 
-func errorPbResp(err errorpb.Error, uuid []byte) rpc.ResponseBatch {
-	resp := errorBaseResp(uuid)
+func errorPbResp(id []byte, err errorpb.Error) rpc.ResponseBatch {
+	resp := errorBaseResp(nil)
 	resp.Header.Error = err
 	return resp
 }
 
-func errorStaleCMDResp(uuid []byte) rpc.ResponseBatch {
-	resp := errorBaseResp(uuid)
+func errorStaleCMDResp(id []byte) rpc.ResponseBatch {
+	resp := errorBaseResp(id)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleCommand = infoStaleCMD
-
 	return resp
 }
 
-func errorStaleEpochResp(uuid []byte,
+func errorStaleEpochResp(id []byte,
 	newShards ...Shard) rpc.ResponseBatch {
-	resp := errorBaseResp(uuid)
+	resp := errorBaseResp(id)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
 		NewShards: newShards,
 	}
-
 	return resp
 }
 
-func errorBaseResp(uuid []byte) rpc.ResponseBatch {
+func errorBaseResp(id []byte) rpc.ResponseBatch {
 	resp := rpc.ResponseBatch{}
-	buildUUID(uuid, resp)
+	resp.Header.ID = id
 	return resp
 }
 

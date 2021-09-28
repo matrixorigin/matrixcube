@@ -41,7 +41,7 @@ func (p *pendingProposals) clear() {
 	for _, c := range p.cmds {
 		c.notifyStaleCmd()
 	}
-	if !p.confChangeCmd.req.IsEmpty() {
+	if !p.confChangeCmd.requestBatch.IsEmpty() {
 		p.confChangeCmd.notifyStaleCmd()
 	}
 	p.confChangeCmd = emptyCMD
@@ -64,8 +64,8 @@ func (p *pendingProposals) append(c batch) {
 }
 
 func (p *pendingProposals) setConfigChange(c batch) {
-	if c.req.AdminRequest.CmdType != rpc.AdminCmdType_ConfigChange &&
-		c.req.AdminRequest.CmdType != rpc.AdminCmdType_ConfigChangeV2 {
+	if c.requestBatch.AdminRequest.CmdType != rpc.AdminCmdType_ConfigChange &&
+		c.requestBatch.AdminRequest.CmdType != rpc.AdminCmdType_ConfigChangeV2 {
 		panic("not a config change request")
 	}
 	p.confChangeCmd = c
@@ -79,8 +79,8 @@ func (p *pendingProposals) notify(id []byte,
 	resp rpc.ResponseBatch, confChange bool) {
 	if confChange {
 		c := p.confChangeCmd
-		if bytes.Equal(id, c.getUUID()) {
-			buildUUID(id, resp)
+		if bytes.Equal(id, c.getRequestID()) {
+			buildID(id, &resp)
 			c.resp(resp)
 			p.confChangeCmd = emptyCMD
 		}
@@ -89,11 +89,11 @@ func (p *pendingProposals) notify(id []byte,
 
 	for {
 		c, ok := p.pop()
-		if !ok || c.req.IsEmpty() {
+		if !ok || c.requestBatch.IsEmpty() {
 			return
 		}
-		if bytes.Equal(id, c.getUUID()) {
-			buildUUID(id, resp)
+		if bytes.Equal(id, c.getRequestID()) {
+			buildID(id, &resp)
 			c.resp(resp)
 			return
 		}

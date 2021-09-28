@@ -53,11 +53,11 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	for _, r := range q.reads {
 		if r.index > 0 && r.index <= appliedIndex {
 			c := batch{
-				req: r.req,
-				cb:  pr.store.cb,
-				tp:  read,
+				requestBatch: r.req,
+				cb:           pr.store.cb,
+				tp:           read,
 			}
-			pr.readCtx.appendRequestByCmd(c)
+			pr.readCtx.appendBatch(c)
 		} else {
 			newReady = append(newReady, r)
 		}
@@ -75,11 +75,11 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 		}
 
 		pr.readBytes += pr.readCtx.readBytes
-		pr.readKeys += uint64(len(pr.readCtx.cmds))
+		pr.readKeys += uint64(len(pr.readCtx.batches))
 		idx := 0
-		for _, c := range pr.readCtx.cmds {
+		for _, c := range pr.readCtx.batches {
 			resp := rpc.ResponseBatch{}
-			for i := 0; i < len(c.req.Requests); i++ {
+			for i := 0; i < len(c.requestBatch.Requests); i++ {
 				r := rpc.Response{}
 				r.Value = pr.readCtx.responses[idx]
 				resp.Responses = append(resp.Responses, r)

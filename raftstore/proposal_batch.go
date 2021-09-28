@@ -67,10 +67,10 @@ type proposeBatch struct {
 	shardID uint64
 	replica Replica
 	buf     *buf.ByteBuf
-	cmds    []batch
+	batches []batch
 }
 
-func newBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
+func newProposeBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
 	if logger == nil {
 		logger = config.GetDefaultZapLogger()
 	}
@@ -85,7 +85,7 @@ func newBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replic
 }
 
 func (b *proposeBatch) size() int {
-	return len(b.cmds)
+	return len(b.batches)
 }
 
 func (b *proposeBatch) isEmpty() bool {
@@ -97,11 +97,11 @@ func (b *proposeBatch) pop() (batch, bool) {
 		return emptyCMD, false
 	}
 
-	value := b.cmds[0]
-	b.cmds[0] = emptyCMD
-	b.cmds = b.cmds[1:]
+	value := b.batches[0]
+	b.batches[0] = emptyCMD
+	b.batches = b.batches[1:]
 
-	metric.SetRaftProposalBatchMetric(int64(len(value.req.Requests)))
+	metric.SetRaftProposalBatchMetric(int64(len(value.requestBatch.Requests)))
 	return value, true
 }
 
@@ -126,11 +126,12 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 	n := req.Size()
 	added := false
 	if !isAdmin {
-		for idx := range b.cmds {
-			if b.cmds[idx].tp == tp && !b.cmds[idx].isFull(n, int(b.maxSize)) &&
-				b.cmds[idx].canAppend(epoch, req) {
-				b.cmds[idx].req.Requests = append(b.cmds[idx].req.Requests, req)
-				b.cmds[idx].size += n
+		for idx := range b.batches {
+			if b.batches[idx].tp == tp && // only batches same type requests
+				!b.batches[idx].isFull(n, int(b.maxSize)) && // check max batches size
+				b.batches[idx].canBatches(epoch, req) { // check epoch field
+				b.batches[idx].requestBatch.Requests = append(b.batches[idx].requestBatch.Requests, req)
+				b.batches[idx].byteSize += n
 				added = true
 				break
 			}
@@ -138,19 +139,19 @@ func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) 
 	}
 
 	if !added {
-		raftCMD := rpc.RequestBatch{}
-		raftCMD.Header.ShardID = b.shardID
-		raftCMD.Header.Replica = b.replica
-		raftCMD.Header.ID = uuid.NewV4().Bytes()
-		raftCMD.Header.Epoch = epoch
+		rb := rpc.RequestBatch{}
+		rb.Header.ShardID = b.shardID
+		rb.Header.Replica = b.replica
+		rb.Header.ID = uuid.NewV4().Bytes()
+		rb.Header.Epoch = epoch
 
 		if isAdmin {
-			raftCMD.AdminRequest = adminReq
+			rb.AdminRequest = adminReq
 		} else {
-			raftCMD.Header.IgnoreEpochCheck = req.IgnoreEpochCheck
-			raftCMD.Requests = append(raftCMD.Requests, req)
+			rb.Header.IgnoreEpochCheck = req.IgnoreEpochCheck
+			rb.Requests = append(rb.Requests, req)
 		}
 
-		b.cmds = append(b.cmds, newCMD(b.logger, raftCMD, cb, tp, n))
+		b.batches = append(b.batches, newBatch(b.logger, rb, cb, tp, n))
 	}
 }
