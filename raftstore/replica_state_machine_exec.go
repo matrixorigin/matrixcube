@@ -420,7 +420,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-	if err := d.dataStorage.GetCommandExecutor().ExecuteWrite(ctx.writeCtx); err != nil {
+	if err := d.dataStorage.GetExecutor().Write(ctx.writeCtx); err != nil {
 		d.logger.Fatal("fail to exec read cmd",
 			zap.Error(err))
 	}
@@ -455,12 +455,12 @@ func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
 }
 
 func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.ReplicaState) error {
-	return d.dataStorage.SaveShardMetadata(storage.ShardMetadata{
+	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,
 		Metadata: protoc.MustMarshal(&meta.ShardLocalState{
 			State: state,
 			Shard: shard,
 		}),
-	})
+	}})
 }

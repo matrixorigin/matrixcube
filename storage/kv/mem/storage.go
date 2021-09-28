@@ -91,7 +91,7 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 }
 
 // MGet returns multi values
-func (s *Storage) MGet(keys ...[]byte) ([][]byte, error) {
+func (s *Storage) MGet(keys [][]byte) ([][]byte, error) {
 	var values [][]byte
 	for _, key := range keys {
 		values = append(values, decodeValue(s.kv.Get(key)))

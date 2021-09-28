@@ -25,7 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
-	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
@@ -105,7 +105,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 		opts := &pebblePkg.Options{FS: vfs.NewPebbleFS(cfg.FS)}
 		s, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-data", cfg.DataPath), opts)
 		assert.NoError(t, err)
-		ds := kv.NewKVStorage(s, simple.NewSimpleKVCommandExecutor(s))
+		ds := kv.NewKVDataStorage(s, simple.NewSimpleKVExecutor(s))
 		storages = append(storages, ds)
 		cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
 			return ds

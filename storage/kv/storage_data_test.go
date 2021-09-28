@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kv
 
 import (
 	"fmt"
@@ -20,8 +20,9 @@ import (
 	"time"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/matrixorigin/matrixcube/storage/mem"
-	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -29,17 +30,17 @@ import (
 )
 
 var (
-	dataDactories = map[string]func(vfs.FS, *testing.T) BaseDataStorage{
+	dataDactories = map[string]func(vfs.FS, *testing.T) storage.BaseStorage{
 		"memory": createDataMem,
 		"pebble": createDataPebble,
 	}
 )
 
-func createDataMem(fs vfs.FS, t *testing.T) BaseDataStorage {
+func createDataMem(fs vfs.FS, t *testing.T) storage.BaseStorage {
 	return mem.NewStorage(fs)
 }
 
-func createDataPebble(fs vfs.FS, t *testing.T) BaseDataStorage {
+func createDataPebble(fs vfs.FS, t *testing.T) storage.BaseStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	fs.RemoveAll(path)
 	fs.MkdirAll(path, 0755)
@@ -55,7 +56,7 @@ func TestRangeDelete(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t).(KVStorage)
+			s := factory(fs, t).(storage.KVStorage)
 			defer s.Close()
 			key1 := []byte("k1")
 			value1 := []byte("value1")
@@ -94,7 +95,7 @@ func TestPrefixScan(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	for name, factory := range dataDactories {
 		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t).(KVStorage)
+			s := factory(fs, t).(storage.KVStorage)
 			defer s.Close()
 			prefix := "/m/db"
 			for i := 1; i <= 3; i++ {
@@ -120,7 +121,7 @@ func TestSplitCheck(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s := factory(fs, t)
 			defer s.Close()
-			kv := s.(KVStorage)
+			kv := s.(storage.KVStorage)
 			totalSize := uint64(16)
 			totalKeys := uint64(4)
 			key1 := []byte("k1")
@@ -186,10 +187,10 @@ func TestCreateAndApply(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s1 := factory(fs, t)
 			defer s1.Close()
-			kv1 := s1.(KVStorage)
+			kv1 := s1.(storage.KVStorage)
 			s2 := factory(fs, t)
 			defer s2.Close()
-			kv2 := s2.(KVStorage)
+			kv2 := s2.(storage.KVStorage)
 			path := fmt.Sprintf("%s-snap", name)
 			path = filepath.Join(util.GetTestDir(), path)
 			fs.RemoveAll(path)

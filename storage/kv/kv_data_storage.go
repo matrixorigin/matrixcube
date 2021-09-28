@@ -53,10 +53,10 @@ func (opts *options) adjust() {
 	}
 }
 
-type kvStorage struct {
+type kvDataStorage struct {
 	opts       *options
-	base       storage.KVBaseDataStorage
-	executor   storage.CommandExecutor
+	base       storage.KVBaseStorage
+	executor   storage.Executor
 	writeCount uint64
 	mu         struct {
 		sync.RWMutex
@@ -65,9 +65,11 @@ type kvStorage struct {
 	}
 }
 
-// NewKVStorage returns data storage based on a kv storage, support KV operations.
-func NewKVStorage(base storage.KVBaseDataStorage, executor storage.CommandExecutor, opts ...Option) storage.DataStorage {
-	s := &kvStorage{base: base, executor: executor, opts: newOptions()}
+var _ storage.DataStorage = (*kvDataStorage)(nil)
+
+// NewKVDataStorage returns data storage based on a kv base storage.
+func NewKVDataStorage(base storage.KVBaseStorage, executor storage.Executor, opts ...Option) storage.DataStorage {
+	s := &kvDataStorage{base: base, executor: executor, opts: newOptions()}
 	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
 	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
 
@@ -78,25 +80,25 @@ func NewKVStorage(base storage.KVBaseDataStorage, executor storage.CommandExecut
 	return s
 }
 
-func (kv *kvStorage) GetCommandExecutor() storage.CommandExecutor {
+func (kv *kvDataStorage) GetExecutor() storage.Executor {
 	return kv
 }
 
-func (kv *kvStorage) ExecuteWrite(ctx storage.Context) error {
-	err := kv.executor.ExecuteWrite(ctx)
+func (kv *kvDataStorage) Write(ctx storage.Context) error {
+	err := kv.executor.Write(ctx)
 	if err != nil {
 		return err
 	}
-
-	kv.updateAppliedIndex(ctx.Shard().ID, ctx.Requests()[len(ctx.Requests())-1].Index)
+	batches := ctx.Batches()
+	kv.updateAppliedIndex(ctx.Shard().ID, batches[len(batches)-1].Index)
 	return kv.simpleSync()
 }
 
-func (kv *kvStorage) ExecuteRead(ctx storage.Context) error {
-	return kv.executor.ExecuteRead(ctx)
+func (kv *kvDataStorage) Read(ctx storage.Context) error {
+	return kv.executor.Read(ctx)
 }
 
-func (kv *kvStorage) SaveShardMetadata(metadatas ...storage.ShardMetadata) error {
+func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) error {
 	wb := kv.base.NewWriteBatch()
 	defer wb.Close()
 
@@ -117,7 +119,7 @@ func (kv *kvStorage) SaveShardMetadata(metadatas ...storage.ShardMetadata) error
 	return kv.simpleSync()
 }
 
-func (kv *kvStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
+func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	minApplied := keys.GetDataStorageAppliedIndexKey(0)
 	maxApplied := keys.GetDataStorageAppliedIndexKey(math.MaxUint64)
 	var shards []uint64
@@ -149,17 +151,17 @@ func (kv *kvStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	return values, nil
 }
 
-func (kv *kvStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
+func (kv *kvDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 	return kv.mu.persistentAppliedIndexes[shardID], nil
 }
 
-func (kv *kvStorage) Sync(...uint64) error {
+func (kv *kvDataStorage) Sync(_ []uint64) error {
 	return kv.base.Sync()
 }
 
-func (kv *kvStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error {
+func (kv *kvDataStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error {
 	// This is not an atomic operation, but it is idempotent, and the metadata is deleted afterwards,
 	// so the cleanup will not be lost.
 
@@ -171,7 +173,7 @@ func (kv *kvStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedE
 	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID), keys.GetRaftPrefix(shard.ID+1))
 }
 
-func (kv *kvStorage) updateAppliedIndex(shard uint64, index uint64) {
+func (kv *kvDataStorage) updateAppliedIndex(shard uint64, index uint64) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	kv.mu.lastAppliedIndexes[shard] = index
@@ -179,7 +181,7 @@ func (kv *kvStorage) updateAppliedIndex(shard uint64, index uint64) {
 
 // simpleSync we write and sync the data to disk every interval, and then record the appliedIndex value of
 // the raft log when sync.
-func (kv *kvStorage) simpleSync() error {
+func (kv *kvDataStorage) simpleSync() error {
 	n := atomic.AddUint64(&kv.writeCount, 1)
 	if n%kv.opts.sampleSync != 0 {
 		return nil
@@ -194,22 +196,22 @@ func (kv *kvStorage) simpleSync() error {
 }
 
 // delegate method
-func (kv *kvStorage) Close() error {
+func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
 }
 
-func (kv *kvStorage) SplitCheck(start []byte, end []byte, size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error) {
+func (kv *kvDataStorage) SplitCheck(start []byte, end []byte, size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error) {
 	return kv.base.SplitCheck(start, end, size)
 }
 
-func (kv *kvStorage) CreateSnapshot(path string, start, end []byte) error {
+func (kv *kvDataStorage) CreateSnapshot(path string, start, end []byte) error {
 	return kv.base.CreateSnapshot(path, start, end)
 }
 
-func (kv *kvStorage) ApplySnapshot(path string) error {
+func (kv *kvDataStorage) ApplySnapshot(path string) error {
 	return kv.base.ApplySnapshot(path)
 }
 
-func (kv *kvStorage) Stats() stats.Stats {
+func (kv *kvDataStorage) Stats() stats.Stats {
 	return kv.base.Stats()
 }

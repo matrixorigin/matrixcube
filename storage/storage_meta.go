@@ -13,9 +13,10 @@
 
 package storage
 
-// MetadataStorage the storage to save raft log, shard and store metadata.
+// MetadataStorage is the storage used for store raftstore metadata such as raft
+// logs and states.
 type MetadataStorage interface {
 	StatisticalStorage
-	KVStorage
 	CloseableStorage
+	KVStorage
 }
