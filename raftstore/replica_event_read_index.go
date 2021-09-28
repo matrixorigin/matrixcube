@@ -69,7 +69,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	q.reads = newReady
 	if pr.readCtx.hasRequest() {
 		ds := pr.store.DataStorageByGroup(pr.getShard().Group)
-		if err := ds.GetExecutor().Read(pr.readCtx); err != nil {
+		if err := ds.Read(pr.readCtx); err != nil {
 			pr.logger.Fatal("fail to exec read batch",
 				zap.Error(err))
 		}

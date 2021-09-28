@@ -18,7 +18,9 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
-// Executor is used to execute read/write requests
+// Executor is used to execute read/write requests. An executor type usually
+// implements the Read and Write features by utilizing a BaseStorage and forms
+// a DataStorage type.
 type Executor interface {
 	// Write applies write requests into the underlying data storage. The `Context`
 	// holds all requests involved and packs as many requests from multiple Raft
@@ -51,9 +53,7 @@ type Executor interface {
 // GetPersistentLogIndex() + 1.
 type DataStorage interface {
 	BaseStorage
-	// GetExecutor returns the `Executor` instance used for applying read and
-	// write requests.
-	GetExecutor() Executor
+	Executor
 	// GetInitialStates returns the most recent shard states of all shards known
 	// to the DataStorage instance that are consistent with their related table
 	// shards data. The shard metadata is last changed by the raft log identified

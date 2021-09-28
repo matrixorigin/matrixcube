@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty/buf"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -35,6 +36,8 @@ type Storage struct {
 	// SyncCount number of `Sync` method called
 	SyncCount uint64
 }
+
+var _ storage.BaseStorage = (*Storage)(nil)
 
 // NewStorage returns a mem data storage with snapshot data backed by the
 // specified vfs
