@@ -35,8 +35,8 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
-	"github.com/matrixorigin/matrixcube/storage/mem"
-	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -763,7 +763,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
-			var kvs storage.KVBaseDataStorage
+			var kvs storage.KVBaseStorage
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
 				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), c.opts.metaOpts)
@@ -772,7 +772,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			} else {
 				kvs = mem.NewStorage(cfg.FS)
 			}
-			dataStorage = kv.NewKVStorage(kvs, simple.NewSimpleKVCommandExecutor(kvs))
+			dataStorage = kv.NewKVDataStorage(kvs, simple.NewSimpleKVExecutor(kvs))
 
 			cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
 				return dataStorage

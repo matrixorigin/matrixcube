@@ -30,22 +30,25 @@ var (
 	OK = []byte("OK")
 )
 
-type simpleKVCommandExecutor struct {
+type simpleKVExecutor struct {
 	kv storage.KVStorage
 }
 
-// NewSimpleKVCommandExecutor returns a simple kv command executor to support set/get command
-func NewSimpleKVCommandExecutor(kv storage.KVStorage) storage.CommandExecutor {
-	return &simpleKVCommandExecutor{kv: kv}
+var _ storage.Executor = (*simpleKVExecutor)(nil)
+
+// NewSimpleKVExecutor returns a simple kv executor to support set/get command
+func NewSimpleKVExecutor(kv storage.KVStorage) storage.Executor {
+	return &simpleKVExecutor{kv: kv}
 }
 
-func (ce *simpleKVCommandExecutor) ExecuteWrite(ctx storage.Context) error {
+func (ce *simpleKVExecutor) Write(ctx storage.Context) error {
 	writtenBytes := uint64(0)
 	wb := ce.kv.NewWriteBatch()
 	lastLogIndex := uint64(0)
-	for i := range ctx.Requests() {
-		lastLogIndex = ctx.Requests()[i].Index
-		requests := ctx.Requests()[i].Requests
+	batches := ctx.Batches()
+	for i := range batches {
+		lastLogIndex = batches[i].Index
+		requests := batches[i].Requests
 		for j := range requests {
 			switch requests[j].CmdType {
 			case setCmd:
@@ -60,7 +63,9 @@ func (ce *simpleKVCommandExecutor) ExecuteWrite(ctx storage.Context) error {
 
 	ctx.ByteBuf().MarkWrite()
 	ctx.ByteBuf().WriteUInt64(lastLogIndex)
-	wb.Set(keys.GetDataStorageAppliedIndexKey(ctx.Shard().ID), ctx.ByteBuf().WrittenDataAfterMark().Data())
+	key := keys.GetDataStorageAppliedIndexKey(ctx.Shard().ID)
+	val := ctx.ByteBuf().WrittenDataAfterMark().Data()
+	wb.Set(key, val)
 	writtenBytes += uint64(16)
 
 	err := ce.kv.Write(wb, false)
@@ -73,10 +78,11 @@ func (ce *simpleKVCommandExecutor) ExecuteWrite(ctx storage.Context) error {
 	return nil
 }
 
-func (ce *simpleKVCommandExecutor) ExecuteRead(ctx storage.Context) error {
+func (ce *simpleKVExecutor) Read(ctx storage.Context) error {
 	readBytes := uint64(0)
-	for i := range ctx.Requests() {
-		requests := ctx.Requests()[i].Requests
+	batches := ctx.Batches()
+	for i := range batches {
+		requests := batches[i].Requests
 		for j := range requests {
 			switch requests[j].CmdType {
 			case getCmd:
@@ -98,8 +104,8 @@ func (ce *simpleKVCommandExecutor) ExecuteRead(ctx storage.Context) error {
 }
 
 // NewWriteRequest return write request
-func NewWriteRequest(k, v []byte) storage.CustomCmd {
-	return storage.CustomCmd{
+func NewWriteRequest(k, v []byte) storage.Request {
+	return storage.Request{
 		CmdType: setCmd,
 		Key:     k,
 		Cmd:     v,
@@ -107,8 +113,8 @@ func NewWriteRequest(k, v []byte) storage.CustomCmd {
 }
 
 // NewReadRequest return write request
-func NewReadRequest(k []byte) storage.CustomCmd {
-	return storage.CustomCmd{
+func NewReadRequest(k []byte) storage.Request {
+	return storage.Request{
 		CmdType: getCmd,
 		Key:     k,
 	}

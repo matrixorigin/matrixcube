@@ -10,7 +10,7 @@ type executeContext struct {
 	shard        Shard
 	buf          *buf.ByteBuf
 	cmds         []batch
-	requests     []storage.LogRequest
+	batches      []storage.Batch
 	responses    [][]byte
 	writtenBytes uint64
 	diffBytes    int64
@@ -32,21 +32,21 @@ func (ctx *executeContext) appendRequest(req rpc.RequestBatch) {
 }
 
 func (ctx *executeContext) appendRequestByCmd(c batch) {
-	lq := storage.LogRequest{}
+	b := storage.Batch{}
 	for _, req := range c.req.Requests {
-		lq.Requests = append(lq.Requests, storage.CustomCmd{
+		b.Requests = append(b.Requests, storage.Request{
 			CmdType: req.CustemType,
 			Key:     req.Key,
 			Cmd:     req.Cmd,
 		})
 	}
 
-	ctx.requests = append(ctx.requests, lq)
+	ctx.batches = append(ctx.batches, b)
 	ctx.cmds = append(ctx.cmds, c)
 }
 
 func (ctx *executeContext) hasRequest() bool {
-	return len(ctx.requests) > 0
+	return len(ctx.batches) > 0
 }
 
 func (ctx *executeContext) ByteBuf() *buf.ByteBuf {
@@ -57,8 +57,8 @@ func (ctx *executeContext) Shard() Shard {
 	return ctx.shard
 }
 
-func (ctx *executeContext) Requests() []storage.LogRequest {
-	return ctx.requests
+func (ctx *executeContext) Batches() []storage.Batch {
+	return ctx.batches
 }
 
 func (ctx *executeContext) AppendResponse(resp []byte) {
@@ -81,7 +81,7 @@ func (ctx *executeContext) reset(shard Shard) {
 	ctx.buf.Clear()
 	ctx.shard = shard
 	ctx.cmds = ctx.cmds[:0]
-	ctx.requests = ctx.requests[:0]
+	ctx.batches = ctx.batches[:0]
 	ctx.responses = ctx.responses[:0]
 	ctx.writtenBytes = 0
 	ctx.diffBytes = 0

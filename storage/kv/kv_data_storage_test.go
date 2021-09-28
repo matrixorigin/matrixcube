@@ -8,7 +8,7 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
-	"github.com/matrixorigin/matrixcube/storage/mem"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,10 +38,10 @@ func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 			defer vfs.ReportLeakedFD(fs, t)
 			base := mem.NewStorage(fs)
 
-			s := NewKVStorage(base, nil)
+			s := NewKVDataStorage(base, nil)
 			defer s.Close()
 
-			assert.NoError(t, s.SaveShardMetadata(c.inputs...), "index %d", i)
+			assert.NoError(t, s.SaveShardMetadata(c.inputs), "index %d", i)
 
 			values, err := s.GetInitialStates()
 			assert.NoError(t, err)
@@ -55,7 +55,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	base := mem.NewStorage(fs)
 
-	s := NewKVStorage(base, nil)
+	s := NewKVDataStorage(base, nil)
 	defer s.Close()
 
 	cases := []struct {
@@ -81,16 +81,16 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			defer vfs.ReportLeakedFD(fs, t)
 			base := mem.NewStorage(fs)
 
-			s := NewKVStorage(base, simple.NewSimpleKVCommandExecutor(base), WithSampleSync(c.sample))
+			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(c.sample))
 			defer s.Close()
 
 			for i := 0; i < c.requests; i++ {
-				var request storage.LogRequest
-				request.Index = uint64(i)
+				var batch storage.Batch
+				batch.Index = uint64(i)
 				k := []byte(fmt.Sprintf("%d", i))
-				request.Requests = append(request.Requests, simple.NewWriteRequest(k, k))
-				ctx := storage.NewSimpleContext(0, request)
-				assert.NoError(t, s.GetCommandExecutor().ExecuteWrite(ctx), "index %d", i)
+				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
+				ctx := storage.NewSimpleContext(0, batch)
+				assert.NoError(t, s.GetExecutor().Write(ctx), "index %d", i)
 			}
 
 			appliedIndex, err := s.GetPersistentLogIndex(0)

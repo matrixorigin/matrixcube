@@ -212,13 +212,13 @@ func (s *store) mustSaveShards(shards ...Shard) {
 			})
 		}
 
-		if err := ds.SaveShardMetadata(sm...); err != nil {
+		if err := ds.SaveShardMetadata(sm); err != nil {
 			s.logger.Fatal("fail to create init shards",
 				s.storeField(),
 				zap.Error(err))
 		}
 
-		if err := ds.Sync(ids...); err != nil {
+		if err := ds.Sync(ids); err != nil {
 			s.logger.Fatal("fail to create init shards",
 				s.storeField(),
 				zap.Error(err))

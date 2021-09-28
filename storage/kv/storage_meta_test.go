@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kv
 
 import (
 	"fmt"
@@ -20,8 +20,9 @@ import (
 	"time"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/matrixorigin/matrixcube/storage/mem"
-	"github.com/matrixorigin/matrixcube/storage/pebble"
+	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -29,17 +30,17 @@ import (
 )
 
 var (
-	factories = map[string]func(vfs.FS, *testing.T) MetadataStorage{
+	factories = map[string]func(vfs.FS, *testing.T) storage.MetadataStorage{
 		"memory": createMem,
 		"pebble": createPebble,
 	}
 )
 
-func createMem(fs vfs.FS, t *testing.T) MetadataStorage {
+func createMem(fs vfs.FS, t *testing.T) storage.MetadataStorage {
 	return mem.NewStorage(fs)
 }
 
-func createPebble(fs vfs.FS, t *testing.T) MetadataStorage {
+func createPebble(fs vfs.FS, t *testing.T) storage.MetadataStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	fs.RemoveAll(path)
 	fs.MkdirAll(path, 0755)
@@ -164,7 +165,7 @@ func TestSetAndMGet(t *testing.T) {
 			s.Set(key2, value2)
 			s.Set(key3, value3)
 
-			values, err := s.MGet(key1, key2, key3, key4)
+			values, err := s.MGet([][]byte{key1, key2, key3, key4})
 			assert.NoError(t, err, "TestSetAndGet failed")
 			assert.Equal(t, 4, len(values), "TestSetAndGet failed")
 

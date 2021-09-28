@@ -18,141 +18,141 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
-// BaseDataStorage basic data storage interface
-type BaseDataStorage interface {
-	StatisticalStorage
-	CloseableStorage
-
-	// SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
-	// returns the current bytes in [start,end), and the founded key
-	SplitCheck(start []byte, end []byte, size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error)
-	// CreateSnapshot create a snapshot file under the giving path
-	CreateSnapshot(path string, start, end []byte) error
-	// ApplySnapshot apply a snapshort file from giving path
-	ApplySnapshot(path string) error
+// Executor is used to execute read/write requests
+type Executor interface {
+	// Write applies write requests into the underlying data storage. The `Context`
+	// holds all requests involved and packs as many requests from multiple Raft
+	// logs together as possible. The implementation must ensure that the content
+	// of each LogRequest instance provided by the Context is atomically applied
+	// into the underlying storage. The implementation should call the
+	// `SetWrittenBytes`, `SetReadBytes`, `SetDiffBytes` methods of `Context` to
+	// report the statistical changes involved in applying the specified `Context`
+	// before returning.
+	Write(Context) error
+	// Read execute read requests. The `Context` holds all the requests involved
+	// in this execution. The implementation should call the `SetReadBytes` method
+	// of `Context` to report the statistical changes involved in this execution
+	// before returning.
+	Read(Context) error
 }
 
-// KVBaseDataStorage kv based BaseDataStorage
-type KVBaseDataStorage interface {
-	BaseDataStorage
-	KVStorage
-}
-
-// CommandExecutor used to execute read/write command
-type CommandExecutor interface {
-	// ExecuteWrite execute write requests.
-	// The `Context` holds all the requests involved in this execution and packs as many requests from multiple Raft-Logs
-	// together as possible, the implementation needs to ensure that the data and AppliedIndex of each Raft-Log must be
-	// written atomically.
-	// The implementation should call `SetWrittenBytes`, `SetReadBytes`, `SetDiffBytes` of `Context` to set the changes
-	// to the statistics involved in this execution before returning.
-	ExecuteWrite(Context) error
-	// ExecuteRead execute read requests. The `Context` holds all the requests involved in this execution.
-	// The implementation should call `SetReadBytes`  of `Context` to set the changes to the statistics involved in this
-	// execution before returning.
-	ExecuteRead(Context) error
-}
-
-// DataStorage responsible for maintaining the data storage of a set of shards for the application.
+// DataStorage is the interface to be implemented by data engines for storing
+// both table shards data and shards metadata. We assume that data engines are
+// WAL-less engines meaning some of its most recent writes will be lost on
+// restarts. On such restart, table shards data in the DataStorage will rollback
+// to a certain point in time state. GetPersistentLogIndex() can be invoked
+// to query the most recent persistent raft log index that can be used to
+// identify such point in time state. DataStorage guarantees that its table
+// shards data and shards metadata will never rollback to any earlier state in
+// feuture restarts. GetInitialStates() is invoked immediate after each restart,
+// it returns ShardMetadata of all known shards consistent to the above
+// mentioned persistent table shards data state. This means the state of the
+// data storage will be consistent as long as raft logs are replayed from the
+// GetPersistentLogIndex() + 1.
 type DataStorage interface {
-	BaseDataStorage
-
-	// GetCommandExecutor returns `CommandExecutor` to execute custom read/write commands
-	GetCommandExecutor() CommandExecutor
-	// GetInitialStates return the initial state of all shards at local, including the `AppliedIndex` and the corresponding
-	// `Shard Metadata`.
-	// The metadata of the corresponding version<=AppliedIndex.
-	// For example, shard 1 has multiple versions of metadata in storage: v1, v10, v20.
-	//   `GetInitialState(1)` => 1, v1
-	//   `GetInitialState(1)` => 5, v1
-	//   `GetInitialState(1)` => 10, v10
-	//   `GetInitialState(1)` => 15, v10
-	//   `GetInitialState(1)` => 20, v20
-	//   `GetInitialState(1)` => 21, v20
+	BaseStorage
+	// GetExecutor returns the `Executor` instance used for applying read and
+	// write requests.
+	GetExecutor() Executor
+	// GetInitialStates returns the most recent shard states of all shards known
+	// to the DataStorage instance that are consistent with their related table
+	// shards data. The shard metadata is last changed by the raft log identified
+	// by the LogIndex value.
 	GetInitialStates() ([]ShardMetadata, error)
-	// GetPersistentLogIndex return the last persistent applied log index. The storage save the last applied log index in
-	// `CommandExecutor`. When restarting, Cube will use the last persistent applied log index to call `GetShardMetadata` to
-	// load the metadata of the shard, and finally complete the startup of the shard.
+	// GetPersistentLogIndex returns the most recent raft log index that is known
+	// to have its update persistently stored. This means all updates made by Raft
+	// logs no greater than the returned index value have been persistently stored,
+	// they are guaranteed to be available after reboot.
 	GetPersistentLogIndex(shardID uint64) (uint64, error)
-	// SaveShardMetadata save shard metadata, whether to fsync to disk is determined by the storage engine itself.
-	// The metadata of the shard contains key information such as the range/peers of the shard, fsync to disk is not required
-	// for this call, but the storage needs to ensure that when the data is persisted to disk, the data and metadata of the
-	// specific shard are consistent. In storage, each shard will have many versions of metadata corresponding to logIndex.
-	SaveShardMetadata(...ShardMetadata) error
-	// RemoveShardData When a shard is deleted on the current node, cube will call this method to clean up local data.
-	// The specific data storage can be performed asynchronously or synchronously, and only needs to ensure that the final
-	// data can be cleaned up.
-	RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error
-	// Sync persistent data and metadata of the shards to disk.
-	Sync(...uint64) error
+	// SaveShardMetadata saves the provided shards metadata into the DataStorage.
+	// It is up to the storage engine to determine whether to synchronize the
+	// saved content to persistent storage or not. It is also the responsibility
+	// of the data storage to ensure that a consistent view of shard data and
+	// metadata is always available on restart.
+	SaveShardMetadata([]ShardMetadata) error
+	// RemoveShardData is used for cleaning up data for the specified shard. It is
+	// up to the implementation to decide whether to do the cleaning asynchronously
+	// or not.
+	RemoveShardData(shard meta.Shard, start, end []byte) error
+	// Sync persistently saves table shards data and shards metadata of the
+	// specified shards to the underlying persistent storage.
+	Sync([]uint64) error
 }
 
-// ShardInitialState shard init state, include the metadata and the last applied log index that persistent to disk.
+// ShardMetadata is the metadata of the shard consistent with the current table
+// shard data.
 type ShardMetadata struct {
 	ShardID  uint64
 	LogIndex uint64
 	Metadata []byte
 }
 
+// TODO: split this to ReadContext and WriteContext
+
 // Context
 type Context interface {
-	// ByteBuf returns the bytebuf that used to avoid memory allocation
+	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
-	// Shard returns the current shard id
+	// Shard returns the current shard details.
 	Shard() meta.Shard
-	// Requests returns LogRequests, a `LogRequest` corresponds to a Raft-Log.
-	// For write scenarios, the engine needs to ensure that each log write and applied Index write is atomic
-	// and does not require fsync to disk.
-	Requests() []LogRequest
-	// AppendResponse once the engine has finished executing a request, call this method to append the response.
+	// Batches returns a list of Batch instance, each representing requests from a
+	// single Raft log.
+	Batches() []Batch
+	// AppendResponse is used for appending responses once each request is handled.
 	AppendResponse([]byte)
-	// SetWrittenBytes set the number of bytes written to storage for all requests currently being executed.
-	// This is an approximation value that contributes to the scheduler's auto-rebalance decision.
+	// SetWrittenBytes set the number of bytes written to storage for all requests
+	// in the current Context instance. This is an approximation value that
+	// contributes to the scheduler's auto-rebalancing feature.
 	// This method must be called before `Read` or `Write` returns.
 	SetWrittenBytes(uint64)
-	// SetReadBytes set the number of bytes read from storage for all requests currently being executed.
-	// This is an approximation value that contributes to the scheduler's auto-rebalance decision.
-	// This method must be called before `Read` or `Write` returns.
+	// SetReadBytes set the number of bytes read from storage for all requests in
+	// the current context. This is an approximation value that contributes to the
+	// scheduler's auto-rebalancing feature.
 	SetReadBytes(uint64)
-	// SetDiffBytes set the diff of the bytes stored in storage after the command is executed.
-	// This is an approximation,  this value is used to modify the approximate amount of data
-	// in the `Shard` and is used to help trigger the auto-split process, which is meaningless
-	// if the Split operation is customized.
-	// This method must be called before `Read` or `Write` returns.
+	// SetDiffBytes set the diff of the bytes stored in storage after Write is
+	// executed. This is an approximation value used to modify the approximate
+	// amount of data in the `Shard` which is used for triggering the auto-split
+	// procedure.
 	SetDiffBytes(int64)
 }
 
-// LogRequest contains all requests and log index inside a `Raft-Log`.
-type LogRequest struct {
-	// Index the corresponding log index. For read operations, this value has no meaning.
+// Batch contains a list of requests. For write batches, all requests are from
+// the same raft log specified by the Index value. They must be atomically
+// applied into the data storage together with the Index value itself. For
+// read operation, each Batch contains multiple read requests.
+type Batch struct {
+	// Index is the corresponding raft log index of the batch. It is always zero
+	// for read related batches.
 	Index uint64
-	// Requests request cmds of this log
-	Requests []CustomCmd
+	// Requests is the requests included in the batch.
+	Requests []Request
 }
 
-// CustomCmd Customized commands
-type CustomCmd struct {
-	// CmdType cmd type
+// Request is the custom request type.
+type Request struct {
+	// CmdType is the request type.
 	CmdType uint64
-	// Key request key
+	// Key is the key of the request.
 	Key []byte
-	// Cmd request content
+	// Cmd is the content of the request.
 	Cmd []byte
 }
 
-// SimpleContext simple context, just for testing
+// SimpleContext is a simple Context implementation used for testing.
 type SimpleContext struct {
 	buf          *buf.ByteBuf
 	shard        meta.Shard
-	requests     []LogRequest
+	requests     []Batch
 	responses    [][]byte
 	writtenBytes uint64
 	readBytes    uint64
 	diffBytes    int64
 }
 
+var _ Context = (*SimpleContext)(nil)
+
 // NewSimpleContext returns a testing context.
-func NewSimpleContext(shard uint64, requests ...LogRequest) *SimpleContext {
+func NewSimpleContext(shard uint64, requests ...Batch) *SimpleContext {
 	c := &SimpleContext{buf: buf.NewByteBuf(32), requests: requests}
 	c.shard.ID = shard
 	return c
@@ -160,7 +160,7 @@ func NewSimpleContext(shard uint64, requests ...LogRequest) *SimpleContext {
 
 func (ctx *SimpleContext) ByteBuf() *buf.ByteBuf        { return ctx.buf }
 func (ctx *SimpleContext) Shard() meta.Shard            { return ctx.shard }
-func (ctx *SimpleContext) Requests() []LogRequest       { return ctx.requests }
+func (ctx *SimpleContext) Batches() []Batch             { return ctx.requests }
 func (ctx *SimpleContext) AppendResponse(value []byte)  { ctx.responses = append(ctx.responses, value) }
 func (ctx *SimpleContext) SetWrittenBytes(value uint64) { ctx.writtenBytes = value }
 func (ctx *SimpleContext) SetReadBytes(value uint64)    { ctx.readBytes = value }

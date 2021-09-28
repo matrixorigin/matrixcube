@@ -8,7 +8,7 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/mem"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +16,7 @@ import (
 func TestReadAndWrite(t *testing.T) {
 	cases := []struct {
 		shard        uint64
-		requests     []storage.LogRequest
+		requests     []storage.Batch
 		responses    [][]byte
 		appliedIndex uint64
 		write        bool
@@ -62,14 +62,14 @@ func TestReadAndWrite(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 
 	kv := mem.NewStorage(fs)
-	executor := NewSimpleKVCommandExecutor(kv)
+	executor := NewSimpleKVExecutor(kv)
 
 	for i, c := range cases {
 		ctx := storage.NewSimpleContext(c.shard, c.requests...)
 		if c.write {
-			assert.NoError(t, executor.ExecuteWrite(ctx), "index %d", i)
+			assert.NoError(t, executor.Write(ctx), "index %d", i)
 		} else {
-			assert.NoError(t, executor.ExecuteRead(ctx), "index %d", i)
+			assert.NoError(t, executor.Read(ctx), "index %d", i)
 		}
 		assert.True(t, reflect.DeepEqual(c.responses, ctx.Responses()), "index %d, responses %+v", i, ctx.Responses)
 
@@ -83,10 +83,10 @@ func TestReadAndWrite(t *testing.T) {
 	}
 }
 
-func newWriteRequests(shard uint64, logN, keyStart, keyEnd uint64) []storage.LogRequest {
-	var requests []storage.LogRequest
+func newWriteRequests(shard uint64, logN, keyStart, keyEnd uint64) []storage.Batch {
+	var requests []storage.Batch
 	for i := uint64(0); i < logN; i++ {
-		r := storage.LogRequest{}
+		r := storage.Batch{}
 		r.Index = keyEnd - 1
 
 		for j := keyStart; j < keyEnd; j++ {
@@ -109,9 +109,9 @@ func newWriteResponses(logN, keyStart, keyEnd uint64) [][]byte {
 	return responses
 }
 
-func newReadRequests(shard uint64, keyStart, keyEnd uint64) []storage.LogRequest {
-	var requests []storage.LogRequest
-	r := storage.LogRequest{}
+func newReadRequests(shard uint64, keyStart, keyEnd uint64) []storage.Batch {
+	var requests []storage.Batch
+	r := storage.Batch{}
 	for j := keyStart; j < keyEnd; j++ {
 		r.Requests = append(r.Requests, NewReadRequest([]byte(fmt.Sprintf("%d-%d", shard, j))))
 	}
