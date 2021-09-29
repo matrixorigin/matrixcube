@@ -16,6 +16,7 @@ package raftstore
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -23,6 +24,7 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/log"
+	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -820,7 +822,7 @@ func (c *testRaftCluster) GetStore(node int) Store {
 }
 
 func (c *testRaftCluster) GetWatcher(node int) prophet.Watcher {
-	return c.stores[node].router.(*defaultRouter).watcher
+	return c.stores[node].GetWatcher()
 }
 
 func (c *testRaftCluster) Start() {
@@ -1095,4 +1097,53 @@ func (trans *testTransport) SendingSnapshotCount() uint64 {
 	trans.RLock()
 	defer trans.RUnlock()
 	return trans.sendingSnapshotCount
+}
+
+// TestDataBuilder build test data
+type TestDataBuilder struct {
+}
+
+// NewTestDataBuilder create and return TestDataBuilder
+func NewTestDataBuilder() *TestDataBuilder {
+	return &TestDataBuilder{}
+}
+
+// CreateShard create shard for testing. format:
+// id: id
+// range: [id, id+1)
+// replicasFormat: Voter Format: pid/cid
+//                 Learner Format: pid/cid/l
+//                 Use ',' to split multi-replica.
+//                 First is current replica
+func (b *TestDataBuilder) CreateShard(id uint64, replicasFormater string) Shard {
+	var replicas []metapb.Replica
+	if replicasFormater != "" {
+		values := strings.Split(replicasFormater, ",")
+		for _, value := range values {
+			fields := strings.Split(value, "/")
+			r := metapb.Replica{Role: metapb.ReplicaRole_Voter}
+			for idx, field := range fields {
+				switch idx {
+				case 0:
+					r.ID = format.MustParseStringUint64(field)
+				case 1:
+					r.ContainerID = format.MustParseStringUint64(field)
+				case 2:
+					if field == "l" {
+						r.Role = metapb.ReplicaRole_Learner
+					}
+				default:
+					panic(fmt.Sprintf("invalid replcias foramt: %s", replicasFormater))
+				}
+			}
+			replicas = append(replicas, r)
+		}
+	}
+
+	return Shard{
+		ID:       id,
+		Start:    format.Uint64ToBytes(id),
+		End:      format.Uint64ToBytes(id + 1),
+		Replicas: replicas,
+	}
 }

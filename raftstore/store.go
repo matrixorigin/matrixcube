@@ -55,6 +55,8 @@ type Store interface {
 	Meta() meta.Store
 	// GetRouter returns a router
 	GetRouter() Router
+	// GetWatcher returns a event watcher
+	GetWatcher() prophet.Watcher
 	// RegisterLocalRequestCB register local request cb to process response
 	RegisterLocalRequestCB(func(rpc.ResponseBatchHeader, rpc.Response))
 	// RegisterRPCRequestCB register rpc request cb to process response
@@ -94,6 +96,7 @@ type store struct {
 	snapshotManager snapshot.SnapshotManager
 	rpc             *defaultRPC
 	router          Router
+	watcher         prophet.Watcher
 	routerOnce      sync.Once
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	replicaRecords  sync.Map // peer  id -> metapb.Replica
@@ -218,8 +221,11 @@ func (s *store) Stop() {
 }
 
 func (s *store) GetRouter() Router {
-	s.startRouter()
 	return s.router
+}
+
+func (s *store) GetWatcher() prophet.Watcher {
+	return s.watcher
 }
 
 func (s *store) startRouter() {
@@ -230,10 +236,9 @@ func (s *store) startRouter() {
 				s.storeField(),
 				zap.Error(err))
 		}
-
-		r, err := newRouter(s, watcher, func(id uint64) {
+		r, err := newRouterBuilder().withLogger(s.logger).withStopper(s.stopper).withCreatShardHandle(s.doDynamicallyCreate).withRemoveShardHandle(func(id uint64) {
 			s.destroyReplica(id, true, "remove by event")
-		}, s.doDynamicallyCreate)
+		}).build(watcher.GetNotify())
 		if err != nil {
 			s.logger.Fatal("fail to create router",
 				s.storeField(),
@@ -247,6 +252,7 @@ func (s *store) startRouter() {
 		}
 
 		s.router = r
+		s.watcher = watcher
 	})
 }
 
