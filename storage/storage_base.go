@@ -56,12 +56,8 @@ type KVStorage interface {
 	Write(wb util.WriteBatch, sync bool) error
 	// Set puts the key-value pair to the storage.
 	Set(key []byte, value []byte) error
-	// SetWithTTL puts the key-value pair to the storage with a TTL in seconds.
-	SetWithTTL(key []byte, value []byte, ttl int32) error
 	// Get returns the value associated with the key.
 	Get(key []byte) ([]byte, error)
-	// MGet returns all values associated with the specified keys.
-	MGet(keys [][]byte) ([][]byte, error)
 	// Delete removes the key-value pair specified by the key.
 	Delete(key []byte) error
 	// Scan scans the key-value paire in the specified [start, end) range, the

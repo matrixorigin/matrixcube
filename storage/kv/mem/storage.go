@@ -72,35 +72,10 @@ func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
 	return nil
 }
 
-// BatchSet batch set
-func (s *Storage) BatchSet(pairs ...[]byte) error {
-	if len(pairs)%2 != 0 {
-		return fmt.Errorf("invalid args len: %d", len(pairs))
-	}
-
-	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(pairs)/2))
-	for i := 0; i < len(pairs)/2; i++ {
-		s.Set(pairs[2*i], pairs[2*i+1])
-		atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(pairs[2*i])+len(pairs[2*i+1])))
-	}
-
-	return nil
-}
-
 // Get returns the value of the key
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	v := s.kv.Get(key)
 	return decodeValue(v), nil
-}
-
-// MGet returns multi values
-func (s *Storage) MGet(keys [][]byte) ([][]byte, error) {
-	var values [][]byte
-	for _, key := range keys {
-		values = append(values, decodeValue(s.kv.Get(key)))
-	}
-
-	return values, nil
 }
 
 // Delete remove the key from the storage
@@ -108,19 +83,6 @@ func (s *Storage) Delete(key []byte) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)))
 	s.kv.Delete(key)
-	return nil
-}
-
-// BatchDelete batch delete
-func (s *Storage) BatchDelete(keys ...[]byte) error {
-	n := 0
-	for _, key := range keys {
-		s.kv.Delete(key)
-		n += len(key)
-	}
-
-	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(keys)))
-	atomic.AddUint64(&s.stats.WrittenBytes, uint64(n))
 	return nil
 }
 

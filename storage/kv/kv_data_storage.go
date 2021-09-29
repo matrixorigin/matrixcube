@@ -80,18 +80,13 @@ func NewKVDataStorage(base storage.KVBaseStorage, executor storage.Executor, opt
 	return s
 }
 
-func (kv *kvDataStorage) GetExecutor() storage.Executor {
-	return kv
-}
-
 func (kv *kvDataStorage) Write(ctx storage.Context) error {
-	err := kv.executor.Write(ctx)
-	if err != nil {
+	if err := kv.executor.Write(ctx); err != nil {
 		return err
 	}
 	batches := ctx.Batches()
 	kv.updateAppliedIndex(ctx.Shard().ID, batches[len(batches)-1].Index)
-	return kv.simpleSync()
+	return kv.trySync()
 }
 
 func (kv *kvDataStorage) Read(ctx storage.Context) error {
@@ -106,7 +101,6 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	for _, m := range metadatas {
 		wb.Set(keys.GetDataStorageMetadataKey(m.ShardID), m.Metadata)
 		wb.Set(keys.GetDataStorageAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
-
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 	}
 	kv.mu.Unlock()
@@ -116,7 +110,7 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 		return err
 	}
 
-	return kv.simpleSync()
+	return kv.trySync()
 }
 
 func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
@@ -164,12 +158,9 @@ func (kv *kvDataStorage) Sync(_ []uint64) error {
 func (kv *kvDataStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error {
 	// This is not an atomic operation, but it is idempotent, and the metadata is deleted afterwards,
 	// so the cleanup will not be lost.
-
-	err := kv.base.RangeDelete(encodedStartKey, encodedEndKey)
-	if err != nil {
+	if err := kv.base.RangeDelete(encodedStartKey, encodedEndKey); err != nil {
 		return err
 	}
-
 	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID), keys.GetRaftPrefix(shard.ID+1))
 }
 
@@ -179,12 +170,15 @@ func (kv *kvDataStorage) updateAppliedIndex(shard uint64, index uint64) {
 	kv.mu.lastAppliedIndexes[shard] = index
 }
 
-// simpleSync we write and sync the data to disk every interval, and then record the appliedIndex value of
-// the raft log when sync.
-func (kv *kvDataStorage) simpleSync() error {
+// trySync syncs the data to disk every interval and then mark the appliedIndex
+// values of the raft log as persistented.
+func (kv *kvDataStorage) trySync() error {
 	n := atomic.AddUint64(&kv.writeCount, 1)
 	if n%kv.opts.sampleSync != 0 {
 		return nil
+	}
+	if err := kv.base.Sync(); err != nil {
+		return err
 	}
 	kv.mu.Lock()
 	for k, v := range kv.mu.lastAppliedIndexes {
@@ -192,7 +186,7 @@ func (kv *kvDataStorage) simpleSync() error {
 	}
 	kv.mu.Unlock()
 
-	return kv.base.Sync()
+	return nil
 }
 
 // delegate method
