@@ -24,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 // Option option func
@@ -55,7 +56,7 @@ func (opts *options) adjust() {
 
 type kvDataStorage struct {
 	opts       *options
-	base       storage.KVBaseStorage
+	base       storage.KVStorage
 	executor   storage.Executor
 	writeCount uint64
 	mu         struct {
@@ -68,8 +69,12 @@ type kvDataStorage struct {
 var _ storage.DataStorage = (*kvDataStorage)(nil)
 
 // NewKVDataStorage returns data storage based on a kv base storage.
-func NewKVDataStorage(base storage.KVBaseStorage, executor storage.Executor, opts ...Option) storage.DataStorage {
-	s := &kvDataStorage{base: base, executor: executor, opts: newOptions()}
+func NewKVDataStorage(base storage.KVStorage, executor storage.Executor, opts ...Option) storage.DataStorage {
+	s := &kvDataStorage{
+		base:     base,
+		executor: executor,
+		opts:     newOptions(),
+	}
 	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
 	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
 
@@ -80,13 +85,34 @@ func NewKVDataStorage(base storage.KVBaseStorage, executor storage.Executor, opt
 	return s
 }
 
+func (kv *kvDataStorage) NewWriteBatch() storage.Resetable {
+	return kv.base.NewWriteBatch()
+}
+
 func (kv *kvDataStorage) Write(ctx storage.Context) error {
-	if err := kv.executor.Write(ctx); err != nil {
+	if err := kv.executor.UpdateWriteBatch(ctx); err != nil {
 		return err
 	}
+	r := ctx.WriteBatch()
+	defer r.Reset()
 	batches := ctx.Batches()
-	kv.updateAppliedIndex(ctx.Shard().ID, batches[len(batches)-1].Index)
+	lastLogIndex := batches[len(batches)-1].Index
+	kv.setAppliedIndexToWriteBatch(ctx, lastLogIndex)
+	kv.updateAppliedIndex(ctx.Shard().ID, lastLogIndex)
+	if err := kv.executor.ApplyWriteBatch(r); err != nil {
+		return err
+	}
 	return kv.trySync()
+}
+
+func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.Context, index uint64) {
+	r := ctx.WriteBatch()
+	wb := r.(util.WriteBatch)
+	ctx.ByteBuf().MarkWrite()
+	ctx.ByteBuf().WriteUInt64(index)
+	key := keys.GetDataStorageAppliedIndexKey(ctx.Shard().ID)
+	val := ctx.ByteBuf().WrittenDataAfterMark().Data()
+	wb.Set(key, val)
 }
 
 func (kv *kvDataStorage) Read(ctx storage.Context) error {
@@ -94,7 +120,8 @@ func (kv *kvDataStorage) Read(ctx storage.Context) error {
 }
 
 func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) error {
-	wb := kv.base.NewWriteBatch()
+	r := kv.base.NewWriteBatch()
+	wb := r.(util.WriteBatch)
 	defer wb.Close()
 
 	kv.mu.Lock()

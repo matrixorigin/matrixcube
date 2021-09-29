@@ -35,7 +35,7 @@ type Storage struct {
 	stats stats.Stats
 }
 
-var _ storage.BaseStorage = (*Storage)(nil)
+var _ storage.KVStorage = (*Storage)(nil)
 
 // NewStorage returns a pebble backed kv store
 func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
@@ -246,7 +246,7 @@ func (s *Storage) Sync() error {
 }
 
 // NewWriteBatch create and returns write batch
-func (s *Storage) NewWriteBatch() util.WriteBatch {
+func (s *Storage) NewWriteBatch() storage.Resetable {
 	return newWriteBatch(s.db.NewBatch(), &s.stats)
 }
 

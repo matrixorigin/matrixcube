@@ -37,7 +37,7 @@ type Storage struct {
 	SyncCount uint64
 }
 
-var _ storage.BaseStorage = (*Storage)(nil)
+var _ storage.KVStorage = (*Storage)(nil)
 
 // NewStorage returns a mem data storage with snapshot data backed by the
 // specified vfs
@@ -167,7 +167,7 @@ func (s *Storage) Sync() error {
 	return nil
 }
 
-func (s *Storage) NewWriteBatch() util.WriteBatch {
+func (s *Storage) NewWriteBatch() storage.Resetable {
 	return newWriteBatch()
 }
 

@@ -776,7 +776,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
-			var kvs storage.KVBaseStorage
+			var kvs storage.KVStorage
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
 				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), c.opts.metaOpts)

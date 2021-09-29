@@ -1,4 +1,4 @@
-// Copyright 2020 MatrixOrigin.
+// Copyright 2021 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,27 +15,66 @@ package storage
 
 import (
 	"github.com/fagongzi/goetty/buf"
+
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/storage/stats"
 )
 
-// Executor is used to execute read/write requests. An executor type usually
-// implements the Read and Write features by utilizing a BaseStorage and forms
-// a DataStorage type.
+// Closeable is an instance that can be closed.
+type Closeable interface {
+	// Close closes the instance.
+	Close() error
+}
+
+// StatsKeeper is an instance that can provide stats.
+type StatsKeeper interface {
+	// Stats returns the stats of the instance.
+	Stats() stats.Stats
+}
+
+// WriteBatchCreator is capable of creating new write batches.
+type WriteBatchCreator interface {
+	// NewWriteBatch creates and returns a new write batch that can be used with
+	// the base storage instance.
+	NewWriteBatch() Resetable
+}
+
+// Resetable is an instance that can be reset and reused.
+type Resetable interface {
+	// Reset makes the instance ready to be reused.
+	Reset()
+}
+
+// Executor is used to execute read/write requests.
 type Executor interface {
-	// Write applies write requests into the underlying data storage. The `Context`
-	// holds all requests involved and packs as many requests from multiple Raft
-	// logs together as possible. The implementation must ensure that the content
-	// of each LogRequest instance provided by the Context is atomically applied
-	// into the underlying storage. The implementation should call the
-	// `SetWrittenBytes`, `SetReadBytes`, `SetDiffBytes` methods of `Context` to
-	// report the statistical changes involved in applying the specified `Context`
-	// before returning.
-	Write(Context) error
+	// UpdateWriteBatch applies write requests into the provided `Context`.
+	UpdateWriteBatch(Context) error
+	// ApplyWriteBatch atomically applies the write batch into the underlying
+	// data storage.
+	ApplyWriteBatch(wb Resetable) error
 	// Read execute read requests. The `Context` holds all the requests involved
 	// in this execution. The implementation should call the `SetReadBytes` method
 	// of `Context` to report the statistical changes involved in this execution
 	// before returning.
 	Read(Context) error
+}
+
+// BaseStorage is the interface to be implemented by all storage types.
+type BaseStorage interface {
+	Closeable
+	StatsKeeper
+	WriteBatchCreator
+	// SplitCheck finds keys within the [start, end) range so that the sum of bytes
+	// of each value is no greater than the specified size in bytes. It returns the
+	// current bytes and the total number of keys in [start,end), the founded split
+	// keys.
+	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
+		currentKeys uint64, splitKeys [][]byte, err error)
+	// CreateSnapshot creates a snapshot stored in the directory specified by the
+	// given path.
+	CreateSnapshot(path string, start, end []byte) error
+	// ApplySnapshot applies the snapshort stored in the given path.
+	ApplySnapshot(path string) error
 }
 
 // DataStorage is the interface to be implemented by data engines for storing
@@ -53,7 +92,20 @@ type Executor interface {
 // GetPersistentLogIndex() + 1.
 type DataStorage interface {
 	BaseStorage
-	Executor
+	// Write applies write requests into the underlying data storage. The `Context`
+	// holds all requests involved and packs as many requests from multiple Raft
+	// logs together as possible. The implementation must ensure that the content
+	// of each LogRequest instance provided by the Context is atomically applied
+	// into the underlying storage. The implementation should call the
+	// `SetWrittenBytes`, `SetReadBytes`, `SetDiffBytes` methods of `Context` to
+	// report the statistical changes involved in applying the specified `Context`
+	// before returning.
+	Write(Context) error
+	// Read execute read requests. The `Context` holds all the requests involved
+	// in this execution. The implementation should call the `SetReadBytes` method
+	// of `Context` to report the statistical changes involved in this execution
+	// before returning.
+	Read(Context) error
 	// GetInitialStates returns the most recent shard states of all shards known
 	// to the DataStorage instance that are consistent with their related table
 	// shards data. The shard metadata is last changed by the raft log identified
@@ -93,6 +145,9 @@ type ShardMetadata struct {
 type Context interface {
 	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
+	// WriteBatch returns a write batch which will be used to hold a sequence of
+	// updates to be atomically made into the underlying storage engine.
+	WriteBatch() Resetable
 	// Shard returns the current shard details.
 	Shard() meta.Shard
 	// Batches returns a list of Batch instance, each representing requests from a
@@ -142,6 +197,7 @@ type Request struct {
 type SimpleContext struct {
 	buf          *buf.ByteBuf
 	shard        meta.Shard
+	wb           Resetable
 	requests     []Batch
 	responses    [][]byte
 	writtenBytes uint64
@@ -152,21 +208,26 @@ type SimpleContext struct {
 var _ Context = (*SimpleContext)(nil)
 
 // NewSimpleContext returns a testing context.
-func NewSimpleContext(shard uint64, requests ...Batch) *SimpleContext {
-	c := &SimpleContext{buf: buf.NewByteBuf(32), requests: requests}
+func NewSimpleContext(shard uint64,
+	base KVStorage, requests []Batch) *SimpleContext {
+	c := &SimpleContext{
+		wb:       base.NewWriteBatch(),
+		buf:      buf.NewByteBuf(32),
+		requests: requests,
+	}
 	c.shard.ID = shard
 	return c
 }
 
 func (ctx *SimpleContext) ByteBuf() *buf.ByteBuf        { return ctx.buf }
+func (ctx *SimpleContext) WriteBatch() Resetable        { return ctx.wb }
 func (ctx *SimpleContext) Shard() meta.Shard            { return ctx.shard }
 func (ctx *SimpleContext) Batches() []Batch             { return ctx.requests }
 func (ctx *SimpleContext) AppendResponse(value []byte)  { ctx.responses = append(ctx.responses, value) }
 func (ctx *SimpleContext) SetWrittenBytes(value uint64) { ctx.writtenBytes = value }
 func (ctx *SimpleContext) SetReadBytes(value uint64)    { ctx.readBytes = value }
 func (ctx *SimpleContext) SetDiffBytes(value int64)     { ctx.diffBytes = value }
-
-func (ctx *SimpleContext) GetWrittenBytes() uint64 { return ctx.writtenBytes }
-func (ctx *SimpleContext) GetReadBytes() uint64    { return ctx.readBytes }
-func (ctx *SimpleContext) GetDiffBytes() int64     { return ctx.diffBytes }
-func (ctx *SimpleContext) Responses() [][]byte     { return ctx.responses }
+func (ctx *SimpleContext) GetWrittenBytes() uint64      { return ctx.writtenBytes }
+func (ctx *SimpleContext) GetReadBytes() uint64         { return ctx.readBytes }
+func (ctx *SimpleContext) GetDiffBytes() int64          { return ctx.diffBytes }
+func (ctx *SimpleContext) Responses() [][]byte          { return ctx.responses }
