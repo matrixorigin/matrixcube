@@ -8,6 +8,7 @@ import (
 
 type executeContext struct {
 	shard        Shard
+	wb           storage.Resetable
 	buf          *buf.ByteBuf
 	batches      []batch
 	requests     []storage.Batch
@@ -17,9 +18,10 @@ type executeContext struct {
 	readBytes    uint64
 }
 
-func newExecuteContext() *executeContext {
+func newExecuteContext(base storage.BaseStorage) *executeContext {
 	return &executeContext{
 		buf: buf.NewByteBuf(128),
+		wb:  base.NewWriteBatch(),
 	}
 }
 
@@ -47,6 +49,10 @@ func (ctx *executeContext) appendBatch(c batch) {
 
 func (ctx *executeContext) hasRequest() bool {
 	return len(ctx.batches) > 0
+}
+
+func (ctx *executeContext) WriteBatch() storage.Resetable {
+	return ctx.wb
 }
 
 func (ctx *executeContext) ByteBuf() *buf.ByteBuf {

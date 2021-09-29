@@ -16,8 +16,8 @@ package simple
 import (
 	"fmt"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 const (
@@ -43,13 +43,12 @@ func NewSimpleKVExecutor(kv storage.KVStorage) storage.Executor {
 	return &simpleKVExecutor{kv: kv}
 }
 
-func (ce *simpleKVExecutor) Write(ctx storage.Context) error {
+func (ce *simpleKVExecutor) UpdateWriteBatch(ctx storage.Context) error {
 	writtenBytes := uint64(0)
-	wb := ce.kv.NewWriteBatch()
-	lastLogIndex := uint64(0)
+	r := ctx.WriteBatch()
+	wb := r.(util.WriteBatch)
 	batches := ctx.Batches()
 	for i := range batches {
-		lastLogIndex = batches[i].Index
 		requests := batches[i].Requests
 		for j := range requests {
 			switch requests[j].CmdType {
@@ -63,21 +62,15 @@ func (ce *simpleKVExecutor) Write(ctx storage.Context) error {
 		}
 	}
 
-	ctx.ByteBuf().MarkWrite()
-	ctx.ByteBuf().WriteUInt64(lastLogIndex)
-	key := keys.GetDataStorageAppliedIndexKey(ctx.Shard().ID)
-	val := ctx.ByteBuf().WrittenDataAfterMark().Data()
-	wb.Set(key, val)
 	writtenBytes += uint64(16)
-
-	err := ce.kv.Write(wb, false)
-	if err != nil {
-		return err
-	}
-
 	ctx.SetDiffBytes(int64(writtenBytes))
 	ctx.SetWrittenBytes(writtenBytes)
 	return nil
+}
+
+func (ce *simpleKVExecutor) ApplyWriteBatch(r storage.Resetable) error {
+	wb := r.(util.WriteBatch)
+	return ce.kv.Write(wb, false)
 }
 
 func (ce *simpleKVExecutor) Read(ctx storage.Context) error {

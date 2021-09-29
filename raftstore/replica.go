@@ -154,8 +154,9 @@ func (pr *replica) start() {
 		}
 	}
 
+	dataStorage := pr.store.DataStorageByGroup(shard.Group)
 	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
-	pr.readCtx = newExecuteContext()
+	pr.readCtx = newExecuteContext(dataStorage)
 	pr.events = task.NewRingBuffer(2)
 	pr.ticks = task.New(32)
 	pr.steps = task.New(32)
@@ -267,12 +268,13 @@ func (pr *replica) initLogState() (bool, error) {
 }
 
 func (pr *replica) createStateMachine(shard *Shard) {
+	dataStorage := pr.store.DataStorageByGroup(shard.Group)
 	pr.sm = &stateMachine{
 		logger:      pr.logger,
 		pr:          pr,
 		store:       pr.store,
 		replicaID:   pr.replica.ID,
-		executorCtx: newApplyContext(),
+		executorCtx: newApplyContext(dataStorage),
 		dataStorage: pr.store.DataStorageByGroup(shard.Group),
 	}
 	pr.sm.metadataMu.shard = *shard

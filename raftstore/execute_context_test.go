@@ -18,6 +18,8 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +38,8 @@ func TestBacth(t *testing.T) {
 		},
 	}
 
-	ctx := newExecuteContext()
+	fs := vfs.GetTestFS()
+	ctx := newExecuteContext(mem.NewStorage(fs))
 	assert.False(t, ctx.hasRequest())
 	for i, c := range cases {
 		ctx.appendRequestBatch(c.batch)

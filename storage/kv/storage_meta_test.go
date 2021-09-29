@@ -58,7 +58,8 @@ func TestWriteBatch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s := factory(fs, t)
 			defer s.Close()
-			wb := s.NewWriteBatch()
+			r := s.NewWriteBatch()
+			wb := r.(util.WriteBatch)
 
 			key1 := []byte("k1")
 			value1 := []byte("v1")

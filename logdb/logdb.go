@@ -102,7 +102,7 @@ var _ LogDB = (*KVLogDB)(nil)
 func NewKVLogDB(ms storage.MetadataStorage) *KVLogDB {
 	return &KVLogDB{
 		ms:   ms,
-		wb:   ms.NewWriteBatch(),
+		wb:   ms.NewWriteBatch().(util.WriteBatch),
 		wbuf: make([]byte, 8),
 	}
 }

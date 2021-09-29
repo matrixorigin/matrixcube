@@ -14,44 +14,12 @@
 package storage
 
 import (
-	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
-// CloseableStorage is a storage that can be closed.
-type CloseableStorage interface {
-	// Close closes the storage.
-	Close() error
-}
-
-// StatisticalStorage is a storage that can provide stats.
-type StatisticalStorage interface {
-	// Stats returns the stats of the storage.
-	Stats() stats.Stats
-}
-
-// BaseStorage is the interface suppose to be implemented by all DataStorage
-// types.
-type BaseStorage interface {
-	StatisticalStorage
-	CloseableStorage
-	// SplitCheck finds keys within the [start, end) range so that the sum of bytes
-	// of each value is no greater than the specified size in bytes. It returns the
-	// current bytes and the total number of keys in [start,end), the founded split
-	// keys.
-	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
-		currentKeys uint64, splitKeys [][]byte, err error)
-	// CreateSnapshot creates a snapshot stored in the directory specified by the
-	// given path.
-	CreateSnapshot(path string, start, end []byte) error
-	// ApplySnapshot applies the snapshort stored in the given path.
-	ApplySnapshot(path string) error
-}
-
 // KVStorage is key-value based storage.
 type KVStorage interface {
-	// NewWriteBatch returns a new write batch.
-	NewWriteBatch() util.WriteBatch
+	BaseStorage
 	// Write writes the data in batch to the storage.
 	Write(wb util.WriteBatch, sync bool) error
 	// Set puts the key-value pair to the storage.
@@ -83,10 +51,4 @@ type KVStorage interface {
 	Seek(key []byte) ([]byte, []byte, error)
 	// Sync synchronize the storage's in-core state with that on disk.
 	Sync() error
-}
-
-// KVBaseStorage is the interface for Key-Value based BaseStorage
-type KVBaseStorage interface {
-	BaseStorage
-	KVStorage
 }

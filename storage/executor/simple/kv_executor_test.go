@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fagongzi/util/format"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -65,18 +63,16 @@ func TestReadAndWrite(t *testing.T) {
 	executor := NewSimpleKVExecutor(kv)
 
 	for i, c := range cases {
-		ctx := storage.NewSimpleContext(c.shard, c.requests...)
+		ctx := storage.NewSimpleContext(c.shard, kv, c.requests)
 		if c.write {
-			assert.NoError(t, executor.Write(ctx), "index %d", i)
+			assert.NoError(t, executor.UpdateWriteBatch(ctx), "index %d", i)
+			assert.NoError(t, executor.ApplyWriteBatch(ctx.WriteBatch()), "index %d", i)
 		} else {
 			assert.NoError(t, executor.Read(ctx), "index %d", i)
 		}
-		assert.True(t, reflect.DeepEqual(c.responses, ctx.Responses()), "index %d, responses %+v", i, ctx.Responses)
+		assert.True(t, reflect.DeepEqual(c.responses, ctx.Responses()), "index %d, responses %+v", i, ctx.Responses())
 
 		if c.write {
-			v, err := kv.Get(keys.GetDataStorageAppliedIndexKey(c.shard))
-			assert.NoError(t, err, "index %d", i)
-			assert.Equal(t, c.appliedIndex, format.MustBytesToUint64(v), "index %d", i)
 			assert.True(t, ctx.GetWrittenBytes() > 0, "index %d", i)
 			assert.True(t, ctx.GetDiffBytes() > 0, "index %d", i)
 		}

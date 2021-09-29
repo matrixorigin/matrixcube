@@ -17,6 +17,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type applyContext struct {
@@ -27,9 +28,9 @@ type applyContext struct {
 	metrics     applyMetrics
 }
 
-func newApplyContext() *applyContext {
+func newApplyContext(base storage.BaseStorage) *applyContext {
 	return &applyContext{
-		writeCtx: newExecuteContext(),
+		writeCtx: newExecuteContext(base),
 		req:      rpc.RequestBatch{},
 	}
 }
