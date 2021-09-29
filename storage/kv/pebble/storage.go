@@ -21,6 +21,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
@@ -74,66 +75,24 @@ func (s *Storage) Set(key []byte, value []byte) error {
 	return s.db.Set(key, value, pebble.NoSync)
 }
 
-// SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
-	return fmt.Errorf("pebble storage not support set key-value with TTL")
-}
-
-// BatchSet batch set
-func (s *Storage) BatchSet(pairs ...[]byte) error {
-	if len(pairs)%2 != 0 {
-		return fmt.Errorf("invalid args len: %d", len(pairs))
-	}
-
-	b := s.db.NewBatch()
-	defer b.Close()
-
-	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(pairs)/2))
-	for i := 0; i < len(pairs)/2; i++ {
-		b.Set(pairs[2*i], pairs[2*i+1], nil)
-		atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(pairs[2*i])+len(pairs[2*i+1])))
-	}
-
-	return s.db.Apply(b, pebble.NoSync)
-}
-
 // Get returns the value of the key
 func (s *Storage) Get(key []byte) ([]byte, error) {
 	value, closer, err := s.db.Get(key)
 	if err == pebble.ErrNotFound {
 		return nil, nil
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer closer.Close()
 	if len(value) == 0 {
 		return nil, nil
 	}
-
 	v := make([]byte, len(value))
 	copy(v, value)
-
 	atomic.AddUint64(&s.stats.ReadKeys, 1)
 	atomic.AddUint64(&s.stats.ReadBytes, uint64(len(key)+len(value)))
 	return v, nil
-}
-
-// MGet returns multi values
-func (s *Storage) MGet(keys [][]byte) ([][]byte, error) {
-	var values [][]byte
-	for _, key := range keys {
-		v, err := s.Get(key)
-		if err != nil {
-			return nil, err
-		}
-
-		values = append(values, v)
-	}
-
-	return values, nil
 }
 
 // Delete remove the key from the storage
@@ -141,22 +100,6 @@ func (s *Storage) Delete(key []byte) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)))
 	return s.db.Delete(key, pebble.NoSync)
-}
-
-// BatchDelete batch delete
-func (s *Storage) BatchDelete(keys ...[]byte) error {
-	b := s.db.NewBatch()
-	defer b.Close()
-
-	n := 0
-	for _, key := range keys {
-		b.Delete(key, nil)
-		n += len(key)
-	}
-
-	atomic.AddUint64(&s.stats.WrittenKeys, uint64(len(keys)))
-	atomic.AddUint64(&s.stats.WrittenBytes, uint64(n))
-	return s.db.Apply(b, pebble.NoSync)
 }
 
 // RangeDelete remove data in [start,end)
@@ -179,7 +122,6 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 		if err != nil {
 			return err
 		}
-
 		var ok bool
 		if copy {
 			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
@@ -189,14 +131,11 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 		if err != nil {
 			return err
 		}
-
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
-
 		if !ok {
 			break
 		}
-
 		iter.Next()
 	}
 
@@ -211,14 +150,13 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 	defer iter.Close()
 	iter.First()
 	for iter.Valid() {
-		err := iter.Error()
-		if err != nil {
+		if err := iter.Error(); err != nil {
 			return err
 		}
 		if ok := bytes.HasPrefix(iter.Key(), prefix); !ok {
 			break
 		}
-
+		var err error
 		var ok bool
 		if copy {
 			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
@@ -253,21 +191,17 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 
 	iter.First()
 	for iter.Valid() {
-		err := iter.Error()
-		if err != nil {
+		if err := iter.Error(); err != nil {
 			return 0, 0, nil, err
 		}
-
 		if bytes.Compare(iter.Key(), end) >= 0 {
 			break
 		}
-
 		if appendSplitKey {
 			splitKeys = append(splitKeys, clone(iter.Key()))
 			appendSplitKey = false
 			sum = 0
 		}
-
 		n := uint64(len(iter.Key()) + len(iter.Value()))
 		sum += n
 		total += n
@@ -276,10 +210,8 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 		if sum >= size {
 			appendSplitKey = true
 		}
-
 		iter.Next()
 	}
-
 	if total > 0 {
 		atomic.AddUint64(&s.stats.ReadBytes, total)
 	}
@@ -289,31 +221,28 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 // Seek returns the first key-value that >= key
 func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	var key, value []byte
-
 	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: target})
 	defer iter.Close()
-
 	iter.First()
 	if iter.Valid() {
-		err := iter.Error()
-		if err != nil {
+		if err := iter.Error(); err != nil {
 			return nil, nil, err
 		}
-
 		key = clone(iter.Key())
 		value = clone(iter.Value())
-
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
 	}
-
 	return key, value, nil
 }
 
 // Sync persist data to disk
 func (s *Storage) Sync() error {
 	atomic.AddUint64(&s.stats.SyncCount, 1)
-	return s.db.Flush()
+	wb := s.db.NewBatch()
+	defer wb.Close()
+	wb.Set(keys.ForcedSyncKey, keys.ForcedSyncKey, pebble.Sync)
+	return s.db.Apply(wb, pebble.Sync)
 }
 
 // NewWriteBatch create and returns write batch
@@ -324,20 +253,17 @@ func (s *Storage) NewWriteBatch() util.WriteBatch {
 // Write write the data in batch
 func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
 	wb := uwb.(*writeBatch)
-
 	b := wb.batch
 	opts := pebble.NoSync
 	if sync {
 		opts = pebble.Sync
 	}
-
 	return s.db.Apply(b, opts)
 }
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	err := s.fs.MkdirAll(path, 0755)
-	if err != nil {
+	if err := s.fs.MkdirAll(path, 0755); err != nil {
 		return err
 	}
 	file := s.fs.PathJoin(path, "db.data")
@@ -346,22 +272,17 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 		return err
 	}
 	defer f.Close()
-	err = writeBytes(f, start)
-	if err != nil {
+	if err := writeBytes(f, start); err != nil {
 		return err
 	}
-
-	err = writeBytes(f, end)
-	if err != nil {
+	if err := writeBytes(f, end); err != nil {
 		return err
 	}
 
 	snap := s.db.NewSnapshot()
 	defer snap.Close()
-
 	iter := snap.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
 	defer iter.Close()
-
 	iter.First()
 	for iter.Valid() {
 		err := iter.Error()
@@ -373,16 +294,12 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 			break
 		}
 
-		err = writeBytes(f, iter.Key())
-		if err != nil {
+		if err := writeBytes(f, iter.Key()); err != nil {
 			return err
 		}
-
-		err = writeBytes(f, iter.Value())
-		if err != nil {
+		if err = writeBytes(f, iter.Value()); err != nil {
 			return err
 		}
-
 		n := uint64(len(iter.Key()) + len(iter.Value()))
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, n)
@@ -401,7 +318,6 @@ func (s *Storage) ApplySnapshot(path string) error {
 		return err
 	}
 	defer f.Close()
-
 	start, err := readBytes(f)
 	if err != nil {
 		return err
@@ -409,7 +325,6 @@ func (s *Storage) ApplySnapshot(path string) error {
 	if len(start) == 0 {
 		return fmt.Errorf("error format, missing start field")
 	}
-
 	end, err := readBytes(f)
 	if err != nil {
 		return err
@@ -417,12 +332,9 @@ func (s *Storage) ApplySnapshot(path string) error {
 	if len(end) == 0 {
 		return fmt.Errorf("error format, missing end field")
 	}
-
-	err = s.db.DeleteRange(start, end, pebble.NoSync)
-	if err != nil {
+	if err := s.db.DeleteRange(start, end, pebble.NoSync); err != nil {
 		return err
 	}
-
 	for {
 		key, err := readBytes(f)
 		if err != nil {
@@ -431,7 +343,6 @@ func (s *Storage) ApplySnapshot(path string) error {
 		if len(key) == 0 {
 			break
 		}
-
 		value, err := readBytes(f)
 		if err != nil {
 			return err
@@ -439,7 +350,6 @@ func (s *Storage) ApplySnapshot(path string) error {
 		if len(value) == 0 {
 			return fmt.Errorf("error format, missing value field")
 		}
-
 		n := uint64(len(key) + len(value))
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, n)
@@ -468,15 +378,12 @@ func clone(value []byte) []byte {
 func writeBytes(f vfs.File, data []byte) error {
 	size := make([]byte, 4)
 	binary.BigEndian.PutUint32(size, uint32(len(data)))
-	_, err := f.Write(size)
-	if err != nil {
+	if _, err := f.Write(size); err != nil {
 		return err
 	}
-	_, err = f.Write(data)
-	if err != nil {
+	if _, err := f.Write(data); err != nil {
 		return err
 	}
-
 	return nil
 }
 

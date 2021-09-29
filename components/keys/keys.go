@@ -61,6 +61,10 @@ var (
 	baseRaftSuffixKeySize      = len(raftPrefixKey) + 9
 )
 
+var (
+	ForcedSyncKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+)
+
 func IsStateSuffix(suffix byte) bool {
 	return suffix == stateSuffix
 }
