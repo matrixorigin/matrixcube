@@ -75,12 +75,8 @@ func (s *Application) Start() error {
 	s.logger.Info("begin to start server")
 
 	s.cfg.Store.Start()
-	sp, err := raftstore.NewShardsProxy(s.cfg.Store, s.done, s.doneError)
-	if err != nil {
-		return err
-	}
-
-	s.shardsProxy = sp
+	s.shardsProxy = s.cfg.Store.GetShardsProxy()
+	s.shardsProxy.SetCallback(s.done, s.doneError)
 	if s.cfg.ExternalServer {
 		s.logger.Info("using external server")
 		return nil

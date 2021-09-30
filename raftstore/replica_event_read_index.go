@@ -54,7 +54,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 		if r.index > 0 && r.index <= appliedIndex {
 			c := batch{
 				requestBatch: r.req,
-				cb:           pr.store.cb,
+				cb:           pr.store.shardsProxy.OnResponse,
 				tp:           read,
 			}
 			pr.readCtx.appendBatch(c)

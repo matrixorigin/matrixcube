@@ -18,9 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -37,47 +36,130 @@ var (
 	RetryInterval = time.Second
 )
 
-type doneFunc func(rpc.Response)
-type errorDoneFunc func(*rpc.Request, error)
+// SuccessCallback request success callback
+type SuccessCallback func(rpc.Response)
+
+// FailureCallback request failure callback
+type FailureCallback func(*rpc.Request, error)
 
 // ShardsProxy Shards proxy, distribute the appropriate request to the corresponding backend,
 // retry the request for the error
 type ShardsProxy interface {
+	Start() error
+	Stop() error
 	Dispatch(req rpc.Request) error
 	DispatchTo(req rpc.Request, shard uint64, store string) error
+	SetCallback(SuccessCallback, FailureCallback)
+	OnResponse(rpc.ResponseBatch)
 	Router() Router
 }
 
-// NewShardsProxy returns a shard proxy with a raftstore
-func NewShardsProxy(store Store,
-	doneCB doneFunc,
-	errorDoneCB errorDoneFunc,
-) (ShardsProxy, error) {
-	sp := &shardsProxy{
-		logger:      store.GetConfig().Logger.Named("client-proxy").With(log.StoreIDField(store.Meta().ID)),
-		store:       store,
-		local:       store.Meta(),
-		router:      store.GetRouter(),
-		doneCB:      doneCB,
-		errorDoneCB: errorDoneCB,
+type backendFactory interface {
+	create(string, SuccessCallback, FailureCallback) (backend, error)
+}
+
+type backend interface {
+	dispatch(rpc.Request) error
+}
+
+type shardsProxyConfig struct {
+	backendFactory  backendFactory
+	successCallback SuccessCallback
+	failureCallback FailureCallback
+	logger          *zap.Logger
+	router          Router
+	rpc             proxyRPC
+	maxBodySize     int
+}
+
+type shardsProxyBuilder struct {
+	cfg shardsProxyConfig
+}
+
+func newShardsProxyBuilder() *shardsProxyBuilder {
+	return &shardsProxyBuilder{}
+}
+
+func (sb *shardsProxyBuilder) withMaxBodySize(size int) *shardsProxyBuilder {
+	sb.cfg.maxBodySize = size
+	return sb
+}
+
+func (sb *shardsProxyBuilder) withBackendFactory(factory backendFactory) *shardsProxyBuilder {
+	sb.cfg.backendFactory = factory
+	return sb
+}
+
+func (sb *shardsProxyBuilder) withRPC(rpc proxyRPC) *shardsProxyBuilder {
+	sb.cfg.rpc = rpc
+	return sb
+}
+
+func (sb *shardsProxyBuilder) withRequestCallback(successCallback SuccessCallback, failureCallback FailureCallback) *shardsProxyBuilder {
+	sb.cfg.failureCallback = failureCallback
+	sb.cfg.successCallback = successCallback
+	return sb
+}
+
+func (sb *shardsProxyBuilder) withLogger(logger *zap.Logger) *shardsProxyBuilder {
+	sb.cfg.logger = logger
+	return sb
+}
+
+func (sb *shardsProxyBuilder) build(router Router) (ShardsProxy, error) {
+	if sb.cfg.logger == nil {
+		sb.cfg.logger = config.GetDefaultZapLogger()
 	}
 
-	sp.store.RegisterLocalRequestCB(sp.onLocalResp)
-	return sp, nil
+	if sb.cfg.successCallback == nil {
+		sb.cfg.successCallback = func(r rpc.Response) {}
+	}
+
+	if sb.cfg.failureCallback == nil {
+		sb.cfg.failureCallback = func(r *rpc.Request, e error) {}
+	}
+
+	sb.cfg.router = router
+	return newShardsProxy(sb.cfg)
 }
 
 type shardsProxy struct {
-	logger      *zap.Logger
-	local       meta.Store
-	store       Store
-	router      Router
-	doneCB      doneFunc
-	errorDoneCB errorDoneFunc
-	backends    sync.Map // store addr -> *backend
+	sync.RWMutex
+
+	cfg      shardsProxyConfig
+	logger   *zap.Logger
+	backends map[string]backend
+}
+
+func newShardsProxy(cfg shardsProxyConfig) (ShardsProxy, error) {
+	return &shardsProxy{
+		cfg:      cfg,
+		logger:   cfg.logger,
+		backends: make(map[string]backend),
+	}, nil
+}
+
+func (p *shardsProxy) Start() error {
+	if p.cfg.rpc != nil {
+		return p.cfg.rpc.start()
+	}
+	return nil
+}
+
+func (p *shardsProxy) Stop() error {
+	if p.cfg.rpc != nil {
+		p.cfg.rpc.stop()
+	}
+	return nil
+}
+
+func (p *shardsProxy) SetCallback(success SuccessCallback, failure FailureCallback) {
+	p.cfg.successCallback = success
+	p.cfg.failureCallback = failure
 }
 
 func (p *shardsProxy) Dispatch(req rpc.Request) error {
-	shard, to := p.router.SelectShard(req.Group, req.Key)
+	shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
 	return p.DispatchTo(req, shard, to)
 }
 
@@ -98,21 +180,54 @@ func (p *shardsProxy) DispatchTo(req rpc.Request, shard uint64, to string) error
 }
 
 func (p *shardsProxy) Router() Router {
-	return p.router
+	return p.cfg.router
 }
 
 func (p *shardsProxy) forwardToBackend(req rpc.Request, leader string) error {
-	if p.store != nil && p.local.ClientAddr == leader {
-		req.PID = 0
-		return p.store.OnRequest(req)
+	var err error
+	bc := p.getBackend(leader)
+	if bc == nil {
+		bc, err = p.createBackend(leader)
+		if err != nil {
+			return err
+		}
 	}
 
-	bc, err := p.getConn(leader)
+	return bc.dispatch(req)
+}
+
+func (p *shardsProxy) OnResponse(resp rpc.ResponseBatch) {
+	for _, rsp := range resp.Responses {
+		if rsp.PID != 0 && p.cfg.rpc != nil {
+			p.cfg.rpc.onResponse(resp.Header, rsp)
+		} else {
+			p.onLocalResp(resp.Header, rsp)
+		}
+	}
+}
+
+func (p *shardsProxy) getBackend(addr string) backend {
+	p.RLock()
+	defer p.RUnlock()
+
+	return p.backends[addr]
+}
+
+func (p *shardsProxy) createBackend(addr string) (backend, error) {
+	p.Lock()
+	defer p.Unlock()
+
+	bc, err := p.cfg.backendFactory.create(addr, p.cfg.successCallback, p.cfg.failureCallback)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return bc.addReq(req)
+	p.addBackendLocked(addr, bc)
+	return bc, nil
+}
+
+func (p *shardsProxy) addBackendLocked(addr string, bc backend) {
+	p.backends[addr] = bc
 }
 
 func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
@@ -131,12 +246,12 @@ func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Respon
 
 func (p *shardsProxy) done(rsp rpc.Response) {
 	if rsp.Type == rpc.CmdType_Invalid && rsp.Error.Message != "" {
-		p.errorDoneCB(rsp.Request, errors.New(rsp.Error.String()))
+		p.cfg.failureCallback(rsp.Request, errors.New(rsp.Error.String()))
 		return
 	}
 
 	if rsp.Type != rpc.CmdType_RaftError && !rsp.Stale {
-		p.doneCB(rsp)
+		p.cfg.successCallback(rsp)
 		return
 	}
 
@@ -144,7 +259,7 @@ func (p *shardsProxy) done(rsp rpc.Response) {
 }
 
 func (p *shardsProxy) errorDone(req *rpc.Request, err error) {
-	p.errorDoneCB(req, err)
+	p.cfg.failureCallback(req, err)
 }
 
 func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later time.Duration) {
@@ -155,7 +270,7 @@ func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later tim
 		}
 
 		if time.Now().Unix() >= req.StopAt {
-			p.errorDoneCB(req, errors.New(err))
+			p.cfg.failureCallback(req, errors.New(err))
 			return
 		}
 
@@ -172,68 +287,10 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 
 	to := ""
 	if req.AllowFollower {
-		to = p.router.RandomReplicaStore(req.ToShard).ClientAddr
+		to = p.cfg.router.RandomReplicaStore(req.ToShard).ClientAddr
 	} else {
-		to = p.router.LeaderReplicaStore(req.ToShard).ClientAddr
+		to = p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr
 	}
 
 	p.DispatchTo(req, req.ToShard, to)
-}
-
-func (p *shardsProxy) getConn(addr string) (*backend, error) {
-	bc := p.getConnLocked(addr)
-	if p.checkConnect(bc) {
-		return bc, nil
-	}
-
-	return bc, errConnect
-}
-
-func (p *shardsProxy) getConnLocked(addr string) *backend {
-	if value, ok := p.backends.Load(addr); ok {
-		return value.(*backend)
-	}
-
-	return p.createConn(addr)
-}
-
-func (p *shardsProxy) createConn(addr string) *backend {
-	encoder, decoder := p.store.CreateRPCCliendSideCodec()
-	bc := newBackend(p, addr,
-		goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
-
-	old, loaded := p.backends.LoadOrStore(addr, bc)
-	if loaded {
-		return old.(*backend)
-	}
-
-	return bc
-}
-
-func (p *shardsProxy) checkConnect(bc *backend) bool {
-	if nil == bc {
-		return false
-	}
-
-	if bc.conn.Connected() {
-		return true
-	}
-
-	bc.Lock()
-	defer bc.Unlock()
-
-	if bc.conn.Connected() {
-		return true
-	}
-
-	ok, err := bc.conn.Connect(bc.addr, defaultConnectTimeout)
-	if err != nil {
-		p.logger.Error("fail to connect to backend",
-			zap.String("backend", bc.addr),
-			zap.Error(err))
-		return false
-	}
-
-	bc.readLoop()
-	return ok
 }

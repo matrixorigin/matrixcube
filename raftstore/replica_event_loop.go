@@ -149,7 +149,7 @@ func (pr *replica) onStop() {
 		for _, c := range pr.pendingReads.reads {
 			for _, req := range c.req.Requests {
 				req.Key = keys.DecodeDataKey(req.Key)
-				respStoreNotMatch(errStoreNotMatch, req, pr.store.cb)
+				respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
 			}
 		}
 		pr.pendingReads.reset()

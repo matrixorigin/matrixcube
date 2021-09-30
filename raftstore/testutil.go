@@ -427,8 +427,8 @@ type TestRaftCluster interface {
 	EveryStore(fn func(i int, store Store))
 	// GetStore returns the node store
 	GetStore(node int) Store
-	// GetWatcher returns event watcher of the node
-	GetWatcher(node int) prophet.Watcher
+	// // GetWatcher returns event watcher of the node
+	// GetWatcher(node int) prophet.Watcher
 	// Start start each node sequentially
 	Start()
 	// Stop stop each node sequentially
@@ -492,11 +492,8 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 		doneCtx: make(map[string]chan string),
 		runner:  task.NewRunner(),
 	}
-	proxy, err := NewShardsProxy(store, kv.done, kv.errorDone)
-	if err != nil {
-		assert.FailNowf(t, "", "createtest kv client failed with %+v", err)
-	}
-	kv.proxy = proxy
+	kv.proxy = store.GetShardsProxy()
+	kv.proxy.SetCallback(kv.done, kv.errorDone)
 	return kv
 }
 
@@ -819,10 +816,6 @@ func (c *testRaftCluster) EveryStore(fn func(i int, store Store)) {
 
 func (c *testRaftCluster) GetStore(node int) Store {
 	return c.stores[node]
-}
-
-func (c *testRaftCluster) GetWatcher(node int) prophet.Watcher {
-	return c.stores[node].GetWatcher()
 }
 
 func (c *testRaftCluster) Start() {

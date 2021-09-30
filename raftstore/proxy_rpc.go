@@ -22,46 +22,51 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type defaultRPC struct {
-	logger *zap.Logger
-	store  *store
-	app    goetty.NetApplication
+type proxyRPC interface {
+	start() error
+	stop()
+	onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response)
 }
 
-func newRPC(store *store) *defaultRPC {
+type defaultRPC struct {
+	logger  *zap.Logger
+	app     goetty.NetApplication
+	handler func(rpc.Request) error
+}
+
+func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpc.Request) error) proxyRPC {
 	rpc := &defaultRPC{
-		logger: store.logger.Named("rpc").With(store.storeField()),
-		store:  store,
+		logger:  logger,
+		handler: handler,
 	}
 
-	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, int(store.cfg.Raft.MaxEntryBytes)*2)
-	app, err := goetty.NewTCPApplication(store.cfg.ClientAddr, rpc.onMessage,
+	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, maxBodySize)
+	app, err := goetty.NewTCPApplication(addr, rpc.onMessage,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(store.logger.Named("rpc").With(store.storeField()))))
+			goetty.WithLogger(logger)))
 
 	if err != nil {
 		rpc.logger.Fatal("fail to create rpc",
 			zap.Error(err))
 	}
 
-	store.RegisterRPCRequestCB(rpc.onResp)
 	rpc.app = app
 	return rpc
 }
 
-func (r *defaultRPC) Start() error {
+func (r *defaultRPC) start() error {
 	return r.app.Start()
 }
 
-func (r *defaultRPC) Stop() {
+func (r *defaultRPC) stop() {
 	r.app.Stop()
 }
 
 func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {
 	req := value.(rpc.Request)
 	req.PID = int64(rs.ID())
-	err := r.store.OnRequest(req)
+	err := r.handler(req)
 	if err != nil {
 		rsp := rpc.Response{}
 		rsp.ID = req.ID
@@ -71,7 +76,7 @@ func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint6
 	return nil
 }
 
-func (r *defaultRPC) onResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
+func (r *defaultRPC) onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response) {
 	if rs, _ := r.app.GetSession(uint64(rsp.PID)); rs != nil {
 		if !header.IsEmpty() {
 			if header.Error.RaftEntryTooLarge == nil {
