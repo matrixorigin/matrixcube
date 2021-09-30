@@ -19,8 +19,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fagongzi/goetty/codec"
-	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/util/protoc"
 	"github.com/fagongzi/util/task"
 	"github.com/lni/goutils/syncutil"
@@ -55,10 +53,8 @@ type Store interface {
 	Meta() meta.Store
 	// GetRouter returns a router
 	GetRouter() Router
-	// RegisterLocalRequestCB register local request cb to process response
-	RegisterLocalRequestCB(func(rpc.ResponseBatchHeader, rpc.Response))
-	// RegisterRPCRequestCB register rpc request cb to process response
-	RegisterRPCRequestCB(func(rpc.ResponseBatchHeader, rpc.Response))
+	// GetShardsProxy get shards proxy to dispatch requests
+	GetShardsProxy() ShardsProxy
 	// OnRequest receive a request, and call cb while the request is completed
 	OnRequest(rpc.Request) error
 	// DataStorage returns a DataStorage of the shard group
@@ -69,8 +65,6 @@ type Store interface {
 	MustAllocID() uint64
 	// Prophet return current prophet instance
 	Prophet() prophet.Prophet
-	// CreateRPCCliendSideCodec returns the rpc codec at client side
-	CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder)
 
 	// CreateResourcePool create resource pools, the resource pool will create shards,
 	// and try to maintain the number of shards in the pool not less than the `capacity`
@@ -92,9 +86,9 @@ type store struct {
 	logdb           logdb.LogDB
 	trans           transport.Transport
 	snapshotManager snapshot.SnapshotManager
-	rpc             *defaultRPC
+	shardsProxy     ShardsProxy
 	router          Router
-	routerOnce      sync.Once
+	watcher         prophet.Watcher
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	replicaRecords  sync.Map // peer  id -> metapb.Replica
 	replicas        sync.Map // shard id -> *peerReplica
@@ -102,9 +96,6 @@ type store struct {
 
 	state    uint32
 	stopOnce sync.Once
-
-	localCB func(rpc.ResponseBatchHeader, rpc.Response)
-	rpcCB   func(rpc.ResponseBatchHeader, rpc.Response)
 
 	aware   aware.ShardStateAware
 	stopper *syncutil.Stopper
@@ -139,7 +130,6 @@ func NewStore(cfg *config.Config) Store {
 		s.snapshotManager = newDefaultSnapshotManager(s)
 	}
 
-	s.rpc = newRPC(s)
 	return s
 }
 
@@ -166,14 +156,14 @@ func (s *store) Start() {
 	s.logger.Info("shard timer based tasks started",
 		s.storeField())
 
-	s.startRPC()
-	s.logger.Info("client rpc started",
-		s.storeField(),
-		log.ListenAddressField(s.cfg.ClientAddr))
-
 	s.startRouter()
 	s.logger.Info("router started",
 		s.storeField())
+
+	s.startShardsProxy()
+	s.logger.Info("proxy started",
+		s.storeField(),
+		log.ListenAddressField(s.cfg.ClientAddr))
 
 	s.doStoreHeartbeat(time.Now())
 }
@@ -211,59 +201,52 @@ func (s *store) Stop() {
 		s.logger.Info("stoppers topped",
 			s.storeField())
 
-		s.rpc.Stop()
-		s.logger.Info("client rpc stopped",
+		s.shardsProxy.Stop()
+		s.logger.Info("proxy stopped",
 			s.storeField())
 	})
 }
 
+func (s *store) GetShardsProxy() ShardsProxy {
+	return s.shardsProxy
+}
+
 func (s *store) GetRouter() Router {
-	s.startRouter()
 	return s.router
 }
 
 func (s *store) startRouter() {
-	s.routerOnce.Do(func() {
-		watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
-		if err != nil {
-			s.logger.Fatal("fail to create router",
-				s.storeField(),
-				zap.Error(err))
-		}
+	watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
+	if err != nil {
+		s.logger.Fatal("fail to create router",
+			s.storeField(),
+			zap.Error(err))
+	}
+	r, err := newRouterBuilder().withLogger(s.logger).withStopper(s.stopper).withCreatShardHandle(s.doDynamicallyCreate).withRemoveShardHandle(func(id uint64) {
+		s.destroyReplica(id, true, "remove by event")
+	}).build(watcher.GetNotify())
+	if err != nil {
+		s.logger.Fatal("fail to create router",
+			s.storeField(),
+			zap.Error(err))
+	}
+	err = r.Start()
+	if err != nil {
+		s.logger.Fatal("fail to start router",
+			s.storeField(),
+			zap.Error(err))
+	}
 
-		r, err := newRouter(s, watcher, func(id uint64) {
-			s.destroyReplica(id, true, "remove by event")
-		}, s.doDynamicallyCreate)
-		if err != nil {
-			s.logger.Fatal("fail to create router",
-				s.storeField(),
-				zap.Error(err))
-		}
-		err = r.Start()
-		if err != nil {
-			s.logger.Fatal("fail to start router",
-				s.storeField(),
-				zap.Error(err))
-		}
-
-		s.router = r
-	})
+	s.router = r
+	s.watcher = watcher
 }
 
 func (s *store) Meta() meta.Store {
 	return s.meta.meta
 }
 
-func (s *store) RegisterLocalRequestCB(cb func(rpc.ResponseBatchHeader, rpc.Response)) {
-	s.localCB = cb
-}
-
-func (s *store) RegisterRPCRequestCB(cb func(rpc.ResponseBatchHeader, rpc.Response)) {
-	s.rpcCB = cb
-}
-
 func (s *store) OnRequest(req rpc.Request) error {
-	return s.onRequestWithCB(req, s.cb)
+	return s.onRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
 func (s *store) onRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
@@ -316,16 +299,6 @@ func (s *store) MaybeLeader(shard uint64) bool {
 	return nil != s.getReplica(shard, true)
 }
 
-func (s *store) cb(resp rpc.ResponseBatch) {
-	for _, rsp := range resp.Responses {
-		if rsp.PID != 0 {
-			s.rpcCB(resp.Header, rsp)
-		} else {
-			s.localCB(resp.Header, rsp)
-		}
-	}
-}
-
 func (s *store) MustAllocID() uint64 {
 	id, err := s.pd.GetClient().AllocID()
 	if err != nil {
@@ -339,11 +312,6 @@ func (s *store) MustAllocID() uint64 {
 
 func (s *store) Prophet() prophet.Prophet {
 	return s.pd
-}
-
-func (s *store) CreateRPCCliendSideCodec() (codec.Encoder, codec.Decoder) {
-	v := &rpcCodec{clientSide: true}
-	return length.NewWithSize(v, v, 0, 0, 0, int(s.cfg.Raft.MaxEntryBytes)*2)
 }
 
 func (s *store) startProphet() {
@@ -498,10 +466,30 @@ func (s *store) removeReplica(pr *replica) {
 	}
 }
 
-func (s *store) startRPC() {
-	err := s.rpc.Start()
+func (s *store) startShardsProxy() {
+	maxBodySize := int(s.cfg.Raft.MaxEntryBytes) * 2
+
+	rpc := newProxyRPC(s.logger.Named("proxy.rpc").With(s.storeField()),
+		s.Meta().ClientAddr,
+		maxBodySize,
+		s.OnRequest)
+
+	l := s.logger.Named("proxy").With(s.storeField())
+	sp, err := newShardsProxyBuilder().
+		withLogger(l).
+		withBackendFactory(newBackendFactory(l, s)).
+		withMaxBodySize(maxBodySize).
+		withRPC(rpc).
+		build(s.router)
 	if err != nil {
-		s.logger.Fatal("fail to start RPC",
+		s.logger.Fatal("fail to create shards proxy", zap.Error(err))
+	}
+
+	s.shardsProxy = sp
+
+	err = s.shardsProxy.Start()
+	if err != nil {
+		s.logger.Fatal("fail to start shards proxy",
 			s.storeField(),
 			log.ListenAddressField(s.cfg.ClientAddr),
 			zap.Error(err))

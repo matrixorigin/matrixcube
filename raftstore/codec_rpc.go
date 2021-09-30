@@ -52,9 +52,11 @@ func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 func (c *rpcCodec) Encode(data interface{}, out *buf.ByteBuf) error {
 	var rsp protoc.PB
 	if c.clientSide {
-		rsp = data.(*rpc.Request)
+		v := data.(rpc.Request)
+		rsp = &v
 	} else {
-		rsp = data.(*rpc.Response)
+		v := data.(rpc.Response)
+		rsp = &v
 	}
 
 	size := rsp.Size()

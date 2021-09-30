@@ -77,13 +77,11 @@ func TestIssue84(t *testing.T) {
 		c, closer := createDiskDataStorageCluster(t, raftstore.WithTestClusterRecreate(false))
 		defer closer()
 
-		st := time.Now()
 		app = c.Applications[0]
 		value, err := app.Exec(&testRequest{
 			Op:  "GET",
 			Key: "key",
 		}, 10*time.Second)
-		assert.NoErrorf(t, err, "cost %+v, %p", time.Since(st), c.RaftCluster.GetWatcher(0))
 		assert.Equal(t, "value", string(value))
 		if err != nil {
 			log.Fatalf("failed %d", i)

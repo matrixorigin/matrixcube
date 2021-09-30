@@ -75,12 +75,8 @@ func (s *Application) Start() error {
 	s.logger.Info("begin to start server")
 
 	s.cfg.Store.Start()
-	sp, err := raftstore.NewShardsProxy(s.cfg.Store, s.done, s.doneError)
-	if err != nil {
-		return err
-	}
-
-	s.shardsProxy = sp
+	s.shardsProxy = s.cfg.Store.GetShardsProxy()
+	s.shardsProxy.SetCallback(s.done, s.doneError)
 	if s.cfg.ExternalServer {
 		s.logger.Info("using external server")
 		return nil
@@ -329,11 +325,11 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 	var shards []uint64
 	var forwards []string
 	max := after
-	s.shardsProxy.Router().Every(group, mustLeader, func(shard *meta.Shard, store meta.Store) {
+	s.shardsProxy.Router().Every(group, mustLeader, func(shard meta.Shard, store meta.Store) bool {
 		id := shard.ID
 		if store.ClientAddr == "" {
 			err = fmt.Errorf("missing forward store of shard %d", id)
-			return
+			return false
 		}
 
 		if id > max {
@@ -344,6 +340,7 @@ func (s *Application) buildBroadcast(after uint64, group uint64, mustLeader bool
 			shards = append(shards, id)
 			forwards = append(forwards, store.ClientAddr)
 		}
+		return true
 	})
 	return max, shards, forwards, err
 }
