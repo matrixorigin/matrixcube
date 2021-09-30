@@ -147,7 +147,7 @@ func (s *store) mustSaveStoreMetadata() {
 		StoreID:   s.meta.meta.ID,
 		ClusterID: s.pd.GetClusterID(),
 	}
-	err = s.cfg.Storage.MetaStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v))
+	err = s.cfg.Storage.MetaStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
 	if err != nil {
 		s.logger.Fatal("fail to save local store id",
 			s.storeField(),

@@ -232,7 +232,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
 	startKey := keys.GetRaftLogKey(shardID, 0)
 	endKey := keys.GetRaftLogKey(shardID, index+1)
-	return l.ms.RangeDelete(startKey, endKey)
+	return l.ms.RangeDelete(startKey, endKey, true)
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, peerID uint64) (uint64, error) {

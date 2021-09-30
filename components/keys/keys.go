@@ -27,11 +27,11 @@ const (
 
 	// Following are the suffix after the local prefix.
 	// For shard id
-	raftLogSuffix                 = 0x01
-	maxIndexSuffix                = 0x04
-	hardStateSuffix               = 0x06
-	dataStorageAppliedIndexSuffix = 0x07
-	dataStorageMetadataSuffix     = 0x08
+	raftLogSuffix      = 0x01
+	maxIndexSuffix     = 0x04
+	hardStateSuffix    = 0x06
+	appliedIndexSuffix = 0x07
+	metadataSuffix     = 0x08
 )
 
 // local is in (0x01, 0x02);
@@ -79,19 +79,28 @@ func GetHardStateKey(shardID uint64, peerID uint64) []byte {
 	return getIDKey(shardID, hardStateSuffix, 8, peerID)
 }
 
-// GetDataStorageAppliedIndexKey returns key that used to store `applied log index` for `storage.DataStorage`
-func GetDataStorageAppliedIndexKey(shardID uint64) []byte {
-	return getIDKey(shardID, dataStorageAppliedIndexSuffix, 0, 0)
+// GetAppliedIndexKey returns key that used to store `applied log index` for `storage.DataStorage`
+func GetAppliedIndexKey(shardID uint64) []byte {
+	return getIDKey(shardID, appliedIndexSuffix, 0, 0)
 }
 
-// DecodeDataStorageAppliedIndexKey returns shard id
-func DecodeDataStorageAppliedIndexKey(key []byte) uint64 {
+// DecodeAppliedIndexKey returns shard id
+func DecodeAppliedIndexKey(key []byte) uint64 {
 	return buf.Byte2UInt64(key[raftPrefix:])
 }
 
-// GetDataStorageMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
-func GetDataStorageMetadataKey(shardID uint64) []byte {
-	return getIDKey(shardID, dataStorageMetadataSuffix, 0, 0)
+// GetMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
+func GetMetadataKey(shardID uint64, index uint64) []byte {
+	return getIDKey(shardID, metadataSuffix, 8, index)
+}
+
+func GetMetadataIndex(key []byte) (uint64, error) {
+	expectKeyLen := len(raftPrefixKey) + 8*2 + 1
+	if len(key) != expectKeyLen {
+		return 0, fmt.Errorf("key<%v> is not a valid metadata key", key)
+	}
+
+	return binary.BigEndian.Uint64(key[len(raftPrefixKey)+9:]), nil
 }
 
 func isRaftSuffixKey(key []byte, size int, suffix byte) bool {
@@ -101,12 +110,12 @@ func isRaftSuffixKey(key []byte, size int, suffix byte) bool {
 	return key[baseRaftSuffixKeySize-1] == suffix
 }
 
-func IsDataStorageMetadataKey(key []byte) bool {
-	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, dataStorageMetadataSuffix)
+func IsMetadataKey(key []byte) bool {
+	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, metadataSuffix)
 }
 
-func IsDataStorageAppliedIndexKey(key []byte) bool {
-	return isRaftSuffixKey(key, baseRaftSuffixKeySize, dataStorageAppliedIndexSuffix)
+func IsAppliedIndexKey(key []byte) bool {
+	return isRaftSuffixKey(key, baseRaftSuffixKeySize, appliedIndexSuffix)
 }
 
 func IsRaftLogKey(key []byte) bool {

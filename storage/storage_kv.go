@@ -23,11 +23,11 @@ type KVStorage interface {
 	// Write writes the data in batch to the storage.
 	Write(wb util.WriteBatch, sync bool) error
 	// Set puts the key-value pair to the storage.
-	Set(key []byte, value []byte) error
+	Set(key []byte, value []byte, sync bool) error
 	// Get returns the value associated with the key.
 	Get(key []byte) ([]byte, error)
 	// Delete removes the key-value pair specified by the key.
-	Delete(key []byte) error
+	Delete(key []byte, sync bool) error
 	// Scan scans the key-value paire in the specified [start, end) range, the
 	// specified handler function is invoked on each key-value pair until the
 	// handler function returns false. Depending on the copy parameter, the
@@ -45,7 +45,7 @@ type KVStorage interface {
 	// handler function.
 	PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error
 	// RangeDelete delete data within the specified [start,end) range.
-	RangeDelete(start, end []byte) error
+	RangeDelete(start, end []byte, sync bool) error
 	// Seek returns the first key-value pair that has the key component no less
 	// than the specified key.
 	Seek(key []byte) ([]byte, []byte, error)
