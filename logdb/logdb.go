@@ -90,7 +90,7 @@ type LogDB interface {
 
 type KVLogDB struct {
 	state raftpb.HardState
-	ms    storage.MetadataStorage
+	ms    storage.KVMetadataStore
 	wb    util.WriteBatch
 	// FIXME: wbuf is unsafe as it will be concurrently accessed from multiple
 	// worker goroutines.
@@ -99,7 +99,7 @@ type KVLogDB struct {
 
 var _ LogDB = (*KVLogDB)(nil)
 
-func NewKVLogDB(ms storage.MetadataStorage) *KVLogDB {
+func NewKVLogDB(ms storage.KVMetadataStore) *KVLogDB {
 	return &KVLogDB{
 		ms:   ms,
 		wb:   ms.NewWriteBatch().(util.WriteBatch),

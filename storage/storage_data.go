@@ -47,7 +47,8 @@ type Resetable interface {
 
 // Executor is used to execute read/write requests.
 type Executor interface {
-	// UpdateWriteBatch applies write requests into the provided `Context`.
+	// UpdateWriteBatch applies write requests into the provided `Context`. No
+	// writes is allowed to be written to the actual underlying data storage.
 	UpdateWriteBatch(Context) error
 	// ApplyWriteBatch atomically applies the write batch into the underlying
 	// data storage.
@@ -76,6 +77,10 @@ type BaseStorage interface {
 	// ApplySnapshot applies the snapshort stored in the given path.
 	ApplySnapshot(path string) error
 }
+
+// TODO: it doesn't make sense to allow multiple read operations to be batched
+// and handled together, as we do value concurrent reads. The Read() method
+// below need to be reviewed.
 
 // DataStorage is the interface to be implemented by data engines for storing
 // both table shards data and shards metadata. We assume that data engines are
@@ -139,14 +144,16 @@ type ShardMetadata struct {
 	Metadata []byte
 }
 
-// TODO: split this to ReadContext and WriteContext
-
-// Context
+// Context contains the details of write and read requests that need to be
+// handled by the data storage.
 type Context interface {
 	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
 	// WriteBatch returns a write batch which will be used to hold a sequence of
-	// updates to be atomically made into the underlying storage engine.
+	// updates to be atomically made into the underlying storage engine. A
+	// resetable instance is returned by this method and it is up to the user to
+	// cast it to the actual write batch type compatible with the intended data
+	// storage.
 	WriteBatch() Resetable
 	// Shard returns the current shard details.
 	Shard() meta.Shard

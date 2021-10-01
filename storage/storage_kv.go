@@ -17,9 +17,8 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 )
 
-// KVStorage is key-value based storage.
-type KVStorage interface {
-	BaseStorage
+// KVStore is the interface for supported key-value based data store operations.
+type KVStore interface {
 	// Write writes the data in batch to the storage.
 	Write(wb util.WriteBatch, sync bool) error
 	// Set puts the key-value pair to the storage.
@@ -35,7 +34,8 @@ type KVStorage interface {
 	// retained after the return of the handler function or a pair of temporary
 	// key-value slices that could change after the return of the handler
 	// function.
-	Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error
+	Scan(start, end []byte,
+		handler func(key, value []byte) (bool, error), copy bool) error
 	// PrefixScan scans all key-value pairs that share the specified prefix, the
 	// specified handler function will be invoked on each such key-value pairs
 	// until false is returned by the handler function. Depending on the copy
@@ -43,7 +43,8 @@ type KVStorage interface {
 	// that can be retained after the return of the handler function or a pair
 	// of temporary key-value slices that could change after the return of the
 	// handler function.
-	PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error
+	PrefixScan(prefix []byte,
+		handler func(key, value []byte) (bool, error), copy bool) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
 	// Seek returns the first key-value pair that has the key component no less
@@ -51,4 +52,10 @@ type KVStorage interface {
 	Seek(key []byte) ([]byte, []byte, error)
 	// Sync synchronize the storage's in-core state with that on disk.
 	Sync() error
+}
+
+// KVStorage is key-value based storage.
+type KVStorage interface {
+	BaseStorage
+	KVStore
 }
