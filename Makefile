@@ -1,35 +1,96 @@
-PKGNAME   = $(shell go list)
-ROOT_DIR  = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
-LD_FLAGS  = -ldflags "-w -s"
-GOOS 		  = linux
-DIST_DIR 	= $(ROOT_DIR)dist/
+# Copyright 2021 MatrixOrigin.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-.PHONY: dist_dir
-dist_dir: ; $(info ======== prepare distribute dir:)
-	mkdir -p $(DIST_DIR)
+GOEXEC ?= go
+PKGNAME = $(shell go list)
+ROOT_DIR = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
 
-.PHONY: redis
-redis: dist_dir; $(info ======== compiled matrixcube example redis:)
-	env GO111MODULE=off GOOS=$(GOOS) go build -o $(DIST_DIR)redis $(LD_FLAGS) $(ROOT_DIR)example/redis/*.go
+ifeq ($(VERBOSE),)
+GO=@$(GOEXEC)
+else
+GO=$(GOEXEC)
+endif
 
-.PHONY: http
-http: dist_dir; $(info ======== compiled matrixcube example http:)
-	env CGO_ENABLED=0 GOOS=$(GOOS) go build -mod vendor -a -installsuffix cgo -o $(DIST_DIR)http $(LD_FLAGS) $(ROOT_DIR)example/http/*.go
+ifeq ($(RACE),1)
+RACE_FLAG=-race
+$(warning "data race detector enabled")
+endif
 
-.PHONY: example-redis
-example-redis: ; $(info ======== compiled matrixcube redis example:)
-	docker build -t deepfabric/matrixcube-redis -f Dockerfile-redis .
+ifeq ($(COVER),1)
+COVER_FLAG=-coverprofile=coverage.out
+$(warning "coverage enabled, `go tool cover -html=coverage.out` to visualize")
+endif
 
-.PHONY: example-http
-example-http: http; $(info ======== compiled matrixcube http example:)
-	docker build -t deepfabric/matrixcube-http -f Dockerfile-http .
+ifneq ($(TEST_TO_RUN),)
+$(info Running selected tests $(TEST_TO_RUN))
+SELECTED_TESTS=-run $(TEST_TO_RUN)
+endif
+
+TEST_OPTIONS=test -timeout=300s -count=1 -v $(RACE_GLAG) $(COVER_FLAG) $(SELECTED_TESTS)
+GOTEST=$(GO) $(TEST_OPTIONS)
+
+###############################################################################
+# tests
+###############################################################################
+
+.PHONY: all
+all: test
+
+.PHONY: test-storage
+test-storage:
+	$(GOTEST) $(PKGNAME)/storage/kv
+
+.PHONY: test-logdb
+test-logdb:
+	$(GOTEST) $(PKGNAME)/logdb
+
+.PHONY: test-raftstore
+test-raftstore:
+	$(GOTEST) $(PKGNAME)/raftstore
+
+.PHONY: test-server
+test-server:
+	$(GOTEST) $(PKGNAME)/server
+
+.PHONY: test-transport
+test-transport:
+	$(GOTEST) $(PKGNAME)/transport
 
 .PHONY: test
-test: ; $(info ======== test matrixcube)
-	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/components/prophet
-	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/storage
-	go test $(RACE) -count=1 -v -timeout 300s $(PKGNAME)/raftstore
+test: test-storage test-logdb test-raftstore test-server test-transport
 
-.PHONY: race-test
-race-test: override RACE=-race
-race-test: test
+###############################################################################
+# static checks
+###############################################################################
+
+# TODO: switch to the following two lists after some major cleanups
+# TODO: switch to a more recent version of golangci-lint, currently on v1.23.8
+# PKGS=$(shell go list ./...)
+# DIRS=$(subst $(PKGNAME), ,$(subst $(PKGNAME)/, ,$(CHECKED_PKGS))) .
+PKGS=$(PKGNAME)/storage $(PKGNAME)/storage/kv $(PKGNAME)/storage/executor/simple \
+	$(PKGNAME)/storage/stats
+DIRS=storage storage/kv storage/executor/simple storage/stats
+EXTRA_LINTERS=-E misspell -E scopelint -E rowserrcheck -E depguard -E unconvert \
+  -E prealloc -E gofmt -E stylecheck
+
+.PHONY: static-check
+static-check:
+	@for p in $(PKGS); do \
+    go vet -tests=false $$p; \
+    golint $$p; \
+    ineffassign $$p; \
+		errcheck -blank -ignoretests $$p; \
+  done;
+	@for p in $(DIRS); do \
+    golangci-lint run $(EXTRA_LINTERS) $$p; \
+  done;
