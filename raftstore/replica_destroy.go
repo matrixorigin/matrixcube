@@ -14,22 +14,31 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
-func (pr *replica) doApplyCommittedEntries(commitedEntries []raftpb.Entry) error {
-	pr.logger.Debug("begin to apply raft log",
-		zap.Int("count", len(commitedEntries)))
+// TODO: probably no longer need replica_job.go, maybe just add replica_split.go
+// and replica_destroy.go
 
-	pr.sm.applyCommittedEntries(commitedEntries)
-	if pr.sm.isPendingRemove() {
-		pr.doApplyDestory(false)
+// remove replica from current node.
+// 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
+// 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
+// 3.
+func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
+	pr.logger.Info("begin to destory",
+		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
+		log.ReasonField(why))
+
+	pr.store.removeDroppedVoteMsg(pr.shardID)
+	// TODO: stop the replica here
+
+	if err := pr.doApplyDestory(tombstoneInCluster); err != nil {
+		pr.logger.Fatal("fail to destory",
+			zap.Error(err))
 	}
-
-	return nil
 }
 
 func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {

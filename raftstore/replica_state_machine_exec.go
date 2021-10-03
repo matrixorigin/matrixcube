@@ -36,9 +36,9 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
-		return d.doExecChangeReplica(ctx)
+		return d.doExecConfigChange(ctx)
 	case rpc.AdminCmdType_ConfigChangeV2:
-		return d.doExecChangeReplicaV2(ctx)
+		return d.doExecConfigChangeV2(ctx)
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	}
@@ -46,7 +46,7 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	return rpc.ResponseBatch{}, nil
 }
 
-func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChange
 	replica := req.Replica
 	current := d.getShard()
@@ -59,7 +59,6 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
-
 	p := findReplica(&res, req.Replica.ContainerID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
@@ -73,7 +72,6 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 			}
 			p.Role = metapb.ReplicaRole_Voter
 		}
-
 		if !exists {
 			res.Replicas = append(res.Replicas, replica)
 		}
@@ -84,11 +82,10 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 					res.ID,
 					replica)
 			}
-
 			if d.replicaID == replica.ID {
 				// Remove ourself, we will destroy all shard data later.
 				// So we need not to apply following logs.
-				d.setPendingRemove()
+				d.setRemoved()
 			}
 		} else {
 			return rpc.ResponseBatch{}, fmt.Errorf("shard %+v remove missing replica %+v",
@@ -101,15 +98,12 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 				res.ID,
 				replica)
 		}
-
 		res.Replicas = append(res.Replicas, replica)
 	}
-
 	state := meta.ReplicaState_Normal
-	if d.isPendingRemove() {
+	if d.isRemoved() {
 		state = meta.ReplicaState_Tombstone
 	}
-
 	d.updateShard(res)
 	err := d.saveShardMetedata(ctx.entry.Index, res, state)
 	if err != nil {
@@ -124,7 +118,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
-	ctx.adminResult = &adminExecResult{
+	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
 			index:   ctx.entry.Index,
@@ -135,7 +129,7 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 	return resp, nil
 }
 
-func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChangeV2
 	changes := req.Changes
 	current := d.getShard()
@@ -147,11 +141,11 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 
 	var res Shard
 	var err error
-	kind := getConfChangeKind(len(changes))
+	kind := getConfigChangeKind(len(changes))
 	if kind == leaveJointKind {
 		res, err = d.applyLeaveJoint()
 	} else {
-		res, err = d.applyConfChangeByKind(kind, changes)
+		res, err = d.applyConfigChangeByKind(kind, changes)
 	}
 
 	if err != nil {
@@ -159,7 +153,7 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	}
 
 	state := meta.ReplicaState_Normal
-	if d.isPendingRemove() {
+	if d.isRemoved() {
 		state = meta.ReplicaState_Tombstone
 	}
 
@@ -177,7 +171,7 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
-	ctx.adminResult = &adminExecResult{
+	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
 			index:   ctx.entry.Index,
@@ -188,7 +182,8 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	return resp, nil
 }
 
-func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.ConfigChangeRequest) (Shard, error) {
+func (d *stateMachine) applyConfigChangeByKind(kind confChangeKind,
+	changes []rpc.ConfigChangeRequest) (Shard, error) {
 	res := Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
@@ -202,7 +197,7 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 		if exist_replica != nil {
 			r := exist_replica.Role
 			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
-				d.logger.Fatal("can't apply confchange because configuration is still in joint state")
+				d.logger.Fatal("can't apply confchange when still in joint state")
 			}
 		}
 
@@ -266,7 +261,7 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 				if d.replicaID == replica.ID {
 					// Remove ourself, we will destroy all region data later.
 					// So we need not to apply following logs.
-					d.setPendingRemove()
+					d.setRemoved()
 				}
 			}
 		}
@@ -454,7 +449,8 @@ func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.ReplicaState) error {
+func (d *stateMachine) saveShardMetedata(index uint64,
+	shard Shard, state meta.ReplicaState) error {
 	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,

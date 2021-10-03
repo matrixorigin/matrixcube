@@ -24,7 +24,7 @@ type applyContext struct {
 	writeCtx    *executeContext
 	req         rpc.RequestBatch
 	entry       raftpb.Entry
-	adminResult *adminExecResult
+	adminResult *adminResult
 	metrics     applyMetrics
 }
 
@@ -47,33 +47,4 @@ func (ctx *applyContext) reset(shard Shard, entry raftpb.Entry) {
 	ctx.entry = entry
 	ctx.adminResult = nil
 	ctx.metrics = applyMetrics{}
-}
-
-type asyncApplyResult struct {
-	shardID uint64
-	result  *adminExecResult
-	metrics applyMetrics
-	index   uint64
-}
-
-func (res *asyncApplyResult) hasSplitExecResult() bool {
-	return nil != res.result && res.result.splitResult != nil
-}
-
-type adminExecResult struct {
-	adminType          rpc.AdminCmdType
-	configChangeResult *configChangeResult
-	splitResult        *splitResult
-}
-
-type configChangeResult struct {
-	index      uint64
-	confChange raftpb.ConfChangeV2
-	changes    []rpc.ConfigChangeRequest
-	shard      Shard
-}
-
-type splitResult struct {
-	derived Shard
-	shards  []Shard
 }

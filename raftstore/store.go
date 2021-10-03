@@ -183,7 +183,7 @@ func (s *store) Stop() {
 			s.storeField())
 
 		s.forEachReplica(func(pr *replica) bool {
-			pr.stopEventLoop()
+			// TODO: add code to stop all shards here
 			return true
 		})
 		s.logger.Info("shards stopped",
@@ -342,7 +342,7 @@ func (s *store) startTransport() {
 			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
 			transport.WithErrorHandler(func(msg meta.RaftMessage, err error) {
 				if pr := s.getReplica(msg.ShardID, true); pr != nil {
-					pr.addReport(msg.Message)
+					pr.addFeedback(msg.Message)
 				}
 			}))
 	}

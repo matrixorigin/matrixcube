@@ -17,48 +17,58 @@ import (
 	"fmt"
 	"time"
 
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"go.uber.org/zap"
 )
 
-func (pr *replica) handleApplyResult(items []interface{}) {
-	for {
-		size := pr.applyResults.Len()
-		if size == 0 {
-			metric.SetRaftApplyResultQueueMetric(size)
-			break
-		}
+type applyResult struct {
+	shardID     uint64
+	index       uint64
+	adminResult *adminResult
+	metrics     applyMetrics
+}
 
-		n, err := pr.applyResults.Get(readyBatch, items)
-		if err != nil {
-			return
-		}
+func (res *applyResult) hasSplitResult() bool {
+	return nil != res.adminResult && res.adminResult.splitResult != nil
+}
 
-		for i := int64(0); i < n; i++ {
-			result := items[i].(asyncApplyResult)
-			pr.doPollApply(result)
-		}
+type adminResult struct {
+	adminType          rpc.AdminCmdType
+	configChangeResult *configChangeResult
+	splitResult        *splitResult
+}
 
-		if n < readyBatch {
-			break
-		}
+type configChangeResult struct {
+	index      uint64
+	confChange raftpb.ConfChangeV2
+	changes    []rpc.ConfigChangeRequest
+	shard      Shard
+}
+
+type splitResult struct {
+	derived Shard
+	shards  []Shard
+}
+
+func (pr *replica) handleApplyResult(result applyResult) {
+	pr.updateAppliedIndex(result)
+	pr.updateMetricsHints(result)
+	if result.adminResult != nil {
+		pr.handleAdminResult(result)
 	}
 }
 
-func (pr *replica) doPollApply(result asyncApplyResult) {
-	pr.doPostApply(result)
-	if result.result != nil {
-		pr.doPostApplyResult(result)
-	}
-}
-
-func (pr *replica) doPostApply(result asyncApplyResult) {
+func (pr *replica) updateAppliedIndex(result applyResult) {
 	pr.appliedIndex = result.index
 	pr.rn.AdvanceApply(result.index)
+	pr.maybeExecRead()
+}
 
+func (pr *replica) updateMetricsHints(result applyResult) {
 	pr.logger.Debug("apply committied entries finished",
 		zap.Uint64("applied", pr.appliedIndex),
 		zap.Uint64("last", pr.rn.LastIndex()))
@@ -67,29 +77,28 @@ func (pr *replica) doPostApply(result asyncApplyResult) {
 
 	pr.writtenBytes += result.metrics.writtenBytes
 	pr.writtenKeys += result.metrics.writtenKeys
-
-	if result.hasSplitExecResult() {
+	if result.hasSplitResult() {
 		pr.deleteKeysHint = result.metrics.deleteKeysHint
 		pr.sizeDiffHint = result.metrics.sizeDiffHint
 	} else {
 		pr.deleteKeysHint += result.metrics.deleteKeysHint
 		pr.sizeDiffHint += result.metrics.sizeDiffHint
 	}
-
-	pr.maybeExecRead()
 }
 
-func (pr *replica) doPostApplyResult(result asyncApplyResult) {
-	switch result.result.adminType {
+func (pr *replica) handleAdminResult(result applyResult) {
+	switch result.adminResult.adminType {
 	case rpc.AdminCmdType_ConfigChange:
-		pr.doApplyConfChange(result.result.configChangeResult)
+		pr.applyConfChange(result.adminResult.configChangeResult)
 	case rpc.AdminCmdType_BatchSplit:
-		pr.doApplySplit(result.result.splitResult)
+		pr.applySplit(result.adminResult.splitResult)
 	}
 }
 
-func (pr *replica) doApplyConfChange(cp *configChangeResult) {
+func (pr *replica) applyConfChange(cp *configChangeResult) {
 	if cp.index == 0 {
+		// TODO: when the entry was treated as a NoOP, configChangeResult should be
+		// nil and applyConfChange() should be called in the first place.
 		// Apply failed, skip.
 		return
 	}
@@ -100,19 +109,19 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 	now := time.Now()
 	for _, change := range cp.changes {
 		changeType := change.ChangeType
-		peer := change.Replica
-		peerID := peer.ID
+		replica := change.Replica
+		replicaID := replica.ID
 
 		switch changeType {
 		case metapb.ConfigChangeType_AddNode, metapb.ConfigChangeType_AddLearnerNode:
-			pr.replicaHeartbeatsMap.Store(peerID, now)
-			pr.store.replicaRecords.Store(peerID, peer)
+			pr.replicaHeartbeatsMap.Store(replicaID, now)
+			pr.store.replicaRecords.Store(replicaID, replica)
 			if pr.isLeader() {
 				needPing = true
 			}
 		case metapb.ConfigChangeType_RemoveNode:
-			pr.replicaHeartbeatsMap.Delete(peerID)
-			pr.store.replicaRecords.Delete(peerID)
+			pr.replicaHeartbeatsMap.Delete(replicaID)
+			pr.store.replicaRecords.Delete(replicaID)
 		}
 	}
 
@@ -146,12 +155,11 @@ func (pr *replica) doApplyConfChange(cp *configChangeResult) {
 		}
 	}
 
-	shard := pr.getShard()
 	pr.logger.Info("applied changes completed",
-		log.ShardField("epoch", shard))
+		log.ShardField("epoch", pr.getShard()))
 }
 
-func (pr *replica) doApplySplit(result *splitResult) {
+func (pr *replica) applySplit(result *splitResult) {
 	pr.logger.Info("shard metadata updated",
 		log.ShardField("new", result.derived))
 
@@ -169,11 +177,10 @@ func (pr *replica) doApplySplit(result *splitResult) {
 	}
 
 	for _, shard := range result.shards {
-		// add new shard peers to cache
+		// add new shard replicas to cache
 		for _, p := range shard.Replicas {
 			pr.store.replicaRecords.Store(p.ID, p)
 		}
-
 		newShardID := shard.ID
 		newPR := pr.store.getReplica(newShardID, false)
 		if newPR != nil {
@@ -182,22 +189,22 @@ func (pr *replica) doApplySplit(result *splitResult) {
 			}
 
 			// If the store received a raft msg with the new shard raft group
-			// before splitting, it will creates a uninitialized peer.
-			// We can remove this uninitialized peer directly.
+			// before splitting, it will creates a uninitialized replica.
+			// We can remove this uninitialized replica directly.
 			if len(newPR.getShard().Replicas) > 0 {
 				pr.logger.Fatal("duplicated shard split to new shard",
 					log.ShardIDField(newShardID))
 			}
 		}
 
-		newPR, err := createReplica(pr.store, &shard, fmt.Sprintf("split by shard %d", pr.shardID))
+		hint := fmt.Sprintf("split by shard %d", pr.shardID)
+		newPR, err := createReplica(pr.store, &shard, hint)
 		if err != nil {
-			// peer information is already written into db, can't recover.
+			// replica information is already written into db, can't recover.
 			// there is probably a bug.
 			pr.logger.Fatal("fail to create new split shard",
 				zap.Error(err))
 		}
-
 		pr.store.updateShardKeyRange(shard)
 
 		newPR.approximateKeys = estimatedKeys
@@ -209,26 +216,23 @@ func (pr *replica) doApplySplit(result *splitResult) {
 		}
 
 		newPR.start()
-
-		// If this peer is the leader of the shard before split, it's intuitional for
-		// it to become the leader of new split shard.
-		// The ticks are accelerated here, so that the peer for the new split shard
-		// comes to campaign earlier than the other follower peers. And then it's more
-		// likely for this peer to become the leader of the new split shard.
-		// If the other follower peers applies logs too slowly, they may fail to vote the
-		// `MsgRequestVote` from this peer on its campaign.
-		// In this worst case scenario, the new split raft group will not be available
-		// since there is no leader established during one election timeout after the split.
+		// if this replica was the leader of the shard before split, it is expected
+		// to become the leader of the new split shard.
+		// The ticks are accelerated here, so that the replica for the new split shard
+		// comes to campaign earlier than the other follower replicas. And then it's
+		// more likely for this replica to become the leader of the new split shard.
+		// If the other follower replicas applies logs too slowly, they may fail to
+		// vote the `MsgRequestVote` from this replica on its campaign. In this worst
+		// case scenario, the new split raft group will not be available since there
+		// is no leader established during one election timeout after the split.
 		if pr.isLeader() && len(shard.Replicas) > 1 {
 			newPR.addAction(action{actionType: doCampaignAction})
 		}
-
 		if !pr.isLeader() {
 			if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {
-				newPR.step(vote)
+				newPR.addMessage(vote)
 			}
 		}
-
 		pr.logger.Info("new shard added",
 			log.ShardField("new-shard", shard))
 	}

@@ -59,19 +59,19 @@ func (d *stateMachine) getShard() Shard {
 	return d.metadataMu.shard
 }
 
-func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
-	if len(commitedEntries) <= 0 {
+func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
+	if len(entries) <= 0 {
 		return
 	}
 
 	start := time.Now()
-	for _, entry := range commitedEntries {
-		if d.isPendingRemove() {
-			// This replica is about to be destroyed, skip everything.
+	for _, entry := range entries {
+		if d.isRemoved() {
+			// replica is about to be destroyed, skip
 			break
 		}
-		d.checkEntryIndexTerm(entry)
 
+		d.checkEntryIndexTerm(entry)
 		d.executorCtx.reset(d.getShard(), entry)
 		switch entry.Type {
 		case raftpb.EntryNormal:
@@ -81,37 +81,36 @@ func (d *stateMachine) applyCommittedEntries(commitedEntries []raftpb.Entry) {
 		case raftpb.EntryConfChangeV2:
 			d.applyConfChange(d.executorCtx)
 		}
+		d.updateAppliedIndexTerm(entry.Index, entry.Term)
 
-		asyncResult := asyncApplyResult{}
-		asyncResult.shardID = d.shardID
-		asyncResult.result = d.executorCtx.adminResult
-		asyncResult.index = entry.Index
-
-		if d.executorCtx != nil {
-			asyncResult.metrics = d.executorCtx.metrics
+		result := applyResult{
+			shardID:     d.shardID,
+			adminResult: d.executorCtx.adminResult,
+			index:       entry.Index,
 		}
-
-		d.pr.addApplyResult(asyncResult)
+		if d.executorCtx != nil {
+			result.metrics = d.executorCtx.metrics
+		}
+		d.pr.handleApplyResult(result)
 	}
 	metric.ObserveRaftLogApplyDuration(start)
 }
 
 func (d *stateMachine) applyEntry(ctx *applyContext) {
-	// noop entry with empty payload proposed by the raft leader at the beginning
+	// noop entry with empty payload proposed by the leader at the beginning
 	// of its term
 	if len(ctx.entry.Data) == 0 {
-		d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
 		return
 	}
 
 	protoc.MustUnmarshal(&ctx.req, ctx.entry.Data)
-	d.doApplyRaftCMD(ctx)
+	d.applyRequestBatch(ctx)
 }
 
 func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 	index, term := d.getAppliedIndexTerm()
 	if index+1 != entry.Index {
-		d.logger.Fatal("entry applied index not match, expect=<%d> get=<%d> entry=<%+v>",
+		d.logger.Fatal("unexpected committed entry index",
 			zap.Uint64("applied", index),
 			zap.Uint64("entry", entry.Index))
 	}
@@ -134,9 +133,9 @@ func (d *stateMachine) applyConfChange(ctx *applyContext) {
 		protoc.MustUnmarshal(&ctx.req, v2cc.Context)
 	}
 
-	d.doApplyRaftCMD(ctx)
+	d.applyRequestBatch(ctx)
 	if nil == ctx.adminResult {
-		ctx.adminResult = &adminExecResult{
+		ctx.adminResult = &adminResult{
 			adminType:          rpc.AdminCmdType_ConfigChange,
 			configChangeResult: &configChangeResult{},
 		}
@@ -145,13 +144,12 @@ func (d *stateMachine) applyConfChange(ctx *applyContext) {
 	ctx.adminResult.configChangeResult.confChange = v2cc
 }
 
-func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
+func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 	if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
 		return
 	}
-
-	if d.isPendingRemove() {
-		d.logger.Fatal("apply raft comand can not pending remove")
+	if d.isRemoved() {
+		d.logger.Fatal("applying entries on remove replica")
 	}
 
 	var err error
@@ -168,15 +166,13 @@ func (d *stateMachine) doApplyRaftCMD(ctx *applyContext) {
 			resp = d.execWriteRequest(ctx)
 		}
 	}
-
 	for _, req := range ctx.req.Requests {
-		if ce := d.logger.Check(zapcore.DebugLevel, "write request completed"); ce != nil {
+		if ce := d.logger.Check(zapcore.DebugLevel, "apply write/admin req completed"); ce != nil {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
 
-	d.updateAppliedIndexTerm(ctx.entry.Index, ctx.entry.Term)
-	d.pr.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeCMD(ctx.req))
+	d.pr.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeRequestBatch(ctx.req))
 }
 
 // FIXME: move this out of the state machine
@@ -185,13 +181,13 @@ func (d *stateMachine) destroy() {
 	d.executorCtx.close()
 }
 
-func (d *stateMachine) setPendingRemove() {
+func (d *stateMachine) setRemoved() {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	d.metadataMu.removed = true
 }
 
-func (d *stateMachine) isPendingRemove() bool {
+func (d *stateMachine) isRemoved() bool {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.removed
@@ -220,7 +216,7 @@ func (d *stateMachine) checkEpoch(req rpc.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
 }
 
-func isConfigChangeCMD(req rpc.RequestBatch) bool {
+func isConfigChangeRequestBatch(req rpc.RequestBatch) bool {
 	return req.IsAdmin() &&
 		(req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChange ||
 			req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChangeV2)

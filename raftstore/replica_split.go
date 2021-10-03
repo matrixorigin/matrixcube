@@ -1,4 +1,4 @@
-// Copyright 2020 MatrixOrigin.
+// Copyright 2021 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,31 +14,66 @@
 package raftstore
 
 import (
+	"go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"go.uber.org/zap"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
-// remove replica from current node.
-// 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
-// 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
-// 3.
-func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
-	pr.logger.Info("begin to destory",
-		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
-		log.ReasonField(why))
+func (pr *replica) tryCheckSplit() {
+	if !pr.isLeader() {
+		return
+	}
 
-	pr.store.removeDroppedVoteMsg(pr.shardID)
-	pr.stopEventLoop()
+	for id, p := range pr.rn.Status().Progress {
+		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
+		if p.State == tracker.StateSnapshot {
+			pr.logger.Info("check split skipped",
+				log.ReplicaIDField(id),
+				log.ReasonField("applying snapshot"))
+			return
+		}
+	}
 
-	if err := pr.doApplyDestory(tombstoneInCluster); err != nil {
-		pr.logger.Fatal("fail to destory",
+	if err := pr.doCheckSplit(); err != nil {
+		pr.logger.Fatal("fail to add split check job",
 			zap.Error(err))
 	}
+	pr.sizeDiffHint = 0
 }
 
-func (pr *replica) startSplitCheckJob() error {
+func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {
+	if !pr.isLeader() {
+		return
+	}
+
+	current := pr.getShard()
+	if current.Epoch.Version != epoch.Version {
+		pr.logger.Info("epoch changed, need re-check later",
+			log.EpochField("current-epoch", current.Epoch),
+			log.EpochField("check-epoch", epoch))
+		return
+	}
+
+	req := rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_BatchSplit,
+		Splits:  &rpc.BatchSplitRequest{},
+	}
+	for idx := range splitIDs {
+		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
+			SplitKey:      splitKeys[idx],
+			NewShardID:    splitIDs[idx].NewID,
+			NewReplicaIDs: splitIDs[idx].NewReplicaIDs,
+		})
+	}
+	pr.addAdminRequest(req)
+}
+
+func (pr *replica) doCheckSplit() error {
 	shard := pr.getShard()
 	epoch := shard.Epoch
 	startKey := keys.EncStartKey(&shard)
@@ -47,27 +82,6 @@ func (pr *replica) startSplitCheckJob() error {
 	pr.logger.Info("start split check job",
 		log.HexField("from", startKey),
 		log.HexField("end", endKey))
-	return pr.doSplitCheck(epoch, startKey, endKey)
-}
-
-func (pr *replica) doPropose(c batch, isConfChange bool) error {
-	if isConfChange {
-		changeC := pr.pendingProposals.getConfigChange()
-		if !changeC.requestBatch.Header.IsEmpty() {
-			changeC.notifyStaleCmd()
-		}
-		pr.pendingProposals.setConfigChange(c)
-	} else {
-		pr.pendingProposals.append(c)
-	}
-
-	return nil
-}
-
-func (pr *replica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []byte) error {
-	if !pr.isLeader() {
-		return nil
-	}
 
 	var size uint64
 	var keys uint64
@@ -75,7 +89,6 @@ func (pr *replica) doSplitCheck(epoch metapb.ResourceEpoch, startKey, endKey []b
 	var err error
 
 	useDefault := true
-	shard := pr.getShard()
 	if pr.store.cfg.Customize.CustomSplitCheckFuncFactory != nil {
 		if fn := pr.store.cfg.Customize.CustomSplitCheckFuncFactory(shard.Group); fn != nil {
 			size, keys, splitKeys, err = fn(shard)

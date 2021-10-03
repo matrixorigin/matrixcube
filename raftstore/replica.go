@@ -56,17 +56,18 @@ type replica struct {
 	pendingReads          *readIndexQueue
 	pendingProposals      *pendingProposals
 	sm                    *stateMachine
-
-	ctx          context.Context
-	cancel       context.CancelFunc
-	items        []interface{}
-	events       *task.RingBuffer
-	ticks        *task.Queue
-	steps        *task.Queue
-	reports      *task.Queue
-	applyResults *task.Queue
-	requests     *task.Queue
-	actions      *task.Queue
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	items                 []interface{}
+	ticks                 *task.Queue
+	messages              *task.Queue
+	feedbacks             *task.Queue
+	requests              *task.Queue
+	// TODO: check why this is required, why those so called actions can't be
+	// directly executed. also check that some of those actions have prophet
+	// client involved, need to make sure that potential network IO won't block
+	// the worker pool thread.
+	actions *task.Queue
 
 	appliedIndex    uint64
 	lastReadyIndex  uint64
@@ -157,11 +158,8 @@ func (pr *replica) start() {
 	dataStorage := pr.store.DataStorageByGroup(shard.Group)
 	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 	pr.readCtx = newExecuteContext(dataStorage)
-	pr.events = task.NewRingBuffer(2)
 	pr.ticks = task.New(32)
-	pr.steps = task.New(32)
-	pr.reports = task.New(32)
-	pr.applyResults = task.New(32)
+	pr.messages = task.New(32)
 	pr.requests = task.New(32)
 	pr.actions = task.New(32)
 	pr.pendingReads = &readIndexQueue{
@@ -335,10 +333,6 @@ func (pr *replica) maybeCampaign() (bool, error) {
 func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustemType))
 	return pr.addRequest(newReqCtx(req, cb))
-}
-
-func (pr *replica) stopEventLoop() {
-	pr.events.Dispose()
 }
 
 func (pr *replica) maybeExecRead() {

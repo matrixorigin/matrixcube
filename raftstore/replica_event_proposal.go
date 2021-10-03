@@ -36,7 +36,7 @@ var (
 	leaveJointKind = confChangeKind(2)
 )
 
-func getConfChangeKind(changeNum int) confChangeKind {
+func getConfigChangeKind(changeNum int) confChangeKind {
 	if changeNum == 0 {
 		return leaveJointKind
 	}
@@ -95,7 +95,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 	metric.SetRaftRequestQueueMetric(size)
 
 	if size > 0 {
-		pr.addEvent()
+		pr.notifyWorker()
 	}
 }
 
@@ -105,7 +105,7 @@ func (pr *replica) propose(c batch) {
 	}
 
 	// after propose, raft need to send message to peers
-	defer pr.addEvent()
+	defer pr.notifyWorker()
 
 	// Note:
 	// The peer that is being checked is a leader. It might step down to be a follower later. It
@@ -140,6 +140,20 @@ func (pr *replica) propose(c batch) {
 	if err := pr.doPropose(c, isConfChange); err != nil {
 		c.respOtherError(err)
 	}
+}
+
+func (pr *replica) doPropose(c batch, isConfChange bool) error {
+	if isConfChange {
+		changeC := pr.pendingProposals.getConfigChange()
+		if !changeC.requestBatch.Header.IsEmpty() {
+			changeC.notifyStaleCmd()
+		}
+		pr.pendingProposals.setConfigChange(c)
+	} else {
+		pr.pendingProposals.append(c)
+	}
+
+	return nil
 }
 
 func (pr *replica) execReadIndex(c batch) {
@@ -364,7 +378,7 @@ func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb
 	}
 	currentProgress := pr.rn.NewChanger().Tracker
 
-	kind := getConfChangeKind(len(cc.Changes))
+	kind := getConfigChangeKind(len(cc.Changes))
 	// Leaving joint state, skip check
 	if kind == leaveJointKind {
 		return nil
@@ -438,6 +452,7 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTra
 	return trk, nil
 }
 
+// TODO: what is a policy?
 func (pr *replica) getHandlePolicy(req rpc.RequestBatch) (requestPolicy, error) {
 	if req.IsAdmin() {
 		switch req.AdminRequest.CmdType {
