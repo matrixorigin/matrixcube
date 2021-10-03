@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBacth(t *testing.T) {
+func TestExecuteContextCanBeAppendedAndReset(t *testing.T) {
 	cases := []struct {
 		batch rpc.RequestBatch
 	}{

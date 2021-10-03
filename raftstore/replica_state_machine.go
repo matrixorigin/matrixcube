@@ -47,6 +47,20 @@ type stateMachine struct {
 	}
 }
 
+func newStateMachine(replica *replica, shard Shard) *stateMachine {
+	storage := replica.store.DataStorageByGroup(shard.Group)
+	sm := &stateMachine{
+		logger:      replica.logger,
+		pr:          replica,
+		store:       replica.store,
+		replicaID:   replica.replica.ID,
+		executorCtx: newApplyContext(storage),
+		dataStorage: storage,
+	}
+	sm.metadataMu.shard = shard
+	return sm
+}
+
 func (d *stateMachine) updateShard(shard Shard) {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
@@ -65,6 +79,9 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	}
 
 	start := time.Now()
+	// FIXME: the initial idea is to batch multiple entries into the same
+	// executeContext so they can be applied into the stateMachine together.
+	// in the loop below, we are still applying entries one by one.
 	for _, entry := range entries {
 		if d.isRemoved() {
 			// replica is about to be destroyed, skip
@@ -72,7 +89,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 		}
 
 		d.checkEntryIndexTerm(entry)
-		d.executorCtx.reset(d.getShard(), entry)
+		d.executorCtx.initialize(d.getShard(), entry)
 		switch entry.Type {
 		case raftpb.EntryNormal:
 			d.applyEntry(d.executorCtx)
@@ -171,7 +188,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-
+	// TODO: this implies that we can't have more than one batch in the executeContext
 	d.pr.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeRequestBatch(ctx.req))
 }
 

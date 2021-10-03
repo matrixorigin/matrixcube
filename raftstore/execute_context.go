@@ -2,6 +2,8 @@ package raftstore
 
 import (
 	"github.com/fagongzi/goetty/buf"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
@@ -92,4 +94,33 @@ func (ctx *executeContext) reset(shard Shard) {
 	ctx.writtenBytes = 0
 	ctx.diffBytes = 0
 	ctx.readBytes = 0
+}
+
+// TODO: this implies that we can't have more than one batch in the
+// executeContext
+type applyContext struct {
+	writeCtx    *executeContext
+	req         rpc.RequestBatch
+	entry       raftpb.Entry
+	adminResult *adminResult
+	metrics     applyMetrics
+}
+
+func newApplyContext(base storage.BaseStorage) *applyContext {
+	return &applyContext{
+		writeCtx: newExecuteContext(base),
+		req:      rpc.RequestBatch{},
+	}
+}
+
+func (ctx *applyContext) close() {
+	ctx.writeCtx.close()
+}
+
+func (ctx *applyContext) initialize(shard Shard, entry raftpb.Entry) {
+	ctx.writeCtx.reset(shard)
+	ctx.req = rpc.RequestBatch{}
+	ctx.entry = entry
+	ctx.adminResult = nil
+	ctx.metrics = applyMetrics{}
 }

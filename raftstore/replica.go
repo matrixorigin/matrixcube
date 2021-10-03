@@ -140,7 +140,7 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		lr:               NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals: newPendingProposals(),
 	}
-	pr.createStateMachine(shard)
+	pr.sm = newStateMachine(pr, *shard)
 	return pr, nil
 }
 
@@ -263,19 +263,6 @@ func (pr *replica) initLogState() (bool, error) {
 	}
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
-}
-
-func (pr *replica) createStateMachine(shard *Shard) {
-	dataStorage := pr.store.DataStorageByGroup(shard.Group)
-	pr.sm = &stateMachine{
-		logger:      pr.logger,
-		pr:          pr,
-		store:       pr.store,
-		replicaID:   pr.replica.ID,
-		executorCtx: newApplyContext(dataStorage),
-		dataStorage: pr.store.DataStorageByGroup(shard.Group),
-	}
-	pr.sm.metadataMu.shard = *shard
 }
 
 func (pr *replica) getReplicaRecord(id uint64) (Replica, bool) {

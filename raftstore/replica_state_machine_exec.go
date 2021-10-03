@@ -427,8 +427,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 	resp := rpc.ResponseBatch{}
 	for _, v := range ctx.writeCtx.responses {
 		ctx.metrics.writtenKeys++
-		r := rpc.Response{}
-		r.Value = v
+		r := rpc.Response{Value: v}
 		resp.Responses = append(resp.Responses, r)
 	}
 	d.updateWriteMetrics(ctx)
