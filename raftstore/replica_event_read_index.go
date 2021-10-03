@@ -15,13 +15,15 @@ package raftstore
 
 import (
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.uber.org/zap"
+
+	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type readyRead struct {
-	req   rpc.RequestBatch
+	batch rpc.RequestBatch
 	index uint64
 }
 
@@ -35,10 +37,10 @@ func (q *readIndexQueue) reset() {
 }
 
 func (q *readIndexQueue) ready(state raft.ReadState) {
-	var req rpc.RequestBatch
-	protoc.MustUnmarshal(&req, state.RequestCtx)
+	var batch rpc.RequestBatch
+	protoc.MustUnmarshal(&batch, state.RequestCtx)
 	q.reads = append(q.reads, readyRead{
-		req:   req,
+		batch: batch,
 		index: state.Index,
 	})
 }
@@ -49,43 +51,44 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 	}
 
 	newReady := q.reads[:0] // avoid alloc new slice
-	pr.readCtx.reset(pr.getShard())
-	for _, r := range q.reads {
-		if r.index > 0 && r.index <= appliedIndex {
-			c := batch{
-				requestBatch: r.req,
-				cb:           pr.store.shardsProxy.OnResponse,
-				tp:           read,
-			}
-			pr.readCtx.appendBatch(c)
-		} else {
-			newReady = append(newReady, r)
-		}
-	}
+	shard := pr.getShard()
+	readCtx := newReadContext()
+	ds := pr.store.DataStorageByGroup(shard.Group)
 
 	// TODO (lni):
 	// multiple read requests issued to the data storage, but we won't get
 	// anything back until the completion of the slowest one.
-	q.reads = newReady
-	if pr.readCtx.hasRequest() {
-		ds := pr.store.DataStorageByGroup(pr.getShard().Group)
-		if err := ds.Read(pr.readCtx); err != nil {
-			pr.logger.Fatal("fail to exec read batch",
-				zap.Error(err))
-		}
-
-		pr.readBytes += pr.readCtx.readBytes
-		pr.readKeys += uint64(len(pr.readCtx.batches))
-		idx := 0
-		for _, c := range pr.readCtx.batches {
+	for _, ready := range q.reads {
+		if ready.index > 0 && ready.index <= appliedIndex {
 			resp := rpc.ResponseBatch{}
-			for i := 0; i < len(c.requestBatch.Requests); i++ {
-				r := rpc.Response{}
-				r.Value = pr.readCtx.responses[idx]
+			for _, req := range ready.batch.Requests {
+				rr := storage.Request{
+					// FIXME: fix the typo below in the field name
+					CmdType: req.CustemType,
+					Key:     req.Key,
+					Cmd:     req.Cmd,
+				}
+				readCtx.reset(shard, rr)
+				v, err := ds.Read(readCtx)
+				if err != nil {
+					// FIXME: some read failures should be tolerated.
+					pr.logger.Fatal("fail to exec read batch",
+						zap.Error(err))
+				}
+				pr.readBytes += readCtx.readBytes
+				pr.readKeys += 1
+				r := rpc.Response{Value: v}
 				resp.Responses = append(resp.Responses, r)
-				idx++
 			}
-			c.resp(resp)
+			// FIXME: it is strange to require a batch{} to be created/used to send
+			// responses. why sending responses is coupled with the batch type?
+			// FIXME: input parameter logger is missing
+			b := newBatch(nil, ready.batch, pr.store.shardsProxy.OnResponse, 0, 0)
+			b.resp(resp)
+		} else {
+			newReady = append(newReady, ready)
 		}
 	}
+
+	q.reads = newReady
 }

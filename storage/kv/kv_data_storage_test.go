@@ -158,7 +158,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 		{
 			sample:       2,
 			requests:     2,
-			appliedIndex: 1,
+			appliedIndex: 2,
 		},
 	}
 
@@ -172,12 +172,12 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			defer s.Close()
 
 			s.(*kvDataStorage).mu.loaded = true
-			for i := 0; i < c.requests; i++ {
+			for i := 1; i <= c.requests; i++ {
 				var batch storage.Batch
 				batch.Index = uint64(i)
 				k := []byte(fmt.Sprintf("%d", i))
 				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
-				ctx := storage.NewSimpleContext(0, base, []storage.Batch{batch})
+				ctx := storage.NewSimpleWriteContext(0, base, batch)
 				assert.NoError(t, s.Write(ctx), "index %d", i)
 			}
 
@@ -188,42 +188,10 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			kv := s.(*kvDataStorage)
 			v, err := kv.base.Get(keys.GetAppliedIndexKey(0))
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(c.requests)-1, buf.Byte2UInt64(v))
+			assert.Equal(t, uint64(c.requests), buf.Byte2UInt64(v))
 		}()
 	}
 }
-
-/*
-func TestMemFS(t *testing.T) {
-	memfs := vfs.NewMemFS()
-	defer vfs.ReportLeakedFD(memfs, t)
-	opts := &cpebble.Options{
-		FS: vfs.NewPebbleFS(memfs),
-	}
-	func() {
-		memfs.MkdirAll("/test-data", 0755)
-		dir, err := memfs.OpenDir("/")
-		assert.NoError(t, err)
-		dir.Sync()
-		base, err := pebble.NewStorage("test-data", opts)
-		assert.NoError(t, err)
-		defer func() {
-			memfs.(*pvfs.MemFS).SetIgnoreSyncs(true)
-			base.Close()
-		}()
-		base.Set([]byte("key-1"), []byte("value-1"), false)
-		base.Sync()
-		base.Set([]byte("key-2"), []byte("value-2"), false)
-	}()
-	memfs.(*pvfs.MemFS).ResetToSyncedState()
-	memfs.(*pvfs.MemFS).SetIgnoreSyncs(false)
-	base, err := pebble.NewStorage("test-data", opts)
-	assert.NoError(t, err)
-	defer base.Close()
-	v, err := base.Get([]byte("key-1"))
-	assert.NoError(t, err)
-	assert.True(t, len(v) > 0)
-}*/
 
 func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 	for _, sample := range []uint64{10, 11} {
@@ -253,7 +221,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 				batch.Index = index
 				k := []byte(fmt.Sprintf("%d", 100))
 				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
-				ctx := storage.NewSimpleContext(shardID, base, []storage.Batch{batch})
+				ctx := storage.NewSimpleWriteContext(shardID, base, batch)
 				assert.NoError(t, s.Write(ctx))
 			}
 
