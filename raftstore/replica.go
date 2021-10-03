@@ -84,8 +84,6 @@ type replica struct {
 
 	metrics  localMetrics
 	stopOnce sync.Once
-
-	readCtx *executeContext
 }
 
 // createReplica called in:
@@ -155,9 +153,7 @@ func (pr *replica) start() {
 		}
 	}
 
-	dataStorage := pr.store.DataStorageByGroup(shard.Group)
 	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
-	pr.readCtx = newExecuteContext(dataStorage)
 	pr.ticks = task.New(32)
 	pr.messages = task.New(32)
 	pr.requests = task.New(32)

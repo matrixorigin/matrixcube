@@ -91,23 +91,25 @@ func (kv *kvDataStorage) NewWriteBatch() storage.Resetable {
 	return kv.base.NewWriteBatch()
 }
 
-func (kv *kvDataStorage) Write(ctx storage.Context) error {
+func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 	if err := kv.executor.UpdateWriteBatch(ctx); err != nil {
 		return err
 	}
 	r := ctx.WriteBatch()
 	defer r.Reset()
-	batches := ctx.Batches()
-	lastLogIndex := batches[len(batches)-1].Index
-	kv.setAppliedIndexToWriteBatch(ctx, lastLogIndex)
-	kv.updateAppliedIndex(ctx.Shard().ID, lastLogIndex)
+	batch := ctx.Batch()
+	if batch.Index == 0 {
+		panic("empty batch?")
+	}
+	kv.setAppliedIndexToWriteBatch(ctx, batch.Index)
+	kv.updateAppliedIndex(ctx.Shard().ID, batch.Index)
 	if err := kv.executor.ApplyWriteBatch(r); err != nil {
 		return err
 	}
 	return kv.trySync()
 }
 
-func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.Context, index uint64) {
+func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
 	ctx.ByteBuf().MarkWrite()
@@ -117,7 +119,7 @@ func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.Context, index 
 	wb.Set(key, val)
 }
 
-func (kv *kvDataStorage) Read(ctx storage.Context) error {
+func (kv *kvDataStorage) Read(ctx storage.ReadContext) ([]byte, error) {
 	return kv.executor.Read(ctx)
 }
 

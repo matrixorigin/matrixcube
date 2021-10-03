@@ -117,8 +117,8 @@ func (pr *replica) onStop() {
 		}
 
 		// resp all pending requests in batch and queue
-		for _, c := range pr.pendingReads.reads {
-			for _, req := range c.req.Requests {
+		for _, rr := range pr.pendingReads.reads {
+			for _, req := range rr.batch.Requests {
 				req.Key = keys.DecodeDataKey(req.Key)
 				respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
 			}
