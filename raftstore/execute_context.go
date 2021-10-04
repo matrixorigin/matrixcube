@@ -35,7 +35,7 @@ func (ctx *writeContext) setRequestBatch(batch rpc.RequestBatch) {
 	ctx.batch = storage.Batch{}
 	for _, r := range batch.Requests {
 		ctx.batch.Requests = append(ctx.batch.Requests, storage.Request{
-			CmdType: r.CustemType,
+			CmdType: r.CustomType,
 			Key:     r.Key,
 			Cmd:     r.Cmd,
 		})

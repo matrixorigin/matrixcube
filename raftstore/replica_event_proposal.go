@@ -77,23 +77,20 @@ func (pr *replica) handleRequest(items []interface{}) {
 			}
 			// FIXME: still using the current epoch here. should use epoch value
 			// returned when routing the request.
-			pr.batch.push(pr.getShard().Group, shard.Epoch, req)
+			pr.incomingProposals.push(pr.getShard().Group, shard.Epoch, req)
 		}
 	}
 
 	for {
-		if pr.batch.isEmpty() {
-			break
-		}
-
-		if c, ok := pr.batch.pop(); ok {
+		if c, ok := pr.incomingProposals.pop(); ok {
 			pr.propose(c)
+		} else {
+			break
 		}
 	}
 
 	size := pr.requests.Len()
 	metric.SetRaftRequestQueueMetric(size)
-
 	if size > 0 {
 		pr.notifyWorker()
 	}

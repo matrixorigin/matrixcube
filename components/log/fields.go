@@ -218,7 +218,7 @@ func appendRaftRequest(req *rpc.Request, info *bytes.Buffer, first bool) {
 	info.WriteString(req.Type.String())
 
 	info.WriteString("custom-type: ")
-	info.WriteString(format.Uint64ToString(req.CustemType))
+	info.WriteString(format.Uint64ToString(req.CustomType))
 
 	info.WriteString("cmd: ")
 	info.WriteString(format.Uint64ToString(uint64(len(req.Cmd))))

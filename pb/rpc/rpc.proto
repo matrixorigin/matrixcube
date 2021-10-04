@@ -87,7 +87,7 @@ message Request {
     bytes   id               = 1 [(gogoproto.customname) = "ID"];
     uint64  group            = 2;
     CmdType type             = 3;
-    uint64  custemType       = 4;
+    uint64  customType       = 4;
     bytes   key              = 5;
     bytes   cmd              = 6;
     int64   sid              = 7 [(gogoproto.customname) = "SID"];

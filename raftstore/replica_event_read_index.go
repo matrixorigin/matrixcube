@@ -64,7 +64,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 			for _, req := range ready.batch.Requests {
 				rr := storage.Request{
 					// FIXME: fix the typo below in the field name
-					CmdType: req.CustemType,
+					CmdType: req.CustomType,
 					Key:     req.Key,
 					Cmd:     req.Cmd,
 				}

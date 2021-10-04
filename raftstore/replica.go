@@ -52,7 +52,7 @@ type replica struct {
 	lr                    *LogReader
 	replicaHeartbeatsMap  sync.Map
 	lastHBTime            uint64
-	batch                 *proposeBatch
+	incomingProposals     *proposalBatch
 	pendingReads          *readIndexQueue
 	pendingProposals      *pendingProposals
 	sm                    *stateMachine
@@ -129,14 +129,25 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		return nil, fmt.Errorf("invalid replica %+v", r)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	maxBatchSize := uint64(store.cfg.Raft.MaxEntryBytes)
 	pr := &replica{
-		logger:           l,
-		store:            store,
-		replica:          r,
-		shardID:          shard.ID,
-		startedC:         make(chan struct{}),
-		lr:               NewLogReader(l, shard.ID, r.ID, store.logdb),
-		pendingProposals: newPendingProposals(),
+		ctx:               ctx,
+		cancel:            cancel,
+		logger:            l,
+		store:             store,
+		replica:           r,
+		shardID:           shard.ID,
+		startedC:          make(chan struct{}),
+		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
+		pendingProposals:  newPendingProposals(),
+		incomingProposals: newProposalBatch(l, maxBatchSize, shard.ID, r),
+		pendingReads:      &readIndexQueue{shardID: shard.ID},
+		ticks:             task.New(32),
+		messages:          task.New(32),
+		requests:          task.New(32),
+		actions:           task.New(32),
+		items:             make([]interface{}, readyBatch),
 	}
 	pr.sm = newStateMachine(pr, *shard)
 	return pr, nil
@@ -153,29 +164,15 @@ func (pr *replica) start() {
 		}
 	}
 
-	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
-	pr.ticks = task.New(32)
-	pr.messages = task.New(32)
-	pr.requests = task.New(32)
-	pr.actions = task.New(32)
-	pr.pendingReads = &readIndexQueue{
-		shardID: pr.shardID,
-	}
-
-	pr.ctx, pr.cancel = context.WithCancel(context.Background())
-	pr.items = make([]interface{}, readyBatch)
-
 	if pr.store.aware != nil {
 		pr.store.aware.Created(shard)
 	}
-
 	if err := pr.initConfState(); err != nil {
 		panic(err)
 	}
 	if _, err := pr.initLogState(); err != nil {
 		panic(err)
 	}
-
 	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, pr.store.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
@@ -183,7 +180,6 @@ func (pr *replica) start() {
 			zap.Error(err))
 	}
 	pr.rn = rn
-
 	close(pr.startedC)
 
 	// TODO: is it okay to invoke pr.rn methods from this thread?
@@ -314,7 +310,7 @@ func (pr *replica) maybeCampaign() (bool, error) {
 }
 
 func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
-	metric.IncComandCount(format.Uint64ToString(req.CustemType))
+	metric.IncComandCount(format.Uint64ToString(req.CustomType))
 	return pr.addRequest(newReqCtx(req, cb))
 }
 
@@ -334,9 +330,10 @@ func (pr *replica) readyReadCount() int {
 	return pr.rn.ReadyReadCount()
 }
 
-func (pr *replica) resetBatch() {
+func (pr *replica) resetIncomingProposals() {
 	shard := pr.getShard()
-	pr.batch = newProposeBatch(pr.logger, uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+	pr.incomingProposals = newProposalBatch(pr.logger,
+		uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 }
 
 func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
