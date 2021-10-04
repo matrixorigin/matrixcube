@@ -105,10 +105,10 @@ func (pr *replica) onStop() {
 
 		// resp all stale requests in batch and queue
 		for {
-			if pr.batch.isEmpty() {
+			if pr.incomingProposals.isEmpty() {
 				break
 			}
-			if c, ok := pr.batch.pop(); ok {
+			if c, ok := pr.incomingProposals.pop(); ok {
 				for _, req := range c.requestBatch.Requests {
 					req.Key = keys.DecodeDataKey(req.Key)
 					respStoreNotMatch(errStoreNotMatch, req, c.cb)

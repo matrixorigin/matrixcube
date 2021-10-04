@@ -46,7 +46,7 @@ func TestWriteContextCanBeSetAndReset(t *testing.T) {
 		assert.True(t, ctx.hasRequest())
 		assert.Equal(t, len(c.batch.Requests), len(ctx.batch.Requests), "index %d", i)
 		for idx := range c.batch.Requests {
-			assert.Equal(t, c.batch.Requests[idx].CustemType, ctx.batch.Requests[idx].CmdType)
+			assert.Equal(t, c.batch.Requests[idx].CustomType, ctx.batch.Requests[idx].CmdType)
 			assert.Equal(t, c.batch.Requests[idx].Key, ctx.batch.Requests[idx].Key)
 			assert.Equal(t, c.batch.Requests[idx].Cmd, ctx.batch.Requests[idx].Cmd)
 		}
@@ -64,7 +64,7 @@ func newTestRPCRequests(n uint64) []rpc.Request {
 		requests = append(requests, rpc.Request{
 			ID:         []byte(fmt.Sprintf("%d", n)),
 			Key:        []byte(fmt.Sprintf("%d", n)),
-			CustemType: n,
+			CustomType: n,
 		})
 	}
 	return requests

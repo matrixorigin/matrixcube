@@ -610,7 +610,7 @@ func createTestWriteReq(id, k, v string) rpc.Request {
 
 	req := rpc.Request{}
 	req.ID = []byte(id)
-	req.CustemType = wr.CmdType
+	req.CustomType = wr.CmdType
 	req.Type = rpc.CmdType_Write
 	req.Key = wr.Key
 	req.Cmd = wr.Cmd
@@ -622,7 +622,7 @@ func createTestReadReq(id, k string) rpc.Request {
 
 	req := rpc.Request{}
 	req.ID = []byte(id)
-	req.CustemType = rr.CmdType
+	req.CustomType = rr.CmdType
 	req.Type = rpc.CmdType_Read
 	req.Key = rr.Key
 	return req
