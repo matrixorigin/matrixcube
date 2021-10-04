@@ -29,12 +29,52 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
+type applyContext struct {
+	index       uint64
+	req         rpc.RequestBatch
+	v2cc        raftpb.ConfChangeV2
+	adminResult *adminResult
+	metrics     applyMetrics
+}
+
+func newApplyContext() *applyContext {
+	return &applyContext{
+		req: rpc.RequestBatch{},
+	}
+}
+
+func (ctx *applyContext) initialize(shard Shard, entry raftpb.Entry) {
+	ctx.index = entry.Index
+	ctx.req = rpc.RequestBatch{}
+	ctx.adminResult = nil
+	ctx.metrics = applyMetrics{}
+	ctx.v2cc = raftpb.ConfChangeV2{}
+
+	switch entry.Type {
+	case raftpb.EntryNormal:
+		// TODO: according to my current understanding, admin requests like splits
+		// are marked as EntryNormal. need to confirm this.
+		protoc.MustUnmarshal(&ctx.req, entry.Data)
+	case raftpb.EntryConfChange:
+		cc := raftpb.ConfChange{}
+		protoc.MustUnmarshal(&cc, entry.Data)
+		protoc.MustUnmarshal(&ctx.req, cc.Context)
+		ctx.v2cc = cc.AsV2()
+	case raftpb.EntryConfChangeV2:
+		protoc.MustUnmarshal(&ctx.v2cc, entry.Data)
+		protoc.MustUnmarshal(&ctx.req, ctx.v2cc.Context)
+	default:
+		panic("unknown entry type")
+	}
+}
+
 type stateMachine struct {
 	logger      *zap.Logger
 	shardID     uint64
 	replicaID   uint64
-	executorCtx *applyContext
-	pr          *replica
+	applyCtx    *applyContext
+	writeCtx    *writeContext
+	replica     *replica
 	store       *store
 	dataStorage storage.DataStorage
 
@@ -51,10 +91,11 @@ func newStateMachine(replica *replica, shard Shard) *stateMachine {
 	storage := replica.store.DataStorageByGroup(shard.Group)
 	sm := &stateMachine{
 		logger:      replica.logger,
-		pr:          replica,
+		replica:     replica,
 		store:       replica.store,
 		replicaID:   replica.replica.ID,
-		executorCtx: newApplyContext(storage),
+		applyCtx:    newApplyContext(),
+		writeCtx:    newWriteContext(storage),
 		dataStorage: storage,
 	}
 	sm.metadataMu.shard = shard
@@ -87,41 +128,36 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			// replica is about to be destroyed, skip
 			break
 		}
-
 		d.checkEntryIndexTerm(entry)
-		d.executorCtx.initialize(d.getShard(), entry)
-		switch entry.Type {
-		case raftpb.EntryNormal:
-			d.applyEntry(d.executorCtx)
-		case raftpb.EntryConfChange:
-			d.applyConfChange(d.executorCtx)
-		case raftpb.EntryConfChangeV2:
-			d.applyConfChange(d.executorCtx)
+		if len(entry.Data) == 0 {
+			// noop entry with empty payload proposed by the leader at the beginning
+			// of its term
+			d.updateAppliedIndexTerm(entry.Index, entry.Term)
+			continue
 		}
-		d.updateAppliedIndexTerm(entry.Index, entry.Term)
 
+		d.applyCtx.initialize(d.getShard(), entry)
+		d.applyRequestBatch(d.applyCtx)
 		result := applyResult{
 			shardID:     d.shardID,
-			adminResult: d.executorCtx.adminResult,
+			adminResult: d.applyCtx.adminResult,
 			index:       entry.Index,
+			metrics:     d.applyCtx.metrics,
 		}
-		if d.executorCtx != nil {
-			result.metrics = d.executorCtx.metrics
+		if isConfigChangeEntry(entry) {
+			if result.adminResult == nil {
+				result.adminResult = &adminResult{
+					adminType:          rpc.AdminCmdType_ConfigChange,
+					configChangeResult: &configChangeResult{},
+				}
+			} else {
+				result.adminResult.configChangeResult.confChange = d.applyCtx.v2cc
+			}
 		}
-		d.pr.handleApplyResult(result)
+		d.updateAppliedIndexTerm(entry.Index, entry.Term)
+		d.replica.handleApplyResult(result)
 	}
 	metric.ObserveRaftLogApplyDuration(start)
-}
-
-func (d *stateMachine) applyEntry(ctx *applyContext) {
-	// noop entry with empty payload proposed by the leader at the beginning
-	// of its term
-	if len(ctx.entry.Data) == 0 {
-		return
-	}
-
-	protoc.MustUnmarshal(&ctx.req, ctx.entry.Data)
-	d.applyRequestBatch(ctx)
 }
 
 func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
@@ -136,29 +172,6 @@ func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 			zap.Uint64("applied", term),
 			zap.Uint64("entry", entry.Term))
 	}
-}
-
-func (d *stateMachine) applyConfChange(ctx *applyContext) {
-	var v2cc raftpb.ConfChangeV2
-	if ctx.entry.Type == raftpb.EntryConfChange {
-		cc := raftpb.ConfChange{}
-		protoc.MustUnmarshal(&cc, ctx.entry.Data)
-		protoc.MustUnmarshal(&ctx.req, cc.Context)
-		v2cc = cc.AsV2()
-	} else {
-		protoc.MustUnmarshal(&v2cc, ctx.entry.Data)
-		protoc.MustUnmarshal(&ctx.req, v2cc.Context)
-	}
-
-	d.applyRequestBatch(ctx)
-	if nil == ctx.adminResult {
-		ctx.adminResult = &adminResult{
-			adminType:          rpc.AdminCmdType_ConfigChange,
-			configChangeResult: &configChangeResult{},
-		}
-		return
-	}
-	ctx.adminResult.configChangeResult.confChange = v2cc
 }
 
 func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
@@ -189,13 +202,12 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 		}
 	}
 	// TODO: this implies that we can't have more than one batch in the executeContext
-	d.pr.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeRequestBatch(ctx.req))
+	d.replica.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeRequestBatch(ctx.req))
 }
 
 // FIXME: move this out of the state machine
 func (d *stateMachine) destroy() {
-	d.pr.pendingProposals.destroy()
-	d.executorCtx.close()
+	d.replica.pendingProposals.destroy()
 }
 
 func (d *stateMachine) setRemoved() {
@@ -231,6 +243,11 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 
 func (d *stateMachine) checkEpoch(req rpc.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
+}
+
+func isConfigChangeEntry(entry raftpb.Entry) bool {
+	return entry.Type == raftpb.EntryConfChange ||
+		entry.Type == raftpb.EntryConfChangeV2
 }
 
 func isConfigChangeRequestBatch(req rpc.RequestBatch) bool {

@@ -45,9 +45,10 @@ type reqCtx struct {
 }
 
 func newAdminReqCtx(req rpc.AdminRequest) reqCtx {
-	ctx := reqCtx{admin: req}
-	ctx.reqType = admin
-	return ctx
+	return reqCtx{
+		admin:   req,
+		reqType: admin,
+	}
 }
 
 func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
