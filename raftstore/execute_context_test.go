@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWriteContextCanBeSetAndReset(t *testing.T) {
+func TestWriteContextCanBeInitialized(t *testing.T) {
 	cases := []struct {
 		batch rpc.RequestBatch
 	}{
@@ -38,11 +38,12 @@ func TestWriteContextCanBeSetAndReset(t *testing.T) {
 		},
 	}
 
+	shard := Shard{ID: 12345}
 	fs := vfs.GetTestFS()
 	ctx := newWriteContext(mem.NewStorage(fs))
 	assert.False(t, ctx.hasRequest())
 	for i, c := range cases {
-		ctx.setRequestBatch(c.batch)
+		ctx.initialize(shard, c.batch)
 		assert.True(t, ctx.hasRequest())
 		assert.Equal(t, len(c.batch.Requests), len(ctx.batch.Requests), "index %d", i)
 		for idx := range c.batch.Requests {
@@ -50,12 +51,9 @@ func TestWriteContextCanBeSetAndReset(t *testing.T) {
 			assert.Equal(t, c.batch.Requests[idx].Key, ctx.batch.Requests[idx].Key)
 			assert.Equal(t, c.batch.Requests[idx].Cmd, ctx.batch.Requests[idx].Cmd)
 		}
+		assert.Empty(t, ctx.responses)
+		assert.Equal(t, shard, ctx.shard)
 	}
-
-	ctx.reset(Shard{})
-	assert.Empty(t, ctx.batch)
-	assert.Empty(t, ctx.responses)
-	assert.Equal(t, Shard{}, ctx.shard)
 }
 
 func newTestRPCRequests(n uint64) []rpc.Request {

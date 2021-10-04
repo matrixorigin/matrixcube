@@ -52,7 +52,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica",
-		zap.Uint64("index", ctx.entry.Index),
+		zap.Uint64("index", ctx.index),
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", req))
 
@@ -105,7 +105,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		state = meta.ReplicaState_Tombstone
 	}
 	d.updateShard(res)
-	err := d.saveShardMetedata(ctx.entry.Index, res, state)
+	err := d.saveShardMetedata(ctx.index, res, state)
 	if err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
@@ -121,7 +121,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
-			index:   ctx.entry.Index,
+			index:   ctx.index,
 			changes: []rpc.ConfigChangeRequest{*req},
 			shard:   res,
 		},
@@ -135,7 +135,7 @@ func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatc
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica v2",
-		zap.Uint64("index", ctx.entry.Index),
+		zap.Uint64("index", ctx.index),
 		log.ShardField("current", current),
 		log.ConfigChangesField("requests", changes))
 
@@ -158,7 +158,7 @@ func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatc
 	}
 
 	d.updateShard(res)
-	err = d.saveShardMetedata(ctx.entry.Index, res, state)
+	err = d.saveShardMetedata(ctx.index, res, state)
 	if err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
@@ -174,7 +174,7 @@ func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatc
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
-			index:   ctx.entry.Index,
+			index:   ctx.index,
 			changes: changes,
 			shard:   res,
 		},
@@ -408,14 +408,13 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
-	ctx.writeCtx.reset(d.getShard())
-	ctx.writeCtx.setRequestBatch(ctx.req)
+	d.writeCtx.initialize(d.getShard(), ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zapcore.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-	if err := d.dataStorage.Write(ctx.writeCtx); err != nil {
+	if err := d.dataStorage.Write(d.writeCtx); err != nil {
 		d.logger.Fatal("fail to exec read cmd",
 			zap.Error(err))
 	}
@@ -425,26 +424,26 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 	}
 
 	resp := rpc.ResponseBatch{}
-	for _, v := range ctx.writeCtx.responses {
+	for _, v := range d.writeCtx.responses {
 		ctx.metrics.writtenKeys++
 		r := rpc.Response{Value: v}
 		resp.Responses = append(resp.Responses, r)
 	}
-	d.updateWriteMetrics(ctx)
+	d.updateWriteMetrics()
 	return resp
 }
 
-func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
-	ctx.metrics.writtenBytes += ctx.writeCtx.writtenBytes
-	if ctx.writeCtx.diffBytes < 0 {
-		v := uint64(math.Abs(float64(ctx.writeCtx.diffBytes)))
-		if v >= ctx.metrics.sizeDiffHint {
-			ctx.metrics.sizeDiffHint = 0
+func (d *stateMachine) updateWriteMetrics() {
+	d.applyCtx.metrics.writtenBytes += d.writeCtx.writtenBytes
+	if d.writeCtx.diffBytes < 0 {
+		v := uint64(math.Abs(float64(d.writeCtx.diffBytes)))
+		if v >= d.applyCtx.metrics.sizeDiffHint {
+			d.applyCtx.metrics.sizeDiffHint = 0
 		} else {
-			ctx.metrics.sizeDiffHint -= v
+			d.applyCtx.metrics.sizeDiffHint -= v
 		}
 	} else {
-		ctx.metrics.sizeDiffHint += uint64(ctx.writeCtx.diffBytes)
+		d.applyCtx.metrics.sizeDiffHint += uint64(d.writeCtx.diffBytes)
 	}
 }
 
