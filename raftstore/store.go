@@ -183,7 +183,7 @@ func (s *store) Stop() {
 			s.storeField())
 
 		s.forEachReplica(func(pr *replica) bool {
-			// TODO: add code to stop all shards here
+			pr.stopEventLoop()
 			return true
 		})
 		s.logger.Info("shards stopped",

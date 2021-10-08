@@ -58,11 +58,12 @@ type replica struct {
 	sm                    *stateMachine
 	ctx                   context.Context
 	cancel                context.CancelFunc
-	items                 []interface{}
+	events                *task.RingBuffer
 	ticks                 *task.Queue
 	messages              *task.Queue
 	feedbacks             *task.Queue
 	requests              *task.Queue
+	items                 []interface{}
 	// TODO: check why this is required, why those so called actions can't be
 	// directly executed. also check that some of those actions have prophet
 	// client involved, need to make sure that potential network IO won't block
@@ -142,13 +143,14 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(l, maxBatchSize, shard.ID, r),
-		pendingReads:      &readIndexQueue{shardID: shard.ID},
+		pendingReads:      &readIndexQueue{shardID: shard.ID, logger: l},
 		ticks:             task.New(32),
 		messages:          task.New(32),
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
 		items:             make([]interface{}, readyBatch),
+		events:            task.NewRingBuffer(2),
 	}
 	pr.sm = newStateMachine(pr, *shard)
 	return pr, nil
@@ -208,6 +210,10 @@ func (pr *replica) start() {
 
 	pr.onRaftTick(nil)
 	pr.logger.Info("replica started")
+}
+
+func (pr *replica) stopEventLoop() {
+	pr.events.Dispose()
 }
 
 func (pr *replica) getShard() Shard {
@@ -293,6 +299,7 @@ func (pr *replica) waitStarted() {
 
 func (pr *replica) notifyWorker() {
 	pr.waitStarted()
+	pr.events.Offer(struct{}{})
 	pr.store.workerPool.notify(pr.shardID)
 }
 
