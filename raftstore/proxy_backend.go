@@ -61,7 +61,7 @@ func (f *defaultBackendFactory) create(addr string, success SuccessCallback, fai
 		return f.local, nil
 	}
 
-	return newRPCBackend(f.logger, success, failure, addr, goetty.NewIOSession(goetty.WithCodec(f.encoder, f.decoder))),
+	return newRemoteBackend(f.logger, success, failure, addr, goetty.NewIOSession(goetty.WithCodec(f.encoder, f.decoder))),
 		nil
 }
 
@@ -78,7 +78,7 @@ func (lb *localBackend) dispatch(req rpc.Request) error {
 	return lb.handler(req)
 }
 
-type rpcBackend struct {
+type remoteBackend struct {
 	sync.Mutex
 
 	addr            string
@@ -89,16 +89,16 @@ type rpcBackend struct {
 	reqs            *task.Queue
 }
 
-func newRPCBackend(logger *zap.Logger,
+func newRemoteBackend(logger *zap.Logger,
 	successCallback SuccessCallback,
 	failureCallback FailureCallback,
 	addr string,
-	conn goetty.IOSession) *rpcBackend {
+	conn goetty.IOSession) *remoteBackend {
 	if logger == nil {
 		logger = config.GetDefaultZapLogger()
 	}
 
-	bc := &rpcBackend{
+	bc := &remoteBackend{
 		logger:          logger.With(zap.String("remote", addr)),
 		successCallback: successCallback,
 		failureCallback: failureCallback,
@@ -111,7 +111,7 @@ func newRPCBackend(logger *zap.Logger,
 	return bc
 }
 
-func (bc *rpcBackend) dispatch(req rpc.Request) error {
+func (bc *remoteBackend) dispatch(req rpc.Request) error {
 	if !bc.checkConnect() {
 		return errConnect
 	}
@@ -119,7 +119,7 @@ func (bc *rpcBackend) dispatch(req rpc.Request) error {
 	return bc.reqs.Put(req)
 }
 
-func (bc *rpcBackend) checkConnect() bool {
+func (bc *remoteBackend) checkConnect() bool {
 	if nil == bc {
 		return false
 	}
@@ -146,7 +146,7 @@ func (bc *rpcBackend) checkConnect() bool {
 	return ok
 }
 
-func (bc *rpcBackend) writeLoop() {
+func (bc *remoteBackend) writeLoop() {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -191,7 +191,7 @@ func (bc *rpcBackend) writeLoop() {
 	}()
 }
 
-func (bc *rpcBackend) readLoop() {
+func (bc *remoteBackend) readLoop() {
 	go func() {
 		bc.logger.Info("backend read loop started")
 

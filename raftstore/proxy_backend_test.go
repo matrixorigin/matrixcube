@@ -14,72 +14,64 @@
 package raftstore
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRPCProxy(t *testing.T) {
-	addr := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
+func TestLocalBackend(t *testing.T) {
 	c := make(chan rpc.Request, 10)
-	ec := make(chan error, 10)
-	p := newProxyRPC(nil, addr, 1024*1024, func(r rpc.Request) error {
+	bc := newLocalBackend(func(r rpc.Request) error {
 		c <- r
-		return <-ec
+		return nil
+	})
+
+	req := newTestRPCRequests(1)[0]
+	req.Cmd = []byte("c1")
+	assert.NoError(t, bc.dispatch(req))
+	assert.Equal(t, req, <-c)
+}
+
+func TestRemoteBackend(t *testing.T) {
+	addr := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
+
+	c1 := make(chan rpc.Request, 1)
+	ec1 := make(chan error, 10)
+	p := newProxyRPC(nil, addr, 1024*1024, func(r rpc.Request) error {
+		c1 <- r
+		return <-ec1
 	})
 	assert.NoError(t, p.start())
 	defer p.stop()
 
-	pid := int64(0)
 	v := &rpcCodec{clientSide: true}
 	encoder, decoder := length.NewWithSize(v, v, 0, 0, 0, 1024*1024)
 	conn := goetty.NewIOSession(goetty.WithCodec(encoder, decoder), goetty.WithTimeout(time.Second, time.Second))
-	ok, err := conn.Connect(addr, time.Second)
-	assert.NoError(t, err)
-	assert.True(t, ok)
 	defer conn.Close()
+
+	c2 := make(chan rpc.Response, 1)
+	ec2 := make(chan error, 10)
+	bc := newRemoteBackend(nil, func(r rpc.Response) { c2 <- r }, func(r *rpc.Request, e error) { ec2 <- e }, addr, conn)
 
 	req := newTestRPCRequests(1)[0]
 	req.Cmd = []byte("c1")
-	assert.NoError(t, conn.WriteAndFlush(req))
+	assert.NoError(t, bc.dispatch(req))
 
-	select {
-	case r := <-c:
-		assert.True(t, r.PID > 0)
-		pid = r.PID
-		r.PID = 0
-		assert.Equal(t, req, r)
-		ec <- nil
-	case <-time.After(time.Second):
-		assert.FailNow(t, "timeout")
-	}
+	r := <-c1
+	assert.True(t, r.PID > 0)
 
-	req = newTestRPCRequests(1)[0]
-	req.Cmd = []byte("error")
-	assert.NoError(t, conn.WriteAndFlush(req))
-	select {
-	case r := <-c:
-		assert.True(t, r.PID > 0)
-		r.PID = 0
-		assert.Equal(t, req, r)
-		ec <- errors.New(string(req.Cmd))
-	case <-time.After(time.Second):
-		assert.FailNow(t, "timeout")
-	}
-	data, err := conn.Read()
-	assert.NoError(t, err)
-	assert.Equal(t, string(req.Cmd), data.(rpc.Response).Error.Message)
+	r1 := rpc.Response{PID: r.PID, Value: []byte("v1")}
+	p.onResponse(rpc.ResponseBatchHeader{}, r1)
+	assert.Equal(t, r1, <-c2)
 
-	rsp := rpc.Response{PID: pid, Value: []byte("v1")}
-	p.onResponse(rpc.ResponseBatchHeader{}, rsp)
-	data, err = conn.Read()
-	assert.NoError(t, err)
-	assert.Equal(t, data, rsp)
+	p.onResponse(rpc.ResponseBatchHeader{Error: errorpb.Error{Message: "error"}}, r1)
+	rsp := <-c2
+	assert.NotEmpty(t, rsp.Error)
 }

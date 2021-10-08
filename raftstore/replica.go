@@ -147,6 +147,7 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		messages:          task.New(32),
 		requests:          task.New(32),
 		actions:           task.New(32),
+		feedbacks:         task.New(32),
 		items:             make([]interface{}, readyBatch),
 	}
 	pr.sm = newStateMachine(pr, *shard)

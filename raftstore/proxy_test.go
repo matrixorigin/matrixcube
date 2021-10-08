@@ -184,7 +184,7 @@ func TestRPCDispatch(t *testing.T) {
 	assert.NoError(t, sp2.Start())
 	defer sp2.Stop()
 
-	factory1.backends[addr2] = newRPCBackend(config.GetDefaultZapLoggerWithLevel(zapcore.DebugLevel).With(zap.String("sp", "sp1")),
+	factory1.backends[addr2] = newRemoteBackend(config.GetDefaultZapLoggerWithLevel(zapcore.DebugLevel).With(zap.String("sp", "sp1")),
 		success1, failure1, addr2, goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
 
 	req := rpc.Request{}

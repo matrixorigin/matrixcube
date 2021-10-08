@@ -408,7 +408,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
-	d.writeCtx.initialize(d.getShard(), ctx.req)
+	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zapcore.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID))
