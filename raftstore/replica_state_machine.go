@@ -133,6 +133,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			// noop entry with empty payload proposed by the leader at the beginning
 			// of its term
 			d.updateAppliedIndexTerm(entry.Index, entry.Term)
+			d.replica.handleApplyResult(applyResult{index: entry.Index})
 			continue
 		}
 
