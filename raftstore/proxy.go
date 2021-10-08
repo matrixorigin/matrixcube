@@ -32,8 +32,7 @@ var (
 )
 
 var (
-	// RetryInterval retry interval
-	RetryInterval = time.Second
+	defaultRetryInterval = time.Second
 )
 
 // SuccessCallback request success callback
@@ -70,6 +69,7 @@ type shardsProxyConfig struct {
 	router          Router
 	rpc             proxyRPC
 	maxBodySize     int
+	retryInterval   time.Duration
 }
 
 type shardsProxyBuilder struct {
@@ -78,6 +78,11 @@ type shardsProxyBuilder struct {
 
 func newShardsProxyBuilder() *shardsProxyBuilder {
 	return &shardsProxyBuilder{}
+}
+
+func (sb *shardsProxyBuilder) withRetryInterval(value time.Duration) *shardsProxyBuilder {
+	sb.cfg.retryInterval = value
+	return sb
 }
 
 func (sb *shardsProxyBuilder) withMaxBodySize(size int) *shardsProxyBuilder {
@@ -117,6 +122,10 @@ func (sb *shardsProxyBuilder) build(router Router) (ShardsProxy, error) {
 
 	if sb.cfg.failureCallback == nil {
 		sb.cfg.failureCallback = func(r *rpc.Request, e error) {}
+	}
+
+	if sb.cfg.retryInterval == 0 {
+		sb.cfg.retryInterval = defaultRetryInterval
 	}
 
 	sb.cfg.router = router
@@ -172,7 +181,7 @@ func (p *shardsProxy) DispatchTo(req rpc.Request, shard uint64, to string) error
 
 	// No leader, retry after a leader tick
 	if to == "" {
-		p.retryWithRaftError(&req, "dispath to nil store", RetryInterval)
+		p.retryWithRaftError(&req, "dispath to nil store")
 		return nil
 	}
 
@@ -255,14 +264,10 @@ func (p *shardsProxy) done(rsp rpc.Response) {
 		return
 	}
 
-	p.retryWithRaftError(rsp.Request, rsp.Error.String(), RetryInterval)
+	p.retryWithRaftError(rsp.Request, rsp.Error.String())
 }
 
-func (p *shardsProxy) errorDone(req *rpc.Request, err error) {
-	p.cfg.failureCallback(req, err)
-}
-
-func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later time.Duration) {
+func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string) {
 	if req != nil {
 		if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request failed, retry later"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
@@ -270,11 +275,12 @@ func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string, later tim
 		}
 
 		if time.Now().Unix() >= req.StopAt {
+			p.logger.Info("timeout for dispatch")
 			p.cfg.failureCallback(req, errors.New(err))
 			return
 		}
 
-		util.DefaultTimeoutWheel().Schedule(later, p.doRetry, *req)
+		util.DefaultTimeoutWheel().Schedule(p.cfg.retryInterval, p.doRetry, *req)
 	}
 }
 

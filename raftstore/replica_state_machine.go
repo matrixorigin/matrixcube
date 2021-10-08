@@ -208,6 +208,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 // FIXME: move this out of the state machine
 func (d *stateMachine) destroy() {
 	d.replica.pendingProposals.destroy()
+	d.writeCtx.close()
 }
 
 func (d *stateMachine) setRemoved() {

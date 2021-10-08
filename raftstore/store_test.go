@@ -335,7 +335,7 @@ func TestReadAndWriteAndRestart(t *testing.T) {
 	kv := c.CreateTestKVClient(0)
 	defer kv.Close()
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1; i++ {
 		assert.NoError(t, kv.Set(fmt.Sprintf("k-%d", i), fmt.Sprintf("v-%d", i), testWaitTimeout))
 	}
 
@@ -345,7 +345,7 @@ func TestReadAndWriteAndRestart(t *testing.T) {
 	kv2 := c.CreateTestKVClient(0)
 	defer kv2.Close()
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1; i++ {
 		v, err := kv2.Get(fmt.Sprintf("k-%d", i), testWaitTimeout)
 		assert.NoError(t, err)
 		assert.Equal(t, fmt.Sprintf("v-%d", i), v)

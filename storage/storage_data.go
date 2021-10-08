@@ -219,7 +219,6 @@ type SimpleWriteContext struct {
 	batch        Batch
 	responses    [][]byte
 	writtenBytes uint64
-	readBytes    uint64
 	diffBytes    int64
 }
 
@@ -249,3 +248,26 @@ func (ctx *SimpleWriteContext) SetDiffBytes(value int64)     { ctx.diffBytes = v
 func (ctx *SimpleWriteContext) GetWrittenBytes() uint64      { return ctx.writtenBytes }
 func (ctx *SimpleWriteContext) GetDiffBytes() int64          { return ctx.diffBytes }
 func (ctx *SimpleWriteContext) Responses() [][]byte          { return ctx.responses }
+
+type SimpleReadContext struct {
+	buf       *buf.ByteBuf
+	shard     meta.Shard
+	request   Request
+	readBytes uint64
+}
+
+// NewSimpleReadContext returns a testing context.
+func NewSimpleReadContext(shardID uint64, req Request) *SimpleReadContext {
+	c := &SimpleReadContext{
+		buf:     buf.NewByteBuf(32),
+		request: req,
+	}
+	c.shard.ID = shardID
+	return c
+}
+
+func (c *SimpleReadContext) ByteBuf() *buf.ByteBuf         { return c.buf }
+func (c *SimpleReadContext) Shard() meta.Shard             { return c.shard }
+func (c *SimpleReadContext) Request() Request              { return c.request }
+func (c *SimpleReadContext) SetReadBytes(readBytes uint64) { c.readBytes = readBytes }
+func (c *SimpleReadContext) GetReadBytes() uint64          { return c.readBytes }
