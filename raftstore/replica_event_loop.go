@@ -138,11 +138,21 @@ func (pr *replica) onStop() {
 }
 
 func (pr *replica) handleEvent() bool {
+	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
+		return false
+	}
+
 	select {
 	case <-pr.ctx.Done():
 		pr.onStop()
 		return false
 	default:
+	}
+
+	if _, err := pr.events.Get(); err != nil {
+		pr.logger.Info("replica stopped")
+		pr.onStop()
+		return false
 	}
 
 	pr.handleMessage(pr.items)

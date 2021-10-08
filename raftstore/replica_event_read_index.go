@@ -28,6 +28,7 @@ type readyRead struct {
 }
 
 type readIndexQueue struct {
+	logger  *zap.Logger
 	shardID uint64
 	reads   []readyRead
 }
@@ -63,7 +64,6 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 			resp := rpc.ResponseBatch{}
 			for _, req := range ready.batch.Requests {
 				rr := storage.Request{
-					// FIXME: fix the typo below in the field name
 					CmdType: req.CustomType,
 					Key:     req.Key,
 					Cmd:     req.Cmd,
@@ -72,7 +72,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 				v, err := ds.Read(readCtx)
 				if err != nil {
 					// FIXME: some read failures should be tolerated.
-					pr.logger.Fatal("fail to exec read batch",
+					q.logger.Fatal("fail to exec read batch",
 						zap.Error(err))
 				}
 				pr.readBytes += readCtx.readBytes
