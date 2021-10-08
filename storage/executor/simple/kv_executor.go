@@ -43,22 +43,20 @@ func NewSimpleKVExecutor(kv storage.KVStorage) storage.Executor {
 	return &simpleKVExecutor{kv: kv}
 }
 
-func (ce *simpleKVExecutor) UpdateWriteBatch(ctx storage.Context) error {
+func (ce *simpleKVExecutor) UpdateWriteBatch(ctx storage.WriteContext) error {
 	writtenBytes := uint64(0)
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
-	batches := ctx.Batches()
-	for i := range batches {
-		requests := batches[i].Requests
-		for j := range requests {
-			switch requests[j].CmdType {
-			case setCmd:
-				wb.Set(requests[j].Key, requests[j].Cmd)
-				writtenBytes += uint64(len(requests[j].Key) + len(requests[j].Cmd))
-				ctx.AppendResponse(OK)
-			default:
-				panic(fmt.Errorf("invalid write cmd %d", requests[j].CmdType))
-			}
+	batch := ctx.Batch()
+	requests := batch.Requests
+	for j := range requests {
+		switch requests[j].CmdType {
+		case setCmd:
+			wb.Set(requests[j].Key, requests[j].Cmd)
+			writtenBytes += uint64(len(requests[j].Key) + len(requests[j].Cmd))
+			ctx.AppendResponse(OK)
+		default:
+			panic(fmt.Errorf("invalid write cmd %d", requests[j].CmdType))
 		}
 	}
 
@@ -73,29 +71,19 @@ func (ce *simpleKVExecutor) ApplyWriteBatch(r storage.Resetable) error {
 	return ce.kv.Write(wb, false)
 }
 
-func (ce *simpleKVExecutor) Read(ctx storage.Context) error {
-	readBytes := uint64(0)
-	batches := ctx.Batches()
-	for i := range batches {
-		requests := batches[i].Requests
-		for j := range requests {
-			switch requests[j].CmdType {
-			case getCmd:
-				v, err := ce.kv.Get(requests[j].Key)
-				if err != nil {
-					return err
-				}
-
-				readBytes += uint64(len(v))
-				ctx.AppendResponse(v)
-			default:
-				panic(fmt.Errorf("invalid read cmd %d", requests[j].CmdType))
-			}
+func (ce *simpleKVExecutor) Read(ctx storage.ReadContext) ([]byte, error) {
+	request := ctx.Request()
+	switch request.CmdType {
+	case getCmd:
+		v, err := ce.kv.Get(request.Key)
+		if err != nil {
+			return nil, err
 		}
+		ctx.SetReadBytes(uint64(len(v)))
+		return v, nil
+	default:
+		panic(fmt.Errorf("invalid read cmd %d", request.CmdType))
 	}
-
-	ctx.SetReadBytes(readBytes)
-	return nil
 }
 
 // NewWriteRequest return write request

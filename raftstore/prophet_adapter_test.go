@@ -112,11 +112,11 @@ func TestDoShardHeartbeat(t *testing.T) {
 		hasAction bool
 	}{
 		{
-			pr:        &replica{leaderID: 1, startedC: make(chan struct{}), actions: task.New(32), events: task.NewRingBuffer(2)},
+			pr:        &replica{leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
 			hasAction: false,
 		},
 		{
-			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32), events: task.NewRingBuffer(2)},
+			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
 			hasAction: true,
 			action:    action{actionType: heartbeatAction},
 		},
@@ -159,7 +159,7 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 			}},
 			fn: func(s *store) *replica {
-				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32), events: task.NewRingBuffer(2)}
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
 				pr.store = s
 				close(pr.startedC)
 				s.addReplica(pr)
@@ -187,7 +187,7 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				},
 			}},
 			fn: func(s *store) *replica {
-				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32), events: task.NewRingBuffer(2)}
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
 				pr.store = s
 				close(pr.startedC)
 				s.addReplica(pr)
@@ -214,7 +214,7 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				Replica: metapb.Replica{ID: 1, ContainerID: 1},
 			}},
 			fn: func(s *store) *replica {
-				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32), events: task.NewRingBuffer(2)}
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
 				pr.store = s
 				close(pr.startedC)
 				s.addReplica(pr)

@@ -120,9 +120,9 @@ func TestSetAndGet(t *testing.T) {
 
 			key4 := []byte("k4")
 
-			s.Set(key1, value1)
-			s.Set(key2, value2)
-			s.Set(key3, value3)
+			s.Set(key1, value1, false)
+			s.Set(key2, value2, false)
+			s.Set(key3, value3, false)
 
 			value, err := s.Get(key1)
 			assert.NoError(t, err, "TestSetAndGet failed")
@@ -157,10 +157,10 @@ func TestDelete(t *testing.T) {
 			key2 := []byte("k2")
 			value2 := []byte("v2")
 
-			s.Set(key1, value1)
-			s.Set(key2, value2)
+			s.Set(key1, value1, false)
+			s.Set(key2, value2, false)
 
-			s.Delete(key2)
+			s.Delete(key2, false)
 
 			value, err := s.Get(key1)
 			assert.NoError(t, err, "TestDelete failed")
@@ -190,11 +190,11 @@ func TestMetaRangeDelete(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("v3")
 
-			s.Set(key1, value1)
-			s.Set(key2, value2)
-			s.Set(key3, value3)
+			s.Set(key1, value1, false)
+			s.Set(key2, value2, false)
+			s.Set(key3, value3, false)
 
-			err := s.RangeDelete(key1, key3)
+			err := s.RangeDelete(key1, key3, false)
 			assert.NoError(t, err, "TestMetaRangeDelete failed")
 
 			value, err := s.Get(key1)
@@ -226,8 +226,8 @@ func TestSeek(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("v3")
 
-			s.Set(key1, value1)
-			s.Set(key3, value3)
+			s.Set(key1, value1, false)
+			s.Set(key3, value3, false)
 
 			key, value, err := s.Seek(key1)
 			assert.NoError(t, err, "TestSeek failed")
@@ -259,9 +259,9 @@ func TestScan(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("v3")
 
-			s.Set(key1, value1)
-			s.Set(key2, value2)
-			s.Set(key3, value3)
+			s.Set(key1, value1, false)
+			s.Set(key2, value2, false)
+			s.Set(key3, value3, false)
 
 			count := 0
 			err := s.Scan(key1, key3, func(key, value []byte) (bool, error) {
@@ -302,11 +302,11 @@ func TestRangeDelete(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("value3")
 
-			assert.NoError(t, s.Set(key1, value1), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key2, value2), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key3, value3), "TestRangeDelete failed")
+			assert.NoError(t, s.Set(key1, value1, false), "TestRangeDelete failed")
+			assert.NoError(t, s.Set(key2, value2, false), "TestRangeDelete failed")
+			assert.NoError(t, s.Set(key3, value3, false), "TestRangeDelete failed")
 
-			err := s.RangeDelete(key1, key3)
+			err := s.RangeDelete(key1, key3, false)
 			assert.NoError(t, err, "TestRangeDelete failed")
 
 			value, err := s.Get(key1)
@@ -335,7 +335,7 @@ func TestPrefixScan(t *testing.T) {
 			prefix := "/m/db"
 			for i := 1; i <= 3; i++ {
 				key := []byte(fmt.Sprintf("%v/%v/%d", prefix, "defaultdb", i))
-				err := s.Set(key, []byte{byte(0)})
+				err := s.Set(key, []byte{byte(0)}, false)
 				assert.NoError(t, err)
 			}
 			err := s.PrefixScan([]byte(fmt.Sprintf("%v/%v", prefix, "defaultdb")),

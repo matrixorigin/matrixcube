@@ -61,6 +61,7 @@ type kvDataStorage struct {
 	writeCount uint64
 	mu         struct {
 		sync.RWMutex
+		loaded                   bool
 		lastAppliedIndexes       map[uint64]uint64
 		persistentAppliedIndexes map[uint64]uint64
 	}
@@ -69,7 +70,8 @@ type kvDataStorage struct {
 var _ storage.DataStorage = (*kvDataStorage)(nil)
 
 // NewKVDataStorage returns data storage based on a kv base storage.
-func NewKVDataStorage(base storage.KVStorage, executor storage.Executor, opts ...Option) storage.DataStorage {
+func NewKVDataStorage(base storage.KVStorage,
+	executor storage.Executor, opts ...Option) storage.DataStorage {
 	s := &kvDataStorage{
 		base:     base,
 		executor: executor,
@@ -89,33 +91,35 @@ func (kv *kvDataStorage) NewWriteBatch() storage.Resetable {
 	return kv.base.NewWriteBatch()
 }
 
-func (kv *kvDataStorage) Write(ctx storage.Context) error {
+func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 	if err := kv.executor.UpdateWriteBatch(ctx); err != nil {
 		return err
 	}
 	r := ctx.WriteBatch()
 	defer r.Reset()
-	batches := ctx.Batches()
-	lastLogIndex := batches[len(batches)-1].Index
-	kv.setAppliedIndexToWriteBatch(ctx, lastLogIndex)
-	kv.updateAppliedIndex(ctx.Shard().ID, lastLogIndex)
+	batch := ctx.Batch()
+	if batch.Index == 0 {
+		panic("empty batch?")
+	}
+	kv.setAppliedIndexToWriteBatch(ctx, batch.Index)
+	kv.updateAppliedIndex(ctx.Shard().ID, batch.Index)
 	if err := kv.executor.ApplyWriteBatch(r); err != nil {
 		return err
 	}
 	return kv.trySync()
 }
 
-func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.Context, index uint64) {
+func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
 	ctx.ByteBuf().MarkWrite()
 	ctx.ByteBuf().WriteUInt64(index)
-	key := keys.GetDataStorageAppliedIndexKey(ctx.Shard().ID)
+	key := keys.GetAppliedIndexKey(ctx.Shard().ID)
 	val := ctx.ByteBuf().WrittenDataAfterMark().Data()
 	wb.Set(key, val)
 }
 
-func (kv *kvDataStorage) Read(ctx storage.Context) error {
+func (kv *kvDataStorage) Read(ctx storage.ReadContext) ([]byte, error) {
 	return kv.executor.Read(ctx)
 }
 
@@ -124,16 +128,21 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	wb := r.(util.WriteBatch)
 	defer wb.Close()
 
+	seen := make(map[uint64]struct{})
 	kv.mu.Lock()
 	for _, m := range metadatas {
-		wb.Set(keys.GetDataStorageMetadataKey(m.ShardID), m.Metadata)
-		wb.Set(keys.GetDataStorageAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
+		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex), m.Metadata)
+		wb.Set(keys.GetAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
+		if _, ok := seen[m.ShardID]; ok {
+			panic("more than one instance of metadata from the same shard")
+		} else {
+			seen[m.ShardID] = struct{}{}
+		}
 	}
 	kv.mu.Unlock()
 
-	err := kv.base.Write(wb, false)
-	if err != nil {
+	if err := kv.base.Write(wb, false); err != nil {
 		return err
 	}
 
@@ -141,40 +150,70 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 }
 
 func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
-	minApplied := keys.GetDataStorageAppliedIndexKey(0)
-	maxApplied := keys.GetDataStorageAppliedIndexKey(math.MaxUint64)
+	min := keys.GetAppliedIndexKey(0)
+	max := keys.GetAppliedIndexKey(math.MaxUint64)
 	var shards []uint64
-	var lastAppliedIndexs []uint64
-	err := kv.base.Scan(minApplied, maxApplied, func(key, value []byte) (bool, error) {
-		if keys.IsDataStorageAppliedIndexKey(key) {
-			shards = append(shards, keys.DecodeDataStorageAppliedIndexKey(key))
-			lastAppliedIndexs = append(lastAppliedIndexs, buf.Byte2UInt64(value))
+	var lastApplied []uint64
+	// find out all shards and their last applied indexes
+	if err := kv.base.Scan(min, max, func(key, value []byte) (bool, error) {
+		if keys.IsAppliedIndexKey(key) {
+			shards = append(shards, keys.DecodeAppliedIndexKey(key))
+			lastApplied = append(lastApplied, buf.Byte2UInt64(value))
 		}
 		return true, nil
-	}, false)
-	if err != nil {
+	}, false); err != nil {
 		return nil, err
 	}
-
+	// update the persistentAppliedIndexes
+	kv.mu.Lock()
+	for idx, appliedIndex := range lastApplied {
+		kv.mu.persistentAppliedIndexes[shards[idx]] = appliedIndex
+	}
+	kv.mu.loaded = true
+	kv.mu.Unlock()
+	// for each shard,
 	var values []storage.ShardMetadata
-	for idx, shard := range shards {
-		v, err := kv.base.Get(keys.GetDataStorageMetadataKey(shard))
-		if err != nil {
+	for _, shard := range shards {
+		min := keys.GetMetadataKey(shard, 0)
+		max := keys.GetMetadataKey(shard, math.MaxUint64)
+		var v []byte
+		var logIndex uint64
+		var err error
+		if err := kv.base.Scan(min, max, func(key, value []byte) (bool, error) {
+			if keys.IsMetadataKey(key) {
+				v = value
+				logIndex, err = keys.GetMetadataIndex(key)
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				panic("unexpected key/value")
+			}
+			return true, nil
+		}, true); err != nil {
 			return nil, err
 		}
 
+		if v == nil && logIndex == 0 {
+			panic("failed to get shard metadata")
+		}
 		values = append(values, storage.ShardMetadata{
 			ShardID:  shard,
-			LogIndex: lastAppliedIndexs[idx],
+			LogIndex: logIndex,
 			Metadata: v,
 		})
 	}
 	return values, nil
 }
 
+// TODO: handle shardID not found error, maybe define ShardNotFound?
+
 func (kv *kvDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
+	if !kv.mu.loaded {
+		panic("GetInitialStates must be invoked first")
+	}
 	return kv.mu.persistentAppliedIndexes[shardID], nil
 }
 
@@ -182,13 +221,15 @@ func (kv *kvDataStorage) Sync(_ []uint64) error {
 	return kv.base.Sync()
 }
 
-func (kv *kvDataStorage) RemoveShardData(shard meta.Shard, encodedStartKey, encodedEndKey []byte) error {
-	// This is not an atomic operation, but it is idempotent, and the metadata is deleted afterwards,
-	// so the cleanup will not be lost.
-	if err := kv.base.RangeDelete(encodedStartKey, encodedEndKey); err != nil {
+func (kv *kvDataStorage) RemoveShardData(shard meta.Shard,
+	encodedStartKey, encodedEndKey []byte) error {
+	// This is not an atomic operation, but it is idempotent, and the metadata is
+	// deleted afterwards, so the cleanup will not be lost.
+	if err := kv.base.RangeDelete(encodedStartKey, encodedEndKey, false); err != nil {
 		return err
 	}
-	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID), keys.GetRaftPrefix(shard.ID+1))
+	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID),
+		keys.GetRaftPrefix(shard.ID+1), true)
 }
 
 func (kv *kvDataStorage) updateAppliedIndex(shard uint64, index uint64) {
@@ -221,7 +262,8 @@ func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
 }
 
-func (kv *kvDataStorage) SplitCheck(start []byte, end []byte, size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error) {
+func (kv *kvDataStorage) SplitCheck(start, end []byte,
+	size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error) {
 	return kv.base.SplitCheck(start, end, size)
 }
 

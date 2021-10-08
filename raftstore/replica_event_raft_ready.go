@@ -60,7 +60,7 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")
 			pr.addAction(action{actionType: heartbeatAction})
-			pr.resetBatch()
+			pr.resetIncomingProposals()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.getShard())
 			}
@@ -201,6 +201,8 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	case raftpb.MsgVoteResp:
 		pr.metrics.message.voteResp++
 	case raftpb.MsgSnap:
+		// FIXME: this should not be called until the snapshot is actually
+		// transmitted to the target replica.
 		pr.rn.ReportSnapshot(msg.To, raft.SnapshotFinish)
 		pr.metrics.message.snapshot++
 	case raftpb.MsgHeartbeat:
@@ -211,5 +213,16 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 		pr.metrics.message.transfeLeader++
 	}
 
+	return nil
+}
+
+func (pr *replica) doApplyCommittedEntries(entries []raftpb.Entry) error {
+	pr.logger.Debug("begin to apply raft log",
+		zap.Int("count", len(entries)))
+
+	pr.sm.applyCommittedEntries(entries)
+	if pr.sm.isRemoved() {
+		pr.doApplyDestory(false)
+	}
 	return nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -93,8 +94,12 @@ func newRPCBackend(logger *zap.Logger,
 	failureCallback FailureCallback,
 	addr string,
 	conn goetty.IOSession) *rpcBackend {
+	if logger == nil {
+		logger = config.GetDefaultZapLogger()
+	}
+
 	bc := &rpcBackend{
-		logger:          logger,
+		logger:          logger.With(zap.String("remote", addr)),
 		successCallback: successCallback,
 		failureCallback: failureCallback,
 		addr:            addr,
@@ -133,7 +138,6 @@ func (bc *rpcBackend) checkConnect() bool {
 	ok, err := bc.conn.Connect(bc.addr, defaultConnectTimeout)
 	if err != nil {
 		bc.logger.Error("fail to connect to backend",
-			zap.String("backend", bc.addr),
 			zap.Error(err))
 		return false
 	}
@@ -147,33 +151,32 @@ func (bc *rpcBackend) writeLoop() {
 		defer func() {
 			if err := recover(); err != nil {
 				bc.logger.Error("backend write loop failed, restart later",
-					zap.String("backend", bc.addr),
 					zap.Any("err", err))
 				bc.writeLoop()
 			}
 		}()
 
 		batch := int64(16)
-		bc.logger.Info("backend write loop started",
-			zap.String("backend", bc.addr))
+		bc.logger.Info("backend write loop started")
 
 		items := make([]interface{}, batch)
 		for {
 			n, err := bc.reqs.Get(batch, items)
 			if err != nil {
 				bc.logger.Fatal("BUG: fail to read from queue",
-					zap.String("backend", bc.addr),
 					zap.Error(err))
 				return
 			}
 
 			for i := int64(0); i < n; i++ {
 				if items[i] == closeFlag {
-					bc.logger.Info("backend  write loop stopped",
-						zap.String("backend", bc.addr))
+					bc.logger.Info("backend  write loop stopped")
 					return
 				}
 
+				if ce := bc.logger.Check(zapcore.DebugLevel, "send request"); ce != nil {
+					ce.Write(log.HexField("id", items[i].(rpc.Request).ID))
+				}
 				bc.conn.Write(items[i])
 			}
 
@@ -190,23 +193,20 @@ func (bc *rpcBackend) writeLoop() {
 
 func (bc *rpcBackend) readLoop() {
 	go func() {
-		bc.logger.Info("backend read loop started",
-			zap.String("backend", bc.addr))
+		bc.logger.Info("backend read loop started")
 
 		for {
 			data, err := bc.conn.Read()
 			if err != nil {
-				bc.logger.Info("backend read loop stopped",
-					zap.String("backend", bc.addr))
+				bc.logger.Info("backend read loop stopped")
 				bc.conn.Close()
 				return
 
 			}
 
 			if rsp, ok := data.(rpc.Response); ok {
-				if ce := bc.logger.Check(zapcore.DebugLevel, "received response"); ce != nil {
-					ce.Write(log.HexField("id", rsp.ID),
-						zap.String("backend", bc.addr))
+				if ce := bc.logger.Check(zapcore.DebugLevel, "receive response"); ce != nil {
+					ce.Write(log.HexField("id", rsp.ID))
 				}
 				bc.successCallback(rsp)
 			}

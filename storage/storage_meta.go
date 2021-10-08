@@ -13,6 +13,12 @@
 
 package storage
 
+// KVMetadataStore is a KV based data store for storing MatrixCube metadata.
+type KVMetadataStore interface {
+	WriteBatchCreator
+	KVStore
+}
+
 // MetadataStorage is the interface used for storing raft states metadata.
 // We currently use KV store for that.
 type MetadataStorage = KVStorage

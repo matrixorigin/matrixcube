@@ -47,16 +47,17 @@ type Resetable interface {
 
 // Executor is used to execute read/write requests.
 type Executor interface {
-	// UpdateWriteBatch applies write requests into the provided `Context`.
-	UpdateWriteBatch(Context) error
+	// UpdateWriteBatch applies write requests into the provided `WriteContext`.
+	// No writes is allowed to be written to the actual underlying data storage.
+	UpdateWriteBatch(WriteContext) error
 	// ApplyWriteBatch atomically applies the write batch into the underlying
 	// data storage.
 	ApplyWriteBatch(wb Resetable) error
-	// Read execute read requests. The `Context` holds all the requests involved
-	// in this execution. The implementation should call the `SetReadBytes` method
-	// of `Context` to report the statistical changes involved in this execution
-	// before returning.
-	Read(Context) error
+	// Read executes the read request and returns the result. The `ReadContext`
+	// holds the read request to be invoked in this execution. The implementation
+	// should call the `SetReadBytes` method of `Context` to report the
+	// statistical changes involved in this execution before returning.
+	Read(ReadContext) ([]byte, error)
 }
 
 // BaseStorage is the interface to be implemented by all storage types.
@@ -77,6 +78,10 @@ type BaseStorage interface {
 	ApplySnapshot(path string) error
 }
 
+// TODO: it doesn't make sense to allow multiple read operations to be batched
+// and handled together, as we do value concurrent reads. The Read() method
+// below need to be reviewed.
+
 // DataStorage is the interface to be implemented by data engines for storing
 // both table shards data and shards metadata. We assume that data engines are
 // WAL-less engines meaning some of its most recent writes will be lost on
@@ -92,20 +97,23 @@ type BaseStorage interface {
 // GetPersistentLogIndex() + 1.
 type DataStorage interface {
 	BaseStorage
-	// Write applies write requests into the underlying data storage. The `Context`
-	// holds all requests involved and packs as many requests from multiple Raft
-	// logs together as possible. The implementation must ensure that the content
-	// of each LogRequest instance provided by the Context is atomically applied
-	// into the underlying storage. The implementation should call the
-	// `SetWrittenBytes`, `SetReadBytes`, `SetDiffBytes` methods of `Context` to
-	// report the statistical changes involved in applying the specified `Context`
-	// before returning.
-	Write(Context) error
-	// Read execute read requests. The `Context` holds all the requests involved
-	// in this execution. The implementation should call the `SetReadBytes` method
-	// of `Context` to report the statistical changes involved in this execution
-	// before returning.
-	Read(Context) error
+	// Write applies write requests into the underlying data storage. The
+	// `WriteContext` holds all requests involved and packs as many requests from
+	// multiple Raft logs together as possible. The implementation must ensure
+	// that the content of each LogRequest instance provided by the WriteContext
+	// is atomically applied into the underlying storage. The implementation
+	// should call the `SetWrittenBytes` and `SetDiffBytes` methods of the
+	// `WriteContext` to report the statistical changes involved in applying
+	// the specified `WriteContext` before returning.
+	Write(WriteContext) error
+	// TODO: refactor this method again to consider what is the best approach
+	// to avoid extra allocation.
+
+	// Read execute read requests and returns the read result. The `ReadContext`
+	// holds the read request to invoked. The implementation should call the
+	// `SetReadBytes` method of `ReadContext` to report the statistical changes
+	// involved in this execution before returning.
+	Read(ReadContext) ([]byte, error)
 	// GetInitialStates returns the most recent shard states of all shards known
 	// to the DataStorage instance that are consistent with their related table
 	// shards data. The shard metadata is last changed by the raft log identified
@@ -139,20 +147,21 @@ type ShardMetadata struct {
 	Metadata []byte
 }
 
-// TODO: split this to ReadContext and WriteContext
-
-// Context
-type Context interface {
+// WriteContext contains the details of write requests to be handled by the
+// data storage.
+type WriteContext interface {
 	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
 	// WriteBatch returns a write batch which will be used to hold a sequence of
-	// updates to be atomically made into the underlying storage engine.
+	// updates to be atomically made into the underlying storage engine. A
+	// resetable instance is returned by this method and it is up to the user to
+	// cast it to the actual write batch type compatible with the intended data
+	// storage.
 	WriteBatch() Resetable
 	// Shard returns the current shard details.
 	Shard() meta.Shard
-	// Batches returns a list of Batch instance, each representing requests from a
-	// single Raft log.
-	Batches() []Batch
+	// Batch returns the Batch instance transformed from a single Raft log.
+	Batch() Batch
 	// AppendResponse is used for appending responses once each request is handled.
 	AppendResponse([]byte)
 	// SetWrittenBytes set the number of bytes written to storage for all requests
@@ -160,15 +169,24 @@ type Context interface {
 	// contributes to the scheduler's auto-rebalancing feature.
 	// This method must be called before `Read` or `Write` returns.
 	SetWrittenBytes(uint64)
-	// SetReadBytes set the number of bytes read from storage for all requests in
-	// the current context. This is an approximation value that contributes to the
-	// scheduler's auto-rebalancing feature.
-	SetReadBytes(uint64)
 	// SetDiffBytes set the diff of the bytes stored in storage after Write is
 	// executed. This is an approximation value used to modify the approximate
 	// amount of data in the `Shard` which is used for triggering the auto-split
 	// procedure.
 	SetDiffBytes(int64)
+}
+
+type ReadContext interface {
+	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
+	ByteBuf() *buf.ByteBuf
+	// Shard returns the current shard details.
+	Shard() meta.Shard
+	// Requeset returns the read request to be processed on the storage engine.
+	Request() Request
+	// SetReadBytes set the number of bytes read from storage for all requests in
+	// the current context. This is an approximation value that contributes to the
+	// scheduler's auto-rebalancing feature.
+	SetReadBytes(uint64)
 }
 
 // Batch contains a list of requests. For write batches, all requests are from
@@ -193,41 +211,63 @@ type Request struct {
 	Cmd []byte
 }
 
-// SimpleContext is a simple Context implementation used for testing.
-type SimpleContext struct {
+// SimpleWriteContext is a simple WriteContext implementation used for testing.
+type SimpleWriteContext struct {
 	buf          *buf.ByteBuf
 	shard        meta.Shard
 	wb           Resetable
-	requests     []Batch
+	batch        Batch
 	responses    [][]byte
 	writtenBytes uint64
-	readBytes    uint64
 	diffBytes    int64
 }
 
-var _ Context = (*SimpleContext)(nil)
+var _ WriteContext = (*SimpleWriteContext)(nil)
 
-// NewSimpleContext returns a testing context.
-func NewSimpleContext(shard uint64,
-	base KVStorage, requests []Batch) *SimpleContext {
-	c := &SimpleContext{
-		wb:       base.NewWriteBatch(),
-		buf:      buf.NewByteBuf(32),
-		requests: requests,
+// NewSimpleWriteContext returns a testing context.
+func NewSimpleWriteContext(shardID uint64,
+	base KVStorage, batch Batch) *SimpleWriteContext {
+	c := &SimpleWriteContext{
+		wb:    base.NewWriteBatch(),
+		buf:   buf.NewByteBuf(32),
+		batch: batch,
 	}
-	c.shard.ID = shard
+	c.shard.ID = shardID
 	return c
 }
 
-func (ctx *SimpleContext) ByteBuf() *buf.ByteBuf        { return ctx.buf }
-func (ctx *SimpleContext) WriteBatch() Resetable        { return ctx.wb }
-func (ctx *SimpleContext) Shard() meta.Shard            { return ctx.shard }
-func (ctx *SimpleContext) Batches() []Batch             { return ctx.requests }
-func (ctx *SimpleContext) AppendResponse(value []byte)  { ctx.responses = append(ctx.responses, value) }
-func (ctx *SimpleContext) SetWrittenBytes(value uint64) { ctx.writtenBytes = value }
-func (ctx *SimpleContext) SetReadBytes(value uint64)    { ctx.readBytes = value }
-func (ctx *SimpleContext) SetDiffBytes(value int64)     { ctx.diffBytes = value }
-func (ctx *SimpleContext) GetWrittenBytes() uint64      { return ctx.writtenBytes }
-func (ctx *SimpleContext) GetReadBytes() uint64         { return ctx.readBytes }
-func (ctx *SimpleContext) GetDiffBytes() int64          { return ctx.diffBytes }
-func (ctx *SimpleContext) Responses() [][]byte          { return ctx.responses }
+func (ctx *SimpleWriteContext) ByteBuf() *buf.ByteBuf { return ctx.buf }
+func (ctx *SimpleWriteContext) WriteBatch() Resetable { return ctx.wb }
+func (ctx *SimpleWriteContext) Shard() meta.Shard     { return ctx.shard }
+func (ctx *SimpleWriteContext) Batch() Batch          { return ctx.batch }
+func (ctx *SimpleWriteContext) AppendResponse(value []byte) {
+	ctx.responses = append(ctx.responses, value)
+}
+func (ctx *SimpleWriteContext) SetWrittenBytes(value uint64) { ctx.writtenBytes = value }
+func (ctx *SimpleWriteContext) SetDiffBytes(value int64)     { ctx.diffBytes = value }
+func (ctx *SimpleWriteContext) GetWrittenBytes() uint64      { return ctx.writtenBytes }
+func (ctx *SimpleWriteContext) GetDiffBytes() int64          { return ctx.diffBytes }
+func (ctx *SimpleWriteContext) Responses() [][]byte          { return ctx.responses }
+
+type SimpleReadContext struct {
+	buf       *buf.ByteBuf
+	shard     meta.Shard
+	request   Request
+	readBytes uint64
+}
+
+// NewSimpleReadContext returns a testing context.
+func NewSimpleReadContext(shardID uint64, req Request) *SimpleReadContext {
+	c := &SimpleReadContext{
+		buf:     buf.NewByteBuf(32),
+		request: req,
+	}
+	c.shard.ID = shardID
+	return c
+}
+
+func (c *SimpleReadContext) ByteBuf() *buf.ByteBuf         { return c.buf }
+func (c *SimpleReadContext) Shard() meta.Shard             { return c.shard }
+func (c *SimpleReadContext) Request() Request              { return c.request }
+func (c *SimpleReadContext) SetReadBytes(readBytes uint64) { c.readBytes = readBytes }
+func (c *SimpleReadContext) GetReadBytes() uint64          { return c.readBytes }

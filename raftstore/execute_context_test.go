@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBacth(t *testing.T) {
+func TestWriteContextCanBeInitialized(t *testing.T) {
 	cases := []struct {
 		batch rpc.RequestBatch
 	}{
@@ -38,25 +38,22 @@ func TestBacth(t *testing.T) {
 		},
 	}
 
+	shard := Shard{ID: 12345}
 	fs := vfs.GetTestFS()
-	ctx := newExecuteContext(mem.NewStorage(fs))
+	ctx := newWriteContext(mem.NewStorage(fs))
 	assert.False(t, ctx.hasRequest())
 	for i, c := range cases {
-		ctx.appendRequestBatch(c.batch)
+		ctx.initialize(shard, c.batch)
 		assert.True(t, ctx.hasRequest())
-		assert.Equal(t, len(ctx.batches[i].requestBatch.Requests), len(c.batch.Requests), "index %d", i)
-		assert.Equal(t, ctx.batches[i].requestBatch, c.batch, "index %d", i)
-
-		for j, req := range ctx.batches[i].requestBatch.Requests {
-			assert.Equal(t, req, c.batch.Requests[j], "index %d, %d request", i, j)
+		assert.Equal(t, len(c.batch.Requests), len(ctx.batch.Requests), "index %d", i)
+		for idx := range c.batch.Requests {
+			assert.Equal(t, c.batch.Requests[idx].CustomType, ctx.batch.Requests[idx].CmdType)
+			assert.Equal(t, c.batch.Requests[idx].Key, ctx.batch.Requests[idx].Key)
+			assert.Equal(t, c.batch.Requests[idx].Cmd, ctx.batch.Requests[idx].Cmd)
 		}
+		assert.Empty(t, ctx.responses)
+		assert.Equal(t, shard, ctx.shard)
 	}
-
-	ctx.reset(Shard{})
-	assert.Empty(t, ctx.requests)
-	assert.Empty(t, ctx.batches)
-	assert.Empty(t, ctx.responses)
-	assert.Equal(t, Shard{}, ctx.shard)
 }
 
 func newTestRPCRequests(n uint64) []rpc.Request {
@@ -65,7 +62,7 @@ func newTestRPCRequests(n uint64) []rpc.Request {
 		requests = append(requests, rpc.Request{
 			ID:         []byte(fmt.Sprintf("%d", n)),
 			Key:        []byte(fmt.Sprintf("%d", n)),
-			CustemType: n,
+			CustomType: n,
 		})
 	}
 	return requests

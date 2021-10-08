@@ -75,10 +75,10 @@ func TestSplitCheck(t *testing.T) {
 
 			end := []byte("k5")
 
-			assert.NoError(t, kv.Set(key1, value1))
-			assert.NoError(t, kv.Set(key2, value2))
-			assert.NoError(t, kv.Set(key3, value3))
-			assert.NoError(t, kv.Set(key4, value4))
+			assert.NoError(t, kv.Set(key1, value1, false))
+			assert.NoError(t, kv.Set(key2, value2, false))
+			assert.NoError(t, kv.Set(key3, value3, false))
+			assert.NoError(t, kv.Set(key4, value4, false))
 
 			// [key1, key5), after split ranges: [key1, key2), [key2, key3), [key3, key4), [key4, key5)
 			total, keys, splitKeys, err := s.SplitCheck(key1, end, 4)
@@ -140,15 +140,15 @@ func TestCreateAndApply(t *testing.T) {
 			key2 := []byte("key2")
 			value2 := []byte("value2")
 
-			assert.NoError(t, kv1.Set(key1, value1), "TestCreateAndApply failed")
-			assert.NoError(t, kv1.Set(key2, value2), "TestCreateAndApply failed")
+			assert.NoError(t, kv1.Set(key1, value1, false), "TestCreateAndApply failed")
+			assert.NoError(t, kv1.Set(key2, value2, false), "TestCreateAndApply failed")
 
 			err = s1.CreateSnapshot(path, key1, key2)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
 			key4 := []byte("key4")
 			value4 := []byte("value4")
-			assert.NoError(t, kv2.Set(key4, value4), "TestCreateAndApply failed")
+			assert.NoError(t, kv2.Set(key4, value4, false), "TestCreateAndApply failed")
 
 			err = s2.ApplySnapshot(path)
 			assert.NoError(t, err, "TestCreateAndApply failed")

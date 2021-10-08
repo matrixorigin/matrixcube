@@ -425,15 +425,15 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			s.storeField(),
 			log.ShardIDField(rsp.ResourceID),
 			log.ConfigChangeFieldWithHeartbeatResp("change", rsp))
-		pr.onAdmin(newConfigChangeAdminReq(rsp))
+		pr.addAdminRequest(newConfigChangeAdminReq(rsp))
 	} else if rsp.ConfigChangeV2 != nil {
 		s.logger.Info("send conf change request",
 			s.storeField(),
 			log.ShardIDField(rsp.ResourceID),
 			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
-		pr.onAdmin(newConfigChangeV2AdminReq(rsp))
+		pr.addAdminRequest(newConfigChangeV2AdminReq(rsp))
 	} else if rsp.TransferLeader != nil {
-		pr.onAdmin(newTransferLeaderAdminReq(rsp))
+		pr.addAdminRequest(newTransferLeaderAdminReq(rsp))
 	} else if rsp.SplitResource != nil {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitResource.Policy {

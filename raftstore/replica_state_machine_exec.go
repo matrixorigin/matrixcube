@@ -36,9 +36,9 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	cmdType := ctx.req.AdminRequest.CmdType
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
-		return d.doExecChangeReplica(ctx)
+		return d.doExecConfigChange(ctx)
 	case rpc.AdminCmdType_ConfigChangeV2:
-		return d.doExecChangeReplicaV2(ctx)
+		return d.doExecConfigChangeV2(ctx)
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	}
@@ -46,20 +46,19 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	return rpc.ResponseBatch{}, nil
 }
 
-func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChange
 	replica := req.Replica
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica",
-		zap.Uint64("index", ctx.entry.Index),
+		zap.Uint64("index", ctx.index),
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", req))
 
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
-
 	p := findReplica(&res, req.Replica.ContainerID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
@@ -73,7 +72,6 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 			}
 			p.Role = metapb.ReplicaRole_Voter
 		}
-
 		if !exists {
 			res.Replicas = append(res.Replicas, replica)
 		}
@@ -84,11 +82,10 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 					res.ID,
 					replica)
 			}
-
 			if d.replicaID == replica.ID {
 				// Remove ourself, we will destroy all shard data later.
 				// So we need not to apply following logs.
-				d.setPendingRemove()
+				d.setRemoved()
 			}
 		} else {
 			return rpc.ResponseBatch{}, fmt.Errorf("shard %+v remove missing replica %+v",
@@ -101,17 +98,14 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 				res.ID,
 				replica)
 		}
-
 		res.Replicas = append(res.Replicas, replica)
 	}
-
 	state := meta.ReplicaState_Normal
-	if d.isPendingRemove() {
+	if d.isRemoved() {
 		state = meta.ReplicaState_Tombstone
 	}
-
 	d.updateShard(res)
-	err := d.saveShardMetedata(ctx.entry.Index, res, state)
+	err := d.saveShardMetedata(ctx.index, res, state)
 	if err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
@@ -124,10 +118,10 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
-	ctx.adminResult = &adminExecResult{
+	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
-			index:   ctx.entry.Index,
+			index:   ctx.index,
 			changes: []rpc.ConfigChangeRequest{*req},
 			shard:   res,
 		},
@@ -135,23 +129,23 @@ func (d *stateMachine) doExecChangeReplica(ctx *applyContext) (rpc.ResponseBatch
 	return resp, nil
 }
 
-func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatch, error) {
 	req := ctx.req.AdminRequest.ConfigChangeV2
 	changes := req.Changes
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica v2",
-		zap.Uint64("index", ctx.entry.Index),
+		zap.Uint64("index", ctx.index),
 		log.ShardField("current", current),
 		log.ConfigChangesField("requests", changes))
 
 	var res Shard
 	var err error
-	kind := getConfChangeKind(len(changes))
+	kind := getConfigChangeKind(len(changes))
 	if kind == leaveJointKind {
 		res, err = d.applyLeaveJoint()
 	} else {
-		res, err = d.applyConfChangeByKind(kind, changes)
+		res, err = d.applyConfigChangeByKind(kind, changes)
 	}
 
 	if err != nil {
@@ -159,12 +153,12 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	}
 
 	state := meta.ReplicaState_Normal
-	if d.isPendingRemove() {
+	if d.isRemoved() {
 		state = meta.ReplicaState_Tombstone
 	}
 
 	d.updateShard(res)
-	err = d.saveShardMetedata(ctx.entry.Index, res, state)
+	err = d.saveShardMetedata(ctx.index, res, state)
 	if err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
@@ -177,10 +171,10 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
 		Shard: res,
 	})
-	ctx.adminResult = &adminExecResult{
+	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
-			index:   ctx.entry.Index,
+			index:   ctx.index,
 			changes: changes,
 			shard:   res,
 		},
@@ -188,7 +182,8 @@ func (d *stateMachine) doExecChangeReplicaV2(ctx *applyContext) (rpc.ResponseBat
 	return resp, nil
 }
 
-func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.ConfigChangeRequest) (Shard, error) {
+func (d *stateMachine) applyConfigChangeByKind(kind confChangeKind,
+	changes []rpc.ConfigChangeRequest) (Shard, error) {
 	res := Shard{}
 	current := d.getShard()
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
@@ -202,7 +197,7 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 		if exist_replica != nil {
 			r := exist_replica.Role
 			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
-				d.logger.Fatal("can't apply confchange because configuration is still in joint state")
+				d.logger.Fatal("can't apply confchange when still in joint state")
 			}
 		}
 
@@ -266,7 +261,7 @@ func (d *stateMachine) applyConfChangeByKind(kind confChangeKind, changes []rpc.
 				if d.replicaID == replica.ID {
 					// Remove ourself, we will destroy all region data later.
 					// So we need not to apply following logs.
-					d.setPendingRemove()
+					d.setRemoved()
 				}
 			}
 		}
@@ -413,14 +408,13 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
-	ctx.writeCtx.reset(d.getShard())
-	ctx.writeCtx.appendRequestBatch(ctx.req)
+	d.writeCtx.initialize(d.getShard(), ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zapcore.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-	if err := d.dataStorage.Write(ctx.writeCtx); err != nil {
+	if err := d.dataStorage.Write(d.writeCtx); err != nil {
 		d.logger.Fatal("fail to exec read cmd",
 			zap.Error(err))
 	}
@@ -430,31 +424,31 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 	}
 
 	resp := rpc.ResponseBatch{}
-	for _, v := range ctx.writeCtx.responses {
+	for _, v := range d.writeCtx.responses {
 		ctx.metrics.writtenKeys++
-		r := rpc.Response{}
-		r.Value = v
+		r := rpc.Response{Value: v}
 		resp.Responses = append(resp.Responses, r)
 	}
-	d.updateWriteMetrics(ctx)
+	d.updateWriteMetrics()
 	return resp
 }
 
-func (d *stateMachine) updateWriteMetrics(ctx *applyContext) {
-	ctx.metrics.writtenBytes += ctx.writeCtx.writtenBytes
-	if ctx.writeCtx.diffBytes < 0 {
-		v := uint64(math.Abs(float64(ctx.writeCtx.diffBytes)))
-		if v >= ctx.metrics.sizeDiffHint {
-			ctx.metrics.sizeDiffHint = 0
+func (d *stateMachine) updateWriteMetrics() {
+	d.applyCtx.metrics.writtenBytes += d.writeCtx.writtenBytes
+	if d.writeCtx.diffBytes < 0 {
+		v := uint64(math.Abs(float64(d.writeCtx.diffBytes)))
+		if v >= d.applyCtx.metrics.sizeDiffHint {
+			d.applyCtx.metrics.sizeDiffHint = 0
 		} else {
-			ctx.metrics.sizeDiffHint -= v
+			d.applyCtx.metrics.sizeDiffHint -= v
 		}
 	} else {
-		ctx.metrics.sizeDiffHint += uint64(ctx.writeCtx.diffBytes)
+		d.applyCtx.metrics.sizeDiffHint += uint64(d.writeCtx.diffBytes)
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64, shard Shard, state meta.ReplicaState) error {
+func (d *stateMachine) saveShardMetedata(index uint64,
+	shard Shard, state meta.ReplicaState) error {
 	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{storage.ShardMetadata{
 		ShardID:  shard.ID,
 		LogIndex: index,

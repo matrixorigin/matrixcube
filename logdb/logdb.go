@@ -90,7 +90,7 @@ type LogDB interface {
 
 type KVLogDB struct {
 	state raftpb.HardState
-	ms    storage.MetadataStorage
+	ms    storage.KVMetadataStore
 	wb    util.WriteBatch
 	// FIXME: wbuf is unsafe as it will be concurrently accessed from multiple
 	// worker goroutines.
@@ -99,7 +99,7 @@ type KVLogDB struct {
 
 var _ LogDB = (*KVLogDB)(nil)
 
-func NewKVLogDB(ms storage.MetadataStorage) *KVLogDB {
+func NewKVLogDB(ms storage.KVMetadataStore) *KVLogDB {
 	return &KVLogDB{
 		ms:   ms,
 		wb:   ms.NewWriteBatch().(util.WriteBatch),
@@ -232,7 +232,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
 	startKey := keys.GetRaftLogKey(shardID, 0)
 	endKey := keys.GetRaftLogKey(shardID, index+1)
-	return l.ms.RangeDelete(startKey, endKey)
+	return l.ms.RangeDelete(startKey, endKey, true)
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, peerID uint64) (uint64, error) {

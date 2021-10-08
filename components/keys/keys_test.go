@@ -30,8 +30,8 @@ func TestIsRaftLogKey(t *testing.T) {
 		{GetRaftLogKey(1, math.MaxUint64), true},
 		{GetHardStateKey(1, 1), false},
 		{GetMaxIndexKey(1), false},
-		{GetDataStorageAppliedIndexKey(1), false},
-		{GetDataStorageMetadataKey(1), false},
+		{GetAppliedIndexKey(1), false},
+		{GetMetadataKey(1, 1), false},
 	}
 
 	for idx, tt := range tests {
@@ -41,17 +41,34 @@ func TestIsRaftLogKey(t *testing.T) {
 	}
 }
 
-func TestDecodeDataStorageAppliedIndexKey(t *testing.T) {
+func TestDecodeAppliedIndexKey(t *testing.T) {
 	tests := []struct {
 		id     uint64
 		result uint64
 	}{
-		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(0)), 0},
-		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(1)), 1},
-		{DecodeDataStorageAppliedIndexKey(GetDataStorageAppliedIndexKey(math.MaxUint64)), math.MaxUint64},
+		{DecodeAppliedIndexKey(GetAppliedIndexKey(0)), 0},
+		{DecodeAppliedIndexKey(GetAppliedIndexKey(1)), 1},
+		{DecodeAppliedIndexKey(GetAppliedIndexKey(math.MaxUint64)), math.MaxUint64},
 	}
 
 	for idx, ct := range tests {
 		assert.Equal(t, ct.id, ct.result, "index %d", idx)
+	}
+}
+
+func TestGetMetadataIndex(t *testing.T) {
+	tests := []struct {
+		key   []byte
+		index uint64
+	}{
+		{GetMetadataKey(100, 1), 1},
+		{GetMetadataKey(100, 11), 11},
+		{GetMetadataKey(100, math.MaxUint64), math.MaxUint64},
+	}
+
+	for _, tt := range tests {
+		v, err := GetMetadataIndex(tt.key)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.index, v)
 	}
 }

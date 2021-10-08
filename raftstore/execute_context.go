@@ -2,94 +2,124 @@ package raftstore
 
 import (
 	"github.com/fagongzi/goetty/buf"
+
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
-type executeContext struct {
+// FIXME: both writeContext and readContext hold a buf.ByteBuf which is
+// unbounded in size after use. given we can have many replicas on each
+// machine, the total memory consumption can thus be huge. we need the
+// buf.ByteBuf to have the ability to shrink when realizing that its
+// capacity is significantly higher than recent demands. for
+// writeContext, another optimization is to have it for each worker
+// rather than one for each state machine.
+type writeContext struct {
 	shard        Shard
 	wb           storage.Resetable
 	buf          *buf.ByteBuf
-	batches      []batch
-	requests     []storage.Batch
+	batch        storage.Batch
 	responses    [][]byte
 	writtenBytes uint64
 	diffBytes    int64
-	readBytes    uint64
 }
 
-func newExecuteContext(base storage.BaseStorage) *executeContext {
-	return &executeContext{
+var _ storage.WriteContext = (*writeContext)(nil)
+
+func newWriteContext(base storage.BaseStorage) *writeContext {
+	return &writeContext{
 		buf: buf.NewByteBuf(128),
 		wb:  base.NewWriteBatch(),
 	}
 }
 
-func (ctx *executeContext) close() {
+func (ctx *writeContext) close() {
 	ctx.buf.Release()
 }
 
-func (ctx *executeContext) appendRequestBatch(req rpc.RequestBatch) {
-	ctx.appendBatch(batch{requestBatch: req})
+func (ctx *writeContext) hasRequest() bool {
+	return len(ctx.batch.Requests) > 0
 }
 
-func (ctx *executeContext) appendBatch(c batch) {
-	b := storage.Batch{}
-	for _, req := range c.requestBatch.Requests {
-		b.Requests = append(b.Requests, storage.Request{
-			CmdType: req.CustemType,
-			Key:     req.Key,
-			Cmd:     req.Cmd,
-		})
-	}
-
-	ctx.requests = append(ctx.requests, b)
-	ctx.batches = append(ctx.batches, c)
-}
-
-func (ctx *executeContext) hasRequest() bool {
-	return len(ctx.batches) > 0
-}
-
-func (ctx *executeContext) WriteBatch() storage.Resetable {
+func (ctx *writeContext) WriteBatch() storage.Resetable {
 	return ctx.wb
 }
 
-func (ctx *executeContext) ByteBuf() *buf.ByteBuf {
+func (ctx *writeContext) ByteBuf() *buf.ByteBuf {
 	return ctx.buf
 }
 
-func (ctx *executeContext) Shard() Shard {
+func (ctx *writeContext) Shard() Shard {
 	return ctx.shard
 }
 
-func (ctx *executeContext) Batches() []storage.Batch {
-	return ctx.requests
+func (ctx *writeContext) Batch() storage.Batch {
+	return ctx.batch
 }
 
-func (ctx *executeContext) AppendResponse(resp []byte) {
+func (ctx *writeContext) AppendResponse(resp []byte) {
 	ctx.responses = append(ctx.responses, resp)
 }
 
-func (ctx *executeContext) SetWrittenBytes(value uint64) {
+func (ctx *writeContext) SetWrittenBytes(value uint64) {
 	ctx.writtenBytes = value
 }
 
-func (ctx *executeContext) SetReadBytes(value uint64) {
-	ctx.readBytes = value
-}
-
-func (ctx *executeContext) SetDiffBytes(value int64) {
+func (ctx *writeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *executeContext) reset(shard Shard) {
+func (ctx *writeContext) initialize(shard Shard, batch rpc.RequestBatch) {
 	ctx.buf.Clear()
 	ctx.shard = shard
-	ctx.batches = ctx.batches[:0]
-	ctx.requests = ctx.requests[:0]
+	ctx.batch = storage.Batch{}
 	ctx.responses = ctx.responses[:0]
 	ctx.writtenBytes = 0
 	ctx.diffBytes = 0
+
+	for _, r := range batch.Requests {
+		ctx.batch.Requests = append(ctx.batch.Requests, storage.Request{
+			CmdType: r.CustomType,
+			Key:     r.Key,
+			Cmd:     r.Cmd,
+		})
+	}
+}
+
+type readContext struct {
+	shard     Shard
+	buf       *buf.ByteBuf
+	request   storage.Request
+	readBytes uint64
+}
+
+var _ storage.ReadContext = (*readContext)(nil)
+
+func newReadContext() *readContext {
+	return &readContext{
+		buf: buf.NewByteBuf(128),
+	}
+}
+
+func (ctx *readContext) ByteBuf() *buf.ByteBuf {
+	return ctx.buf
+}
+
+func (ctx *readContext) Shard() Shard {
+	return ctx.shard
+}
+
+func (ctx *readContext) Request() storage.Request {
+	return ctx.request
+}
+
+func (ctx *readContext) SetReadBytes(value uint64) {
+	ctx.readBytes = value
+}
+
+func (ctx *readContext) reset(shard Shard, req storage.Request) {
+	ctx.shard = shard
+	ctx.request = req
+	ctx.buf.Clear()
 	ctx.readBytes = 0
 }

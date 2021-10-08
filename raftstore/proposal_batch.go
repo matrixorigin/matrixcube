@@ -45,9 +45,10 @@ type reqCtx struct {
 }
 
 func newAdminReqCtx(req rpc.AdminRequest) reqCtx {
-	ctx := reqCtx{admin: req}
-	ctx.reqType = admin
-	return ctx
+	return reqCtx{
+		admin:   req,
+		reqType: admin,
+	}
 }
 
 func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
@@ -60,8 +61,7 @@ func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
 	return ctx
 }
 
-// TODO: rename this struct to proposalBatch
-type proposeBatch struct {
+type proposalBatch struct {
 	logger  *zap.Logger
 	maxSize uint64
 	shardID uint64
@@ -70,12 +70,12 @@ type proposeBatch struct {
 	batches []batch
 }
 
-func newProposeBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposeBatch {
+func newProposalBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposalBatch {
 	if logger == nil {
 		logger = config.GetDefaultZapLogger()
 	}
 
-	return &proposeBatch{
+	return &proposalBatch{
 		logger:  logger,
 		maxSize: maxSize,
 		shardID: shardID,
@@ -84,15 +84,15 @@ func newProposeBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica
 	}
 }
 
-func (b *proposeBatch) size() int {
+func (b *proposalBatch) size() int {
 	return len(b.batches)
 }
 
-func (b *proposeBatch) isEmpty() bool {
+func (b *proposalBatch) isEmpty() bool {
 	return b.size() == 0
 }
 
-func (b *proposeBatch) pop() (batch, bool) {
+func (b *proposalBatch) pop() (batch, bool) {
 	if b.isEmpty() {
 		return emptyCMD, false
 	}
@@ -109,7 +109,7 @@ func (b *proposeBatch) pop() (batch, bool) {
 
 // push adds the specified req to a proposalBatch. The epoch value should
 // reflect client's view of the shard when the request is made.
-func (b *proposeBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) {
+func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) {
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb

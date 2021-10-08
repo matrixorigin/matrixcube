@@ -69,10 +69,10 @@ func (s *Storage) Stats() stats.Stats {
 }
 
 // Set put the key, value pair to the storage
-func (s *Storage) Set(key []byte, value []byte) error {
+func (s *Storage) Set(key []byte, value []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
-	return s.db.Set(key, value, pebble.NoSync)
+	return s.db.Set(key, value, toWriteOptions(sync))
 }
 
 // Get returns the value of the key
@@ -96,17 +96,17 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 }
 
 // Delete remove the key from the storage
-func (s *Storage) Delete(key []byte) error {
+func (s *Storage) Delete(key []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)))
-	return s.db.Delete(key, pebble.NoSync)
+	return s.db.Delete(key, toWriteOptions(sync))
 }
 
 // RangeDelete remove data in [start,end)
-func (s *Storage) RangeDelete(start, end []byte) error {
+func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 2)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(start)+len(end)))
-	return s.db.DeleteRange(start, end, pebble.NoSync)
+	return s.db.DeleteRange(start, end, toWriteOptions(sync))
 }
 
 // Scan scans the key-value pairs in [start, end), and perform with a handler function, if the function
@@ -241,7 +241,7 @@ func (s *Storage) Sync() error {
 	atomic.AddUint64(&s.stats.SyncCount, 1)
 	wb := s.db.NewBatch()
 	defer wb.Close()
-	wb.Set(keys.ForcedSyncKey, keys.ForcedSyncKey, pebble.Sync)
+	wb.Set(keys.ForcedSyncKey, keys.ForcedSyncKey, nil)
 	return s.db.Apply(wb, pebble.Sync)
 }
 
@@ -253,13 +253,11 @@ func (s *Storage) NewWriteBatch() storage.Resetable {
 // Write write the data in batch
 func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
 	wb := uwb.(*writeBatch)
-	b := wb.batch
-	opts := pebble.NoSync
-	if sync {
-		opts = pebble.Sync
-	}
-	return s.db.Apply(b, opts)
+	return s.db.Apply(wb.batch, toWriteOptions(sync))
 }
+
+// TODO: change the snapshot ops below to sst ingestion based with
+// special attention paid to its sync state.
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
@@ -367,6 +365,13 @@ func (s *Storage) ApplySnapshot(path string) error {
 // Close close the storage
 func (s *Storage) Close() error {
 	return s.db.Close()
+}
+
+func toWriteOptions(sync bool) *pebble.WriteOptions {
+	if sync {
+		return pebble.Sync
+	}
+	return pebble.NoSync
 }
 
 func clone(value []byte) []byte {

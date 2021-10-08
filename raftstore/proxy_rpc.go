@@ -17,6 +17,7 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -35,6 +36,9 @@ type defaultRPC struct {
 }
 
 func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpc.Request) error) proxyRPC {
+	if logger == nil {
+		logger = config.GetDefaultZapLogger()
+	}
 	rpc := &defaultRPC{
 		logger:  logger,
 		handler: handler,

@@ -53,14 +53,14 @@ func (s *Storage) Stats() stats.Stats {
 }
 
 // Set put the key, value pair to the storage
-func (s *Storage) Set(key []byte, value []byte) error {
+func (s *Storage) Set(key []byte, value []byte, _ bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
-	return s.SetWithTTL(key, value, 0)
+	return s.setWithTTL(key, value, 0)
 }
 
-// SetWithTTL put the key, value pair to the storage with a ttl in seconds
-func (s *Storage) SetWithTTL(key []byte, value []byte, ttl int32) error {
+// setWithTTL put the key, value pair to the storage with a ttl in seconds
+func (s *Storage) setWithTTL(key []byte, value []byte, ttl int32) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
 
@@ -79,7 +79,7 @@ func (s *Storage) Get(key []byte) ([]byte, error) {
 }
 
 // Delete remove the key from the storage
-func (s *Storage) Delete(key []byte) error {
+func (s *Storage) Delete(key []byte, _ bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(key)))
 	s.kv.Delete(key)
@@ -87,7 +87,7 @@ func (s *Storage) Delete(key []byte) error {
 }
 
 // RangeDelete remove data in [start,end)
-func (s *Storage) RangeDelete(start, end []byte) error {
+func (s *Storage) RangeDelete(start, end []byte, _ bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 2)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(start)+len(end)))
 	s.kv.RangeDelete(start, end)
@@ -172,7 +172,7 @@ func (s *Storage) NewWriteBatch() storage.Resetable {
 }
 
 // Write write the data in batch
-func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
+func (s *Storage) Write(uwb util.WriteBatch, _ bool) error {
 	wb := uwb.(*writeBatch)
 	if len(wb.Ops) == 0 {
 		return nil
@@ -181,9 +181,9 @@ func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
 	for idx, op := range wb.Ops {
 		switch op {
 		case delete:
-			s.Delete(wb.Keys[idx])
+			s.Delete(wb.Keys[idx], false)
 		case set:
-			s.SetWithTTL(wb.Keys[idx], wb.Values[idx], wb.TTLs[idx])
+			s.setWithTTL(wb.Keys[idx], wb.Values[idx], wb.TTLs[idx])
 		}
 	}
 	return nil
