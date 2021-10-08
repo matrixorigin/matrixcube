@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -56,9 +55,6 @@ type replica struct {
 	pendingReads          *readIndexQueue
 	pendingProposals      *pendingProposals
 	sm                    *stateMachine
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	events                *task.RingBuffer
 	ticks                 *task.Queue
 	messages              *task.Queue
 	feedbacks             *task.Queue
@@ -83,8 +79,11 @@ type replica struct {
 	approximateSize uint64
 	approximateKeys uint64
 
-	metrics  localMetrics
-	stopOnce sync.Once
+	metrics localMetrics
+
+	closedC   chan struct{}
+	unloadedC chan struct{}
+	stopOnce  sync.Once
 }
 
 // createReplica called in:
@@ -130,11 +129,8 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		return nil, fmt.Errorf("invalid replica %+v", r)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	maxBatchSize := uint64(store.cfg.Raft.MaxEntryBytes)
 	pr := &replica{
-		ctx:               ctx,
-		cancel:            cancel,
 		logger:            l,
 		store:             store,
 		replica:           r,
@@ -150,7 +146,8 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
 		items:             make([]interface{}, readyBatch),
-		events:            task.NewRingBuffer(2),
+		closedC:           make(chan struct{}),
+		unloadedC:         make(chan struct{}),
 	}
 	pr.sm = newStateMachine(pr, *shard)
 	return pr, nil
@@ -212,8 +209,49 @@ func (pr *replica) start() {
 	pr.logger.Info("replica started")
 }
 
-func (pr *replica) stopEventLoop() {
-	pr.events.Dispose()
+func (pr *replica) close() {
+	pr.requestRemoval()
+}
+
+func (pr *replica) closed() bool {
+	select {
+	case <-pr.closedC:
+		return true
+	default:
+	}
+	return false
+}
+
+func (pr *replica) unloaded() bool {
+	select {
+	case <-pr.unloadedC:
+		return true
+	default:
+	}
+	return false
+}
+
+func (pr *replica) confirmUnloaded() {
+	close(pr.unloadedC)
+}
+
+func (pr *replica) waitUnloaded() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			pr.logger.Info("slow to be unloaded")
+		case <-pr.unloadedC:
+			return
+		}
+	}
+}
+
+func (pr *replica) requestRemoval() {
+	pr.stopOnce.Do(func() {
+		close(pr.closedC)
+	})
 }
 
 func (pr *replica) getShard() Shard {
@@ -299,7 +337,6 @@ func (pr *replica) waitStarted() {
 
 func (pr *replica) notifyWorker() {
 	pr.waitStarted()
-	pr.events.Offer(struct{}{})
 	pr.store.workerPool.notify(pr.shardID)
 }
 

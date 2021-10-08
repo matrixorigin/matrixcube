@@ -67,7 +67,8 @@ func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
 		}
 	}
 
-	pr.cancel()
+	// FIXME: destroy has not been tested.
+	pr.close()
 	if len(shard.Replicas) > 0 && !pr.store.removeShardKeyRange(shard) {
 		pr.logger.Warn("fail to remove key range",
 			zap.Error(err))
