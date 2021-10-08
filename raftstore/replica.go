@@ -58,12 +58,12 @@ type replica struct {
 	sm                    *stateMachine
 	ctx                   context.Context
 	cancel                context.CancelFunc
-	items                 []interface{}
 	events                *task.RingBuffer
 	ticks                 *task.Queue
 	messages              *task.Queue
 	feedbacks             *task.Queue
 	requests              *task.Queue
+	items                 []interface{}
 	// TODO: check why this is required, why those so called actions can't be
 	// directly executed. also check that some of those actions have prophet
 	// client involved, need to make sure that potential network IO won't block
@@ -149,8 +149,8 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
-		events:            task.NewRingBuffer(2),
 		items:             make([]interface{}, readyBatch),
+		events:            task.NewRingBuffer(2),
 	}
 	pr.sm = newStateMachine(pr, *shard)
 	return pr, nil

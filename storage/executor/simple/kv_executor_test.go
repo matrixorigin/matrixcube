@@ -14,7 +14,7 @@ import (
 func TestReadAndWrite(t *testing.T) {
 	cases := []struct {
 		shard        uint64
-		requests     []storage.Batch
+		requests     storage.Batch
 		responses    [][]byte
 		appliedIndex uint64
 		write        bool
@@ -26,7 +26,7 @@ func TestReadAndWrite(t *testing.T) {
 		},
 		{
 			shard:        1,
-			requests:     newWriteRequests(1, 1, 1, 2),
+			requests:     newWriteRequests(1, 1, 2),
 			responses:    newWriteResponses(1, 1, 2),
 			appliedIndex: 1,
 			write:        true,
@@ -44,7 +44,7 @@ func TestReadAndWrite(t *testing.T) {
 		},
 		{
 			shard:        2,
-			requests:     newWriteRequests(2, 1, 1, 2),
+			requests:     newWriteRequests(2, 1, 2),
 			responses:    newWriteResponses(1, 1, 2),
 			appliedIndex: 1,
 			write:        true,
@@ -63,35 +63,33 @@ func TestReadAndWrite(t *testing.T) {
 	executor := NewSimpleKVExecutor(kv)
 
 	for i, c := range cases {
-		ctx := storage.NewSimpleContext(c.shard, kv, c.requests)
 		if c.write {
+			ctx := storage.NewSimpleWriteContext(c.shard, kv, c.requests)
 			assert.NoError(t, executor.UpdateWriteBatch(ctx), "index %d", i)
 			assert.NoError(t, executor.ApplyWriteBatch(ctx.WriteBatch()), "index %d", i)
-		} else {
-			assert.NoError(t, executor.Read(ctx), "index %d", i)
-		}
-		assert.True(t, reflect.DeepEqual(c.responses, ctx.Responses()), "index %d, responses %+v", i, ctx.Responses())
-
-		if c.write {
+			assert.True(t, reflect.DeepEqual(c.responses, ctx.Responses()), "index %d, responses %+v", i, ctx.Responses())
 			assert.True(t, ctx.GetWrittenBytes() > 0, "index %d", i)
 			assert.True(t, ctx.GetDiffBytes() > 0, "index %d", i)
+		} else {
+			for idx, req := range c.requests.Requests {
+				ctx := storage.NewSimpleReadContext(c.shard, req)
+				rsp, err := executor.Read(ctx)
+				assert.NoError(t, err, "index %d", i)
+				assert.Equal(t, c.responses[idx], rsp, "index %d", i)
+			}
 		}
 	}
 }
 
-func newWriteRequests(shard uint64, logN, keyStart, keyEnd uint64) []storage.Batch {
-	var requests []storage.Batch
-	for i := uint64(0); i < logN; i++ {
-		r := storage.Batch{}
-		r.Index = keyEnd - 1
+func newWriteRequests(shard uint64, keyStart, keyEnd uint64) storage.Batch {
+	r := storage.Batch{}
+	r.Index = keyEnd - 1
 
-		for j := keyStart; j < keyEnd; j++ {
-			r.Requests = append(r.Requests, NewWriteRequest([]byte(fmt.Sprintf("%d-%d", shard, j)),
-				[]byte(fmt.Sprintf("%d-%d", shard, j))))
-		}
-		requests = append(requests, r)
+	for j := keyStart; j < keyEnd; j++ {
+		r.Requests = append(r.Requests, NewWriteRequest([]byte(fmt.Sprintf("%d-%d", shard, j)),
+			[]byte(fmt.Sprintf("%d-%d", shard, j))))
 	}
-	return requests
+	return r
 }
 
 func newWriteResponses(logN, keyStart, keyEnd uint64) [][]byte {
@@ -105,14 +103,12 @@ func newWriteResponses(logN, keyStart, keyEnd uint64) [][]byte {
 	return responses
 }
 
-func newReadRequests(shard uint64, keyStart, keyEnd uint64) []storage.Batch {
-	var requests []storage.Batch
+func newReadRequests(shard uint64, keyStart, keyEnd uint64) storage.Batch {
 	r := storage.Batch{}
 	for j := keyStart; j < keyEnd; j++ {
 		r.Requests = append(r.Requests, NewReadRequest([]byte(fmt.Sprintf("%d-%d", shard, j))))
 	}
-	requests = append(requests, r)
-	return requests
+	return r
 }
 
 func newReadResponses(shard uint64, keyStart, keyEnd uint64, exists bool) [][]byte {

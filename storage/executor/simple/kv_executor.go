@@ -84,7 +84,6 @@ func (ce *simpleKVExecutor) Read(ctx storage.ReadContext) ([]byte, error) {
 	default:
 		panic(fmt.Errorf("invalid read cmd %d", request.CmdType))
 	}
-	panic("not suppose to reach here")
 }
 
 // NewWriteRequest return write request

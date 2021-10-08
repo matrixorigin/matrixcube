@@ -74,10 +74,10 @@ func (h *testHandler) BuildRequest(req *rpc.Request, msg interface{}) error {
 	req.Key = []byte(cmd.Key)
 	switch cmdName {
 	case "SET":
-		req.CustemType = 1
+		req.CustomType = 1
 		req.Type = rpc.CmdType_Write
 	case "GET":
-		req.CustemType = 2
+		req.CustomType = 2
 		req.Type = rpc.CmdType_Read
 
 	}
