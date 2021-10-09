@@ -95,64 +95,55 @@ func (pr *replica) onRaftTick(arg interface{}) {
 	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
-func (pr *replica) onStop() {
-	pr.stopOnce.Do(func() {
-		pr.metrics.flush()
-		pr.actions.Dispose()
-		pr.ticks.Dispose()
-		pr.messages.Dispose()
-		pr.feedbacks.Dispose()
+func (pr *replica) shutdown() {
+	pr.metrics.flush()
+	pr.actions.Dispose()
+	pr.ticks.Dispose()
+	pr.messages.Dispose()
+	pr.feedbacks.Dispose()
 
-		// resp all stale requests in batch and queue
-		for {
-			if pr.incomingProposals.isEmpty() {
-				break
-			}
-			if c, ok := pr.incomingProposals.pop(); ok {
-				for _, req := range c.requestBatch.Requests {
-					req.Key = keys.DecodeDataKey(req.Key)
-					respStoreNotMatch(errStoreNotMatch, req, c.cb)
-				}
-			}
+	// resp all stale requests in batch and queue
+	for {
+		if pr.incomingProposals.isEmpty() {
+			break
 		}
-
-		// resp all pending requests in batch and queue
-		for _, rr := range pr.pendingReads.reads {
-			for _, req := range rr.batch.Requests {
+		if c, ok := pr.incomingProposals.pop(); ok {
+			for _, req := range c.requestBatch.Requests {
 				req.Key = keys.DecodeDataKey(req.Key)
-				respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
+				respStoreNotMatch(errStoreNotMatch, req, c.cb)
 			}
 		}
-		pr.pendingReads.reset()
+	}
 
-		requests := pr.requests.Dispose()
-		for _, r := range requests {
-			req := r.(reqCtx)
-			if req.cb != nil {
-				respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
-			}
+	// resp all pending requests in batch and queue
+	for _, rr := range pr.pendingReads.reads {
+		for _, req := range rr.batch.Requests {
+			req.Key = keys.DecodeDataKey(req.Key)
+			respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
 		}
+	}
+	pr.pendingReads.reset()
 
-		pr.logger.Info("handle serve raft stopped")
-	})
+	requests := pr.requests.Dispose()
+	for _, r := range requests {
+		req := r.(reqCtx)
+		if req.cb != nil {
+			respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+		}
+	}
+
+	pr.logger.Info("replica shutdown completed")
 }
 
 func (pr *replica) handleEvent() bool {
-	if pr.events.Len() == 0 && !pr.events.IsDisposed() {
-		return false
-	}
-
 	select {
-	case <-pr.ctx.Done():
-		pr.onStop()
+	case <-pr.closedC:
+		if !pr.unloaded() {
+			pr.shutdown()
+			pr.confirmUnloaded()
+		}
 		return false
 	default:
-	}
-
-	if _, err := pr.events.Get(); err != nil {
-		pr.logger.Info("replica stopped")
-		pr.onStop()
-		return false
 	}
 
 	pr.handleMessage(pr.items)
@@ -160,7 +151,6 @@ func (pr *replica) handleEvent() bool {
 	pr.cacheRaftStatus()
 	pr.handleFeedback(pr.items)
 	pr.handleRequest(pr.items)
-
 	if pr.rn.HasReadySince(pr.lastReadyIndex) {
 		pr.handleReady()
 	}

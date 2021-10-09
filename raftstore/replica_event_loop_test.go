@@ -1,0 +1,87 @@
+// Copyright 2021 MatrixOrigin.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package raftstore
+
+import (
+	"testing"
+
+	cpebble "github.com/cockroachdb/pebble"
+	"github.com/fagongzi/util/task"
+	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3"
+
+	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/vfs"
+)
+
+func getTestMetadataStorage() storage.MetadataStorage {
+	fs := vfs.NewMemFS()
+	opts := &cpebble.Options{
+		FS: vfs.NewPebbleFS(fs),
+	}
+	st, err := pebble.NewStorage("test-data", opts)
+	if err != nil {
+		panic(err)
+	}
+	return st
+}
+
+// TODO: we need this here largely because it is pretty difficult to write unit
+// tests for the replica type when it has an injected store instance in it.
+func getCloseableReplica() *replica {
+	l := config.GetDefaultZapLogger()
+	r := Replica{}
+	shardID := uint64(1)
+	ms := getTestMetadataStorage()
+	c := &raft.Config{
+		ID:              1,
+		ElectionTick:    10,
+		HeartbeatTick:   1,
+		Storage:         NewLogReader(l, 1, 1, logdb.NewKVLogDB(ms)),
+		MaxInflightMsgs: 100,
+		CheckQuorum:     true,
+		PreVote:         true,
+	}
+	rn, err := raft.NewRawNode(c)
+	if err != nil {
+		panic(err)
+	}
+	return &replica{
+		logger:            l,
+		replica:           r,
+		shardID:           shardID,
+		rn:                rn,
+		pendingProposals:  newPendingProposals(),
+		incomingProposals: newProposalBatch(l, 0, shardID, r),
+		pendingReads:      &readIndexQueue{shardID: shardID, logger: l},
+		ticks:             task.New(32),
+		messages:          task.New(32),
+		requests:          task.New(32),
+		actions:           task.New(32),
+		feedbacks:         task.New(32),
+		items:             make([]interface{}, 1024),
+		startedC:          make(chan struct{}),
+		closedC:           make(chan struct{}),
+		unloadedC:         make(chan struct{}),
+		sm:                &stateMachine{},
+	}
+}
+
+func TestReplicaCanBeClosed(t *testing.T) {
+	r := getCloseableReplica()
+	assert.True(t, r.handleEvent())
+}
