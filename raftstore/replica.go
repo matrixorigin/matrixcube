@@ -149,7 +149,8 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 	}
-	pr.sm = newStateMachine(pr, *shard)
+	storage := store.DataStorageByGroup(shard.Group)
+	pr.sm = newStateMachine(l, storage, *shard, r.ID, pr)
 	return pr, nil
 }
 
