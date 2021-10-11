@@ -140,7 +140,7 @@ func testPendingProposalClear(t *testing.T,
 func TestPendingProposalClear(t *testing.T) {
 	check := func(resp rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
-		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	testPendingProposalClear(t, true, check)
 }
@@ -158,7 +158,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	cb := func(resp rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
-		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	ConfChangeCmd := batch{
 		requestBatch: rpc.RequestBatch{
@@ -188,12 +188,12 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	staleCB := func(resp rpc.ResponseBatch) {
 		staleCalled = true
 		assert.Equal(t, 1, len(resp.Responses))
-		assert.Equal(t, errStaleCMD.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	cb := func(resp rpc.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
-		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
+		assert.Equal(t, errShardNotFound.Error(), resp.Header.Error.Message)
 	}
 	cmd1 := batch{
 		requestBatch: rpc.RequestBatch{

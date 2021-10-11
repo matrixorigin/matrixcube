@@ -36,16 +36,12 @@ func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 }
 
 func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
-	r1 := reqCtx{
-		req: rpc.Request{
-			Type: rpc.CmdType_Write,
-		},
-	}
-	r2 := reqCtx{
-		req: rpc.Request{
-			Type: rpc.CmdType_Read,
-		},
-	}
+	r1 := newReqCtx(rpc.Request{
+		Type: rpc.CmdType_Write,
+	}, nil)
+	r2 := newReqCtx(rpc.Request{
+		Type: rpc.CmdType_Read,
+	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b.push(1, metapb.ResourceEpoch{}, r1)
 	b.push(1, metapb.ResourceEpoch{}, r2)

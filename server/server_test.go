@@ -36,8 +36,6 @@ func TestClusterStartAndStop(t *testing.T) {
 	c, closer := createDiskDataStorageCluster(t)
 	defer closer()
 
-	c.RaftCluster.WaitShardByCountPerNode(1, time.Second*10)
-
 	app := c.Applications[0]
 	resp, err := app.Exec(&testRequest{
 		Op:    "SET",
@@ -109,9 +107,7 @@ func createDiskDataStorageCluster(t *testing.T, opts ...raftstore.TestClusterOpt
 			return ds
 		}
 		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
-			for _, s := range storages {
-				cb(s)
-			}
+			cb(ds)
 		}
 
 		sm, err := pebble.NewStorage(fmt.Sprintf("%s/pebble-meta", cfg.DataPath), opts)

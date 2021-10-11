@@ -59,8 +59,6 @@ var (
 	NewTestCluster = WithTestClusterRecreate(true)
 	// NoCleanTestCluster using exists data before test cluster start
 	OldTestCluster = WithTestClusterRecreate(false)
-
-	testWaitTimeout = time.Minute
 )
 
 // TestClusterOption is the option for create TestCluster

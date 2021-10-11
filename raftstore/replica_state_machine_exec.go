@@ -449,7 +449,7 @@ func (d *stateMachine) updateWriteMetrics() {
 
 func (d *stateMachine) saveShardMetedata(index uint64,
 	shard Shard, state meta.ReplicaState) error {
-	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{storage.ShardMetadata{
+	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
 		Metadata: protoc.MustMarshal(&meta.ShardLocalState{

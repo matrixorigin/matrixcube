@@ -143,11 +143,14 @@ func newWorkerPool(logger *zap.Logger, loader replicaLoader, workerCount uint64)
 		w := newReplicaWorker(workerID, p.workerStopper)
 		p.workers = append(p.workers, w)
 	}
+
+	return p
+}
+
+func (p *workerPool) start() {
 	p.poolStopper.RunWorker(func() {
 		p.workerPoolMain()
 	})
-
-	return p
 }
 
 func (p *workerPool) notify(shardID uint64) {
