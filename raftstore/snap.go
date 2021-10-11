@@ -81,7 +81,9 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 			var paths []string
 			files, err := fs.List(dir)
 			if err != nil {
-				panic(err)
+				l.Error("fail to scan snapshot path",
+					zap.String("path", dir),
+					zap.Error(err))
 			}
 			for _, cur := range files {
 				fi, err := fs.Stat(fs.PathJoin(dir, cur))

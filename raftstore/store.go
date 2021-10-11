@@ -139,6 +139,10 @@ func (s *store) GetConfig() *config.Config {
 
 func (s *store) Start() {
 	s.logger.Info("begin to start raftstore")
+	s.workerPool.start()
+	s.logger.Info("worker pool started",
+		s.storeField())
+
 	s.startProphet()
 	s.logger.Info("prophet started",
 		s.storeField())

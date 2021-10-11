@@ -52,7 +52,7 @@ func errorOtherCMDResp(err error) rpc.ResponseBatch {
 }
 
 func errorPbResp(id []byte, err errorpb.Error) rpc.ResponseBatch {
-	resp := errorBaseResp(nil)
+	resp := errorBaseResp(id)
 	resp.Header.Error = err
 	return resp
 }
