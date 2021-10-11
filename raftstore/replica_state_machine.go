@@ -43,7 +43,7 @@ func newApplyContext() *applyContext {
 	}
 }
 
-func (ctx *applyContext) initialize(shard Shard, entry raftpb.Entry) {
+func (ctx *applyContext) initialize(entry raftpb.Entry) {
 	ctx.index = entry.Index
 	ctx.req = rpc.RequestBatch{}
 	ctx.adminResult = nil
@@ -142,7 +142,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			continue
 		}
 
-		d.applyCtx.initialize(d.getShard(), entry)
+		d.applyCtx.initialize(entry)
 		d.applyRequestBatch(d.applyCtx)
 		result := applyResult{
 			shardID:     d.shardID,
