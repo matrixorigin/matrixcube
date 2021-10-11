@@ -185,3 +185,41 @@ func TestIssue133(t *testing.T) {
 // 	assert.Nil(t, resps["r2"].Header)
 // 	assert.Equal(t, "2", string(resps["r2"].Responses[0].Value))
 // }
+
+// func TestIssue84(t *testing.T) {
+// 	defer leaktest.AfterTest(t)()
+// 	// issue 84, lost event notification after cluster restart
+// 	// See https://github.com/matrixorigin/matrixcube/issues/84
+// 	c, closer := createDiskDataStorageCluster(t)
+// 	app := c.Applications[0]
+// 	cmdSet := testRequest{
+// 		Op:    "SET",
+// 		Key:   "key",
+// 		Value: "value",
+// 	}
+// 	resp, err := app.Exec(&cmdSet, 10*time.Second)
+
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, "OK", string(resp))
+// 	closer()
+
+// 	// restart
+// 	fn := func(i int) {
+// 		c, closer := createDiskDataStorageCluster(t, raftstore.WithTestClusterRecreate(false))
+// 		defer closer()
+
+// 		app = c.Applications[0]
+// 		value, err := app.Exec(&testRequest{
+// 			Op:  "GET",
+// 			Key: "key",
+// 		}, 10*time.Second)
+// 		assert.Equal(t, "value", string(value))
+// 		if err != nil {
+// 			log.Fatalf("failed %d", i)
+// 		}
+// 	}
+
+// 	for i := 0; i < 1; i++ {
+// 		fn(i)
+// 	}
+// }
