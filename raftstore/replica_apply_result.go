@@ -54,6 +54,11 @@ type splitResult struct {
 	shards  []Shard
 }
 
+func (pr *replica) notifyPendingProposal(id []byte,
+	resp rpc.ResponseBatch, isConfChange bool) {
+	pr.pendingProposals.notify(id, resp, isConfChange)
+}
+
 func (pr *replica) handleApplyResult(result applyResult) {
 	pr.updateAppliedIndex(result)
 	pr.updateMetricsHints(result)

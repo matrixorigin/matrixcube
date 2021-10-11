@@ -68,15 +68,21 @@ func (ctx *applyContext) initialize(shard Shard, entry raftpb.Entry) {
 	}
 }
 
+type replicaResultHandler interface {
+	handleApplyResult(applyResult)
+	notifyPendingProposal(id []byte, resp rpc.ResponseBatch, isConfChange bool)
+}
+
+var _ replicaResultHandler = (*replica)(nil)
+
 type stateMachine struct {
-	logger      *zap.Logger
-	shardID     uint64
-	replicaID   uint64
-	applyCtx    *applyContext
-	writeCtx    *writeContext
-	replica     *replica
-	store       *store
-	dataStorage storage.DataStorage
+	logger        *zap.Logger
+	shardID       uint64
+	replicaID     uint64
+	applyCtx      *applyContext
+	writeCtx      *writeContext
+	dataStorage   storage.DataStorage
+	resultHandler replicaResultHandler
 
 	metadataMu struct {
 		sync.Mutex
@@ -87,16 +93,15 @@ type stateMachine struct {
 	}
 }
 
-func newStateMachine(replica *replica, shard Shard) *stateMachine {
-	storage := replica.store.DataStorageByGroup(shard.Group)
+func newStateMachine(l *zap.Logger, ds storage.DataStorage,
+	shard Shard, replicaID uint64, h replicaResultHandler) *stateMachine {
 	sm := &stateMachine{
-		logger:      replica.logger,
-		replica:     replica,
-		store:       replica.store,
-		replicaID:   replica.replica.ID,
-		applyCtx:    newApplyContext(),
-		writeCtx:    newWriteContext(storage),
-		dataStorage: storage,
+		logger:        l,
+		replicaID:     replicaID,
+		applyCtx:      newApplyContext(),
+		writeCtx:      newWriteContext(ds),
+		dataStorage:   ds,
+		resultHandler: h,
 	}
 	sm.metadataMu.shard = shard
 	return sm
@@ -133,7 +138,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			// noop entry with empty payload proposed by the leader at the beginning
 			// of its term
 			d.updateAppliedIndexTerm(entry.Index, entry.Term)
-			d.replica.handleApplyResult(applyResult{index: entry.Index})
+			d.resultHandler.handleApplyResult(applyResult{index: entry.Index})
 			continue
 		}
 
@@ -156,7 +161,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			}
 		}
 		d.updateAppliedIndexTerm(entry.Index, entry.Term)
-		d.replica.handleApplyResult(result)
+		d.resultHandler.handleApplyResult(result)
 	}
 	metric.ObserveRaftLogApplyDuration(start)
 }
@@ -176,9 +181,10 @@ func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 }
 
 func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
-	if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
-		return
-	}
+	// FIXME: update impacted tests
+	// if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
+	//	return
+	// }
 	if d.isRemoved() {
 		d.logger.Fatal("applying entries on remove replica")
 	}
@@ -202,13 +208,15 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}
-	// TODO: this implies that we can't have more than one batch in the executeContext
-	d.replica.pendingProposals.notify(ctx.req.Header.ID, resp, isConfigChangeRequestBatch(ctx.req))
+	// TODO: this implies that we can't have more than one batch in the
+	// executeContext
+	d.resultHandler.notifyPendingProposal(ctx.req.Header.ID,
+		resp, isConfigChangeRequestBatch(ctx.req))
 }
 
-// FIXME: move this out of the state machine
 func (d *stateMachine) destroy() {
-	d.replica.pendingProposals.destroy()
+	// FIXME: move this out of the state machine
+	// d.replica.pendingProposals.destroy()
 	d.writeCtx.close()
 }
 
