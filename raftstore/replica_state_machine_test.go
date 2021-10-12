@@ -220,6 +220,10 @@ func TestStateMachineCheckEntryTerm(t *testing.T) {
 
 type testReplicaResultHandler struct {
 	appliedIndex uint64
+	notified     uint64
+	id           []byte
+	resp         rpc.ResponseBatch
+	isConfChange bool
 }
 
 var _ replicaResultHandler = (*testReplicaResultHandler)(nil)
@@ -230,6 +234,10 @@ func (t *testReplicaResultHandler) handleApplyResult(a applyResult) {
 
 func (t *testReplicaResultHandler) notifyPendingProposal(id []byte,
 	resp rpc.ResponseBatch, isConfChange bool) {
+	t.id = id
+	t.resp = resp
+	t.isConfChange = isConfChange
+	t.notified++
 }
 
 func TestStateMachineApplyNoopEntry(t *testing.T) {
@@ -312,6 +320,13 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 		assert.Equal(t, uint64(2), index)
 		assert.Equal(t, uint64(1), term)
 		assert.Equal(t, uint64(2), h.appliedIndex)
+
+		assert.Equal(t, uint64(2), h.notified)
+		assert.Equal(t, batch2.Header.ID, h.id)
+		assert.Equal(t, false, h.isConfChange)
+		require.Equal(t, 1, len(h.resp.Responses))
+		assert.Equal(t, []byte("OK"), h.resp.Responses[0].Value)
+
 		readContext := newReadContext()
 		sr := storage.Request{
 			Key:     key1,
@@ -369,10 +384,57 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 		assert.Equal(t, uint64(1), index)
 		assert.Equal(t, uint64(1), term)
 		assert.Equal(t, uint64(1), h.appliedIndex)
+
+		assert.Equal(t, uint64(1), h.notified)
+		assert.Equal(t, batch.Header.ID, h.id)
+		assert.Equal(t, true, h.isConfChange)
+		require.Equal(t, 0, len(h.resp.Responses))
+		assert.Equal(t, rpc.AdminCmdType_ConfigChange, h.resp.AdminResponse.CmdType)
+		// TODO: add a check to test whether the error field in the resp is empty
+
 		shard := sm.getShard()
 		require.Equal(t, 1, len(shard.Replicas))
 		assert.Equal(t, uint64(100), shard.Replicas[0].ID)
 		assert.Equal(t, uint64(200), shard.Replicas[0].ContainerID)
+	}
+	runSimpleStateMachineTest(t, f, h)
+}
+
+func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
+	h := &testReplicaResultHandler{}
+	f := func(sm *stateMachine) {
+		batch := rpc.RequestBatch{
+			Header: rpc.RequestBatchHeader{
+				ID: []byte{0x1, 0x2, 0x3},
+				// ShardID missing here, this will cause the epoch check to fail
+			},
+			AdminRequest: rpc.AdminRequest{
+				CmdType:      rpc.AdminCmdType_ConfigChange,
+				ConfigChange: &rpc.ConfigChangeRequest{},
+			},
+		}
+		cc := raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  100,
+			Context: protoc.MustMarshal(&batch),
+		}
+		entry := raftpb.Entry{
+			Index: 1,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  protoc.MustMarshal(&cc),
+		}
+		sm.applyCommittedEntries([]raftpb.Entry{entry})
+		index, term := sm.getAppliedIndexTerm()
+		assert.Equal(t, uint64(1), index)
+		assert.Equal(t, uint64(1), term)
+		assert.Equal(t, uint64(1), h.appliedIndex)
+
+		assert.Equal(t, uint64(1), h.notified)
+		assert.Equal(t, batch.Header.ID, h.id)
+		assert.Equal(t, true, h.isConfChange)
+		require.Equal(t, 0, len(h.resp.Responses))
+		assert.Equal(t, "stale command", h.resp.Header.Error.Message)
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
