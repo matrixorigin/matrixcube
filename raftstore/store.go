@@ -765,8 +765,8 @@ func (s *store) removeShardData(shard Shard, job *task.Job) error {
 		return task.ErrJobCancelled
 	}
 
-	start := keys.EncStartKey(&shard)
-	end := keys.EncEndKey(&shard)
+	start := keys.EncodeStartKey(shard, nil)
+	end := keys.EncodeEndKey(shard, nil)
 	return s.DataStorageByGroup(shard.Group).RemoveShardData(shard, start, end)
 }
 

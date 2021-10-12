@@ -76,8 +76,8 @@ func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch m
 func (pr *replica) doCheckSplit() error {
 	shard := pr.getShard()
 	epoch := shard.Epoch
-	startKey := keys.EncStartKey(&shard)
-	endKey := keys.EncEndKey(&shard)
+	startKey := keys.EncodeStartKey(shard, nil)
+	endKey := keys.EncodeEndKey(shard, nil)
 
 	pr.logger.Info("start split check job",
 		log.HexField("from", startKey),
