@@ -14,13 +14,14 @@
 package raftstore
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// alias are provided for two most commonly used types
-type Shard = meta.Shard
-
-type Replica = metapb.Replica
-
-type Epoch = metapb.ResourceEpoch
+func TestDoDynamicallyCreate(t *testing.T) {
+	c := NewSingleTestClusterStore(t)
+	s := c.GetStore(0).(*store)
+	s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID}}})
+	assert.NotNil(t, s.getReplica(100, false))
+}

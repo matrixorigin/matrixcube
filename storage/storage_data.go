@@ -271,3 +271,9 @@ func (c *SimpleReadContext) Shard() meta.Shard             { return c.shard }
 func (c *SimpleReadContext) Request() Request              { return c.request }
 func (c *SimpleReadContext) SetReadBytes(readBytes uint64) { c.readBytes = readBytes }
 func (c *SimpleReadContext) GetReadBytes() uint64          { return c.readBytes }
+
+// KVStorageWrapper is a KVStorage wrapper
+type KVStorageWrapper interface {
+	// GetKVStorage returns the wrapped KVStorage
+	GetKVStorage() KVStorage
+}

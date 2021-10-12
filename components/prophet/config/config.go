@@ -381,6 +381,8 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 		c.ContainerLimit = make(map[uint64]ContainerLimitConfig)
 	}
 
+	// TODO: disable JointConsensus. Consider opening again in the future
+	c.EnableJointConsensus = false
 	return c.Validate()
 }
 
