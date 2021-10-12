@@ -203,7 +203,8 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 	// check range overlapped
 	item := s.searchShard(msg.Group, msg.Start)
 	if item.ID > 0 {
-		if bytes.Compare(keys.EncStartKey(&item), keys.GetDataEndKey(msg.Group, msg.End)) < 0 {
+		if bytes.Compare(keys.EncodeStartKey(item, nil),
+			keys.GetDataEndKey(msg.Group, msg.End, nil)) < 0 {
 			if p := s.getReplica(item.ID, false); p != nil {
 				// Maybe split, but not registered yet.
 				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)

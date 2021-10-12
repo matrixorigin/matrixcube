@@ -114,7 +114,7 @@ func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, i
 	wb := r.(util.WriteBatch)
 	ctx.ByteBuf().MarkWrite()
 	ctx.ByteBuf().WriteUInt64(index)
-	key := keys.GetAppliedIndexKey(ctx.Shard().ID)
+	key := keys.GetAppliedIndexKey(ctx.Shard().ID, nil)
 	val := ctx.ByteBuf().WrittenDataAfterMark().Data()
 	wb.Set(key, val)
 }
@@ -131,8 +131,8 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	seen := make(map[uint64]struct{})
 	kv.mu.Lock()
 	for _, m := range metadatas {
-		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex), m.Metadata)
-		wb.Set(keys.GetAppliedIndexKey(m.ShardID), format.Uint64ToBytes(m.LogIndex))
+		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), m.Metadata)
+		wb.Set(keys.GetAppliedIndexKey(m.ShardID, nil), format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 		if _, ok := seen[m.ShardID]; ok {
 			panic("more than one instance of metadata from the same shard")
@@ -150,14 +150,20 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 }
 
 func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
-	min := keys.GetAppliedIndexKey(0)
-	max := keys.GetAppliedIndexKey(math.MaxUint64)
+	// TODO: this assumes that all shards have applied index records saved.
+	// double check to make sure this is actually true.
+	min := keys.GetAppliedIndexKey(0, nil)
+	max := keys.GetAppliedIndexKey(math.MaxUint64, nil)
 	var shards []uint64
 	var lastApplied []uint64
 	// find out all shards and their last applied indexes
 	if err := kv.base.Scan(min, max, func(key, value []byte) (bool, error) {
 		if keys.IsAppliedIndexKey(key) {
-			shards = append(shards, keys.DecodeAppliedIndexKey(key))
+			shardID, err := keys.GetShardIDFromAppliedIndexKey(key)
+			if err != nil {
+				panic(err)
+			}
+			shards = append(shards, shardID)
 			lastApplied = append(lastApplied, buf.Byte2UInt64(value))
 		}
 		return true, nil
@@ -174,8 +180,8 @@ func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	// for each shard,
 	var values []storage.ShardMetadata
 	for _, shard := range shards {
-		min := keys.GetMetadataKey(shard, 0)
-		max := keys.GetMetadataKey(shard, math.MaxUint64)
+		min := keys.GetMetadataKey(shard, 0, nil)
+		max := keys.GetMetadataKey(shard, math.MaxUint64, nil)
 		var v []byte
 		var logIndex uint64
 		var err error

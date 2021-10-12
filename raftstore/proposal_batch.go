@@ -119,7 +119,7 @@ func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx)
 
 	// use data key to store
 	if !isAdmin {
-		req.Key = keys.GetDataKeyWithBuf(group, req.Key, b.buf)
+		req.Key = keys.EncodeDataKey(group, req.Key, nil)
 		b.buf.Clear()
 	}
 

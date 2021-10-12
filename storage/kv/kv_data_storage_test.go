@@ -44,7 +44,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 				index, ok := kv.mu.lastAppliedIndexes[m.ShardID]
 				assert.True(t, ok)
 				assert.Equal(t, m.LogIndex, index)
-				v, err := kv.base.Get(keys.GetAppliedIndexKey(m.ShardID))
+				v, err := kv.base.Get(keys.GetAppliedIndexKey(m.ShardID, nil))
 				assert.NoError(t, err)
 				assert.Equal(t, m.LogIndex, buf.Byte2UInt64(v))
 			}
@@ -186,7 +186,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			assert.Equal(t, c.appliedIndex, appliedIndex, "index %d", i)
 
 			kv := s.(*kvDataStorage)
-			v, err := kv.base.Get(keys.GetAppliedIndexKey(0))
+			v, err := kv.base.Get(keys.GetAppliedIndexKey(0, nil))
 			assert.NoError(t, err)
 			assert.Equal(t, uint64(c.requests), buf.Byte2UInt64(v))
 		}()

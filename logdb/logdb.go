@@ -123,14 +123,14 @@ func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) er
 	l.wb.Reset()
 	for _, e := range rd.Entries {
 		d := protoc.MustMarshal(&e)
-		l.wb.Set(keys.GetRaftLogKey(shardID, e.Index), d)
+		l.wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
 	}
 
 	v := protoc.MustMarshal(&rd.HardState)
-	l.wb.Set(keys.GetHardStateKey(shardID, peerID), v)
+	l.wb.Set(keys.GetHardStateKey(shardID, peerID, nil), v)
 
 	binary.BigEndian.PutUint64(l.wbuf, rd.Entries[len(rd.Entries)-1].Index)
-	l.wb.Set(keys.GetMaxIndexKey(shardID), l.wbuf)
+	l.wb.Set(keys.GetMaxIndexKey(shardID, nil), l.wbuf)
 	return l.ms.Write(l.wb, true)
 }
 
@@ -139,7 +139,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error) {
 
 	nextIndex := low
-	startKey := keys.GetRaftLogKey(shardID, low)
+	startKey := keys.GetRaftLogKey(shardID, low, nil)
 	if low+1 == high {
 		v, err := l.ms.Get(startKey)
 		if err != nil {
@@ -168,7 +168,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 		high = maxIndex + 1
 	}
 
-	endKey := keys.GetRaftLogKey(shardID, high)
+	endKey := keys.GetRaftLogKey(shardID, high, nil)
 	if err := l.ms.Scan(startKey, endKey, func(key, value []byte) (bool, error) {
 		e := raftpb.Entry{}
 		protoc.MustUnmarshal(&e, value)
@@ -191,7 +191,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 }
 
 func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error) {
-	target := keys.GetRaftLogKey(shardID, 0)
+	target := keys.GetRaftLogKey(shardID, 0, nil)
 	key, _, err := l.ms.Seek(target)
 	if err != nil {
 		return RaftState{}, err
@@ -212,7 +212,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 	}
 
 	var st raftpb.HardState
-	v, err := l.ms.Get(keys.GetHardStateKey(shardID, peerID))
+	v, err := l.ms.Get(keys.GetHardStateKey(shardID, peerID, nil))
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -230,13 +230,13 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, peerID uint64) (RaftState, error
 // TODO: check whether index below is larger than the max index
 // RemoveEntriesTo deletes all raft log entries between [0, index].
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error {
-	startKey := keys.GetRaftLogKey(shardID, 0)
-	endKey := keys.GetRaftLogKey(shardID, index+1)
+	startKey := keys.GetRaftLogKey(shardID, 0, nil)
+	endKey := keys.GetRaftLogKey(shardID, index+1, nil)
 	return l.ms.RangeDelete(startKey, endKey, true)
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, peerID uint64) (uint64, error) {
-	v, err := l.ms.Get(keys.GetMaxIndexKey(shardID))
+	v, err := l.ms.Get(keys.GetMaxIndexKey(shardID, nil))
 	if err != nil {
 		return 0, err
 	}
