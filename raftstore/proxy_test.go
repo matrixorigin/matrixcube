@@ -91,7 +91,7 @@ func TestLocalDispatch(t *testing.T) {
 		assert.Fail(t, "need failure callback")
 	case v := <-fc:
 		assert.Equal(t, req, *v)
-	case <-time.After(time.Millisecond * 50):
+	case <-time.After(time.Millisecond * 150):
 		assert.Fail(t, "need failure callback")
 	}
 
@@ -106,7 +106,7 @@ func TestLocalDispatch(t *testing.T) {
 		assert.Fail(t, "need timeout")
 	case <-fc:
 		assert.Fail(t, "need timeout")
-	case <-time.After(time.Millisecond * 50):
+	case <-time.After(time.Millisecond * 150):
 	}
 
 	// success

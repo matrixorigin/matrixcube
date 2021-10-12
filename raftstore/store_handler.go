@@ -170,7 +170,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 			stalePeer = p.replica
 		} else if p.replica.ID > target.ID {
-			s.logger.Info("maybe current replica is stale",
+			s.logger.Info("from replica is stale",
 				s.storeField(),
 				log.ShardIDField(msg.ShardID),
 				log.ReplicaField("self-replica", p.replica),
