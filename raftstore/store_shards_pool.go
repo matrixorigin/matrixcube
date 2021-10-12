@@ -74,6 +74,10 @@ type dynamicShardsPool struct {
 }
 
 func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShardsPool {
+	if logger == nil {
+		logger = config.GetDefaultZapLogger()
+	}
+
 	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: logger.Named("shard-pool")}
 	p.factory = p.shardFactory
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
@@ -212,12 +216,6 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	group := cmd.Group
 	p := dsp.mu.pools.Pools[group]
 
-	// no idle shard left, trigger create, and return nil, client need to retry later
-	if p.Seq-p.AllocatedOffset == 0 {
-		dsp.triggerCreateLocked()
-		return nil, nil
-	}
-
 	// check whether the purpose has been allocated before
 	if len(p.AllocatedShards) > 0 {
 		for _, allocated := range p.AllocatedShards {
@@ -226,6 +224,12 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 				return protoc.MustMarshal(allocated), nil
 			}
 		}
+	}
+
+	// no idle shard left, trigger create, and return nil, client need to retry later
+	if p.Seq-p.AllocatedOffset == 0 {
+		dsp.triggerCreateLocked()
+		return nil, nil
 	}
 
 	old := dsp.cloneDataLocked()
@@ -245,6 +249,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	if id == 0 {
 		// Anyway the prophet leader node has no corresponding data in memory,
 		// Client retry alloc again.
+		dsp.mu.pools = old
 		return nil, nil
 	}
 
@@ -397,10 +402,10 @@ func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconf
 
 		if len(ids) > 0 {
 			changed = true
+			allocates := p.AllocatedShards
 			newP := p
 			newP.AllocatedShards = newP.AllocatedShards[:0]
-
-			for idx, allocated := range p.AllocatedShards {
+			for idx, allocated := range allocates {
 				ok := true
 				for _, id := range ids {
 					if id == idx {

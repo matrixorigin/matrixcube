@@ -597,7 +597,7 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 
 	if pr.replica.ID != peerID {
 		return errorpb.Error{
-			Message: fmt.Sprintf("mismatch peer id, give=<%d> want=<%d>", peerID, pr.replica.ID),
+			Message: fmt.Sprintf("mismatch peer id, want %d, but %d", pr.replica.ID, peerID),
 		}, true
 	}
 
@@ -631,6 +631,8 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 		case rpc.AdminCmdType_BatchSplit:
 			checkVer = true
 		case rpc.AdminCmdType_ConfigChange:
+			checkConfVer = true
+		case rpc.AdminCmdType_ConfigChangeV2:
 			checkConfVer = true
 		case rpc.AdminCmdType_TransferLeader:
 			checkVer = true

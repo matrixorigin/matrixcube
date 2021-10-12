@@ -16,6 +16,7 @@ require (
 	github.com/fagongzi/util v0.0.0-20210923134909-bccc37b5040d
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/mock v1.3.1
 	github.com/google/btree v1.0.1
 	github.com/juju/ratelimit v1.0.1
 	github.com/lni/goutils v1.3.0

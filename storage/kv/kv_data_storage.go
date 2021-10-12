@@ -87,6 +87,10 @@ func NewKVDataStorage(base storage.KVStorage,
 	return s
 }
 
+func (kv *kvDataStorage) GetKVStorage() storage.KVStorage {
+	return kv.base
+}
+
 func (kv *kvDataStorage) NewWriteBatch() storage.Resetable {
 	return kv.base.NewWriteBatch()
 }
