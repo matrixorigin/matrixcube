@@ -173,8 +173,8 @@ func (m *defaultSnapshotManager) Deregister(msg *meta.SnapshotMessage, step int)
 func (m *defaultSnapshotManager) Create(msg *meta.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
-	start := keys.EncStartKey(&msg.Header.Shard)
-	end := keys.EncEndKey(&msg.Header.Shard)
+	start := keys.EncodeStartKey(msg.Header.Shard, nil)
+	end := keys.EncodeEndKey(msg.Header.Shard, nil)
 	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
 	fs := m.s.cfg.FS
 

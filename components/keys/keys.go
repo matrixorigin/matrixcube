@@ -17,26 +17,15 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
-// suffix for local metadata
 const (
-	stateSuffix = 0x01
-
-	// Following are the suffix after the local prefix.
-	// For shard id
 	raftLogSuffix      = 0x01
 	maxIndexSuffix     = 0x04
 	hardStateSuffix    = 0x06
 	appliedIndexSuffix = 0x07
 	metadataSuffix     = 0x08
-)
-
-// local is in (0x01, 0x02);
-var (
-	localPrefix byte = 0x01
 )
 
 // data is in (z, z+1)
@@ -49,12 +38,12 @@ var (
 	DataPrefixSize = dataPrefixKeySize + 8
 )
 
-var storeIdentKey = []byte{localPrefix, 0x01}
-
 var (
-	// We save two types shard data in DB, for raft and other meta data.
-	// When the store starts, we should iterate all shard meta data to
-	// construct peer, no need to travel large raft data, so we separate them
+	localPrefix   byte = 0x01
+	storeIdentKey      = []byte{localPrefix, 0x01}
+	// We save two types shard data in the KVStore, they are raft and other meta
+	// data. When the store starts, we should iterate all shard meta data to
+	// launch replicas, to avoid iterating large volume of data, we separate them
 	// with different prefixes.
 	raftPrefix            byte = 0x02
 	raftPrefixKey              = []byte{localPrefix, raftPrefix}
@@ -62,12 +51,15 @@ var (
 )
 
 var (
+	// we use this fixed key to write a dummy record into the KVStore with sync=true
+	// to force a sync of the WAL of the KVStore.
 	ForcedSyncKey = []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 )
 
-func IsStateSuffix(suffix byte) bool {
-	return suffix == stateSuffix
-}
+const (
+	idKeyLength        = 11
+	indexedIDKeyLength = 19
+)
 
 // GetStoreIdentKey return key of StoreIdent
 func GetStoreIdentKey() []byte {
@@ -75,157 +67,201 @@ func GetStoreIdentKey() []byte {
 }
 
 // GetHardStateKey returns key that used to store `raftpb.HardState`
-func GetHardStateKey(shardID uint64, peerID uint64) []byte {
-	return getIDKey(shardID, hardStateSuffix, 8, peerID)
+func GetHardStateKey(shardID uint64, replicaID uint64, key []byte) []byte {
+	key = getKeySlice(key, indexedIDKeyLength)
+	return getIndexedIDKey(hardStateSuffix, shardID, replicaID, key)
 }
 
 // GetAppliedIndexKey returns key that used to store `applied log index` for `storage.DataStorage`
-func GetAppliedIndexKey(shardID uint64) []byte {
-	return getIDKey(shardID, appliedIndexSuffix, 0, 0)
+func GetAppliedIndexKey(shardID uint64, key []byte) []byte {
+	key = getKeySlice(key, idKeyLength)
+	return getIDKey(appliedIndexSuffix, shardID, key)
 }
 
-// DecodeAppliedIndexKey returns shard id
-func DecodeAppliedIndexKey(key []byte) uint64 {
-	return buf.Byte2UInt64(key[raftPrefix:])
+// GetShardIDFromAppliedIndexKey returns shard id
+func GetShardIDFromAppliedIndexKey(key []byte) (uint64, error) {
+	if !IsAppliedIndexKey(key) {
+		return 0, fmt.Errorf("key<%v> is not a valid applied index key", key)
+	}
+	return parseUint64(key[len(raftPrefixKey):]), nil
 }
 
 // GetMetadataKey returns key that used to store `shard metadata` for `storage.DataStorage`
-func GetMetadataKey(shardID uint64, index uint64) []byte {
-	return getIDKey(shardID, metadataSuffix, 8, index)
+func GetMetadataKey(shardID uint64, index uint64, key []byte) []byte {
+	key = getKeySlice(key, indexedIDKeyLength)
+	return getIndexedIDKey(metadataSuffix, shardID, index, key)
 }
 
 func GetMetadataIndex(key []byte) (uint64, error) {
-	expectKeyLen := len(raftPrefixKey) + 8*2 + 1
-	if len(key) != expectKeyLen {
+	if !IsMetadataKey(key) {
 		return 0, fmt.Errorf("key<%v> is not a valid metadata key", key)
 	}
-
-	return binary.BigEndian.Uint64(key[len(raftPrefixKey)+9:]), nil
-}
-
-func isRaftSuffixKey(key []byte, size int, suffix byte) bool {
-	if len(key) != size {
-		return false
-	}
-	return key[baseRaftSuffixKeySize-1] == suffix
+	return parseUint64(key[idKeyLength:]), nil
 }
 
 func IsMetadataKey(key []byte) bool {
-	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, metadataSuffix)
+	return isRaftSuffixKey(key, metadataSuffix) && len(key) == indexedIDKeyLength
 }
 
 func IsAppliedIndexKey(key []byte) bool {
-	return isRaftSuffixKey(key, baseRaftSuffixKeySize, appliedIndexSuffix)
+	return isRaftSuffixKey(key, appliedIndexSuffix) && len(key) == idKeyLength
 }
 
 func IsRaftLogKey(key []byte) bool {
-	return isRaftSuffixKey(key, baseRaftSuffixKeySize+8, raftLogSuffix)
+	return isRaftSuffixKey(key, raftLogSuffix) && len(key) == indexedIDKeyLength
 }
 
 func GetRaftPrefix(shardID uint64) []byte {
-	buf := acquireBuf()
-	buf.Write(raftPrefixKey)
-	buf.WriteInt64(int64(shardID))
-	_, data, _ := buf.ReadBytes(buf.Readable())
-
-	releaseBuf(buf)
-	return data
+	key := make([]byte, 10)
+	key[0] = raftPrefixKey[0]
+	key[1] = raftPrefixKey[1]
+	writeUint64(shardID, key[2:])
+	return key
 }
 
 // GetMaxIndexKey returns key that used to max applied log index
-func GetMaxIndexKey(shardID uint64) []byte {
-	return getIDKey(shardID, maxIndexSuffix, 0, 0)
+func GetMaxIndexKey(shardID uint64, key []byte) []byte {
+	key = getKeySlice(key, idKeyLength)
+	return getIDKey(maxIndexSuffix, shardID, key)
 }
 
 // GetRaftLogKey returns key that used to store `raftpb.Entry`
-func GetRaftLogKey(shardID uint64, logIndex uint64) []byte {
-	return getIDKey(shardID, raftLogSuffix, 8, logIndex)
+func GetRaftLogKey(shardID uint64, index uint64, key []byte) []byte {
+	key = getKeySlice(key, indexedIDKeyLength)
+	return getIndexedIDKey(raftLogSuffix, shardID, index, key)
 }
 
 func GetRaftLogIndex(key []byte) (uint64, error) {
-	expectKeyLen := len(raftPrefixKey) + 8*2 + 1
-	if len(key) != expectKeyLen {
+	if !IsRaftLogKey(key) {
 		return 0, fmt.Errorf("key<%v> is not a valid raft log key", key)
 	}
-
-	return binary.BigEndian.Uint64(key[len(raftPrefixKey)+9:]), nil
+	return parseUint64(key[idKeyLength:]), nil
 }
 
-func getIDKey(shardID uint64, suffix byte, extraCap int, extra uint64) []byte {
-	buf := acquireBuf()
-	buf.Write(raftPrefixKey)
-	buf.WriteInt64(int64(shardID))
-	buf.WriteByte(suffix)
-	if extraCap > 0 {
-		buf.WriteInt64(int64(extra))
+func getKeySlice(key []byte, length int) []byte {
+	if length == 0 {
+		panic("invalid key length")
 	}
-	_, data, _ := buf.ReadBytes(buf.Readable())
-
-	releaseBuf(buf)
-	return data
+	if len(key) < length {
+		key = make([]byte, length)
+	}
+	return key
 }
 
-func GetDataKeyWithBuf(group uint64, key []byte, buf *buf.ByteBuf) []byte {
-	buf.Write(dataPrefixKey)
-	buf.WriteUInt64(group)
+func getIDKeySlice() []byte {
+	return make([]byte, idKeyLength)
+}
+
+func getIndexedIDKeySlice() []byte {
+	return make([]byte, indexedIDKeyLength)
+}
+
+func parseUint64(source []byte) uint64 {
+	return binary.BigEndian.Uint64(source)
+}
+
+func writeUint64(value uint64, target []byte) {
+	binary.BigEndian.PutUint64(target, value)
+}
+
+func isRaftSuffixKey(key []byte, suffix byte) bool {
+	return isRaftPrefixKey(key) && isMatchedSuffix(key, suffix)
+}
+
+func isRaftPrefixKey(key []byte) bool {
+	if len(key) < len(raftPrefixKey) {
+		return false
+	}
+	return key[0] == raftPrefixKey[0] && key[1] == raftPrefixKey[1]
+}
+
+func isMatchedSuffix(key []byte, suffix byte) bool {
+	if len(key) < idKeyLength {
+		return false
+	}
+	return key[idKeyLength-1] == suffix
+}
+
+func getIDKey(suffix byte, shardID uint64, key []byte) []byte {
+	if len(key) < idKeyLength {
+		panic("key slice is too short")
+	}
+	if len(raftPrefixKey) != 2 {
+		panic("unexpected raftPrefixKey length")
+	}
+	key[0] = raftPrefixKey[0]
+	key[1] = raftPrefixKey[1]
+	writeUint64(shardID, key[2:])
+	key[10] = suffix
+	return key[:idKeyLength]
+}
+
+func getIndexedIDKey(suffix byte, shardID uint64, index uint64, key []byte) []byte {
+	if len(key) < indexedIDKeyLength {
+		panic("key slice is too short")
+	}
+	if len(raftPrefixKey) != 2 {
+		panic("unexpected raftPrefixKey length")
+	}
+	key[0] = raftPrefixKey[0]
+	key[1] = raftPrefixKey[1]
+	writeUint64(shardID, key[2:])
+	key[10] = suffix
+	writeUint64(index, key[11:])
+	return key[:indexedIDKeyLength]
+}
+
+func getDataKey(group uint64, key []byte, output []byte) []byte {
+	output = getKeySlice(output, len(dataPrefixKey)+8+len(key))
+	if len(dataPrefixKey) != 1 {
+		panic("unexpected dataPrefixKey length")
+	}
+	output[0] = dataPrefixKey[0]
+	writeUint64(group, output[1:])
 	if len(key) > 0 {
-		buf.Write(key)
+		copy(output[9:], key)
 	}
-
-	_, data, _ := buf.ReadBytes(buf.Readable())
-	return data
+	return output[:9+len(key)]
 }
 
-// WriteGroupPrefix write group prefix
-func WriteGroupPrefix(group uint64, key []byte) {
-	copy(key, dataPrefixKey)
-	buf.Uint64ToBytesTo(group, key[dataPrefixKeySize:])
+func EncodeDataKey(group uint64, dataKey []byte, output []byte) []byte {
+	return getDataKey(group, dataKey, output)
 }
 
-// EncodeDataKey encode data key
-func EncodeDataKey(group uint64, key []byte) []byte {
-	buf := acquireBuf()
-	data := GetDataKeyWithBuf(group, key, buf)
-	releaseBuf(buf)
-	return data
-}
-
-// DecodeDataKey decode data key
 func DecodeDataKey(key []byte) []byte {
 	return key[DataPrefixSize:]
 }
 
-func getDataMaxKey(group uint64) []byte {
-	buf := acquireBuf()
-	buf.WriteByte(dataPrefix)
-	buf.WriteUint64(group + 1)
-	_, data, _ := buf.ReadBytes(buf.Readable())
-	releaseBuf(buf)
-	return data
+func getDataMaxKey(group uint64, key []byte) []byte {
+	key = getKeySlice(key, 9)
+	key[0] = dataPrefix
+	writeUint64(group+1, key[1:])
+	return key[:9]
 }
 
-func GetDataEndKey(group uint64, endKey []byte) []byte {
+func GetDataEndKey(group uint64, endKey []byte, output []byte) []byte {
 	if len(endKey) == 0 {
-		return getDataMaxKey(group)
+		output = getKeySlice(output, 9)
+		return getDataMaxKey(group, output)
 	}
-	return EncodeDataKey(group, endKey)
+	output = getKeySlice(output, 9+len(endKey))
+	return EncodeDataKey(group, endKey, output)
 }
 
-func EncStartKey(shard *meta.Shard) []byte {
-	// only initialized shard's startKey can be encoded, otherwise there must be bugs
-	// somewhere.
+func EncodeStartKey(shard meta.Shard, key []byte) []byte {
+	// only initialized shard's startKey can be encoded
 	if len(shard.Replicas) == 0 {
-		panic("bug: shard peers len is empty")
+		panic("shard replicas len is empty")
 	}
-
-	return EncodeDataKey(shard.Group, shard.Start)
+	key = getKeySlice(key, 9+len(shard.Start))
+	return EncodeDataKey(shard.Group, shard.Start, key)
 }
 
-func EncEndKey(shard *meta.Shard) []byte {
-	// only initialized shard's end_key can be encoded, otherwise there must be bugs
-	// somewhere.
+func EncodeEndKey(shard meta.Shard, key []byte) []byte {
+	// only initialized shard's endKey can be encoded
 	if len(shard.Replicas) == 0 {
-		panic("bug: shard peers len is empty")
+		panic("shard peers len is empty")
 	}
-	return GetDataEndKey(shard.Group, shard.End)
+	key = getKeySlice(key, 9+len(shard.End))
+	return GetDataEndKey(shard.Group, shard.End, key)
 }

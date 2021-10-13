@@ -229,7 +229,8 @@ func (s *store) mustSaveShards(shards ...Shard) {
 func (s *store) removeInitShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		for _, shard := range v {
-			err := ds.RemoveShardData(shard, keys.EncStartKey(&shard), keys.EncEndKey(&shard))
+			err := ds.RemoveShardData(shard,
+				keys.EncodeStartKey(shard, nil), keys.EncodeEndKey(shard, nil))
 			if err != nil {
 				s.logger.Fatal("fail to remove init shards",
 					s.storeField(),

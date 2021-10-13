@@ -59,7 +59,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
-	p := findReplica(&res, req.Replica.ContainerID)
+	p := findReplica(res, req.Replica.ContainerID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
 		exists := false
@@ -193,7 +193,7 @@ func (d *stateMachine) applyConfigChangeByKind(kind confChangeKind,
 		replica := cp.Replica
 		store_id := replica.ContainerID
 
-		exist_replica := findReplica(&current, replica.ContainerID)
+		exist_replica := findReplica(current, replica.ContainerID)
 		if exist_replica != nil {
 			r := exist_replica.Role
 			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
@@ -337,7 +337,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		rangeKeys.PushBack(splitKey)
 	}
 
-	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), &current)
+	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), current)
 	if err != nil {
 		d.logger.Error("fail to split key",
 			zap.String("err", err.Message))

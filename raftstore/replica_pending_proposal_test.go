@@ -91,7 +91,7 @@ func testPendingProposalClear(t *testing.T,
 	cmd1 := batch{
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -102,7 +102,7 @@ func testPendingProposalClear(t *testing.T,
 	cmd2 := batch{
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -116,7 +116,7 @@ func testPendingProposalClear(t *testing.T,
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -166,7 +166,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -198,7 +198,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	cmd1 := batch{
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
@@ -209,7 +209,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	cmd2 := batch{
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil)},
+				{Key: keys.EncodeDataKey(0, nil, nil)},
 			},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),

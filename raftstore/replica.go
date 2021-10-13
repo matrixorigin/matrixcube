@@ -90,7 +90,7 @@ type replica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createReplica(store *store, shard *Shard, why string) (*replica, error) {
+func createReplica(store *store, shard Shard, why string) (*replica, error) {
 	replica := findReplica(shard, store.meta.meta.ID)
 	if replica == nil {
 		return nil, fmt.Errorf("no replica found on store %d in shard %+v",
@@ -105,7 +105,7 @@ func createReplica(store *store, shard *Shard, why string) (*replica, error) {
 // know the shard_id and replica_id when creating this replicated replica, the shard info
 // will be retrieved later after applying snapshot.
 func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Replica, why string) (*replica, error) {
-	shard := &Shard{
+	shard := Shard{
 		ID:           msg.ShardID,
 		Epoch:        msg.ShardEpoch,
 		Start:        msg.Start,
@@ -118,12 +118,12 @@ func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Re
 	return newReplica(store, shard, replica, why)
 }
 
-func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, error) {
+func newReplica(store *store, shard Shard, r Replica, why string) (*replica, error) {
 	l := store.logger.With(store.storeField(), log.ShardIDField(shard.ID), log.ReplicaIDField(r.ID))
 
 	l.Info("begin to create replica",
 		log.ReasonField(why),
-		log.ShardField("metadata", *shard))
+		log.ShardField("metadata", shard))
 
 	if r.ID == 0 {
 		return nil, fmt.Errorf("invalid replica %+v", r)
@@ -150,7 +150,7 @@ func newReplica(store *store, shard *Shard, r Replica, why string) (*replica, er
 		unloadedC:         make(chan struct{}),
 	}
 	storage := store.DataStorageByGroup(shard.Group)
-	pr.sm = newStateMachine(l, storage, *shard, r.ID, pr)
+	pr.sm = newStateMachine(l, storage, shard, r.ID, pr)
 	return pr, nil
 }
 
@@ -417,14 +417,15 @@ func (pr *replica) nextProposalIndex() uint64 {
 
 func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
 	return &raft.Config{
-		ID:              id,
-		Applied:         appliedIndex,
-		ElectionTick:    cfg.Raft.ElectionTimeoutTicks,
-		HeartbeatTick:   cfg.Raft.HeartbeatTicks,
-		MaxSizePerMsg:   uint64(cfg.Raft.MaxSizePerMsg),
-		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
-		Storage:         lr,
-		CheckQuorum:     true,
-		PreVote:         true,
+		ID:                        id,
+		Applied:                   appliedIndex,
+		ElectionTick:              cfg.Raft.ElectionTimeoutTicks,
+		HeartbeatTick:             cfg.Raft.HeartbeatTicks,
+		MaxSizePerMsg:             uint64(cfg.Raft.MaxSizePerMsg),
+		MaxInflightMsgs:           cfg.Raft.MaxInflightMsgs,
+		Storage:                   lr,
+		CheckQuorum:               true,
+		PreVote:                   true,
+		DisableProposalForwarding: true,
 	}
 }

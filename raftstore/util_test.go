@@ -29,7 +29,7 @@ func TestIsEpochStale(t *testing.T) {
 }
 
 func TestFindReplica(t *testing.T) {
-	shard := &Shard{
+	shard := Shard{
 		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
 			{ID: 2, ContainerID: 20000},
