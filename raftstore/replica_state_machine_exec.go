@@ -15,21 +15,28 @@ package raftstore
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math"
 	"sort"
 
+	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+)
+
+var (
+	ErrNotLearnerReplica = errors.New("not learner")
+	ErrReplicaNotFound   = errors.New("replica not found")
+	ErrReplicaDuplicated = errors.New("replica duplicated")
 )
 
 func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, error) {
@@ -59,45 +66,62 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
-	p := findReplica(res, req.Replica.ContainerID)
+	p := findReplica(res, replica.ContainerID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
 		exists := false
 		if p != nil {
 			exists = true
-			if p.Role != metapb.ReplicaRole_Learner || p.ID != replica.ID {
-				return rpc.ResponseBatch{}, fmt.Errorf("shard %d can't add duplicated replica %+v",
-					res.ID,
-					replica)
+			if p.ID == replica.ID {
+				if p.Role != metapb.ReplicaRole_Learner {
+					err := errors.Wrapf(ErrReplicaDuplicated,
+						"shardID %d, replicaID %d, role %v", res.ID, p.ID, p.Role)
+					return rpc.ResponseBatch{}, err
+				}
+			} else {
+				err := errors.Wrapf(ErrReplicaDuplicated,
+					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
+				return rpc.ResponseBatch{}, err
 			}
 			p.Role = metapb.ReplicaRole_Voter
+			d.logger.Info("learner promoted to voter",
+				log.ReplicaField("replica", *p),
+				log.StoreIDField(replica.ContainerID))
 		}
 		if !exists {
+			replica.Role = metapb.ReplicaRole_Voter
 			res.Replicas = append(res.Replicas, replica)
 		}
 	case metapb.ConfigChangeType_RemoveNode:
 		if p != nil {
-			if p.ID != replica.ID || p.ContainerID != replica.ContainerID {
-				return rpc.ResponseBatch{}, fmt.Errorf("shard %+v ignore remove unmatched replica %+v",
-					res.ID,
-					replica)
+			if p.ID != replica.ID {
+				err := errors.Wrapf(ErrReplicaNotFound,
+					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
+				return rpc.ResponseBatch{}, err
+			} else {
+				removeReplica(&res, replica.ContainerID)
 			}
+
 			if d.replicaID == replica.ID {
-				// Remove ourself, we will destroy all shard data later.
-				// So we need not to apply following logs.
+				// Remove ourself, will destroy all shard data later.
 				d.setRemoved()
+				d.logger.Info("replica remoted itself",
+					log.ReplicaField("replica", *p),
+					log.StoreIDField(replica.ContainerID))
 			}
 		} else {
-			return rpc.ResponseBatch{}, fmt.Errorf("shard %+v remove missing replica %+v",
-				res.ID,
-				replica)
+			err := errors.Wrapf(ErrReplicaNotFound,
+				"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
+			return rpc.ResponseBatch{}, err
 		}
 	case metapb.ConfigChangeType_AddLearnerNode:
 		if p != nil {
-			return rpc.ResponseBatch{}, fmt.Errorf("shard-%d can't add duplicated learner %+v",
-				res.ID,
-				replica)
+			err := errors.Wrapf(ErrReplicaDuplicated,
+				"shardID %d, replicaID %d role %v already exist on store %d",
+				res.ID, p.ID, p.Role, replica.ContainerID)
+			return rpc.ResponseBatch{}, err
 		}
+		replica.Role = metapb.ReplicaRole_Learner
 		res.Replicas = append(res.Replicas, replica)
 	}
 	state := meta.ReplicaState_Normal
@@ -105,13 +129,12 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		state = meta.ReplicaState_Tombstone
 	}
 	d.updateShard(res)
-	err := d.saveShardMetedata(ctx.index, res, state)
-	if err != nil {
+	if err := d.saveShardMetedata(ctx.index, res, state); err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
 	}
 
-	d.logger.Info("apply change replica complete",
+	d.logger.Info("apply change replica completed",
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
