@@ -167,22 +167,22 @@ func TestErrorBaseResp(t *testing.T) {
 func TestCheckKeyInShard(t *testing.T) {
 	cases := []struct {
 		key     []byte
-		shard   *Shard
+		shard   Shard
 		checker func(t assert.TestingT, object interface{}, msgAndArgs ...interface{}) bool
 	}{
 		{
 			key:     []byte("a"),
-			shard:   &Shard{ID: 1},
+			shard:   Shard{ID: 1},
 			checker: assert.Nil,
 		},
 		{
 			key:     []byte("a"),
-			shard:   &Shard{ID: 1, Start: []byte("b")},
+			shard:   Shard{ID: 1, Start: []byte("b")},
 			checker: assert.NotNil,
 		},
 		{
 			key:     []byte("b"),
-			shard:   &Shard{ID: 1, Start: []byte("a"), End: []byte("b")},
+			shard:   Shard{ID: 1, Start: []byte("a"), End: []byte("b")},
 			checker: assert.NotNil,
 		},
 	}

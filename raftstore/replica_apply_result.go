@@ -203,7 +203,7 @@ func (pr *replica) applySplit(result *splitResult) {
 		}
 
 		hint := fmt.Sprintf("split by shard %d", pr.shardID)
-		newPR, err := createReplica(pr.store, &shard, hint)
+		newPR, err := createReplica(pr.store, shard, hint)
 		if err != nil {
 			// replica information is already written into db, can't recover.
 			// there is probably a bug.

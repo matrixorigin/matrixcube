@@ -388,7 +388,7 @@ func (s *store) startShards() {
 				continue
 			}
 
-			pr, err := createReplica(s, &sls.Shard, "bootstrap")
+			pr, err := createReplica(s, sls.Shard, "bootstrap")
 			if err != nil {
 				s.logger.Fatal("fail to create replica",
 					s.storeField(),

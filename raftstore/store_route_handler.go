@@ -25,7 +25,7 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 		return
 	}
 
-	pr, err := createReplica(s, &shard, "event")
+	pr, err := createReplica(s, shard, "event")
 	if err != nil {
 		return
 	}
