@@ -417,14 +417,15 @@ func (pr *replica) nextProposalIndex() uint64 {
 
 func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
 	return &raft.Config{
-		ID:              id,
-		Applied:         appliedIndex,
-		ElectionTick:    cfg.Raft.ElectionTimeoutTicks,
-		HeartbeatTick:   cfg.Raft.HeartbeatTicks,
-		MaxSizePerMsg:   uint64(cfg.Raft.MaxSizePerMsg),
-		MaxInflightMsgs: cfg.Raft.MaxInflightMsgs,
-		Storage:         lr,
-		CheckQuorum:     true,
-		PreVote:         true,
+		ID:                        id,
+		Applied:                   appliedIndex,
+		ElectionTick:              cfg.Raft.ElectionTimeoutTicks,
+		HeartbeatTick:             cfg.Raft.HeartbeatTicks,
+		MaxSizePerMsg:             uint64(cfg.Raft.MaxSizePerMsg),
+		MaxInflightMsgs:           cfg.Raft.MaxInflightMsgs,
+		Storage:                   lr,
+		CheckQuorum:               true,
+		PreVote:                   true,
+		DisableProposalForwarding: true,
 	}
 }
