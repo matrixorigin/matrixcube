@@ -80,7 +80,7 @@ func errorBaseResp(id []byte) rpc.ResponseBatch {
 	return resp
 }
 
-func checkKeyInShard(key []byte, shard *Shard) *errorpb.Error {
+func checkKeyInShard(key []byte, shard Shard) *errorpb.Error {
 	if bytes.Compare(key, shard.Start) >= 0 &&
 		(len(shard.End) == 0 || bytes.Compare(key, shard.End) < 0) {
 		return nil
