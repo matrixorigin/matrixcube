@@ -160,7 +160,7 @@ func (pr *replica) handleEvent() bool {
 }
 
 func (pr *replica) cacheRaftStatus() {
-	pr.setLeaderPeerID(pr.rn.Status().Lead)
+	pr.setLeaderReplicaID(pr.rn.Status().Lead)
 }
 
 func (pr *replica) handleAction(items []interface{}) {

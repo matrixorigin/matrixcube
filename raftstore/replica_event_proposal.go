@@ -14,33 +14,42 @@
 package raftstore
 
 import (
-	"errors"
-	"fmt"
-
+	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.etcd.io/etcd/raft/v3/tracker"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
+
+var (
+	ErrInvalidConfigChangeRequest = errors.New("invalid config change request")
+	ErrRemoveVoter                = errors.New("removing voter")
+	ErrRemoveLeader               = errors.New("removing leader")
+	ErrPendingConfigChange        = errors.New("pending config change")
+	ErrDuplicatedRequest          = errors.New("duplicated config change request")
+	ErrLearnerOnlyChange          = errors.New("learner only change")
+)
+
+type tracker = trackerPkg.ProgressTracker
 
 type confChangeKind int
 
-var (
-	simpleKind     = confChangeKind(0)
-	enterJointKind = confChangeKind(1)
-	leaveJointKind = confChangeKind(2)
+const (
+	simpleKind confChangeKind = iota
+	enterJointKind
+	leaveJointKind
 )
 
 func getConfigChangeKind(changeNum int) confChangeKind {
 	if changeNum == 0 {
 		return leaveJointKind
 	}
-
 	if changeNum == 1 {
 		return simpleKind
 	}
@@ -48,13 +57,13 @@ func getConfigChangeKind(changeNum int) confChangeKind {
 	return enterJointKind
 }
 
-type requestPolicy int
+type requestType int
 
 const (
-	readIndex             = requestPolicy(1)
-	proposeNormal         = requestPolicy(2)
-	proposeTransferLeader = requestPolicy(3)
-	proposeChange         = requestPolicy(4)
+	readIndex requestType = iota
+	proposalNormal
+	proposalConfigChange
+	requestTransferLeader
 )
 
 func (pr *replica) handleRequest(items []interface{}) {
@@ -69,7 +78,6 @@ func (pr *replica) handleRequest(items []interface{}) {
 		if err != nil {
 			return
 		}
-
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
 			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil {
@@ -77,7 +85,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 			}
 			// FIXME: still using the current epoch here. should use epoch value
 			// returned when routing the request.
-			pr.incomingProposals.push(pr.getShard().Group, shard.Epoch, req)
+			pr.incomingProposals.push(shard.Group, shard.Epoch, req)
 		}
 	}
 
@@ -100,46 +108,29 @@ func (pr *replica) propose(c batch) {
 	if !pr.checkProposal(c) {
 		return
 	}
-
-	// after propose, raft need to send message to peers
 	defer pr.notifyWorker()
 
-	// Note:
-	// The peer that is being checked is a leader. It might step down to be a follower later. It
-	// doesn't matter whether the peer is a leader or not. If it's not a leader, the proposing
-	// command log entry can't be committed.
 	isConfChange := false
-	policy, err := pr.getHandlePolicy(c.requestBatch)
-	if err != nil {
-		resp := errorOtherCMDResp(err)
-		c.resp(resp)
-		return
-	}
-
-	doPropose := false
-	switch policy {
+	madeProposal := false
+	switch pr.getRequestType(c.requestBatch) {
 	case readIndex:
 		pr.execReadIndex(c)
-	case proposeNormal:
-		doPropose = pr.proposeNormal(c)
-	case proposeTransferLeader:
-		doPropose = pr.proposeTransferLeader(c)
-	case proposeChange:
+	case proposalNormal:
+		madeProposal = pr.proposeNormal(c)
+	case requestTransferLeader:
+		madeProposal = pr.requestTransferLeader(c)
+	case proposalConfigChange:
 		isConfChange = true
 		pr.metrics.admin.confChange++
-		doPropose = pr.proposeConfChange(c)
+		madeProposal = pr.proposeConfChange(c)
 	}
 
-	if !doPropose {
-		return
-	}
-
-	if err := pr.doPropose(c, isConfChange); err != nil {
-		c.respOtherError(err)
+	if madeProposal {
+		pr.updatePendingProposal(c, isConfChange)
 	}
 }
 
-func (pr *replica) doPropose(c batch, isConfChange bool) error {
+func (pr *replica) updatePendingProposal(c batch, isConfChange bool) error {
 	if isConfChange {
 		changeC := pr.pendingProposals.getConfigChange()
 		if !changeC.requestBatch.Header.IsEmpty() {
@@ -153,28 +144,31 @@ func (pr *replica) doPropose(c batch, isConfChange bool) error {
 	return nil
 }
 
+func (pr *replica) respNotLeader(c batch) {
+	target, _ := pr.store.getReplicaRecord(pr.getLeaderReplicaID())
+	c.respNotLeader(pr.shardID, target)
+}
+
 func (pr *replica) execReadIndex(c batch) {
 	if c.tp != read {
 		panic("not a read index request")
 	}
 	if !pr.isLeader() {
-		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
-		c.respNotLeader(pr.shardID, target)
+		pr.respNotLeader(c)
 		return
 	}
 
-	lastPendingReadCount := pr.pendingReadCount()
-	lastReadyReadCount := pr.readyReadCount()
+	prevPendingReadCount := pr.pendingReadCount()
+	prevReadyReadCount := pr.readyReadCount()
 
 	pr.rn.ReadIndex(protoc.MustMarshal(&c.requestBatch))
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()
 
-	if pendingReadCount == lastPendingReadCount &&
-		readyReadCount == lastReadyReadCount {
-		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
-		c.respNotLeader(pr.shardID, target)
+	if pendingReadCount == prevPendingReadCount &&
+		readyReadCount == prevReadyReadCount {
+		pr.respNotLeader(c)
 		return
 	}
 	pr.metrics.propose.readIndex++
@@ -182,8 +176,7 @@ func (pr *replica) execReadIndex(c batch) {
 
 func (pr *replica) proposeNormal(c batch) bool {
 	if !pr.isLeader() {
-		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
-		c.respNotLeader(pr.shardID, target)
+		pr.respNotLeader(c)
 		return false
 	}
 
@@ -197,15 +190,12 @@ func (pr *replica) proposeNormal(c batch) bool {
 	}
 
 	idx := pr.nextProposalIndex()
-	err := pr.rn.Propose(data)
-	if err != nil {
+	if err := pr.rn.Propose(data); err != nil {
 		c.resp(errorOtherCMDResp(err))
 		return false
 	}
-	idx2 := pr.nextProposalIndex()
-	if idx == idx2 {
-		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
-		c.respNotLeader(pr.shardID, target)
+	if idx == pr.nextProposalIndex() {
+		pr.respNotLeader(c)
 		return false
 	}
 
@@ -215,15 +205,14 @@ func (pr *replica) proposeNormal(c batch) bool {
 
 func (pr *replica) proposeConfChange(c batch) bool {
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
-		pr.logger.Error("there is a pending conf change, try later")
-		c.respOtherError(errors.New("there is a pending conf change, try later"))
+		pr.logger.Error(ErrPendingConfigChange.Error())
+		c.respOtherError(ErrPendingConfigChange)
 		return false
 	}
 
 	data := protoc.MustMarshal(&c.requestBatch)
 	admin := c.requestBatch.AdminRequest
-	err := pr.proposeConfChangeInternal(c, admin, data)
-	if err != nil {
+	if err := pr.proposeConfChangeInternal(c, admin, data); err != nil {
 		pr.logger.Error("fail to proposal conf change",
 			zap.Error(err))
 		return false
@@ -231,7 +220,8 @@ func (pr *replica) proposeConfChange(c batch) bool {
 	return true
 }
 
-func (pr *replica) proposeConfChangeInternal(c batch, admin rpc.AdminRequest, data []byte) error {
+func (pr *replica) proposeConfChangeInternal(c batch,
+	admin rpc.AdminRequest, data []byte) error {
 	cc := pr.toConfChangeI(admin, data)
 	var changes []rpc.ConfigChangeRequest
 	if admin.ConfigChangeV2 != nil {
@@ -240,8 +230,7 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin rpc.AdminRequest, da
 		changes = append(changes, *admin.ConfigChange)
 	}
 
-	err := pr.checkConfChange(changes, cc)
-	if err != nil {
+	if err := pr.checkConfChange(changes, cc); err != nil {
 		return err
 	}
 
@@ -249,14 +238,13 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin rpc.AdminRequest, da
 		log.ConfigChangesField("changes", changes))
 
 	propose_index := pr.nextProposalIndex()
-	err = pr.rn.ProposeConfChange(cc)
-	if err != nil {
+	if err := pr.rn.ProposeConfChange(cc); err != nil {
 		return err
 	}
 	if propose_index == pr.nextProposalIndex() {
 		// The message is dropped silently, this usually due to leader absence
 		// or transferring leader. Both cases can be considered as NotLeader error.
-		target, _ := pr.store.getReplicaRecord(pr.getLeaderPeerID())
+		target, _ := pr.store.getReplicaRecord(pr.getLeaderReplicaID())
 		c.respNotLeader(pr.shardID, target)
 		return errNotLeader
 	}
@@ -265,7 +253,8 @@ func (pr *replica) proposeConfChangeInternal(c batch, admin rpc.AdminRequest, da
 	return nil
 }
 
-func (pr *replica) toConfChangeI(admin rpc.AdminRequest, data []byte) raftpb.ConfChangeI {
+func (pr *replica) toConfChangeI(admin rpc.AdminRequest,
+	data []byte) raftpb.ConfChangeI {
 	if admin.ConfigChange != nil {
 		return &raftpb.ConfChange{
 			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
@@ -291,53 +280,50 @@ func (pr *replica) toConfChangeI(admin rpc.AdminRequest, data []byte) raftpb.Con
 	}
 }
 
-func (pr *replica) proposeTransferLeader(c batch) bool {
+func (pr *replica) requestTransferLeader(c batch) bool {
 	req := c.requestBatch.AdminRequest.TransferLeader
-
-	// has pending conf, skip
+	// has pending confChange, skip
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
-		pr.logger.Info("transfer leader ignored by pending conf")
+		pr.logger.Info("transfer leader ignored due to pending confChange")
 		return false
 	}
 
 	if pr.isTransferLeaderAllowed(req.Replica) {
 		pr.doTransferLeader(req.Replica)
 	} else {
-		pr.logger.Info("transfer leader ignored directly")
+		pr.logger.Info("transfer leader not allowed")
 	}
-
-	// transfer leader command doesn't need to replicate log and apply, so we
-	// return immediately. Note that this command may fail, we can view it just as an advice
-	c.resp(newAdminResponseBatch(rpc.AdminCmdType_TransferLeader, &rpc.TransferLeaderResponse{}))
+	// we submitted the request to start the leadership transfer, but there is no
+	// guarantee that it will successfully complete.
+	c.resp(newAdminResponseBatch(rpc.AdminCmdType_TransferLeader,
+		&rpc.TransferLeaderResponse{}))
 	return false
 }
 
 func (pr *replica) doTransferLeader(peer Replica) {
 	pr.logger.Info("do transfer leader",
 		log.ReplicaField("to", peer))
-
 	// Broadcast heartbeat to make sure followers commit the entries immediately.
 	// It's only necessary to ping the target peer, but ping all for simplicity.
 	pr.rn.Ping()
-
 	pr.rn.TransferLeader(peer.ID)
 	pr.metrics.propose.transferLeader++
 }
 
-func (pr *replica) isTransferLeaderAllowed(newLeaderPeer Replica) bool {
+func (pr *replica) isTransferLeaderAllowed(newLeader Replica) bool {
 	status := pr.rn.Status()
-	if _, ok := status.Progress[newLeaderPeer.ID]; !ok {
+	if _, ok := status.Progress[newLeader.ID]; !ok {
 		return false
 	}
-
 	for _, p := range status.Progress {
-		if p.State == tracker.StateSnapshot {
+		if p.State == trackerPkg.StateSnapshot {
 			return false
 		}
 	}
 
 	lastIndex, _ := pr.lr.LastIndex()
-	return lastIndex <= status.Progress[newLeaderPeer.ID].Match+pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
+	maxTransferLag := pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
+	return lastIndex <= status.Progress[newLeader.ID].Match+maxTransferLag
 }
 
 func (pr *replica) checkProposal(c batch) bool {
@@ -346,13 +332,10 @@ func (pr *replica) checkProposal(c batch) bool {
 		c.resp(errorOtherCMDResp(errMissingUUIDCMD))
 		return false
 	}
-
-	err := pr.store.validateStoreID(c.requestBatch)
-	if err != nil {
+	if err := pr.store.validateStoreID(c.requestBatch); err != nil {
 		c.respOtherError(err)
 		return false
 	}
-
 	if pe, ok := pr.store.validateShard(c.requestBatch); ok {
 		c.resp(errorPbResp(c.getRequestID(), pe))
 		return false
@@ -361,75 +344,105 @@ func (pr *replica) checkProposal(c batch) bool {
 	return true
 }
 
-// TODO: set higher election priority of voter/incoming voter than demoting voter
-/// Validate the `ConfChange` requests and check whether it's safe to
-/// propose these conf change requests.
-/// It's safe iff at least the quorum of the Raft group is still healthy
-/// right after all conf change is applied.
-/// If 'allow_remove_leader' is false then the peer to be removed should
-/// not be the leader.
-func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest, cci raftpb.ConfChangeI) error {
+func isValidConfigChangeRequest(ccr rpc.ConfigChangeRequest) bool {
+	// remove voter or learner
+	if ccr.ChangeType == metapb.ConfigChangeType_RemoveNode {
+		return true
+	}
+	// add voter or promote learner
+	if ccr.ChangeType == metapb.ConfigChangeType_AddNode &&
+		ccr.Replica.Role == metapb.ReplicaRole_Voter {
+		return true
+	}
+	// add learner
+	if ccr.ChangeType == metapb.ConfigChangeType_AddLearnerNode &&
+		ccr.Replica.Role == metapb.ReplicaRole_Learner {
+		return true
+	}
+	return false
+}
+
+func isRemovingOrDemotingLeader(kind confChangeKind,
+	ccr rpc.ConfigChangeRequest, leaderReplicaID uint64) bool {
+	// targetting the leader
+	if ccr.Replica.ID != leaderReplicaID {
+		return false
+	}
+	// removing
+	if ccr.ChangeType == metapb.ConfigChangeType_RemoveNode {
+		return true
+	}
+	// demoting
+	if kind == simpleKind &&
+		ccr.ChangeType == metapb.ConfigChangeType_AddLearnerNode {
+		return true
+	}
+	return false
+}
+
+func removingVoterDirectlyInJointConsensusCC(kind confChangeKind,
+	ccr rpc.ConfigChangeRequest) bool {
+	if kind != simpleKind {
+		if ccr.ChangeType == metapb.ConfigChangeType_RemoveNode &&
+			ccr.Replica.Role == metapb.ReplicaRole_Voter {
+			return true
+		}
+	}
+	return false
+}
+
+func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest,
+	cci raftpb.ConfChangeI) error {
 	cc := cci.AsV2()
 	if _, err := pr.checkJointState(cc); err != nil {
 		return err
 	}
-	currentProgress := pr.rn.NewChanger().Tracker
-
 	kind := getConfigChangeKind(len(cc.Changes))
-	// Leaving joint state, skip check
 	if kind == leaveJointKind {
 		return nil
 	}
 
-	// Check whether this request is valid
-	check_dup := make(map[uint64]struct{})
-	only_learner_change := true
-	currentVoter := currentProgress.Config.Voters.IDs()
+	dup := make(map[uint64]struct{})
+	learnerOnly := true
+	voters := pr.rn.NewChanger().Tracker.Config.Voters.IDs()
 	for _, cp := range changes {
-		if cp.ChangeType == metapb.ConfigChangeType_RemoveNode &&
-			cp.Replica.Role == metapb.ReplicaRole_Voter &&
-			kind != simpleKind {
-			return fmt.Errorf("invalid conf change request %+v, can not remove voter directly", cp)
+		if removingVoterDirectlyInJointConsensusCC(kind, cp) {
+			// TODO: error log the cp value here
+			return ErrRemoveVoter
+		}
+		if !isValidConfigChangeRequest(cp) {
+			return ErrInvalidConfigChangeRequest
+		}
+		if _, ok := dup[cp.Replica.ID]; ok {
+			return ErrDuplicatedRequest
+		}
+		dup[cp.Replica.ID] = struct{}{}
+
+		if !pr.store.cfg.Replication.AllowRemoveLeader {
+			if isRemovingOrDemotingLeader(kind, cp, pr.replica.ID) {
+				return ErrRemoveLeader
+			}
 		}
 
-		if !(cp.ChangeType == metapb.ConfigChangeType_RemoveNode ||
-			(cp.ChangeType == metapb.ConfigChangeType_AddNode && cp.Replica.Role == metapb.ReplicaRole_Voter) ||
-			(cp.ChangeType == metapb.ConfigChangeType_AddLearnerNode && cp.Replica.Role == metapb.ReplicaRole_Learner)) {
-			return fmt.Errorf("invalid conf change request %+v", cp)
+		if cp.ChangeType == metapb.ConfigChangeType_AddNode {
+			learnerOnly = false
 		}
-
-		if _, ok := check_dup[cp.Replica.ID]; ok {
-			return fmt.Errorf("invalid conf change request %+v, , have multiple commands for the same peer %+v",
-				cp,
-				cp.Replica)
-		}
-		check_dup[cp.Replica.ID] = struct{}{}
-
-		if cp.Replica.ID == pr.replica.ID &&
-			(cp.ChangeType == metapb.ConfigChangeType_RemoveNode ||
-				(kind == simpleKind && cp.ChangeType == metapb.ConfigChangeType_AddLearnerNode)) &&
-			!pr.store.cfg.Replication.AllowRemoveLeader {
-			return fmt.Errorf("ignore remove leader or demote leader")
-		}
-
-		if _, ok := currentVoter[cp.Replica.ID]; ok || cp.ChangeType == metapb.ConfigChangeType_AddNode {
-			only_learner_change = false
+		if _, ok := voters[cp.Replica.ID]; ok {
+			learnerOnly = false
 		}
 	}
-
-	// Multiple changes that only effect learner will not product `IncommingVoter` or `DemotingVoter`
-	// after apply, but raftstore layer and PD rely on these roles to detect joint state
-	if kind != simpleKind && only_learner_change {
-		return fmt.Errorf("invalid conf change request, multiple changes that only effect learner")
+	// such config change request will confuse raftstore
+	if kind != simpleKind && learnerOnly {
+		return ErrLearnerOnlyChange
 	}
 
 	return nil
 }
 
-func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTracker, error) {
+func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker, error) {
 	changer := pr.rn.NewChanger()
-	var cfg tracker.Config
-	var changes *tracker.Changes
+	var cfg trackerPkg.Config
+	var changes *trackerPkg.Changes
 	var err error
 	cc := cci.AsV2()
 	if cc.LeaveJoint() {
@@ -439,7 +452,6 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTra
 	} else {
 		cfg, _, changes, err = changer.Simple(cc.Changes...)
 	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -449,34 +461,33 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker.ProgressTra
 	return trk, nil
 }
 
-// TODO: what is a policy?
-func (pr *replica) getHandlePolicy(req rpc.RequestBatch) (requestPolicy, error) {
+func (pr *replica) getRequestType(req rpc.RequestBatch) requestType {
 	if req.IsAdmin() {
 		switch req.AdminRequest.CmdType {
 		case rpc.AdminCmdType_ConfigChange:
-			return proposeChange, nil
+			return proposalConfigChange
 		case rpc.AdminCmdType_ConfigChangeV2:
-			return proposeChange, nil
+			return proposalConfigChange
 		case rpc.AdminCmdType_TransferLeader:
-			return proposeTransferLeader, nil
+			return requestTransferLeader
 		default:
-			return proposeNormal, nil
+			return proposalNormal
 		}
 	}
-
-	var isRead, isWrite bool
+	var hasRead, hasWrite bool
 	for _, r := range req.Requests {
-		isRead = r.Type == rpc.CmdType_Read
-		isWrite = r.Type == rpc.CmdType_Write
+		if !hasRead {
+			hasRead = r.Type == rpc.CmdType_Read
+		}
+		if !hasWrite {
+			hasWrite = r.Type == rpc.CmdType_Write
+		}
 	}
-
-	if isRead && isWrite {
-		return proposeNormal, errors.New("read and write can't be mixed in one batch")
+	if hasRead && hasWrite {
+		panic("read and write can't be mixed in one batch")
 	}
-
-	if isWrite {
-		return proposeNormal, nil
+	if hasWrite {
+		return proposalNormal
 	}
-
-	return readIndex, nil
+	return readIndex
 }
