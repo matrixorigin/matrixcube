@@ -587,7 +587,7 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	if !allowFollow && !pr.isLeader() {
 		err := new(errorpb.NotLeader)
 		err.ShardID = shardID
-		err.Leader, _ = s.getReplicaRecord(pr.getLeaderPeerID())
+		err.Leader, _ = s.getReplicaRecord(pr.getLeaderReplicaID())
 
 		return errorpb.Error{
 			Message:   errNotLeader.Error(),

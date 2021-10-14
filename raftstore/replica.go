@@ -320,15 +320,15 @@ func (pr *replica) getReplicaRecord(id uint64) (Replica, bool) {
 	return Replica{}, false
 }
 
-func (pr *replica) setLeaderPeerID(id uint64) {
+func (pr *replica) setLeaderReplicaID(id uint64) {
 	atomic.StoreUint64(&pr.leaderID, id)
 }
 
 func (pr *replica) isLeader() bool {
-	return pr.getLeaderPeerID() == pr.replica.ID
+	return pr.getLeaderReplicaID() == pr.replica.ID
 }
 
-func (pr *replica) getLeaderPeerID() uint64 {
+func (pr *replica) getLeaderReplicaID() uint64 {
 	return atomic.LoadUint64(&pr.leaderID)
 }
 

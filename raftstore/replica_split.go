@@ -14,7 +14,7 @@
 package raftstore
 
 import (
-	"go.etcd.io/etcd/raft/v3/tracker"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/keys"
@@ -31,7 +31,7 @@ func (pr *replica) tryCheckSplit() {
 
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
-		if p.State == tracker.StateSnapshot {
+		if p.State == trackerPkg.StateSnapshot {
 			pr.logger.Info("check split skipped",
 				log.ReplicaIDField(id),
 				log.ReasonField("applying snapshot"))

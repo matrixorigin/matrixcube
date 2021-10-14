@@ -35,13 +35,13 @@ type batch struct {
 }
 
 func newBatch(logger *zap.Logger, requestBatch rpc.RequestBatch, cb func(rpc.ResponseBatch), tp int, byteSize int) batch {
-	c := batch{}
-	c.logger = logger
-	c.requestBatch = requestBatch
-	c.cb = cb
-	c.tp = tp
-	c.byteSize = byteSize
-	return c
+	return batch{
+		logger:       logger,
+		requestBatch: requestBatch,
+		cb:           cb,
+		tp:           tp,
+		byteSize:     byteSize,
+	}
 }
 
 func (c *batch) notifyStaleCmd() {
@@ -78,10 +78,11 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 				}
 
 				for _, req := range c.requestBatch.Requests {
-					rsp := rpc.Response{}
-					rsp.ID = req.ID
-					rsp.SID = req.SID
-					rsp.PID = req.PID
+					rsp := rpc.Response{
+						ID:  req.ID,
+						SID: req.SID,
+						PID: req.PID,
+					}
 					resp.Responses = append(resp.Responses, rsp)
 				}
 			} else {
@@ -106,9 +107,9 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 }
 
 func (c *batch) respShardNotFound(shardID uint64) {
-	err := new(errorpb.ShardNotFound)
-	err.ShardID = shardID
-
+	err := &errorpb.ShardNotFound{
+		ShardID: shardID,
+	}
 	rsp := errorPbResp(c.getRequestID(), errorpb.Error{
 		Message:       errShardNotFound.Error(),
 		ShardNotFound: err,
@@ -122,12 +123,10 @@ func (c *batch) respLargeRaftEntrySize(shardID uint64, size uint64) {
 		ShardID:   shardID,
 		EntrySize: size,
 	}
-
 	rsp := errorPbResp(c.getRequestID(), errorpb.Error{
 		Message:           errLargeRaftEntrySize.Error(),
 		RaftEntryTooLarge: err,
 	})
-
 	c.resp(rsp)
 }
 
@@ -141,12 +140,10 @@ func (c *batch) respNotLeader(shardID uint64, leader Replica) {
 		ShardID: shardID,
 		Leader:  leader,
 	}
-
 	rsp := errorPbResp(c.getRequestID(), errorpb.Error{
 		Message:   errNotLeader.Error(),
 		NotLeader: err,
 	})
-
 	c.resp(rsp)
 }
 
@@ -159,12 +156,12 @@ func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
 	})
-
-	resp := rpc.Response{}
-	resp.ID = req.ID
-	resp.SID = req.SID
-	resp.PID = req.PID
-	resp.Request = &req
+	resp := rpc.Response{
+		ID:      req.ID,
+		SID:     req.SID,
+		PID:     req.PID,
+		Request: &req,
+	}
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)
 }

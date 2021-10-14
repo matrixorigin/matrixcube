@@ -139,11 +139,14 @@ func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx)
 	}
 
 	if !added {
-		rb := rpc.RequestBatch{}
-		rb.Header.ShardID = b.shardID
-		rb.Header.Replica = b.replica
-		rb.Header.ID = uuid.NewV4().Bytes()
-		rb.Header.Epoch = epoch
+		rb := rpc.RequestBatch{
+			Header: rpc.RequestBatchHeader{
+				ShardID: b.shardID,
+				Replica: b.replica,
+				ID:      uuid.NewV4().Bytes(),
+				Epoch:   epoch,
+			},
+		}
 
 		if isAdmin {
 			rb.AdminRequest = adminReq
