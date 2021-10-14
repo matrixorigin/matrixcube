@@ -204,6 +204,11 @@ func (pr *replica) proposeNormal(c batch) bool {
 }
 
 func (pr *replica) proposeConfChange(c batch) bool {
+	if !pr.isLeader() {
+		pr.respNotLeader(c)
+		return false
+	}
+
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		pr.logger.Error(ErrPendingConfigChange.Error())
 		c.respOtherError(ErrPendingConfigChange)
