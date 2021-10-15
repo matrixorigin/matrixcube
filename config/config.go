@@ -45,7 +45,6 @@ var (
 	defaultRaftMaxWorkers           uint64 = 32
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
-	defaultCompactDuration                 = time.Second * 30
 	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultShardStateCheckDuration         = time.Second * 60
 	defaultMaxEntryBytes                   = 10 * mb
@@ -327,21 +326,16 @@ func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 
 // RaftLogConfig raft log config
 type RaftLogConfig struct {
-	DisableSync           bool              `toml:"disable-sync"`
-	CompactDuration       typeutil.Duration `toml:"compact-duration"`
-	CompactThreshold      uint64            `toml:"compact-threshold"`
-	DisableCompactProtect []uint64          `toml:"disable-compact-protect"`
-	MaxAllowTransferLag   uint64            `toml:"max-allow-transfer-lag"`
+	DisableSync           bool     `toml:"disable-sync"`
+	CompactThreshold      uint64   `toml:"compact-threshold"`
+	DisableCompactProtect []uint64 `toml:"disable-compact-protect"`
+	MaxAllowTransferLag   uint64   `toml:"max-allow-transfer-lag"`
 	ForceCompactCount     uint64
 	ForceCompactBytes     uint64
 	CompactProtectLag     uint64
 }
 
 func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
-	if c.CompactDuration.Duration == 0 {
-		c.CompactDuration.Duration = defaultCompactDuration
-	}
-
 	if c.MaxAllowTransferLag == 0 {
 		c.MaxAllowTransferLag = defaultMaxAllowTransferLag
 	}

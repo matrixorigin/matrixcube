@@ -184,8 +184,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 
-		err := pr.rn.Campaign()
-		if err != nil {
+		if err := pr.rn.Campaign(); err != nil {
 			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
@@ -194,8 +193,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
 
-		err := pr.rn.Campaign()
-		if err != nil {
+		if err := pr.rn.Campaign(); err != nil {
 			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
@@ -341,9 +339,7 @@ func (pr *replica) maybeCampaign() (bool, error) {
 		// The replica campaigned when it was created, no need to do it again.
 		return false, nil
 	}
-
-	err := pr.rn.Campaign()
-	if err != nil {
+	if err := pr.rn.Campaign(); err != nil {
 		return false, err
 	}
 

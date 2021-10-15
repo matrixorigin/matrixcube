@@ -59,7 +59,7 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")
-			pr.addAction(action{actionType: heartbeatAction})
+			pr.prophetHeartbeat()
 			pr.resetIncomingProposals()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.getShard())

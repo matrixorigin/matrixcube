@@ -41,8 +41,7 @@ type action struct {
 type actionType int
 
 const (
-	checkCompactionAction actionType = iota
-	campaignAction
+	campaignAction actionType = iota
 	checkSplitAction
 	splitAction
 	heartbeatAction
@@ -56,6 +55,8 @@ func (pr *replica) addRequest(req reqCtx) error {
 	return nil
 }
 
+// addAction adds the specified action to the actions queue so it will be
+// scheduled to execute in the raft worker thread.
 func (pr *replica) addAction(act action) {
 	if err := pr.actions.Put(act); err != nil {
 		return
@@ -180,15 +181,13 @@ func (pr *replica) handleAction(items []interface{}) {
 			pr.tryCheckSplit()
 		case splitAction:
 			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
-		case checkCompactionAction:
-			pr.doCheckCompaction()
 		case campaignAction:
 			if _, err := pr.maybeCampaign(); err != nil {
-				pr.logger.Fatal("tail to campaign raft",
+				pr.logger.Fatal("tail to campaign in raft",
 					zap.Error(err))
 			}
 		case heartbeatAction:
-			pr.doHeartbeat()
+			pr.prophetHeartbeat()
 		}
 	}
 
@@ -273,7 +272,7 @@ func (pr *replica) handleFeedback(items []interface{}) {
 func (pr *replica) doCheckCompaction() {
 }
 
-func (pr *replica) doHeartbeat() {
+func (pr *replica) prophetHeartbeat() {
 	if !pr.isLeader() {
 		return
 	}

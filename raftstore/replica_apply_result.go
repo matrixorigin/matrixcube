@@ -135,8 +135,7 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 		pr.logger.Info("notify conf changes to prophet",
 			log.ConfigChangesField("changes-v2", cp.changes),
 			log.EpochField("epoch", pr.getShard().Epoch))
-		pr.addAction(action{actionType: heartbeatAction})
-
+		pr.prophetHeartbeat()
 		// Remove or demote leader will cause this raft group unavailable
 		// until new leader elected, but we can't revert this operation
 		// because its result is already persisted in apply worker
@@ -149,7 +148,6 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 			if demoteSelf {
 				pr.rn.BecomeFollower(pr.rn.Status().Term, 0)
 			}
-
 			// Don't ping to speed up leader election
 			needPing = false
 		}
@@ -178,7 +176,7 @@ func (pr *replica) applySplit(result *splitResult) {
 	if pr.isLeader() {
 		pr.approximateSize = estimatedSize
 		pr.approximateKeys = estimatedKeys
-		pr.addAction(action{actionType: heartbeatAction})
+		pr.prophetHeartbeat()
 	}
 
 	for _, shard := range result.shards {

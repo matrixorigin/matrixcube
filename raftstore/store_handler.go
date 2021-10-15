@@ -24,15 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *store) handleCompactRaftLog() {
-	s.forEachReplica(func(pr *replica) bool {
-		if pr.isLeader() {
-			pr.addAction(action{actionType: checkCompactionAction})
-		}
-		return true
-	})
-}
-
 func (s *store) handleSplitCheck() {
 	// FIXME: do we need to do such busy check?
 	/*if s.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
