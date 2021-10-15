@@ -231,7 +231,7 @@ func (pr *replica) applySplit(result *splitResult) {
 		// case scenario, the new split raft group will not be available since there
 		// is no leader established during one election timeout after the split.
 		if pr.isLeader() && len(shard.Replicas) > 1 {
-			newPR.addAction(action{actionType: doCampaignAction})
+			newPR.addAction(action{actionType: campaignAction})
 		}
 		if !pr.isLeader() {
 			if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {

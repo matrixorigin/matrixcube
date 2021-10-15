@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	readyBatch = 1024
+	readyBatchSize = 1024
 )
 
 type action struct {
@@ -41,11 +41,11 @@ type action struct {
 type actionType int
 
 const (
-	checkCompactAction = actionType(0)
-	doCampaignAction   = actionType(1)
-	checkSplitAction   = actionType(2)
-	doSplitAction      = actionType(3)
-	heartbeatAction    = actionType(4)
+	checkCompactionAction actionType = iota
+	campaignAction
+	checkSplitAction
+	splitAction
+	heartbeatAction
 )
 
 func (pr *replica) addRequest(req reqCtx) error {
@@ -168,7 +168,7 @@ func (pr *replica) handleAction(items []interface{}) {
 		return
 	}
 
-	n, err := pr.actions.Get(readyBatch, items)
+	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -178,11 +178,11 @@ func (pr *replica) handleAction(items []interface{}) {
 		switch a.actionType {
 		case checkSplitAction:
 			pr.tryCheckSplit()
-		case doSplitAction:
+		case splitAction:
 			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
-		case checkCompactAction:
-			pr.doCheckCompact()
-		case doCampaignAction:
+		case checkCompactionAction:
+			pr.doCheckCompaction()
+		case campaignAction:
 			if _, err := pr.maybeCampaign(); err != nil {
 				pr.logger.Fatal("tail to campaign raft",
 					zap.Error(err))
@@ -202,7 +202,7 @@ func (pr *replica) handleMessage(items []interface{}) {
 		return
 	}
 
-	n, err := pr.messages.Get(readyBatch, items)
+	n, err := pr.messages.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -233,7 +233,7 @@ func (pr *replica) handleTick(items []interface{}) {
 			return
 		}
 
-		n, err := pr.ticks.Get(readyBatch, items)
+		n, err := pr.ticks.Get(readyBatchSize, items)
 		if err != nil {
 			return
 		}
@@ -250,7 +250,7 @@ func (pr *replica) handleFeedback(items []interface{}) {
 		return
 	}
 
-	n, err := pr.feedbacks.Get(readyBatch, items)
+	n, err := pr.feedbacks.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -270,7 +270,7 @@ func (pr *replica) handleFeedback(items []interface{}) {
 	}
 }
 
-func (pr *replica) doCheckCompact() {
+func (pr *replica) doCheckCompaction() {
 }
 
 func (pr *replica) doHeartbeat() {

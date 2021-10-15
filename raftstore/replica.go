@@ -59,22 +59,17 @@ type replica struct {
 	messages              *task.Queue
 	feedbacks             *task.Queue
 	requests              *task.Queue
+	actions               *task.Queue
 	items                 []interface{}
-	// TODO: check why this is required, why those so called actions can't be
-	// directly executed. also check that some of those actions have prophet
-	// client involved, need to make sure that potential network IO won't block
-	// the worker pool thread.
-	actions *task.Queue
-
-	appliedIndex    uint64
-	lastReadyIndex  uint64
-	writtenKeys     uint64
-	writtenBytes    uint64
-	readKeys        uint64
-	readBytes       uint64
-	sizeDiffHint    uint64
-	raftLogSizeHint uint64
-	deleteKeysHint  uint64
+	appliedIndex          uint64
+	lastReadyIndex        uint64
+	writtenKeys           uint64
+	writtenBytes          uint64
+	readKeys              uint64
+	readBytes             uint64
+	sizeDiffHint          uint64
+	raftLogSizeHint       uint64
+	deleteKeysHint        uint64
 	// TODO: set these fields on split check
 	approximateSize uint64
 	approximateKeys uint64
@@ -145,7 +140,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
-		items:             make([]interface{}, readyBatch),
+		items:             make([]interface{}, readyBatchSize),
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 	}

@@ -36,7 +36,7 @@ func TestHandleCompactRaftLog(t *testing.T) {
 		{
 			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
 			hasAction: true,
-			action:    action{actionType: checkCompactAction},
+			action:    action{actionType: checkCompactionAction},
 		},
 	}
 

@@ -27,7 +27,7 @@ import (
 func (s *store) handleCompactRaftLog() {
 	s.forEachReplica(func(pr *replica) bool {
 		if pr.isLeader() {
-			pr.addAction(action{actionType: checkCompactAction})
+			pr.addAction(action{actionType: checkCompactionAction})
 		}
 		return true
 	})
