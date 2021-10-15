@@ -233,6 +233,8 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 		s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
 		s.workerPool.close() // avoid admin request real handled by event worker
 		pr := c.fn(s)
+		pr.sm = &stateMachine{}
+		pr.sm.metadataMu.shard = Shard{}
 		s.doResourceHeartbeatRsp(c.rsp)
 
 		v, err := pr.requests.Peek()
