@@ -182,7 +182,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 	size := len(data)
 	metric.ObserveProposalBytes(int64(size))
 
-	if size > int(pr.store.cfg.Raft.MaxEntryBytes) {
+	if size > int(pr.cfg.Raft.MaxEntryBytes) {
 		c.respLargeRaftEntrySize(pr.shardID, uint64(size))
 		return false
 	}
@@ -325,7 +325,7 @@ func (pr *replica) isTransferLeaderAllowed(newLeader Replica) bool {
 	}
 
 	lastIndex, _ := pr.lr.LastIndex()
-	maxTransferLag := pr.store.cfg.Raft.RaftLog.MaxAllowTransferLag
+	maxTransferLag := pr.cfg.Raft.RaftLog.MaxAllowTransferLag
 	return lastIndex <= status.Progress[newLeader.ID].Match+maxTransferLag
 }
 
@@ -421,7 +421,7 @@ func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest,
 		}
 		dup[cp.Replica.ID] = struct{}{}
 
-		if !pr.store.cfg.Replication.AllowRemoveLeader {
+		if !pr.cfg.Replication.AllowRemoveLeader {
 			if isRemovingOrDemotingLeader(kind, cp, pr.replica.ID) {
 				return ErrRemoveLeader
 			}

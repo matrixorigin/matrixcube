@@ -90,8 +90,8 @@ type store struct {
 	router          Router
 	watcher         prophet.Watcher
 	keyRanges       sync.Map // group id -> *util.ShardTree
-	replicaRecords  sync.Map // peer  id -> metapb.Replica
-	replicas        sync.Map // shard id -> *peerReplica
+	replicaRecords  sync.Map // replica id -> metapb.Replica
+	replicas        sync.Map // shard id -> *replica
 	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
 
 	state    uint32
@@ -533,7 +533,7 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 }
 
 // In some case, the vote raft msg maybe dropped, so follower node can't response the vote msg
-// shard a has 3 peers p1, p2, p3. The p1 split to new shard b
+// shard a has 3 replicas p1, p2, p3. The p1 split to new shard b
 // case 1: in most sence, p1 apply split raft log is before p2 and p3.
 //         At this time, if p2, p3 received the shard b's vote msg,
 //         and this vote will dropped by p2 and p3 node,
@@ -566,7 +566,7 @@ func (s *store) validateStoreID(req rpc.RequestBatch) error {
 
 func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	shardID := req.Header.ShardID
-	peerID := req.Header.Replica.ID
+	replicaID := req.Header.Replica.ID
 
 	pr := s.getReplica(shardID, false)
 	if nil == pr {
@@ -589,9 +589,9 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 		}, true
 	}
 
-	if pr.replica.ID != peerID {
+	if pr.replica.ID != replicaID {
 		return errorpb.Error{
-			Message: fmt.Sprintf("mismatch peer id, want %d, but %d", pr.replica.ID, peerID),
+			Message: fmt.Sprintf("mismatch replica id, want %d, but %d", pr.replica.ID, replicaID),
 		}, true
 	}
 

@@ -214,7 +214,7 @@ func (pr *replica) applySplit(result *splitResult) {
 
 		newReplica.approximateKeys = estimatedKeys
 		newReplica.approximateSize = estimatedSize
-		newReplica.sizeDiffHint = uint64(newReplica.store.cfg.Replication.ShardSplitCheckBytes)
+		newReplica.sizeDiffHint = uint64(newReplica.cfg.Replication.ShardSplitCheckBytes)
 		if !pr.store.addReplica(newReplica) {
 			pr.logger.Fatal("fail to created new shard by split",
 				log.ShardField("new-shard", shard))
@@ -242,7 +242,7 @@ func (pr *replica) applySplit(result *splitResult) {
 			log.ShardField("new-shard", shard))
 	}
 
-	if pr.store.aware != nil {
-		pr.store.aware.Splited(pr.getShard())
+	if pr.aware != nil {
+		pr.aware.Splited(pr.getShard())
 	}
 }

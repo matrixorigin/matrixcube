@@ -14,26 +14,29 @@
 package raftstore
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/cockroachdb/errors"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
+
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 var (
 	// testMaxOnceCommitEntryCount defines how many committed entries can be
 	// applied each time. 0 means unlimited
 	testMaxOnceCommitEntryCount = 0
+	// ErrUnknownReplica indicates that the replica is unknown.
+	ErrUnknownReplica = errors.New("unknown replica")
 )
 
 func (pr *replica) handleReady() error {
 	rd := pr.rn.ReadySince(pr.lastReadyIndex)
 	pr.handleRaftState(rd)
-	pr.sendRaftReplicateMessages(rd)
+	pr.sendRaftAppendLogMessages(rd)
 	if err := pr.handleRaftReadyAppend(rd); err != nil {
 		return err
 	}
@@ -56,13 +59,13 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 			pr.logger.Info("********become leader now********")
 			pr.prophetHeartbeat()
 			pr.resetIncomingProposals()
-			if pr.store.aware != nil {
-				pr.store.aware.BecomeLeader(pr.getShard())
+			if pr.aware != nil {
+				pr.aware.BecomeLeader(pr.getShard())
 			}
 		} else {
 			pr.logger.Info("********become follower now********")
-			if pr.store.aware != nil {
-				pr.store.aware.BecomeFollower(pr.getShard())
+			if pr.aware != nil {
+				pr.aware.BecomeFollower(pr.getShard())
 			}
 		}
 	}
@@ -78,7 +81,7 @@ func (pr *replica) handleAppendEntries(rd raft.Ready) error {
 	if len(rd.Entries) > 0 {
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
-		return pr.store.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
+		return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
 	}
 	return nil
 }
@@ -115,7 +118,7 @@ func (pr *replica) handleReadyToRead(rd raft.Ready) {
 	}
 }
 
-func (pr *replica) sendRaftReplicateMessages(rd raft.Ready) {
+func (pr *replica) sendRaftAppendLogMessages(rd raft.Ready) {
 	// MsgApp can be immediately sent to followers so leader and followers can
 	// concurrently persist the logs to disk. For more details, check raft thesis
 	// section 10.2.1.
@@ -154,38 +157,52 @@ func (pr *replica) sendMessage(msg raftpb.Message) {
 
 func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	shard := pr.getShard()
-	sendMsg := meta.RaftMessage{}
-	sendMsg.ShardID = pr.shardID
-	sendMsg.ShardEpoch = shard.Epoch
-	sendMsg.Group = shard.Group
-	sendMsg.DisableSplit = shard.DisableSplit
-	sendMsg.Unique = shard.Unique
-	sendMsg.RuleGroups = shard.RuleGroups
-	sendMsg.From = pr.replica
-	sendMsg.To, _ = pr.getReplicaRecord(msg.To)
-	if sendMsg.To.ID == 0 {
-		return fmt.Errorf("can not found peer<%d>", msg.To)
+	to, ok := pr.getReplicaRecord(msg.To)
+	if !ok {
+		return errors.Wrapf(ErrUnknownReplica,
+			"shardID %d, replicaID: %d", pr.shardID, msg.To)
+	}
+
+	m := meta.RaftMessage{
+		ShardID:      pr.shardID,
+		From:         pr.replica,
+		To:           to,
+		ShardEpoch:   shard.Epoch,
+		Group:        shard.Group,
+		DisableSplit: shard.DisableSplit,
+		Unique:       shard.Unique,
+		RuleGroups:   shard.RuleGroups,
+		Message:      msg,
 	}
 
 	// There could be two cases:
-	// 1. Target peer already exists but has not established communication with leader yet
-	// 2. Target peer is added newly due to member change or shard split, but it's not
-	//    created yet
-	// For both cases the shard start key and end key are attached in RequestVote and
-	// Heartbeat message for the store of that peer to check whether to create a new peer
-	// when receiving these messages, or just to wait for a pending shard split to perform
-	// later.
+	// 1. Target replica already exists but has not established communication with
+	//    leader yet
+	// 2. Target replica is added newly due to member change or shard split, but
+	//    it has not been created yet
+	// For both cases the shard start key and end key are attached in RequestVote
+	// and Heartbeat message for the store of that replica to check whether to
+	// create a new replica when receiving these messages, or just to wait for a
+	// pending shard split to perform later.
 	if len(shard.Replicas) > 0 &&
 		(msg.Type == raftpb.MsgVote ||
-			// the peer has not been known to this leader, it may exist or not.
+			// the replica has not been known to this leader, it may exist or not.
 			(msg.Type == raftpb.MsgHeartbeat && msg.Commit == 0)) {
-		sendMsg.Start = shard.Start
-		sendMsg.End = shard.End
+		m.Start = shard.Start
+		m.End = shard.End
 	}
 
-	sendMsg.Message = msg
-	pr.store.trans.Send(sendMsg)
+	pr.transport.Send(m)
+	// FIXME: this should not be called until the snapshot is actually
+	// transmitted to the target replica.
+	if msg.Type == raftpb.MsgSnap {
+		pr.rn.ReportSnapshot(msg.To, raft.SnapshotFinish)
+	}
+	pr.updateMessageMetrics(msg)
+	return nil
+}
 
+func (pr *replica) updateMessageMetrics(msg raftpb.Message) {
 	switch msg.Type {
 	case raftpb.MsgApp:
 		pr.metrics.message.append++
@@ -196,9 +213,6 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	case raftpb.MsgVoteResp:
 		pr.metrics.message.voteResp++
 	case raftpb.MsgSnap:
-		// FIXME: this should not be called until the snapshot is actually
-		// transmitted to the target replica.
-		pr.rn.ReportSnapshot(msg.To, raft.SnapshotFinish)
 		pr.metrics.message.snapshot++
 	case raftpb.MsgHeartbeat:
 		pr.metrics.message.heartbeat++
@@ -207,8 +221,6 @@ func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
 	case raftpb.MsgTransferLeader:
 		pr.metrics.message.transfeLeader++
 	}
-
-	return nil
 }
 
 func (pr *replica) doApplyCommittedEntries(entries []raftpb.Entry) error {

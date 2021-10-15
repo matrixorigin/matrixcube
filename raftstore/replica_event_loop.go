@@ -94,7 +94,7 @@ func (pr *replica) onRaftTick(arg interface{}) {
 		pr.notifyWorker()
 	}
 
-	util.DefaultTimeoutWheel().Schedule(pr.store.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
+	util.DefaultTimeoutWheel().Schedule(pr.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
 func (pr *replica) shutdown() {
@@ -277,7 +277,7 @@ func (pr *replica) prophetHeartbeat() {
 	req := rpcpb.ResourceHeartbeatReq{
 		Term:            pr.rn.BasicStatus().Term,
 		Leader:          &pr.replica,
-		ContainerID:     pr.store.Meta().ID,
+		ContainerID:     pr.storeID,
 		DownReplicas:    pr.collectDownReplicas(),
 		PendingReplicas: pr.collectPendingReplicas(),
 		Stats: metapb.ResourceStats{
@@ -297,7 +297,7 @@ func (pr *replica) prophetHeartbeat() {
 	resource := NewResourceAdapterWithShard(pr.getShard())
 	// TODO: pr.store.pd.GetClient() always returns the same instance. replica
 	// should have a reference to that instance and access it directly.
-	if err := pr.store.pd.GetClient().ResourceHeartbeat(resource, req); err != nil {
+	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
 	}
