@@ -74,7 +74,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 			break
 		}
 
-		n, err := pr.requests.Get(readyBatch, items)
+		n, err := pr.requests.Get(readyBatchSize, items)
 		if err != nil {
 			return
 		}

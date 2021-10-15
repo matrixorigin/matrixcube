@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	readyBatch = 1024
+	readyBatchSize = 1024
 )
 
 type action struct {
@@ -41,11 +41,10 @@ type action struct {
 type actionType int
 
 const (
-	checkCompactAction = actionType(0)
-	doCampaignAction   = actionType(1)
-	checkSplitAction   = actionType(2)
-	doSplitAction      = actionType(3)
-	heartbeatAction    = actionType(4)
+	campaignAction actionType = iota
+	checkSplitAction
+	splitAction
+	heartbeatAction
 )
 
 func (pr *replica) addRequest(req reqCtx) error {
@@ -56,6 +55,8 @@ func (pr *replica) addRequest(req reqCtx) error {
 	return nil
 }
 
+// addAction adds the specified action to the actions queue so it will be
+// scheduled to execute in the raft worker thread.
 func (pr *replica) addAction(act action) {
 	if err := pr.actions.Put(act); err != nil {
 		return
@@ -169,7 +170,7 @@ func (pr *replica) handleAction(items []interface{}) {
 		return
 	}
 
-	n, err := pr.actions.Get(readyBatch, items)
+	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -179,17 +180,15 @@ func (pr *replica) handleAction(items []interface{}) {
 		switch a.actionType {
 		case checkSplitAction:
 			pr.tryCheckSplit()
-		case doSplitAction:
+		case splitAction:
 			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
-		case checkCompactAction:
-			pr.doCheckCompact()
-		case doCampaignAction:
+		case campaignAction:
 			if _, err := pr.maybeCampaign(); err != nil {
-				pr.logger.Fatal("tail to campaign raft",
+				pr.logger.Fatal("tail to campaign in raft",
 					zap.Error(err))
 			}
 		case heartbeatAction:
-			pr.doHeartbeat()
+			pr.prophetHeartbeat()
 		}
 	}
 
@@ -203,7 +202,7 @@ func (pr *replica) handleMessage(items []interface{}) {
 		return
 	}
 
-	n, err := pr.messages.Get(readyBatch, items)
+	n, err := pr.messages.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -234,7 +233,7 @@ func (pr *replica) handleTick(items []interface{}) {
 			return
 		}
 
-		n, err := pr.ticks.Get(readyBatch, items)
+		n, err := pr.ticks.Get(readyBatchSize, items)
 		if err != nil {
 			return
 		}
@@ -251,7 +250,7 @@ func (pr *replica) handleFeedback(items []interface{}) {
 		return
 	}
 
-	n, err := pr.feedbacks.Get(readyBatch, items)
+	n, err := pr.feedbacks.Get(readyBatchSize, items)
 	if err != nil {
 		return
 	}
@@ -271,10 +270,7 @@ func (pr *replica) handleFeedback(items []interface{}) {
 	}
 }
 
-func (pr *replica) doCheckCompact() {
-}
-
-func (pr *replica) doHeartbeat() {
+func (pr *replica) prophetHeartbeat() {
 	if !pr.isLeader() {
 		return
 	}
@@ -292,15 +288,15 @@ func (pr *replica) doHeartbeat() {
 			ApproximateKeys: pr.approximateKeys,
 			ApproximateSize: pr.approximateSize,
 			Interval: &metapb.TimeInterval{
-				Start: pr.lastHBTime,
+				Start: pr.prophetHeartbeatTime,
 				End:   uint64(time.Now().Unix()),
 			},
 		},
 	}
-	pr.lastHBTime = req.Stats.Interval.End
+	pr.prophetHeartbeatTime = req.Stats.Interval.End
 	resource := NewResourceAdapterWithShard(pr.getShard())
-	// TODO: move this out of the raft worker pool thread if network IO is
-	// involved
+	// TODO: pr.store.pd.GetClient() always returns the same instance. replica
+	// should have a reference to that instance and access it directly.
 	if err := pr.store.pd.GetClient().ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))

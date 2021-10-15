@@ -138,6 +138,10 @@ func (pr *replica) doCheckSplit() error {
 		return err
 	}
 
-	pr.addAction(action{actionType: doSplitAction, splitKeys: splitKeys, splitIDs: newIDs, epoch: epoch})
+	pr.addAction(action{
+		actionType: splitAction,
+		splitKeys:  splitKeys,
+		splitIDs:   newIDs,
+		epoch:      epoch})
 	return nil
 }

@@ -413,9 +413,6 @@ func (s *store) startTimerTasks() {
 	s.stopper.RunWorker(func() {
 		last := time.Now()
 
-		compactTicker := time.NewTicker(s.cfg.Raft.RaftLog.CompactDuration.Duration)
-		defer compactTicker.Stop()
-
 		splitCheckTicker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
 		defer splitCheckTicker.Stop()
 
@@ -434,8 +431,6 @@ func (s *store) startTimerTasks() {
 				s.logger.Info("timer based tasks stopped",
 					s.storeField())
 				return
-			case <-compactTicker.C:
-				s.handleCompactRaftLog()
 			case <-splitCheckTicker.C:
 				if !s.cfg.Replication.DisableShardSplit {
 					s.handleSplitCheck()

@@ -30,11 +30,6 @@ var (
 	testMaxOnceCommitEntryCount = 0
 )
 
-type applySnapResult struct {
-	prev    Shard
-	current Shard
-}
-
 func (pr *replica) handleReady() error {
 	rd := pr.rn.ReadySince(pr.lastReadyIndex)
 	pr.handleRaftState(rd)
@@ -59,7 +54,7 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")
-			pr.addAction(action{actionType: heartbeatAction})
+			pr.prophetHeartbeat()
 			pr.resetIncomingProposals()
 			if pr.store.aware != nil {
 				pr.store.aware.BecomeLeader(pr.getShard())
@@ -132,15 +127,15 @@ func (pr *replica) sendRaftMessages(rd raft.Ready) {
 	pr.send(rd.Messages, false)
 }
 
-func (pr *replica) isMsgApp(m raftpb.Message) bool {
+func isMsgApp(m raftpb.Message) bool {
 	return m.Type == raftpb.MsgApp
 }
 
 func (pr *replica) send(msgs []raftpb.Message, msgAppOnly bool) {
 	for _, msg := range msgs {
-		if pr.isMsgApp(msg) && msgAppOnly {
+		if isMsgApp(msg) && msgAppOnly {
 			pr.sendMessage(msg)
-		} else if !pr.isMsgApp(msg) && !msgAppOnly {
+		} else if !isMsgApp(msg) && !msgAppOnly {
 			pr.sendMessage(msg)
 		}
 	}

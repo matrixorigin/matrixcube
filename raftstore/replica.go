@@ -50,7 +50,7 @@ type replica struct {
 	store                 *store
 	lr                    *LogReader
 	replicaHeartbeatsMap  sync.Map
-	lastHBTime            uint64
+	prophetHeartbeatTime  uint64
 	incomingProposals     *proposalBatch
 	pendingReads          *readIndexQueue
 	pendingProposals      *pendingProposals
@@ -59,22 +59,17 @@ type replica struct {
 	messages              *task.Queue
 	feedbacks             *task.Queue
 	requests              *task.Queue
+	actions               *task.Queue
 	items                 []interface{}
-	// TODO: check why this is required, why those so called actions can't be
-	// directly executed. also check that some of those actions have prophet
-	// client involved, need to make sure that potential network IO won't block
-	// the worker pool thread.
-	actions *task.Queue
-
-	appliedIndex    uint64
-	lastReadyIndex  uint64
-	writtenKeys     uint64
-	writtenBytes    uint64
-	readKeys        uint64
-	readBytes       uint64
-	sizeDiffHint    uint64
-	raftLogSizeHint uint64
-	deleteKeysHint  uint64
+	appliedIndex          uint64
+	lastReadyIndex        uint64
+	writtenKeys           uint64
+	writtenBytes          uint64
+	readKeys              uint64
+	readBytes             uint64
+	sizeDiffHint          uint64
+	raftLogSizeHint       uint64
+	deleteKeysHint        uint64
 	// TODO: set these fields on split check
 	approximateSize uint64
 	approximateKeys uint64
@@ -145,7 +140,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
-		items:             make([]interface{}, readyBatch),
+		items:             make([]interface{}, readyBatchSize),
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 	}
@@ -189,8 +184,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 
-		err := pr.rn.Campaign()
-		if err != nil {
+		if err := pr.rn.Campaign(); err != nil {
 			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
@@ -199,8 +193,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
 
-		err := pr.rn.Campaign()
-		if err != nil {
+		if err := pr.rn.Campaign(); err != nil {
 			pr.logger.Fatal("fail to campaign",
 				zap.Error(err))
 		}
@@ -346,9 +339,7 @@ func (pr *replica) maybeCampaign() (bool, error) {
 		// The replica campaigned when it was created, no need to do it again.
 		return false, nil
 	}
-
-	err := pr.rn.Campaign()
-	if err != nil {
+	if err := pr.rn.Campaign(); err != nil {
 		return false, err
 	}
 
