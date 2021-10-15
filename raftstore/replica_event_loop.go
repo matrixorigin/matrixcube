@@ -269,9 +269,6 @@ func (pr *replica) handleFeedback(items []interface{}) {
 	}
 }
 
-func (pr *replica) doCheckCompaction() {
-}
-
 func (pr *replica) prophetHeartbeat() {
 	if !pr.isLeader() {
 		return
@@ -290,15 +287,15 @@ func (pr *replica) prophetHeartbeat() {
 			ApproximateKeys: pr.approximateKeys,
 			ApproximateSize: pr.approximateSize,
 			Interval: &metapb.TimeInterval{
-				Start: pr.lastHBTime,
+				Start: pr.prophetHeartbeatTime,
 				End:   uint64(time.Now().Unix()),
 			},
 		},
 	}
-	pr.lastHBTime = req.Stats.Interval.End
+	pr.prophetHeartbeatTime = req.Stats.Interval.End
 	resource := NewResourceAdapterWithShard(pr.getShard())
-	// TODO: move this out of the raft worker pool thread if network IO is
-	// involved
+	// TODO: pr.store.pd.GetClient() always returns the same instance. replica
+	// should have a reference to that instance and access it directly.
 	if err := pr.store.pd.GetClient().ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))

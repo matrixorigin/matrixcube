@@ -50,7 +50,7 @@ type replica struct {
 	store                 *store
 	lr                    *LogReader
 	replicaHeartbeatsMap  sync.Map
-	lastHBTime            uint64
+	prophetHeartbeatTime  uint64
 	incomingProposals     *proposalBatch
 	pendingReads          *readIndexQueue
 	pendingProposals      *pendingProposals

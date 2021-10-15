@@ -131,7 +131,7 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 	}
 
 	if pr.isLeader() {
-		// Notify pd immediately.
+		// Notify prophet immediately.
 		pr.logger.Info("notify conf changes to prophet",
 			log.ConfigChangesField("changes-v2", cp.changes),
 			log.EpochField("epoch", pr.getShard().Epoch))
@@ -185,23 +185,25 @@ func (pr *replica) applySplit(result *splitResult) {
 			pr.store.replicaRecords.Store(p.ID, p)
 		}
 		newShardID := shard.ID
-		newPR := pr.store.getReplica(newShardID, false)
-		if newPR != nil {
+		newReplica := pr.store.getReplica(newShardID, false)
+		if newReplica != nil {
 			for _, p := range shard.Replicas {
 				pr.store.replicaRecords.Store(p.ID, p)
 			}
 
-			// If the store received a raft msg with the new shard raft group
-			// before splitting, it will creates a uninitialized replica.
+			// TODO: why this replica must be an uninitialized replica here?
+			//
+			// If the store received a raft msg associated with the new shard
+			// before splitting, it will create an uninitialized replica.
 			// We can remove this uninitialized replica directly.
-			if len(newPR.getShard().Replicas) > 0 {
+			if len(newReplica.getShard().Replicas) > 0 {
 				pr.logger.Fatal("duplicated shard split to new shard",
 					log.ShardIDField(newShardID))
 			}
 		}
 
-		hint := fmt.Sprintf("split by shard %d", pr.shardID)
-		newPR, err := createReplica(pr.store, shard, hint)
+		hint := fmt.Sprintf("split from shard %d", pr.shardID)
+		newReplica, err := createReplica(pr.store, shard, hint)
 		if err != nil {
 			// replica information is already written into db, can't recover.
 			// there is probably a bug.
@@ -210,15 +212,15 @@ func (pr *replica) applySplit(result *splitResult) {
 		}
 		pr.store.updateShardKeyRange(shard)
 
-		newPR.approximateKeys = estimatedKeys
-		newPR.approximateSize = estimatedSize
-		newPR.sizeDiffHint = uint64(newPR.store.cfg.Replication.ShardSplitCheckBytes)
-		if !pr.store.addReplica(newPR) {
+		newReplica.approximateKeys = estimatedKeys
+		newReplica.approximateSize = estimatedSize
+		newReplica.sizeDiffHint = uint64(newReplica.store.cfg.Replication.ShardSplitCheckBytes)
+		if !pr.store.addReplica(newReplica) {
 			pr.logger.Fatal("fail to created new shard by split",
 				log.ShardField("new-shard", shard))
 		}
 
-		newPR.start()
+		newReplica.start()
 		// if this replica was the leader of the shard before split, it is expected
 		// to become the leader of the new split shard.
 		// The ticks are accelerated here, so that the replica for the new split shard
@@ -229,11 +231,11 @@ func (pr *replica) applySplit(result *splitResult) {
 		// case scenario, the new split raft group will not be available since there
 		// is no leader established during one election timeout after the split.
 		if pr.isLeader() && len(shard.Replicas) > 1 {
-			newPR.addAction(action{actionType: campaignAction})
+			newReplica.addAction(action{actionType: campaignAction})
 		}
 		if !pr.isLeader() {
-			if vote, ok := pr.store.removeDroppedVoteMsg(newPR.shardID); ok {
-				newPR.addMessage(vote)
+			if vote, ok := pr.store.removeDroppedVoteMsg(newReplica.shardID); ok {
+				newReplica.addMessage(vote)
 			}
 		}
 		pr.logger.Info("new shard added",
