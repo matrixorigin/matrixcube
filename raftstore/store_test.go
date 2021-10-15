@@ -258,17 +258,17 @@ func TestCheckEpoch(t *testing.T) {
 		},
 
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{IgnoreEpochCheck: true}, Requests: []rpc.Request{{}}},
+			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{IgnoreEpochCheck: true}, Requests: []rpc.Request{{}}},
+			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{IgnoreEpochCheck: true}, Requests: []rpc.Request{{}}},
+			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    true,
 		},

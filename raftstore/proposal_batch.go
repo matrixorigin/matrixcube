@@ -17,7 +17,6 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -109,7 +108,7 @@ func (b *proposalBatch) pop() (batch, bool) {
 
 // push adds the specified req to a proposalBatch. The epoch value should
 // reflect client's view of the shard when the request is made.
-func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx) {
+func (b *proposalBatch) push(group uint64, c reqCtx) {
 	adminReq := c.admin
 	req := c.req
 	cb := c.cb
@@ -129,7 +128,7 @@ func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx)
 		for idx := range b.batches {
 			if b.batches[idx].tp == tp && // only batches same type requests
 				!b.batches[idx].isFull(n, int(b.maxSize)) && // check max batches size
-				b.batches[idx].canBatches(epoch, req) { // check epoch field
+				b.batches[idx].canBatches(req) { // check epoch field
 				b.batches[idx].requestBatch.Requests = append(b.batches[idx].requestBatch.Requests, req)
 				b.batches[idx].byteSize += n
 				added = true
@@ -139,19 +138,14 @@ func (b *proposalBatch) push(group uint64, epoch metapb.ResourceEpoch, c reqCtx)
 	}
 
 	if !added {
-		rb := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
-				ShardID: b.shardID,
-				Replica: b.replica,
-				ID:      uuid.NewV4().Bytes(),
-				Epoch:   epoch,
-			},
-		}
+		rb := rpc.RequestBatch{}
+		rb.Header.ShardID = b.shardID
+		rb.Header.Replica = b.replica
+		rb.Header.ID = uuid.NewV4().Bytes()
 
 		if isAdmin {
 			rb.AdminRequest = adminReq
 		} else {
-			rb.Header.IgnoreEpochCheck = req.IgnoreEpochCheck
 			rb.Requests = append(rb.Requests, req)
 		}
 

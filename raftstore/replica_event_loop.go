@@ -79,6 +79,7 @@ func (pr *replica) addFeedback(feedback interface{}) {
 }
 
 func (pr *replica) addAdminRequest(req rpc.AdminRequest) error {
+	req.Epoch = pr.getShard().Epoch
 	return pr.addRequest(newAdminReqCtx(req))
 }
 

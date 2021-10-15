@@ -47,7 +47,7 @@ type ShardsProxy interface {
 	Start() error
 	Stop() error
 	Dispatch(req rpc.Request) error
-	DispatchTo(req rpc.Request, shard uint64, store string) error
+	DispatchTo(req rpc.Request, shard Shard, store string) error
 	SetCallback(SuccessCallback, FailureCallback)
 	OnResponse(rpc.ResponseBatch)
 	Router() Router
@@ -172,10 +172,10 @@ func (p *shardsProxy) Dispatch(req rpc.Request) error {
 	return p.DispatchTo(req, shard, to)
 }
 
-func (p *shardsProxy) DispatchTo(req rpc.Request, shard uint64, to string) error {
+func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error {
 	if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
-			zap.Uint64("to-shard", shard),
+			zap.Uint64("to-shard", shard.ID),
 			zap.String("to-store", to))
 	}
 
@@ -185,6 +185,7 @@ func (p *shardsProxy) DispatchTo(req rpc.Request, shard uint64, to string) error
 		return nil
 	}
 
+	req.Epoch = shard.Epoch
 	return p.forwardToBackend(req, to)
 }
 
@@ -291,12 +292,5 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 		return
 	}
 
-	to := ""
-	if req.AllowFollower {
-		to = p.cfg.router.RandomReplicaStore(req.ToShard).ClientAddr
-	} else {
-		to = p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr
-	}
-
-	p.DispatchTo(req, req.ToShard, to)
+	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
 }

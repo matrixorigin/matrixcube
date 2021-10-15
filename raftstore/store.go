@@ -583,8 +583,7 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 		}, true
 	}
 
-	allowFollow := len(req.Requests) > 0 && req.Requests[0].AllowFollower
-	if !allowFollow && !pr.isLeader() {
+	if !pr.isLeader() {
 		err := new(errorpb.NotLeader)
 		err.ShardID = shardID
 		err.Leader, _ = s.getReplicaRecord(pr.getLeaderReplicaID())
@@ -639,7 +638,7 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 			checkConfVer = true
 		}
 	} else {
-		// for redis command, we don't care conf version.
+		// for normal command, we don't care conf version.
 		checkVer = true
 	}
 
@@ -651,19 +650,20 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 		return false
 	}
 
-	fromEpoch := req.Header.Epoch
 	lastestEpoch := shard.Epoch
-
-	if req.Header.IgnoreEpochCheck {
-		checkVer = false
+	isStale := func(fromEpoch Epoch) bool {
+		return (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
+			(checkVer && fromEpoch.Version < lastestEpoch.Version)
 	}
 
-	if (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
-		(checkVer && fromEpoch.Version < lastestEpoch.Version) {
-		return false
+	// admin in a single batch
+	if req.IsAdmin() {
+		return !isStale(req.AdminRequest.Epoch)
 	}
 
-	return true
+	// only check first request, becase requests inside a batch have the same epoch
+	return req.Requests[0].IgnoreEpochCheck ||
+		!isStale(req.Requests[0].Epoch)
 }
 
 func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.ResponseBatch {

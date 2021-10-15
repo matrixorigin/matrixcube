@@ -195,8 +195,8 @@ func TestSelectShard(t *testing.T) {
 		r.updateShardLocked(protoc.MustMarshal(&c.shard), c.leaderReplicaID, false, false)
 		r.updateStoreLocked(protoc.MustMarshal(&c.store))
 
-		id, addr := r.SelectShard(0, c.key)
-		assert.Equal(t, c.expectID, id, "index %d", i)
+		shard, addr := r.SelectShard(0, c.key)
+		assert.Equal(t, c.expectID, shard.ID, "index %d", i)
 		assert.Equal(t, c.expectAddr, addr, "index %d", i)
 	}
 }
@@ -237,5 +237,28 @@ func TestForeachShards(t *testing.T) {
 			return false
 		})
 		assert.Equal(t, 1, n, "index %d", i)
+	}
+}
+
+func TestGetShard(t *testing.T) {
+	b := NewTestDataBuilder()
+
+	cases := []struct {
+		shard Shard
+		id    uint64
+	}{
+		{
+			shard: b.CreateShard(1, ""),
+			id:    1,
+		},
+	}
+
+	for i, c := range cases {
+		rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
+		assert.NoError(t, err)
+		r := rr.(*defaultRouter)
+
+		r.updateShardLocked(protoc.MustMarshal(&c.shard), 0, false, false)
+		assert.Equal(t, c.shard, r.GetShard(c.id), "index %d", i)
 	}
 }

@@ -96,11 +96,11 @@ func TestLocalDispatch(t *testing.T) {
 	}
 
 	// no backend
-	assert.Error(t, sp.DispatchTo(req, 0, "1"))
+	assert.Error(t, sp.DispatchTo(req, Shard{}, "1"))
 
 	// no resp
 	factory.backends["b1"] = newLocalBackend(func(r rpc.Request) error { return nil })
-	assert.NoError(t, sp.DispatchTo(req, 0, "b1"))
+	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b1"))
 	select {
 	case <-sc:
 		assert.Fail(t, "need timeout")
@@ -114,7 +114,7 @@ func TestLocalDispatch(t *testing.T) {
 		sp.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: req.ID}}})
 		return nil
 	})
-	assert.NoError(t, sp.DispatchTo(req, 0, "b2"))
+	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b2"))
 	select {
 	case rsp := <-sc:
 		assert.Equal(t, rpc.Response{ID: req.ID}, rsp)
@@ -191,7 +191,7 @@ func TestRPCDispatch(t *testing.T) {
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
 	req.StopAt = time.Now().Add(time.Millisecond * 100).Unix()
-	assert.NoError(t, sp1.DispatchTo(req, 0, addr2))
+	assert.NoError(t, sp1.DispatchTo(req, Shard{}, addr2))
 
 	select {
 	case <-sc1:

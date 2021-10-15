@@ -83,9 +83,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil {
 				ce.Write(log.HexField("id", req.req.ID))
 			}
-			// FIXME: still using the current epoch here. should use epoch value
-			// returned when routing the request.
-			pr.incomingProposals.push(shard.Group, shard.Epoch, req)
+			pr.incomingProposals.push(shard.Group, req)
 		}
 	}
 
