@@ -36,8 +36,6 @@ message RequestBatchHeader {
     bytes                id               = 1 [(gogoproto.customname) = "ID"];
     uint64               shardID          = 2;
     metapb.Replica       replica          = 3 [(gogoproto.nullable) = false]; 
-    metapb.ResourceEpoch epoch            = 4 [(gogoproto.nullable) = false];
-    bool                 ignoreEpochCheck = 5;
 }
 
 message ResponseBatchHeader {
@@ -63,12 +61,13 @@ message ResponseBatch {
 // AdminRequest admin request
 message AdminRequest {
     AdminCmdType          cmdType        = 1;
-    ConfigChangeRequest   configChange   = 2;
-    CompactLogRequest     compactLog     = 3;
-    TransferLeaderRequest transferLeader = 4;
-    VerifyHashRequest     verifyHash     = 5;
-    BatchSplitRequest     splits         = 6;
-    ConfigChangeV2Request configChangeV2 = 7;
+    metapb.ResourceEpoch  epoch          = 2 [(gogoproto.nullable) = false];
+    ConfigChangeRequest   configChange   = 3;
+    CompactLogRequest     compactLog     = 4;
+    TransferLeaderRequest transferLeader = 5;
+    VerifyHashRequest     verifyHash     = 6;
+    BatchSplitRequest     splits         = 7;
+    ConfigChangeV2Request configChangeV2 = 8;
 }
 
 // AdminResponse admin response
@@ -78,25 +77,24 @@ message AdminResponse {
     CompactLogResponse     compactLog     = 3;
     TransferLeaderResponse transferLeader = 4;
     VerifyHashResponse     verifyHash     = 5;
-    BatchSplitResponse     splits         = 9;
-    ConfigChangeV2Response configChangeV2   = 10;
+    BatchSplitResponse     splits         = 6;
+    ConfigChangeV2Response configChangeV2 = 7;
 }
 
 // Request request
 message Request {
-    bytes   id               = 1 [(gogoproto.customname) = "ID"];
-    uint64  group            = 2;
-    CmdType type             = 3;
-    uint64  customType       = 4;
-    bytes   key              = 5;
-    bytes   cmd              = 6;
-    int64   sid              = 7 [(gogoproto.customname) = "SID"];
-    int64   pid              = 8 [(gogoproto.customname) = "PID"];
-    int64   stopAt           = 9;
-    uint64  toShard          = 10;
-    bool    allowFollower    = 11;
-    bool    lastBroadcast    = 12;
-    bool    ignoreEpochCheck = 13;
+    bytes   id                 = 1 [(gogoproto.customname) = "ID"];
+    uint64  group              = 2;
+    CmdType type               = 3;
+    uint64  customType         = 4;
+    bytes   key                = 5;
+    bytes   cmd                = 6;
+    int64   sid                = 7 [(gogoproto.customname) = "SID"];
+    int64   pid                = 8 [(gogoproto.customname) = "PID"];
+    int64   stopAt             = 9;
+    uint64  toShard            = 10;
+    bool    ignoreEpochCheck   = 11;
+    metapb.ResourceEpoch epoch = 12 [(gogoproto.nullable) = false];
 }
 
 // Response response
@@ -108,8 +106,7 @@ message Response {
     int64         sid               = 5 [(gogoproto.customname) = "SID"];
     int64         pid               = 6 [(gogoproto.customname) = "PID"];
     errorpb.Error error             = 7 [(gogoproto.nullable) = false];
-    bool          continueBroadcast = 8;
-    bool          stale             = 9;
+    bool          stale             = 8;
 }
 
 message ConfigChangeRequest {

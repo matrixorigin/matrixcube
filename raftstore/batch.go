@@ -59,10 +59,10 @@ func (c *batch) isFull(n, max int) bool {
 		(testMaxProposalRequestCount > 0 && len(c.requestBatch.Requests) >= testMaxProposalRequestCount)
 }
 
-func (c *batch) canBatches(epoch metapb.ResourceEpoch, req rpc.Request) bool {
-	return (c.requestBatch.Header.IgnoreEpochCheck && req.IgnoreEpochCheck) ||
-		(epochMatch(c.requestBatch.Header.Epoch, epoch) &&
-			!c.requestBatch.Header.IgnoreEpochCheck && !req.IgnoreEpochCheck)
+func (c *batch) canBatches(req rpc.Request) bool {
+	return (c.requestBatch.Requests[0].IgnoreEpochCheck && req.IgnoreEpochCheck) || // batch IgnoreEpochCheck requests
+		(epochMatch(c.requestBatch.Requests[0].Epoch, req.Epoch) && // batch epoch match requests
+			!c.requestBatch.Requests[0].IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
 func (c *batch) resp(resp rpc.ResponseBatch) {

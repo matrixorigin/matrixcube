@@ -30,8 +30,8 @@ func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	r1 := newAdminReqCtx(rpc.AdminRequest{})
 	r2 := newAdminReqCtx(rpc.AdminRequest{})
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
+	b.push(1, r1)
+	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
 }
 
@@ -43,8 +43,8 @@ func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 		Type: rpc.CmdType_Read,
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
+	b.push(1, r1)
+	b.push(1, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() < int(b.maxSize))
 	assert.Equal(t, 2, b.size())
 }
@@ -57,36 +57,38 @@ func TestProposalBatchLimitsBatchSize(t *testing.T) {
 		Type: rpc.CmdType_Write,
 	}, nil)
 	b1 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	b1.push(1, metapb.ResourceEpoch{}, r1)
-	b1.push(1, metapb.ResourceEpoch{}, r2)
+	b1.push(1, r1)
+	b1.push(1, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() < int(b1.maxSize))
 	assert.Equal(t, 1, b1.size())
 	assert.Equal(t, 2, len(b1.batches[0].requestBatch.Requests))
 
 	b2 := newProposalBatch(nil, 1, 10, Replica{})
-	b2.push(1, metapb.ResourceEpoch{}, r1)
-	b2.push(1, metapb.ResourceEpoch{}, r2)
+	b2.push(1, r1)
+	b2.push(1, r2)
 	assert.True(t, r1.req.Size()+r2.req.Size() > int(b2.maxSize))
 	assert.Equal(t, 2, b2.size())
 }
 
 func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
-	epoch1 := metapb.ResourceEpoch{ConfVer: 1, Version: 1}
-	epoch2 := metapb.ResourceEpoch{ConfVer: 2, Version: 2}
+
 	r1 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+		Type:  rpc.CmdType_Write,
+		Epoch: metapb.ResourceEpoch{ConfVer: 1, Version: 1},
 	}, nil)
 	r2 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+		Type:  rpc.CmdType_Write,
+		Epoch: metapb.ResourceEpoch{ConfVer: 2, Version: 2},
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	b.push(1, epoch1, r1)
-	b.push(1, epoch2, r2)
+	b.push(1, r1)
+	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
 
+	r2.req.Epoch = metapb.ResourceEpoch{ConfVer: 1, Version: 1}
 	b2 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	b2.push(1, epoch1, r1)
-	b2.push(1, epoch1, r2)
+	b2.push(1, r1)
+	b2.push(1, r2)
 	assert.Equal(t, 1, b2.size())
 }
 
@@ -98,8 +100,8 @@ func TestProposalBatchPop(t *testing.T) {
 		Type: rpc.CmdType_Read,
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	b.push(1, metapb.ResourceEpoch{}, r1)
-	b.push(1, metapb.ResourceEpoch{}, r2)
+	b.push(1, r1)
+	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
 	v1, ok := b.pop()
 	assert.True(t, ok)

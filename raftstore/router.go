@@ -34,11 +34,13 @@ type Router interface {
 	Start() error
 	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
 	// If returns leader address is "", means the current shard has no leader
-	SelectShard(group uint64, key []byte) (uint64, string)
+	SelectShard(group uint64, key []byte) (Shard, string)
 	// Every do with all shards
 	Every(group uint64, mustLeader bool, fn func(shard Shard, store meta.Store) bool)
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard Shard) bool)
+	// GetShard returns the shard by shard id
+	GetShard(id uint64) Shard
 
 	// LeaderStore return leader replica store
 	LeaderReplicaStore(shardID uint64) meta.Store
@@ -161,9 +163,16 @@ func (r *defaultRouter) Start() error {
 	return nil
 }
 
-func (r *defaultRouter) SelectShard(group uint64, key []byte) (uint64, string) {
+func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
 	shard := r.searchShard(group, key)
-	return shard.ID, r.LeaderReplicaStore(shard.ID).ClientAddr
+	return shard, r.LeaderReplicaStore(shard.ID).ClientAddr
+}
+
+func (r *defaultRouter) GetShard(id uint64) Shard {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.mu.shards[id]
 }
 
 func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(Shard, meta.Store) bool) {
