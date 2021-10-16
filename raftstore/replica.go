@@ -20,13 +20,15 @@ import (
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/task"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
-	"github.com/fagongzi/util/format"
-	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
@@ -38,8 +40,13 @@ import (
 
 var dn = util.DescribeReplica
 
+type trans interface {
+	Send(meta.RaftMessage)
+}
+
 type replica struct {
 	logger                *zap.Logger
+	storeID               uint64
 	shardID               uint64
 	replica               Replica
 	startedC              chan struct{}
@@ -47,29 +54,36 @@ type replica struct {
 	rn                    *raft.RawNode
 	stopRaftTick          bool
 	leaderID              uint64
-	store                 *store
-	lr                    *LogReader
-	replicaHeartbeatsMap  sync.Map
-	prophetHeartbeatTime  uint64
-	incomingProposals     *proposalBatch
-	pendingReads          *readIndexQueue
-	pendingProposals      *pendingProposals
-	sm                    *stateMachine
-	ticks                 *task.Queue
-	messages              *task.Queue
-	feedbacks             *task.Queue
-	requests              *task.Queue
-	actions               *task.Queue
-	items                 []interface{}
-	appliedIndex          uint64
-	lastReadyIndex        uint64
-	writtenKeys           uint64
-	writtenBytes          uint64
-	readKeys              uint64
-	readBytes             uint64
-	sizeDiffHint          uint64
-	raftLogSizeHint       uint64
-	deleteKeysHint        uint64
+	// FIXME: decouple replica from store
+	store     *store
+	transport trans
+	aware     aware.ShardStateAware
+	logdb     logdb.LogDB
+	cfg       config.Config
+
+	lr                   *LogReader
+	replicaHeartbeatsMap sync.Map
+	prophetHeartbeatTime uint64
+	incomingProposals    *proposalBatch
+	pendingReads         *readIndexQueue
+	pendingProposals     *pendingProposals
+	sm                   *stateMachine
+	prophetClient        prophet.Client
+	ticks                *task.Queue
+	messages             *task.Queue
+	feedbacks            *task.Queue
+	requests             *task.Queue
+	actions              *task.Queue
+	items                []interface{}
+	appliedIndex         uint64
+	lastReadyIndex       uint64
+	writtenKeys          uint64
+	writtenBytes         uint64
+	readKeys             uint64
+	readBytes            uint64
+	sizeDiffHint         uint64
+	raftLogSizeHint      uint64
+	deleteKeysHint       uint64
 	// TODO: set these fields on split check
 	approximateSize uint64
 	approximateKeys uint64
@@ -86,7 +100,7 @@ type replica struct {
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
 func createReplica(store *store, shard Shard, why string) (*replica, error) {
-	replica := findReplica(shard, store.meta.meta.ID)
+	replica := findReplica(shard, store.Meta().ID)
 	if replica == nil {
 		return nil, fmt.Errorf("no replica found on store %d in shard %+v",
 			store.meta.meta.ID,
@@ -128,8 +142,13 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	pr := &replica{
 		logger:            l,
 		store:             store,
+		transport:         store.trans,
+		logdb:             store.logdb,
+		cfg:               *store.cfg,
+		aware:             store.aware,
 		replica:           r,
 		shardID:           shard.ID,
+		storeID:           store.Meta().ID,
 		startedC:          make(chan struct{}),
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals:  newPendingProposals(),
@@ -144,6 +163,10 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 	}
+	// we are not guaranteed to have a prophet client in tests
+	if store.pd != nil {
+		pr.prophetClient = store.pd.GetClient()
+	}
 	storage := store.DataStorageByGroup(shard.Group)
 	pr.sm = newStateMachine(l, storage, shard, r.ID, pr)
 	return pr, nil
@@ -153,15 +176,15 @@ func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
 
 	shard := pr.getShard()
-	for _, g := range pr.store.cfg.Raft.RaftLog.DisableCompactProtect {
+	for _, g := range pr.cfg.Raft.RaftLog.DisableCompactProtect {
 		if shard.Group == g {
 			pr.disableCompactProtect = true
 			break
 		}
 	}
 
-	if pr.store.aware != nil {
-		pr.store.aware.Created(shard)
+	if pr.aware != nil {
+		pr.aware.Created(shard)
 	}
 	if err := pr.initConfState(); err != nil {
 		panic(err)
@@ -169,7 +192,7 @@ func (pr *replica) start() {
 	if _, err := pr.initLogState(); err != nil {
 		panic(err)
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, pr.store.cfg)
+	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, pr.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -180,7 +203,7 @@ func (pr *replica) start() {
 
 	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one replica and I am the one, campaign directly.
-	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.store.meta.meta.ID {
+	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 
@@ -189,7 +212,7 @@ func (pr *replica) start() {
 				zap.Error(err))
 		}
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
-		shard.Replicas[0].ContainerID == pr.store.Meta().ID {
+		shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
 
@@ -276,7 +299,7 @@ func (pr *replica) initConfState() error {
 
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	rs, err := pr.store.logdb.ReadRaftState(pr.shardID, pr.replica.ID)
+	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replica.ID)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
 	}
@@ -370,7 +393,7 @@ func (pr *replica) readyReadCount() int {
 func (pr *replica) resetIncomingProposals() {
 	shard := pr.getShard()
 	pr.incomingProposals = newProposalBatch(pr.logger,
-		uint64(pr.store.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
+		uint64(pr.cfg.Raft.MaxEntryBytes), shard.ID, pr.replica)
 }
 
 func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
@@ -384,7 +407,7 @@ func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
 
 		if value, ok := pr.replicaHeartbeatsMap.Load(p.ID); ok {
 			last := value.(time.Time)
-			if now.Sub(last) >= pr.store.cfg.Replication.MaxPeerDownTime.Duration {
+			if now.Sub(last) >= pr.cfg.Replication.MaxPeerDownTime.Duration {
 				state := metapb.ReplicaStats{}
 				state.Replica = Replica{ID: p.ID, ContainerID: p.ContainerID}
 				state.DownSeconds = uint64(now.Sub(last).Seconds())
@@ -406,7 +429,7 @@ func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg config.Config) *raft.Config {
 	return &raft.Config{
 		ID:                        id,
 		Applied:                   appliedIndex,

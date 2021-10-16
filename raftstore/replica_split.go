@@ -89,20 +89,20 @@ func (pr *replica) doCheckSplit() error {
 	var err error
 
 	useDefault := true
-	if pr.store.cfg.Customize.CustomSplitCheckFuncFactory != nil {
-		if fn := pr.store.cfg.Customize.CustomSplitCheckFuncFactory(shard.Group); fn != nil {
+	if pr.cfg.Customize.CustomSplitCheckFuncFactory != nil {
+		if fn := pr.cfg.Customize.CustomSplitCheckFuncFactory(shard.Group); fn != nil {
 			size, keys, splitKeys, err = fn(shard)
 			useDefault = false
 		}
 	}
 
 	if useDefault {
-		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.store.cfg.Replication.ShardCapacityBytes))
+		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.cfg.Replication.ShardCapacityBytes))
 	}
 
 	pr.logger.Debug("split check result",
 		zap.Uint64("size", size),
-		zap.Uint64("capacity", uint64(pr.store.cfg.Replication.ShardCapacityBytes)),
+		zap.Uint64("capacity", uint64(pr.cfg.Replication.ShardCapacityBytes)),
 		zap.Uint64("keys", keys),
 		zap.ByteStrings("split-keys", splitKeys))
 
@@ -131,7 +131,7 @@ func (pr *replica) doCheckSplit() error {
 		return nil
 	}
 
-	newIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
+	newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
 	if err != nil {
 		pr.logger.Error("fail to ask batch split",
 			zap.Error(err))

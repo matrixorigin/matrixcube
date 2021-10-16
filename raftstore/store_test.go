@@ -137,10 +137,15 @@ func TestValidateShard(t *testing.T) {
 			err: errNotLeader.Error(),
 			ok:  true,
 		},
+		// FIXME:
+		// the way how expected err is defined & checked below is incorrect, should
+		// define an error type, e.g. ErrMismatchedReplica, use errors.Wrapf to attach
+		// extra info when necessary and then use errors.Is(err, ErrMismatchedReplica)
+		// to do error comparison
 		{
 			pr:  &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
 			req: rpc.RequestBatch{},
-			err: "mismatch peer id, want 1, but 0",
+			err: "mismatch replica id, want 1, but 0",
 			ok:  true,
 		},
 		{
