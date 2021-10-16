@@ -145,7 +145,7 @@ func (pr *replica) send(msgs []raftpb.Message, msgAppOnly bool) {
 }
 
 func (pr *replica) sendMessage(msg raftpb.Message) {
-	if err := pr.sendRaftMsg(msg); err != nil {
+	if err := pr.sendRaftMessage(msg); err != nil {
 		// We don't care such failed message transmission, just log the error
 		pr.logger.Debug("fail to send msg",
 			zap.Uint64("from", msg.From),
@@ -155,7 +155,7 @@ func (pr *replica) sendMessage(msg raftpb.Message) {
 	pr.metrics.ready.message++
 }
 
-func (pr *replica) sendRaftMsg(msg raftpb.Message) error {
+func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 	shard := pr.getShard()
 	to, ok := pr.getReplicaRecord(msg.To)
 	if !ok {
@@ -219,7 +219,7 @@ func (pr *replica) updateMessageMetrics(msg raftpb.Message) {
 	case raftpb.MsgHeartbeatResp:
 		pr.metrics.message.heartbeatResp++
 	case raftpb.MsgTransferLeader:
-		pr.metrics.message.transfeLeader++
+		pr.metrics.message.transferLeader++
 	}
 }
 

@@ -72,14 +72,14 @@ func (m *raftReadyMetrics) flush() {
 }
 
 type raftMessageMetrics struct {
-	append        uint64
-	appendResp    uint64
-	vote          uint64
-	voteResp      uint64
-	snapshot      uint64
-	heartbeat     uint64
-	heartbeatResp uint64
-	transfeLeader uint64
+	append         uint64
+	appendResp     uint64
+	vote           uint64
+	voteResp       uint64
+	snapshot       uint64
+	heartbeat      uint64
+	heartbeatResp  uint64
+	transferLeader uint64
 }
 
 func (m *raftMessageMetrics) flush() {
@@ -118,9 +118,9 @@ func (m *raftMessageMetrics) flush() {
 		m.heartbeatResp = 0
 	}
 
-	if m.transfeLeader > 0 {
-		metric.AddRaftTransferLeaderMsgsCount(m.transfeLeader)
-		m.transfeLeader = 0
+	if m.transferLeader > 0 {
+		metric.AddRaftTransferLeaderMsgsCount(m.transferLeader)
+		m.transferLeader = 0
 	}
 }
 
