@@ -14,6 +14,8 @@
 package raftstore
 
 import (
+	"time"
+
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 
@@ -71,7 +73,8 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.removeDroppedVoteMsg(t.shard.ID)
 	if len(t.shard.Replicas) > 0 && !s.removeShardKeyRange(t.shard) {
 		// TODO: is it possible to not have shard related key range info in store?
-		return ErrRemoveShardKeyRange
+		// return ErrRemoveShardKeyRange
+		s.logger.Warn("failed to delete shard key range")
 	}
 
 	s.logger.Info("deleting shard data",
@@ -84,6 +87,9 @@ func (s *store) vacuum(t vacuumTask) error {
 		s.storeField(),
 		log.ShardIDField(t.shard.ID),
 		zap.Error(err))
+	if t.replica != nil && err == nil {
+		t.replica.confirmDestroyed()
+	}
 
 	return err
 }
@@ -101,4 +107,22 @@ func (pr *replica) destroy(placeTombstone bool, reason string) error {
 	// protocol.
 	index, _ := pr.sm.getAppliedIndexTerm()
 	return pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
+}
+
+func (pr *replica) confirmDestroyed() {
+	pr.logger.Info("going to mark replica as destroyed")
+	close(pr.destroyedC)
+}
+
+func (pr *replica) waitDestroyed() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			pr.logger.Info("slow to be destroyed")
+		case <-pr.destroyedC:
+			return
+		}
+	}
 }

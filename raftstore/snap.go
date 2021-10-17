@@ -76,7 +76,7 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 		defer ticker.Stop()
 
 		for {
-			l.Info("start scan gc snap files")
+			l.Info("start scanning snapshot files")
 
 			var paths []string
 			files, err := fs.List(dir)

@@ -135,19 +135,44 @@ func TestTryToCreateReplicate(t *testing.T) {
 	}
 }
 
-func TestHandleGCPeerMsg(t *testing.T) {
+func TestHandleDestroyReplicaMessage(t *testing.T) {
+	r := Replica{ID: 1}
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-	pr := &replica{shardID: 1, replica: Replica{ID: 1}}
-	pr.startedC = make(chan struct{})
-	pr.closedC = make(chan struct{})
-	pr.store = s
-	pr.logger = s.logger
-	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica.ID, nil)
+	pr := &replica{
+		shardID:           1,
+		replica:           r,
+		startedC:          make(chan struct{}),
+		closedC:           make(chan struct{}),
+		destroyedC:        make(chan struct{}),
+		unloadedC:         make(chan struct{}),
+		store:             s,
+		logger:            s.logger,
+		ticks:             task.New(32),
+		messages:          task.New(32),
+		requests:          task.New(32),
+		actions:           task.New(32),
+		feedbacks:         task.New(32),
+		pendingProposals:  newPendingProposals(),
+		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
+		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
+	}
+	pr.sm = newStateMachine(pr.logger,
+		s.DataStorageByGroup(0), Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica.ID, nil)
+	s.vacuumCleaner.start()
+	defer s.vacuumCleaner.close()
 	close(pr.startedC)
 	s.addReplica(pr)
 
 	assert.NotNil(t, s.getReplica(1, false))
-	s.handleGCPeerMsg(meta.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Version: 1}})
+	s.handleDestroyReplicaMessage(meta.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Version: 1}})
+	for {
+		if pr.closed() {
+			break
+		}
+	}
+	pr.handleEvent()
+
+	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))
 }
 

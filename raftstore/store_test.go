@@ -171,13 +171,13 @@ func TestValidateShard(t *testing.T) {
 	}
 }
 
-func TestStartClearDataJob(t *testing.T) {
+func TestVacuum(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
 	kv.Set(keys.EncodeDataKey(0, []byte("a1"), nil), []byte("hello"), false)
 	kv.Set(keys.EncodeDataKey(0, []byte("a2"), nil), []byte("hello"), false)
-	assert.NoError(t, s.startClearDataJob(shard))
+	assert.NoError(t, s.vacuum(vacuumTask{shard: shard}))
 
 	c := 0
 	kv.Scan(keys.EncodeDataKey(0, shard.Start, nil), keys.EncodeDataKey(0, shard.End, nil), func(key, value []byte) (bool, error) {
