@@ -20,10 +20,8 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/fagongzi/util/task"
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/aware"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -89,6 +87,7 @@ type store struct {
 	shardsProxy     ShardsProxy
 	router          Router
 	watcher         prophet.Watcher
+	vacuumCleaner   *vacuumCleaner
 	keyRanges       sync.Map // group id -> *util.ShardTree
 	replicaRecords  sync.Map // replica id -> metapb.Replica
 	replicas        sync.Map // shard id -> *replica
@@ -116,6 +115,7 @@ func NewStore(cfg *config.Config) Store {
 		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage),
 		stopper: syncutil.NewStopper(),
 	}
+	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
 	// TODO: make workerCount configurable
 	s.workerPool = newWorkerPool(s.logger, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
@@ -141,6 +141,10 @@ func (s *store) Start() {
 	s.logger.Info("begin to start raftstore")
 	s.workerPool.start()
 	s.logger.Info("worker pool started",
+		s.storeField())
+
+	s.vacuumCleaner.start()
+	s.logger.Info("vacuum cleaner started",
 		s.storeField())
 
 	s.startProphet()
@@ -182,6 +186,10 @@ func (s *store) Stop() {
 		s.logger.Info("pd stopped",
 			s.storeField())
 
+		s.vacuumCleaner.close()
+		s.logger.Info("vacuum cleaner closed",
+			s.storeField())
+
 		s.trans.Stop()
 		s.logger.Info("raft internal transport stopped",
 			s.storeField())
@@ -202,7 +210,7 @@ func (s *store) Stop() {
 			s.storeField())
 
 		s.stopper.Stop()
-		s.logger.Info("stoppers topped",
+		s.logger.Info("stopper stopped",
 			s.storeField())
 
 		s.shardsProxy.Stop()
@@ -400,7 +408,7 @@ func (s *store) startShards() {
 			pr.start()
 		}
 
-		s.cleanup(tomebstoneShards)
+		s.cleanupTombstones(tomebstoneShards)
 	})
 
 	s.logger.Info("shards started",
@@ -447,12 +455,6 @@ func (s *store) startTimerTasks() {
 	})
 }
 
-func (s *store) destroyReplica(shardID uint64, tombstoneInCluster bool, why string) {
-	if replica := s.getReplica(shardID, false); replica != nil {
-		replica.startApplyDestroy(tombstoneInCluster, why)
-	}
-}
-
 func (s *store) addReplica(pr *replica) bool {
 	_, loaded := s.replicas.LoadOrStore(pr.shardID, pr)
 	return !loaded
@@ -493,15 +495,6 @@ func (s *store) startShardsProxy() {
 			log.ListenAddressField(s.cfg.ClientAddr),
 			zap.Error(err))
 	}
-}
-
-func (s *store) cleanup(shards []Shard) {
-	for _, shard := range shards {
-		s.doClearData(shard)
-	}
-
-	s.logger.Info("cleanup possible garbage data complete",
-		s.storeField())
 }
 
 func (s *store) getReplicaRecord(id uint64) (Replica, bool) {
@@ -730,39 +723,6 @@ func (s *store) nextShard(shard Shard) *Shard {
 	}
 
 	return nil
-}
-
-// doClearData Delete all data belong to the shard.
-// If return Err, data may get partial deleted.
-func (s *store) doClearData(shard Shard) error {
-	s.logger.Info("deleting shard data",
-		s.storeField(),
-		log.ShardIDField(shard.ID))
-	err := s.removeShardData(shard, nil)
-	if err != nil {
-		s.logger.Fatal("fail to delete shard data",
-			s.storeField(),
-			log.ShardIDField(shard.ID),
-			zap.Error(err))
-	}
-	return err
-}
-
-// FIXME: move this to a suitable thread
-// FIXME: this should only be called when the replica is fully unloaded
-func (s *store) startClearDataJob(shard Shard) error {
-	return s.doClearData(shard)
-}
-
-func (s *store) removeShardData(shard Shard, job *task.Job) error {
-	if job != nil &&
-		job.IsCancelling() {
-		return task.ErrJobCancelled
-	}
-
-	start := keys.EncodeStartKey(shard, nil)
-	end := keys.EncodeEndKey(shard, nil)
-	return s.DataStorageByGroup(shard.Group).RemoveShardData(shard, start, end)
 }
 
 func (s *store) storeField() zap.Field {

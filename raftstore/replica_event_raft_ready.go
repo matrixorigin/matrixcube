@@ -229,7 +229,7 @@ func (pr *replica) doApplyCommittedEntries(entries []raftpb.Entry) error {
 
 	pr.sm.applyCommittedEntries(entries)
 	if pr.sm.isRemoved() {
-		pr.doApplyDestory(false)
+		pr.store.destroyReplica(pr.shardID, true, "removed by config change")
 	}
 	return nil
 }
