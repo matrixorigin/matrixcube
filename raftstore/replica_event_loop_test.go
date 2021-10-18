@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 

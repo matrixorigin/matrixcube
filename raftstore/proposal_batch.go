@@ -14,12 +14,12 @@
 package raftstore
 
 import (
-	"github.com/fagongzi/goetty/buf"
-	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
 )
 

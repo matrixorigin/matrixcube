@@ -21,7 +21,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
-	"github.com/fagongzi/util/task"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -192,7 +192,7 @@ func (pr *replica) start() {
 	if _, err := pr.initLogState(); err != nil {
 		panic(err)
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, pr.cfg)
+	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -429,7 +429,7 @@ func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
 	return &raft.Config{
 		ID:                        id,
 		Applied:                   appliedIndex,

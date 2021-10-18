@@ -15,9 +15,9 @@ package prophet
 
 import (
 	"github.com/fagongzi/goetty"
-	"github.com/fagongzi/goetty/buf"
 	"github.com/matrixorigin/matrixcube/components/prophet/codec"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/util/buf"
 	"go.uber.org/zap"
 )
 

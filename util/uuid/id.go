@@ -1,4 +1,4 @@
-// Copyright 2020 MatrixOrigin.
+// Copyright 2021 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,32 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package keys
+package uuid
 
 import (
-	"sync"
-
-	"github.com/fagongzi/goetty/buf"
+	"strings"
 )
 
 var (
-	bufPool sync.Pool
+	replacer = strings.NewReplacer("-", "")
 )
 
-func acquireBuf() *buf.ByteBuf {
-	value := bufPool.Get()
-	if value == nil {
-		return buf.NewByteBuf(64)
-	}
-
-	buf := value.(*buf.ByteBuf)
-	buf.Resume(64)
-
-	return buf
-}
-
-func releaseBuf(value *buf.ByteBuf) {
-	value.Clear()
-	value.Release()
-	bufPool.Put(value)
+// NewID returns a UUID V4 string
+func NewID() string {
+	return replacer.Replace(NewV4().String())
 }

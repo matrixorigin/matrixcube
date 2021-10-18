@@ -18,13 +18,13 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/buf"
 )
 
 // Option option func

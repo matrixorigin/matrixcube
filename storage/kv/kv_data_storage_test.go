@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	pvfs "github.com/lni/vfs"
+	"github.com/matrixorigin/matrixcube/util/buf"
 
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/storage"

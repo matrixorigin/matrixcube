@@ -45,9 +45,8 @@ var (
 	// data. When the store starts, we should iterate all shard meta data to
 	// launch replicas, to avoid iterating large volume of data, we separate them
 	// with different prefixes.
-	raftPrefix            byte = 0x02
-	raftPrefixKey              = []byte{localPrefix, raftPrefix}
-	baseRaftSuffixKeySize      = len(raftPrefixKey) + 9
+	raftPrefix    byte = 0x02
+	raftPrefixKey      = []byte{localPrefix, raftPrefix}
 )
 
 var (
@@ -146,14 +145,6 @@ func getKeySlice(key []byte, length int) []byte {
 		key = make([]byte, length)
 	}
 	return key
-}
-
-func getIDKeySlice() []byte {
-	return make([]byte, idKeyLength)
-}
-
-func getIndexedIDKeySlice() []byte {
-	return make([]byte, indexedIDKeyLength)
 }
 
 func parseUint64(source []byte) uint64 {

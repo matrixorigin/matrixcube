@@ -16,10 +16,10 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
