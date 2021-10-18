@@ -299,3 +299,32 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	}
 	p.Stop(job, s, nil)
 }
+
+func TestExecute(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	aware := mockjob.NewMockResourcesAware(ctrl)
+
+	s := storage.NewTestStorage()
+	cfg := NewSingleTestClusterStore(t).GetStore(0).GetConfig()
+	p := newDynamicShardsPool(cfg, nil)
+
+	_, err := p.Execute(nil, s, aware)
+	assert.Error(t, err)
+
+	_, err = p.Execute(make([]byte, 10), s, aware)
+	assert.Error(t, err)
+
+	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.mu.state = 1
+	p.mu.createC = make(chan struct{}, 10)
+	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
+	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
+	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), s, aware)
+	assert.Error(t, err)
+
+	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Type: meta.ShardsPoolCmdType_AllocShard, Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), s, aware)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(p.mu.createC))
+}

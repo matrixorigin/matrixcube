@@ -21,10 +21,10 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
-	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

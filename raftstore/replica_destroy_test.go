@@ -16,13 +16,13 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/fagongzi/util/task"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/util/task"
 )
 
 func TestDestroyReplica(t *testing.T) {

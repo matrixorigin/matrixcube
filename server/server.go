@@ -22,12 +22,12 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/util/hack"
-	"github.com/fagongzi/util/uuid"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
 )
 
