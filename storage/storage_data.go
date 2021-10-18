@@ -14,7 +14,7 @@
 package storage
 
 import (
-	"github.com/fagongzi/goetty/buf"
+	"github.com/matrixorigin/matrixcube/util/buf"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/stats"

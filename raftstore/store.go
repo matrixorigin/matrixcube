@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/fagongzi/util/task"
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/keys"
@@ -37,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )

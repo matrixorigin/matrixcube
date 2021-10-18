@@ -16,11 +16,11 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )

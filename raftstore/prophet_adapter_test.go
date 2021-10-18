@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,6 +57,9 @@ func TestResourceAdapter(t *testing.T) {
 	ma.SetUnique("unique")
 	assert.Equal(t, "unique", ma.meta.Unique)
 	assert.Equal(t, "unique", ma.Unique())
+
+	v := ma.Clone()
+	assert.Equal(t, ma, v)
 }
 
 func TestContainerAdapter(t *testing.T) {
@@ -103,6 +106,9 @@ func TestContainerAdapter(t *testing.T) {
 	assert.Equal(t, "v1", v)
 	assert.Equal(t, "v2", ca.meta.GitHash)
 	assert.Equal(t, "v2", g)
+
+	cv := ca.Clone()
+	assert.Equal(t, ca, cv)
 }
 
 func TestDoShardHeartbeat(t *testing.T) {

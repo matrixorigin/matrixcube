@@ -12,11 +12,11 @@ import (
 	"github.com/fagongzi/goetty/pool"
 	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
-	"github.com/fagongzi/util/task"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )

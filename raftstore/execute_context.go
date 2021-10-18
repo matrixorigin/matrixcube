@@ -1,7 +1,7 @@
 package raftstore
 
 import (
-	"github.com/fagongzi/goetty/buf"
+	"github.com/matrixorigin/matrixcube/util/buf"
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"

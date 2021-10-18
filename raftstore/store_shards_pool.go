@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -18,6 +17,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/buf"
 	"go.uber.org/zap"
 )
 
@@ -194,9 +194,6 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 		return nil, errors.New("error execute data")
 	}
 
-	cmd := &meta.ShardsPoolCmd{}
-	protoc.MustUnmarshal(cmd, data)
-
 	dsp.mu.Lock()
 	defer dsp.mu.Unlock()
 
@@ -204,6 +201,8 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 		return nil, fmt.Errorf("job not started")
 	}
 
+	cmd := &meta.ShardsPoolCmd{}
+	protoc.MustUnmarshal(cmd, data)
 	switch cmd.Type {
 	case meta.ShardsPoolCmdType_AllocShard:
 		return dsp.doAllocLocked(cmd.Alloc, store, aware)
