@@ -22,9 +22,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
 func TestDestroyReplica(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	r := Replica{ID: 1}
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()

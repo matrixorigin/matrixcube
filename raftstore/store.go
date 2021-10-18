@@ -21,6 +21,9 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/syncutil"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -35,8 +38,6 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
 )
 
 // Store manage a set of raft group
@@ -186,6 +187,7 @@ func (s *store) Stop() {
 		s.logger.Info("pd stopped",
 			s.storeField())
 
+		// vacuumCleaner must be closed when workerPool is still running
 		s.vacuumCleaner.close()
 		s.logger.Info("vacuum cleaner closed",
 			s.storeField())

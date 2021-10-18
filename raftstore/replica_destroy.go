@@ -78,6 +78,7 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.removeDroppedVoteMsg(t.shard.ID)
 	if len(t.shard.Replicas) > 0 && !s.removeShardKeyRange(t.shard) {
 		// TODO: is it possible to not have shard related key range info in store?
+		// should this be an error?
 		// return ErrRemoveShardKeyRange
 		s.logger.Warn("failed to delete shard key range")
 	}
@@ -109,9 +110,8 @@ func (pr *replica) destroy(placeTombstone bool, reason string) error {
 	}
 	shard := pr.getShard()
 	// FIXME: updating the state of replicated state machine outside of the
-	// protocol.
+	// protocol. should we just use math.MaxUint64 as the index below?
 	index, _ := pr.sm.getAppliedIndexTerm()
-
 	return pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
 }
 
@@ -120,6 +120,7 @@ func (pr *replica) confirmDestroyed() {
 	close(pr.destroyedC)
 }
 
+// waitDestroyed is suppose to be only used in tests
 func (pr *replica) waitDestroyed() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
