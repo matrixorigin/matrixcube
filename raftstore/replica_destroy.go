@@ -29,6 +29,8 @@ var (
 	ErrRemoveShardKeyRange = errors.New("failed to delete shard key range")
 )
 
+// destroyReplica destroys the replica by closing it, removing it from the
+// store and finally deleting all its associated data.
 func (s *store) destroyReplica(shardID uint64,
 	placeTombstone bool, reason string) {
 	replica := s.getReplica(shardID, false)
@@ -46,6 +48,8 @@ func (s *store) destroyReplica(shardID uint64,
 	})
 }
 
+// cleanupTombstones is invoked during restart to cleanup data belongs to those
+// shards that have been tombstoned.
 func (s *store) cleanupTombstones(shards []Shard) {
 	for _, shard := range shards {
 		s.vacuumCleaner.addTask(vacuumTask{
@@ -54,6 +58,7 @@ func (s *store) cleanupTombstones(shards []Shard) {
 	}
 }
 
+// vacuum is the actual method for handling a vacuum task.
 func (s *store) vacuum(t vacuumTask) error {
 	if t.replica != nil {
 		if err := t.replica.destroy(t.placeTombstone, t.reason); err != nil {
@@ -106,6 +111,7 @@ func (pr *replica) destroy(placeTombstone bool, reason string) error {
 	// FIXME: updating the state of replicated state machine outside of the
 	// protocol.
 	index, _ := pr.sm.getAppliedIndexTerm()
+
 	return pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
 }
 

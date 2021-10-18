@@ -28,6 +28,8 @@ type vacuumTask struct {
 	reason         string
 }
 
+// vacuumCleaner is used to cleanup shard data belongs to shards that have been
+// destroyed.
 type vacuumCleaner struct {
 	stopper *syncutil.Stopper
 	notifyC chan struct{}
@@ -88,7 +90,8 @@ func (v *vacuumCleaner) getTasks() []vacuumTask {
 }
 
 // vacuum returns a boolean value indicating whether the vacuum cleaner should
-// stop.
+// stop. This is to prevent long delays to close the vacuum cleaner when
+// processing large number of vacuum tasks.
 func (v *vacuumCleaner) vacuum() bool {
 	for {
 		if tasks := v.getTasks(); len(tasks) > 0 {
