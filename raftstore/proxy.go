@@ -18,12 +18,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -173,7 +173,7 @@ func (p *shardsProxy) Dispatch(req rpc.Request) error {
 }
 
 func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error {
-	if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request"); ce != nil {
+	if ce := p.logger.Check(zap.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
 			zap.Uint64("to-shard", shard.ID),
 			zap.String("to-store", to))
@@ -270,7 +270,7 @@ func (p *shardsProxy) done(rsp rpc.Response) {
 
 func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string) {
 	if req != nil {
-		if ce := p.logger.Check(zapcore.DebugLevel, "dispatch request failed, retry later"); ce != nil {
+		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed, retry later"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
 				log.ReasonField(err))
 		}

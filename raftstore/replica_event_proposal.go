@@ -19,7 +19,6 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -80,7 +79,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 		}
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
-			if ce := pr.logger.Check(zapcore.DebugLevel, "push to proposal batch"); ce != nil {
+			if ce := pr.logger.Check(zap.DebugLevel, "push to proposal batch"); ce != nil {
 				ce.Write(log.HexField("id", req.req.ID))
 			}
 			pr.incomingProposals.push(shard.Group, req)
@@ -196,7 +195,12 @@ func (pr *replica) proposeNormal(c batch) bool {
 		pr.respNotLeader(c)
 		return false
 	}
-
+	if ce := pr.logger.Check(zap.DebugLevel, "made a proposal"); ce != nil {
+		ce.Write(
+			log.ShardIDField(pr.shardID),
+			log.ReplicaIDField(pr.replica.ID),
+			log.IndexField(idx))
+	}
 	pr.metrics.propose.normal++
 	return true
 }

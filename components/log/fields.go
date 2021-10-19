@@ -19,14 +19,25 @@ import (
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
 )
+
+// EntryCountField returns zap.IntField
+func EntryCountField(count int) zap.Field {
+	return zap.Int("entry-count", count)
+}
+
+// IndexField returns zap.Uint64Field
+func IndexField(index uint64) zap.Field {
+	return zap.Uint64("index", index)
+}
 
 // WorkerField returns zap.StringField
 func WorkerField(id uint64) zap.Field {
