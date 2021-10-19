@@ -25,7 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -132,8 +132,9 @@ func (s *randomMergeScheduler) Schedule(cluster opt.Cluster) []*operator.Operato
 
 	ops, err := operator.CreateMergeResourceOperator(RandomMergeType, cluster, res, target, operator.OpAdmin)
 	if err != nil {
-		util.GetLogger().Debugf("create merge resource operator failed with %+v",
-			err)
+		cluster.GetLogger().Error("fail to create merge resource operator",
+			randomMergeField,
+			zap.Error(err))
 		return nil
 	}
 	ops[0].Counters = append(ops[0].Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))

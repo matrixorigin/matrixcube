@@ -19,7 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // JointStateChecker ensures resource is in joint state will leave.
@@ -44,7 +44,8 @@ func (c *JointStateChecker) Check(res *core.CachedResource) *operator.Operator {
 		c.cluster, res)
 	if err != nil {
 		checkerCounter.WithLabelValues("joint_state_checker", "create-operator-fail").Inc()
-		util.GetLogger().Debugf("fail to create leave joint state operator, error %+v", err)
+		c.cluster.GetLogger().Debug("fail to create leave joint state operator",
+			zap.Error(err))
 		return nil
 	} else if op != nil {
 		checkerCounter.WithLabelValues("joint_state_checker", "new-operator").Inc()

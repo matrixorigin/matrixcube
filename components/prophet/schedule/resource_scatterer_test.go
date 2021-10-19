@@ -239,7 +239,7 @@ func TestScatterContainerLimit(t *testing.T) {
 	defer cancel()
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, false)
+	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, false, nil)
 	oc := NewOperatorController(ctx, tc, stream)
 
 	// Add Containers 1~6.

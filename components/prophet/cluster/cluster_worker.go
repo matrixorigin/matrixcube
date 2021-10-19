@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // HandleResourceHeartbeat processes CachedResource reports from client.
@@ -79,10 +80,9 @@ func (c *RaftCluster) HandleAskSplit(request *rpcpb.Request) (*rpcpb.AskSplitRsp
 	split.SplitID.NewID = newResourceID
 	split.SplitID.NewReplicaIDs = peerIDs
 
-	util.GetLogger().Infof("alloc ids %+v for resource %d split",
-		newResourceID,
-		peerIDs)
-
+	c.logger.Info("ids allocated for resource split",
+		zap.Uint64("resource", newResourceID),
+		zap.Any("peer-ids", peerIDs))
 	return split, nil
 }
 
@@ -138,9 +138,9 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.Request) (*rpcpb.AskBat
 			NewReplicaIDs: peerIDs,
 		})
 
-		util.GetLogger().Infof("alloc ids %+v for resource %d split",
-			peerIDs,
-			newResourceID)
+		c.logger.Info("ids allocated for resource split",
+			zap.Uint64("resource", newResourceID),
+			zap.Any("peer-ids", peerIDs))
 	}
 
 	recordResources = append(recordResources, reqResource.ID())
@@ -212,10 +212,10 @@ func (c *RaftCluster) HandleReportSplit(request *rpcpb.Request) (*rpcpb.ReportSp
 
 	err = c.checkSplitResource(left, right)
 	if err != nil {
-		util.GetLogger().Warningf("report split resource is invalid, left %+v, right %+v, error %+v",
-			left,
-			right,
-			err)
+		c.logger.Warn("report split resource is invalid",
+			zap.Any("left", left),
+			zap.Any("right", right),
+			zap.Error(err))
 		return nil, err
 	}
 
@@ -224,9 +224,8 @@ func (c *RaftCluster) HandleReportSplit(request *rpcpb.Request) (*rpcpb.ReportSp
 	origin.SetEpoch(metapb.ResourceEpoch{})
 	start, _ := left.Range()
 	origin.SetStartKey(start)
-	util.GetLogger().Infof("resource %d split, generate new resource, meta %+v",
-		origin.ID(),
-		left)
+	c.logger.Info("resource split completed",
+		zap.Uint64("resource", origin.ID()))
 	return &rpcpb.ReportSplitRsp{}, nil
 }
 
@@ -245,18 +244,16 @@ func (c *RaftCluster) HandleBatchReportSplit(request *rpcpb.Request) (*rpcpb.Bat
 	hrm := core.ResourcesToHexMeta(resources)
 	err := c.checkSplitResources(resources)
 	if err != nil {
-		util.GetLogger().Warningf("report batch split resource %s is invalid, error %+v",
-			hrm.String(),
-			err)
+		c.logger.Warn("report batch split resource is invalid",
+			zap.String("resource-data", hrm.String()),
+			zap.Error(err))
 		return nil, err
 	}
 	last := len(resources) - 1
 	origin := resources[last].Clone()
 	hrm = core.ResourcesToHexMeta(resources[:last])
-	util.GetLogger().Infof("resource %d batch split, generate new resources, origion %s, total %d",
-		origin.ID(),
-		hrm.String(),
-		last)
+	c.logger.Info("resource batch split completed",
+		zap.Uint64("resource", origin.ID()))
 	return &rpcpb.BatchReportSplitRsp{}, nil
 }
 
@@ -291,8 +288,8 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 		for _, cr := range c.core.GetResources() {
 			if cr.Meta.Unique() == res.Unique() {
 				create = false
-				util.GetLogger().Infof("resource with unique %s already created",
-					res.Unique())
+				c.logger.Info("resource already created",
+					zap.String("unique", res.Unique()))
 				break
 			}
 		}
@@ -300,8 +297,8 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			c.core.ForeachWaittingCreateResources(func(wres metadata.Resource) {
 				if wres.Unique() == res.Unique() {
 					create = false
-					util.GetLogger().Infof("resource with unique %s already in waitting create queue",
-						res.Unique())
+					c.logger.Info("resource already in waitting create queue",
+						zap.String("unique", res.Unique()))
 				}
 			})
 		}
@@ -342,7 +339,9 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			res.Peers()[idx].InitialMember = true
 		}
 
-		util.GetLogger().Infof("resource %d created with peers %+v", res.ID(), res.Peers())
+		c.logger.Info("resource created",
+			zap.Uint64("resource", res.ID()),
+			zap.Any("peers", res.Peers()))
 	}
 
 	err := c.storage.PutResources(createResources...)

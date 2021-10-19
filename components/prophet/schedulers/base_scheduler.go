@@ -21,8 +21,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"go.uber.org/zap"
 )
 
 // options for interval of schedulers
@@ -42,6 +42,15 @@ const (
 	zeroGrowth
 )
 
+var (
+	rebalanceResourceField = zap.String("schedule-type", "rebalance resource")
+	rebalanceLeaderField   = zap.String("schedule-type", "rebalance leader")
+	rebalanceHotField      = zap.String("schedule-type", "rebalance hot resource")
+	shuffleLeaderField     = zap.String("schedule-type", "shuffle leader")
+	shuffleHotField        = zap.String("schedule-type", "shuffle hot resource")
+	randomMergeField       = zap.String("schedule-type", "random merge")
+)
+
 // intervalGrow calculates the next interval of balance.
 func intervalGrow(x time.Duration, maxInterval time.Duration, typ intervalGrowthType) time.Duration {
 	switch typ {
@@ -52,7 +61,7 @@ func intervalGrow(x time.Duration, maxInterval time.Duration, typ intervalGrowth
 	case zeroGrowth:
 		return x
 	default:
-		util.GetLogger().Fatalf("type %+v error", typ)
+		panic(fmt.Sprintf("type %+v error", typ))
 	}
 	return 0
 }

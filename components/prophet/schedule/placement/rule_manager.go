@@ -25,9 +25,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -43,17 +44,19 @@ type RuleManager struct {
 	initialized bool
 	ruleConfig  *ruleConfig
 	ruleList    ruleList
+	logger      *zap.Logger
 
 	// used for rule validation
 	containerSetInformer core.ContainerSetInformer
 }
 
 // NewRuleManager creates a RuleManager instance.
-func NewRuleManager(storage storage.Storage, containerSetInformer core.ContainerSetInformer) *RuleManager {
+func NewRuleManager(storage storage.Storage, containerSetInformer core.ContainerSetInformer, logger *zap.Logger) *RuleManager {
 	return &RuleManager{
 		storage:              storage,
 		containerSetInformer: containerSetInformer,
 		ruleConfig:           newRuleConfig(),
+		logger:               log.Adjust(logger),
 	}
 }
 
@@ -102,26 +105,32 @@ func (m *RuleManager) loadRules() error {
 	err := m.storage.LoadRules(loadLimit, func(k, v string) error {
 		var r Rule
 		if err := json.Unmarshal([]byte(v), &r); err != nil {
-			util.GetLogger().Errorf("load rule %s failed with %+v, %+v",
-				k, err, v)
+			m.logger.Error("fail to load rule",
+				zap.String("key", k),
+				zap.String("value", v),
+				zap.Error(err))
 			toDelete = append(toDelete, k)
 			return nil
 		}
 		if err := m.adjustRule(&r, ""); err != nil {
-			util.GetLogger().Errorf("rule %s is bad format, adjust failed with %+v, %+v",
-				k, err, v)
+			m.logger.Error("rule is bad format",
+				zap.String("key", k),
+				zap.String("value", v),
+				zap.Error(err))
 			toDelete = append(toDelete, k)
 			return nil
 		}
 		if _, ok := m.ruleConfig.rules[r.Key()]; ok {
-			util.GetLogger().Errorf("rule %s is duplicated, %+v",
-				k, v)
+			m.logger.Error("rule is duplicated",
+				zap.String("key", k),
+				zap.String("value", v))
 			toDelete = append(toDelete, k)
 			return nil
 		}
 		if k != r.StoreKey() {
-			util.GetLogger().Errorf("rule %s is mismatch, need to restore, %+v",
-				k, v)
+			m.logger.Error("rule is mismatch, need to restore",
+				zap.String("key", k),
+				zap.String("value", v))
 			toDelete = append(toDelete, k)
 			toSave = append(toSave, &r)
 		}
@@ -148,8 +157,9 @@ func (m *RuleManager) loadGroups() error {
 	return m.storage.LoadRuleGroups(loadLimit, func(k, v string) error {
 		var g RuleGroup
 		if err := json.Unmarshal([]byte(v), &g); err != nil {
-			util.GetLogger().Errorf("unmarshal rule group %s failed with %+v",
-				k, err)
+			m.logger.Error("fail to unmarshal rule group ",
+				zap.String("key", k),
+				zap.Error(err))
 			return nil
 		}
 		m.ruleConfig.groups[g.ID] = &g
@@ -230,8 +240,8 @@ func (m *RuleManager) SetRule(rule *Rule) error {
 		return err
 	}
 
-	util.GetLogger().Infof("placement rule %s updated",
-		rule)
+	m.logger.Info("placement rule updated",
+		zap.Any("rule", rule))
 	return nil
 }
 
@@ -245,8 +255,9 @@ func (m *RuleManager) DeleteRule(group, id string) error {
 		return err
 	}
 
-	util.GetLogger().Infof("placement rule %s/%s is removed",
-		group, id)
+	m.logger.Info("placement rule is removed",
+		zap.String("group", group),
+		zap.String("id", id))
 	return nil
 }
 
@@ -378,8 +389,8 @@ func (m *RuleManager) SetRules(rules []*Rule) error {
 		return err
 	}
 
-	util.GetLogger().Infof("placement rules %+v updated",
-		fmt.Sprint(rules))
+	m.logger.Info("placement rules updated",
+		zap.Any("rules", rules))
 	return nil
 }
 
@@ -443,8 +454,8 @@ func (m *RuleManager) Batch(todo []RuleOp) error {
 		return err
 	}
 
-	util.GetLogger().Infof("placement rules %+v updated",
-		fmt.Sprint(todo))
+	m.logger.Info("placement rules updated",
+		zap.Any("rules", todo))
 	return nil
 }
 
@@ -485,8 +496,8 @@ func (m *RuleManager) SetRuleGroup(group *RuleGroup) error {
 		return err
 	}
 
-	util.GetLogger().Infof("group %+v config updated",
-		fmt.Sprint(group))
+	m.logger.Info("group config updated",
+		zap.Stringer("group", group))
 	return nil
 }
 
@@ -501,8 +512,8 @@ func (m *RuleManager) DeleteRuleGroup(id string) error {
 		return err
 	}
 
-	util.GetLogger().Infof("group %+v config reset",
-		id)
+	m.logger.Info("group config reset",
+		zap.String("group", id))
 	return nil
 }
 
@@ -593,8 +604,8 @@ func (m *RuleManager) SetAllGroupBundles(groups []GroupBundle, override bool) er
 		return err
 	}
 
-	util.GetLogger().Infof("full config reset, %+v",
-		fmt.Sprint(groups))
+	m.logger.Info("full config reset, %+v",
+		zap.Any("groups", groups))
 	return nil
 }
 
@@ -626,8 +637,8 @@ func (m *RuleManager) SetGroupBundle(group GroupBundle) error {
 		return err
 	}
 
-	util.GetLogger().Infof("group %+v is reset",
-		fmt.Sprint(group))
+	m.logger.Info("group is reset",
+		zap.Stringer("group", group))
 	return nil
 }
 
@@ -660,9 +671,9 @@ func (m *RuleManager) DeleteGroupBundle(id string, regex bool) error {
 		return err
 	}
 
-	util.GetLogger().Infof("groups %+v are removed, %+v",
-		id,
-		regex)
+	m.logger.Info("groups are removed",
+		zap.String("group", id),
+		zap.Bool("regex", regex))
 	return nil
 }
 

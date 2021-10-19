@@ -23,7 +23,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 const (
@@ -44,7 +43,6 @@ type counterAndSize struct {
 type CachedContainer struct {
 	Meta metadata.Container
 	*containerStats
-
 	pauseLeaderTransfer bool // not allow to be used as source or target of transfer leader
 	resourceInfo        map[uint64]counterAndSize
 	leaderInfo          map[uint64]counterAndSize
@@ -550,8 +548,8 @@ func (s *CachedContainers) PauseLeaderTransfer(containerID uint64) error {
 func (s *CachedContainers) ResumeLeaderTransfer(containerID uint64) {
 	container, ok := s.containers[containerID]
 	if !ok {
-		util.GetLogger().Fatalf("try to clean a container %d pause state, but it is not found",
-			containerID)
+		panic(fmt.Sprintf("try to clean a container %d pause state, but it is not found",
+			containerID))
 	}
 	s.containers[containerID] = container.Clone(ResumeLeaderTransfer())
 }

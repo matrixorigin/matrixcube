@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 type heartbeatStream struct {
@@ -41,14 +42,18 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	req := data.(*rpcpb.Request)
 	if req.Type == rpcpb.TypeRegisterContainer {
 		p.hbStreams.BindStream(req.ContainerID, &heartbeatStream{containerID: req.ContainerID, rs: rs})
-		util.GetLogger().Infof("container %d heartbeat stream binded", req.ContainerID)
+		p.logger.Info("heartbeat stream binded",
+			zap.Uint64("contianer", req.ContainerID))
 		return nil
 	}
 
-	util.GetLogger().Debugf("%s received %+v, %+v", p.cfg.Name, req, p.member)
+	p.logger.Debug("rpc request received",
+		zap.Uint64("id", req.ID),
+		zap.String("from", rs.RemoteAddr()),
+		zap.String("type", req.Type.String()))
 
-	if p.cfg.DisableResponse {
-		util.GetLogger().Debugf("%s skip response", p.cfg.Name)
+	if p.cfg.Prophet.DisableResponse {
+		p.logger.Debug("skip response")
 		return nil
 	}
 
@@ -56,7 +61,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	resp := &rpcpb.Response{}
 	resp.ID = req.ID
 	rc := p.GetRaftCluster()
-	if p.cfg.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
+	if p.cfg.Prophet.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
 		resp.Error = util.ErrNotLeader.Error()
 		resp.Leader = p.member.GetLeader().GetAddr()
 		return rs.WriteAndFlush(resp)
@@ -180,8 +185,10 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	}
 
 	if doResponse {
-		util.GetLogger().Debugf("%s response %+v",
-			p.cfg.Name, req)
+		p.logger.Debug("send rpc response",
+			zap.Uint64("id", req.ID),
+			zap.String("to", rs.RemoteAddr()),
+			zap.String("type", req.Type.String()))
 		return rs.WriteAndFlush(resp)
 	}
 
@@ -189,7 +196,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 }
 
 func (p *defaultProphet) handlePutContainer(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	meta := p.cfg.Adapter.NewContainer()
+	meta := p.cfg.Prophet.Adapter.NewContainer()
 	err := meta.Unmarshal(req.PutContainer.Container)
 	if err != nil {
 		return err
@@ -207,7 +214,7 @@ func (p *defaultProphet) handlePutContainer(rc *cluster.RaftCluster, req *rpcpb.
 }
 
 func (p *defaultProphet) handleResourceHeartbeat(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	meta := p.cfg.Adapter.NewResource()
+	meta := p.cfg.Prophet.Adapter.NewResource()
 	err := meta.Unmarshal(req.ResourceHeartbeat.Resource)
 	if err != nil {
 		return err
@@ -222,7 +229,7 @@ func (p *defaultProphet) handleResourceHeartbeat(rc *cluster.RaftCluster, req *r
 	res := core.ResourceFromHeartbeat(req.ResourceHeartbeat, meta)
 	if res.GetLeader() == nil {
 		err := errors.New("invalid request, the leader is nil")
-		util.GetLogger().Errorf("invalid request, the leader is nil")
+		p.logger.Error("invalid request, the leader is nil")
 		return err
 	}
 	if res.Meta.ID() == 0 {
@@ -232,7 +239,8 @@ func (p *defaultProphet) handleResourceHeartbeat(rc *cluster.RaftCluster, req *r
 	// If the resource peer count is 0, then we should not handle this.
 	if len(res.Meta.Peers()) == 0 {
 		err := errors.New("invalid resource, zero resource peer count")
-		util.GetLogger().Warningf("invalid resource %+v, zero resource peer count", res.Meta)
+		p.logger.Warn("invalid resource, zero resource peer count",
+			zap.Uint64("resource", res.Meta.ID()))
 		return err
 	}
 
@@ -249,8 +257,8 @@ func (p *defaultProphet) handleContainerHeartbeat(rc *cluster.RaftCluster, req *
 		return err
 	}
 
-	if p.cfg.ContainerHeartbeatDataProcessor != nil {
-		data, err := p.cfg.ContainerHeartbeatDataProcessor.HandleHeartbeatReq(req.ContainerHeartbeat.Stats.ContainerID,
+	if p.cfg.Prophet.ContainerHeartbeatDataProcessor != nil {
+		data, err := p.cfg.Prophet.ContainerHeartbeatDataProcessor.HandleHeartbeatReq(req.ContainerHeartbeat.Stats.ContainerID,
 			req.ContainerHeartbeat.Data, p.GetStorage())
 		if err != nil {
 			return err

@@ -15,7 +15,7 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/keys"
-	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/buf"
@@ -70,12 +70,8 @@ type proposalBatch struct {
 }
 
 func newProposalBatch(logger *zap.Logger, maxSize uint64, shardID uint64, replica Replica) *proposalBatch {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
-
 	return &proposalBatch{
-		logger:  logger,
+		logger:  log.Adjust(logger),
 		maxSize: maxSize,
 		shardID: shardID,
 		replica: replica,

@@ -26,8 +26,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 const (
@@ -72,10 +72,11 @@ type balanceLeaderSchedulerConfig struct {
 
 type balanceLeaderScheduler struct {
 	*BaseScheduler
-	conf         *balanceLeaderSchedulerConfig
-	opController *schedule.OperatorController
-	filters      []filter.Filter
-	counter      *prometheus.CounterVec
+	conf          *balanceLeaderSchedulerConfig
+	opController  *schedule.OperatorController
+	filters       []filter.Filter
+	counter       *prometheus.CounterVec
+	scheduleField zap.Field
 }
 
 // newBalanceLeaderScheduler creates a scheduler that tends to keep leaders on
@@ -96,6 +97,7 @@ func newBalanceLeaderScheduler(opController *schedule.OperatorController, conf *
 		&filter.ContainerStateFilter{ActionScope: s.GetName(), TransferLeader: true},
 		filter.NewSpecialUseFilter(s.GetName()),
 	}
+	s.scheduleField = zap.String("scheduler", s.GetName())
 	return s
 }
 
@@ -163,9 +165,10 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 			if i < len(sources) {
 				source := sources[i]
 				sourceID := source.Meta.ID()
-				util.GetLogger().Debugf("container leader score, scheduler %s, source container %d",
-					l.GetName(),
-					sourceID)
+				cluster.GetLogger().Debug("check resource leader out",
+					rebalanceLeaderField,
+					l.scheduleField,
+					sourceField(sourceID))
 				sourceContainerLabel := strconv.FormatUint(sourceID, 10)
 				l.counter.WithLabelValues("high-score", sourceContainerLabel).Inc()
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
@@ -174,16 +177,18 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 						return ops
 					}
 				}
-				util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, source container %d",
-					l.GetName(),
-					sourceID)
+				cluster.GetLogger().Debug("no operator created for selected container",
+					rebalanceLeaderField,
+					l.scheduleField,
+					sourceField(sourceID))
 			}
 			if i < len(targets) {
 				target := targets[i]
 				targetID := target.Meta.ID()
-				util.GetLogger().Debugf("container leader score, scheduler %s, target container %d",
-					l.GetName(),
-					targetID)
+				cluster.GetLogger().Debug("check resource leader in",
+					rebalanceLeaderField,
+					l.scheduleField,
+					targetField(targetID))
 				targetContainerLabel := strconv.FormatUint(targetID, 10)
 				l.counter.WithLabelValues("low-score", targetContainerLabel).Inc()
 
@@ -193,9 +198,10 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 						return ops
 					}
 				}
-				util.GetLogger().Debugf("no operator created for selected containers, scheduler %s, target container %d",
-					l.GetName(),
-					targetID)
+				cluster.GetLogger().Debug("no operator created for selected container",
+					rebalanceLeaderField,
+					l.scheduleField,
+					targetField(targetID))
 			}
 		}
 	}
@@ -210,9 +216,10 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 	sourceID := source.Meta.ID()
 	resource := cluster.RandLeaderResource(sourceID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
-		util.GetLogger().Debugf("container %d has no leader, scheduler %s",
-			sourceID,
-			l.GetName())
+		cluster.GetLogger().Debug("selected container has no leader, nothing to do",
+			rebalanceLeaderField,
+			l.scheduleField,
+			sourceField(sourceID))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader-resource").Inc()
 		return nil
 	}
@@ -235,9 +242,12 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 			return op
 		}
 	}
-	util.GetLogger().Debugf("resource %d has no target container, scheduler %s",
-		resource.Meta.ID(),
-		l.GetName())
+
+	cluster.GetLogger().Debug("no target container for transfer leader out",
+		rebalanceLeaderField,
+		l.scheduleField,
+		sourceField(sourceID),
+		resourceField(resource.Meta.ID()))
 	schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 	return nil
 }
@@ -249,19 +259,21 @@ func (l *balanceLeaderScheduler) transferLeaderIn(cluster opt.Cluster, target *c
 	targetID := target.Meta.ID()
 	resource := cluster.RandFollowerResource(targetID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
-		util.GetLogger().Debugf("container %d has no follower, scheduler %s",
-			targetID,
-			l.GetName())
+		cluster.GetLogger().Debug("selected container has no folower, nothing to do",
+			rebalanceLeaderField,
+			l.scheduleField,
+			targetField(targetID))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-follower-resource").Inc()
 		return nil
 	}
 	leaderContainerID := resource.GetLeader().GetContainerID()
 	source := cluster.GetContainer(leaderContainerID)
 	if source == nil {
-		util.GetLogger().Debugf("resource %d has no leader or leader container %d cannot be found, scheduler %s",
-			resource.Meta.ID(),
-			leaderContainerID,
-			l.GetName())
+		cluster.GetLogger().Debug("selected random follower resource has no leader, nothing to do",
+			rebalanceLeaderField,
+			l.scheduleField,
+			targetField(leaderContainerID),
+			resourceField(resource.Meta.ID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader").Inc()
 		return nil
 	}
@@ -275,9 +287,10 @@ func (l *balanceLeaderScheduler) transferLeaderIn(cluster opt.Cluster, target *c
 	}
 	targets = filter.SelectTargetContainers(targets, finalFilters, cluster.GetOpts())
 	if len(targets) < 1 {
-		util.GetLogger().Debugf("resource %d has no target container, scheduler %s",
-			resource.Meta.ID(),
-			l.GetName())
+		cluster.GetLogger().Debug("selected random follower resource has no target container",
+			rebalanceLeaderField,
+			l.scheduleField,
+			resourceField(resource.Meta.ID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 		return nil
 	}
@@ -290,9 +303,10 @@ func (l *balanceLeaderScheduler) transferLeaderIn(cluster opt.Cluster, target *c
 // the leader from the source container to the target container for the resource.
 func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.CachedResource, source, target *core.CachedContainer) []*operator.Operator {
 	if cluster.IsResourceHot(res) {
-		util.GetLogger().Debugf("resource %d is hot resource, ignore it, scheduler %s",
-			res.Meta.ID(),
-			l.GetName())
+		cluster.GetLogger().Debug("ignore hot resource",
+			rebalanceLeaderField,
+			l.scheduleField,
+			resourceField(res.Meta.ID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "resource-hot").Inc()
 		return nil
 	}
@@ -310,8 +324,10 @@ func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.C
 
 	op, err := operator.CreateTransferLeaderOperator(BalanceLeaderType, cluster, res, res.GetLeader().GetContainerID(), targetID, operator.OpLeader)
 	if err != nil {
-		util.GetLogger().Debugf("create balance leader operator failed with %+v",
-			err)
+		cluster.GetLogger().Debug("fail to create balance leader operator",
+			rebalanceLeaderField,
+			l.scheduleField,
+			zap.Error(err))
 		return nil
 	}
 	sourceLabel := strconv.FormatUint(sourceID, 10)

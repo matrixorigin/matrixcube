@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
@@ -28,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"go.uber.org/zap"
 )
 
 const (
@@ -53,7 +55,7 @@ type Cluster struct {
 func NewCluster(opts *config.PersistOptions) *Cluster {
 	clus := &Cluster{
 		storage:               storage.NewTestStorage(),
-		BasicCluster:          core.NewBasicCluster(func() metadata.Resource { return &metadata.TestResource{} }),
+		BasicCluster:          core.NewBasicCluster(func() metadata.Resource { return &metadata.TestResource{} }, nil),
 		HotStat:               statistics.NewHotStat(),
 		PersistOptions:        opts,
 		suspectResources:      map[uint64]struct{}{},
@@ -68,6 +70,11 @@ func NewCluster(opts *config.PersistOptions) *Cluster {
 // DisableJointConsensus mock
 func (mc *Cluster) DisableJointConsensus() {
 	mc.supportJointConsensus = false
+}
+
+// GetLogger returns zap logger
+func (mc *Cluster) GetLogger() *zap.Logger {
+	return log.Adjust(nil)
 }
 
 // JointConsensusEnabled mock
@@ -160,7 +167,7 @@ func (mc *Cluster) AllocPeer(containerID uint64) (metapb.Replica, error) {
 
 func (mc *Cluster) initRuleManager() {
 	if mc.RuleManager == nil {
-		mc.RuleManager = placement.NewRuleManager(mc.storage, mc)
+		mc.RuleManager = placement.NewRuleManager(mc.storage, mc, nil)
 		mc.RuleManager.Initialize(int(mc.GetReplicationConfig().MaxReplicas), mc.GetReplicationConfig().LocationLabels)
 	}
 }

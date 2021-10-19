@@ -18,28 +18,29 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 )
 
 const revokeLeaseTimeout = time.Second
 
 // LeaderLease is used for renewing leadership.
 type LeaderLease struct {
-	tag          string
-	purpose      string
+	logger *zap.Logger
+	// tag          string
+	// purpose      string
 	id           clientv3.LeaseID
 	lease        clientv3.Lease
 	leaseTimeout time.Duration
 	expireTime   atomic.Value
 }
 
-func newLease(tag, purpose string, lease clientv3.Lease) *LeaderLease {
+func newLease(tag, purpose string, lease clientv3.Lease, logger *zap.Logger) *LeaderLease {
 	return &LeaderLease{
-		tag:     tag,
-		purpose: purpose,
-		lease:   lease,
+		logger: log.Adjust(logger).With(zap.String("tag", tag), zap.String("purpose", purpose)),
+		lease:  lease,
 	}
 }
 
@@ -55,8 +56,8 @@ func (l *LeaderLease) grant(ctx context.Context, leaseTimeout int64) error {
 		return err
 	}
 	if cost := time.Since(start); cost > option.DefaultSlowRequestTime {
-		util.GetLogger().Warningf("%s/lease: lessor grants too slow, cost=<%s>",
-			l.tag, cost)
+		l.logger.Warn("lessor grants too slow",
+			zap.Duration("cost", cost))
 	}
 
 	l.id = leaseResp.ID
@@ -77,15 +78,13 @@ func (l *LeaderLease) Close(pctx context.Context) error {
 
 		_, err := l.lease.Revoke(ctx, l.id)
 		if err != nil {
-			util.GetLogger().Infof("%s/lease: close failed with %+v",
-				l.tag,
-				err)
+			l.logger.Info("fail to close lease",
+				zap.Error(err))
 			return err
 		}
 	}
 
-	util.GetLogger().Infof("%s/lease: closed",
-		l.tag)
+	l.logger.Info("lease closed")
 	return nil
 }
 
@@ -109,12 +108,10 @@ func (l *LeaderLease) keepAlive(ctx context.Context) {
 				l.expireTime.Store(t)
 			}
 		case <-time.After(l.leaseTimeout):
-			util.GetLogger().Infof("%s/lease: exit with timeout",
-				l.tag)
+			l.logger.Info("lease exit due to timeout")
 			return
 		case <-ctx.Done():
-			util.GetLogger().Infof("%s/lease: exit with context done",
-				l.tag)
+			l.logger.Info("lease exit due to context done")
 			return
 		}
 	}
@@ -134,9 +131,8 @@ func (l *LeaderLease) keepAliveWorker(ctx context.Context, interval time.Duratio
 				defer cancel()
 				res, err := l.lease.KeepAliveOnce(ctx1, l.id)
 				if err != nil {
-					util.GetLogger().Errorf("%s/lease: keep lease failed with %+v, retry later",
-						l.tag,
-						err)
+					l.logger.Error("fail to keep lease, retry later",
+						zap.Error(err))
 					return
 				}
 				if res.TTL > 0 {
@@ -150,8 +146,7 @@ func (l *LeaderLease) keepAliveWorker(ctx context.Context, interval time.Duratio
 
 			select {
 			case <-ctx.Done():
-				util.GetLogger().Errorf("%s/lease: keep lease exit",
-					l.tag)
+				l.logger.Info("keep lease exit due to context done")
 				return
 			case <-ticker.C:
 			}

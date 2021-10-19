@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const maxTargetResourceSize = 500
@@ -132,13 +133,14 @@ func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
 		return nil
 	}
 
-	util.GetLogger().Debugf("try to merge resource, from %+v to %+v",
-		core.ResourceToHexMeta(res.Meta),
-		core.ResourceToHexMeta(target.Meta))
+	m.cluster.GetLogger().Debug("try to merge resource",
+		zap.Stringer("from", core.ResourceToHexMeta(res.Meta)),
+		zap.Stringer("to", core.ResourceToHexMeta(target.Meta)))
 
 	ops, err := operator.CreateMergeResourceOperator("merge-resource", m.cluster, res, target, operator.OpMerge)
 	if err != nil {
-		util.GetLogger().Warningf("create merge resource operator failed with %+v", err)
+		m.cluster.GetLogger().Warn("fail to create merge resource operator",
+			zap.Error(err))
 		return nil
 	}
 	checkerCounter.WithLabelValues("merge_checker", "new-operator").Inc()

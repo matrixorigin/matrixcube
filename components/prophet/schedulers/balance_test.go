@@ -956,7 +956,7 @@ func TestOpInfluence(t *testing.T) {
 	//TODO: enable placementrules
 	tc.SetEnablePlacementRules(false)
 	tc.DisableJointConsensus()
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := schedule.NewOperatorController(s.ctx, tc, stream)
 	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
 	assert.NoError(t, err)
@@ -1051,7 +1051,7 @@ func TestMerge(t *testing.T) {
 	opt.SetPlacementRuleEnabled(false)
 	tc := mockcluster.NewCluster(opt)
 	tc.SetMergeScheduleLimit(1)
-	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, true /* need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, true /* need to run */, nil)
 	oc := schedule.NewOperatorController(ctx, tc, stream)
 
 	mb, err := schedule.CreateScheduler(RandomMergeType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(RandomMergeType, []string{"", ""}))

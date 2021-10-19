@@ -21,8 +21,9 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/config"
+	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/join"
@@ -33,9 +34,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/util/task"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.uber.org/zap"
 )
 
 var (
@@ -58,7 +61,7 @@ type Prophet interface {
 	// GetMember returns self
 	GetMember() *member.Member
 	// GetConfig returns cfg
-	GetConfig() *config.Config
+	GetConfig() *pconfig.Config
 	// GetClusterID return cluster id
 	GetClusterID() uint64
 	// GetBasicCluster returns basic cluster
@@ -66,10 +69,11 @@ type Prophet interface {
 }
 
 type defaultProphet struct {
+	logger         *zap.Logger
 	ctx            context.Context
 	cancel         context.CancelFunc
 	cfg            *config.Config
-	persistOptions *config.PersistOptions
+	persistOptions *pconfig.PersistOptions
 	runner         *task.Runner
 	wn             *watcherNotifier
 	stopOnce       sync.Once
@@ -102,44 +106,46 @@ type defaultProphet struct {
 
 // NewProphet returns a prophet instance
 func NewProphet(cfg *config.Config) Prophet {
+	logger := log.Adjust(cfg.Logger).Named("prophet").With(log.NodeField(cfg.Prophet.Name))
 	var elector election.Elector
 	var etcdClient *clientv3.Client
 	var etcd *embed.Etcd
 	var err error
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if cfg.StorageNode {
-		etcdClient, etcd, err = join.PrepareJoinCluster(ctx, cfg)
+	if cfg.Prophet.StorageNode {
+		etcdClient, etcd, err = join.PrepareJoinCluster(ctx, cfg, logger)
 		if err != nil {
-			ecfg, _ := cfg.GenEmbedEtcdConfig()
-			util.GetLogger().Fatalf("%s start embed etcd cfg %+v failed with %+v", cfg.Name, ecfg, err)
+			logger.Fatal("fail to start embed etcd", zap.Error(err))
 		}
 	} else {
 		etcdClient, err = clientv3.New(clientv3.Config{
-			Endpoints:        cfg.ExternalEtcd,
+			Endpoints:        cfg.Prophet.ExternalEtcd,
 			AutoSyncInterval: time.Second * 30,
 			DialTimeout:      time.Second * 10,
 		})
 		if err != nil {
-			util.GetLogger().Fatalf("create external etcd client failed with %+v", err)
+			logger.Fatal("fail to create external etcd client",
+				zap.Error(err))
 		}
 	}
 
 	elector, err = election.NewElector(etcdClient,
-		election.WithLeaderLeaseSeconds(cfg.LeaderLease),
+		election.WithLeaderLeaseSeconds(cfg.Prophet.LeaderLease),
 		election.WithEmbedEtcd(etcd))
 	if err != nil {
-		util.GetLogger().Fatalf("create elector failed with %+v", err)
+		logger.Fatal("fail to create elector", zap.Error(err))
 	}
 
 	p := &defaultProphet{}
+	p.logger = logger
 	p.cfg = cfg
-	p.persistOptions = config.NewPersistOptions(cfg)
+	p.persistOptions = pconfig.NewPersistOptions(&cfg.Prophet, logger)
 	p.ctx = ctx
 	p.cancel = cancel
 	p.elector = elector
 	p.etcd = etcd
-	p.member = member.NewMember(etcdClient, etcd, elector, cfg.StorageNode, p.enableLeader, p.disableLeader)
+	p.member = member.NewMember(etcdClient, etcd, elector, cfg.Prophet.StorageNode, p.enableLeader, p.disableLeader, logger)
 	p.runner = task.NewRunner()
 	p.completeC = make(chan struct{})
 	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
@@ -148,16 +154,18 @@ func NewProphet(cfg *config.Config) Prophet {
 
 func (p *defaultProphet) Start() {
 	if err := p.initClusterID(); err != nil {
-		util.GetLogger().Fatalf("init cluster failed with %+v", err)
+		p.logger.Fatal("fail to init cluster",
+			zap.Error(err))
 	}
 
-	p.member.MemberInfo(p.cfg.Name, p.cfg.RPCAddr)
+	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.RPCAddr)
 	p.storage = storage.NewStorage(rootPath,
 		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
-		p.cfg.Adapter)
-	p.basicCluster = core.NewBasicCluster(p.cfg.Adapter.NewResource)
-	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Adapter, p.cfg.ResourceStateChangedHandler)
-	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster)
+		p.cfg.Prophet.Adapter)
+	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewResource, p.logger)
+	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
+		p.cfg.Prophet.ResourceStateChangedHandler, p.logger)
+	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)
 
 	p.startSystemMonitor(context.Background())
 	p.startListen()
@@ -257,11 +265,11 @@ func initOrGetClusterID(c *clientv3.Client, key string) (uint64, error) {
 
 // imple raft cluster server interface methods
 
-func (p *defaultProphet) GetConfig() *config.Config {
-	return p.cfg
+func (p *defaultProphet) GetConfig() *pconfig.Config {
+	return &p.cfg.Prophet
 }
 
-func (p *defaultProphet) GetPersistOptions() *config.PersistOptions {
+func (p *defaultProphet) GetPersistOptions() *pconfig.PersistOptions {
 	return p.persistOptions
 }
 
@@ -282,6 +290,6 @@ func (p *defaultProphet) GetBasicCluster() *core.BasicCluster {
 
 func (p *defaultProphet) startSystemMonitor(ctx context.Context) {
 	go StartMonitor(ctx, time.Now, func() {
-		util.GetLogger().Error("system time jumps backward")
-	})
+		p.logger.Error("system time jumps backward")
+	}, p.logger)
 }

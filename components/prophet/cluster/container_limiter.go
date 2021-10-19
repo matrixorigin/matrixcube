@@ -17,15 +17,17 @@ package cluster
 import (
 	"sync"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // ContainerLimiter adjust the container limit dynamically
 type ContainerLimiter struct {
 	m       sync.RWMutex
+	logger  *zap.Logger
 	opt     *config.PersistOptions
 	scene   map[limit.Type]*limit.Scene
 	state   *State
@@ -33,7 +35,7 @@ type ContainerLimiter struct {
 }
 
 // NewContainerLimiter builds a container limiter object using the operator controller
-func NewContainerLimiter(opt *config.PersistOptions) *ContainerLimiter {
+func NewContainerLimiter(opt *config.PersistOptions, logger *zap.Logger) *ContainerLimiter {
 	defaultScene := map[limit.Type]*limit.Scene{
 		limit.AddPeer:    limit.DefaultScene(limit.AddPeer),
 		limit.RemovePeer: limit.DefaultScene(limit.RemovePeer),
@@ -41,6 +43,7 @@ func NewContainerLimiter(opt *config.PersistOptions) *ContainerLimiter {
 
 	return &ContainerLimiter{
 		opt:     opt,
+		logger:  log.Adjust(logger),
 		state:   NewState(),
 		scene:   defaultScene,
 		current: LoadStateNone,
@@ -52,7 +55,8 @@ func (s *ContainerLimiter) Collect(stats *metapb.ContainerStats) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	util.GetLogger().Debugf("collected statistics %+v", stats)
+	s.logger.Debug("collected statistics",
+		zap.Any("stats", stats))
 	s.state.Collect((*StatEntry)(stats))
 
 	state := s.state.State()
@@ -62,15 +66,15 @@ func (s *ContainerLimiter) Collect(stats *metapb.ContainerStats) {
 	if ratePeerAdd > 0 || ratePeerRemove > 0 {
 		if ratePeerAdd > 0 {
 			s.opt.SetAllContainersLimit(limit.AddPeer, ratePeerAdd)
-			util.GetLogger().Infof("change container resource add limit for cluster, state %+v, rate %+v",
-				state,
-				ratePeerAdd)
+			s.logger.Info("change container resource add limit for cluster",
+				zap.String("state", state.String()),
+				zap.Float64("rate-peer-add", ratePeerAdd))
 		}
 		if ratePeerRemove > 0 {
 			s.opt.SetAllContainersLimit(limit.RemovePeer, ratePeerRemove)
-			util.GetLogger().Infof("change container resource remove limit for cluster,  state %+v, rate %+v",
-				state,
-				ratePeerRemove)
+			s.logger.Info("change container resource remove limit for cluster",
+				zap.String("state", state.String()),
+				zap.Float64("rate-peer-remove", ratePeerRemove))
 		}
 		s.current = state
 		collectClusterStateCurrent(state)

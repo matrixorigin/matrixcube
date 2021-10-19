@@ -23,7 +23,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
-	"github.com/matrixorigin/matrixcube/vfs"
 	"go.etcd.io/etcd/server/v3/embed"
 )
 
@@ -154,10 +153,6 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 	}
 	if err := c.Replication.adjust(configMetaData.Child("replication")); err != nil {
 		return err
-	}
-
-	if c.FS == nil {
-		c.FS = vfs.Default
 	}
 
 	return nil

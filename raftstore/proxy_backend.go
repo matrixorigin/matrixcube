@@ -22,7 +22,6 @@ import (
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"go.uber.org/zap"
@@ -94,12 +93,8 @@ func newRemoteBackend(logger *zap.Logger,
 	failureCallback FailureCallback,
 	addr string,
 	conn goetty.IOSession) *remoteBackend {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
-
 	bc := &remoteBackend{
-		logger:          logger.With(zap.String("remote", addr)),
+		logger:          log.Adjust(logger).With(zap.String("remote", addr)),
 		successCallback: successCallback,
 		failureCallback: failureCallback,
 		addr:            addr,

@@ -14,7 +14,7 @@
 package prophet
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 func (p *defaultProphet) startLeaderLoop() {
@@ -23,10 +23,10 @@ func (p *defaultProphet) startLeaderLoop() {
 }
 
 func (p *defaultProphet) enableLeader() error {
-	util.GetLogger().Infof("********%s become to leader now********", p.cfg.Name)
+	p.logger.Info("********become leader now********")
 
 	if err := p.createRaftCluster(); err != nil {
-		util.GetLogger().Errorf("create raft cluster failed with %+v", err)
+		p.logger.Error("fail to create raft cluster", zap.Error(err))
 		return err
 	}
 
@@ -35,12 +35,12 @@ func (p *defaultProphet) enableLeader() error {
 	p.notifyElectionComplete()
 	p.startJobs()
 	p.startCustom()
-	p.cfg.Handler.ProphetBecomeLeader()
+	p.cfg.Prophet.Handler.ProphetBecomeLeader()
 	return nil
 }
 
 func (p *defaultProphet) disableLeader() error {
-	util.GetLogger().Infof("********%s become to follower now********", p.cfg.Name)
+	p.logger.Info("********become follower now********")
 
 	p.initClient()
 	p.stopRaftCluster()
@@ -48,7 +48,7 @@ func (p *defaultProphet) disableLeader() error {
 	p.notifyElectionComplete()
 	p.stopJobs()
 	p.stopCustom()
-	p.cfg.Handler.ProphetBecomeFollower()
+	p.cfg.Prophet.Handler.ProphetBecomeFollower()
 	return nil
 }
 
@@ -72,7 +72,7 @@ func (p *defaultProphet) stopRaftCluster() {
 
 func (p *defaultProphet) createEventNotifer() {
 	p.stopEventNotifer()
-	p.wn = newWatcherNotifier(p.cluster)
+	p.wn = newWatcherNotifier(p.cluster, p.logger)
 	p.wn.start()
 }
 
@@ -85,8 +85,8 @@ func (p *defaultProphet) stopEventNotifer() {
 
 func (p *defaultProphet) initClient() {
 	p.clientOnce.Do(func() {
-		p.client = NewClient(p.cfg.Adapter,
-			WithRPCTimeout(p.cfg.RPCTimeout.Duration),
+		p.client = NewClient(p.cfg.Prophet.Adapter,
+			WithRPCTimeout(p.cfg.Prophet.RPCTimeout.Duration),
 			WithLeaderGetter(p.GetLeader))
 	})
 }

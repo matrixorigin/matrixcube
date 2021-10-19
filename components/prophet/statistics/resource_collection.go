@@ -18,7 +18,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 // ResourceStatisticType represents the type of the resource's status.
@@ -121,7 +120,6 @@ func (r *ResourceStatistics) Observe(res *core.CachedResource, containers []*cor
 	desiredReplicas := r.opt.GetMaxReplicas()
 	if r.opt.IsPlacementRulesEnabled() {
 		if !r.ruleManager.IsInitialized() {
-			util.GetLogger().Warning("ruleManager haven't been initialized")
 			return
 		}
 		desiredReplicas = 0

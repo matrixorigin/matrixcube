@@ -19,7 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 func (p *defaultProphet) startJobs() {
@@ -36,30 +36,31 @@ func (p *defaultProphet) startJobs() {
 				break
 			}
 
-			util.GetLogger().Errorf("load job failed with %+v, retry later",
-				err)
+			p.logger.Error("fail to load job, retry later",
+				zap.Error(err))
 		}
 
-		util.GetLogger().Infof("load %d jobs", len(p.jobMu.jobs))
+		p.logger.Info("load jobs", zap.Int("count", len(p.jobMu.jobs)))
 		for _, job := range p.jobMu.jobs {
 			if job.State == metapb.JobState_Completed {
 				err := p.GetStorage().RemoveJob(job.Type)
 				if err != nil {
-					util.GetLogger().Errorf("remove completed %d job failed with %+v",
-						job.Type,
-						err)
+					p.logger.Error("fail to remove completed job",
+						zap.String("type", job.Type.String()),
+						zap.Error(err))
 				}
 				continue
 			}
 
-			processor := p.cfg.GetJobProcessor(job.Type)
+			processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 			if processor != nil {
 				processor.Start(job, p.storage, p.basicCluster)
 				p.updateJobStatus(job, metapb.JobState_Working)
 				continue
 			}
 
-			util.GetLogger().Errorf("job %d missing processor", job.Type)
+			p.logger.Error("missing job processor",
+				zap.String("type", job.Type.String()))
 		}
 	}()
 }
@@ -73,20 +74,21 @@ func (p *defaultProphet) stopJobs() {
 			if job.State == metapb.JobState_Completed {
 				err := p.GetStorage().RemoveJob(job.Type)
 				if err != nil {
-					util.GetLogger().Errorf("remove completed %d job failed with %+v",
-						job.Type,
-						err)
+					p.logger.Error("fail to remove completed job",
+						zap.String("type", job.Type.String()),
+						zap.Error(err))
 				}
 				continue
 			}
 
-			processor := p.cfg.GetJobProcessor(job.Type)
+			processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 			if processor != nil {
 				processor.Stop(job, p.storage, p.basicCluster)
 				continue
 			}
 
-			util.GetLogger().Errorf("job %d missing processor", job.Type)
+			p.logger.Error("missing job processor",
+				zap.String("type", job.Type.String()))
 		}
 
 		p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
@@ -98,7 +100,7 @@ func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	defer p.jobMu.Unlock()
 
 	job := req.CreateJob.Job
-	processor := p.cfg.GetJobProcessor(job.Type)
+	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
 		return fmt.Errorf("missing job processor for type %d", job.Type)
 	}
@@ -122,7 +124,7 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	defer p.jobMu.Unlock()
 
 	job := req.RemoveJob.Job
-	processor := p.cfg.GetJobProcessor(job.Type)
+	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
 		return fmt.Errorf("missing job processor for type %d, %+v", job.Type, job)
 	}
@@ -142,7 +144,7 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Req
 
 func (p *defaultProphet) handleExecuteJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
 	job := req.ExecuteJob.Job
-	processor := p.cfg.GetJobProcessor(job.Type)
+	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
 		return fmt.Errorf("missing job processor for type %d", job.Type)
 	}

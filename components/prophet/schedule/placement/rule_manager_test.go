@@ -34,7 +34,7 @@ type testManager struct {
 func (s *testManager) setup(t *testing.T) {
 	s.storage = storage.NewTestStorage()
 	var err error
-	s.manager = NewRuleManager(s.storage, nil)
+	s.manager = NewRuleManager(s.storage, nil, nil)
 	err = s.manager.Initialize(3, []string{"zone", "rack", "host"})
 	assert.NoError(t, err)
 }
@@ -159,7 +159,7 @@ func TestSaveLoad(t *testing.T) {
 		assert.Nil(t, s.manager.SetRule(r))
 	}
 
-	m2 := NewRuleManager(s.storage, nil)
+	m2 := NewRuleManager(s.storage, nil, nil)
 	err := m2.Initialize(3, []string{"no", "labels"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(m2.GetAllRules()))

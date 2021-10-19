@@ -24,18 +24,20 @@ import (
 	"unsafe"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"go.uber.org/zap"
 )
 
 // PersistOptions wraps all configurations that need to persist to storage and
 // allows to access them safely.
 type PersistOptions struct {
+	logger         *zap.Logger
 	ttl            *cache.TTLString
 	schedule       atomic.Value
 	replication    atomic.Value
@@ -44,11 +46,12 @@ type PersistOptions struct {
 }
 
 // NewPersistOptions creates a new PersistOptions instance.
-func NewPersistOptions(cfg *Config) *PersistOptions {
+func NewPersistOptions(cfg *Config, logger *zap.Logger) *PersistOptions {
 	o := &PersistOptions{}
 	o.schedule.Store(&cfg.Schedule)
 	o.replication.Store(&cfg.Replication)
 	o.labelProperty.Store(cfg.LabelProperty)
+	o.logger = log.Adjust(logger)
 	o.ttl = nil
 	return o
 }
@@ -316,7 +319,7 @@ func (o *PersistOptions) GetContainerLimit(containerID uint64) (returnSC Contain
 	}
 	v, ok1, err := o.getTTLFloat("default-add-peer")
 	if err != nil {
-		util.GetLogger().Warning("failed to parse default-add-peer from PersistOptions's ttl storage")
+		o.logger.Warn("failed to parse default-add-peer from PersistOptions's ttl storage")
 	}
 	canSetAddPeer := ok1 && err == nil
 	if canSetAddPeer {
@@ -325,7 +328,7 @@ func (o *PersistOptions) GetContainerLimit(containerID uint64) (returnSC Contain
 
 	v, ok2, err := o.getTTLFloat("default-remove-peer")
 	if err != nil {
-		util.GetLogger().Warning("failed to parse default-remove-peer from PersistOptions's ttl storage")
+		o.logger.Warn("failed to parse default-remove-peer from PersistOptions's ttl storage")
 	}
 	canSetRemovePeer := ok2 && err == nil
 	if canSetRemovePeer {
@@ -427,7 +430,7 @@ func (o *PersistOptions) IsLocationReplacementEnabled() bool {
 		if err == nil {
 			return result
 		}
-		util.GetLogger().Warning("failed to parse " + enableLocationReplacement + " from PersistOptions's ttl storage")
+		o.logger.Warn("failed to parse " + enableLocationReplacement + " from PersistOptions's ttl storage")
 	}
 	return o.GetScheduleConfig().EnableLocationReplacement
 }
@@ -547,7 +550,7 @@ func (o *PersistOptions) getTTLUintOr(key string, defaultValue uint64) uint64 {
 		if err == nil {
 			return v
 		}
-		util.GetLogger().Warning("failed to parse " + key + " from PersistOptions's ttl storage")
+		o.logger.Warn("failed to parse " + key + " from PersistOptions's ttl storage")
 	}
 	return defaultValue
 }
@@ -566,7 +569,7 @@ func (o *PersistOptions) getTTLFloatOr(key string, defaultValue float64) float64
 		if err == nil {
 			return v
 		}
-		util.GetLogger().Warning("failed to parse " + key + " from PersistOptions's ttl storage")
+		o.logger.Warn("failed to parse " + key + " from PersistOptions's ttl storage")
 	}
 	return defaultValue
 }

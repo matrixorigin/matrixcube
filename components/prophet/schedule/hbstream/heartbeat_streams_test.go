@@ -43,7 +43,7 @@ func TestActivity(t *testing.T) {
 		},
 	}
 
-	hbs := NewTestHeartbeatStreams(ctx, cluster.ID, cluster, true)
+	hbs := NewTestHeartbeatStreams(ctx, cluster.ID, cluster, true, nil)
 	stream1, stream2 := mockhbstream.NewHeartbeatStream(), mockhbstream.NewHeartbeatStream()
 
 	// Active stream is stream1.

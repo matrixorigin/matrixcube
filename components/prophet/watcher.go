@@ -18,8 +18,9 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // Watcher watcher
@@ -31,6 +32,7 @@ type Watcher interface {
 }
 
 type watcher struct {
+	logger *zap.Logger
 	ctx    context.Context
 	cancel context.CancelFunc
 	flag   uint32
@@ -39,9 +41,10 @@ type watcher struct {
 	conn   goetty.IOSession
 }
 
-func newWatcher(flag uint32, client *asyncClient) Watcher {
+func newWatcher(flag uint32, client *asyncClient, logger *zap.Logger) Watcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &watcher{
+		logger: log.Adjust(logger).Named("watcher"),
 		ctx:    ctx,
 		cancel: cancel,
 		flag:   flag,
@@ -70,7 +73,8 @@ func (w *watcher) doClose() {
 func (w *watcher) watchDog() {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("client watcher failed with %+v, restart later", err)
+			w.logger.Error("fail to read, restart later",
+				zap.Any("error", err))
 			go w.watchDog()
 		}
 	}()
@@ -88,8 +92,8 @@ func (w *watcher) watchDog() {
 				w.startReadLoop()
 			}
 
-			util.GetLogger().Errorf("reset watcher conn failed with %+v, retry later",
-				err)
+			w.logger.Error("fail to reset connection, retry later",
+				zap.Error(err))
 			time.Sleep(time.Second)
 		}
 	}
@@ -100,8 +104,8 @@ func (w *watcher) resetConn() error {
 	if err != nil {
 		return err
 	}
-	util.GetLogger().Infof("watcher init leader connection %s succeed",
-		w.conn.RemoteAddr())
+	w.logger.Info("connect to leader succeed",
+		zap.String("leader-address", w.conn.RemoteAddr()))
 	return w.conn.WriteAndFlush(&rpcpb.Request{
 		Type: rpcpb.TypeCreateWatcherReq,
 		CreateWatcher: rpcpb.CreateWatcherReq{
@@ -116,30 +120,35 @@ func (w *watcher) startReadLoop() {
 	for {
 		data, err := w.conn.Read()
 		if err != nil {
-			util.GetLogger().Errorf("watcher read events failed with %+v",
-				err)
+			w.logger.Error("fail to read events",
+				zap.Error(err))
 			return
 		}
 
 		resp := data.(*rpcpb.Response)
 		if resp.Error != "" {
-			util.GetLogger().Errorf("watcher read events failed with %+v", resp.Error)
+			w.logger.Error("error response",
+				zap.String("error", resp.Error))
 			return
 		}
 
 		if resp.Type != rpcpb.TypeEventNotify {
+			w.logger.Error("read invalid type response",
+				zap.String("type", resp.Type.String()))
 			return
 		}
 
 		// we lost some event notify, close the conection, and retry
 		if expectSeq != resp.Event.Seq {
-			util.GetLogger().Errorf("watch lost some event notify, expect seq %d, but %d, close and retry",
-				expectSeq,
-				resp.Event.Seq)
+			w.logger.Error("lost some event notify, close and retry",
+				zap.Uint64("expect", expectSeq),
+				zap.Uint64("actual", resp.Event.Seq))
 			return
 		}
 
-		util.GetLogger().Debugf("watcher read event %+v", resp.Event)
+		w.logger.Debug("read event",
+			zap.Uint64("seq", resp.Event.Seq),
+			zap.Uint32("type", resp.Event.Type))
 		expectSeq = resp.Event.Seq + 1
 		w.eventC <- resp.Event
 	}

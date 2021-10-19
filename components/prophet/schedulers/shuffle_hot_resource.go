@@ -26,7 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -167,8 +167,9 @@ func (s *shuffleHotResourceScheduler) randomSchedule(cluster opt.Cluster, loadDe
 		srcContainerID := srcResource.GetLeader().GetContainerID()
 		srcContainer := cluster.GetContainer(srcContainerID)
 		if srcContainer == nil {
-			util.GetLogger().Errorf("get the source container %d failed with not found",
-				srcContainerID)
+			cluster.GetLogger().Debug("source container not found",
+				shuffleHotField,
+				sourceField(srcContainerID))
 		}
 
 		filters := []filter.Filter{
@@ -198,8 +199,9 @@ func (s *shuffleHotResourceScheduler) randomSchedule(cluster opt.Cluster, loadDe
 		destPeer := metapb.Replica{ContainerID: destContainerID}
 		op, err := operator.CreateMoveLeaderOperator("random-move-hot-leader", cluster, srcResource, operator.OpResource|operator.OpLeader, srcContainerID, destPeer)
 		if err != nil {
-			util.GetLogger().Debugf("create move leader operator failed with %+v",
-				err)
+			cluster.GetLogger().Error("fail to create move leader operator",
+				shuffleHotField,
+				zap.Error(err))
 			return nil
 		}
 		op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))

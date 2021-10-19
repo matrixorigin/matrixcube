@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 // Scheduler is an interface to schedule resources.
@@ -95,7 +94,7 @@ var schedulerArgsToDecoder = make(map[string]ConfigSliceDecoderBuilder)
 // func of a package.
 func RegisterScheduler(typ string, createFn CreateSchedulerFunc) {
 	if _, ok := schedulerMap[typ]; ok {
-		util.GetLogger().Fatalf("duplicated scheduler, type %s", typ)
+		panic(fmt.Sprintf("duplicated scheduler, type %s", typ))
 	}
 	schedulerMap[typ] = createFn
 }
@@ -104,7 +103,7 @@ func RegisterScheduler(typ string, createFn CreateSchedulerFunc) {
 // func of package.
 func RegisterSliceDecoderBuilder(typ string, builder ConfigSliceDecoderBuilder) {
 	if _, ok := schedulerArgsToDecoder[typ]; ok {
-		util.GetLogger().Fatalf("duplicated scheduler, type %s", typ)
+		panic(fmt.Sprintf("duplicated scheduler, type %s", typ))
 	}
 	schedulerArgsToDecoder[typ] = builder
 	config.RegisterScheduler(typ)

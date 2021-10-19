@@ -17,11 +17,11 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
@@ -43,7 +43,7 @@ func getTestMetadataStorage() storage.MetadataStorage {
 // TODO: we need this here largely because it is pretty difficult to write unit
 // tests for the replica type when it has an injected store instance in it.
 func getCloseableReplica() *replica {
-	l := config.GetDefaultZapLogger()
+	l := log.GetDefaultZapLogger()
 	r := Replica{}
 	shardID := uint64(1)
 	ms := getTestMetadataStorage()

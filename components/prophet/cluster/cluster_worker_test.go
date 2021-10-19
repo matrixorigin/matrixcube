@@ -33,7 +33,7 @@ import (
 func TestReportSplit(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	left := &metadata.TestResource{ResID: 1, Start: []byte("a"), End: []byte("b")}
 	right := &metadata.TestResource{ResID: 2, Start: []byte("b"), End: []byte("c")}
@@ -52,7 +52,7 @@ func TestReportSplit(t *testing.T) {
 func TestReportBatchSplit(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	resources := []*metadata.TestResource{
 		{ResID: 1, Start: []byte(""), End: []byte("a")},
@@ -158,7 +158,7 @@ func TestCreateResourcesRestart(t *testing.T) {
 	assert.NoError(t, err)
 
 	// restart
-	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory))
+	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	tc.LoadClusterInfo()
 	assert.Equal(t, 1, len(tc.core.WaittingCreateResources))
 	tc.doNotifyCreateResources()
@@ -170,7 +170,7 @@ func TestCreateResourcesRestart(t *testing.T) {
 func TestRemoveResources(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	cache := cluster.core.Resources
 	storage := cluster.storage
 	nc := cluster.ChangedEventNotifier()
@@ -225,7 +225,7 @@ func TestRemoveResources(t *testing.T) {
 	assert.Equal(t, n-1, cnt)
 
 	// restart
-	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	cluster.LoadClusterInfo()
 	cache = cluster.core.Resources
 	assert.Equal(t, uint64(len(removed)), cluster.core.RemovedResources.GetCardinality())
@@ -265,7 +265,7 @@ func TestResourceHeartbeatAtRemovedState(t *testing.T) {
 func TestHandleCheckResourceState(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	n, np := uint64(7), uint64(3)
 	resources := newTestResources(n, np)
@@ -297,7 +297,7 @@ func TestHandleCheckResourceState(t *testing.T) {
 	assert.Equal(t, 3, len(rsp.Removed))
 
 	// restart
-	cluster = newTestRaftCluster(opt, cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster = newTestRaftCluster(opt, cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	cluster.LoadClusterInfo()
 	rsp, err = cluster.HandleCheckResourceState(&rpcpb.Request{
 		CheckResourceState: rpcpb.CheckResourceStateReq{

@@ -28,6 +28,26 @@ import (
 	"go.uber.org/zap"
 )
 
+// SourceContainerField returns source container field
+func SourceContainerField(id uint64) zap.Field {
+	return zap.Uint64("source-container", id)
+}
+
+// TargetContainerField returns target container field
+func TargetContainerField(id uint64) zap.Field {
+	return zap.Uint64("target-container", id)
+}
+
+// ResourceField returns resource field
+func ResourceField(id uint64) zap.Field {
+	return zap.Uint64("resource", id)
+}
+
+// NodeField returns zap.StringField
+func NodeField(name string) zap.Field {
+	return zap.String("node", name)
+}
+
 // WorkerField returns zap.StringField
 func WorkerField(id uint64) zap.Field {
 	return zap.Uint64("worker-index", id)

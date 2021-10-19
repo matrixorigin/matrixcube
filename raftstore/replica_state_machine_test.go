@@ -24,8 +24,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -100,7 +100,7 @@ func TestStateMachineApplyContextCanBeInitializedForConfigChange(t *testing.T) {
 
 func runSimpleStateMachineTest(t *testing.T,
 	f func(sm *stateMachine), h replicaResultHandler) {
-	l := config.GetDefaultZapLogger(zap.OnFatal(zapcore.WriteThenPanic))
+	l := log.GetDefaultZapLogger(zap.OnFatal(zapcore.WriteThenPanic))
 	shard := Shard{ID: 100}
 	fs := vfs.NewMemFS()
 	opts := &cpebble.Options{

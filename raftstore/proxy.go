@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -112,9 +111,7 @@ func (sb *shardsProxyBuilder) withLogger(logger *zap.Logger) *shardsProxyBuilder
 }
 
 func (sb *shardsProxyBuilder) build(router Router) (ShardsProxy, error) {
-	if sb.cfg.logger == nil {
-		sb.cfg.logger = config.GetDefaultZapLogger()
-	}
+	sb.cfg.logger = log.Adjust(sb.cfg.logger)
 
 	if sb.cfg.successCallback == nil {
 		sb.cfg.successCallback = func(r rpc.Response) {}

@@ -17,12 +17,11 @@ package metricutil
 import (
 	"os"
 	"time"
-	"unicode"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
+	"go.uber.org/zap"
 )
 
 const zeroDuration = time.Duration(0)
@@ -34,33 +33,8 @@ type MetricConfig struct {
 	PushInterval typeutil.Duration `toml:"interval" json:"interval"`
 }
 
-func runesHasLowerNeighborAt(runes []rune, idx int) bool {
-	if idx > 0 && unicode.IsLower(runes[idx-1]) {
-		return true
-	}
-	if idx+1 < len(runes) && unicode.IsLower(runes[idx+1]) {
-		return true
-	}
-	return false
-}
-
-func camelCaseToSnakeCase(str string) string {
-	runes := []rune(str)
-	length := len(runes)
-
-	var ret []rune
-	for i := 0; i < length; i++ {
-		if i > 0 && unicode.IsUpper(runes[i]) && runesHasLowerNeighborAt(runes, i) {
-			ret = append(ret, '_')
-		}
-		ret = append(ret, unicode.ToLower(runes[i]))
-	}
-
-	return string(ret)
-}
-
 // prometheusPushClient pushes metrics to Prometheus Pushgateway.
-func prometheusPushClient(job, addr string, interval time.Duration) {
+func prometheusPushClient(job, addr string, interval time.Duration, logger *zap.Logger) {
 	pusher := push.New(addr, job).
 		Gatherer(prometheus.DefaultGatherer).
 		Grouping("instance", instanceName())
@@ -68,8 +42,8 @@ func prometheusPushClient(job, addr string, interval time.Duration) {
 	for {
 		err := pusher.Push()
 		if err != nil {
-			util.GetLogger().Errorf("could not push metrics to Prometheus Pushgateway, error %+v",
-				err)
+			logger.Error("fail to push metrics to Prometheus Pushgateway",
+				zap.Error(err))
 		}
 
 		time.Sleep(interval)
@@ -77,16 +51,16 @@ func prometheusPushClient(job, addr string, interval time.Duration) {
 }
 
 // Push metrics in background.
-func Push(cfg *MetricConfig) {
+func Push(cfg *MetricConfig, logger *zap.Logger) {
 	if cfg.PushInterval.Duration == zeroDuration || len(cfg.PushAddress) == 0 {
-		util.GetLogger().Info("disable Prometheus push client")
+		logger.Info("disable Prometheus push client")
 		return
 	}
 
-	util.GetLogger().Info("start Prometheus push client")
+	logger.Info("start Prometheus push client")
 
 	interval := cfg.PushInterval.Duration
-	go prometheusPushClient(cfg.PushJob, cfg.PushAddress, interval)
+	go prometheusPushClient(cfg.PushJob, cfg.PushAddress, interval, logger)
 }
 
 func instanceName() string {

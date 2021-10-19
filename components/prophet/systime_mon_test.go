@@ -38,7 +38,7 @@ func TestSystimeMonitor(t *testing.T) {
 			return time.Now().Add(-2 * time.Second)
 		}, func() {
 			atomic.StoreInt32(&jumpForward, 1)
-		})
+		}, nil)
 
 	time.Sleep(1 * time.Second)
 

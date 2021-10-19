@@ -20,7 +20,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
 )
 
@@ -180,7 +179,6 @@ func collect(records []metapb.RecordPair) float64 {
 func (r *RollingContainerStats) Observe(stats *metapb.ContainerStats) {
 	statInterval := stats.GetInterval()
 	interval := statInterval.GetEnd() - statInterval.GetStart()
-	util.GetLogger().Debugf("update container stats, %+v", stats)
 
 	r.Lock()
 	defer r.Unlock()

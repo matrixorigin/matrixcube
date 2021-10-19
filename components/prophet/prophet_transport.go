@@ -16,24 +16,23 @@ package prophet
 import (
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/codec"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/util/buf"
 	"go.uber.org/zap"
 )
 
 func (p *defaultProphet) startListen() {
 	encoder, decoder := codec.NewServerCodec(10 * buf.MB)
-	app, err := goetty.NewTCPApplication(p.cfg.RPCAddr,
+	app, err := goetty.NewTCPApplication(p.cfg.Prophet.RPCAddr,
 		p.handleRPCRequest,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
 			goetty.WithLogger(zap.L().Named("cube-prophet-rpc"))))
 	if err != nil {
-		util.GetLogger().Fatalf("start transport failed with %+v", err)
+		p.logger.Fatal("fail to start transport", zap.Error(err))
 	}
 	p.trans = app
 	err = p.trans.Start()
 	if err != nil {
-		util.GetLogger().Fatalf("start transport failed with %+v", err)
+		p.logger.Fatal("fail to start transport", zap.Error(err))
 	}
 }

@@ -34,7 +34,7 @@ type testResourceStatistics struct {
 func (s *testResourceStatistics) setup(t *testing.T) {
 	s.storage = storage.NewTestStorage()
 	var err error
-	s.manager = placement.NewRuleManager(s.storage, nil)
+	s.manager = placement.NewRuleManager(s.storage, nil, nil)
 	err = s.manager.Initialize(3, []string{"zone", "rack", "host"})
 	assert.NoError(t, err)
 }
