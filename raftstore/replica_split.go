@@ -17,10 +17,10 @@ import (
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 

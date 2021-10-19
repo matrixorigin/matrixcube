@@ -17,8 +17,8 @@ import (
 	"bytes"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"

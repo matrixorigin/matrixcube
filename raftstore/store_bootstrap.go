@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"

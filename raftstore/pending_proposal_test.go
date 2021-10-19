@@ -16,7 +16,7 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"

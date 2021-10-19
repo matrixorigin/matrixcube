@@ -14,8 +14,8 @@
 package raftstore
 
 import (
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/buf"
