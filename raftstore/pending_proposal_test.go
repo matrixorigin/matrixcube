@@ -131,7 +131,7 @@ func testPendingProposalClear(t *testing.T,
 	if clear {
 		p.clear()
 	} else {
-		p.destroy()
+		p.close()
 	}
 	assert.Empty(t, p.cmds)
 	assert.Equal(t, emptyCMD, p.confChangeCmd)

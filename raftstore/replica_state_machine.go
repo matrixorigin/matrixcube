@@ -214,9 +214,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 		resp, isConfigChangeRequestBatch(ctx.req))
 }
 
-func (d *stateMachine) destroy() {
-	// FIXME: move this out of the state machine
-	// d.replica.pendingProposals.destroy()
+func (d *stateMachine) close() {
 	d.writeCtx.close()
 }
 
