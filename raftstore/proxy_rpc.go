@@ -16,10 +16,10 @@ package raftstore
 import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type proxyRPC interface {
@@ -88,12 +88,12 @@ func (r *defaultRPC) onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response
 			rsp.Error = header.Error
 		}
 
-		if ce := r.logger.Check(zapcore.DebugLevel, "receive response"); ce != nil {
+		if ce := r.logger.Check(zap.DebugLevel, "receive response"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID))
 		}
 		rs.WriteAndFlush(rsp)
 	} else {
-		if ce := r.logger.Check(zapcore.DebugLevel, "skip receive response"); ce != nil {
+		if ce := r.logger.Check(zap.DebugLevel, "skip receive response"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID), log.ReasonField("missing session"))
 		}
 	}

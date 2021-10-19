@@ -23,7 +23,6 @@ import (
 	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -433,8 +432,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
 	for _, req := range ctx.req.Requests {
-		if ce := d.logger.Check(zapcore.DebugLevel, "begin to execute write"); ce != nil {
-			ce.Write(log.HexField("id", req.ID))
+		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
+			ce.Write(log.HexField("id", req.ID),
+				log.ShardIDField(d.shardID),
+				log.ReplicaIDField(d.replicaID),
+				log.IndexField(ctx.index))
 		}
 	}
 	if err := d.dataStorage.Write(d.writeCtx); err != nil {
@@ -442,8 +444,12 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 			zap.Error(err))
 	}
 	for _, req := range ctx.req.Requests {
-		d.logger.Debug("execute write completed",
-			log.HexField("id", req.ID))
+		if ce := d.logger.Check(zap.DebugLevel, "write completed"); ce != nil {
+			ce.Write(log.HexField("id", req.ID),
+				log.ShardIDField(d.shardID),
+				log.ReplicaIDField(d.replicaID),
+				log.IndexField(ctx.index))
+		}
 	}
 
 	resp := rpc.ResponseBatch{}

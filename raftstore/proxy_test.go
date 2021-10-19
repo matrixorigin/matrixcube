@@ -21,13 +21,13 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/testutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type testBackendFactory struct {
@@ -134,7 +134,7 @@ func TestRPCDispatch(t *testing.T) {
 
 	var sp1, sp2 ShardsProxy
 	addr1 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
-	rpc1 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zapcore.DebugLevel).With(zap.String("sp", "sp1")), addr1, 1024*1024, func(r rpc.Request) error {
+	rpc1 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")), addr1, 1024*1024, func(r rpc.Request) error {
 		sp1.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID, SID: r.SID}}})
 		return nil
 	})
@@ -159,7 +159,7 @@ func TestRPCDispatch(t *testing.T) {
 	defer sp1.Stop()
 
 	addr2 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
-	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zapcore.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpc.Request) error {
+	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpc.Request) error {
 		t.Logf("sp2 received")
 		sp2.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID, SID: r.SID}}})
 		return nil
@@ -184,7 +184,7 @@ func TestRPCDispatch(t *testing.T) {
 	assert.NoError(t, sp2.Start())
 	defer sp2.Stop()
 
-	factory1.backends[addr2] = newRemoteBackend(log.GetDefaultZapLoggerWithLevel(zapcore.DebugLevel).With(zap.String("sp", "sp1")),
+	factory1.backends[addr2] = newRemoteBackend(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")),
 		success1, failure1, addr2, goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
 
 	req := rpc.Request{}

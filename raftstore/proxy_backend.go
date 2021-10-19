@@ -21,11 +21,11 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/task"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -169,7 +169,7 @@ func (bc *remoteBackend) writeLoop() {
 					return
 				}
 
-				if ce := bc.logger.Check(zapcore.DebugLevel, "send request"); ce != nil {
+				if ce := bc.logger.Check(zap.DebugLevel, "send request"); ce != nil {
 					ce.Write(log.HexField("id", items[i].(rpc.Request).ID))
 				}
 				bc.conn.Write(items[i])
@@ -200,7 +200,7 @@ func (bc *remoteBackend) readLoop() {
 			}
 
 			if rsp, ok := data.(rpc.Response); ok {
-				if ce := bc.logger.Check(zapcore.DebugLevel, "receive response"); ce != nil {
+				if ce := bc.logger.Check(zap.DebugLevel, "receive response"); ce != nil {
 					ce.Write(log.HexField("id", rsp.ID))
 				}
 				bc.successCallback(rsp)

@@ -20,7 +20,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -204,7 +203,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 		}
 	}
 	for _, req := range ctx.req.Requests {
-		if ce := d.logger.Check(zapcore.DebugLevel, "apply write/admin req completed"); ce != nil {
+		if ce := d.logger.Check(zap.DebugLevel, "apply write/admin req completed"); ce != nil {
 			ce.Write(log.HexField("id", req.ID))
 		}
 	}

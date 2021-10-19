@@ -24,6 +24,10 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/format"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -42,9 +46,6 @@ import (
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
