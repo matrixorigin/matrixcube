@@ -21,6 +21,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
@@ -34,6 +35,11 @@ var (
 )
 
 func (pr *replica) handleReady() error {
+	if ce := pr.logger.Check(zap.DebugLevel, "begin handleReady"); ce != nil {
+		ce.Write(log.ShardIDField(pr.shardID),
+			log.ReplicaIDField(pr.replica.ID))
+	}
+
 	rd := pr.rn.ReadySince(pr.lastReadyIndex)
 	pr.handleRaftState(rd)
 	pr.sendRaftAppendLogMessages(rd)
@@ -47,6 +53,11 @@ func (pr *replica) handleReady() error {
 	}
 	pr.handleReadyToRead(rd)
 	pr.rn.AdvanceAppend(rd)
+
+	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
+		ce.Write(log.ShardIDField(pr.shardID),
+			log.ReplicaIDField(pr.replica.ID))
+	}
 
 	return nil
 }
@@ -77,11 +88,34 @@ func (pr *replica) handleRaftReadyAppend(rd raft.Ready) error {
 	return pr.handleAppendEntries(rd)
 }
 
+func getEstimatedAppendSize(rd raft.Ready) int {
+	sz := 0
+	for _, e := range rd.Entries {
+		sz += len(e.Data)
+		sz += 24
+	}
+	return sz
+}
+
 func (pr *replica) handleAppendEntries(rd raft.Ready) error {
 	if len(rd.Entries) > 0 {
+		if ce := pr.logger.Check(zap.DebugLevel,
+			"begin to save raft state"); ce != nil {
+			ce.Write(log.ShardIDField(pr.shardID),
+				log.ReplicaIDField(pr.replica.ID),
+				log.IndexField(rd.Entries[0].Index),
+				zap.Int("estimated-size", getEstimatedAppendSize(rd)))
+		}
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
-		return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
+		err := pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
+		if ce := pr.logger.Check(zap.DebugLevel,
+			"save raft state completed"); ce != nil {
+			ce.Write(log.ShardIDField(pr.shardID),
+				log.ReplicaIDField(pr.replica.ID),
+				log.IndexField(rd.Entries[0].Index))
+		}
+		return err
 	}
 	return nil
 }

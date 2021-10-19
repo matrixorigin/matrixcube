@@ -300,8 +300,6 @@ func (pr *replica) prophetHeartbeat() {
 	}
 	pr.prophetHeartbeatTime = req.Stats.Interval.End
 	resource := NewResourceAdapterWithShard(pr.getShard())
-	// TODO: pr.store.pd.GetClient() always returns the same instance. replica
-	// should have a reference to that instance and access it directly.
 	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
