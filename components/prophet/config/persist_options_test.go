@@ -14,7 +14,7 @@ func TestIssue85(t *testing.T) {
 	cfg.Adjust(nil, false)
 	cfg.ResourceStateChangedHandler = func(res metadata.Resource, from, to metapb.ResourceState) {}
 
-	pc := NewPersistOptions(cfg)
+	pc := NewPersistOptions(cfg, nil)
 	s := storage.NewTestStorage()
 	assert.NoError(t, pc.Persist(s))
 }

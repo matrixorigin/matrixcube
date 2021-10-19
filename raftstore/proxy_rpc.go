@@ -19,7 +19,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -36,11 +35,8 @@ type defaultRPC struct {
 }
 
 func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpc.Request) error) proxyRPC {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
 	rpc := &defaultRPC{
-		logger:  logger,
+		logger:  log.Adjust(logger),
 		handler: handler,
 	}
 

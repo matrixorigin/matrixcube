@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -96,7 +96,7 @@ func TestDestroyReplica(t *testing.T) {
 
 func TestReplicaDestroyedState(t *testing.T) {
 	p := replica{
-		logger:     config.GetDefaultZapLogger(),
+		logger:     log.GetDefaultZapLogger(),
 		destroyedC: make(chan struct{}, 1),
 	}
 	p.confirmDestroyed()

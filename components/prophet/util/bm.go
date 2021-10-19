@@ -15,6 +15,7 @@ package util
 
 import (
 	"bytes"
+	"fmt"
 	"runtime"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
@@ -42,7 +43,7 @@ func MustUnmarshalBM64To(data []byte, bm *roaring64.Bitmap) {
 	if err != nil {
 		buf := make([]byte, 4096)
 		n := runtime.Stack(buf, true)
-		GetLogger().Fatalf("BUG: parse bm %+v failed with %+v \n %s", data, err, string(buf[:n]))
+		panic(fmt.Sprintf("BUG: parse bm %+v failed with %+v \n %s", data, err, string(buf[:n])))
 	}
 }
 
@@ -57,6 +58,6 @@ func MustMarshalBM64(bm *roaring64.Bitmap) []byte {
 func MustMarshalBM64To(bm *roaring64.Bitmap, buf *bytes.Buffer) {
 	_, err := bm.WriteTo(buf)
 	if err != nil {
-		log.Fatalf("BUG: write bm failed with %+v", err)
+		panic(fmt.Sprintf("BUG: write bm failed with %+v", err))
 	}
 }

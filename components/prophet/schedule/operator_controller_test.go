@@ -101,7 +101,7 @@ func TestOperatorStatus(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 2)
 	tc.AddLeaderContainer(2, 0)
@@ -140,7 +140,7 @@ func TestFastFailOperator(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 2)
 	tc.AddLeaderContainer(2, 0)
@@ -178,7 +178,7 @@ func TestCheckAddUnexpectedStatus(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 0)
 	tc.AddLeaderContainer(2, 1)
@@ -246,7 +246,7 @@ func TestConcurrentRemoveOperator(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 0)
 	tc.AddLeaderContainer(2, 1)
@@ -289,7 +289,7 @@ func TestPollDispatchResource(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 2)
 	tc.AddLeaderContainer(2, 1)
@@ -365,7 +365,7 @@ func TestContainerLimit(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 	tc.AddLeaderContainer(1, 0)
 	tc.UpdateLeaderCount(1, 1000)
@@ -436,7 +436,7 @@ func TestDispatchOutdatedresource(t *testing.T) {
 	defer s.tearDown()
 
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */, nil)
 	controller := NewOperatorController(s.ctx, cluster, stream)
 
 	cluster.AddLeaderContainer(1, 2)
@@ -493,7 +493,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 	defer s.tearDown()
 
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */, nil)
 	controller := NewOperatorController(s.ctx, cluster, stream)
 
 	// Create a new resource with epoch(0, 0)
@@ -626,7 +626,7 @@ func TestContainerLimitWithMerge(t *testing.T) {
 	}
 
 	mc := checker.NewMergeChecker(s.ctx, tc)
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
 
 	resources[2] = resources[2].Clone(
@@ -674,7 +674,7 @@ func TestAddWaitingOperator(t *testing.T) {
 	defer s.tearDown()
 
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
-	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */)
+	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */, nil)
 	controller := NewOperatorController(s.ctx, cluster, stream)
 	cluster.AddLabelsContainer(1, 1, map[string]string{"host": "host1"})
 	cluster.AddLabelsContainer(2, 1, map[string]string{"host": "host2"})

@@ -22,6 +22,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
@@ -351,7 +352,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 		data := make([]byte, 8)
 		data[0] = 0x23
 		data[7] = 0xbf
-		l := config.GetDefaultZapLogger()
+		l := log.GetDefaultZapLogger()
 		r := replica{
 			store: &store{cfg: &config.Config{}},
 			replica: metapb.Replica{

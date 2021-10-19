@@ -18,7 +18,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 // LearnerChecker ensures resource has a learner will be promoted.
@@ -38,8 +38,8 @@ func (l *LearnerChecker) Check(res *core.CachedResource) *operator.Operator {
 	for _, p := range res.GetLearners() {
 		op, err := operator.CreatePromoteLearnerOperator("promote-learner", l.cluster, res, p)
 		if err != nil {
-			util.GetLogger().Debugf("fail to create promote learner operator, error %+v",
-				err)
+			l.cluster.GetLogger().Debug("fail to create promote learner operator",
+				zap.Error(err))
 			continue
 		}
 		return op

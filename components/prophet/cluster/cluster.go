@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -35,10 +36,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/keyutil"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 )
 
 var (
@@ -111,6 +112,8 @@ type RaftCluster struct {
 	etcdClient                  *clientv3.Client
 	adapter                     metadata.Adapter
 	resourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)
+
+	logger *zap.Logger
 }
 
 // NewRaftCluster create a new cluster.
@@ -119,7 +122,8 @@ func NewRaftCluster(ctx context.Context,
 	clusterID uint64,
 	etcdClient *clientv3.Client,
 	adapter metadata.Adapter,
-	resourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState)) *RaftCluster {
+	resourceStateChangedHandler func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState),
+	logger *zap.Logger) *RaftCluster {
 	return &RaftCluster{
 		ctx:                         ctx,
 		running:                     false,
@@ -128,6 +132,7 @@ func NewRaftCluster(ctx context.Context,
 		etcdClient:                  etcdClient,
 		adapter:                     adapter,
 		resourceStateChangedHandler: resourceStateChangedHandler,
+		logger:                      log.Adjust(logger).Named("raft-cluster"),
 	}
 }
 
@@ -160,7 +165,7 @@ func (c *RaftCluster) Start(s Server) error {
 	defer c.Unlock()
 
 	if c.running {
-		util.GetLogger().Warningf("raft cluster has already been started")
+		c.logger.Warn("raft cluster has already been started")
 		return nil
 	}
 
@@ -173,7 +178,7 @@ func (c *RaftCluster) Start(s Server) error {
 		return nil
 	}
 
-	c.ruleManager = placement.NewRuleManager(c.storage, c)
+	c.ruleManager = placement.NewRuleManager(c.storage, c, c.GetLogger())
 	if c.opt.IsPlacementRulesEnabled() {
 		err = c.ruleManager.Initialize(c.opt.GetMaxReplicas(), c.opt.GetLocationLabels())
 		if err != nil {
@@ -183,7 +188,7 @@ func (c *RaftCluster) Start(s Server) error {
 
 	c.coordinator = newCoordinator(c.ctx, cluster, s.GetHBStreams())
 	c.resourceStats = statistics.NewResourceStatistics(c.opt, c.ruleManager)
-	c.limiter = NewContainerLimiter(s.GetPersistOptions())
+	c.limiter = NewContainerLimiter(s.GetPersistOptions(), c.logger)
 	c.quit = make(chan struct{})
 
 	c.wg.Add(2)
@@ -204,9 +209,9 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	}); err != nil {
 		return nil, err
 	}
-	util.GetLogger().Infof("load %d containers, cost %+v",
-		c.GetContainerCount(),
-		time.Since(start))
+	c.logger.Info("containers loaded",
+		zap.Int("count", c.GetContainerCount()),
+		zap.Duration("cost", time.Since(start)))
 
 	// used to load resource from kv storage to cache storage.
 	start = time.Now()
@@ -215,9 +220,9 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	}); err != nil {
 		return nil, err
 	}
-	util.GetLogger().Infof("load %d resources, cost %+v",
-		c.GetResourceCount(),
-		time.Since(start))
+	c.logger.Info("resources loaded",
+		zap.Int("count", c.GetResourceCount()),
+		zap.Duration("cost", time.Since(start)))
 
 	for _, container := range c.GetContainers() {
 		c.hotStat.GetOrCreateRollingContainerStats(container.Meta.ID())
@@ -228,7 +233,7 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("runBackgroundJobs crashed with %+v", err)
+			c.logger.Error("runBackgroundJobs crashed", zap.Any("error", err))
 		}
 	}()
 	defer c.wg.Done()
@@ -239,9 +244,9 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 	for {
 		select {
 		case <-c.quit:
-			util.GetLogger().Infof("metrics are reset")
+			c.logger.Info("metrics are reset")
 			c.resetMetrics()
-			util.GetLogger().Infof("background jobs has been stopped")
+			c.logger.Info("background jobs has been stopped")
 			return
 		case <-ticker.C:
 			c.checkContainers()
@@ -257,18 +262,18 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 func (c *RaftCluster) runCoordinator() {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("runBackgroundJobs crashed with %+v", err)
+			c.logger.Error("runBackgroundJobs crashed", zap.Any("error", err))
 		}
 	}()
 
 	defer c.wg.Done()
 	defer func() {
 		c.coordinator.wg.Wait()
-		util.GetLogger().Infof("coordinator has been stopped")
+		c.logger.Info("coordinator has been stopped")
 	}()
 	c.coordinator.run()
 	<-c.coordinator.ctx.Done()
-	util.GetLogger().Infof("coordinator is stopping")
+	c.logger.Info("coordinator is stopping")
 }
 
 // Stop stops the cluster.
@@ -411,16 +416,16 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 	}
 	newContainer := container.Clone(core.SetContainerStats(stats), core.SetLastHeartbeatTS(time.Now()))
 	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio(), c.GetReplicationConfig().Groups) {
-		util.GetLogger().Warningf("container %d does not have enough disk space, capacity %d, available %d",
-			newContainer.Meta.ID(),
-			newContainer.GetCapacity(),
-			newContainer.GetAvailable())
+		c.logger.Warn("container does not have enough disk space, capacity %d, available %d",
+			zap.Uint64("container", newContainer.Meta.ID()),
+			zap.Uint64("capacity", newContainer.GetCapacity()),
+			zap.Uint64("available", newContainer.GetAvailable()))
 	}
 	if newContainer.NeedPersist() && c.storage != nil {
 		if err := c.storage.PutContainer(newContainer.Meta); err != nil {
-			util.GetLogger().Errorf("persist container %d failed with %+v",
-				newContainer.Meta.ID(),
-				err)
+			c.logger.Error("fail to persist container",
+				zap.Uint64("contianer", newContainer.Meta.ID()),
+				zap.Error(err))
 		} else {
 			newContainer = newContainer.Clone(core.SetLastPersistTime(time.Now()))
 		}
@@ -479,34 +484,34 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// Mark isNew if the resource in cache does not have leader.
 	var saveKV, saveCache, isNew bool
 	if origin == nil {
-		util.GetLogger().Debugf("insert new resource %+v",
-			res.Meta)
+		c.logger.Debug("insert new resource",
+			zap.Uint64("reosurce", res.Meta.ID()))
 		saveKV, saveCache, isNew = true, true, true
 	} else {
 		r := res.Meta.Epoch()
 		o := origin.Meta.Epoch()
 		if r.GetVersion() > o.GetVersion() {
-			util.GetLogger().Infof("resource %d version changed from %d to %d",
-				res.Meta.ID(),
-				o.GetVersion(),
-				r.GetVersion())
+			c.logger.Info("resource version changed",
+				zap.Uint64("reosurce", res.Meta.ID()),
+				zap.Uint64("from", o.GetVersion()),
+				zap.Uint64("to", r.GetVersion()))
 			saveKV, saveCache = true, true
 		}
 		if r.GetConfVer() > o.GetConfVer() {
-			util.GetLogger().Infof("resource %d ConfVer changed from %d to %d",
-				res.Meta.ID(),
-				o.GetConfVer(),
-				r.GetConfVer())
+			c.logger.Info("resource ConfVer changed",
+				zap.Uint64("reosurce", res.Meta.ID()),
+				zap.Uint64("from", o.GetConfVer()),
+				zap.Uint64("to", r.GetConfVer()))
 			saveKV, saveCache = true, true
 		}
 		if res.GetLeader().GetID() != origin.GetLeader().GetID() {
 			if origin.GetLeader().GetID() == 0 {
 				isNew = true
 			} else {
-				util.GetLogger().Infof("resource %d leader changed from container %d to container %d",
-					res.Meta.ID(),
-					origin.GetLeader().GetContainerID(),
-					res.GetLeader().GetContainerID())
+				c.logger.Info("resource leader changed",
+					zap.Uint64("reosurce", res.Meta.ID()),
+					zap.Uint64("from", origin.GetLeader().GetContainerID()),
+					zap.Uint64("to", res.GetLeader().GetContainerID()))
 			}
 			saveCache = true
 		}
@@ -560,9 +565,9 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if c.storage != nil {
 			for _, item := range overlaps {
 				if err := c.storage.RemoveResource(item.Meta); err != nil {
-					util.GetLogger().Errorf("delete resource %d from storage failed with %+v",
-						item.Meta.ID(),
-						err)
+					c.logger.Error("fail to delete resource from storage",
+						zap.Uint64("resource", item.Meta.ID()),
+						zap.Error(err))
 				}
 			}
 		}
@@ -611,9 +616,9 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if err := c.storage.PutResource(res.Meta); err != nil {
 			// Not successfully saved to storage is not fatal, it only leads to longer warm-up
 			// after restart. Here we only log the error then go on updating cache.
-			util.GetLogger().Errorf("save resource %d to storage failed with %+v",
-				res.Meta.ID(),
-				err)
+			c.logger.Error("fail to save resource to storage",
+				zap.Uint64("resource", res.Meta.ID()),
+				zap.Error(err))
 		}
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
@@ -875,9 +880,9 @@ func (c *RaftCluster) checkContainerLabels(s *core.CachedContainer) error {
 	for _, k := range c.opt.GetLocationLabels() {
 		keysSet[k] = struct{}{}
 		if v := s.GetLabelValue(k); len(v) == 0 {
-			util.GetLogger().Warningf("container %+v label %s configuration is incorrect",
-				s.Meta,
-				k)
+			c.logger.Warn("container label configuration is incorrect",
+				zap.Uint64("container", s.Meta.ID()),
+				zap.String("label", k))
 			if c.opt.GetStrictlyMatchLabel() {
 				return fmt.Errorf("label configuration is incorrect, need to specify the key: %s ", k)
 			}
@@ -886,9 +891,9 @@ func (c *RaftCluster) checkContainerLabels(s *core.CachedContainer) error {
 	for _, label := range s.Meta.Labels() {
 		key := label.GetKey()
 		if _, ok := keysSet[key]; !ok {
-			util.GetLogger().Warningf("container %+v not found the key %s match with the label",
-				s.Meta,
-				key)
+			c.logger.Warn("container not found the key match with the label",
+				zap.Uint64("container", s.Meta.ID()),
+				zap.String("label", key))
 			if c.opt.GetStrictlyMatchLabel() {
 				return fmt.Errorf("key matching the label was not found in the Prophet, container label key: %s ", key)
 			}
@@ -922,10 +927,10 @@ func (c *RaftCluster) RemoveContainer(containerID uint64, physicallyDestroyed bo
 	}
 
 	newContainer := container.Clone(core.OfflineContainer(physicallyDestroyed))
-	util.GetLogger().Warningf("container %d/%s has been offline, physically-destroyed %+v",
-		newContainer.Meta.ID(),
-		newContainer.Meta.Addr(),
-		physicallyDestroyed)
+	c.logger.Warn("container has been offline",
+		zap.Uint64("container", newContainer.Meta.ID()),
+		zap.String("container-address", newContainer.Meta.Addr()),
+		zap.Bool("physically-destroyed", physicallyDestroyed))
 	err := c.putContainerLocked(newContainer)
 	if err == nil {
 		// TODO: if the persist operation encounters error, the "Unlimited" will be rollback.
@@ -957,10 +962,10 @@ func (c *RaftCluster) buryContainer(containerID uint64) error {
 	}
 
 	newContainer := container.Clone(core.TombstoneContainer())
-	util.GetLogger().Warningf("container %d/%s has been Tombstone, physically-destroyed",
-		newContainer.Meta.ID(),
-		newContainer.Meta.Addr(),
-		newContainer.IsPhysicallyDestroyed())
+	c.logger.Warn("container has been tombstone",
+		zap.Uint64("container", newContainer.Meta.ID()),
+		zap.String("container-address", newContainer.Meta.Addr()),
+		zap.Bool("physically-destroyed", newContainer.IsPhysicallyDestroyed()))
 	err := c.putContainerLocked(newContainer)
 	if err == nil {
 		c.RemoveContainerLimit(containerID)
@@ -1006,11 +1011,11 @@ func (c *RaftCluster) UpContainer(containerID uint64) error {
 		return nil
 	}
 
-	newStore := container.Clone(core.UpContainer())
-	util.GetLogger().Warningf("container %d/%s has been up",
-		containerID,
-		newStore.Meta.Addr())
-	return c.putContainerLocked(newStore)
+	newContainer := container.Clone(core.UpContainer())
+	c.logger.Warn("container has been up",
+		zap.Uint64("container", newContainer.Meta.ID()),
+		zap.String("container-address", newContainer.Meta.Addr()))
+	return c.putContainerLocked(newContainer)
 }
 
 // SetContainerWeight sets up a container's leader/resource balance weight.
@@ -1069,10 +1074,10 @@ func (c *RaftCluster) checkContainers() {
 		resourceCount := c.core.GetContainerResourceCount(offlineContainer.ID())
 		if resourceCount == 0 {
 			if err := c.buryContainer(offlineContainer.ID()); err != nil {
-				util.GetLogger().Errorf("bury container %d/%s failed with %+v",
-					offlineContainer.ID(),
-					offlineContainer.Addr(),
-					err)
+				c.logger.Error("fail to bury container",
+					zap.Uint64("container", offlineContainer.ID()),
+					zap.String("container-address", offlineContainer.Addr()),
+					zap.Error(err))
 			}
 		} else {
 			offlineContainers = append(offlineContainers, offlineContainer)
@@ -1086,9 +1091,9 @@ func (c *RaftCluster) checkContainers() {
 	// When placement rules feature is enabled. It is hard to determine required replica count precisely.
 	if !c.opt.IsPlacementRulesEnabled() && upContainerCount < c.opt.GetMaxReplicas() {
 		for _, container := range offlineContainers {
-			util.GetLogger().Warningf("container %d/%s may not turn into Tombstone, there are no extra up container has enough space to accommodate the extra replica",
-				container.ID(),
-				container.Addr())
+			c.logger.Warn("container may not turn into Tombstone, there are no extra up container has enough space to accommodate the extra replica",
+				zap.Uint64("container", container.ID()),
+				zap.String("container-address", container.Addr()))
 		}
 	}
 }
@@ -1101,23 +1106,25 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 		for _, container := range c.GetContainers() {
 			if container.IsTombstone() {
 				if container.GetResourceCount(group) > 0 {
-					util.GetLogger().Warningf("skip removing tombstone container %+v", container.Meta)
+					c.logger.Warn("skip removing tombstone container",
+						zap.Uint64("container", container.Meta.ID()),
+						zap.String("container-address", container.Meta.Addr()))
 					continue
 				}
 
 				// the container has already been tombstone
 				err := c.deleteContainerLocked(container)
 				if err != nil {
-					util.GetLogger().Errorf("delete container %d/%s failed with %+v",
-						container.Meta.ID(),
-						container.Meta.Addr(), err)
+					c.logger.Error("fail to delete container",
+						zap.Uint64("container", container.Meta.ID()),
+						zap.String("container-address", container.Meta.Addr()))
 					return err
 				}
 				c.RemoveContainerLimit(container.Meta.ID())
 
-				util.GetLogger().Infof("delete container %d/%s succeeded",
-					container.Meta.ID(),
-					container.Meta.Addr())
+				c.logger.Info("container deleted",
+					zap.Uint64("container", container.Meta.ID()),
+					zap.String("container-address", container.Meta.Addr()))
 			}
 		}
 	}
@@ -1430,14 +1437,15 @@ func (c *RaftCluster) AddContainerLimit(container metadata.Container) {
 	var err error
 	for i := 0; i < persistLimitRetryTimes; i++ {
 		if err = c.opt.Persist(c.storage); err == nil {
-			util.GetLogger().Infof("container %d limit added", containerID)
+			c.logger.Info("container limit added",
+				zap.Uint64("container", containerID))
 			return
 		}
 		time.Sleep(persistLimitWaitTime)
 	}
-	util.GetLogger().Errorf("persist container %d limit failed with %+v ",
-		containerID,
-		err)
+	c.logger.Error("fail to persist container limit",
+		zap.Uint64("container", containerID),
+		zap.Error(err))
 }
 
 // RemoveContainerLimit remove a container limit for a given container ID.
@@ -1452,14 +1460,15 @@ func (c *RaftCluster) RemoveContainerLimit(containerID uint64) {
 	var err error
 	for i := 0; i < persistLimitRetryTimes; i++ {
 		if err = c.opt.Persist(c.storage); err == nil {
-			util.GetLogger().Infof("container %d limit removed", containerID)
+			c.logger.Info("container limit removed",
+				zap.Uint64("container", containerID))
 			return
 		}
 		time.Sleep(persistLimitWaitTime)
 	}
-	util.GetLogger().Errorf("persist container %d limit failed with %+v ",
-		containerID,
-		err)
+	c.logger.Error("fail to persist container limit",
+		zap.Uint64("container", containerID),
+		zap.Error(err))
 }
 
 // SetContainerLimit sets a container limit for a given type and rate.
@@ -1469,13 +1478,16 @@ func (c *RaftCluster) SetContainerLimit(containerID uint64, typ limit.Type, rate
 	if err := c.opt.Persist(c.storage); err != nil {
 		// roll back the store limit
 		c.opt.SetScheduleConfig(old)
-		util.GetLogger().Errorf("persist container %d limit failed with %+v ",
-			containerID,
-			err)
+		c.logger.Error("fail to persist container limit",
+			zap.Uint64("container", containerID),
+			zap.Error(err))
 		return err
 	}
 
-	util.GetLogger().Infof("container %d limit changed", containerID)
+	c.logger.Error("container limit changed",
+		zap.Uint64("container", containerID),
+		zap.String("type", typ.String()),
+		zap.Float64("new-value", ratePerMin))
 	return nil
 }
 
@@ -1490,17 +1502,22 @@ func (c *RaftCluster) SetAllContainersLimit(typ limit.Type, ratePerMin float64) 
 		c.opt.SetScheduleConfig(old)
 		config.DefaultContainerLimit.SetDefaultContainerLimit(limit.AddPeer, oldAdd)
 		config.DefaultContainerLimit.SetDefaultContainerLimit(limit.RemovePeer, oldRemove)
-		util.GetLogger().Errorf("persist containers limit failed with %+v ",
-			err)
+		c.logger.Error("fail to persist containers limit",
+			zap.Error(err))
 		return err
 	}
-	util.GetLogger().Infof("all containers limit changed")
+	c.logger.Info("all containers limit changed")
 	return nil
 }
 
 // GetClusterVersion returns the current cluster version.
 func (c *RaftCluster) GetClusterVersion() string {
 	return c.opt.GetClusterVersion().String()
+}
+
+// GetLogger returns zap logger
+func (c *RaftCluster) GetLogger() *zap.Logger {
+	return c.logger
 }
 
 // DisableJointConsensus do nothing

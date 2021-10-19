@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -70,9 +69,7 @@ type routerOptions struct {
 }
 
 func (opts *routerOptions) adjust() {
-	if opts.logger == nil {
-		opts.logger = config.GetDefaultZapLogger()
-	}
+	opts.logger = log.Adjust(opts.logger)
 
 	if opts.stopper == nil {
 		opts.stopper = syncutil.NewStopper()

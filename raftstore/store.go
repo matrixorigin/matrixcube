@@ -334,7 +334,7 @@ func (s *store) startProphet() {
 	s.cfg.Prophet.Adjust(nil, false)
 
 	s.pdStartedC = make(chan struct{})
-	s.pd = prophet.NewProphet(&s.cfg.Prophet)
+	s.pd = prophet.NewProphet(s.cfg)
 	s.pd.Start()
 	<-s.pdStartedC
 	s.shardPool.setProphetClient(s.pd.GetClient())

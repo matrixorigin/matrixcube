@@ -16,6 +16,7 @@ package filter
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -25,7 +26,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 )
 
@@ -177,7 +177,7 @@ func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.Cach
 
 func (f *excludedFilter) maybeLogWhy(container *core.CachedContainer) {
 	if LogWhySkipped {
-		util.GetLogger().Errorf("excludedFilter skip container %d, excluded: %+v",
+		log.Printf("excludedFilter skip container %d, excluded: %+v",
 			container.Meta.ID(),
 			f.sources)
 	}
@@ -206,7 +206,7 @@ func (f *storageThresholdFilter) Source(opt *config.PersistOptions, container *c
 func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
 	v := !container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups)
 	if !v && LogWhySkipped {
-		util.GetLogger().Errorf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
+		log.Printf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
 			container.Meta.ID(),
 			opt.GetLowSpaceRatio(),
 			container.GetContainerStats(),
@@ -579,8 +579,6 @@ func (f *ruleLeaderFitFilter) Source(opt *config.PersistOptions, container *core
 func (f *ruleLeaderFitFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
 	targetPeer, ok := f.resource.GetContainerPeer(container.Meta.ID())
 	if !ok {
-		util.GetLogger().Warningf("ruleLeaderFitFilter couldn't find peer on target container %d",
-			container.Meta.ID())
 		return false
 	}
 	copyResource := createResourceForRuleFit(f.resource.GetStartKey(), f.resource.GetEndKey(),

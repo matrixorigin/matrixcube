@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/btree"
 )
 
@@ -231,11 +230,6 @@ func (t *resourceTree) RandomResource(ranges []KeyRange) *CachedResource {
 		}
 
 		if endIndex <= startIndex {
-			if len(endKey) > 0 && bytes.Compare(startKey, endKey) > 0 {
-				util.GetLogger().Errorf("wrong range keys, start %+v, end %+v",
-					string(HexResourceKey(startKey)),
-					string(HexResourceKey(endKey)))
-			}
 			continue
 		}
 		index := rand.Intn(endIndex-startIndex) + startIndex

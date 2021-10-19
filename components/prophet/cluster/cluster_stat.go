@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 )
@@ -259,7 +258,6 @@ func (cs *State) State(excludes ...uint64) LoadState {
 	// values.
 	// TODO we may get a more accurate state with the information of the number // of the CPU cores
 	cpu := cs.cst.CPU(excludes...)
-	util.GetLogger().Debugf("calculated cpu %+v", cpu)
 	clusterStateCPUGauge.Set(cpu)
 	switch {
 	case cpu < 5:

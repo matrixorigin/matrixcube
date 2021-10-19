@@ -19,10 +19,11 @@ import (
 	"sync/atomic"
 
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 type watcherSession struct {
@@ -37,7 +38,6 @@ func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 		resp.Type = rpcpb.TypeEventNotify
 		resp.Event = evt
 		resp.Event.Seq = atomic.AddUint64(&wt.seq, 1)
-		util.GetLogger().Debugf("write notify event %+v", resp)
 		return wt.session.WriteAndFlush(resp)
 	}
 	return nil
@@ -46,20 +46,22 @@ func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 type watcherNotifier struct {
 	sync.Mutex
 
+	logger   *zap.Logger
 	watchers map[uint64]*watcherSession
 	cluster  *cluster.RaftCluster
 }
 
-func newWatcherNotifier(cluster *cluster.RaftCluster) *watcherNotifier {
+func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watcherNotifier {
 	return &watcherNotifier{
+		logger:   log.Adjust(logger).Named("watch-notify"),
 		cluster:  cluster,
 		watchers: make(map[uint64]*watcherSession),
 	}
 }
 
 func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.Response, session goetty.IOSession) error {
-	util.GetLogger().Infof("new watcher %s added",
-		session.RemoteAddr())
+	wn.logger.Info("watcher added",
+		zap.String("address", session.RemoteAddr()))
 
 	if wn != nil {
 		wn.cluster.RLock()
@@ -112,8 +114,8 @@ func (wn *watcherNotifier) addWatcher(flag uint32, session goetty.IOSession) err
 func (wn *watcherNotifier) doClearWatcherLocked(w *watcherSession) {
 	delete(wn.watchers, w.session.ID())
 	w.session.Close()
-	util.GetLogger().Infof("watcher %s removed",
-		w.session.RemoteAddr())
+	wn.logger.Info("watcher removed",
+		zap.String("address", w.session.RemoteAddr()))
 }
 
 func (wn *watcherNotifier) doNotify(evt rpcpb.EventNotify) {
@@ -132,7 +134,7 @@ func (wn *watcherNotifier) start() {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				util.GetLogger().Errorf("watcher notify failed with %+v, restart later", err)
+				wn.logger.Error("fail to notify event, restart later", zap.Any("error", err))
 				wn.start()
 			}
 		}()
@@ -140,7 +142,7 @@ func (wn *watcherNotifier) start() {
 		for {
 			evt, ok := <-wn.cluster.ChangedEventNotifier()
 			if !ok {
-				util.GetLogger().Infof("watcher notifer exited")
+				wn.logger.Info("watcher notifer exit")
 				return
 			}
 
@@ -157,5 +159,5 @@ func (wn *watcherNotifier) stop() {
 		wn.doClearWatcherLocked(wt)
 	}
 	wn.watchers = nil
-	util.GetLogger().Infof("watcher notifier stopped")
+	wn.logger.Info("watcher notifier stopped")
 }

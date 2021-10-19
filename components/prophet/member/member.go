@@ -20,13 +20,14 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/codec"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/util/buf"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.uber.org/zap"
 )
 
 // Member is used for the election related logic.
@@ -42,10 +43,16 @@ type Member struct {
 	id          uint64 //etcd server id
 
 	becomeLeaderFunc, becomeFollowerFunc func() error
+	logger                               *zap.Logger
 }
 
 // NewMember create a new Member.
-func NewMember(client *clientv3.Client, etcd *embed.Etcd, elector election.Elector, candidate bool, becomeLeaderFunc, becomeFollowerFunc func() error) *Member {
+func NewMember(client *clientv3.Client,
+	etcd *embed.Etcd,
+	elector election.Elector,
+	candidate bool,
+	becomeLeaderFunc, becomeFollowerFunc func() error,
+	logger *zap.Logger) *Member {
 	id := uint64(0)
 	if etcd != nil {
 		id = uint64(etcd.Server.ID())
@@ -59,6 +66,7 @@ func NewMember(client *clientv3.Client, etcd *embed.Etcd, elector election.Elect
 		becomeFollowerFunc: becomeFollowerFunc,
 		etcd:               etcd,
 		id:                 id,
+		logger:             log.Adjust(logger).Named("member"),
 	}
 }
 
@@ -149,7 +157,8 @@ func (m *Member) MemberInfo(name, addr string) {
 	data, err := leader.Marshal()
 	if err != nil {
 		// can't fail, so panic here.
-		util.GetLogger().Fatalf("marshal prophet leader failed with %+v", err)
+		m.logger.Fatal("fail to marshal prophet leader",
+			zap.Error(err))
 	}
 	m.member = leader
 	m.memberValue = string(data)
@@ -177,11 +186,13 @@ func (m *Member) getLeaderClient(addr string) goetty.IOSession {
 		if leader != nil {
 			conn, err := m.createLeaderClient(leader.Addr)
 			if err == nil {
-				util.GetLogger().Infof("create leader connection to %+v", leader)
+				m.logger.Info("create leader connection", zap.String("leader", leader.Addr))
 				return conn
 			}
 
-			util.GetLogger().Errorf("create leader connection failed, errors: %+v", err)
+			m.logger.Error("fail to create leader connection",
+				zap.String("leader", leader.Addr),
+				zap.Error(err))
 		}
 
 		time.Sleep(time.Second)

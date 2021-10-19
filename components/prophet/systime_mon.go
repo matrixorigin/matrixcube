@@ -17,12 +17,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/components/log"
+	"go.uber.org/zap"
 )
 
 // StartMonitor calls systimeErrHandler if system time jump backward.
-func StartMonitor(ctx context.Context, now func() time.Time, systimeErrHandler func()) {
-	util.GetLogger().Info("start system time monitor")
+func StartMonitor(ctx context.Context, now func() time.Time, systimeErrHandler func(), logger *zap.Logger) {
+	logger = log.Adjust(logger)
+	logger.Info("start system time monitor")
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -30,7 +32,8 @@ func StartMonitor(ctx context.Context, now func() time.Time, systimeErrHandler f
 		select {
 		case <-tick.C:
 			if now().UnixNano() < last {
-				util.GetLogger().Errorf("system time jump backward, last %+v", last)
+				logger.Error("system time jump backward",
+					zap.Int64("last", last))
 				systimeErrHandler()
 			}
 		case <-ctx.Done():

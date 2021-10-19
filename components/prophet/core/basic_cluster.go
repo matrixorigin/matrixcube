@@ -19,16 +19,18 @@ import (
 	"sync"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"go.uber.org/zap"
 )
 
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
+	logger                  *zap.Logger
 	factory                 func() metadata.Resource
 	Containers              *CachedContainers
 	Resources               *CachedResources
@@ -37,8 +39,8 @@ type BasicCluster struct {
 }
 
 // NewBasicCluster creates a BasicCluster.
-func NewBasicCluster(factory func() metadata.Resource) *BasicCluster {
-	bc := &BasicCluster{factory: factory}
+func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *BasicCluster {
+	bc := &BasicCluster{factory: factory, logger: log.Adjust(logger)}
 	bc.Reset()
 	return bc
 }
@@ -410,8 +412,8 @@ func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResour
 
 	origin, err := bc.PreCheckPutResource(res)
 	if err != nil {
-		util.GetLogger().Debugf("resource %+v is stale",
-			origin.Meta)
+		bc.logger.Debug("resource is stale, need to delete",
+			zap.Uint64("resource", origin.Meta.ID()))
 		// return the state resource to delete.
 		return []*CachedResource{res}
 	}

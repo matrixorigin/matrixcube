@@ -184,5 +184,5 @@ func NewTestOptions() *PersistOptions {
 	c.Schedule.EnableRemoveDownReplica = true
 	c.Schedule.EnableLocationReplacement = true
 	c.Adjust(nil, false)
-	return NewPersistOptions(c)
+	return NewPersistOptions(c, nil)
 }

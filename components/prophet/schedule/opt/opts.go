@@ -21,6 +21,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
+	"go.uber.org/zap"
 )
 
 const (
@@ -38,6 +39,7 @@ type Cluster interface {
 	statistics.ResourceStatInformer
 	statistics.ContainerStatInformer
 
+	GetLogger() *zap.Logger
 	GetOpts() *config.PersistOptions
 	AllocID() (uint64, error)
 	FitResource(*core.CachedResource) *placement.ResourceFit

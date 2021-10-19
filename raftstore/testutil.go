@@ -23,18 +23,16 @@ import (
 	"time"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/format"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/matrixorigin/matrixcube/aware"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
-
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -294,13 +292,7 @@ func (ts *testShardAware) shardCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
 
-	c := 0
-	for _, s := range ts.shards {
-		if len(s.Replicas) > 0 {
-			c++
-		}
-	}
-	return c
+	return len(ts.shards)
 }
 
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
@@ -679,9 +671,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		if !c.opts.disableTestParallel {
 			c.t.Parallel()
 		}
-		log.SetHighlighting(false)
-		log.SetLevelByString("error")
-		putil.SetLogger(log.NewLoggerWithPrefix("prophet"))
+
 		c.baseDataDir = fmt.Sprintf("%s/%s", c.opts.tmpDir, c.t.Name())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
@@ -696,7 +686,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
-		cfg.Logger = config.GetDefaultZapLoggerWithLevel(c.opts.logLevel).With(zap.String("case", c.t.Name()))
+		cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).With(zap.String("case", c.t.Name()))
 		cfg.FS = vfs.GetTestFS()
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
@@ -720,8 +710,6 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		cfg.Worker.ApplyWorkerCount = 1
 		cfg.Worker.SendRaftMsgWorkerCount = 1
 
-		// TODO: duplicated field
-		cfg.Prophet.FS = cfg.FS
 		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
 		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[i])
 		cfg.Prophet.Schedule.EnableJointConsensus = true

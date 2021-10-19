@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -25,8 +26,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
+	"go.uber.org/zap"
 )
 
 // RuleChecker fix/improve resource by placement rules.
@@ -114,16 +115,17 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 	if err == nil && op != nil {
 		return op
 	}
-	util.GetLogger().Debugf("fix orphan peer failed with %+v", err)
+	c.cluster.GetLogger().Debug("fail to fix orphan peer",
+		zap.Error(err))
 
 	for _, rf := range fit.RuleFits {
 		op, err := c.fixRulePeer(res, fit, rf)
 		if err != nil {
-			util.GetLogger().Debugf("res-%d rule %s/%s fix rule peer failed with %+v",
-				res.Meta.ID(),
-				rf.Rule.GroupID,
-				rf.Rule.ID,
-				err)
+			c.cluster.GetLogger().Debug("fail to fix resource by rule",
+				log.ResourceField(res.Meta.ID()),
+				zap.String("rule-group", rf.Rule.GroupID),
+				zap.String("rule-id", rf.Rule.ID),
+				zap.Error(err))
 			continue
 		}
 		if op != nil {
@@ -142,7 +144,8 @@ func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
 
 	op, err := operator.CreateSplitResourceOperator("rule-split-resource", res, 0, metapb.CheckPolicy_USEKEY, keys)
 	if err != nil {
-		util.GetLogger().Debugf("create split resource operator failed with %+v", err)
+		c.cluster.GetLogger().Debug("fail to create split resource operator",
+			zap.Error(err))
 		return nil
 	}
 
@@ -266,7 +269,8 @@ func (c *RuleChecker) fixBetterLocation(res *core.CachedResource, rf *placement.
 	}
 	newContainer := strategy.SelectContainerToImprove(ruleContainers, oldContainer)
 	if newContainer == 0 {
-		util.GetLogger().Debugf("resource %d no replacement container", res.Meta.ID())
+		c.cluster.GetLogger().Debug("resource no replacement container",
+			log.ResourceField(res.Meta.ID()))
 		return nil, nil
 	}
 	checkerCounter.WithLabelValues("rule_checker", "move-to-better-location").Inc()
@@ -298,8 +302,8 @@ func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) 
 		containerID := peer.ContainerID
 		container := c.cluster.GetContainer(containerID)
 		if container == nil {
-			util.GetLogger().Warningf("lost the container %d, maybe you are recovering the Prophet cluster",
-				containerID)
+			c.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
+				zap.Uint64("container", containerID))
 			return false
 		}
 		if container.DownTime() < c.cluster.GetOpts().GetMaxContainerDownTime() {
@@ -316,8 +320,8 @@ func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) 
 func (c *RuleChecker) isOfflinePeer(res *core.CachedResource, peer metapb.Replica) bool {
 	container := c.cluster.GetContainer(peer.ContainerID)
 	if container == nil {
-		util.GetLogger().Warningf("lost the container %d, maybe you are recovering the Prophet cluster",
-			peer.ContainerID)
+		c.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
+			zap.Uint64("container", peer.ContainerID))
 		return false
 	}
 	return !container.IsUp()

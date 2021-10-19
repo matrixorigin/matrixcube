@@ -23,14 +23,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/filter"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"go.uber.org/zap"
 )
 
 const resourceScatterName = "resource-scatter"
@@ -163,7 +164,8 @@ func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group str
 		res := r.cluster.GetResource(id)
 		if res == nil {
 			scatterCounter.WithLabelValues("skip", "no-resource").Inc()
-			util.GetLogger().Warningf("resource %d failed to find region during scatter", id)
+			r.cluster.GetLogger().Warn("failed to find resource during scatter",
+				log.ResourceField(id))
 			failures[id] = fmt.Errorf("failed to find resource %v", id)
 			continue
 		}
@@ -225,19 +227,22 @@ func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*op
 	if !opt.IsResourceReplicated(r.cluster, res) {
 		r.cluster.AddSuspectResources(res.Meta.ID())
 		scatterCounter.WithLabelValues("skip", "not-replicated").Inc()
-		util.GetLogger().Warningf("resource %d not replicated during scatter", res.Meta.ID())
+		r.cluster.GetLogger().Warn("resource not replicated during scatter",
+			log.ResourceField(res.Meta.ID()))
 		return nil, fmt.Errorf("resource %d is not fully replicated", res.Meta.ID())
 	}
 
 	if res.GetLeader() == nil {
 		scatterCounter.WithLabelValues("skip", "no-leader").Inc()
-		util.GetLogger().Warningf("resource %d no leader during scatter", res.Meta.ID())
+		r.cluster.GetLogger().Warn("resource has no leader during scatter",
+			log.ResourceField(res.Meta.ID()))
 		return nil, fmt.Errorf("resource %d has no leader", res.Meta.ID())
 	}
 
 	if r.cluster.IsResourceHot(res) {
 		scatterCounter.WithLabelValues("skip", "hot").Inc()
-		util.GetLogger().Warningf("resource %d  too hot during scatter", res.Meta.ID())
+		r.cluster.GetLogger().Warn("resource is too hot during scatter",
+			log.ResourceField(res.Meta.ID()))
 		return nil, fmt.Errorf("resource %d is hot", res.Meta.ID())
 	}
 
@@ -295,7 +300,8 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 			targetPeers[peer.GetContainerID()] = peer
 		}
 		r.Put(targetPeers, res.GetLeader().GetContainerID(), group)
-		util.GetLogger().Debugf("create scatter resource operator failed with %+v", err)
+		r.cluster.GetLogger().Debug("fail to create scatter resource operator",
+			zap.Error(err))
 		return nil
 	}
 	if op != nil {
@@ -309,7 +315,8 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 func (r *ResourceScatterer) selectCandidates(res *core.CachedResource, sourceContainerID uint64, selectedContainers map[uint64]struct{}, context engineContext) []uint64 {
 	sourceStore := r.cluster.GetContainer(sourceContainerID)
 	if sourceStore == nil {
-		util.GetLogger().Errorf("failed to get the container %d", sourceContainerID)
+		r.cluster.GetLogger().Error("fail to get the container",
+			log.SourceContainerField(sourceContainerID))
 		return nil
 	}
 	filters := []filter.Filter{

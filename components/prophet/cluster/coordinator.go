@@ -31,7 +31,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedulers"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 var (
@@ -79,7 +79,7 @@ func newCoordinator(ctx context.Context, cluster *RaftCluster, hbStreams *hbstre
 		schedulers:        make(map[string]*scheduleController),
 		opController:      opController,
 		hbStreams:         hbStreams,
-		pluginInterface:   schedule.NewPluginInterface(),
+		pluginInterface:   schedule.NewPluginInterface(cluster.GetLogger()),
 	}
 }
 
@@ -88,7 +88,8 @@ func newCoordinator(ctx context.Context, cluster *RaftCluster, hbStreams *hbstre
 func (c *coordinator) patrolResources() {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("patrolResources failed with %+v", err)
+			c.cluster.logger.Error("fail to patrol resources",
+				zap.Any("error", err))
 		}
 	}()
 
@@ -96,7 +97,7 @@ func (c *coordinator) patrolResources() {
 	timer := time.NewTimer(c.cluster.GetOpts().GetPatrolResourceInterval())
 	defer timer.Stop()
 
-	util.GetLogger().Info("coordinator starts patrol resources")
+	c.cluster.logger.Info("coordinator starts patrol resources")
 	start := time.Now()
 	var key []byte
 	for {
@@ -104,7 +105,7 @@ func (c *coordinator) patrolResources() {
 		case <-timer.C:
 			timer.Reset(c.cluster.GetOpts().GetPatrolResourceInterval())
 		case <-c.ctx.Done():
-			util.GetLogger().Info("patrol resources has been stopped")
+			c.cluster.logger.Info("patrol resources has been stopped")
 			return
 		}
 
@@ -234,18 +235,19 @@ func (c *coordinator) checkWaitingResources() {
 func (c *coordinator) drivePushOperator() {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("drivePushOperator failed with %+v", err)
+			c.cluster.logger.Error("fail to drivePushOperator",
+				zap.Any("error", err))
 		}
 	}()
 
 	defer c.wg.Done()
-	util.GetLogger().Info("coordinator begins to actively drive push operator")
+	c.cluster.logger.Info("coordinator begins to actively drive push operator")
 	ticker := time.NewTicker(schedule.PushOperatorTickInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-c.ctx.Done():
-			util.GetLogger().Info("drive push operator has been stopped")
+			c.cluster.logger.Info("drive push operator has been stopped")
 			return
 		case <-ticker.C:
 			c.opController.PushOperators()
@@ -256,20 +258,20 @@ func (c *coordinator) drivePushOperator() {
 func (c *coordinator) run() {
 	ticker := time.NewTicker(runSchedulerCheckInterval)
 	defer ticker.Stop()
-	util.GetLogger().Info("coordinator starts to collect cluster information")
+	c.cluster.logger.Info("coordinator starts to collect cluster information")
 	for {
 		if c.shouldRun() {
-			util.GetLogger().Info("coordinator has finished cluster information preparation")
+			c.cluster.logger.Info("coordinator has finished cluster information preparation")
 			break
 		}
 		select {
 		case <-ticker.C:
 		case <-c.ctx.Done():
-			util.GetLogger().Info("coordinator stops running")
+			c.cluster.logger.Info("coordinator stops running")
 			return
 		}
 	}
-	util.GetLogger().Info("coordinator starts to run schedulers")
+	c.cluster.logger.Info("coordinator starts to run schedulers")
 	var (
 		scheduleNames []string
 		configs       []string
@@ -279,20 +281,20 @@ func (c *coordinator) run() {
 		scheduleNames, configs, err = c.cluster.storage.LoadAllScheduleConfig()
 		select {
 		case <-c.ctx.Done():
-			util.GetLogger().Info("coordinator stops running")
+			c.cluster.logger.Info("coordinator stops running")
 			return
 		default:
 		}
 		if err == nil {
 			break
 		}
-		util.GetLogger().Errorf("cannot load schedulers' config, retry times %d, error %+v",
-			i,
-			err)
+		c.cluster.logger.Error("fail to cannot load schedulers' config",
+			zap.Int("reties", i),
+			zap.Error(err))
 	}
 	if err != nil {
-		util.GetLogger().Fatalf("cannot load schedulers' config, error %+v",
-			err)
+		c.cluster.logger.Fatal("fail to load schedulers' config",
+			zap.Error(err))
 	}
 
 	scheduleCfg := c.cluster.opt.GetScheduleConfig().Clone()
@@ -308,32 +310,33 @@ func (c *coordinator) run() {
 			}
 		}
 		if len(cfg.Type) == 0 {
-			util.GetLogger().Errorf("the scheduler %s type not found",
-				name)
+			c.cluster.logger.Error("the scheduler not found",
+				zap.String("name", name))
 			continue
 		}
 		if cfg.Disable {
-			util.GetLogger().Infof("skip create scheduler %s type %s with independent configuration, args %+v",
-				name,
-				cfg.Type,
-				cfg.Args)
+			c.cluster.logger.Info("skip create scheduler with independent configuration",
+				zap.String("name", name),
+				zap.String("type", cfg.Type),
+				zap.Any("args", cfg.Args))
 			continue
 		}
 		s, err := schedule.CreateScheduler(cfg.Type, c.opController, c.cluster.storage, schedule.ConfigJSONDecoder([]byte(data)))
 		if err != nil {
-			util.GetLogger().Errorf("can not create scheduler %s with independent configuration, args %+v, error %+v",
-				name,
-				cfg.Args,
-				err)
+			c.cluster.logger.Error("fail to create scheduler with independent configuration",
+				zap.String("name", name),
+				zap.String("type", cfg.Type),
+				zap.Any("args", cfg.Args),
+				zap.Error(err))
 			continue
 		}
-		util.GetLogger().Infof("create scheduler %s with independent configuration",
-			s.GetName())
+		c.cluster.logger.Info("create scheduler with independent configuration",
+			zap.String("name", s.GetName()))
 		if err = c.addScheduler(s); err != nil {
-			util.GetLogger().Error("can not add scheduler %s with independent configuration, args %+v, error %+v",
-				s.GetName(),
-				cfg.Args,
-				err)
+			c.cluster.logger.Error("fail to add scheduler with independent configuration",
+				zap.String("name", s.GetName()),
+				zap.Any("args", cfg.Args),
+				zap.Error(err))
 		}
 	}
 
@@ -343,29 +346,29 @@ func (c *coordinator) run() {
 		if schedulerCfg.Disable {
 			scheduleCfg.Schedulers[k] = schedulerCfg
 			k++
-			util.GetLogger().Infof("skip create scheduler, type %s, args %+v",
-				schedulerCfg.Type,
-				schedulerCfg.Args)
+			c.cluster.logger.Info("skip create scheduler",
+				zap.String("type", schedulerCfg.Type),
+				zap.Any("args", schedulerCfg.Args))
 			continue
 		}
 
 		s, err := schedule.CreateScheduler(schedulerCfg.Type, c.opController, c.cluster.storage, schedule.ConfigSliceDecoder(schedulerCfg.Type, schedulerCfg.Args))
 		if err != nil {
-			util.GetLogger().Errorf("create scheduler type %s, args %+v failed with %+v",
-				schedulerCfg.Type,
-				schedulerCfg.Args,
-				err)
+			c.cluster.logger.Error("fail to create scheduler",
+				zap.String("type", schedulerCfg.Type),
+				zap.Any("args", schedulerCfg.Args),
+				zap.Error(err))
 			continue
 		}
 
-		util.GetLogger().Infof("create scheduler %s, args %+v",
-			s.GetName(),
-			schedulerCfg.Args)
+		c.cluster.logger.Info("create scheduler",
+			zap.String("name", s.GetName()),
+			zap.Any("args", schedulerCfg.Args))
 		if err = c.addScheduler(s, schedulerCfg.Args...); err != nil && err != errSchedulerExists {
-			util.GetLogger().Errorf("can not add scheduler %s, args %+v",
-				s.GetName(),
-				schedulerCfg.Args,
-				err)
+			c.cluster.logger.Error("fail to add scheduler",
+				zap.String("name", s.GetName()),
+				zap.Any("args", schedulerCfg.Args),
+				zap.Error(err))
 		} else {
 			// Only records the valid scheduler config.
 			scheduleCfg.Schedulers[k] = schedulerCfg
@@ -377,8 +380,8 @@ func (c *coordinator) run() {
 	scheduleCfg.Schedulers = scheduleCfg.Schedulers[:k]
 	c.cluster.opt.SetScheduleConfig(scheduleCfg)
 	if err := c.cluster.opt.Persist(c.cluster.storage); err != nil {
-		util.GetLogger().Errorf("cannot persist schedule config, error %+v",
-			err)
+		c.cluster.logger.Error("fail to persist schedule config",
+			zap.Error(err))
 	}
 
 	c.wg.Add(2)
@@ -581,21 +584,21 @@ func (c *coordinator) removeScheduler(name string) error {
 	opt := c.cluster.opt
 
 	if err = c.removeOptScheduler(opt, name); err != nil {
-		util.GetLogger().Errorf("can not remove scheduler %s, failed with %+v",
-			name,
-			err)
+		c.cluster.logger.Error("fail to remove scheduler",
+			zap.String("name", name),
+			zap.Error(err))
 		return err
 	}
 
 	if err = opt.Persist(c.cluster.storage); err != nil {
-		util.GetLogger().Errorf("persist scheduler config failed with %+v",
-			err)
+		c.cluster.logger.Error("fail to persist scheduler config",
+			zap.Error(err))
 		return err
 	}
 
 	if err = c.cluster.storage.RemoveScheduleConfig(name); err != nil {
-		util.GetLogger().Errorf("remove the scheduler config failed with %+v",
-			err)
+		c.cluster.logger.Error("fail to remove the scheduler config",
+			zap.Error(err))
 		return err
 	}
 
@@ -690,7 +693,7 @@ func (c *coordinator) isSchedulerDisabled(name string) (bool, error) {
 func (c *coordinator) runScheduler(s *scheduleController) {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Errorf("runScheduler failed with %+v", err)
+			c.cluster.logger.Error("runScheduler failed", zap.Any("error", err))
 		}
 	}()
 
@@ -709,15 +712,15 @@ func (c *coordinator) runScheduler(s *scheduleController) {
 			}
 			if op := s.Schedule(); op != nil {
 				added := c.opController.AddWaitingOperator(op...)
-				util.GetLogger().Debugf("scheduler %s add %d operators, total %d",
-					s.GetName(),
-					added,
-					len(op))
+				c.cluster.logger.Debug("operators added",
+					zap.String("name", s.GetName()),
+					zap.Int("added", added),
+					zap.Int("total", len(op)))
 			}
 
 		case <-s.Ctx().Done():
-			util.GetLogger().Infof("scheduler %s has been stopped",
-				s.GetName())
+			c.cluster.logger.Info("scheduler has been stopped",
+				zap.String("name", s.GetName()))
 			return
 		}
 	}

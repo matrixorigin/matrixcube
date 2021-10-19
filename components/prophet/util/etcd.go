@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"go.etcd.io/etcd/client/pkg/v3/types"
@@ -45,8 +44,6 @@ func CheckClusterID(localClusterID types.ID, um types.URLsMap) error {
 		remoteCluster, gerr := etcdserver.GetClusterFromRemotePeers(nil, []string{u}, trp)
 		trp.CloseIdleConnections()
 		if gerr != nil {
-			// Do not return error, because other members may be not ready.
-			GetLogger().Errorf("get cluster from remote failed with %+v", gerr)
 			continue
 		}
 
@@ -95,19 +92,9 @@ func GetEtcdResp(client *clientv3.Client, key string, opts ...clientv3.OpOption)
 	ctx, cancel := context.WithTimeout(client.Ctx(), option.DefaultRequestTimeout)
 	defer cancel()
 
-	start := time.Now()
 	resp, err := clientv3.NewKV(client).Get(ctx, key, opts...)
 	if err != nil {
-		GetLogger().Errorf("read %s from etcd failed with %+v",
-			key,
-			err)
 		return resp, err
-	}
-
-	if cost := time.Since(start); cost > option.DefaultSlowRequestTime {
-		GetLogger().Warningf("read %s from etcd is too slow, cost %+v",
-			key,
-			cost)
 	}
 
 	return resp, nil
@@ -176,17 +163,7 @@ func (t *slowLogTxn) Then(ops ...clientv3.Op) clientv3.Txn {
 
 // Commit implements Txn Commit interface.
 func (t *slowLogTxn) Commit() (*clientv3.TxnResponse, error) {
-	start := time.Now()
 	resp, err := t.Txn.Commit()
 	t.cancel()
-
-	cost := time.Since(start)
-	if cost > option.DefaultSlowRequestTime {
-		GetLogger().Warningf("txn runs too slow, resp=<%+v> cost=<%s> errors %+v",
-			resp,
-			cost,
-			err)
-	}
-
 	return resp, err
 }

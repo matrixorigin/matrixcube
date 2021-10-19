@@ -23,7 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -124,8 +124,9 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	}
 	op, err := operator.CreateTransferLeaderOperator(ShuffleLeaderType, cluster, res, res.GetLeader().GetContainerID(), targetContainer.Meta.ID(), operator.OpAdmin)
 	if err != nil {
-		util.GetLogger().Debugf("create shuffle leader operator failed with %+v",
-			err)
+		cluster.GetLogger().Error("fail to create shuffle leader operator",
+			shuffleLeaderField,
+			zap.Error(err))
 		return nil
 	}
 	op.SetPriorityLevel(core.HighPriority)

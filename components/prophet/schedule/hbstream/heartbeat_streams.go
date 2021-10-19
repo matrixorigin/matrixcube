@@ -17,14 +17,16 @@ package hbstream
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -47,21 +49,22 @@ type HeartbeatStreams struct {
 	msgCh             chan *rpcpb.ResourceHeartbeatRsp
 	streamCh          chan streamUpdate
 	containerInformer core.ContainerSetInformer
+	logger            *zap.Logger
 	needRun           bool // For test only.
 }
 
 // NewHeartbeatStreams creates a new HeartbeatStreams which enable background running by default.
-func NewHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer) *HeartbeatStreams {
-	return newHbStreams(ctx, clusterID, containerInformer, true)
+func NewHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, logger *zap.Logger) *HeartbeatStreams {
+	return newHbStreams(ctx, clusterID, containerInformer, true, logger)
 }
 
 // NewTestHeartbeatStreams creates a new HeartbeatStreams for test purpose only.
 // Please use NewHeartbeatStreams for other usage.
-func NewTestHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool) *HeartbeatStreams {
-	return newHbStreams(ctx, clusterID, containerInformer, needRun)
+func NewTestHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
+	return newHbStreams(ctx, clusterID, containerInformer, needRun, logger)
 }
 
-func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool) *HeartbeatStreams {
+func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
 	hbStreamCtx, hbStreamCancel := context.WithCancel(ctx)
 	hs := &HeartbeatStreams{
 		hbStreamCtx:       hbStreamCtx,
@@ -72,6 +75,7 @@ func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.
 		streamCh:          make(chan streamUpdate, 1),
 		containerInformer: containerInformer,
 		needRun:           needRun,
+		logger:            log.Adjust(logger),
 	}
 	if needRun {
 		hs.wg.Add(1)
@@ -83,7 +87,7 @@ func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.
 func (s *HeartbeatStreams) run() {
 	defer func() {
 		if err := recover(); err != nil {
-			util.GetLogger().Fatalf("hb streams runner failed with %+v", err)
+			panic(fmt.Sprintf("hb streams runner failed with %+v", err))
 		}
 	}()
 
@@ -98,27 +102,27 @@ func (s *HeartbeatStreams) run() {
 			containerLabel := strconv.FormatUint(containerID, 10)
 			container := s.containerInformer.GetContainer(containerID)
 			if container == nil {
-				util.GetLogger().Errorf("resource %d get container %d failed with not found",
-					msg.ResourceID,
-					containerID)
+				s.logger.Error("fail to get container, not found",
+					log.ResourceField(msg.ResourceID),
+					zap.Uint64("container", containerID))
 				delete(s.streams, containerID)
 				continue
 			}
 			containerAddress := container.Meta.Addr()
 			if stream, ok := s.streams[containerID]; ok {
 				if err := stream.Send(msg); err != nil {
-					util.GetLogger().Errorf("resource %d send heartbeat message failed with %+v",
-						msg.ResourceID,
-						err)
+					s.logger.Error("fail to send heartbeat message",
+						log.ResourceField(msg.ResourceID),
+						zap.Error(err))
 					delete(s.streams, containerID)
 					heartbeatStreamCounter.WithLabelValues(containerAddress, containerLabel, "push", "err").Inc()
 				} else {
 					heartbeatStreamCounter.WithLabelValues(containerAddress, containerLabel, "push", "ok").Inc()
 				}
 			} else {
-				util.GetLogger().Debugf("resource %d heartbeat stream %d not found, skip send message",
-					msg.ResourceID,
-					containerID)
+				s.logger.Debug("heartbeat stream not found, skip send message",
+					log.ResourceField(msg.ResourceID),
+					zap.Uint64("container", containerID))
 				heartbeatStreamCounter.WithLabelValues(containerAddress, containerLabel, "push", "skip").Inc()
 			}
 		case <-s.hbStreamCtx.Done():

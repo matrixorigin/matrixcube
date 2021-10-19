@@ -21,11 +21,11 @@ import (
 	"math"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 )
 
@@ -133,16 +133,17 @@ func (r *ResourceSplitter) groupKeysByResource(group uint64, keys [][]byte) map[
 	for _, key := range keys {
 		res := r.cluster.GetResourceByKey(group, key)
 		if res == nil {
-			util.GetLogger().Errorf("resource hollow, key %+v", key)
+			r.cluster.GetLogger().Error("resource hollow",
+				log.HexField("key", key))
 			continue
 		}
 		// assert resource valid
 		if !r.checkResourceValid(res) {
 			continue
 		}
-		util.GetLogger().Info("found resource %d, key %+v",
-			res.Meta.ID(),
-			key)
+		r.cluster.GetLogger().Info("found resource",
+			log.ResourceField(res.Meta.ID()),
+			log.HexField("key", key))
 		_, ok := groups[res.Meta.ID()]
 		if !ok {
 			groups[res.Meta.ID()] = &resourceGroupKeys{
@@ -184,8 +185,8 @@ func (h *splitResourcesHandler) SplitResourceByKeys(res *core.CachedResource, sp
 	}
 
 	if ok := h.oc.AddOperator(op); !ok {
-		util.GetLogger().Warningf("resource %s add split operator failed",
-			res.Meta.ID())
+		h.cluster.GetLogger().Warn("add resource split operator failed",
+			log.ResourceField(res.Meta.ID()))
 		return errors.New("add resource split operator failed")
 	}
 	return nil
@@ -202,9 +203,9 @@ func (h *splitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys 
 	for _, res := range resources {
 		for _, splitKey := range splitKeys {
 			if bytes.Equal(splitKey, res.GetStartKey()) {
-				util.GetLogger().Infof("resource %d found split at %+v",
-					res.Meta.ID(),
-					splitKey)
+				h.cluster.GetLogger().Info("resource found split key",
+					log.ResourceField(res.Meta.ID()),
+					log.HexField("split-key", splitKey))
 				createdResources[res.Meta.ID()] = splitKey
 			}
 		}

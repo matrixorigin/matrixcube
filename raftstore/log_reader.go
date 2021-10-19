@@ -64,7 +64,7 @@ import (
 	pb "go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
-	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 )
 
@@ -97,11 +97,8 @@ var _ raft.Storage = (*LogReader)(nil)
 // NewLogReader creates and returns a new LogReader instance.
 func NewLogReader(logger *zap.Logger, shardID uint64, peerID uint64,
 	db logdb.LogDB) *LogReader {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
 	return &LogReader{
-		logger:  logger,
+		logger:  log.Adjust(logger),
 		logdb:   db,
 		shardID: shardID,
 		peerID:  peerID,

@@ -10,6 +10,7 @@ import (
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -74,11 +75,7 @@ type dynamicShardsPool struct {
 }
 
 func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShardsPool {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
-
-	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: logger.Named("shard-pool")}
+	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: log.Adjust(logger).Named("shard-pool")}
 	p.factory = p.shardFactory
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
 		p.factory = cfg.Customize.CustomShardPoolShardFactory

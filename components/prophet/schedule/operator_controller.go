@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -30,8 +31,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
+	"go.uber.org/zap"
 )
 
 // The source of dispatched resource.
@@ -134,10 +135,10 @@ func (oc *OperatorController) Dispatch(res *core.CachedResource, source string) 
 			if oc.removeOperatorWithoutBury(op) {
 				// CREATED, EXPIRED must not appear.
 				// CANCELED, REPLACED must remove before transition.
-				util.GetLogger().Errorf("resource %d dispatching operator %+v with unexpected status %s",
-					op.ResourceID(),
-					op,
-					operator.OpStatusToString(op.Status()))
+				oc.cluster.GetLogger().Error("resource dispatching operator with unexpected status",
+					log.ResourceField(op.ResourceID()),
+					zap.Stringer("op", op),
+					zap.String("status", operator.OpStatusToString(op.Status())))
 
 				operatorWaitCounter.WithLabelValues(op.Desc(), "unexpected").Inc()
 				_ = op.Cancel()
@@ -209,9 +210,9 @@ func (oc *OperatorController) pollNeedDispatchResource() (r *core.CachedResource
 	if r == nil {
 		_ = oc.removeOperatorLocked(op)
 		if op.Cancel() {
-			util.GetLogger().Warningf("resource %d remove operator %s because resource disappeared",
-				op.ResourceID(),
-				op)
+			oc.cluster.GetLogger().Warn("remove operator because resource disappeared",
+				log.ResourceField(op.ResourceID()),
+				zap.Stringer("op", op))
 			operatorCounter.WithLabelValues(op.Desc(), "disappear").Inc()
 		}
 		oc.buryOperator(op, "")
@@ -260,12 +261,14 @@ func (oc *OperatorController) AddWaitingOperator(ops ...*operator.Operator) int 
 		if op.Kind()&operator.OpMerge != 0 {
 			if i+1 >= len(ops) {
 				// should not be here forever
-				util.GetLogger().Errorf("orphan merge operators found, %s", desc)
+				oc.cluster.GetLogger().Error("orphan merge operators found",
+					zap.String("desc", desc))
 				oc.Unlock()
 				return added
 			}
 			if ops[i+1].Kind()&operator.OpMerge == 0 {
-				util.GetLogger().Errorf("merge operator should be paired, %s", ops[i+1].Desc())
+				oc.cluster.GetLogger().Error("merge operator should be paired",
+					zap.String("desc", ops[i+1].Desc()))
 				oc.Unlock()
 				return added
 			}
@@ -366,40 +369,41 @@ func (oc *OperatorController) checkAddOperator(ops ...*operator.Operator) bool {
 	for _, op := range ops {
 		res := oc.cluster.GetResource(op.ResourceID())
 		if res == nil {
-			util.GetLogger().Debugf("resource %d not found, cancel add operator", op.ResourceID())
+			oc.cluster.GetLogger().Debug("resource not found, cancel add operator",
+				log.ResourceField(op.ResourceID()))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "not-found").Inc()
 			return false
 		}
 		epoch := res.Meta.Epoch()
 		if epoch.GetVersion() != op.ResourceEpoch().Version ||
 			epoch.GetConfVer() != op.ResourceEpoch().ConfVer {
-			util.GetLogger().Debugf("resource %d epoch not match, cancel add operator, old %+v, new %+v",
-				op.ResourceID(),
-				epoch,
-				op.ResourceEpoch())
+			oc.cluster.GetLogger().Debug("resource epoch not match, cancel add operator",
+				log.ResourceField(op.ResourceID()),
+				log.EpochField("old", epoch),
+				log.EpochField("new", op.ResourceEpoch()))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "epoch-not-match").Inc()
 			return false
 		}
 		if old := oc.operators[op.ResourceID()]; old != nil && !isHigherPriorityOperator(op, old) {
-			util.GetLogger().Debugf("resource %d already have operator, cancel add operator, old %+v",
-				op.ResourceID(),
-				old)
+			oc.cluster.GetLogger().Debug("resource already have operator, cancel add operator",
+				log.ResourceField(op.ResourceID()),
+				zap.Stringer("old", old))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "already-have").Inc()
 			return false
 		}
 		if op.Status() != operator.CREATED {
-			util.GetLogger().Errorf("resource %d trying to add operator(%+v) with unexpected status %s",
-				op.ResourceID(),
-				op,
-				operator.OpStatusToString(op.Status()))
+			oc.cluster.GetLogger().Error("resource trying to add operator with unexpected status",
+				log.ResourceField(op.ResourceID()),
+				zap.Stringer("op", op),
+				zap.String("status", operator.OpStatusToString(op.Status())))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "unexpected-status").Inc()
 			return false
 		}
 		if oc.wopStatus.ops[op.Desc()] >= oc.cluster.GetOpts().GetSchedulerMaxWaitingOperator() {
-			util.GetLogger().Debugf("waiting %d exceed max(%d) return false, %s",
-				oc.wopStatus.ops[op.Desc()],
-				oc.cluster.GetOpts().GetSchedulerMaxWaitingOperator(),
-				op.Desc())
+			oc.cluster.GetLogger().Debug("waiting exceed max return false",
+				log.ResourceField(oc.wopStatus.ops[op.Desc()]),
+				zap.Uint64("max", oc.cluster.GetOpts().GetSchedulerMaxWaitingOperator()),
+				zap.String("desc", op.Desc()))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "exceed-max").Inc()
 			return false
 		}
@@ -421,10 +425,10 @@ func isHigherPriorityOperator(new, old *operator.Operator) bool {
 func (oc *OperatorController) addOperatorLocked(op *operator.Operator) bool {
 	resID := op.ResourceID()
 
-	util.GetLogger().Infof("resource %d add operator %+v, %s",
-		resID,
-		op,
-		op.GetAdditionalInfo())
+	oc.cluster.GetLogger().Info("resource add operator",
+		log.ResourceField(resID),
+		zap.Stringer("op", op),
+		zap.String("info", op.GetAdditionalInfo()))
 
 	// If there is an old operator, replace it. The priority should be checked
 	// already.
@@ -435,10 +439,10 @@ func (oc *OperatorController) addOperatorLocked(op *operator.Operator) bool {
 	}
 
 	if !op.Start() {
-		util.GetLogger().Errorf("resource %d adding operator(%+v) with unexpected status %s",
-			resID,
-			op,
-			operator.OpStatusToString(op.Status()))
+		oc.cluster.GetLogger().Error("resource adding operator with unexpected status",
+			log.ResourceField(resID),
+			zap.Stringer("op", op),
+			zap.String("status", operator.OpStatusToString(op.Status())))
 		operatorCounter.WithLabelValues(op.Desc(), "unexpected").Inc()
 		return false
 	}
@@ -487,10 +491,10 @@ func (oc *OperatorController) RemoveOperator(op *operator.Operator, extra string
 	oc.Unlock()
 	if removed {
 		if op.Cancel() {
-			util.GetLogger().Infof("resource %d operator(%+v) removed, takes %+v, ",
-				op.ResourceID(),
-				op,
-				op.RunningTime())
+			oc.cluster.GetLogger().Info("resource operator removed",
+				log.ResourceField(op.ResourceID()),
+				zap.Stringer("op", op),
+				zap.Duration("takes", op.RunningTime()))
 		}
 		oc.buryOperator(op, extra)
 	}
@@ -518,50 +522,50 @@ func (oc *OperatorController) buryOperator(op *operator.Operator, extra string) 
 	st := op.Status()
 
 	if !operator.IsEndStatus(st) {
-		util.GetLogger().Errorf("resource %d burying operator(%+v) with non-end status %s",
-			op.ResourceID(),
-			op,
-			operator.OpStatusToString(op.Status()))
+		oc.cluster.GetLogger().Error("resource burying operator with non-end status",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.String("status", operator.OpStatusToString(op.Status())))
 		operatorCounter.WithLabelValues(op.Desc(), "unexpected").Inc()
 		_ = op.Cancel()
 	}
 
 	switch st {
 	case operator.SUCCESS:
-		util.GetLogger().Infof("resource %d operator(%+v) finish, takes %+v, %s",
-			op.ResourceID(),
-			op,
-			op.RunningTime(),
-			op.GetAdditionalInfo())
+		oc.cluster.GetLogger().Info("resource operator finish",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.Duration("takes", op.RunningTime()),
+			zap.String("info", op.GetAdditionalInfo()))
 		operatorCounter.WithLabelValues(op.Desc(), "finish").Inc()
 		operatorDuration.WithLabelValues(op.Desc()).Observe(op.RunningTime().Seconds())
 		for _, counter := range op.FinishedCounters {
 			counter.Inc()
 		}
 	case operator.REPLACED:
-		util.GetLogger().Infof("resource %d replace old operator(%+v), takes %+v",
-			op.ResourceID(),
-			op,
-			op.RunningTime())
+		oc.cluster.GetLogger().Info("resource replace old operator",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.Duration("takes", op.RunningTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "replace").Inc()
 	case operator.EXPIRED:
-		util.GetLogger().Infof("resource %d operator(%+v) expired, lives %+v",
-			op.ResourceID(),
-			op,
-			op.ElapsedTime())
+		oc.cluster.GetLogger().Info("resource operator expired",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.Duration("lives", op.ElapsedTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "expire").Inc()
 	case operator.TIMEOUT:
-		util.GetLogger().Info("resource %d operator(%+v) timeout, takes %+v",
-			op.ResourceID(),
-			op,
-			op.RunningTime())
+		oc.cluster.GetLogger().Info("resource operator timeout",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.Duration("takes", op.RunningTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "timeout").Inc()
 	case operator.CANCELED:
-		util.GetLogger().Info("resource %d operator(%+v) canceled, takes %+v, extra %s",
-			op.ResourceID(),
-			op,
-			op.RunningTime(),
-			extra)
+		oc.cluster.GetLogger().Info("resource operator canceled",
+			log.ResourceField(op.ResourceID()),
+			zap.Stringer("op", op),
+			zap.Duration("takes", op.RunningTime()),
+			zap.String("extra", extra))
 		operatorCounter.WithLabelValues(op.Desc(), "cancel").Inc()
 	}
 
@@ -607,10 +611,10 @@ func (oc *OperatorController) GetWaitingOperators() []*operator.Operator {
 
 // SendScheduleCommand sends a command to the resource.
 func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step operator.OpStep, source string) {
-	util.GetLogger().Infof("resource %d send schedule command, step %s, source %s",
-		res.Meta.ID(),
-		step,
-		source)
+	oc.cluster.GetLogger().Info("resource send schedule command",
+		log.ResourceField(res.Meta.ID()),
+		zap.Stringer("step", step),
+		zap.String("source", source))
 
 	var cmd *rpcpb.ResourceHeartbeatRsp
 	switch st := step.(type) {
@@ -744,7 +748,7 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 			ConfigChangeV2: &rpcpb.ConfigChangeV2{},
 		}
 	default:
-		util.GetLogger().Errorf("unknown operator step %s", step)
+		oc.cluster.GetLogger().Error("unknown operator step", zap.Stringer("step", step))
 		return
 	}
 
@@ -926,10 +930,10 @@ func (oc *OperatorController) exceedContainerLimitLocked(ops ...*operator.Operat
 
 // newContainerLimit is used to create the limit of a container.
 func (oc *OperatorController) newContainerLimit(containerID uint64, ratePerSec float64, limitType limit.Type) {
-	util.GetLogger().Infof("create or update a container %d limit %s, %+v",
-		containerID,
-		limitType.String(),
-		ratePerSec)
+	oc.cluster.GetLogger().Info("create or update a container",
+		zap.Uint64("container", containerID),
+		zap.Stringer("limit", limitType),
+		zap.Float64("rate", ratePerSec))
 
 	if oc.containersLimit[containerID] == nil {
 		oc.containersLimit[containerID] = make(map[limit.Type]*limit.ContainerLimit)

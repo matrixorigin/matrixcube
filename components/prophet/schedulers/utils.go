@@ -19,14 +19,15 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/montanaflynn/stats"
+	"go.uber.org/zap"
 )
 
 const (
@@ -43,7 +44,11 @@ const (
 	minTolerantSizeRatio    float64 = 1.0
 )
 
-func shouldBalance(cluster opt.Cluster, source, target *core.CachedContainer, res *core.CachedResource, kind core.ScheduleKind, opInfluence operator.OpInfluence, scheduleName string) (shouldBalance bool, sourceScore float64, targetScore float64) {
+func shouldBalance(cluster opt.Cluster,
+	source, target *core.CachedContainer,
+	res *core.CachedResource, kind core.ScheduleKind,
+	opInfluence operator.OpInfluence,
+	scheduleName string) (shouldBalance bool, sourceScore float64, targetScore float64) {
 	// The reason we use max(resourceSize, averageResourceSize) to check is:
 	// 1. prevent moving small resources between containers with close scores, leading to unnecessary balance.
 	// 2. prevent moving huge resources, leading to over balance.
@@ -71,20 +76,20 @@ func shouldBalance(cluster opt.Cluster, source, target *core.CachedContainer, re
 	shouldBalance = sourceScore > targetScore
 
 	if !shouldBalance {
-		util.GetLogger().Debugf("skip balance %s, scheduler %s, resource %d, source container %d, target container %d, source-size %d, source-score %d, source-influence %d, target-size %d, target-score %d, target-influence %d, average-resource-size %d, tolerant-resource %d",
-			kind.ResourceKind.String(),
-			scheduleName,
-			res.Meta.ID(),
-			sourceID,
-			targetID,
-			source.GetResourceSize(res.Meta.Group()),
-			sourceScore,
-			sourceInfluence,
-			target.GetResourceSize(res.Meta.Group()),
-			targetScore,
-			targetInfluence,
-			cluster.GetAverageResourceSize(),
-			tolerantResource)
+		cluster.GetLogger().Debug("skip balance %s, scheduler %s, resource %d, source container %d, target container %d, source-size %d, source-score %d, source-influence %d, target-size %d, target-score %d, target-influence %d, average-resource-size %d, tolerant-resource %d",
+			zap.Uint64("resource", res.Meta.ID()),
+			zap.String("resource-kind", kind.ResourceKind.String()),
+			zap.String("schedule", scheduleName),
+			sourceField(sourceID),
+			targetField(targetID),
+			zap.Int64("source-size", source.GetResourceSize(res.Meta.Group())),
+			zap.Int64("target-size", source.GetResourceSize(res.Meta.Group())),
+			zap.Int64("average-size", cluster.GetAverageResourceSize()),
+			zap.Int64("source-influence", sourceInfluence),
+			zap.Int64("target-influence", targetInfluence),
+			zap.Float64("source-score", sourceScore),
+			zap.Float64("target-score", targetScore),
+			zap.Int64("tolerant-resource", tolerantResource))
 	}
 	return shouldBalance, sourceScore, targetScore
 }
@@ -360,3 +365,9 @@ func (li *containerLoadDetail) toHotPeersStat() *statistics.HotPeersStat {
 		Stats:          peers,
 	}
 }
+
+var (
+	sourceField   = log.SourceContainerField
+	targetField   = log.TargetContainerField
+	resourceField = log.ResourceField
+)

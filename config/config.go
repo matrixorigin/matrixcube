@@ -14,11 +14,11 @@
 package config
 
 import (
-	"log"
 	"path"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/aware"
+	"github.com/matrixorigin/matrixcube/components/log"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
@@ -29,7 +29,6 @@ import (
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -152,29 +151,31 @@ func (c *Config) Adjust() {
 		c.Test.Shards = make(map[uint64]*TestShardConfig)
 	}
 
-	if c.Logger == nil {
-		c.Logger = GetDefaultZapLogger()
-	}
-	c.Logger = c.Logger.Named("cube")
+	c.Logger = log.Adjust(c.Logger).Named("cube")
 }
 
 func (c *Config) validate() {
 	if c.Storage.DataStorageFactory == nil {
-		log.Panicf("missing Config.Storage.DataStorageFactory")
+		panic("missing Config.Storage.DataStorageFactory")
 	}
 
 	if c.Storage.MetaStorage == nil {
-		log.Panicf("missing Config.Storage.MetaStorage")
+		panic("missing Config.Storage.MetaStorage")
 	}
 
 	if c.Storage.ForeachDataStorageFunc == nil {
-		log.Panicf("missing Config.Storage.ForeachDataStorageFunc")
+		panic("missing Config.Storage.ForeachDataStorageFunc")
 	}
 }
 
 // SnapshotDir returns snapshot dir
 func (c *Config) SnapshotDir() string {
 	return path.Join(c.DataPath, defaultSnapshotDirName)
+}
+
+// GetModuleLogger returns logger with named module name
+func (c *Config) GetModuleLogger(name string, options ...zap.Option) *zap.Logger {
+	return log.Adjust(c.Logger, options...).Named(name)
 }
 
 // ReplicationConfig replication config
@@ -439,21 +440,4 @@ type TestShardConfig struct {
 	SkipSaveRaftApplyState bool
 	// SkipApply skip apply any raft log
 	SkipApply bool
-}
-
-// GetDefaultZapLoggerWithLevel get default zap logger
-func GetDefaultZapLoggerWithLevel(level zapcore.Level, options ...zap.Option) *zap.Logger {
-	options = append(options, zap.AddStacktrace(zapcore.FatalLevel), zap.AddCaller())
-	cfg := zap.NewProductionConfig()
-	cfg.Level = zap.NewAtomicLevel()
-	cfg.Level.SetLevel(level)
-	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05.000")
-	cfg.EncoderConfig.EncodeDuration = zapcore.MillisDurationEncoder
-	l, _ := cfg.Build(options...)
-	return l
-}
-
-// GetDefaultZapLogger get default zap logger
-func GetDefaultZapLogger(options ...zap.Option) *zap.Logger {
-	return GetDefaultZapLoggerWithLevel(zapcore.InfoLevel, options...)
 }

@@ -26,8 +26,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -75,6 +75,8 @@ type balanceResourceScheduler struct {
 	opController *schedule.OperatorController
 	filters      []filter.Filter
 	counter      *prometheus.CounterVec
+
+	scheduleField zap.Field
 }
 
 // newBalanceResourceScheduler creates a scheduler that tends to keep resources on
@@ -94,6 +96,7 @@ func newBalanceResourceScheduler(opController *schedule.OperatorController, conf
 		&filter.ContainerStateFilter{ActionScope: scheduler.GetName(), MoveResource: true},
 		filter.NewSpecialUseFilter(scheduler.GetName()),
 	}
+	scheduler.scheduleField = zap.String("scheduler", scheduler.GetName())
 	return scheduler
 }
 
@@ -172,23 +175,26 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 					schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
 					continue
 				}
-				util.GetLogger().Debugf("scheduler %s select resource %d",
-					s.GetName(),
-					res.Meta.ID())
+				cluster.GetLogger().Debug("scheduler select resource",
+					rebalanceResourceField,
+					s.scheduleField,
+					resourceField(res.Meta.ID()))
 
 				// Skip hot resources.
 				if cluster.IsResourceHot(res) {
-					util.GetLogger().Debugf("scheduler %s skip hot resource %d",
-						s.GetName(),
-						res.Meta.ID())
+					cluster.GetLogger().Debug("skip hot resource",
+						rebalanceResourceField,
+						s.scheduleField,
+						resourceField(res.Meta.ID()))
 					schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
 					continue
 				}
 				// Check resource whether have leader
 				if res.GetLeader() == nil {
-					util.GetLogger().Warningf("scheduler %s check resource %d have no leader",
-						s.GetName(),
-						res.Meta.ID())
+					cluster.GetLogger().Debug("resource missing leader",
+						rebalanceResourceField,
+						s.scheduleField,
+						resourceField(res.Meta.ID()))
 					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
 					continue
 				}
@@ -210,8 +216,11 @@ func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluste
 	sourceContainerID := oldPeer.GetContainerID()
 	source := cluster.GetContainer(sourceContainerID)
 	if source == nil {
-		util.GetLogger().Errorf("get the source container %d failed with not found",
-			sourceContainerID)
+		cluster.GetLogger().Debug("source container not found",
+			rebalanceResourceField,
+			s.scheduleField,
+			zap.Uint64("container", sourceContainerID))
+
 		return nil
 	}
 
@@ -230,10 +239,12 @@ func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluste
 		resID := res.Meta.ID()
 		sourceID := source.Meta.ID()
 		targetID := target.Meta.ID()
-		util.GetLogger().Debugf("resource %d, source container %d, target container %d",
-			resID,
-			sourceID,
-			targetID)
+		cluster.GetLogger().Debug("check resource should balance",
+			rebalanceResourceField,
+			s.scheduleField,
+			resourceField(resID),
+			sourceField(sourceID),
+			targetField(targetID))
 
 		opInfluence := s.opController.GetOpInfluence(cluster)
 		kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
@@ -246,6 +257,12 @@ func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluste
 		newPeer := metapb.Replica{ContainerID: target.Meta.ID(), Role: oldPeer.Role}
 		op, err := operator.CreateMovePeerOperator(BalanceResourceType, cluster, res, operator.OpResource, oldPeer.GetContainerID(), newPeer)
 		if err != nil {
+			cluster.GetLogger().Error("fail to create move peer operator",
+				rebalanceResourceField,
+				s.scheduleField,
+				resourceField(resID),
+				sourceField(sourceID),
+				targetField(targetID))
 			schedulerCounter.WithLabelValues(s.GetName(), "create-operator-fail").Inc()
 			return nil
 		}

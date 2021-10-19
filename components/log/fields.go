@@ -29,6 +29,26 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
+// SourceContainerField returns source container field
+func SourceContainerField(id uint64) zap.Field {
+	return zap.Uint64("source-container", id)
+}
+
+// TargetContainerField returns target container field
+func TargetContainerField(id uint64) zap.Field {
+	return zap.Uint64("target-container", id)
+}
+
+// ResourceField returns resource field
+func ResourceField(id uint64) zap.Field {
+	return zap.Uint64("resource", id)
+}
+
+// NodeField returns zap.StringField
+func NodeField(name string) zap.Field {
+	return zap.String("node", name)
+}
+
 // EntryCountField returns zap.IntField
 func EntryCountField(count int) zap.Field {
 	return zap.Int("entry-count", count)

@@ -25,7 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"go.uber.org/zap"
 )
 
 const (
@@ -198,8 +198,8 @@ func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Ope
 		}
 		op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
 		if err != nil {
-			util.GetLogger().Debugf("create evict leader operator failed with %+v",
-				err)
+			cluster.GetLogger().Debug("fail to create evict leader operator",
+				zap.Error(err))
 			continue
 		}
 		op.SetPriorityLevel(core.HighPriority)

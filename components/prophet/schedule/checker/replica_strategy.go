@@ -15,10 +15,10 @@
 package checker
 
 import (
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/filter"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 // ReplicaStrategy collects some utilities to manipulate resource peers. It
@@ -122,7 +122,8 @@ func (s *ReplicaStrategy) SelectContainerToRemove(coLocationContainers []*core.C
 		Sort(filter.ResourceScoreComparer(s.resource.Meta.Group(), s.cluster.GetOpts())).Reverse().
 		PickFirst()
 	if source == nil {
-		util.GetLogger().Debugf("resource %d no removable container", s.resource.Meta.ID())
+		s.cluster.GetLogger().Debug("resource no removable container",
+			log.ResourceField(s.resource.Meta.ID()))
 		return 0
 	}
 	return source.Meta.ID()

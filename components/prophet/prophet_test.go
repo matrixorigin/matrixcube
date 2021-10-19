@@ -19,8 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/config"
+	"github.com/matrixorigin/matrixcube/components/log"
+	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,8 +58,8 @@ func TestClusterStart(t *testing.T) {
 	assert.Equal(t, 3, followerCount)
 }
 
-func newTestSingleProphet(t *testing.T, adjustFunc func(*config.Config)) Prophet {
-	c := config.NewConfig()
+func newTestSingleProphet(t *testing.T, adjustFunc func(*pconfig.Config)) Prophet {
+	c := pconfig.NewConfig()
 	c.StorageNode = true
 	if adjustFunc != nil {
 		adjustFunc(c)
@@ -65,7 +67,7 @@ func newTestSingleProphet(t *testing.T, adjustFunc func(*config.Config)) Prophet
 	return newTestProphet(t, c)
 }
 
-func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*config.Config)) []Prophet {
+func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)) []Prophet {
 	if n < 3 {
 		assert.FailNow(t, "cluster count must >= 3")
 	}
@@ -76,7 +78,7 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*config.Config))
 			time.Sleep(time.Second * 5)
 		}
 
-		c := config.NewConfig()
+		c := pconfig.NewConfig()
 		c.Name = fmt.Sprintf("n-%d", i)
 		c.DataDir = fmt.Sprintf("/tmp/prophet/%s", c.Name)
 		c.RPCAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
@@ -103,7 +105,7 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*config.Config))
 	return cluster
 }
 
-func newTestProphet(t *testing.T, c *config.Config) Prophet {
+func newTestProphet(t *testing.T, c *pconfig.Config) Prophet {
 	completedC := make(chan struct{})
 	cb := func() {
 		completedC <- struct{}{}
@@ -112,7 +114,8 @@ func newTestProphet(t *testing.T, c *config.Config) Prophet {
 	assert.NoError(t, os.RemoveAll(c.DataDir))
 	c.Adapter = metadata.NewTestAdapter()
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)
-	p := NewProphet(c)
+
+	p := NewProphet(&config.Config{Prophet: *c, Logger: log.Adjust(nil)})
 	p.Start()
 	select {
 	case <-time.After(time.Second * 10):

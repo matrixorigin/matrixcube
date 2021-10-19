@@ -669,7 +669,7 @@ func prepare(t *testing.T, setCfg func(*config.ScheduleConfig), setTc func(*test
 		setCfg(cfg)
 	}
 	tc := newTestCluster(opt)
-	hbStreams := hbstream.NewTestHeartbeatStreams(ctx, 0, tc, true /* need to run */)
+	hbStreams := hbstream.NewTestHeartbeatStreams(ctx, 0, tc, true /* need to run */, nil)
 	if setTc != nil {
 		setTc(tc)
 	}

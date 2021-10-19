@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -35,7 +36,7 @@ import (
 func TestContainerHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	n, np := uint64(3), uint64(3)
 	containers := newTestContainers(n, "2.0.0")
@@ -79,7 +80,7 @@ func TestContainerHeartbeat(t *testing.T) {
 func TestFilterUnhealthyContainer(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	containers := newTestContainers(3, "2.0.0")
 	for _, container := range containers {
@@ -111,7 +112,7 @@ func TestFilterUnhealthyContainer(t *testing.T) {
 func TestSetOfflineContainer(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	// Put 4 containers.
 	for _, container := range newTestContainers(4, "2.0.0") {
@@ -159,7 +160,7 @@ func TestSetOfflineContainer(t *testing.T) {
 func TestReuseAddress(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	// Put 4 containers.
 	for _, container := range newTestContainers(4, "2.0.0") {
@@ -198,7 +199,7 @@ func TestReuseAddress(t *testing.T) {
 func TestUpStore(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	// Put 3 stores.
 	for _, container := range newTestContainers(3, "2.0.0") {
 		assert.NoError(t, cluster.PutContainer(container.Meta))
@@ -230,7 +231,7 @@ func TestUpStore(t *testing.T) {
 func TestResourceHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	n, np := uint64(3), uint64(3)
 
@@ -456,7 +457,7 @@ func TestResourceHeartbeat(t *testing.T) {
 func TestResourceFlowChanged(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	resources := []*core.CachedResource{core.NewTestCachedResource([]byte{}, []byte{})}
 	processResources := func(resources []*core.CachedResource) {
 		for _, r := range resources {
@@ -482,7 +483,7 @@ func TestResourceFlowChanged(t *testing.T) {
 func TestConcurrentResourceHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	resources := []*core.CachedResource{core.NewTestCachedResource([]byte{}, []byte{})}
 	resources = core.SplitTestResources(resources)
@@ -508,7 +509,7 @@ func TestConcurrentResourceHeartbeat(t *testing.T) {
 func TestHeartbeatSplit(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	// 1: [nil, nil)
 	resource1 := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1}}, nil)
@@ -547,7 +548,7 @@ func TestHeartbeatSplit(t *testing.T) {
 func TestResourceSplitAndMerge(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 
 	resources := []*core.CachedResource{core.NewTestCachedResource([]byte{}, []byte{})}
 
@@ -646,7 +647,7 @@ func TestResources(t *testing.T) {
 	resources := newTestResources(n, np)
 	_, opts, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	tc := newTestRaftCluster(opts, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory))
+	tc := newTestRaftCluster(opts, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	cache := tc.core.Resources
 
 	for i := uint64(0); i < n; i++ {
@@ -753,14 +754,14 @@ func newTestScheduleConfig() (*config.ScheduleConfig, *config.PersistOptions, er
 	if err := cfg.Adjust(nil, false); err != nil {
 		return nil, nil, err
 	}
-	opt := config.NewPersistOptions(cfg)
+	opt := config.NewPersistOptions(cfg, nil)
 	return &cfg.Schedule, opt, nil
 }
 
 func newTestCluster(opt *config.PersistOptions) *testCluster {
 	storage := storage.NewTestStorage()
-	rc := newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory))
-	rc.ruleManager = placement.NewRuleManager(storage, rc)
+	rc := newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
+	rc.ruleManager = placement.NewRuleManager(storage, rc, nil)
 	if opt.IsPlacementRulesEnabled() {
 		err := rc.ruleManager.Initialize(opt.GetMaxReplicas(), opt.GetLocationLabels())
 		if err != nil {
@@ -772,7 +773,7 @@ func newTestCluster(opt *config.PersistOptions) *testCluster {
 }
 
 func newTestRaftCluster(opt *config.PersistOptions, storage storage.Storage, basicCluster *core.BasicCluster) *RaftCluster {
-	rc := &RaftCluster{ctx: context.TODO(), adapter: metadata.NewTestAdapter()}
+	rc := &RaftCluster{ctx: context.TODO(), adapter: metadata.NewTestAdapter(), logger: log.Adjust(nil)}
 	rc.InitCluster(opt, storage, basicCluster)
 	return rc
 }

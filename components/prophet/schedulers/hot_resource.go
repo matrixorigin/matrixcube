@@ -31,8 +31,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 func init() {
@@ -586,8 +586,9 @@ func (bs *balanceSolver) filterSrcContainers() map[uint64]*containerLoadDetail {
 	ret := make(map[uint64]*containerLoadDetail)
 	for id, detail := range bs.stLoadDetail {
 		if bs.cluster.GetContainer(id) == nil {
-			util.GetLogger().Errorf("get the source container %d failed with not found",
-				id)
+			bs.cluster.GetLogger().Error("source container not found",
+				rebalanceHotField,
+				zap.Uint64("container", id))
 			continue
 		}
 		if len(detail.HotPeers) == 0 {
@@ -687,9 +688,10 @@ func (bs *balanceSolver) isResourceAvailable(res *core.CachedResource) bool {
 	}
 
 	if !opt.IsResourceReplicated(bs.cluster, res) {
-		util.GetLogger().Debugf("resource %d has abnormal replica count, scheduler %s",
-			res.Meta.ID(),
-			res.Meta.ID())
+		bs.cluster.GetLogger().Debug("resource has abnormal replica count",
+			rebalanceHotField,
+			resourceField(res.Meta.ID()),
+			zap.String("scheduler", bs.sche.name))
 		schedulerCounter.WithLabelValues(bs.sche.GetName(), "abnormal-replica").Inc()
 		return false
 	}
@@ -707,14 +709,16 @@ func (bs *balanceSolver) getResource() *core.CachedResource {
 	case movePeer:
 		_, ok := res.GetContainerPeer(bs.cur.srcContainerID)
 		if !ok {
-			util.GetLogger().Debugf("resource %d does not have a peer on source container, maybe stat out of date",
-				bs.cur.srcPeerStat.ID())
+			bs.cluster.GetLogger().Debug("resource does not have a peer on source container, maybe stat out of date",
+				rebalanceHotField,
+				resourceField(bs.cur.srcPeerStat.ID()))
 			return nil
 		}
 	case transferLeader:
 		if res.GetLeader().GetContainerID() != bs.cur.srcContainerID {
-			util.GetLogger().Debugf("resource %d leader is not on source container, maybe stat out of date",
-				bs.cur.srcPeerStat.ID())
+			bs.cluster.GetLogger().Debug("resource leader is not on source container, maybe stat out of date",
+				rebalanceHotField,
+				resourceField(bs.cur.srcPeerStat.ID()))
 			return nil
 		}
 	default:
@@ -1026,9 +1030,10 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 	}
 
 	if err != nil {
-		util.GetLogger().Debugf("create operator type %s failed with %+v",
-			bs.rwTy,
-			err)
+		bs.cluster.GetLogger().Debug("fail to create operator",
+			rebalanceHotField,
+			zap.String("type", bs.rwTy.String()),
+			zap.Error(err))
 		schedulerCounter.WithLabelValues(bs.sche.GetName(), "create-operator-fail").Inc()
 		return nil, nil
 	}

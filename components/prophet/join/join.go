@@ -22,13 +22,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/config"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"go.etcd.io/etcd/client/pkg/v3/types"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.uber.org/zap"
 )
 
 var (
@@ -79,56 +81,58 @@ const (
 //      What join does: return "" (as etcd will read data directory and find
 //                      that the Prophet itself has been removed, so an empty string
 //                      is fine.)
-func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Client, *embed.Etcd, error) {
+func PrepareJoinCluster(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*clientv3.Client, *embed.Etcd, error) {
+	logger = log.Adjust(logger)
+
 	// - A Prophet tries to join itself.
-	if cfg.EmbedEtcd.Join == "" {
-		return startEmbedEtcd(ctx, cfg)
+	if cfg.Prophet.EmbedEtcd.Join == "" {
+		return startEmbedEtcd(ctx, cfg, logger)
 	}
 
-	if cfg.EmbedEtcd.Join == cfg.EmbedEtcd.AdvertiseClientUrls {
-		util.GetLogger().Fatalf("join self is forbidden")
+	if cfg.Prophet.EmbedEtcd.Join == cfg.Prophet.EmbedEtcd.AdvertiseClientUrls {
+		logger.Fatal("join self is forbidden")
 	}
 	fs := cfg.FS
-	filePath := fs.PathJoin(cfg.DataDir, "join")
+	filePath := fs.PathJoin(cfg.Prophet.DataDir, "join")
 	// Read the persist join config
 	if _, err := fs.Stat(filePath); !vfs.IsNotExist(err) {
 		f, err := fs.Open(filePath)
 		if err != nil {
-			util.GetLogger().Fatalf("read the join config failed with %+v",
-				err)
+			logger.Fatal("fail to read the join config",
+				zap.Error(err))
 		}
 		defer f.Close()
 		s, err := ioutil.ReadAll(f)
 		if err != nil {
-			util.GetLogger().Fatalf("read the join config failed with %+v",
-				err)
+			logger.Fatal("fail to read the join config",
+				zap.Error(err))
 		}
-		cfg.EmbedEtcd.InitialCluster = strings.TrimSpace(string(s))
-		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-		return startEmbedEtcd(ctx, cfg)
+		cfg.Prophet.EmbedEtcd.InitialCluster = strings.TrimSpace(string(s))
+		cfg.Prophet.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
+		return startEmbedEtcd(ctx, cfg, logger)
 	}
 
 	initialCluster := ""
 	// Cases with data directory.
-	if isDataExist(fs, fs.PathJoin(cfg.DataDir, "member")) {
-		cfg.EmbedEtcd.InitialCluster = initialCluster
-		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
-		return startEmbedEtcd(ctx, cfg)
+	if isDataExist(fs, fs.PathJoin(cfg.Prophet.DataDir, "member"), logger) {
+		cfg.Prophet.EmbedEtcd.InitialCluster = initialCluster
+		cfg.Prophet.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
+		return startEmbedEtcd(ctx, cfg, logger)
 	}
 
 	// Below are cases without data directory.
 	client, err := clientv3.New(clientv3.Config{
-		Endpoints:   strings.Split(cfg.EmbedEtcd.Join, ","),
+		Endpoints:   strings.Split(cfg.Prophet.EmbedEtcd.Join, ","),
 		DialTimeout: option.DefaultDialTimeout,
 	})
 	if err != nil {
-		util.GetLogger().Fatalf("create etcd client failed with %+v",
-			err)
+		logger.Fatal("create etcd client",
+			zap.Error(err))
 	}
 	defer client.Close()
 
 	for {
-		checkMembers(client, cfg)
+		checkMembers(client, cfg, logger)
 
 		var prophets []string
 		// - A new Prophet joins an existing cluster.
@@ -136,14 +140,15 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 		{
 			for {
 				// First adds member through the API
-				resp, err := util.AddEtcdMember(client, []string{cfg.EmbedEtcd.AdvertisePeerUrls})
+				resp, err := util.AddEtcdMember(client, []string{cfg.Prophet.EmbedEtcd.AdvertisePeerUrls})
 				if err != nil {
-					util.GetLogger().Errorf("add member to embed etcd failed with %+v, retry later", err)
+					logger.Error("fail to add member to embed etcd, retry later",
+						zap.Error(err))
 					time.Sleep(time.Millisecond * 500)
 					continue
 				}
 
-				util.GetLogger().Infof("%s added into embed etcd cluster with resp %+v", cfg.Name, resp)
+				logger.Info("added into embed etcd cluster", zap.Any("resp", resp))
 
 				for _, m := range resp.Members {
 					if m.Name != "" {
@@ -156,12 +161,12 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 			}
 		}
 
-		prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Name, cfg.EmbedEtcd.AdvertisePeerUrls))
+		prophets = append(prophets, fmt.Sprintf("%s=%s", cfg.Prophet.Name, cfg.Prophet.EmbedEtcd.AdvertisePeerUrls))
 		initialCluster = strings.Join(prophets, ",")
-		cfg.EmbedEtcd.InitialCluster = initialCluster
-		cfg.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
+		cfg.Prophet.EmbedEtcd.InitialCluster = initialCluster
+		cfg.Prophet.EmbedEtcd.InitialClusterState = embed.ClusterStateFlagExisting
 
-		c, e, err := startEmbedEtcd(ctx, cfg)
+		c, e, err := startEmbedEtcd(ctx, cfg, logger)
 		if err != nil && strings.Contains(err.Error(), "member count is unequal") {
 			continue
 		}
@@ -169,35 +174,35 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config) (*clientv3.Clie
 			return c, e, err
 		}
 
-		err = fs.MkdirAll(cfg.DataDir, privateDirMode)
+		err = fs.MkdirAll(cfg.Prophet.DataDir, privateDirMode)
 		if err != nil && !vfs.IsExist(err) {
-			util.GetLogger().Fatalf("create data path failed with %+v",
-				err)
+			logger.Fatal("fail to create data path",
+				zap.Error(err))
 		}
 
 		f, err := fs.Create(filePath)
 		if err != nil {
-			util.GetLogger().Fatalf("write data path failed with %+v",
-				err)
+			logger.Fatal("fail to write data path",
+				zap.Error(err))
 		}
 		defer f.Close()
-		_, err = f.Write([]byte(cfg.EmbedEtcd.InitialCluster))
+		_, err = f.Write([]byte(cfg.Prophet.EmbedEtcd.InitialCluster))
 		if err != nil {
-			util.GetLogger().Fatalf("write data path failed with %+v",
-				err)
+			logger.Fatal("fail to write data path",
+				zap.Error(err))
 		}
 
 		return c, e, nil
 	}
 }
 
-func checkMembers(client *clientv3.Client, cfg *config.Config) {
+func checkMembers(client *clientv3.Client, cfg *config.Config, logger *zap.Logger) {
 OUTER:
 	for {
 		listResp, err := util.ListEtcdMembers(client)
 		if err != nil {
-			util.GetLogger().Errorf("list embed etcd members failed with %+v, retry later",
-				err)
+			logger.Error("fail to list embed etcd members, retry later",
+				zap.Error(err))
 			time.Sleep(time.Second)
 			continue
 		}
@@ -205,13 +210,13 @@ OUTER:
 		for _, m := range listResp.Members {
 			if len(m.Name) == 0 {
 				// A new member added, but not started
-				util.GetLogger().Warningf("there is a member that has not joined successfully")
+				logger.Warn("there is a member that has not joined successfully")
 				time.Sleep(time.Second)
 				continue OUTER
 			}
 			// - A failed Prophet re-joins the previous cluster.
-			if m.Name == cfg.Name {
-				util.GetLogger().Fatalf("missing data or join a duplicated prophet")
+			if m.Name == cfg.Prophet.Name {
+				logger.Fatal("missing data or join a duplicated prophet")
 			}
 		}
 
@@ -219,22 +224,24 @@ OUTER:
 	}
 }
 
-func isDataExist(fs vfs.FS, d string) bool {
+func isDataExist(fs vfs.FS, d string, logger *zap.Logger) bool {
 	names, err := fs.List(d)
 	if vfs.IsNotExist(err) {
 		return false
 	}
 
 	if err != nil {
-		util.GetLogger().Errorf("open directory %s failed with %+v", d, err)
+		logger.Error("fail to open directory",
+			zap.String("dir", d),
+			zap.Error(err))
 		return false
 	}
 
 	return len(names) != 0
 }
 
-func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, *embed.Etcd, error) {
-	etcdCfg, err := cfg.GenEmbedEtcdConfig()
+func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*clientv3.Client, *embed.Etcd, error) {
+	etcdCfg, err := cfg.Prophet.GenEmbedEtcdConfig()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -248,7 +255,7 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, 
 	}
 
 	// Check cluster ID
-	urlMap, err := types.NewURLsMap(cfg.EmbedEtcd.InitialCluster)
+	urlMap, err := types.NewURLsMap(cfg.Prophet.EmbedEtcd.InitialCluster)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -265,7 +272,7 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, 
 	}
 
 	endpoints := []string{etcdCfg.ACUrls[0].String()}
-	util.GetLogger().Infof("create etcd v3 client with endpoints %+v", endpoints)
+	logger.Info("etcd v3 client created")
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:        endpoints,
@@ -283,13 +290,13 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config) (*clientv3.Client, 
 			return nil, nil, err
 		}
 		for _, m := range etcdMembers.Members {
-			if etcdServerID == m.ID && m.Name == cfg.Name {
+			if etcdServerID == m.ID && m.Name == cfg.Prophet.Name {
 				return client, etcd, nil
 			}
 		}
 		time.Sleep(time.Second * 1)
 	}
 
-	util.GetLogger().Fatalf("start etcd server timeout")
+	logger.Fatal("start etcd server timeout")
 	return nil, nil, nil
 }

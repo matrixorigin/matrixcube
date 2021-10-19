@@ -37,7 +37,7 @@ func TestCollect(t *testing.T) {
 	s := &testContainerLimiter{}
 	s.setup(t)
 
-	limiter := NewContainerLimiter(s.opt)
+	limiter := NewContainerLimiter(s.opt, nil)
 
 	limiter.Collect(&metapb.ContainerStats{})
 	assert.Equal(t, int64(1), limiter.state.cst.total)
@@ -47,7 +47,7 @@ func TestContainerLimitScene(t *testing.T) {
 	s := &testContainerLimiter{}
 	s.setup(t)
 
-	limiter := NewContainerLimiter(s.opt)
+	limiter := NewContainerLimiter(s.opt, nil)
 	assert.True(t, reflect.DeepEqual(limiter.scene[limit.AddPeer], limit.DefaultScene(limit.AddPeer)))
 	assert.True(t, reflect.DeepEqual(limiter.scene[limit.RemovePeer], limit.DefaultScene(limit.RemovePeer)))
 }
@@ -56,7 +56,7 @@ func TestReplaceContainerLimitScene(t *testing.T) {
 	s := &testContainerLimiter{}
 	s.setup(t)
 
-	limiter := NewContainerLimiter(s.opt)
+	limiter := NewContainerLimiter(s.opt, nil)
 
 	sceneAddPeer := &limit.Scene{Idle: 4, Low: 3, Normal: 2, High: 1}
 	limiter.ReplaceContainerLimitScene(sceneAddPeer, limit.AddPeer)

@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 )
 
@@ -99,7 +98,6 @@ func (ap AddPeer) String() string {
 func (ap AddPeer) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerVoter(ap.ToContainer); ok {
 		if peer.ID != ap.PeerID {
-			util.GetLogger().Warningf("%s obtain unexpected peer %+v", ap.String(), peer)
 			return false
 		}
 		_, ok := res.GetPendingVoter(peer.ID)
@@ -146,8 +144,6 @@ func (al AddLearner) String() string {
 func (al AddLearner) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerLearner(al.ToContainer); ok {
 		if peer.ID != al.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				al.String(), peer.ID)
 			return false
 		}
 		_, ok := res.GetPendingLearner(peer.ID)
@@ -199,10 +195,6 @@ func (pl PromoteLearner) String() string {
 // IsFinish checks if current step is finished.
 func (pl PromoteLearner) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerVoter(pl.ToContainer); ok {
-		if peer.ID != pl.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				pl.String(), peer.ID)
-		}
 		return peer.ID == pl.PeerID
 	}
 	return false
@@ -375,8 +367,6 @@ func (ap AddLightPeer) String() string {
 func (ap AddLightPeer) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerVoter(ap.ToContainer); ok {
 		if peer.ID != ap.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				ap.String(), peer)
 			return false
 		}
 		_, ok := res.GetPendingVoter(peer.ID)
@@ -421,8 +411,6 @@ func (al AddLightLearner) String() string {
 func (al AddLightLearner) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerLearner(al.ToContainer); ok {
 		if peer.ID != al.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				al.String(), peer)
 			return false
 		}
 		_, ok := res.GetPendingLearner(peer.ID)
@@ -472,10 +460,6 @@ func (df DemoteFollower) ConfVerChanged(res *core.CachedResource) uint64 {
 // IsFinish checks if current step is finished.
 func (df DemoteFollower) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerLearner(df.ToContainer); ok {
-		if peer.ID != df.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				df.String(), peer)
-		}
 		return peer.ID == df.PeerID
 	}
 	return false
@@ -515,10 +499,6 @@ func (dv DemoteVoter) ConfVerChanged(res *core.CachedResource) bool {
 // IsFinish checks if current step is finished.
 func (dv DemoteVoter) IsFinish(res *core.CachedResource) bool {
 	if peer, ok := res.GetContainerLearner(dv.ToContainer); ok {
-		if peer.ID != dv.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				dv.String(), peer)
-		}
 		return peer.ID == dv.PeerID
 	}
 	return false
@@ -563,20 +543,12 @@ func (cpe ChangePeerV2Enter) ConfVerChanged(res *core.CachedResource) uint64 {
 func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedResource) bool {
 	for _, pl := range cpe.PromoteLearners {
 		peer, ok := res.GetContainerVoter(pl.ToContainer)
-		if ok && peer.ID != pl.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				pl.String(), peer)
-		}
 		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_IncomingVoter {
 			return false
 		}
 	}
 	for _, dv := range cpe.DemoteVoters {
 		peer, ok := res.GetContainerVoter(dv.ToContainer)
-		if ok && peer.ID != dv.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				dv.String(), peer)
-		}
 		if !ok || peer.ID != dv.PeerID || peer.Role != metapb.ReplicaRole_DemotingVoter {
 			return false
 		}
@@ -705,10 +677,6 @@ func (cpl ChangePeerV2Leave) ConfVerChanged(res *core.CachedResource) uint64 {
 func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedResource) bool {
 	for _, pl := range cpl.PromoteLearners {
 		peer, ok := res.GetContainerVoter(pl.ToContainer)
-		if ok && peer.ID != pl.PeerID {
-			util.GetLogger().Warningf("%+v obtain unexpected peer %+v",
-				pl.String(), peer)
-		}
 		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_Voter {
 			return false
 		}
@@ -719,8 +687,6 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedResource) bool {
 		}
 	}
 	if metadata.IsInJointState(res.Meta.Peers()...) {
-		util.GetLogger().Warningf("resource %d is still in the joint state",
-			res.Meta.ID())
 		return false
 	}
 	return true

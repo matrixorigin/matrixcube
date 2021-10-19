@@ -27,7 +27,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
-	"github.com/matrixorigin/matrixcube/vfs"
 	"go.etcd.io/etcd/server/v3/embed"
 )
 
@@ -72,12 +71,11 @@ type Config struct {
 	// EnableResponseNotLeader return not leader error for all client request
 	EnableResponseNotLeader bool      `toml:"-" json:"-"`
 	TestCtx                 *sync.Map `toml:"-" json:"-"`
-	FS                      vfs.FS    `toml:"-" json:"-"`
 }
 
 // NewConfig creates a new config.
 func NewConfig() *Config {
-	return &Config{FS: vfs.Default}
+	return &Config{}
 }
 
 // NewConfigWithFile new config with config file

@@ -58,7 +58,7 @@ func NewElector(client *clientv3.Client, options ...ElectorOption) (Elector, err
 }
 
 func (e *elector) CreateLeadship(purpose string, nodeName, nodeValue string, allowCampaign bool, becomeLeader, becomeFollower func(string) bool) *Leadership {
-	return newLeadership(e, purpose, nodeName, nodeValue, allowCampaign, becomeLeader, becomeFollower)
+	return newLeadership(e, purpose, nodeName, nodeValue, allowCampaign, becomeLeader, becomeFollower, e.options.logger)
 }
 
 func (e *elector) Client() *clientv3.Client {

@@ -16,7 +16,9 @@ package election
 import (
 	"fmt"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.uber.org/zap"
 )
 
 // ElectorOption elector option
@@ -27,6 +29,7 @@ type electorOptions struct {
 	leaderPath, lockPath string
 	leaseSec             int64
 	lockIfBecomeLeader   bool
+	logger               *zap.Logger
 }
 
 func (opts *electorOptions) adjust() {
@@ -38,6 +41,8 @@ func (opts *electorOptions) adjust() {
 	if opts.leaseSec <= 0 {
 		opts.leaseSec = 5
 	}
+
+	opts.logger = log.Adjust(opts.logger).Named("elector")
 }
 
 // WithEmbedEtcd with embed etcd

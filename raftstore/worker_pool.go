@@ -19,7 +19,6 @@ import (
 
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/config"
 	"go.uber.org/zap"
 )
 
@@ -126,11 +125,8 @@ type workerPool struct {
 }
 
 func newWorkerPool(logger *zap.Logger, loader replicaLoader, workerCount uint64) *workerPool {
-	if logger == nil {
-		logger = config.GetDefaultZapLogger()
-	}
 	p := &workerPool{
-		logger:        logger.Named("worker-pool"),
+		logger:        log.Adjust(logger).Named("worker-pool"),
 		loader:        loader,
 		busy:          make(map[uint64]replicaEventHandler),
 		pending:       make(map[uint64]replicaEventHandler),

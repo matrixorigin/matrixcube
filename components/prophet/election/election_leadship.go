@@ -20,11 +20,20 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
+	"go.uber.org/zap"
+)
+
+var (
+	mainLoopFiled  = zap.String("step", "main-loop")
+	watchField     = zap.String("step", "watch-leader")
+	campaignField  = zap.String("step", "campaign")
+	keepaliveField = zap.String("step", "keepalive")
 )
 
 // Leadership is used to manage the leadership campaigning.
@@ -43,11 +52,17 @@ type Leadership struct {
 	ctx                          context.Context
 	allowCampaign                bool
 	becomeLeader, becomeFollower func(string) bool
+
+	logger *zap.Logger
 }
 
-func newLeadership(elector *elector, purpose, nodeName, nodeValue string, allowCampaign bool, becomeLeader, becomeFollower func(string) bool) *Leadership {
+func newLeadership(elector *elector,
+	purpose, nodeName, nodeValue string,
+	allowCampaign bool,
+	becomeLeader, becomeFollower func(string) bool,
+	logger *zap.Logger) *Leadership {
+	tag := fmt.Sprintf("[%s/%s]", purpose, nodeName)
 	return &Leadership{
-		tag:            fmt.Sprintf("[%s/%s]", purpose, nodeName),
 		purpose:        purpose,
 		elector:        elector,
 		leaderKey:      getPurposePath(elector.options.leaderPath, purpose),
@@ -56,6 +71,9 @@ func newLeadership(elector *elector, purpose, nodeName, nodeValue string, allowC
 		allowCampaign:  allowCampaign,
 		becomeLeader:   becomeLeader,
 		becomeFollower: becomeFollower,
+		tag:            tag,
+		logger: log.Adjust(logger).With(zap.String("tag", tag),
+			zap.String("purpose", purpose)),
 	}
 }
 
@@ -140,45 +158,44 @@ func (ls *Leadership) ElectionLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			util.GetLogger().Infof("%s/loop: exit", ls.tag)
+			ls.logger.Info("loop exit due to context done",
+				mainLoopFiled)
 			return
 		default:
 			currentLeader, rev, err := ls.CurrentLeader()
 			if err != nil {
-				util.GetLogger().Errorf("%s/loop: load current leader failed with %+v, retry later",
-					ls.tag,
-					err)
+				ls.logger.Error("fail to load current leader, retry later",
+					mainLoopFiled,
+					zap.Error(err))
 				time.Sleep(loopInterval)
 				continue
 			}
-			util.GetLogger().Infof("%s/loop: current leader is [%s]",
-				ls.tag,
-				currentLeader)
+			ls.logger.Info("current leader loaded",
+				mainLoopFiled,
+				zap.String("leader", currentLeader))
 
 			if len(currentLeader) > 0 {
 				if ls.nodeValue != "" && currentLeader == ls.nodeValue {
 					// oh, we are already leader, we may meet something wrong
 					// in previous campaignLeader. we can resign and campaign again.
-					util.GetLogger().Warningf("%s/loop: matched, resign and campaign again",
-						ls.tag)
+					ls.logger.Warn("matched, resign and campaign again")
 					if err = ls.resign(); err != nil {
-						util.GetLogger().Warningf("%s: resign leader %+v failed with %+v",
-							ls.tag,
-							currentLeader,
-							err)
+						ls.logger.Warn("fail to resign leader",
+							mainLoopFiled,
+							zap.Error(err))
 						time.Sleep(loopInterval)
 						continue
 					}
 				} else {
-					util.GetLogger().Infof("%s/loop: start watch leader %s",
-						ls.tag,
-						currentLeader)
+					ls.logger.Info("start watch leader",
+						mainLoopFiled,
+						zap.String("leader", currentLeader))
 					ls.becomeFollower(currentLeader)
 					ls.watch(rev)
 					ls.becomeFollower("")
-					util.GetLogger().Infof("%s/loop: leader %s was out",
-						ls.tag,
-						currentLeader)
+					ls.logger.Info("leader out",
+						mainLoopFiled,
+						zap.String("leader", currentLeader))
 				}
 			}
 
@@ -186,17 +203,17 @@ func (ls *Leadership) ElectionLoop(ctx context.Context) {
 				// check expect leader exists
 				err := ls.checkExpectLeader()
 				if err != nil {
-					util.GetLogger().Errorf("%s/loop: check expect leader failed with %+v",
-						ls.tag,
-						err)
+					ls.logger.Error("fail to check expect leader",
+						mainLoopFiled,
+						zap.Error(err))
 					time.Sleep(200 * time.Millisecond)
 					continue
 				}
 
 				if err = ls.campaign(); err != nil {
-					util.GetLogger().Errorf("%s/loop: campaign leader failed with %+v",
-						ls.tag,
-						err)
+					ls.logger.Error("fail to campaign leader",
+						mainLoopFiled,
+						zap.Error(err))
 					time.Sleep(time.Second * time.Duration(ls.elector.options.leaseSec))
 					continue
 				}
@@ -208,10 +225,10 @@ func (ls *Leadership) ElectionLoop(ctx context.Context) {
 }
 
 func (ls *Leadership) campaign() error {
-	util.GetLogger().Infof("%s/campaign: start",
-		ls.tag)
+	ls.logger.Info("start campaign",
+		campaignField)
 
-	l := newLease(ls.tag, ls.purpose, ls.elector.client)
+	l := newLease(ls.tag, ls.purpose, ls.elector.client, ls.logger)
 	ls.setLease(l)
 
 	err := l.grant(ls.ctx, ls.elector.options.leaseSec)
@@ -219,8 +236,8 @@ func (ls *Leadership) campaign() error {
 		return err
 	}
 
-	util.GetLogger().Infof("%s/campaign: grant lease ok",
-		ls.tag)
+	ls.logger.Info("grant lease ok",
+		campaignField)
 
 	// The leader key must not exist, so the CreateRevision is 0.
 	resp, err := util.Txn(ls.elector.client).
@@ -238,8 +255,8 @@ func (ls *Leadership) campaign() error {
 		return errors.New("campaign leader failed, other server may campaign ok")
 	}
 
-	util.GetLogger().Infof("%s/campaign: completed, start keepalive",
-		ls.tag)
+	ls.logger.Info("start keep lease alive",
+		campaignField)
 
 	// Start keepalive
 	ctx, cancel := context.WithCancel(ls.ctx)
@@ -251,7 +268,9 @@ func (ls *Leadership) campaign() error {
 		session, err := concurrency.NewSession(ls.elector.client,
 			concurrency.WithLease(clientv3.LeaseID(l.id)))
 		if err != nil {
-			util.GetLogger().Errorf("create etcd concurrency lock session failed with %+v", err)
+			ls.logger.Error("fail to create etcd concurrency lock session",
+				keepaliveField,
+				zap.Error(err))
 			return err
 		}
 		defer session.Close()
@@ -263,9 +282,9 @@ func (ls *Leadership) campaign() error {
 			err = lock.Lock(ctx)
 			if err != nil {
 				cancel()
-				util.GetLogger().Errorf("%s/keepalive: get lock failed with %+v, retry later",
-					ls.tag,
-					err)
+				ls.logger.Error("fail to get lock, retry later",
+					keepaliveField,
+					zap.Error(err))
 				continue
 			}
 
@@ -273,12 +292,13 @@ func (ls *Leadership) campaign() error {
 			break
 		}
 
-		util.GetLogger().Infof("%s/keepalive: get lock", ls.tag)
+		ls.logger.Info("get lock",
+			keepaliveField)
 	}
 
 	if !ls.becomeLeader(ls.nodeValue) {
-		util.GetLogger().Infof("%s/keepalive: become leader func return false",
-			ls.tag)
+		ls.logger.Info("become leader func return false",
+			keepaliveField)
 		return nil
 	}
 
@@ -286,8 +306,8 @@ func (ls *Leadership) campaign() error {
 		ls.becomeFollower("")
 		if lock != nil {
 			lock.Unlock(ls.ctx)
-			util.GetLogger().Infof("%s/keepalive: lock released",
-				ls.tag)
+			ls.logger.Info("lock released",
+				keepaliveField)
 		}
 	}()
 
@@ -303,25 +323,25 @@ func (ls *Leadership) campaign() error {
 		select {
 		case <-leaderTicker.C:
 			if l.IsExpired() {
-				util.GetLogger().Infof("%s/keepalive: exit with lease expired",
-					ls.tag)
+				ls.logger.Info("exit due to lease expired",
+					keepaliveField)
 				return nil
 			}
 
 			if ls.elector.options.etcd != nil {
 				if ls.elector.options.etcd.Server.Lead() != currentEtcdLeader {
-					util.GetLogger().Infof("%s/keepalive: exit with etcd leader changed",
-						ls.tag)
+					ls.logger.Info("exit due to etcd leader changed",
+						keepaliveField)
 					return nil
 				}
 			}
 		case <-ls.elector.client.Ctx().Done():
-			util.GetLogger().Infof("%s/keepalive: exit with client context done",
-				ls.tag)
+			ls.logger.Info("exit due to client context done",
+				keepaliveField)
 			return errors.New("etcd client closed")
 		case <-ctx.Done():
-			util.GetLogger().Infof("%s/keepalive: exit with context done",
-				ls.tag)
+			ls.logger.Info("exit due to context done",
+				keepaliveField)
 			return nil
 		}
 	}
@@ -354,35 +374,35 @@ func (ls *Leadership) watch(revision int64) {
 		for wresp := range rch {
 			// meet compacted error, use the compact revision.
 			if wresp.CompactRevision != 0 {
-				util.GetLogger().Warningf("%s/watch: required revision %d has been compacted, use the compact revision %d",
-					ls.tag,
-					revision,
-					wresp.CompactRevision)
+				ls.logger.Warn("required revision has been compacted, use the compact revision",
+					watchField,
+					zap.Int64("revision", revision),
+					zap.Int64("compact-revision", wresp.CompactRevision))
 				revision = wresp.CompactRevision
 				break
 			}
 
 			if wresp.Canceled {
-				util.GetLogger().Infof("%s/watch: exit with watcher failed",
-					ls.tag)
+				ls.logger.Info("exit due to watcher canceled",
+					watchField)
 				return
 			}
 
 			for _, ev := range wresp.Events {
 				if ev.Type == mvccpb.DELETE {
-					util.GetLogger().Infof("%s/watch: leader deleted",
-						ls.tag)
+					ls.logger.Info("leader deleted",
+						watchField)
 					return
 				} else if ev.Type == mvccpb.PUT {
 					if ev.PrevKv != nil {
-						util.GetLogger().Infof("%s/watch: leader updated from %s to %s",
-							ls.tag,
-							string(ev.PrevKv.Value),
-							string(ev.Kv.Value))
+						ls.logger.Info("leader changed",
+							watchField,
+							zap.String("from", string(ev.PrevKv.Value)),
+							zap.String("to", string(ev.Kv.Value)))
 					} else {
-						util.GetLogger().Infof("%s/watch: leader updated to %s",
-							ls.tag,
-							string(ev.Kv.Value))
+						ls.logger.Info("leader updated",
+							watchField,
+							zap.String("value", string(ev.Kv.Value)))
 					}
 				}
 			}
@@ -390,8 +410,8 @@ func (ls *Leadership) watch(revision int64) {
 
 		select {
 		case <-ls.ctx.Done():
-			util.GetLogger().Infof("%s/watch: exit with context done",
-				ls.tag)
+			ls.logger.Info("exit due to context done",
+				watchField)
 			return
 		default:
 		}
@@ -404,9 +424,9 @@ func (ls *Leadership) checkExpectLeader() error {
 		return err
 	}
 
-	util.GetLogger().Infof("%s/campaign: load expect leader: [%s]",
-		ls.tag,
-		string(value))
+	ls.logger.Info("expect leader loaded",
+		campaignField,
+		zap.String("expect-leader", string(value)))
 
 	if len(value) == 0 {
 		return nil
@@ -441,9 +461,8 @@ func (ls *Leadership) addExpectLeader(newLeader string) error {
 		return fmt.Errorf("not leader")
 	}
 
-	util.GetLogger().Infof("%s: expect leader %s added, with %d secs ttl",
-		ls.tag,
-		newLeader,
-		ls.elector.options.leaseSec)
+	ls.logger.Info("expect leader added",
+		zap.String("expect-leader", newLeader),
+		zap.Int64("ttl-in-seconds", ls.elector.options.leaseSec))
 	return nil
 }

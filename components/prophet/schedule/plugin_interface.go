@@ -19,18 +19,21 @@ import (
 	"plugin"
 	"sync"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/components/log"
+	"go.uber.org/zap"
 )
 
 // PluginInterface is used to manage all plugin.
 type PluginInterface struct {
 	pluginMap     map[string]*plugin.Plugin
 	pluginMapLock sync.RWMutex
+	logger        *zap.Logger
 }
 
 // NewPluginInterface create a plugin interface
-func NewPluginInterface() *PluginInterface {
+func NewPluginInterface(logger *zap.Logger) *PluginInterface {
 	return &PluginInterface{
+		logger:        log.Adjust(logger),
 		pluginMap:     make(map[string]*plugin.Plugin),
 		pluginMapLock: sync.RWMutex{},
 	}
@@ -46,7 +49,7 @@ func (p *PluginInterface) GetFunction(path string, funcName string) (plugin.Symb
 		if err != nil {
 			return nil, err
 		}
-		util.GetLogger().Infof("open plugin file %s", filePath)
+		p.logger.Info("open plugin file ", zap.String("file", filePath))
 		plugin, err := plugin.Open(filePath)
 		if err != nil {
 			return nil, err

@@ -78,9 +78,9 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 	p := cluster[0].(*defaultProphet)
 	rc := p.GetRaftCluster()
 	jp := newTestJobProcessor()
-	p.cfg.RegisterJobProcessor(metapb.JobType(1), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(2), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(3), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(2), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 
 	assert.NoError(t, p.handleCreateJob(rc,
 		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
@@ -104,18 +104,18 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 	assert.Equal(t, 0, len(jp.starts))
 
 	jp = newTestJobProcessor()
-	p.cfg.RegisterJobProcessor(metapb.JobType(1), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(2), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(3), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(2), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 	p.startJobs()
 	time.Sleep(time.Second)
 	assert.Equal(t, 3, len(jp.starts))
 	assert.Equal(t, 0, len(jp.stops))
 
 	jp = newTestJobProcessor()
-	p.cfg.RegisterJobProcessor(metapb.JobType(1), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(2), jp)
-	p.cfg.RegisterJobProcessor(metapb.JobType(3), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(2), jp)
+	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 	assert.NoError(t, p.handleRemoveJob(rc,
 		&rpcpb.Request{Type: rpcpb.TypeRemoveJobReq,
 			RemoveJob: rpcpb.RemoveJobReq{Job: metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}}},
