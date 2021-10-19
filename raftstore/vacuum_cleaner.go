@@ -22,10 +22,10 @@ import (
 type vacuumFunc = func(vacuumTask) error
 
 type vacuumTask struct {
-	shard          Shard
-	replica        *replica
-	placeTombstone bool
-	reason         string
+	shard        Shard
+	replica      *replica
+	shardRemoved bool
+	reason       string
 }
 
 // vacuumCleaner is used to cleanup shard data belongs to shards that have been

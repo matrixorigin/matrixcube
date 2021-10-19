@@ -32,7 +32,7 @@ var (
 // destroyReplica destroys the replica by closing it, removing it from the
 // store and finally deleting all its associated data.
 func (s *store) destroyReplica(shardID uint64,
-	placeTombstone bool, reason string) {
+	shardRemoved bool, reason string) {
 	replica := s.getReplica(shardID, false)
 	if replica == nil {
 		s.logger.Warn("replica not found",
@@ -41,10 +41,10 @@ func (s *store) destroyReplica(shardID uint64,
 	}
 
 	s.vacuumCleaner.addTask(vacuumTask{
-		shard:          replica.getShard(),
-		replica:        replica,
-		placeTombstone: placeTombstone,
-		reason:         reason,
+		shard:        replica.getShard(),
+		replica:      replica,
+		shardRemoved: shardRemoved,
+		reason:       reason,
 	})
 }
 
@@ -61,7 +61,7 @@ func (s *store) cleanupTombstones(shards []Shard) {
 // vacuum is the actual method for handling a vacuum task.
 func (s *store) vacuum(t vacuumTask) error {
 	if t.replica != nil {
-		if err := t.replica.destroy(t.placeTombstone, t.reason); err != nil {
+		if err := t.replica.destroy(t.shardRemoved, t.reason); err != nil {
 			return err
 		}
 		t.replica.close()
@@ -100,19 +100,19 @@ func (s *store) vacuum(t vacuumTask) error {
 	return err
 }
 
-func (pr *replica) destroy(placeTombstone bool, reason string) error {
+func (pr *replica) destroy(shardRemoved bool, reason string) error {
 	pr.logger.Info("begin to destory",
-		zap.Bool("place-tombstone", placeTombstone),
+		zap.Bool("shard-removed", shardRemoved),
 		log.ReasonField(reason))
 
-	if placeTombstone {
+	if shardRemoved {
 		pr.sm.setShardState(metapb.ResourceState_Removed)
 	}
 	shard := pr.getShard()
 	// FIXME: updating the state of replicated state machine outside of the
 	// protocol. should we just use math.MaxUint64 as the index below?
-	index, _ := pr.sm.getAppliedIndexTerm()
-	return pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
+	//index, _ := pr.sm.getAppliedIndexTerm()
+	return pr.sm.saveShardMetedata(1, shard, meta.ReplicaState_Tombstone)
 }
 
 func (pr *replica) confirmDestroyed() {

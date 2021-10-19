@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/config"
@@ -88,6 +89,9 @@ func TestDestroyReplica(t *testing.T) {
 	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))
 	assert.Equal(t, 0, scan())
+	smd, err := pr.sm.dataStorage.GetInitialStates()
+	require.NoError(t, err)
+	require.Empty(t, smd)
 }
 
 func TestReplicaDestroyedState(t *testing.T) {
