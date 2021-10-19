@@ -66,13 +66,13 @@ test-server:
 test-transport:
 	$(GOTEST) $(PKGNAME)/transport
 
-.PHONY: test-utils
-test-utils:
-	$(GOTEST) $(PKGNAME)/components/keys
+.PHONY: test-keys
+test-keys:
+	$(GOTEST) $(PKGNAME)/keys
 
 .PHONY: test
 test: test-storage test-logdb test-raftstore test-server test-transport \
-	test-utils
+	test-keys
 
 ###############################################################################
 # static checks

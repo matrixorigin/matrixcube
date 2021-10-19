@@ -21,7 +21,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
-	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"

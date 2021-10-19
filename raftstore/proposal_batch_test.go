@@ -16,8 +16,8 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 )
