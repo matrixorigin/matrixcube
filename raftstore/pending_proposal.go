@@ -28,8 +28,10 @@ func newPendingProposals() *pendingProposals {
 	return &pendingProposals{}
 }
 
-func (p *pendingProposals) destroy() {
+func (p *pendingProposals) close() {
 	for _, c := range p.cmds {
+		// FIXME: notifying the client shard removed is not accurate.
+		// should just inform clients that shard is shutting down
 		c.notifyShardRemoved()
 	}
 	p.confChangeCmd.notifyShardRemoved()

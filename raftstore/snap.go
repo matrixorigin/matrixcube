@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/fagongzi/goetty"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
@@ -76,7 +76,7 @@ func newDefaultSnapshotManager(s *store) snapshot.SnapshotManager {
 		defer ticker.Stop()
 
 		for {
-			l.Info("start scan gc snap files")
+			l.Info("start scanning snapshot files")
 
 			var paths []string
 			files, err := fs.List(dir)

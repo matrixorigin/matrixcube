@@ -90,9 +90,10 @@ type replica struct {
 
 	metrics localMetrics
 
-	closedC   chan struct{}
-	unloadedC chan struct{}
-	stopOnce  sync.Once
+	closedC    chan struct{}
+	unloadedC  chan struct{}
+	destroyedC chan struct{}
+	stopOnce   sync.Once
 }
 
 // createReplica called in:
@@ -162,6 +163,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		items:             make([]interface{}, readyBatchSize),
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
+		destroyedC:        make(chan struct{}),
 	}
 	// we are not guaranteed to have a prophet client in tests
 	if store.pd != nil {

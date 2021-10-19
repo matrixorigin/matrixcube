@@ -17,8 +17,8 @@ import (
 	"bytes"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -88,7 +88,7 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 
 	if msg.IsTombstone {
 		// we receive a message tells us to remove ourself.
-		s.handleGCPeerMsg(msg)
+		s.handleDestroyReplicaMessage(msg)
 		return
 	}
 
@@ -112,14 +112,13 @@ func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
 	return true
 }
 
-func (s *store) handleGCPeerMsg(msg meta.RaftMessage) {
+func (s *store) handleDestroyReplicaMessage(msg meta.RaftMessage) {
 	shardID := msg.ShardID
-	pr := s.getReplica(shardID, false)
-	if pr != nil {
+	if pr := s.getReplica(shardID, false); pr != nil {
 		fromEpoch := msg.ShardEpoch
 		shard := pr.getShard()
 		if isEpochStale(shard.Epoch, fromEpoch) {
-			s.logger.Info("receives gc message, remove self",
+			s.logger.Info("received destroy message, remove self",
 				s.storeField(),
 				log.ShardIDField(shardID),
 				log.EpochField("self-epoch", shard.Epoch),

@@ -36,7 +36,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )

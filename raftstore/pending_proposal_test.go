@@ -16,7 +16,7 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -131,7 +131,7 @@ func testPendingProposalClear(t *testing.T,
 	if clear {
 		p.clear()
 	} else {
-		p.destroy()
+		p.close()
 	}
 	assert.Empty(t, p.cmds)
 	assert.Equal(t, emptyCMD, p.confChangeCmd)

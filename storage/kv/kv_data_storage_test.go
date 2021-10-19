@@ -10,7 +10,7 @@ import (
 	pvfs "github.com/lni/vfs"
 	"github.com/matrixorigin/matrixcube/util/buf"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"

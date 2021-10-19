@@ -16,9 +16,9 @@ package raftstore
 import (
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/keys"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
@@ -117,6 +117,9 @@ func (pr *replica) shutdown() {
 		}
 	}
 
+	// resp all pending proposals
+	pr.pendingProposals.close()
+
 	// resp all pending requests in batch and queue
 	for _, rr := range pr.pendingReads.reads {
 		for _, req := range rr.batch.Requests {
@@ -133,6 +136,8 @@ func (pr *replica) shutdown() {
 			respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
 		}
 	}
+
+	pr.sm.close()
 
 	pr.logger.Info("replica shutdown completed")
 }

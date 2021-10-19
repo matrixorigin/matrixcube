@@ -14,68 +14,122 @@
 package raftstore
 
 import (
+	"time"
+
+	"github.com/cockroachdb/errors"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"go.uber.org/zap"
 )
 
-// TODO: probably no longer need replica_job.go, maybe just add replica_split.go
-// and replica_destroy.go
+var (
+	ErrRemoveShardKeyRange = errors.New("failed to delete shard key range")
+)
 
-// remove replica from current node.
-// 1. In raft rpc thread:        after receiving messages from other nodes, it is found that the current replica is stale.
-// 2. In raft event loop thread: after conf change, it is found that the current replica is removed.
-// 3.
-func (pr *replica) startApplyDestroy(tombstoneInCluster bool, why string) {
-	pr.logger.Info("begin to destory",
-		zap.Bool("tombstone-in-cluster", tombstoneInCluster),
-		log.ReasonField(why))
+// destroyReplica destroys the replica by closing it, removing it from the
+// store and finally deleting all its associated data.
+func (s *store) destroyReplica(shardID uint64,
+	shardRemoved bool, reason string) {
+	replica := s.getReplica(shardID, false)
+	if replica == nil {
+		s.logger.Warn("replica not found",
+			log.ShardIDField(shardID))
+		return
+	}
 
-	pr.store.removeDroppedVoteMsg(pr.shardID)
-	// TODO: stop the replica here
+	s.vacuumCleaner.addTask(vacuumTask{
+		shard:        replica.getShard(),
+		replica:      replica,
+		shardRemoved: shardRemoved,
+		reason:       reason,
+	})
+}
 
-	if err := pr.doApplyDestory(tombstoneInCluster); err != nil {
-		pr.logger.Fatal("fail to destory",
-			zap.Error(err))
+// cleanupTombstones is invoked during restart to cleanup data belongs to those
+// shards that have been tombstoned.
+func (s *store) cleanupTombstones(shards []Shard) {
+	for _, shard := range shards {
+		s.vacuumCleaner.addTask(vacuumTask{
+			shard: shard,
+		})
 	}
 }
 
-func (pr *replica) doApplyDestory(tombstoneInCluster bool) error {
-	// Shard destory need 2 phase
-	// Phase1, update the state to Tombstone
-	// Phase2, clean up data asynchronously and remove the state key
-	// When we restart store, we can see partially data, because Phase1 and Phase2 are not atomic.
-	// We will execute cleanup if we found the Tombstone key.
+// vacuum is the actual method for handling a vacuum task.
+func (s *store) vacuum(t vacuumTask) error {
+	if t.replica != nil {
+		if err := t.replica.destroy(t.shardRemoved, t.reason); err != nil {
+			return err
+		}
+		t.replica.close()
+		// wait for the replica to be fully unloaded before removing it from the
+		// store. otherwise the raft worker might not be able to get the replica
+		// from the store and mark it as unloaded.
+		s.logger.Info("waiting for the replica to be unloaded",
+			log.ReplicaIDField(t.shard.ID))
+		t.replica.waitUnloaded()
+		s.removeReplica(t.replica)
+		s.logger.Info("replica unloaded",
+			log.ReplicaIDField(t.shard.ID))
+	}
+	s.removeDroppedVoteMsg(t.shard.ID)
+	if len(t.shard.Replicas) > 0 && !s.removeShardKeyRange(t.shard) {
+		// TODO: is it possible to not have shard related key range info in store?
+		// should this be an error?
+		// return ErrRemoveShardKeyRange
+		s.logger.Warn("failed to delete shard key range")
+	}
 
-	if tombstoneInCluster {
+	s.logger.Info("deleting shard data",
+		s.storeField(),
+		log.ShardIDField(t.shard.ID))
+	start := keys.EncodeStartKey(t.shard, nil)
+	end := keys.EncodeEndKey(t.shard, nil)
+	err := s.DataStorageByGroup(t.shard.Group).RemoveShardData(t.shard, start, end)
+	s.logger.Info("delete shard data returned",
+		s.storeField(),
+		log.ShardIDField(t.shard.ID),
+		zap.Error(err))
+	if t.replica != nil && err == nil {
+		t.replica.confirmDestroyed()
+	}
+
+	return err
+}
+
+func (pr *replica) destroy(shardRemoved bool, reason string) error {
+	pr.logger.Info("begin to destory",
+		zap.Bool("shard-removed", shardRemoved),
+		log.ReasonField(reason))
+
+	if shardRemoved {
 		pr.sm.setShardState(metapb.ResourceState_Removed)
 	}
 	shard := pr.getShard()
-	index, _ := pr.sm.getAppliedIndexTerm()
-	err := pr.sm.saveShardMetedata(index, shard, meta.ReplicaState_Tombstone)
-	if err != nil {
-		pr.logger.Fatal("fail to do apply destory",
-			zap.Error(err))
-	}
+	// FIXME: updating the state of replicated state machine outside of the
+	// protocol. should we just use math.MaxUint64 as the index below?
+	//index, _ := pr.sm.getAppliedIndexTerm()
+	return pr.sm.saveShardMetedata(1, shard, meta.ReplicaState_Tombstone)
+}
 
-	if len(shard.Replicas) > 0 {
-		err := pr.store.startClearDataJob(shard)
-		if err != nil {
-			pr.logger.Fatal("fail to do destroy",
-				zap.Error(err))
+func (pr *replica) confirmDestroyed() {
+	pr.logger.Info("going to mark replica as destroyed")
+	close(pr.destroyedC)
+}
+
+// waitDestroyed is suppose to be only used in tests
+func (pr *replica) waitDestroyed() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			pr.logger.Info("slow to be destroyed")
+		case <-pr.destroyedC:
+			return
 		}
 	}
-
-	// FIXME: destroy has not been tested.
-	pr.close()
-	if len(shard.Replicas) > 0 && !pr.store.removeShardKeyRange(shard) {
-		pr.logger.Warn("fail to remove key range",
-			zap.Error(err))
-	}
-	pr.store.removeReplica(pr)
-	pr.sm.destroy()
-	pr.logger.Info("destroy self complete.",
-		zap.Error(err))
-	return nil
 }
