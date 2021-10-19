@@ -48,7 +48,7 @@ func getNewLogReaderTestDB(entries []pb.Entry, fs vfs.FS) *pebble.Storage {
 
 func getTestLogReader(entries []pb.Entry, fs vfs.FS) (*LogReader, func()) {
 	db := getNewLogReaderTestDB(entries, fs)
-	ldb := logdb.NewKVLogDB(db)
+	ldb := logdb.NewKVLogDB(db, nil)
 	rd := raft.Ready{
 		Entries: entries,
 	}

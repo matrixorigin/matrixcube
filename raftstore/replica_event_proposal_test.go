@@ -364,7 +364,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			ID:              1,
 			ElectionTick:    10,
 			HeartbeatTick:   1,
-			Storage:         NewLogReader(l, 1, 1, logdb.NewKVLogDB(ms)),
+			Storage:         NewLogReader(l, 1, 1, logdb.NewKVLogDB(ms, nil)),
 			MaxInflightMsgs: 100,
 			CheckQuorum:     true,
 			PreVote:         true,
