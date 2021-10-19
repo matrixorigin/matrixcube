@@ -291,13 +291,7 @@ func (ts *testShardAware) shardCount() int {
 	ts.RLock()
 	defer ts.RUnlock()
 
-	c := 0
-	for _, s := range ts.shards {
-		if len(s.Replicas) > 0 {
-			c++
-		}
-	}
-	return c
+	return len(ts.shards)
 }
 
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
