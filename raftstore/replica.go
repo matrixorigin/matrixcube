@@ -21,11 +21,6 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
-	"github.com/matrixorigin/matrixcube/util/task"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -35,7 +30,12 @@ import (
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/task"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 var dn = util.DescribeReplica
@@ -169,6 +169,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	if store.pd != nil {
 		pr.prophetClient = store.pd.GetClient()
 	}
+
 	storage := store.DataStorageByGroup(shard.Group)
 	pr.sm = newStateMachine(l, storage, shard, r.ID, pr)
 	return pr, nil
@@ -185,8 +186,8 @@ func (pr *replica) start() {
 		}
 	}
 
-	if pr.aware != nil {
-		pr.aware.Created(shard)
+	if err := pr.initAppliedIndex(pr.sm.dataStorage); err != nil {
+		panic(err)
 	}
 	if err := pr.initConfState(); err != nil {
 		panic(err)
@@ -226,6 +227,10 @@ func (pr *replica) start() {
 
 	pr.onRaftTick(nil)
 	pr.logger.Info("replica started")
+
+	if pr.aware != nil {
+		pr.aware.Created(shard)
+	}
 }
 
 func (pr *replica) close() {
@@ -279,6 +284,17 @@ func (pr *replica) getShard() Shard {
 
 func (pr *replica) getShardID() uint64 {
 	return pr.shardID
+}
+
+// initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
+func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
+	persistentLogIndex, err := storage.GetPersistentLogIndex(pr.shardID)
+	if err != nil {
+		return err
+	}
+
+	pr.appliedIndex = persistentLogIndex
+	return nil
 }
 
 // initConfState initializes the ConfState of the LogReader which will be

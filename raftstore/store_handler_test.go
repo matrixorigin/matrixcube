@@ -115,6 +115,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 
 	for idx, c := range cases {
 		s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
+		s.DataStorageByGroup(0).GetInitialStates()
 		if c.pr != nil {
 			c.pr.startedC = make(chan struct{})
 			c.pr.closedC = make(chan struct{})
