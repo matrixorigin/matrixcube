@@ -21,7 +21,6 @@ import (
 	"sync/atomic"
 
 	"github.com/fagongzi/util/format"
-
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -235,7 +234,13 @@ func (kv *kvDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
 }
 
 func (kv *kvDataStorage) Sync(_ []uint64) error {
-	return kv.base.Sync()
+	err := kv.base.Sync()
+	if err != nil {
+		return err
+	}
+
+	kv.updatePersistentAppliedIndexes()
+	return nil
 }
 
 func (kv *kvDataStorage) RemoveShardData(shard meta.Shard,
@@ -265,12 +270,8 @@ func (kv *kvDataStorage) trySync() error {
 	if err := kv.base.Sync(); err != nil {
 		return err
 	}
-	kv.mu.Lock()
-	for k, v := range kv.mu.lastAppliedIndexes {
-		kv.mu.persistentAppliedIndexes[k] = v
-	}
-	kv.mu.Unlock()
 
+	kv.updatePersistentAppliedIndexes()
 	return nil
 }
 
@@ -294,4 +295,12 @@ func (kv *kvDataStorage) ApplySnapshot(path string) error {
 
 func (kv *kvDataStorage) Stats() stats.Stats {
 	return kv.base.Stats()
+}
+
+func (kv *kvDataStorage) updatePersistentAppliedIndexes() {
+	kv.mu.Lock()
+	for k, v := range kv.mu.lastAppliedIndexes {
+		kv.mu.persistentAppliedIndexes[k] = v
+	}
+	kv.mu.Unlock()
 }

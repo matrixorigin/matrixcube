@@ -21,11 +21,6 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
-	"github.com/matrixorigin/matrixcube/util/task"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -36,6 +31,10 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/task"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 var dn = util.DescribeReplica
@@ -139,6 +138,12 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		return nil, fmt.Errorf("invalid replica %+v", r)
 	}
 
+	storage := store.DataStorageByGroup(shard.Group)
+	persistentLogIndex, err := storage.GetPersistentLogIndex(shard.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	maxBatchSize := uint64(store.cfg.Raft.MaxEntryBytes)
 	pr := &replica{
 		logger:            l,
@@ -149,6 +154,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		aware:             store.aware,
 		replica:           r,
 		shardID:           shard.ID,
+		appliedIndex:      persistentLogIndex,
 		storeID:           store.Meta().ID,
 		startedC:          make(chan struct{}),
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
@@ -169,7 +175,6 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	if store.pd != nil {
 		pr.prophetClient = store.pd.GetClient()
 	}
-	storage := store.DataStorageByGroup(shard.Group)
 	pr.sm = newStateMachine(l, storage, shard, r.ID, pr)
 	return pr, nil
 }
