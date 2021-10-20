@@ -17,14 +17,14 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -47,11 +47,12 @@ func getCloseableReplica() *replica {
 	r := Replica{}
 	shardID := uint64(1)
 	ms := getTestMetadataStorage()
+	ldb := logdb.NewKVLogDB(ms, log.GetDefaultZapLogger())
 	c := &raft.Config{
 		ID:              1,
 		ElectionTick:    10,
 		HeartbeatTick:   1,
-		Storage:         NewLogReader(l, 1, 1, logdb.NewKVLogDB(ms, nil)),
+		Storage:         NewLogReader(l, 1, 1, ldb),
 		MaxInflightMsgs: 100,
 		CheckQuorum:     true,
 		PreVote:         true,

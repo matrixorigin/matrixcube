@@ -37,6 +37,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -61,7 +62,7 @@ func getTestMetadataStorage(fs vfs.FS) storage.MetadataStorage {
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
 	ms := getTestMetadataStorage(fs)
 	defer ms.Close()
-	db := NewKVLogDB(ms, nil)
+	db := NewKVLogDB(ms, log.GetDefaultZapLogger())
 	tf(t, db)
 }
 

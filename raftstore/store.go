@@ -109,12 +109,12 @@ type store struct {
 func NewStore(cfg *config.Config) Store {
 	cfg.Adjust()
 
-	logdbLogger := cfg.Logger.Named("logdb")
+	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		meta:    &containerAdapter{},
 		cfg:     cfg,
-		logger:  cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name)),
-		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage, logdbLogger),
+		logger:  logger,
+		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage, logger.Named("logdb")),
 		stopper: syncutil.NewStopper(),
 	}
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
