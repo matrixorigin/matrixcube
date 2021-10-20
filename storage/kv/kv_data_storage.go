@@ -14,9 +14,7 @@
 package kv
 
 import (
-	"fmt"
 	"math"
-	"os"
 	"sync"
 	"sync/atomic"
 
@@ -138,7 +136,6 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	seen := make(map[uint64]struct{})
 	kv.mu.Lock()
 	for _, m := range metadatas {
-		fmt.Fprintf(os.Stderr, "shard: %d, index: %d\n", m.ShardID, m.LogIndex)
 		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), m.Metadata)
 		wb.Set(keys.GetAppliedIndexKey(m.ShardID, nil), format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
@@ -165,9 +162,7 @@ func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	var shards []uint64
 	var lastApplied []uint64
 	// find out all shards and their last applied indexes
-	fmt.Printf(" ===> going to call scan!!!\n")
 	if err := kv.base.Scan(min, max, func(key, value []byte) (bool, error) {
-		fmt.Printf(" ===> got a key!!!\n")
 		if keys.IsAppliedIndexKey(key) {
 			shardID, err := keys.GetShardIDFromAppliedIndexKey(key)
 			if err != nil {
@@ -180,7 +175,6 @@ func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	}, false); err != nil {
 		return nil, err
 	}
-	fmt.Printf("shards len: %d\n", len(shards))
 	// update the persistentAppliedIndexes
 	kv.mu.Lock()
 	for idx, appliedIndex := range lastApplied {

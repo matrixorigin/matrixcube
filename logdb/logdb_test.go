@@ -61,7 +61,7 @@ func getTestMetadataStorage(fs vfs.FS) storage.MetadataStorage {
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
 	ms := getTestMetadataStorage(fs)
 	defer ms.Close()
-	db := NewKVLogDB(ms)
+	db := NewKVLogDB(ms, nil)
 	tf(t, db)
 }
 
