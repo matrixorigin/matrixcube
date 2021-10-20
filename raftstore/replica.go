@@ -141,7 +141,8 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	storage := store.DataStorageByGroup(shard.Group)
 	persistentLogIndex, err := storage.GetPersistentLogIndex(shard.ID)
 	if err != nil {
-		return nil, err
+		l.Fatal("fail to get PersistentLogIndex",
+			zap.Error(err))
 	}
 
 	maxBatchSize := uint64(store.cfg.Raft.MaxEntryBytes)
