@@ -20,13 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLoadPersistentLogIndex(t *testing.T) {
+func TestInitAppliedIndex(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	ds := s.DataStorageByGroup(0)
 	ds.GetInitialStates()
 
 	pr, err := newReplica(s, Shard{ID: 1}, Replica{ID: 1000}, "test")
 	assert.NoError(t, err)
+	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(0), pr.appliedIndex)
 
 	err = ds.SaveShardMetadata([]storage.ShardMetadata{{ShardID: 2, LogIndex: 2, Metadata: make([]byte, 10)}})
@@ -34,5 +35,6 @@ func TestLoadPersistentLogIndex(t *testing.T) {
 	ds.Sync([]uint64{2})
 	pr, err = newReplica(s, Shard{ID: 2}, Replica{ID: 2000}, "test")
 	assert.NoError(t, err)
+	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(2), pr.appliedIndex)
 }
