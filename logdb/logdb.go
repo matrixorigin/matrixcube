@@ -31,18 +31,15 @@ import (
 	"encoding/binary"
 
 	"github.com/cockroachdb/errors"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[logdb]")
 )
 
 var (
@@ -89,9 +86,10 @@ type LogDB interface {
 }
 
 type KVLogDB struct {
-	state raftpb.HardState
-	ms    storage.KVMetadataStore
-	wb    util.WriteBatch
+	logger *zap.Logger
+	state  raftpb.HardState
+	ms     storage.KVMetadataStore
+	wb     util.WriteBatch
 	// FIXME: wbuf is unsafe as it will be concurrently accessed from multiple
 	// worker goroutines.
 	wbuf []byte
@@ -99,11 +97,12 @@ type KVLogDB struct {
 
 var _ LogDB = (*KVLogDB)(nil)
 
-func NewKVLogDB(ms storage.KVMetadataStore) *KVLogDB {
+func NewKVLogDB(ms storage.KVMetadataStore, logger *zap.Logger) *KVLogDB {
 	return &KVLogDB{
-		ms:   ms,
-		wb:   ms.NewWriteBatch().(util.WriteBatch),
-		wbuf: make([]byte, 8),
+		logger: logger,
+		ms:     ms,
+		wb:     ms.NewWriteBatch().(util.WriteBatch),
+		wbuf:   make([]byte, 8),
 	}
 }
 
@@ -137,7 +136,6 @@ func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) er
 func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	size uint64, shardID uint64, peerID uint64, low uint64,
 	high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error) {
-
 	nextIndex := low
 	startKey := keys.GetRaftLogKey(shardID, low, nil)
 	if low+1 == high {
@@ -151,10 +149,10 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 		e := raftpb.Entry{}
 		protoc.MustUnmarshal(&e, v)
 		if e.Index != nextIndex {
-			logger.Fatalf("shard %d raft log index not match, logIndex %d expect %d",
-				shardID,
-				e.Index,
-				nextIndex)
+			l.logger.Fatal("raft log index not match",
+				log.ShardIDField(shardID),
+				log.IndexField(e.Index),
+				zap.Uint64("expected-index", nextIndex))
 		}
 		ents = append(ents, e)
 		return ents, uint64(e.Size()), nil

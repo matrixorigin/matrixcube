@@ -25,6 +25,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	pb "go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -48,7 +49,7 @@ func getNewLogReaderTestDB(entries []pb.Entry, fs vfs.FS) *pebble.Storage {
 
 func getTestLogReader(entries []pb.Entry, fs vfs.FS) (*LogReader, func()) {
 	db := getNewLogReaderTestDB(entries, fs)
-	ldb := logdb.NewKVLogDB(db)
+	ldb := logdb.NewKVLogDB(db, log.GetDefaultZapLogger())
 	rd := raft.Ready{
 		Entries: entries,
 	}

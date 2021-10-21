@@ -360,11 +360,12 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			},
 		}
 		ms := getTestMetadataStorage()
+		ldb := logdb.NewKVLogDB(ms, log.GetDefaultZapLogger())
 		c := &raft.Config{
 			ID:              1,
 			ElectionTick:    10,
 			HeartbeatTick:   1,
-			Storage:         NewLogReader(l, 1, 1, logdb.NewKVLogDB(ms)),
+			Storage:         NewLogReader(l, 1, 1, ldb),
 			MaxInflightMsgs: 100,
 			CheckQuorum:     true,
 			PreVote:         true,
