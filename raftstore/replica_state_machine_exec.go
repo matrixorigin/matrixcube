@@ -26,7 +26,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -341,7 +340,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 			return rpc.ResponseBatch{}, errors.New("missing split key")
 		}
 
-		splitKey := keys.DecodeDataKey(req.SplitKey)
+		splitKey := req.SplitKey
 		v := derived.Start
 		if e, ok := rangeKeys.Back(); ok {
 			v = e.Value.([]byte)

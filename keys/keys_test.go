@@ -18,9 +18,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 func TestIsRaftLogKey(t *testing.T) {
@@ -235,68 +232,4 @@ func TestGetRaftLogKey(t *testing.T) {
 	assert.True(t, IsRaftLogKey(key2))
 	assert.True(t, IsRaftLogKey(key3))
 	assert.True(t, IsRaftLogKey(key4))
-}
-
-func TestEncodeDecodeDataKey(t *testing.T) {
-	testData := []byte("test-data")
-	tests := []struct {
-		group   uint64
-		dataKey []byte
-		output  []byte
-	}{
-		{uint64(100), testData, nil},
-		{uint64(100), []byte{}, nil},
-		{uint64(100), nil, nil},
-		{uint64(100), testData, make([]byte, len(testData)+9)},
-		{uint64(100), testData, make([]byte, len(testData)+8)},
-		{uint64(100), testData, make([]byte, len(testData)+10)},
-	}
-
-	for _, tt := range tests {
-		result := DecodeDataKey(EncodeDataKey(tt.group, tt.dataKey, tt.output))
-		if tt.dataKey == nil && len(result) == 0 {
-			result = nil
-		}
-		assert.Equal(t, tt.dataKey, result)
-	}
-}
-
-func TestEncodeStartKey(t *testing.T) {
-	testData := []byte("test-data")
-	shard := meta.Shard{
-		Start: testData,
-		Replicas: []metapb.Replica{
-			{},
-			{},
-		},
-	}
-	key := EncodeStartKey(shard, nil)
-	decoded := DecodeDataKey(key)
-	assert.Equal(t, testData, decoded)
-}
-
-func TestEncodeEndKey(t *testing.T) {
-	testData := []byte("test-data")
-	shard := meta.Shard{
-		End: testData,
-		Replicas: []metapb.Replica{
-			{},
-			{},
-		},
-	}
-	key := EncodeEndKey(shard, nil)
-	decoded := DecodeDataKey(key)
-	assert.Equal(t, testData, decoded)
-
-	shard2 := meta.Shard{
-		Group: uint64(123),
-		Replicas: []metapb.Replica{
-			{},
-			{},
-		},
-	}
-	key2 := EncodeEndKey(shard2, nil)
-	assert.Equal(t, getDataMaxKey(shard2.Group, nil), key2)
-	decoded2 := DecodeDataKey(key2)
-	assert.Equal(t, 0, len(decoded2))
 }

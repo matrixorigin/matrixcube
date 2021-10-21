@@ -16,8 +16,6 @@ package keys
 import (
 	"encoding/binary"
 	"fmt"
-
-	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
 const (
@@ -200,59 +198,4 @@ func getIndexedIDKey(suffix byte, shardID uint64, index uint64, key []byte) []by
 	key[10] = suffix
 	writeUint64(index, key[11:])
 	return key[:indexedIDKeyLength]
-}
-
-func getDataKey(group uint64, key []byte, output []byte) []byte {
-	output = getKeySlice(output, len(dataPrefixKey)+8+len(key))
-	if len(dataPrefixKey) != 1 {
-		panic("unexpected dataPrefixKey length")
-	}
-	output[0] = dataPrefixKey[0]
-	writeUint64(group, output[1:])
-	if len(key) > 0 {
-		copy(output[9:], key)
-	}
-	return output[:9+len(key)]
-}
-
-func EncodeDataKey(group uint64, dataKey []byte, output []byte) []byte {
-	return getDataKey(group, dataKey, output)
-}
-
-func DecodeDataKey(key []byte) []byte {
-	return key[DataPrefixSize:]
-}
-
-func getDataMaxKey(group uint64, key []byte) []byte {
-	key = getKeySlice(key, 9)
-	key[0] = dataPrefix
-	writeUint64(group+1, key[1:])
-	return key[:9]
-}
-
-func GetDataEndKey(group uint64, endKey []byte, output []byte) []byte {
-	if len(endKey) == 0 {
-		output = getKeySlice(output, 9)
-		return getDataMaxKey(group, output)
-	}
-	output = getKeySlice(output, 9+len(endKey))
-	return EncodeDataKey(group, endKey, output)
-}
-
-func EncodeStartKey(shard meta.Shard, key []byte) []byte {
-	// only initialized shard's startKey can be encoded
-	if len(shard.Replicas) == 0 {
-		panic("shard replicas len is empty")
-	}
-	key = getKeySlice(key, 9+len(shard.Start))
-	return EncodeDataKey(shard.Group, shard.Start, key)
-}
-
-func EncodeEndKey(shard meta.Shard, key []byte) []byte {
-	// only initialized shard's endKey can be encoded
-	if len(shard.Replicas) == 0 {
-		panic("shard peers len is empty")
-	}
-	key = getKeySlice(key, 9+len(shard.End))
-	return GetDataEndKey(shard.Group, shard.End, key)
 }

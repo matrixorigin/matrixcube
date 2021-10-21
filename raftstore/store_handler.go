@@ -18,7 +18,6 @@ import (
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -191,10 +190,8 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 	}
 
 	// check range overlapped
-	item := s.searchShard(msg.Group, msg.Start)
-	if item.ID > 0 {
-		if bytes.Compare(keys.EncodeStartKey(item, nil),
-			keys.GetDataEndKey(msg.Group, msg.End, nil)) < 0 {
+	if item := s.searchShard(msg.Group, msg.Start); item.ID > 0 {
+		if bytes.Compare(item.Start, msg.End) < 0 {
 			if p := s.getReplica(item.ID, false); p != nil {
 				// Maybe split, but not registered yet.
 				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)

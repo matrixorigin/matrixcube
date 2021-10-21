@@ -243,11 +243,10 @@ func (kv *kvDataStorage) Sync(_ []uint64) error {
 	return nil
 }
 
-func (kv *kvDataStorage) RemoveShardData(shard meta.Shard,
-	encodedStartKey, encodedEndKey []byte) error {
+func (kv *kvDataStorage) RemoveShardData(shard meta.Shard) error {
 	// This is not an atomic operation, but it is idempotent, and the metadata is
 	// deleted afterwards, so the cleanup will not be lost.
-	if err := kv.base.RangeDelete(encodedStartKey, encodedEndKey, false); err != nil {
+	if err := kv.base.RangeDelete(shard.Start, shard.End, false); err != nil {
 		return err
 	}
 	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID),

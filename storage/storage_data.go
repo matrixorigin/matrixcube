@@ -133,7 +133,7 @@ type DataStorage interface {
 	// RemoveShardData is used for cleaning up data for the specified shard. It is
 	// up to the implementation to decide whether to do the cleaning asynchronously
 	// or not.
-	RemoveShardData(shard meta.Shard, start, end []byte) error
+	RemoveShardData(shard meta.Shard) error
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.
 	Sync([]uint64) error

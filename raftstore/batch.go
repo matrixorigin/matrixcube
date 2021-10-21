@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -96,7 +95,6 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 			if !resp.Header.IsEmpty() {
 				for idx, rsp := range resp.Responses {
 					rsp.Request = &c.requestBatch.Requests[idx]
-					rsp.Request.Key = keys.DecodeDataKey(rsp.Request.Key)
 					rsp.Error = resp.Header.Error
 				}
 			}

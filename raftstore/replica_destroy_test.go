@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -31,8 +30,8 @@ func TestDestroyReplica(t *testing.T) {
 	r := Replica{ID: 1}
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
-	kv.Set(keys.EncodeDataKey(0, []byte("a1"), nil), []byte("hello-a1"), false)
-	kv.Set(keys.EncodeDataKey(0, []byte("a2"), nil), []byte("hello-a2"), false)
+	kv.Set([]byte("a1"), []byte("hello-a1"), false)
+	kv.Set([]byte("a2"), []byte("hello-a2"), false)
 
 	shard := Shard{
 		ID:       1,
@@ -43,12 +42,10 @@ func TestDestroyReplica(t *testing.T) {
 
 	scan := func() int {
 		count := 0
-		kv.Scan(keys.EncodeDataKey(0, shard.Start, nil),
-			keys.EncodeDataKey(0, shard.End, nil),
-			func(key, value []byte) (bool, error) {
-				count++
-				return true, nil
-			}, false)
+		kv.Scan(shard.Start, shard.End, func(key, value []byte) (bool, error) {
+			count++
+			return true, nil
+		}, false)
 		return count
 	}
 
