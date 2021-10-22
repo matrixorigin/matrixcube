@@ -625,6 +625,7 @@ type testRaftCluster struct {
 
 	// init fields
 	t               *testing.T
+	fs              vfs.FS
 	initOpts        []TestClusterOption
 	baseDataDir     string
 	portsRaftAddr   []int
@@ -672,7 +673,8 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			c.t.Parallel()
 		}
 
-		c.baseDataDir = fmt.Sprintf("%s/%s", c.opts.tmpDir, c.t.Name())
+		c.fs = vfs.GetTestFS()
+		c.baseDataDir = fmt.Sprintf("%s/%s/%d", c.opts.tmpDir, c.t.Name(), time.Now().Nanosecond())
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
@@ -687,7 +689,8 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
 		cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).With(zap.String("case", c.t.Name()))
-		cfg.FS = vfs.GetTestFS()
+		cfg.UseMemoryAsStorage = true
+		cfg.FS = c.fs
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
 		if c.opts.recreate {
 			recreateTestTempDir(cfg.FS, cfg.DataPath)
