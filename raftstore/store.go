@@ -21,9 +21,6 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/syncutil"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -38,6 +35,8 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 // Store manage a set of raft group
@@ -87,6 +86,7 @@ type store struct {
 	snapshotManager snapshot.SnapshotManager
 	shardsProxy     ShardsProxy
 	router          Router
+	splitChecker    *splitChecker
 	watcher         prophet.Watcher
 	vacuumCleaner   *vacuumCleaner
 	keyRanges       sync.Map // group id -> *util.ShardTree
@@ -117,7 +117,13 @@ func NewStore(cfg *config.Config) Store {
 		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage, logger.Named("logdb")),
 		stopper: syncutil.NewStopper(),
 	}
+
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
+	// TODO: make maxWaitToChecker configurable
+	s.splitChecker = newSplitChecker(4, uint64(s.cfg.Replication.ShardCapacityBytes),
+		&storeReplicaGetter{s}, func(group uint64) splitCheckFunc {
+			return s.cfg.Storage.DataStorageFactory(group).SplitCheck
+		})
 	// TODO: make workerCount configurable
 	s.workerPool = newWorkerPool(s.logger, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
@@ -147,6 +153,10 @@ func (s *store) Start() {
 
 	s.vacuumCleaner.start()
 	s.logger.Info("vacuum cleaner started",
+		s.storeField())
+
+	s.splitChecker.start()
+	s.logger.Info("split checker started",
 		s.storeField())
 
 	s.startProphet()
@@ -184,6 +194,11 @@ func (s *store) Stop() {
 	s.stopOnce.Do(func() {
 		s.logger.Info("begin to stop raftstore",
 			s.storeField())
+
+		s.splitChecker.close()
+		s.logger.Info("split checker closed",
+			s.storeField())
+
 		s.pd.Stop()
 		s.logger.Info("pd stopped",
 			s.storeField())
@@ -730,4 +745,15 @@ func (s *store) nextShard(shard Shard) *Shard {
 
 func (s *store) storeField() zap.Field {
 	return log.StoreIDField(s.Meta().ID)
+}
+
+type storeReplicaGetter struct {
+	store *store
+}
+
+func (s *storeReplicaGetter) getReplica(shardID uint64) (*replica, bool) {
+	if r := s.store.getReplica(shardID, false); r != nil {
+		return r, true
+	}
+	return nil, false
 }

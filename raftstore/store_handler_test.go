@@ -35,7 +35,8 @@ func TestHandleSplitCheck(t *testing.T) {
 		},
 		{
 			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: false,
+			hasAction: true,
+			action:    action{actionType: checkSplitAction},
 		},
 		{
 			pr:        &replica{startedC: make(chan struct{}), sizeDiffHint: 1024 * 1024 * 1024, actions: task.New(32)},
@@ -55,8 +56,10 @@ func TestHandleSplitCheck(t *testing.T) {
 		assert.Equal(t, c.hasAction, c.pr.actions.Len() > 0, "index %d", idx)
 		if c.hasAction {
 			v, err := c.pr.actions.Peek()
+			act := v.(action)
+			act.actionCallback = nil
 			assert.NoError(t, err, "index %d", idx)
-			assert.Equal(t, c.action, v, "index %d", idx)
+			assert.Equal(t, c.action, act, "index %d", idx)
 		}
 	}
 }

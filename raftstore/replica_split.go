@@ -15,133 +15,103 @@ package raftstore
 
 import (
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
-	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
-func (pr *replica) tryCheckSplit() {
+func (pr *replica) tryCheckSplit(act action) {
 	if !pr.isLeader() {
 		return
 	}
 
+	if !pr.needDoCheckSplit() {
+		return
+	}
+
+	// If a replica is applying snapshot, skip split, avoid sent snapshot again in future.
+	if ok, id := pr.hasReplicaInSnapshotState(); ok {
+		pr.logger.Debug("check split skipped",
+			log.ReplicaIDField(id),
+			log.ReasonField("applying snapshot"))
+		return
+	}
+
+	// We need to do a real split check, a task that may involve a lot of disk IO to find a suitable
+	// split point, so it is not suitable to be executed in the current thread, we use a separate goroutine
+	// to run this check in callback.
+	if act.actionCallback == nil {
+		pr.logger.Fatal("fail to start split check task",
+			log.ReasonField("missing callback"))
+	}
+
+	act.actionCallback(pr.getShard())
+
+	// if err := pr.doCheckSplit(shard); err != nil {
+	// 	pr.logger.Fatal("fail to add split check job",
+	// 		zap.Error(err))
+	// }
+	// pr.sizeDiffHint = 0
+}
+
+func (pr *replica) hasReplicaInSnapshotState() (bool, uint64) {
 	for id, p := range pr.rn.Status().Progress {
 		// If a peer is apply snapshot, skip split, avoid sent snapshot again in future.
 		if p.State == trackerPkg.StateSnapshot {
-			pr.logger.Info("check split skipped",
-				log.ReplicaIDField(id),
-				log.ReasonField("applying snapshot"))
-			return
+			return true, id
 		}
 	}
-
-	if err := pr.doCheckSplit(); err != nil {
-		pr.logger.Fatal("fail to add split check job",
-			zap.Error(err))
-	}
-	pr.sizeDiffHint = 0
+	return false, 0
 }
 
-func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch metapb.ResourceEpoch) {
+func (pr *replica) needDoCheckSplit() bool {
+	return pr.useCustomSplitCheck() ||
+		pr.sizeDiffHint >= uint64(pr.cfg.Replication.ShardSplitCheckBytes)
+}
+
+func (pr *replica) useCustomSplitCheck() bool {
+	return pr.cfg.Customize.CustomSplitCheckFuncFactory != nil && pr.cfg.Customize.CustomSplitCheckFuncFactory(pr.getShard().Group) != nil
+}
+
+func (pr *replica) doSplit(act action) {
 	if !pr.isLeader() {
 		return
 	}
 
+	if act.splitCheckData.size > 0 {
+		pr.approximateSize = act.splitCheckData.size
+	}
+	if act.splitCheckData.keys > 0 {
+		pr.approximateKeys = act.splitCheckData.keys
+	}
+	if len(act.splitCheckData.splitKeys) == 0 {
+		pr.sizeDiffHint = act.splitCheckData.size
+		return
+	}
+
+	epoch := act.epoch
 	current := pr.getShard()
 	if current.Epoch.Version != epoch.Version {
 		pr.logger.Info("epoch changed, need re-check later",
 			log.EpochField("current-epoch", current.Epoch),
 			log.EpochField("check-epoch", epoch))
 		return
+	}
+
+	if len(act.splitCheckData.splitIDs) == 0 {
+		pr.logger.Fatal("missing splitIDs")
 	}
 
 	req := rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_BatchSplit,
 		Splits:  &rpc.BatchSplitRequest{},
 	}
-	for idx := range splitIDs {
+	for idx := range act.splitCheckData.splitIDs {
 		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
-			SplitKey:      splitKeys[idx],
-			NewShardID:    splitIDs[idx].NewID,
-			NewReplicaIDs: splitIDs[idx].NewReplicaIDs,
+			SplitKey:      act.splitCheckData.splitKeys[idx],
+			NewShardID:    act.splitCheckData.splitIDs[idx].NewID,
+			NewReplicaIDs: act.splitCheckData.splitIDs[idx].NewReplicaIDs,
 		})
 	}
 	pr.addAdminRequest(req)
-}
-
-func (pr *replica) doCheckSplit() error {
-	shard := pr.getShard()
-	epoch := shard.Epoch
-	startKey := keys.EncodeStartKey(shard, nil)
-	endKey := keys.EncodeEndKey(shard, nil)
-
-	pr.logger.Info("start split check job",
-		log.HexField("from", startKey),
-		log.HexField("end", endKey))
-
-	var size uint64
-	var keys uint64
-	var splitKeys [][]byte
-	var err error
-
-	useDefault := true
-	if pr.cfg.Customize.CustomSplitCheckFuncFactory != nil {
-		if fn := pr.cfg.Customize.CustomSplitCheckFuncFactory(shard.Group); fn != nil {
-			size, keys, splitKeys, err = fn(shard)
-			useDefault = false
-		}
-	}
-
-	if useDefault {
-		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.cfg.Replication.ShardCapacityBytes))
-	}
-
-	pr.logger.Debug("split check result",
-		zap.Uint64("size", size),
-		zap.Uint64("capacity", uint64(pr.cfg.Replication.ShardCapacityBytes)),
-		zap.Uint64("keys", keys),
-		zap.ByteStrings("split-keys", splitKeys))
-
-	if err != nil {
-		pr.logger.Error("fail to scan split key",
-			zap.Error(err))
-		return err
-	}
-
-	pr.approximateSize = size
-	pr.approximateKeys = keys
-	if len(splitKeys) == 0 {
-		pr.sizeDiffHint = size
-		return nil
-	}
-
-	pr.logger.Info("try to split",
-		zap.Uint64("keys", keys),
-		zap.ByteStrings("split-keys", splitKeys))
-
-	current := pr.getShard()
-	if current.Epoch.Version != epoch.Version {
-		pr.logger.Info("epoch changed, need re-check later",
-			log.EpochField("current-epoch", current.Epoch),
-			log.EpochField("check-epoch", epoch))
-		return nil
-	}
-
-	newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
-	if err != nil {
-		pr.logger.Error("fail to ask batch split",
-			zap.Error(err))
-		return err
-	}
-
-	pr.addAction(action{
-		actionType: splitAction,
-		splitKeys:  splitKeys,
-		splitIDs:   newIDs,
-		epoch:      epoch})
-	return nil
 }

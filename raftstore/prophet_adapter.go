@@ -450,8 +450,10 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			pr.addAction(action{
 				epoch:      rsp.ResourceEpoch,
 				actionType: splitAction,
-				splitKeys:  rsp.SplitResource.Keys,
-				splitIDs:   splitIDs,
+				splitCheckData: splitCheckData{
+					splitKeys: rsp.SplitResource.Keys,
+					splitIDs:  splitIDs,
+				},
 			})
 		}
 	}

@@ -44,6 +44,10 @@ type trans interface {
 	Send(meta.RaftMessage)
 }
 
+type replicaGetter interface {
+	getReplica(uint64) (*replica, bool)
+}
+
 type replica struct {
 	logger                *zap.Logger
 	storeID               uint64

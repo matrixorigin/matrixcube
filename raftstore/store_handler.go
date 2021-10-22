@@ -32,18 +32,14 @@ func (s *store) handleSplitCheck() {
 
 	s.forEachReplica(func(pr *replica) bool {
 		if pr.supportSplit() &&
-			pr.isLeader() &&
-			(s.handledCustomSplitCheck(pr.getShard().Group) ||
-				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
-			pr.addAction(action{actionType: checkSplitAction})
+			pr.isLeader() {
+			pr.addAction(action{actionType: checkSplitAction, actionCallback: func(arg interface{}) {
+				s.splitChecker.add(arg.(Shard))
+			}})
 		}
 
 		return true
 	})
-}
-
-func (s *store) handledCustomSplitCheck(group uint64) bool {
-	return s.cfg.Customize.CustomSplitCheckFuncFactory != nil && s.cfg.Customize.CustomSplitCheckFuncFactory(group) != nil
 }
 
 func (s *store) handleShardStateCheck() {
