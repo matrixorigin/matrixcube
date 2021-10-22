@@ -45,7 +45,7 @@ func createPebble(fs vfs.FS, t *testing.T) storage.MetadataStorage {
 	fs.RemoveAll(path)
 	fs.MkdirAll(path, 0755)
 	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
-	s, err := pebble.NewStorage(path, opts)
+	s, err := pebble.NewStorage(path, fs, opts)
 	assert.NoError(t, err, "createPebble failed")
 	return s
 }

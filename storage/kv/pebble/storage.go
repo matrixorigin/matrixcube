@@ -30,15 +30,16 @@ import (
 
 // Storage returns a kv storage based on badger
 type Storage struct {
-	db    *pebble.DB
-	fs    vfs.FS
-	stats stats.Stats
+	db         *pebble.DB
+	snapshotFS vfs.FS
+	stats      stats.Stats
 }
 
 var _ storage.KVStorage = (*Storage)(nil)
 
-// NewStorage returns a pebble backed kv store
-func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
+// NewStorage returns a pebble backed kv store.
+func NewStorage(dir string,
+	snapshotFS vfs.FS, opts *pebble.Options) (*Storage, error) {
 	if !hasEventListener(opts.EventListener) {
 		opts.EventListener = getEventListener()
 	}
@@ -47,20 +48,9 @@ func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
 		return nil, err
 	}
 
-	var fs vfs.FS
-	if opts.FS != nil {
-		if pfs, ok := opts.FS.(*vfs.PebbleFS); ok {
-			fs = pfs.GetVFS()
-		} else {
-			panic("not a pebble fs")
-		}
-	} else {
-		panic("fs not set for pebble")
-	}
-
 	return &Storage{
-		db: db,
-		fs: fs,
+		db:         db,
+		snapshotFS: snapshotFS,
 	}, nil
 }
 
@@ -261,11 +251,11 @@ func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	if err := s.fs.MkdirAll(path, 0755); err != nil {
+	if err := s.snapshotFS.MkdirAll(path, 0755); err != nil {
 		return err
 	}
-	file := s.fs.PathJoin(path, "db.data")
-	f, err := s.fs.Create(file)
+	file := s.snapshotFS.PathJoin(path, "db.data")
+	f, err := s.snapshotFS.Create(file)
 	if err != nil {
 		return err
 	}
@@ -311,7 +301,7 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 
 // ApplySnapshot apply a snapshort file from giving path
 func (s *Storage) ApplySnapshot(path string) error {
-	f, err := s.fs.Open(s.fs.PathJoin(path, "db.data"))
+	f, err := s.snapshotFS.Open(s.snapshotFS.PathJoin(path, "db.data"))
 	if err != nil {
 		return err
 	}

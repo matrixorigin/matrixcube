@@ -106,7 +106,7 @@ func runSimpleStateMachineTest(t *testing.T,
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", opts)
+	st, err := pebble.NewStorage("test-data", fs, opts)
 	require.NoError(t, err)
 	defer st.Close()
 	executor := simple.NewSimpleKVExecutor(st)

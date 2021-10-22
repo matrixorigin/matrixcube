@@ -33,7 +33,7 @@ func getTestMetadataStorage() storage.MetadataStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", opts)
+	st, err := pebble.NewStorage("test-data", fs, opts)
 	if err != nil {
 		panic(err)
 	}
