@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -24,10 +25,6 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/format"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -46,6 +43,9 @@ import (
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -674,7 +674,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 
 		c.fs = vfs.GetTestFS()
-		c.baseDataDir = fmt.Sprintf("%s/%s/%d", c.opts.tmpDir, c.t.Name(), time.Now().Nanosecond())
+		c.baseDataDir = filepath.Join(c.opts.tmpDir, c.t.Name(), fmt.Sprintf("%d", time.Now().Nanosecond()))
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
