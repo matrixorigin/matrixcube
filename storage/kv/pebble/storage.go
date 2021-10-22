@@ -37,6 +37,26 @@ type Storage struct {
 
 var _ storage.KVStorage = (*Storage)(nil)
 
+// CreateLogDBStorage creates the underlying storage that will be used by the
+// LogDB.
+func CreateLogDBStorage(rootDir string, fs vfs.FS) storage.KVStorage {
+	path := fs.PathJoin(rootDir, "logdb")
+	opts := &pebble.Options{
+		FS:                          vfs.NewPebbleFS(fs),
+		MemTableSize:                1024 * 1024 * 64,
+		MemTableStopWritesThreshold: 8,
+		MaxManifestFileSize:         1024 * 1024,
+		MaxConcurrentCompactions:    2,
+		// FIXME: convert the following listener to use zap logger
+		EventListener: getEventListener(),
+	}
+	kv, err := NewStorage(path, fs, opts)
+	if err != nil {
+		panic(err)
+	}
+	return kv
+}
+
 // NewStorage returns a pebble backed kv store.
 func NewStorage(dir string,
 	snapshotFS vfs.FS, opts *pebble.Options) (*Storage, error) {

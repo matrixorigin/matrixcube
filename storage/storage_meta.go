@@ -15,6 +15,7 @@ package storage
 
 // KVMetadataStore is a KV based data store for storing MatrixCube metadata.
 type KVMetadataStore interface {
+	// not allowed to close the store
 	WriteBatchCreator
 	KVStore
 }

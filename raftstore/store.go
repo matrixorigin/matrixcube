@@ -36,6 +36,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 )
@@ -82,6 +83,7 @@ type store struct {
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
 
+	kvStorage       storage.KVStorage
 	logdb           logdb.LogDB
 	trans           transport.Transport
 	snapshotManager snapshot.SnapshotManager
@@ -108,14 +110,15 @@ type store struct {
 // NewStore returns a raft store
 func NewStore(cfg *config.Config) Store {
 	cfg.Adjust()
-
+	kv := pebble.CreateLogDBStorage(cfg.DataPath, cfg.FS)
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
-		meta:    &containerAdapter{},
-		cfg:     cfg,
-		logger:  logger,
-		logdb:   logdb.NewKVLogDB(cfg.Storage.MetaStorage, logger.Named("logdb")),
-		stopper: syncutil.NewStopper(),
+		kvStorage: kv,
+		meta:      &containerAdapter{},
+		cfg:       cfg,
+		logger:    logger,
+		logdb:     logdb.NewKVLogDB(kv, logger.Named("logdb")),
+		stopper:   syncutil.NewStopper(),
 	}
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
 	// TODO: make workerCount configurable
@@ -219,6 +222,9 @@ func (s *store) Stop() {
 		s.shardsProxy.Stop()
 		s.logger.Info("proxy stopped",
 			s.storeField())
+
+		s.kvStorage.Close()
+		s.logger.Info("kvStorage closed")
 	})
 }
 

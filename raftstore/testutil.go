@@ -750,18 +750,15 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
 		}
 
-		if cfg.Storage.MetaStorage == nil {
-			var metaStorage storage.MetadataStorage
-			metaStorage = mem.NewStorage(cfg.FS)
-			if c.opts.useDisk {
-				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "meta"), cfg.FS, c.opts.metaOpts)
-				assert.NoError(c.t, err)
-				metaStorage = s
-			}
-			cfg.Storage.MetaStorage = metaStorage
-			c.metadataStorages = append(c.metadataStorages, metaStorage)
+		var metaStorage storage.MetadataStorage
+		metaStorage = mem.NewStorage(cfg.FS)
+		if c.opts.useDisk {
+			c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
+			s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "meta"), cfg.FS, c.opts.metaOpts)
+			assert.NoError(c.t, err)
+			metaStorage = s
 		}
+		c.metadataStorages = append(c.metadataStorages, metaStorage)
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
 			var kvs storage.KVStorage
