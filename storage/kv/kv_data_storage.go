@@ -278,12 +278,12 @@ func (kv *kvDataStorage) SplitCheck(start, end []byte,
 	return kv.base.SplitCheck(start, end, size)
 }
 
-func (kv *kvDataStorage) CreateSnapshot(path string, start, end []byte) error {
-	return kv.base.CreateSnapshot(path, start, end)
+func (kv *kvDataStorage) CreateSnapshot(shard meta.Shard, path string) (uint64, error) {
+	return kv.base.CreateSnapshot(shard, path)
 }
 
-func (kv *kvDataStorage) ApplySnapshot(path string) error {
-	return kv.base.ApplySnapshot(path)
+func (kv *kvDataStorage) ApplySnapshot(shard meta.Shard, path string) error {
+	return kv.base.ApplySnapshot(shard, path)
 }
 
 func (kv *kvDataStorage) Stats() stats.Stats {

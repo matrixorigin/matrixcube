@@ -71,11 +71,12 @@ type BaseStorage interface {
 	// keys.
 	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
 		currentKeys uint64, splitKeys [][]byte, err error)
-	// CreateSnapshot creates a snapshot stored in the directory specified by the
-	// given path.
-	CreateSnapshot(path string, start, end []byte) error
+	// CreateSnapshot creates a snapshot of the specified shard and stored it in
+	// the directory specified by the given path. It returns the raft log index of
+	// the created snapshot and the encountered error if there is any.
+	CreateSnapshot(shard meta.Shard, path string) (uint64, error)
 	// ApplySnapshot applies the snapshort stored in the given path.
-	ApplySnapshot(path string) error
+	ApplySnapshot(shard meta.Shard, path string) error
 }
 
 // TODO: it doesn't make sense to allow multiple read operations to be batched

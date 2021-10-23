@@ -20,6 +20,7 @@ import (
 	"time"
 
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
@@ -143,14 +144,15 @@ func TestCreateAndApply(t *testing.T) {
 			assert.NoError(t, kv1.Set(key1, value1, false), "TestCreateAndApply failed")
 			assert.NoError(t, kv1.Set(key2, value2, false), "TestCreateAndApply failed")
 
-			err = s1.CreateSnapshot(path, key1, key2)
+			shard := meta.Shard{Start: key1, End: key2}
+			_, err = s1.CreateSnapshot(shard, path)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
 			key4 := []byte("key4")
 			value4 := []byte("value4")
 			assert.NoError(t, kv2.Set(key4, value4, false), "TestCreateAndApply failed")
 
-			err = s2.ApplySnapshot(path)
+			err = s2.ApplySnapshot(shard, path)
 			assert.NoError(t, err, "TestCreateAndApply failed")
 
 			value, err := kv2.Get(key2)

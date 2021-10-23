@@ -173,45 +173,6 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestMetaRangeDelete(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range factories {
-		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t)
-			defer s.Close()
-			key1 := []byte("k1")
-			value1 := []byte("v1")
-
-			key2 := []byte("k2")
-			value2 := []byte("v2")
-
-			key3 := []byte("k3")
-			value3 := []byte("v3")
-
-			s.Set(key1, value1, false)
-			s.Set(key2, value2, false)
-			s.Set(key3, value3, false)
-
-			err := s.RangeDelete(key1, key3, false)
-			assert.NoError(t, err, "TestMetaRangeDelete failed")
-
-			value, err := s.Get(key1)
-			assert.NoError(t, err, "TestMetaRangeDelete failed")
-			assert.Equal(t, "", string(value), "TestMetaRangeDelete failed")
-
-			value, err = s.Get(key2)
-			assert.NoError(t, err, "TestMetaRangeDelete failed")
-			assert.Equal(t, "", string(value), "TestMetaRangeDelete failed")
-
-			value, err = s.Get(key3)
-			assert.NoError(t, err, "TestMetaRangeDelete failed")
-			assert.Equal(t, string(value3), string(value), "TestMetaRangeDelete failed")
-		})
-	}
-}
-
 func TestSeek(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
@@ -242,88 +203,6 @@ func TestSeek(t *testing.T) {
 	}
 }
 
-func TestScan(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range factories {
-		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t)
-			defer s.Close()
-			key1 := []byte("k1")
-			value1 := []byte("v1")
-
-			key2 := []byte("k2")
-			value2 := []byte("v2")
-
-			key3 := []byte("k3")
-			value3 := []byte("v3")
-
-			s.Set(key1, value1, false)
-			s.Set(key2, value2, false)
-			s.Set(key3, value3, false)
-
-			count := 0
-			err := s.Scan(key1, key3, func(key, value []byte) (bool, error) {
-				count++
-				return true, nil
-			}, false)
-			assert.NoError(t, err, "TestScan failed")
-			assert.Equal(t, 2, count, "TestScan failed")
-
-			count = 0
-			err = s.Scan(key1, key3, func(key, value []byte) (bool, error) {
-				count++
-				if count == 1 {
-					return false, nil
-				}
-				return true, nil
-			}, false)
-			assert.NoError(t, err, "TestScan failed")
-			assert.Equal(t, 1, count, "TestScan failed")
-		})
-	}
-}
-
-func TestRangeDelete(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	fs := vfs.GetTestFS()
-	defer vfs.ReportLeakedFD(fs, t)
-	for name, factory := range factories {
-		t.Run(name, func(t *testing.T) {
-			s := factory(fs, t)
-			defer s.Close()
-			key1 := []byte("k1")
-			value1 := []byte("value1")
-
-			key2 := []byte("k2")
-			value2 := []byte("value2")
-
-			key3 := []byte("k3")
-			value3 := []byte("value3")
-
-			assert.NoError(t, s.Set(key1, value1, false), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key2, value2, false), "TestRangeDelete failed")
-			assert.NoError(t, s.Set(key3, value3, false), "TestRangeDelete failed")
-
-			err := s.RangeDelete(key1, key3, false)
-			assert.NoError(t, err, "TestRangeDelete failed")
-
-			value, err := s.Get(key1)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, 0, len(value), "TestRangeDelete failed")
-
-			value, err = s.Get(key2)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, 0, len(value), "TestRangeDelete failed")
-
-			value, err = s.Get(key3)
-			assert.NoError(t, err, "TestRangeDelete failed")
-			assert.Equal(t, len(value3), len(value), "TestRangeDelete failed")
-		})
-	}
-}
-
 func TestPrefixScan(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
@@ -345,5 +224,168 @@ func TestPrefixScan(t *testing.T) {
 				}, false)
 			assert.NoError(t, err)
 		})
+	}
+}
+
+func TestScan(t *testing.T) {
+	tests := []struct {
+		keys   [][]byte
+		start  []byte
+		end    []byte
+		result [][]byte
+	}{
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			[]byte("key1"),
+			[]byte("key3"),
+			[][]byte{[]byte("key1"), []byte("key2")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			nil,
+			[]byte("key3"),
+			[][]byte{[]byte("key1"), []byte("key2")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			[]byte("key2"),
+			nil,
+			[][]byte{[]byte("key2"), []byte("key3")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			nil,
+			nil,
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+		},
+
+		{
+			nil,
+			nil,
+			nil,
+			nil,
+		},
+
+		{
+			nil,
+			[]byte("key1"),
+			nil,
+			nil,
+		},
+
+		{
+			nil,
+			nil,
+			[]byte("key1"),
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		func() {
+			defer leaktest.AfterTest(t)()
+			fs := vfs.GetTestFS()
+			defer vfs.ReportLeakedFD(fs, t)
+			for name, factory := range factories {
+				t.Run(name, func(t *testing.T) {
+					s := factory(fs, t)
+					defer s.Close()
+					for _, key := range tt.keys {
+						assert.NoError(t, s.Set(key, []byte("v"), true))
+					}
+					var result [][]byte
+					assert.NoError(t, s.Scan(tt.start, tt.end, func(k, v []byte) (bool, error) {
+						result = append(result, k)
+						return true, nil
+					}, true))
+					assert.Equal(t, tt.result, result)
+				})
+			}
+		}()
+	}
+}
+
+func TestRangeDelete(t *testing.T) {
+	tests := []struct {
+		keys   [][]byte
+		start  []byte
+		end    []byte
+		result [][]byte
+	}{
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			[]byte("key1"),
+			[]byte("key3"),
+			[][]byte{[]byte("key3")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			nil,
+			[]byte("key3"),
+			[][]byte{[]byte("key3")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			[]byte("key2"),
+			nil,
+			[][]byte{[]byte("key1")},
+		},
+
+		{
+			[][]byte{[]byte("key1"), []byte("key2"), []byte("key3")},
+			nil,
+			nil,
+			nil,
+		},
+
+		{
+			nil,
+			nil,
+			nil,
+			nil,
+		},
+
+		{
+			nil,
+			[]byte("key1"),
+			nil,
+			nil,
+		},
+
+		{
+			nil,
+			nil,
+			[]byte("key1"),
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		func() {
+			defer leaktest.AfterTest(t)()
+			fs := vfs.GetTestFS()
+			defer vfs.ReportLeakedFD(fs, t)
+			for name, factory := range factories {
+				t.Run(name, func(t *testing.T) {
+					s := factory(fs, t)
+					defer s.Close()
+					for _, key := range tt.keys {
+						assert.NoError(t, s.Set(key, []byte("v"), true))
+					}
+					assert.NoError(t, s.RangeDelete(tt.start, tt.end, true))
+					var result [][]byte
+					assert.NoError(t, s.Scan(nil, nil, func(k, v []byte) (bool, error) {
+						result = append(result, k)
+						return true, nil
+					}, true))
+					assert.Equal(t, tt.result, result)
+				})
+			}
+		}()
 	}
 }

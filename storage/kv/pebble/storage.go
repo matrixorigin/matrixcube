@@ -21,7 +21,9 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
+
 	"github.com/matrixorigin/matrixcube/keys"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
@@ -79,7 +81,7 @@ func (s *Storage) Stats() stats.Stats {
 }
 
 // Set put the key, value pair to the storage
-func (s *Storage) Set(key []byte, value []byte, sync bool) error {
+func (s *Storage) Set(key, value []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
 	return s.db.Set(key, value, toWriteOptions(sync))
@@ -116,6 +118,43 @@ func (s *Storage) Delete(key []byte, sync bool) error {
 func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 2)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(start)+len(end)))
+
+	if len(start) == 0 {
+		iter := s.db.NewIter(&pebble.IterOptions{})
+		defer iter.Close()
+
+		if iter.First() && iter.Valid() {
+			if err := iter.Error(); err != nil {
+				return err
+			}
+			fk := iter.Key()
+			startKey := make([]byte, len(fk))
+			copy(startKey, fk)
+			start = startKey
+		}
+	}
+
+	if len(end) == 0 {
+		iter := s.db.NewIter(&pebble.IterOptions{})
+		defer iter.Close()
+
+		if iter.Last() && iter.Valid() {
+			if err := iter.Error(); err != nil {
+				return err
+			}
+			lk := iter.Key()
+			endKey := make([]byte, len(lk)+1)
+			copy(endKey, lk)
+			endKey[len(lk)] = 0x1
+			end = endKey
+		}
+	}
+
+	// empty db
+	if len(start) == 0 && len(end) == 0 {
+		return nil
+	}
+
 	return s.db.DeleteRange(start, end, toWriteOptions(sync))
 }
 
@@ -123,7 +162,14 @@ func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 // returns false, the scan will be terminated.
 // The Handler func will received a cloned the key and value, if the `copy` is true.
 func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
-	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+	iter := s.db.NewIter(ios)
 	defer iter.Close()
 
 	iter.First()
@@ -196,7 +242,15 @@ func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uin
 	appendSplitKey := false
 	var splitKeys [][]byte
 
-	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+
+	iter := s.db.NewIter(ios)
 	defer iter.Close()
 
 	iter.First()
@@ -270,43 +324,47 @@ func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
 // special attention paid to its sync state.
 
 // CreateSnapshot create a snapshot file under the giving path
-func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
+func (s *Storage) CreateSnapshot(shard meta.Shard, path string) (uint64, error) {
 	if err := s.snapshotFS.MkdirAll(path, 0755); err != nil {
-		return err
+		return 0, err
 	}
 	file := s.snapshotFS.PathJoin(path, "db.data")
 	f, err := s.snapshotFS.Create(file)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
-	if err := writeBytes(f, start); err != nil {
-		return err
+	if err := writeBytes(f, shard.Start); err != nil {
+		return 0, err
 	}
-	if err := writeBytes(f, end); err != nil {
-		return err
+	if err := writeBytes(f, shard.End); err != nil {
+		return 0, err
+	}
+
+	ios := &pebble.IterOptions{LowerBound: shard.Start}
+	if len(shard.End) > 0 {
+		ios.UpperBound = shard.End
 	}
 
 	snap := s.db.NewSnapshot()
 	defer snap.Close()
-	iter := snap.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
+	iter := snap.NewIter(ios)
 	defer iter.Close()
 	iter.First()
 	for iter.Valid() {
-		err := iter.Error()
-		if err != nil {
-			return err
+		if err := iter.Error(); err != nil {
+			return 0, err
 		}
 
-		if bytes.Compare(iter.Key(), end) >= 0 {
+		if len(shard.End) > 0 && bytes.Compare(iter.Key(), shard.End) >= 0 {
 			break
 		}
 
 		if err := writeBytes(f, iter.Key()); err != nil {
-			return err
+			return 0, err
 		}
 		if err = writeBytes(f, iter.Value()); err != nil {
-			return err
+			return 0, err
 		}
 		n := uint64(len(iter.Key()) + len(iter.Value()))
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
@@ -316,11 +374,11 @@ func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
 		iter.Next()
 	}
 
-	return nil
+	return 0, nil
 }
 
 // ApplySnapshot apply a snapshort file from giving path
-func (s *Storage) ApplySnapshot(path string) error {
+func (s *Storage) ApplySnapshot(shard meta.Shard, path string) error {
 	f, err := s.snapshotFS.Open(s.snapshotFS.PathJoin(path, "db.data"))
 	if err != nil {
 		return err
