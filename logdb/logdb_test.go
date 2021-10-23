@@ -48,11 +48,11 @@ var (
 	testPeerID  uint64 = 202
 )
 
-func getTestMetadataStorage(fs vfs.FS) storage.MetadataStorage {
+func getTestStorage(fs vfs.FS) storage.KVStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", fs, opts)
+	st, err := pebble.NewStorage("test-data", opts)
 	if err != nil {
 		panic(err)
 	}
@@ -60,9 +60,9 @@ func getTestMetadataStorage(fs vfs.FS) storage.MetadataStorage {
 }
 
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
-	ms := getTestMetadataStorage(fs)
-	defer ms.Close()
-	db := NewKVLogDB(ms, log.GetDefaultZapLogger())
+	kv := getTestStorage(fs)
+	defer kv.Close()
+	db := NewKVLogDB(kv, log.GetDefaultZapLogger())
 	tf(t, db)
 }
 

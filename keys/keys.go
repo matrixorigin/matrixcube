@@ -96,6 +96,13 @@ func GetMetadataIndex(key []byte) (uint64, error) {
 	return parseUint64(key[idKeyLength:]), nil
 }
 
+func GetShardIDFromMetadataKey(key []byte) (uint64, error) {
+	if !IsMetadataKey(key) {
+		return 0, fmt.Errorf("key<%v> is not a valid metadata key", key)
+	}
+	return parseUint64(key[len(raftPrefixKey):]), nil
+}
+
 func IsMetadataKey(key []byte) bool {
 	return isRaftSuffixKey(key, metadataSuffix) && len(key) == indexedIDKeyLength
 }

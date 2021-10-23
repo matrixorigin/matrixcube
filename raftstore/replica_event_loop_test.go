@@ -28,12 +28,12 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
-func getTestMetadataStorage() storage.MetadataStorage {
+func getTestStorage() storage.KVStorage {
 	fs := vfs.NewMemFS()
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", fs, opts)
+	st, err := pebble.NewStorage("test-data", opts)
 	if err != nil {
 		panic(err)
 	}
@@ -46,8 +46,8 @@ func getCloseableReplica() *replica {
 	l := log.GetDefaultZapLogger()
 	r := Replica{}
 	shardID := uint64(1)
-	ms := getTestMetadataStorage()
-	ldb := logdb.NewKVLogDB(ms, log.GetDefaultZapLogger())
+	kv := getTestStorage()
+	ldb := logdb.NewKVLogDB(kv, log.GetDefaultZapLogger())
 	c := &raft.Config{
 		ID:              1,
 		ElectionTick:    10,

@@ -74,9 +74,9 @@ type BaseStorage interface {
 	// CreateSnapshot creates a snapshot of the specified shard and stored it in
 	// the directory specified by the given path. It returns the raft log index of
 	// the created snapshot and the encountered error if there is any.
-	CreateSnapshot(shard meta.Shard, path string) (uint64, error)
+	CreateSnapshot(shardID uint64, path string) (uint64, error)
 	// ApplySnapshot applies the snapshort stored in the given path.
-	ApplySnapshot(shard meta.Shard, path string) error
+	ApplySnapshot(shardID uint64, path string) error
 }
 
 // TODO: it doesn't make sense to allow multiple read operations to be batched

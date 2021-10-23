@@ -59,7 +59,7 @@ func TestReadAndWrite(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 
-	kv := mem.NewStorage(fs)
+	kv := mem.NewStorage()
 	executor := NewSimpleKVExecutor(kv)
 
 	for i, c := range cases {

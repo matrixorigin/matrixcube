@@ -20,15 +20,12 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
-// NewStorage returns a pebble based storage backed by in-mem fs. All
-// Key-Value paris will be stored in memory while snapshot related data will be
-// stored in the filesystem specified in the input parameter fs.
-func NewStorage(fs vfs.FS) *pebble.Storage {
-	memfs := vfs.NewMemFS()
+// NewStorage returns a pebble based storage backed by an in-memory fs.
+func NewStorage() *pebble.Storage {
 	opts := &cpebble.Options{
-		FS: vfs.NewPebbleFS(memfs),
+		FS: vfs.NewPebbleFS(vfs.NewMemFS()),
 	}
-	s, err := pebble.NewStorage("test-data", fs, opts)
+	s, err := pebble.NewStorage("test-data", opts)
 	if err != nil {
 		panic(err)
 	}

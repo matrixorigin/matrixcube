@@ -30,22 +30,22 @@ import (
 )
 
 var (
-	factories = map[string]func(vfs.FS, *testing.T) storage.MetadataStorage{
+	factories = map[string]func(vfs.FS, *testing.T) storage.KVStorage{
 		"memory": createMem,
 		"pebble": createPebble,
 	}
 )
 
-func createMem(fs vfs.FS, t *testing.T) storage.MetadataStorage {
-	return mem.NewStorage(fs)
+func createMem(fs vfs.FS, t *testing.T) storage.KVStorage {
+	return mem.NewStorage()
 }
 
-func createPebble(fs vfs.FS, t *testing.T) storage.MetadataStorage {
+func createPebble(fs vfs.FS, t *testing.T) storage.KVStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
 	fs.RemoveAll(path)
 	fs.MkdirAll(path, 0755)
 	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
-	s, err := pebble.NewStorage(path, fs, opts)
+	s, err := pebble.NewStorage(path, opts)
 	assert.NoError(t, err, "createPebble failed")
 	return s
 }

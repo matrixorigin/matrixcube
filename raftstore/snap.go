@@ -172,14 +172,12 @@ func (m *defaultSnapshotManager) Deregister(msg *meta.SnapshotMessage, step int)
 func (m *defaultSnapshotManager) Create(msg *meta.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
-	start := msg.Header.Shard.Start
-	end := msg.Header.Shard.End
 	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
 	fs := m.s.cfg.FS
 
 	if !exist(fs, gzPath) {
 		if !exist(fs, path) {
-			err := db.CreateSnapshot(path, start, end)
+			_, err := db.CreateSnapshot(msg.Header.Shard.ID, path)
 			if err != nil {
 				return err
 			}
@@ -399,7 +397,7 @@ func (m *defaultSnapshotManager) Apply(msg *meta.SnapshotMessage) error {
 	defer m.s.cfg.FS.RemoveAll(dir)
 
 	// apply snapshot of data
-	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(dir)
+	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(msg.Header.Shard.ID, dir)
 	if err != nil {
 		return err
 	}

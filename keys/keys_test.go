@@ -94,6 +94,32 @@ func TestGetShardIDFromAppliedIndexKey(t *testing.T) {
 	}
 }
 
+func TestGetMetadataShradID(t *testing.T) {
+	tests := []struct {
+		key     []byte
+		shardID uint64
+		noError bool
+	}{
+		{GetMetadataKey(100, 1, nil), 100, true},
+		{GetMetadataKey(200, 11, nil), 200, true},
+		{GetAppliedIndexKey(0, nil), 0, false},
+		{GetStoreIdentKey(), 0, false},
+		{GetHardStateKey(1, 1, nil), 0, false},
+		{GetMaxIndexKey(1, nil), 0, false},
+		{GetRaftLogKey(1, 1, nil), 0, false},
+	}
+
+	for _, tt := range tests {
+		v, err := GetShardIDFromMetadataKey(tt.key)
+		if tt.noError {
+			assert.NoError(t, err)
+		} else {
+			assert.Error(t, err)
+		}
+		assert.Equal(t, tt.shardID, v)
+	}
+}
+
 func TestGetMetadataIndex(t *testing.T) {
 	tests := []struct {
 		key     []byte
