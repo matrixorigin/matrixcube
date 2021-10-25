@@ -159,10 +159,6 @@ func (c *Config) validate() {
 		panic("missing Config.Storage.DataStorageFactory")
 	}
 
-	if c.Storage.MetaStorage == nil {
-		panic("missing Config.Storage.MetaStorage")
-	}
-
 	if c.Storage.ForeachDataStorageFunc == nil {
 		panic("missing Config.Storage.ForeachDataStorageFunc")
 	}
@@ -360,8 +356,7 @@ func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
 
 // StorageConfig storage config
 type StorageConfig struct {
-	// MetaStorage used to store raft, shards and store's metadata
-	MetaStorage storage.MetadataStorage
+
 	// DataStorageFactory is a storage factory  to store application's data
 	DataStorageFactory func(group uint64) storage.DataStorage
 	// ForeachDataStorageFunc do in every storage

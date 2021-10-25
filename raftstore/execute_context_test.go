@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
@@ -39,8 +40,9 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	}
 
 	shard := Shard{ID: 12345}
-	fs := vfs.GetTestFS()
-	ctx := newWriteContext(mem.NewStorage(fs))
+	base := kv.NewBaseStorage(mem.NewStorage(), vfs.GetTestFS())
+	defer base.Close()
+	ctx := newWriteContext(base)
 	assert.False(t, ctx.hasRequest())
 	for i, c := range cases {
 		ctx.initialize(shard, 0, c.batch)

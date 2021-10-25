@@ -17,8 +17,16 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 )
 
+// View is a point in time view of the KVStore.
+type View interface {
+	Close() error
+	Raw() interface{}
+}
+
 // KVStore is the interface for supported key-value based data store operations.
 type KVStore interface {
+	// GetView returns a point in time view of the KVStore.
+	GetView() View
 	// Write writes the data in batch to the storage.
 	Write(wb util.WriteBatch, sync bool) error
 	// Set puts the key-value pair to the storage.
@@ -36,6 +44,10 @@ type KVStore interface {
 	// function.
 	Scan(start, end []byte,
 		handler func(key, value []byte) (bool, error), copy bool) error
+	// ScanInView is similar to Scan, it performs the Scan operation on the
+	// specified view.
+	ScanInView(view View, start, end []byte,
+		handler func(key, value []byte) (bool, error)) error
 	// PrefixScan scans all key-value pairs that share the specified prefix, the
 	// specified handler function will be invoked on each such key-value pairs
 	// until false is returned by the handler function. Depending on the copy
@@ -56,6 +68,21 @@ type KVStore interface {
 
 // KVStorage is key-value based storage.
 type KVStorage interface {
+	Closeable
+	WriteBatchCreator
+	StatsKeeper
+	KVStore
+}
+
+// KVMetadataStore is a KV based data store for storing MatrixCube metadata.
+type KVMetadataStore interface {
+	// not allowed to close the store
+	WriteBatchCreator
+	KVStore
+}
+
+// KVBaseStorage is a KV based base storage.
+type KVBaseStorage interface {
 	BaseStorage
 	KVStore
 }

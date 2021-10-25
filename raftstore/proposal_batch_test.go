@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 )
@@ -105,11 +104,9 @@ func TestProposalBatchPop(t *testing.T) {
 	assert.Equal(t, 2, b.size())
 	v1, ok := b.pop()
 	assert.True(t, ok)
-	r1.req.Key = keys.EncodeDataKey(1, r1.req.Key, nil)
 	assert.Equal(t, r1.req, v1.requestBatch.Requests[0])
 	v2, ok := b.pop()
 	assert.True(t, ok)
-	r2.req.Key = keys.EncodeDataKey(1, r2.req.Key, nil)
 	assert.Equal(t, r2.req, v2.requestBatch.Requests[0])
 	v3, ok := b.pop()
 	assert.False(t, ok)

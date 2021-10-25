@@ -18,7 +18,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
@@ -111,7 +110,6 @@ func (pr *replica) shutdown() {
 		}
 		if c, ok := pr.incomingProposals.pop(); ok {
 			for _, req := range c.requestBatch.Requests {
-				req.Key = keys.DecodeDataKey(req.Key)
 				respStoreNotMatch(errStoreNotMatch, req, c.cb)
 			}
 		}
@@ -123,7 +121,6 @@ func (pr *replica) shutdown() {
 	// resp all pending requests in batch and queue
 	for _, rr := range pr.pendingReads.reads {
 		for _, req := range rr.batch.Requests {
-			req.Key = keys.DecodeDataKey(req.Key)
 			respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
 		}
 	}

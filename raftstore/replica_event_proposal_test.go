@@ -359,8 +359,8 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 				ID: 1,
 			},
 		}
-		ms := getTestMetadataStorage()
-		ldb := logdb.NewKVLogDB(ms, log.GetDefaultZapLogger())
+		kv := getTestStorage()
+		ldb := logdb.NewKVLogDB(kv, log.GetDefaultZapLogger())
 		c := &raft.Config{
 			ID:              1,
 			ElectionTick:    10,

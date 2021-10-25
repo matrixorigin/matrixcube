@@ -49,6 +49,7 @@ all: test
 .PHONY: test-storage
 test-storage:
 	$(GOTEST) $(PKGNAME)/storage/kv
+	$(GOTEST) $(PKGNAME)/storage/executor/simple
 
 .PHONY: test-logdb
 test-logdb:

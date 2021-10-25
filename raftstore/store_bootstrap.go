@@ -129,7 +129,7 @@ func (s *store) doBootstrapCluster() {
 
 func (s *store) mustSaveStoreMetadata() {
 	count := 0
-	err := s.cfg.Storage.MetaStorage.Scan(keys.GetRaftPrefix(0), keys.GetRaftPrefix(math.MaxUint64), func([]byte, []byte) (bool, error) {
+	err := s.kvStorage.Scan(keys.GetRaftPrefix(0), keys.GetRaftPrefix(math.MaxUint64), func([]byte, []byte) (bool, error) {
 		count++
 		return false, nil
 	}, false)
@@ -147,7 +147,7 @@ func (s *store) mustSaveStoreMetadata() {
 		StoreID:   s.meta.meta.ID,
 		ClusterID: s.pd.GetClusterID(),
 	}
-	err = s.cfg.Storage.MetaStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
+	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
 	if err != nil {
 		s.logger.Fatal("fail to save local store id",
 			s.storeField(),
@@ -156,7 +156,7 @@ func (s *store) mustSaveStoreMetadata() {
 }
 
 func (s *store) mustLoadStoreMetadata() bool {
-	data, err := s.cfg.Storage.MetaStorage.Get(keys.GetStoreIdentKey())
+	data, err := s.kvStorage.Get(keys.GetStoreIdentKey())
 	if err != nil {
 		s.logger.Fatal("fail to load store metadata",
 			s.storeField(),
@@ -229,9 +229,7 @@ func (s *store) mustSaveShards(shards ...Shard) {
 func (s *store) removeInitShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		for _, shard := range v {
-			err := ds.RemoveShardData(shard,
-				keys.EncodeStartKey(shard, nil), keys.EncodeEndKey(shard, nil))
-			if err != nil {
+			if err := ds.RemoveShardData(shard); err != nil {
 				s.logger.Fatal("fail to remove init shards",
 					s.storeField(),
 					zap.Error(err))

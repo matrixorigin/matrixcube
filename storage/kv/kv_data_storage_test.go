@@ -9,15 +9,26 @@ import (
 	"github.com/fagongzi/util/format"
 	pvfs "github.com/lni/vfs"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
-	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/vfs"
-	"github.com/stretchr/testify/assert"
 )
+
+const (
+	testDir = "test-dir-safe-to-delete"
+)
+
+func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
+	fs.RemoveAll(testDir)
+	base, err := pebble.NewStorage(testDir, &cpebble.Options{FS: vfs.NewPebbleFS(fs)})
+	require.NoError(t, err)
+	return base
+}
 
 func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 	tests := []struct {
@@ -35,16 +46,18 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 		func() {
 			fs := vfs.GetTestFS()
 			defer vfs.ReportLeakedFD(fs, t)
-			base := mem.NewStorage(fs)
+			kv := getTestPebbleStorage(t, fs)
+			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
 			defer s.Close()
+			defer fs.RemoveAll(testDir)
 			assert.NoError(t, s.SaveShardMetadata(tt.inputs))
-			kv := s.(*kvDataStorage)
+			kvd := s.(*kvDataStorage)
 			for _, m := range tt.inputs {
-				index, ok := kv.mu.lastAppliedIndexes[m.ShardID]
+				index, ok := kvd.mu.lastAppliedIndexes[m.ShardID]
 				assert.True(t, ok)
 				assert.Equal(t, m.LogIndex, index)
-				v, err := kv.base.Get(keys.GetAppliedIndexKey(m.ShardID, nil))
+				v, err := kvd.base.Get(keys.GetAppliedIndexKey(m.ShardID, nil))
 				assert.NoError(t, err)
 				assert.Equal(t, m.LogIndex, buf.Byte2UInt64(v))
 			}
@@ -71,10 +84,11 @@ func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 		func() {
 			fs := vfs.GetTestFS()
 			defer vfs.ReportLeakedFD(fs, t)
-			base := mem.NewStorage(fs)
-
+			kv := getTestPebbleStorage(t, fs)
+			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
 			defer s.Close()
+			defer fs.RemoveAll(testDir)
 
 			assert.NoError(t, s.SaveShardMetadata(c.inputs), "index %d", i)
 
@@ -89,9 +103,11 @@ func TestGetInitialStatesReturnsTheMostRecentMetadata(t *testing.T) {
 	inputs := newTestShardMetadata(2)
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
-	base := mem.NewStorage(fs)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
 	defer s.Close()
+	defer fs.RemoveAll(testDir)
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 
 	for idx := range inputs {
@@ -110,9 +126,11 @@ func TestGetInitialStatesLoadsPersistentLogIndexValues(t *testing.T) {
 	inputs := newTestShardMetadata(2)
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
-	base := mem.NewStorage(fs)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
 	defer s.Close()
+	defer fs.RemoveAll(testDir)
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 	values, err := s.GetInitialStates()
 	assert.NoError(t, err)
@@ -126,9 +144,11 @@ func TestGetInitialStatesLoadsPersistentLogIndexValues(t *testing.T) {
 func TestGetPersistentLogIndexWillPanicWhenPersistentIndexesAreNotLoaded(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
-	base := mem.NewStorage(fs)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
 	defer s.Close()
+	defer fs.RemoveAll(testDir)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("panic not triggered")
@@ -140,10 +160,11 @@ func TestGetPersistentLogIndexWillPanicWhenPersistentIndexesAreNotLoaded(t *test
 func TestGetPersistentLogIndex(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
-	base := mem.NewStorage(fs)
-
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
 	defer s.Close()
+	defer fs.RemoveAll(testDir)
 
 	cases := []struct {
 		sample       uint64
@@ -166,10 +187,11 @@ func TestGetPersistentLogIndex(t *testing.T) {
 		func() {
 			fs := vfs.GetTestFS()
 			defer vfs.ReportLeakedFD(fs, t)
-			base := mem.NewStorage(fs)
-
+			kv := getTestPebbleStorage(t, fs)
+			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(c.sample))
 			defer s.Close()
+			defer fs.RemoveAll(testDir)
 
 			s.(*kvDataStorage).mu.loaded = true
 			for i := 1; i <= c.requests; i++ {
@@ -185,8 +207,8 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			assert.NoError(t, err, "index %d", i)
 			assert.Equal(t, c.appliedIndex, appliedIndex, "index %d", i)
 
-			kv := s.(*kvDataStorage)
-			v, err := kv.base.Get(keys.GetAppliedIndexKey(0, nil))
+			kvd := s.(*kvDataStorage)
+			v, err := kvd.base.Get(keys.GetAppliedIndexKey(0, nil))
 			assert.NoError(t, err)
 			assert.Equal(t, uint64(c.requests), buf.Byte2UInt64(v))
 		}()
@@ -206,8 +228,9 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		dir.Sync()
 		shardID := uint64(1)
 		persistentLogIndex, metadataLogIndex := func() (uint64, uint64) {
-			base, err := pebble.NewStorage("test-data", opts)
+			kv, err := pebble.NewStorage("test-data", opts)
 			assert.NoError(t, err)
+			base := NewBaseStorage(kv, memfs)
 			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))
 			defer func() {
 				// to emulate a crash
@@ -271,8 +294,9 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		assert.True(t, metadataLogIndex > 0)
 		memfs.(*pvfs.MemFS).ResetToSyncedState()
 		memfs.(*pvfs.MemFS).SetIgnoreSyncs(false)
-		base, err := pebble.NewStorage("test-data", opts)
+		kv, err := pebble.NewStorage("test-data", opts)
 		assert.NoError(t, err)
+		base := NewBaseStorage(kv, memfs)
 		s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))
 		defer s.Close()
 		md, err := s.GetInitialStates()

@@ -20,7 +20,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -76,12 +75,10 @@ func (pr *replica) doSplit(splitKeys [][]byte, splitIDs []rpcpb.SplitID, epoch m
 func (pr *replica) doCheckSplit() error {
 	shard := pr.getShard()
 	epoch := shard.Epoch
-	startKey := keys.EncodeStartKey(shard, nil)
-	endKey := keys.EncodeEndKey(shard, nil)
 
 	pr.logger.Info("start split check job",
-		log.HexField("from", startKey),
-		log.HexField("end", endKey))
+		log.HexField("from", shard.Start),
+		log.HexField("end", shard.End))
 
 	var size uint64
 	var keys uint64
@@ -97,7 +94,9 @@ func (pr *replica) doCheckSplit() error {
 	}
 
 	if useDefault {
-		size, keys, splitKeys, err = pr.store.DataStorageByGroup(shard.Group).SplitCheck(startKey, endKey, uint64(pr.cfg.Replication.ShardCapacityBytes))
+		ds := pr.store.DataStorageByGroup(shard.Group)
+		size, keys, splitKeys, err = ds.SplitCheck(shard.Start,
+			shard.End, uint64(pr.cfg.Replication.ShardCapacityBytes))
 	}
 
 	pr.logger.Debug("split check result",
