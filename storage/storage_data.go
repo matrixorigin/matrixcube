@@ -71,11 +71,12 @@ type BaseStorage interface {
 	// keys.
 	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
 		currentKeys uint64, splitKeys [][]byte, err error)
-	// CreateSnapshot creates a snapshot stored in the directory specified by the
-	// given path.
-	CreateSnapshot(path string, start, end []byte) error
+	// CreateSnapshot creates a snapshot of the specified shard and stored it in
+	// the directory specified by the given path. It returns the raft log index of
+	// the created snapshot and the encountered error if there is any.
+	CreateSnapshot(shardID uint64, path string) (uint64, error)
 	// ApplySnapshot applies the snapshort stored in the given path.
-	ApplySnapshot(path string) error
+	ApplySnapshot(shardID uint64, path string) error
 }
 
 // TODO: it doesn't make sense to allow multiple read operations to be batched
@@ -133,7 +134,7 @@ type DataStorage interface {
 	// RemoveShardData is used for cleaning up data for the specified shard. It is
 	// up to the implementation to decide whether to do the cleaning asynchronously
 	// or not.
-	RemoveShardData(shard meta.Shard, start, end []byte) error
+	RemoveShardData(shard meta.Shard) error
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.
 	Sync([]uint64) error

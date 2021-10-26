@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/buf"
@@ -114,7 +113,6 @@ func (b *proposalBatch) push(group uint64, c reqCtx) {
 
 	// use data key to store
 	if !isAdmin {
-		req.Key = keys.EncodeDataKey(group, req.Key, nil)
 		b.buf.Clear()
 	}
 

@@ -15,12 +15,10 @@ package pebble
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
-	"io"
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
+
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
@@ -28,16 +26,47 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
+type view struct {
+	ss *pebble.Snapshot
+}
+
+func (v *view) Close() error {
+	return v.ss.Close()
+}
+
+func (v *view) Raw() interface{} {
+	return v.ss
+}
+
 // Storage returns a kv storage based on badger
 type Storage struct {
 	db    *pebble.DB
-	fs    vfs.FS
 	stats stats.Stats
 }
 
 var _ storage.KVStorage = (*Storage)(nil)
 
-// NewStorage returns a pebble backed kv store
+// CreateLogDBStorage creates the underlying storage that will be used by the
+// LogDB.
+func CreateLogDBStorage(rootDir string, fs vfs.FS) storage.KVStorage {
+	path := fs.PathJoin(rootDir, "logdb")
+	opts := &pebble.Options{
+		FS:                          vfs.NewPebbleFS(fs),
+		MemTableSize:                1024 * 1024 * 64,
+		MemTableStopWritesThreshold: 8,
+		MaxManifestFileSize:         1024 * 1024,
+		MaxConcurrentCompactions:    2,
+		// FIXME: convert the following listener to use zap logger
+		EventListener: getEventListener(),
+	}
+	kv, err := NewStorage(path, opts)
+	if err != nil {
+		panic(err)
+	}
+	return kv
+}
+
+// NewStorage returns a pebble backed kv store.
 func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
 	if !hasEventListener(opts.EventListener) {
 		opts.EventListener = getEventListener()
@@ -47,29 +76,28 @@ func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
 		return nil, err
 	}
 
-	var fs vfs.FS
-	if opts.FS != nil {
-		if pfs, ok := opts.FS.(*vfs.PebbleFS); ok {
-			fs = pfs.GetVFS()
-		} else {
-			panic("not a pebble fs")
-		}
-	} else {
-		panic("fs not set for pebble")
-	}
-
 	return &Storage{
 		db: db,
-		fs: fs,
 	}, nil
 }
 
-func (s *Storage) Stats() stats.Stats {
-	return s.stats
+func (s *Storage) GetView() storage.View {
+	return &view{ss: s.db.NewSnapshot()}
+}
+
+// Close close the storage
+func (s *Storage) Close() error {
+	return s.db.Close()
+}
+
+// Write write the data in batch
+func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
+	wb := uwb.(*writeBatch)
+	return s.db.Apply(wb.batch, toWriteOptions(sync))
 }
 
 // Set put the key, value pair to the storage
-func (s *Storage) Set(key []byte, value []byte, sync bool) error {
+func (s *Storage) Set(key, value []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 1)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(value)+len(key)))
 	return s.db.Set(key, value, toWriteOptions(sync))
@@ -106,6 +134,43 @@ func (s *Storage) Delete(key []byte, sync bool) error {
 func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 	atomic.AddUint64(&s.stats.WrittenKeys, 2)
 	atomic.AddUint64(&s.stats.WrittenBytes, uint64(len(start)+len(end)))
+
+	if len(start) == 0 {
+		iter := s.db.NewIter(&pebble.IterOptions{})
+		defer iter.Close()
+
+		if iter.First() && iter.Valid() {
+			if err := iter.Error(); err != nil {
+				return err
+			}
+			fk := iter.Key()
+			startKey := make([]byte, len(fk))
+			copy(startKey, fk)
+			start = startKey
+		}
+	}
+
+	if len(end) == 0 {
+		iter := s.db.NewIter(&pebble.IterOptions{})
+		defer iter.Close()
+
+		if iter.Last() && iter.Valid() {
+			if err := iter.Error(); err != nil {
+				return err
+			}
+			lk := iter.Key()
+			endKey := make([]byte, len(lk)+1)
+			copy(endKey, lk)
+			endKey[len(lk)] = 0x1
+			end = endKey
+		}
+	}
+
+	// empty db
+	if len(start) == 0 && len(end) == 0 {
+		return nil
+	}
+
 	return s.db.DeleteRange(start, end, toWriteOptions(sync))
 }
 
@@ -113,7 +178,14 @@ func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 // returns false, the scan will be terminated.
 // The Handler func will received a cloned the key and value, if the `copy` is true.
 func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
-	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+	iter := s.db.NewIter(ios)
 	defer iter.Close()
 
 	iter.First()
@@ -128,6 +200,40 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
 		}
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&s.stats.ReadKeys, 1)
+		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
+		if !ok {
+			break
+		}
+		iter.Next()
+	}
+
+	return nil
+}
+
+func (s *Storage) ScanInView(view storage.View,
+	start, end []byte, handler func(key, value []byte) (bool, error)) error {
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+	ss := view.Raw().(*pebble.Snapshot)
+	iter := ss.NewIter(ios)
+	defer iter.Close()
+
+	iter.First()
+	for iter.Valid() {
+		err := iter.Error()
+		if err != nil {
+			return err
+		}
+		ok, err := handler(clone(iter.Key()), clone(iter.Value()))
 		if err != nil {
 			return err
 		}
@@ -177,47 +283,6 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 	return nil
 }
 
-// SplitCheck Find a key from [start, end), so that the sum of bytes of the value of [start, key) <=size,
-// returns the current bytes in [start,end), and the founded key
-func (s *Storage) SplitCheck(start []byte, end []byte, size uint64) (uint64, uint64, [][]byte, error) {
-	total := uint64(0)
-	keys := uint64(0)
-	sum := uint64(0)
-	appendSplitKey := false
-	var splitKeys [][]byte
-
-	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
-	defer iter.Close()
-
-	iter.First()
-	for iter.Valid() {
-		if err := iter.Error(); err != nil {
-			return 0, 0, nil, err
-		}
-		if bytes.Compare(iter.Key(), end) >= 0 {
-			break
-		}
-		if appendSplitKey {
-			splitKeys = append(splitKeys, clone(iter.Key()))
-			appendSplitKey = false
-			sum = 0
-		}
-		n := uint64(len(iter.Key()) + len(iter.Value()))
-		sum += n
-		total += n
-		keys++
-		atomic.AddUint64(&s.stats.ReadKeys, 1)
-		if sum >= size {
-			appendSplitKey = true
-		}
-		iter.Next()
-	}
-	if total > 0 {
-		atomic.AddUint64(&s.stats.ReadBytes, total)
-	}
-	return total, keys, splitKeys, nil
-}
-
 // Seek returns the first key-value that >= key
 func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	var key, value []byte
@@ -245,126 +310,13 @@ func (s *Storage) Sync() error {
 	return s.db.Apply(wb, pebble.Sync)
 }
 
+func (s *Storage) Stats() stats.Stats {
+	return s.stats
+}
+
 // NewWriteBatch create and returns write batch
 func (s *Storage) NewWriteBatch() storage.Resetable {
 	return newWriteBatch(s.db.NewBatch(), &s.stats)
-}
-
-// Write write the data in batch
-func (s *Storage) Write(uwb util.WriteBatch, sync bool) error {
-	wb := uwb.(*writeBatch)
-	return s.db.Apply(wb.batch, toWriteOptions(sync))
-}
-
-// TODO: change the snapshot ops below to sst ingestion based with
-// special attention paid to its sync state.
-
-// CreateSnapshot create a snapshot file under the giving path
-func (s *Storage) CreateSnapshot(path string, start, end []byte) error {
-	if err := s.fs.MkdirAll(path, 0755); err != nil {
-		return err
-	}
-	file := s.fs.PathJoin(path, "db.data")
-	f, err := s.fs.Create(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if err := writeBytes(f, start); err != nil {
-		return err
-	}
-	if err := writeBytes(f, end); err != nil {
-		return err
-	}
-
-	snap := s.db.NewSnapshot()
-	defer snap.Close()
-	iter := snap.NewIter(&pebble.IterOptions{LowerBound: start, UpperBound: end})
-	defer iter.Close()
-	iter.First()
-	for iter.Valid() {
-		err := iter.Error()
-		if err != nil {
-			return err
-		}
-
-		if bytes.Compare(iter.Key(), end) >= 0 {
-			break
-		}
-
-		if err := writeBytes(f, iter.Key()); err != nil {
-			return err
-		}
-		if err = writeBytes(f, iter.Value()); err != nil {
-			return err
-		}
-		n := uint64(len(iter.Key()) + len(iter.Value()))
-		atomic.AddUint64(&s.stats.ReadKeys, 1)
-		atomic.AddUint64(&s.stats.ReadBytes, n)
-		atomic.AddUint64(&s.stats.WrittenKeys, 1)
-		atomic.AddUint64(&s.stats.WrittenBytes, n)
-		iter.Next()
-	}
-
-	return nil
-}
-
-// ApplySnapshot apply a snapshort file from giving path
-func (s *Storage) ApplySnapshot(path string) error {
-	f, err := s.fs.Open(s.fs.PathJoin(path, "db.data"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	start, err := readBytes(f)
-	if err != nil {
-		return err
-	}
-	if len(start) == 0 {
-		return fmt.Errorf("error format, missing start field")
-	}
-	end, err := readBytes(f)
-	if err != nil {
-		return err
-	}
-	if len(end) == 0 {
-		return fmt.Errorf("error format, missing end field")
-	}
-	if err := s.db.DeleteRange(start, end, pebble.NoSync); err != nil {
-		return err
-	}
-	for {
-		key, err := readBytes(f)
-		if err != nil {
-			return err
-		}
-		if len(key) == 0 {
-			break
-		}
-		value, err := readBytes(f)
-		if err != nil {
-			return err
-		}
-		if len(value) == 0 {
-			return fmt.Errorf("error format, missing value field")
-		}
-		n := uint64(len(key) + len(value))
-		atomic.AddUint64(&s.stats.ReadKeys, 1)
-		atomic.AddUint64(&s.stats.ReadBytes, n)
-		atomic.AddUint64(&s.stats.WrittenKeys, 1)
-		atomic.AddUint64(&s.stats.WrittenBytes, n)
-		err = s.db.Set(key, value, pebble.NoSync)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Close close the storage
-func (s *Storage) Close() error {
-	return s.db.Close()
 }
 
 func toWriteOptions(sync bool) *pebble.WriteOptions {
@@ -378,40 +330,6 @@ func clone(value []byte) []byte {
 	v := make([]byte, len(value))
 	copy(v, value)
 	return v
-}
-
-func writeBytes(f vfs.File, data []byte) error {
-	size := make([]byte, 4)
-	binary.BigEndian.PutUint32(size, uint32(len(data)))
-	if _, err := f.Write(size); err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		return err
-	}
-	return nil
-}
-
-func readBytes(f vfs.File) ([]byte, error) {
-	size := make([]byte, 4)
-	n, err := f.Read(size)
-	if n == 0 && err == io.EOF {
-		return nil, nil
-	}
-
-	total := int(binary.BigEndian.Uint32(size))
-	written := 0
-	data := make([]byte, total)
-	for {
-		n, err = f.Read(data[written:])
-		if err != nil && err != io.EOF {
-			return nil, err
-		}
-		written += n
-		if written == total {
-			return data, nil
-		}
-	}
 }
 
 func newWriteBatch(batch *pebble.Batch, stats *stats.Stats) util.WriteBatch {

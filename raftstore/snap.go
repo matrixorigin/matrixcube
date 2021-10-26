@@ -23,7 +23,6 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
@@ -173,14 +172,12 @@ func (m *defaultSnapshotManager) Deregister(msg *meta.SnapshotMessage, step int)
 func (m *defaultSnapshotManager) Create(msg *meta.SnapshotMessage) error {
 	path := m.getPathOfSnapKey(msg)
 	gzPath := m.getPathOfSnapKeyGZ(msg)
-	start := keys.EncodeStartKey(msg.Header.Shard, nil)
-	end := keys.EncodeEndKey(msg.Header.Shard, nil)
 	db := m.s.DataStorageByGroup(msg.Header.Shard.Group)
 	fs := m.s.cfg.FS
 
 	if !exist(fs, gzPath) {
 		if !exist(fs, path) {
-			err := db.CreateSnapshot(path, start, end)
+			_, err := db.CreateSnapshot(msg.Header.Shard.ID, path)
 			if err != nil {
 				return err
 			}
@@ -400,7 +397,7 @@ func (m *defaultSnapshotManager) Apply(msg *meta.SnapshotMessage) error {
 	defer m.s.cfg.FS.RemoveAll(dir)
 
 	// apply snapshot of data
-	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(dir)
+	err = m.s.DataStorageByGroup(msg.Header.Shard.Group).ApplySnapshot(msg.Header.Shard.ID, dir)
 	if err != nil {
 		return err
 	}

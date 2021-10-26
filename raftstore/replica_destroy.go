@@ -21,7 +21,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
@@ -86,9 +85,7 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.logger.Info("deleting shard data",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID))
-	start := keys.EncodeStartKey(t.shard, nil)
-	end := keys.EncodeEndKey(t.shard, nil)
-	err := s.DataStorageByGroup(t.shard.Group).RemoveShardData(t.shard, start, end)
+	err := s.DataStorageByGroup(t.shard.Group).RemoveShardData(t.shard)
 	s.logger.Info("delete shard data returned",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID),

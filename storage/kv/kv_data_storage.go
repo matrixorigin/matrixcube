@@ -56,7 +56,7 @@ func (opts *options) adjust() {
 
 type kvDataStorage struct {
 	opts       *options
-	base       storage.KVStorage
+	base       storage.KVBaseStorage
 	executor   storage.Executor
 	writeCount uint64
 	mu         struct {
@@ -68,9 +68,10 @@ type kvDataStorage struct {
 }
 
 var _ storage.DataStorage = (*kvDataStorage)(nil)
+var _ storage.KVStorageWrapper = (*kvDataStorage)(nil)
 
 // NewKVDataStorage returns data storage based on a kv base storage.
-func NewKVDataStorage(base storage.KVStorage,
+func NewKVDataStorage(base storage.KVBaseStorage,
 	executor storage.Executor, opts ...Option) storage.DataStorage {
 	s := &kvDataStorage{
 		base:     base,
@@ -237,11 +238,10 @@ func (kv *kvDataStorage) Sync(_ []uint64) error {
 	return nil
 }
 
-func (kv *kvDataStorage) RemoveShardData(shard meta.Shard,
-	encodedStartKey, encodedEndKey []byte) error {
+func (kv *kvDataStorage) RemoveShardData(shard meta.Shard) error {
 	// This is not an atomic operation, but it is idempotent, and the metadata is
 	// deleted afterwards, so the cleanup will not be lost.
-	if err := kv.base.RangeDelete(encodedStartKey, encodedEndKey, false); err != nil {
+	if err := kv.base.RangeDelete(shard.Start, shard.End, false); err != nil {
 		return err
 	}
 	return kv.base.RangeDelete(keys.GetRaftPrefix(shard.ID),
@@ -279,12 +279,12 @@ func (kv *kvDataStorage) SplitCheck(start, end []byte,
 	return kv.base.SplitCheck(start, end, size)
 }
 
-func (kv *kvDataStorage) CreateSnapshot(path string, start, end []byte) error {
-	return kv.base.CreateSnapshot(path, start, end)
+func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) (uint64, error) {
+	return kv.base.CreateSnapshot(shardID, path)
 }
 
-func (kv *kvDataStorage) ApplySnapshot(path string) error {
-	return kv.base.ApplySnapshot(path)
+func (kv *kvDataStorage) ApplySnapshot(shardID uint64, path string) error {
+	return kv.base.ApplySnapshot(shardID, path)
 }
 
 func (kv *kvDataStorage) Stats() stats.Stats {

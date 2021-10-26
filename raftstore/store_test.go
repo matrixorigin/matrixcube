@@ -16,7 +16,6 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
@@ -175,12 +174,12 @@ func TestVacuum(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
-	kv.Set(keys.EncodeDataKey(0, []byte("a1"), nil), []byte("hello"), false)
-	kv.Set(keys.EncodeDataKey(0, []byte("a2"), nil), []byte("hello"), false)
+	kv.Set([]byte("a1"), []byte("hello"), false)
+	kv.Set([]byte("a2"), []byte("hello"), false)
 	assert.NoError(t, s.vacuum(vacuumTask{shard: shard}))
 
 	c := 0
-	kv.Scan(keys.EncodeDataKey(0, shard.Start, nil), keys.EncodeDataKey(0, shard.End, nil), func(key, value []byte) (bool, error) {
+	kv.Scan(shard.Start, shard.End, func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false)

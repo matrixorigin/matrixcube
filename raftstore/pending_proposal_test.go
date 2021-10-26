@@ -16,7 +16,6 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -90,9 +89,7 @@ func testPendingProposalClear(t *testing.T,
 	clear bool, cb func(resp rpc.ResponseBatch)) {
 	cmd1 := batch{
 		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
@@ -101,9 +98,7 @@ func testPendingProposalClear(t *testing.T,
 	}
 	cmd2 := batch{
 		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
@@ -115,9 +110,7 @@ func testPendingProposalClear(t *testing.T,
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
@@ -165,9 +158,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
 			},
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
@@ -197,9 +188,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	}
 	cmd1 := batch{
 		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
@@ -208,9 +197,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	}
 	cmd2 := batch{
 		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{
-				{Key: keys.EncodeDataKey(0, nil, nil)},
-			},
+			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
