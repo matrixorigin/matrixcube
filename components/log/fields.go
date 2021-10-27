@@ -212,9 +212,6 @@ func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
 	info.WriteString("id: ")
 	info.WriteString(hex.EncodeToString(resp.ID))
 
-	info.WriteString("sid: ")
-	info.WriteString(format.Int64ToString(resp.SID))
-
 	info.WriteString("pid: ")
 	info.WriteString(format.Int64ToString(resp.PID))
 
@@ -238,9 +235,6 @@ func appendRaftRequest(req *rpc.Request, info *bytes.Buffer, first bool) {
 
 	info.WriteString("id: ")
 	info.WriteString(hex.EncodeToString(req.ID))
-
-	info.WriteString("sid: ")
-	info.WriteString(format.Int64ToString(req.SID))
 
 	info.WriteString("pid: ")
 	info.WriteString(format.Int64ToString(req.PID))
