@@ -89,10 +89,6 @@ type KVLogDB struct {
 	logger *zap.Logger
 	state  raftpb.HardState
 	ms     storage.KVMetadataStore
-	wb     util.WriteBatch
-	// FIXME: wbuf is unsafe as it will be concurrently accessed from multiple
-	// worker goroutines.
-	wbuf []byte
 }
 
 var _ LogDB = (*KVLogDB)(nil)
@@ -101,8 +97,6 @@ func NewKVLogDB(ms storage.KVMetadataStore, logger *zap.Logger) *KVLogDB {
 	return &KVLogDB{
 		logger: logger,
 		ms:     ms,
-		wb:     ms.NewWriteBatch().(util.WriteBatch),
-		wbuf:   make([]byte, 8),
 	}
 }
 
@@ -119,18 +113,22 @@ func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) er
 		return nil
 	}
 
-	l.wb.Reset()
+	// FIXME: move the following wb and buf to a per worker data structure that
+	// can be used across different iterations
+	wb := l.ms.NewWriteBatch().(util.WriteBatch)
+	defer wb.Close()
+
 	for _, e := range rd.Entries {
 		d := protoc.MustMarshal(&e)
-		l.wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
+		wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
 	}
 
 	v := protoc.MustMarshal(&rd.HardState)
-	l.wb.Set(keys.GetHardStateKey(shardID, peerID, nil), v)
-
-	binary.BigEndian.PutUint64(l.wbuf, rd.Entries[len(rd.Entries)-1].Index)
-	l.wb.Set(keys.GetMaxIndexKey(shardID, nil), l.wbuf)
-	return l.ms.Write(l.wb, true)
+	wb.Set(keys.GetHardStateKey(shardID, peerID, nil), v)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, rd.Entries[len(rd.Entries)-1].Index)
+	wb.Set(keys.GetMaxIndexKey(shardID, nil), buf)
+	return l.ms.Write(wb, true)
 }
 
 func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
