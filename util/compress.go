@@ -20,12 +20,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/fagongzi/log"
 	"github.com/matrixorigin/matrixcube/vfs"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[util]")
 )
 
 // GZIP compress a path to a gzip file

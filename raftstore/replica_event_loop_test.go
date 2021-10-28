@@ -33,7 +33,7 @@ func getTestStorage() storage.KVStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", opts)
+	st, err := pebble.NewStorage("test-data", nil, opts)
 	if err != nil {
 		panic(err)
 	}
@@ -84,5 +84,5 @@ func getCloseableReplica() *replica {
 
 func TestReplicaCanBeClosed(t *testing.T) {
 	r := getCloseableReplica()
-	assert.True(t, r.handleEvent())
+	assert.True(t, r.handleEvent(nil))
 }

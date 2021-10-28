@@ -14,56 +14,38 @@
 package pebble
 
 import (
-	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/log"
-)
+	"reflect"
 
-var (
-	// TODO: use zap when it is ready to be integrated
-	logger = log.NewLoggerWithPrefix("[pebble]")
+	cpebble "github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func hasEventListener(l cpebble.EventListener) bool {
-	return l.BackgroundError != nil ||
-		l.CompactionBegin != nil ||
-		l.CompactionEnd != nil ||
-		l.DiskSlow != nil ||
-		l.FlushBegin != nil ||
-		l.FlushEnd != nil ||
-		l.ManifestCreated != nil ||
-		l.ManifestDeleted != nil ||
-		l.TableCreated != nil ||
-		l.TableDeleted != nil ||
-		l.TableIngested != nil ||
-		l.TableStatsLoaded != nil ||
-		l.WALCreated != nil ||
-		l.WALDeleted != nil ||
-		l.WriteStallBegin != nil ||
-		l.WriteStallEnd != nil
+	return !reflect.DeepEqual(l, cpebble.EventListener{})
 }
 
-func getEventListener() cpebble.EventListener {
+func getEventListener(logger *zap.Logger) cpebble.EventListener {
 	return cpebble.EventListener{
 		CompactionBegin: func(info cpebble.CompactionInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		CompactionEnd: func(info cpebble.CompactionInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		DiskSlow: func(info cpebble.DiskSlowInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		FlushBegin: func(info cpebble.FlushInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		FlushEnd: func(info cpebble.FlushInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		WriteStallBegin: func(info cpebble.WriteStallBeginInfo) {
-			logger.Infof("%s", info)
+			logger.Info(info.String())
 		},
 		WriteStallEnd: func() {
-			logger.Infof("write stall ended")
+			logger.Info("write stall ended")
 		},
 	}
 }

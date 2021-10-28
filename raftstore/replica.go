@@ -80,7 +80,6 @@ type replica struct {
 	actions              *task.Queue
 	items                []interface{}
 	appliedIndex         uint64
-	lastReadyIndex       uint64
 	writtenKeys          uint64
 	writtenBytes         uint64
 	readKeys             uint64

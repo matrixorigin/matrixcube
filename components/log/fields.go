@@ -106,7 +106,7 @@ func ListenAddressField(address string) zap.Field {
 }
 
 // RaftMessageField return formated raft message zap string field
-func RaftMessageField(key string, msg *meta.RaftMessage) zap.Field {
+func RaftMessageField(key string, msg meta.RaftMessage) zap.Field {
 	var info bytes.Buffer
 
 	appendRaftMessage(msg.Message, &info, true)

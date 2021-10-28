@@ -110,7 +110,7 @@ type store struct {
 // NewStore returns a raft store
 func NewStore(cfg *config.Config) Store {
 	cfg.Adjust()
-	kv := pebble.CreateLogDBStorage(cfg.DataPath, cfg.FS)
+	kv := pebble.CreateLogDBStorage(cfg.DataPath, cfg.FS, cfg.Logger)
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		kvStorage: kv,
@@ -128,7 +128,7 @@ func NewStore(cfg *config.Config) Store {
 			return s.cfg.Storage.DataStorageFactory(group).SplitCheck
 		})
 	// TODO: make workerCount configurable
-	s.workerPool = newWorkerPool(s.logger, &storeReplicaLoader{s}, 64)
+	s.workerPool = newWorkerPool(s.logger, kv, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {

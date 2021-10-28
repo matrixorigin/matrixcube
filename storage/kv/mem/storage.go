@@ -25,7 +25,7 @@ func NewStorage() *pebble.Storage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(vfs.NewMemFS()),
 	}
-	s, err := pebble.NewStorage("test-data", opts)
+	s, err := pebble.NewStorage("test-data", nil, opts)
 	if err != nil {
 		panic(err)
 	}

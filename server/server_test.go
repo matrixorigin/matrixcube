@@ -46,19 +46,19 @@ func TestAsyncExec(t *testing.T) {
 	defer s.Stop()
 
 	ch := make(chan struct{})
-	var arg interface{}
+	var arg CustomRequest
 	var resp []byte
 	var err error
-	s.AsyncExec(newTestWriteCustomRequest("k", "v"), func(a interface{}, r []byte, e error) {
+	s.AsyncExec(newTestWriteCustomRequest("k", "v"), func(a CustomRequest, r []byte, e error) {
 		arg = a
 		resp = r
 		err = e
 		ch <- struct{}{}
-	}, time.Second*10, 100)
+	}, time.Second*10)
 	<-ch
 	assert.NoError(t, err)
 	assert.Equal(t, simple.OK, resp)
-	assert.Equal(t, 100, arg)
+	assert.Equal(t, newTestWriteCustomRequest("k", "v"), arg)
 }
 
 func newTestWriteCustomRequest(k, v string) CustomRequest {

@@ -18,8 +18,11 @@ import (
 	"sync"
 
 	"github.com/lni/goutils/syncutil"
-	"github.com/matrixorigin/matrixcube/components/log"
 	"go.uber.org/zap"
+
+	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type replicaLoader interface {
@@ -41,7 +44,7 @@ var _ replicaLoader = (*storeReplicaLoader)(nil)
 
 type replicaEventHandler interface {
 	getShardID() uint64
-	handleEvent() bool
+	handleEvent(*logdb.WorkerContext) bool
 }
 
 var _ replicaEventHandler = (*replica)(nil)
@@ -49,17 +52,20 @@ var _ replicaEventHandler = (*replica)(nil)
 // replicaWorker is the worker type that actually processes replica raft updates
 type replicaWorker struct {
 	stopper    *syncutil.Stopper
+	wc         *logdb.WorkerContext
 	requestC   chan replicaEventHandler
 	completedC chan struct{}
 	workerID   uint64
 }
 
-func newReplicaWorker(workerID uint64, stopper *syncutil.Stopper) *replicaWorker {
+func newReplicaWorker(workerID uint64,
+	stopper *syncutil.Stopper, wc *logdb.WorkerContext) *replicaWorker {
 	w := &replicaWorker{
 		workerID:   workerID,
 		stopper:    stopper,
 		requestC:   make(chan replicaEventHandler, 1),
 		completedC: make(chan struct{}, 1),
+		wc:         wc,
 	}
 	stopper.RunWorker(func() {
 		w.workerMain()
@@ -95,7 +101,8 @@ func (w *replicaWorker) completed() {
 
 func (w *replicaWorker) handleEvent(h replicaEventHandler) error {
 	for {
-		if !h.handleEvent() {
+		w.wc.Reset()
+		if !h.handleEvent(w.wc) {
 			break
 		}
 	}
@@ -124,7 +131,8 @@ type workerPool struct {
 	poolStopper   *syncutil.Stopper
 }
 
-func newWorkerPool(logger *zap.Logger, loader replicaLoader, workerCount uint64) *workerPool {
+func newWorkerPool(logger *zap.Logger,
+	wc storage.WriteBatchCreator, loader replicaLoader, workerCount uint64) *workerPool {
 	p := &workerPool{
 		logger:        log.Adjust(logger).Named("worker-pool"),
 		loader:        loader,
@@ -136,7 +144,8 @@ func newWorkerPool(logger *zap.Logger, loader replicaLoader, workerCount uint64)
 		poolStopper:   syncutil.NewStopper(),
 	}
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
-		w := newReplicaWorker(workerID, p.workerStopper)
+		workerContext := logdb.NewWorkerContext(wc)
+		w := newReplicaWorker(workerID, p.workerStopper, workerContext)
 		p.workers = append(p.workers, w)
 	}
 
