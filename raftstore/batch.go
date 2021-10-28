@@ -79,7 +79,6 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 				for _, req := range c.requestBatch.Requests {
 					rsp := rpc.Response{
 						ID:  req.ID,
-						SID: req.SID,
 						PID: req.PID,
 					}
 					resp.Responses = append(resp.Responses, rsp)
@@ -87,7 +86,6 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 			} else {
 				for idx, req := range c.requestBatch.Requests {
 					resp.Responses[idx].ID = req.ID
-					resp.Responses[idx].SID = req.SID
 					resp.Responses[idx].PID = req.PID
 				}
 			}
@@ -156,7 +154,6 @@ func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
 	})
 	resp := rpc.Response{
 		ID:      req.ID,
-		SID:     req.SID,
 		PID:     req.PID,
 		Request: &req,
 	}

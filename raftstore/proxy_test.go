@@ -135,7 +135,7 @@ func TestRPCDispatch(t *testing.T) {
 	var sp1, sp2 ShardsProxy
 	addr1 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
 	rpc1 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")), addr1, 1024*1024, func(r rpc.Request) error {
-		sp1.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID, SID: r.SID}}})
+		sp1.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID}}})
 		return nil
 	})
 	factory1 := newTestBackendFactory()
@@ -161,7 +161,7 @@ func TestRPCDispatch(t *testing.T) {
 	addr2 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
 	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpc.Request) error {
 		t.Logf("sp2 received")
-		sp2.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID, SID: r.SID}}})
+		sp2.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID}}})
 		return nil
 	})
 	factory2 := newTestBackendFactory()
