@@ -14,8 +14,6 @@
 package pebble
 
 import (
-	"fmt"
-
 	cpebble "github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
 )
@@ -42,22 +40,22 @@ func hasEventListener(l cpebble.EventListener) bool {
 func getEventListener(logger *zap.Logger) cpebble.EventListener {
 	return cpebble.EventListener{
 		CompactionBegin: func(info cpebble.CompactionInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		CompactionEnd: func(info cpebble.CompactionInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		DiskSlow: func(info cpebble.DiskSlowInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		FlushBegin: func(info cpebble.FlushInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		FlushEnd: func(info cpebble.FlushInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		WriteStallBegin: func(info cpebble.WriteStallBeginInfo) {
-			logger.Info(fmt.Sprint("%s", info))
+			logger.Info(info.String())
 		},
 		WriteStallEnd: func() {
 			logger.Info("write stall ended")
