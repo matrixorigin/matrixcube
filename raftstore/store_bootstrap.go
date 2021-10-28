@@ -198,17 +198,17 @@ func (s *store) doCreateInitShard(shard *Shard) {
 
 func (s *store) mustSaveShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
-		var sm []storage.ShardMetadata
+		var sm []meta.ShardMetadata
 		var ids []uint64
 		for _, s := range v {
 			ids = append(ids, s.ID)
-			sm = append(sm, storage.ShardMetadata{
+			sm = append(sm, meta.ShardMetadata{
 				ShardID:  s.ID,
 				LogIndex: 0,
-				Metadata: protoc.MustMarshal(&meta.ShardLocalState{
+				Metadata: meta.ShardLocalState{
 					State: meta.ReplicaState_Normal,
 					Shard: s,
-				}),
+				},
 			})
 		}
 

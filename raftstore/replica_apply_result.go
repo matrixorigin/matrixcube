@@ -50,8 +50,7 @@ type configChangeResult struct {
 }
 
 type splitResult struct {
-	derived Shard
-	shards  []Shard
+	newShards []Shard
 }
 
 func (pr *replica) notifyPendingProposal(id []byte,
@@ -163,65 +162,62 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 }
 
 func (pr *replica) applySplit(result *splitResult) {
-	pr.logger.Info("shard metadata updated",
-		log.ShardField("new", result.derived))
+	pr.logger.Info("shard split applied, current shard will destory",
+		zap.Int("new-shards-count", len(result.newShards)))
 
-	estimatedSize := pr.approximateSize / uint64(len(result.shards)+1)
-	estimatedKeys := pr.approximateKeys / uint64(len(result.shards)+1)
-	pr.sizeDiffHint = 0
-	pr.approximateKeys = 0
-	pr.approximateSize = 0
-	pr.store.updateShardKeyRange(result.derived)
-
-	if pr.isLeader() {
-		pr.approximateSize = estimatedSize
-		pr.approximateKeys = estimatedKeys
-		pr.prophetHeartbeat()
+	if ce := pr.logger.Check(zap.DebugLevel, "shard split detail"); ce != nil {
+		var fields []zap.Field
+		fields = append(fields, log.ShardField("old", pr.getShard()))
+		for idx, s := range result.newShards {
+			fields = append(fields, log.ShardField(fmt.Sprintf("new-%d", idx), s))
+		}
+		ce.Write(fields...)
 	}
 
-	for _, shard := range result.shards {
+	estimatedSize := pr.approximateSize / uint64(len(result.newShards))
+	estimatedKeys := pr.approximateKeys / uint64(len(result.newShards))
+	for _, shard := range result.newShards {
 		// add new shard replicas to cache
 		for _, p := range shard.Replicas {
 			pr.store.replicaRecords.Store(p.ID, p)
 		}
+
 		newShardID := shard.ID
 		newReplica := pr.store.getReplica(newShardID, false)
 		if newReplica != nil {
-			for _, p := range shard.Replicas {
-				pr.store.replicaRecords.Store(p.ID, p)
-			}
+			// Suppose the Shard s1 has three replicas A, B and C, and needs to be split into s2+s3.
+			// Consider the processing logic:
+			// t1: A complete the split operation. Shard s2 and s3 created.
+			// t2: B receives a raft vote message of s2 from A before completing the split.
+			// t3: B apply split s1.
 
-			// TODO: why this replica must be an uninitialized replica here?
-			//
-			// If the store received a raft msg associated with the new shard
-			// before splitting, it will create an uninitialized replica.
-			// We can remove this uninitialized replica directly.
-			if len(newReplica.getShard().Replicas) > 0 {
-				pr.logger.Fatal("duplicated shard split to new shard",
-					log.ShardIDField(newShardID))
-			}
+			// Although the store will dynamically creating a replica of the Shard when receive a raft message
+			// but due to we haven't updated the key range metadata, so there must be a conflict in the range
+			// of the new shard and old shard.
+			pr.logger.Fatal("duplicated shard split to new shard",
+				log.ShardIDField(newShardID))
 		}
 
-		hint := fmt.Sprintf("split from shard %d", pr.shardID)
-		newReplica, err := createReplica(pr.store, shard, hint)
+		reason := fmt.Sprintf("split from shard %d", pr.shardID)
+		newReplica, err := createReplica(pr.store, shard, reason)
 		if err != nil {
 			// replica information is already written into db, can't recover.
 			// there is probably a bug.
-			pr.logger.Fatal("fail to create new split shard",
+			pr.logger.Fatal("fail to create new shard replica",
+				log.ShardIDField(newShardID),
 				zap.Error(err))
 		}
-		pr.store.updateShardKeyRange(shard)
 
 		newReplica.approximateKeys = estimatedKeys
 		newReplica.approximateSize = estimatedSize
-		newReplica.sizeDiffHint = uint64(newReplica.cfg.Replication.ShardSplitCheckBytes)
+		newReplica.sizeDiffHint = estimatedSize
 		if !pr.store.addReplica(newReplica) {
-			pr.logger.Fatal("fail to created new shard by split",
-				log.ShardField("new-shard", shard))
+			pr.logger.Fatal("fail to create new shard replica",
+				log.ShardIDField(newShardID))
 		}
 
 		newReplica.start()
-		// if this replica was the leader of the shard before split, it is expected
+		// If this replica was the leader of the shard before split, it is expected
 		// to become the leader of the new split shard.
 		// The ticks are accelerated here, so that the replica for the new split shard
 		// comes to campaign earlier than the other follower replicas. And then it's
@@ -241,6 +237,12 @@ func (pr *replica) applySplit(result *splitResult) {
 		pr.logger.Info("new shard added",
 			log.ShardField("new-shard", shard))
 	}
+
+	// all new shards started, update key range atomic
+	pr.store.updateShardKeyRange(result.newShards[0].Group, result.newShards...)
+
+	// current shard not used
+	pr.store.destroyReplica(pr.shardID, true, "complete split")
 
 	if pr.aware != nil {
 		pr.aware.Splited(pr.getShard())

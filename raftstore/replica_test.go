@@ -17,7 +17,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +51,7 @@ func TestInitAppliedIndex(t *testing.T) {
 	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(0), pr.appliedIndex)
 
-	err = ds.SaveShardMetadata([]storage.ShardMetadata{{ShardID: 2, LogIndex: 2, Metadata: make([]byte, 10)}})
+	err = ds.SaveShardMetadata([]meta.ShardMetadata{{ShardID: 2, LogIndex: 2}})
 	assert.NoError(t, err)
 	ds.Sync([]uint64{2})
 	pr, err = newReplica(s, Shard{ID: 2}, Replica{ID: 2000}, "test")

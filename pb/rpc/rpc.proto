@@ -144,23 +144,24 @@ message VerifyHashRequest {
 
 message VerifyHashResponse {}
 
-message SplitRequest {
-    // This can be only called in internal RaftStore now.
-    // The split_key must be in the been splitting region.
-    bytes splitKey = 1;
-    // We split the region into two, first uses the origin 
-    // parent region id, and the second uses the new_region_id.
-    // We must guarantee that the new_region_id is global unique.
-    uint64 newShardID = 2;
-    // The peer ids for the new split region.
-    repeated uint64 newReplicaIDs = 3;
+// BatchSplitRequest batch split requests.
+message BatchSplitRequest {
+    // The requests for splitting a shard into multiple shards.
+    // We split Shard A [0, 10) into B [0, 5) and C [5, 10), the len(requests) = 2, and
+    // Shard A will not used after split completed.
+    repeated SplitRequest requests = 1 [(gogoproto.nullable) = false];
+             bytes        context  = 2;                 
 }
 
-message BatchSplitRequest {
-    repeated SplitRequest requests = 1 [(gogoproto.nullable) = false];
-    // If true, the last shard derive the origin shard_id, 
-    // other shards use new ids.
-    bool rightDerive = 2 ;
+message SplitRequest {
+    // The start of the sub shard range
+    bytes start = 1;
+    // The end of the sub shard range
+    bytes end   = 2;
+    // The new shard id
+    uint64 newShardID = 3;
+    // The new ids for all replcias of the new shard
+    repeated uint64 newReplicaIDs = 4;
 }
 
 message BatchSplitResponse {

@@ -82,35 +82,37 @@ func (t *ShardTree) length() int {
 // Update updates the tree with the Shard.
 // It finds and deletes all the overlapped Shards first, and then
 // insert the Shard.
-func (t *ShardTree) Update(shard meta.Shard) {
+func (t *ShardTree) Update(shards ...meta.Shard) {
 	t.Lock()
-	item := &ShardItem{Shard: shard}
+	for _, shard := range shards {
+		item := &ShardItem{Shard: shard}
 
-	result := t.find(shard)
-	if result == nil {
-		result = item
-	}
-
-	var overlaps []*ShardItem
-
-	// between [Shard, first], so is iterator all.min >= Shard.min' Shard
-	// until all.min > Shard.max
-	t.tree.DescendLessOrEqual(result, func(i btree.Item) bool {
-		over := i.(*ShardItem)
-		// Shard.max <= i.start, so Shard and i has no overlaps,
-		// otherwise Shard and i has overlaps
-		if len(shard.End) > 0 && bytes.Compare(shard.End, over.Shard.Start) <= 0 {
-			return false
+		result := t.find(shard)
+		if result == nil {
+			result = item
 		}
-		overlaps = append(overlaps, over)
-		return true
-	})
 
-	for _, item := range overlaps {
-		t.tree.Delete(item)
+		var overlaps []*ShardItem
+
+		// between [Shard, first], so is iterator all.min >= Shard.min' Shard
+		// until all.min > Shard.max
+		t.tree.DescendLessOrEqual(result, func(i btree.Item) bool {
+			over := i.(*ShardItem)
+			// Shard.max <= i.start, so Shard and i has no overlaps,
+			// otherwise Shard and i has overlaps
+			if len(shard.End) > 0 && bytes.Compare(shard.End, over.Shard.Start) <= 0 {
+				return false
+			}
+			overlaps = append(overlaps, over)
+			return true
+		})
+
+		for _, item := range overlaps {
+			t.tree.Delete(item)
+		}
+
+		t.tree.ReplaceOrInsert(item)
 	}
-
-	t.tree.ReplaceOrInsert(item)
 	t.Unlock()
 }
 

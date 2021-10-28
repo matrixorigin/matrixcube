@@ -53,8 +53,8 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	var err error
 	trg := newTestReplicaGetter()
 	sc := newSplitChecker(1, 100, trg, func(group uint64) splitCheckFunc {
-		return func(start, end []byte, size uint64) (uint64, uint64, [][]byte, error) {
-			return currentSize, currentKeys, splitKeys, err
+		return func(shard Shard, size uint64) (uint64, uint64, [][]byte, []byte, error) {
+			return currentSize, currentKeys, splitKeys, nil, err
 		}
 	})
 
@@ -70,8 +70,8 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	pr.actions.Get(1, make([]interface{}, 1))
 	assert.Equal(t, action{actionType: splitAction, epoch: pr.getShard().Epoch, splitCheckData: splitCheckData{keys: currentKeys, size: currentSize, splitKeys: splitKeys}}, act)
 
-	splitKeys = [][]byte{{0}}
-	splitIDs := []rpcpb.SplitID{{NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}}
+	splitKeys = [][]byte{{0}, {1}}
+	splitIDs := []rpcpb.SplitID{{NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}, {NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}, {NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}}
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	client := mockclient.NewMockClient(ctrl)

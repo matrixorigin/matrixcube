@@ -124,10 +124,10 @@ func TestTryToCreateReplicate(t *testing.T) {
 			c.pr.closedC = make(chan struct{})
 			c.pr.store = s
 			c.pr.logger = s.logger
-			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica.ID, nil)
+			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil)
 			close(c.pr.startedC)
 			s.addReplica(c.pr)
-			s.updateShardKeyRange(c.pr.getShard())
+			s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
 		}
 
 		assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
@@ -161,7 +161,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
 	}
 	pr.sm = newStateMachine(pr.logger,
-		s.DataStorageByGroup(0), Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica.ID, nil)
+		s.DataStorageByGroup(0), nil, Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)

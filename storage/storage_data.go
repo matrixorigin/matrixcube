@@ -14,10 +14,17 @@
 package storage
 
 import (
+	"errors"
+
 	"github.com/matrixorigin/matrixcube/util/buf"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/stats"
+)
+
+var (
+	// ErrAbort operation abort error
+	ErrAbort = errors.New("operation aborted")
 )
 
 // Closeable is an instance that can be closed.
@@ -65,12 +72,7 @@ type BaseStorage interface {
 	Closeable
 	StatsKeeper
 	WriteBatchCreator
-	// SplitCheck finds keys within the [start, end) range so that the sum of bytes
-	// of each value is no greater than the specified size in bytes. It returns the
-	// current bytes and the total number of keys in [start,end), the founded split
-	// keys.
-	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
-		currentKeys uint64, splitKeys [][]byte, err error)
+
 	// CreateSnapshot creates a snapshot of the specified shard and stored it in
 	// the directory specified by the given path. It returns the raft log index of
 	// the created snapshot and the encountered error if there is any.
@@ -119,7 +121,7 @@ type DataStorage interface {
 	// to the DataStorage instance that are consistent with their related table
 	// shards data. The shard metadata is last changed by the raft log identified
 	// by the LogIndex value.
-	GetInitialStates() ([]ShardMetadata, error)
+	GetInitialStates() ([]meta.ShardMetadata, error)
 	// GetPersistentLogIndex returns the most recent raft log index that is known
 	// to have its update persistently stored. This means all updates made by Raft
 	// logs no greater than the returned index value have been persistently stored,
@@ -130,7 +132,7 @@ type DataStorage interface {
 	// saved content to persistent storage or not. It is also the responsibility
 	// of the data storage to ensure that a consistent view of shard data and
 	// metadata is always available on restart.
-	SaveShardMetadata([]ShardMetadata) error
+	SaveShardMetadata([]meta.ShardMetadata) error
 	// RemoveShardData is used for cleaning up data for the specified shard. It is
 	// up to the implementation to decide whether to do the cleaning asynchronously
 	// or not.
@@ -138,14 +140,17 @@ type DataStorage interface {
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.
 	Sync([]uint64) error
-}
-
-// ShardMetadata is the metadata of the shard consistent with the current table
-// shard data.
-type ShardMetadata struct {
-	ShardID  uint64
-	LogIndex uint64
-	Metadata []byte
+	// SplitCheck finds keys within the [start, end) range so that the sum of bytes
+	// of each value is no greater than the specified size in bytes. It returns the
+	// current bytes(approximate) and the total number of keys(approximate) in [start,end),
+	// the founded split keys. The ctx is context information of this check will be passed
+	// to the engine by cube in the subsequent split operation.
+	SplitCheck(shard meta.Shard, size uint64) (currentApproximateSize uint64,
+		currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error)
+	// Split After the split request completes raft consensus, it is used to save the
+	// metadata after the Shard has executed the split, metadata needs atomically saved
+	// into the underlying storage.
+	Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error
 }
 
 // WriteContext contains the details of write requests to be handled by the

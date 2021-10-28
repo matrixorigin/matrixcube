@@ -42,6 +42,7 @@ type splitCheckData struct {
 	size      uint64
 	splitKeys [][]byte
 	splitIDs  []rpcpb.SplitID
+	ctx       []byte
 }
 
 type actionType int

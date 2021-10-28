@@ -86,11 +86,17 @@ func ReplicaIDField(id uint64) zap.Field {
 
 // RequestIDField returns zap.StringField, use hex.EncodeToString as string value
 func RequestIDField(data []byte) zap.Field {
+	if len(data) == 0 {
+		return zap.String("request-id", "")
+	}
 	return zap.String("request-id", hex.EncodeToString(data))
 }
 
 // HexField returns zap.StringField, use hex.EncodeToString as string value
 func HexField(key string, data []byte) zap.Field {
+	if len(data) == 0 {
+		return zap.String(key, "")
+	}
 	return zap.String(key, hex.EncodeToString(data))
 }
 

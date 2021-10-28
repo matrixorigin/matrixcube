@@ -118,24 +118,24 @@ func TestGetShardMetadata(t *testing.T) {
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 	defer ds.Close()
-	sm1 := storage.ShardMetadata{
+	sm1 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 110,
-		Metadata: []byte("test-data-1"),
+		// Metadata: []byte("test-data-1"),
 	}
-	sm2 := storage.ShardMetadata{
+	sm2 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 120,
-		Metadata: []byte("test-data-2"),
+		// Metadata: []byte("test-data-2"),
 	}
-	assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm1}))
-	assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm2}))
+	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm1}))
+	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm2}))
 	view := base.GetView()
 	defer view.Close()
 	key, val, err := base.(*BaseStorage).getShardMetadata(view.Raw().(*pebble.Snapshot), 100)
 	assert.NoError(t, err)
 	assert.Equal(t, keys.GetMetadataKey(uint64(100), uint64(120), nil), key)
-	assert.Equal(t, sm2.Metadata, val)
+	assert.Equal(t, protoc.MustMarshal(&sm2), val)
 }
 
 func TestCreateAndApplySnapshot(t *testing.T) {
@@ -158,16 +158,16 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 			Start: []byte("aa"),
 			End:   []byte("xx"),
 		}
-		sls := &meta.ShardLocalState{
+		sls := meta.ShardLocalState{
 			Shard: shard,
 		}
-		sm := storage.ShardMetadata{
+		sm := meta.ShardMetadata{
 			ShardID:  shardID,
 			LogIndex: 110,
-			Metadata: protoc.MustMarshal(sls),
+			Metadata: sls,
 		}
-		metadata = sm.Metadata
-		assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm}))
+		metadata = protoc.MustMarshal(&sm)
+		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm}))
 		index, err := base.CreateSnapshot(sm.ShardID, dir)
 		assert.Equal(t, sm.LogIndex, index)
 		assert.NoError(t, err)
@@ -182,6 +182,7 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		assert.NoError(t, base.Set([]byte("yy"), []byte("zzz"), false))
 		assert.NoError(t, base.ApplySnapshot(shardID, dir))
 		v, err := base.Get([]byte("cc"))
+		assert.NoError(t, err)
 		assert.Empty(t, v)
 		v, err = base.Get([]byte("yy"))
 		assert.NoError(t, err)

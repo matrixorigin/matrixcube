@@ -14,15 +14,17 @@
 package raftstore
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"go.uber.org/zap"
 )
 
-type splitCheckFunc func(start, end []byte, size uint64) (currentSize uint64,
-	currentKeys uint64, splitKeys [][]byte, err error)
+type splitCheckFunc func(shard Shard, size uint64) (currentApproximateSize uint64,
+	currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error)
 
 type splitChecker struct {
 	shardCapacityBytes uint64
@@ -93,8 +95,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 	}
 
 	fn := sc.checkFuncFactory(shard.Group)
-	size, keys, splitKeys, err := fn(shard.Start, shard.End,
-		sc.shardCapacityBytes)
+	size, keys, splitKeys, ctx, err := fn(shard, sc.shardCapacityBytes)
 	if err != nil {
 		pr.logger.Fatal("fail to scan split key",
 			zap.Error(err))
@@ -106,21 +107,47 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 		zap.Uint64("keys", keys),
 		zap.ByteStrings("split-keys", splitKeys))
 
+	if len(splitKeys) > 0 {
+		for idx, key := range splitKeys {
+			if checkKeyInShard(key, shard) != nil {
+				pr.logger.Fatal("invalid split key",
+					log.HexField("key", key),
+					log.HexField("shard-start", shard.Start),
+					log.HexField("shard-end", shard.End))
+			}
+
+			if idx > 0 && bytes.Compare(key, splitKeys[idx-1]) <= 0 {
+				pr.logger.Fatal("invalid split key",
+					log.HexField("key", key),
+					log.HexField("prev-split-key", splitKeys[idx-1]))
+			}
+		}
+	}
+
 	act := action{
 		actionType: splitAction,
 		epoch:      current.Epoch,
 	}
+	act.splitCheckData.ctx = ctx
 	act.splitCheckData.keys = keys
 	act.splitCheckData.size = size
 	act.splitCheckData.splitKeys = splitKeys
 
 	// need to exec split request
 	if len(splitKeys) > 0 {
-		newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(len(splitKeys)))
+		// Suppose we have a shard A with range [0,10), after checking, we need to split Shard A into 2 Shards B and C
+		// in the range of [0, 5) and [5,10) at the point of 5.
+		// Note. After the split is complete, Shard A will no longer be used
+		newShardsCount := len(splitKeys) + 1
+		newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(newShardsCount))
 		if err != nil {
 			pr.logger.Fatal("fail to ask batch split",
 				zap.Error(err))
 
+		}
+
+		if len(newIDs) != newShardsCount {
+			panic(fmt.Sprintf("expect %d new splitIDs, got %d", newShardsCount, len(newIDs)))
 		}
 		act.splitCheckData.splitIDs = newIDs
 	}

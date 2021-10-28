@@ -20,6 +20,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -76,29 +77,32 @@ var _ replicaResultHandler = (*replica)(nil)
 type stateMachine struct {
 	logger        *zap.Logger
 	shardID       uint64
-	replicaID     uint64
+	replica       Replica
 	applyCtx      *applyContext
 	writeCtx      *writeContext
 	dataStorage   storage.DataStorage
+	logdb         logdb.LogDB
 	resultHandler replicaResultHandler
 
 	metadataMu struct {
 		sync.Mutex
 		shard   Shard
 		removed bool
+		splited bool
 		index   uint64
 		term    uint64
 	}
 }
 
-func newStateMachine(l *zap.Logger, ds storage.DataStorage,
-	shard Shard, replicaID uint64, h replicaResultHandler) *stateMachine {
+func newStateMachine(l *zap.Logger, ds storage.DataStorage, logdb logdb.LogDB,
+	shard Shard, replica Replica, h replicaResultHandler) *stateMachine {
 	sm := &stateMachine{
 		logger:        l,
-		replicaID:     replicaID,
+		replica:       replica,
 		applyCtx:      newApplyContext(),
 		writeCtx:      newWriteContext(ds),
 		dataStorage:   ds,
+		logdb:         logdb,
 		resultHandler: h,
 	}
 	sm.metadataMu.shard = shard
@@ -127,9 +131,11 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	// executeContext so they can be applied into the stateMachine together.
 	// in the loop below, we are still applying entries one by one.
 	for _, entry := range entries {
+		d.applyCtx.initialize(entry)
+		// notify all clients that current shard has been removed
 		if d.isRemoved() {
-			// replica is about to be destroyed, skip
-			break
+			d.notifyShardRemoved(d.applyCtx)
+			continue
 		}
 		d.checkEntryIndexTerm(entry)
 		if len(entry.Data) == 0 {
@@ -140,7 +146,6 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			continue
 		}
 
-		d.applyCtx.initialize(entry)
 		d.applyRequestBatch(d.applyCtx)
 		result := applyResult{
 			shardID:     d.shardID,
@@ -178,13 +183,17 @@ func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 	}
 }
 
+func (d *stateMachine) notifyShardRemoved(ctx *applyContext) {
+
+}
+
 func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 	// FIXME: update impacted tests
 	// if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
 	//	return
 	// }
 	if d.isRemoved() {
-		d.logger.Fatal("applying entries on remove replica")
+		d.logger.Fatal("applying entries on removed replica")
 	}
 
 	var err error
@@ -226,6 +235,18 @@ func (d *stateMachine) isRemoved() bool {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	return d.metadataMu.removed
+}
+
+func (d *stateMachine) setSplited() {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	d.metadataMu.splited = true
+}
+
+func (d *stateMachine) isSplited() bool {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	return d.metadataMu.splited
 }
 
 func (d *stateMachine) setShardState(st metapb.ResourceState) {

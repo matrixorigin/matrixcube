@@ -22,7 +22,6 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
-
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -107,38 +106,6 @@ func (s *BaseStorage) Sync() error {
 	return s.kv.Sync()
 }
 
-// SplitCheck find keys from [start, end), so that the sum of bytes of the
-// value of [start, key) <=size, returns the current bytes in [start,end),
-// and the founded keys.
-func (s *BaseStorage) SplitCheck(start, end []byte,
-	size uint64) (uint64, uint64, [][]byte, error) {
-	total := uint64(0)
-	keys := uint64(0)
-	sum := uint64(0)
-	appendSplitKey := false
-	var splitKeys [][]byte
-
-	if err := s.kv.Scan(start, end, func(key, val []byte) (bool, error) {
-		if appendSplitKey {
-			splitKeys = append(splitKeys, key)
-			appendSplitKey = false
-			sum = 0
-		}
-		n := uint64(len(key) + len(val))
-		sum += n
-		total += n
-		keys++
-		if sum >= size {
-			appendSplitKey = true
-		}
-		return true, nil
-	}, true); err != nil {
-		return 0, 0, nil, err
-	}
-
-	return total, keys, splitKeys, nil
-}
-
 func (s *BaseStorage) getAppliedIndex(ss *pebble.Snapshot,
 	shardID uint64) ([]byte, []byte, error) {
 	key := keys.GetAppliedIndexKey(shardID, nil)
@@ -216,10 +183,10 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 		return 0, err
 	}
 
-	var sls meta.ShardLocalState
+	var sls meta.ShardMetadata
 	protoc.MustUnmarshal(&sls, metadataValue)
 	appliedIndex := buf.Byte2UInt64(appliedIndexValue)
-	shard := sls.Shard
+	shard := sls.Metadata.Shard
 
 	if err := writeBytes(f, shard.Start); err != nil {
 		return 0, err

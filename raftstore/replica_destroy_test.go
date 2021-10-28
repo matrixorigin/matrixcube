@@ -16,13 +16,12 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDestroyReplica(t *testing.T) {
@@ -69,8 +68,7 @@ func TestDestroyReplica(t *testing.T) {
 		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
 	}
-	pr.sm = newStateMachine(pr.logger,
-		s.DataStorageByGroup(0), shard, pr.replica.ID, nil)
+	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), nil, shard, pr.replica, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)

@@ -24,11 +24,6 @@ import (
 )
 
 func (s *store) handleSplitCheck() {
-	// FIXME: do we need to do such busy check?
-	/*if s.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
-		return
-	}*/
-
 	s.forEachReplica(func(pr *replica) bool {
 		if pr.supportSplit() &&
 			pr.isLeader() {
@@ -219,7 +214,8 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		// FIXME: this seems to be wrong
 		// pr.shard.Peers = append(pr.shard.Peers, msg.To)
 		// pr.shard.Peers = append(pr.shard.Peers, msg.From)
-		s.updateShardKeyRange(pr.getShard())
+		shard := pr.getShard()
+		s.updateShardKeyRange(shard.Group, shard)
 
 		s.replicaRecords.Store(msg.From.ID, msg.From)
 		s.replicaRecords.Store(msg.To.ID, msg.To)

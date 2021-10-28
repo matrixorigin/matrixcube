@@ -6,17 +6,16 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/util/format"
 	pvfs "github.com/lni/vfs"
-	"github.com/matrixorigin/matrixcube/util/buf"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/matrixorigin/matrixcube/keys"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -32,7 +31,7 @@ func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
 
 func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 	tests := []struct {
-		inputs []storage.ShardMetadata
+		inputs []meta.ShardMetadata
 	}{
 		{
 			inputs: newTestShardMetadata(2),
@@ -67,7 +66,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 
 func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 	cases := []struct {
-		inputs []storage.ShardMetadata
+		inputs []meta.ShardMetadata
 	}{
 		{
 			inputs: newTestShardMetadata(2),
@@ -249,12 +248,12 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 			}
 
 			save := func(index uint64) {
-				metadata := storage.ShardMetadata{
+				metadata := meta.ShardMetadata{
 					ShardID:  shardID,
 					LogIndex: index,
-					Metadata: make([]byte, 100),
+					// Metadata: make([]byte, 100),
 				}
-				assert.NoError(t, s.SaveShardMetadata([]storage.ShardMetadata{metadata}))
+				assert.NoError(t, s.SaveShardMetadata([]meta.ShardMetadata{metadata}))
 			}
 
 			persistent := uint64(0)
@@ -265,7 +264,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 				index++
 				v, err := s.GetPersistentLogIndex(shardID)
 				assert.NoError(t, err)
-				if 0 != v {
+				if v != 0 {
 					persistent = v
 					break
 				}
@@ -274,7 +273,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 				index++
 				v, err = s.GetPersistentLogIndex(shardID)
 				assert.NoError(t, err)
-				if 0 != v {
+				if v != 0 {
 					persistent = v
 					break
 				}
@@ -309,13 +308,13 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 	}
 }
 
-func newTestShardMetadata(n uint64) []storage.ShardMetadata {
-	var values []storage.ShardMetadata
+func newTestShardMetadata(n uint64) []meta.ShardMetadata {
+	var values []meta.ShardMetadata
 	for i := uint64(1); i < n; i++ {
-		values = append(values, storage.ShardMetadata{
+		values = append(values, meta.ShardMetadata{
 			ShardID:  i,
 			LogIndex: i,
-			Metadata: format.Uint64ToBytes(i),
+			// Metadata: format.Uint64ToBytes(i),
 		})
 	}
 	return values

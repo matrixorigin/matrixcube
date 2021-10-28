@@ -14,11 +14,13 @@
 package kv
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
 
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -128,7 +130,7 @@ func (kv *kvDataStorage) Read(ctx storage.ReadContext) ([]byte, error) {
 	return kv.executor.Read(ctx)
 }
 
-func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) error {
+func (kv *kvDataStorage) SaveShardMetadata(metadatas []meta.ShardMetadata) error {
 	r := kv.base.NewWriteBatch()
 	wb := r.(util.WriteBatch)
 	defer wb.Close()
@@ -136,7 +138,7 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	seen := make(map[uint64]struct{})
 	kv.mu.Lock()
 	for _, m := range metadatas {
-		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), m.Metadata)
+		wb.Set(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), protoc.MustMarshal(&m))
 		wb.Set(keys.GetAppliedIndexKey(m.ShardID, nil), format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 		if _, ok := seen[m.ShardID]; ok {
@@ -154,7 +156,7 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []storage.ShardMetadata) er
 	return kv.trySync()
 }
 
-func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
+func (kv *kvDataStorage) GetInitialStates() ([]meta.ShardMetadata, error) {
 	// TODO: this assumes that all shards have applied index records saved.
 	// double check to make sure this is actually true.
 	min := keys.GetAppliedIndexKey(0, nil)
@@ -183,7 +185,7 @@ func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 	kv.mu.loaded = true
 	kv.mu.Unlock()
 	// for each shard,
-	var values []storage.ShardMetadata
+	var values []meta.ShardMetadata
 	for _, shard := range shards {
 		min := keys.GetMetadataKey(shard, 0, nil)
 		max := keys.GetMetadataKey(shard, math.MaxUint64, nil)
@@ -208,11 +210,14 @@ func (kv *kvDataStorage) GetInitialStates() ([]storage.ShardMetadata, error) {
 		if v == nil && logIndex == 0 {
 			panic("failed to get shard metadata")
 		}
-		values = append(values, storage.ShardMetadata{
-			ShardID:  shard,
-			LogIndex: logIndex,
-			Metadata: v,
-		})
+
+		sm := meta.ShardMetadata{}
+		protoc.MustUnmarshal(&sm, v)
+		if sm.LogIndex != logIndex {
+			panic(fmt.Sprintf("LogIndex not match, expect %d, but %d", logIndex, sm.LogIndex))
+		}
+
+		values = append(values, sm)
 	}
 	return values, nil
 }
@@ -248,6 +253,41 @@ func (kv *kvDataStorage) RemoveShardData(shard meta.Shard) error {
 		keys.GetRaftPrefix(shard.ID+1), true)
 }
 
+// SplitCheck find keys from [start, end), so that the sum of bytes of the
+// value of [start, key) <=size, returns the current bytes in [start,end),
+// and the founded keys.
+func (kv *kvDataStorage) SplitCheck(shard meta.Shard, size uint64) (uint64, uint64, [][]byte, []byte, error) {
+	total := uint64(0)
+	keys := uint64(0)
+	sum := uint64(0)
+	appendSplitKey := false
+	var splitKeys [][]byte
+
+	if err := kv.base.Scan(shard.Start, shard.End, func(key, val []byte) (bool, error) {
+		if appendSplitKey {
+			splitKeys = append(splitKeys, key)
+			appendSplitKey = false
+			sum = 0
+		}
+		n := uint64(len(key) + len(val))
+		sum += n
+		total += n
+		keys++
+		if sum >= size {
+			appendSplitKey = true
+		}
+		return true, nil
+	}, true); err != nil {
+		return 0, 0, nil, nil, err
+	}
+
+	return total, keys, splitKeys, nil, nil
+}
+
+func (kv *kvDataStorage) Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error {
+	return kv.SaveShardMetadata(append(news, old))
+}
+
 func (kv *kvDataStorage) updateAppliedIndex(shard uint64, index uint64) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
@@ -272,11 +312,6 @@ func (kv *kvDataStorage) trySync() error {
 // delegate method
 func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
-}
-
-func (kv *kvDataStorage) SplitCheck(start, end []byte,
-	size uint64) (currentSize uint64, currentKeys uint64, splitKeys [][]byte, err error) {
-	return kv.base.SplitCheck(start, end, size)
 }
 
 func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) (uint64, error) {

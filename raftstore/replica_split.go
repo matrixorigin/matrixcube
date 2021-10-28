@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -46,12 +47,6 @@ func (pr *replica) tryCheckSplit(act action) {
 	}
 
 	act.actionCallback(pr.getShard())
-
-	// if err := pr.doCheckSplit(shard); err != nil {
-	// 	pr.logger.Fatal("fail to add split check job",
-	// 		zap.Error(err))
-	// }
-	// pr.sizeDiffHint = 0
 }
 
 func (pr *replica) hasReplicaInSnapshotState() (bool, uint64) {
@@ -102,16 +97,36 @@ func (pr *replica) doSplit(act action) {
 		pr.logger.Fatal("missing splitIDs")
 	}
 
+	if len(act.splitCheckData.splitIDs) != len(act.splitCheckData.splitKeys)+1 {
+		pr.logger.Fatal("invalid splitIDs len",
+			zap.Int("expect", len(act.splitCheckData.splitKeys)+1),
+			zap.Int("but", len(act.splitCheckData.splitIDs)))
+	}
+
 	req := rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_BatchSplit,
-		Splits:  &rpc.BatchSplitRequest{},
+		Splits: &rpc.BatchSplitRequest{
+			Context: act.splitCheckData.ctx,
+		},
 	}
+
+	start := current.Start
+	lastIdx := len(act.splitCheckData.splitIDs) - 1
 	for idx := range act.splitCheckData.splitIDs {
+		var end []byte
+		if idx == lastIdx {
+			end = current.End
+		} else {
+			end = act.splitCheckData.splitKeys[idx+1]
+		}
+
 		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
-			SplitKey:      act.splitCheckData.splitKeys[idx],
+			Start:         start,
+			End:           end,
 			NewShardID:    act.splitCheckData.splitIDs[idx].NewID,
 			NewReplicaIDs: act.splitCheckData.splitIDs[idx].NewReplicaIDs,
 		})
+		start = act.splitCheckData.splitKeys[idx]
 	}
 	pr.addAdminRequest(req)
 }

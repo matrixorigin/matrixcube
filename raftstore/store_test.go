@@ -76,10 +76,10 @@ func TestRemoveShardKeyRange(t *testing.T) {
 func TestUpdateShardKeyRange(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 
-	s.updateShardKeyRange(Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
+	s.updateShardKeyRange(0, Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
 	assert.Equal(t, uint64(1), s.searchShard(0, []byte("a")).ID)
 
-	s.updateShardKeyRange(Shard{ID: 1, Start: []byte("a"), End: []byte("c")})
+	s.updateShardKeyRange(0, Shard{ID: 1, Start: []byte("a"), End: []byte("c")})
 	assert.Equal(t, uint64(1), s.searchShard(0, []byte("b")).ID)
 }
 

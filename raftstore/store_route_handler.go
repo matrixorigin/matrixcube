@@ -46,5 +46,5 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 	for _, p := range shard.Replicas {
 		s.replicaRecords.Store(p.ID, p)
 	}
-	s.updateShardKeyRange(shard)
+	s.updateShardKeyRange(shard.Group, shard)
 }

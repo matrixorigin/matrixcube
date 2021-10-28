@@ -15,18 +15,18 @@ package raftstore
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"sort"
 
 	"github.com/cockroachdb/errors"
-	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
@@ -41,8 +41,6 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
 		return d.doExecConfigChange(ctx)
-	case rpc.AdminCmdType_ConfigChangeV2:
-		return d.doExecConfigChangeV2(ctx)
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	}
@@ -99,7 +97,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 				removeReplica(&res, replica.ContainerID)
 			}
 
-			if d.replicaID == replica.ID {
+			if d.replica.ID == replica.ID {
 				// Remove ourself, will destroy all shard data later.
 				d.setRemoved()
 				d.logger.Info("replica remoted itself",
@@ -149,282 +147,120 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	return resp, nil
 }
 
-func (d *stateMachine) doExecConfigChangeV2(ctx *applyContext) (rpc.ResponseBatch, error) {
-	req := ctx.req.AdminRequest.ConfigChangeV2
-	changes := req.Changes
-	current := d.getShard()
-
-	d.logger.Info("begin to apply change replica v2",
-		zap.Uint64("index", ctx.index),
-		log.ShardField("current", current),
-		log.ConfigChangesField("requests", changes))
-
-	var res Shard
-	var err error
-	kind := getConfigChangeKind(len(changes))
-	if kind == leaveJointKind {
-		res, err = d.applyLeaveJoint()
-	} else {
-		res, err = d.applyConfigChangeByKind(kind, changes)
-	}
-
-	if err != nil {
-		return rpc.ResponseBatch{}, err
-	}
-
-	state := meta.ReplicaState_Normal
-	if d.isRemoved() {
-		state = meta.ReplicaState_Tombstone
-	}
-
-	d.updateShard(res)
-	err = d.saveShardMetedata(ctx.index, res, state)
-	if err != nil {
-		d.logger.Fatal("fail to save metadata",
-			zap.Error(err))
-	}
-
-	d.logger.Info("apply change replica v2 complete",
-		log.ShardField("metadata", res),
-		zap.String("state", state.String()))
-
-	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
-		Shard: res,
-	})
-	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_ConfigChange,
-		configChangeResult: &configChangeResult{
-			index:   ctx.index,
-			changes: changes,
-			shard:   res,
-		},
-	}
-	return resp, nil
-}
-
-func (d *stateMachine) applyConfigChangeByKind(kind confChangeKind,
-	changes []rpc.ConfigChangeRequest) (Shard, error) {
-	res := Shard{}
-	current := d.getShard()
-	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
-
-	for _, cp := range changes {
-		change_type := cp.ChangeType
-		replica := cp.Replica
-		store_id := replica.ContainerID
-
-		exist_replica := findReplica(current, replica.ContainerID)
-		if exist_replica != nil {
-			r := exist_replica.Role
-			if r == metapb.ReplicaRole_IncomingVoter || r == metapb.ReplicaRole_DemotingVoter {
-				d.logger.Fatal("can't apply confchange when still in joint state")
-			}
-		}
-
-		if exist_replica == nil && change_type == metapb.ConfigChangeType_AddNode {
-			if kind == simpleKind {
-				replica.Role = metapb.ReplicaRole_Voter
-			} else if kind == enterJointKind {
-				replica.Role = metapb.ReplicaRole_IncomingVoter
-			}
-
-			res.Replicas = append(res.Replicas, replica)
-		} else if exist_replica == nil && change_type == metapb.ConfigChangeType_AddLearnerNode {
-			replica.Role = metapb.ReplicaRole_Learner
-			res.Replicas = append(res.Replicas, replica)
-		} else if exist_replica == nil && change_type == metapb.ConfigChangeType_RemoveNode {
-			return res, fmt.Errorf("remove missing replica %+v", replica)
-		} else if exist_replica != nil &&
-			(change_type == metapb.ConfigChangeType_AddNode || change_type == metapb.ConfigChangeType_AddLearnerNode) {
-			// add node
-			role := exist_replica.Role
-			exist_id := exist_replica.ID
-			incoming_id := replica.ID
-
-			// Add replica with different id to the same store
-			if exist_id != incoming_id ||
-				// The replica is already the requested role
-				(role == metapb.ReplicaRole_Voter && change_type == metapb.ConfigChangeType_AddNode) ||
-				(role == metapb.ReplicaRole_Learner && change_type == metapb.ConfigChangeType_AddLearnerNode) {
-				return res, fmt.Errorf("can't add duplicated replica %+v, duplicated with exist replica %+v",
-					replica, exist_replica)
-			}
-
-			if role == metapb.ReplicaRole_Voter && change_type == metapb.ConfigChangeType_AddLearnerNode {
-				switch kind {
-				case simpleKind:
-					exist_replica.Role = metapb.ReplicaRole_Learner
-				case enterJointKind:
-					exist_replica.Role = metapb.ReplicaRole_DemotingVoter
-				}
-			} else if role == metapb.ReplicaRole_Learner && change_type == metapb.ConfigChangeType_AddNode {
-				switch kind {
-				case simpleKind:
-					exist_replica.Role = metapb.ReplicaRole_Voter
-				case enterJointKind:
-					exist_replica.Role = metapb.ReplicaRole_IncomingVoter
-				}
-			}
-		} else if exist_replica != nil && change_type == metapb.ConfigChangeType_RemoveNode {
-			// Remove node
-			if kind == enterJointKind && exist_replica.Role == metapb.ReplicaRole_Voter {
-				return res, fmt.Errorf("can't remove voter replica %+v directly",
-					replica)
-			}
-
-			p := removeReplica(&res, store_id)
-			if p != nil {
-				if p.ID != replica.ID || p.ContainerID != replica.ContainerID {
-					return res, fmt.Errorf("ignore remove unmatched replica %+v", replica)
-				}
-
-				if d.replicaID == replica.ID {
-					// Remove ourself, we will destroy all region data later.
-					// So we need not to apply following logs.
-					d.setRemoved()
-				}
-			}
-		}
-	}
-
-	res.Epoch.ConfVer += uint64(len(changes))
-	return res, nil
-}
-
-func (d *stateMachine) applyLeaveJoint() (Shard, error) {
-	shard := Shard{}
-	current := d.getShard()
-	protoc.MustUnmarshal(&shard, protoc.MustMarshal(&current))
-
-	change_num := uint64(0)
-	for idx := range shard.Replicas {
-		if shard.Replicas[idx].Role == metapb.ReplicaRole_IncomingVoter {
-			shard.Replicas[idx].Role = metapb.ReplicaRole_Voter
-			continue
-		}
-
-		if shard.Replicas[idx].Role == metapb.ReplicaRole_DemotingVoter {
-			shard.Replicas[idx].Role = metapb.ReplicaRole_Learner
-			continue
-		}
-
-		change_num += 1
-	}
-	if change_num == 0 {
-		d.logger.Fatal("can't leave a non-joint config",
-			log.ShardField("shard", shard))
-	}
-	shard.Epoch.ConfVer += change_num
-	return shard, nil
-}
-
 func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.AdminRequest.Splits
 
 	if len(splitReqs.Requests) == 0 {
-		d.logger.Error("missing splits request")
-		return rpc.ResponseBatch{}, errors.New("missing splits request")
+		d.logger.Fatal("missing splits request")
 	}
+
+	current := d.getShard().Clone()
+	if !bytes.Equal(splitReqs.Requests[0].Start, current.Start) ||
+		!bytes.Equal(splitReqs.Requests[len(splitReqs.Requests)-1].End, current.End) {
+		d.logger.Fatal("invalid splits keys",
+			log.HexField("actual-start", splitReqs.Requests[0].Start),
+			log.HexField("shard-start", current.Start),
+			log.HexField("actual-end", splitReqs.Requests[len(splitReqs.Requests)-1].End),
+			log.HexField("shard-end", current.End))
+	}
+
+	sort.Slice(current.Replicas, func(i, j int) bool {
+		return current.Replicas[i].ID < current.Replicas[j].ID
+	})
 
 	newShardsCount := len(splitReqs.Requests)
-	derived := Shard{}
-	current := d.getShard()
-	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&current))
-	var shards []Shard
-	rangeKeys := deque.New()
-
+	var newShards []Shard
+	var metadata []meta.ShardMetadata
+	current.Epoch.Version += uint64(newShardsCount)
+	expectStart := current.Start
 	for _, req := range splitReqs.Requests {
-		if len(req.SplitKey) == 0 {
-			return rpc.ResponseBatch{}, errors.New("missing split key")
+		if checkKeyInShard(req.Start, current) != nil ||
+			checkKeyInShard(req.End, current) != nil {
+			d.logger.Fatal("invalid split reuqest range",
+				log.HexField("split-start", req.Start),
+				log.HexField("split-end", req.End),
+				log.HexField("expect-start", current.Start),
+				log.HexField("expect-end", current.End))
 		}
 
-		splitKey := req.SplitKey
-		v := derived.Start
-		if e, ok := rangeKeys.Back(); ok {
-			v = e.Value.([]byte)
+		if !bytes.Equal(req.Start, expectStart) {
+			d.logger.Fatal("invalid split reuqest start key",
+				log.HexField("split-start", req.Start),
+				log.HexField("expect-start", expectStart))
 		}
-		if bytes.Compare(splitKey, v) <= 0 {
-			return rpc.ResponseBatch{}, fmt.Errorf("invalid split key %+v", splitKey)
-		}
+		expectStart = req.End
 
-		if len(req.NewReplicaIDs) != len(derived.Replicas) {
-			return rpc.ResponseBatch{}, fmt.Errorf("invalid new replica id count, need %d, but got %d",
-				len(derived.Replicas),
-				len(req.NewReplicaIDs))
-		}
-
-		rangeKeys.PushBack(splitKey)
-	}
-
-	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), current)
-	if err != nil {
-		d.logger.Error("fail to split key",
-			zap.String("err", err.Message))
-		return rpc.ResponseBatch{}, nil
-	}
-
-	derived.Epoch.Version += uint64(newShardsCount)
-	rangeKeys.PushBack(derived.End)
-	derived.End = rangeKeys.MustFront().Value.([]byte)
-
-	sort.Slice(derived.Replicas, func(i, j int) bool {
-		return derived.Replicas[i].ID < derived.Replicas[j].ID
-	})
-	for _, req := range splitReqs.Requests {
 		newShard := Shard{}
 		newShard.ID = req.NewShardID
-		newShard.Group = derived.Group
-		newShard.Unique = derived.Unique
-		newShard.RuleGroups = derived.RuleGroups
-		newShard.DisableSplit = derived.DisableSplit
-		newShard.Epoch = derived.Epoch
-		newShard.Start = rangeKeys.PopFront().Value.([]byte)
-		newShard.End = rangeKeys.MustFront().Value.([]byte)
-		for idx, p := range derived.Replicas {
+		newShard.Group = current.Group
+		newShard.Unique = current.Unique
+		newShard.RuleGroups = current.RuleGroups
+		newShard.DisableSplit = current.DisableSplit
+		newShard.Epoch = current.Epoch
+		newShard.Start = req.Start
+		newShard.End = req.End
+		for idx, p := range current.Replicas {
 			newShard.Replicas = append(newShard.Replicas, Replica{
 				ID:          req.NewReplicaIDs[idx],
 				ContainerID: p.ContainerID,
 			})
 		}
-
-		shards = append(shards, newShard)
+		newShards = append(newShards, newShard)
+		metadata = append(metadata, meta.ShardMetadata{
+			LogIndex: 1,
+			ShardID:  newShard.ID,
+			Metadata: meta.ShardLocalState{
+				State: meta.ReplicaState_Normal,
+				Shard: newShard,
+			},
+		})
+		// To avoid the newly created Shard metadata corresponding to a LogIndex of 0,
+		// thus avoiding various special operations, we force here to bypass the consensus,
+		// store the first Log is the Log that holds the metadata, and set the committedIndex
+		// of hardstate to 1.
+		err := d.logdb.SaveRaftState(newShard.ID,
+			findReplica(newShard, d.replica.ContainerID).ID,
+			raft.Ready{
+				Entries:   []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal}},
+				HardState: raftpb.HardState{Commit: 1, Term: 1, Vote: newShard.Replicas[0].ID},
+			})
+		if err != nil {
+			d.logger.Fatal("fail to save first raft log",
+				log.ShardField("new-shard", newShard),
+				zap.Error(err))
+		}
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	// TODO(fagongzi): split with sync
-	// e := d.dataStorage.Sync(d.shardID)
-	// if e != nil {
-	// 	logger.Fatalf("%s sync failed with %+v", d.pr.id(), e)
-	// }
+	old := meta.ShardMetadata{
+		ShardID:  current.ID,
+		LogIndex: ctx.index,
+		Metadata: meta.ShardLocalState{
+			State: meta.ReplicaState_Tombstone,
+			Shard: current,
+		},
+	}
+	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
+	if err != nil {
+		if err == storage.ErrAbort {
+			return rpc.ResponseBatch{}, nil
+		}
+		d.logger.Fatal("fail to split on data storage",
+			zap.Error(err))
+	}
 
-	// if d.store.cfg.Customize.CustomSplitCompletedFuncFactory != nil {
-	// 	if fn := d.store.cfg.Customize.CustomSplitCompletedFuncFactory(derived.Group); fn != nil {
-	// 		fn(&derived, shards)
-	// 	}
-	// }
-
-	// d.updateShard(derived)
-	// d.saveShardMetedata(d.shardID, d.getShard(), bhraftpb.ReplicaState_Normal)
-
-	// d.store.updateReplicaState(derived, bhraftpb.ReplicaState_Normal, ctx.raftWB)
-	// for _, shard := range shards {
-	// 	d.store.updateReplicaState(shard, bhraftpb.ReplicaState_Normal, ctx.raftWB)
-	// 	d.store.writeInitialState(shard.ID, ctx.raftWB)
-	// }
-
-	// rsp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
-	// 	Shards: shards,
-	// })
-
-	// result := &adminExecResult{
-	// 	adminType: rpc.AdminCmdType_BatchSplit,
-	// 	splitResult: &splitResult{
-	// 		derived: derived,
-	// 		shards:  shards,
-	// 	},
-	// }
-	return rpc.ResponseBatch{}, nil
+	d.setSplited()
+	resp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
+		Shards: newShards,
+	})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_BatchSplit,
+		splitResult: &splitResult{
+			newShards: newShards,
+		},
+	}
+	return resp, nil
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
@@ -433,7 +269,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
 				log.ShardIDField(d.shardID),
-				log.ReplicaIDField(d.replicaID),
+				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
 	}
@@ -445,7 +281,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		if ce := d.logger.Check(zap.DebugLevel, "write completed"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
 				log.ShardIDField(d.shardID),
-				log.ReplicaIDField(d.replicaID),
+				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
 	}
@@ -476,12 +312,12 @@ func (d *stateMachine) updateWriteMetrics() {
 
 func (d *stateMachine) saveShardMetedata(index uint64,
 	shard Shard, state meta.ReplicaState) error {
-	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{{
+	return d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
-		Metadata: protoc.MustMarshal(&meta.ShardLocalState{
+		Metadata: meta.ShardLocalState{
 			State: state,
 			Shard: shard,
-		}),
+		},
 	}})
 }

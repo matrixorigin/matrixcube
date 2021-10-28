@@ -401,9 +401,7 @@ func (s *store) startShards() {
 		var tomebstoneShards []Shard
 		for _, metadata := range initStates {
 			totalCount++
-			sls := &meta.ShardLocalState{}
-			protoc.MustUnmarshal(sls, metadata.Metadata)
-
+			sls := metadata.Metadata
 			if sls.Shard.ID != metadata.ShardID {
 				s.logger.Fatal("BUG: shard id not match in metadata",
 					s.storeField(),
@@ -427,7 +425,7 @@ func (s *store) startShards() {
 					zap.Error(err))
 			}
 
-			s.updateShardKeyRange(sls.Shard)
+			s.updateShardKeyRange(sls.Shard.Group, sls.Shard)
 			s.addReplica(pr)
 			pr.start()
 		}
@@ -696,18 +694,18 @@ func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.Respon
 	return resp
 }
 
-func (s *store) updateShardKeyRange(shard Shard) {
-	if value, ok := s.keyRanges.Load(shard.Group); ok {
-		value.(*util.ShardTree).Update(shard)
+func (s *store) updateShardKeyRange(group uint64, shards ...Shard) {
+	if value, ok := s.keyRanges.Load(group); ok {
+		value.(*util.ShardTree).Update(shards...)
 		return
 	}
 
 	tree := util.NewShardTree()
-	tree.Update(shard)
+	tree.Update(shards...)
 
-	value, loaded := s.keyRanges.LoadOrStore(shard.Group, tree)
+	value, loaded := s.keyRanges.LoadOrStore(group, tree)
 	if loaded {
-		value.(*util.ShardTree).Update(shard)
+		value.(*util.ShardTree).Update(shards...)
 	}
 }
 
