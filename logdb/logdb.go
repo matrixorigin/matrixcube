@@ -67,14 +67,6 @@ type WorkerContext struct {
 	wb    util.WriteBatch
 }
 
-// NewWorkerContext creates a new worker context.
-func NewWorkerContext(bc storage.WriteBatchCreator) *WorkerContext {
-	return &WorkerContext{
-		idBuf: make([]byte, 8),
-		wb:    bc.NewWriteBatch().(util.WriteBatch),
-	}
-}
-
 // Reset resets the worker context so it can be reused.
 func (w *WorkerContext) Reset() {
 	w.wb.Reset()
@@ -87,7 +79,8 @@ type LogDB interface {
 	Name() string
 	// Close closes the ILogDB instance.
 	Close() error
-
+	// NewWorkerContext creates a new worker context which used by `SaveRaftState`.
+	NewWorkerContext() *WorkerContext
 	// SaveRaftState atomically saves the Raft states, log entries and snapshots
 	// metadata found in the pb.Update list to the log DB. shardID is a 1-based
 	// ID of the worker invoking the SaveRaftState method, as each worker
@@ -130,6 +123,13 @@ func (l *KVLogDB) Name() string {
 
 func (l *KVLogDB) Close() error {
 	return nil
+}
+
+func (l *KVLogDB) NewWorkerContext() *WorkerContext {
+	return &WorkerContext{
+		idBuf: make([]byte, 8),
+		wb:    l.ms.NewWriteBatch().(util.WriteBatch),
+	}
 }
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
