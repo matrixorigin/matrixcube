@@ -41,7 +41,7 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 			log.ReplicaIDField(pr.replica.ID))
 	}
 
-	rd := pr.rn.ReadySince(pr.lastReadyIndex)
+	rd := pr.rn.Ready()
 	pr.handleRaftState(rd)
 	pr.sendRaftAppendLogMessages(rd)
 	if err := pr.handleRaftReadyAppend(rd, wc); err != nil {
@@ -53,7 +53,7 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 		return err
 	}
 	pr.handleReadyToRead(rd)
-	pr.rn.AdvanceAppend(rd)
+	pr.rn.Advance(rd)
 
 	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
@@ -137,7 +137,6 @@ func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 	}
 
 	if len(rd.CommittedEntries) > 0 {
-		pr.lastReadyIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
 		if err := pr.doApplyCommittedEntries(rd.CommittedEntries); err != nil {
 			return err
 		}
