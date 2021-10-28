@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -83,7 +82,7 @@ func TestDestroyReplica(t *testing.T) {
 			break
 		}
 	}
-	wc := logdb.NewWorkerContext(kv)
+	wc := s.logdb.NewWorkerContext()
 	pr.handleEvent(wc)
 	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))
