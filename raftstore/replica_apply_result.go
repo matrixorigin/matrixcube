@@ -69,7 +69,6 @@ func (pr *replica) handleApplyResult(result applyResult) {
 
 func (pr *replica) updateAppliedIndex(result applyResult) {
 	pr.appliedIndex = result.index
-	pr.rn.AdvanceApply(result.index)
 	pr.maybeExecRead()
 }
 

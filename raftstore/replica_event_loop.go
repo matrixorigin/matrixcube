@@ -157,7 +157,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
 	pr.cacheRaftStatus()
 	pr.handleFeedback(pr.items)
 	pr.handleRequest(pr.items)
-	if pr.rn.HasReadySince(pr.lastReadyIndex) {
+	if pr.rn.HasReady() {
 		pr.handleReady(wc)
 	}
 
