@@ -84,5 +84,5 @@ func getCloseableReplica() *replica {
 
 func TestReplicaCanBeClosed(t *testing.T) {
 	r := getCloseableReplica()
-	assert.True(t, r.handleEvent())
+	assert.True(t, r.handleEvent(nil))
 }

@@ -122,7 +122,7 @@ func NewStore(cfg *config.Config) Store {
 	}
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
 	// TODO: make workerCount configurable
-	s.workerPool = newWorkerPool(s.logger, &storeReplicaLoader{s}, 64)
+	s.workerPool = newWorkerPool(s.logger, kv, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {

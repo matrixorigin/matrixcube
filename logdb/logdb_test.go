@@ -82,7 +82,8 @@ func TestLogDBGetMaxIndex(t *testing.T) {
 			Entries:   []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
-		if err := db.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+		wc := NewWorkerContext(db.ms)
+		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
 		index, err := db.getMaxIndex(testShardID, testPeerID)
@@ -113,7 +114,8 @@ func TestLogDBSaveRaftState(t *testing.T) {
 			Entries:   []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
-		if err := db.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+		wc := NewWorkerContext(db.ms)
+		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
 		rs, err := db.ReadRaftState(testShardID, testPeerID)
@@ -144,7 +146,8 @@ func TestLogDBIterateEntries(t *testing.T) {
 		for _, e := range rd.Entries {
 			size += uint64(e.Size())
 		}
-		if err := db.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+		wc := NewWorkerContext(db.ms)
+		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
 		var ents []raftpb.Entry
@@ -169,7 +172,8 @@ func TestLogDBRemoveEntriesTo(t *testing.T) {
 			Entries:   []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
-		if err := db.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+		wc := NewWorkerContext(db.ms)
+		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
 		if err := db.RemoveEntriesTo(testShardID, testPeerID, 5); err != nil {

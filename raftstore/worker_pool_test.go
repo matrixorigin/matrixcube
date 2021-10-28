@@ -18,13 +18,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
 func TestWorkerPoolCanBeCreatedAndClosed(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, nil, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, nil, 32)
 	p.start()
 	p.close()
 }
@@ -45,7 +50,7 @@ func (t *testReplicaEventHandler) getShardID() uint64 {
 	return t.shardID
 }
 
-func (t *testReplicaEventHandler) handleEvent() bool {
+func (t *testReplicaEventHandler) handleEvent(*logdb.WorkerContext) bool {
 	if t.invoked != nil {
 		close(t.invoked)
 		<-t.waitC
@@ -81,7 +86,9 @@ func TestWorkerPoolCanScheduleSimpleJob(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
 	h, _ := l.getReplica(10)
-	p := newWorkerPool(nil, l, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, l, 32)
 	p.start()
 	defer func() {
 		p.close()
@@ -104,7 +111,9 @@ func TestWorkerPoolCanScheduleSimpleJob(t *testing.T) {
 
 func TestWorkerPoolWillNotReturnBusyWorker(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, nil, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, nil, 32)
 	p.start()
 	defer p.close()
 	assert.Equal(t, 32, len(p.workers))
@@ -121,7 +130,9 @@ func TestWorkerPoolWillNotReturnBusyWorker(t *testing.T) {
 
 func TestWorkerPoolScheduleNothingWhenNotPendingJob(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, nil, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, nil, 32)
 	p.start()
 	defer p.close()
 	assert.False(t, p.scheduleWorker())
@@ -131,7 +142,9 @@ func TestWorkerPoolScheduleNothingWhenNotPendingJob(t *testing.T) {
 
 func TestWorkerPoolScheduleNothingWhenNoIdleWorker(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, nil, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, nil, 32)
 	p.start()
 	defer p.close()
 	p.pending[20] = nil
@@ -145,7 +158,9 @@ func TestWorkerPoolScheduleNothingWhenNoIdleWorker(t *testing.T) {
 
 func TestWorkerPoolWillNotConcurrentlyProcessTheSameShard(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	p := newWorkerPool(nil, nil, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, nil, 32)
 	p.start()
 	defer p.close()
 	p.pending[10] = nil
@@ -156,7 +171,9 @@ func TestWorkerPoolWillNotConcurrentlyProcessTheSameShard(t *testing.T) {
 func TestWorkerPoolSetBusyAndProcessingAsExpected(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
-	p := newWorkerPool(nil, l, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, l, 32)
 	p.start()
 	defer func() {
 		p.close()
@@ -175,7 +192,9 @@ func TestWorkerPoolSetBusyAndProcessingAsExpected(t *testing.T) {
 func testWorkerPoolConcurrentJobs(t *testing.T, moreJob bool) {
 	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
-	p := newWorkerPool(nil, l, 32)
+	mem := mem.NewStorage()
+	defer mem.Close()
+	p := newWorkerPool(nil, mem, l, 32)
 	p.start()
 	defer func() {
 		p.close()

@@ -171,7 +171,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 			break
 		}
 	}
-	pr.handleEvent()
+	pr.handleEvent(nil)
 
 	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))

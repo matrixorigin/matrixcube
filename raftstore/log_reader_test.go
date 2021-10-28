@@ -27,6 +27,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -47,20 +48,22 @@ func getNewLogReaderTestDB(entries []pb.Entry, fs vfs.FS) *pebble.Storage {
 	return st
 }
 
-func getTestLogReader(entries []pb.Entry, fs vfs.FS) (*LogReader, func()) {
+func getTestLogReader(entries []pb.Entry,
+	fs vfs.FS) (*LogReader, storage.WriteBatchCreator, func()) {
 	db := getNewLogReaderTestDB(entries, fs)
 	ldb := logdb.NewKVLogDB(db, log.GetDefaultZapLogger())
 	rd := raft.Ready{
 		Entries: entries,
 	}
-	if err := ldb.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+	wc := logdb.NewWorkerContext(db)
+	if err := ldb.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 		panic(err)
 	}
 	ls := NewLogReader(nil, testShardID, testPeerID, ldb)
 	ls.markerIndex = entries[0].Index
 	ls.markerTerm = entries[0].Term
 	ls.length = uint64(len(entries))
-	return ls, func() { db.Close() }
+	return ls, db, func() { db.Close() }
 }
 
 func TestLogReaderTerm(t *testing.T) {
@@ -83,7 +86,7 @@ func testLogReaderTerm(t *testing.T, fs vfs.FS) {
 		{6, raft.ErrUnavailable, 0, false},
 	}
 	for i, tt := range tests {
-		s, closer := getTestLogReader(ents, fs)
+		s, _, closer := getTestLogReader(ents, fs)
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -133,7 +136,7 @@ func testLogReaderEntries(t *testing.T, fs vfs.FS) {
 	}
 
 	for i, tt := range tests {
-		s, closer := getTestLogReader(ents, fs)
+		s, _, closer := getTestLogReader(ents, fs)
 		entries, err := s.Entries(tt.lo, tt.hi, tt.maxsize)
 		if err != tt.werr {
 			t.Errorf("#%d: err = %v, want %v", i, err, tt.werr)
@@ -152,7 +155,7 @@ func TestLogReaderLastIndex(t *testing.T) {
 
 func testLogReaderLastIndex(t *testing.T, fs vfs.FS) {
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
-	s, closer := getTestLogReader(ents, fs)
+	s, _, closer := getTestLogReader(ents, fs)
 	defer closer()
 	last, err := s.LastIndex()
 	if err != nil {
@@ -180,7 +183,7 @@ func TestLogReaderFirstIndex(t *testing.T) {
 
 func testLogReaderFirstIndex(t *testing.T, fs vfs.FS) {
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
-	s, closer := getTestLogReader(ents, fs)
+	s, _, closer := getTestLogReader(ents, fs)
 	defer closer()
 	first, err := s.FirstIndex()
 	if err != nil {
@@ -267,14 +270,15 @@ func testLogReaderAppend(t *testing.T, fs vfs.FS) {
 		},
 	}
 	for i, tt := range tests {
-		s, closer := getTestLogReader(ents, fs)
+		s, kv, closer := getTestLogReader(ents, fs)
 		if err := s.Append(tt.entries); err != tt.werr {
 			t.Fatalf("%v", err)
 		}
 		rd := raft.Ready{
 			Entries: tt.entries,
 		}
-		if err := s.logdb.SaveRaftState(testShardID, testPeerID, rd); err != nil {
+		wc := logdb.NewWorkerContext(kv)
+		if err := s.logdb.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
 			panic(err)
 		}
 		bfi := tt.wentries[0].Index - 1
@@ -310,7 +314,7 @@ func TestLogReaderApplySnapshot(t *testing.T) {
 		{Metadata: pb.SnapshotMetadata{Index: 4, Term: 4, ConfState: *cs}},
 		{Metadata: pb.SnapshotMetadata{Index: 3, Term: 3, ConfState: *cs}},
 	}
-	s, closer := getTestLogReader(ents, fs)
+	s, _, closer := getTestLogReader(ents, fs)
 	defer closer()
 	//Apply Snapshot successful
 	i := 0
@@ -349,7 +353,7 @@ func TestLogReaderCreateSnapshot(t *testing.T) {
 		{5, 5, nil, pb.Snapshot{Metadata: pb.SnapshotMetadata{Index: 5, Term: 5, ConfState: *cs}}},
 	}
 	for i, tt := range tests {
-		s, closer := getTestLogReader(ents, fs)
+		s, _, closer := getTestLogReader(ents, fs)
 		err := s.CreateSnapshot(tt.wsnap)
 		if err != tt.werr {
 			t.Errorf("#%d: err = %v, want %v", i, err, tt.werr)
@@ -376,7 +380,7 @@ func TestLogReaderSetRange(t *testing.T) {
 		{6, 6, 9, 3},
 	}
 	for idx, tt := range tests {
-		s, closer := getTestLogReader(ents, fs)
+		s, _, closer := getTestLogReader(ents, fs)
 		s.SetRange(tt.firstIndex, tt.length)
 		if s.markerIndex != tt.expMarkerIndex {
 			t.Errorf("%d, marker index %d, want %d", idx, s.markerIndex, tt.expMarkerIndex)
@@ -395,7 +399,7 @@ func TestLogReaderGetSnapshot(t *testing.T) {
 		Voters: []uint64{1, 2, 3},
 	}
 	ss := pb.Snapshot{Metadata: pb.SnapshotMetadata{Index: 4, Term: 4, ConfState: *cs}}
-	s, closer := getTestLogReader(ents, fs)
+	s, _, closer := getTestLogReader(ents, fs)
 	defer closer()
 	if err := s.ApplySnapshot(ss); err != nil {
 		t.Errorf("create snapshot failed %v", err)
@@ -415,7 +419,7 @@ func TestLogReaderInitialState(t *testing.T) {
 	cs := pb.ConfState{
 		Voters: []uint64{1, 2, 3},
 	}
-	s, closer := getTestLogReader(ents, fs)
+	s, _, closer := getTestLogReader(ents, fs)
 	defer closer()
 	s.SetConfState(cs)
 	ps := pb.HardState{
