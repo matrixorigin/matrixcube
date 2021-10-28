@@ -129,7 +129,7 @@ func TestDoShardHeartbeat(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
+		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 		c.pr.store = s
 		close(c.pr.startedC)
 		s.addReplica(c.pr)
@@ -144,7 +144,7 @@ func TestDoShardHeartbeat(t *testing.T) {
 }
 
 func TestGetStoreHeartbeat(t *testing.T) {
-	s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	s.addReplica(&replica{shardID: 1})
 	s.addReplica(&replica{shardID: 2})
 	s.trans = &testTransport{}
@@ -236,7 +236,7 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
+		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 		s.workerPool.close() // avoid admin request real handled by event worker
 		pr := c.fn(s)
 		pr.sm = &stateMachine{}

@@ -75,8 +75,8 @@ type testClusterOptions struct {
 	useDisk            bool
 	dataOpts, metaOpts *cpebble.Options
 
-	disableSchedule     bool
-	disableTestParallel bool
+	disableSchedule    bool
+	enableParallelTest bool
 }
 
 func newTestClusterOptions() *testClusterOptions {
@@ -124,10 +124,10 @@ func WithTestClusterDisableSchedule() TestClusterOption {
 	}
 }
 
-// WithDisableTestParallel disable parallel testing
-func WithDisableTestParallel() TestClusterOption {
+// WithEnableTestParallel enable parallel testing
+func WithEnableTestParallel() TestClusterOption {
 	return func(opts *testClusterOptions) {
-		opts.disableTestParallel = true
+		opts.enableParallelTest = true
 	}
 }
 
@@ -669,7 +669,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	c.opts.adjust()
 
 	if init {
-		if !c.opts.disableTestParallel {
+		if c.opts.enableParallelTest {
 			c.t.Parallel()
 		}
 
