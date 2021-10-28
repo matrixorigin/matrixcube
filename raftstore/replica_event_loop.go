@@ -16,14 +16,16 @@ package raftstore
 import (
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"github.com/matrixorigin/matrixcube/util"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
+
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util"
 )
 
 const (
@@ -139,7 +141,7 @@ func (pr *replica) shutdown() {
 	pr.logger.Info("replica shutdown completed")
 }
 
-func (pr *replica) handleEvent() bool {
+func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
 	select {
 	case <-pr.closedC:
 		if !pr.unloaded() {
@@ -156,7 +158,7 @@ func (pr *replica) handleEvent() bool {
 	pr.handleFeedback(pr.items)
 	pr.handleRequest(pr.items)
 	if pr.rn.HasReadySince(pr.lastReadyIndex) {
-		pr.handleReady()
+		pr.handleReady(wc)
 	}
 
 	pr.handleAction(pr.items)

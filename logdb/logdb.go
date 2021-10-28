@@ -60,6 +60,28 @@ type RaftState struct {
 	EntryCount uint64
 }
 
+// WorkerContext is the per worker context owned and used by each raft worker.
+// It contains write batch and buffers that can be reused across iterations.
+type WorkerContext struct {
+	idBuf []byte
+	wb    util.WriteBatch
+}
+
+// NewWorkerContext creates a new worker context.
+func NewWorkerContext(bc storage.WriteBatchCreator) *WorkerContext {
+	return &WorkerContext{
+		idBuf: make([]byte, 8),
+		wb:    bc.NewWriteBatch().(util.WriteBatch),
+	}
+}
+
+// Reset resets the worker context so it can be reused.
+func (w *WorkerContext) Reset() {
+	w.wb.Reset()
+}
+
+// LogDB is the interface to be implemented for concrete LogDB types used for
+// saving raft logs and states.
 type LogDB interface {
 	// Name returns the type name of the ILogDB instance.
 	Name() string
@@ -71,7 +93,8 @@ type LogDB interface {
 	// ID of the worker invoking the SaveRaftState method, as each worker
 	// accesses the log DB from its own thread, SaveRaftState will never be
 	// concurrently called with the same shardID.
-	SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) error
+	SaveRaftState(shardID uint64,
+		peerID uint64, rd raft.Ready, ctx *WorkerContext) error
 	// IterateEntries returns the continuous Raft log entries of the specified
 	// Raft node between the index value range of [low, high) up to a max size
 	// limit of maxSize bytes. It returns the located log entries, their total
@@ -85,6 +108,7 @@ type LogDB interface {
 	RemoveEntriesTo(shardID uint64, peerID uint64, index uint64) error
 }
 
+// KVLogDB is a LogDB implementation built on top of a Key-Value store.
 type KVLogDB struct {
 	logger *zap.Logger
 	state  raftpb.HardState
@@ -108,27 +132,23 @@ func (l *KVLogDB) Close() error {
 	return nil
 }
 
-func (l *KVLogDB) SaveRaftState(shardID uint64, peerID uint64, rd raft.Ready) error {
+func (l *KVLogDB) SaveRaftState(shardID uint64,
+	peerID uint64, rd raft.Ready, ctx *WorkerContext) error {
 	if len(rd.Entries) == 0 {
 		return nil
 	}
 
-	// FIXME: move the following wb and buf to a per worker data structure that
-	// can be used across different iterations
-	wb := l.ms.NewWriteBatch().(util.WriteBatch)
-	defer wb.Close()
-
 	for _, e := range rd.Entries {
+		// TODO: use reusable buf here
 		d := protoc.MustMarshal(&e)
-		wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
+		ctx.wb.Set(keys.GetRaftLogKey(shardID, e.Index, nil), d)
 	}
 
 	v := protoc.MustMarshal(&rd.HardState)
-	wb.Set(keys.GetHardStateKey(shardID, peerID, nil), v)
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, rd.Entries[len(rd.Entries)-1].Index)
-	wb.Set(keys.GetMaxIndexKey(shardID, nil), buf)
-	return l.ms.Write(wb, true)
+	ctx.wb.Set(keys.GetHardStateKey(shardID, peerID, nil), v)
+	binary.BigEndian.PutUint64(ctx.idBuf, rd.Entries[len(rd.Entries)-1].Index)
+	ctx.wb.Set(keys.GetMaxIndexKey(shardID, nil), ctx.idBuf)
+	return l.ms.Write(ctx.wb, true)
 }
 
 func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,

@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
@@ -34,7 +35,7 @@ var (
 	ErrUnknownReplica = errors.New("unknown replica")
 )
 
-func (pr *replica) handleReady() error {
+func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 	if ce := pr.logger.Check(zap.DebugLevel, "begin handleReady"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
 			log.ReplicaIDField(pr.replica.ID))
@@ -43,7 +44,7 @@ func (pr *replica) handleReady() error {
 	rd := pr.rn.ReadySince(pr.lastReadyIndex)
 	pr.handleRaftState(rd)
 	pr.sendRaftAppendLogMessages(rd)
-	if err := pr.handleRaftReadyAppend(rd); err != nil {
+	if err := pr.handleRaftReadyAppend(rd, wc); err != nil {
 		return err
 	}
 	pr.sendRaftMessages(rd)
@@ -82,10 +83,11 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 	}
 }
 
-func (pr *replica) handleRaftReadyAppend(rd raft.Ready) error {
+func (pr *replica) handleRaftReadyAppend(rd raft.Ready,
+	wc *logdb.WorkerContext) error {
 	start := time.Now()
 	defer metric.ObserveRaftLogAppendDuration(start)
-	return pr.handleAppendEntries(rd)
+	return pr.handleAppendEntries(rd, wc)
 }
 
 func getEstimatedAppendSize(rd raft.Ready) int {
@@ -97,7 +99,8 @@ func getEstimatedAppendSize(rd raft.Ready) int {
 	return sz
 }
 
-func (pr *replica) handleAppendEntries(rd raft.Ready) error {
+func (pr *replica) handleAppendEntries(rd raft.Ready,
+	wc *logdb.WorkerContext) error {
 	if len(rd.Entries) > 0 {
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"begin to save raft state"); ce != nil {
@@ -108,7 +111,7 @@ func (pr *replica) handleAppendEntries(rd raft.Ready) error {
 		}
 		pr.lr.Append(rd.Entries)
 		pr.metrics.ready.append++
-		err := pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd)
+		err := pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"save raft state completed"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
