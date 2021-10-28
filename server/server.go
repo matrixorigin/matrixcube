@@ -43,6 +43,8 @@ type CustomRequest struct {
 	Read bool
 	// Write write request
 	Write bool
+	// Args custom args for async execute callback
+	Args interface{}
 }
 
 // Application a tcp application server
@@ -98,7 +100,7 @@ func (s *Application) ShardProxy() raftstore.ShardsProxy {
 func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, error) {
 	completeC := make(chan interface{}, 1)
 	closed := uint32(0)
-	cb := func(cmd interface{}, resp []byte, err error) {
+	cb := func(_ CustomRequest, resp []byte, err error) {
 		if atomic.CompareAndSwapUint32(&closed, 0, 1) {
 			if err != nil {
 				completeC <- err
@@ -109,7 +111,7 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 		}
 	}
 
-	s.AsyncExec(cmd, cb, timeout, nil)
+	s.AsyncExec(cmd, cb, timeout)
 	value := <-completeC
 	switch v := value.(type) {
 	case error:
@@ -119,8 +121,8 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 	}
 }
 
-// AsyncExecWithGroupAndTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExec(cmd CustomRequest, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
+// AsyncExec async exec the request, if the err is ErrTimeout means the request is timeout
+func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte, error), timeout time.Duration) {
 	req := rpc.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.CustomType = cmd.CustomType
@@ -140,7 +142,7 @@ func (s *Application) AsyncExec(cmd CustomRequest, cb func(interface{}, []byte, 
 	}
 
 	s.callbackContext.Store(hack.SliceToString(req.ID), ctx{
-		arg: arg,
+		cmd: cmd,
 		cb:  cb,
 	})
 	if timeout > 0 {
@@ -155,7 +157,7 @@ func (s *Application) AsyncExec(cmd CustomRequest, cb func(interface{}, []byte, 
 	}
 	if err != nil {
 		s.callbackContext.Delete(hack.SliceToString(req.ID))
-		cb(arg, nil, err)
+		cb(cmd, nil, err)
 	}
 }
 
@@ -203,12 +205,12 @@ func (s *Application) doneError(resp *rpc.Request, err error) {
 }
 
 type ctx struct {
-	arg interface{}
-	cb  func(interface{}, []byte, error)
+	cmd CustomRequest
+	cb  func(CustomRequest, []byte, error)
 }
 
 func (c ctx) resp(resp []byte, err error) {
 	if c.cb != nil {
-		c.cb(c.arg, resp, err)
+		c.cb(c.cmd, resp, err)
 	}
 }
