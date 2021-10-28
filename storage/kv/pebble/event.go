@@ -14,13 +14,10 @@
 package pebble
 
 import (
-	cpebble "github.com/cockroachdb/pebble"
-	"github.com/fagongzi/log"
-)
+	"fmt"
 
-var (
-	// TODO: use zap when it is ready to be integrated
-	logger = log.NewLoggerWithPrefix("[pebble]")
+	cpebble "github.com/cockroachdb/pebble"
+	"go.uber.org/zap"
 )
 
 func hasEventListener(l cpebble.EventListener) bool {
@@ -42,28 +39,28 @@ func hasEventListener(l cpebble.EventListener) bool {
 		l.WriteStallEnd != nil
 }
 
-func getEventListener() cpebble.EventListener {
+func getEventListener(logger *zap.Logger) cpebble.EventListener {
 	return cpebble.EventListener{
 		CompactionBegin: func(info cpebble.CompactionInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		CompactionEnd: func(info cpebble.CompactionInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		DiskSlow: func(info cpebble.DiskSlowInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		FlushBegin: func(info cpebble.FlushInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		FlushEnd: func(info cpebble.FlushInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		WriteStallBegin: func(info cpebble.WriteStallBeginInfo) {
-			logger.Infof("%s", info)
+			logger.Info(fmt.Sprint("%s", info))
 		},
 		WriteStallEnd: func() {
-			logger.Infof("write stall ended")
+			logger.Info("write stall ended")
 		},
 	}
 }

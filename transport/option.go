@@ -16,7 +16,9 @@ package transport
 import (
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"go.uber.org/zap"
 )
 
 // Option transport option
@@ -30,6 +32,20 @@ type options struct {
 	raftWorkerCount  uint64
 	snapWorkerCount  uint64
 	errorHandlerFunc func(meta.RaftMessage, error)
+	logger           *zap.Logger
+}
+
+func (opts *options) adjust() {
+	if opts.logger == nil {
+		opts.logger = log.Adjust(opts.logger)
+	}
+}
+
+// WithLogger set logger
+func WithLogger(logger *zap.Logger) Option {
+	return func(opts *options) {
+		opts.logger = logger
+	}
 }
 
 // WithTimeout set read and write timeout for rpc

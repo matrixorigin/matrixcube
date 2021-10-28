@@ -18,12 +18,13 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
-
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"go.uber.org/zap"
 )
 
 type view struct {
@@ -48,7 +49,7 @@ var _ storage.KVStorage = (*Storage)(nil)
 
 // CreateLogDBStorage creates the underlying storage that will be used by the
 // LogDB.
-func CreateLogDBStorage(rootDir string, fs vfs.FS) storage.KVStorage {
+func CreateLogDBStorage(rootDir string, fs vfs.FS, logger *zap.Logger) storage.KVStorage {
 	path := fs.PathJoin(rootDir, "logdb")
 	opts := &pebble.Options{
 		FS:                          vfs.NewPebbleFS(fs),
@@ -57,9 +58,9 @@ func CreateLogDBStorage(rootDir string, fs vfs.FS) storage.KVStorage {
 		MaxManifestFileSize:         1024 * 1024,
 		MaxConcurrentCompactions:    2,
 		// FIXME: convert the following listener to use zap logger
-		EventListener: getEventListener(),
+		EventListener: getEventListener(log.Adjust(logger).Named("pebble")),
 	}
-	kv, err := NewStorage(path, opts)
+	kv, err := NewStorage(path, logger, opts)
 	if err != nil {
 		panic(err)
 	}
@@ -67,9 +68,9 @@ func CreateLogDBStorage(rootDir string, fs vfs.FS) storage.KVStorage {
 }
 
 // NewStorage returns a pebble backed kv store.
-func NewStorage(dir string, opts *pebble.Options) (*Storage, error) {
+func NewStorage(dir string, logger *zap.Logger, opts *pebble.Options) (*Storage, error) {
 	if !hasEventListener(opts.EventListener) {
-		opts.EventListener = getEventListener()
+		opts.EventListener = getEventListener(log.Adjust(logger).Named("pebble"))
 	}
 	db, err := pebble.Open(dir, opts)
 	if err != nil {
