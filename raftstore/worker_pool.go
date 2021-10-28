@@ -79,7 +79,6 @@ func (w *replicaWorker) workerMain() {
 		case <-w.stopper.ShouldStop():
 			return
 		case h := <-w.requestC:
-			w.wc.Reset()
 			if err := w.handleEvent(h); err != nil {
 				panic(err)
 			}
@@ -102,6 +101,7 @@ func (w *replicaWorker) completed() {
 
 func (w *replicaWorker) handleEvent(h replicaEventHandler) error {
 	for {
+		w.wc.Reset()
 		if !h.handleEvent(w.wc) {
 			break
 		}
