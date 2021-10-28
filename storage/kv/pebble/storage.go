@@ -57,8 +57,7 @@ func CreateLogDBStorage(rootDir string, fs vfs.FS, logger *zap.Logger) storage.K
 		MemTableStopWritesThreshold: 8,
 		MaxManifestFileSize:         1024 * 1024,
 		MaxConcurrentCompactions:    2,
-		// FIXME: convert the following listener to use zap logger
-		EventListener: getEventListener(log.Adjust(logger).Named("pebble")),
+		EventListener:               getEventListener(log.Adjust(logger).Named("pebble")),
 	}
 	kv, err := NewStorage(path, logger, opts)
 	if err != nil {

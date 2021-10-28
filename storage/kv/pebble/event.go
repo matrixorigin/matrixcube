@@ -14,27 +14,14 @@
 package pebble
 
 import (
+	"reflect"
+
 	cpebble "github.com/cockroachdb/pebble"
 	"go.uber.org/zap"
 )
 
 func hasEventListener(l cpebble.EventListener) bool {
-	return l.BackgroundError != nil ||
-		l.CompactionBegin != nil ||
-		l.CompactionEnd != nil ||
-		l.DiskSlow != nil ||
-		l.FlushBegin != nil ||
-		l.FlushEnd != nil ||
-		l.ManifestCreated != nil ||
-		l.ManifestDeleted != nil ||
-		l.TableCreated != nil ||
-		l.TableDeleted != nil ||
-		l.TableIngested != nil ||
-		l.TableStatsLoaded != nil ||
-		l.WALCreated != nil ||
-		l.WALDeleted != nil ||
-		l.WriteStallBegin != nil ||
-		l.WriteStallEnd != nil
+	return !reflect.DeepEqual(l, cpebble.EventListener{})
 }
 
 func getEventListener(logger *zap.Logger) cpebble.EventListener {
