@@ -17,7 +17,6 @@ import (
 	"fmt"
 
 	"github.com/fagongzi/goetty/buf"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
@@ -77,7 +76,7 @@ func (e raftEncoder) Encode(data interface{}, out *buf.ByteBuf) error {
 		t = typeSnap
 		m = &v
 	} else {
-		log.Fatalf("[matrixcube]: bug, not support msg type %T", data)
+		panic(fmt.Sprintf("[matrixcube]: bug, not support msg type %T", data))
 	}
 
 	size := m.Size()

@@ -40,7 +40,7 @@ func getNewLogReaderTestDB(entries []pb.Entry, fs vfs.FS) *pebble.Storage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("st_test", opts)
+	st, err := pebble.NewStorage("st_test", nil, opts)
 	if err != nil {
 		panic(err)
 	}

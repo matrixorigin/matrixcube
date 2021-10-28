@@ -10,8 +10,8 @@ import (
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/goetty/pool"
-	"github.com/fagongzi/log"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -19,10 +19,6 @@ import (
 	"github.com/matrixorigin/matrixcube/util/task"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[transport]")
 )
 
 var (
@@ -49,8 +45,8 @@ type MessageHandler func(msg interface{})
 
 type defaultTransport struct {
 	opts        *options
+	logger      *zap.Logger
 	storeID     uint64
-	addr        string
 	snapMgr     snapshot.SnapshotManager
 	decoder     codec.Decoder
 	encoder     codec.Encoder
@@ -77,7 +73,6 @@ func NewDefaultTransport(
 	t := &defaultTransport{
 		opts:     &options{},
 		storeID:  storeID,
-		addr:     addr,
 		snapMgr:  snapMgr,
 		resolver: resolver,
 		handler:  handler,
@@ -86,6 +81,8 @@ func NewDefaultTransport(
 	for _, opt := range opts {
 		opt(t.opts)
 	}
+	t.opts.adjust()
+	t.logger = t.opts.logger.Named("transport").With(log.ListenAddressField(addr))
 
 	baseEncoder := newRaftEncoder()
 	baseDecoder := newRaftDecoder()
@@ -96,7 +93,8 @@ func NewDefaultTransport(
 			goetty.WithLogger(zap.L().Named("cube-trans")),
 			goetty.WithEnableAsyncWrite(t.opts.sendBatch)))
 	if err != nil {
-		logger.Fatalf("create transport failed with %+v", err)
+		t.logger.Fatal("fail to create transport",
+			zap.Error(err))
 	}
 
 	t.server = app
@@ -124,9 +122,8 @@ func (t *defaultTransport) Start() {
 
 	err := t.server.Start()
 	if err != nil {
-		logger.Fatalf("transport start at %s failed with %+v",
-			t.addr,
-			err)
+		t.logger.Fatal("fail to start transport",
+			zap.Error(err))
 	}
 }
 
@@ -139,7 +136,7 @@ func (t *defaultTransport) Stop() {
 	}
 
 	t.server.Stop()
-	logger.Infof("transfer stopped")
+	t.logger.Info("transfer stopped")
 }
 
 func (t *defaultTransport) SendingSnapshotCount() uint64 {
@@ -186,7 +183,7 @@ func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
 	for {
 		n, err := q.Get(t.opts.sendBatch, items)
 		if err != nil {
-			logger.Infof("send raft worker stopped")
+			t.logger.Info("send raft worker stopped")
 			return
 		}
 
@@ -224,7 +221,7 @@ func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
 	for {
 		n, err := q.Get(t.opts.sendBatch, items)
 		if err != nil {
-			logger.Infof("send snapshot worker stopped")
+			t.logger.Info("send snapshot worker stopped")
 			return
 		}
 
@@ -234,9 +231,9 @@ func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
 
 			conn, err := t.getConn(id)
 			if err != nil {
-				logger.Errorf("create conn to %d failed with %+v, retry later",
-					id,
-					err)
+				t.logger.Error("fail to create connection to store, retry later",
+					log.StoreIDField(id),
+					zap.Error(err))
 				q.Put(msg)
 				continue
 			}
@@ -245,9 +242,9 @@ func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
 			t.putConn(id, conn)
 
 			if err != nil {
-				logger.Errorf("send snap %s failed with %+v, retry later",
-					msg.String(),
-					err)
+				t.logger.Error("fail to send snapshot message, retry later",
+					log.ShardIDField(msg.Header.Shard.ID),
+					zap.Error(err))
 				q.Put(msg)
 			}
 		}
@@ -260,11 +257,11 @@ func (t *defaultTransport) doSendSnapshotMessage(msg *meta.SnapshotMessage, conn
 	if t.snapMgr.Register(msg, snapshot.Sending) {
 		defer t.snapMgr.Deregister(msg, snapshot.Sending)
 
-		logger.Infof("shard %d start send pending snap, epoch=<%s> term=<%d> index=<%d>",
-			msg.Header.Shard.ID,
-			msg.Header.Shard.Epoch.String(),
-			msg.Header.Term,
-			msg.Header.Index)
+		t.logger.Info("start sending pending snapshot",
+			log.ShardIDField(msg.Header.Shard.ID),
+			log.EpochField("epoch", msg.Header.Shard.Epoch),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index))
 
 		start := time.Now()
 		if !t.snapMgr.Exists(msg) {
@@ -278,12 +275,12 @@ func (t *defaultTransport) doSendSnapshotMessage(msg *meta.SnapshotMessage, conn
 			return err
 		}
 
-		logger.Infof("shard %d pending snap sent succ, size=<%d>, epoch=<%s> term=<%d> index=<%d>",
-			msg.Header.Shard.ID,
-			size,
-			msg.Header.Shard.Epoch.String(),
-			msg.Header.Term,
-			msg.Header.Index)
+		t.logger.Info("pending snapshot sent succeed",
+			log.ShardIDField(msg.Header.Shard.ID),
+			log.EpochField("epoch", msg.Header.Shard.Epoch),
+			zap.Uint64("term", msg.Header.Term),
+			zap.Uint64("index", msg.Header.Index),
+			zap.Uint64("size", size))
 
 		metric.ObserveSnapshotSendingDuration(start)
 	}
@@ -293,12 +290,12 @@ func (t *defaultTransport) doSendSnapshotMessage(msg *meta.SnapshotMessage, conn
 
 func (t *defaultTransport) postSend(msg meta.RaftMessage, err error) {
 	if err != nil {
-		logger.Errorf("shard %d send msg %+v from %d to %d failed with %+v",
-			msg.ShardID,
-			msg,
-			msg.From.ID,
-			msg.To.ID,
-			err)
+		t.logger.Error("fail to send raft message ",
+			log.ShardIDField(msg.ShardID),
+			log.ReplicaField("from", msg.From),
+			log.ReplicaField("to", msg.To),
+			log.RaftMessageField("raft-msg", msg),
+			zap.Error(err))
 		if t.opts.errorHandlerFunc != nil {
 			t.opts.errorHandlerFunc(msg, err)
 		}
@@ -390,13 +387,14 @@ func (t *defaultTransport) checkConnect(id uint64, conn goetty.IOSession) bool {
 
 	ok, err := conn.Connect(addr, time.Second*10)
 	if err != nil {
-		logger.Errorf("connect to store %d failed with %+v",
-			id,
-			err)
+		t.logger.Error("fail to connect to store",
+			log.StoreIDField(id),
+			zap.Error(err))
 		return false
 	}
 
-	logger.Infof("connected to store %d", id)
+	t.logger.Info("connected to store",
+		log.StoreIDField(id))
 	return ok
 }
 

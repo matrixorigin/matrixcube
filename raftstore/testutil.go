@@ -754,7 +754,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		metaStorage = mem.NewStorage()
 		if c.opts.useDisk {
 			c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-			s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "meta"), c.opts.metaOpts)
+			s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "meta"), cfg.Logger, c.opts.metaOpts)
 			assert.NoError(c.t, err)
 			metaStorage = s
 		}
@@ -764,7 +764,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			var kvs storage.KVStorage
 			if c.opts.useDisk {
 				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), c.opts.metaOpts)
+				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), cfg.Logger, c.opts.metaOpts)
 				assert.NoError(c.t, err)
 				kvs = s
 			} else {

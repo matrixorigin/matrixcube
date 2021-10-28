@@ -52,7 +52,7 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", opts)
+	st, err := pebble.NewStorage("test-data", nil, opts)
 	if err != nil {
 		panic(err)
 	}

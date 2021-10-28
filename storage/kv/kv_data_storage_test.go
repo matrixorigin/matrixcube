@@ -25,7 +25,7 @@ const (
 
 func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
 	fs.RemoveAll(testDir)
-	base, err := pebble.NewStorage(testDir, &cpebble.Options{FS: vfs.NewPebbleFS(fs)})
+	base, err := pebble.NewStorage(testDir, nil, &cpebble.Options{FS: vfs.NewPebbleFS(fs)})
 	require.NoError(t, err)
 	return base
 }
@@ -228,7 +228,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		dir.Sync()
 		shardID := uint64(1)
 		persistentLogIndex, metadataLogIndex := func() (uint64, uint64) {
-			kv, err := pebble.NewStorage("test-data", opts)
+			kv, err := pebble.NewStorage("test-data", nil, opts)
 			assert.NoError(t, err)
 			base := NewBaseStorage(kv, memfs)
 			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))
@@ -294,7 +294,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		assert.True(t, metadataLogIndex > 0)
 		memfs.(*pvfs.MemFS).ResetToSyncedState()
 		memfs.(*pvfs.MemFS).SetIgnoreSyncs(false)
-		kv, err := pebble.NewStorage("test-data", opts)
+		kv, err := pebble.NewStorage("test-data", nil, opts)
 		assert.NoError(t, err)
 		base := NewBaseStorage(kv, memfs)
 		s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))

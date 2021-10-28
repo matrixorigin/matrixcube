@@ -16,20 +16,18 @@ package metric
 import (
 	"time"
 
-	"github.com/fagongzi/log"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/prometheus/client_golang/prometheus/push"
-)
-
-var (
-	logger = log.NewLoggerWithPrefix("[matrixcube-metric]")
+	"go.uber.org/zap"
 )
 
 // StartPush start push metric
-func StartPush(cfg Cfg) {
-	logger.Infof("start push job %s metric to prometheus pushgateway %s, interval %d seconds",
-		cfg.Job,
-		cfg.Addr,
-		cfg.Interval)
+func StartPush(cfg Cfg, logger *zap.Logger) {
+	logger = log.Adjust(logger)
+	logger.Info("start push job metric",
+		zap.String("job", cfg.Job),
+		zap.String("pushgateway", cfg.Addr),
+		zap.Int("interval", cfg.Interval))
 
 	if cfg.Interval == 0 || cfg.Addr == "" || cfg.Job == "" {
 		return
@@ -47,9 +45,9 @@ func StartPush(cfg Cfg) {
 			case <-timer.C:
 				err := pusher.Push()
 				if err != nil {
-					logger.Errorf("push to %s failed with %+v",
-						cfg.Addr,
-						err)
+					logger.Error("fail to push metric",
+						zap.String("pushgateway", cfg.Addr),
+						zap.Error(err))
 				}
 			}
 		}
