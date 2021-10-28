@@ -54,7 +54,7 @@ func TestAsyncExec(t *testing.T) {
 		resp = r
 		err = e
 		ch <- struct{}{}
-	}, 100)
+	}, time.Second*10, 100)
 	<-ch
 	assert.NoError(t, err)
 	assert.Equal(t, simple.OK, resp)

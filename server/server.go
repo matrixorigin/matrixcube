@@ -109,7 +109,7 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 		}
 	}
 
-	s.AsyncExecWithTimeout(cmd, cb, timeout, nil)
+	s.AsyncExec(cmd, cb, timeout, nil)
 	value := <-completeC
 	switch v := value.(type) {
 	case error:
@@ -119,13 +119,8 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 	}
 }
 
-// AsyncExec async exec the request command
-func (s *Application) AsyncExec(cmd CustomRequest, cb func(interface{}, []byte, error), arg interface{}) {
-	s.AsyncExecWithTimeout(cmd, cb, 0, arg)
-}
-
 // AsyncExecWithGroupAndTimeout async exec the request, if the err is ErrTimeout means the request is timeout
-func (s *Application) AsyncExecWithTimeout(cmd CustomRequest, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
+func (s *Application) AsyncExec(cmd CustomRequest, cb func(interface{}, []byte, error), timeout time.Duration, arg interface{}) {
 	req := rpc.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.CustomType = cmd.CustomType
