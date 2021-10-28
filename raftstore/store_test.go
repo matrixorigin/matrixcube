@@ -157,7 +157,7 @@ func TestValidateShard(t *testing.T) {
 	}
 
 	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t, WithDisableTestParallel()).GetStore(0).(*store)
+		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 		c.pr.store = s
 		c.pr.sm = &stateMachine{}
 		c.pr.sm.metadataMu.shard = Shard{ID: c.pr.shardID, Epoch: c.epoch}
