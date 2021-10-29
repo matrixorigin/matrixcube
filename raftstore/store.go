@@ -128,7 +128,7 @@ func NewStore(cfg *config.Config) Store {
 			return s.cfg.Storage.DataStorageFactory(group).SplitCheck
 		})
 	// TODO: make workerCount configurable
-	s.workerPool = newWorkerPool(s.logger, kv, &storeReplicaLoader{s}, 64)
+	s.workerPool = newWorkerPool(s.logger, s.logdb, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {

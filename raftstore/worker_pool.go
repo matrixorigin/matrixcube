@@ -22,7 +22,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type replicaLoader interface {
@@ -131,8 +130,7 @@ type workerPool struct {
 	poolStopper   *syncutil.Stopper
 }
 
-func newWorkerPool(logger *zap.Logger,
-	wc storage.WriteBatchCreator, loader replicaLoader, workerCount uint64) *workerPool {
+func newWorkerPool(logger *zap.Logger, ldb logdb.LogDB, loader replicaLoader, workerCount uint64) *workerPool {
 	p := &workerPool{
 		logger:        log.Adjust(logger).Named("worker-pool"),
 		loader:        loader,
@@ -144,7 +142,7 @@ func newWorkerPool(logger *zap.Logger,
 		poolStopper:   syncutil.NewStopper(),
 	}
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
-		workerContext := logdb.NewWorkerContext(wc)
+		workerContext := ldb.NewWorkerContext()
 		w := newReplicaWorker(workerID, p.workerStopper, workerContext)
 		p.workers = append(p.workers, w)
 	}
