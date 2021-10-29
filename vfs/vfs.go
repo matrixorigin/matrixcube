@@ -30,6 +30,9 @@ type File = pvfs.File
 // FS is a vfs type
 type FS = pvfs.FS
 
+// MemFS is the in memory fs type
+type MemFS = pvfs.MemFS
+
 // Default is the default vfs suppose to be used in production. It is directly
 // backed by the underlying operating system's file system.
 var Default = pvfs.Default

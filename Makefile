@@ -51,6 +51,10 @@ test-storage:
 	$(GOTEST) $(PKGNAME)/storage/kv
 	$(GOTEST) $(PKGNAME)/storage/executor/simple
 
+.PHONY: test-snapshot
+test-snapshot:
+	$(GOTEST) $(PKGNAME)/snapshot
+
 .PHONY: test-logdb
 test-logdb:
 	$(GOTEST) $(PKGNAME)/logdb
@@ -73,7 +77,7 @@ test-keys:
 
 .PHONY: test
 test: test-storage test-logdb test-raftstore test-server test-transport \
-	test-keys
+	test-keys test-snapshot
 
 ###############################################################################
 # static checks
@@ -84,8 +88,8 @@ test: test-storage test-logdb test-raftstore test-server test-transport \
 # PKGS=$(shell go list ./...)
 # DIRS=$(subst $(PKGNAME), ,$(subst $(PKGNAME)/, ,$(CHECKED_PKGS))) .
 PKGS=$(PKGNAME)/storage $(PKGNAME)/storage/kv $(PKGNAME)/storage/executor/simple \
-	$(PKGNAME)/storage/stats
-DIRS=storage storage/kv storage/executor/simple storage/stats
+	$(PKGNAME)/storage/stats $(PKGNAME)/snapshot
+DIRS=storage storage/kv storage/executor/simple storage/stats snapshot
 EXTRA_LINTERS=-E misspell -E scopelint -E rowserrcheck -E depguard -E unconvert \
   -E prealloc -E gofmt -E stylecheck
 
