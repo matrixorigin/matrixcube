@@ -33,6 +33,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	pb "go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -40,6 +41,39 @@ import (
 
 func reportLeakedFD(fs vfs.FS, t *testing.T) {
 	vfs.ReportLeakedFD(fs, t)
+}
+
+func TestGetFinalDirWillPanicWhenIndexIsNotFinalizedInCreatingMode(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("failed to trigger panic")
+		}
+	}()
+	f := func(cid uint64, nid uint64) string {
+		return "/data"
+	}
+	fs := vfs.GetTestFS()
+	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
+	env.GetFinalDir()
+}
+
+func TestGetFinalDirWillNotPanicInReceivingMode(t *testing.T) {
+	f := func(cid uint64, nid uint64) string {
+		return "/data"
+	}
+	fs := vfs.GetTestFS()
+	env := NewSSEnv(f, 1, 1, 1, 2, ReceivingMode, fs)
+	assert.Equal(t, "/data/snapshot-0000000000000001", env.GetFinalDir())
+}
+
+func TestGetFinalDirWillNotPanicWhenIndexIsFinalizedInCreatingMode(t *testing.T) {
+	f := func(cid uint64, nid uint64) string {
+		return "/data"
+	}
+	fs := vfs.GetTestFS()
+	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
+	env.FinalizeIndex(100)
+	assert.Equal(t, "/data/snapshot-0000000000000064", env.GetFinalDir())
 }
 
 func TestGetSnapshotDirName(t *testing.T) {
@@ -93,7 +127,7 @@ func TestTempSuffix(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
-	env := NewSSEnv(f, 1, 1, 1, 2, SnapshotMode, fs)
+	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	dir := env.GetTempDir()
 	if !strings.Contains(dir, ".generating") {
 		t.Errorf("unexpected suffix")
@@ -111,7 +145,8 @@ func TestFinalSnapshotDirDoesNotContainTempSuffix(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
-	env := NewSSEnv(f, 1, 1, 1, 2, SnapshotMode, fs)
+	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
+	env.FinalizeIndex(1)
 	dir := env.GetFinalDir()
 	if strings.Contains(dir, ".generating") {
 		t.Errorf("unexpected suffix")
@@ -123,7 +158,7 @@ func TestRootDirIsTheParentOfTempFinalDirs(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
-	env := NewSSEnv(f, 1, 1, 1, 2, SnapshotMode, fs)
+	env := NewSSEnv(f, 1, 1, 1, 2, ReceivingMode, fs)
 	tmpDir := env.GetTempDir()
 	finalDir := env.GetFinalDir()
 	rootDir := env.GetRootDir()
@@ -143,7 +178,7 @@ func runEnvTest(t *testing.T, f func(t *testing.T, env SSEnv), fs vfs.FS) {
 		ff := func(cid uint64, nid uint64) string {
 			return rd
 		}
-		env := NewSSEnv(ff, 1, 1, 1, 2, SnapshotMode, fs)
+		env := NewSSEnv(ff, 1, 1, 1, 2, CreatingMode, fs)
 		tmpDir := env.GetTempDir()
 		if err := fs.MkdirAll(tmpDir, 0755); err != nil {
 			t.Fatalf("%v", err)
@@ -155,6 +190,7 @@ func runEnvTest(t *testing.T, f func(t *testing.T, env SSEnv), fs vfs.FS) {
 
 func TestRenameTempDirToFinalDir(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
+		env.FinalizeIndex(100)
 		if err := env.renameToFinalDir(); err != nil {
 			t.Errorf("failed to rename dir, %v", err)
 		}
@@ -165,6 +201,7 @@ func TestRenameTempDirToFinalDir(t *testing.T) {
 
 func TestRenameTempDirToFinalDirCanComplete(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
+		env.FinalizeIndex(100)
 		if env.finalDirExists() {
 			t.Errorf("final dir already exist")
 		}
@@ -185,6 +222,7 @@ func TestRenameTempDirToFinalDirCanComplete(t *testing.T) {
 
 func TestFlagFileExists(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
+		env.FinalizeIndex(100)
 		if env.finalDirExists() {
 			t.Errorf("final dir already exist")
 		}
@@ -210,6 +248,7 @@ func TestFlagFileExists(t *testing.T) {
 func TestFinalizeSnapshotCanComplete(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
 		m := &pb.Message{}
+		env.FinalizeIndex(100)
 		if err := env.FinalizeSnapshot(m); err != nil {
 			t.Errorf("failed to finalize snapshot %v", err)
 		}
@@ -226,6 +265,7 @@ func TestFinalizeSnapshotCanComplete(t *testing.T) {
 
 func TestFinalizeSnapshotReturnOutOfDateWhenFinalDirExist(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
+		env.FinalizeIndex(100)
 		finalDir := env.GetFinalDir()
 		if err := env.fs.MkdirAll(finalDir, 0755); err != nil {
 			t.Fatalf("%v", err)
