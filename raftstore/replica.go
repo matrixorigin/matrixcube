@@ -289,6 +289,8 @@ func (pr *replica) getShardID() uint64 {
 	return pr.shardID
 }
 
+// TODO: move this into the state machine, it should be invoked as a part of the
+// state machine restart procedure.
 // initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
 func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 	persistentLogIndex, err := storage.GetPersistentLogIndex(pr.shardID)
@@ -296,6 +298,7 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 		return err
 	}
 
+	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
 	return nil
 }
