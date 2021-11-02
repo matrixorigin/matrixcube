@@ -41,6 +41,11 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 )
 
+const (
+	// DO NOT CHANGE
+	snapshotDirName = "snapshots"
+)
+
 // Store manage a set of raft group
 type Store interface {
 	// Start the raft store
@@ -226,6 +231,11 @@ func (s *store) Stop() {
 		s.kvStorage.Close()
 		s.logger.Info("kvStorage closed")
 	})
+}
+
+func (s *store) GetReplicaSnapshotDir(shardID uint64, replicaID uint64) string {
+	dir := fmt.Sprintf("shard-%d-replica-%d", shardID, replicaID)
+	return s.cfg.FS.PathJoin(s.cfg.DataPath, snapshotDirName, dir)
 }
 
 func (s *store) GetShardsProxy() ShardsProxy {
