@@ -122,31 +122,8 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 		}
 		dirName := s.fs.PathJoin(s.rootDir, dirInfo.Name())
 		if s.isOrphan(dirInfo.Name()) {
-			var ssFromDir raftpb.SnapshotMetadata
-			if err := fileutil.GetFlagFileContent(dirName,
-				fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
+			if err := s.processOrphans(dirName, noss, ss); err != nil {
 				return err
-			}
-			if ssFromDir.Index == 0 {
-				panic("empty snapshot found")
-			}
-			remove := false
-			if noss {
-				remove = true
-			} else {
-				if ss.Index != ssFromDir.Index {
-					remove = true
-				}
-			}
-			if remove {
-				if err := s.remove(ssFromDir.Index); err != nil {
-					return err
-				}
-			} else {
-				env := s.getEnv(ssFromDir.Index)
-				if err := env.RemoveFlagFile(); err != nil {
-					return err
-				}
 			}
 		} else if s.isZombie(dirInfo.Name()) {
 			if err := removeDir(dirName); err != nil {
@@ -162,6 +139,31 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 		}
 	}
 	return nil
+}
+
+func (s *snapshotter) processOrphans(dirName string,
+	noss bool, ss raftpb.SnapshotMetadata) error {
+	var ssFromDir raftpb.SnapshotMetadata
+	if err := fileutil.GetFlagFileContent(dirName,
+		fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
+		return err
+	}
+	if ssFromDir.Index == 0 {
+		panic("empty snapshot found")
+	}
+	remove := false
+	if noss {
+		remove = true
+	} else {
+		if ss.Index != ssFromDir.Index {
+			remove = true
+		}
+	}
+	if remove {
+		return s.remove(ssFromDir.Index)
+	}
+	env := s.getEnv(ssFromDir.Index)
+	return env.RemoveFlagFile()
 }
 
 func (s *snapshotter) remove(index uint64) error {
