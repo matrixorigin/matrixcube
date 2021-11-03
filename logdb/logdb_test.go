@@ -34,12 +34,14 @@ import (
 
 	"github.com/cockroachdb/errors"
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -60,6 +62,8 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 }
 
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
+	defer vfs.ReportLeakedFD(fs, t)
+	defer leaktest.AfterTest(t)()
 	kv := getTestStorage(fs)
 	defer kv.Close()
 	db := NewKVLogDB(kv, log.GetDefaultZapLogger())
@@ -71,6 +75,40 @@ func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing
 		if _, err := db.getMaxIndex(testShardID, testPeerID); !errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to return the expected error")
 		}
+	}
+	fs := vfs.NewMemFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBSaveAndGetSnapshot(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		metadata := raftpb.SnapshotMetadata{Index: 100, Term: 123}
+		assert.NoError(t, db.SaveSnapshot(testShardID, testPeerID, metadata))
+		v, err := db.GetSnapshot(testShardID, testPeerID)
+		assert.NoError(t, err)
+		assert.Equal(t, metadata, v)
+	}
+	fs := vfs.NewMemFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBGetSnapshot(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		v, err := db.GetSnapshot(testShardID, testPeerID)
+		assert.Equal(t, ErrNoSnapshot, err)
+		assert.Empty(t, v)
+		rd := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 100},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		v, err = db.GetSnapshot(testShardID, testPeerID)
+		assert.NoError(t, err)
+		assert.Equal(t, rd.Snapshot.Metadata, v)
 	}
 	fs := vfs.NewMemFS()
 	runLogDBTest(t, tf, fs)

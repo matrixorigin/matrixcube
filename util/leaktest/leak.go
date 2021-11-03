@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	disabled = true
+	disabled = false
 )
 
 func AfterTest(t testing.TB) func() {

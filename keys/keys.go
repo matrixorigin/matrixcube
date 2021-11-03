@@ -24,6 +24,7 @@ const (
 	hardStateSuffix    = 0x06
 	appliedIndexSuffix = 0x07
 	metadataSuffix     = 0x08
+	snapshotSuffix     = 0x09
 )
 
 // data is in (z, z+1)
@@ -61,6 +62,12 @@ const (
 // GetStoreIdentKey return key of StoreIdent
 func GetStoreIdentKey() []byte {
 	return storeIdentKey
+}
+
+// GetSnapshotKey returns the key used to store snapshot metadata in LogDB.
+func GetSnapshotKey(shardID uint64, replicaID uint64, key []byte) []byte {
+	key = getKeySlice(key, indexedIDKeyLength)
+	return getIndexedIDKey(snapshotSuffix, shardID, replicaID, key)
 }
 
 // GetHardStateKey returns key that used to store `raftpb.HardState`

@@ -53,6 +53,7 @@ func TestGetFinalDirWillPanicWhenIndexIsNotFinalizedInCreatingMode(t *testing.T)
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	env.GetFinalDir()
 }
@@ -62,6 +63,7 @@ func TestGetFinalDirWillNotPanicInReceivingMode(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, ReceivingMode, fs)
 	assert.Equal(t, "/data/snapshot-0000000000000001", env.GetFinalDir())
 }
@@ -71,6 +73,7 @@ func TestGetFinalDirWillNotPanicWhenIndexIsFinalizedInCreatingMode(t *testing.T)
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	env.FinalizeIndex(100)
 	assert.Equal(t, "/data/snapshot-0000000000000064", env.GetFinalDir())
@@ -127,6 +130,7 @@ func TestTempSuffix(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	dir := env.GetTempDir()
 	if !strings.Contains(dir, ".generating") {
@@ -137,7 +141,6 @@ func TestTempSuffix(t *testing.T) {
 	if !strings.Contains(dir, ".receiving") {
 		t.Errorf("unexpected suffix: %s", dir)
 	}
-	reportLeakedFD(fs, t)
 }
 
 func TestFinalSnapshotDirDoesNotContainTempSuffix(t *testing.T) {
@@ -145,6 +148,7 @@ func TestFinalSnapshotDirDoesNotContainTempSuffix(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	env.FinalizeIndex(1)
 	dir := env.GetFinalDir()
@@ -158,17 +162,18 @@ func TestRootDirIsTheParentOfTempFinalDirs(t *testing.T) {
 		return "/data"
 	}
 	fs := vfs.GetTestFS()
+	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, ReceivingMode, fs)
 	tmpDir := env.GetTempDir()
 	finalDir := env.GetFinalDir()
 	rootDir := env.GetRootDir()
 	mustBeChild(rootDir, tmpDir)
 	mustBeChild(rootDir, finalDir)
-	reportLeakedFD(fs, t)
 }
 
 func runEnvTest(t *testing.T, f func(t *testing.T, env SSEnv), fs vfs.FS) {
 	rd := "server-pkg-test-data-safe-to-delete"
+	defer reportLeakedFD(fs, t)
 	defer func() {
 		if err := fs.RemoveAll(rd); err != nil {
 			t.Fatalf("%v", err)
@@ -185,7 +190,6 @@ func runEnvTest(t *testing.T, f func(t *testing.T, env SSEnv), fs vfs.FS) {
 		}
 		f(t, env)
 	}()
-	reportLeakedFD(fs, t)
 }
 
 func TestRenameTempDirToFinalDir(t *testing.T) {

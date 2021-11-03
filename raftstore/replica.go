@@ -68,6 +68,7 @@ type replica struct {
 	lr                   *LogReader
 	replicaHeartbeatsMap sync.Map
 	prophetHeartbeatTime uint64
+	snapshotter          *snapshotter
 	incomingProposals    *proposalBatch
 	pendingReads         *readIndexQueue
 	pendingProposals     *pendingProposals
@@ -142,6 +143,8 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		return nil, fmt.Errorf("invalid replica %+v", r)
 	}
 
+	snapshotter := newSnapshotter(shard.ID, r.ID,
+		l.Named("snapshotter"), store.GetReplicaSnapshotDir, store.logdb, store.cfg.FS)
 	maxBatchSize := uint64(store.cfg.Raft.MaxEntryBytes)
 	pr := &replica{
 		logger:            l,
@@ -158,6 +161,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(l, maxBatchSize, shard.ID, r),
 		pendingReads:      &readIndexQueue{shardID: shard.ID, logger: l},
+		snapshotter:       snapshotter,
 		ticks:             task.New(32),
 		messages:          task.New(32),
 		requests:          task.New(32),
@@ -189,14 +193,21 @@ func (pr *replica) start() {
 		}
 	}
 
+	if err := pr.snapshotter.prepareReplicaSnapshotDir(); err != nil {
+		pr.logger.Fatal("failed to create replica snapshot dir",
+			zap.Error(err))
+	}
 	if err := pr.initAppliedIndex(pr.sm.dataStorage); err != nil {
-		panic(err)
+		pr.logger.Fatal("failed to initialize applied index",
+			zap.Error(err))
 	}
 	if err := pr.initConfState(); err != nil {
-		panic(err)
+		pr.logger.Fatal("failed to initialize confState",
+			zap.Error(err))
 	}
 	if _, err := pr.initLogState(); err != nil {
-		panic(err)
+		pr.logger.Fatal("failed to initialize log state",
+			zap.Error(err))
 	}
 	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg)
 	rn, err := raft.NewRawNode(c)

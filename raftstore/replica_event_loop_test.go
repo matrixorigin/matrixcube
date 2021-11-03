@@ -24,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -42,7 +43,7 @@ func getTestStorage() storage.KVStorage {
 
 // TODO: we need this here largely because it is pretty difficult to write unit
 // tests for the replica type when it has an injected store instance in it.
-func getCloseableReplica() *replica {
+func getCloseableReplica() (*replica, func()) {
 	l := log.GetDefaultZapLogger()
 	r := Replica{}
 	shardID := uint64(1)
@@ -79,10 +80,13 @@ func getCloseableReplica() *replica {
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 		sm:                &stateMachine{},
-	}
+	}, func() { kv.Close() }
 }
 
 func TestReplicaCanBeClosed(t *testing.T) {
-	r := getCloseableReplica()
+	defer leaktest.AfterTest(t)()
+	r, closer := getCloseableReplica()
+	defer r.close()
+	defer closer()
 	assert.True(t, r.handleEvent(nil))
 }
