@@ -232,7 +232,7 @@ func (pr *replica) proposeConfChangeInternal(c batch,
 	cc := pr.toConfChangeI(admin, data)
 	var changes []rpc.ConfigChangeRequest
 	if admin.ConfigChangeV2 != nil {
-		changes = admin.ConfigChangeV2.Changes
+		panic("ConfigChangeV2 request?")
 	} else {
 		changes = append(changes, *admin.ConfigChange)
 	}
@@ -269,21 +269,7 @@ func (pr *replica) toConfChangeI(admin rpc.AdminRequest,
 			Context: data,
 		}
 	} else {
-		cc := &raftpb.ConfChangeV2{}
-		for _, ch := range admin.ConfigChangeV2.Changes {
-			cc.Changes = append(cc.Changes, raftpb.ConfChangeSingle{
-				Type:   raftpb.ConfChangeType(ch.ChangeType),
-				NodeID: ch.Replica.ID,
-			})
-		}
-
-		if len(cc.Changes) <= 1 {
-			cc.Transition = raftpb.ConfChangeTransitionAuto
-		} else {
-			cc.Transition = raftpb.ConfChangeTransitionJointExplicit
-		}
-		cc.Context = data
-		return cc
+		panic("ConfigChangeV2 request?")
 	}
 }
 

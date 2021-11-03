@@ -180,42 +180,6 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 			},
 		},
 		{
-			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, ConfigChangeV2: &rpcpb.ConfigChangeV2{
-				Changes: []rpcpb.ConfigChange{
-					{
-						ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-						Replica:    metapb.Replica{ID: 1, ContainerID: 1},
-					},
-					{
-						ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-						Replica:    metapb.Replica{ID: 2, ContainerID: 1},
-					},
-				},
-			}},
-			fn: func(s *store) *replica {
-				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
-				pr.store = s
-				close(pr.startedC)
-				s.addReplica(pr)
-				return pr
-			},
-			adminReq: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChangeV2,
-				ConfigChangeV2: &rpc.ConfigChangeV2Request{
-					Changes: []rpc.ConfigChangeRequest{
-						{
-							ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-							Replica:    metapb.Replica{ID: 1, ContainerID: 1},
-						},
-						{
-							ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-							Replica:    metapb.Replica{ID: 2, ContainerID: 1},
-						},
-					},
-				},
-			},
-		},
-		{
 			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, TransferLeader: &rpcpb.TransferLeader{
 				Replica: metapb.Replica{ID: 1, ContainerID: 1},
 			}},
