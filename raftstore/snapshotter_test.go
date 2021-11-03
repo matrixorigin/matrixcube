@@ -79,6 +79,7 @@ func getTestSnapshotter(ldb logdb.LogDB, fs vfs.FS) *snapshotter {
 func runSnapshotterTest(t *testing.T,
 	fn func(t *testing.T, logdb logdb.LogDB, snapshotter *snapshotter), fs vfs.FS) {
 	defer leaktest.AfterTest(t)()
+	defer vfs.ReportLeakedFD(fs, t)
 	deleteSnapshotterTestDir(fs)
 	ldb, closer := getNewTestDB()
 	defer closer()

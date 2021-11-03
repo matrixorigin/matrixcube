@@ -40,7 +40,9 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	}
 
 	shard := Shard{ID: 12345}
-	base := kv.NewBaseStorage(mem.NewStorage(), vfs.GetTestFS())
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	base := kv.NewBaseStorage(mem.NewStorage(), fs)
 	defer base.Close()
 	ctx := newWriteContext(base)
 	assert.False(t, ctx.hasRequest())
