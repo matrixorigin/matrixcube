@@ -14,10 +14,18 @@
 package storage
 
 import (
-	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/cockroachdb/errors"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util/buf"
+)
+
+var (
+	// ErrAborted indicates that the request operation was aborted as the data
+	// storage couldn't handle the request at the time of request. The client
+	// is suggested to retry later.
+	ErrAborted = errors.New("operation aborted")
 )
 
 // Closeable is an instance that can be closed.
@@ -71,7 +79,7 @@ type BaseStorage interface {
 	// keys.
 	SplitCheck(start, end []byte, size uint64) (currentSize uint64,
 		currentKeys uint64, splitKeys [][]byte, err error)
-	// CreateSnapshot creates a snapshot of the specified shard and stored it in
+	// CreateSnapshot creates a snapshot of the specified shard and store it in
 	// the directory specified by the given path. It returns the raft log index of
 	// the created snapshot and the encountered error if there is any.
 	CreateSnapshot(shardID uint64, path string) (uint64, error)

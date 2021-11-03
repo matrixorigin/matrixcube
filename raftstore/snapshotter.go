@@ -42,6 +42,14 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
+var (
+	errSnapshotOutOfDate = errors.New("snapshot being generated is out of date")
+)
+
+type saveable interface {
+	CreateSnapshot(shardID uint64, path string) (uint64, error)
+}
+
 type snapshotter struct {
 	logger      *zap.Logger
 	shardID     uint64
@@ -79,7 +87,7 @@ func (s *snapshotter) prepareReplicaSnapshotDir() error {
 
 // TODO: this can only be invoked after the replica is fully unloaded.
 // need to consider the snapshot transport pool as well.
-func (s *snapshotter) removeReplicaSnapshot() error {
+func (s *snapshotter) removeReplicaSnapshotDir() error {
 	exist, err := fileutil.Exist(s.rootDir, s.fs)
 	if err != nil {
 		return err
@@ -163,6 +171,40 @@ func (s *snapshotter) processOrphans(dirName string,
 		return s.remove(ssFromDir.Index)
 	}
 	env := s.getEnv(ssFromDir.Index)
+	return env.RemoveFlagFile()
+}
+
+func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
+	env snapshot.SSEnv, err error) {
+	env = snapshot.NewSSEnv(s.rootDirFunc,
+		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
+	if err := env.CreateTempDir(); err != nil {
+		return raftpb.Snapshot{}, env, err
+	}
+	index, err := de.CreateSnapshot(s.shardID, env.GetTempDir())
+	if err != nil {
+		return raftpb.Snapshot{}, env, err
+	}
+	return raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{
+			Index: index,
+			// FIXME: set term here once it is available from the engine
+		},
+	}, env, nil
+}
+
+func (s *snapshotter) commit(ss raftpb.Snapshot) error {
+	env := snapshot.NewSSEnv(s.rootDirFunc,
+		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
+	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
+		return err
+	}
+	if err := env.FinalizeSnapshot(&ss); err != nil {
+		if errors.Is(err, snapshot.ErrSnapshotOutOfDate) {
+			return errSnapshotOutOfDate
+		}
+		return err
+	}
 	return env.RemoveFlagFile()
 }
 

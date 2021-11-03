@@ -18,13 +18,14 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
 )
 
 type applyContext struct {
