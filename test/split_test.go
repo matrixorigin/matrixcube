@@ -1,71 +1,53 @@
 package test
 
-// TODO(TODO): resume
-// func TestSplit(t *testing.T) {
-// 	defer leaktest.AfterTest(t)()
-// 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-// 		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(20)
-// 		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(10)
-// 	}))
-// 	defer c.Stop()
+import (
+	"testing"
+	"time"
 
-// 	c.Start()
-// 	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/raftstore"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/stretchr/testify/assert"
+)
 
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key1")), []byte("value11"))
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key2")), []byte("value22"))
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key3")), []byte("value33"))
+func TestSplit(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	c := raftstore.NewSingleTestClusterStore(t, raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
+		cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
+	}))
+	defer c.Stop()
 
-// 	c.WaitShardByCountPerNode(3, testWaitTimeout)
-// 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
-// 	c.CheckShardRange(0, nil, []byte("key2"))
-// 	c.CheckShardRange(1, []byte("key2"), []byte("key3"))
-// 	c.CheckShardRange(2, []byte("key3"), nil)
-// }
+	c.Start()
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-// TODO(fagongzi): resume
-// func TestCustomSplit(t *testing.T) {
-// 	defer leaktest.AfterTest(t)()
-// 	target := keys.EncodeDataKey(0, []byte("key2"))
-// 	c := NewSingleTestClusterStore(t, WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-// 		cfg.Customize.CustomSplitCheckFuncFactory = func(group uint64) func(shard Shard) (uint64, uint64, [][]byte, error) {
-// 			return func(shard Shard) (uint64, uint64, [][]byte, error) {
-// 				store := cfg.Storage.DataStorageFactory(shard.Group).(storage.KVStorage)
-// 				endGroup := shard.Group
-// 				if len(shard.End) == 0 {
-// 					endGroup++
-// 				}
-// 				size := uint64(0)
-// 				totalKeys := uint64(0)
-// 				hasTarget := false
-// 				store.Scan(keys.EncodeDataKey(shard.Group, shard.Start), keys.EncodeDataKey(endGroup, shard.End), func(key, value []byte) (bool, error) {
-// 					size += uint64(len(key) + len(value))
-// 					totalKeys++
-// 					if bytes.Equal(key, target) {
-// 						hasTarget = true
-// 					}
-// 					return true, nil
-// 				}, false)
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
 
-// 				if len(shard.End) == 0 && len(shard.Start) == 0 && hasTarget {
-// 					return size, totalKeys, [][]byte{target}, nil
-// 				}
+	sid := c.GetShardByIndex(0, 0).ID
+	kv.Set("k1", "v1", testWaitTimeout)
+	kv.Set("k2", "v2", testWaitTimeout)
 
-// 				return size, totalKeys, nil, nil
-// 			}
-// 		}
-// 	}))
-// 	defer c.Stop()
+	c.WaitShardSplitByCount(sid, 1, testWaitTimeout)
+	c.WaitRemovedByShardID(sid, testWaitTimeout)
 
-// 	c.Start()
-// 	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	// new shards created
+	c.WaitShardByCountPerNode(2, testWaitTimeout)
 
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key1")), []byte("value11"))
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key2")), []byte("value22"))
-// 	c.Set(0, keys.EncodeDataKey(0, []byte("key3")), []byte("value33"))
+	// check new shards range
+	assert.Empty(t, c.GetShardByIndex(0, 0).Start)
+	assert.Equal(t, []byte("k2"), c.GetShardByIndex(0, 0).End)
+	assert.Equal(t, []byte("k2"), c.GetShardByIndex(0, 1).Start)
+	assert.Empty(t, c.GetShardByIndex(0, 1).End)
 
-// 	c.WaitShardByCountPerNode(2, testWaitTimeout)
-// 	c.WaitShardSplitByCount(c.GetShardByIndex(0, 0).ID, 1, testWaitTimeout)
-// 	c.CheckShardRange(0, nil, []byte("key2"))
-// 	c.CheckShardRange(1, []byte("key2"), nil)
-// }
+	// read
+	testWaitTimeout = time.Second * 5
+	v, err := kv.Get("k1", testWaitTimeout)
+	assert.NoError(t, err)
+	assert.Equal(t, "v1", string(v))
+
+	v, err = kv.Get("k2", testWaitTimeout)
+	assert.NoError(t, err)
+	assert.Equal(t, "v2", string(v))
+}

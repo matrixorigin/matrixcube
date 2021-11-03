@@ -133,10 +133,9 @@ type DataStorage interface {
 	// of the data storage to ensure that a consistent view of shard data and
 	// metadata is always available on restart.
 	SaveShardMetadata([]meta.ShardMetadata) error
-	// RemoveShardData is used for cleaning up data for the specified shard. It is
-	// up to the implementation to decide whether to do the cleaning asynchronously
-	// or not.
-	RemoveShardData(shard meta.Shard) error
+	// RemoveShardData is used for cleaning up shard metadata and data for the specified shard.
+	// It is up to the implementation to decide whether to do the cleaning asynchronously or not.
+	RemoveShard(shard meta.Shard, removeData bool) error
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.
 	Sync([]uint64) error
@@ -157,6 +156,9 @@ type DataStorage interface {
 // data storage.
 type WriteContext interface {
 	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
+	// Note, the will be reset after each Read or Write execution, so it is safe
+	// to use bytebuf in one Read or Write call. Multiple calls to `ByteBuf` in
+	// a single Read or Write return the same instance.
 	ByteBuf() *buf.ByteBuf
 	// WriteBatch returns a write batch which will be used to hold a sequence of
 	// updates to be atomically made into the underlying storage engine. A

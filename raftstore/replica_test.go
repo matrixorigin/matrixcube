@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,10 +60,7 @@ func TestInitAppliedIndex(t *testing.T) {
 }
 
 func newTestReplica(shard Shard, peer Replica, s *store) *replica {
-	pr := &replica{replica: peer, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32), store: s}
-	pr.logger = s.logger
-	pr.sm = &stateMachine{}
-	pr.sm.metadataMu.shard = shard
+	pr, _ := newReplica(s, shard, peer, "testing")
 	close(pr.startedC)
 	return pr
 }

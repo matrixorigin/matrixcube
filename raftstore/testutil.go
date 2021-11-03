@@ -65,15 +65,15 @@ var (
 type TestClusterOption func(*testClusterOptions)
 
 type testClusterOptions struct {
-	tmpDir             string
-	nodes              int
-	recreate           bool
-	adjustConfigFuncs  []func(node int, cfg *config.Config)
-	storeFactory       func(node int, cfg *config.Config) Store
-	nodeStartFunc      func(node int, store Store)
-	logLevel           zapcore.Level
-	useDisk            bool
-	dataOpts, metaOpts *cpebble.Options
+	tmpDir            string
+	nodes             int
+	recreate          bool
+	adjustConfigFuncs []func(node int, cfg *config.Config)
+	storeFactory      func(node int, cfg *config.Config) Store
+	nodeStartFunc     func(node int, store Store)
+	logLevel          zapcore.Level
+	useDisk           bool
+	dataOpts          *cpebble.Options
 
 	disableSchedule    bool
 	enableParallelTest bool
@@ -83,7 +83,6 @@ func newTestClusterOptions() *testClusterOptions {
 	return &testClusterOptions{
 		recreate: true,
 		dataOpts: &cpebble.Options{},
-		metaOpts: &cpebble.Options{},
 	}
 }
 
@@ -93,6 +92,9 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3
+	}
+	if opts.logLevel == 0 {
+		opts.logLevel = zap.DebugLevel
 	}
 }
 
@@ -163,13 +165,6 @@ func WithTestClusterRecreate(value bool) TestClusterOption {
 func WithDataStorageOption(dataOpts *cpebble.Options) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.dataOpts = dataOpts
-	}
-}
-
-// WithMetadataStorageOption set options to create metadata storage
-func WithMetadataStorageOption(metaOpts *cpebble.Options) TestClusterOption {
-	return func(opts *testClusterOptions) {
-		opts.metaOpts = metaOpts
 	}
 }
 
@@ -355,7 +350,7 @@ func (ts *testShardAware) Splited(shard Shard) {
 	}
 }
 
-func (ts *testShardAware) Destory(shard Shard) {
+func (ts *testShardAware) Destoryed(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -370,7 +365,7 @@ func (ts *testShardAware) Destory(shard Shard) {
 	ts.removed[shard.ID] = shard
 
 	if ts.wrapper != nil {
-		ts.wrapper.Destory(shard)
+		ts.wrapper.Destoryed(shard)
 	}
 }
 
@@ -635,11 +630,10 @@ type testRaftCluster struct {
 	portsEtcdPeer   []int
 
 	// reset fields
-	opts             *testClusterOptions
-	stores           []*store
-	awares           []*testShardAware
-	dataStorages     []storage.DataStorage
-	metadataStorages []storage.KVStorage
+	opts         *testClusterOptions
+	stores       []*store
+	awares       []*testShardAware
+	dataStorages []storage.DataStorage
 }
 
 // NewSingleTestClusterStore create test cluster with 1 node
@@ -661,7 +655,6 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 	c.stores = nil
 	c.awares = nil
 	c.dataStorages = nil
-	c.metadataStorages = nil
 
 	for _, opt := range opts {
 		opt(c.opts)
@@ -674,6 +667,9 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 
 		c.fs = vfs.GetTestFS()
+		if c.opts.useDisk {
+			c.fs = vfs.Default
+		}
 		c.baseDataDir = filepath.Join(c.opts.tmpDir, c.t.Name(), fmt.Sprintf("%d", time.Now().Nanosecond()))
 		c.portsRaftAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsClientAddr = testutil.GenTestPorts(c.opts.nodes)
@@ -688,7 +684,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 
 	for i := 0; i < c.opts.nodes; i++ {
 		cfg := &config.Config{}
-		cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).With(zap.String("case", c.t.Name()))
+		cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).WithOptions(zap.OnFatal(zapcore.WriteThenPanic)).With(zap.String("case", c.t.Name()))
 		cfg.UseMemoryAsStorage = true
 		cfg.FS = c.fs
 		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
@@ -750,21 +746,12 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
 		}
 
-		var metaStorage storage.KVStorage
-		metaStorage = mem.NewStorage()
-		if c.opts.useDisk {
-			c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-			s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "meta"), cfg.Logger, c.opts.metaOpts)
-			assert.NoError(c.t, err)
-			metaStorage = s
-		}
-		c.metadataStorages = append(c.metadataStorages, metaStorage)
 		if cfg.Storage.DataStorageFactory == nil {
 			var dataStorage storage.DataStorage
 			var kvs storage.KVStorage
 			if c.opts.useDisk {
-				c.opts.metaOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), cfg.Logger, c.opts.metaOpts)
+				c.opts.dataOpts.FS = vfs.NewPebbleFS(cfg.FS)
+				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), cfg.Logger, c.opts.dataOpts)
 				assert.NoError(c.t, err)
 				kvs = s
 			} else {
@@ -874,10 +861,6 @@ func (c *testRaftCluster) Stop() {
 	}
 
 	for _, s := range c.dataStorages {
-		s.Close()
-	}
-
-	for _, s := range c.metadataStorages {
 		s.Close()
 	}
 

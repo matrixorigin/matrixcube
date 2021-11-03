@@ -25,6 +25,7 @@ type vacuumTask struct {
 	shard        Shard
 	replica      *replica
 	shardRemoved bool
+	removeData   bool
 	reason       string
 }
 

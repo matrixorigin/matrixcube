@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/fagongzi/util/format"
 	pvfs "github.com/lni/vfs"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -56,7 +57,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 				index, ok := kvd.mu.lastAppliedIndexes[m.ShardID]
 				assert.True(t, ok)
 				assert.Equal(t, m.LogIndex, index)
-				v, err := kvd.base.Get(keys.GetAppliedIndexKey(m.ShardID, nil))
+				v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil))
 				assert.NoError(t, err)
 				assert.Equal(t, m.LogIndex, buf.Byte2UInt64(v))
 			}
@@ -207,7 +208,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			assert.Equal(t, c.appliedIndex, appliedIndex, "index %d", i)
 
 			kvd := s.(*kvDataStorage)
-			v, err := kvd.base.Get(keys.GetAppliedIndexKey(0, nil))
+			v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil))
 			assert.NoError(t, err)
 			assert.Equal(t, uint64(c.requests), buf.Byte2UInt64(v))
 		}()
@@ -306,6 +307,93 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, persistentLogIndex, index)
 	}
+}
+
+func TestRemoveShard(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+	ds := NewKVDataStorage(base, nil)
+	defer ds.Close()
+
+	kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false)
+	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), []byte{99}, false)
+	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false)
+	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)
+
+	assert.NoError(t, ds.RemoveShard(meta.Shard{ID: 1, End: []byte{2}}, false))
+	v, err := kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil))
+	assert.NoError(t, err)
+	assert.Empty(t, v)
+	c := 0
+	kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(1, 200, nil), nil), func(key, value []byte) (bool, error) {
+		c++
+		return true, nil
+	}, false)
+	assert.Equal(t, 0, c)
+	c = 0
+	kv.Scan(EncodeShardStart(nil, nil), EncodeShardEnd([]byte{2}, nil), func(key, value []byte) (bool, error) {
+		c++
+		return true, nil
+	}, false)
+	assert.Equal(t, 1, c)
+
+	kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil), format.Uint64ToBytes(200), false)
+	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false)
+	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false)
+	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
+
+	assert.NoError(t, ds.RemoveShard(meta.Shard{ID: 2, Start: []byte{2}}, true))
+	v, err = kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil))
+	assert.NoError(t, err)
+	assert.Empty(t, v)
+	c = 0
+	kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(2, 200, nil), nil), func(key, value []byte) (bool, error) {
+		c++
+		return true, nil
+	}, false)
+	assert.Equal(t, 0, c)
+	c = 0
+	kv.Scan(EncodeShardStart([]byte{2}, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+		c++
+		return true, nil
+	}, false)
+	assert.Equal(t, 0, c)
+}
+
+func TestSplitCheck(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+	ds := NewKVDataStorage(base, nil)
+	defer ds.Close()
+
+	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)
+	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
+	kv.Set(EncodeDataKey([]byte{3}, nil), []byte{3}, false)
+
+	size, keys, splitKeys, ctx, err := ds.SplitCheck(meta.Shard{}, 100)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(6), size)
+	assert.Equal(t, uint64(3), keys)
+	assert.Empty(t, splitKeys)
+	assert.Empty(t, ctx)
+
+	size, keys, splitKeys, ctx, err = ds.SplitCheck(meta.Shard{}, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(6), size)
+	assert.Equal(t, uint64(3), keys)
+	assert.Equal(t, [][]byte{{2}, {3}}, splitKeys)
+	assert.Empty(t, ctx)
+
+	size, keys, splitKeys, ctx, err = ds.SplitCheck(meta.Shard{}, 4)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(6), size)
+	assert.Equal(t, uint64(3), keys)
+	assert.Equal(t, [][]byte{{3}}, splitKeys)
+	assert.Empty(t, ctx)
 }
 
 func newTestShardMetadata(n uint64) []meta.ShardMetadata {

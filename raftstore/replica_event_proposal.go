@@ -168,6 +168,9 @@ func (pr *replica) execReadIndex(c batch) {
 		return
 	}
 	pr.metrics.propose.readIndex++
+	if ce := pr.logger.Check(zap.DebugLevel, "call read index"); ce != nil {
+		ce.Write(log.HexField("id", c.getRequestID()))
+	}
 }
 
 func (pr *replica) proposeNormal(c batch) bool {

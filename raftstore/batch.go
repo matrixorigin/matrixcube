@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -78,16 +79,24 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 
 				for _, req := range c.requestBatch.Requests {
 					rsp := rpc.Response{
-						ID:  req.ID,
-						PID: req.PID,
+						ID:      req.ID,
+						PID:     req.PID,
+						Key:     req.Key,
+						Request: &req,
 					}
 					resp.Responses = append(resp.Responses, rsp)
 				}
 			} else {
 				for idx, req := range c.requestBatch.Requests {
+					resp.Responses[idx].Type = req.Type
 					resp.Responses[idx].ID = req.ID
 					resp.Responses[idx].PID = req.PID
+					resp.Responses[idx].Key = req.Key
 				}
+			}
+
+			if ce := c.logger.Check(zap.DebugLevel, "response to client"); ce != nil {
+				ce.Write(log.ResponseBatchField("responses", resp))
 			}
 
 			if !resp.Header.IsEmpty() {
@@ -155,6 +164,7 @@ func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
 	resp := rpc.Response{
 		ID:      req.ID,
 		PID:     req.PID,
+		Key:     req.Key,
 		Request: &req,
 	}
 	rsp.Responses = append(rsp.Responses, resp)

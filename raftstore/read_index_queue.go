@@ -18,6 +18,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 )
@@ -40,6 +41,10 @@ func (q *readIndexQueue) reset() {
 func (q *readIndexQueue) ready(state raft.ReadState) {
 	var batch rpc.RequestBatch
 	protoc.MustUnmarshal(&batch, state.RequestCtx)
+	if ce := q.logger.Check(zap.DebugLevel, "read index ready"); ce != nil {
+		ce.Write(zap.Uint64("index", state.Index),
+			log.RequestBatchField("requests", batch))
+	}
 	q.reads = append(q.reads, readyRead{
 		batch: batch,
 		index: state.Index,
@@ -69,6 +74,10 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 					Cmd:     req.Cmd,
 				}
 				readCtx.reset(shard, rr)
+				if ce := q.logger.Check(zap.DebugLevel, "begin to exec read requests"); ce != nil {
+					ce.Write(log.RequestIDField(req.ID),
+						log.RaftRequestField("request", &req))
+				}
 				v, err := ds.Read(readCtx)
 				if err != nil {
 					// FIXME: some read failures should be tolerated.
@@ -83,7 +92,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
 			// FIXME: it is strange to require a batch{} to be created/used to send
 			// responses. why sending responses is coupled with the batch type?
 			// FIXME: input parameter logger is missing
-			b := newBatch(nil, ready.batch, pr.store.shardsProxy.OnResponse, 0, 0)
+			b := newBatch(q.logger, ready.batch, pr.store.shardsProxy.OnResponse, 0, 0)
 			b.resp(resp)
 		} else {
 			newReady = append(newReady, ready)

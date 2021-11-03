@@ -21,13 +21,13 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
-func (pr *replica) tryCheckSplit(act action) {
+func (pr *replica) tryCheckSplit(act action) bool {
 	if !pr.isLeader() {
-		return
+		return false
 	}
 
 	if !pr.needDoCheckSplit() {
-		return
+		return false
 	}
 
 	// If a replica is applying snapshot, skip split, avoid sent snapshot again in future.
@@ -35,7 +35,7 @@ func (pr *replica) tryCheckSplit(act action) {
 		pr.logger.Debug("check split skipped",
 			log.ReplicaIDField(id),
 			log.ReasonField("applying snapshot"))
-		return
+		return false
 	}
 
 	// We need to do a real split check, a task that may involve a lot of disk IO to find a suitable
@@ -47,6 +47,7 @@ func (pr *replica) tryCheckSplit(act action) {
 	}
 
 	act.actionCallback(pr.getShard())
+	return true
 }
 
 func (pr *replica) hasReplicaInSnapshotState() (bool, uint64) {
@@ -73,6 +74,15 @@ func (pr *replica) doSplit(act action) {
 		return
 	}
 
+	epoch := act.epoch
+	current := pr.getShard()
+	if current.Epoch.Version != epoch.Version {
+		pr.logger.Info("epoch changed, need re-check later",
+			log.EpochField("current-epoch", current.Epoch),
+			log.EpochField("check-epoch", epoch))
+		return
+	}
+
 	if act.splitCheckData.size > 0 {
 		pr.approximateSize = act.splitCheckData.size
 	}
@@ -81,15 +91,6 @@ func (pr *replica) doSplit(act action) {
 	}
 	if len(act.splitCheckData.splitKeys) == 0 {
 		pr.sizeDiffHint = act.splitCheckData.size
-		return
-	}
-
-	epoch := act.epoch
-	current := pr.getShard()
-	if current.Epoch.Version != epoch.Version {
-		pr.logger.Info("epoch changed, need re-check later",
-			log.EpochField("current-epoch", current.Epoch),
-			log.EpochField("check-epoch", epoch))
 		return
 	}
 
@@ -117,7 +118,7 @@ func (pr *replica) doSplit(act action) {
 		if idx == lastIdx {
 			end = current.End
 		} else {
-			end = act.splitCheckData.splitKeys[idx+1]
+			end = act.splitCheckData.splitKeys[idx]
 		}
 
 		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
@@ -126,7 +127,7 @@ func (pr *replica) doSplit(act action) {
 			NewShardID:    act.splitCheckData.splitIDs[idx].NewID,
 			NewReplicaIDs: act.splitCheckData.splitIDs[idx].NewReplicaIDs,
 		})
-		start = act.splitCheckData.splitKeys[idx]
+		start = end
 	}
 	pr.addAdminRequest(req)
 }

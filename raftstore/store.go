@@ -259,7 +259,7 @@ func (s *store) startRouter() {
 			zap.Error(err))
 	}
 	r, err := newRouterBuilder().withLogger(s.logger).withStopper(s.stopper).withCreatShardHandle(s.doDynamicallyCreate).withRemoveShardHandle(func(id uint64) {
-		s.destroyReplica(id, true, "remove by event")
+		s.destroyReplica(id, true, true, "remove by event")
 	}).build(watcher.GetNotify())
 	if err != nil {
 		s.logger.Fatal("fail to create router",
@@ -485,7 +485,7 @@ func (s *store) addReplica(pr *replica) bool {
 func (s *store) removeReplica(pr *replica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destory(pr.getShard())
+		s.aware.Destoryed(pr.getShard())
 	}
 }
 

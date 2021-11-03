@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.etcd.io/etcd/raft/v3/raftpb"
@@ -82,6 +83,7 @@ type stateMachine struct {
 	writeCtx      *writeContext
 	dataStorage   storage.DataStorage
 	logdb         logdb.LogDB
+	wc            *logdb.WorkerContext
 	resultHandler replicaResultHandler
 
 	metadataMu struct {
@@ -94,7 +96,7 @@ type stateMachine struct {
 	}
 }
 
-func newStateMachine(l *zap.Logger, ds storage.DataStorage, logdb logdb.LogDB,
+func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 	shard Shard, replica Replica, h replicaResultHandler) *stateMachine {
 	sm := &stateMachine{
 		logger:        l,
@@ -102,8 +104,11 @@ func newStateMachine(l *zap.Logger, ds storage.DataStorage, logdb logdb.LogDB,
 		applyCtx:      newApplyContext(),
 		writeCtx:      newWriteContext(ds),
 		dataStorage:   ds,
-		logdb:         logdb,
+		logdb:         ldb,
 		resultHandler: h,
+	}
+	if ldb != nil {
+		sm.wc = ldb.NewWorkerContext()
 	}
 	sm.metadataMu.shard = shard
 	return sm
@@ -126,14 +131,26 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 		return
 	}
 
+	d.logger.Debug("apply committed logs",
+		zap.Int("count", len(entries)))
 	start := time.Now()
 	// FIXME: the initial idea is to batch multiple entries into the same
 	// executeContext so they can be applied into the stateMachine together.
 	// in the loop below, we are still applying entries one by one.
 	for _, entry := range entries {
+		if ce := d.logger.Check(zap.DebugLevel, "begin to apply log"); ce != nil {
+			ce.Write(zap.Uint64("index", entry.Index),
+				zap.String("type", entry.Type.String()),
+				zap.Int("size", len(entry.Data)))
+		}
+
 		d.applyCtx.initialize(entry)
-		// notify all clients that current shard has been removed
-		if d.isRemoved() {
+		// notify all clients that current shard has been removed or splitted
+		if !d.canContinue() {
+			if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
+				ce.Write(zap.Uint64("index", entry.Index),
+					log.ReasonField("continue check failed"))
+			}
 			d.notifyShardRemoved(d.applyCtx)
 			continue
 		}
@@ -184,7 +201,14 @@ func (d *stateMachine) checkEntryIndexTerm(entry raftpb.Entry) {
 }
 
 func (d *stateMachine) notifyShardRemoved(ctx *applyContext) {
-
+	resp := errorPbResp(ctx.req.Header.ID, errorpb.Error{
+		Message: errShardNotFound.Error(),
+		ShardNotFound: &errorpb.ShardNotFound{
+			ShardID: d.shardID,
+		},
+	})
+	d.resultHandler.notifyPendingProposal(ctx.req.Header.ID,
+		resp, isConfigChangeRequestBatch(ctx.req))
 }
 
 func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
@@ -199,22 +223,37 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 	var err error
 	var resp rpc.ResponseBatch
 	if !d.checkEpoch(ctx.req) {
+		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
+			ce.Write(zap.Uint64("index", ctx.index),
+				log.ReasonField("epoch check failed"),
+				log.EpochField("current-epoch", d.getShard().Epoch),
+				zap.Uint64("index", ctx.index))
+		}
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
 		if ctx.req.IsAdmin() {
+			if ce := d.logger.Check(zap.DebugLevel, "apply admin request"); ce != nil {
+				ce.Write(zap.Uint64("index", ctx.index),
+					zap.String("type", ctx.req.AdminRequest.CmdType.String()))
+			}
 			resp, err = d.execAdminRequest(ctx)
 			if err != nil {
 				resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 			}
 		} else {
+			if ce := d.logger.Check(zap.DebugLevel, "apply write requests"); ce != nil {
+				ce.Write(zap.Uint64("index", ctx.index),
+					zap.String("type", ctx.req.AdminRequest.CmdType.String()))
+			}
 			resp = d.execWriteRequest(ctx)
 		}
-	}
-	for _, req := range ctx.req.Requests {
-		if ce := d.logger.Check(zap.DebugLevel, "apply write/admin req completed"); ce != nil {
-			ce.Write(log.HexField("id", req.ID))
+
+		if ce := d.logger.Check(zap.DebugLevel, "apply committed log completed"); ce != nil {
+			ce.Write(zap.Uint64("index", ctx.index),
+				log.ResponseBatchField("responses", resp))
 		}
 	}
+
 	// TODO: this implies that we can't have more than one batch in the
 	// executeContext
 	d.resultHandler.notifyPendingProposal(ctx.req.Header.ID,
@@ -243,10 +282,11 @@ func (d *stateMachine) setSplited() {
 	d.metadataMu.splited = true
 }
 
-func (d *stateMachine) isSplited() bool {
+func (d *stateMachine) canContinue() bool {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
-	return d.metadataMu.splited
+
+	return !d.metadataMu.removed && !d.metadataMu.splited
 }
 
 func (d *stateMachine) setShardState(st metapb.ResourceState) {

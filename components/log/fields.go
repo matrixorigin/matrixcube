@@ -19,14 +19,13 @@ import (
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/hack"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 // SourceContainerField returns source container field
@@ -103,6 +102,95 @@ func HexField(key string, data []byte) zap.Field {
 // ListenAddressField return address field
 func ListenAddressField(address string) zap.Field {
 	return zap.String("listen-address", address)
+}
+
+// ResponseBatchField rpc.ResponseBatch zap field
+func ResponseBatchField(key string, resp rpc.ResponseBatch) zap.Field {
+	if len(resp.Responses) == 0 {
+		return AdminResponseField(key, resp.AdminResponse)
+	}
+
+	return ResponsesField(key, resp.Responses)
+}
+
+// AdminResponseField rpc.AdminResponse zap field
+func AdminResponseField(key string, resp rpc.AdminResponse) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("type: ")
+	info.WriteString(resp.CmdType.String())
+	switch resp.CmdType {
+	case rpc.AdminCmdType_BatchSplit:
+		info.WriteString(", shards {")
+		for _, shard := range resp.Splits.Shards {
+			appendShard(shard, &info, false)
+			info.WriteString("  ")
+		}
+		info.WriteString("}")
+	case rpc.AdminCmdType_ConfigChange:
+		appendReplicas("new-replicas", resp.ConfigChange.Shard.Replicas, &info, false)
+	}
+
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// ResponsesField []rpc.Response zap field
+func ResponsesField(key string, resps []rpc.Response) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("responses {")
+	for _, resp := range resps {
+		appendRaftResponse(&resp, &info, true)
+	}
+	info.WriteString("}")
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// RequestBatchField request batch field
+func RequestBatchField(key string, req rpc.RequestBatch) zap.Field {
+	if len(req.Requests) == 0 {
+		return AdminRequestField(key, req.AdminRequest)
+	}
+	return RequestsField(key, req.Requests)
+}
+
+// AdminRequestField rpc.AdminRequest zap field
+func AdminRequestField(key string, req rpc.AdminRequest) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("type: ")
+	info.WriteString(req.CmdType.String())
+	switch req.CmdType {
+	case rpc.AdminCmdType_BatchSplit:
+		info.WriteString(", context:")
+		info.WriteString(hex.EncodeToString(req.Splits.Context))
+		info.WriteString(", split-requests:{")
+		for _, req := range req.Splits.Requests {
+			appendSplitRequest(req, &info, false)
+			info.WriteString("  ")
+		}
+		info.WriteString("}")
+	case rpc.AdminCmdType_ConfigChange:
+		info.WriteString(", change-type:")
+		info.WriteString(req.ConfigChange.ChangeType.String())
+		appendReplica("replica", req.ConfigChange.Replica, &info, false)
+	case rpc.AdminCmdType_UpdateMetadata:
+		info.WriteString(", state:")
+		info.WriteString(req.UpdateMetadata.Metadata.State.String())
+		appendShard(req.UpdateMetadata.Metadata.Shard, &info, false)
+	case rpc.AdminCmdType_TransferLeader:
+		appendReplica("leader-replica", req.TransferLeader.Replica, &info, false)
+	}
+
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
+// RequestsField []rpc.Request zap field
+func RequestsField(key string, reqs []rpc.Request) zap.Field {
+	var info bytes.Buffer
+	info.WriteString("requests {")
+	for _, req := range reqs {
+		appendRaftRequest(&req, &info, false)
+	}
+	info.WriteString("}")
+	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
 // RaftMessageField return formated raft message zap string field
@@ -218,19 +306,22 @@ func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
 	info.WriteString("id: ")
 	info.WriteString(hex.EncodeToString(resp.ID))
 
-	info.WriteString("pid: ")
+	info.WriteString(", key: ")
+	info.WriteString(hex.EncodeToString(resp.Key))
+
+	info.WriteString(", pid: ")
 	info.WriteString(format.Int64ToString(resp.PID))
 
-	info.WriteString("type: ")
+	info.WriteString(", type: ")
 	info.WriteString(resp.Type.String())
 
 	appendError(resp.Error, info)
 
-	info.WriteString("value: ")
+	info.WriteString(", value: ")
 	info.WriteString(format.Uint64ToString(uint64(len(resp.Value))))
 	info.WriteString(" bytes")
 
-	info.WriteString("stale: ")
+	info.WriteString(", stale: ")
 	info.WriteString(format.BoolToString(resp.Stale))
 }
 
@@ -242,20 +333,23 @@ func appendRaftRequest(req *rpc.Request, info *bytes.Buffer, first bool) {
 	info.WriteString("id: ")
 	info.WriteString(hex.EncodeToString(req.ID))
 
-	info.WriteString("pid: ")
+	info.WriteString(", key: ")
+	info.WriteString(hex.EncodeToString(req.Key))
+
+	info.WriteString(", pid: ")
 	info.WriteString(format.Int64ToString(req.PID))
 
-	info.WriteString("type: ")
+	info.WriteString(", type: ")
 	info.WriteString(req.Type.String())
 
-	info.WriteString("custom-type: ")
+	info.WriteString(", custom-type: ")
 	info.WriteString(format.Uint64ToString(req.CustomType))
 
-	info.WriteString("cmd: ")
+	info.WriteString(", cmd: ")
 	info.WriteString(format.Uint64ToString(uint64(len(req.Cmd))))
 	info.WriteString(" bytes")
 
-	info.WriteString("to-shard: ")
+	info.WriteString(", to-shard: ")
 	info.WriteString(format.Uint64ToString(req.ToShard))
 }
 
@@ -364,6 +458,32 @@ func appendReplicas(key string, Replicas []metapb.Replica, info *bytes.Buffer, f
 	info.WriteString("]")
 }
 
+func appendSplitRequest(req rpc.SplitRequest, info *bytes.Buffer, first bool) {
+	if !first {
+		info.WriteString(", ")
+	}
+
+	info.WriteString("shard-id: ")
+	info.WriteString(format.Uint64ToString(req.NewShardID))
+
+	info.WriteString(", shard-range: [")
+	info.WriteString(hex.EncodeToString(req.Start))
+	info.WriteString(", ")
+	info.WriteString(hex.EncodeToString(req.End))
+	info.WriteString(")")
+	info.WriteString(", replicas:")
+	appendIDs(req.NewReplicaIDs, info)
+}
+
+func appendIDs(ids []uint64, info *bytes.Buffer) {
+	for idx, id := range ids {
+		info.WriteString(format.Uint64ToString(id))
+		if idx != len(ids)-1 {
+			info.WriteString(",")
+		}
+	}
+}
+
 func doAppendReplica(Replica metapb.Replica, info *bytes.Buffer) {
 	info.WriteString(format.Uint64ToString(Replica.ID))
 	info.WriteString("/")
@@ -382,8 +502,7 @@ func appendResourceEpoch(key string, epoch metapb.ResourceEpoch, info *bytes.Buf
 }
 
 func doAppendResourceEpoch(epoch metapb.ResourceEpoch, info *bytes.Buffer) {
-	info.WriteString("v")
 	info.WriteString(format.Uint64ToString(epoch.Version))
-	info.WriteString("/cv")
+	info.WriteString("/")
 	info.WriteString(format.Uint64ToString(epoch.ConfVer))
 }

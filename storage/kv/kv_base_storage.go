@@ -14,10 +14,10 @@
 package kv
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble"
@@ -108,7 +108,7 @@ func (s *BaseStorage) Sync() error {
 
 func (s *BaseStorage) getAppliedIndex(ss *pebble.Snapshot,
 	shardID uint64) ([]byte, []byte, error) {
-	key := keys.GetAppliedIndexKey(shardID, nil)
+	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
 	v, closer, err := ss.Get(key)
 	if err != nil {
 		return nil, nil, err
@@ -119,9 +119,9 @@ func (s *BaseStorage) getAppliedIndex(ss *pebble.Snapshot,
 
 func (s *BaseStorage) getShardMetadata(ss *pebble.Snapshot,
 	shardID uint64) ([]byte, []byte, error) {
-	metadataKey := keys.GetMetadataKey(shardID, 0, nil)
 	ios := &pebble.IterOptions{
-		LowerBound: metadataKey,
+		LowerBound: EncodeShardMetadataKey(keys.GetMetadataKey(shardID, 0, nil), nil),
+		UpperBound: EncodeShardMetadataKey(keys.GetMetadataKey(shardID, math.MaxUint64, nil), nil),
 	}
 	iter := ss.NewIter(ios)
 	defer iter.Close()
@@ -139,7 +139,7 @@ func (s *BaseStorage) getShardMetadata(ss *pebble.Snapshot,
 		if err := iter.Error(); err != nil {
 			return nil, nil, err
 		}
-		keyShardID, err := keys.GetShardIDFromMetadataKey(iter.Key())
+		keyShardID, err := keys.GetShardIDFromMetadataKey(iter.Key()[1:])
 		if err == nil && keyShardID == shardID {
 			value = clone(iter.Value())
 			key = clone(iter.Key())
@@ -188,10 +188,10 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	appliedIndex := buf.Byte2UInt64(appliedIndexValue)
 	shard := sls.Metadata.Shard
 
-	if err := writeBytes(f, shard.Start); err != nil {
+	if err := writeBytes(f, EncodeShardStart(shard.Start, nil)); err != nil {
 		return 0, err
 	}
-	if err := writeBytes(f, shard.End); err != nil {
+	if err := writeBytes(f, EncodeShardEnd(shard.End, nil)); err != nil {
 		return 0, err
 	}
 	if err := writeBytes(f, appliedIndexKey); err != nil {
@@ -207,12 +207,9 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 		return 0, err
 	}
 
-	ios := &pebble.IterOptions{}
-	if len(shard.Start) > 0 {
-		ios.LowerBound = shard.Start
-	}
-	if len(shard.End) > 0 {
-		ios.UpperBound = shard.End
+	ios := &pebble.IterOptions{
+		LowerBound: EncodeShardStart(shard.Start, nil),
+		UpperBound: EncodeShardEnd(shard.End, nil),
 	}
 
 	iter := snap.NewIter(ios)
@@ -221,9 +218,6 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	for iter.Valid() {
 		if err := iter.Error(); err != nil {
 			return 0, err
-		}
-		if len(shard.End) > 0 && bytes.Compare(iter.Key(), shard.End) >= 0 {
-			break
 		}
 		if err := writeBytes(f, iter.Key()); err != nil {
 			return 0, err

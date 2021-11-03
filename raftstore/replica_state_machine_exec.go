@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -43,6 +44,8 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 		return d.doExecConfigChange(ctx)
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
+	case rpc.AdminCmdType_UpdateMetadata:
+		return d.doUpdateMetadata(ctx)
 	}
 
 	return rpc.ResponseBatch{}, nil
@@ -174,9 +177,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	var metadata []meta.ShardMetadata
 	current.Epoch.Version += uint64(newShardsCount)
 	expectStart := current.Start
-	for _, req := range splitReqs.Requests {
+	last := len(splitReqs.Requests) - 1
+	for idx, req := range splitReqs.Requests {
 		if checkKeyInShard(req.Start, current) != nil ||
-			checkKeyInShard(req.End, current) != nil {
+			(idx != last && checkKeyInShard(req.End, current) != nil) {
 			d.logger.Fatal("invalid split reuqest range",
 				log.HexField("split-start", req.Start),
 				log.HexField("split-end", req.End),
@@ -219,12 +223,25 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		// thus avoiding various special operations, we force here to bypass the consensus,
 		// store the first Log is the Log that holds the metadata, and set the committedIndex
 		// of hardstate to 1.
+		d.wc.Reset()
+
+		replica := findReplica(newShard, d.replica.ContainerID)
+
+		rb := rpc.RequestBatch{}
+		rb.Header.ShardID = newShard.ID
+		rb.Header.Replica = *replica
+		rb.Header.ID = uuid.NewV4().Bytes()
+		rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
+		rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
+			Metadata: metadata[len(metadata)-1].Metadata,
+		}
 		err := d.logdb.SaveRaftState(newShard.ID,
-			findReplica(newShard, d.replica.ContainerID).ID,
+			replica.ID,
 			raft.Ready{
-				Entries:   []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal}},
+				Entries:   []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: protoc.MustMarshal(&rb)}},
 				HardState: raftpb.HardState{Commit: 1, Term: 1, Vote: newShard.Replicas[0].ID},
-			})
+			},
+			d.wc)
 		if err != nil {
 			d.logger.Fatal("fail to save first raft log",
 				log.ShardField("new-shard", newShard),
@@ -259,6 +276,45 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		splitResult: &splitResult{
 			newShards: newShards,
 		},
+	}
+	return resp, nil
+}
+
+func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, error) {
+	ctx.metrics.admin.updateMetadata++
+	updateReq := ctx.req.AdminRequest.UpdateMetadata
+
+	current := d.getShard()
+	if isEpochStale(current.Epoch, updateReq.Metadata.Shard.Epoch) {
+		d.logger.Fatal("fail to update metadata",
+			log.EpochField("current", current.Epoch),
+			log.ShardField("new-shard", updateReq.Metadata.Shard))
+	}
+
+	err := d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+		{
+			ShardID:  d.shardID,
+			LogIndex: ctx.index,
+			Metadata: updateReq.Metadata,
+		},
+	})
+	if err != nil {
+		d.logger.Fatal("fail to update metadata",
+			log.EpochField("current", current.Epoch),
+			log.ShardField("new-shard", updateReq.Metadata.Shard),
+			zap.Error(err))
+	}
+
+	d.updateShard(updateReq.Metadata.Shard)
+
+	d.logger.Info("shard metadata updated",
+		zap.String("replica-state", updateReq.Metadata.State.String()),
+		log.ShardField("new-shard", updateReq.Metadata.Shard),
+	)
+
+	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_UpdateMetadata,
 	}
 	return resp, nil
 }

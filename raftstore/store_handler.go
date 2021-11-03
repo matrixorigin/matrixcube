@@ -53,7 +53,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.destroyReplica(id, true, "shard state check")
+			s.destroyReplica(id, true, true, "shard state check")
 		}
 	}
 }
@@ -113,7 +113,7 @@ func (s *store) handleDestroyReplicaMessage(msg meta.RaftMessage) {
 				log.ShardIDField(shardID),
 				log.EpochField("self-epoch", shard.Epoch),
 				log.EpochField("msg-epoch", fromEpoch))
-			s.destroyReplica(shardID, false, "gc")
+			s.destroyReplica(shardID, false, true, "gc")
 		}
 	}
 }
@@ -161,7 +161,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
-		s.destroyReplica(msg.ShardID, false, "found stale peer")
+		s.destroyReplica(msg.ShardID, false, true, "found stale peer")
 		return false
 	}
 

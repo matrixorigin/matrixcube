@@ -207,25 +207,16 @@ func (pr *replica) start() {
 	pr.rn = rn
 	close(pr.startedC)
 
-	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one replica and I am the one, campaign directly.
 	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
-
-		if err := pr.rn.Campaign(); err != nil {
-			pr.logger.Fatal("fail to campaign",
-				zap.Error(err))
-		}
+		pr.addAction(action{actionType: campaignAction})
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
-
-		if err := pr.rn.Campaign(); err != nil {
-			pr.logger.Fatal("fail to campaign",
-				zap.Error(err))
-		}
+		pr.addAction(action{actionType: campaignAction})
 	}
 
 	pr.onRaftTick(nil)
@@ -336,6 +327,7 @@ func (pr *replica) initLogState() (bool, error) {
 			zap.Uint64("count", rs.EntryCount),
 			zap.Uint64("first-index", rs.FirstIndex),
 			zap.Uint64("commit-index", rs.State.Commit),
+			zap.Uint64("applied-index", pr.appliedIndex),
 			zap.Uint64("term", rs.State.Term))
 		pr.lr.SetState(rs.State)
 	}

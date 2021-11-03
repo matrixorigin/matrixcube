@@ -119,11 +119,11 @@ func (t *ShardTree) Update(shards ...meta.Shard) {
 // Remove removes a Shard if the Shard is in the tree.
 // It will do nothing if it cannot find the Shard or the found Shard
 // is not the same with the Shard.
-func (t *ShardTree) Remove(Shard meta.Shard) bool {
+func (t *ShardTree) Remove(shard meta.Shard) bool {
 	t.Lock()
 
-	result := t.find(Shard)
-	if result == nil || result.Shard.ID != Shard.ID {
+	result := t.find(shard)
+	if result == nil || result.Shard.ID != shard.ID {
 		t.Unlock()
 		return false
 	}
