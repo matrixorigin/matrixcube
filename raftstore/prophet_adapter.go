@@ -431,7 +431,8 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			s.storeField(),
 			log.ShardIDField(rsp.ResourceID),
 			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
-		pr.addAdminRequest(newConfigChangeV2AdminReq(rsp))
+		// pr.addAdminRequest(newConfigChangeV2AdminReq(rsp))
+		panic("ConfigChangeV2 request from prophet")
 	} else if rsp.TransferLeader != nil {
 		pr.addAdminRequest(newTransferLeaderAdminReq(rsp))
 	} else if rsp.SplitResource != nil {
@@ -467,21 +468,6 @@ func newConfigChangeAdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {
 			Replica:    rsp.ConfigChange.Replica,
 		},
 	}
-}
-
-func newConfigChangeV2AdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {
-	req := rpc.AdminRequest{
-		CmdType:        rpc.AdminCmdType_ConfigChangeV2,
-		ConfigChangeV2: &rpc.ConfigChangeV2Request{},
-	}
-
-	for _, ch := range rsp.ConfigChangeV2.Changes {
-		req.ConfigChangeV2.Changes = append(req.ConfigChangeV2.Changes, rpc.ConfigChangeRequest{
-			ChangeType: ch.ChangeType,
-			Replica:    ch.Replica,
-		})
-	}
-	return req
 }
 
 func newTransferLeaderAdminReq(rsp rpcpb.ResourceHeartbeatRsp) rpc.AdminRequest {

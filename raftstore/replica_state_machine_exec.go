@@ -39,6 +39,8 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 	switch cmdType {
 	case rpc.AdminCmdType_ConfigChange:
 		return d.doExecConfigChange(ctx)
+	case rpc.AdminCmdType_ConfigChangeV2:
+		panic("ConfigChangeV2 requested")
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	case rpc.AdminCmdType_UpdateMetadata:
