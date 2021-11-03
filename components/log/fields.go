@@ -83,6 +83,17 @@ func ReplicaIDField(id uint64) zap.Field {
 	return zap.Uint64("replica-id", id)
 }
 
+// ReplicaIDsField returns zap.Uint64Field
+func ReplicaIDsField(key string, ids []uint64) zap.Field {
+	if len(ids) == 0 {
+		return zap.String(key, "")
+	}
+
+	var info bytes.Buffer
+	appendIDs(ids, &info)
+	return zap.String(key, hack.SliceToString(info.Bytes()))
+}
+
 // RequestIDField returns zap.StringField, use hex.EncodeToString as string value
 func RequestIDField(data []byte) zap.Field {
 	if len(data) == 0 {
@@ -122,7 +133,7 @@ func AdminResponseField(key string, resp rpc.AdminResponse) zap.Field {
 	case rpc.AdminCmdType_BatchSplit:
 		info.WriteString(", shards {")
 		for _, shard := range resp.Splits.Shards {
-			appendShard(shard, &info, false)
+			appendShard(shard, &info, true)
 			info.WriteString("  ")
 		}
 		info.WriteString("}")

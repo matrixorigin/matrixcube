@@ -200,8 +200,9 @@ func (bc *remoteBackend) readLoop() {
 			}
 
 			if rsp, ok := data.(rpc.Response); ok {
-				if ce := bc.logger.Check(zap.DebugLevel, "receive response"); ce != nil {
-					ce.Write(log.HexField("id", rsp.ID))
+				if ce := bc.logger.Check(zap.DebugLevel, "backend received response"); ce != nil {
+					ce.Write(log.HexField("id", rsp.ID),
+						log.RaftResponseField("response", &rsp))
 				}
 				bc.successCallback(rsp)
 			}

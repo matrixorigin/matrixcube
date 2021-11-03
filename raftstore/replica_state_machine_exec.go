@@ -25,9 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/util/uuid"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
@@ -226,22 +223,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		d.wc.Reset()
 
 		replica := findReplica(newShard, d.replica.ContainerID)
-
-		rb := rpc.RequestBatch{}
-		rb.Header.ShardID = newShard.ID
-		rb.Header.Replica = *replica
-		rb.Header.ID = uuid.NewV4().Bytes()
-		rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
-		rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
-			Metadata: metadata[len(metadata)-1].Metadata,
-		}
-		err := d.logdb.SaveRaftState(newShard.ID,
-			replica.ID,
-			raft.Ready{
-				Entries:   []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal, Data: protoc.MustMarshal(&rb)}},
-				HardState: raftpb.HardState{Commit: 1, Term: 1, Vote: newShard.Replicas[0].ID},
-			},
-			d.wc)
+		err := addFirstUpdateMetadataLog(d.logdb, metadata[len(metadata)-1].Metadata, *replica, d.wc)
 		if err != nil {
 			d.logger.Fatal("fail to save first raft log",
 				log.ShardField("new-shard", newShard),

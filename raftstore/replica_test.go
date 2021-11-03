@@ -50,7 +50,7 @@ func TestInitAppliedIndex(t *testing.T) {
 	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(0), pr.appliedIndex)
 
-	err = ds.SaveShardMetadata([]meta.ShardMetadata{{ShardID: 2, LogIndex: 2}})
+	err = ds.SaveShardMetadata([]meta.ShardMetadata{{ShardID: 2, LogIndex: 2, Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 2}}}})
 	assert.NoError(t, err)
 	ds.Sync([]uint64{2})
 	pr, err = newReplica(s, Shard{ID: 2}, Replica{ID: 2000}, "test")

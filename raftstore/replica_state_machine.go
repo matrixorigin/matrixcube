@@ -100,6 +100,7 @@ func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 	shard Shard, replica Replica, h replicaResultHandler) *stateMachine {
 	sm := &stateMachine{
 		logger:        l,
+		shardID:       shard.ID,
 		replica:       replica,
 		applyCtx:      newApplyContext(),
 		writeCtx:      newWriteContext(ds),
@@ -138,12 +139,6 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	// executeContext so they can be applied into the stateMachine together.
 	// in the loop below, we are still applying entries one by one.
 	for _, entry := range entries {
-		if ce := d.logger.Check(zap.DebugLevel, "begin to apply log"); ce != nil {
-			ce.Write(zap.Uint64("index", entry.Index),
-				zap.String("type", entry.Type.String()),
-				zap.Int("size", len(entry.Data)))
-		}
-
 		d.applyCtx.initialize(entry)
 		// notify all clients that current shard has been removed or splitted
 		if !d.canContinue() {
@@ -231,6 +226,11 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 		}
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
+		if ce := d.logger.Check(zap.DebugLevel, "begin to apply committed log"); ce != nil {
+			ce.Write(zap.Uint64("index", ctx.index),
+				log.RequestBatchField("requests", ctx.req))
+		}
+
 		if ctx.req.IsAdmin() {
 			if ce := d.logger.Check(zap.DebugLevel, "apply admin request"); ce != nil {
 				ce.Write(zap.Uint64("index", ctx.index),

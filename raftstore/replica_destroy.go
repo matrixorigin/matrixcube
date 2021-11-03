@@ -100,6 +100,7 @@ func (s *store) vacuum(t vacuumTask) error {
 func (pr *replica) destroy(shardRemoved bool, reason string) error {
 	pr.logger.Info("begin to destory",
 		zap.Bool("shard-removed", shardRemoved),
+		log.ShardField("metadata", pr.getShard()),
 		log.ReasonField(reason))
 
 	if shardRemoved {

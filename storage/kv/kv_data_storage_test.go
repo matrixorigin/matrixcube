@@ -252,7 +252,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 				metadata := meta.ShardMetadata{
 					ShardID:  shardID,
 					LogIndex: index,
-					// Metadata: make([]byte, 100),
+					Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: shardID}},
 				}
 				assert.NoError(t, s.SaveShardMetadata([]meta.ShardMetadata{metadata}))
 			}
@@ -402,7 +402,7 @@ func newTestShardMetadata(n uint64) []meta.ShardMetadata {
 		values = append(values, meta.ShardMetadata{
 			ShardID:  i,
 			LogIndex: i,
-			// Metadata: format.Uint64ToBytes(i),
+			Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: i}},
 		})
 	}
 	return values

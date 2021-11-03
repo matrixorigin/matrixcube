@@ -120,12 +120,12 @@ func TestGetShardMetadata(t *testing.T) {
 	sm1 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 110,
-		// Metadata: []byte("test-data-1"),
+		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
 	}
 	sm2 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 120,
-		// Metadata: []byte("test-data-2"),
+		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
 	}
 	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm1}))
 	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm2}))
@@ -154,6 +154,7 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		assert.NoError(t, base.Set(EncodeDataKey([]byte("mmm"), nil), []byte("vv"), false))
 		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("vvv"), false))
 		shard := meta.Shard{
+			ID:    shardID,
 			Start: []byte("aa"),
 			End:   []byte("xx"),
 		}

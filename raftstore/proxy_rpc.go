@@ -88,13 +88,16 @@ func (r *defaultRPC) onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response
 			rsp.Error = header.Error
 		}
 
-		if ce := r.logger.Check(zap.DebugLevel, "receive response"); ce != nil {
-			ce.Write(log.HexField("id", rsp.ID))
+		if ce := r.logger.Check(zap.DebugLevel, "rpc received response"); ce != nil {
+			ce.Write(log.HexField("id", rsp.ID),
+				log.RaftResponseField("response", &rsp))
 		}
 		rs.WriteAndFlush(rsp)
 	} else {
-		if ce := r.logger.Check(zap.DebugLevel, "skip receive response"); ce != nil {
-			ce.Write(log.HexField("id", rsp.ID), log.ReasonField("missing session"))
+		if ce := r.logger.Check(zap.DebugLevel, "rpc received response skipped"); ce != nil {
+			ce.Write(log.HexField("id", rsp.ID),
+				log.RaftResponseField("response", &rsp),
+				log.ReasonField("missing session"))
 		}
 	}
 }

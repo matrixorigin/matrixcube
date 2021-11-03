@@ -130,6 +130,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 			s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
 		}
 
+		c.msg.From = Replica{ID: 100, ContainerID: 1000}
 		assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
 		if c.checkCache {
 			msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)

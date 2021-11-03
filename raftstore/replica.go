@@ -21,6 +21,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -33,6 +34,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -127,6 +129,9 @@ func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Re
 		Group:        msg.Group,
 		DisableSplit: msg.DisableSplit,
 		Unique:       msg.Unique,
+		// The only replica we currently know of is `From`, Later, we can get a replica of the quasi-group
+		// by executing the draft log of Config Change or receiving a snapshot.
+		Replicas: []Replica{msg.From},
 	}
 
 	return newReplica(store, shard, replica, why)
@@ -205,6 +210,7 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize confState",
 			zap.Error(err))
 	}
+
 	if _, err := pr.initLogState(); err != nil {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
@@ -302,6 +308,8 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 
 	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
+	pr.logger.Info("applied index loaded",
+		zap.Uint64("applied-index", pr.appliedIndex))
 	return nil
 }
 
@@ -319,6 +327,9 @@ func (pr *replica) initConfState() error {
 			confState.Learners = append(confState.Learners, p.ID)
 		}
 	}
+	pr.logger.Info("init conf state loaded",
+		log.ReplicaIDsField("voters", confState.Voters),
+		log.ReplicaIDsField("learners", confState.Learners))
 	pr.lr.SetConfState(confState)
 	return nil
 }
@@ -334,14 +345,13 @@ func (pr *replica) initLogState() (bool, error) {
 	}
 	hasRaftHardState := !raft.IsEmptyHardState(rs.State)
 	if hasRaftHardState {
-		pr.logger.Info("init log state",
-			zap.Uint64("count", rs.EntryCount),
-			zap.Uint64("first-index", rs.FirstIndex),
-			zap.Uint64("commit-index", rs.State.Commit),
-			zap.Uint64("applied-index", pr.appliedIndex),
-			zap.Uint64("term", rs.State.Term))
 		pr.lr.SetState(rs.State)
 	}
+	pr.logger.Info("init log state",
+		zap.Uint64("count", rs.EntryCount),
+		zap.Uint64("first-index", rs.FirstIndex),
+		zap.Uint64("commit-index", rs.State.Commit),
+		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
@@ -469,4 +479,30 @@ func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *
 		PreVote:                   true,
 		DisableProposalForwarding: true,
 	}
+}
+
+// addFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all subsequent metadata
+// changes need to correspond to a raft log, which is used to ensure the consistency of
+// metadata.
+func addFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, replica Replica, wc *logdb.WorkerContext) error {
+	rb := rpc.RequestBatch{}
+	rb.Header.ShardID = state.Shard.ID
+	rb.Header.Replica = replica
+	rb.Header.ID = uuid.NewV4().Bytes()
+	rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
+	rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
+		Metadata: state,
+	}
+
+	if wc == nil {
+		wc = ldb.NewWorkerContext()
+	}
+	return ldb.SaveRaftState(state.Shard.ID,
+		replica.ID,
+		raft.Ready{
+			Entries: []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal,
+				Data: protoc.MustMarshal(&rb)}},
+			HardState: raftpb.HardState{Commit: 1, Term: 1, Vote: replica.ID},
+		},
+		wc)
 }

@@ -161,6 +161,11 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
+		s.logger.Info("found stale peer, need to remove self replica",
+			s.storeField(),
+			log.ShardIDField(msg.ShardID),
+			log.ReplicaField("msg-to", msg.To),
+			log.ReplicaField("current-stale-replica", stalePeer))
 		s.destroyReplica(msg.ShardID, false, true, "found stale peer")
 		return false
 	}

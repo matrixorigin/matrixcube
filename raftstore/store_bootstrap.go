@@ -200,16 +200,23 @@ func (s *store) mustSaveShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		var sm []meta.ShardMetadata
 		var ids []uint64
-		for _, s := range v {
-			ids = append(ids, s.ID)
+		for _, shard := range v {
+			ids = append(ids, shard.ID)
 			sm = append(sm, meta.ShardMetadata{
-				ShardID:  s.ID,
+				ShardID:  shard.ID,
 				LogIndex: 0,
 				Metadata: meta.ShardLocalState{
 					State: meta.ReplicaState_Normal,
-					Shard: s,
+					Shard: shard,
 				},
 			})
+
+			err := addFirstUpdateMetadataLog(s.logdb, sm[len(sm)-1].Metadata, shard.Replicas[0], nil)
+			if err != nil {
+				s.logger.Fatal("fail to create init shards",
+					s.storeField(),
+					zap.Error(err))
+			}
 		}
 
 		if err := ds.SaveShardMetadata(sm); err != nil {

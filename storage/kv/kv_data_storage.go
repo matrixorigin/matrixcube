@@ -135,6 +135,10 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []meta.ShardMetadata) error
 	seen := make(map[uint64]struct{})
 	kv.mu.Lock()
 	for _, m := range metadatas {
+		if m.ShardID != m.Metadata.Shard.ID {
+			panic(fmt.Errorf("BUG: shard ID mismatch, %+v", m))
+		}
+
 		wb.Set(EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil), protoc.MustMarshal(&m))
 		wb.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil), format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
