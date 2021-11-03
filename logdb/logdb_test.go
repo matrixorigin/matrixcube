@@ -41,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -61,6 +62,8 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 }
 
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
+	defer vfs.ReportLeakedFD(fs, t)
+	defer leaktest.AfterTest(t)()
 	kv := getTestStorage(fs)
 	defer kv.Close()
 	db := NewKVLogDB(kv, log.GetDefaultZapLogger())

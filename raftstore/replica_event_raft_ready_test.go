@@ -17,11 +17,13 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/errors"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
 func getRaftMessageTypes() []raftpb.MessageType {
@@ -68,6 +70,7 @@ func TestIsMsgApp(t *testing.T) {
 }
 
 func TestSendRaftMesasgeReturnsErrUnknownReplicaWhenReplicaIsUnknown(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	r := replica{
 		store: &store{},
 		sm:    &stateMachine{},
@@ -88,6 +91,7 @@ func (t *replicaTestTransport) Send(m meta.RaftMessage) {
 }
 
 func TestSendRaftMessageAttachsExpectedShardDetails(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	trans := &replicaTestTransport{}
 	r := replica{
 		replica:   Replica{ID: 100},
@@ -127,6 +131,7 @@ func TestSendRaftMessageAttachsExpectedShardDetails(t *testing.T) {
 }
 
 func testSendMessages(t *testing.T, appendOnly bool) {
+	defer leaktest.AfterTest(t)()
 	trans := &replicaTestTransport{}
 	r := replica{
 		replica:   Replica{ID: 100},

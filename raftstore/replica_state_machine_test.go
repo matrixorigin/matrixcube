@@ -31,10 +31,12 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	req := rpc.RequestBatch{
 		Header: rpc.RequestBatchHeader{
 			ID: []byte{0x1, 0x2, 0x3},
@@ -63,6 +65,7 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 }
 
 func TestStateMachineApplyContextCanBeInitializedForConfigChange(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	batch := rpc.RequestBatch{
 		Header: rpc.RequestBatchHeader{
 			ID:      []byte{0x1, 0x2, 0x3},
@@ -103,6 +106,8 @@ func runSimpleStateMachineTest(t *testing.T,
 	l := log.GetDefaultZapLogger(zap.OnFatal(zapcore.WriteThenPanic))
 	shard := Shard{ID: 100}
 	fs := vfs.NewMemFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	defer leaktest.AfterTest(t)()
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}

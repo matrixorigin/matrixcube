@@ -18,5 +18,8 @@
 
 hrl
 dist
+*safe_to_delete*
+*safe-to-delete*
+.DS_Store
 .vscode/
 vendor/
