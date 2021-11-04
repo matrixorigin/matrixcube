@@ -103,9 +103,6 @@ type LogDB interface {
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
 	GetSnapshot(shardID uint64, replicaID uint64) (raftpb.SnapshotMetadata, error)
-	// SaveSnapshot saves the specified snapshot into the LogDB.
-	SaveSnapshot(shardID uint64, replicaID uint64,
-		sm raftpb.SnapshotMetadata) error
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -137,13 +134,6 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 		idBuf: make([]byte, 8),
 		wb:    l.ms.NewWriteBatch().(util.WriteBatch),
 	}
-}
-
-func (l *KVLogDB) SaveSnapshot(shardID uint64,
-	replicaID uint64, sm raftpb.SnapshotMetadata) error {
-	key := keys.GetSnapshotKey(shardID, replicaID, nil)
-	val := protoc.MustMarshal(&sm)
-	return l.ms.Set(key, val, true)
 }
 
 func (l *KVLogDB) GetSnapshot(shardID uint64,
