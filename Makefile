@@ -11,6 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# supported environmental variables
+#
+# MEMFS_TEST=1 
+# when MEMFS_TEST is set, some tests will try to use an in memory fs
+# for testing. this will also enable the file descriptor leak check. 
+# note that MEMFS_TEST doesn't affect production systems.
+#
+# GOROUTINE_LEAK_CHECK=1
+# when GOROUTINE_LEAK_CHECK is set, some tests will try to use a goroutine
+# leak check method to identify leaked goroutines. note that 
+# GOROUTINE_LEAK_CHECK doesn't affect production systems. 
+
 GOEXEC ?= go
 PKGNAME = $(shell go list)
 ROOT_DIR = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
