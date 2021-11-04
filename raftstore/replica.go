@@ -215,7 +215,7 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg)
+	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -466,7 +466,7 @@ func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config, logger *zap.Logger) *raft.Config {
 	return &raft.Config{
 		ID:                        id,
 		Applied:                   appliedIndex,
@@ -478,7 +478,35 @@ func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *
 		CheckQuorum:               true,
 		PreVote:                   true,
 		DisableProposalForwarding: true,
+		Logger:                    &etcdRaftLoggerAdapter{logger: logger.Sugar()},
 	}
+}
+
+type etcdRaftLoggerAdapter struct {
+	logger *zap.SugaredLogger
+}
+
+func (l *etcdRaftLoggerAdapter) Debug(v ...interface{}) { l.logger.Debug(v...) }
+func (l *etcdRaftLoggerAdapter) Debugf(format string, v ...interface{}) {
+	l.logger.Debugf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Error(v ...interface{}) { l.logger.Error(v...) }
+func (l *etcdRaftLoggerAdapter) Errorf(format string, v ...interface{}) {
+	l.logger.Errorf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Info(v ...interface{})                 { l.logger.Info(v...) }
+func (l *etcdRaftLoggerAdapter) Infof(format string, v ...interface{}) { l.logger.Errorf(format, v...) }
+func (l *etcdRaftLoggerAdapter) Warning(v ...interface{})              { l.logger.Warn(v...) }
+func (l *etcdRaftLoggerAdapter) Warningf(format string, v ...interface{}) {
+	l.logger.Warnf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Fatal(v ...interface{}) { l.logger.Fatal(v...) }
+func (l *etcdRaftLoggerAdapter) Fatalf(format string, v ...interface{}) {
+	l.logger.Fatalf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Panic(v ...interface{}) { l.logger.Panic(v...) }
+func (l *etcdRaftLoggerAdapter) Panicf(format string, v ...interface{}) {
+	l.logger.Panicf(format, v...)
 }
 
 // addFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all subsequent metadata

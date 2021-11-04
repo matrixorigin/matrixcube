@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func TestTryCheckSplit(t *testing.T) {
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
 	pr.cfg.Replication.ShardSplitCheckBytes = 99
-	pr.rn, _ = raft.NewRawNode(getRaftConfig(pr.replica.ID, 0, pr.lr, &pr.cfg))
+	pr.rn, _ = raft.NewRawNode(getRaftConfig(pr.replica.ID, 0, pr.lr, &pr.cfg, log.Adjust(nil)))
 	assert.True(t, pr.tryCheckSplit(action{actionType: checkSplitAction, actionCallback: func(v interface{}) {
 		assert.Equal(t, pr.getShard(), v)
 	}}))
