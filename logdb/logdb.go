@@ -69,6 +69,10 @@ type WorkerContext struct {
 	wb    util.WriteBatch
 }
 
+func (w *WorkerContext) Close() {
+	w.wb.Close()
+}
+
 // Reset resets the worker context so it can be reused.
 func (w *WorkerContext) Reset() {
 	w.wb.Reset()

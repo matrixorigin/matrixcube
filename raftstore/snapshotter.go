@@ -171,14 +171,12 @@ func (s *snapshotter) processOrphans(dirName string,
 	if remove {
 		return s.remove(ssFromDir.Index)
 	}
-	env := s.getEnv(ssFromDir.Index)
-	return env.RemoveFlagFile()
+	return s.removeFlagFile(ssFromDir.Index)
 }
 
 func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
-	env = snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
+	env = s.getEnv()
 	if err := env.CreateTempDir(); err != nil {
 		return raftpb.Snapshot{}, env, err
 	}
@@ -195,8 +193,8 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 }
 
 func (s *snapshotter) commit(ss raftpb.Snapshot) error {
-	env := snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
+	env := s.getEnv()
+	env.FinalizeIndex(ss.Metadata.Index)
 	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
 		return err
 	}
@@ -206,22 +204,27 @@ func (s *snapshotter) commit(ss raftpb.Snapshot) error {
 		}
 		return err
 	}
+	if err := s.saveSnapshot(ss.Metadata); err != nil {
+		return err
+	}
 	return env.RemoveFlagFile()
 }
 
 func (s *snapshotter) remove(index uint64) error {
-	env := s.getEnv(index)
+	env := s.getEnv()
+	env.FinalizeIndex(index)
 	return env.RemoveFinalDir()
 }
 
 func (s *snapshotter) removeFlagFile(index uint64) error {
-	env := s.getEnv(index)
+	env := s.getEnv()
+	env.FinalizeIndex(index)
 	return env.RemoveFlagFile()
 }
 
-func (s *snapshotter) getEnv(index uint64) snapshot.SSEnv {
+func (s *snapshotter) getEnv() snapshot.SSEnv {
 	return snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, index, s.replicaID, snapshot.ProcessingMode, s.fs)
+		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
 }
 
 func (s *snapshotter) dirMatch(dir string) bool {
@@ -265,6 +268,7 @@ func (s *snapshotter) isZombie(dir string) bool {
 
 func (s *snapshotter) saveSnapshot(sm raftpb.SnapshotMetadata) error {
 	wc := s.ldb.NewWorkerContext()
+	defer wc.Close()
 	return s.ldb.SaveRaftState(s.shardID, s.replicaID, raft.Ready{
 		Snapshot: raftpb.Snapshot{
 			Metadata: sm,
