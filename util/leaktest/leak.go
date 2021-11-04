@@ -14,17 +14,19 @@
 package leaktest
 
 import (
+	"os"
 	"testing"
 
 	ltlib "github.com/lni/goutils/leaktest"
 )
 
-var (
-	disabled = false
-)
+func goroutineLeakCheckEnabled() bool {
+	glc := os.Getenv("GOROUTINE_LEAK_CHECK")
+	return len(glc) > 0
+}
 
 func AfterTest(t testing.TB) func() {
-	if disabled {
+	if !goroutineLeakCheckEnabled() {
 		return func() {}
 	}
 	return ltlib.AfterTest(t)
