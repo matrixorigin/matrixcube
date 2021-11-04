@@ -46,8 +46,8 @@ import (
 )
 
 var (
-	testShardID uint64 = 101
-	testPeerID  uint64 = 202
+	testShardID   uint64 = 101
+	testReplicaID uint64 = 202
 )
 
 func getTestStorage(fs vfs.FS) storage.KVStorage {
@@ -72,7 +72,7 @@ func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
 
 func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
-		if _, err := db.getMaxIndex(testShardID, testPeerID); !errors.Is(err, ErrNoSavedLog) {
+		if _, err := db.getMaxIndex(testShardID, testReplicaID); !errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to return the expected error")
 		}
 	}
@@ -82,7 +82,7 @@ func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing
 
 func TestLogDBGetSnapshot(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
-		v, err := db.GetSnapshot(testShardID, testPeerID)
+		v, err := db.GetSnapshot(testShardID)
 		assert.Equal(t, ErrNoSnapshot, err)
 		assert.Empty(t, v)
 		rd := raft.Ready{
@@ -91,12 +91,59 @@ func TestLogDBGetSnapshot(t *testing.T) {
 			},
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+		if err := db.SaveRaftState(testShardID, 100, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		v, err = db.GetSnapshot(testShardID, testPeerID)
+		v, err = db.GetSnapshot(testShardID)
 		assert.NoError(t, err)
 		assert.Equal(t, rd.Snapshot.Metadata, v)
+	}
+	fs := vfs.NewMemFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBGetSnapshotReturnsTheMostRecentSnapshot(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		rd1 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 99},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID-1, rd1.Snapshot.Metadata.Index, rd1, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		rd2 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 99},
+			},
+		}
+		rd3 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 100},
+			},
+		}
+		if err := db.SaveRaftState(testShardID, rd2.Snapshot.Metadata.Index, rd2, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		if err := db.SaveRaftState(testShardID, rd3.Snapshot.Metadata.Index, rd3, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		rd4 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 200},
+			},
+		}
+		if err := db.SaveRaftState(testShardID+1, rd4.Snapshot.Metadata.Index, rd4, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		v, err := db.GetSnapshot(testShardID)
+		assert.NoError(t, err)
+		assert.Equal(t, rd3.Snapshot.Metadata, v)
 	}
 	fs := vfs.NewMemFS()
 	runLogDBTest(t, tf, fs)
@@ -109,10 +156,10 @@ func TestLogDBGetMaxIndex(t *testing.T) {
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		index, err := db.getMaxIndex(testShardID, testPeerID)
+		index, err := db.getMaxIndex(testShardID, testReplicaID)
 		if err != nil {
 			t.Fatalf("failed to get max inde")
 		}
@@ -126,7 +173,7 @@ func TestLogDBGetMaxIndex(t *testing.T) {
 
 func TestLogDBReadRaftStateReturnsNoSavedLogErrorWhenStateIsNeverSaved(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
-		if _, err := db.ReadRaftState(testShardID, testPeerID); !errors.Is(err, ErrNoSavedLog) {
+		if _, err := db.ReadRaftState(testShardID, testReplicaID); !errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to return the expected error")
 		}
 	}
@@ -141,10 +188,10 @@ func TestLogDBSaveRaftState(t *testing.T) {
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		rs, err := db.ReadRaftState(testShardID, testPeerID)
+		rs, err := db.ReadRaftState(testShardID, testReplicaID)
 		if errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to get raft state, %v", err)
 		}
@@ -173,11 +220,11 @@ func TestLogDBIterateEntries(t *testing.T) {
 			size += uint64(e.Size())
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
 		var ents []raftpb.Entry
-		ents, rs, err := db.IterateEntries(ents, 0, testShardID, testPeerID, 4, 7, math.MaxUint64)
+		ents, rs, err := db.IterateEntries(ents, 0, testShardID, testReplicaID, 4, 7, math.MaxUint64)
 		if err != nil {
 			t.Fatalf("failed to get entries, %v", err)
 		}
@@ -199,18 +246,18 @@ func TestLogDBRemoveEntriesTo(t *testing.T) {
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, testPeerID, rd, wc); err != nil {
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		if err := db.RemoveEntriesTo(testShardID, testPeerID, 5); err != nil {
+		if err := db.RemoveEntriesTo(testShardID, testReplicaID, 5); err != nil {
 			t.Fatalf("remove entries to failed, %v", err)
 		}
 		var ents []raftpb.Entry
-		ents, _, err := db.IterateEntries(ents, 0, testShardID, testPeerID, 5, 6, math.MaxUint64)
+		ents, _, err := db.IterateEntries(ents, 0, testShardID, testReplicaID, 5, 6, math.MaxUint64)
 		if err != raft.ErrUnavailable {
 			t.Errorf("failed to remove entries, %v, %v", err, ents)
 		}
-		ents, _, err = db.IterateEntries(ents, 0, testShardID, testPeerID, 6, 7, math.MaxUint64)
+		ents, _, err = db.IterateEntries(ents, 0, testShardID, testReplicaID, 6, 7, math.MaxUint64)
 		if err != nil {
 			t.Fatalf("failed to get entry, %v", err)
 		}

@@ -29,6 +29,7 @@ package logdb
 
 import (
 	"encoding/binary"
+	"math"
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
@@ -102,7 +103,7 @@ type LogDB interface {
 	RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
-	GetSnapshot(shardID uint64, replicaID uint64) (raftpb.SnapshotMetadata, error)
+	GetSnapshot(shardID uint64) (raftpb.SnapshotMetadata, error)
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -136,10 +137,14 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 	}
 }
 
-func (l *KVLogDB) GetSnapshot(shardID uint64,
-	replicaID uint64) (raftpb.SnapshotMetadata, error) {
-	v, err := l.ms.Get(keys.GetSnapshotKey(shardID, replicaID, nil))
-	if err != nil {
+func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.SnapshotMetadata, error) {
+	fk := keys.GetSnapshotKey(shardID, 0, nil)
+	lk := keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
+	var v []byte
+	if err := l.ms.Scan(fk, lk, func(key, value []byte) (bool, error) {
+		v = value
+		return true, nil
+	}, true); err != nil {
 		return raftpb.SnapshotMetadata{}, err
 	}
 	if len(v) == 0 {
@@ -166,7 +171,7 @@ func (l *KVLogDB) SaveRaftState(shardID uint64,
 	}
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
-		ctx.wb.Set(keys.GetSnapshotKey(shardID, replicaID, nil),
+		ctx.wb.Set(keys.GetSnapshotKey(shardID, rd.Snapshot.Metadata.Index, nil),
 			protoc.MustMarshal(&rd.Snapshot.Metadata))
 	}
 

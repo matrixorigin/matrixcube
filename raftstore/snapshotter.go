@@ -101,7 +101,7 @@ func (s *snapshotter) removeReplicaSnapshotDir() error {
 
 func (s *snapshotter) removeOrphanSnapshots() error {
 	noss := false
-	ss, err := s.ldb.GetSnapshot(s.shardID, s.replicaID)
+	ss, err := s.ldb.GetSnapshot(s.shardID)
 	if err != nil {
 		if errors.Is(err, logdb.ErrNoSnapshot) {
 			noss = true

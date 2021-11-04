@@ -289,7 +289,7 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 		if fileutil.HasFlagFile(fd2, fileutil.SnapshotFlagFilename, fs) {
 			t.Errorf("flag for fd2 not removed")
 		}
-		snapshot, err := s.ldb.GetSnapshot(1, 1)
+		snapshot, err := s.ldb.GetSnapshot(1)
 		if err != nil {
 			t.Fatalf("failed to list snapshot %v", err)
 		}
