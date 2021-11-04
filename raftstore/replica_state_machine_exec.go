@@ -15,20 +15,16 @@ package raftstore
 
 import (
 	"bytes"
-	"fmt"
 	"math"
-	"sort"
 
 	"github.com/cockroachdb/errors"
-	"github.com/fagongzi/util/collection/deque"
 	"github.com/fagongzi/util/protoc"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"go.uber.org/zap"
 )
 
 var (
@@ -46,6 +42,8 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 		panic("ConfigChangeV2 requested")
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
+	case rpc.AdminCmdType_UpdateMetadata:
+		return d.doUpdateMetadata(ctx)
 	}
 
 	return rpc.ResponseBatch{}, nil
@@ -100,7 +98,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 				removeReplica(&res, replica.ContainerID)
 			}
 
-			if d.replicaID == replica.ID {
+			if d.replica.ID == replica.ID {
 				// Remove ourself, will destroy all shard data later.
 				d.setRemoved()
 				d.logger.Info("replica remoted itself",
@@ -155,108 +153,144 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	splitReqs := ctx.req.AdminRequest.Splits
 
 	if len(splitReqs.Requests) == 0 {
-		d.logger.Error("missing splits request")
-		return rpc.ResponseBatch{}, errors.New("missing splits request")
+		d.logger.Fatal("missing splits request")
+	}
+
+	current := d.getShard().Clone()
+	if !bytes.Equal(splitReqs.Requests[0].Start, current.Start) ||
+		!bytes.Equal(splitReqs.Requests[len(splitReqs.Requests)-1].End, current.End) {
+		d.logger.Fatal("invalid splits keys",
+			log.HexField("actual-start", splitReqs.Requests[0].Start),
+			log.HexField("shard-start", current.Start),
+			log.HexField("actual-end", splitReqs.Requests[len(splitReqs.Requests)-1].End),
+			log.HexField("shard-end", current.End))
 	}
 
 	newShardsCount := len(splitReqs.Requests)
-	derived := Shard{}
-	current := d.getShard()
-	protoc.MustUnmarshal(&derived, protoc.MustMarshal(&current))
-	var shards []Shard
-	rangeKeys := deque.New()
-
-	for _, req := range splitReqs.Requests {
-		if len(req.SplitKey) == 0 {
-			return rpc.ResponseBatch{}, errors.New("missing split key")
+	var newShards []Shard
+	var metadata []meta.ShardMetadata
+	current.Epoch.Version += uint64(newShardsCount)
+	expectStart := current.Start
+	last := len(splitReqs.Requests) - 1
+	for idx, req := range splitReqs.Requests {
+		if checkKeyInShard(req.Start, current) != nil ||
+			(idx != last && checkKeyInShard(req.End, current) != nil) {
+			d.logger.Fatal("invalid split reuqest range",
+				log.HexField("split-start", req.Start),
+				log.HexField("split-end", req.End),
+				log.HexField("expect-start", current.Start),
+				log.HexField("expect-end", current.End))
 		}
 
-		splitKey := req.SplitKey
-		v := derived.Start
-		if e, ok := rangeKeys.Back(); ok {
-			v = e.Value.([]byte)
+		if !bytes.Equal(req.Start, expectStart) {
+			d.logger.Fatal("invalid split reuqest start key",
+				log.HexField("split-start", req.Start),
+				log.HexField("expect-start", expectStart))
 		}
-		if bytes.Compare(splitKey, v) <= 0 {
-			return rpc.ResponseBatch{}, fmt.Errorf("invalid split key %+v", splitKey)
-		}
+		expectStart = req.End
 
-		if len(req.NewReplicaIDs) != len(derived.Replicas) {
-			return rpc.ResponseBatch{}, fmt.Errorf("invalid new replica id count, need %d, but got %d",
-				len(derived.Replicas),
-				len(req.NewReplicaIDs))
-		}
-
-		rangeKeys.PushBack(splitKey)
-	}
-
-	err := checkKeyInShard(rangeKeys.MustBack().Value.([]byte), current)
-	if err != nil {
-		d.logger.Error("fail to split key",
-			zap.String("err", err.Message))
-		return rpc.ResponseBatch{}, nil
-	}
-
-	derived.Epoch.Version += uint64(newShardsCount)
-	rangeKeys.PushBack(derived.End)
-	derived.End = rangeKeys.MustFront().Value.([]byte)
-
-	sort.Slice(derived.Replicas, func(i, j int) bool {
-		return derived.Replicas[i].ID < derived.Replicas[j].ID
-	})
-	for _, req := range splitReqs.Requests {
 		newShard := Shard{}
 		newShard.ID = req.NewShardID
-		newShard.Group = derived.Group
-		newShard.Unique = derived.Unique
-		newShard.RuleGroups = derived.RuleGroups
-		newShard.DisableSplit = derived.DisableSplit
-		newShard.Epoch = derived.Epoch
-		newShard.Start = rangeKeys.PopFront().Value.([]byte)
-		newShard.End = rangeKeys.MustFront().Value.([]byte)
-		for idx, p := range derived.Replicas {
-			newShard.Replicas = append(newShard.Replicas, Replica{
-				ID:          req.NewReplicaIDs[idx],
-				ContainerID: p.ContainerID,
-			})
-		}
+		newShard.Group = current.Group
+		newShard.Unique = current.Unique
+		newShard.RuleGroups = current.RuleGroups
+		newShard.DisableSplit = current.DisableSplit
+		newShard.Epoch = current.Epoch
+		newShard.Start = req.Start
+		newShard.End = req.End
+		newShard.Replicas = req.NewReplicas
+		newShards = append(newShards, newShard)
+		metadata = append(metadata, meta.ShardMetadata{
+			LogIndex: 1,
+			ShardID:  newShard.ID,
+			Metadata: meta.ShardLocalState{
+				State: meta.ReplicaState_Normal,
+				Shard: newShard,
+			},
+		})
+		// To avoid the newly created Shard metadata corresponding to a LogIndex of 0,
+		// thus avoiding various special operations, we force here to bypass the consensus,
+		// store the first Log is the Log that holds the metadata, and set the committedIndex
+		// of hardstate to 1.
+		d.wc.Reset()
 
-		shards = append(shards, newShard)
+		replica := findReplica(newShard, d.replica.ContainerID)
+		err := addFirstUpdateMetadataLog(d.logdb, metadata[len(metadata)-1].Metadata, *replica, d.wc)
+		if err != nil {
+			d.logger.Fatal("fail to save first raft log",
+				log.ShardField("new-shard", newShard),
+				zap.Error(err))
+		}
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	// TODO(fagongzi): split with sync
-	// e := d.dataStorage.Sync(d.shardID)
-	// if e != nil {
-	// 	logger.Fatalf("%s sync failed with %+v", d.pr.id(), e)
-	// }
+	old := meta.ShardMetadata{
+		ShardID:  current.ID,
+		LogIndex: ctx.index,
+		Metadata: meta.ShardLocalState{
+			State: meta.ReplicaState_Tombstone,
+			Shard: current,
+		},
+	}
+	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
+	if err != nil {
+		if err == storage.ErrAborted {
+			return rpc.ResponseBatch{}, nil
+		}
+		d.logger.Fatal("fail to split on data storage",
+			zap.Error(err))
+	}
 
-	// if d.store.cfg.Customize.CustomSplitCompletedFuncFactory != nil {
-	// 	if fn := d.store.cfg.Customize.CustomSplitCompletedFuncFactory(derived.Group); fn != nil {
-	// 		fn(&derived, shards)
-	// 	}
-	// }
+	d.setSplited()
+	resp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
+		Shards: newShards,
+	})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_BatchSplit,
+		splitResult: &splitResult{
+			newShards: newShards,
+		},
+	}
+	return resp, nil
+}
 
-	// d.updateShard(derived)
-	// d.saveShardMetedata(d.shardID, d.getShard(), bhraftpb.ReplicaState_Normal)
+func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, error) {
+	ctx.metrics.admin.updateMetadata++
+	updateReq := ctx.req.AdminRequest.UpdateMetadata
 
-	// d.store.updateReplicaState(derived, bhraftpb.ReplicaState_Normal, ctx.raftWB)
-	// for _, shard := range shards {
-	// 	d.store.updateReplicaState(shard, bhraftpb.ReplicaState_Normal, ctx.raftWB)
-	// 	d.store.writeInitialState(shard.ID, ctx.raftWB)
-	// }
+	current := d.getShard()
+	if isEpochStale(current.Epoch, updateReq.Metadata.Shard.Epoch) {
+		d.logger.Fatal("fail to update metadata",
+			log.EpochField("current", current.Epoch),
+			log.ShardField("new-shard", updateReq.Metadata.Shard))
+	}
 
-	// rsp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
-	// 	Shards: shards,
-	// })
+	err := d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+		{
+			ShardID:  d.shardID,
+			LogIndex: ctx.index,
+			Metadata: updateReq.Metadata,
+		},
+	})
+	if err != nil {
+		d.logger.Fatal("fail to update metadata",
+			log.EpochField("current", current.Epoch),
+			log.ShardField("new-shard", updateReq.Metadata.Shard),
+			zap.Error(err))
+	}
 
-	// result := &adminExecResult{
-	// 	adminType: rpc.AdminCmdType_BatchSplit,
-	// 	splitResult: &splitResult{
-	// 		derived: derived,
-	// 		shards:  shards,
-	// 	},
-	// }
-	return rpc.ResponseBatch{}, nil
+	d.updateShard(updateReq.Metadata.Shard)
+
+	d.logger.Info("shard metadata updated",
+		zap.String("replica-state", updateReq.Metadata.State.String()),
+		log.ShardField("new-shard", updateReq.Metadata.Shard),
+	)
+
+	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_UpdateMetadata,
+	}
+	return resp, nil
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
@@ -265,7 +299,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
 				log.ShardIDField(d.shardID),
-				log.ReplicaIDField(d.replicaID),
+				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
 	}
@@ -277,7 +311,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		if ce := d.logger.Check(zap.DebugLevel, "write completed"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
 				log.ShardIDField(d.shardID),
-				log.ReplicaIDField(d.replicaID),
+				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
 	}
@@ -296,24 +330,24 @@ func (d *stateMachine) updateWriteMetrics() {
 	d.applyCtx.metrics.writtenBytes += d.writeCtx.writtenBytes
 	if d.writeCtx.diffBytes < 0 {
 		v := uint64(math.Abs(float64(d.writeCtx.diffBytes)))
-		if v >= d.applyCtx.metrics.sizeDiffHint {
-			d.applyCtx.metrics.sizeDiffHint = 0
+		if v >= d.applyCtx.metrics.approximateDiffHint {
+			d.applyCtx.metrics.approximateDiffHint = 0
 		} else {
-			d.applyCtx.metrics.sizeDiffHint -= v
+			d.applyCtx.metrics.approximateDiffHint -= v
 		}
 	} else {
-		d.applyCtx.metrics.sizeDiffHint += uint64(d.writeCtx.diffBytes)
+		d.applyCtx.metrics.approximateDiffHint += uint64(d.writeCtx.diffBytes)
 	}
 }
 
 func (d *stateMachine) saveShardMetedata(index uint64,
 	shard Shard, state meta.ReplicaState) error {
-	return d.dataStorage.SaveShardMetadata([]storage.ShardMetadata{{
+	return d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
-		Metadata: protoc.MustMarshal(&meta.ShardLocalState{
+		Metadata: meta.ShardLocalState{
 			State: state,
 			Shard: shard,
-		}),
+		},
 	}})
 }

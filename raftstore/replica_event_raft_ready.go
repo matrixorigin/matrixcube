@@ -260,13 +260,10 @@ func (pr *replica) updateMessageMetrics(msg raftpb.Message) {
 }
 
 func (pr *replica) doApplyCommittedEntries(entries []raftpb.Entry) error {
-	pr.logger.Debug("begin to apply raft log",
-		zap.Int("count", len(entries)))
-
 	pr.sm.applyCommittedEntries(entries)
 	if pr.sm.isRemoved() {
 		// local replica is removed, keep the shard
-		pr.store.destroyReplica(pr.shardID, false, "removed by config change")
+		pr.store.destroyReplica(pr.shardID, false, true, "removed by config change")
 	}
 	return nil
 }

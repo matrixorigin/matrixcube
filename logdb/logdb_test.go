@@ -80,18 +80,6 @@ func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing
 	runLogDBTest(t, tf, fs)
 }
 
-func TestLogDBSaveAndGetSnapshot(t *testing.T) {
-	tf := func(t *testing.T, db *KVLogDB) {
-		metadata := raftpb.SnapshotMetadata{Index: 100, Term: 123}
-		assert.NoError(t, db.SaveSnapshot(testShardID, testPeerID, metadata))
-		v, err := db.GetSnapshot(testShardID, testPeerID)
-		assert.NoError(t, err)
-		assert.Equal(t, metadata, v)
-	}
-	fs := vfs.NewMemFS()
-	runLogDBTest(t, tf, fs)
-}
-
 func TestLogDBGetSnapshot(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
 		v, err := db.GetSnapshot(testShardID, testPeerID)

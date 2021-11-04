@@ -21,6 +21,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -33,6 +34,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -42,6 +44,10 @@ var dn = util.DescribeReplica
 
 type trans interface {
 	Send(meta.RaftMessage)
+}
+
+type replicaGetter interface {
+	getReplica(uint64) (*replica, bool)
 }
 
 type replica struct {
@@ -81,7 +87,6 @@ type replica struct {
 	writtenBytes         uint64
 	readKeys             uint64
 	readBytes            uint64
-	sizeDiffHint         uint64
 	raftLogSizeHint      uint64
 	deleteKeysHint       uint64
 	// TODO: set these fields on split check
@@ -123,6 +128,9 @@ func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Re
 		Group:        msg.Group,
 		DisableSplit: msg.DisableSplit,
 		Unique:       msg.Unique,
+		// The only replica we currently know of is `From`, Later, we can get a replica of the quasi-group
+		// by executing the draft log of Config Change or receiving a snapshot.
+		Replicas: []Replica{msg.From},
 	}
 
 	return newReplica(store, shard, replica, why)
@@ -174,7 +182,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	}
 
 	storage := store.DataStorageByGroup(shard.Group)
-	pr.sm = newStateMachine(l, storage, shard, r.ID, pr)
+	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr)
 	return pr, nil
 }
 
@@ -201,11 +209,12 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize confState",
 			zap.Error(err))
 	}
+
 	if _, err := pr.initLogState(); err != nil {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg)
+	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -214,25 +223,16 @@ func (pr *replica) start() {
 	pr.rn = rn
 	close(pr.startedC)
 
-	// TODO: is it okay to invoke pr.rn methods from this thread?
 	// If this shard has only one replica and I am the one, campaign directly.
 	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
-
-		if err := pr.rn.Campaign(); err != nil {
-			pr.logger.Fatal("fail to campaign",
-				zap.Error(err))
-		}
+		pr.addAction(action{actionType: campaignAction})
 	} else if shard.State == metapb.ResourceState_WaittingCreate &&
 		shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
-
-		if err := pr.rn.Campaign(); err != nil {
-			pr.logger.Fatal("fail to campaign",
-				zap.Error(err))
-		}
+		pr.addAction(action{actionType: campaignAction})
 	}
 
 	pr.onRaftTick(nil)
@@ -307,6 +307,8 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 
 	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
+	pr.logger.Info("applied index loaded",
+		zap.Uint64("applied-index", pr.appliedIndex))
 	return nil
 }
 
@@ -324,6 +326,9 @@ func (pr *replica) initConfState() error {
 			confState.Learners = append(confState.Learners, p.ID)
 		}
 	}
+	pr.logger.Info("init conf state loaded",
+		log.ReplicaIDsField("voters", confState.Voters),
+		log.ReplicaIDsField("learners", confState.Learners))
 	pr.lr.SetConfState(confState)
 	return nil
 }
@@ -339,13 +344,13 @@ func (pr *replica) initLogState() (bool, error) {
 	}
 	hasRaftHardState := !raft.IsEmptyHardState(rs.State)
 	if hasRaftHardState {
-		pr.logger.Info("init log state",
-			zap.Uint64("count", rs.EntryCount),
-			zap.Uint64("first-index", rs.FirstIndex),
-			zap.Uint64("commit-index", rs.State.Commit),
-			zap.Uint64("term", rs.State.Term))
 		pr.lr.SetState(rs.State)
 	}
+	pr.logger.Info("init log state",
+		zap.Uint64("count", rs.EntryCount),
+		zap.Uint64("first-index", rs.FirstIndex),
+		zap.Uint64("commit-index", rs.State.Commit),
+		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
@@ -460,7 +465,7 @@ func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
 }
 
-func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *raft.Config {
+func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config, logger *zap.Logger) *raft.Config {
 	return &raft.Config{
 		ID:                        id,
 		Applied:                   appliedIndex,
@@ -472,5 +477,59 @@ func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config) *
 		CheckQuorum:               true,
 		PreVote:                   true,
 		DisableProposalForwarding: true,
+		Logger:                    &etcdRaftLoggerAdapter{logger: logger.Sugar()},
 	}
+}
+
+type etcdRaftLoggerAdapter struct {
+	logger *zap.SugaredLogger
+}
+
+func (l *etcdRaftLoggerAdapter) Debug(v ...interface{}) { l.logger.Debug(v...) }
+func (l *etcdRaftLoggerAdapter) Debugf(format string, v ...interface{}) {
+	l.logger.Debugf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Error(v ...interface{}) { l.logger.Error(v...) }
+func (l *etcdRaftLoggerAdapter) Errorf(format string, v ...interface{}) {
+	l.logger.Errorf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Info(v ...interface{})                 { l.logger.Info(v...) }
+func (l *etcdRaftLoggerAdapter) Infof(format string, v ...interface{}) { l.logger.Errorf(format, v...) }
+func (l *etcdRaftLoggerAdapter) Warning(v ...interface{})              { l.logger.Warn(v...) }
+func (l *etcdRaftLoggerAdapter) Warningf(format string, v ...interface{}) {
+	l.logger.Warnf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Fatal(v ...interface{}) { l.logger.Fatal(v...) }
+func (l *etcdRaftLoggerAdapter) Fatalf(format string, v ...interface{}) {
+	l.logger.Fatalf(format, v...)
+}
+func (l *etcdRaftLoggerAdapter) Panic(v ...interface{}) { l.logger.Panic(v...) }
+func (l *etcdRaftLoggerAdapter) Panicf(format string, v ...interface{}) {
+	l.logger.Panicf(format, v...)
+}
+
+// addFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all subsequent metadata
+// changes need to correspond to a raft log, which is used to ensure the consistency of
+// metadata.
+func addFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, replica Replica, wc *logdb.WorkerContext) error {
+	rb := rpc.RequestBatch{}
+	rb.Header.ShardID = state.Shard.ID
+	rb.Header.Replica = replica
+	rb.Header.ID = uuid.NewV4().Bytes()
+	rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
+	rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
+		Metadata: state,
+	}
+
+	if wc == nil {
+		wc = ldb.NewWorkerContext()
+	}
+	return ldb.SaveRaftState(state.Shard.ID,
+		replica.ID,
+		raft.Ready{
+			Entries: []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal,
+				Data: protoc.MustMarshal(&rb)}},
+			HardState: raftpb.HardState{Commit: 1, Term: 1},
+		},
+		wc)
 }

@@ -18,8 +18,6 @@ import (
 
 	"github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -27,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReadWriteBytes(t *testing.T) {
@@ -93,7 +92,7 @@ func TestGetAppliedIndex(t *testing.T) {
 	defer view.Close()
 	key, val, err := base.(*BaseStorage).getAppliedIndex(view.Raw().(*pebble.Snapshot), 100)
 	assert.NoError(t, err)
-	assert.Equal(t, keys.GetAppliedIndexKey(100, nil), key)
+	assert.Equal(t, keys.GetAppliedIndexKey(100, nil), key[1:])
 	assert.Equal(t, uint64(200), buf.Byte2UInt64(val))
 }
 
@@ -118,24 +117,24 @@ func TestGetShardMetadata(t *testing.T) {
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 	defer ds.Close()
-	sm1 := storage.ShardMetadata{
+	sm1 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 110,
-		Metadata: []byte("test-data-1"),
+		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
 	}
-	sm2 := storage.ShardMetadata{
+	sm2 := meta.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 120,
-		Metadata: []byte("test-data-2"),
+		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
 	}
-	assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm1}))
-	assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm2}))
+	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm1}))
+	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm2}))
 	view := base.GetView()
 	defer view.Close()
 	key, val, err := base.(*BaseStorage).getShardMetadata(view.Raw().(*pebble.Snapshot), 100)
 	assert.NoError(t, err)
-	assert.Equal(t, keys.GetMetadataKey(uint64(100), uint64(120), nil), key)
-	assert.Equal(t, sm2.Metadata, val)
+	assert.Equal(t, keys.GetMetadataKey(uint64(100), uint64(120), nil), key[1:])
+	assert.Equal(t, protoc.MustMarshal(&sm2), val)
 }
 
 func TestCreateAndApplySnapshot(t *testing.T) {
@@ -151,23 +150,24 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		base := NewBaseStorage(kv, fs)
 		ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 		defer ds.Close()
-		assert.NoError(t, base.Set([]byte("bb"), []byte("v"), false))
-		assert.NoError(t, base.Set([]byte("mmm"), []byte("vv"), false))
-		assert.NoError(t, base.Set([]byte("yy"), []byte("vvv"), false))
+		assert.NoError(t, base.Set(EncodeDataKey([]byte("bb"), nil), []byte("v"), false))
+		assert.NoError(t, base.Set(EncodeDataKey([]byte("mmm"), nil), []byte("vv"), false))
+		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("vvv"), false))
 		shard := meta.Shard{
+			ID:    shardID,
 			Start: []byte("aa"),
 			End:   []byte("xx"),
 		}
-		sls := &meta.ShardLocalState{
+		sls := meta.ShardLocalState{
 			Shard: shard,
 		}
-		sm := storage.ShardMetadata{
+		sm := meta.ShardMetadata{
 			ShardID:  shardID,
 			LogIndex: 110,
-			Metadata: protoc.MustMarshal(sls),
+			Metadata: sls,
 		}
-		metadata = sm.Metadata
-		assert.NoError(t, ds.SaveShardMetadata([]storage.ShardMetadata{sm}))
+		metadata = protoc.MustMarshal(&sm)
+		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm}))
 		index, err := base.CreateSnapshot(sm.ShardID, dir)
 		assert.Equal(t, sm.LogIndex, index)
 		assert.NoError(t, err)
@@ -178,30 +178,31 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		base := NewBaseStorage(kv, fs)
 		ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 		defer ds.Close()
-		assert.NoError(t, base.Set([]byte("cc"), []byte("vv"), false))
-		assert.NoError(t, base.Set([]byte("yy"), []byte("zzz"), false))
+		assert.NoError(t, base.Set(EncodeDataKey([]byte("cc"), nil), []byte("vv"), false))
+		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("zzz"), false))
 		assert.NoError(t, base.ApplySnapshot(shardID, dir))
-		v, err := base.Get([]byte("cc"))
+		v, err := base.Get(EncodeDataKey([]byte("cc"), nil))
+		assert.NoError(t, err)
 		assert.Empty(t, v)
-		v, err = base.Get([]byte("yy"))
+		v, err = base.Get(EncodeDataKey([]byte("yy"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("zzz"), v)
-		v, err = base.Get([]byte("bb"))
+		v, err = base.Get(EncodeDataKey([]byte("bb"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("v"), v)
-		v, err = base.Get([]byte("mmm"))
+		v, err = base.Get(EncodeDataKey([]byte("mmm"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("vv"), v)
 		view := base.GetView()
 		defer view.Close()
 		key, val, err := base.(*BaseStorage).getAppliedIndex(view.Raw().(*pebble.Snapshot), shardID)
 		assert.NoError(t, err)
-		assert.Equal(t, keys.GetAppliedIndexKey(shardID, nil), key)
+		assert.Equal(t, keys.GetAppliedIndexKey(shardID, nil), key[1:])
 		assert.Equal(t, uint64(110), buf.Byte2UInt64(val))
 
 		key, val, err = base.(*BaseStorage).getShardMetadata(view.Raw().(*pebble.Snapshot), shardID)
 		assert.NoError(t, err)
-		assert.Equal(t, keys.GetMetadataKey(shardID, uint64(110), nil), key)
+		assert.Equal(t, keys.GetMetadataKey(shardID, uint64(110), nil), key[1:])
 		assert.Equal(t, metadata, val)
 	}()
 }

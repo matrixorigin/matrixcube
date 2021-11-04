@@ -17,12 +17,12 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3/raftpb"
-
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 func TestStateMachineAddNode(t *testing.T) {
@@ -173,3 +173,85 @@ func TestStateMachineRemoveNode(t *testing.T) {
 }
 
 // TODO: add tests to cover failed config change
+
+func TestDoExecSplit(t *testing.T) {
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}, Start: []byte{1}, End: []byte{10}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	ctx := newApplyContext()
+
+	ch := make(chan bool)
+	checkPanicFn := func() {
+		defer func() {
+			if err := recover(); err != nil {
+				ch <- true
+			} else {
+				ch <- false
+			}
+		}()
+		pr.sm.execAdminRequest(ctx)
+	}
+
+	// check split panic
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{}
+	ctx.req.AdminRequest.CmdType = rpc.AdminCmdType_BatchSplit
+	go checkPanicFn()
+	assert.True(t, <-ch)
+
+	// check range not match
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}}, {End: []byte{5}}}}
+	go checkPanicFn()
+	assert.True(t, <-ch)
+
+	// check key not in range
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{20}}, {End: []byte{10}}}}
+	go checkPanicFn()
+	assert.True(t, <-ch)
+
+	// check range discontinuity
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}
+	go checkPanicFn()
+	assert.True(t, <-ch)
+
+	// s1 -> s2+s3
+	ctx.index = 100
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{
+		Requests: []rpc.SplitRequest{
+			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}},
+			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300}}},
+		},
+	}
+	resp, err := pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(resp.AdminResponse.Splits.Shards))
+	assert.Equal(t, pr.getShard().Start, resp.AdminResponse.Splits.Shards[0].Start)
+	assert.Equal(t, ctx.req.AdminRequest.Splits.Requests[0].End, resp.AdminResponse.Splits.Shards[0].End)
+	assert.Equal(t, ctx.req.AdminRequest.Splits.Requests[1].Start, resp.AdminResponse.Splits.Shards[1].Start)
+	assert.Equal(t, pr.getShard().End, resp.AdminResponse.Splits.Shards[1].End)
+	assert.False(t, pr.sm.canContinue())
+	assert.True(t, pr.sm.metadataMu.splited)
+
+	pr.sm.dataStorage.GetInitialStates()
+	assert.NoError(t, pr.sm.dataStorage.Sync([]uint64{1, 2, 3}))
+	idx, err := pr.sm.dataStorage.GetPersistentLogIndex(1)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(100), idx)
+
+	idx, err = pr.sm.dataStorage.GetPersistentLogIndex(2)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), idx)
+
+	idx, err = pr.sm.dataStorage.GetPersistentLogIndex(3)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), idx)
+
+	metadata, err := pr.sm.dataStorage.GetInitialStates()
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(metadata))
+	assert.Equal(t, meta.ReplicaState_Tombstone, metadata[0].Metadata.State)
+	assert.Equal(t, meta.ReplicaState_Normal, metadata[1].Metadata.State)
+	assert.Equal(t, []byte{1}, metadata[1].Metadata.Shard.Start)
+	assert.Equal(t, []byte{5}, metadata[1].Metadata.Shard.End)
+	assert.Equal(t, meta.ReplicaState_Normal, metadata[2].Metadata.State)
+	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
+	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
+}

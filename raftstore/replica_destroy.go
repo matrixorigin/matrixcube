@@ -31,7 +31,7 @@ var (
 // destroyReplica destroys the replica by closing it, removing it from the
 // store and finally deleting all its associated data.
 func (s *store) destroyReplica(shardID uint64,
-	shardRemoved bool, reason string) {
+	shardRemoved, removeData bool, reason string) {
 	replica := s.getReplica(shardID, false)
 	if replica == nil {
 		s.logger.Warn("replica not found",
@@ -43,6 +43,7 @@ func (s *store) destroyReplica(shardID uint64,
 		shard:        replica.getShard(),
 		replica:      replica,
 		shardRemoved: shardRemoved,
+		removeData:   removeData,
 		reason:       reason,
 	})
 }
@@ -85,7 +86,7 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.logger.Info("deleting shard data",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID))
-	err := s.DataStorageByGroup(t.shard.Group).RemoveShardData(t.shard)
+	err := s.DataStorageByGroup(t.shard.Group).RemoveShard(t.shard, t.removeData)
 	s.logger.Info("delete shard data returned",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID),
@@ -93,13 +94,13 @@ func (s *store) vacuum(t vacuumTask) error {
 	if t.replica != nil && err == nil {
 		t.replica.confirmDestroyed()
 	}
-
 	return err
 }
 
 func (pr *replica) destroy(shardRemoved bool, reason string) error {
 	pr.logger.Info("begin to destory",
 		zap.Bool("shard-removed", shardRemoved),
+		log.ShardField("metadata", pr.getShard()),
 		log.ReasonField(reason))
 
 	if shardRemoved {

@@ -33,6 +33,7 @@ import (
 	"strconv"
 
 	"github.com/cockroachdb/errors"
+	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -263,5 +264,10 @@ func (s *snapshotter) isZombie(dir string) bool {
 }
 
 func (s *snapshotter) saveSnapshot(sm raftpb.SnapshotMetadata) error {
-	return s.ldb.SaveSnapshot(s.shardID, s.replicaID, sm)
+	wc := s.ldb.NewWorkerContext()
+	return s.ldb.SaveRaftState(s.shardID, s.replicaID, raft.Ready{
+		Snapshot: raftpb.Snapshot{
+			Metadata: sm,
+		},
+	}, wc)
 }

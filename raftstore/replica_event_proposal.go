@@ -16,14 +16,13 @@ package raftstore
 import (
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
+	"go.uber.org/zap"
 )
 
 var (
@@ -169,6 +168,9 @@ func (pr *replica) execReadIndex(c batch) {
 		return
 	}
 	pr.metrics.propose.readIndex++
+	if ce := pr.logger.Check(zap.DebugLevel, "call read index"); ce != nil {
+		ce.Write(log.HexField("id", c.getRequestID()))
+	}
 }
 
 func (pr *replica) proposeNormal(c batch) bool {

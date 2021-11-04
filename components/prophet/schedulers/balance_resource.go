@@ -140,6 +140,10 @@ func (s *balanceResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 	containers := cluster.GetContainers()
+	if len(containers) <= cluster.GetOpts().GetMaxReplicas() {
+		return nil
+	}
+
 	opts := cluster.GetOpts()
 	containers = filter.SelectSourceContainers(containers, s.filters, opts)
 	opInfluence := s.opController.GetOpInfluence(cluster)
@@ -175,10 +179,13 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 					schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
 					continue
 				}
-				cluster.GetLogger().Debug("scheduler select resource",
-					rebalanceResourceField,
-					s.scheduleField,
-					resourceField(res.Meta.ID()))
+
+				if len(containers) > 1 {
+					cluster.GetLogger().Debug("scheduler select resource",
+						rebalanceResourceField,
+						s.scheduleField,
+						resourceField(res.Meta.ID()))
+				}
 
 				// Skip hot resources.
 				if cluster.IsResourceHot(res) {

@@ -11,23 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package leaktest
+package meta
 
 import (
-	"os"
-	"testing"
-
-	ltlib "github.com/lni/goutils/leaktest"
+	"github.com/fagongzi/util/protoc"
 )
 
-func goroutineLeakCheckEnabled() bool {
-	glc := os.Getenv("GOROUTINE_LEAK_CHECK")
-	return len(glc) > 0
-}
-
-func AfterTest(t testing.TB) func() {
-	if !goroutineLeakCheckEnabled() {
-		return func() {}
-	}
-	return ltlib.AfterTest(t)
+// Clone clone the shard
+func (m Shard) Clone() Shard {
+	var value Shard
+	protoc.MustUnmarshal(&value, protoc.MustMarshal(&m))
+	return value
 }

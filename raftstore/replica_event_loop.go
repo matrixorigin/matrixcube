@@ -33,10 +33,18 @@ const (
 )
 
 type action struct {
-	actionType actionType
-	splitKeys  [][]byte
-	splitIDs   []rpcpb.SplitID
-	epoch      metapb.ResourceEpoch
+	actionType     actionType
+	splitCheckData splitCheckData
+	epoch          Epoch
+	actionCallback func(interface{})
+}
+
+type splitCheckData struct {
+	keys      uint64
+	size      uint64
+	splitKeys [][]byte
+	splitIDs  []rpcpb.SplitID
+	ctx       []byte
 }
 
 type actionType int
@@ -180,12 +188,12 @@ func (pr *replica) handleAction(items []interface{}) {
 	}
 
 	for i := int64(0); i < n; i++ {
-		a := items[i].(action)
-		switch a.actionType {
+		act := items[i].(action)
+		switch act.actionType {
 		case checkSplitAction:
-			pr.tryCheckSplit()
+			pr.tryCheckSplit(act)
 		case splitAction:
-			pr.doSplit(a.splitKeys, a.splitIDs, a.epoch)
+			pr.doSplit(act)
 		case campaignAction:
 			if _, err := pr.maybeCampaign(); err != nil {
 				pr.logger.Fatal("tail to campaign in raft",
