@@ -162,12 +162,24 @@ func (l *KVLogDB) GetSnapshot(shardID uint64,
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
 	replicaID uint64, rd raft.Ready, ctx *WorkerContext) error {
-	v := protoc.MustMarshal(&rd.HardState)
-	ctx.wb.Set(keys.GetHardStateKey(shardID, replicaID, nil), v)
-	if rd.Snapshot.Metadata.Index > 0 {
+
+	l.logger.Debug("save raft state",
+		log.ShardIDField(shardID),
+		log.ReplicaIDField(replicaID),
+		zap.Uint64("commit", rd.HardState.Commit),
+		zap.Uint64("term", rd.HardState.Commit),
+		zap.Uint64("vote", rd.HardState.Vote))
+
+	if !raft.IsEmptyHardState(rd.HardState) {
+		v := protoc.MustMarshal(&rd.HardState)
+		ctx.wb.Set(keys.GetHardStateKey(shardID, replicaID, nil), v)
+	}
+
+	if !raft.IsEmptySnap(rd.Snapshot) {
 		ctx.wb.Set(keys.GetSnapshotKey(shardID, replicaID, nil),
 			protoc.MustMarshal(&rd.Snapshot.Metadata))
 	}
+
 	for _, e := range rd.Entries {
 		// TODO: use reusable buf here
 		d := protoc.MustMarshal(&e)

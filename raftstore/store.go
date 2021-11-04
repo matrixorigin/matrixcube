@@ -21,9 +21,6 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/syncutil"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -39,6 +36,8 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 const (
@@ -94,6 +93,7 @@ type store struct {
 	snapshotManager snapshot.SnapshotManager
 	shardsProxy     ShardsProxy
 	router          Router
+	splitChecker    *splitChecker
 	watcher         prophet.Watcher
 	vacuumCleaner   *vacuumCleaner
 	keyRanges       sync.Map // group id -> *util.ShardTree
@@ -125,7 +125,13 @@ func NewStore(cfg *config.Config) Store {
 		logdb:     logdb.NewKVLogDB(kv, logger.Named("logdb")),
 		stopper:   syncutil.NewStopper(),
 	}
+
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
+	// TODO: make maxWaitToChecker configurable
+	s.splitChecker = newSplitChecker(4, uint64(s.cfg.Replication.ShardCapacityBytes),
+		&storeReplicaGetter{s}, func(group uint64) splitCheckFunc {
+			return s.cfg.Storage.DataStorageFactory(group).SplitCheck
+		})
 	// TODO: make workerCount configurable
 	s.workerPool = newWorkerPool(s.logger, s.logdb, &storeReplicaLoader{s}, 64)
 	s.shardPool = newDynamicShardsPool(cfg, s.logger)
@@ -155,6 +161,10 @@ func (s *store) Start() {
 
 	s.vacuumCleaner.start()
 	s.logger.Info("vacuum cleaner started",
+		s.storeField())
+
+	s.splitChecker.start()
+	s.logger.Info("split checker started",
 		s.storeField())
 
 	s.startProphet()
@@ -192,6 +202,11 @@ func (s *store) Stop() {
 	s.stopOnce.Do(func() {
 		s.logger.Info("begin to stop raftstore",
 			s.storeField())
+
+		s.splitChecker.close()
+		s.logger.Info("split checker closed",
+			s.storeField())
+
 		s.pd.Stop()
 		s.logger.Info("pd stopped",
 			s.storeField())
@@ -254,7 +269,7 @@ func (s *store) startRouter() {
 			zap.Error(err))
 	}
 	r, err := newRouterBuilder().withLogger(s.logger).withStopper(s.stopper).withCreatShardHandle(s.doDynamicallyCreate).withRemoveShardHandle(func(id uint64) {
-		s.destroyReplica(id, true, "remove by event")
+		s.destroyReplica(id, true, true, "remove by event")
 	}).build(watcher.GetNotify())
 	if err != nil {
 		s.logger.Fatal("fail to create router",
@@ -396,9 +411,7 @@ func (s *store) startShards() {
 		var tomebstoneShards []Shard
 		for _, metadata := range initStates {
 			totalCount++
-			sls := &meta.ShardLocalState{}
-			protoc.MustUnmarshal(sls, metadata.Metadata)
-
+			sls := metadata.Metadata
 			if sls.Shard.ID != metadata.ShardID {
 				s.logger.Fatal("BUG: shard id not match in metadata",
 					s.storeField(),
@@ -422,7 +435,7 @@ func (s *store) startShards() {
 					zap.Error(err))
 			}
 
-			s.updateShardKeyRange(sls.Shard)
+			s.updateShardKeyRange(sls.Shard.Group, sls.Shard)
 			s.addReplica(pr)
 			pr.start()
 		}
@@ -482,7 +495,7 @@ func (s *store) addReplica(pr *replica) bool {
 func (s *store) removeReplica(pr *replica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destory(pr.getShard())
+		s.aware.Destroyed(pr.getShard())
 	}
 }
 
@@ -691,18 +704,18 @@ func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.Respon
 	return resp
 }
 
-func (s *store) updateShardKeyRange(shard Shard) {
-	if value, ok := s.keyRanges.Load(shard.Group); ok {
-		value.(*util.ShardTree).Update(shard)
+func (s *store) updateShardKeyRange(group uint64, shards ...Shard) {
+	if value, ok := s.keyRanges.Load(group); ok {
+		value.(*util.ShardTree).Update(shards...)
 		return
 	}
 
 	tree := util.NewShardTree()
-	tree.Update(shard)
+	tree.Update(shards...)
 
-	value, loaded := s.keyRanges.LoadOrStore(shard.Group, tree)
+	value, loaded := s.keyRanges.LoadOrStore(group, tree)
 	if loaded {
-		value.(*util.ShardTree).Update(shard)
+		value.(*util.ShardTree).Update(shards...)
 	}
 }
 
@@ -746,4 +759,15 @@ func (s *store) nextShard(shard Shard) *Shard {
 
 func (s *store) storeField() zap.Field {
 	return log.StoreIDField(s.Meta().ID)
+}
+
+type storeReplicaGetter struct {
+	store *store
+}
+
+func (s *storeReplicaGetter) getReplica(shardID uint64) (*replica, bool) {
+	if r := s.store.getReplica(shardID, false); r != nil {
+		return r, true
+	}
+	return nil, false
 }

@@ -351,10 +351,6 @@ func (wb *writeBatch) Set(key []byte, value []byte) {
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)+len(value)))
 }
 
-func (wb *writeBatch) SetWithTTL(key []byte, value []byte, ttl int32) {
-	panic("pebble not support set with TTL")
-}
-
 func (wb *writeBatch) Reset() {
 	wb.batch.Reset()
 }

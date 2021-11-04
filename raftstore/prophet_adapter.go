@@ -407,7 +407,7 @@ func (s *store) startHandleResourceHeartbeat() {
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	if rsp.DestoryDirectly {
-		s.destroyReplica(rsp.ResourceID, true, "remove by pd")
+		s.destroyReplica(rsp.ResourceID, true, true, "remove by pd")
 		return
 	}
 
@@ -451,8 +451,10 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			pr.addAction(action{
 				epoch:      rsp.ResourceEpoch,
 				actionType: splitAction,
-				splitKeys:  rsp.SplitResource.Keys,
-				splitIDs:   splitIDs,
+				splitCheckData: splitCheckData{
+					splitKeys: rsp.SplitResource.Keys,
+					splitIDs:  splitIDs,
+				},
 			})
 		}
 	}

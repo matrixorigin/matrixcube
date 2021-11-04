@@ -19,7 +19,7 @@ import (
 
 type applyMetrics struct {
 	// an inaccurate difference in shard size since last reset.
-	sizeDiffHint uint64
+	approximateDiffHint uint64
 	// delete keys' count since last reset.
 	deleteKeysHint uint64
 	writtenBytes   uint64
@@ -160,12 +160,11 @@ func (m *raftProposeMetrics) flush() {
 }
 
 type raftAdminMetrics struct {
-	confChange uint64
-	split      uint64
-	compact    uint64
-
-	confChangeReject uint64
-
+	confChange        uint64
+	split             uint64
+	compact           uint64
+	updateMetadata    uint64
+	confChangeReject  uint64
 	confChangeSucceed uint64
 	addPeerSucceed    uint64
 	removePeerSucceed uint64
@@ -183,6 +182,7 @@ func (m *raftAdminMetrics) incBy(by raftAdminMetrics) {
 	m.splitSucceed += by.splitSucceed
 	m.compact += by.compact
 	m.compactSucceed += by.compactSucceed
+	m.updateMetadata += by.updateMetadata
 }
 
 func (m *raftAdminMetrics) flush() {

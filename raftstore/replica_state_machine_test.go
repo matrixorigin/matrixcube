@@ -18,12 +18,6 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -33,6 +27,11 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
@@ -117,7 +116,7 @@ func runSimpleStateMachineTest(t *testing.T,
 	executor := simple.NewSimpleKVExecutor(st)
 	base := kv.NewBaseStorage(st, fs)
 	ds := kv.NewKVDataStorage(base, executor)
-	sm := newStateMachine(l, ds, shard, 100, h)
+	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h)
 	f(sm)
 }
 

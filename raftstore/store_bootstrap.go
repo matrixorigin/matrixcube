@@ -198,18 +198,25 @@ func (s *store) doCreateInitShard(shard *Shard) {
 
 func (s *store) mustSaveShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
-		var sm []storage.ShardMetadata
+		var sm []meta.ShardMetadata
 		var ids []uint64
-		for _, s := range v {
-			ids = append(ids, s.ID)
-			sm = append(sm, storage.ShardMetadata{
-				ShardID:  s.ID,
-				LogIndex: 0,
-				Metadata: protoc.MustMarshal(&meta.ShardLocalState{
+		for _, shard := range v {
+			ids = append(ids, shard.ID)
+			sm = append(sm, meta.ShardMetadata{
+				ShardID:  shard.ID,
+				LogIndex: 1,
+				Metadata: meta.ShardLocalState{
 					State: meta.ReplicaState_Normal,
-					Shard: s,
-				}),
+					Shard: shard,
+				},
 			})
+
+			err := addFirstUpdateMetadataLog(s.logdb, sm[len(sm)-1].Metadata, shard.Replicas[0], nil)
+			if err != nil {
+				s.logger.Fatal("fail to create init shards",
+					s.storeField(),
+					zap.Error(err))
+			}
 		}
 
 		if err := ds.SaveShardMetadata(sm); err != nil {
@@ -229,7 +236,7 @@ func (s *store) mustSaveShards(shards ...Shard) {
 func (s *store) removeInitShards(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		for _, shard := range v {
-			if err := ds.RemoveShardData(shard); err != nil {
+			if err := ds.RemoveShard(shard, true); err != nil {
 				s.logger.Fatal("fail to remove init shards",
 					s.storeField(),
 					zap.Error(err))

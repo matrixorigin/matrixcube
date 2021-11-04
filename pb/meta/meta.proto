@@ -80,6 +80,14 @@ enum ReplicaState {
     Tombstone = 2;
 }
 
+// ShardMetadata is the metadata of the shard consistent with the current table
+// shard data
+message ShardMetadata {
+    uint64 shardID  = 1;
+	uint64 logIndex = 2;
+	ShardLocalState metadata  = 3 [(gogoproto.nullable) = false];
+}
+
 // ShardLocalState shard local state
 message ShardLocalState {
     Shard     shard = 1 [(gogoproto.nullable) = false];

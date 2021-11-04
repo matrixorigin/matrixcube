@@ -115,8 +115,10 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 	if err == nil && op != nil {
 		return op
 	}
-	c.cluster.GetLogger().Debug("fail to fix orphan peer",
-		zap.Error(err))
+	if err != nil {
+		c.cluster.GetLogger().Debug("fail to fix orphan peer",
+			zap.Error(err))
+	}
 
 	for _, rf := range fit.RuleFits {
 		op, err := c.fixRulePeer(res, fit, rf)

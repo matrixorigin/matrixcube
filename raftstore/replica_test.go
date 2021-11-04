@@ -14,11 +14,31 @@
 package raftstore
 
 import (
+	"sync"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 )
+
+type testReplicaGetter struct {
+	sync.RWMutex
+	replicas map[uint64]*replica
+}
+
+func newTestReplicaGetter() *testReplicaGetter {
+	return &testReplicaGetter{
+		replicas: make(map[uint64]*replica),
+	}
+}
+
+func (trg *testReplicaGetter) getReplica(id uint64) (*replica, bool) {
+	trg.RLock()
+	defer trg.RUnlock()
+
+	v, ok := trg.replicas[id]
+	return v, ok
+}
 
 func TestInitAppliedIndex(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
@@ -30,11 +50,17 @@ func TestInitAppliedIndex(t *testing.T) {
 	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(0), pr.appliedIndex)
 
-	err = ds.SaveShardMetadata([]storage.ShardMetadata{{ShardID: 2, LogIndex: 2, Metadata: make([]byte, 10)}})
+	err = ds.SaveShardMetadata([]meta.ShardMetadata{{ShardID: 2, LogIndex: 2, Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 2}}}})
 	assert.NoError(t, err)
 	ds.Sync([]uint64{2})
 	pr, err = newReplica(s, Shard{ID: 2}, Replica{ID: 2000}, "test")
 	assert.NoError(t, err)
 	assert.NoError(t, pr.initAppliedIndex(ds))
 	assert.Equal(t, uint64(2), pr.appliedIndex)
+}
+
+func newTestReplica(shard Shard, peer Replica, s *store) *replica {
+	pr, _ := newReplica(s, shard, peer, "testing")
+	close(pr.startedC)
+	return pr
 }

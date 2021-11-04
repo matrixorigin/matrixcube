@@ -16,13 +16,12 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
-	// "github.com/matrixorigin/matrixcube/util/leaktest"
+	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDestroyReplica(t *testing.T) {
@@ -31,8 +30,8 @@ func TestDestroyReplica(t *testing.T) {
 	r := Replica{ID: 1}
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
-	kv.Set([]byte("a1"), []byte("hello-a1"), false)
-	kv.Set([]byte("a2"), []byte("hello-a2"), false)
+	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false)
+	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false)
 
 	shard := Shard{
 		ID:       1,
@@ -43,7 +42,7 @@ func TestDestroyReplica(t *testing.T) {
 
 	scan := func() int {
 		count := 0
-		kv.Scan(shard.Start, shard.End, func(key, value []byte) (bool, error) {
+		kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardStart(shard.End, nil), func(key, value []byte) (bool, error) {
 			count++
 			return true, nil
 		}, false)
@@ -70,14 +69,13 @@ func TestDestroyReplica(t *testing.T) {
 		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
 	}
-	pr.sm = newStateMachine(pr.logger,
-		s.DataStorageByGroup(0), shard, pr.replica.ID, nil)
+	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), s.logdb, shard, pr.replica, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)
 	s.addReplica(pr)
 	assert.NotNil(t, s.getReplica(1, false))
-	s.destroyReplica(pr.shardID, true, "testing")
+	s.destroyReplica(pr.shardID, true, true, "testing")
 	for {
 		if pr.closed() {
 			break

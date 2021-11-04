@@ -24,25 +24,16 @@ import (
 )
 
 func (s *store) handleSplitCheck() {
-	// FIXME: do we need to do such busy check?
-	/*if s.runner.IsNamedWorkerBusy(splitCheckWorkerName) {
-		return
-	}*/
-
 	s.forEachReplica(func(pr *replica) bool {
 		if pr.supportSplit() &&
-			pr.isLeader() &&
-			(s.handledCustomSplitCheck(pr.getShard().Group) ||
-				pr.sizeDiffHint >= uint64(s.cfg.Replication.ShardSplitCheckBytes)) {
-			pr.addAction(action{actionType: checkSplitAction})
+			pr.isLeader() {
+			pr.addAction(action{actionType: checkSplitAction, actionCallback: func(arg interface{}) {
+				s.splitChecker.add(arg.(Shard))
+			}})
 		}
 
 		return true
 	})
-}
-
-func (s *store) handledCustomSplitCheck(group uint64) bool {
-	return s.cfg.Customize.CustomSplitCheckFuncFactory != nil && s.cfg.Customize.CustomSplitCheckFuncFactory(group) != nil
 }
 
 func (s *store) handleShardStateCheck() {
@@ -62,7 +53,7 @@ func (s *store) handleShardStateCheck() {
 		}
 
 		for _, id := range rsp.Removed {
-			s.destroyReplica(id, true, "shard state check")
+			s.destroyReplica(id, true, true, "shard state check")
 		}
 	}
 }
@@ -122,7 +113,7 @@ func (s *store) handleDestroyReplicaMessage(msg meta.RaftMessage) {
 				log.ShardIDField(shardID),
 				log.EpochField("self-epoch", shard.Epoch),
 				log.EpochField("msg-epoch", fromEpoch))
-			s.destroyReplica(shardID, false, "gc")
+			s.destroyReplica(shardID, false, true, "gc")
 		}
 	}
 }
@@ -170,7 +161,12 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 	// If we found stale peer, we will destory it
 	if stalePeer.ID > 0 {
-		s.destroyReplica(msg.ShardID, false, "found stale peer")
+		s.logger.Info("found stale peer, need to remove self replica",
+			s.storeField(),
+			log.ShardIDField(msg.ShardID),
+			log.ReplicaField("msg-to", msg.To),
+			log.ReplicaField("current-stale-replica", stalePeer))
+		s.destroyReplica(msg.ShardID, false, true, "found stale peer")
 		return false
 	}
 
@@ -223,7 +219,8 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		// FIXME: this seems to be wrong
 		// pr.shard.Peers = append(pr.shard.Peers, msg.To)
 		// pr.shard.Peers = append(pr.shard.Peers, msg.From)
-		s.updateShardKeyRange(pr.getShard())
+		shard := pr.getShard()
+		s.updateShardKeyRange(shard.Group, shard)
 
 		s.replicaRecords.Store(msg.From.ID, msg.From)
 		s.replicaRecords.Store(msg.To.ID, msg.To)

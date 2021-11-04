@@ -173,7 +173,8 @@ func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error 
 	if ce := p.logger.Check(zap.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
 			zap.Uint64("to-shard", shard.ID),
-			zap.String("to-store", to))
+			zap.String("to-store", to),
+			log.RaftRequestField("request", &req))
 	}
 
 	// No leader, retry after a leader tick
@@ -252,6 +253,9 @@ func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Respon
 }
 
 func (p *shardsProxy) done(rsp rpc.Response) {
+	if ce := p.logger.Check(zap.DebugLevel, "requests done"); ce != nil {
+		ce.Write(log.RaftResponseField("resp", &rsp))
+	}
 	if rsp.Type == rpc.CmdType_Invalid && rsp.Error.Message != "" {
 		p.cfg.failureCallback(rsp.Request, errors.New(rsp.Error.String()))
 		return

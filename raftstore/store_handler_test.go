@@ -35,10 +35,11 @@ func TestHandleSplitCheck(t *testing.T) {
 		},
 		{
 			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: false,
+			hasAction: true,
+			action:    action{actionType: checkSplitAction},
 		},
 		{
-			pr:        &replica{startedC: make(chan struct{}), sizeDiffHint: 1024 * 1024 * 1024, actions: task.New(32)},
+			pr:        &replica{startedC: make(chan struct{}), approximateSize: 1024 * 1024 * 1024, actions: task.New(32)},
 			hasAction: true,
 			action:    action{actionType: checkSplitAction},
 		},
@@ -55,8 +56,10 @@ func TestHandleSplitCheck(t *testing.T) {
 		assert.Equal(t, c.hasAction, c.pr.actions.Len() > 0, "index %d", idx)
 		if c.hasAction {
 			v, err := c.pr.actions.Peek()
+			act := v.(action)
+			act.actionCallback = nil
 			assert.NoError(t, err, "index %d", idx)
-			assert.Equal(t, c.action, v, "index %d", idx)
+			assert.Equal(t, c.action, act, "index %d", idx)
 		}
 	}
 }
@@ -121,12 +124,13 @@ func TestTryToCreateReplicate(t *testing.T) {
 			c.pr.closedC = make(chan struct{})
 			c.pr.store = s
 			c.pr.logger = s.logger
-			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica.ID, nil)
+			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil)
 			close(c.pr.startedC)
 			s.addReplica(c.pr)
-			s.updateShardKeyRange(c.pr.getShard())
+			s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
 		}
 
+		c.msg.From = Replica{ID: 100, ContainerID: 1000}
 		assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
 		if c.checkCache {
 			msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
@@ -158,7 +162,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
 	}
 	pr.sm = newStateMachine(pr.logger,
-		s.DataStorageByGroup(0), Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica.ID, nil)
+		s.DataStorageByGroup(0), nil, Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)

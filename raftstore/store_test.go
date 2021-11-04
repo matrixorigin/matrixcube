@@ -18,6 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
@@ -76,10 +77,10 @@ func TestRemoveShardKeyRange(t *testing.T) {
 func TestUpdateShardKeyRange(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 
-	s.updateShardKeyRange(Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
+	s.updateShardKeyRange(0, Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
 	assert.Equal(t, uint64(1), s.searchShard(0, []byte("a")).ID)
 
-	s.updateShardKeyRange(Shard{ID: 1, Start: []byte("a"), End: []byte("c")})
+	s.updateShardKeyRange(0, Shard{ID: 1, Start: []byte("a"), End: []byte("c")})
 	assert.Equal(t, uint64(1), s.searchShard(0, []byte("b")).ID)
 }
 
@@ -174,12 +175,12 @@ func TestVacuum(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
-	kv.Set([]byte("a1"), []byte("hello"), false)
-	kv.Set([]byte("a2"), []byte("hello"), false)
-	assert.NoError(t, s.vacuum(vacuumTask{shard: shard}))
+	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello"), false)
+	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello"), false)
+	assert.NoError(t, s.vacuum(vacuumTask{shard: shard, removeData: true}))
 
 	c := 0
-	kv.Scan(shard.Start, shard.End, func(key, value []byte) (bool, error) {
+	kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardEnd(shard.End, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false)

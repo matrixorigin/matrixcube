@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -88,6 +89,7 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 func testPendingProposalClear(t *testing.T,
 	clear bool, cb func(resp rpc.ResponseBatch)) {
 	cmd1 := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
@@ -97,6 +99,7 @@ func testPendingProposalClear(t *testing.T,
 		cb: cb,
 	}
 	cmd2 := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
@@ -106,6 +109,7 @@ func testPendingProposalClear(t *testing.T,
 		cb: cb,
 	}
 	ConfChangeCmd := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
@@ -154,6 +158,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	ConfChangeCmd := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			AdminRequest: rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_ConfigChange,
@@ -187,6 +192,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		assert.Equal(t, errShardNotFound.Error(), resp.Header.Error.Message)
 	}
 	cmd1 := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
@@ -196,6 +202,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		cb: staleCB,
 	}
 	cmd2 := batch{
+		logger: log.Adjust(nil),
 		requestBatch: rpc.RequestBatch{
 			Requests: []rpc.Request{{}},
 			Header: rpc.RequestBatchHeader{
@@ -204,7 +211,7 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 		},
 		cb: cb,
 	}
-	cmd3 := batch{}
+	cmd3 := batch{logger: log.Adjust(nil)}
 	p := newPendingProposals()
 	p.append(cmd1)
 	p.append(cmd2)

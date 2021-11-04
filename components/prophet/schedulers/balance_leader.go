@@ -141,8 +141,12 @@ func (l *balanceLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(l.GetName(), "schedule").Inc()
 
-	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	containers := cluster.GetContainers()
+	if len(containers) <= cluster.GetOpts().GetMaxReplicas() {
+		return nil
+	}
+
+	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	opInfluence := l.opController.GetOpInfluence(cluster)
 	sources := filter.SelectSourceContainers(containers, l.filters, cluster.GetOpts())
 	targets := filter.SelectTargetContainers(containers, l.filters, cluster.GetOpts())
