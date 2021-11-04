@@ -162,8 +162,8 @@ message SplitRequest {
     bytes end   = 2;
     // The new shard id
     uint64 newShardID = 3;
-    // The new ids for all replcias of the new shard
-    repeated uint64 newReplicaIDs = 4;
+    // The new replcias of the new shard
+    repeated metapb.Replica newReplicas = 4 [(gogoproto.nullable) = false];
 }
 
 message BatchSplitResponse {

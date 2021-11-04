@@ -482,8 +482,7 @@ func appendSplitRequest(req rpc.SplitRequest, info *bytes.Buffer, first bool) {
 	info.WriteString(", ")
 	info.WriteString(hex.EncodeToString(req.End))
 	info.WriteString(")")
-	info.WriteString(", replicas:")
-	appendIDs(req.NewReplicaIDs, info)
+	appendReplicas("replicas", req.NewReplicas, info, false)
 }
 
 func appendIDs(ids []uint64, info *bytes.Buffer) {

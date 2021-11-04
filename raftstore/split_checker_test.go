@@ -58,18 +58,24 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 		}
 	})
 
+	// check with replica not found
 	assert.False(t, sc.doChecker(Shard{}))
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 1}}, Replica{ID: 1}, s)
 	trg.replicas[1] = pr
+
+	// epoch not match
 	assert.False(t, sc.doChecker(Shard{}))
+
+	// ok with no split
 	assert.True(t, sc.doChecker(pr.getShard()))
 	assert.Equal(t, int64(1), pr.actions.Len())
 	act, _ := pr.actions.Peek()
 	pr.actions.Get(1, make([]interface{}, 1))
 	assert.Equal(t, action{actionType: splitAction, epoch: pr.getShard().Epoch, splitCheckData: splitCheckData{keys: currentKeys, size: currentSize, splitKeys: splitKeys}}, act)
 
+	// ok and need split
 	splitKeys = [][]byte{{0}, {1}}
 	splitIDs := []rpcpb.SplitID{{NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}, {NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}, {NewID: 1, NewReplicaIDs: []uint64{1, 2, 3}}}
 	ctrl := gomock.NewController(t)

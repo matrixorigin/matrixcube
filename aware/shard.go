@@ -23,8 +23,8 @@ type ShardStateAware interface {
 	Created(meta.Shard)
 	// Splited the shard was splited on the current store
 	Splited(meta.Shard)
-	// Destory the shard was destoryed on the current store
-	Destoryed(meta.Shard)
+	// Destroyed the shard was destroyed on the current store
+	Destroyed(meta.Shard)
 	// BecomeLeader the shard was become leader on the current store
 	BecomeLeader(meta.Shard)
 	// BecomeLeader the shard was become follower on the current store

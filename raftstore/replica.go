@@ -87,7 +87,6 @@ type replica struct {
 	writtenBytes         uint64
 	readKeys             uint64
 	readBytes            uint64
-	sizeDiffHint         uint64
 	raftLogSizeHint      uint64
 	deleteKeysHint       uint64
 	// TODO: set these fields on split check
@@ -530,7 +529,7 @@ func addFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, repl
 		raft.Ready{
 			Entries: []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal,
 				Data: protoc.MustMarshal(&rb)}},
-			HardState: raftpb.HardState{Commit: 1, Term: 1, Vote: replica.ID},
+			HardState: raftpb.HardState{Commit: 1, Term: 1},
 		},
 		wc)
 }

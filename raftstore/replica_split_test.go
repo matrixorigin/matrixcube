@@ -31,9 +31,9 @@ func TestTryCheckSplit(t *testing.T) {
 	// check not leader
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
-	// check sizeDiffHint
+	// check approximateSize
 	pr.replica.ID = 1
-	pr.sizeDiffHint = 100
+	pr.approximateSize = 100
 	pr.cfg.Replication.ShardSplitCheckBytes = 200
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
@@ -55,7 +55,6 @@ func TestDoSplit(t *testing.T) {
 
 	// check not leader
 	pr.doSplit(act)
-	assert.Equal(t, uint64(0), pr.sizeDiffHint)
 	assert.Equal(t, uint64(0), pr.approximateSize)
 	assert.Equal(t, uint64(0), pr.approximateKeys)
 
@@ -63,14 +62,12 @@ func TestDoSplit(t *testing.T) {
 
 	// check stale epoch
 	pr.doSplit(act)
-	assert.Equal(t, uint64(0), pr.sizeDiffHint)
 	assert.Equal(t, uint64(0), pr.approximateSize)
 	assert.Equal(t, uint64(0), pr.approximateKeys)
 
 	// check no split keys, only change memory fields
 	act.epoch = pr.getShard().Epoch
 	pr.doSplit(act)
-	assert.Equal(t, pr.sizeDiffHint, act.splitCheckData.size)
 	assert.Equal(t, pr.approximateSize, act.splitCheckData.size)
 	assert.Equal(t, pr.approximateKeys, act.splitCheckData.keys)
 
@@ -103,9 +100,7 @@ func TestDoSplit(t *testing.T) {
 	assert.Equal(t, pr.getShard().Start, req.Splits.Requests[0].Start)
 	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Splits.Requests[0].End)
 	assert.Equal(t, act.splitCheckData.splitIDs[0].NewID, req.Splits.Requests[0].NewShardID)
-	assert.Equal(t, act.splitCheckData.splitIDs[0].NewReplicaIDs, req.Splits.Requests[0].NewReplicaIDs)
 	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Splits.Requests[1].Start)
 	assert.Equal(t, pr.getShard().End, req.Splits.Requests[1].End)
 	assert.Equal(t, act.splitCheckData.splitIDs[1].NewID, req.Splits.Requests[1].NewShardID)
-	assert.Equal(t, act.splitCheckData.splitIDs[1].NewReplicaIDs, req.Splits.Requests[1].NewReplicaIDs)
 }

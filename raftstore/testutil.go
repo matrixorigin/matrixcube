@@ -350,7 +350,7 @@ func (ts *testShardAware) Splited(shard Shard) {
 	}
 }
 
-func (ts *testShardAware) Destoryed(shard Shard) {
+func (ts *testShardAware) Destroyed(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
 
@@ -365,7 +365,7 @@ func (ts *testShardAware) Destoryed(shard Shard) {
 	ts.removed[shard.ID] = shard
 
 	if ts.wrapper != nil {
-		ts.wrapper.Destoryed(shard)
+		ts.wrapper.Destroyed(shard)
 	}
 }
 

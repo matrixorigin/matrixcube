@@ -16,7 +16,6 @@ package raftstore
 import (
 	"bytes"
 	"math"
-	"sort"
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
@@ -167,10 +166,6 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 			log.HexField("shard-end", current.End))
 	}
 
-	sort.Slice(current.Replicas, func(i, j int) bool {
-		return current.Replicas[i].ID < current.Replicas[j].ID
-	})
-
 	newShardsCount := len(splitReqs.Requests)
 	var newShards []Shard
 	var metadata []meta.ShardMetadata
@@ -203,12 +198,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		newShard.Epoch = current.Epoch
 		newShard.Start = req.Start
 		newShard.End = req.End
-		for idx, p := range current.Replicas {
-			newShard.Replicas = append(newShard.Replicas, Replica{
-				ID:          req.NewReplicaIDs[idx],
-				ContainerID: p.ContainerID,
-			})
-		}
+		newShard.Replicas = req.NewReplicas
 		newShards = append(newShards, newShard)
 		metadata = append(metadata, meta.ShardMetadata{
 			LogIndex: 1,
@@ -340,13 +330,13 @@ func (d *stateMachine) updateWriteMetrics() {
 	d.applyCtx.metrics.writtenBytes += d.writeCtx.writtenBytes
 	if d.writeCtx.diffBytes < 0 {
 		v := uint64(math.Abs(float64(d.writeCtx.diffBytes)))
-		if v >= d.applyCtx.metrics.sizeDiffHint {
-			d.applyCtx.metrics.sizeDiffHint = 0
+		if v >= d.applyCtx.metrics.approximateDiffHint {
+			d.applyCtx.metrics.approximateDiffHint = 0
 		} else {
-			d.applyCtx.metrics.sizeDiffHint -= v
+			d.applyCtx.metrics.approximateDiffHint -= v
 		}
 	} else {
-		d.applyCtx.metrics.sizeDiffHint += uint64(d.writeCtx.diffBytes)
+		d.applyCtx.metrics.approximateDiffHint += uint64(d.writeCtx.diffBytes)
 	}
 }
 

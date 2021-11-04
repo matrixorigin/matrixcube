@@ -39,7 +39,7 @@ func TestHandleSplitCheck(t *testing.T) {
 			action:    action{actionType: checkSplitAction},
 		},
 		{
-			pr:        &replica{startedC: make(chan struct{}), sizeDiffHint: 1024 * 1024 * 1024, actions: task.New(32)},
+			pr:        &replica{startedC: make(chan struct{}), approximateSize: 1024 * 1024 * 1024, actions: task.New(32)},
 			hasAction: true,
 			action:    action{actionType: checkSplitAction},
 		},

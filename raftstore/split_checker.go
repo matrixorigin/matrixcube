@@ -15,10 +15,10 @@ package raftstore
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"sync"
 
+	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"go.uber.org/zap"
 )
@@ -30,8 +30,7 @@ type splitChecker struct {
 	shardCapacityBytes uint64
 	replicaGetter      replicaGetter
 	checkFuncFactory   func(group uint64) splitCheckFunc
-	ctx                context.Context
-	cancel             context.CancelFunc
+	stopper            *syncutil.Stopper
 	shardsC            chan Shard
 
 	mu struct {
@@ -44,13 +43,11 @@ func newSplitChecker(maxWaitToCheck int,
 	shardCapacityBytes uint64,
 	replicaGetter replicaGetter,
 	checkFuncFactory func(group uint64) splitCheckFunc) *splitChecker {
-	ctx, cancel := context.WithCancel(context.Background())
 	return &splitChecker{
+		stopper:            syncutil.NewStopper(),
 		replicaGetter:      replicaGetter,
 		checkFuncFactory:   checkFuncFactory,
 		shardCapacityBytes: shardCapacityBytes,
-		ctx:                ctx,
-		cancel:             cancel,
 		shardsC:            make(chan Shard, maxWaitToCheck),
 	}
 }
@@ -67,7 +64,7 @@ func (sc *splitChecker) start() {
 	go func() {
 		for {
 			select {
-			case <-sc.ctx.Done():
+			case <-sc.stopper.ShouldStop():
 				close(sc.shardsC)
 				return
 			case shard := <-sc.shardsC:
@@ -164,7 +161,7 @@ func (sc *splitChecker) close() {
 		return
 	}
 
-	sc.cancel()
+	sc.stopper.Stop()
 	sc.mu.running = false
 }
 

@@ -204,7 +204,7 @@ func (s *store) mustSaveShards(shards ...Shard) {
 			ids = append(ids, shard.ID)
 			sm = append(sm, meta.ShardMetadata{
 				ShardID:  shard.ID,
-				LogIndex: 0,
+				LogIndex: 1,
 				Metadata: meta.ShardLocalState{
 					State: meta.ReplicaState_Normal,
 					Shard: shard,

@@ -495,7 +495,7 @@ func (s *store) addReplica(pr *replica) bool {
 func (s *store) removeReplica(pr *replica) {
 	s.replicas.Delete(pr.shardID)
 	if s.aware != nil {
-		s.aware.Destoryed(pr.getShard())
+		s.aware.Destroyed(pr.getShard())
 	}
 }
 

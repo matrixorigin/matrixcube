@@ -208,7 +208,7 @@ func TestDoExecSplit(t *testing.T) {
 	assert.True(t, <-ch)
 
 	// check range discontinuity
-	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicaIDs: []uint64{200}}, {Start: []byte{6}, End: []byte{10}}}}
+	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
@@ -216,8 +216,8 @@ func TestDoExecSplit(t *testing.T) {
 	ctx.index = 100
 	ctx.req.AdminRequest.Splits = &rpc.BatchSplitRequest{
 		Requests: []rpc.SplitRequest{
-			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicaIDs: []uint64{200}},
-			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicaIDs: []uint64{300}},
+			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}},
+			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300}}},
 		},
 	}
 	resp, err := pr.sm.execAdminRequest(ctx)

@@ -61,12 +61,7 @@ func (pr *replica) hasReplicaInSnapshotState() (bool, uint64) {
 }
 
 func (pr *replica) needDoCheckSplit() bool {
-	return pr.useCustomSplitCheck() ||
-		pr.sizeDiffHint >= uint64(pr.cfg.Replication.ShardSplitCheckBytes)
-}
-
-func (pr *replica) useCustomSplitCheck() bool {
-	return pr.cfg.Customize.CustomSplitCheckFuncFactory != nil && pr.cfg.Customize.CustomSplitCheckFuncFactory(pr.getShard().Group) != nil
+	return pr.approximateSize >= uint64(pr.cfg.Replication.ShardSplitCheckBytes)
 }
 
 func (pr *replica) doSplit(act action) {
@@ -90,7 +85,6 @@ func (pr *replica) doSplit(act action) {
 		pr.approximateKeys = act.splitCheckData.keys
 	}
 	if len(act.splitCheckData.splitKeys) == 0 {
-		pr.sizeDiffHint = act.splitCheckData.size
 		return
 	}
 
@@ -121,11 +115,19 @@ func (pr *replica) doSplit(act action) {
 			end = act.splitCheckData.splitKeys[idx]
 		}
 
+		var replicas []Replica
+		for idIdx, r := range current.Replicas {
+			replicas = append(replicas, Replica{
+				ID:          act.splitCheckData.splitIDs[idx].NewReplicaIDs[idIdx],
+				ContainerID: r.ContainerID,
+			})
+		}
+
 		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
-			Start:         start,
-			End:           end,
-			NewShardID:    act.splitCheckData.splitIDs[idx].NewID,
-			NewReplicaIDs: act.splitCheckData.splitIDs[idx].NewReplicaIDs,
+			Start:       start,
+			End:         end,
+			NewShardID:  act.splitCheckData.splitIDs[idx].NewID,
+			NewReplicas: replicas,
 		})
 		start = end
 	}

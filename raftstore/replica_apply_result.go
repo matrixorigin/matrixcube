@@ -82,10 +82,10 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 	pr.writtenKeys += result.metrics.writtenKeys
 	if result.hasSplitResult() {
 		pr.deleteKeysHint = result.metrics.deleteKeysHint
-		pr.sizeDiffHint = result.metrics.sizeDiffHint
+		pr.approximateSize = result.metrics.approximateDiffHint
 	} else {
 		pr.deleteKeysHint += result.metrics.deleteKeysHint
-		pr.sizeDiffHint += result.metrics.sizeDiffHint
+		pr.approximateSize = result.metrics.approximateDiffHint
 	}
 }
 
@@ -173,6 +173,8 @@ func (pr *replica) applySplit(result *splitResult) {
 		ce.Write(fields...)
 	}
 
+	// we consider the split to be roughly even, so we calculate the current estimated size of the shard
+	// based on the number of new shards.
 	estimatedSize := pr.approximateSize / uint64(len(result.newShards))
 	estimatedKeys := pr.approximateKeys / uint64(len(result.newShards))
 	for _, shard := range result.newShards {
@@ -209,7 +211,6 @@ func (pr *replica) applySplit(result *splitResult) {
 
 		newReplica.approximateKeys = estimatedKeys
 		newReplica.approximateSize = estimatedSize
-		newReplica.sizeDiffHint = estimatedSize
 		if !pr.store.addReplica(newReplica) {
 			pr.logger.Fatal("fail to create new shard replica",
 				log.ShardIDField(newShardID))
