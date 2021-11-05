@@ -18,11 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/zap"
 )
 
 var (
@@ -58,6 +57,7 @@ type backendFactory interface {
 
 type backend interface {
 	dispatch(rpc.Request) error
+	close()
 }
 
 type shardsProxyConfig struct {
@@ -153,8 +153,16 @@ func (p *shardsProxy) Start() error {
 }
 
 func (p *shardsProxy) Stop() error {
+	p.Lock()
+	defer p.Unlock()
+
 	if p.cfg.rpc != nil {
 		p.cfg.rpc.stop()
+	}
+
+	for k, b := range p.backends {
+		b.close()
+		delete(p.backends, k)
 	}
 	return nil
 }
