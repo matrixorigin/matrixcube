@@ -203,7 +203,7 @@ func TestWorkerPoolSetBusyAndProcessingAsExpected(t *testing.T) {
 }
 
 func testWorkerPoolConcurrentJobs(t *testing.T, moreJob bool) {
-	// defer leaktest.AfterTest(t)()
+	defer leaktest.AfterTest(t)()
 	l := newTestReplicaLoader()
 	mem := mem.NewStorage()
 	defer mem.Close()
