@@ -1,3 +1,16 @@
+// Copyright 2021 MatrixOrigin.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package kv
 
 import (
@@ -7,6 +20,7 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	pvfs "github.com/lni/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +30,6 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
-	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -63,7 +76,9 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 				assert.Equal(t, m.LogIndex, index)
 				v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil))
 				assert.NoError(t, err)
-				assert.Equal(t, m.LogIndex, buf.Byte2UInt64(v))
+				var logIndex meta.LogIndex
+				protoc.MustUnmarshal(&logIndex, v)
+				assert.Equal(t, m.LogIndex, logIndex.Index)
 			}
 		}()
 	}
@@ -219,7 +234,9 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			kvd := s.(*kvDataStorage)
 			v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil))
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(c.requests), buf.Byte2UInt64(v))
+			var logIndex meta.LogIndex
+			protoc.MustUnmarshal(&logIndex, v)
+			assert.Equal(t, uint64(c.requests), logIndex.Index)
 		}()
 	}
 }

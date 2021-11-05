@@ -125,7 +125,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		state = meta.ReplicaState_Tombstone
 	}
 	d.updateShard(res)
-	if err := d.saveShardMetedata(ctx.index, res, state); err != nil {
+	if err := d.saveShardMetedata(ctx.index, ctx.term, res, state); err != nil {
 		d.logger.Fatal("fail to save metadata",
 			zap.Error(err))
 	}
@@ -202,6 +202,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		newShards = append(newShards, newShard)
 		metadata = append(metadata, meta.ShardMetadata{
 			LogIndex: 1,
+			LogTerm:  1,
 			ShardID:  newShard.ID,
 			Metadata: meta.ShardLocalState{
 				State: meta.ReplicaState_Normal,
@@ -227,6 +228,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	old := meta.ShardMetadata{
 		ShardID:  current.ID,
 		LogIndex: ctx.index,
+		LogTerm:  ctx.term,
 		Metadata: meta.ShardLocalState{
 			State: meta.ReplicaState_Tombstone,
 			Shard: current,
@@ -269,6 +271,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 		{
 			ShardID:  d.shardID,
 			LogIndex: ctx.index,
+			LogTerm:  ctx.term,
 			Metadata: updateReq.Metadata,
 		},
 	})
@@ -294,7 +297,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
-	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
+	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.term, ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
@@ -340,11 +343,12 @@ func (d *stateMachine) updateWriteMetrics() {
 	}
 }
 
-func (d *stateMachine) saveShardMetedata(index uint64,
+func (d *stateMachine) saveShardMetedata(index uint64, term uint64,
 	shard Shard, state meta.ReplicaState) error {
 	return d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
+		LogTerm:  term,
 		Metadata: meta.ShardLocalState{
 			State: state,
 			Shard: shard,

@@ -19,7 +19,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -116,7 +115,7 @@ func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 	r := ctx.WriteBatch()
 	defer r.Reset()
 
-	kv.setAppliedIndexToWriteBatch(ctx, batch.Index)
+	kv.setAppliedIndexToWriteBatch(ctx, batch.Index, batch.Term)
 	kv.updateAppliedIndex(ctx.Shard().ID, batch.Index)
 	if err := kv.executor.ApplyWriteBatch(r); err != nil {
 		return err
@@ -141,8 +140,13 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []meta.ShardMetadata) error
 		}
 		key := EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil)
 		wb.Set(key, protoc.MustMarshal(&m))
+
+		logIndex := meta.LogIndex{
+			Index: m.LogIndex,
+			Term:  m.LogTerm,
+		}
 		key = EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil)
-		wb.Set(key, format.Uint64ToBytes(m.LogIndex))
+		wb.Set(key, protoc.MustMarshal(&logIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 		if _, ok := seen[m.ShardID]; ok {
 			panic("more than one instance of metadata from the same shard")
@@ -175,7 +179,9 @@ func (kv *kvDataStorage) GetInitialStates() ([]meta.ShardMetadata, error) {
 				panic(err)
 			}
 			shards = append(shards, shardID)
-			lastApplied = append(lastApplied, buf.Byte2UInt64(value))
+			var logIndex meta.LogIndex
+			protoc.MustUnmarshal(&logIndex, value)
+			lastApplied = append(lastApplied, logIndex.Index)
 		}
 		return true, nil
 	}, false); err != nil {
@@ -303,18 +309,14 @@ func (kv *kvDataStorage) Split(old meta.ShardMetadata,
 	return kv.SaveShardMetadata(append(news, old))
 }
 
-func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {
+func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext,
+	index uint64, term uint64) {
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
 	buffer := ctx.ByteBuf()
-
 	// TODO(fagongzi): avoid allocate for get applied index key
 	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(ctx.Shard().ID, nil), buffer)
-
-	buffer.MarkWrite()
-	buffer.WriteUInt64(index)
-	val := buffer.WrittenDataAfterMark().Data()
-
+	val := protoc.MustMarshal(&meta.LogIndex{Index: index, Term: term})
 	wb.Set(key, val)
 }
 
@@ -344,7 +346,8 @@ func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
 }
 
-func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) (uint64, error) {
+func (kv *kvDataStorage) CreateSnapshot(shardID uint64,
+	path string) (uint64, uint64, error) {
 	return kv.base.CreateSnapshot(shardID, path)
 }
 
