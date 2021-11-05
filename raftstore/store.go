@@ -31,7 +31,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -90,7 +89,6 @@ type store struct {
 	kvStorage       storage.KVStorage
 	logdb           logdb.LogDB
 	trans           transport.Transport
-	snapshotManager snapshot.SnapshotManager
 	shardsProxy     ShardsProxy
 	router          Router
 	splitChecker    *splitChecker
@@ -138,12 +136,6 @@ func NewStore(cfg *config.Config) Store {
 
 	if s.cfg.Customize.CustomShardStateAwareFactory != nil {
 		s.aware = cfg.Customize.CustomShardStateAwareFactory()
-	}
-
-	if s.cfg.Customize.CustomSnapshotManagerFactory != nil {
-		s.snapshotManager = s.cfg.Customize.CustomSnapshotManagerFactory()
-	} else {
-		s.snapshotManager = newDefaultSnapshotManager(s)
 	}
 
 	return s
@@ -229,10 +221,6 @@ func (s *store) Stop() {
 
 		s.workerPool.close()
 		s.logger.Info("worker pool stopped",
-			s.storeField())
-
-		s.snapshotManager.Close()
-		s.logger.Info("snapshot manager stopped",
 			s.storeField())
 
 		s.stopper.Stop()
@@ -378,7 +366,7 @@ func (s *store) startTransport() {
 	} else {
 		s.trans = transport.NewDefaultTransport(s.Meta().ID,
 			s.cfg.RaftAddr,
-			s.snapshotManager,
+			nil,
 			s.handle,
 			s.pd.GetStorage().GetContainer,
 			transport.WithMaxBodyBytes(int(s.cfg.Raft.MaxEntryBytes)*2),

@@ -32,6 +32,7 @@ import (
 
 type applyContext struct {
 	index       uint64
+	term        uint64
 	req         rpc.RequestBatch
 	v2cc        raftpb.ConfChangeV2
 	adminResult *adminResult
@@ -46,6 +47,7 @@ func newApplyContext() *applyContext {
 
 func (ctx *applyContext) initialize(entry raftpb.Entry) {
 	ctx.index = entry.Index
+	ctx.term = entry.Term
 	ctx.req = rpc.RequestBatch{}
 	ctx.adminResult = nil
 	ctx.metrics = applyMetrics{}

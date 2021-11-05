@@ -356,7 +356,8 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 		stats.ResourceCount++
 		return true
 	})
-	stats.ReceivingSnapCount = s.snapshotManager.ReceiveSnapCount()
+	// FIXME: provide this count from the new implementation
+	// stats.ReceivingSnapCount = s.snapshotManager.ReceiveSnapCount()
 	stats.SendingSnapCount = s.trans.SendingSnapshotCount()
 	stats.StartTime = uint64(s.Meta().StartTime)
 
