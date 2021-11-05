@@ -241,7 +241,7 @@ func isDataExist(fs vfs.FS, d string, logger *zap.Logger) bool {
 }
 
 func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*clientv3.Client, *embed.Etcd, error) {
-	etcdCfg, err := cfg.Prophet.GenEmbedEtcdConfig()
+	etcdCfg, err := cfg.Prophet.GenEmbedEtcdConfig(logger)
 	if err != nil {
 		return nil, nil, err
 	}

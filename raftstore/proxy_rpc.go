@@ -16,10 +16,9 @@ package raftstore
 import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.uber.org/zap"
 )
 
 type proxyRPC interface {

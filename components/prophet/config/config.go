@@ -28,6 +28,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"go.etcd.io/etcd/server/v3/embed"
+	"go.uber.org/zap"
 )
 
 // Config the prophet configuration
@@ -97,7 +98,7 @@ func NewConfigWithFile(file string) (*Config, error) {
 }
 
 // GenEmbedEtcdConfig gen embed etcd config
-func (c *Config) GenEmbedEtcdConfig() (*embed.Config, error) {
+func (c *Config) GenEmbedEtcdConfig(logger *zap.Logger) (*embed.Config, error) {
 	cfg := embed.NewConfig()
 	cfg.Name = c.Name
 	cfg.Dir = c.DataDir
@@ -112,6 +113,7 @@ func (c *Config) GenEmbedEtcdConfig() (*embed.Config, error) {
 	cfg.AutoCompactionMode = c.EmbedEtcd.AutoCompactionMode
 	cfg.AutoCompactionRetention = c.EmbedEtcd.AutoCompactionRetention
 	cfg.QuotaBackendBytes = int64(c.EmbedEtcd.QuotaBackendBytes)
+	cfg.ZapLoggerBuilder = embed.NewZapCoreLoggerBuilder(logger, nil, nil)
 
 	var err error
 	cfg.LPUrls, err = util.ParseUrls(c.EmbedEtcd.PeerUrls)

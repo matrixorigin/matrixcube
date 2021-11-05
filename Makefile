@@ -48,7 +48,7 @@ $(info Running selected tests $(TEST_TO_RUN))
 SELECTED_TESTS=-run $(TEST_TO_RUN)
 endif
 
-TEST_OPTIONS=test -timeout=300s -count=1 -v $(RACE_GLAG) $(COVER_FLAG) $(SELECTED_TESTS)
+TEST_OPTIONS=test -timeout=300s -short -count=1 -v $(RACE_GLAG) $(COVER_FLAG) $(SELECTED_TESTS)
 GOTEST=$(GO) $(TEST_OPTIONS)
 
 ###############################################################################

@@ -190,9 +190,8 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.Epoch.Version = 1
 	shard.Epoch.ConfVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
-		ID:            peerID,
-		ContainerID:   s.meta.meta.ID,
-		InitialMember: true,
+		ID:          peerID,
+		ContainerID: s.meta.meta.ID,
 	})
 }
 
