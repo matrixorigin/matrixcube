@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/raftstore"
@@ -94,39 +93,6 @@ func TestAppliedRules(t *testing.T) {
 	assert.NoError(t, err)
 
 	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
-}
-
-func TestInitialMember(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := raftstore.NewTestClusterStore(t, raftstore.WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []raftstore.Shard { return []raftstore.Shard{{Start: []byte("a"), End: []byte("b")}} }
-	}))
-	defer c.Stop()
-	c.Start()
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	initialMembers := 0
-	for _, p := range c.GetShardByIndex(0, 0).Replicas {
-		if p.InitialMember {
-			initialMembers++
-		}
-	}
-	assert.Equal(t, 1, initialMembers)
-
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-
-	c.WaitShardByCountPerNode(2, testWaitTimeout)
-	for i := 0; i < 3; i++ {
-		initialMembers = 0
-		for _, p := range c.GetShardByIndex(i, 1).Replicas {
-			if p.InitialMember {
-				initialMembers++
-			}
-		}
-		assert.Equal(t, 3, initialMembers)
-	}
 }
 
 func TestReadAndWriteAndRestart(t *testing.T) {

@@ -1,21 +1,30 @@
-package test
+package raftstore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
+var (
+	testWaitTimeout = time.Minute
+)
+
 func TestSplitWithSingleCluster(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
 	defer leaktest.AfterTest(t)()
-	c := raftstore.NewSingleTestClusterStore(t,
-		raftstore.DiskTestCluster,
-		raftstore.OldTestCluster,
-		raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+	c := NewSingleTestClusterStore(t,
+		DiskTestCluster,
+		OldTestCluster,
+		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
 			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 		}))
@@ -33,11 +42,16 @@ func TestSplitWithSingleCluster(t *testing.T) {
 }
 
 func TestSplitWithMultiNodesCluster(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
 	defer leaktest.AfterTest(t)()
-	c := raftstore.NewTestClusterStore(t,
-		raftstore.DiskTestCluster,
-		raftstore.OldTestCluster,
-		raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+	c := NewTestClusterStore(t,
+		DiskTestCluster,
+		OldTestCluster,
+		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
 			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 		}))
@@ -47,7 +61,7 @@ func TestSplitWithMultiNodesCluster(t *testing.T) {
 
 	sid := prepareSplit(t, c)
 	c.Restart()
-	c.EveryStore(func(index int, store raftstore.Store) {
+	c.EveryStore(func(index int, store Store) {
 		checkSplitWithStore(t, c, index, sid)
 	})
 
@@ -56,7 +70,7 @@ func TestSplitWithMultiNodesCluster(t *testing.T) {
 	assert.Nil(t, v)
 }
 
-func prepareSplit(t *testing.T, c raftstore.TestRaftCluster) uint64 {
+func prepareSplit(t *testing.T, c TestRaftCluster) uint64 {
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	kv := c.CreateTestKVClient(0)
@@ -74,7 +88,7 @@ func prepareSplit(t *testing.T, c raftstore.TestRaftCluster) uint64 {
 	return sid
 }
 
-func checkSplitWithStore(t *testing.T, c raftstore.TestRaftCluster, index int, parentShardID uint64) {
+func checkSplitWithStore(t *testing.T, c TestRaftCluster, index int, parentShardID uint64) {
 	kv := c.CreateTestKVClient(index)
 	defer kv.Close()
 

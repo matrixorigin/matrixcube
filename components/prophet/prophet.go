@@ -167,7 +167,7 @@ func (p *defaultProphet) Start() {
 		p.cfg.Prophet.ResourceStateChangedHandler, p.logger)
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)
 
-	p.startSystemMonitor(context.Background())
+	p.startSystemMonitor()
 	p.startListen()
 	p.startLeaderLoop()
 }
@@ -288,8 +288,8 @@ func (p *defaultProphet) GetBasicCluster() *core.BasicCluster {
 	return p.basicCluster
 }
 
-func (p *defaultProphet) startSystemMonitor(ctx context.Context) {
-	go StartMonitor(ctx, time.Now, func() {
+func (p *defaultProphet) startSystemMonitor() {
+	go StartMonitor(p.ctx, time.Now, func() {
 		p.logger.Error("system time jumps backward")
 	}, p.logger)
 }

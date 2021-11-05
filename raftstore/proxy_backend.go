@@ -77,6 +77,10 @@ func (lb *localBackend) dispatch(req rpc.Request) error {
 	return lb.handler(req)
 }
 
+func (lb *localBackend) close() {
+
+}
+
 type remoteBackend struct {
 	sync.Mutex
 
@@ -112,6 +116,10 @@ func (bc *remoteBackend) dispatch(req rpc.Request) error {
 	}
 
 	return bc.reqs.Put(req)
+}
+
+func (bc *remoteBackend) close() {
+	bc.reqs.Put(closeFlag)
 }
 
 func (bc *remoteBackend) checkConnect() bool {
@@ -165,7 +173,8 @@ func (bc *remoteBackend) writeLoop() {
 
 			for i := int64(0); i < n; i++ {
 				if items[i] == closeFlag {
-					bc.logger.Info("backend  write loop stopped")
+					bc.conn.Close()
+					bc.logger.Info("backend write loop stopped")
 					return
 				}
 

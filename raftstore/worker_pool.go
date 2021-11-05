@@ -128,6 +128,9 @@ type workerPool struct {
 	readyC        chan struct{}
 	workerStopper *syncutil.Stopper
 	poolStopper   *syncutil.Stopper
+
+	ldb         logdb.LogDB
+	workerCount uint64
 }
 
 func newWorkerPool(logger *zap.Logger, ldb logdb.LogDB, loader replicaLoader, workerCount uint64) *workerPool {
@@ -140,17 +143,20 @@ func newWorkerPool(logger *zap.Logger, ldb logdb.LogDB, loader replicaLoader, wo
 		readyC:        make(chan struct{}, 1),
 		workerStopper: syncutil.NewStopper(),
 		poolStopper:   syncutil.NewStopper(),
-	}
-	for workerID := uint64(0); workerID < workerCount; workerID++ {
-		workerContext := ldb.NewWorkerContext()
-		w := newReplicaWorker(workerID, p.workerStopper, workerContext)
-		p.workers = append(p.workers, w)
+		ldb:           ldb,
+		workerCount:   workerCount,
 	}
 
 	return p
 }
 
 func (p *workerPool) start() {
+	for workerID := uint64(0); workerID < p.workerCount; workerID++ {
+		workerContext := p.ldb.NewWorkerContext()
+		w := newReplicaWorker(workerID, p.workerStopper, workerContext)
+		p.workers = append(p.workers, w)
+	}
+
 	p.poolStopper.RunWorker(func() {
 		p.workerPoolMain()
 	})
