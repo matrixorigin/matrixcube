@@ -176,14 +176,19 @@ func (s *snapshotter) processOrphans(dirName string,
 
 func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
+	s.logger.Info("saving snapshot",
+		zap.String("tmpdir", env.GetTempDir()))
 	env = s.getEnv()
 	if err := env.CreateTempDir(); err != nil {
 		return raftpb.Snapshot{}, env, err
 	}
 	index, err := de.CreateSnapshot(s.shardID, env.GetTempDir())
 	if err != nil {
+		s.logger.Error("data storage failed to create snapshot",
+			zap.Error(err))
 		return raftpb.Snapshot{}, env, err
 	}
+	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
 			Index: index,

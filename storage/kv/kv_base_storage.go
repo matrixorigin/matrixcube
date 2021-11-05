@@ -15,13 +15,13 @@ package kv
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math"
 
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
+
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -176,11 +176,11 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	snap := view.Raw().(*pebble.Snapshot)
 	appliedIndexKey, appliedIndexValue, err := s.getAppliedIndex(snap, shardID)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, "failed to get applied index in CreateSnapshot")
 	}
 	metadataKey, metadataValue, err := s.getShardMetadata(snap, shardID)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, "failed to get shard in CreateSnapshot")
 	}
 
 	var sls meta.ShardMetadata
@@ -243,14 +243,14 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 		return err
 	}
 	if len(start) == 0 {
-		return fmt.Errorf("error format, missing start field")
+		panic("range start not specified in snapshot")
 	}
 	end, err := readBytes(f)
 	if err != nil {
 		return err
 	}
 	if len(end) == 0 {
-		return fmt.Errorf("error format, missing end field")
+		panic("range end not specified in snapshot")
 	}
 	appliedIndexKey, err := readBytes(f)
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 		return err
 	}
 	if err := s.kv.RangeDelete(start, end, false); err != nil {
-		return err
+		return errors.Wrapf(err, "RangeDelete failed in ApplySnapshot")
 	}
 	if err := s.kv.Set(appliedIndexKey, appliedIndexValue, false); err != nil {
 		return err
@@ -291,7 +291,7 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 			return err
 		}
 		if len(value) == 0 {
-			return fmt.Errorf("error format, missing value field")
+			panic("key specified without value")
 		}
 		if err := s.kv.Set(key, value, false); err != nil {
 			return err

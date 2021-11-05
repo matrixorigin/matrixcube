@@ -61,7 +61,8 @@ type kvDataStorage struct {
 	base       storage.KVBaseStorage
 	executor   storage.Executor
 	writeCount uint64
-	mu         struct {
+
+	mu struct {
 		sync.RWMutex
 		loaded                   bool
 		lastAppliedIndexes       map[uint64]uint64
@@ -138,9 +139,10 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []meta.ShardMetadata) error
 		if m.ShardID != m.Metadata.Shard.ID {
 			panic(fmt.Errorf("BUG: shard ID mismatch, %+v", m))
 		}
-
-		wb.Set(EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil), protoc.MustMarshal(&m))
-		wb.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil), format.Uint64ToBytes(m.LogIndex))
+		key := EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil)
+		wb.Set(key, protoc.MustMarshal(&m))
+		key = EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil)
+		wb.Set(key, format.Uint64ToBytes(m.LogIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 		if _, ok := seen[m.ShardID]; ok {
 			panic("more than one instance of metadata from the same shard")
@@ -265,14 +267,17 @@ func (kv *kvDataStorage) RemoveShard(shard meta.Shard, removeData bool) error {
 // SplitCheck find keys from [start, end), so that the sum of bytes of the
 // value of [start, key) <=size, returns the current bytes in [start,end),
 // and the founded keys.
-func (kv *kvDataStorage) SplitCheck(shard meta.Shard, size uint64) (uint64, uint64, [][]byte, []byte, error) {
+func (kv *kvDataStorage) SplitCheck(shard meta.Shard,
+	size uint64) (uint64, uint64, [][]byte, []byte, error) {
 	total := uint64(0)
 	keys := uint64(0)
 	sum := uint64(0)
 	appendSplitKey := false
 	var splitKeys [][]byte
 
-	if err := kv.base.Scan(EncodeShardStart(shard.Start, nil), EncodeShardEnd(shard.End, nil), func(key, val []byte) (bool, error) {
+	start := EncodeShardStart(shard.Start, nil)
+	end := EncodeShardEnd(shard.End, nil)
+	if err := kv.base.Scan(start, end, func(key, val []byte) (bool, error) {
 		if appendSplitKey {
 			splitKeys = append(splitKeys, key[1:])
 			appendSplitKey = false
@@ -293,7 +298,8 @@ func (kv *kvDataStorage) SplitCheck(shard meta.Shard, size uint64) (uint64, uint
 	return total, keys, splitKeys, nil, nil
 }
 
-func (kv *kvDataStorage) Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error {
+func (kv *kvDataStorage) Split(old meta.ShardMetadata,
+	news []meta.ShardMetadata, ctx []byte) error {
 	return kv.SaveShardMetadata(append(news, old))
 }
 

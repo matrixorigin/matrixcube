@@ -17,6 +17,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"go.etcd.io/etcd/raft/v3"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -24,6 +25,7 @@ func (r *replica) createSnapshot() error {
 	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage)
 	if err != nil {
 		if errors.Is(err, storage.ErrAborted) {
+			r.logger.Info("snapshot aborted")
 			ssenv.MustRemoveTempDir()
 			return nil
 		}
@@ -32,6 +34,8 @@ func (r *replica) createSnapshot() error {
 	if err := r.snapshotter.commit(ss); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
+			r.logger.Info("aborted committing an out of date snapshot",
+				log.SnapshotField(ss))
 			ssenv.MustRemoveTempDir()
 			return nil
 		}
@@ -40,6 +44,8 @@ func (r *replica) createSnapshot() error {
 	if err := r.lr.CreateSnapshot(ss); err != nil {
 		if errors.Is(err, raft.ErrSnapOutOfDate) {
 			// lr already has a more recent snapshot
+			r.logger.Info("aborted registering an out of date snapshot",
+				log.SnapshotField(ss))
 			return nil
 		}
 	}
