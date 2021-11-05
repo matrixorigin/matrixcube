@@ -26,11 +26,13 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 func runReplicaSnapshotTest(t *testing.T,
 	fn func(t *testing.T, r *replica, fs vfs.FS), fs vfs.FS) {
+	defer leaktest.AfterTest(t)()
 	defer vfs.ReportLeakedFD(fs, t)
 	m := mem.NewStorage()
 	defer m.Close()
