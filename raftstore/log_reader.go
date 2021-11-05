@@ -89,26 +89,26 @@ type LogReader struct {
 	length      uint64
 	logdb       logdb.LogDB
 	shardID     uint64
-	peerID      uint64
+	replicaID   uint64
 }
 
 var _ raft.Storage = (*LogReader)(nil)
 
 // NewLogReader creates and returns a new LogReader instance.
-func NewLogReader(logger *zap.Logger, shardID uint64, peerID uint64,
+func NewLogReader(logger *zap.Logger, shardID uint64, replicaID uint64,
 	db logdb.LogDB) *LogReader {
 	return &LogReader{
-		logger:  log.Adjust(logger),
-		logdb:   db,
-		shardID: shardID,
-		peerID:  peerID,
-		length:  1,
+		logger:    log.Adjust(logger),
+		logdb:     db,
+		shardID:   shardID,
+		replicaID: replicaID,
+		length:    1,
 	}
 }
 
 func (lr *LogReader) id() string {
 	return fmt.Sprintf("logreader %s index %d term %d length %d",
-		dn(lr.shardID, lr.peerID), lr.markerIndex, lr.markerTerm, lr.length)
+		dn(lr.shardID, lr.replicaID), lr.markerIndex, lr.markerTerm, lr.length)
 }
 
 // InitialState returns the saved HardState and ConfState information.
@@ -183,7 +183,7 @@ func (lr *LogReader) entriesLocked(low uint64,
 			zap.Uint64("high", high))
 	}
 	ents := make([]pb.Entry, 0, high-low)
-	ents, size, err := lr.logdb.IterateEntries(ents, 0, lr.shardID, lr.peerID, low, high, maxSize)
+	ents, size, err := lr.logdb.IterateEntries(ents, 0, lr.shardID, lr.replicaID, low, high, maxSize)
 	if err != nil {
 		return nil, 0, err
 	}

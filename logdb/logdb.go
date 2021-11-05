@@ -29,6 +29,7 @@ package logdb
 
 import (
 	"encoding/binary"
+	"math"
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
@@ -68,6 +69,10 @@ type WorkerContext struct {
 	wb    util.WriteBatch
 }
 
+func (w *WorkerContext) Close() {
+	w.wb.Close()
+}
+
 // Reset resets the worker context so it can be reused.
 func (w *WorkerContext) Reset() {
 	w.wb.Reset()
@@ -102,7 +107,7 @@ type LogDB interface {
 	RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
-	GetSnapshot(shardID uint64, replicaID uint64) (raftpb.SnapshotMetadata, error)
+	GetSnapshot(shardID uint64) (raftpb.Snapshot, error)
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -136,18 +141,22 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 	}
 }
 
-func (l *KVLogDB) GetSnapshot(shardID uint64,
-	replicaID uint64) (raftpb.SnapshotMetadata, error) {
-	v, err := l.ms.Get(keys.GetSnapshotKey(shardID, replicaID, nil))
-	if err != nil {
-		return raftpb.SnapshotMetadata{}, err
+func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {
+	fk := keys.GetSnapshotKey(shardID, 0, nil)
+	lk := keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
+	var v []byte
+	if err := l.ms.Scan(fk, lk, func(key, value []byte) (bool, error) {
+		v = value
+		return true, nil
+	}, true); err != nil {
+		return raftpb.Snapshot{}, err
 	}
 	if len(v) == 0 {
-		return raftpb.SnapshotMetadata{}, ErrNoSnapshot
+		return raftpb.Snapshot{}, ErrNoSnapshot
 	}
-	var sm raftpb.SnapshotMetadata
-	protoc.MustUnmarshal(&sm, v)
-	return sm, nil
+	var ss raftpb.Snapshot
+	protoc.MustUnmarshal(&ss, v)
+	return ss, nil
 }
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
@@ -166,8 +175,8 @@ func (l *KVLogDB) SaveRaftState(shardID uint64,
 	}
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
-		ctx.wb.Set(keys.GetSnapshotKey(shardID, replicaID, nil),
-			protoc.MustMarshal(&rd.Snapshot.Metadata))
+		ctx.wb.Set(keys.GetSnapshotKey(shardID, rd.Snapshot.Metadata.Index, nil),
+			protoc.MustMarshal(&rd.Snapshot))
 	}
 
 	for _, e := range rd.Entries {

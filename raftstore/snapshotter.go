@@ -43,6 +43,14 @@ import (
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
+var (
+	errSnapshotOutOfDate = errors.New("snapshot being generated is out of date")
+)
+
+type saveable interface {
+	CreateSnapshot(shardID uint64, path string) (uint64, error)
+}
+
 type snapshotter struct {
 	logger      *zap.Logger
 	shardID     uint64
@@ -80,7 +88,7 @@ func (s *snapshotter) prepareReplicaSnapshotDir() error {
 
 // TODO: this can only be invoked after the replica is fully unloaded.
 // need to consider the snapshot transport pool as well.
-func (s *snapshotter) removeReplicaSnapshot() error {
+func (s *snapshotter) removeReplicaSnapshotDir() error {
 	exist, err := fileutil.Exist(s.rootDir, s.fs)
 	if err != nil {
 		return err
@@ -93,7 +101,7 @@ func (s *snapshotter) removeReplicaSnapshot() error {
 
 func (s *snapshotter) removeOrphanSnapshots() error {
 	noss := false
-	ss, err := s.ldb.GetSnapshot(s.shardID, s.replicaID)
+	ss, err := s.ldb.GetSnapshot(s.shardID)
 	if err != nil {
 		if errors.Is(err, logdb.ErrNoSnapshot) {
 			noss = true
@@ -132,7 +140,7 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 			}
 		} else if s.isSnapshot(dirInfo.Name()) {
 			index := s.parseIndex(dirInfo.Name())
-			if noss || index != ss.Index {
+			if noss || index != ss.Metadata.Index {
 				if err := removeDir(dirName); err != nil {
 					return err
 				}
@@ -143,43 +151,85 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 }
 
 func (s *snapshotter) processOrphans(dirName string,
-	noss bool, ss raftpb.SnapshotMetadata) error {
-	var ssFromDir raftpb.SnapshotMetadata
+	noss bool, ss raftpb.Snapshot) error {
+	var ssFromDir raftpb.Snapshot
 	if err := fileutil.GetFlagFileContent(dirName,
 		fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
 		return err
 	}
-	if ssFromDir.Index == 0 {
+	if raft.IsEmptySnap(ssFromDir) {
 		panic("empty snapshot found")
 	}
 	remove := false
 	if noss {
 		remove = true
 	} else {
-		if ss.Index != ssFromDir.Index {
+		if ss.Metadata.Index != ssFromDir.Metadata.Index {
 			remove = true
 		}
 	}
 	if remove {
-		return s.remove(ssFromDir.Index)
+		return s.remove(ssFromDir.Metadata.Index)
 	}
-	env := s.getEnv(ssFromDir.Index)
+	return s.removeFlagFile(ssFromDir.Metadata.Index)
+}
+
+func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
+	env snapshot.SSEnv, err error) {
+	s.logger.Info("saving snapshot",
+		zap.String("tmpdir", env.GetTempDir()))
+	env = s.getEnv()
+	if err := env.CreateTempDir(); err != nil {
+		return raftpb.Snapshot{}, env, err
+	}
+	index, err := de.CreateSnapshot(s.shardID, env.GetTempDir())
+	if err != nil {
+		s.logger.Error("data storage failed to create snapshot",
+			zap.Error(err))
+		return raftpb.Snapshot{}, env, err
+	}
+	s.logger.Info("snapshot saved")
+	return raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{
+			Index: index,
+			// FIXME: set term here once it is available from the engine
+		},
+	}, env, nil
+}
+
+func (s *snapshotter) commit(ss raftpb.Snapshot) error {
+	env := s.getEnv()
+	env.FinalizeIndex(ss.Metadata.Index)
+	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
+		return err
+	}
+	if err := env.FinalizeSnapshot(&ss); err != nil {
+		if errors.Is(err, snapshot.ErrSnapshotOutOfDate) {
+			return errSnapshotOutOfDate
+		}
+		return err
+	}
+	if err := s.saveSnapshot(ss); err != nil {
+		return err
+	}
 	return env.RemoveFlagFile()
 }
 
 func (s *snapshotter) remove(index uint64) error {
-	env := s.getEnv(index)
+	env := s.getEnv()
+	env.FinalizeIndex(index)
 	return env.RemoveFinalDir()
 }
 
 func (s *snapshotter) removeFlagFile(index uint64) error {
-	env := s.getEnv(index)
+	env := s.getEnv()
+	env.FinalizeIndex(index)
 	return env.RemoveFlagFile()
 }
 
-func (s *snapshotter) getEnv(index uint64) snapshot.SSEnv {
+func (s *snapshotter) getEnv() snapshot.SSEnv {
 	return snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, index, s.replicaID, snapshot.ProcessingMode, s.fs)
+		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
 }
 
 func (s *snapshotter) dirMatch(dir string) bool {
@@ -221,11 +271,10 @@ func (s *snapshotter) isZombie(dir string) bool {
 		snapshot.RecvSnapshotDirNameRe.Match([]byte(dir))
 }
 
-func (s *snapshotter) saveSnapshot(sm raftpb.SnapshotMetadata) error {
+func (s *snapshotter) saveSnapshot(ss raftpb.Snapshot) error {
 	wc := s.ldb.NewWorkerContext()
+	defer wc.Close()
 	return s.ldb.SaveRaftState(s.shardID, s.replicaID, raft.Ready{
-		Snapshot: raftpb.Snapshot{
-			Metadata: sm,
-		},
+		Snapshot: ss,
 	}, wc)
 }

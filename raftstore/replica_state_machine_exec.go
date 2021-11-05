@@ -234,7 +234,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	}
 	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
 	if err != nil {
-		if err == storage.ErrAbort {
+		if err == storage.ErrAborted {
 			return rpc.ResponseBatch{}, nil
 		}
 		d.logger.Fatal("fail to split on data storage",

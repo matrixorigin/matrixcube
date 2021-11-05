@@ -34,6 +34,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -120,8 +121,10 @@ func TestZombieSnapshotDirsCanBeRemoved(t *testing.T) {
 func testZombieSnapshotDirsCanBeRemoved(t *testing.T, explicit bool) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv(100)
-		env2 := s.getEnv(200)
+		env1 := s.getEnv()
+		env1.FinalizeIndex(100)
+		env2 := s.getEnv()
+		env2.FinalizeIndex(200)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		fd1 = fd1 + "." + tmpSnapshotDirSuffix
@@ -154,8 +157,10 @@ func testZombieSnapshotDirsCanBeRemoved(t *testing.T, explicit bool) {
 func TestSnapshotsNotInLogDBAreRemoved(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv(100)
-		env2 := s.getEnv(200)
+		env1 := s.getEnv()
+		env1.FinalizeIndex(100)
+		env2 := s.getEnv()
+		env2.FinalizeIndex(200)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
@@ -180,12 +185,17 @@ func TestSnapshotsNotInLogDBAreRemoved(t *testing.T) {
 func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv(100)
-		env2 := s.getEnv(200)
-		env3 := s.getEnv(300)
-		s1 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		env1 := s.getEnv()
+		env1.FinalizeIndex(100)
+		env2 := s.getEnv()
+		env2.FinalizeIndex(200)
+		env3 := s.getEnv()
+		env3.FinalizeIndex(300)
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
@@ -221,11 +231,14 @@ func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
-		env := s.getEnv(100)
+		env := s.getEnv()
+		env.FinalizeIndex(100)
 		fd1 := env.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
 			t.Errorf("failed to create dir %v", err)
@@ -246,16 +259,22 @@ func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
-		s2 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		s2 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
-		env1 := s.getEnv(s1.Index)
-		env2 := s.getEnv(s2.Index)
+		env1 := s.getEnv()
+		env1.FinalizeIndex(s1.Metadata.Index)
+		env2 := s.getEnv()
+		env2.FinalizeIndex(s2.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
@@ -289,7 +308,7 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 		if fileutil.HasFlagFile(fd2, fileutil.SnapshotFlagFilename, fs) {
 			t.Errorf("flag for fd2 not removed")
 		}
-		snapshot, err := s.ldb.GetSnapshot(1, 1)
+		snapshot, err := s.ldb.GetSnapshot(1)
 		if err != nil {
 			t.Fatalf("failed to list snapshot %v", err)
 		}
@@ -301,21 +320,30 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
-		s2 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		s2 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
-		s3 := raftpb.SnapshotMetadata{
-			Index: 300,
-			Term:  200,
+		s3 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 300,
+				Term:  200,
+			},
 		}
-		env1 := s.getEnv(s1.Index)
-		env2 := s.getEnv(s2.Index)
-		env3 := s.getEnv(s3.Index)
+		env1 := s.getEnv()
+		env1.FinalizeIndex(s1.Metadata.Index)
+		env2 := s.getEnv()
+		env2.FinalizeIndex(s2.Metadata.Index)
+		env3 := s.getEnv()
+		env3.FinalizeIndex(s3.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		fd3 := env3.GetFinalDir()
@@ -424,5 +452,128 @@ func TestZombieSnapshotDirNameMatchWorks(t *testing.T) {
 		}
 	}
 	fs := vfs.GetTestFS()
+	runSnapshotterTest(t, fn, fs)
+}
+
+func TestSnapshotterParseIndex(t *testing.T) {
+	tests := []struct {
+		name  string
+		index uint64
+		fail  bool
+	}{
+		{"snapshot-123", 0x123, false},
+		{"snapshot-123-123", 0, true},
+		{"xsnapshot-123", 0, true},
+		{"snapshot-123x", 0, true},
+		{"snapshot-FF", 255, false},
+		{"snapshot-FFx", 0, true},
+		{"snapshot-123.receiving", 0, true},
+		{"snapshot-123.creating", 0, true},
+	}
+
+	fs := vfs.GetTestFS()
+	defer leaktest.AfterTest(t)()
+	defer vfs.ReportLeakedFD(fs, t)
+	deleteSnapshotterTestDir(fs)
+	ldb, closer := getNewTestDB()
+	defer closer()
+	fp := fs.PathJoin(snapshotterTestDir, "snapshot")
+	if err := fs.MkdirAll(fp, 0777); err != nil {
+		panic(err)
+	}
+	f := func(shardID uint64, replicaID uint64) string {
+		return fp
+	}
+	logger := log.GetPanicZapLogger()
+	snapshotter := newSnapshotter(1, 1, logger, f, ldb, fs)
+	defer deleteSnapshotterTestDir(fs)
+	defer ldb.Close()
+
+	for _, tt := range tests {
+		func() {
+			defer func() {
+				r := recover()
+				if tt.fail {
+					if r == nil {
+						t.Fatalf("failed to trigger panic")
+					}
+				} else {
+					if r != nil {
+						t.Fatalf("unexpectedly triggered panic")
+					}
+				}
+			}()
+			result := snapshotter.parseIndex(tt.name)
+			assert.Equal(t, tt.index, result)
+		}()
+	}
+}
+
+func TestSnapshotCanBeFinalized(t *testing.T) {
+	fs := vfs.GetTestFS()
+	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
+		sm := raftpb.SnapshotMetadata{
+			Index: 100,
+			Term:  200,
+		}
+		ss := raftpb.Snapshot{
+			Metadata: sm,
+		}
+		env := s.getEnv()
+		env.FinalizeIndex(sm.Index)
+		finalSnapDir := env.GetFinalDir()
+		tmpDir := env.GetTempDir()
+		err := env.CreateTempDir()
+		if err != nil {
+			t.Errorf("create tmp snapshot dir failed %v", err)
+		}
+		_, err = fs.Stat(tmpDir)
+		if err != nil {
+			t.Errorf("failed to get stat for tmp dir, %v", err)
+		}
+		testfp := fs.PathJoin(tmpDir, "test.data")
+		f, err := fs.Create(testfp)
+		if err != nil {
+			t.Errorf("failed to create test file")
+		}
+		if _, err := f.Write(make([]byte, 12)); err != nil {
+			t.Fatalf("write failed %v", err)
+		}
+		f.Close()
+		if err = s.commit(ss); err != nil {
+			t.Errorf("finalize snapshot failed %v", err)
+		}
+		snapshot, err := ldb.GetSnapshot(1)
+		if err != nil {
+			t.Errorf("failed to list snapshot %v", err)
+		}
+		if raft.IsEmptySnap(snapshot) {
+			t.Errorf("failed to get snapshot")
+		}
+		if snapshot.Metadata.Index != 100 {
+			t.Errorf("returned an unexpected snapshot")
+		}
+		if _, err = fs.Stat(tmpDir); !vfs.IsNotExist(err) {
+			t.Errorf("tmp dir not removed, %v", err)
+		}
+		fi, err := fs.Stat(finalSnapDir)
+		if err != nil {
+			t.Errorf("failed to get stats, %v", err)
+		}
+		if !fi.IsDir() {
+			t.Errorf("not a dir")
+		}
+		if fileutil.HasFlagFile(finalSnapDir, fileutil.SnapshotFlagFilename, fs) {
+			t.Errorf("flag file not removed")
+		}
+		vfp := fs.PathJoin(finalSnapDir, "test.data")
+		fi, err = fs.Stat(vfp)
+		if err != nil {
+			t.Errorf("failed to get stat %v", err)
+		}
+		if fi.IsDir() || fi.Size() != 12 {
+			t.Errorf("not the same test file. ")
+		}
+	}
 	runSnapshotterTest(t, fn, fs)
 }

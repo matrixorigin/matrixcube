@@ -76,6 +76,7 @@ func (w *replicaWorker) workerMain() {
 	for {
 		select {
 		case <-w.stopper.ShouldStop():
+			w.wc.Close()
 			return
 		case h := <-w.requestC:
 			if err := w.handleEvent(h); err != nil {

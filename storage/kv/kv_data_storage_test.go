@@ -8,15 +8,17 @@ import (
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/format"
 	pvfs "github.com/lni/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -31,6 +33,7 @@ func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
 }
 
 func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	tests := []struct {
 		inputs []meta.ShardMetadata
 	}{
@@ -49,8 +52,9 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
-			defer s.Close()
 			defer fs.RemoveAll(testDir)
+			defer s.Close()
+
 			assert.NoError(t, s.SaveShardMetadata(tt.inputs))
 			kvd := s.(*kvDataStorage)
 			for _, m := range tt.inputs {
@@ -66,6 +70,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 }
 
 func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	cases := []struct {
 		inputs []meta.ShardMetadata
 	}{
@@ -87,8 +92,8 @@ func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
-			defer s.Close()
 			defer fs.RemoveAll(testDir)
+			defer s.Close()
 
 			assert.NoError(t, s.SaveShardMetadata(c.inputs), "index %d", i)
 
@@ -100,14 +105,15 @@ func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 }
 
 func TestGetInitialStatesReturnsTheMostRecentMetadata(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	inputs := newTestShardMetadata(2)
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer s.Close()
 	defer fs.RemoveAll(testDir)
+	defer s.Close()
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 
 	for idx := range inputs {
@@ -123,14 +129,15 @@ func TestGetInitialStatesReturnsTheMostRecentMetadata(t *testing.T) {
 }
 
 func TestGetInitialStatesLoadsPersistentLogIndexValues(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	inputs := newTestShardMetadata(2)
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer s.Close()
 	defer fs.RemoveAll(testDir)
+	defer s.Close()
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 	values, err := s.GetInitialStates()
 	assert.NoError(t, err)
@@ -142,13 +149,14 @@ func TestGetInitialStatesLoadsPersistentLogIndexValues(t *testing.T) {
 }
 
 func TestGetPersistentLogIndexWillPanicWhenPersistentIndexesAreNotLoaded(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer s.Close()
 	defer fs.RemoveAll(testDir)
+	defer s.Close()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("panic not triggered")
@@ -158,13 +166,14 @@ func TestGetPersistentLogIndexWillPanicWhenPersistentIndexesAreNotLoaded(t *test
 }
 
 func TestGetPersistentLogIndex(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer s.Close()
 	defer fs.RemoveAll(testDir)
+	defer s.Close()
 
 	cases := []struct {
 		sample       uint64
@@ -190,8 +199,8 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(c.sample))
-			defer s.Close()
 			defer fs.RemoveAll(testDir)
+			defer s.Close()
 
 			s.(*kvDataStorage).mu.loaded = true
 			for i := 1; i <= c.requests; i++ {
@@ -216,6 +225,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 }
 
 func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	for _, sample := range []uint64{10, 11} {
 		memfs := vfs.NewMemFS()
 		defer vfs.ReportLeakedFD(memfs, t)
@@ -310,11 +320,13 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 }
 
 func TestRemoveShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, nil)
+	defer fs.RemoveAll(testDir)
 	defer ds.Close()
 
 	kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false)
@@ -363,11 +375,13 @@ func TestRemoveShard(t *testing.T) {
 }
 
 func TestSplitCheck(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, nil)
+	defer fs.RemoveAll(testDir)
 	defer ds.Close()
 
 	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)

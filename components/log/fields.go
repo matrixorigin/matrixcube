@@ -28,6 +28,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// SnapshotField returns snapshot field
+func SnapshotField(ss raftpb.Snapshot) zap.Field {
+	return zap.Uint64("index", ss.Metadata.Index)
+}
+
 // SourceContainerField returns source container field
 func SourceContainerField(id uint64) zap.Field {
 	return zap.Uint64("source-container", id)

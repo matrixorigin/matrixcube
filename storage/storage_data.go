@@ -14,17 +14,18 @@
 package storage
 
 import (
-	"errors"
-
-	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/cockroachdb/errors"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util/buf"
 )
 
 var (
-	// ErrAbort operation abort error
-	ErrAbort = errors.New("operation aborted")
+	// ErrAborted indicates that the request operation was aborted as the data
+	// storage couldn't handle the request at the time of request. The client
+	// is suggested to retry later.
+	ErrAborted = errors.New("operation aborted")
 )
 
 // Closeable is an instance that can be closed.
@@ -72,8 +73,6 @@ type BaseStorage interface {
 	Closeable
 	StatsKeeper
 	WriteBatchCreator
-
-	// CreateSnapshot creates a snapshot of the specified shard and stored it in
 	// the directory specified by the given path. It returns the raft log index of
 	// the created snapshot and the encountered error if there is any.
 	CreateSnapshot(shardID uint64, path string) (uint64, error)
@@ -133,8 +132,10 @@ type DataStorage interface {
 	// of the data storage to ensure that a consistent view of shard data and
 	// metadata is always available on restart.
 	SaveShardMetadata([]meta.ShardMetadata) error
-	// RemoveShardData is used for cleaning up shard metadata and data for the specified shard.
-	// It is up to the implementation to decide whether to do the cleaning asynchronously or not.
+	// RemoveShard is used for notifying the data storage that a shard has been
+	// removed by MatrixCube. The removeData parameter indicates whether shard
+	// data should be removed by the data storage. When removeData is set to true,
+	// the data storage is required do the cleaning asynchronously.
 	RemoveShard(shard meta.Shard, removeData bool) error
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.

@@ -65,9 +65,9 @@ func GetStoreIdentKey() []byte {
 }
 
 // GetSnapshotKey returns the key used to store snapshot metadata in LogDB.
-func GetSnapshotKey(shardID uint64, replicaID uint64, key []byte) []byte {
+func GetSnapshotKey(shardID uint64, index uint64, key []byte) []byte {
 	key = getKeySlice(key, indexedIDKeyLength)
-	return getIndexedIDKey(snapshotSuffix, shardID, replicaID, key)
+	return getIndexedIDKey(snapshotSuffix, shardID, index, key)
 }
 
 // GetHardStateKey returns key that used to store `raftpb.HardState`
