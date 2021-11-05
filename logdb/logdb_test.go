@@ -46,15 +46,17 @@ import (
 )
 
 var (
-	testShardID   uint64 = 101
-	testReplicaID uint64 = 202
+	testShardID    uint64 = 101
+	testReplicaID  uint64 = 202
+	testStorageDir        = "test_data_safe_to_delete"
 )
 
 func getTestStorage(fs vfs.FS) storage.KVStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	st, err := pebble.NewStorage("test-data", nil, opts)
+	fs.RemoveAll(testStorageDir)
+	st, err := pebble.NewStorage(testStorageDir, nil, opts)
 	if err != nil {
 		panic(err)
 	}
@@ -62,6 +64,7 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 }
 
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
+	defer fs.RemoveAll(testStorageDir)
 	defer vfs.ReportLeakedFD(fs, t)
 	defer leaktest.AfterTest(t)()
 	kv := getTestStorage(fs)
@@ -76,7 +79,7 @@ func TestLogDBGetMaxIndexReturnsNoSavedLogErrorWhenMaxIndexIsNotSaved(t *testing
 			t.Fatalf("failed to return the expected error")
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -96,9 +99,9 @@ func TestLogDBGetSnapshot(t *testing.T) {
 		}
 		v, err = db.GetSnapshot(testShardID)
 		assert.NoError(t, err)
-		assert.Equal(t, rd.Snapshot.Metadata, v)
+		assert.Equal(t, rd.Snapshot, v)
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -143,9 +146,9 @@ func TestLogDBGetSnapshotReturnsTheMostRecentSnapshot(t *testing.T) {
 		wc.Reset()
 		v, err := db.GetSnapshot(testShardID)
 		assert.NoError(t, err)
-		assert.Equal(t, rd3.Snapshot.Metadata, v)
+		assert.Equal(t, rd3.Snapshot, v)
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -167,7 +170,7 @@ func TestLogDBGetMaxIndex(t *testing.T) {
 			t.Errorf("unexpected max index %d, want 6", index)
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -177,7 +180,7 @@ func TestLogDBReadRaftStateReturnsNoSavedLogErrorWhenStateIsNeverSaved(t *testin
 			t.Fatalf("failed to return the expected error")
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -205,7 +208,7 @@ func TestLogDBSaveRaftState(t *testing.T) {
 			t.Errorf("hard state changed")
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -235,7 +238,7 @@ func TestLogDBIterateEntries(t *testing.T) {
 			t.Errorf("unexpected size")
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }
 
@@ -265,6 +268,6 @@ func TestLogDBRemoveEntriesTo(t *testing.T) {
 			t.Errorf("unexpected entry count")
 		}
 	}
-	fs := vfs.NewMemFS()
+	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
 }

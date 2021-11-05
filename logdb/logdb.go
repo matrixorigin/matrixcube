@@ -107,7 +107,7 @@ type LogDB interface {
 	RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
-	GetSnapshot(shardID uint64) (raftpb.SnapshotMetadata, error)
+	GetSnapshot(shardID uint64) (raftpb.Snapshot, error)
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -141,7 +141,7 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 	}
 }
 
-func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.SnapshotMetadata, error) {
+func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {
 	fk := keys.GetSnapshotKey(shardID, 0, nil)
 	lk := keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
 	var v []byte
@@ -149,14 +149,14 @@ func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.SnapshotMetadata, error) {
 		v = value
 		return true, nil
 	}, true); err != nil {
-		return raftpb.SnapshotMetadata{}, err
+		return raftpb.Snapshot{}, err
 	}
 	if len(v) == 0 {
-		return raftpb.SnapshotMetadata{}, ErrNoSnapshot
+		return raftpb.Snapshot{}, ErrNoSnapshot
 	}
-	var sm raftpb.SnapshotMetadata
-	protoc.MustUnmarshal(&sm, v)
-	return sm, nil
+	var ss raftpb.Snapshot
+	protoc.MustUnmarshal(&ss, v)
+	return ss, nil
 }
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
@@ -176,7 +176,7 @@ func (l *KVLogDB) SaveRaftState(shardID uint64,
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
 		ctx.wb.Set(keys.GetSnapshotKey(shardID, rd.Snapshot.Metadata.Index, nil),
-			protoc.MustMarshal(&rd.Snapshot.Metadata))
+			protoc.MustMarshal(&rd.Snapshot))
 	}
 
 	for _, e := range rd.Entries {

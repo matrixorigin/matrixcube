@@ -191,9 +191,11 @@ func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 		env2.FinalizeIndex(200)
 		env3 := s.getEnv()
 		env3.FinalizeIndex(300)
-		s1 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
@@ -229,9 +231,11 @@ func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
 		env := s.getEnv()
 		env.FinalizeIndex(100)
@@ -255,18 +259,22 @@ func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
-		s2 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		s2 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
 		env1 := s.getEnv()
-		env1.FinalizeIndex(s1.Index)
+		env1.FinalizeIndex(s1.Metadata.Index)
 		env2 := s.getEnv()
-		env2.FinalizeIndex(s2.Index)
+		env2.FinalizeIndex(s2.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
@@ -312,24 +320,30 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.SnapshotMetadata{
-			Index: 100,
-			Term:  200,
+		s1 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 100,
+				Term:  200,
+			},
 		}
-		s2 := raftpb.SnapshotMetadata{
-			Index: 200,
-			Term:  200,
+		s2 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 200,
+				Term:  200,
+			},
 		}
-		s3 := raftpb.SnapshotMetadata{
-			Index: 300,
-			Term:  200,
+		s3 := raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: 300,
+				Term:  200,
+			},
 		}
 		env1 := s.getEnv()
-		env1.FinalizeIndex(s1.Index)
+		env1.FinalizeIndex(s1.Metadata.Index)
 		env2 := s.getEnv()
-		env2.FinalizeIndex(s2.Index)
+		env2.FinalizeIndex(s2.Metadata.Index)
 		env3 := s.getEnv()
-		env3.FinalizeIndex(s3.Index)
+		env3.FinalizeIndex(s3.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		fd3 := env3.GetFinalDir()
@@ -533,10 +547,10 @@ func TestSnapshotCanBeFinalized(t *testing.T) {
 		if err != nil {
 			t.Errorf("failed to list snapshot %v", err)
 		}
-		if raft.IsEmptySnap(raftpb.Snapshot{Metadata: snapshot}) {
+		if raft.IsEmptySnap(snapshot) {
 			t.Errorf("failed to get snapshot")
 		}
-		if snapshot.Index != 100 {
+		if snapshot.Metadata.Index != 100 {
 			t.Errorf("returned an unexpected snapshot")
 		}
 		if _, err = fs.Stat(tmpDir); !vfs.IsNotExist(err) {

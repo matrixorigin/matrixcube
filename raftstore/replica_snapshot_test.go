@@ -99,7 +99,7 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 		assert.Equal(t, uint64(100), ssFromDir.Index)
 		ssFromLogDB, err := r.logdb.GetSnapshot(1)
 		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Index)
+		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
@@ -135,7 +135,7 @@ func TestCreatingOutOfDateSnapshotIsTolerated(t *testing.T) {
 		assert.Equal(t, uint64(200), ssFromReplica.Metadata.Index)
 		ssFromLogDB, err := r.logdb.GetSnapshot(1)
 		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Index)
+		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

@@ -140,7 +140,7 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 			}
 		} else if s.isSnapshot(dirInfo.Name()) {
 			index := s.parseIndex(dirInfo.Name())
-			if noss || index != ss.Index {
+			if noss || index != ss.Metadata.Index {
 				if err := removeDir(dirName); err != nil {
 					return err
 				}
@@ -151,27 +151,27 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 }
 
 func (s *snapshotter) processOrphans(dirName string,
-	noss bool, ss raftpb.SnapshotMetadata) error {
-	var ssFromDir raftpb.SnapshotMetadata
+	noss bool, ss raftpb.Snapshot) error {
+	var ssFromDir raftpb.Snapshot
 	if err := fileutil.GetFlagFileContent(dirName,
 		fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
 		return err
 	}
-	if ssFromDir.Index == 0 {
+	if raft.IsEmptySnap(ssFromDir) {
 		panic("empty snapshot found")
 	}
 	remove := false
 	if noss {
 		remove = true
 	} else {
-		if ss.Index != ssFromDir.Index {
+		if ss.Metadata.Index != ssFromDir.Metadata.Index {
 			remove = true
 		}
 	}
 	if remove {
-		return s.remove(ssFromDir.Index)
+		return s.remove(ssFromDir.Metadata.Index)
 	}
-	return s.removeFlagFile(ssFromDir.Index)
+	return s.removeFlagFile(ssFromDir.Metadata.Index)
 }
 
 func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
@@ -204,7 +204,7 @@ func (s *snapshotter) commit(ss raftpb.Snapshot) error {
 		}
 		return err
 	}
-	if err := s.saveSnapshot(ss.Metadata); err != nil {
+	if err := s.saveSnapshot(ss); err != nil {
 		return err
 	}
 	return env.RemoveFlagFile()
@@ -266,12 +266,10 @@ func (s *snapshotter) isZombie(dir string) bool {
 		snapshot.RecvSnapshotDirNameRe.Match([]byte(dir))
 }
 
-func (s *snapshotter) saveSnapshot(sm raftpb.SnapshotMetadata) error {
+func (s *snapshotter) saveSnapshot(ss raftpb.Snapshot) error {
 	wc := s.ldb.NewWorkerContext()
 	defer wc.Close()
 	return s.ldb.SaveRaftState(s.shardID, s.replicaID, raft.Ready{
-		Snapshot: raftpb.Snapshot{
-			Metadata: sm,
-		},
+		Snapshot: ss,
 	}, wc)
 }
