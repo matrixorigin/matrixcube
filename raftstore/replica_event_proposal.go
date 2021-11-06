@@ -65,7 +65,6 @@ const (
 )
 
 func (pr *replica) handleRequest(items []interface{}) {
-	shard := pr.getShard()
 	for {
 		size := pr.requests.Len()
 		if size == 0 {
@@ -81,7 +80,7 @@ func (pr *replica) handleRequest(items []interface{}) {
 			if ce := pr.logger.Check(zap.DebugLevel, "push to proposal batch"); ce != nil {
 				ce.Write(log.HexField("id", req.req.ID))
 			}
-			pr.incomingProposals.push(shard.Group, req)
+			pr.incomingProposals.push(pr.group, req)
 		}
 	}
 
