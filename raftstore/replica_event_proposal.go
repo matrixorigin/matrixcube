@@ -64,17 +64,14 @@ const (
 	requestTransferLeader
 )
 
-func (pr *replica) handleRequest(items []interface{}) {
+// FIXME: fix the len == 0 and len() > 0 check below
+func (pr *replica) handleRequest(items []interface{}) bool {
 	shard := pr.getShard()
-	for {
-		size := pr.requests.Len()
-		if size == 0 {
-			break
-		}
 
+	if size := pr.requests.Len(); size > 0 {
 		n, err := pr.requests.Get(readyBatchSize, items)
 		if err != nil {
-			return
+			return false
 		}
 		for i := int64(0); i < n; i++ {
 			req := items[i].(reqCtx)
@@ -94,10 +91,13 @@ func (pr *replica) handleRequest(items []interface{}) {
 	}
 
 	size := pr.requests.Len()
+	// FIXME: why the metric is set here
 	metric.SetRaftRequestQueueMetric(size)
 	if size > 0 {
 		pr.notifyWorker()
 	}
+
+	return true
 }
 
 func (pr *replica) propose(c batch) {
