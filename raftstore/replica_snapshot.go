@@ -31,7 +31,7 @@ func (r *replica) createSnapshot() error {
 		}
 		return err
 	}
-	if err := r.snapshotter.commit(ss); err != nil {
+	if err := r.snapshotter.commit(ss, ssenv); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
 			r.logger.Info("aborted committing an out of date snapshot",

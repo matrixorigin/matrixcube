@@ -47,15 +47,13 @@ var (
 	ErrSnapshotOutOfDate = errors.New("snapshot out of date")
 	// MetadataFilename is the filename of a snapshot's metadata file.
 	MetadataFilename = "snapshot.metadata"
-	// SnapshotFileSuffix is the filename suffix of a snapshot file.
-	SnapshotFileSuffix = "gbsnap"
 	// SnapshotDirNameRe is the regex of snapshot names.
-	SnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+$`)
+	SnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+-[0-9A-F]+$`)
 	// SnapshotDirNamePartsRe is used to find the index value from snapshot folder name.
-	SnapshotDirNamePartsRe = regexp.MustCompile(`^snapshot-([0-9A-F]+)$`)
+	SnapshotDirNamePartsRe = regexp.MustCompile(`^snapshot-([0-9A-F]+)-[0-9A-F]+$`)
 	// GenSnapshotDirNameRe is the regex of temp snapshot directory name used when
 	// generating snapshots.
-	GenSnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+\.generating$`)
+	GenSnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+-[0-9A-F]+\.generating$`)
 	// RecvSnapshotDirNameRe is the regex of temp snapshot directory name used when
 	// receiving snapshots from remote NodeHosts.
 	RecvSnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+-[0-9A-F]+\.receiving$`)
@@ -80,14 +78,12 @@ const (
 	CreatingMode Mode = iota
 	// ReceivingMode is the mode used when receiving snapshots from remote nodes.
 	ReceivingMode
-	// ProcessingMode is the mode used when processing existing snapshots.
-	ProcessingMode
 )
 
 // GetSnapshotDirName returns the snapshot dir name for the snapshot captured
 // at the specified index.
-func GetSnapshotDirName(index uint64) string {
-	return getSnapshotDirName(index)
+func GetSnapshotDirName(index uint64, extra uint64) string {
+	return getSnapshotDirName(index, extra)
 }
 
 func getSuffix(mode Mode) string {
@@ -110,23 +106,23 @@ func mustBeChild(parent string, child string) {
 	}
 }
 
-func getSnapshotDirName(index uint64) string {
-	return fmt.Sprintf("snapshot-%016X", index)
+func getSnapshotDirName(index uint64, extra uint64) string {
+	return fmt.Sprintf("snapshot-%016X-%016X", index, extra)
 }
 
 func getTempReceivingDirName(rootDir string, index uint64, from uint64) string {
-	dir := fmt.Sprintf("%s-%d.%s",
-		getSnapshotDirName(index), from, getSuffix(ReceivingMode))
+	dir := fmt.Sprintf("%s.%s",
+		getSnapshotDirName(index, from), getSuffix(ReceivingMode))
 	return filepath.Join(rootDir, dir)
 }
 
-func getTempCreatingDirName(rootDir string) string {
-	dir := fmt.Sprintf("snapshot.%s", getSuffix(CreatingMode))
+func getTempCreatingDirName(rootDir string, extra uint64) string {
+	dir := fmt.Sprintf("snapshot-%016X.%s", extra, getSuffix(CreatingMode))
 	return filepath.Join(rootDir, dir)
 }
 
-func getFinalDirName(rootDir string, index uint64) string {
-	return filepath.Join(rootDir, getSnapshotDirName(index))
+func getFinalDirName(rootDir string, index uint64, extra uint64) string {
+	return filepath.Join(rootDir, getSnapshotDirName(index, extra))
 }
 
 // SSEnv is the struct used to manage involved directories for taking or
@@ -137,18 +133,22 @@ type SSEnv struct {
 	// raft node
 	rootDir        string
 	index          uint64
-	from           uint64
+	extra          uint64
 	indexFinalized bool
 	mode           Mode
 }
 
-// NewSSEnv creates and returns a new SSEnv instance.
+// NewSSEnv creates and returns a new SSEnv instance. extra is the replicaID of
+// the sending replica in ReceivingMode or a random uint64 in CreatingMode. It
+// is caller's responsibility to ensure the randomness of the extra value in
+// CreatingMode.
 func NewSSEnv(f SnapshotDirFunc,
 	shardID uint64, replicaID uint64, index uint64,
-	from uint64, mode Mode, fs vfs.FS) SSEnv {
+	extra uint64, mode Mode, fs vfs.FS) SSEnv {
 	rootDir := f(shardID, replicaID)
 	return SSEnv{
 		index:   index,
+		extra:   extra,
 		mode:    mode,
 		rootDir: rootDir,
 		fs:      fs,
@@ -166,9 +166,9 @@ func (se *SSEnv) FinalizeIndex(index uint64) {
 // GetTempDir returns the temp snapshot directory.
 func (se *SSEnv) GetTempDir() string {
 	if se.mode == CreatingMode {
-		return getTempCreatingDirName(se.rootDir)
+		return getTempCreatingDirName(se.rootDir, se.extra)
 	} else if se.mode == ReceivingMode {
-		return getTempReceivingDirName(se.rootDir, se.index, se.from)
+		return getTempReceivingDirName(se.rootDir, se.index, se.extra)
 	}
 	panic("unknown mode")
 }
@@ -178,7 +178,7 @@ func (se *SSEnv) GetFinalDir() string {
 	if se.mode == CreatingMode && !se.indexFinalized {
 		panic("index not finlaized when creating snapshot")
 	}
-	return getFinalDirName(se.rootDir, se.index)
+	return getFinalDirName(se.rootDir, se.index, se.extra)
 }
 
 // GetRootDir returns the root directory. The temp and final snapshot

@@ -65,7 +65,7 @@ func TestGetFinalDirWillNotPanicInReceivingMode(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, ReceivingMode, fs)
-	assert.Equal(t, "/data/snapshot-0000000000000001", env.GetFinalDir())
+	assert.Equal(t, "/data/snapshot-0000000000000001-0000000000000002", env.GetFinalDir())
 }
 
 func TestGetFinalDirWillNotPanicWhenIndexIsFinalizedInCreatingMode(t *testing.T) {
@@ -76,16 +76,16 @@ func TestGetFinalDirWillNotPanicWhenIndexIsFinalizedInCreatingMode(t *testing.T)
 	defer reportLeakedFD(fs, t)
 	env := NewSSEnv(f, 1, 1, 1, 2, CreatingMode, fs)
 	env.FinalizeIndex(100)
-	assert.Equal(t, "/data/snapshot-0000000000000064", env.GetFinalDir())
+	assert.Equal(t, "/data/snapshot-0000000000000064-0000000000000002", env.GetFinalDir())
 }
 
 func TestGetSnapshotDirName(t *testing.T) {
-	v := GetSnapshotDirName(1)
-	if v != "snapshot-0000000000000001" {
+	v := GetSnapshotDirName(1, 1)
+	if v != "snapshot-0000000000000001-0000000000000001" {
 		t.Errorf("unexpected value, %s", v)
 	}
-	v = GetSnapshotDirName(255)
-	if v != "snapshot-00000000000000FF" {
+	v = GetSnapshotDirName(255, 255)
+	if v != "snapshot-00000000000000FF-00000000000000FF" {
 		t.Errorf("unexpected value, %s", v)
 	}
 }

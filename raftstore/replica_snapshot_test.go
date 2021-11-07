@@ -79,7 +79,7 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 		if err := r.createSnapshot(); err != nil {
 			t.Fatalf("failed to create snapshot %v", err)
 		}
-		env := r.snapshotter.getEnv()
+		env := r.snapshotter.getCreatingSnapshotEnv(0)
 		env.FinalizeIndex(100)
 		snapshotDir := env.GetFinalDir()
 		if _, err := fs.Stat(snapshotDir); vfs.IsNotExist(err) {
