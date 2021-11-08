@@ -33,12 +33,14 @@ import (
 	"strconv"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/random"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -213,6 +215,7 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	env.FinalizeIndex(index)
 	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
+		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
 			Index: index,
 			Term:  term,

@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -83,8 +84,11 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 		assert.Equal(t, uint64(100), ss.Metadata.Index)
 		assert.True(t, created)
 
-		env := r.snapshotter.getCreatingSnapshotEnv(0)
-		env.FinalizeIndex(100)
+		var si meta.SnapshotInfo
+		protoc.MustUnmarshal(&si, ss.Data)
+		env := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss.Metadata.Index, si.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env.FinalizeIndex(ss.Metadata.Index)
 		snapshotDir := env.GetFinalDir()
 		if _, err := fs.Stat(snapshotDir); vfs.IsNotExist(err) {
 			t.Errorf("snapshot final dir not created, %v", err)
@@ -102,7 +106,7 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 			snapshot.MetadataFilename, &ssFromDir, fs); err != nil {
 			t.Errorf("failed to get flag file content %v", err)
 		}
-		assert.Equal(t, uint64(100), ssFromDir.Index)
+		assert.Equal(t, ss.Metadata.Index, ssFromDir.Index)
 		_, err = r.logdb.GetSnapshot(1)
 		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}
@@ -117,10 +121,32 @@ func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, created)
 
+		var si1 meta.SnapshotInfo
+		protoc.MustUnmarshal(&si1, ss1.Data)
+		env1 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss1.Metadata.Index, si1.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env1.FinalizeIndex(ss1.Metadata.Index)
+		snapshotDir1 := env1.GetFinalDir()
+		if _, err := fs.Stat(snapshotDir1); vfs.IsNotExist(err) {
+			t.Errorf("snapshot final dir not created, %v", err)
+		}
+
 		ss2, created, err := r.createSnapshot()
 		assert.Equal(t, uint64(100), ss2.Metadata.Index)
 		assert.NoError(t, err)
 		assert.True(t, created)
+
+		var si2 meta.SnapshotInfo
+		protoc.MustUnmarshal(&si2, ss2.Data)
+		env2 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss2.Metadata.Index, si2.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env2.FinalizeIndex(ss2.Metadata.Index)
+		snapshotDir2 := env2.GetFinalDir()
+		if _, err := fs.Stat(snapshotDir2); vfs.IsNotExist(err) {
+			t.Errorf("snapshot final dir not created, %v", err)
+		}
+
+		assert.NotEqual(t, snapshotDir1, snapshotDir2)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

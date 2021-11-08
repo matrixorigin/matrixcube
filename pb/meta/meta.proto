@@ -159,3 +159,8 @@ message ShardsPoolAllocCmd {
     uint64 group   = 1;
     bytes  purpose = 2;
 }
+
+// SnapshotInfo contains additional information associated with a snapshot.
+message SnapshotInfo {
+  uint64 extra = 1;
+}
