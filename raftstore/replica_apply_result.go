@@ -199,9 +199,6 @@ func (pr *replica) applySplit(result *splitResult) {
 		}).
 		create(result.newShards)
 
-	// all new shards started, update key range atomic
-	pr.store.updateShardKeyRange(result.newShards[0].Group, result.newShards...)
-
 	// current shard not used, keep data.
 	pr.store.destroyReplica(pr.shardID, true, false, "splited")
 	if pr.aware != nil {
