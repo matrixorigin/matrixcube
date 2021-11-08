@@ -32,7 +32,6 @@ require (
 	go.etcd.io/etcd/raft/v3 v3.5.0
 	go.etcd.io/etcd/server/v3 v3.5.0
 	go.uber.org/zap v1.18.1
-	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 )
 
 replace go.etcd.io/etcd/raft/v3 => github.com/matrixorigin/etcd/raft/v3 v3.5.1-0.20210824030015-8e8fdd5cd251

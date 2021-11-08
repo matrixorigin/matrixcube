@@ -80,12 +80,19 @@ enum ReplicaState {
     Tombstone = 2;
 }
 
+// LogIndex is used to indicate a position in the log. 
+message LogIndex {
+  uint64 index = 1;
+  uint64 term = 2;
+}
+
 // ShardMetadata is the metadata of the shard consistent with the current table
 // shard data
 message ShardMetadata {
-    uint64 shardID  = 1;
+  uint64 shardID  = 1;
 	uint64 logIndex = 2;
-	ShardLocalState metadata  = 3 [(gogoproto.nullable) = false];
+  uint64 logTerm  = 3;
+	ShardLocalState metadata  = 4 [(gogoproto.nullable) = false];
 }
 
 // ShardLocalState shard local state

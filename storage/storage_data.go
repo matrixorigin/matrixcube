@@ -73,16 +73,15 @@ type BaseStorage interface {
 	Closeable
 	StatsKeeper
 	WriteBatchCreator
-	// the directory specified by the given path. It returns the raft log index of
-	// the created snapshot and the encountered error if there is any.
-	CreateSnapshot(shardID uint64, path string) (uint64, error)
-	// ApplySnapshot applies the snapshort stored in the given path.
+	// CreateSnapshot creates a snapshot from the specified shard and store the
+	// generated snapshot into the directory specified by the path parameter. It
+	// returns the raft log index and term of the created snapshot and the
+	// encountered error if there is any.
+	CreateSnapshot(shardID uint64, path string) (uint64, uint64, error)
+	// ApplySnapshot applies the snapshort stored in the given path into the
+	// specified shard.
 	ApplySnapshot(shardID uint64, path string) error
 }
-
-// TODO: it doesn't make sense to allow multiple read operations to be batched
-// and handled together, as we do value concurrent reads. The Read() method
-// below need to be reviewed.
 
 // DataStorage is the interface to be implemented by data engines for storing
 // both table shards data and shards metadata. We assume that data engines are
@@ -203,9 +202,10 @@ type ReadContext interface {
 // applied into the data storage together with the Index value itself. For
 // read operation, each Batch contains multiple read requests.
 type Batch struct {
-	// Index is the corresponding raft log index of the batch. It is always zero
-	// for read related batches.
+	// Index is the corresponding raft log index of the batch.
 	Index uint64
+	// Term is the corresponding raft log term of the batch.
+	Term uint64
 	// Requests is the requests included in the batch.
 	Requests []Request
 }
