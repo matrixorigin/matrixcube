@@ -66,8 +66,6 @@ const (
 
 // FIXME: fix the len == 0 and len() > 0 check below
 func (pr *replica) handleRequest(items []interface{}) bool {
-	shard := pr.getShard()
-
 	if size := pr.requests.Len(); size > 0 {
 		n, err := pr.requests.Get(readyBatchSize, items)
 		if err != nil {
@@ -78,7 +76,7 @@ func (pr *replica) handleRequest(items []interface{}) bool {
 			if ce := pr.logger.Check(zap.DebugLevel, "push to proposal batch"); ce != nil {
 				ce.Write(log.HexField("id", req.req.ID))
 			}
-			pr.incomingProposals.push(shard.Group, req)
+			pr.incomingProposals.push(pr.group, req)
 		}
 	}
 

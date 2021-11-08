@@ -55,6 +55,7 @@ type replica struct {
 	storeID               uint64
 	shardID               uint64
 	replica               Replica
+	group                 uint64
 	startedC              chan struct{}
 	disableCompactProtect bool
 	rn                    *raft.RawNode
@@ -160,6 +161,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 		replica:           r,
 		shardID:           shard.ID,
 		storeID:           store.Meta().ID,
+		group:             shard.Group,
 		startedC:          make(chan struct{}),
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals:  newPendingProposals(),

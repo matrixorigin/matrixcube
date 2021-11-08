@@ -166,7 +166,6 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool) {
 	if pr.handleTick(pr.items) {
 		hasEvent = true
 	}
-	pr.cacheRaftStatus()
 	if pr.handleFeedback(pr.items) {
 		hasEvent = true
 	}
@@ -183,12 +182,6 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool) {
 
 	return hasEvent
 }
-
-func (pr *replica) cacheRaftStatus() {
-	pr.setLeaderReplicaID(pr.rn.Status().Lead)
-}
-
-// FIXME: remove the len() == 0 and len() > 0 checks below.
 
 func (pr *replica) handleAction(items []interface{}) bool {
 	if size := pr.actions.Len(); size == 0 {
