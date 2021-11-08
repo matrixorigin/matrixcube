@@ -28,9 +28,6 @@ import (
 )
 
 var (
-	// testMaxOnceCommitEntryCount defines how many committed entries can be
-	// applied each time. 0 means unlimited
-	testMaxOnceCommitEntryCount = 0
 	// ErrUnknownReplica indicates that the replica is unknown.
 	ErrUnknownReplica = errors.New("unknown replica")
 )
@@ -48,7 +45,6 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 		return err
 	}
 	pr.sendRaftMessages(rd)
-	rd = pr.limitNumOfEntriesToApply(rd)
 	if err := pr.applyCommittedEntries(rd); err != nil {
 		return err
 	}
@@ -66,6 +62,7 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 func (pr *replica) handleRaftState(rd raft.Ready) {
 	// etcd raft won't repeatedly return the same non-empty soft state
 	if rd.SoftState != nil {
+		pr.setLeaderReplicaID(rd.SoftState.Lead)
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")
@@ -121,14 +118,6 @@ func (pr *replica) handleAppendEntries(rd raft.Ready,
 		return err
 	}
 	return nil
-}
-
-func (pr *replica) limitNumOfEntriesToApply(rd raft.Ready) raft.Ready {
-	if testMaxOnceCommitEntryCount > 0 &&
-		testMaxOnceCommitEntryCount < len(rd.CommittedEntries) {
-		rd.CommittedEntries = rd.CommittedEntries[:testMaxOnceCommitEntryCount]
-	}
-	return rd
 }
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
