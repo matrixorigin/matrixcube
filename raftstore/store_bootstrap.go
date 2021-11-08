@@ -76,7 +76,7 @@ func (s *store) doBootstrapCluster() {
 
 	ok, err := s.pd.GetStorage().AlreadyBootstrapped()
 	if err != nil {
-		s.logger.Fatal("fail to check the cluster whether bootstrapped",
+		s.logger.Fatal("failed to check the cluster whether bootstrapped",
 			s.storeField(),
 			zap.Error(err))
 	}
@@ -102,12 +102,16 @@ func (s *store) doBootstrapCluster() {
 			initShards = append(initShards, shard)
 			resources = append(resources, NewResourceAdapterWithShard(shard))
 		}
-		s.mustCreateShardsOnStorage(initShards...)
+
+		newShardCreator(s).
+			withReason("bootstrap init").
+			withSaveMetadata(true).
+			create(initShards)
 
 		ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
 		if err != nil {
 			s.removeInitShards(initShards...)
-			s.logger.Fatal("fail to bootstrap cluster",
+			s.logger.Fatal("failed to bootstrap cluster",
 				s.storeField(),
 				zap.Error(err))
 		}
@@ -119,7 +123,7 @@ func (s *store) doBootstrapCluster() {
 	}
 
 	if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
-		s.logger.Fatal("fail to put container to prophet",
+		s.logger.Fatal("failed to put container to prophet",
 			s.storeField(),
 			zap.Error(err))
 	}
@@ -134,7 +138,7 @@ func (s *store) mustSaveStoreMetadata() {
 		return false, nil
 	}, false)
 	if err != nil {
-		s.logger.Fatal("fail to check store metadata",
+		s.logger.Fatal("failed to check store metadata",
 			s.storeField(),
 			zap.Error(err))
 	}
@@ -149,7 +153,7 @@ func (s *store) mustSaveStoreMetadata() {
 	}
 	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
 	if err != nil {
-		s.logger.Fatal("fail to save local store id",
+		s.logger.Fatal("failed to save local store id",
 			s.storeField(),
 			zap.Error(err))
 	}
@@ -158,7 +162,7 @@ func (s *store) mustSaveStoreMetadata() {
 func (s *store) mustLoadStoreMetadata() bool {
 	data, err := s.kvStorage.Get(keys.GetStoreIdentKey())
 	if err != nil {
-		s.logger.Fatal("fail to load store metadata",
+		s.logger.Fatal("failed to load store metadata",
 			s.storeField(),
 			zap.Error(err))
 	}
@@ -196,66 +200,15 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	})
 }
 
-func (s *store) mustCreateShardsOnStorage(shards ...Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
-		var sm []meta.ShardMetadata
-		var ids []uint64
-		for _, shard := range v {
-			ids = append(ids, shard.ID)
-			sm = append(sm, meta.ShardMetadata{
-				ShardID:  shard.ID,
-				LogIndex: 1,
-				Metadata: meta.ShardLocalState{
-					State: meta.ReplicaState_Normal,
-					Shard: shard,
-				},
-			})
-
-			err := maybeAddFirstUpdateMetadataLog(s.logdb, sm[len(sm)-1].Metadata, shard.Replicas[0], nil)
-			if err != nil {
-				s.logger.Fatal("fail to create init shards",
-					s.storeField(),
-					zap.Error(err))
-			}
-		}
-
-		if err := ds.SaveShardMetadata(sm); err != nil {
-			s.logger.Fatal("fail to create init shards",
-				s.storeField(),
-				zap.Error(err))
-		}
-
-		if err := ds.Sync(ids); err != nil {
-			s.logger.Fatal("fail to create init shards",
-				s.storeField(),
-				zap.Error(err))
-		}
-	}, shards...)
-}
-
 func (s *store) removeInitShards(shards ...Shard) {
-	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
+	doWithShardsByGroup(s.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
 		for _, shard := range v {
 			if err := ds.RemoveShard(shard, true); err != nil {
-				s.logger.Fatal("fail to remove init shards",
+				s.logger.Fatal("failed to remove init shards",
 					s.storeField(),
 					zap.Error(err))
 			}
 		}
 	}, shards...)
 	s.logger.Info("init shards removed from store")
-}
-
-func (s *store) doWithShardsByGroup(fn func(storage.DataStorage, []Shard), shards ...Shard) {
-	shardsByGroup := make(map[uint64][]Shard)
-	for _, s := range shards {
-		v := shardsByGroup[s.Group]
-		v = append(v, s)
-		shardsByGroup[s.Group] = v
-	}
-
-	for g, v := range shardsByGroup {
-		ds := s.DataStorageByGroup(g)
-		fn(ds, v)
-	}
 }

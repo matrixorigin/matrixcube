@@ -388,6 +388,8 @@ func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 
+	var tomebstoneShards []Shard
+	var shards []Shard
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
@@ -396,7 +398,6 @@ func (s *store) startShards() {
 				zap.Error(err))
 		}
 
-		var tomebstoneShards []Shard
 		for _, metadata := range initStates {
 			totalCount++
 			sls := metadata.Metadata
@@ -416,20 +417,16 @@ func (s *store) startShards() {
 				continue
 			}
 
-			pr, err := createReplica(s, sls.Shard, "bootstrap")
-			if err != nil {
-				s.logger.Fatal("fail to create replica",
-					s.storeField(),
-					zap.Error(err))
-			}
-
-			s.updateShardKeyRange(sls.Shard.Group, sls.Shard)
-			s.addReplica(pr)
-			pr.start()
+			shards = append(shards, sls.Shard)
 		}
-
-		s.cleanupTombstones(tomebstoneShards)
 	})
+
+	newShardCreator(s).
+		withReason("restart").
+		withStartReplica(nil).
+		create(shards)
+
+	s.cleanupTombstones(tomebstoneShards)
 
 	s.logger.Info("shards started",
 		s.storeField(),

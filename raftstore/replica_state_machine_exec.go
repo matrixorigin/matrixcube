@@ -126,7 +126,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	}
 	d.updateShard(res)
 	if err := d.saveShardMetedata(ctx.index, ctx.term, res, state); err != nil {
-		d.logger.Fatal("fail to save metadata",
+		d.logger.Fatal("failed to save metadata",
 			zap.Error(err))
 	}
 
@@ -200,30 +200,14 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		newShard.End = req.End
 		newShard.Replicas = req.NewReplicas
 		newShards = append(newShards, newShard)
-		metadata = append(metadata, meta.ShardMetadata{
-			LogIndex: 1,
-			LogTerm:  1,
-			ShardID:  newShard.ID,
-			Metadata: meta.ShardLocalState{
-				State: meta.ReplicaState_Normal,
-				Shard: newShard,
-			},
-		})
-		// To avoid the newly created Shard metadata corresponding to a LogIndex of 0,
-		// thus avoiding various special operations, we force here to bypass the consensus,
-		// store the first Log is the Log that holds the metadata, and set the committedIndex
-		// of hardstate to 1.
-		d.wc.Reset()
-
-		replica := findReplica(newShard, d.replica.ContainerID)
-		err := maybeAddFirstUpdateMetadataLog(d.logdb, metadata[len(metadata)-1].Metadata, *replica, d.wc)
-		if err != nil {
-			d.logger.Fatal("fail to save first raft log",
-				log.ShardField("new-shard", newShard),
-				zap.Error(err))
-		}
 		ctx.metrics.admin.splitSucceed++
 	}
+
+	d.shardCreatorFactory().
+		withReason("splited").
+		withLogdbContext(d.wc).
+		withSaveMetadata(false).
+		create(newShards)
 
 	old := meta.ShardMetadata{
 		ShardID:  current.ID,
@@ -239,7 +223,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		if err == storage.ErrAborted {
 			return rpc.ResponseBatch{}, nil
 		}
-		d.logger.Fatal("fail to split on data storage",
+		d.logger.Fatal("failed to split on data storage",
 			zap.Error(err))
 	}
 
@@ -262,7 +246,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 
 	current := d.getShard()
 	if isEpochStale(current.Epoch, updateReq.Metadata.Shard.Epoch) {
-		d.logger.Fatal("fail to update metadata",
+		d.logger.Fatal("failed to update metadata",
 			log.EpochField("current", current.Epoch),
 			log.ShardField("new-shard", updateReq.Metadata.Shard))
 	}
@@ -276,7 +260,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 		},
 	})
 	if err != nil {
-		d.logger.Fatal("fail to update metadata",
+		d.logger.Fatal("failed to update metadata",
 			log.EpochField("current", current.Epoch),
 			log.ShardField("new-shard", updateReq.Metadata.Shard),
 			zap.Error(err))
@@ -307,7 +291,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		}
 	}
 	if err := d.dataStorage.Write(d.writeCtx); err != nil {
-		d.logger.Fatal("fail to exec read cmd",
+		d.logger.Fatal("failed to exec read cmd",
 			zap.Error(err))
 	}
 	for _, req := range ctx.req.Requests {

@@ -21,7 +21,6 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/format"
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -34,7 +33,6 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
-	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -105,42 +103,11 @@ type replica struct {
 // 1. Event worker goroutine: After the split of the old shard, to create new shard.
 // 2. Goroutine that calls start method of store: Load all local shards.
 // 3. Prophet event loop: Create shard dynamically.
-func createReplica(store *store, shard Shard, why string) (*replica, error) {
-	replica := findReplica(shard, store.Meta().ID)
-	if replica == nil {
-		return nil, fmt.Errorf("no replica found on store %d in shard %+v",
-			store.meta.meta.ID,
-			shard)
-	}
-
-	return newReplica(store, shard, *replica, why)
-}
-
-// createReplicaWithRaftMessage the replica can be created from another node with raft membership changes, and we only
-// know the shard_id and replica_id when creating this replicated replica, the shard info
-// will be retrieved later after applying snapshot.
-func createReplicaWithRaftMessage(store *store, msg meta.RaftMessage, replica Replica, why string) (*replica, error) {
-	shard := Shard{
-		ID:           msg.ShardID,
-		Epoch:        msg.ShardEpoch,
-		Start:        msg.Start,
-		End:          msg.End,
-		Group:        msg.Group,
-		DisableSplit: msg.DisableSplit,
-		Unique:       msg.Unique,
-		// The only replica we currently know of is `From`, Later, we can get a replica of the quasi-group
-		// by executing the draft log of Config Change or receiving a snapshot.
-		Replicas: []Replica{msg.From},
-	}
-
-	return newReplica(store, shard, replica, why)
-}
-
-func newReplica(store *store, shard Shard, r Replica, why string) (*replica, error) {
+func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, error) {
 	l := store.logger.With(store.storeField(), log.ShardIDField(shard.ID), log.ReplicaIDField(r.ID))
 
 	l.Info("begin to create replica",
-		log.ReasonField(why),
+		log.ReasonField(reason),
 		log.ShardField("metadata", shard))
 
 	if r.ID == 0 {
@@ -182,7 +149,7 @@ func newReplica(store *store, shard Shard, r Replica, why string) (*replica, err
 	}
 
 	storage := store.DataStorageByGroup(shard.Group)
-	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr)
+	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *shardCreator { return newShardCreator(store) })
 	return pr, nil
 }
 
@@ -506,35 +473,4 @@ func (l *etcdRaftLoggerAdapter) Fatalf(format string, v ...interface{}) {
 func (l *etcdRaftLoggerAdapter) Panic(v ...interface{}) { l.logger.Panic(v...) }
 func (l *etcdRaftLoggerAdapter) Panicf(format string, v ...interface{}) {
 	l.logger.Panicf(format, v...)
-}
-
-// maybeAddFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all
-// subsequent metadata changes need to correspond to a raft log, which is used to ensure the consistency
-// of metadata. Only InitialMember can add.
-func maybeAddFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, replica Replica, wc *logdb.WorkerContext) error {
-	// only InitialMember replica need to add this raft log
-	if !replica.InitialMember {
-		return nil
-	}
-
-	rb := rpc.RequestBatch{}
-	rb.Header.ShardID = state.Shard.ID
-	rb.Header.Replica = replica
-	rb.Header.ID = uuid.NewV4().Bytes()
-	rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
-	rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
-		Metadata: state,
-	}
-
-	if wc == nil {
-		wc = ldb.NewWorkerContext()
-	}
-	return ldb.SaveRaftState(state.Shard.ID,
-		replica.ID,
-		raft.Ready{
-			Entries: []raftpb.Entry{{Index: 1, Term: 1, Type: raftpb.EntryNormal,
-				Data: protoc.MustMarshal(&rb)}},
-			HardState: raftpb.HardState{Commit: 1, Term: 1},
-		},
-		wc)
 }
