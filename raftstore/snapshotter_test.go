@@ -34,7 +34,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -121,14 +120,14 @@ func TestZombieSnapshotDirsCanBeRemoved(t *testing.T) {
 func testZombieSnapshotDirsCanBeRemoved(t *testing.T, explicit bool) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv()
+		env1 := s.getCreatingSnapshotEnv(0)
 		env1.FinalizeIndex(100)
-		env2 := s.getEnv()
+		env2 := s.getCreatingSnapshotEnv(0)
 		env2.FinalizeIndex(200)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
 		fd1 = fd1 + "." + tmpSnapshotDirSuffix
-		fd2 = fd2 + "-100." + recvTmpDirSuffix
+		fd2 = fd2 + "." + recvTmpDirSuffix
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
 			t.Errorf("failed to create dir %v", err)
 		}
@@ -157,9 +156,9 @@ func testZombieSnapshotDirsCanBeRemoved(t *testing.T, explicit bool) {
 func TestSnapshotsNotInLogDBAreRemoved(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv()
+		env1 := s.getCreatingSnapshotEnv(0)
 		env1.FinalizeIndex(100)
-		env2 := s.getEnv()
+		env2 := s.getCreatingSnapshotEnv(0)
 		env2.FinalizeIndex(200)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
@@ -185,11 +184,11 @@ func TestSnapshotsNotInLogDBAreRemoved(t *testing.T) {
 func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		env1 := s.getEnv()
+		env1 := s.getCreatingSnapshotEnv(0)
 		env1.FinalizeIndex(100)
-		env2 := s.getEnv()
+		env2 := s.getCreatingSnapshotEnv(0)
 		env2.FinalizeIndex(200)
-		env3 := s.getEnv()
+		env3 := s.getCreatingSnapshotEnv(0)
 		env3.FinalizeIndex(300)
 		s1 := raftpb.Snapshot{
 			Metadata: raftpb.SnapshotMetadata{
@@ -237,7 +236,7 @@ func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 				Term:  200,
 			},
 		}
-		env := s.getEnv()
+		env := s.getCreatingSnapshotEnv(0)
 		env.FinalizeIndex(100)
 		fd1 := env.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
@@ -271,9 +270,9 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 				Term:  200,
 			},
 		}
-		env1 := s.getEnv()
+		env1 := s.getCreatingSnapshotEnv(0)
 		env1.FinalizeIndex(s1.Metadata.Index)
-		env2 := s.getEnv()
+		env2 := s.getCreatingSnapshotEnv(0)
 		env2.FinalizeIndex(s2.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
@@ -338,11 +337,11 @@ func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 				Term:  200,
 			},
 		}
-		env1 := s.getEnv()
+		env1 := s.getCreatingSnapshotEnv(0)
 		env1.FinalizeIndex(s1.Metadata.Index)
-		env2 := s.getEnv()
+		env2 := s.getCreatingSnapshotEnv(0)
 		env2.FinalizeIndex(s2.Metadata.Index)
-		env3 := s.getEnv()
+		env3 := s.getCreatingSnapshotEnv(0)
 		env3.FinalizeIndex(s3.Metadata.Index)
 		fd1 := env1.GetFinalDir()
 		fd2 := env2.GetFinalDir()
@@ -392,7 +391,7 @@ func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 			t.Errorf("fd2 not removed")
 		}
 		if _, err := fs.Stat(fd4); vfs.IsNotExist(err) {
-			t.Errorf("fd3 removed by mistake")
+			t.Errorf("fd4 removed by mistake")
 		}
 	}
 	runSnapshotterTest(t, fn, fs)
@@ -404,7 +403,8 @@ func TestSnapshotDirNameMatchWorks(t *testing.T) {
 			dirName string
 			valid   bool
 		}{
-			{"snapshot-AB", true},
+			{"snapshot-AB-CD", true},
+			{"snapshot-AB", false},
 			{"snapshot", false},
 			{"xxxsnapshot-AB", false},
 			{"snapshot-ABd", false},
@@ -432,13 +432,14 @@ func TestZombieSnapshotDirNameMatchWorks(t *testing.T) {
 			{"xxxsnapshot-AB", false},
 			{"snapshot-", false},
 			{"snapshot-AB-01.receiving", true},
+			{"snapshot-AB-CD.receiving", true},
 			{"snapshot-AB-1G.receiving", false},
 			{"snapshot-AB.receiving", false},
 			{"snapshot-XX.receiving", false},
 			{"snapshot-AB.receivingd", false},
 			{"dsnapshot-AB.receiving", false},
-			{"snapshot-AB.generating", true},
-			{"snapshot-AB-01.generating", false},
+			{"snapshot-AB-CD.generating", true},
+			{"snapshot-AB-01.generating", true},
 			{"snapshot-AB-0G.generating", false},
 			{"snapshot-XX.generating", false},
 			{"snapshot-AB.generatingd", false},
@@ -461,14 +462,17 @@ func TestSnapshotterParseIndex(t *testing.T) {
 		index uint64
 		fail  bool
 	}{
-		{"snapshot-123", 0x123, false},
-		{"snapshot-123-123", 0, true},
+		{"snapshot-123-456", 0x123, false},
+		{"snapshot-123-123", 0x123, false},
+		{"snapshot-123", 0, true},
 		{"xsnapshot-123", 0, true},
 		{"snapshot-123x", 0, true},
-		{"snapshot-FF", 255, false},
+		{"snapshot-FF", 0, true},
 		{"snapshot-FFx", 0, true},
 		{"snapshot-123.receiving", 0, true},
 		{"snapshot-123.creating", 0, true},
+		{"snapshot-123-456.receiving", 0, true},
+		{"snapshot-123-456.creating", 0, true},
 	}
 
 	fs := vfs.GetTestFS()
@@ -519,7 +523,7 @@ func TestSnapshotCanBeFinalized(t *testing.T) {
 		ss := raftpb.Snapshot{
 			Metadata: sm,
 		}
-		env := s.getEnv()
+		env := s.getCreatingSnapshotEnv(0)
 		env.FinalizeIndex(sm.Index)
 		finalSnapDir := env.GetFinalDir()
 		tmpDir := env.GetTempDir()
@@ -540,18 +544,12 @@ func TestSnapshotCanBeFinalized(t *testing.T) {
 			t.Fatalf("write failed %v", err)
 		}
 		f.Close()
-		if err = s.commit(ss); err != nil {
+		if err = s.commit(ss, env); err != nil {
 			t.Errorf("finalize snapshot failed %v", err)
 		}
-		snapshot, err := ldb.GetSnapshot(1)
-		if err != nil {
-			t.Errorf("failed to list snapshot %v", err)
-		}
-		if raft.IsEmptySnap(snapshot) {
-			t.Errorf("failed to get snapshot")
-		}
-		if snapshot.Metadata.Index != 100 {
-			t.Errorf("returned an unexpected snapshot")
+		_, err = ldb.GetSnapshot(1)
+		if err != logdb.ErrNoSnapshot {
+			t.Errorf("unexpected snapshot query result %v", err)
 		}
 		if _, err = fs.Stat(tmpDir); !vfs.IsNotExist(err) {
 			t.Errorf("tmp dir not removed, %v", err)

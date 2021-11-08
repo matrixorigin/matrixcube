@@ -33,11 +33,14 @@ import (
 	"strconv"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
+	"github.com/lni/goutils/random"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -129,17 +132,31 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 		if !dirInfo.IsDir() {
 			continue
 		}
-		dirName := s.fs.PathJoin(s.rootDir, dirInfo.Name())
-		if s.isOrphan(dirInfo.Name()) {
-			if err := s.processOrphans(dirName, noss, ss); err != nil {
+		fn := dirInfo.Name()
+		dirName := s.fs.PathJoin(s.rootDir, fn)
+		if s.isOrphan(fn) {
+			s.logger.Info("found an orphan folder",
+				zap.String("dirname", fn))
+			// looks like a complete snapshot, but the flag file is still in the dir
+			if err := s.processOrphans(dirName, noss, ss, removeDir); err != nil {
 				return err
 			}
-		} else if s.isZombie(dirInfo.Name()) {
+		} else if s.isZombie(fn) {
+			s.logger.Info("found a zombie folder",
+				zap.String("dirname", fn))
+			// snapshot dir name with the ".receiving" or ".generating" suffix
+			// implies that it is an incomplete snapshot
 			if err := removeDir(dirName); err != nil {
 				return err
 			}
-		} else if s.isSnapshot(dirInfo.Name()) {
-			index := s.parseIndex(dirInfo.Name())
+		} else if s.isSnapshot(fn) {
+			// fully processed snapshot image with the flag file already removed
+			index := s.parseIndex(fn)
+			s.logger.Info("found a snapshot folder",
+				zap.String("dirname", fn),
+				zap.Bool("no-snapshot-in-logdb", noss),
+				zap.Uint64("index", index),
+				zap.Uint64("snapshot-index", ss.Metadata.Index))
 			if noss || index != ss.Metadata.Index {
 				if err := removeDir(dirName); err != nil {
 					return err
@@ -151,7 +168,7 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 }
 
 func (s *snapshotter) processOrphans(dirName string,
-	noss bool, ss raftpb.Snapshot) error {
+	noss bool, ss raftpb.Snapshot, removeDir func(string) error) error {
 	var ssFromDir raftpb.Snapshot
 	if err := fileutil.GetFlagFileContent(dirName,
 		fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
@@ -169,16 +186,17 @@ func (s *snapshotter) processOrphans(dirName string,
 		}
 	}
 	if remove {
-		return s.remove(ssFromDir.Metadata.Index)
+		return removeDir(dirName)
 	}
-	return s.removeFlagFile(ssFromDir.Metadata.Index)
+	return s.removeFlagFile(dirName)
 }
 
 func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
+	extra := random.LockGuardedRand.Uint64()
+	env = s.getCreatingSnapshotEnv(extra)
 	s.logger.Info("saving snapshot",
 		zap.String("tmpdir", env.GetTempDir()))
-	env = s.getEnv()
 	if err := env.CreateTempDir(); err != nil {
 		return raftpb.Snapshot{}, env, err
 	}
@@ -194,8 +212,10 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	if term == 0 {
 		panic("snapshot term is 0")
 	}
+	env.FinalizeIndex(index)
 	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
+		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
 			Index: index,
 			Term:  term,
@@ -203,8 +223,7 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	}, env, nil
 }
 
-func (s *snapshotter) commit(ss raftpb.Snapshot) error {
-	env := s.getEnv()
+func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 	env.FinalizeIndex(ss.Metadata.Index)
 	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
 		return err
@@ -215,27 +234,16 @@ func (s *snapshotter) commit(ss raftpb.Snapshot) error {
 		}
 		return err
 	}
-	if err := s.saveSnapshot(ss); err != nil {
-		return err
-	}
 	return env.RemoveFlagFile()
 }
 
-func (s *snapshotter) remove(index uint64) error {
-	env := s.getEnv()
-	env.FinalizeIndex(index)
-	return env.RemoveFinalDir()
+func (s *snapshotter) removeFlagFile(dirName string) error {
+	return fileutil.RemoveFlagFile(dirName, fileutil.SnapshotFlagFilename, s.fs)
 }
 
-func (s *snapshotter) removeFlagFile(index uint64) error {
-	env := s.getEnv()
-	env.FinalizeIndex(index)
-	return env.RemoveFlagFile()
-}
-
-func (s *snapshotter) getEnv() snapshot.SSEnv {
+func (s *snapshotter) getCreatingSnapshotEnv(extra uint64) snapshot.SSEnv {
 	return snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, 0, s.replicaID, snapshot.CreatingMode, s.fs)
+		s.shardID, s.replicaID, 0, extra, snapshot.CreatingMode, s.fs)
 }
 
 func (s *snapshotter) dirMatch(dir string) bool {

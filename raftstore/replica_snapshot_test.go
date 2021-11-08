@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -76,11 +77,18 @@ func runReplicaSnapshotTest(t *testing.T,
 
 func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
-		if err := r.createSnapshot(); err != nil {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
 			t.Fatalf("failed to create snapshot %v", err)
 		}
-		env := r.snapshotter.getEnv()
-		env.FinalizeIndex(100)
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
+		var si meta.SnapshotInfo
+		protoc.MustUnmarshal(&si, ss.Data)
+		env := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss.Metadata.Index, si.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env.FinalizeIndex(ss.Metadata.Index)
 		snapshotDir := env.GetFinalDir()
 		if _, err := fs.Stat(snapshotDir); vfs.IsNotExist(err) {
 			t.Errorf("snapshot final dir not created, %v", err)
@@ -98,10 +106,9 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 			snapshot.MetadataFilename, &ssFromDir, fs); err != nil {
 			t.Errorf("failed to get flag file content %v", err)
 		}
-		assert.Equal(t, uint64(100), ssFromDir.Index)
-		ssFromLogDB, err := r.logdb.GetSnapshot(1)
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
+		assert.Equal(t, ss.Metadata.Index, ssFromDir.Index)
+		_, err = r.logdb.GetSnapshot(1)
+		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
@@ -109,19 +116,49 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 
 func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
+		ss1, created, err := r.createSnapshot()
+		assert.Equal(t, uint64(100), ss1.Metadata.Index)
+		assert.NoError(t, err)
+		assert.True(t, created)
+
+		var si1 meta.SnapshotInfo
+		protoc.MustUnmarshal(&si1, ss1.Data)
+		env1 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss1.Metadata.Index, si1.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env1.FinalizeIndex(ss1.Metadata.Index)
+		snapshotDir1 := env1.GetFinalDir()
+		if _, err := fs.Stat(snapshotDir1); vfs.IsNotExist(err) {
+			t.Errorf("snapshot final dir not created, %v", err)
 		}
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
+
+		ss2, created, err := r.createSnapshot()
+		assert.Equal(t, uint64(100), ss2.Metadata.Index)
+		assert.NoError(t, err)
+		assert.True(t, created)
+
+		var si2 meta.SnapshotInfo
+		protoc.MustUnmarshal(&si2, ss2.Data)
+		env2 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
+			1, 1, ss2.Metadata.Index, si2.Extra, snapshot.CreatingMode, r.snapshotter.fs)
+		env2.FinalizeIndex(ss2.Metadata.Index)
+		snapshotDir2 := env2.GetFinalDir()
+		if _, err := fs.Stat(snapshotDir2); vfs.IsNotExist(err) {
+			t.Errorf("snapshot final dir not created, %v", err)
 		}
+
+		assert.NotEqual(t, snapshotDir1, snapshotDir2)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
 }
 
-func TestCreatingOutOfDateSnapshotIsTolerated(t *testing.T) {
+func TestCreatingOutOfDateSnapshotWillCausePanic(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("failed to trigger panic")
+			}
+		}()
 		ss := raftpb.Snapshot{
 			Metadata: raftpb.SnapshotMetadata{
 				Index: 200,
@@ -129,15 +166,7 @@ func TestCreatingOutOfDateSnapshotIsTolerated(t *testing.T) {
 			},
 		}
 		assert.NoError(t, r.lr.CreateSnapshot(ss))
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
-		}
-		ssFromReplica, err := r.lr.Snapshot()
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(200), ssFromReplica.Metadata.Index)
-		ssFromLogDB, err := r.logdb.GetSnapshot(1)
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
+		r.createSnapshot()
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
