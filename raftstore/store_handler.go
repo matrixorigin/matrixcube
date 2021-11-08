@@ -202,29 +202,23 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		}
 	}
 
-	// now we can create a replicate
-	pr, err := createReplicaWithRaftMessage(s, msg, target, "receive raft message")
-	if err != nil {
-		s.logger.Error("fail to create replica",
-			s.storeField(),
-			log.ShardIDField(msg.ShardID),
-			zap.Error(err))
-		return false
-	}
-
-	// Following snapshot may overlap, should insert into keyRanges after snapshot is applied.
-	if s.addReplica(pr) {
-		pr.start()
-
-		// FIXME: this seems to be wrong
-		// pr.shard.Peers = append(pr.shard.Peers, msg.To)
-		// pr.shard.Peers = append(pr.shard.Peers, msg.From)
-		shard := pr.getShard()
-		s.updateShardKeyRange(shard.Group, shard)
-
-		s.replicaRecords.Store(msg.From.ID, msg.From)
-		s.replicaRecords.Store(msg.To.ID, msg.To)
-	}
-
+	newReplicaCreator(s).
+		withReason("raft message").
+		withStartReplica(nil).
+		withReplicaRecordGetter(func(s Shard) Replica { return target }).
+		create([]Shard{
+			{
+				ID:           msg.ShardID,
+				Epoch:        msg.ShardEpoch,
+				Start:        msg.Start,
+				End:          msg.End,
+				Group:        msg.Group,
+				DisableSplit: msg.DisableSplit,
+				Unique:       msg.Unique,
+				// The only replica we currently know of is `From`. Later, we can get a replica of the quasi-group
+				// by executing the raft log of Config Change or receiving a snapshot.
+				Replicas: []Replica{msg.From},
+			},
+		})
 	return true
 }

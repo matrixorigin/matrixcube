@@ -860,9 +860,7 @@ func (c *testRaftCluster) Stop() {
 		s.Stop()
 	}
 
-	for _, s := range c.dataStorages {
-		s.Close()
-	}
+	c.closeStorage()
 
 	for _, s := range c.stores {
 		fs := s.cfg.FS
@@ -870,6 +868,12 @@ func (c *testRaftCluster) Stop() {
 			panic("fs not set")
 		}
 		vfs.ReportLeakedFD(fs, c.t)
+	}
+}
+
+func (c *testRaftCluster) closeStorage() {
+	for _, s := range c.dataStorages {
+		s.Close()
 	}
 }
 
@@ -1111,4 +1115,13 @@ func (b *TestDataBuilder) CreateShard(id uint64, replicasFormater string) Shard 
 		End:      format.Uint64ToBytes(id + 1),
 		Replicas: replicas,
 	}
+}
+
+func newTestStore(t *testing.T) (*store, func()) {
+	c := NewSingleTestClusterStore(t).(*testRaftCluster)
+	for _, ds := range c.dataStorages {
+		_, err := ds.GetInitialStates()
+		assert.NoError(t, err)
+	}
+	return c.GetStore(0).(*store), func() { c.closeStorage() }
 }

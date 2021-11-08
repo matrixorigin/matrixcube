@@ -62,7 +62,7 @@ func runReplicaSnapshotTest(t *testing.T,
 	}))
 	assert.NoError(t, ds.Sync([]uint64{1}))
 
-	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil)
+	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
 	r := &replica{
 		logger:      logger,
 		logdb:       ldb,

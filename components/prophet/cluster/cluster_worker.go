@@ -336,6 +336,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			}
 
 			res.Peers()[idx].ID = id
+			res.Peers()[idx].InitialMember = true
 		}
 
 		c.logger.Info("resource created",

@@ -69,7 +69,7 @@ func TestDestroyReplica(t *testing.T) {
 		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
 	}
-	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), s.logdb, shard, pr.replica, nil)
+	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), s.logdb, shard, pr.replica, nil, nil)
 	s.vacuumCleaner.start()
 	defer s.vacuumCleaner.close()
 	close(pr.startedC)

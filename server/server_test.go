@@ -31,7 +31,7 @@ func TestExec(t *testing.T) {
 	s.Start()
 	defer s.Stop()
 
-	v, err := s.Exec(newTestWriteCustomRequest("k", "v"), time.Second*5)
+	v, err := s.Exec(newTestWriteCustomRequest("k", "v"), time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, simple.OK, v)
 }
@@ -54,7 +54,7 @@ func TestAsyncExec(t *testing.T) {
 		resp = r
 		err = e
 		ch <- struct{}{}
-	}, time.Second*10)
+	}, time.Minute)
 	<-ch
 	assert.NoError(t, err)
 	assert.Equal(t, simple.OK, resp)
