@@ -21,7 +21,7 @@ func TestShardCreateWithStart(t *testing.T) {
 
 	var pr *replica
 	db := NewTestDataBuilder()
-	newShardCreator(s).
+	newReplicaCreator(s).
 		withReason("TestShardCreateWithSaveMetadata").
 		withStartReplica(func(r *replica) {
 			pr = r
@@ -40,7 +40,7 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	defer close()
 
 	db := NewTestDataBuilder()
-	newShardCreator(s).
+	newReplicaCreator(s).
 		withReason("TestShardCreateWithSaveMetadata").
 		withSaveMetadata(sync).
 		create([]Shard{

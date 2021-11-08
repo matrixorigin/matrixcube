@@ -179,7 +179,7 @@ func (pr *replica) applySplit(result *splitResult) {
 
 	isLeader := pr.isLeader()
 	reason := fmt.Sprintf("create by shard %d splitted", pr.shardID)
-	newShardCreator(pr.store).
+	newReplicaCreator(pr.store).
 		withReason(reason).
 		withStartReplica(func(r *replica) {
 			shard := r.getShard()

@@ -103,7 +103,7 @@ func (s *store) doBootstrapCluster() {
 			resources = append(resources, NewResourceAdapterWithShard(shard))
 		}
 
-		newShardCreator(s).
+		newReplicaCreator(s).
 			withReason("bootstrap init").
 			withSaveMetadata(true).
 			create(initShards)
@@ -201,7 +201,7 @@ func (s *store) doCreateInitShard(shard *Shard) {
 }
 
 func (s *store) removeInitShards(shards ...Shard) {
-	doWithShardsByGroup(s.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
+	doWithShardsByGroupID(s.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
 		for _, shard := range v {
 			if err := ds.RemoveShard(shard, true); err != nil {
 				s.logger.Fatal("failed to remove init shards",

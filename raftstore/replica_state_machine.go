@@ -79,16 +79,16 @@ type replicaResultHandler interface {
 var _ replicaResultHandler = (*replica)(nil)
 
 type stateMachine struct {
-	logger              *zap.Logger
-	shardID             uint64
-	replica             Replica
-	applyCtx            *applyContext
-	writeCtx            *writeContext
-	dataStorage         storage.DataStorage
-	logdb               logdb.LogDB
-	wc                  *logdb.WorkerContext
-	shardCreatorFactory shardCreatorFactory
-	resultHandler       replicaResultHandler
+	logger                *zap.Logger
+	shardID               uint64
+	replica               Replica
+	applyCtx              *applyContext
+	writeCtx              *writeContext
+	dataStorage           storage.DataStorage
+	logdb                 logdb.LogDB
+	wc                    *logdb.WorkerContext
+	replicaCreatorFactory replicaCreatorFactory
+	resultHandler         replicaResultHandler
 
 	metadataMu struct {
 		sync.Mutex
@@ -102,17 +102,17 @@ type stateMachine struct {
 
 func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 	shard Shard, replica Replica, h replicaResultHandler,
-	shardCreatorFactory shardCreatorFactory) *stateMachine {
+	replicaCreatorFactory replicaCreatorFactory) *stateMachine {
 	sm := &stateMachine{
-		logger:              l,
-		shardID:             shard.ID,
-		replica:             replica,
-		applyCtx:            newApplyContext(),
-		writeCtx:            newWriteContext(ds),
-		dataStorage:         ds,
-		logdb:               ldb,
-		resultHandler:       h,
-		shardCreatorFactory: shardCreatorFactory,
+		logger:                l,
+		shardID:               shard.ID,
+		replica:               replica,
+		applyCtx:              newApplyContext(),
+		writeCtx:              newWriteContext(ds),
+		dataStorage:           ds,
+		logdb:                 ldb,
+		resultHandler:         h,
+		replicaCreatorFactory: replicaCreatorFactory,
 	}
 	if ldb != nil {
 		sm.wc = ldb.NewWorkerContext()

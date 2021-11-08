@@ -202,7 +202,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		}
 	}
 
-	newShardCreator(s).
+	newReplicaCreator(s).
 		withReason("raft message").
 		withStartReplica(nil).
 		withReplicaRecordGetter(func(s Shard) Replica { return target }).

@@ -203,7 +203,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	d.shardCreatorFactory().
+	d.replicaCreatorFactory().
 		withReason("splited").
 		withLogdbContext(d.wc).
 		withSaveMetadata(false).

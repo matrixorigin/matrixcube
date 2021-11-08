@@ -421,7 +421,7 @@ func (s *store) startShards() {
 		}
 	})
 
-	newShardCreator(s).
+	newReplicaCreator(s).
 		withReason("restart").
 		withStartReplica(nil).
 		create(shards)

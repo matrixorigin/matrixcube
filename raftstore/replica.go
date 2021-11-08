@@ -151,7 +151,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 	}
 
 	storage := store.DataStorageByGroup(shard.Group)
-	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *shardCreator { return newShardCreator(store) })
+	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *replicaCreator { return newReplicaCreator(store) })
 	return pr, nil
 }
 
