@@ -76,9 +76,13 @@ func runReplicaSnapshotTest(t *testing.T,
 
 func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
-		if err := r.createSnapshot(); err != nil {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
 			t.Fatalf("failed to create snapshot %v", err)
 		}
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
 		env := r.snapshotter.getCreatingSnapshotEnv(0)
 		env.FinalizeIndex(100)
 		snapshotDir := env.GetFinalDir()
@@ -99,9 +103,8 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 			t.Errorf("failed to get flag file content %v", err)
 		}
 		assert.Equal(t, uint64(100), ssFromDir.Index)
-		ssFromLogDB, err := r.logdb.GetSnapshot(1)
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
+		_, err = r.logdb.GetSnapshot(1)
+		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
@@ -109,19 +112,27 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 
 func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
-		}
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
-		}
+		ss1, created, err := r.createSnapshot()
+		assert.Equal(t, uint64(100), ss1.Metadata.Index)
+		assert.NoError(t, err)
+		assert.True(t, created)
+
+		ss2, created, err := r.createSnapshot()
+		assert.Equal(t, uint64(100), ss2.Metadata.Index)
+		assert.NoError(t, err)
+		assert.True(t, created)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
 }
 
-func TestCreatingOutOfDateSnapshotIsTolerated(t *testing.T) {
+func TestCreatingOutOfDateSnapshotWillCausePanic(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("failed to trigger panic")
+			}
+		}()
 		ss := raftpb.Snapshot{
 			Metadata: raftpb.SnapshotMetadata{
 				Index: 200,
@@ -129,15 +140,7 @@ func TestCreatingOutOfDateSnapshotIsTolerated(t *testing.T) {
 			},
 		}
 		assert.NoError(t, r.lr.CreateSnapshot(ss))
-		if err := r.createSnapshot(); err != nil {
-			t.Fatalf("failed to create snapshot %v", err)
-		}
-		ssFromReplica, err := r.lr.Snapshot()
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(200), ssFromReplica.Metadata.Index)
-		ssFromLogDB, err := r.logdb.GetSnapshot(1)
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(100), ssFromLogDB.Metadata.Index)
+		r.createSnapshot()
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

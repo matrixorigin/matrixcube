@@ -191,10 +191,10 @@ func (s *snapshotter) processOrphans(dirName string,
 
 func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
-	s.logger.Info("saving snapshot",
-		zap.String("tmpdir", env.GetTempDir()))
 	extra := random.LockGuardedRand.Uint64()
 	env = s.getCreatingSnapshotEnv(extra)
+	s.logger.Info("saving snapshot",
+		zap.String("tmpdir", env.GetTempDir()))
 	if err := env.CreateTempDir(); err != nil {
 		return raftpb.Snapshot{}, env, err
 	}
@@ -210,6 +210,7 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	if term == 0 {
 		panic("snapshot term is 0")
 	}
+	env.FinalizeIndex(index)
 	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
@@ -230,9 +231,6 @@ func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 		}
 		return err
 	}
-	if err := s.saveSnapshot(ss); err != nil {
-		return err
-	}
 	return env.RemoveFlagFile()
 }
 
@@ -242,7 +240,7 @@ func (s *snapshotter) removeFlagFile(dirName string) error {
 
 func (s *snapshotter) getCreatingSnapshotEnv(extra uint64) snapshot.SSEnv {
 	return snapshot.NewSSEnv(s.rootDirFunc,
-		s.shardID, s.replicaID, extra, s.replicaID, snapshot.CreatingMode, s.fs)
+		s.shardID, s.replicaID, 0, extra, snapshot.CreatingMode, s.fs)
 }
 
 func (s *snapshotter) dirMatch(dir string) bool {

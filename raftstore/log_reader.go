@@ -262,7 +262,7 @@ func (lr *LogReader) CreateSnapshot(snapshot pb.Snapshot) error {
 }
 
 func (lr *LogReader) setSnapshot(snapshot pb.Snapshot) error {
-	if lr.snapshot.Metadata.Index >= snapshot.Metadata.Index {
+	if lr.snapshot.Metadata.Index > snapshot.Metadata.Index {
 		lr.logger.Debug("called setSnapshot",
 			zap.String("id", lr.id()),
 			zap.Uint64("existing", lr.snapshot.Metadata.Index),

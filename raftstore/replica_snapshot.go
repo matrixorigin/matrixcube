@@ -16,39 +16,42 @@ package raftstore
 import (
 	"github.com/cockroachdb/errors"
 	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
-func (r *replica) createSnapshot() error {
+func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
+	// FIXME: returned ss should have the extra index info encoded & embedded
 	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage)
 	if err != nil {
 		if errors.Is(err, storage.ErrAborted) {
 			r.logger.Info("snapshot aborted")
 			ssenv.MustRemoveTempDir()
-			return nil
+			return raftpb.Snapshot{}, false, nil
 		}
-		return err
+		return raftpb.Snapshot{}, false, err
 	}
 	if err := r.snapshotter.commit(ss, ssenv); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
-			r.logger.Info("aborted committing an out of date snapshot",
-				log.SnapshotField(ss))
+			// same snapshot index and same random uint64
 			ssenv.MustRemoveTempDir()
-			return nil
+			r.logger.Fatal("snapshot final dir already exist",
+				zap.String("snapshot-dirname", ssenv.GetFinalDir()))
 		}
-		return err
+		return raftpb.Snapshot{}, false, err
 	}
 	if err := r.lr.CreateSnapshot(ss); err != nil {
 		if errors.Is(err, raft.ErrSnapOutOfDate) {
 			// lr already has a more recent snapshot
-			r.logger.Info("aborted registering an out of date snapshot",
+			r.logger.Fatal("aborted registering an out of date snapshot",
 				log.SnapshotField(ss))
-			return nil
 		}
+		return raftpb.Snapshot{}, false, err
 	}
 	// TODO: schedule log compacton here
-	return nil
+	return ss, true, nil
 }

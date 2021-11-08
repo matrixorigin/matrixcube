@@ -34,7 +34,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -548,15 +547,9 @@ func TestSnapshotCanBeFinalized(t *testing.T) {
 		if err = s.commit(ss, env); err != nil {
 			t.Errorf("finalize snapshot failed %v", err)
 		}
-		snapshot, err := ldb.GetSnapshot(1)
-		if err != nil {
-			t.Errorf("failed to list snapshot %v", err)
-		}
-		if raft.IsEmptySnap(snapshot) {
-			t.Errorf("failed to get snapshot")
-		}
-		if snapshot.Metadata.Index != 100 {
-			t.Errorf("returned an unexpected snapshot")
+		_, err = ldb.GetSnapshot(1)
+		if err != logdb.ErrNoSnapshot {
+			t.Errorf("unexpected snapshot query result %v", err)
 		}
 		if _, err = fs.Stat(tmpDir); !vfs.IsNotExist(err) {
 			t.Errorf("tmp dir not removed, %v", err)
