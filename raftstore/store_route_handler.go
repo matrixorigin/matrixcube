@@ -40,7 +40,7 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 	if s.cfg.Test.SaveDynamicallyShardInitStateWait > 0 {
 		time.Sleep(s.cfg.Test.SaveDynamicallyShardInitStateWait)
 	}
-	s.mustSaveShards(shard)
+	s.mustCreateShardsOnStorage(shard)
 	pr.start()
 
 	for _, p := range shard.Replicas {

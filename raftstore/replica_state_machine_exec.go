@@ -215,7 +215,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		d.wc.Reset()
 
 		replica := findReplica(newShard, d.replica.ContainerID)
-		err := addFirstUpdateMetadataLog(d.logdb, metadata[len(metadata)-1].Metadata, *replica, d.wc)
+		err := maybeAddFirstUpdateMetadataLog(d.logdb, metadata[len(metadata)-1].Metadata, *replica, d.wc)
 		if err != nil {
 			d.logger.Fatal("fail to save first raft log",
 				log.ShardField("new-shard", newShard),

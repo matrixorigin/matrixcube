@@ -508,10 +508,15 @@ func (l *etcdRaftLoggerAdapter) Panicf(format string, v ...interface{}) {
 	l.logger.Panicf(format, v...)
 }
 
-// addFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all subsequent metadata
-// changes need to correspond to a raft log, which is used to ensure the consistency of
-// metadata.
-func addFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, replica Replica, wc *logdb.WorkerContext) error {
+// maybeAddFirstUpdateMetadataLog the first log of all shards is a log of updated metadata, and all
+// subsequent metadata changes need to correspond to a raft log, which is used to ensure the consistency
+// of metadata. Only InitialMember can add.
+func maybeAddFirstUpdateMetadataLog(ldb logdb.LogDB, state meta.ShardLocalState, replica Replica, wc *logdb.WorkerContext) error {
+	// only InitialMember replica need to add this raft log
+	if !replica.InitialMember {
+		return nil
+	}
+
 	rb := rpc.RequestBatch{}
 	rb.Header.ShardID = state.Shard.ID
 	rb.Header.Replica = replica

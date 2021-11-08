@@ -13,16 +13,7 @@
 
 package raftstore
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestDoDynamicallyCreate(t *testing.T) {
-	c := NewSingleTestClusterStore(t)
-	s := c.GetStore(0).(*store)
-	s.DataStorageByGroup(1).GetInitialStates()
-	s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}})
-	assert.NotNil(t, s.getReplica(100, false))
-}
+// The entry point for all Shards created in the cube, the current scenarios for creating Replica are as below
+// 1. the first set of shards created when the cluster is created
+// 2. Shards created dynamically through Prophet's API
+// 3. After Rebalance, we receive a draft message from the Leader and create a shard

@@ -102,7 +102,7 @@ func (s *store) doBootstrapCluster() {
 			initShards = append(initShards, shard)
 			resources = append(resources, NewResourceAdapterWithShard(shard))
 		}
-		s.mustSaveShards(initShards...)
+		s.mustCreateShardsOnStorage(initShards...)
 
 		ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
 		if err != nil {
@@ -190,12 +190,13 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.Epoch.Version = 1
 	shard.Epoch.ConfVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
-		ID:          peerID,
-		ContainerID: s.meta.meta.ID,
+		ID:            peerID,
+		ContainerID:   s.meta.meta.ID,
+		InitialMember: true,
 	})
 }
 
-func (s *store) mustSaveShards(shards ...Shard) {
+func (s *store) mustCreateShardsOnStorage(shards ...Shard) {
 	s.doWithShardsByGroup(func(ds storage.DataStorage, v []Shard) {
 		var sm []meta.ShardMetadata
 		var ids []uint64
@@ -210,7 +211,7 @@ func (s *store) mustSaveShards(shards ...Shard) {
 				},
 			})
 
-			err := addFirstUpdateMetadataLog(s.logdb, sm[len(sm)-1].Metadata, shard.Replicas[0], nil)
+			err := maybeAddFirstUpdateMetadataLog(s.logdb, sm[len(sm)-1].Metadata, shard.Replicas[0], nil)
 			if err != nil {
 				s.logger.Fatal("fail to create init shards",
 					s.storeField(),
