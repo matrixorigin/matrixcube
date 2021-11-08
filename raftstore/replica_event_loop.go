@@ -149,7 +149,7 @@ func (pr *replica) shutdown() {
 	pr.logger.Info("replica shutdown completed")
 }
 
-func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
+func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool) {
 	select {
 	case <-pr.closedC:
 		if !pr.unloaded() {
@@ -160,26 +160,37 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
 	default:
 	}
 
-	pr.handleMessage(pr.items)
-	pr.handleTick(pr.items)
-	pr.handleFeedback(pr.items)
-	pr.handleRequest(pr.items)
+	if pr.handleMessage(pr.items) {
+		hasEvent = true
+	}
+	if pr.handleTick(pr.items) {
+		hasEvent = true
+	}
+	if pr.handleFeedback(pr.items) {
+		hasEvent = true
+	}
+	if pr.handleRequest(pr.items) {
+		hasEvent = true
+	}
 	if pr.rn.HasReady() {
+		hasEvent = true
 		pr.handleReady(wc)
 	}
+	if pr.handleAction(pr.items) {
+		hasEvent = true
+	}
 
-	pr.handleAction(pr.items)
-	return true
+	return hasEvent
 }
 
-func (pr *replica) handleAction(items []interface{}) {
+func (pr *replica) handleAction(items []interface{}) bool {
 	if size := pr.actions.Len(); size == 0 {
-		return
+		return false
 	}
 
 	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
-		return
+		return false
 	}
 
 	for i := int64(0); i < n; i++ {
@@ -202,16 +213,17 @@ func (pr *replica) handleAction(items []interface{}) {
 	if pr.actions.Len() > 0 {
 		pr.notifyWorker()
 	}
+	return true
 }
 
-func (pr *replica) handleMessage(items []interface{}) {
+func (pr *replica) handleMessage(items []interface{}) bool {
 	if size := pr.messages.Len(); size == 0 {
-		return
+		return false
 	}
 
 	n, err := pr.messages.Get(readyBatchSize, items)
 	if err != nil {
-		return
+		return false
 	}
 	for i := int64(0); i < n; i++ {
 		msg := items[i].(raftpb.Message)
@@ -230,36 +242,37 @@ func (pr *replica) handleMessage(items []interface{}) {
 	if size > 0 {
 		pr.notifyWorker()
 	}
+	return true
 }
 
-func (pr *replica) handleTick(items []interface{}) {
-	for {
-		if size := pr.ticks.Len(); size == 0 {
-			pr.metrics.flush()
-			metric.SetRaftTickQueueMetric(size)
-			return
-		}
+func (pr *replica) handleTick(items []interface{}) bool {
+	if size := pr.ticks.Len(); size == 0 {
+		pr.metrics.flush()
+		metric.SetRaftTickQueueMetric(size)
+		return false
+	}
 
-		n, err := pr.ticks.Get(readyBatchSize, items)
-		if err != nil {
-			return
-		}
-		for i := int64(0); i < n; i++ {
-			if !pr.stopRaftTick {
-				pr.rn.Tick()
-			}
+	n, err := pr.ticks.Get(readyBatchSize, items)
+	if err != nil {
+		return false
+	}
+	for i := int64(0); i < n; i++ {
+		if !pr.stopRaftTick {
+			pr.rn.Tick()
 		}
 	}
+
+	return true
 }
 
-func (pr *replica) handleFeedback(items []interface{}) {
+func (pr *replica) handleFeedback(items []interface{}) bool {
 	if size := pr.feedbacks.Len(); size == 0 {
-		return
+		return false
 	}
 
 	n, err := pr.feedbacks.Get(readyBatchSize, items)
 	if err != nil {
-		return
+		return false
 	}
 	for i := int64(0); i < n; i++ {
 		if msg, ok := items[i].(raftpb.Message); ok {
@@ -275,6 +288,8 @@ func (pr *replica) handleFeedback(items []interface{}) {
 	if size > 0 {
 		pr.notifyWorker()
 	}
+
+	return true
 }
 
 func (pr *replica) prophetHeartbeat() {
