@@ -23,6 +23,6 @@ func TestDoDynamicallyCreate(t *testing.T) {
 	c := NewSingleTestClusterStore(t)
 	s := c.GetStore(0).(*store)
 	s.DataStorageByGroup(1).GetInitialStates()
-	s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID}}})
+	s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}})
 	assert.NotNil(t, s.getReplica(100, false))
 }

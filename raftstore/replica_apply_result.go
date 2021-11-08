@@ -17,12 +17,11 @@ import (
 	"fmt"
 	"time"
 
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 type applyResult struct {
@@ -177,69 +176,28 @@ func (pr *replica) applySplit(result *splitResult) {
 	// based on the number of new shards.
 	estimatedSize := pr.approximateSize / uint64(len(result.newShards))
 	estimatedKeys := pr.approximateKeys / uint64(len(result.newShards))
-	for _, shard := range result.newShards {
-		// add new shard replicas to cache
-		for _, p := range shard.Replicas {
-			pr.store.replicaRecords.Store(p.ID, p)
-		}
 
-		newShardID := shard.ID
-		newReplica := pr.store.getReplica(newShardID, false)
-		if newReplica != nil {
-			// Suppose the Shard s1 has three replicas A, B and C, and needs to be split into s2+s3.
-			// Consider the processing logic:
-			// t1: A complete the split operation. Shard s2 and s3 created.
-			// t2: B receives a raft vote message of s2 from A before completing the split.
-			// t3: B apply split s1.
-
-			// Although the store will dynamically creating a replica of the Shard when receive a raft message
-			// but due to we haven't updated the key range metadata, so there must be a conflict in the range
-			// of the new shard and old shard.
-			pr.logger.Fatal("duplicated shard split to new shard",
-				log.ShardIDField(newShardID))
-		}
-
-		reason := fmt.Sprintf("split from shard %d", pr.shardID)
-		newReplica, err := createReplica(pr.store, shard, reason)
-		if err != nil {
-			// replica information is already written into db, can't recover.
-			// there is probably a bug.
-			pr.logger.Fatal("fail to create new shard replica",
-				log.ShardIDField(newShardID),
-				zap.Error(err))
-		}
-
-		newReplica.approximateKeys = estimatedKeys
-		newReplica.approximateSize = estimatedSize
-		if !pr.store.addReplica(newReplica) {
-			pr.logger.Fatal("fail to create new shard replica",
-				log.ShardIDField(newShardID))
-		}
-
-		newReplica.start()
-		// If this replica was the leader of the shard before split, it is expected
-		// to become the leader of the new split shard.
-		// The ticks are accelerated here, so that the replica for the new split shard
-		// comes to campaign earlier than the other follower replicas. And then it's
-		// more likely for this replica to become the leader of the new split shard.
-		// If the other follower replicas applies logs too slowly, they may fail to
-		// vote the `MsgRequestVote` from this replica on its campaign. In this worst
-		// case scenario, the new split raft group will not be available since there
-		// is no leader established during one election timeout after the split.
-		if pr.isLeader() && len(shard.Replicas) > 1 {
-			newReplica.addAction(action{actionType: campaignAction})
-		}
-		if !pr.isLeader() {
-			if vote, ok := pr.store.removeDroppedVoteMsg(newReplica.shardID); ok {
-				newReplica.addMessage(vote)
+	isLeader := pr.isLeader()
+	reason := fmt.Sprintf("create by shard %d splitted", pr.shardID)
+	newReplicaCreator(pr.store).
+		withReason(reason).
+		withStartReplica(func(r *replica) {
+			shard := r.getShard()
+			r.approximateKeys = estimatedKeys
+			r.approximateSize = estimatedSize
+			if isLeader && len(shard.Replicas) > 1 {
+				r.addAction(action{actionType: campaignAction})
 			}
-		}
-		pr.logger.Info("new shard added",
-			log.ShardField("new-shard", shard))
-	}
+			if !isLeader {
+				if vote, ok := pr.store.removeDroppedVoteMsg(r.shardID); ok {
+					r.addMessage(vote)
+				}
+			}
 
-	// all new shards started, update key range atomic
-	pr.store.updateShardKeyRange(result.newShards[0].Group, result.newShards...)
+			pr.logger.Info("new shard added",
+				log.ShardField("new-shard", shard))
+		}).
+		create(result.newShards)
 
 	// current shard not used, keep data.
 	pr.store.destroyReplica(pr.shardID, true, false, "splited")

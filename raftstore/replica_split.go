@@ -118,8 +118,9 @@ func (pr *replica) doSplit(act action) {
 		var replicas []Replica
 		for idIdx, r := range current.Replicas {
 			replicas = append(replicas, Replica{
-				ID:          act.splitCheckData.splitIDs[idx].NewReplicaIDs[idIdx],
-				ContainerID: r.ContainerID,
+				ID:            act.splitCheckData.splitIDs[idx].NewReplicaIDs[idIdx],
+				ContainerID:   r.ContainerID,
+				InitialMember: true,
 			})
 		}
 

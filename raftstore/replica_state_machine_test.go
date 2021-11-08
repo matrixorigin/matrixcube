@@ -116,7 +116,7 @@ func runSimpleStateMachineTest(t *testing.T,
 	executor := simple.NewSimpleKVExecutor(st)
 	base := kv.NewBaseStorage(st, fs)
 	ds := kv.NewKVDataStorage(base, executor)
-	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h)
+	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h, nil)
 	f(sm)
 }
 
