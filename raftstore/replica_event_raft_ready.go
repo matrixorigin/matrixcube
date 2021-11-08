@@ -66,6 +66,7 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 func (pr *replica) handleRaftState(rd raft.Ready) {
 	// etcd raft won't repeatedly return the same non-empty soft state
 	if rd.SoftState != nil {
+		pr.setLeaderReplicaID(rd.SoftState.Lead)
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")

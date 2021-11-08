@@ -162,7 +162,6 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
 
 	pr.handleMessage(pr.items)
 	pr.handleTick(pr.items)
-	pr.cacheRaftStatus()
 	pr.handleFeedback(pr.items)
 	pr.handleRequest(pr.items)
 	if pr.rn.HasReady() {
@@ -171,10 +170,6 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) bool {
 
 	pr.handleAction(pr.items)
 	return true
-}
-
-func (pr *replica) cacheRaftStatus() {
-	pr.setLeaderReplicaID(pr.rn.Status().Lead)
 }
 
 func (pr *replica) handleAction(items []interface{}) {
