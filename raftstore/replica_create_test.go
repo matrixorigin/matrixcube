@@ -7,6 +7,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func TestShardCreateWithSaveMetadata(t *testing.T) {
@@ -39,12 +40,13 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	s, close := newTestStore(t)
 	defer close()
 
+	s.meta.meta.ID = 100
 	db := NewTestDataBuilder()
 	newReplicaCreator(s).
 		withReason("TestShardCreateWithSaveMetadata").
 		withSaveMetadata(sync).
 		create([]Shard{
-			db.CreateShard(1, "1/10"),
+			db.CreateShard(1, "1/10/v/t,2/100/v/t"),
 		})
 	stats, err := s.DataStorageByGroup(0).GetInitialStates()
 	assert.NoError(t, err)
@@ -58,4 +60,10 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	} else {
 		assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount == 0)
 	}
+
+	stat, err := s.logdb.ReadRaftState(1, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), stat.FirstIndex)
+	assert.Equal(t, uint64(1), stat.EntryCount)
+	assert.Equal(t, raftpb.HardState{Commit: 1, Term: 1}, stat.State)
 }
