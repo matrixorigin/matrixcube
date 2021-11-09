@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRebalanceWithRules(t *testing.T) {
+func TestScheduleReplicasWithRules(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")
 		return

@@ -17,6 +17,10 @@ package raftstore
 // the watcher will receive the creation command, and this callback will be triggered.
 // Called in prophet event handle goroutine.
 func (s *store) doDynamicallyCreate(shard Shard) {
+	if r := findReplica(shard, s.Meta().ID); r == nil {
+		return
+	}
+
 	if _, ok := s.replicas.Load(shard.ID); ok {
 		return
 	}
