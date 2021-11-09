@@ -27,6 +27,7 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 	if !r.lr.GetSnapshotRequested() {
 		return nil
 	}
+	r.logger.Info("requested to create snapshot")
 	ss, created, err := r.createSnapshot()
 	if err != nil {
 		return err
