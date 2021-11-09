@@ -18,54 +18,6 @@ var (
 	testWaitTimeout = time.Minute
 )
 
-func TestSingleTestClusterStartAndStop(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := raftstore.NewSingleTestClusterStore(t,
-		raftstore.DiskTestCluster)
-	defer c.Stop()
-
-	c.Start()
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.CheckShardCount(1)
-}
-
-func TestClusterStartAndStop(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := raftstore.NewTestClusterStore(t)
-	defer c.Stop()
-
-	c.Start()
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.CheckShardCount(1)
-}
-
-func TestClusterStartWithMoreNodes(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := raftstore.NewTestClusterStore(t, raftstore.WithTestClusterNodeCount(5))
-	defer c.Stop()
-
-	c.Start()
-
-	c.WaitLeadersByCount(1, testWaitTimeout)
-}
-
-func TestClusterStartConcurrent(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-	c := raftstore.NewTestClusterStore(t, raftstore.DiskTestCluster)
-	defer c.Stop()
-
-	c.StartWithConcurrent(true)
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.CheckShardCount(1)
-
-	c.Restart()
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.CheckShardCount(1)
-}
-
 func TestAppliedRules(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	c := raftstore.NewTestClusterStore(t, raftstore.WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
