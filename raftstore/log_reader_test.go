@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 	pb "go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -328,13 +329,6 @@ func TestLogReaderApplySnapshot(t *testing.T) {
 	if li, _ := s.LastIndex(); li != 4 {
 		t.Errorf("last index %d, want 4", li)
 	}
-	//Apply Snapshot fails due to ErrSnapOutOfDate
-	i = 1
-	tt = tests[i]
-	err = s.ApplySnapshot(tt)
-	if err != raft.ErrSnapOutOfDate {
-		t.Errorf("#%d: err = %v, want %v", i, err, raft.ErrSnapOutOfDate)
-	}
 }
 
 func TestLogReaderCreateSnapshot(t *testing.T) {
@@ -403,12 +397,9 @@ func TestLogReaderGetSnapshot(t *testing.T) {
 	if err := s.ApplySnapshot(ss); err != nil {
 		t.Errorf("create snapshot failed %v", err)
 	}
-	rs, err := s.Snapshot()
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if rs.Metadata.Index != ss.Metadata.Index {
-		t.Errorf("unexpected snapshot rec")
+	_, err := s.Snapshot()
+	if err != raft.ErrSnapshotTemporarilyUnavailable {
+		t.Fatalf("failed to return raft.ErrSnapshotTemporarilyUnavailable, %v", err)
 	}
 }
 
@@ -437,4 +428,29 @@ func TestLogReaderInitialState(t *testing.T) {
 	if !reflect.DeepEqual(&rps, &ps) {
 		t.Errorf("hard state changed")
 	}
+}
+
+func TestLogReaderSnapshotReturnsErrSnapshotTemporarilyUnavailable(t *testing.T) {
+	lr := &LogReader{logger: log.GetPanicZapLogger()}
+	v, err := lr.Snapshot()
+	assert.Equal(t, pb.Snapshot{}, v)
+	assert.Equal(t, raft.ErrSnapshotTemporarilyUnavailable, err)
+	assert.True(t, lr.snapshotRequested)
+	assert.True(t, lr.GetSnapshotRequested())
+	assert.False(t, lr.snapshotRequested)
+	assert.False(t, lr.GetSnapshotRequested())
+
+	snap := pb.Snapshot{
+		Metadata: pb.SnapshotMetadata{
+			Index: 5,
+		},
+	}
+	lr.CreateSnapshot(snap)
+	v, err = lr.Snapshot()
+	assert.Equal(t, snap, v)
+	assert.Empty(t, err)
+
+	v, err = lr.Snapshot()
+	assert.Equal(t, pb.Snapshot{}, v)
+	assert.Equal(t, raft.ErrSnapshotTemporarilyUnavailable, err)
 }

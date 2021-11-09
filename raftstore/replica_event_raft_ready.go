@@ -49,6 +49,9 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 		return err
 	}
 	pr.handleReadyToRead(rd)
+	if err := pr.handleRaftCreateSnapshotRequest(); err != nil {
+		return err
+	}
 	pr.rn.Advance(rd)
 
 	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
