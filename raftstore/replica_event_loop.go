@@ -200,8 +200,8 @@ func (pr *replica) handleAction(items []interface{}) bool {
 		case splitAction:
 			pr.doSplit(act)
 		case campaignAction:
-			if _, err := pr.maybeCampaign(); err != nil {
-				pr.logger.Fatal("tail to campaign in raft",
+			if err := pr.doCampaign(); err != nil {
+				pr.logger.Fatal("tailed to do campaign",
 					zap.Error(err))
 			}
 		case heartbeatAction:

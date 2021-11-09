@@ -362,16 +362,8 @@ func (pr *replica) notifyWorker() {
 	pr.store.workerPool.notify(pr.shardID)
 }
 
-func (pr *replica) maybeCampaign() (bool, error) {
-	if len(pr.getShard().Replicas) <= 1 {
-		// The replica campaigned when it was created, no need to do it again.
-		return false, nil
-	}
-	if err := pr.rn.Campaign(); err != nil {
-		return false, err
-	}
-
-	return true, nil
+func (pr *replica) doCampaign() error {
+	return pr.rn.Campaign()
 }
 
 func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
