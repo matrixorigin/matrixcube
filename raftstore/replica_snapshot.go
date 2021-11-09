@@ -23,8 +23,23 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
+func (r *replica) handleRaftCreateSnapshotRequest() error {
+	if !r.lr.GetSnapshotRequested() {
+		return nil
+	}
+	r.logger.Info("requested to create snapshot")
+	ss, created, err := r.createSnapshot()
+	if err != nil {
+		return err
+	}
+	if created {
+		r.logger.Info("snapshot created and registered with the raft instance",
+			log.SnapshotField(ss))
+	}
+	return nil
+}
+
 func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
-	// FIXME: returned ss should have the extra index info encoded & embedded
 	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage)
 	if err != nil {
 		if errors.Is(err, storage.ErrAborted) {

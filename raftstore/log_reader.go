@@ -80,16 +80,17 @@ const (
 // into LogDB. LogReader implements the raft.Storage interface.
 type LogReader struct {
 	sync.Mutex
-	logger      *zap.Logger
-	snapshot    pb.Snapshot
-	state       pb.HardState
-	confState   pb.ConfState
-	markerIndex uint64
-	markerTerm  uint64
-	length      uint64
-	logdb       logdb.LogDB
-	shardID     uint64
-	replicaID   uint64
+	logger            *zap.Logger
+	snapshot          pb.Snapshot
+	state             pb.HardState
+	confState         pb.ConfState
+	logdb             logdb.LogDB
+	markerIndex       uint64
+	markerTerm        uint64
+	length            uint64
+	shardID           uint64
+	replicaID         uint64
+	snapshotRequested bool
 }
 
 var _ raft.Storage = (*LogReader)(nil)
@@ -238,16 +239,19 @@ func (lr *LogReader) termLocked(index uint64) (uint64, error) {
 func (lr *LogReader) Snapshot() (pb.Snapshot, error) {
 	lr.Lock()
 	defer lr.Unlock()
-	return lr.snapshot, nil
+	snapshot := lr.snapshot
+	if raft.IsEmptySnap(snapshot) {
+		lr.snapshotRequested = true
+		return pb.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
+	}
+	lr.snapshot = pb.Snapshot{}
+	return snapshot, nil
 }
 
 // ApplySnapshot applies the specified snapshot.
 func (lr *LogReader) ApplySnapshot(snapshot pb.Snapshot) error {
 	lr.Lock()
 	defer lr.Unlock()
-	if err := lr.setSnapshot(snapshot); err != nil {
-		return err
-	}
 	lr.markerIndex = snapshot.Metadata.Index
 	lr.markerTerm = snapshot.Metadata.Term
 	lr.length = 1
@@ -259,6 +263,16 @@ func (lr *LogReader) CreateSnapshot(snapshot pb.Snapshot) error {
 	lr.Lock()
 	defer lr.Unlock()
 	return lr.setSnapshot(snapshot)
+}
+
+// GetSnapshotRequested returns a boolean value indicating whether creating a
+// new snapshot has been requested.
+func (lr *LogReader) GetSnapshotRequested() bool {
+	lr.Lock()
+	defer lr.Unlock()
+	v := lr.snapshotRequested
+	lr.snapshotRequested = false
+	return v
 }
 
 func (lr *LogReader) setSnapshot(snapshot pb.Snapshot) error {
