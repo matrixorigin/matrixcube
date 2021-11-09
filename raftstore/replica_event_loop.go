@@ -201,7 +201,7 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			pr.doSplit(act)
 		case campaignAction:
 			if err := pr.doCampaign(); err != nil {
-				pr.logger.Fatal("tailed to do campaign",
+				pr.logger.Fatal("failed to do campaign",
 					zap.Error(err))
 			}
 		case heartbeatAction:
