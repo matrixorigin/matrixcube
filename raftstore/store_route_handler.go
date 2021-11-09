@@ -16,9 +16,14 @@ package raftstore
 // doCreateDynamically When we call the prophet client to dynamically create a shard,
 // the watcher will receive the creation command, and this callback will be triggered.
 // Called in prophet event handle goroutine.
-func (s *store) doDynamicallyCreate(shard Shard) {
+func (s *store) doDynamicallyCreate(shard Shard) bool {
+	// skip, no replica on current store
+	if r := findReplica(shard, s.Meta().ID); r == nil {
+		return false
+	}
+
 	if _, ok := s.replicas.Load(shard.ID); ok {
-		return
+		return false
 	}
 
 	newReplicaCreator(s).
@@ -26,4 +31,5 @@ func (s *store) doDynamicallyCreate(shard Shard) {
 		withStartReplica(nil).
 		withSaveMetadata(true).
 		create([]Shard{shard})
+	return true
 }
