@@ -101,16 +101,7 @@ func (rc *replicaCreator) getTarget(originShards []Shard) ([]Shard, []*replica) 
 	var shards []Shard
 	var replicas []*replica
 	for _, shard := range originShards {
-		var replica Replica
-		if rc.replicaRecordGetter == nil {
-			if v := findReplica(shard, rc.store.Meta().ID); v != nil {
-				replica = *v
-			}
-		} else {
-			replica = rc.replicaRecordGetter(shard)
-		}
-
-		pr, err := newReplica(rc.store, shard, replica, rc.reason)
+		pr, err := newReplica(rc.store, shard, rc.getLocalReplica(shard), rc.reason)
 		if err != nil {
 			rc.logger.Fatal("failed to create shard",
 				log.ShardField("shard", shard),
@@ -153,7 +144,7 @@ func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
 				},
 			})
 
-			err := rc.maybeInsertBootstrapRaftLog(sm[len(sm)-1].Metadata, shard.Replicas[0])
+			err := rc.maybeInsertBootstrapRaftLog(sm[len(sm)-1].Metadata, rc.getLocalReplica(shard))
 			if err != nil {
 				rc.logger.Fatal("failed to add 1th raft log",
 					log.ShardField("shard", shard),
@@ -230,6 +221,18 @@ func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state meta.ShardLocalState
 			HardState: raftpb.HardState{Commit: 1, Term: 1},
 		},
 		rc.wc)
+}
+
+func (rc *replicaCreator) getLocalReplica(shard Shard) Replica {
+	if rc.replicaRecordGetter == nil {
+		if v := findReplica(shard, rc.store.Meta().ID); v != nil {
+			return *v
+		}
+	} else {
+		return rc.replicaRecordGetter(shard)
+	}
+
+	return Replica{}
 }
 
 func doWithShardsByGroupID(dataStorageGetter func(group uint64) storage.DataStorage, fn func(storage.DataStorage, []Shard), shards ...Shard) {

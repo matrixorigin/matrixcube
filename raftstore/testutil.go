@@ -1081,7 +1081,8 @@ func NewTestDataBuilder() *TestDataBuilder {
 // id: id
 // range: [id, id+1)
 // replicasFormat: Voter Format: pid/cid
-//                 Learner Format: pid/cid/l
+//                 Learner Format: pid/cid/[l|v], default v
+//                 Initial Member: pid/cid/l/[t|f], default f
 //                 Use ',' to split multi-replica.
 //                 First is current replica
 func (b *TestDataBuilder) CreateShard(id uint64, replicasFormater string) Shard {
@@ -1100,6 +1101,10 @@ func (b *TestDataBuilder) CreateShard(id uint64, replicasFormater string) Shard 
 				case 2:
 					if field == "l" {
 						r.Role = metapb.ReplicaRole_Learner
+					}
+				case 3:
+					if field == "t" {
+						r.InitialMember = true
 					}
 				default:
 					panic(fmt.Sprintf("invalid replcias foramt: %s", replicasFormater))
