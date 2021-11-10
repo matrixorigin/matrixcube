@@ -26,6 +26,11 @@ import (
 )
 
 func TestIssue123(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
 	defer leaktest.AfterTest(t)()
 
 	c := NewSingleTestClusterStore(t,
@@ -57,6 +62,11 @@ func TestIssue123(t *testing.T) {
 }
 
 func TestIssue192(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
 	defer leaktest.AfterTest(t)()
 
 	wc := make(chan struct{})
