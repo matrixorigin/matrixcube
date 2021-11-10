@@ -1,0 +1,10 @@
+@startuml read
+
+participant client
+participant rpc
+participant proxy
+participant raft
+
+client -> rpc: read request
+
+@enduml
