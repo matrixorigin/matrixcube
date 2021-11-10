@@ -32,16 +32,35 @@ var (
 	ErrUnknownReplica = errors.New("unknown replica")
 )
 
-func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
+func (pr *replica) handleRaftReady(wc *logdb.WorkerContext) error {
+	rd := pr.getRaftReady()
+	if err := pr.processReady(rd, wc); err != nil {
+		return err
+	}
+	pr.commitRaftReady(rd)
+	return nil
+}
+
+func (pr *replica) getRaftReady() raft.Ready {
+	return pr.rn.Ready()
+}
+
+func (pr *replica) commitRaftReady(rd raft.Ready) {
+	pr.rn.Advance(rd)
+}
+
+func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	if ce := pr.logger.Check(zap.DebugLevel, "begin handleReady"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
 			log.ReplicaIDField(pr.replica.ID))
 	}
 
-	rd := pr.rn.Ready()
 	pr.handleRaftState(rd)
 	pr.sendRaftAppendLogMessages(rd)
-	if err := pr.handleRaftReadyAppend(rd, wc); err != nil {
+	if err := pr.saveRaftState(rd, wc); err != nil {
+		return err
+	}
+	if err := pr.appendEntries(rd); err != nil {
 		return err
 	}
 	pr.sendRaftMessages(rd)
@@ -52,7 +71,6 @@ func (pr *replica) handleReady(wc *logdb.WorkerContext) error {
 	if err := pr.handleRaftCreateSnapshotRequest(); err != nil {
 		return err
 	}
-	pr.rn.Advance(rd)
 
 	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
@@ -83,13 +101,6 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 	}
 }
 
-func (pr *replica) handleRaftReadyAppend(rd raft.Ready,
-	wc *logdb.WorkerContext) error {
-	start := time.Now()
-	defer metric.ObserveRaftLogAppendDuration(start)
-	return pr.handleAppendEntries(rd, wc)
-}
-
 func getEstimatedAppendSize(rd raft.Ready) int {
 	sz := 0
 	for _, e := range rd.Entries {
@@ -99,8 +110,10 @@ func getEstimatedAppendSize(rd raft.Ready) int {
 	return sz
 }
 
-func (pr *replica) handleAppendEntries(rd raft.Ready,
-	wc *logdb.WorkerContext) error {
+func (pr *replica) appendEntries(rd raft.Ready) error {
+	start := time.Now()
+	defer metric.ObserveRaftLogAppendDuration(start)
+
 	if len(rd.Entries) > 0 {
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"begin to append raft log"); ce != nil {
@@ -109,7 +122,7 @@ func (pr *replica) handleAppendEntries(rd raft.Ready,
 				log.IndexField(rd.Entries[0].Index),
 				zap.Int("estimated-size", getEstimatedAppendSize(rd)))
 		}
-		pr.lr.Append(rd.Entries)
+		err := pr.lr.Append(rd.Entries)
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"append raft log completed"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
@@ -117,8 +130,12 @@ func (pr *replica) handleAppendEntries(rd raft.Ready,
 				log.IndexField(rd.Entries[0].Index))
 		}
 		pr.metrics.ready.append++
+		return err
 	}
+	return nil
+}
 
+func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
 	return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
 }
 
