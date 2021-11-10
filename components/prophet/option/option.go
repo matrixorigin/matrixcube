@@ -20,9 +20,9 @@ import (
 
 const (
 	// DefaultTimeout default timeout
-	DefaultTimeout = time.Second * 3
+	DefaultTimeout = time.Second * 30
 	// DefaultRequestTimeout default request timeout
-	DefaultRequestTimeout = 10 * time.Second
+	DefaultRequestTimeout = 30 * time.Second
 	// DefaultSlowRequestTime default slow request time
 	DefaultSlowRequestTime = time.Second * 1
 	// DefaultDialTimeout is the maximum amount of time a dial will wait for a

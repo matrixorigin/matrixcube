@@ -93,16 +93,19 @@ func (pr *replica) addAdminRequest(req rpc.AdminRequest) error {
 	return pr.addRequest(newAdminReqCtx(req))
 }
 
+func (pr *replica) addRaftTick() {
+	if err := pr.ticks.Put(struct{}{}); err != nil {
+		pr.logger.Info("raft tick stopped")
+		return
+	}
+	pr.notifyWorker()
+}
+
 func (pr *replica) onRaftTick(arg interface{}) {
 	if !pr.stopRaftTick {
-		if err := pr.ticks.Put(struct{}{}); err != nil {
-			pr.logger.Info("raft tick stopped")
-			return
-		}
+		pr.addRaftTick()
 		metric.SetRaftTickQueueMetric(pr.ticks.Len())
-		pr.notifyWorker()
 	}
-
 	util.DefaultTimeoutWheel().Schedule(pr.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
 }
 
@@ -149,14 +152,14 @@ func (pr *replica) shutdown() {
 	pr.logger.Info("replica shutdown completed")
 }
 
-func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool) {
+func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err error) {
 	select {
 	case <-pr.closedC:
 		if !pr.unloaded() {
 			pr.shutdown()
 			pr.confirmUnloaded()
 		}
-		return false
+		return false, nil
 	default:
 	}
 
@@ -174,12 +177,14 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool) {
 	}
 	if pr.rn.HasReady() {
 		hasEvent = true
-		pr.handleReady(wc)
+		if err := pr.handleRaftReady(wc); err != nil {
+			return hasEvent, err
+		}
 	}
 	if pr.handleAction(pr.items) {
 		hasEvent = true
 	}
-	return true
+	return true, nil
 }
 
 func (pr *replica) handleAction(items []interface{}) bool {

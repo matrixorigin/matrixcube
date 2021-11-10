@@ -43,7 +43,7 @@ var _ replicaLoader = (*storeReplicaLoader)(nil)
 
 type replicaEventHandler interface {
 	getShardID() uint64
-	handleEvent(*logdb.WorkerContext) bool
+	handleEvent(*logdb.WorkerContext) (bool, error)
 }
 
 var _ replicaEventHandler = (*replica)(nil)
@@ -102,7 +102,12 @@ func (w *replicaWorker) completed() {
 func (w *replicaWorker) handleEvent(h replicaEventHandler) error {
 	for {
 		w.wc.Reset()
-		if !h.handleEvent(w.wc) {
+		hasEvent, err := h.handleEvent(w.wc)
+		if err != nil {
+			// TODO: pretty printing the error
+			panic(err)
+		}
+		if !hasEvent {
 			break
 		}
 	}
