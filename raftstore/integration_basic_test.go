@@ -132,6 +132,6 @@ func TestReadAndWriteAndRestart(t *testing.T) {
 		}
 	}
 
-	// fn(1)
+	fn(1)
 	fn(3)
 }

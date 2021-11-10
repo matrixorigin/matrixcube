@@ -44,6 +44,8 @@ import (
 var (
 	rootPath      = "/prophet"
 	clusterIDPath = "/prophet/cluster_id"
+
+	initClusterMaxRetryTimes = 10
 )
 
 // Prophet is the distributed scheduler and coordinator
@@ -153,7 +155,13 @@ func NewProphet(cfg *config.Config) Prophet {
 }
 
 func (p *defaultProphet) Start() {
-	if err := p.initClusterID(); err != nil {
+	var err error
+	for i := 0; i < initClusterMaxRetryTimes; i++ {
+		if err = p.initClusterID(); err == nil {
+			break
+		}
+	}
+	if err != nil {
 		p.logger.Fatal("fail to init cluster",
 			zap.Error(err))
 	}
