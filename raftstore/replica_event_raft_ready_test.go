@@ -179,3 +179,25 @@ func TestSendAppendOnlyMessages(t *testing.T) {
 func TestSendOtherMessages(t *testing.T) {
 	testSendMessages(t, false)
 }
+
+func TestIssue386(t *testing.T) {
+	// See https://github.com/matrixorigin/matrixcube/issues/386
+	// Missing save hardstate to logdb if append entries is empty.
+
+	s, closer := newTestStore(t)
+	defer closer()
+
+	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 2}, s)
+
+	assert.NoError(t, pr.handleRaftReadyAppend(raft.Ready{
+		Entries: []raftpb.Entry{{Index: 1, Term: 1, Data: []byte("test")}},
+	}, s.logdb.NewWorkerContext()))
+
+	assert.NoError(t, pr.handleRaftReadyAppend(raft.Ready{
+		HardState: raftpb.HardState{Commit: 1},
+	}, s.logdb.NewWorkerContext()))
+
+	rs, err := s.logdb.ReadRaftState(1, 2)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), rs.State.Commit)
+}
