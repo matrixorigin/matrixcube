@@ -161,6 +161,9 @@ func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
 	replicaID uint64, rd raft.Ready, ctx *WorkerContext) error {
+	if isEmptyRaftReady(rd) {
+		return nil
+	}
 
 	l.logger.Debug("save raft state",
 		log.ShardIDField(shardID),
@@ -303,4 +306,10 @@ func (l *KVLogDB) getMaxIndex(shardID uint64, replicaID uint64) (uint64, error) 
 		panic("unexpected max index value")
 	}
 	return binary.BigEndian.Uint64(v), nil
+}
+
+func isEmptyRaftReady(rd raft.Ready) bool {
+	return raft.IsEmptyHardState(rd.HardState) &&
+		raft.IsEmptySnap(rd.Snapshot) &&
+		len(rd.Entries) == 0
 }

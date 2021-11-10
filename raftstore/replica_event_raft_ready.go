@@ -103,24 +103,23 @@ func (pr *replica) handleAppendEntries(rd raft.Ready,
 	wc *logdb.WorkerContext) error {
 	if len(rd.Entries) > 0 {
 		if ce := pr.logger.Check(zap.DebugLevel,
-			"begin to save raft state"); ce != nil {
+			"begin to append raft log"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
 				log.ReplicaIDField(pr.replica.ID),
 				log.IndexField(rd.Entries[0].Index),
 				zap.Int("estimated-size", getEstimatedAppendSize(rd)))
 		}
 		pr.lr.Append(rd.Entries)
-		pr.metrics.ready.append++
-		err := pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
 		if ce := pr.logger.Check(zap.DebugLevel,
-			"save raft state completed"); ce != nil {
+			"append raft log completed"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
 				log.ReplicaIDField(pr.replica.ID),
 				log.IndexField(rd.Entries[0].Index))
 		}
-		return err
+		pr.metrics.ready.append++
 	}
-	return nil
+
+	return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
 }
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
