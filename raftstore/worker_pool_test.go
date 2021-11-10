@@ -51,13 +51,13 @@ func (t *testReplicaEventHandler) getShardID() uint64 {
 	return t.shardID
 }
 
-func (t *testReplicaEventHandler) handleEvent(*logdb.WorkerContext) bool {
+func (t *testReplicaEventHandler) handleEvent(*logdb.WorkerContext) (bool, error) {
 	if t.invoked != nil {
 		close(t.invoked)
 		<-t.waitC
 	}
 	atomic.StoreUint64(&t.handled, 1)
-	return false
+	return false, nil
 }
 
 func (t *testReplicaEventHandler) getHandled() bool {
