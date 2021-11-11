@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,7 @@ func TestDestroyReplica(t *testing.T) {
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
+		readStopper:       stop.NewStopper(),
 	}
 	pr.sm = newStateMachine(pr.logger, s.DataStorageByGroup(0), s.logdb, shard, pr.replica, nil, nil)
 	s.vacuumCleaner.start()
