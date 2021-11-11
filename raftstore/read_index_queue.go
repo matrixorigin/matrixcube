@@ -20,8 +20,9 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"github.com/matrixorigin/matrixcube/storage"
 )
+
+type requestExecutor func(req rpc.Request)
 
 type readyRead struct {
 	batch rpc.RequestBatch
@@ -51,49 +52,17 @@ func (q *readIndexQueue) ready(state raft.ReadState) {
 	})
 }
 
-func (q *readIndexQueue) process(appliedIndex uint64, pr *replica) {
+func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) {
 	if len(q.reads) == 0 {
 		return
 	}
 
 	newReady := q.reads[:0] // avoid alloc new slice
-	shard := pr.getShard()
-	readCtx := newReadContext()
-	ds := pr.store.DataStorageByGroup(shard.Group)
-
-	// TODO (lni):
-	// multiple read requests issued to the data storage, but we won't get
-	// anything back until the completion of the slowest one.
 	for _, ready := range q.reads {
 		if ready.index > 0 && ready.index <= appliedIndex {
-			resp := rpc.ResponseBatch{}
 			for _, req := range ready.batch.Requests {
-				rr := storage.Request{
-					CmdType: req.CustomType,
-					Key:     req.Key,
-					Cmd:     req.Cmd,
-				}
-				readCtx.reset(shard, rr)
-				if ce := q.logger.Check(zap.DebugLevel, "begin to exec read requests"); ce != nil {
-					ce.Write(log.RequestIDField(req.ID),
-						log.RaftRequestField("request", &req))
-				}
-				v, err := ds.Read(readCtx)
-				if err != nil {
-					// FIXME: some read failures should be tolerated.
-					q.logger.Fatal("fail to exec read batch",
-						zap.Error(err))
-				}
-				pr.readBytes += readCtx.readBytes
-				pr.readKeys += 1
-				r := rpc.Response{Value: v}
-				resp.Responses = append(resp.Responses, r)
+				exector(req)
 			}
-			// FIXME: it is strange to require a batch{} to be created/used to send
-			// responses. why sending responses is coupled with the batch type?
-			// FIXME: input parameter logger is missing
-			b := newBatch(q.logger, ready.batch, pr.store.shardsProxy.OnResponse, 0, 0)
-			b.resp(resp)
 		} else {
 			newReady = append(newReady, ready)
 		}

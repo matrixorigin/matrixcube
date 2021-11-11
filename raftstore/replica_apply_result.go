@@ -77,14 +77,14 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 
 	pr.metrics.admin.incBy(result.metrics.admin)
 
-	pr.writtenBytes += result.metrics.writtenBytes
-	pr.writtenKeys += result.metrics.writtenKeys
+	pr.stats.writtenBytes += result.metrics.writtenBytes
+	pr.stats.writtenKeys += result.metrics.writtenKeys
 	if result.hasSplitResult() {
-		pr.deleteKeysHint = result.metrics.deleteKeysHint
-		pr.approximateSize = result.metrics.approximateDiffHint
+		pr.stats.deleteKeysHint = result.metrics.deleteKeysHint
+		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	} else {
-		pr.deleteKeysHint += result.metrics.deleteKeysHint
-		pr.approximateSize = result.metrics.approximateDiffHint
+		pr.stats.deleteKeysHint += result.metrics.deleteKeysHint
+		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	}
 }
 
@@ -174,8 +174,8 @@ func (pr *replica) applySplit(result *splitResult) {
 
 	// we consider the split to be roughly even, so we calculate the current estimated size of the shard
 	// based on the number of new shards.
-	estimatedSize := pr.approximateSize / uint64(len(result.newShards))
-	estimatedKeys := pr.approximateKeys / uint64(len(result.newShards))
+	estimatedSize := pr.stats.approximateSize / uint64(len(result.newShards))
+	estimatedKeys := pr.stats.approximateKeys / uint64(len(result.newShards))
 
 	isLeader := pr.isLeader()
 	reason := fmt.Sprintf("create by shard %d splitted", pr.shardID)
@@ -183,8 +183,8 @@ func (pr *replica) applySplit(result *splitResult) {
 		withReason(reason).
 		withStartReplica(func(r *replica) {
 			shard := r.getShard()
-			r.approximateKeys = estimatedKeys
-			r.approximateSize = estimatedSize
+			r.stats.approximateKeys = estimatedKeys
+			r.stats.approximateSize = estimatedSize
 			if isLeader && len(shard.Replicas) > 1 {
 				r.addAction(action{actionType: campaignAction})
 			}

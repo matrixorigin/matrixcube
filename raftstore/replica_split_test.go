@@ -33,7 +33,7 @@ func TestTryCheckSplit(t *testing.T) {
 
 	// check approximateSize
 	pr.replica.ID = 1
-	pr.approximateSize = 100
+	pr.stats.approximateSize = 100
 	pr.cfg.Replication.ShardSplitCheckBytes = 200
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
@@ -55,21 +55,21 @@ func TestDoSplit(t *testing.T) {
 
 	// check not leader
 	pr.doSplit(act)
-	assert.Equal(t, uint64(0), pr.approximateSize)
-	assert.Equal(t, uint64(0), pr.approximateKeys)
+	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	assert.Equal(t, uint64(0), pr.stats.approximateKeys)
 
 	pr.leaderID = 2
 
 	// check stale epoch
 	pr.doSplit(act)
-	assert.Equal(t, uint64(0), pr.approximateSize)
-	assert.Equal(t, uint64(0), pr.approximateKeys)
+	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	assert.Equal(t, uint64(0), pr.stats.approximateKeys)
 
 	// check no split keys, only change memory fields
 	act.epoch = pr.getShard().Epoch
 	pr.doSplit(act)
-	assert.Equal(t, pr.approximateSize, act.splitCheckData.size)
-	assert.Equal(t, pr.approximateKeys, act.splitCheckData.keys)
+	assert.Equal(t, pr.stats.approximateSize, act.splitCheckData.size)
+	assert.Equal(t, pr.stats.approximateKeys, act.splitCheckData.keys)
 
 	// check split panic, len(splitIDs) == len(splitKeys)+1
 	ch := make(chan bool)
