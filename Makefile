@@ -48,8 +48,9 @@ $(info Running selected tests $(TEST_TO_RUN))
 SELECTED_TESTS=-run $(TEST_TO_RUN)
 endif
 
-TEST_OPTIONS=test -timeout=300s -short -count=1 -v $(RACE_GLAG) $(COVER_FLAG) $(SELECTED_TESTS)
-GOTEST=$(GO) $(TEST_OPTIONS)
+SHORT_ONLY=-short
+TEST_OPTIONS=test -timeout=1200s -count=1 -v $(RACE_FLAG) $(COVER_FLAG) $(SELECTED_TESTS)
+GOTEST=$(GO) $(TEST_OPTIONS) $(SHORT_ONLY)
 
 ###############################################################################
 # tests
@@ -75,6 +76,10 @@ test-logdb:
 test-raftstore:
 	$(GOTEST) $(PKGNAME)/raftstore
 
+.PHONY: test-all-raftstore
+test-all-raftstore: override SHORT_ONLY :=
+test-all-raftstore: test-raftstore
+
 .PHONY: test-server
 test-server:
 	$(GOTEST) $(PKGNAME)/server
@@ -87,9 +92,18 @@ test-transport:
 test-keys:
 	$(GOTEST) $(PKGNAME)/keys
 
+.PHONY: integration-test
+integration-test: test-all-raftstore
+
+.PHONY: components-unit-test
+components-unit-test: test-storage test-logdb test-server test-transport test-keys \
+  test-snapshot
+
 .PHONY: test
-test: test-storage test-logdb test-raftstore test-server test-transport \
-	test-keys test-snapshot
+test: components-unit-test test-raftstore
+
+.PHONY: all-tests
+all-tests: components-unit-test test-all-raftstore
 
 ###############################################################################
 # static checks
