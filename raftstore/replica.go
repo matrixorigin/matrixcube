@@ -60,7 +60,6 @@ type replica struct {
 	startedC              chan struct{}
 	disableCompactProtect bool
 	rn                    *raft.RawNode
-	stopRaftTick          bool
 	leaderID              uint64
 	// FIXME: decouple replica from store
 	store     *store
