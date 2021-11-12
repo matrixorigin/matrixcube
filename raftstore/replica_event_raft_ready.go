@@ -141,7 +141,7 @@ func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 	for _, entry := range rd.CommittedEntries {
-		pr.raftLogSizeHint += uint64(len(entry.Data))
+		pr.stats.raftLogSizeHint += uint64(len(entry.Data))
 	}
 
 	if len(rd.CommittedEntries) > 0 {

@@ -28,8 +28,8 @@ func TestApplySplit(t *testing.T) {
 
 	s.updateShardKeyRange(0, pr.getShard())
 	pr.sm.dataStorage.GetInitialStates()
-	pr.approximateSize = 200
-	pr.approximateKeys = 200
+	pr.stats.approximateSize = 200
+	pr.stats.approximateKeys = 200
 
 	kv := pr.sm.dataStorage.(storage.KVStorageWrapper).GetKVStorage()
 	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte{1}, nil), []byte("v"), false))
@@ -58,14 +58,14 @@ func TestApplySplit(t *testing.T) {
 
 	pr = s.getReplica(2, false)
 	assert.NotNil(t, pr)
-	assert.Equal(t, uint64(100), pr.approximateSize)
-	assert.Equal(t, uint64(100), pr.approximateKeys)
+	assert.Equal(t, uint64(100), pr.stats.approximateSize)
+	assert.Equal(t, uint64(100), pr.stats.approximateKeys)
 	assert.Equal(t, int64(1), pr.messages.Len())
 
 	pr = s.getReplica(3, false)
 	assert.NotNil(t, pr)
-	assert.Equal(t, uint64(100), pr.approximateSize)
-	assert.Equal(t, uint64(100), pr.approximateKeys)
+	assert.Equal(t, uint64(100), pr.stats.approximateSize)
+	assert.Equal(t, uint64(100), pr.stats.approximateKeys)
 	assert.Equal(t, int64(1), pr.messages.Len())
 
 	pr, err := s.selectShard(0, []byte{1})

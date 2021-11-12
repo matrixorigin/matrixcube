@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3/raftpb"
@@ -39,7 +40,7 @@ func TestHandleSplitCheck(t *testing.T) {
 			action:    action{actionType: checkSplitAction},
 		},
 		{
-			pr:        &replica{startedC: make(chan struct{}), approximateSize: 1024 * 1024 * 1024, actions: task.New(32)},
+			pr:        &replica{startedC: make(chan struct{}), stats: &replicaStats{approximateSize: 1024 * 1024 * 1024}, actions: task.New(32)},
 			hasAction: true,
 			action:    action{actionType: checkSplitAction},
 		},
@@ -160,6 +161,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(s.logger, 10, 1, r),
 		pendingReads:      &readIndexQueue{shardID: 1, logger: s.logger},
+		readStopper:       stop.NewStopper("TestHandleDestroyReplicaMessage"),
 	}
 	pr.sm = newStateMachine(pr.logger,
 		s.DataStorageByGroup(0), nil, Shard{ID: pr.shardID, Replicas: []Replica{pr.replica}}, pr.replica, nil, nil)

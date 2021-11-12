@@ -16,16 +16,14 @@ package raftstore
 import (
 	"time"
 
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
-
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 )
 
 const (
@@ -35,8 +33,14 @@ const (
 type action struct {
 	actionType     actionType
 	splitCheckData splitCheckData
+	readMetrics    readMetrics
 	epoch          Epoch
 	actionCallback func(interface{})
+}
+
+type readMetrics struct {
+	readBytes uint64
+	readKeys  uint64
 }
 
 type splitCheckData struct {
@@ -54,6 +58,7 @@ const (
 	checkSplitAction
 	splitAction
 	heartbeatAction
+	updateReadMetrics
 )
 
 func (pr *replica) addRequest(req reqCtx) error {
@@ -148,8 +153,10 @@ func (pr *replica) shutdown() {
 		}
 	}
 
+	// This replica won't be processed by the eventWorker again.
+	// This means no further read requests will be started using the stopper.
+	pr.readStopper.Stop()
 	pr.sm.close()
-
 	pr.logger.Info("replica shutdown completed")
 }
 
@@ -212,6 +219,8 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			}
 		case heartbeatAction:
 			pr.prophetHeartbeat()
+		case updateReadMetrics:
+			pr.doUpdateReadMetrics(act)
 		}
 	}
 
@@ -219,6 +228,11 @@ func (pr *replica) handleAction(items []interface{}) bool {
 		pr.notifyWorker()
 	}
 	return true
+}
+
+func (pr *replica) doUpdateReadMetrics(act action) {
+	pr.stats.readBytes += act.readMetrics.readBytes
+	pr.stats.readKeys += act.readMetrics.readKeys
 }
 
 func (pr *replica) handleMessage(items []interface{}) bool {
@@ -305,20 +319,9 @@ func (pr *replica) prophetHeartbeat() {
 		ContainerID:     pr.storeID,
 		DownReplicas:    pr.collectDownReplicas(),
 		PendingReplicas: pr.collectPendingReplicas(),
-		Stats: metapb.ResourceStats{
-			WrittenBytes:    pr.writtenBytes,
-			WrittenKeys:     pr.writtenKeys,
-			ReadBytes:       pr.readBytes,
-			ReadKeys:        pr.readKeys,
-			ApproximateKeys: pr.approximateKeys,
-			ApproximateSize: pr.approximateSize,
-			Interval: &metapb.TimeInterval{
-				Start: pr.prophetHeartbeatTime,
-				End:   uint64(time.Now().Unix()),
-			},
-		},
+		Stats:           pr.stats.heartbeatState(),
 	}
-	pr.prophetHeartbeatTime = req.Stats.Interval.End
+
 	resource := NewResourceAdapterWithShard(pr.getShard())
 	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",

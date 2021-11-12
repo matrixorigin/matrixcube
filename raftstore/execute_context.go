@@ -1,6 +1,8 @@
 package raftstore
 
 import (
+	"sync"
+
 	"github.com/matrixorigin/matrixcube/util/buf"
 
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -95,6 +97,22 @@ type readContext struct {
 }
 
 var _ storage.ReadContext = (*readContext)(nil)
+
+var (
+	readCtxPool = sync.Pool{
+		New: func() interface{} {
+			return newReadContext()
+		},
+	}
+)
+
+func acquireReadCtx() *readContext {
+	return readCtxPool.Get().(*readContext)
+}
+
+func releaseReadCtx(ctx *readContext) {
+	readCtxPool.Put(ctx)
+}
 
 func newReadContext() *readContext {
 	return &readContext{
