@@ -21,19 +21,19 @@ import (
 )
 
 func TestRunTaskOnNotRunning(t *testing.T) {
-	s := NewStopper()
+	s := NewStopper("TestRunTaskOnNotRunning")
 	s.Stop()
-	assert.Equal(t, ErrUnavailable, s.RunTask(func(ctx context.Context) {
+	assert.Equal(t, ErrUnavailable, s.RunTask(context.Background(), func(ctx context.Context) {
 
 	}))
 }
 
 func TestRunTask(t *testing.T) {
-	s := NewStopper()
+	s := NewStopper("TestRunTask")
 	defer s.Stop()
 
 	c := make(chan struct{})
-	s.RunTask(func(ctx context.Context) {
+	s.RunTask(context.Background(), func(ctx context.Context) {
 		close(c)
 	})
 	select {
@@ -45,14 +45,20 @@ func TestRunTask(t *testing.T) {
 }
 
 func TestRunTaskWithTimeout(t *testing.T) {
-	s := NewStopper()
+	c := make(chan struct{})
+	var names []string
+	s := NewStopper("TestRunTaskWithTimeout",
+		WithStopTimeout(time.Millisecond*10),
+		WithTimeoutTaskHandler(func(tasks []string, timeAfterStop time.Duration) {
+			close(c)
+			names = append(names, tasks...)
+		}))
 
-	s.RunNamedTask("timeout", func(ctx context.Context) {
-		time.Sleep(time.Second)
+	s.RunNamedTask(context.Background(), "timeout", func(ctx context.Context) {
+		<-c
 	})
 
-	names, err := s.StopWithTimeout(time.Millisecond * 10)
-	assert.Error(t, err)
+	s.Stop()
 	assert.Equal(t, 1, len(names))
 	assert.Equal(t, "timeout", names[0])
 }

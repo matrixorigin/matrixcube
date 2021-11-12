@@ -153,6 +153,8 @@ func (pr *replica) shutdown() {
 		}
 	}
 
+	// This replica won't be processed by the eventWorker again.
+	// This means no further read requests will be started using the stopper.
 	pr.readStopper.Stop()
 	pr.sm.close()
 	pr.logger.Info("replica shutdown completed")

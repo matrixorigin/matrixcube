@@ -151,7 +151,8 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
-	pr.readStopper = stop.NewStopper()
+	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replica.ID, pr.replica.ContainerID),
+		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
 	for _, g := range pr.cfg.Raft.RaftLog.DisableCompactProtect {
@@ -371,7 +372,8 @@ func (pr *replica) maybeExecRead() {
 }
 
 func (pr *replica) execReadRequest(req rpc.Request) {
-	err := pr.readStopper.RunTask(func(ctx context.Context) {
+	// FIXME: use an externally passed context instead of `context.Background()` for future tracking.
+	err := pr.readStopper.RunTask(context.Background(), func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			requestDoneWithReplicaRemoved(req, pr.store.shardsProxy.OnResponse, pr.shardID)

@@ -16,9 +16,13 @@ package stop
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/matrixorigin/matrixcube/components/log"
+	"go.uber.org/zap"
 )
 
 var (
@@ -27,7 +31,7 @@ var (
 )
 
 var (
-	defaultWaitStoppedTimeout = time.Minute
+	defaultStoppedTimeout = time.Second * 30
 )
 
 type state int
@@ -38,11 +42,50 @@ const (
 	stopped  = state(2)
 )
 
+// Option stop option
+type Option func(*options)
+
+type options struct {
+	stopTimeout        time.Duration
+	logger             *zap.Logger
+	timeoutTaskHandler func(tasks []string, timeAfterStop time.Duration)
+}
+
+func (opts *options) adjust() {
+	if opts.stopTimeout == 0 {
+		opts.stopTimeout = defaultStoppedTimeout
+	}
+	opts.logger = log.Adjust(opts.logger)
+}
+
+// WithStopTimeout the stopper will print the names of tasks that are still running beyond this timeout.
+func WithStopTimeout(timeout time.Duration) Option {
+	return func(opts *options) {
+		opts.stopTimeout = timeout
+	}
+}
+
+// WithLogger set the logger
+func WithLogger(logger *zap.Logger) Option {
+	return func(opts *options) {
+		opts.logger = logger
+	}
+}
+
+// WithTimeoutTaskHandler set handler to handle timeout tasks
+func WithTimeoutTaskHandler(handler func(tasks []string, timeAfterStop time.Duration)) Option {
+	return func(opts *options) {
+		opts.timeoutTaskHandler = handler
+	}
+}
+
 // Stopper a stopper used to to manage all tasks that are executed in a separate goroutine,
 // and Stopper can manage these goroutines centrally to avoid leaks.
 // When Stopper's Stop method is called, if some tasks do not exit within the specified time,
 // the names of these tasks will be returned for analysis.
 type Stopper struct {
+	name    string
+	opts    *options
 	stopC   chan struct{}
 	cancels sync.Map // id -> cancelFunc
 	tasks   sync.Map // id -> name
@@ -59,13 +102,18 @@ type Stopper struct {
 }
 
 // NewStopper create a stopper
-func NewStopper() *Stopper {
-	t := &Stopper{
+func NewStopper(name string, opts ...Option) *Stopper {
+	s := &Stopper{
+		opts:  &options{},
 		stopC: make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(s.opts)
+	}
+	s.opts.adjust()
 
-	t.mu.state = running
-	return t
+	s.mu.state = running
+	return s
 }
 
 // RunTask run a task that can be cancelled. ErrUnavailable returned if stopped is not running
@@ -83,8 +131,8 @@ func NewStopper() *Stopper {
 // 	// hanle error
 // 	return
 // }
-func (s *Stopper) RunTask(task func(context.Context)) error {
-	return s.RunNamedTask("undefined", task)
+func (s *Stopper) RunTask(ctx context.Context, task func(context.Context)) error {
+	return s.RunNamedTask(ctx, "undefined", task)
 }
 
 // RunNamedTask run a task that can be cancelled. ErrUnavailable returned if stopped is not running
@@ -101,7 +149,7 @@ func (s *Stopper) RunTask(task func(context.Context)) error {
 // 	// hanle error
 // 	return
 // }
-func (s *Stopper) RunNamedTask(name string, task func(context.Context)) error {
+func (s *Stopper) RunNamedTask(ctx context.Context, name string, task func(context.Context)) error {
 	// we use read lock here for avoid race
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -110,20 +158,14 @@ func (s *Stopper) RunNamedTask(name string, task func(context.Context)) error {
 		return ErrUnavailable
 	}
 
-	id, ctx := s.allocate()
+	id, ctx := s.allocate(ctx)
 	s.doRunCancelableTask(ctx, id, name, task)
 	return nil
 }
 
-// Stop stop all task in default timeout. If some tasks do not exit within the specified time,
-// the names of these tasks will be returned for analysis.
-func (s *Stopper) Stop() ([]string, error) {
-	return s.StopWithTimeout(defaultWaitStoppedTimeout)
-}
-
-// Stop stop all task in specified timeout. If some tasks do not exit within the specified time,
-// the names of these tasks will be returned for analysis.
-func (s *Stopper) StopWithTimeout(timeout time.Duration) ([]string, error) {
+// Stop stop all task, and wait to all tasks canceled. If some tasks do not exit within the specified time,
+// the names of these tasks will be print to the given logger.
+func (s *Stopper) Stop() {
 	s.mu.Lock()
 	state := s.mu.state
 	s.mu.state = stopping
@@ -131,10 +173,10 @@ func (s *Stopper) StopWithTimeout(timeout time.Duration) ([]string, error) {
 
 	switch state {
 	case stopped:
-		return nil, nil
+		return
 	case stopping:
 		<-s.stopC // wait concurrent stop completed
-		return s.runningTasks(), nil
+		return
 	}
 
 	defer func() {
@@ -147,19 +189,31 @@ func (s *Stopper) StopWithTimeout(timeout time.Duration) ([]string, error) {
 		return true
 	})
 
-	timer := time.NewTimer(timeout)
+	stopAt := time.Now()
+	timer := time.NewTimer(s.opts.stopTimeout)
 	defer timer.Stop()
 
 	for {
 		select {
 		case <-timer.C:
-			return s.runningTasks(), errors.New("waitting for tasks complete timeout")
+			tasks := s.runningTasks()
+			continuous := time.Since(stopAt)
+			s.opts.logger.Warn("tasks still running in stopper",
+				zap.String("stopper", s.name),
+				zap.Duration("continuous", continuous),
+				zap.String("tasks", strings.Join(tasks, ",")))
+			if s.opts.timeoutTaskHandler != nil {
+				s.opts.timeoutTaskHandler(tasks, continuous)
+			}
+			timer.Reset(s.opts.stopTimeout)
 		default:
 			if s.getTaskCount() == 0 {
-				return nil, nil
+				return
 			}
 		}
 
+		// Such 5ms delay can be a problem if we need to repeatedly create different stoppers,
+		// e.g. one stopper for each incoming request.
 		time.Sleep(time.Millisecond * 5)
 	}
 }
@@ -201,8 +255,8 @@ func (s *Stopper) doRunCancelableTask(ctx context.Context, taskID uint64, name s
 	}()
 }
 
-func (s *Stopper) allocate() (uint64, context.Context) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (s *Stopper) allocate(ctx context.Context) (uint64, context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
 	id := s.nextTaskID()
 	s.cancels.Store(id, cancel)
 	return id, ctx
