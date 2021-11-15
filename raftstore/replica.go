@@ -186,8 +186,14 @@ func (pr *replica) start() {
 			zap.Error(err))
 	}
 	pr.rn = rn
-	close(pr.startedC)
 
+	// We notify the Shard of the creation event before the Shard is driven by the
+	// event worker, to ensure that it is always the first event.
+	if pr.aware != nil {
+		pr.aware.Created(shard)
+	}
+
+	pr.setStarted()
 	// If this shard has only one replica and I am the one, campaign directly.
 	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
@@ -202,10 +208,6 @@ func (pr *replica) start() {
 
 	pr.onRaftTick(nil)
 	pr.logger.Info("replica started")
-
-	if pr.aware != nil {
-		pr.aware.Created(shard)
-	}
 }
 
 func (pr *replica) close() {
@@ -347,6 +349,10 @@ func (pr *replica) isLeader() bool {
 
 func (pr *replica) getLeaderReplicaID() uint64 {
 	return atomic.LoadUint64(&pr.leaderID)
+}
+
+func (pr *replica) setStarted() {
+	close(pr.startedC)
 }
 
 func (pr *replica) waitStarted() {
