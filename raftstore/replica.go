@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -28,10 +29,12 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
@@ -60,7 +63,6 @@ type replica struct {
 	startedC              chan struct{}
 	disableCompactProtect bool
 	rn                    *raft.RawNode
-	stopRaftTick          bool
 	leaderID              uint64
 	// FIXME: decouple replica from store
 	store     *store
@@ -71,11 +73,11 @@ type replica struct {
 
 	lr                   *LogReader
 	replicaHeartbeatsMap sync.Map
-	prophetHeartbeatTime uint64
 	snapshotter          *snapshotter
 	incomingProposals    *proposalBatch
 	pendingReads         *readIndexQueue
 	pendingProposals     *pendingProposals
+	readStopper          *stop.Stopper
 	sm                   *stateMachine
 	prophetClient        prophet.Client
 	ticks                *task.Queue
@@ -85,17 +87,8 @@ type replica struct {
 	actions              *task.Queue
 	items                []interface{}
 	appliedIndex         uint64
-	writtenKeys          uint64
-	writtenBytes         uint64
-	readKeys             uint64
-	readBytes            uint64
-	raftLogSizeHint      uint64
-	deleteKeysHint       uint64
-	// TODO: set these fields on split check
-	approximateSize uint64
-	approximateKeys uint64
-
-	metrics localMetrics
+	stats                *replicaStats
+	metrics              localMetrics
 
 	closedC    chan struct{}
 	unloadedC  chan struct{}
@@ -133,6 +126,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		storeID:           store.Meta().ID,
 		group:             shard.Group,
 		startedC:          make(chan struct{}),
+		stats:             newReplicaStats(),
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(l, maxBatchSize, shard.ID, r),
@@ -160,6 +154,8 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
+	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replica.ID, pr.replica.ContainerID),
+		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
 	for _, g := range pr.cfg.Raft.RaftLog.DisableCompactProtect {
@@ -193,8 +189,14 @@ func (pr *replica) start() {
 			zap.Error(err))
 	}
 	pr.rn = rn
-	close(pr.startedC)
 
+	// We notify the Shard of the creation event before the Shard is driven by the
+	// event worker, to ensure that it is always the first event.
+	if pr.aware != nil {
+		pr.aware.Created(shard)
+	}
+
+	pr.setStarted()
 	// If this shard has only one replica and I am the one, campaign directly.
 	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
@@ -209,10 +211,6 @@ func (pr *replica) start() {
 
 	pr.onRaftTick(nil)
 	pr.logger.Info("replica started")
-
-	if pr.aware != nil {
-		pr.aware.Created(shard)
-	}
 }
 
 func (pr *replica) close() {
@@ -356,6 +354,10 @@ func (pr *replica) getLeaderReplicaID() uint64 {
 	return atomic.LoadUint64(&pr.leaderID)
 }
 
+func (pr *replica) setStarted() {
+	close(pr.startedC)
+}
+
 func (pr *replica) waitStarted() {
 	<-pr.startedC
 }
@@ -375,7 +377,57 @@ func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
 }
 
 func (pr *replica) maybeExecRead() {
-	pr.pendingReads.process(pr.appliedIndex, pr)
+	pr.pendingReads.process(pr.appliedIndex, pr.execReadRequest)
+}
+
+func (pr *replica) execReadRequest(req rpc.Request) {
+	// FIXME: use an externally passed context instead of `context.Background()` for future tracking.
+	err := pr.readStopper.RunTask(context.Background(), func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			requestDoneWithReplicaRemoved(req, pr.store.shardsProxy.OnResponse, pr.shardID)
+		default:
+			if ce := pr.logger.Check(zap.DebugLevel, "begin to exec read requests"); ce != nil {
+				ce.Write(log.RequestIDField(req.ID),
+					log.RaftRequestField("request", &req))
+			}
+
+			ctx := acquireReadCtx()
+			defer releaseReadCtx(ctx)
+
+			// FIXME: pr.getShard() has a lock, it's a hot path.
+			ctx.reset(pr.getShard(), storage.Request{
+				CmdType: req.CustomType,
+				Key:     req.Key,
+				Cmd:     req.Cmd,
+			})
+
+			v, err := pr.sm.dataStorage.Read(ctx)
+			if err != nil {
+				// FIXME: some read failures should be tolerated.
+				pr.logger.Fatal("fail to exec read batch",
+					zap.Error(err))
+			}
+
+			pr.addAction(action{
+				actionType: updateReadMetrics,
+				readMetrics: readMetrics{
+					readBytes: ctx.readBytes,
+					readKeys:  1,
+				},
+			})
+
+			requestDone(req, pr.store.shardsProxy.OnResponse, v)
+		}
+	})
+	if err == stop.ErrUnavailable {
+		pr.store.shardsProxy.OnResponse(rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{Error: errorpb.Error{
+			Message: errShardNotFound.Error(),
+			ShardNotFound: &errorpb.ShardNotFound{
+				ShardID: pr.shardID,
+			},
+		}}})
+	}
 }
 
 func (pr *replica) supportSplit() bool {

@@ -29,7 +29,7 @@ func (s *store) ProphetBecomeLeader() {
 	s.logger.Info("*********Become prophet leader*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
-		s.doBootstrapCluster()
+		s.doBootstrapCluster(true)
 		close(s.pdStartedC)
 	})
 }
@@ -38,7 +38,7 @@ func (s *store) ProphetBecomeFollower() {
 	s.logger.Info("*********Become prophet follower*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
-		s.doBootstrapCluster()
+		s.doBootstrapCluster(false)
 		close(s.pdStartedC)
 	})
 }
@@ -57,7 +57,7 @@ func (s *store) initMeta() {
 		zap.Any("labels", s.Meta().Labels))
 }
 
-func (s *store) doBootstrapCluster() {
+func (s *store) doBootstrapCluster(bootstrap bool) {
 	s.logger.Info("begin to bootstrap the cluster",
 		s.storeField())
 	s.initMeta()
@@ -74,51 +74,53 @@ func (s *store) doBootstrapCluster() {
 	s.logger.Info("create local store",
 		s.storeField())
 
-	ok, err := s.pd.GetStorage().AlreadyBootstrapped()
-	if err != nil {
-		s.logger.Fatal("failed to check the cluster whether bootstrapped",
+	if bootstrap {
+		ok, err := s.pd.GetStorage().AlreadyBootstrapped()
+		if err != nil {
+			s.logger.Fatal("failed to check the cluster whether bootstrapped",
+				s.storeField(),
+				zap.Error(err))
+		}
+		s.logger.Info("cluster bootstrap state",
 			s.storeField(),
-			zap.Error(err))
-	}
-	s.logger.Info("cluster bootstrap state",
-		s.storeField(),
-		zap.Bool("bootstrapped", ok))
+			zap.Bool("bootstrapped", ok))
 
-	if !ok {
-		s.logger.Info("begin to bootstrap the cluster with init shards",
-			s.storeField())
-		var initShards []Shard
-		var resources []metadata.Resource
-		if s.cfg.Customize.CustomInitShardsFactory != nil {
-			shards := s.cfg.Customize.CustomInitShardsFactory()
-			for _, shard := range shards {
+		if !ok {
+			s.logger.Info("begin to bootstrap the cluster with init shards",
+				s.storeField())
+			var initShards []Shard
+			var resources []metadata.Resource
+			if s.cfg.Customize.CustomInitShardsFactory != nil {
+				shards := s.cfg.Customize.CustomInitShardsFactory()
+				for _, shard := range shards {
+					s.doCreateInitShard(&shard)
+					initShards = append(initShards, shard)
+					resources = append(resources, NewResourceAdapterWithShard(shard))
+				}
+			} else {
+				shard := Shard{}
 				s.doCreateInitShard(&shard)
 				initShards = append(initShards, shard)
 				resources = append(resources, NewResourceAdapterWithShard(shard))
 			}
-		} else {
-			shard := Shard{}
-			s.doCreateInitShard(&shard)
-			initShards = append(initShards, shard)
-			resources = append(resources, NewResourceAdapterWithShard(shard))
-		}
 
-		newReplicaCreator(s).
-			withReason("bootstrap init").
-			withSaveMetadata(true).
-			create(initShards)
+			newReplicaCreator(s).
+				withReason("bootstrap init").
+				withSaveMetadata(true).
+				create(initShards)
 
-		ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
-		if err != nil {
-			s.removeInitShards(initShards...)
-			s.logger.Fatal("failed to bootstrap cluster",
-				s.storeField(),
-				zap.Error(err))
-		}
-		if !ok {
-			s.logger.Info("the cluster is already bootstrapped, remove init shards",
-				s.storeField())
-			s.removeInitShards(initShards...)
+			ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
+			if err != nil {
+				s.removeInitShards(initShards...)
+				s.logger.Fatal("failed to bootstrap cluster",
+					s.storeField(),
+					zap.Error(err))
+			}
+			if !ok {
+				s.logger.Info("the cluster is already bootstrapped, remove init shards",
+					s.storeField())
+				s.removeInitShards(initShards...)
+			}
 		}
 	}
 
