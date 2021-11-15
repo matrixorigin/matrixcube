@@ -1059,9 +1059,9 @@ type testTransport struct {
 	sendingSnapshotCount uint64
 }
 
-func (trans *testTransport) Start()                {}
-func (trans *testTransport) Stop()                 {}
-func (trans *testTransport) Send(meta.RaftMessage) {}
+func (trans *testTransport) Start() error               { return nil }
+func (trans *testTransport) Close() error               { return nil }
+func (trans *testTransport) Send(meta.RaftMessage) bool { return true }
 func (trans *testTransport) SendingSnapshotCount() uint64 {
 	trans.RLock()
 	defer trans.RUnlock()

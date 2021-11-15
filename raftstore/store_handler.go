@@ -59,11 +59,9 @@ func (s *store) handleShardStateCheck() {
 }
 
 // all raft message entrypoint
-func (s *store) handle(value interface{}) {
-	if msg, ok := value.(meta.RaftMessage); ok {
+func (s *store) handle(batch meta.RaftMessageBatch) {
+	for _, msg := range batch.Messages {
 		s.onRaftMessage(msg)
-	} else if msg, ok := value.(meta.SnapshotMessage); ok {
-		s.onSnapshotMessage(msg)
 	}
 }
 
