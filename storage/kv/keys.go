@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	prefixLen       = 1
 	metaPrefix byte = 0x00
 	dataPrefix byte = 0x01
 
@@ -28,6 +29,12 @@ var (
 // EncodeDataKey encode data key with data key prefix
 func EncodeDataKey(keys []byte, buffer *buf.ByteBuf) []byte {
 	return doAppendPrefix(keys, dataPrefix, buffer)
+}
+
+// DecodeDataKey returns the origin data key.
+// Note that no data copy is generated here, only a slice of the key is returned
+func DecodeDataKey(key []byte) []byte {
+	return key[prefixLen:]
 }
 
 // EncodeShardStart encode shard start key with data prefix
