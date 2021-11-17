@@ -105,7 +105,7 @@ func (pr *replica) destroy(shardRemoved bool, reason string) error {
 		log.ReasonField(reason))
 
 	if shardRemoved {
-		pr.sm.setShardState(metapb.ResourceState_Removed)
+		pr.sm.setShardState(metapb.ResourceState_Destroyed)
 	}
 	shard := pr.getShard()
 	// FIXME: updating the state of replicated state machine outside of the

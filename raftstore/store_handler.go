@@ -88,7 +88,7 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 
 	s.replicaRecords.Store(msg.From.ID, msg.From)
 	pr := s.getReplica(msg.ShardID, false)
-	pr.addMessage(msg.Message)
+	pr.addMessage(msg)
 }
 
 func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
@@ -190,7 +190,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		if bytes.Compare(item.Start, msg.End) < 0 {
 			if p := s.getReplica(item.ID, false); p != nil {
 				// Maybe split, but not registered yet.
-				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
+				s.cacheDroppedVoteMsg(msg.ShardID, msg)
 
 				s.logger.Info("replica has overlapped range",
 					s.storeField(),

@@ -50,9 +50,9 @@ func TestResourceAdapter(t *testing.T) {
 	assert.Equal(t, rules, ma.meta.RuleGroups)
 	assert.Equal(t, rules, ma.RuleGroups())
 
-	ma.SetState(metapb.ResourceState_Removed)
-	assert.Equal(t, metapb.ResourceState_Removed, ma.meta.State)
-	assert.Equal(t, metapb.ResourceState_Removed, ma.State())
+	ma.SetState(metapb.ResourceState_Destroyed)
+	assert.Equal(t, metapb.ResourceState_Destroyed, ma.meta.State)
+	assert.Equal(t, metapb.ResourceState_Destroyed, ma.State())
 
 	ma.SetUnique("unique")
 	assert.Equal(t, "unique", ma.meta.Unique)

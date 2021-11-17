@@ -150,6 +150,12 @@ func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
 	return res
 }
 
+// IsDestroyState resource in Destroyed or Destroying state
+func (r *CachedResource) IsDestroyState() bool {
+	return r.Meta.State() == metapb.ResourceState_Destroyed ||
+		r.Meta.State() == metapb.ResourceState_Destroying
+}
+
 // GetTerm returns the current term of the resource
 func (r *CachedResource) GetTerm() uint64 {
 	return r.term

@@ -205,6 +205,15 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
 					continue
 				}
+				// Skip destroyed res
+				if res.IsDestroyState() {
+					cluster.GetLogger().Debug("resource in destroy state",
+						rebalanceResourceField,
+						s.scheduleField,
+						resourceField(res.Meta.ID()))
+					schedulerCounter.WithLabelValues(s.GetName(), "destory").Inc()
+					continue
+				}
 
 				oldPeer, _ := res.GetContainerPeer(sourceID)
 				if op := s.transferPeer(group, cluster, res, oldPeer); op != nil {

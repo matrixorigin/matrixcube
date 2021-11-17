@@ -136,7 +136,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 		if c.checkCache {
 			msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
 			assert.True(t, ok)
-			assert.Equal(t, c.msg.Message, msg)
+			assert.Equal(t, c.msg, msg)
 		}
 	}
 }

@@ -213,7 +213,7 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
 		default:
 			if !ts.hasShard(id) {
-				assert.Equal(t, metapb.ResourceState_Removed, ts.removed[id].State)
+				assert.Equal(t, metapb.ResourceState_Destroyed, ts.removed[id].State)
 				return
 			}
 			time.Sleep(time.Millisecond * 100)

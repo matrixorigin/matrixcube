@@ -91,6 +91,13 @@ type replica struct {
 	unloadedC  chan struct{}
 	destroyedC chan struct{}
 	stopOnce   sync.Once
+
+	// committedIndexes the committed value of all replicas is recorded, and this information is not
+	// necessarily up-to-date.
+	// this map must access in event worker
+	committedIndexes map[uint64]uint64 // replica-id -> committed index(saved into logdb)
+	// lastCommittedIndex last committed log
+	lastCommittedIndex uint64
 }
 
 // createReplica called in:
@@ -138,6 +145,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 		destroyedC:        make(chan struct{}),
+		committedIndexes:  make(map[uint64]uint64),
 	}
 	// we are not guaranteed to have a prophet client in tests
 	if store.pd != nil {
@@ -199,7 +207,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 		pr.addAction(action{actionType: campaignAction})
-	} else if shard.State == metapb.ResourceState_WaittingCreate &&
+	} else if shard.State == metapb.ResourceState_Creating &&
 		shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
@@ -319,6 +327,7 @@ func (pr *replica) initLogState() (bool, error) {
 		zap.Uint64("commit-index", rs.State.Commit),
 		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
+	pr.lastCommittedIndex = rs.State.Commit
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 

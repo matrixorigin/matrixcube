@@ -199,9 +199,9 @@ func (pr *replica) applySplit(result *splitResult) {
 		}).
 		create(result.newShards)
 
-	// current shard not used, keep data.
-	pr.store.destroyReplica(pr.shardID, true, false, "splited")
 	if pr.aware != nil {
 		pr.aware.Splited(pr.getShard())
 	}
+
+	pr.startDestoryReplicaTaskAfterSplitted()
 }

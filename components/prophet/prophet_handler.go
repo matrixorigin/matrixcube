@@ -98,18 +98,6 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeAskSplitReq:
-		resp.Type = rpcpb.TypeAskSplitRsp
-		err := p.handleAskSplit(rc, req, resp)
-		if err != nil {
-			resp.Error = err.Error()
-		}
-	case rpcpb.TypeReportSplitReq:
-		resp.Type = rpcpb.TypeReportSplitRsp
-		err := p.handleReportSplit(rc, req, resp)
-		if err != nil {
-			resp.Error = err.Error()
-		}
 	case rpcpb.TypeAskBatchSplitReq:
 		resp.Type = rpcpb.TypeAskBatchSplitRsp
 		err := p.handleAskBatchSplit(rc, req, resp)
@@ -293,25 +281,6 @@ func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.Reque
 	}
 
 	resp.AllocID.ID = id
-	return nil
-}
-
-func (p *defaultProphet) handleAskSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	split, err := rc.HandleAskSplit(req)
-	if err != nil {
-		return err
-	}
-
-	resp.AskSplit = *split
-	return nil
-}
-
-func (p *defaultProphet) handleReportSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	_, err := rc.HandleReportSplit(req)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

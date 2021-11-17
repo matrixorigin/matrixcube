@@ -136,7 +136,16 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 }
 
 func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
-	return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
+	err := pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
+	if err != nil {
+		return err
+	}
+
+	if !raft.IsEmptyHardState(rd.HardState) {
+		pr.lastCommittedIndex = rd.HardState.Commit
+		pr.committedIndexes[pr.replica.ID] = pr.lastCommittedIndex
+	}
+	return nil
 }
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
@@ -217,6 +226,7 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 		Unique:       shard.Unique,
 		RuleGroups:   shard.RuleGroups,
 		Message:      msg,
+		CommitIndex:  pr.lastCommittedIndex,
 	}
 
 	// There could be two cases:

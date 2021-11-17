@@ -86,18 +86,19 @@ type store struct {
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
 
-	kvStorage       storage.KVStorage
-	logdb           logdb.LogDB
-	trans           transport.Transport
-	shardsProxy     ShardsProxy
-	router          Router
-	splitChecker    *splitChecker
-	watcher         prophet.Watcher
-	vacuumCleaner   *vacuumCleaner
-	keyRanges       sync.Map // group id -> *util.ShardTree
-	replicaRecords  sync.Map // replica id -> metapb.Replica
-	replicas        sync.Map // shard id -> *replica
-	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
+	destoryMetadataStorage destoryMetadataStorage
+	kvStorage              storage.KVStorage
+	logdb                  logdb.LogDB
+	trans                  transport.Transport
+	shardsProxy            ShardsProxy
+	router                 Router
+	splitChecker           *splitChecker
+	watcher                prophet.Watcher
+	vacuumCleaner          *vacuumCleaner
+	keyRanges              sync.Map // group id -> *util.ShardTree
+	replicaRecords         sync.Map // replica id -> metapb.Replica
+	replicas               sync.Map // shard id -> *replica
+	droppedVoteMsgs        sync.Map // shard id -> meta.RaftMessage
 
 	state    uint32
 	stopOnce sync.Once
@@ -365,6 +366,7 @@ func (s *store) startProphet() {
 	s.pd.Start()
 	<-s.pdStartedC
 	s.shardPool.setProphetClient(s.pd.GetClient())
+	s.destoryMetadataStorage = newProphetBasedStorage(s.pd)
 }
 
 func (s *store) startTransport() {
@@ -397,6 +399,7 @@ func (s *store) startShards() {
 
 	var tomebstoneShards []Shard
 	var shards []Shard
+	destoryingShards := make(map[uint64]meta.ShardMetadata)
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
@@ -424,15 +427,24 @@ func (s *store) startShards() {
 				continue
 			}
 
+			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
+				destoryingShards[metadata.ShardID] = metadata
+			}
+
 			shards = append(shards, sls.Shard)
 		}
 	})
 
 	newReplicaCreator(s).
 		withReason("restart").
-		withStartReplica(nil).
+		withStartReplica(func(r *replica) {
+			if metadata, ok := destoryingShards[r.shardID]; ok {
+				r.startDestoryReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+			}
+		}).
 		create(shards)
 
+	// FIXME: all metadata should be removed from the disk.
 	s.cleanupTombstones(tomebstoneShards)
 
 	s.logger.Info("shards started",
@@ -556,19 +568,20 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 //         and this vote will dropped by p2 and p3 node,
 //         because shard a and shard b has overlapped range at p2 and p3 node
 // case 2: p2 or p3 apply split log is before p1, we can't mock shard b's vote msg
-func (s *store) cacheDroppedVoteMsg(id uint64, msg raftpb.Message) {
-	if msg.Type == raftpb.MsgVote || msg.Type == raftpb.MsgPreVote {
+func (s *store) cacheDroppedVoteMsg(id uint64, msg meta.RaftMessage) {
+	if msg.Message.Type == raftpb.MsgVote ||
+		msg.Message.Type == raftpb.MsgPreVote {
 		s.droppedVoteMsgs.Store(id, msg)
 	}
 }
 
-func (s *store) removeDroppedVoteMsg(id uint64) (raftpb.Message, bool) {
+func (s *store) removeDroppedVoteMsg(id uint64) (meta.RaftMessage, bool) {
 	if value, ok := s.droppedVoteMsgs.Load(id); ok {
 		s.droppedVoteMsgs.Delete(id)
-		return value.(raftpb.Message), true
+		return value.(meta.RaftMessage), true
 	}
 
-	return raftpb.Message{}, false
+	return meta.RaftMessage{}, false
 }
 
 func (s *store) validateStoreID(req rpc.RequestBatch) error {

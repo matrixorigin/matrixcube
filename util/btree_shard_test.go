@@ -16,6 +16,7 @@ package util
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 )
@@ -128,4 +129,25 @@ func TestTreeOverlap(t *testing.T) {
 	assert.Equal(t, uint64(2), s.ID)
 	s = tree.Search([]byte{1})
 	assert.Equal(t, uint64(1), s.ID)
+}
+
+func TestAddDestoryShard(t *testing.T) {
+	tree := NewShardTree()
+	tree.Update(
+		meta.Shard{
+			ID:    1,
+			Start: []byte{1},
+			End:   []byte{10},
+			State: metapb.ResourceState_Destroyed,
+		},
+		meta.Shard{
+			ID:    1,
+			Start: []byte{10},
+			End:   []byte{20},
+			State: metapb.ResourceState_Destroying,
+		},
+	)
+
+	assert.Equal(t, meta.Shard{}, tree.Search([]byte{1}))
+	assert.Equal(t, meta.Shard{}, tree.Search([]byte{10}))
 }

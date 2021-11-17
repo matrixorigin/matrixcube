@@ -402,10 +402,10 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 // CheckAndPutResource checks if the resource is valid to put,if valid then put.
 func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
 	switch res.Meta.State() {
-	case metapb.ResourceState_Removed:
+	case metapb.ResourceState_Destroyed:
 		bc.AddRemovedResources(res.Meta.ID())
 		return nil
-	case metapb.ResourceState_WaittingCreate:
+	case metapb.ResourceState_Creating:
 		bc.AddWaittingCreateResources(res.Meta)
 		return nil
 	}

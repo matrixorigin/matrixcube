@@ -30,25 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReportSplit(t *testing.T) {
-	_, opt, err := newTestScheduleConfig()
-	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
-
-	left := &metadata.TestResource{ResID: 1, Start: []byte("a"), End: []byte("b")}
-	right := &metadata.TestResource{ResID: 2, Start: []byte("b"), End: []byte("c")}
-	request := &rpcpb.Request{}
-	request.ReportSplit.Left, _ = left.Marshal()
-	request.ReportSplit.Right, _ = right.Marshal()
-	_, err = cluster.HandleReportSplit(request)
-	assert.NoError(t, err)
-
-	request.ReportSplit.Left, _ = right.Marshal()
-	request.ReportSplit.Right, _ = left.Marshal()
-	_, err = cluster.HandleReportSplit(request)
-	assert.Error(t, err)
-}
-
 func TestReportBatchSplit(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
@@ -124,13 +105,13 @@ func TestCreateResources(t *testing.T) {
 	for _, res := range cluster.core.WaittingCreateResources {
 		v, err := cluster.storage.GetResource(res.ID())
 		assert.NoError(t, err)
-		assert.Equal(t, metapb.ResourceState_WaittingCreate, v.State())
+		assert.Equal(t, metapb.ResourceState_Creating, v.State())
 
 		assert.NoError(t, cluster.HandleResourceHeartbeat(core.NewCachedResource(res, &res.Peers()[0])))
 		assert.Equal(t, 1, cluster.GetResourceCount())
 		assert.Equal(t, 0, len(cluster.core.WaittingCreateResources))
 		assert.NotNil(t, changedRes)
-		assert.Equal(t, changedResFrom, metapb.ResourceState_WaittingCreate)
+		assert.Equal(t, changedResFrom, metapb.ResourceState_Creating)
 		assert.Equal(t, changedResTo, metapb.ResourceState_Running)
 
 		v, err = cluster.storage.GetResource(res.ID())
@@ -209,14 +190,14 @@ func TestRemoveResources(t *testing.T) {
 	}
 
 	for i := uint64(1); i < n-1; i++ {
-		assert.Equal(t, metapb.ResourceState_Removed, cache.GetResource(i).Meta.State())
+		assert.Equal(t, metapb.ResourceState_Destroyed, cache.GetResource(i).Meta.State())
 	}
 	assert.Equal(t, metapb.ResourceState_Running, cache.GetResource(n-1).Meta.State())
 
 	cnt := uint64(0)
 	storage.LoadResources(10, func(r metadata.Resource) {
 		if r.ID() < n-1 {
-			assert.Equal(t, metapb.ResourceState_Removed, r.State())
+			assert.Equal(t, metapb.ResourceState_Destroyed, r.State())
 		} else {
 			assert.Equal(t, metapb.ResourceState_Running, r.State())
 		}

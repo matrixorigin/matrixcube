@@ -49,8 +49,6 @@ type Client interface {
 	GetContainer(containerID uint64) (metadata.Container, error)
 	ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error
 	ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.ContainerHeartbeatRsp, error)
-	AskSplit(res metadata.Resource) (rpcpb.SplitID, error)
-	ReportSplit(left, right metadata.Resource) error
 	AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error)
 	ReportBatchSplit(results ...metadata.Resource) error
 	NewWatcher(flag uint32) (Watcher, error)
@@ -243,56 +241,6 @@ func (c *asyncClient) GetContainer(containerID uint64) (metadata.Container, erro
 	}
 
 	return meta, nil
-}
-
-func (c *asyncClient) AskSplit(res metadata.Resource) (rpcpb.SplitID, error) {
-	if !c.running() {
-		return rpcpb.SplitID{}, ErrClosed
-	}
-
-	data, err := res.Marshal()
-	if err != nil {
-		return rpcpb.SplitID{}, err
-	}
-
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeAskSplitReq
-	req.AskSplit.Data = data
-
-	resp, err := c.syncDo(req)
-	if err != nil {
-		return rpcpb.SplitID{}, err
-	}
-
-	return resp.AskSplit.SplitID, nil
-}
-
-func (c *asyncClient) ReportSplit(left, right metadata.Resource) error {
-	if !c.running() {
-		return ErrClosed
-	}
-
-	leftData, err := left.Marshal()
-	if err != nil {
-		return err
-	}
-
-	rightData, err := right.Marshal()
-	if err != nil {
-		return err
-	}
-
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeReportSplitReq
-	req.ReportSplit.Left = leftData
-	req.ReportSplit.Right = rightData
-
-	_, err = c.syncDo(req)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *asyncClient) AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error) {

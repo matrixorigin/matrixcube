@@ -22,12 +22,8 @@ enum Type {
 	TypeGetContainerRsp       = 8;
 	TypeAllocIDReq            = 9;
 	TypeAllocIDRsp            = 10;
-	TypeAskSplitReq           = 11;
-	TypeAskSplitRsp           = 12;
     TypeAskBatchSplitReq      = 13;
 	TypeAskBatchSplitRsp      = 14;
-    TypeReportSplitReq        = 15;
-	TypeReportSplitRsp        = 16;
     TypeBatchReportSplitReq   = 17;
 	TypeBatchReportSplitRsp   = 18;
     TypeCreateWatcherReq      = 19;
@@ -60,9 +56,7 @@ message Request {
     PutContainerReq       putContainer       = 6  [(gogoproto.nullable) = false]; 
     GetContainerReq       getContainer       = 7  [(gogoproto.nullable) = false];
     AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
-    AskSplitReq           askSplit           = 9  [(gogoproto.nullable) = false];
     AskBatchSplitReq      askBatchSplit      = 10 [(gogoproto.nullable) = false];
-    ReportSplitReq        reportSplit        = 11 [(gogoproto.nullable) = false];
     BatchReportSplitReq   batchReportSplit   = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
     CreateResourcesReq    createResources    = 14 [(gogoproto.nullable) = false];
@@ -86,9 +80,7 @@ message Response {
     PutContainerRsp       putContainer       = 7  [(gogoproto.nullable) = false]; 
     GetContainerRsp       getContainer       = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
-    AskSplitRsp           askSplit           = 10 [(gogoproto.nullable) = false];
     AskBatchSplitRsp      askBatchSplit      = 11 [(gogoproto.nullable) = false];
-    ReportSplitRsp        reportSplit        = 12 [(gogoproto.nullable) = false];
     BatchReportSplitRsp   batchReportSplit   = 13 [(gogoproto.nullable) = false];
     EventNotify           event              = 14 [(gogoproto.nullable) = false];
     CreateResourcesRsp    createResources    = 15 [(gogoproto.nullable) = false];
@@ -180,26 +172,6 @@ message AllocIDReq {
 // AllocIDRsp alloc id response
 message AllocIDRsp {
     uint64 id = 1 [(gogoproto.customname) = "ID"];
-}
-
-// AskSplitReq ask split request
-message AskSplitReq {
-    bytes data = 1;
-}
-
-// AskSplitRsp ask split response
-message AskSplitRsp {
-    SplitID splitID = 1 [(gogoproto.nullable) = false];
-}
-
-// ReportSplitReq report split request
-message ReportSplitReq {
-    bytes left  = 1;
-    bytes right = 2;
-}
-
-// ReportSplitRsp report split response
-message ReportSplitRsp {
 }
 
 // AskBatchSplitReq ask batch split request

@@ -48,44 +48,6 @@ func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-// HandleAskSplit handles the split request.
-func (c *RaftCluster) HandleAskSplit(request *rpcpb.Request) (*rpcpb.AskSplitRsp, error) {
-	reqResource := c.adapter.NewResource()
-	err := reqResource.Unmarshal(request.AskSplit.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.ValidRequestResource(reqResource)
-	if err != nil {
-		return nil, err
-	}
-
-	newResourceID, err := c.AllocID()
-	if err != nil {
-		return nil, err
-	}
-
-	peerIDs := make([]uint64, len(reqResource.Peers()))
-	for i := 0; i < len(peerIDs); i++ {
-		if peerIDs[i], err = c.AllocID(); err != nil {
-			return nil, err
-		}
-	}
-
-	// Disable merge for the 2 resources in a period of time.
-	c.GetMergeChecker().RecordResourceSplit([]uint64{reqResource.ID(), newResourceID})
-
-	split := &rpcpb.AskSplitRsp{}
-	split.SplitID.NewID = newResourceID
-	split.SplitID.NewReplicaIDs = peerIDs
-
-	c.logger.Info("ids allocated for resource split",
-		zap.Uint64("resource", newResourceID),
-		zap.Any("peer-ids", peerIDs))
-	return split, nil
-}
-
 // ValidRequestResource is used to decide if the resource is valid.
 func (c *RaftCluster) ValidRequestResource(reqResource metadata.Resource) error {
 	startKey, _ := reqResource.Range()
@@ -196,39 +158,6 @@ func (c *RaftCluster) checkSplitResources(resources []metadata.Resource) error {
 	return nil
 }
 
-// HandleReportSplit handles the report split request.
-func (c *RaftCluster) HandleReportSplit(request *rpcpb.Request) (*rpcpb.ReportSplitRsp, error) {
-	left := c.adapter.NewResource()
-	err := left.Unmarshal(request.ReportSplit.Left)
-	if err != nil {
-		return nil, err
-	}
-
-	right := c.adapter.NewResource()
-	err = right.Unmarshal(request.ReportSplit.Right)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.checkSplitResource(left, right)
-	if err != nil {
-		c.logger.Warn("report split resource is invalid",
-			zap.Any("left", left),
-			zap.Any("right", right),
-			zap.Error(err))
-		return nil, err
-	}
-
-	// Build origin resource by using left and right.
-	origin := right.Clone()
-	origin.SetEpoch(metapb.ResourceEpoch{})
-	start, _ := left.Range()
-	origin.SetStartKey(start)
-	c.logger.Info("resource split completed",
-		zap.Uint64("resource", origin.ID()))
-	return &rpcpb.ReportSplitRsp{}, nil
-}
-
 // HandleBatchReportSplit handles the batch report split request.
 func (c *RaftCluster) HandleBatchReportSplit(request *rpcpb.Request) (*rpcpb.BatchReportSplitRsp, error) {
 	var resources []metadata.Resource
@@ -312,7 +241,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 		res.SetID(id)
-		res.SetState(metapb.ResourceState_WaittingCreate)
+		res.SetState(metapb.ResourceState_Creating)
 
 		_, err = c.core.PreCheckPutResource(core.NewCachedResource(res, nil))
 		if err != nil {
@@ -387,7 +316,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 		origin = append(origin, v.Meta)
 
 		res := v.Meta.Clone() // use cloned value
-		res.SetState(metapb.ResourceState_Removed)
+		res.SetState(metapb.ResourceState_Destroyed)
 		targets = append(targets, res)
 	}
 	err := c.storage.PutResources(targets...)
@@ -397,7 +326,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 
 	c.core.AddRemovedResources(request.RemoveResources.IDs...)
 	for _, res := range origin {
-		res.SetState(metapb.ResourceState_Removed)
+		res.SetState(metapb.ResourceState_Destroyed)
 		c.changedEvents <- event.NewResourceEvent(res, 0, true, false)
 	}
 

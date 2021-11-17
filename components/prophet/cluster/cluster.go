@@ -475,7 +475,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			return err
 		}
 	}
-	if checkMaybeRemoved != nil && checkMaybeRemoved.State() == metapb.ResourceState_Removed {
+	if checkMaybeRemoved != nil && checkMaybeRemoved.State() == metapb.ResourceState_Destroyed {
 		return errResourceRemoved
 	}
 
@@ -545,7 +545,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	c.Lock()
 	if isNew && c.core.IsWaittingCreateResource(res.Meta.ID()) {
 		if c.resourceStateChangedHandler != nil {
-			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_WaittingCreate,
+			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_Creating,
 				metapb.ResourceState_Running)
 		}
 	}
