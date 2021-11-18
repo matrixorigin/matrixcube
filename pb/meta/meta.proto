@@ -11,6 +11,11 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
+// RaftMessageBatch is a group of messages sent to the same store.
+message RaftMessageBatch {
+    repeated RaftMessage messages = 1 [(gogoproto.nullable) = false];
+}
+
 // RaftMessage the message wrapped raft msg with shard info
 message RaftMessage  {
     uint64               shardID      = 1;

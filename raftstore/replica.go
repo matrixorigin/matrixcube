@@ -44,7 +44,10 @@ import (
 var dn = util.DescribeReplica
 
 type trans interface {
-	Send(meta.RaftMessage)
+	Send(meta.RaftMessage) bool
+	SendingSnapshotCount() uint64
+	Start() error
+	Close() error
 }
 
 type replicaGetter interface {

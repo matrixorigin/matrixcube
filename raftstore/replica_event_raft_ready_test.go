@@ -86,8 +86,21 @@ type replicaTestTransport struct {
 	messages []meta.RaftMessage
 }
 
-func (t *replicaTestTransport) Send(m meta.RaftMessage) {
+func (t *replicaTestTransport) Send(m meta.RaftMessage) bool {
 	t.messages = append(t.messages, m)
+	return true
+}
+
+func (t *replicaTestTransport) Start() error {
+	return nil
+}
+
+func (t *replicaTestTransport) Close() error {
+	return nil
+}
+
+func (t *replicaTestTransport) SendingSnapshotCount() uint64 {
+	return 0
 }
 
 func TestSendRaftMessageAttachsExpectedShardDetails(t *testing.T) {
