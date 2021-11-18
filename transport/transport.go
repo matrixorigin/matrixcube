@@ -57,7 +57,11 @@ type ContainerResolver func(storeID uint64) (metadata.Container, error)
 
 type MessageHandler func(meta.RaftMessageBatch)
 
+type SnapshotChunkHandler func(meta.SnapshotChunk) bool
+
 type UnreachableHandler func(uint64, uint64)
+
+type SnapshotStatusHandler func(uint64, uint64, bool)
 
 type NodeInfo struct {
 	ShardID   uint64
@@ -80,6 +84,19 @@ type Connection interface {
 	SendMessageBatch(batch meta.RaftMessageBatch) error
 }
 
+// SnapshotConnection is the interface used by the transport module for sending
+// snapshot chunks. Each SnapshotConnection works for a specified target
+// store instance.
+type SnapshotConnection interface {
+	// Close closes the SnapshotConnection instance.
+	Close()
+	// SendChunk sends the snapshot chunk to the target. It is
+	// recommended to have the snapshot chunk delivered in order for the best
+	// performance, but out of order delivery is allowed at the cost of reduced
+	// performance.
+	SendChunk(chunk meta.SnapshotChunk) error
+}
+
 // TransImpl is the interface to be implemented by a customized transport
 // module. A transport module is responsible for exchanging Raft messages,
 // snapshots and other metadata between store instances.
@@ -95,6 +112,10 @@ type TransImpl interface {
 	// GetConnection returns an Connection instance used for sending messages
 	// to the specified target store instance.
 	GetConnection(ctx context.Context, target string) (Connection, error)
+	// GetSnapshotConnection returns an Connection instance used for transporting
+	// snapshots to the specified store instance.
+	GetSnapshotConnection(ctx context.Context,
+		target string) (SnapshotConnection, error)
 }
 
 type targetInfo struct {
@@ -109,32 +130,36 @@ type Transport struct {
 		queues   map[string]chan meta.RaftMessage
 		breakers map[string]*circuit.Breaker
 	}
-	logger      *zap.Logger
-	addr        string
-	storeID     uint64
-	ctx         context.Context
-	cancel      context.CancelFunc
-	handler     MessageHandler
-	unreachable UnreachableHandler
-	resolver    ContainerResolver
-	trans       TransImpl
-	stopper     *syncutil.Stopper
-	addrs       sync.Map // storeID -> targetInfo
-	addrsRevert sync.Map // addr -> storeID
+	logger         *zap.Logger
+	addr           string
+	storeID        uint64
+	ctx            context.Context
+	cancel         context.CancelFunc
+	handler        MessageHandler
+	unreachable    UnreachableHandler
+	snapshotStatus SnapshotStatusHandler
+	resolver       ContainerResolver
+	trans          TransImpl
+	stopper        *syncutil.Stopper
+	addrs          sync.Map // storeID -> targetInfo
+	addrsRevert    sync.Map // addr -> storeID
 }
 
 func NewTransport(logger *zap.Logger, addr string,
-	storeID uint64, handler MessageHandler,
-	unreachable UnreachableHandler, resolver ContainerResolver) *Transport {
+	storeID uint64,
+	handler MessageHandler, chunkHandler SnapshotChunkHandler,
+	unreachable UnreachableHandler, snapshotStatus SnapshotStatusHandler,
+	resolver ContainerResolver) *Transport {
 	t := &Transport{
-		logger:      logger,
-		storeID:     storeID,
-		handler:     handler,
-		unreachable: unreachable,
-		resolver:    resolver,
-		stopper:     syncutil.NewStopper(),
+		logger:         logger,
+		storeID:        storeID,
+		handler:        handler,
+		unreachable:    unreachable,
+		snapshotStatus: snapshotStatus,
+		resolver:       resolver,
+		stopper:        syncutil.NewStopper(),
 	}
-	t.trans = NewTCPTransport(logger, addr, handler)
+	t.trans = NewTCPTransport(logger, addr, handler, chunkHandler)
 	t.mu.queues = make(map[string]chan meta.RaftMessage)
 	t.mu.breakers = make(map[string]*circuit.Breaker)
 	t.ctx, t.cancel = context.WithCancel(context.Background())

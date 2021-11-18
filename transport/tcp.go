@@ -346,23 +346,23 @@ func (c *TCPConnection) SendMessageBatch(batch meta.RaftMessageBatch) error {
 	return writeMessage(c.conn, header, buf, c.header, c.encrypted)
 }
 
-/*
 // TCPSnapshotConnection is the connection for sending raft snapshot chunks to
 // remote nodes.
 type TCPSnapshotConnection struct {
+	logger    *zap.Logger
 	conn      net.Conn
 	header    []byte
 	encrypted bool
 }
 
-var _ raftio.ISnapshotConnection = (*TCPSnapshotConnection)(nil)
+var _ SnapshotConnection = (*TCPSnapshotConnection)(nil)
 
 // NewTCPSnapshotConnection creates and returns a new snapshot connection.
-func NewTCPSnapshotConnection(conn net.Conn,
-	rb *ratelimit.Bucket, wb *ratelimit.Bucket,
-	encrypted bool) *TCPSnapshotConnection {
+func NewTCPSnapshotConnection(logger *zap.Logger,
+	conn net.Conn, encrypted bool) *TCPSnapshotConnection {
 	return &TCPSnapshotConnection{
-		conn:      newConnection(conn, rb, wb),
+		logger:    logger,
+		conn:      newConnection(conn),
 		header:    make([]byte, requestHeaderSize),
 		encrypted: encrypted,
 	}
@@ -372,7 +372,8 @@ func NewTCPSnapshotConnection(conn net.Conn,
 func (c *TCPSnapshotConnection) Close() {
 	defer func() {
 		if err := c.conn.Close(); err != nil {
-			plog.Debugf("failed to close the connection %v", err)
+			c.logger.Error("failed to close the connection",
+				zap.Error(err))
 		}
 	}()
 	if err := sendPoison(c.conn, poisonNumber[:]); err != nil {
@@ -382,13 +383,11 @@ func (c *TCPSnapshotConnection) Close() {
 }
 
 // SendChunk sends the specified snapshot chunk to remote node.
-func (c *TCPSnapshotConnection) SendChunk(chunk pb.Chunk) error {
+func (c *TCPSnapshotConnection) SendChunk(chunk meta.SnapshotChunk) error {
 	header := requestHeader{method: snapshotType}
-	sz := chunk.Size()
-	buf := make([]byte, sz)
-	buf = pb.MustMarshalTo(&chunk, buf)
+	buf := protoc.MustMarshal(&chunk)
 	return writeMessage(c.conn, header, buf, c.header, c.encrypted)
-}*/
+}
 
 // TCP is a TCP based transport module for exchanging raft messages and
 // snapshots between NodeHost instances.
@@ -407,13 +406,14 @@ var _ TransImpl = (*TCP)(nil)
 
 // NewTCPTransport creates and returns a new TCP transport module.
 func NewTCPTransport(logger *zap.Logger, addr string,
-	requestHandler MessageHandler) TransImpl {
+	requestHandler MessageHandler, chunkHandler SnapshotChunkHandler) TransImpl {
 	return &TCP{
 		addr:           addr,
 		logger:         logger,
 		stopper:        syncutil.NewStopper(),
 		connStopper:    syncutil.NewStopper(),
 		requestHandler: requestHandler,
+		chunkHandler:   chunkHandler,
 	}
 }
 
@@ -480,18 +480,16 @@ func (t *TCP) GetConnection(ctx context.Context, target string) (Connection, err
 	return NewTCPConnection(t.logger, conn, t.encrypted), nil
 }
 
-/*
 // GetSnapshotConnection returns a new raftio.IConnection for sending raft
 // snapshots.
 func (t *TCP) GetSnapshotConnection(ctx context.Context,
-	target string) (raftio.ISnapshotConnection, error) {
+	target string) (SnapshotConnection, error) {
 	conn, err := t.getConnection(ctx, target)
 	if err != nil {
 		return nil, err
 	}
-	return NewTCPSnapshotConnection(conn,
-		t.readBucket, t.writeBucket, t.encrypted), nil
-}*/
+	return NewTCPSnapshotConnection(t.logger, conn, t.encrypted), nil
+}
 
 // Name returns a human readable name of the TCP transport module.
 func (t *TCP) Name() string {
@@ -533,16 +531,15 @@ func (t *TCP) serveConn(conn net.Conn) {
 			}
 			t.requestHandler(batch)
 		} else {
-			/*
-				chunk := pb.Chunk{}
-				if err := chunk.Unmarshal(buf); err != nil {
-					return
-				}
-				if !t.chunkHandler(chunk) {
-					plog.Errorf("chunk rejected %s", chunkKey(chunk))
-					return
-				}*/
-			panic("not implemented")
+			chunk := meta.SnapshotChunk{}
+			if err := chunk.Unmarshal(buf); err != nil {
+				return
+			}
+			if !t.chunkHandler(chunk) {
+				t.logger.Error("snapshot chunk rejected",
+					zap.String("key", chunkKey(chunk)))
+				return
+			}
 		}
 	}
 }
