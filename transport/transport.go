@@ -43,6 +43,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 const (
@@ -133,6 +135,7 @@ type Transport struct {
 	logger         *zap.Logger
 	addr           string
 	storeID        uint64
+	jobs           uint64
 	ctx            context.Context
 	cancel         context.CancelFunc
 	handler        MessageHandler
@@ -140,29 +143,49 @@ type Transport struct {
 	snapshotStatus SnapshotStatusHandler
 	resolver       ContainerResolver
 	trans          TransImpl
+	dir            snapshot.SnapshotDirFunc
+	chunks         *Chunk
 	stopper        *syncutil.Stopper
 	addrs          sync.Map // storeID -> targetInfo
 	addrsRevert    sync.Map // addr -> storeID
+	fs             vfs.FS
 }
 
 func NewTransport(logger *zap.Logger, addr string,
 	storeID uint64,
 	handler MessageHandler, chunkHandler SnapshotChunkHandler,
 	unreachable UnreachableHandler, snapshotStatus SnapshotStatusHandler,
-	resolver ContainerResolver) *Transport {
+	dir snapshot.SnapshotDirFunc,
+	resolver ContainerResolver, fs vfs.FS) *Transport {
 	t := &Transport{
 		logger:         logger,
 		storeID:        storeID,
 		handler:        handler,
 		unreachable:    unreachable,
 		snapshotStatus: snapshotStatus,
+		dir:            dir,
 		resolver:       resolver,
 		stopper:        syncutil.NewStopper(),
+		fs:             fs,
 	}
+	t.chunks = NewChunk(t.logger, t.handler, t.dir, fs)
 	t.trans = NewTCPTransport(logger, addr, handler, chunkHandler)
 	t.mu.queues = make(map[string]chan meta.RaftMessage)
 	t.mu.breakers = make(map[string]*circuit.Breaker)
 	t.ctx, t.cancel = context.WithCancel(context.Background())
+
+	t.stopper.RunWorker(func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				t.chunks.Tick()
+			case <-t.stopper.ShouldStop():
+				return
+			}
+		}
+	})
 
 	return t
 }

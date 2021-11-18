@@ -31,11 +31,13 @@ package transport
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
+	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -48,8 +50,9 @@ var (
 type job struct {
 	logger    *zap.Logger
 	conn      SnapshotConnection
-	fs        vfs.IFS
+	fs        vfs.FS
 	ctx       context.Context
+	dir       snapshot.SnapshotDirFunc
 	transImpl TransImpl
 	ch        chan meta.SnapshotChunk
 	completed chan struct{}
@@ -61,19 +64,21 @@ type job struct {
 
 func newJob(logger *zap.Logger,
 	ctx context.Context, shardID uint64, replicaID uint64, sz int,
-	transport TransImpl, stopc chan struct{}, fs vfs.FS) *job {
+	trans TransImpl, dir snapshot.SnapshotDirFunc,
+	stopc chan struct{}, fs vfs.FS) *job {
 	j := &job{
 		shardID:   shardID,
 		replicaID: replicaID,
 		logger:    logger,
 		ctx:       ctx,
-		transport: transport,
+		transImpl: trans,
+		dir:       dir,
 		stopc:     stopc,
 		failed:    make(chan struct{}),
 		completed: make(chan struct{}),
 		fs:        fs,
 	}
-	j.ch = make(chan pb.Chunk, sz)
+	j.ch = make(chan meta.SnapshotChunk, sz)
 	return j
 }
 
@@ -84,9 +89,11 @@ func (j *job) close() {
 }
 
 func (j *job) connect(addr string) error {
-	conn, err := j.transport.GetSnapshotConnection(j.ctx, addr)
+	conn, err := j.transImpl.GetSnapshotConnection(j.ctx, addr)
 	if err != nil {
-		plog.Errorf("failed to get a job to %s, %v", addr, err)
+		j.logger.Error("failed to get a job",
+			zap.String("addr", addr),
+			zap.Error(err))
 		return err
 	}
 	j.conn = conn
@@ -95,7 +102,7 @@ func (j *job) connect(addr string) error {
 
 func (j *job) addSnapshot(chunks []meta.SnapshotChunk) {
 	if len(chunks) != cap(j.ch) {
-		plog.Panicf("cap of ch is %d, want %d", cap(j.ch), len(chunks))
+		j.logger.Fatal("unexpected snapshot chunk count")
 	}
 	for _, chunk := range chunks {
 		j.ch <- chunk
@@ -136,9 +143,11 @@ func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
 			return ErrStopped
 		default:
 		}
-		data, err := loadChunkData(chunk, chunkData, j.fs)
+		env := j.getEnv(chunk)
+		data, err := loadChunkData(chunk, env.GetFinalDir(), chunkData, j.fs)
 		if err != nil {
-			panicNow(err)
+			j.logger.Fatal("failed to load chunk data",
+				zap.Error(err))
 		}
 		chunk.Data = data
 		if err := j.conn.SendChunk(chunk); err != nil {
@@ -146,4 +155,13 @@ func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
 		}
 	}
 	return nil
+}
+
+func (j *job) getEnv(chunk meta.SnapshotChunk) snapshot.SSEnv {
+	si := meta.SnapshotInfo{}
+	protoc.MustUnmarshal(&si, chunk.Extra)
+	env := snapshot.NewSSEnv(j.dir, chunk.ShardID, chunk.From,
+		chunk.Index, si.Extra, snapshot.CreatingMode, j.fs)
+	env.FinalizeIndex(chunk.Index)
+	return env
 }

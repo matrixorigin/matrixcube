@@ -17,6 +17,18 @@ import (
 	"github.com/fagongzi/util/protoc"
 )
 
+// IsLastFileChunk returns a boolean value indicating whether the chunk is the
+// last chunk of a snapshot file.
+func (c *SnapshotChunk) IsLastFileChunk() bool {
+	return c.FileChunkID+1 == c.FileChunkCount
+}
+
+// IsLastChunk returns a boolean value indicating whether the current chunk is
+// the last one for the snapshot.
+func (c *SnapshotChunk) IsLastChunk() bool {
+	return c.ChunkCount == c.ChunkID+1
+}
+
 // Clone clone the shard
 func (m Shard) Clone() Shard {
 	var value Shard

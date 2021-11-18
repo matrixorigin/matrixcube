@@ -33,8 +33,14 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 var (
@@ -47,17 +53,18 @@ func (t *Transport) SendSnapshot(m meta.RaftMessage) bool {
 	if !t.sendSnapshot(m) {
 		t.logger.Error("failed to send snapshot",
 			log.RaftMessageField("message", m))
-		t.sendSnapshotNotification(m.ClusterId, m.To, true)
+		t.sendSnapshotNotification(m.ShardID, m.To.ID, true)
 		return false
 	}
 	return true
 }
 
-func (t *Transport) doSendSnapshot(m meta.RaftMessage) bool {
+func (t *Transport) sendSnapshot(m meta.RaftMessage) bool {
 	if m.Message.Type != raftpb.MsgSnap {
 		panic("not a snapshot message")
 	}
-	chunks, err := splitSnapshotMessage(m, t.fs)
+	env := t.getEnv(m)
+	chunks, err := splitSnapshotMessage(m, env.GetFinalDir(), t.fs)
 	if err != nil {
 		t.logger.Error("failed to get snapshot chunks",
 			zap.Error(err))
@@ -75,8 +82,7 @@ func (t *Transport) doSendSnapshot(m meta.RaftMessage) bool {
 		return false
 	}
 
-	key := raftio.GetNodeInfo(clusterID, toNodeID)
-	job := t.createJob(key, addr, false, len(chunks))
+	job := t.createJob(m.ShardID, m.To.ID, targetInfo.addr, false, len(chunks))
 	if job == nil {
 		return false
 	}
@@ -84,27 +90,37 @@ func (t *Transport) doSendSnapshot(m meta.RaftMessage) bool {
 		atomic.AddUint64(&t.jobs, ^uint64(0))
 	}
 	t.stopper.RunWorker(func() {
-		t.processSnapshot(job, addr)
+		t.processSnapshot(job, targetInfo.addr)
 		shutdown()
 	})
 	job.addSnapshot(chunks)
 	return true
 }
 
-func (t *Transport) createJob(key raftio.NodeInfo,
+func (t *Transport) getEnv(m meta.RaftMessage) snapshot.SSEnv {
+	ss := m.Message.Snapshot
+	si := meta.SnapshotInfo{}
+	protoc.MustUnmarshal(&si, ss.Data)
+	env := snapshot.NewSSEnv(t.dir, m.ShardID, m.From.ID,
+		ss.Metadata.Index, si.Extra, snapshot.CreatingMode, t.fs)
+	env.FinalizeIndex(ss.Metadata.Index)
+	return env
+}
+
+func (t *Transport) createJob(shardID uint64, toReplicaID uint64,
 	addr string, streaming bool, sz int) *job {
 	if v := atomic.AddUint64(&t.jobs, 1); v > maxConnectionCount {
 		r := atomic.AddUint64(&t.jobs, ^uint64(0))
 		t.logger.Warn("job count is rate limited",
-			zap.Uint64(r))
+			zap.Uint64("job-count", r))
 		return nil
 	}
-	return newJob(t.ctx, key.ClusterID, key.NodeID, t.nhConfig.GetDeploymentID(),
-		streaming, sz, t.trans, t.stopper.ShouldStop(), t.fs)
+	return newJob(t.logger, t.ctx, shardID, toReplicaID,
+		sz, t.trans, t.dir, t.stopper.ShouldStop(), t.fs)
 }
 
 func (t *Transport) processSnapshot(c *job, addr string) {
-	breaker := t.GetCircuitBreaker(addr)
+	breaker := t.getCircuitBreaker(addr)
 	successes := breaker.Successes()
 	consecFailures := breaker.ConsecFailures()
 	shardID := c.shardID
@@ -112,7 +128,7 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 	if err := func() error {
 		if err := c.connect(addr); err != nil {
 			t.logger.Warn("failed to get snapshot connection",
-				zap.String(addr))
+				zap.String("addr", addr))
 			t.sendSnapshotNotification(shardID, replicaID, true)
 			close(c.failed)
 			return err
@@ -131,7 +147,7 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 		t.sendSnapshotNotification(shardID, replicaID, err != nil)
 		return err
 	}(); err != nil {
-		plog.Warningf("processSnapshot failed",
+		t.logger.Warn("processSnapshot failed",
 			zap.Error(err))
 		breaker.Fail()
 	}
@@ -139,7 +155,7 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 
 func (t *Transport) sendSnapshotNotification(shardID uint64,
 	replicaID uint64, rejected bool) {
-	t.snapshotStatus(clusterID, nodeID, rejected)
+	t.snapshotStatus(shardID, replicaID, rejected)
 }
 
 // filepath is the relative path from the snapshot dir
@@ -167,12 +183,20 @@ func splitBySnapshotFile(msg meta.RaftMessage,
 			ChunkSize:      csz,
 			Index:          msg.Message.Snapshot.Metadata.Index,
 			Term:           msg.Message.Snapshot.Metadata.Term,
-			Filepath:       filepath,
+			FilePath:       filepath,
 			FileSize:       filesize,
 		}
 		results = append(results, c)
 	}
 	return results
+}
+
+func splitSnapshotMessage(m meta.RaftMessage,
+	snapshotDir string, fs vfs.FS) ([]meta.SnapshotChunk, error) {
+	if m.Message.Type != raftpb.MsgSnap {
+		panic("not a snapshot message")
+	}
+	return getChunks(m, snapshotDir, "", fs)
 }
 
 func getChunks(m meta.RaftMessage,
@@ -185,26 +209,25 @@ func getChunks(m meta.RaftMessage,
 		dir = fs.PathJoin(snapshotDir, checkDir)
 	}
 
-	files, err := s.fs.List(dir)
+	files, err := fs.List(dir)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, fp := range files {
-		fullFilePath := s.fs.PathJoin(dir, fp)
-		fileInfo, err := s.fs.Stat(fullFilePath)
+		fullFilePath := fs.PathJoin(dir, fp)
+		fileInfo, err := fs.Stat(fullFilePath)
 		if err != nil {
 			return nil, err
 		}
 		var chunks []meta.SnapshotChunk
-		var err error
 		if fileInfo.IsDir() {
 			chunks, err = getChunks(m, snapshotDir, fs.PathJoin(checkDir, fp), fs)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			chunks := splitBySnapshotFile(m,
+			chunks = splitBySnapshotFile(m,
 				fs.PathJoin(checkDir, fp), uint64(fileInfo.Size()), startChunkID)
 		}
 		startChunkID += uint64(len(chunks))
@@ -217,17 +240,9 @@ func getChunks(m meta.RaftMessage,
 	return results, nil
 }
 
-func splitSnapshotMessage(m meta.RaftMessage,
-	snapshotDir string, fs vfs.FS) ([]meta.SnapshotChunk, error) {
-	if m.Message.Type != meta.MsgSnap {
-		panic("not a snapshot message")
-	}
-	return getChunks(m, snapshotDir, "", fs), nil
-}
-
 func loadChunkData(chunk meta.SnapshotChunk,
-	snapshotDir string, data []byte, fs vfs.IFS) (result []byte, err error) {
-	fp := fs.PathJoin(snapshotDir, chunk.Filepath)
+	snapshotDir string, data []byte, fs vfs.FS) (result []byte, err error) {
+	fp := fs.PathJoin(snapshotDir, chunk.FilePath)
 	f, err := openChunkFileForRead(fp, fs)
 	if err != nil {
 		return nil, err
@@ -235,7 +250,7 @@ func loadChunkData(chunk meta.SnapshotChunk,
 	defer func() {
 		err = firstError(err, f.close())
 	}()
-	offset := chunk.FileChunkId * snapshotChunkSize
+	offset := chunk.FileChunkID * snapshotChunkSize
 	if chunk.ChunkSize != uint64(len(data)) {
 		data = make([]byte, chunk.ChunkSize)
 	}

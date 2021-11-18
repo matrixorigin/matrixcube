@@ -36,9 +36,12 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/errors"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -46,13 +49,13 @@ import (
 var (
 	// ErrSnapshotOutOfDate is returned when the snapshot being received is
 	// considered as out of date.
-	ErrSnapshotOutOfDate     = errors.New("snapshot is out of date")
-	gcIntervalTick           = settings.Soft.SnapshotGCTick
-	snapshotChunkTimeoutTick = settings.Soft.SnapshotChunkTimeoutTick
-	maxConcurrentSlot        = settings.Soft.MaxConcurrentStreamingSnapshot
+	ErrSnapshotOutOfDate            = errors.New("snapshot is out of date")
+	gcIntervalTick           uint64 = 30
+	snapshotChunkTimeoutTick uint64 = 900
+	maxConcurrentSlot        uint64 = 128
 )
 
-var firstError = utils.FirstError
+var firstError = util.FirstError
 
 func chunkKey(c meta.SnapshotChunk) string {
 	return fmt.Sprintf("%d:%d:%d", c.ShardID, c.ReplicaID, c.Index)
@@ -78,10 +81,9 @@ func (l *ssLock) unlock() {
 
 // Chunk managed on the receiving side
 type Chunk struct {
-	fs vfs.FS
-
+	logger    *zap.Logger
+	fs        vfs.FS
 	dir       snapshot.SnapshotDirFunc
-	confirm   func(uint64, uint64, uint64)
 	onReceive func(meta.RaftMessageBatch)
 	timeout   uint64
 	tick      uint64
@@ -95,12 +97,12 @@ type Chunk struct {
 }
 
 // NewChunk creates and returns a new snapshot chunks instance.
-func NewChunk(onReceive func(meta.RaftMessageBatch),
-	confirm func(uint64, uint64, uint64),
+func NewChunk(logger *zap.Logger,
+	onReceive func(meta.RaftMessageBatch),
 	dir snapshot.SnapshotDirFunc, fs vfs.FS) *Chunk {
 	c := &Chunk{
+		logger:    logger,
 		onReceive: onReceive,
-		confirm:   confirm,
 		timeout:   snapshotChunkTimeoutTick,
 		gcTick:    gcIntervalTick,
 		dir:       dir,
@@ -173,45 +175,45 @@ func (c *Chunk) getTracked() map[string]*tracked {
 	m := make(map[string]*tracked)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for k, v := range c.tracked {
+	for k, v := range c.mu.tracked {
 		m[k] = v
 	}
 	return m
 }
 
 func (c *Chunk) resetLocked(key string) {
-	delete(c.tracked, key)
+	delete(c.mu.tracked, key)
 }
 
 func (c *Chunk) getSnapshotLock(key string) *ssLock {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	l, ok := c.locks[key]
+	l, ok := c.mu.locks[key]
 	if !ok {
 		l = &ssLock{}
-		c.locks[key] = l
+		c.mu.locks[key] = l
 	}
 	return l
 }
 
-func (c *Chunk) full() bool {
-	return uint64(len(c.tracked)) >= maxConcurrentSlot
+func (c *Chunk) isFull() bool {
+	return uint64(len(c.mu.tracked)) >= maxConcurrentSlot
 }
 
 func (c *Chunk) record(chunk meta.SnapshotChunk) *tracked {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := chunkKey(chunk)
-	td := c.tracked[key]
+	td := c.mu.tracked[key]
 	if chunk.ChunkID == 0 {
 		c.logger.Debug("first snapshot chunk received",
-			log.SnapshotChunkField(chunk))
+			zap.String("key", chunkKey(chunk)))
 		if td != nil {
 			c.logger.Warn("removing unclaimed snapshot chunks",
 				zap.String("key", key))
 			c.removeTempDir(td.first)
 		} else {
-			if c.full() {
+			if c.isFull() {
 				c.logger.Error("max slot count reached, dropped a snapshot chunk",
 					zap.String("key", key))
 				return nil
@@ -219,12 +221,10 @@ func (c *Chunk) record(chunk meta.SnapshotChunk) *tracked {
 		}
 		// add the first chunk to the tracked map
 		td = &tracked{
-			next:      1,
-			first:     chunk,
-			validator: validator,
-			files:     make([]*pb.SnapshotFile, 0),
+			next:  1,
+			first: chunk,
 		}
-		c.tracked[key] = td
+		c.mu.tracked[key] = td
 	} else {
 		if td == nil {
 			c.logger.Error("not tracked snapshot chunk ignored",
@@ -243,7 +243,7 @@ func (c *Chunk) record(chunk meta.SnapshotChunk) *tracked {
 		if want != from {
 			from := chunk.From
 			want := td.first.From
-			c.logger.Errorf("snapshot chunk from unexpected replica",
+			c.logger.Error("snapshot chunk from unexpected replica",
 				zap.String("key", key),
 				zap.Uint64("from", from),
 				zap.Uint64("want", want))
@@ -265,7 +265,8 @@ func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
 	}
 	removed, err := c.nodeRemoved(chunk)
 	if err != nil {
-		panicNow(err)
+		c.logger.Fatal("failed to check whether node already removed",
+			zap.Error(err))
 	}
 	if removed {
 		c.removeTempDir(chunk)
@@ -274,9 +275,10 @@ func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
 		return false
 	}
 	if err := c.save(chunk); err != nil {
-		err = errors.Wrapf(err, "failed to save chunk %s", key)
 		c.removeTempDir(chunk)
-		panicNow(err)
+		c.logger.Fatal("failed to save chunk",
+			zap.String("key", key),
+			zap.Error(err))
 	}
 	if chunk.IsLastChunk() {
 		c.logger.Debug("last snapshot chunk received",
@@ -291,9 +293,9 @@ func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
 			}
 			return false
 		}
-		snapshotMessage := c.toMessage(td.first, td.files)
+		snapshotMessage := c.toMessage(td.first)
 		c.logger.Info("received a snapshot",
-			log.SnapshotChunkField(chunk))
+			zap.String("key", key))
 		c.onReceive(snapshotMessage)
 	}
 	return true
@@ -312,11 +314,9 @@ func (c *Chunk) save(chunk meta.SnapshotChunk) (err error) {
 			return err
 		}
 	}
-	// FIXME: the fp below is wrong
-	fn := c.fs.PathBase(chunk.Filepath)
-	fp := c.fs.PathJoin(env.GetTempDir(), fn)
+	fp := c.fs.PathJoin(env.GetTempDir(), chunk.FilePath)
 	var f *chunkFile
-	if chunk.FileChunkId == 0 {
+	if chunk.FileChunkID == 0 {
 		f, err = createChunkFile(fp, c.fs)
 	} else {
 		f, err = openChunkFileForAppend(fp, c.fs)
@@ -342,18 +342,18 @@ func (c *Chunk) save(chunk meta.SnapshotChunk) (err error) {
 	return nil
 }
 
-func (c *Chunk) getEnv(chunk meta.SnapshotChunk) server.SSEnv {
-	return server.NewSSEnv(c.dir, chunk.ShardID, chunk.ReplicaID,
-		chunk.Index, chunk.From, server.ReceivingMode, c.fs)
+func (c *Chunk) getEnv(chunk meta.SnapshotChunk) snapshot.SSEnv {
+	return snapshot.NewSSEnv(c.dir, chunk.ShardID, chunk.ReplicaID,
+		chunk.Index, chunk.From, snapshot.ReceivingMode, c.fs)
 }
 
 func (c *Chunk) finalize(chunk meta.SnapshotChunk, td *tracked) error {
 	env := c.getEnv(chunk)
 	msg := c.toMessage(td.first)
-	if len(msg.Requests) != 1 || msg.Requests[0].Type != pb.InstallSnapshot {
+	if len(msg.Messages) != 1 || msg.Messages[0].Message.Type != raftpb.MsgSnap {
 		panic("invalid message")
 	}
-	ss := &msg.Requests[0].Message.Snapshot
+	ss := &msg.Messages[0].Message.Snapshot
 	err := env.FinalizeSnapshot(ss)
 	if err == snapshot.ErrSnapshotOutOfDate {
 		return ErrSnapshotOutOfDate
@@ -377,12 +377,12 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 		},
 	}
 	m := raftpb.Message{
-		Type:     pb.MsgSnap,
+		Type:     raftpb.MsgSnap,
 		From:     chunk.From,
 		To:       chunk.ReplicaID,
 		Snapshot: s,
 	}
-	return pb.RaftMessageBatch{
-		Requests: []meta.RaftMessage{{Message: m}},
+	return meta.RaftMessageBatch{
+		Messages: []meta.RaftMessage{{Message: m}},
 	}
 }

@@ -48,6 +48,7 @@ const (
 	// SnapshotFlagFilename defines the filename of the snapshot flag file.
 	SnapshotFlagFilename = "matrixcube.snapshot.message"
 	defaultDirFileMode   = 0750
+	deleteFilename       = "DELETED.matrixcube"
 )
 
 var firstError = util.FirstError
@@ -277,4 +278,10 @@ func HasFlagFile(dir string, filename string, fs vfs.FS) bool {
 // RemoveFlagFile removes the specified flag file.
 func RemoveFlagFile(dir string, filename string, fs vfs.FS) error {
 	return fs.Remove(fs.PathJoin(dir, filename))
+}
+
+// IsDirMarkedAsDeleted returns a boolean flag indicating whether the specified
+// directory has been marked as deleted.
+func IsDirMarkedAsDeleted(dir string, fs vfs.FS) (bool, error) {
+	return Exist(fs.PathJoin(dir, deleteFilename), fs)
 }

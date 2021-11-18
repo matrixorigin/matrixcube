@@ -37,13 +37,13 @@ import (
 // chunkFile is the snapshot chunk file being transferred.
 type chunkFile struct {
 	file    vfs.File
-	fs      vfs.IFS
+	fs      vfs.FS
 	dir     string
 	syncDir bool
 }
 
 // openChunkFileForAppend opens the chunk file at fp for appending.
-func openChunkFileForAppend(fp string, fs vfs.IFS) (*chunkFile, error) {
+func openChunkFileForAppend(fp string, fs vfs.FS) (*chunkFile, error) {
 	f, err := fs.OpenForAppend(fp)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func openChunkFileForAppend(fp string, fs vfs.IFS) (*chunkFile, error) {
 }
 
 // openChunkFileForRead opens for the chunk file for read-only operation.
-func openChunkFileForRead(fp string, fs vfs.IFS) (*chunkFile, error) {
+func openChunkFileForRead(fp string, fs vfs.FS) (*chunkFile, error) {
 	f, err := fs.Open(fp)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func openChunkFileForRead(fp string, fs vfs.IFS) (*chunkFile, error) {
 }
 
 // createChunkFile creates a new chunk file.
-func createChunkFile(fp string, fs vfs.IFS) (*chunkFile, error) {
+func createChunkFile(fp string, fs vfs.FS) (*chunkFile, error) {
 	f, err := fs.Create(fp)
 	if err != nil {
 		return nil, err

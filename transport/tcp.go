@@ -397,7 +397,7 @@ type TCP struct {
 	stopper        *syncutil.Stopper
 	connStopper    *syncutil.Stopper
 	requestHandler MessageHandler
-	//chunkHandler   raftio.ChunkHandler
+	chunkHandler   SnapshotChunkHandler
 	//nhConfig       config.NodeHostConfig
 	encrypted bool
 }
