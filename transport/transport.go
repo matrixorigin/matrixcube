@@ -152,8 +152,7 @@ type Transport struct {
 }
 
 func NewTransport(logger *zap.Logger, addr string,
-	storeID uint64,
-	handler MessageHandler, chunkHandler SnapshotChunkHandler,
+	storeID uint64, handler MessageHandler,
 	unreachable UnreachableHandler, snapshotStatus SnapshotStatusHandler,
 	dir snapshot.SnapshotDirFunc,
 	resolver ContainerResolver, fs vfs.FS) *Transport {
@@ -169,7 +168,7 @@ func NewTransport(logger *zap.Logger, addr string,
 		fs:             fs,
 	}
 	t.chunks = NewChunk(t.logger, t.handler, t.dir, fs)
-	t.trans = NewTCPTransport(logger, addr, handler, chunkHandler)
+	t.trans = NewTCPTransport(logger, addr, handler, t.chunks.Add)
 	t.mu.queues = make(map[string]chan meta.RaftMessage)
 	t.mu.breakers = make(map[string]*circuit.Breaker)
 	t.ctx, t.cancel = context.WithCancel(context.Background())
