@@ -1,430 +1,365 @@
+// Copyright 2017-2021 Lei Ni (nilei81@gmail.com) and other contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Copyright 2021 MatrixOrigin.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// this file is adopted from github.com/lni/dragonboat
+
 package transport
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/fagongzi/goetty"
-	"github.com/fagongzi/goetty/codec"
-	"github.com/fagongzi/goetty/codec/length"
-	"github.com/fagongzi/goetty/pool"
-	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/snapshot"
-	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/lni/goutils/netutil"
+	circuit "github.com/lni/goutils/netutil/rubyist/circuitbreaker"
+	"github.com/lni/goutils/syncutil"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
+
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
-var (
-	errConnect = errors.New("not connected")
+const (
+	idleTimeout              = 20 * time.Second
+	maxMsgBatchSize   uint64 = 1024 * 1024 * 8
+	sendQueueLen      uint64 = 512
+	concurrencyFactor uint64 = 2
+	dialTimeoutSecond uint64 = 10
 )
 
-// Transport raft transport
-type Transport interface {
-	// Start start the transport, receiving and sending messages
-	Start()
-	// Stop stop the transport
-	Stop()
-	// Send send the raft message to other node
-	Send(meta.RaftMessage)
-	// SendingSnapshotCount returns the count of sending snapshots
-	SendingSnapshotCount() uint64
+type ContainerResolver func(storeID uint64) (metadata.Container, error)
+
+type MessageHandler func(meta.RaftMessageBatch)
+
+type UnreachableHandler func(uint64, uint64)
+
+type NodeInfo struct {
+	ShardID   uint64
+	ReplicaID uint64
 }
 
-// ContainerResolver container resolver func
-type ContainerResolver func(id uint64) (metadata.Container, error)
+type nodeMap map[NodeInfo]struct{}
 
-// MessageHandler message handler
-type MessageHandler func(msg interface{})
+// Connection is the interface used by the transport module for sending Raft
+// messages. Each Connection works for a specified target store instance,
+// it is possible for a target to have multiple concurrent Connection
+// instances in use.
+type Connection interface {
+	// Close closes the Connection instance.
+	Close()
+	// SendMessageBatch sends the specified message batch to the target. It is
+	// recommended to deliver the message batch to the target in order to enjoy
+	// best possible performance, but out of order delivery is allowed at the
+	// cost of reduced performance.
+	SendMessageBatch(batch meta.RaftMessageBatch) error
+}
 
-type defaultTransport struct {
-	opts        *options
+// TransImpl is the interface to be implemented by a customized transport
+// module. A transport module is responsible for exchanging Raft messages,
+// snapshots and other metadata between store instances.
+type TransImpl interface {
+	// Name returns the type name of the TransImpl instance.
+	Name() string
+	// Start launches the transport module and make it ready to start sending and
+	// receiving Raft messages. If necessary, TransImpl may take this opportunity
+	// to start listening for incoming data.
+	Start() error
+	// Close closes the transport module.
+	Close() error
+	// GetConnection returns an Connection instance used for sending messages
+	// to the specified target store instance.
+	GetConnection(ctx context.Context, target string) (Connection, error)
+}
+
+type targetInfo struct {
+	addr string
+	key  string
+}
+
+// Transport is the transport layer for delivering raft messages and snapshots.
+type Transport struct {
+	mu struct {
+		sync.Mutex
+		queues   map[string]chan meta.RaftMessage
+		breakers map[string]*circuit.Breaker
+	}
 	logger      *zap.Logger
+	addr        string
 	storeID     uint64
-	snapMgr     snapshot.SnapshotManager
-	decoder     codec.Decoder
-	encoder     codec.Encoder
-	server      goetty.NetApplication
-	conns       sync.Map // store id -> pool.IOSessionPool
-	resolver    ContainerResolver
+	ctx         context.Context
+	cancel      context.CancelFunc
 	handler     MessageHandler
-	addrs       sync.Map // store id -> addr
-	addrsRevert sync.Map // addr -> store id
-	raftMsgs    []*task.Queue
-	raftMask    uint64
-	snapMsgs    []*task.Queue
-	snapMask    uint64
+	unreachable UnreachableHandler
+	resolver    ContainerResolver
+	trans       TransImpl
+	stopper     *syncutil.Stopper
+	addrs       sync.Map // storeID -> targetInfo
+	addrsRevert sync.Map // addr -> storeID
 }
 
-// NewDefaultTransport create  default transport
-func NewDefaultTransport(
-	storeID uint64,
-	addr string,
-	snapMgr snapshot.SnapshotManager,
-	handler MessageHandler,
-	resolver ContainerResolver,
-	opts ...Option) Transport {
-	t := &defaultTransport{
-		opts:     &options{},
-		storeID:  storeID,
-		snapMgr:  snapMgr,
-		resolver: resolver,
-		handler:  handler,
+func NewTransport(logger *zap.Logger, addr string,
+	storeID uint64, handler MessageHandler,
+	unreachable UnreachableHandler, resolver ContainerResolver) *Transport {
+	t := &Transport{
+		logger:      logger,
+		storeID:     storeID,
+		handler:     handler,
+		unreachable: unreachable,
+		resolver:    resolver,
+		stopper:     syncutil.NewStopper(),
 	}
-
-	for _, opt := range opts {
-		opt(t.opts)
-	}
-	t.opts.adjust()
-	t.logger = t.opts.logger.Named("transport").With(log.ListenAddressField(addr))
-
-	baseEncoder := newRaftEncoder()
-	baseDecoder := newRaftDecoder()
-	t.encoder, t.decoder = length.NewWithSize(baseEncoder, baseDecoder, 0, 0, 0, t.opts.maxBodySize)
-	app, err := goetty.NewTCPApplication(addr, t.onMessage,
-		goetty.WithAppSessionOptions(goetty.WithCodec(t.encoder, t.decoder),
-			goetty.WithTimeout(t.opts.readTimeout, t.opts.writeTimeout),
-			goetty.WithLogger(zap.L().Named("cube-trans")),
-			goetty.WithEnableAsyncWrite(t.opts.sendBatch)))
-	if err != nil {
-		t.logger.Fatal("fail to create transport",
-			zap.Error(err))
-	}
-
-	t.server = app
-
-	for i := uint64(0); i < t.opts.raftWorkerCount; i++ {
-		t.raftMsgs = append(t.raftMsgs, task.New(32))
-	}
-	t.raftMask = t.opts.raftWorkerCount - 1
-
-	for i := uint64(0); i < t.opts.snapWorkerCount; i++ {
-		t.snapMsgs = append(t.snapMsgs, task.New(32))
-	}
-	t.snapMask = t.opts.snapWorkerCount - 1
+	t.trans = NewTCPTransport(logger, addr, handler)
+	t.mu.queues = make(map[string]chan meta.RaftMessage)
+	t.mu.breakers = make(map[string]*circuit.Breaker)
+	t.ctx, t.cancel = context.WithCancel(context.Background())
 
 	return t
 }
 
-func (t *defaultTransport) Start() {
-	for _, q := range t.raftMsgs {
-		go t.readyToSendRaft(q)
-	}
-	for _, q := range t.snapMsgs {
-		go t.readyToSendSnapshots(q)
-	}
-
-	err := t.server.Start()
-	if err != nil {
-		t.logger.Fatal("fail to start transport",
-			zap.Error(err))
-	}
+func (t *Transport) Start() error {
+	return t.trans.Start()
 }
 
-func (t *defaultTransport) Stop() {
-	for _, q := range t.snapMsgs {
-		q.Dispose()
-	}
-	for _, q := range t.raftMsgs {
-		q.Dispose()
-	}
-
-	t.server.Stop()
-	t.logger.Info("transfer stopped")
+// Close closes the Transport object.
+func (t *Transport) Close() error {
+	t.cancel()
+	t.stopper.Stop()
+	return t.trans.Close()
 }
 
-func (t *defaultTransport) SendingSnapshotCount() uint64 {
-	c := int64(0)
-	for _, q := range t.snapMsgs {
-		c += q.Len()
-	}
-
-	return uint64(c)
+// Name returns the type name of the transport module
+func (t *Transport) Name() string {
+	return t.trans.Name()
 }
 
-func (t *defaultTransport) Send(msg meta.RaftMessage) {
-	storeID := msg.To.ContainerID
-	if storeID == t.storeID {
-		t.handler(msg)
-		return
-	}
-
-	if msg.Message.Type == raftpb.MsgSnap {
-		snapMsg := &meta.SnapshotMessage{}
-		protoc.MustUnmarshal(snapMsg, msg.Message.Snapshot.Data)
-		snapMsg.Header.From = msg.From
-		snapMsg.Header.To = msg.To
-
-		q := t.snapMsgs[t.snapMask&storeID]
-		q.Put(snapMsg)
-		metric.SetRaftSnapQueueMetric(q.Len())
-	}
-
-	q := t.raftMsgs[t.raftMask&storeID]
-	q.Put(msg)
-	metric.SetRaftMsgQueueMetric(q.Len())
+func (t *Transport) SendingSnapshotCount() uint64 {
+	return 0
 }
 
-func (t *defaultTransport) onMessage(rs goetty.IOSession, msg interface{}, seq uint64) error {
-	t.handler(msg)
-	return nil
-}
-
-func (t *defaultTransport) readyToSendRaft(q *task.Queue) {
-	items := make([]interface{}, t.opts.sendBatch)
-	buffers := make(map[uint64][]meta.RaftMessage)
-
-	for {
-		n, err := q.Get(t.opts.sendBatch, items)
-		if err != nil {
-			t.logger.Info("send raft worker stopped")
-			return
-		}
-
-		for i := int64(0); i < n; i++ {
-			msg := items[i].(meta.RaftMessage)
-			var values []meta.RaftMessage
-			if v, ok := buffers[msg.To.ContainerID]; ok {
-				values = v
-			}
-
-			values = append(values, msg)
-			buffers[msg.To.ContainerID] = values
-		}
-
-		for k, msgs := range buffers {
-			if len(msgs) > 0 {
-				err := t.doSend(msgs, k)
-				for _, msg := range msgs {
-					t.postSend(msg, err)
-				}
-			}
-		}
-
-		for k, msgs := range buffers {
-			buffers[k] = msgs[:0]
-		}
-
-		metric.SetRaftMsgQueueMetric(q.Len())
-	}
-}
-
-func (t *defaultTransport) readyToSendSnapshots(q *task.Queue) {
-	items := make([]interface{}, t.opts.sendBatch)
-
-	for {
-		n, err := q.Get(t.opts.sendBatch, items)
-		if err != nil {
-			t.logger.Info("send snapshot worker stopped")
-			return
-		}
-
-		for i := int64(0); i < n; i++ {
-			msg := items[i].(*meta.SnapshotMessage)
-			id := msg.Header.To.ContainerID
-
-			conn, err := t.getConn(id)
-			if err != nil {
-				t.logger.Error("fail to create connection to store, retry later",
-					log.StoreIDField(id),
-					zap.Error(err))
-				q.Put(msg)
-				continue
-			}
-
-			err = t.doSendSnapshotMessage(msg, conn)
-			t.putConn(id, conn)
-
-			if err != nil {
-				t.logger.Error("fail to send snapshot message, retry later",
-					log.ShardIDField(msg.Header.Shard.ID),
-					zap.Error(err))
-				q.Put(msg)
-			}
-		}
-
-		metric.SetRaftSnapQueueMetric(q.Len())
-	}
-}
-
-func (t *defaultTransport) doSendSnapshotMessage(msg *meta.SnapshotMessage, conn goetty.IOSession) error {
-	if t.snapMgr.Register(msg, snapshot.Sending) {
-		defer t.snapMgr.Deregister(msg, snapshot.Sending)
-
-		t.logger.Info("start sending pending snapshot",
-			log.ShardIDField(msg.Header.Shard.ID),
-			log.EpochField("epoch", msg.Header.Shard.Epoch),
-			zap.Uint64("term", msg.Header.Term),
-			zap.Uint64("index", msg.Header.Index))
-
-		start := time.Now()
-		if !t.snapMgr.Exists(msg) {
-			return fmt.Errorf("transport: missing snapshot file, header=<%+v>",
-				msg.Header)
-		}
-
-		size, err := t.snapMgr.WriteTo(msg, conn)
-		if err != nil {
-			conn.Close()
-			return err
-		}
-
-		t.logger.Info("pending snapshot sent succeed",
-			log.ShardIDField(msg.Header.Shard.ID),
-			log.EpochField("epoch", msg.Header.Shard.Epoch),
-			zap.Uint64("term", msg.Header.Term),
-			zap.Uint64("index", msg.Header.Index),
-			zap.Uint64("size", size))
-
-		metric.ObserveSnapshotSendingDuration(start)
+func (t *Transport) Send(m meta.RaftMessage) bool {
+	if m.Message.Type == raftpb.MsgSnap {
+		panic("sending snapshot message as regular message")
 	}
 
-	return nil
-}
-
-func (t *defaultTransport) postSend(msg meta.RaftMessage, err error) {
-	if err != nil {
-		t.logger.Error("fail to send raft message ",
-			log.ShardIDField(msg.ShardID),
-			log.ReplicaField("from", msg.From),
-			log.ReplicaField("to", msg.To),
-			log.RaftMessageField("raft-msg", msg),
-			zap.Error(err))
-		if t.opts.errorHandlerFunc != nil {
-			t.opts.errorHandlerFunc(msg, err)
-		}
-	}
-}
-
-func (t *defaultTransport) doSend(msgs []meta.RaftMessage, to uint64) error {
-	conn, err := t.getConn(to)
-	if err != nil {
-		return err
-	}
-
-	err = t.doBatchWrite(msgs, conn)
-	t.putConn(to, conn)
-	return err
-}
-
-func (t *defaultTransport) doBatchWrite(msgs []meta.RaftMessage, conn goetty.IOSession) error {
-	for _, m := range msgs {
-		err := conn.Write(m)
-		if err != nil {
-			conn.Close()
-			return err
-		}
-	}
-
-	err := conn.Flush()
-	if err != nil {
-		conn.Close()
-		return err
-	}
-
-	return nil
-}
-
-func (t *defaultTransport) putConn(id uint64, conn goetty.IOSession) {
-	if p, ok := t.conns.Load(id); ok {
-		p.(pool.IOSessionPool).Put(conn)
-	} else {
-		conn.Close()
-	}
-}
-
-func (t *defaultTransport) getConn(id uint64) (goetty.IOSession, error) {
-	conn, err := t.getConnLocked(id)
-	if err != nil {
-		return nil, err
-	}
-
-	if t.checkConnect(id, conn) {
-		return conn, nil
-	}
-
-	t.putConn(id, conn)
-	return nil, errConnect
-}
-
-func (t *defaultTransport) getConnLocked(id uint64) (goetty.IOSession, error) {
-	if p, ok := t.conns.Load(id); ok {
-		return p.(pool.IOSessionPool).Get()
-	}
-
-	p, err := pool.NewIOSessionPool(nil, 1, 2, func(remote interface{}) (goetty.IOSession, error) {
-		return t.createConn()
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if old, loaded := t.conns.LoadOrStore(id, p); loaded {
-		return old.(pool.IOSessionPool).Get()
-	}
-	return p.Get()
-}
-
-func (t *defaultTransport) checkConnect(id uint64, conn goetty.IOSession) bool {
-	if nil == conn {
+	storeID := m.To.ContainerID
+	targetInfo, resolved := t.resolve(storeID, m.ShardID)
+	if !resolved {
 		return false
 	}
 
-	if conn.Connected() {
-		return true
-	}
-
-	addr, err := t.resolverStoreAddr(id)
-	if err != nil {
+	// fail fast
+	if !t.getCircuitBreaker(targetInfo.addr).Ready() {
 		return false
 	}
 
-	ok, err := conn.Connect(addr, time.Second*10)
-	if err != nil {
-		t.logger.Error("fail to connect to store",
-			log.StoreIDField(id),
-			zap.Error(err))
-		return false
+	t.mu.Lock()
+	ch, ok := t.mu.queues[targetInfo.key]
+	if !ok {
+		ch = make(chan meta.RaftMessage, sendQueueLen)
+		t.mu.queues[targetInfo.key] = ch
 	}
-
-	t.logger.Info("connected to store",
-		log.StoreIDField(id))
-	return ok
-}
-
-func (t *defaultTransport) createConn() (goetty.IOSession, error) {
-	return goetty.NewIOSession(goetty.WithCodec(t.encoder, t.decoder),
-		goetty.WithTimeout(t.opts.readTimeout, t.opts.writeTimeout)), nil
-}
-
-func (t *defaultTransport) resolverStoreAddr(storeID uint64) (string, error) {
-	addr, ok := t.addrs.Load(storeID)
+	t.mu.Unlock()
 
 	if !ok {
-		addr, ok = t.addrs.Load(storeID)
-		if ok {
-			return addr.(string), nil
+		shutdownQueue := func() {
+			t.mu.Lock()
+			delete(t.mu.queues, targetInfo.key)
+			t.mu.Unlock()
 		}
-
-		container, err := t.resolver(storeID)
-		if err != nil {
-			return "", err
-		}
-
-		if container == nil {
-			return "", fmt.Errorf("store %d not registered", storeID)
-		}
-
-		addr = container.ShardAddr()
-		t.addrs.Store(storeID, addr)
-		t.addrsRevert.Store(addr, storeID)
+		t.stopper.RunWorker(func() {
+			affected := make(nodeMap)
+			if !t.connectAndProcess(targetInfo.addr, ch, affected) {
+				t.notifyUnreachable(targetInfo.addr, affected)
+			}
+			shutdownQueue()
+		})
 	}
 
-	return addr.(string), nil
+	select {
+	case ch <- m:
+		return true
+	default:
+		// queue is full
+		return false
+	}
+}
+
+func (t *Transport) connectAndProcess(addr string,
+	ch chan meta.RaftMessage, affected nodeMap) bool {
+	breaker := t.getCircuitBreaker(addr)
+	successes := breaker.Successes()
+	consecFailures := breaker.ConsecFailures()
+	if err := func() error {
+		t.logger.Debug("trying to connect to remote host",
+			zap.String("addr", addr))
+		conn, err := t.trans.GetConnection(t.ctx, addr)
+		if err != nil {
+			t.logger.Error("failed to connect",
+				zap.String("addr", addr),
+				zap.Error(err))
+			return err
+		}
+		defer conn.Close()
+		breaker.Success()
+		if successes == 0 || consecFailures > 0 {
+			t.logger.Debug("connection established",
+				zap.String("addr", addr))
+		}
+		return t.processMessages(addr, ch, conn, affected)
+	}(); err != nil {
+		t.logger.Warn("circuit breaker failed",
+			zap.String("addr", addr),
+			zap.Error(err))
+		breaker.Fail()
+		return false
+	}
+	return true
+}
+
+func (t *Transport) notifyUnreachable(addr string, affected nodeMap) {
+	t.logger.Warn("remote became unreachable",
+		zap.String("addr", addr))
+	for n := range affected {
+		t.unreachable(n.ShardID, n.ReplicaID)
+	}
+}
+
+func (t *Transport) processMessages(addr string,
+	ch chan meta.RaftMessage, conn Connection, affected nodeMap) error {
+	idleTimer := time.NewTimer(idleTimeout)
+	defer idleTimer.Stop()
+	sz := uint64(0)
+	batch := meta.RaftMessageBatch{}
+	requests := make([]meta.RaftMessage, 0)
+	for {
+		idleTimer.Reset(idleTimeout)
+		select {
+		case <-t.stopper.ShouldStop():
+			return nil
+		case <-idleTimer.C:
+			return nil
+		case req := <-ch:
+			n := NodeInfo{
+				ShardID:   req.ShardID,
+				ReplicaID: req.From.ID,
+			}
+			affected[n] = struct{}{}
+			// TODO: this is slow
+			sz += uint64(req.Size())
+			requests = append(requests, req)
+			for done := false; !done && sz < maxMsgBatchSize; {
+				select {
+				case req = <-ch:
+					sz += uint64(req.Size())
+					requests = append(requests, req)
+				case <-t.stopper.ShouldStop():
+					return nil
+				default:
+					done = true
+				}
+			}
+			twoBatch := false
+			if sz < maxMsgBatchSize || len(requests) == 1 {
+				batch.Messages = requests
+			} else {
+				twoBatch = true
+				batch.Messages = requests[:len(requests)-1]
+			}
+			if err := t.sendMessageBatch(conn, batch); err != nil {
+				t.logger.Error("send batch failed",
+					zap.String("target", addr),
+					zap.Error(err))
+				return err
+			}
+			if twoBatch {
+				batch.Messages = []meta.RaftMessage{requests[len(requests)-1]}
+				if err := t.sendMessageBatch(conn, batch); err != nil {
+					t.logger.Error("send batch failed",
+						zap.String("target", addr),
+						zap.Error(err))
+					return err
+				}
+			}
+			sz = 0
+			requests, batch = lazyFree(requests, batch)
+			requests = requests[:0]
+		}
+	}
+}
+
+func lazyFree(reqs []meta.RaftMessage,
+	mb meta.RaftMessageBatch) ([]meta.RaftMessage, meta.RaftMessageBatch) {
+	for i := 0; i < len(reqs); i++ {
+		reqs[i].Message.Entries = nil
+	}
+	mb.Messages = []meta.RaftMessage{}
+	return reqs, mb
+}
+
+func (t *Transport) sendMessageBatch(conn Connection,
+	batch meta.RaftMessageBatch) error {
+	// TODO: add pre-send hook here
+	return conn.SendMessageBatch(batch)
+}
+
+// getCircuitBreaker returns the circuit breaker used for the specified
+// target node.
+func (t *Transport) getCircuitBreaker(key string) *circuit.Breaker {
+	t.mu.Lock()
+	breaker, ok := t.mu.breakers[key]
+	if !ok {
+		breaker = netutil.NewBreaker()
+		t.mu.breakers[key] = breaker
+	}
+	t.mu.Unlock()
+
+	return breaker
+}
+
+func (t *Transport) resolve(storeID uint64, shardID uint64) (targetInfo, bool) {
+	info, ok := t.addrs.Load(storeID)
+	if ok {
+		return info.(targetInfo), true
+	}
+
+	container, err := t.resolver(storeID)
+	if err != nil {
+		t.logger.Error("failed to resolve store addr",
+			zap.Error(err))
+		return targetInfo{}, false
+	}
+	addr := container.ShardAddr()
+	rec := targetInfo{
+		addr: container.ShardAddr(),
+		key:  fmt.Sprintf("%s-%d", addr, shardID%concurrencyFactor),
+	}
+	t.addrs.Store(storeID, rec)
+	t.addrsRevert.Store(addr, storeID)
+	return rec, true
 }

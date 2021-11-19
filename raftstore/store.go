@@ -89,7 +89,7 @@ type store struct {
 	destoryMetadataStorage destoryMetadataStorage
 	kvStorage              storage.KVStorage
 	logdb                  logdb.LogDB
-	trans                  transport.Transport
+	trans                  trans
 	shardsProxy            ShardsProxy
 	router                 Router
 	splitChecker           *splitChecker
@@ -98,7 +98,7 @@ type store struct {
 	keyRanges              sync.Map // group id -> *util.ShardTree
 	replicaRecords         sync.Map // replica id -> metapb.Replica
 	replicas               sync.Map // shard id -> *replica
-	droppedVoteMsgs        sync.Map // shard id -> meta.RaftMessage
+	droppedVoteMsgs        sync.Map // shard id -> raftpb.Message
 
 	state    uint32
 	stopOnce sync.Once
@@ -209,7 +209,7 @@ func (s *store) Stop() {
 		s.logger.Info("vacuum cleaner closed",
 			s.storeField())
 
-		s.trans.Stop()
+		s.trans.Close()
 		s.logger.Info("raft internal transport stopped",
 			s.storeField())
 
@@ -370,26 +370,9 @@ func (s *store) startProphet() {
 }
 
 func (s *store) startTransport() {
-	if s.cfg.Customize.CustomTransportFactory != nil {
-		s.trans = s.cfg.Customize.CustomTransportFactory()
-	} else {
-		s.trans = transport.NewDefaultTransport(s.Meta().ID,
-			s.cfg.RaftAddr,
-			nil,
-			s.handle,
-			s.pd.GetStorage().GetContainer,
-			transport.WithMaxBodyBytes(int(s.cfg.Raft.MaxEntryBytes)*2),
-			transport.WithTimeout(10*s.cfg.Raft.GetElectionTimeoutDuration(),
-				10*s.cfg.Raft.GetElectionTimeoutDuration()),
-			transport.WithSendBatch(int64(s.cfg.Raft.SendRaftBatchSize)),
-			transport.WithWorkerCount(s.cfg.Worker.SendRaftMsgWorkerCount, s.cfg.Snapshot.MaxConcurrencySnapChunks),
-			transport.WithErrorHandler(func(msg meta.RaftMessage, err error) {
-				if pr := s.getReplica(msg.ShardID, true); pr != nil {
-					pr.addFeedback(msg.Message)
-				}
-			}))
-	}
-
+	s.trans = transport.NewTransport(s.logger,
+		s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable,
+		s.pd.GetStorage().GetContainer)
 	s.trans.Start()
 }
 
@@ -764,6 +747,12 @@ func (s *store) nextShard(shard Shard) *Shard {
 
 func (s *store) storeField() zap.Field {
 	return log.StoreIDField(s.Meta().ID)
+}
+
+func (s *store) unreachable(shardID uint64, replicaID uint64) {
+	if pr := s.getReplica(shardID, true); pr != nil {
+		pr.addFeedback(replicaID)
+	}
 }
 
 type storeReplicaGetter struct {

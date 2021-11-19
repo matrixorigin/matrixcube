@@ -22,8 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
@@ -307,11 +305,8 @@ func (pr *replica) handleFeedback(items []interface{}) bool {
 		return false
 	}
 	for i := int64(0); i < n; i++ {
-		if msg, ok := items[i].(raftpb.Message); ok {
-			pr.rn.ReportUnreachable(msg.To)
-			if msg.Type == raftpb.MsgSnap {
-				pr.rn.ReportSnapshot(msg.To, raft.SnapshotFailure)
-			}
+		if replicaID, ok := items[i].(uint64); ok {
+			pr.rn.ReportUnreachable(replicaID)
 		}
 	}
 
