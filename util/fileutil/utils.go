@@ -285,3 +285,8 @@ func RemoveFlagFile(dir string, filename string, fs vfs.FS) error {
 func IsDirMarkedAsDeleted(dir string, fs vfs.FS) (bool, error) {
 	return Exist(fs.PathJoin(dir, deleteFilename), fs)
 }
+
+// MarkDirAsDeleted marks the specified directory as deleted.
+func MarkDirAsDeleted(dir string, msg Marshaler, fs vfs.FS) error {
+	return CreateFlagFile(dir, deleteFilename, msg, fs)
+}

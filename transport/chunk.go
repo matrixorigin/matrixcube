@@ -39,6 +39,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util"
@@ -317,6 +318,8 @@ func (c *Chunk) save(chunk meta.SnapshotChunk) (err error) {
 	fp := c.fs.PathJoin(env.GetTempDir(), chunk.FilePath)
 	var f *chunkFile
 	if chunk.FileChunkID == 0 {
+		fb := c.fs.PathDir(fp)
+		c.fs.MkdirAll(fb, 0755)
 		f, err = createChunkFile(fp, c.fs)
 	} else {
 		f, err = openChunkFileForAppend(fp, c.fs)
@@ -375,6 +378,7 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 			Index: chunk.Index,
 			Term:  chunk.Term,
 		},
+		Data: chunk.Extra,
 	}
 	m := raftpb.Message{
 		Type:     raftpb.MsgSnap,
@@ -383,6 +387,13 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 		Snapshot: s,
 	}
 	return meta.RaftMessageBatch{
-		Messages: []meta.RaftMessage{{Message: m}},
+		Messages: []meta.RaftMessage{
+			{
+				ShardID: chunk.ShardID,
+				To:      metapb.Replica{ID: chunk.ReplicaID},
+				From:    metapb.Replica{ID: chunk.From},
+				Message: m,
+			},
+		},
 	}
 }

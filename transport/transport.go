@@ -65,12 +65,12 @@ type UnreachableHandler func(uint64, uint64)
 
 type SnapshotStatusHandler func(uint64, uint64, bool)
 
-type NodeInfo struct {
+type nodeInfo struct {
 	ShardID   uint64
 	ReplicaID uint64
 }
 
-type nodeMap map[NodeInfo]struct{}
+type nodeMap map[nodeInfo]struct{}
 
 // Connection is the interface used by the transport module for sending Raft
 // messages. Each Connection works for a specified target store instance,
@@ -312,7 +312,7 @@ func (t *Transport) processMessages(addr string,
 		case <-idleTimer.C:
 			return nil
 		case req := <-ch:
-			n := NodeInfo{
+			n := nodeInfo{
 				ShardID:   req.ShardID,
 				ReplicaID: req.From.ID,
 			}

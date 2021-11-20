@@ -48,37 +48,39 @@ var (
 )
 
 type job struct {
-	logger    *zap.Logger
-	conn      SnapshotConnection
-	fs        vfs.FS
-	ctx       context.Context
-	dir       snapshot.SnapshotDirFunc
-	transImpl TransImpl
-	ch        chan meta.SnapshotChunk
-	completed chan struct{}
-	stopc     chan struct{}
-	failed    chan struct{}
-	shardID   uint64
-	replicaID uint64
+	logger            *zap.Logger
+	conn              SnapshotConnection
+	fs                vfs.FS
+	ctx               context.Context
+	dir               snapshot.SnapshotDirFunc
+	transImpl         TransImpl
+	ch                chan meta.SnapshotChunk
+	completed         chan struct{}
+	stopc             chan struct{}
+	failed            chan struct{}
+	shardID           uint64
+	replicaID         uint64
+	snapshotChunkSize uint64
 }
 
 func newJob(logger *zap.Logger,
-	ctx context.Context, shardID uint64, replicaID uint64, sz int,
+	ctx context.Context, shardID uint64, replicaID uint64, count int,
 	trans TransImpl, dir snapshot.SnapshotDirFunc,
-	stopc chan struct{}, fs vfs.FS) *job {
+	stopc chan struct{}, snapshotChunkSize uint64, fs vfs.FS) *job {
 	j := &job{
-		shardID:   shardID,
-		replicaID: replicaID,
-		logger:    logger,
-		ctx:       ctx,
-		transImpl: trans,
-		dir:       dir,
-		stopc:     stopc,
-		failed:    make(chan struct{}),
-		completed: make(chan struct{}),
-		fs:        fs,
+		shardID:           shardID,
+		replicaID:         replicaID,
+		logger:            logger,
+		ctx:               ctx,
+		transImpl:         trans,
+		dir:               dir,
+		stopc:             stopc,
+		failed:            make(chan struct{}),
+		completed:         make(chan struct{}),
+		fs:                fs,
+		snapshotChunkSize: snapshotChunkSize,
 	}
-	j.ch = make(chan meta.SnapshotChunk, sz)
+	j.ch = make(chan meta.SnapshotChunk, count)
 	return j
 }
 
@@ -136,7 +138,7 @@ func (j *job) sendSnapshot() error {
 }
 
 func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
-	chunkData := make([]byte, snapshotChunkSize)
+	chunkData := make([]byte, j.snapshotChunkSize)
 	for _, chunk := range chunks {
 		select {
 		case <-j.stopc:
@@ -144,7 +146,8 @@ func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
 		default:
 		}
 		env := j.getEnv(chunk)
-		data, err := loadChunkData(chunk, env.GetFinalDir(), chunkData, j.fs)
+		data, err := loadChunkData(chunk,
+			env.GetFinalDir(), chunkData, j.snapshotChunkSize, j.fs)
 		if err != nil {
 			j.logger.Fatal("failed to load chunk data",
 				zap.Error(err))

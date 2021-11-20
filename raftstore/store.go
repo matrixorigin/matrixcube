@@ -743,9 +743,25 @@ func (s *store) unreachable(shardID uint64, replicaID uint64) {
 }
 
 func (s *store) snapshotStatus(shardID uint64, replicaID uint64, rejected bool) {
-	if pr := s.getReplica(shardID, true); pr != nil {
-		pr.addSnapshotStatus(snapshotStatus{to: replicaID, rejected: rejected})
+	waitTime := 5 * time.Second
+	if rejected {
+		waitTime = 0 * time.Second
 	}
+	// when not rejected, we wait a few seconds before notifying the leader,
+	// this prevents the leader sending a new append message only to be rejected
+	// by the remote replica and triggering a new snapshot.
+	s.stopper.RunWorker(func() {
+		timer := time.NewTimer(waitTime)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			if pr := s.getReplica(shardID, true); pr != nil {
+				pr.addSnapshotStatus(snapshotStatus{to: replicaID, rejected: rejected})
+			}
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	})
 }
 
 type storeReplicaGetter struct {
