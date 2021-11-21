@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,6 +44,7 @@ func TestApplySplit(t *testing.T) {
 	s.droppedVoteMsgs.Store(uint64(2), meta.RaftMessage{})
 	s.droppedVoteMsgs.Store(uint64(3), meta.RaftMessage{})
 
+	pr.readStopper = stop.NewStopper("", stop.WithNoop())
 	pr.applySplit(result)
 	_, ok := s.droppedVoteMsgs.Load(uint64(2))
 	assert.False(t, ok)
