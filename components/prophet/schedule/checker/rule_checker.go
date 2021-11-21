@@ -204,6 +204,8 @@ func (c *RuleChecker) addRulePeer(res *core.CachedResource, rf *placement.RuleFi
 func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.RuleFit, peer metapb.Replica, status string) (*operator.Operator, error) {
 	if res.IsDestroyState() {
 		checkerCounter.WithLabelValues("rule_checker", "remove-"+status+"-peer").Inc()
+		c.cluster.GetLogger().Debug("remove down replica",
+			zap.Uint64("replica-id", peer.ID))
 		return operator.CreateRemovePeerOperator("remove-"+status+"-peer", c.cluster, operator.OpReplica, res, peer.ContainerID)
 	}
 

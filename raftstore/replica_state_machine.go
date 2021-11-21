@@ -147,9 +147,10 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	for _, entry := range entries {
 		d.applyCtx.initialize(entry)
 		// notify all clients that current shard has been removed or splitted
-		if !d.canContinue() {
+		if !d.canContinue(entry) {
 			if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
 				ce.Write(zap.Uint64("index", entry.Index),
+					zap.String("type", entry.Type.String()),
 					log.ReasonField("continue check failed"))
 			}
 			d.notifyShardRemoved(d.applyCtx)
@@ -288,11 +289,16 @@ func (d *stateMachine) setSplited() {
 	d.metadataMu.splited = true
 }
 
-func (d *stateMachine) canContinue() bool {
+func (d *stateMachine) canContinue(entry raftpb.Entry) bool {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 
-	return !d.metadataMu.removed && !d.metadataMu.splited
+	if !d.metadataMu.removed && !d.metadataMu.splited {
+		return true
+	}
+
+	return isConfigChangeEntry(entry) &&
+		d.metadataMu.shard.State == metapb.ResourceState_Destroying
 }
 
 func (d *stateMachine) setShardState(st metapb.ResourceState) {

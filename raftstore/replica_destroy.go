@@ -15,8 +15,10 @@ package raftstore
 
 import (
 	"math"
+	"sync"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 
@@ -29,6 +31,40 @@ var (
 	ErrRemoveShardKeyRange = errors.New("failed to delete shard key range")
 )
 
+// destroyShards used to protect shards that need to be deleted from being recreated.
+// Shard A has 3 replicas: A1, A2, A3, and destroy shard A.
+// 1. A1 removed from node1
+// 2. A2 send vote message to A1
+// 3. A1 recreate by vote message
+// So we need createShardsProtector to avoid A1 recreate. Once Shard A is in the destroying state,
+// the nodes where all replicas of Shard A are located cannot be changed.
+// Shard is added to createShardsProtector before it is destroyed.
+type createShardsProtector struct {
+	sync.RWMutex
+
+	destroyedShards *roaring64.Bitmap // all the shards which state in destroying or destroyed in current node.
+}
+
+func newCreateShardsProtector() *createShardsProtector {
+	return &createShardsProtector{
+		destroyedShards: roaring64.New(),
+	}
+}
+
+func (csp *createShardsProtector) addDestroyed(id uint64) {
+	csp.Lock()
+	defer csp.Unlock()
+
+	csp.destroyedShards.Add(id)
+}
+
+func (csp *createShardsProtector) inDestoryState(id uint64) bool {
+	csp.RLock()
+	defer csp.RUnlock()
+
+	return csp.destroyedShards.Contains(id)
+}
+
 // destroyReplica destroys the replica by closing it, removing it from the
 // store and finally deleting all its associated data.
 func (s *store) destroyReplica(shardID uint64,
@@ -40,6 +76,9 @@ func (s *store) destroyReplica(shardID uint64,
 		return
 	}
 
+	if shardRemoved {
+		s.createShardsProtector.addDestroyed(shardID)
+	}
 	s.vacuumCleaner.addTask(vacuumTask{
 		shard:        replica.getShard(),
 		replica:      replica,
@@ -69,11 +108,11 @@ func (s *store) vacuum(t vacuumTask) error {
 		// wait for the replica to be fully unloaded before removing it from the
 		// store. otherwise the raft worker might not be able to get the replica
 		// from the store and mark it as unloaded.
-		s.logger.Info("waiting for the replica to be unloaded",
+		t.replica.logger.Info("waiting for the replica to be unloaded",
 			log.ReplicaIDField(t.shard.ID))
 		t.replica.waitUnloaded()
 		s.removeReplica(t.replica)
-		s.logger.Info("replica unloaded",
+		t.replica.logger.Info("replica unloaded",
 			log.ReplicaIDField(t.shard.ID))
 	}
 	s.removeDroppedVoteMsg(t.shard.ID)

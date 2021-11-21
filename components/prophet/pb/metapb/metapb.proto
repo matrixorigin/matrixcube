@@ -242,3 +242,11 @@ message ResourcePool {
     uint64 capacity    = 2;
     bytes  rangePrefix = 3;
 }
+
+// DestroyingStatus destroying status
+message DestroyingStatus {
+    uint64 index = 1;
+    map<uint64, bool> replicas  = 2;
+    ResourceState state = 3;
+    bool             removeData = 4;
+}

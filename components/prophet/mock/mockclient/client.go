@@ -68,21 +68,6 @@ func (mr *MockClientMockRecorder) AskBatchSplit(res, count interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AskBatchSplit", reflect.TypeOf((*MockClient)(nil).AskBatchSplit), res, count)
 }
 
-// AskSplit mocks base method.
-func (m *MockClient) AskSplit(res metadata.Resource) (rpcpb.SplitID, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AskSplit", res)
-	ret0, _ := ret[0].(rpcpb.SplitID)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AskSplit indicates an expected call of AskSplit.
-func (mr *MockClientMockRecorder) AskSplit(res interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AskSplit", reflect.TypeOf((*MockClient)(nil).AskSplit), res)
-}
-
 // AsyncAddResources mocks base method.
 func (m *MockClient) AsyncAddResources(resources ...metadata.Resource) error {
 	m.ctrl.T.Helper()
@@ -177,6 +162,21 @@ func (mr *MockClientMockRecorder) ContainerHeartbeat(hb interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerHeartbeat", reflect.TypeOf((*MockClient)(nil).ContainerHeartbeat), hb)
 }
 
+// CreateDestroying mocks base method.
+func (m *MockClient) CreateDestroying(id, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateDestroying", id, index, removeData, replicas)
+	ret0, _ := ret[0].(metapb.ResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateDestroying indicates an expected call of CreateDestroying.
+func (mr *MockClientMockRecorder) CreateDestroying(id, index, removeData, replicas interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDestroying", reflect.TypeOf((*MockClient)(nil).CreateDestroying), id, index, removeData, replicas)
+}
+
 // CreateJob mocks base method.
 func (m *MockClient) CreateJob(arg0 metapb.Job) error {
 	m.ctrl.T.Helper()
@@ -234,6 +234,21 @@ func (m *MockClient) GetContainer(containerID uint64) (metadata.Container, error
 func (mr *MockClientMockRecorder) GetContainer(containerID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContainer", reflect.TypeOf((*MockClient)(nil).GetContainer), containerID)
+}
+
+// GetDestroying mocks base method.
+func (m *MockClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDestroying", id)
+	ret0, _ := ret[0].(*metapb.DestroyingStatus)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDestroying indicates an expected call of GetDestroying.
+func (mr *MockClientMockRecorder) GetDestroying(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDestroying", reflect.TypeOf((*MockClient)(nil).GetDestroying), id)
 }
 
 // GetResourceHeartbeatRspNotifier mocks base method.
@@ -308,36 +323,19 @@ func (mr *MockClientMockRecorder) RemoveJob(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveJob", reflect.TypeOf((*MockClient)(nil).RemoveJob), arg0)
 }
 
-// ReportBatchSplit mocks base method.
-func (m *MockClient) ReportBatchSplit(results ...metadata.Resource) error {
+// ReportDestroyed mocks base method.
+func (m *MockClient) ReportDestroyed(id, replicaID uint64) (metapb.ResourceState, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{}
-	for _, a := range results {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ReportBatchSplit", varargs...)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "ReportDestroyed", id, replicaID)
+	ret0, _ := ret[0].(metapb.ResourceState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// ReportBatchSplit indicates an expected call of ReportBatchSplit.
-func (mr *MockClientMockRecorder) ReportBatchSplit(results ...interface{}) *gomock.Call {
+// ReportDestroyed indicates an expected call of ReportDestroyed.
+func (mr *MockClientMockRecorder) ReportDestroyed(id, replicaID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportBatchSplit", reflect.TypeOf((*MockClient)(nil).ReportBatchSplit), results...)
-}
-
-// ReportSplit mocks base method.
-func (m *MockClient) ReportSplit(left, right metadata.Resource) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReportSplit", left, right)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReportSplit indicates an expected call of ReportSplit.
-func (mr *MockClientMockRecorder) ReportSplit(left, right interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportSplit", reflect.TypeOf((*MockClient)(nil).ReportSplit), left, right)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportDestroyed", reflect.TypeOf((*MockClient)(nil).ReportDestroyed), id, replicaID)
 }
 
 // ResourceHeartbeat mocks base method.

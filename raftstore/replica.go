@@ -30,9 +30,9 @@ import (
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -42,13 +42,6 @@ import (
 )
 
 var dn = util.DescribeReplica
-
-type trans interface {
-	Send(meta.RaftMessage) bool
-	SendingSnapshotCount() uint64
-	Start() error
-	Close() error
-}
 
 type replicaGetter interface {
 	getReplica(uint64) (*replica, bool)
@@ -66,7 +59,7 @@ type replica struct {
 	leaderID              uint64
 	// FIXME: decouple replica from store
 	store     *store
-	transport trans
+	transport transport.Trans
 	aware     aware.ShardStateAware
 	logdb     logdb.LogDB
 	cfg       config.Config
@@ -112,6 +105,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 	l.Info("begin to create replica",
 		log.ReasonField(reason),
+		log.ReplicaField("replica", r),
 		log.ShardField("metadata", shard))
 
 	if r.ID == 0 {

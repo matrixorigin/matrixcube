@@ -45,12 +45,14 @@ var (
 type Client interface {
 	Close() error
 	AllocID() (uint64, error)
+	CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error)
+	ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error)
+	GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
 	PutContainer(container metadata.Container) error
 	GetContainer(containerID uint64) (metadata.Container, error)
 	ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error
 	ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.ContainerHeartbeatRsp, error)
 	AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error)
-	ReportBatchSplit(results ...metadata.Resource) error
 	NewWatcher(flag uint32) (Watcher, error)
 	GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error)
 	// AsyncAddResources add resources asynchronously. The operation add new resources meta on the
@@ -61,10 +63,10 @@ type Client interface {
 	// allocated exceed the `leastPeers`, no error will be returned.
 	AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error
 	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
-	// on the prophet leader cache and embed etcd. The resource actual destory triggered in three ways as below:
+	// on the prophet leader cache and embed etcd. The resource actual destroy triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
-	//    destoryed if encounter removed state.
-	// b) Resource heartbeat received a DestoryDirectly schedule command.
+	//    destroyed if encounter removed state.
+	// b) Resource heartbeat received a DestroyDirectly schedule command.
 	// c) If received a resource removed event.
 	AsyncRemoveResources(ids ...uint64) error
 	// CheckResourceState returns resources state
@@ -196,6 +198,60 @@ func (c *asyncClient) ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.
 	return resp.ContainerHeartbeat, nil
 }
 
+func (c *asyncClient) CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+	if !c.running() {
+		return metapb.ResourceState_Destroying, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeCreateDestoryingReq
+	req.CreateDestorying.ID = id
+	req.CreateDestorying.Index = index
+	req.CreateDestorying.Replicas = replicas
+	req.CreateDestorying.RemoveData = removeData
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return metapb.ResourceState_Destroying, err
+	}
+	return rsp.CreateDestorying.State, nil
+}
+
+func (c *asyncClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) {
+	if !c.running() {
+		return nil, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeGetDestoryingReq
+	req.GetDestorying.ID = id
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.GetDestorying.Status, nil
+}
+
+func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error) {
+	if !c.running() {
+		return metapb.ResourceState_Destroying, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeReportDestoryedReq
+	req.ReportDestoryed.ID = id
+	req.ReportDestoryed.ReplicaID = replicaID
+
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return metapb.ResourceState_Destroying, err
+	}
+
+	return rsp.ReportDestoryed.State, nil
+}
+
 func (c *asyncClient) PutContainer(container metadata.Container) error {
 	if !c.running() {
 		return ErrClosed
@@ -264,33 +320,6 @@ func (c *asyncClient) AskBatchSplit(res metadata.Resource, count uint32) ([]rpcp
 	}
 
 	return resp.AskBatchSplit.SplitIDs, nil
-}
-
-func (c *asyncClient) ReportBatchSplit(results ...metadata.Resource) error {
-	if !c.running() {
-		return ErrClosed
-	}
-
-	var resources [][]byte
-	for _, res := range results {
-		v, err := res.Marshal()
-		if err != nil {
-			return err
-		}
-
-		resources = append(resources, v)
-	}
-
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeBatchReportSplitReq
-	req.BatchReportSplit.Resources = resources
-
-	_, err := c.syncDo(req)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *asyncClient) NewWatcher(flag uint32) (Watcher, error) {

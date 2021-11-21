@@ -46,6 +46,7 @@ const (
 type Option func(*options)
 
 type options struct {
+	noop               bool
 	stopTimeout        time.Duration
 	logger             *zap.Logger
 	timeoutTaskHandler func(tasks []string, timeAfterStop time.Duration)
@@ -56,6 +57,13 @@ func (opts *options) adjust() {
 		opts.stopTimeout = defaultStoppedTimeout
 	}
 	opts.logger = log.Adjust(opts.logger)
+}
+
+// WithNoop the stopper will do nothing
+func WithNoop() Option {
+	return func(opts *options) {
+		opts.noop = true
+	}
 }
 
 // WithStopTimeout the stopper will print the names of tasks that are still running beyond this timeout.
@@ -150,6 +158,10 @@ func (s *Stopper) RunTask(ctx context.Context, task func(context.Context)) error
 // 	return
 // }
 func (s *Stopper) RunNamedTask(ctx context.Context, name string, task func(context.Context)) error {
+	if s.opts.noop {
+		return nil
+	}
+
 	// we use read lock here for avoid race
 	s.mu.RLock()
 	defer s.mu.RUnlock()

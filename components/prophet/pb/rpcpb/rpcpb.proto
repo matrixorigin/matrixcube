@@ -22,10 +22,14 @@ enum Type {
 	TypeGetContainerRsp       = 8;
 	TypeAllocIDReq            = 9;
 	TypeAllocIDRsp            = 10;
-    TypeAskBatchSplitReq      = 13;
-	TypeAskBatchSplitRsp      = 14;
-    TypeBatchReportSplitReq   = 17;
-	TypeBatchReportSplitRsp   = 18;
+    TypeAskBatchSplitReq      = 11;
+	TypeAskBatchSplitRsp      = 12;
+    TypeCreateDestoryingReq   = 13;
+    TypeCreateDestoryingRsp   = 14;
+    TypeReportDestoryedReq   = 15;
+    TypeReportDestoryedRsp   = 16;
+    TypeGetDestoryingReq      = 17;
+	TypeGetDestoryingRsp      = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
     TypeCreateResourcesReq    = 21;
@@ -56,8 +60,10 @@ message Request {
     PutContainerReq       putContainer       = 6  [(gogoproto.nullable) = false]; 
     GetContainerReq       getContainer       = 7  [(gogoproto.nullable) = false];
     AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
-    AskBatchSplitReq      askBatchSplit      = 10 [(gogoproto.nullable) = false];
-    BatchReportSplitReq   batchReportSplit   = 12 [(gogoproto.nullable) = false];
+    AskBatchSplitReq      askBatchSplit      = 9  [(gogoproto.nullable) = false];
+    CreateDestoryingReq   createDestorying   = 10 [(gogoproto.nullable) = false];
+    ReportDestoryedReq   ReportDestoryed   = 11 [(gogoproto.nullable) = false];
+    GetDestoryingReq      getDestorying      = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
     CreateResourcesReq    createResources    = 14 [(gogoproto.nullable) = false];
     RemoveResourcesReq    removeResources    = 15 [(gogoproto.nullable) = false];
@@ -80,8 +86,10 @@ message Response {
     PutContainerRsp       putContainer       = 7  [(gogoproto.nullable) = false]; 
     GetContainerRsp       getContainer       = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
-    AskBatchSplitRsp      askBatchSplit      = 11 [(gogoproto.nullable) = false];
-    BatchReportSplitRsp   batchReportSplit   = 13 [(gogoproto.nullable) = false];
+    AskBatchSplitRsp      askBatchSplit      = 10 [(gogoproto.nullable) = false];
+    CreateDestoryingRsp   createDestorying   = 11 [(gogoproto.nullable) = false];
+    ReportDestoryedRsp   ReportDestoryed   = 12 [(gogoproto.nullable) = false];
+    GetDestoryingRsp      getDestorying      = 13 [(gogoproto.nullable) = false];
     EventNotify           event              = 14 [(gogoproto.nullable) = false];
     CreateResourcesRsp    createResources    = 15 [(gogoproto.nullable) = false];
     RemoveResourcesRsp    removeResources    = 16 [(gogoproto.nullable) = false];
@@ -141,6 +149,7 @@ message PutContainerReq {
 
 // PutContainerRsp put container response
 message PutContainerRsp {
+    bytes destroyResources = 1;
 }
 
 // ContainerHeartbeatReq container heartbeat request
@@ -185,14 +194,39 @@ message AskBatchSplitRsp {
     repeated SplitID splitIDs = 1 [(gogoproto.nullable) = false];
 }
 
-// BatchReportSplitReq report split request
-message BatchReportSplitReq {
-    repeated bytes resources = 1;
+
+// CreateDestoryingReq create destorying status request
+message CreateDestoryingReq {
+    uint64            id        = 1 [(gogoproto.customname) = "ID"];
+    uint64            index     = 2;
+    repeated uint64 replicas    = 3;
+    bool             removeData = 4;
 }
 
-// BatchReportSplitRsp report split response
-message BatchReportSplitRsp {
-    
+// CreateDestoryingRsp create destorying status response
+message CreateDestoryingRsp {
+    metapb.ResourceState state = 1;
+}
+
+// GetDestoryingReq get destorying status request
+message GetDestoryingReq {
+    uint64            id        = 1 [(gogoproto.customname) = "ID"];
+}
+
+// GetDestoryingRsp get destorying status response
+message GetDestoryingRsp {
+    metapb.DestroyingStatus status = 1;
+}
+
+// ReportDestoryedReq report destroying request
+message ReportDestoryedReq {
+    uint64            id        = 1 [(gogoproto.customname) = "ID"];
+    uint64            replicaID = 2;
+}
+
+// ReportDestoryedRsp report destroying rsp
+message ReportDestoryedRsp {
+    metapb.ResourceState state = 1;
 }
 
 // SplitID split id
@@ -232,7 +266,8 @@ message CheckResourceStateReq {
 
 // CheckResourceStateReq check resource state rsp
 message CheckResourceStateRsp {
-    repeated uint64 removed = 1;
+    bytes destroyed  = 1;
+    bytes destroying  = 2;
 }
 
 // PutPlacementRuleReq put placement rule req

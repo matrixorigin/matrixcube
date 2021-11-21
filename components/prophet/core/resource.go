@@ -587,7 +587,8 @@ func (r *CachedResources) GetResource(resourceID uint64) *CachedResource {
 // SetResource sets the CachedResource with resourceID
 func (r *CachedResources) SetResource(res *CachedResource) []*CachedResource {
 	if origin := r.resources.Get(res.Meta.ID()); origin != nil {
-		if !bytes.Equal(origin.GetStartKey(), res.GetStartKey()) || !bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
+		if !bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
+			!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
 			r.removeResourceFromTreeAndMap(origin)
 		}
 		if r.shouldRemoveFromSubTree(res, origin) {
@@ -617,12 +618,18 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 		r.trees[res.Meta.Group()] = newResourceTree(r.factory)
 	}
 
-	tree := r.trees[res.Meta.Group()]
+	// Destroying resource cannot add to tree to avoid range overlaps,
+	// and only wait schedule remove down replicas.
+	if res.IsDestroyState() {
+		r.RemoveResource(res)
+	}
 
+	tree := r.trees[res.Meta.Group()]
 	// the resources which are overlapped with the specified resource range.
 	var overlaps []*CachedResource
-	// when the value is true, add the resource to the tree. otherwise use the resource replace the origin resource in the tree.
-	treeNeedAdd := true
+	// when the value is true, add the resource to the tree.
+	// Otherwise use the resource replace the origin resource in the tree.
+	treeNeedAdd := !res.IsDestroyState()
 	if origin := r.GetResource(res.Meta.ID()); origin != nil {
 		if resOld := tree.find(res); resOld != nil {
 			// Update to tree.

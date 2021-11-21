@@ -58,7 +58,7 @@ const (
 )
 
 var (
-	errResourceRemoved = errors.New("resource removed")
+	errResourceDestroyed = errors.New("resource destroyed")
 )
 
 // Server is the interface for cluster.
@@ -465,18 +465,18 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeRemoved metadata.Resource
+	var checkMaybeDestroyed metadata.Resource
 	if origin != nil {
-		checkMaybeRemoved = origin.Meta
+		checkMaybeDestroyed = origin.Meta
 	}
-	if checkMaybeRemoved == nil {
-		checkMaybeRemoved, err = c.storage.GetResource(res.Meta.ID())
+	if checkMaybeDestroyed == nil {
+		checkMaybeDestroyed, err = c.storage.GetResource(res.Meta.ID())
 		if err != nil {
 			return err
 		}
 	}
-	if checkMaybeRemoved != nil && checkMaybeRemoved.State() == metapb.ResourceState_Destroyed {
-		return errResourceRemoved
+	if checkMaybeDestroyed != nil && checkMaybeDestroyed.State() == metapb.ResourceState_Destroyed {
+		return errResourceDestroyed
 	}
 
 	// Save to storage if meta is updated.
@@ -524,6 +524,9 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
 			saveKV, saveCache = true, true
 		}
+		if res.Meta.State() != origin.Meta.State() {
+			saveKV, saveCache = true, true
+		}
 
 		if res.GetApproximateSize() != origin.GetApproximateSize() ||
 			res.GetApproximateKeys() != origin.GetApproximateKeys() {
@@ -560,7 +563,6 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			return err
 		}
 
-		res.Meta.SetState(metapb.ResourceState_Running)
 		overlaps := c.core.PutResource(res)
 		if c.storage != nil {
 			for _, item := range overlaps {
