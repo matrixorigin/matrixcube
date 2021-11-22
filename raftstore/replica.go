@@ -51,6 +51,7 @@ type replica struct {
 	logger                *zap.Logger
 	storeID               uint64
 	shardID               uint64
+	replicaID             uint64
 	replica               Replica
 	group                 uint64
 	startedC              chan struct{}
@@ -123,6 +124,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		cfg:               *store.cfg,
 		aware:             store.aware,
 		replica:           r,
+		replicaID:         r.ID,
 		shardID:           shard.ID,
 		storeID:           store.Meta().ID,
 		group:             shard.Group,
@@ -156,7 +158,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
-	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replica.ID, pr.replica.ContainerID),
+	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replicaID, pr.replica.ContainerID),
 		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
@@ -184,7 +186,7 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
+	c := getRaftConfig(pr.replicaID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -307,7 +309,7 @@ func (pr *replica) initConfState() error {
 
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replica.ID)
+	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replicaID)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
 	}
@@ -350,7 +352,7 @@ func (pr *replica) setLeaderReplicaID(id uint64) {
 }
 
 func (pr *replica) isLeader() bool {
-	return pr.getLeaderReplicaID() == pr.replica.ID
+	return pr.getLeaderReplicaID() == pr.replicaID
 }
 
 func (pr *replica) getLeaderReplicaID() uint64 {
@@ -456,7 +458,7 @@ func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
 	shard := pr.getShard()
 	var downReplicas []metapb.ReplicaStats
 	for _, p := range shard.Replicas {
-		if p.ID == pr.replica.ID {
+		if p.ID == pr.replicaID {
 			continue
 		}
 

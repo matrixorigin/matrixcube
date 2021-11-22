@@ -24,8 +24,7 @@ import (
 )
 
 var (
-	checkerInterval = time.Second * 5
-
+	defaultCheckInterval  = time.Second * 2
 	destroyShardTaskField = zap.String("task", "destroy-shard-task")
 )
 
@@ -48,7 +47,7 @@ func (pr *replica) startDestoryReplicaTaskAfterSplitted() {
 // startDestoryReplicaTask starts a task to destory all replicas of the shard after the specified Log applied.
 func (pr *replica) startDestoryReplicaTask(targetIndex uint64, removeData bool, reason string) {
 	task := func(ctx context.Context) {
-		pr.destoryReplicaAfterLogApplied(ctx, targetIndex, pr.addAction, pr.store.pd.GetClient(), removeData, reason)
+		pr.destoryReplicaAfterLogApplied(ctx, targetIndex, pr.addAction, pr.store.pd.GetClient(), removeData, reason, 0)
 	}
 
 	if err := pr.readStopper.RunNamedTask(context.Background(), reason, task); err != nil {
@@ -66,7 +65,8 @@ func (pr *replica) destoryReplicaAfterLogApplied(ctx context.Context,
 	actionHandler actionHandleFunc,
 	client destroyingStorage,
 	removeData bool,
-	reason string) {
+	reason string,
+	checkInterval time.Duration) {
 
 	pr.logger.Info("start",
 		destroyShardTaskField,
@@ -79,7 +79,10 @@ func (pr *replica) destoryReplicaAfterLogApplied(ctx context.Context,
 	doCheckLog := false
 	doCheckApply := false
 
-	checkTimer := time.NewTimer(checkerInterval)
+	if checkInterval == 0 {
+		checkInterval = defaultCheckInterval
+	}
+	checkTimer := time.NewTimer(checkInterval)
 	defer checkTimer.Stop()
 
 	doSaveDestoryC := make(chan []uint64)
@@ -147,7 +150,7 @@ func (pr *replica) destoryReplicaAfterLogApplied(ctx context.Context,
 				})
 			}
 
-			checkTimer.Reset(checkerInterval)
+			checkTimer.Reset(checkInterval)
 		case replicas := <-doSaveDestoryC: // step 2
 			// leader path, only leader node can reach here.
 			doCheckLog = false
@@ -171,7 +174,7 @@ func (pr *replica) destoryReplicaAfterLogApplied(ctx context.Context,
 			pr.logger.Debug("destory metadata saved",
 				destroyShardTaskField)
 		case <-doRealDestoryC: // step 4
-			if _, err := client.ReportDestroyed(pr.shardID, pr.replica.ID); err != nil {
+			if _, err := client.ReportDestroyed(pr.shardID, pr.replicaID); err != nil {
 				pr.logger.Error("failed to report destroying status, retry later",
 					destroyShardTaskField,
 					zap.Error(err))

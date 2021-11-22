@@ -546,7 +546,8 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 
 	c.Lock()
-	if isNew && c.core.IsWaittingCreateResource(res.Meta.ID()) {
+	inCreating := c.core.IsWaittingCreateResource(res.Meta.ID())
+	if isNew && inCreating {
 		if c.resourceStateChangedHandler != nil {
 			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_Creating,
 				metapb.ResourceState_Running)
@@ -615,6 +616,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// If there are concurrent heartbeats from the same resource, the last write will win even if
 	// writes to storage in the critical area. So don't use mutex to protect it.
 	if saveKV && c.storage != nil {
+		if !inCreating && res.Meta.State() == metapb.ResourceState_Creating {
+			res = res.Clone(core.WithState(metapb.ResourceState_Running))
+		}
+
 		if err := c.storage.PutResource(res.Meta); err != nil {
 			// Not successfully saved to storage is not fatal, it only leads to longer warm-up
 			// after restart. Here we only log the error then go on updating cache.

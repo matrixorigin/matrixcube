@@ -198,7 +198,7 @@ func (pr *replica) proposeNormal(c batch) bool {
 	if ce := pr.logger.Check(zap.DebugLevel, "made a proposal"); ce != nil {
 		ce.Write(
 			log.ShardIDField(pr.shardID),
-			log.ReplicaIDField(pr.replica.ID),
+			log.ReplicaIDField(pr.replicaID),
 			log.IndexField(idx))
 	}
 	pr.metrics.propose.normal++
@@ -412,7 +412,7 @@ func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest,
 		dup[cp.Replica.ID] = struct{}{}
 
 		if !pr.cfg.Replication.AllowRemoveLeader {
-			if isRemovingOrDemotingLeader(kind, cp, pr.replica.ID) {
+			if isRemovingOrDemotingLeader(kind, cp, pr.replicaID) {
 				return ErrRemoveLeader
 			}
 		}

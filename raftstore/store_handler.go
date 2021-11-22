@@ -139,7 +139,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 		// we may encounter a message with larger peer id, which means
 		// current peer is stale, then we should remove current peer
-		if p.replica.ID < target.ID {
+		if p.replicaID < target.ID {
 			// TODO: check this.
 			// cancel snapshotting op
 
@@ -152,7 +152,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 			//}
 
 			stalePeer = p.replica
-		} else if p.replica.ID > target.ID {
+		} else if p.replicaID > target.ID {
 			s.logger.Info("from replica is stale",
 				s.storeField(),
 				log.ShardIDField(msg.ShardID),

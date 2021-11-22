@@ -141,12 +141,6 @@ func TestSplitWithCase2(t *testing.T) {
 	// split completed
 	// A3 back and removed by pd check, cannot split
 
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 200
-	defer func() {
-		checkerInterval = old
-	}()
-
 	defer leaktest.AfterTest(t)()
 
 	skipStore := uint64(0)
@@ -210,12 +204,6 @@ func TestSplitWithCase3(t *testing.T) {
 	// split completed
 	// restart A1, A2, A3
 	// A3 back and removed by pd check, cannot split
-
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 200
-	defer func() {
-		checkerInterval = old
-	}()
 
 	defer leaktest.AfterTest(t)()
 

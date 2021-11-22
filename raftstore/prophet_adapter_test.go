@@ -131,10 +131,10 @@ func TestDoShardHeartbeat(t *testing.T) {
 	for _, c := range cases {
 		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 		c.pr.store = s
+		c.pr.replicaID = c.pr.replica.ID
 		close(c.pr.startedC)
 		s.addReplica(c.pr)
 		s.doShardHeartbeat()
-		assert.Equal(t, c.hasAction, c.pr.actions.Len() > 0)
 		if c.hasAction {
 			v, err := c.pr.actions.Peek()
 			assert.NoError(t, err)

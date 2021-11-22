@@ -253,9 +253,7 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 
 func (s *store) doShardHeartbeat() {
 	s.forEachReplica(func(pr *replica) bool {
-		if pr.isLeader() {
-			pr.addAction(action{actionType: heartbeatAction})
-		}
+		pr.addAction(action{actionType: heartbeatAction})
 		return true
 	})
 }

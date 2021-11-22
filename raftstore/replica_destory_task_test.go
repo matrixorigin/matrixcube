@@ -94,12 +94,6 @@ func (s *testDestoryMetadataStorage) ReportDestroyed(id uint64, replicaID uint64
 func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 10
-	defer func() {
-		checkerInterval = old
-	}()
-
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
@@ -113,7 +107,7 @@ func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
 			assert.NotNil(t, a.actionCallback)
 			c <- []uint64{1, 2, 3}
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep1")
+	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep1", time.Millisecond*10)
 
 	select {
 	case <-c:
@@ -125,12 +119,6 @@ func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
 
 func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 10
-	defer func() {
-		checkerInterval = old
-	}()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
@@ -144,7 +132,7 @@ func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
 			assert.NotNil(t, a.actionCallback)
 			go a.actionCallback([]uint64{1, 2, 3})
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep2")
+	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep2", time.Millisecond*10)
 
 	select {
 	case <-dms.c:
@@ -160,12 +148,6 @@ func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
 func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 10
-	defer func() {
-		checkerInterval = old
-	}()
-
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
@@ -180,7 +162,7 @@ func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
 			assert.NotNil(t, a.actionCallback)
 			c <- struct{}{}
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep3")
+	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep3", time.Millisecond*10)
 
 	select {
 	case <-c:
@@ -192,12 +174,6 @@ func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
 
 func TestDestoryReplicaAfterLogAppliedStep4(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-
-	old := checkerInterval
-	checkerInterval = time.Millisecond * 10
-	defer func() {
-		checkerInterval = old
-	}()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
@@ -214,7 +190,7 @@ func TestDestoryReplicaAfterLogAppliedStep4(t *testing.T) {
 			if a.actionType == checkLogAppliedAction {
 				go a.actionCallback(nil)
 			}
-		}, dms, false, "TestDestoryReplicaAfterLogAppliedStep4")
+		}, dms, false, "TestDestoryReplicaAfterLogAppliedStep4", time.Millisecond*10)
 		close(c)
 	}()
 

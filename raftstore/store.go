@@ -642,9 +642,9 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 		}, true
 	}
 
-	if pr.replica.ID != replicaID {
+	if pr.replicaID != replicaID {
 		return errorpb.Error{
-			Message: fmt.Sprintf("mismatch replica id, want %d, but %d", pr.replica.ID, replicaID),
+			Message: fmt.Sprintf("mismatch replica id, want %d, but %d", pr.replicaID, replicaID),
 		}, true
 	}
 
