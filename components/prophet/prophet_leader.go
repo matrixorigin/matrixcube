@@ -71,15 +71,18 @@ func (p *defaultProphet) stopRaftCluster() {
 }
 
 func (p *defaultProphet) createEventNotifer() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.stopEventNotifer()
-	p.wn = newWatcherNotifier(p.cluster, p.logger)
-	p.wn.start()
+	p.mu.wn = newWatcherNotifier(p.cluster, p.logger)
+	p.mu.wn.start()
 }
 
 func (p *defaultProphet) stopEventNotifer() {
-	if p.wn != nil {
-		p.wn.stop()
-		p.wn = nil
+	if p.mu.wn != nil {
+		p.mu.wn.stop()
+		p.mu.wn = nil
 	}
 }
 

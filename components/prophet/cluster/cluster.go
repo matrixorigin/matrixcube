@@ -246,6 +246,8 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 		case <-c.quit:
 			c.logger.Info("metrics are reset")
 			c.resetMetrics()
+			close(c.createResourceC)
+			close(c.changedEvents)
 			c.logger.Info("background jobs has been stopped")
 			return
 		case <-ticker.C:
@@ -287,8 +289,6 @@ func (c *RaftCluster) Stop() {
 
 	c.running = false
 	close(c.quit)
-	close(c.createResourceC)
-	close(c.changedEvents)
 	c.coordinator.stop()
 	c.Unlock()
 	c.wg.Wait()

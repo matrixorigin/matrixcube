@@ -124,8 +124,11 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		}
 	case rpcpb.TypeCreateWatcherReq:
 		resp.Type = rpcpb.TypeEventNotify
-		if p.wn != nil {
-			err := p.wn.handleCreateWatcher(req, resp, rs)
+		p.mu.RLock()
+		wn := p.mu.wn
+		p.mu.RUnlock()
+		if wn != nil {
+			err := wn.handleCreateWatcher(req, resp, rs)
 			if err != nil {
 				return err
 			}
