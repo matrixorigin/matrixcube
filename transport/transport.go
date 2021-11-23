@@ -53,6 +53,13 @@ const (
 	dialTimeoutSecond uint64 = 10
 )
 
+type Trans interface {
+	Send(meta.RaftMessage) bool
+	SendingSnapshotCount() uint64
+	Start() error
+	Close() error
+}
+
 type ContainerResolver func(storeID uint64) (metadata.Container, error)
 
 type MessageHandler func(meta.RaftMessageBatch)

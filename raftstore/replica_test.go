@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,6 +62,7 @@ func TestInitAppliedIndex(t *testing.T) {
 
 func newTestReplica(shard Shard, peer Replica, s *store) *replica {
 	pr, _ := newReplica(s, shard, peer, "testing")
-	close(pr.startedC)
+	pr.readStopper = stop.NewStopper("test")
+	pr.setStarted()
 	return pr
 }

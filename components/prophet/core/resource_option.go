@@ -27,6 +27,13 @@ type ResourceOption func(res *CachedResource) bool
 // ResourceCreateOption used to create resource.
 type ResourceCreateOption func(res *CachedResource)
 
+// WithState sets state for the resource.
+func WithState(state metapb.ResourceState) ResourceCreateOption {
+	return func(res *CachedResource) {
+		res.Meta.SetState(state)
+	}
+}
+
 // WithDownPeers sets the down peers for the resource.
 func WithDownPeers(downReplicas []metapb.ReplicaStats) ResourceCreateOption {
 	return func(res *CachedResource) {

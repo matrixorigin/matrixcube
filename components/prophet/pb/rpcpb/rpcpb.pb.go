@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -23,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // Type rpc type
 type Type int32
@@ -40,14 +39,14 @@ const (
 	TypeGetContainerRsp       Type = 8
 	TypeAllocIDReq            Type = 9
 	TypeAllocIDRsp            Type = 10
-	TypeAskSplitReq           Type = 11
-	TypeAskSplitRsp           Type = 12
-	TypeAskBatchSplitReq      Type = 13
-	TypeAskBatchSplitRsp      Type = 14
-	TypeReportSplitReq        Type = 15
-	TypeReportSplitRsp        Type = 16
-	TypeBatchReportSplitReq   Type = 17
-	TypeBatchReportSplitRsp   Type = 18
+	TypeAskBatchSplitReq      Type = 11
+	TypeAskBatchSplitRsp      Type = 12
+	TypeCreateDestoryingReq   Type = 13
+	TypeCreateDestoryingRsp   Type = 14
+	TypeReportDestoryedReq    Type = 15
+	TypeReportDestoryedRsp    Type = 16
+	TypeGetDestoryingReq      Type = 17
+	TypeGetDestoryingRsp      Type = 18
 	TypeCreateWatcherReq      Type = 19
 	TypeEventNotify           Type = 20
 	TypeCreateResourcesReq    Type = 21
@@ -80,14 +79,14 @@ var Type_name = map[int32]string{
 	8:  "TypeGetContainerRsp",
 	9:  "TypeAllocIDReq",
 	10: "TypeAllocIDRsp",
-	11: "TypeAskSplitReq",
-	12: "TypeAskSplitRsp",
-	13: "TypeAskBatchSplitReq",
-	14: "TypeAskBatchSplitRsp",
-	15: "TypeReportSplitReq",
-	16: "TypeReportSplitRsp",
-	17: "TypeBatchReportSplitReq",
-	18: "TypeBatchReportSplitRsp",
+	11: "TypeAskBatchSplitReq",
+	12: "TypeAskBatchSplitRsp",
+	13: "TypeCreateDestoryingReq",
+	14: "TypeCreateDestoryingRsp",
+	15: "TypeReportDestoryedReq",
+	16: "TypeReportDestoryedRsp",
+	17: "TypeGetDestoryingReq",
+	18: "TypeGetDestoryingRsp",
 	19: "TypeCreateWatcherReq",
 	20: "TypeEventNotify",
 	21: "TypeCreateResourcesReq",
@@ -120,14 +119,14 @@ var Type_value = map[string]int32{
 	"TypeGetContainerRsp":       8,
 	"TypeAllocIDReq":            9,
 	"TypeAllocIDRsp":            10,
-	"TypeAskSplitReq":           11,
-	"TypeAskSplitRsp":           12,
-	"TypeAskBatchSplitReq":      13,
-	"TypeAskBatchSplitRsp":      14,
-	"TypeReportSplitReq":        15,
-	"TypeReportSplitRsp":        16,
-	"TypeBatchReportSplitReq":   17,
-	"TypeBatchReportSplitRsp":   18,
+	"TypeAskBatchSplitReq":      11,
+	"TypeAskBatchSplitRsp":      12,
+	"TypeCreateDestoryingReq":   13,
+	"TypeCreateDestoryingRsp":   14,
+	"TypeReportDestoryedReq":    15,
+	"TypeReportDestoryedRsp":    16,
+	"TypeGetDestoryingReq":      17,
+	"TypeGetDestoryingRsp":      18,
 	"TypeCreateWatcherReq":      19,
 	"TypeEventNotify":           20,
 	"TypeCreateResourcesReq":    21,
@@ -239,10 +238,10 @@ type Request struct {
 	PutContainer         PutContainerReq       `protobuf:"bytes,6,opt,name=putContainer,proto3" json:"putContainer"`
 	GetContainer         GetContainerReq       `protobuf:"bytes,7,opt,name=getContainer,proto3" json:"getContainer"`
 	AllocID              AllocIDReq            `protobuf:"bytes,8,opt,name=allocID,proto3" json:"allocID"`
-	AskSplit             AskSplitReq           `protobuf:"bytes,9,opt,name=askSplit,proto3" json:"askSplit"`
-	AskBatchSplit        AskBatchSplitReq      `protobuf:"bytes,10,opt,name=askBatchSplit,proto3" json:"askBatchSplit"`
-	ReportSplit          ReportSplitReq        `protobuf:"bytes,11,opt,name=reportSplit,proto3" json:"reportSplit"`
-	BatchReportSplit     BatchReportSplitReq   `protobuf:"bytes,12,opt,name=batchReportSplit,proto3" json:"batchReportSplit"`
+	AskBatchSplit        AskBatchSplitReq      `protobuf:"bytes,9,opt,name=askBatchSplit,proto3" json:"askBatchSplit"`
+	CreateDestorying     CreateDestoryingReq   `protobuf:"bytes,10,opt,name=createDestorying,proto3" json:"createDestorying"`
+	ReportDestoryed      ReportDestoryedReq    `protobuf:"bytes,11,opt,name=ReportDestoryed,proto3" json:"ReportDestoryed"`
+	GetDestorying        GetDestoryingReq      `protobuf:"bytes,12,opt,name=getDestorying,proto3" json:"getDestorying"`
 	CreateWatcher        CreateWatcherReq      `protobuf:"bytes,13,opt,name=createWatcher,proto3" json:"createWatcher"`
 	CreateResources      CreateResourcesReq    `protobuf:"bytes,14,opt,name=createResources,proto3" json:"createResources"`
 	RemoveResources      RemoveResourcesReq    `protobuf:"bytes,15,opt,name=removeResources,proto3" json:"removeResources"`
@@ -271,7 +270,7 @@ func (m *Request) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Request.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -346,13 +345,6 @@ func (m *Request) GetAllocID() AllocIDReq {
 	return AllocIDReq{}
 }
 
-func (m *Request) GetAskSplit() AskSplitReq {
-	if m != nil {
-		return m.AskSplit
-	}
-	return AskSplitReq{}
-}
-
 func (m *Request) GetAskBatchSplit() AskBatchSplitReq {
 	if m != nil {
 		return m.AskBatchSplit
@@ -360,18 +352,25 @@ func (m *Request) GetAskBatchSplit() AskBatchSplitReq {
 	return AskBatchSplitReq{}
 }
 
-func (m *Request) GetReportSplit() ReportSplitReq {
+func (m *Request) GetCreateDestorying() CreateDestoryingReq {
 	if m != nil {
-		return m.ReportSplit
+		return m.CreateDestorying
 	}
-	return ReportSplitReq{}
+	return CreateDestoryingReq{}
 }
 
-func (m *Request) GetBatchReportSplit() BatchReportSplitReq {
+func (m *Request) GetReportDestoryed() ReportDestoryedReq {
 	if m != nil {
-		return m.BatchReportSplit
+		return m.ReportDestoryed
 	}
-	return BatchReportSplitReq{}
+	return ReportDestoryedReq{}
+}
+
+func (m *Request) GetGetDestorying() GetDestoryingReq {
+	if m != nil {
+		return m.GetDestorying
+	}
+	return GetDestoryingReq{}
 }
 
 func (m *Request) GetCreateWatcher() CreateWatcherReq {
@@ -448,10 +447,10 @@ type Response struct {
 	PutContainer         PutContainerRsp       `protobuf:"bytes,7,opt,name=putContainer,proto3" json:"putContainer"`
 	GetContainer         GetContainerRsp       `protobuf:"bytes,8,opt,name=getContainer,proto3" json:"getContainer"`
 	AllocID              AllocIDRsp            `protobuf:"bytes,9,opt,name=allocID,proto3" json:"allocID"`
-	AskSplit             AskSplitRsp           `protobuf:"bytes,10,opt,name=askSplit,proto3" json:"askSplit"`
-	AskBatchSplit        AskBatchSplitRsp      `protobuf:"bytes,11,opt,name=askBatchSplit,proto3" json:"askBatchSplit"`
-	ReportSplit          ReportSplitRsp        `protobuf:"bytes,12,opt,name=reportSplit,proto3" json:"reportSplit"`
-	BatchReportSplit     BatchReportSplitRsp   `protobuf:"bytes,13,opt,name=batchReportSplit,proto3" json:"batchReportSplit"`
+	AskBatchSplit        AskBatchSplitRsp      `protobuf:"bytes,10,opt,name=askBatchSplit,proto3" json:"askBatchSplit"`
+	CreateDestorying     CreateDestoryingRsp   `protobuf:"bytes,11,opt,name=createDestorying,proto3" json:"createDestorying"`
+	ReportDestoryed      ReportDestoryedRsp    `protobuf:"bytes,12,opt,name=ReportDestoryed,proto3" json:"ReportDestoryed"`
+	GetDestorying        GetDestoryingRsp      `protobuf:"bytes,13,opt,name=getDestorying,proto3" json:"getDestorying"`
 	Event                EventNotify           `protobuf:"bytes,14,opt,name=event,proto3" json:"event"`
 	CreateResources      CreateResourcesRsp    `protobuf:"bytes,15,opt,name=createResources,proto3" json:"createResources"`
 	RemoveResources      RemoveResourcesRsp    `protobuf:"bytes,16,opt,name=removeResources,proto3" json:"removeResources"`
@@ -480,7 +479,7 @@ func (m *Response) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Response.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -562,13 +561,6 @@ func (m *Response) GetAllocID() AllocIDRsp {
 	return AllocIDRsp{}
 }
 
-func (m *Response) GetAskSplit() AskSplitRsp {
-	if m != nil {
-		return m.AskSplit
-	}
-	return AskSplitRsp{}
-}
-
 func (m *Response) GetAskBatchSplit() AskBatchSplitRsp {
 	if m != nil {
 		return m.AskBatchSplit
@@ -576,18 +568,25 @@ func (m *Response) GetAskBatchSplit() AskBatchSplitRsp {
 	return AskBatchSplitRsp{}
 }
 
-func (m *Response) GetReportSplit() ReportSplitRsp {
+func (m *Response) GetCreateDestorying() CreateDestoryingRsp {
 	if m != nil {
-		return m.ReportSplit
+		return m.CreateDestorying
 	}
-	return ReportSplitRsp{}
+	return CreateDestoryingRsp{}
 }
 
-func (m *Response) GetBatchReportSplit() BatchReportSplitRsp {
+func (m *Response) GetReportDestoryed() ReportDestoryedRsp {
 	if m != nil {
-		return m.BatchReportSplit
+		return m.ReportDestoryed
 	}
-	return BatchReportSplitRsp{}
+	return ReportDestoryedRsp{}
+}
+
+func (m *Response) GetGetDestorying() GetDestoryingRsp {
+	if m != nil {
+		return m.GetDestorying
+	}
+	return GetDestoryingRsp{}
 }
 
 func (m *Response) GetEvent() EventNotify {
@@ -682,7 +681,7 @@ func (m *ResourceHeartbeatReq) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_ResourceHeartbeatReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -796,7 +795,7 @@ func (m *ResourceHeartbeatRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_ResourceHeartbeatRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -900,7 +899,7 @@ func (m *PutContainerReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_PutContainerReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -928,6 +927,7 @@ func (m *PutContainerReq) GetContainer() []byte {
 
 // PutContainerRsp put container response
 type PutContainerRsp struct {
+	DestroyResources     []byte   `protobuf:"bytes,1,opt,name=destroyResources,proto3" json:"destroyResources,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -947,7 +947,7 @@ func (m *PutContainerRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_PutContainerRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -965,6 +965,13 @@ func (m *PutContainerRsp) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_PutContainerRsp proto.InternalMessageInfo
+
+func (m *PutContainerRsp) GetDestroyResources() []byte {
+	if m != nil {
+		return m.DestroyResources
+	}
+	return nil
+}
 
 // ContainerHeartbeatReq container heartbeat request
 type ContainerHeartbeatReq struct {
@@ -989,7 +996,7 @@ func (m *ContainerHeartbeatReq) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_ContainerHeartbeatReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1044,7 +1051,7 @@ func (m *ContainerHeartbeatRsp) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_ContainerHeartbeatRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1092,7 +1099,7 @@ func (m *GetContainerReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_GetContainerReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1141,7 +1148,7 @@ func (m *GetContainerRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_GetContainerRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1195,7 +1202,7 @@ func (m *AllocIDReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_AllocIDReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1236,7 +1243,7 @@ func (m *AllocIDRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_AllocIDRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1262,198 +1269,6 @@ func (m *AllocIDRsp) GetID() uint64 {
 	return 0
 }
 
-// AskSplitReq ask split request
-type AskSplitReq struct {
-	Data                 []byte   `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AskSplitReq) Reset()         { *m = AskSplitReq{} }
-func (m *AskSplitReq) String() string { return proto.CompactTextString(m) }
-func (*AskSplitReq) ProtoMessage()    {}
-func (*AskSplitReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{12}
-}
-func (m *AskSplitReq) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *AskSplitReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_AskSplitReq.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *AskSplitReq) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AskSplitReq.Merge(m, src)
-}
-func (m *AskSplitReq) XXX_Size() int {
-	return m.Size()
-}
-func (m *AskSplitReq) XXX_DiscardUnknown() {
-	xxx_messageInfo_AskSplitReq.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AskSplitReq proto.InternalMessageInfo
-
-func (m *AskSplitReq) GetData() []byte {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
-// AskSplitRsp ask split response
-type AskSplitRsp struct {
-	SplitID              SplitID  `protobuf:"bytes,1,opt,name=splitID,proto3" json:"splitID"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AskSplitRsp) Reset()         { *m = AskSplitRsp{} }
-func (m *AskSplitRsp) String() string { return proto.CompactTextString(m) }
-func (*AskSplitRsp) ProtoMessage()    {}
-func (*AskSplitRsp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{13}
-}
-func (m *AskSplitRsp) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *AskSplitRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_AskSplitRsp.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *AskSplitRsp) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AskSplitRsp.Merge(m, src)
-}
-func (m *AskSplitRsp) XXX_Size() int {
-	return m.Size()
-}
-func (m *AskSplitRsp) XXX_DiscardUnknown() {
-	xxx_messageInfo_AskSplitRsp.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AskSplitRsp proto.InternalMessageInfo
-
-func (m *AskSplitRsp) GetSplitID() SplitID {
-	if m != nil {
-		return m.SplitID
-	}
-	return SplitID{}
-}
-
-// ReportSplitReq report split request
-type ReportSplitReq struct {
-	Left                 []byte   `protobuf:"bytes,1,opt,name=left,proto3" json:"left,omitempty"`
-	Right                []byte   `protobuf:"bytes,2,opt,name=right,proto3" json:"right,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ReportSplitReq) Reset()         { *m = ReportSplitReq{} }
-func (m *ReportSplitReq) String() string { return proto.CompactTextString(m) }
-func (*ReportSplitReq) ProtoMessage()    {}
-func (*ReportSplitReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{14}
-}
-func (m *ReportSplitReq) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ReportSplitReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ReportSplitReq.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ReportSplitReq) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ReportSplitReq.Merge(m, src)
-}
-func (m *ReportSplitReq) XXX_Size() int {
-	return m.Size()
-}
-func (m *ReportSplitReq) XXX_DiscardUnknown() {
-	xxx_messageInfo_ReportSplitReq.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ReportSplitReq proto.InternalMessageInfo
-
-func (m *ReportSplitReq) GetLeft() []byte {
-	if m != nil {
-		return m.Left
-	}
-	return nil
-}
-
-func (m *ReportSplitReq) GetRight() []byte {
-	if m != nil {
-		return m.Right
-	}
-	return nil
-}
-
-// ReportSplitRsp report split response
-type ReportSplitRsp struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ReportSplitRsp) Reset()         { *m = ReportSplitRsp{} }
-func (m *ReportSplitRsp) String() string { return proto.CompactTextString(m) }
-func (*ReportSplitRsp) ProtoMessage()    {}
-func (*ReportSplitRsp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{15}
-}
-func (m *ReportSplitRsp) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ReportSplitRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ReportSplitRsp.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ReportSplitRsp) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ReportSplitRsp.Merge(m, src)
-}
-func (m *ReportSplitRsp) XXX_Size() int {
-	return m.Size()
-}
-func (m *ReportSplitRsp) XXX_DiscardUnknown() {
-	xxx_messageInfo_ReportSplitRsp.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ReportSplitRsp proto.InternalMessageInfo
-
 // AskBatchSplitReq ask batch split request
 type AskBatchSplitReq struct {
 	Data                 []byte   `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -1467,7 +1282,7 @@ func (m *AskBatchSplitReq) Reset()         { *m = AskBatchSplitReq{} }
 func (m *AskBatchSplitReq) String() string { return proto.CompactTextString(m) }
 func (*AskBatchSplitReq) ProtoMessage()    {}
 func (*AskBatchSplitReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{16}
+	return fileDescriptor_25e491924c678914, []int{12}
 }
 func (m *AskBatchSplitReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1477,7 +1292,7 @@ func (m *AskBatchSplitReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_AskBatchSplitReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1522,7 +1337,7 @@ func (m *AskBatchSplitRsp) Reset()         { *m = AskBatchSplitRsp{} }
 func (m *AskBatchSplitRsp) String() string { return proto.CompactTextString(m) }
 func (*AskBatchSplitRsp) ProtoMessage()    {}
 func (*AskBatchSplitRsp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{17}
+	return fileDescriptor_25e491924c678914, []int{13}
 }
 func (m *AskBatchSplitRsp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1532,7 +1347,7 @@ func (m *AskBatchSplitRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_AskBatchSplitRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1558,93 +1373,325 @@ func (m *AskBatchSplitRsp) GetSplitIDs() []SplitID {
 	return nil
 }
 
-// BatchReportSplitReq report split request
-type BatchReportSplitReq struct {
-	Resources            [][]byte `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
+// CreateDestoryingReq create destorying status request
+type CreateDestoryingReq struct {
+	ID                   uint64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Index                uint64   `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
+	Replicas             []uint64 `protobuf:"varint,3,rep,packed,name=replicas,proto3" json:"replicas,omitempty"`
+	RemoveData           bool     `protobuf:"varint,4,opt,name=removeData,proto3" json:"removeData,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *BatchReportSplitReq) Reset()         { *m = BatchReportSplitReq{} }
-func (m *BatchReportSplitReq) String() string { return proto.CompactTextString(m) }
-func (*BatchReportSplitReq) ProtoMessage()    {}
-func (*BatchReportSplitReq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{18}
+func (m *CreateDestoryingReq) Reset()         { *m = CreateDestoryingReq{} }
+func (m *CreateDestoryingReq) String() string { return proto.CompactTextString(m) }
+func (*CreateDestoryingReq) ProtoMessage()    {}
+func (*CreateDestoryingReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{14}
 }
-func (m *BatchReportSplitReq) XXX_Unmarshal(b []byte) error {
+func (m *CreateDestoryingReq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *BatchReportSplitReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CreateDestoryingReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_BatchReportSplitReq.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CreateDestoryingReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
 		return b[:n], nil
 	}
 }
-func (m *BatchReportSplitReq) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BatchReportSplitReq.Merge(m, src)
+func (m *CreateDestoryingReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateDestoryingReq.Merge(m, src)
 }
-func (m *BatchReportSplitReq) XXX_Size() int {
+func (m *CreateDestoryingReq) XXX_Size() int {
 	return m.Size()
 }
-func (m *BatchReportSplitReq) XXX_DiscardUnknown() {
-	xxx_messageInfo_BatchReportSplitReq.DiscardUnknown(m)
+func (m *CreateDestoryingReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateDestoryingReq.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_BatchReportSplitReq proto.InternalMessageInfo
+var xxx_messageInfo_CreateDestoryingReq proto.InternalMessageInfo
 
-func (m *BatchReportSplitReq) GetResources() [][]byte {
+func (m *CreateDestoryingReq) GetID() uint64 {
 	if m != nil {
-		return m.Resources
+		return m.ID
+	}
+	return 0
+}
+
+func (m *CreateDestoryingReq) GetIndex() uint64 {
+	if m != nil {
+		return m.Index
+	}
+	return 0
+}
+
+func (m *CreateDestoryingReq) GetReplicas() []uint64 {
+	if m != nil {
+		return m.Replicas
 	}
 	return nil
 }
 
-// BatchReportSplitRsp report split response
-type BatchReportSplitRsp struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+func (m *CreateDestoryingReq) GetRemoveData() bool {
+	if m != nil {
+		return m.RemoveData
+	}
+	return false
 }
 
-func (m *BatchReportSplitRsp) Reset()         { *m = BatchReportSplitRsp{} }
-func (m *BatchReportSplitRsp) String() string { return proto.CompactTextString(m) }
-func (*BatchReportSplitRsp) ProtoMessage()    {}
-func (*BatchReportSplitRsp) Descriptor() ([]byte, []int) {
-	return fileDescriptor_25e491924c678914, []int{19}
+// CreateDestoryingRsp create destorying status response
+type CreateDestoryingRsp struct {
+	State                metapb.ResourceState `protobuf:"varint,1,opt,name=state,proto3,enum=metapb.ResourceState" json:"state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
 }
-func (m *BatchReportSplitRsp) XXX_Unmarshal(b []byte) error {
+
+func (m *CreateDestoryingRsp) Reset()         { *m = CreateDestoryingRsp{} }
+func (m *CreateDestoryingRsp) String() string { return proto.CompactTextString(m) }
+func (*CreateDestoryingRsp) ProtoMessage()    {}
+func (*CreateDestoryingRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{15}
+}
+func (m *CreateDestoryingRsp) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *BatchReportSplitRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *CreateDestoryingRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_BatchReportSplitRsp.Marshal(b, m, deterministic)
+		return xxx_messageInfo_CreateDestoryingRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
 		return b[:n], nil
 	}
 }
-func (m *BatchReportSplitRsp) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BatchReportSplitRsp.Merge(m, src)
+func (m *CreateDestoryingRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateDestoryingRsp.Merge(m, src)
 }
-func (m *BatchReportSplitRsp) XXX_Size() int {
+func (m *CreateDestoryingRsp) XXX_Size() int {
 	return m.Size()
 }
-func (m *BatchReportSplitRsp) XXX_DiscardUnknown() {
-	xxx_messageInfo_BatchReportSplitRsp.DiscardUnknown(m)
+func (m *CreateDestoryingRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateDestoryingRsp.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_BatchReportSplitRsp proto.InternalMessageInfo
+var xxx_messageInfo_CreateDestoryingRsp proto.InternalMessageInfo
+
+func (m *CreateDestoryingRsp) GetState() metapb.ResourceState {
+	if m != nil {
+		return m.State
+	}
+	return metapb.ResourceState_Running
+}
+
+// GetDestoryingReq get destorying status request
+type GetDestoryingReq struct {
+	ID                   uint64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetDestoryingReq) Reset()         { *m = GetDestoryingReq{} }
+func (m *GetDestoryingReq) String() string { return proto.CompactTextString(m) }
+func (*GetDestoryingReq) ProtoMessage()    {}
+func (*GetDestoryingReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{16}
+}
+func (m *GetDestoryingReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetDestoryingReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetDestoryingReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetDestoryingReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetDestoryingReq.Merge(m, src)
+}
+func (m *GetDestoryingReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetDestoryingReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetDestoryingReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetDestoryingReq proto.InternalMessageInfo
+
+func (m *GetDestoryingReq) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
+
+// GetDestoryingRsp get destorying status response
+type GetDestoryingRsp struct {
+	Status               *metapb.DestroyingStatus `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
+}
+
+func (m *GetDestoryingRsp) Reset()         { *m = GetDestoryingRsp{} }
+func (m *GetDestoryingRsp) String() string { return proto.CompactTextString(m) }
+func (*GetDestoryingRsp) ProtoMessage()    {}
+func (*GetDestoryingRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{17}
+}
+func (m *GetDestoryingRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetDestoryingRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetDestoryingRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetDestoryingRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetDestoryingRsp.Merge(m, src)
+}
+func (m *GetDestoryingRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetDestoryingRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetDestoryingRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetDestoryingRsp proto.InternalMessageInfo
+
+func (m *GetDestoryingRsp) GetStatus() *metapb.DestroyingStatus {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+// ReportDestoryedReq report destroying request
+type ReportDestoryedReq struct {
+	ID                   uint64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	ReplicaID            uint64   `protobuf:"varint,2,opt,name=replicaID,proto3" json:"replicaID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ReportDestoryedReq) Reset()         { *m = ReportDestoryedReq{} }
+func (m *ReportDestoryedReq) String() string { return proto.CompactTextString(m) }
+func (*ReportDestoryedReq) ProtoMessage()    {}
+func (*ReportDestoryedReq) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{18}
+}
+func (m *ReportDestoryedReq) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ReportDestoryedReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ReportDestoryedReq.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ReportDestoryedReq) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ReportDestoryedReq.Merge(m, src)
+}
+func (m *ReportDestoryedReq) XXX_Size() int {
+	return m.Size()
+}
+func (m *ReportDestoryedReq) XXX_DiscardUnknown() {
+	xxx_messageInfo_ReportDestoryedReq.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ReportDestoryedReq proto.InternalMessageInfo
+
+func (m *ReportDestoryedReq) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
+
+func (m *ReportDestoryedReq) GetReplicaID() uint64 {
+	if m != nil {
+		return m.ReplicaID
+	}
+	return 0
+}
+
+// ReportDestoryedRsp report destroying rsp
+type ReportDestoryedRsp struct {
+	State                metapb.ResourceState `protobuf:"varint,1,opt,name=state,proto3,enum=metapb.ResourceState" json:"state,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *ReportDestoryedRsp) Reset()         { *m = ReportDestoryedRsp{} }
+func (m *ReportDestoryedRsp) String() string { return proto.CompactTextString(m) }
+func (*ReportDestoryedRsp) ProtoMessage()    {}
+func (*ReportDestoryedRsp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_25e491924c678914, []int{19}
+}
+func (m *ReportDestoryedRsp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ReportDestoryedRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ReportDestoryedRsp.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ReportDestoryedRsp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ReportDestoryedRsp.Merge(m, src)
+}
+func (m *ReportDestoryedRsp) XXX_Size() int {
+	return m.Size()
+}
+func (m *ReportDestoryedRsp) XXX_DiscardUnknown() {
+	xxx_messageInfo_ReportDestoryedRsp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ReportDestoryedRsp proto.InternalMessageInfo
+
+func (m *ReportDestoryedRsp) GetState() metapb.ResourceState {
+	if m != nil {
+		return m.State
+	}
+	return metapb.ResourceState_Running
+}
 
 // SplitID split id
 type SplitID struct {
@@ -1669,7 +1716,7 @@ func (m *SplitID) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_SplitID.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1724,7 +1771,7 @@ func (m *CreateWatcherReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_CreateWatcherReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1773,7 +1820,7 @@ func (m *CreateResourcesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CreateResourcesReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1827,7 +1874,7 @@ func (m *CreateResourcesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CreateResourcesRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1868,7 +1915,7 @@ func (m *RemoveResourcesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_RemoveResourcesReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1915,7 +1962,7 @@ func (m *RemoveResourcesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_RemoveResourcesRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1956,7 +2003,7 @@ func (m *CheckResourceStateReq) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_CheckResourceStateReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1984,7 +2031,8 @@ func (m *CheckResourceStateReq) GetIDs() []byte {
 
 // CheckResourceStateReq check resource state rsp
 type CheckResourceStateRsp struct {
-	Removed              []uint64 `protobuf:"varint,1,rep,packed,name=removed,proto3" json:"removed,omitempty"`
+	Destroyed            []byte   `protobuf:"bytes,1,opt,name=destroyed,proto3" json:"destroyed,omitempty"`
+	Destroying           []byte   `protobuf:"bytes,2,opt,name=destroying,proto3" json:"destroying,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -2004,7 +2052,7 @@ func (m *CheckResourceStateRsp) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_CheckResourceStateRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2023,9 +2071,16 @@ func (m *CheckResourceStateRsp) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CheckResourceStateRsp proto.InternalMessageInfo
 
-func (m *CheckResourceStateRsp) GetRemoved() []uint64 {
+func (m *CheckResourceStateRsp) GetDestroyed() []byte {
 	if m != nil {
-		return m.Removed
+		return m.Destroyed
+	}
+	return nil
+}
+
+func (m *CheckResourceStateRsp) GetDestroying() []byte {
+	if m != nil {
+		return m.Destroying
 	}
 	return nil
 }
@@ -2052,7 +2107,7 @@ func (m *PutPlacementRuleReq) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_PutPlacementRuleReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2099,7 +2154,7 @@ func (m *PutPlacementRuleRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_PutPlacementRuleRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2140,7 +2195,7 @@ func (m *GetAppliedRulesReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_GetAppliedRulesReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2188,7 +2243,7 @@ func (m *GetAppliedRulesRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_GetAppliedRulesRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2236,7 +2291,7 @@ func (m *CreateJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_CreateJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2283,7 +2338,7 @@ func (m *CreateJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_CreateJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2324,7 +2379,7 @@ func (m *RemoveJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RemoveJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2371,7 +2426,7 @@ func (m *RemoveJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RemoveJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2413,7 +2468,7 @@ func (m *ExecuteJobReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ExecuteJobReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2468,7 +2523,7 @@ func (m *ExecuteJobRsp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ExecuteJobRsp.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2522,7 +2577,7 @@ func (m *EventNotify) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return xxx_messageInfo_EventNotify.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2614,7 +2669,7 @@ func (m *InitEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_InitEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2679,7 +2734,7 @@ func (m *ResourceEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_ResourceEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2748,7 +2803,7 @@ func (m *ContainerEventData) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_ContainerEventData.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2797,7 +2852,7 @@ func (m *ConfigChange) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ConfigChange.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2852,7 +2907,7 @@ func (m *TransferLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_TransferLeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2901,7 +2956,7 @@ func (m *ConfigChangeV2) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_ConfigChangeV2.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2950,7 +3005,7 @@ func (m *Merge) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Merge.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -2999,7 +3054,7 @@ func (m *SplitResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_SplitResource.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3056,7 +3111,7 @@ func (m *LabelConstraint) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_LabelConstraint.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3137,7 +3192,7 @@ func (m *PlacementRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_PlacementRule.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -3249,14 +3304,14 @@ func init() {
 	proto.RegisterType((*GetContainerRsp)(nil), "rpcpb.GetContainerRsp")
 	proto.RegisterType((*AllocIDReq)(nil), "rpcpb.AllocIDReq")
 	proto.RegisterType((*AllocIDRsp)(nil), "rpcpb.AllocIDRsp")
-	proto.RegisterType((*AskSplitReq)(nil), "rpcpb.AskSplitReq")
-	proto.RegisterType((*AskSplitRsp)(nil), "rpcpb.AskSplitRsp")
-	proto.RegisterType((*ReportSplitReq)(nil), "rpcpb.ReportSplitReq")
-	proto.RegisterType((*ReportSplitRsp)(nil), "rpcpb.ReportSplitRsp")
 	proto.RegisterType((*AskBatchSplitReq)(nil), "rpcpb.AskBatchSplitReq")
 	proto.RegisterType((*AskBatchSplitRsp)(nil), "rpcpb.AskBatchSplitRsp")
-	proto.RegisterType((*BatchReportSplitReq)(nil), "rpcpb.BatchReportSplitReq")
-	proto.RegisterType((*BatchReportSplitRsp)(nil), "rpcpb.BatchReportSplitRsp")
+	proto.RegisterType((*CreateDestoryingReq)(nil), "rpcpb.CreateDestoryingReq")
+	proto.RegisterType((*CreateDestoryingRsp)(nil), "rpcpb.CreateDestoryingRsp")
+	proto.RegisterType((*GetDestoryingReq)(nil), "rpcpb.GetDestoryingReq")
+	proto.RegisterType((*GetDestoryingRsp)(nil), "rpcpb.GetDestoryingRsp")
+	proto.RegisterType((*ReportDestoryedReq)(nil), "rpcpb.ReportDestoryedReq")
+	proto.RegisterType((*ReportDestoryedRsp)(nil), "rpcpb.ReportDestoryedRsp")
 	proto.RegisterType((*SplitID)(nil), "rpcpb.SplitID")
 	proto.RegisterType((*CreateWatcherReq)(nil), "rpcpb.CreateWatcherReq")
 	proto.RegisterType((*CreateResourcesReq)(nil), "rpcpb.CreateResourcesReq")
@@ -3291,162 +3346,167 @@ func init() {
 func init() { proto.RegisterFile("rpcpb.proto", fileDescriptor_25e491924c678914) }
 
 var fileDescriptor_25e491924c678914 = []byte{
-	// 2383 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x59, 0x4b, 0x73, 0xdc, 0xb8,
-	0x11, 0xf6, 0xbc, 0x35, 0x3d, 0x2f, 0x08, 0x7a, 0x98, 0x96, 0xbd, 0x92, 0x96, 0x76, 0x6d, 0x14,
-	0x6f, 0x22, 0xc5, 0xf2, 0xa6, 0x36, 0xe5, 0x8a, 0x37, 0xd1, 0x6b, 0xd7, 0x72, 0x1c, 0xaf, 0x8b,
-	0x76, 0x39, 0xb9, 0xa5, 0x38, 0x33, 0xd0, 0x88, 0x31, 0x45, 0xc2, 0x04, 0xc6, 0xb6, 0xce, 0xf9,
-	0x4f, 0x39, 0xe6, 0x94, 0x54, 0xed, 0x71, 0x7f, 0x81, 0x2b, 0xf1, 0x3f, 0xc8, 0x39, 0x97, 0x14,
-	0x1e, 0x24, 0xc1, 0xd7, 0x48, 0x7b, 0xd2, 0xa0, 0xbb, 0xbf, 0x0f, 0x40, 0x13, 0xfc, 0xd0, 0x4d,
-	0x41, 0x2f, 0xa2, 0x13, 0x3a, 0xde, 0xa5, 0x51, 0xc8, 0x43, 0xdc, 0x92, 0x83, 0x8d, 0x67, 0x33,
-	0x8f, 0x9f, 0xcf, 0xc7, 0xbb, 0x93, 0xf0, 0x62, 0xef, 0xc2, 0xe5, 0x91, 0xf7, 0x21, 0x8c, 0xbc,
-	0x99, 0x17, 0xe8, 0xc1, 0x64, 0x3e, 0x26, 0x7b, 0x93, 0xf0, 0x82, 0x86, 0x01, 0x09, 0x38, 0xdb,
-	0xa3, 0x51, 0x48, 0xcf, 0x09, 0xdf, 0xa3, 0xe3, 0xbd, 0x0b, 0xc2, 0xdd, 0xe4, 0x8f, 0x22, 0xdd,
-	0xf8, 0xa5, 0xc1, 0x36, 0x0b, 0x67, 0xe1, 0x9e, 0x34, 0x8f, 0xe7, 0x67, 0x72, 0x24, 0x07, 0xf2,
-	0x97, 0x0a, 0xb7, 0xff, 0x01, 0xd0, 0x71, 0xc8, 0xdb, 0x39, 0x61, 0x1c, 0xaf, 0x43, 0xdd, 0x9b,
-	0x5a, 0xb5, 0xed, 0xda, 0x4e, 0xf3, 0xb0, 0xfd, 0xe9, 0xe3, 0x56, 0xfd, 0xf4, 0xd8, 0xa9, 0x7b,
-	0x53, 0xbc, 0x0d, 0xbd, 0x49, 0x18, 0x70, 0xd7, 0x0b, 0x48, 0x74, 0x7a, 0x6c, 0xd5, 0x45, 0x80,
-	0x63, 0x9a, 0xf0, 0x16, 0x34, 0xf9, 0x25, 0x25, 0x56, 0x63, 0xbb, 0xb6, 0x33, 0xdc, 0xef, 0xed,
-	0xaa, 0x5d, 0xbe, 0xba, 0xa4, 0xc4, 0x91, 0x0e, 0xfc, 0x3d, 0x2c, 0x47, 0x84, 0x85, 0xf3, 0x68,
-	0x42, 0x9e, 0x10, 0x37, 0xe2, 0x63, 0xe2, 0x72, 0xab, 0xb9, 0x5d, 0xdb, 0xe9, 0xed, 0xdf, 0xd6,
-	0xd1, 0x4e, 0xde, 0xef, 0x90, 0xb7, 0x87, 0xcd, 0x1f, 0x3e, 0x6e, 0xdd, 0x70, 0x8a, 0x58, 0xec,
-	0x00, 0x4e, 0x16, 0x90, 0x32, 0xb6, 0x24, 0xe3, 0x1d, 0xcd, 0x78, 0x54, 0x08, 0x48, 0x29, 0x4b,
-	0xd0, 0xf8, 0xf7, 0xd0, 0xa7, 0x73, 0x9e, 0xa0, 0xac, 0xb6, 0x64, 0x5b, 0xd7, 0x6c, 0x2f, 0x0c,
-	0x57, 0xca, 0x93, 0x41, 0x08, 0x86, 0x19, 0x31, 0x18, 0x3a, 0x19, 0x86, 0xef, 0x48, 0x29, 0x83,
-	0x89, 0xc0, 0x0f, 0xa0, 0xe3, 0xfa, 0x7e, 0x38, 0x39, 0x3d, 0xb6, 0x96, 0x24, 0x78, 0x59, 0x83,
-	0x0f, 0x94, 0x35, 0xc5, 0xc5, 0x71, 0xf8, 0x2b, 0x58, 0x72, 0xd9, 0x9b, 0x97, 0xd4, 0xf7, 0xb8,
-	0xd5, 0x95, 0x18, 0x1c, 0x63, 0xb4, 0x39, 0x05, 0x25, 0x91, 0xf8, 0x08, 0x06, 0x2e, 0x7b, 0x73,
-	0xe8, 0xf2, 0xc9, 0xb9, 0x82, 0x82, 0x84, 0xde, 0x4c, 0xa1, 0xa9, 0x2f, 0xc5, 0x67, 0x31, 0xf8,
-	0x31, 0xf4, 0x22, 0x42, 0xc3, 0x88, 0x2b, 0x8a, 0x9e, 0xa4, 0x58, 0x4b, 0x1e, 0x68, 0xe2, 0x49,
-	0x09, 0xcc, 0x78, 0xfc, 0x0c, 0xd0, 0x58, 0x90, 0x19, 0x91, 0x56, 0x5f, 0x72, 0x6c, 0x68, 0x8e,
-	0xc3, 0x9c, 0x3b, 0x25, 0x2a, 0x20, 0xc5, 0x8e, 0x26, 0x11, 0x71, 0x39, 0xf9, 0x93, 0xf0, 0x90,
-	0xc8, 0x1a, 0x64, 0x76, 0x74, 0x64, 0xfa, 0x8c, 0x1d, 0x65, 0x30, 0xf8, 0x14, 0x46, 0xca, 0x10,
-	0x1f, 0x47, 0x66, 0x0d, 0x25, 0xcd, 0xad, 0x0c, 0x4d, 0xe2, 0x4d, 0x89, 0xf2, 0x38, 0x41, 0x15,
-	0x91, 0x8b, 0xf0, 0x9d, 0x41, 0x35, 0xca, 0x50, 0x39, 0x59, 0xaf, 0x41, 0x95, 0xc3, 0xc9, 0xd3,
-	0x7e, 0x4e, 0x26, 0x6f, 0x62, 0xcb, 0x4b, 0xee, 0x72, 0x62, 0xa1, 0xec, 0x69, 0x2f, 0x04, 0x98,
-	0xa7, 0xbd, 0xe0, 0x14, 0xc9, 0xa7, 0x73, 0xfe, 0xc2, 0x77, 0x27, 0xe4, 0x82, 0x04, 0xdc, 0x99,
-	0xfb, 0xc4, 0x5a, 0xce, 0x24, 0xff, 0x45, 0xce, 0x6d, 0x24, 0x3f, 0x8f, 0x14, 0x9b, 0x9d, 0x11,
-	0x7e, 0x40, 0xa9, 0xef, 0x91, 0xa9, 0xb0, 0x30, 0x0b, 0x67, 0x36, 0xfb, 0x5d, 0xd6, 0x6b, 0x6c,
-	0x36, 0x87, 0xc3, 0x5f, 0x43, 0x57, 0xa5, 0xf2, 0x69, 0x38, 0xb6, 0x56, 0x24, 0xc9, 0x4a, 0x26,
-	0xf9, 0x4f, 0xc3, 0x71, 0x0a, 0x4f, 0x63, 0x05, 0x50, 0x25, 0x4e, 0x00, 0x57, 0x33, 0x40, 0x27,
-	0xb6, 0x1b, 0xc0, 0x24, 0x16, 0x3f, 0x02, 0x20, 0x1f, 0xc8, 0x64, 0xae, 0xa6, 0x5c, 0x93, 0xc8,
-	0x55, 0x8d, 0x3c, 0x49, 0x1c, 0x29, 0xd4, 0x88, 0xb6, 0xff, 0x0e, 0xb0, 0xe4, 0x10, 0x46, 0xc3,
-	0x80, 0x91, 0x4a, 0x05, 0x8d, 0xf5, 0xb1, 0x5e, 0xa5, 0x8f, 0xab, 0xd0, 0x22, 0x51, 0x14, 0x46,
-	0x52, 0x41, 0xbb, 0x8e, 0x1a, 0xe0, 0x75, 0x68, 0xfb, 0xc4, 0x9d, 0x92, 0x48, 0x4a, 0x65, 0xd7,
-	0xd1, 0xa3, 0x72, 0x35, 0x6d, 0x5d, 0xa1, 0xa6, 0x8c, 0xfe, 0x54, 0x35, 0x6d, 0x5f, 0xa5, 0xa6,
-	0x09, 0xe5, 0x75, 0xd4, 0xb4, 0x53, 0xad, 0xa6, 0x09, 0xcf, 0x62, 0x35, 0x5d, 0xaa, 0x56, 0xd3,
-	0x94, 0xa1, 0x4a, 0x4d, 0xbb, 0xa5, 0x6a, 0x9a, 0xe0, 0x4a, 0xd5, 0x14, 0xca, 0xd5, 0x34, 0x01,
-	0x2d, 0x50, 0xd3, 0xde, 0x02, 0x35, 0x4d, 0xf0, 0x8b, 0xd5, 0xb4, 0x5f, 0xa9, 0xa6, 0x09, 0xc1,
-	0x95, 0x6a, 0x3a, 0x58, 0xac, 0xa6, 0x09, 0x51, 0x51, 0x4d, 0x77, 0xa1, 0x45, 0xde, 0x91, 0x80,
-	0x6b, 0xf9, 0x8b, 0x93, 0x70, 0x22, 0x6c, 0xcf, 0x43, 0xee, 0x9d, 0x5d, 0x6a, 0xa8, 0x0a, 0x2b,
-	0x13, 0xce, 0xd1, 0x42, 0xe1, 0x4c, 0xe6, 0xbe, 0x8e, 0x70, 0xa2, 0x85, 0xc2, 0x99, 0x52, 0x5d,
-	0x4f, 0x38, 0x97, 0xaf, 0x12, 0x4e, 0xe3, 0x60, 0x5f, 0x4f, 0x38, 0xf1, 0x62, 0xe1, 0x4c, 0xf3,
-	0x7c, 0x1d, 0xe1, 0x5c, 0x59, 0x28, 0x9c, 0xe9, 0x66, 0x17, 0x0a, 0xe7, 0x6a, 0x85, 0x70, 0x26,
-	0xf0, 0x2a, 0xe1, 0x5c, 0xab, 0x10, 0xce, 0x14, 0x58, 0x25, 0x9c, 0xeb, 0x55, 0xc2, 0x99, 0x40,
-	0x4d, 0xe1, 0xfc, 0x57, 0x1d, 0x56, 0xcb, 0x6a, 0xbe, 0x7c, 0xb9, 0x59, 0x2b, 0x96, 0x9b, 0x1b,
-	0xb0, 0x14, 0x6b, 0x98, 0x94, 0xd4, 0xbe, 0x93, 0x8c, 0x31, 0x86, 0x26, 0x27, 0xd1, 0x85, 0x14,
-	0xd2, 0xa6, 0x23, 0x7f, 0xe3, 0x9f, 0x65, 0x74, 0xb4, 0xb7, 0x3f, 0xda, 0xd5, 0x25, 0xb3, 0x43,
-	0xa8, 0xef, 0x4d, 0xdc, 0x44, 0x58, 0xbf, 0x81, 0xfe, 0x34, 0x7c, 0x1f, 0x68, 0x33, 0xb3, 0x5a,
-	0xdb, 0x0d, 0xb9, 0xa3, 0x6c, 0xb8, 0x38, 0x06, 0x2c, 0xd6, 0x1b, 0x33, 0x1e, 0xff, 0x0e, 0x46,
-	0x94, 0x04, 0x53, 0x2f, 0x98, 0x25, 0x14, 0x6d, 0x49, 0x91, 0x9f, 0x31, 0x7e, 0x84, 0xb9, 0x68,
-	0xfc, 0x00, 0x5a, 0x4c, 0xb0, 0x6b, 0xb5, 0x5c, 0x4b, 0x61, 0xe9, 0x09, 0x8c, 0xa7, 0x56, 0x91,
-	0xf6, 0x7f, 0x1b, 0x65, 0x79, 0x64, 0x14, 0x6f, 0x02, 0xc4, 0x59, 0x49, 0xd2, 0x68, 0x58, 0xf0,
-	0x01, 0x0c, 0xe2, 0xd1, 0x09, 0x0d, 0x27, 0xe7, 0x32, 0x95, 0x25, 0x73, 0x4a, 0x67, 0xac, 0x58,
-	0x19, 0x04, 0xfe, 0x35, 0x0c, 0xb8, 0x1b, 0xcd, 0x08, 0xd7, 0x1b, 0x90, 0x59, 0x2f, 0xc9, 0x6f,
-	0x36, 0x0a, 0x7f, 0x0d, 0xfd, 0x49, 0x18, 0x9c, 0x79, 0xb3, 0xa3, 0x73, 0x37, 0x98, 0x11, 0xfd,
-	0x54, 0x56, 0xd2, 0x8b, 0x26, 0x71, 0x39, 0x99, 0x40, 0xfc, 0x18, 0x86, 0x3c, 0x72, 0x03, 0x76,
-	0x46, 0xa2, 0x67, 0xea, 0x81, 0xb6, 0x32, 0x22, 0xf9, 0x2a, 0xe3, 0x74, 0x72, 0xc1, 0xd8, 0x86,
-	0xd6, 0x05, 0x89, 0x66, 0x44, 0xdf, 0x6c, 0x7d, 0x8d, 0xfa, 0xa3, 0xb0, 0x39, 0xca, 0x85, 0x1f,
-	0xc1, 0x80, 0xa9, 0x4a, 0x53, 0x1f, 0xb0, 0x4e, 0xe6, 0x54, 0xbf, 0x34, 0x7d, 0x4e, 0x36, 0x54,
-	0x2c, 0xcf, 0x5c, 0xee, 0xeb, 0x7d, 0x7d, 0x65, 0xad, 0x95, 0xec, 0xec, 0xf5, 0xbe, 0x93, 0x0b,
-	0xc6, 0x3b, 0x30, 0x9a, 0x12, 0xc6, 0xc3, 0xe8, 0xf2, 0xd8, 0x8b, 0xc8, 0x84, 0xfb, 0x97, 0xf2,
-	0xd6, 0x5a, 0x72, 0xf2, 0x66, 0x7b, 0x0f, 0x46, 0xb9, 0x76, 0x04, 0xdf, 0x81, 0x6e, 0xf2, 0x8a,
-	0xc8, 0x87, 0xdd, 0x77, 0x52, 0x83, 0xbd, 0x9c, 0x03, 0x30, 0x6a, 0xff, 0x05, 0xd6, 0x4a, 0x1b,
-	0x24, 0xbc, 0x1f, 0x9f, 0xc1, 0x9a, 0xbe, 0x6f, 0xf5, 0xc3, 0x4c, 0xa2, 0x8b, 0x87, 0x50, 0xbc,
-	0x75, 0x53, 0x97, 0xbb, 0xfa, 0x6d, 0x94, 0xbf, 0xed, 0x2f, 0x4b, 0x27, 0x60, 0x34, 0x09, 0xae,
-	0x19, 0xc1, 0x3f, 0x87, 0x51, 0xae, 0x3d, 0xaa, 0x2a, 0xa6, 0xec, 0x97, 0xb9, 0xd0, 0x72, 0x46,
-	0xfc, 0x8b, 0x78, 0x1b, 0xf5, 0x45, 0xdb, 0x88, 0xdf, 0xa2, 0x3e, 0x40, 0xda, 0x61, 0xd9, 0xf7,
-	0xd2, 0x11, 0xa3, 0x95, 0x0b, 0xf9, 0x1c, 0x7a, 0x46, 0x87, 0x55, 0xba, 0xad, 0xc7, 0x46, 0x08,
-	0xa3, 0x78, 0x17, 0x3a, 0xf2, 0xc4, 0xe8, 0xf7, 0xb1, 0xb7, 0x3f, 0x34, 0x8f, 0xd5, 0xe9, 0x71,
-	0x5c, 0x8c, 0xe8, 0x20, 0xfb, 0x11, 0x0c, 0xb3, 0xcd, 0x8f, 0x98, 0xc4, 0x27, 0x67, 0x3c, 0x9e,
-	0x44, 0xfc, 0x16, 0xc5, 0x63, 0xe4, 0xcd, 0xce, 0xb9, 0xce, 0xbe, 0x1a, 0xd8, 0x28, 0x8b, 0x65,
-	0xd4, 0xfe, 0x2d, 0xa0, 0x7c, 0x5b, 0x57, 0x9a, 0xb9, 0x55, 0x68, 0x4d, 0xc2, 0x79, 0xa0, 0xf8,
-	0x06, 0x8e, 0x1a, 0xd8, 0xc7, 0x79, 0x34, 0xa3, 0xf8, 0x57, 0xb0, 0xa4, 0x97, 0x2a, 0x4e, 0x4b,
-	0xa3, 0x72, 0x43, 0x49, 0x94, 0xfd, 0x10, 0x56, 0x4a, 0x7a, 0x3a, 0x71, 0x7a, 0xa3, 0xe4, 0xb2,
-	0x17, 0x4c, 0x7d, 0x27, 0x35, 0xd8, 0x6b, 0x25, 0x20, 0x46, 0xed, 0x13, 0xe8, 0xe8, 0x69, 0xc4,
-	0x92, 0x03, 0xf2, 0x3e, 0x91, 0x39, 0x35, 0xc0, 0xf7, 0x60, 0x10, 0x90, 0xf7, 0x5a, 0x75, 0xc4,
-	0x1a, 0xeb, 0xdb, 0x8d, 0x9d, 0xa6, 0x93, 0x35, 0xda, 0x5f, 0x00, 0xca, 0xf7, 0x86, 0x22, 0x2d,
-	0x67, 0xbe, 0x3b, 0x93, 0x74, 0x03, 0x47, 0xfe, 0xb6, 0xff, 0x0c, 0xb8, 0xd8, 0xfc, 0x2d, 0x5e,
-	0xb9, 0x58, 0x81, 0x4f, 0x5c, 0xc6, 0x93, 0xeb, 0x40, 0xaf, 0x20, 0x63, 0xb4, 0x57, 0x8b, 0xcc,
-	0x8c, 0xda, 0x7b, 0x80, 0x8b, 0x1d, 0x22, 0xbe, 0x05, 0x0d, 0x6f, 0xaa, 0x66, 0x6a, 0x1e, 0x76,
-	0x3e, 0x7d, 0xdc, 0x6a, 0x9c, 0x1e, 0x33, 0x47, 0xd8, 0x04, 0x4d, 0xb1, 0x32, 0xb2, 0xf7, 0x61,
-	0xad, 0xb4, 0x35, 0x4c, 0x99, 0x6a, 0x3b, 0xfd, 0x1c, 0xd3, 0x83, 0x52, 0x0c, 0xa3, 0xd8, 0x82,
-	0x8e, 0xba, 0xfd, 0xa7, 0x6a, 0x05, 0x4e, 0x3c, 0xb4, 0x4f, 0x60, 0xa5, 0xa4, 0x5f, 0xc4, 0xbb,
-	0xd0, 0x8c, 0x44, 0x81, 0x54, 0xcb, 0xa8, 0x68, 0x26, 0x4c, 0x9f, 0x11, 0x19, 0x27, 0x1e, 0x75,
-	0x49, 0xf5, 0x64, 0x7f, 0x05, 0xb8, 0xd8, 0x40, 0x5e, 0x75, 0xc3, 0xd9, 0xdf, 0x16, 0x51, 0xf2,
-	0xd0, 0xb6, 0x22, 0x59, 0x67, 0xd5, 0xf4, 0xed, 0x5e, 0xbd, 0x26, 0x15, 0x68, 0x3f, 0x84, 0xbe,
-	0xd9, 0x79, 0xe2, 0xbb, 0xd0, 0xf8, 0x6b, 0x38, 0xd6, 0x7b, 0xea, 0xc5, 0xc2, 0xf2, 0x34, 0x1c,
-	0x6b, 0x98, 0xf0, 0xda, 0x43, 0x13, 0xc4, 0xa8, 0x20, 0x31, 0xbb, 0xd0, 0x6b, 0x93, 0x98, 0x15,
-	0x98, 0xfd, 0x04, 0x06, 0x99, 0x86, 0xf4, 0x5a, 0x2c, 0xa5, 0xea, 0x7c, 0x37, 0xc3, 0x54, 0xa1,
-	0xca, 0xff, 0xab, 0x43, 0xcf, 0xa8, 0xf8, 0x31, 0x82, 0x06, 0x23, 0x6f, 0x75, 0xa6, 0xc5, 0x4f,
-	0x59, 0x6e, 0xc5, 0x9d, 0xed, 0x40, 0x37, 0xb3, 0xfb, 0xd0, 0xf5, 0x02, 0x8f, 0x4b, 0xa0, 0xae,
-	0x08, 0xe2, 0x24, 0x9f, 0xc6, 0xf6, 0x63, 0x97, 0xbb, 0x4e, 0x1a, 0x86, 0xbf, 0x31, 0x8a, 0x11,
-	0x89, 0x53, 0x35, 0x81, 0x95, 0x6b, 0x67, 0x53, 0x6c, 0x36, 0x1c, 0x1f, 0xc8, 0xab, 0x57, 0x09,
-	0xbb, 0x22, 0x68, 0x65, 0xbb, 0x8f, 0x8c, 0x53, 0x32, 0xe4, 0x00, 0xf8, 0x04, 0x70, 0x64, 0x96,
-	0x59, 0x8a, 0xa6, 0xbd, 0xa0, 0x10, 0x73, 0x4a, 0x00, 0xf8, 0x09, 0xac, 0x4c, 0x32, 0x57, 0x8c,
-	0xe2, 0xe9, 0x2c, 0xbc, 0x85, 0xca, 0x20, 0xf6, 0x0c, 0x06, 0x99, 0x7c, 0x5d, 0xa1, 0x35, 0x16,
-	0x74, 0x54, 0x19, 0x1b, 0xab, 0x4c, 0x3c, 0x14, 0xef, 0x49, 0xc2, 0xcf, 0xac, 0x86, 0x04, 0x1a,
-	0x16, 0xfb, 0x2d, 0x2c, 0x17, 0x12, 0x5c, 0x7a, 0x33, 0xa4, 0x1f, 0x24, 0xd4, 0x47, 0xe0, 0xb8,
-	0x6e, 0x36, 0x64, 0xa1, 0x21, 0x2b, 0x96, 0x78, 0x28, 0x10, 0xaa, 0xcf, 0x90, 0x0f, 0x74, 0xc9,
-	0xd1, 0x23, 0x7b, 0x07, 0x70, 0xf1, 0x91, 0x94, 0x9e, 0xc1, 0x4b, 0xe8, 0x9b, 0x75, 0x13, 0xde,
-	0x13, 0x73, 0xa9, 0x6a, 0xb3, 0x56, 0x5a, 0x6d, 0xc6, 0x97, 0xa8, 0x8e, 0xc2, 0xbf, 0x01, 0x98,
-	0x48, 0xe8, 0xab, 0xf4, 0x13, 0x8c, 0x65, 0x3c, 0x87, 0x84, 0x5a, 0x7e, 0x8f, 0x31, 0x62, 0xed,
-	0x03, 0x18, 0x66, 0x2b, 0xca, 0x9f, 0x3c, 0xb9, 0x7d, 0x02, 0xc3, 0x6c, 0xd5, 0x87, 0x1f, 0x42,
-	0x47, 0x4d, 0x11, 0x0b, 0x50, 0x59, 0xdd, 0x1b, 0xd3, 0xe8, 0x48, 0x7b, 0x0b, 0x5a, 0xb2, 0x4a,
-	0x15, 0xf9, 0x54, 0xb5, 0xb4, 0xce, 0x91, 0x1e, 0xd9, 0x2f, 0x60, 0x90, 0x29, 0x4d, 0xf1, 0x97,
-	0xd0, 0xa6, 0xa1, 0xef, 0x4d, 0x2e, 0x65, 0xe0, 0x70, 0x7f, 0x25, 0xd9, 0xb1, 0x10, 0xf6, 0x17,
-	0xd2, 0xe5, 0xe8, 0x10, 0x91, 0xf7, 0x37, 0xe4, 0x52, 0x9d, 0x9b, 0xbe, 0x23, 0x7f, 0xdb, 0x04,
-	0x46, 0xcf, 0xdc, 0x31, 0xf1, 0x8f, 0xc2, 0x80, 0xf1, 0xc8, 0xf5, 0x02, 0x2e, 0x5e, 0xff, 0x37,
-	0x44, 0x11, 0x76, 0x1d, 0xf1, 0x13, 0xef, 0x40, 0x3d, 0xa4, 0x49, 0x4e, 0xd5, 0x3e, 0x72, 0xa8,
-	0xef, 0xa9, 0x53, 0x0f, 0x45, 0x11, 0xd5, 0x7e, 0xe7, 0xfa, 0x73, 0xa2, 0xce, 0x5f, 0xd7, 0xd1,
-	0x23, 0xfb, 0x6f, 0x0d, 0x18, 0x64, 0x3b, 0xe2, 0xb4, 0xdc, 0xea, 0x66, 0x3e, 0xa2, 0x59, 0xd0,
-	0x99, 0x45, 0xe1, 0x9c, 0xea, 0x7f, 0x41, 0x74, 0x9d, 0x78, 0x28, 0x6e, 0x7f, 0x2f, 0x98, 0x92,
-	0x0f, 0xf2, 0xf0, 0x0d, 0x1c, 0x35, 0x10, 0x5d, 0x62, 0xf8, 0x8e, 0x44, 0x91, 0x37, 0x8d, 0x0f,
-	0x5f, 0x32, 0x16, 0x3e, 0xc6, 0xdd, 0x88, 0xff, 0x81, 0x5c, 0x4a, 0xa1, 0xe8, 0x3b, 0xc9, 0x58,
-	0xac, 0x94, 0x04, 0x53, 0xe1, 0x69, 0xab, 0x14, 0xab, 0x11, 0xbe, 0x0f, 0xcd, 0x28, 0xf4, 0x55,
-	0x43, 0x30, 0x4c, 0x3e, 0x43, 0xc5, 0x2d, 0x4e, 0xe8, 0xab, 0xf3, 0x23, 0x63, 0xd2, 0x12, 0x6a,
-	0xc9, 0x28, 0xa1, 0xf0, 0x13, 0x40, 0x7e, 0x36, 0x39, 0xcc, 0xea, 0xca, 0x33, 0xb0, 0x5e, 0x9e,
-	0xbb, 0xf8, 0xab, 0x41, 0x1e, 0x85, 0xbf, 0x80, 0xa1, 0x1f, 0x4e, 0x5c, 0xee, 0x85, 0x81, 0x84,
-	0x30, 0x0b, 0x64, 0x56, 0x73, 0x56, 0x11, 0xe7, 0xb1, 0xd0, 0x57, 0x26, 0xf2, 0x8e, 0xf8, 0xf2,
-	0xc3, 0x54, 0xd7, 0xc9, 0x59, 0xef, 0xff, 0xb3, 0x03, 0x4d, 0xb1, 0x7c, 0x7c, 0x0b, 0xd6, 0xe4,
-	0x36, 0xc8, 0xcc, 0x63, 0x9c, 0x44, 0xc9, 0x3b, 0x8a, 0x6e, 0xe0, 0x3b, 0x60, 0x29, 0x57, 0xb1,
-	0x67, 0x47, 0xb5, 0x6a, 0x2f, 0xa3, 0xa8, 0x8e, 0x3f, 0x83, 0x5b, 0xc2, 0x5b, 0xda, 0x70, 0xa0,
-	0xc6, 0x02, 0x37, 0xa3, 0xa8, 0x89, 0x6f, 0xc2, 0x8a, 0x70, 0xe7, 0x5a, 0x1e, 0xd4, 0x2a, 0x75,
-	0x30, 0x8a, 0xda, 0xb1, 0x23, 0xd7, 0x52, 0xa0, 0x4e, 0xa9, 0x83, 0x51, 0xb4, 0x84, 0x31, 0x0c,
-	0x85, 0x23, 0x6d, 0x02, 0x50, 0x37, 0x6f, 0x63, 0x14, 0x01, 0x5e, 0x81, 0x91, 0xb4, 0xa5, 0x85,
-	0x3f, 0xea, 0x15, 0x8c, 0x8c, 0xa2, 0x3e, 0xb6, 0x60, 0x55, 0x1b, 0x33, 0x25, 0x37, 0x1a, 0x94,
-	0x7b, 0x18, 0x45, 0x43, 0xbc, 0x0e, 0x58, 0x65, 0xd1, 0xac, 0x8e, 0xd1, 0xa8, 0xcc, 0xce, 0x28,
-	0x42, 0xf8, 0x36, 0xdc, 0x14, 0xf6, 0x92, 0x92, 0x1a, 0x2d, 0x57, 0x3a, 0x19, 0x45, 0x38, 0x5e,
-	0x43, 0xbe, 0xf2, 0x45, 0x2b, 0xf1, 0x66, 0x8c, 0x7b, 0x1f, 0xad, 0xe2, 0x0d, 0x58, 0x4f, 0xc3,
-	0xcd, 0x82, 0x14, 0xad, 0x55, 0xf9, 0x18, 0x45, 0xeb, 0xb1, 0xaf, 0x58, 0xc8, 0xa2, 0x9b, 0x55,
-	0x3e, 0x46, 0x91, 0x95, 0x9c, 0x88, 0xb2, 0xca, 0x15, 0xdd, 0x5a, 0xe0, 0x66, 0x14, 0x6d, 0xc4,
-	0x3b, 0x2f, 0x29, 0x48, 0xd1, 0xed, 0x4a, 0x27, 0xa3, 0xe8, 0x4e, 0xbc, 0xa6, 0x62, 0xb1, 0x89,
-	0x3e, 0xab, 0xf2, 0x31, 0x8a, 0x36, 0xf1, 0x2a, 0xa0, 0x34, 0x07, 0xaa, 0x36, 0x43, 0x5b, 0x45,
-	0x2b, 0xa3, 0x68, 0x3b, 0xb6, 0x9a, 0xd5, 0x20, 0xfa, 0xbc, 0x68, 0x65, 0x14, 0xd9, 0x78, 0x0d,
-	0x96, 0xe5, 0xc3, 0x30, 0x8b, 0x3e, 0x74, 0xb7, 0xc4, 0xcc, 0x28, 0xba, 0x77, 0xff, 0x08, 0x46,
-	0x39, 0x3d, 0xc2, 0x5d, 0x68, 0xbd, 0x0e, 0xb9, 0x7c, 0x81, 0x01, 0xda, 0xea, 0x1a, 0x43, 0x35,
-	0xdc, 0x87, 0xa5, 0x6f, 0x43, 0xdf, 0x0f, 0xdf, 0x93, 0x08, 0xd5, 0x71, 0x0f, 0x3a, 0xcf, 0x88,
-	0x1b, 0x89, 0xf7, 0xbc, 0x71, 0xff, 0x00, 0x96, 0x0b, 0x12, 0x8e, 0xdb, 0x50, 0x3f, 0x0d, 0xd0,
-	0x0d, 0x41, 0xf7, 0x3c, 0xe4, 0xa7, 0x01, 0xaa, 0x09, 0xba, 0x93, 0x0f, 0x1e, 0xe3, 0x0c, 0xd5,
-	0xf1, 0x00, 0xba, 0xcf, 0x43, 0xae, 0x87, 0x8d, 0x43, 0xf4, 0xe3, 0x7f, 0x36, 0x6f, 0xfc, 0xf0,
-	0x69, 0xb3, 0xf6, 0xe3, 0xa7, 0xcd, 0xda, 0xbf, 0x3f, 0x6d, 0xd6, 0xc6, 0x6d, 0xf9, 0xef, 0xe6,
-	0x87, 0xff, 0x0f, 0x00, 0x00, 0xff, 0xff, 0x93, 0x43, 0x36, 0xcf, 0x01, 0x1f, 0x00, 0x00,
+	// 2457 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x59, 0xcd, 0x73, 0x1c, 0x47,
+	0x15, 0xf7, 0x7e, 0x6b, 0x9f, 0x76, 0x57, 0xad, 0xd6, 0x87, 0xc7, 0x8a, 0x23, 0x89, 0x49, 0x2a,
+	0x08, 0x19, 0x24, 0x22, 0x43, 0x85, 0x4a, 0x91, 0x80, 0xa4, 0x55, 0x6c, 0x19, 0xe3, 0xb8, 0xc6,
+	0xc1, 0x70, 0xa3, 0x66, 0x77, 0xdb, 0xab, 0xc1, 0xab, 0x99, 0xf6, 0xf4, 0xac, 0x6d, 0x9d, 0x38,
+	0xf0, 0xb7, 0x51, 0x95, 0x63, 0xb8, 0x50, 0xc5, 0xc5, 0x05, 0xfe, 0x0f, 0x38, 0x73, 0xa1, 0xfa,
+	0x6b, 0xa6, 0x7b, 0x3e, 0x56, 0xf2, 0x49, 0xdb, 0xef, 0xe3, 0x37, 0xdd, 0xaf, 0x5f, 0xff, 0xfa,
+	0xbd, 0x16, 0x2c, 0xc7, 0x74, 0x4c, 0x47, 0x07, 0x34, 0x8e, 0x92, 0x08, 0xb7, 0xc4, 0x60, 0xeb,
+	0xf1, 0x34, 0x48, 0x2e, 0xe6, 0xa3, 0x83, 0x71, 0x74, 0x79, 0x78, 0xe9, 0x27, 0x71, 0xf0, 0x36,
+	0x8a, 0x83, 0x69, 0x10, 0xaa, 0xc1, 0x78, 0x3e, 0x22, 0x87, 0xe3, 0xe8, 0x92, 0x46, 0x21, 0x09,
+	0x13, 0x76, 0x48, 0xe3, 0x88, 0x5e, 0x90, 0xe4, 0x90, 0x8e, 0x0e, 0x2f, 0x49, 0xe2, 0xa7, 0x7f,
+	0x24, 0xe8, 0xd6, 0xcf, 0x0c, 0xb4, 0x69, 0x34, 0x8d, 0x0e, 0x85, 0x78, 0x34, 0x7f, 0x21, 0x46,
+	0x62, 0x20, 0x7e, 0x49, 0x73, 0xf7, 0x5f, 0x00, 0x1d, 0x8f, 0xbc, 0x9a, 0x13, 0x96, 0xe0, 0x4d,
+	0xa8, 0x07, 0x13, 0xa7, 0xb6, 0x5b, 0xdb, 0x6b, 0x9e, 0xb4, 0xdf, 0xbf, 0xdb, 0xa9, 0x9f, 0x0f,
+	0xbd, 0x7a, 0x30, 0xc1, 0xbb, 0xb0, 0x3c, 0x8e, 0xc2, 0xc4, 0x0f, 0x42, 0x12, 0x9f, 0x0f, 0x9d,
+	0x3a, 0x37, 0xf0, 0x4c, 0x11, 0xde, 0x81, 0x66, 0x72, 0x45, 0x89, 0xd3, 0xd8, 0xad, 0xed, 0x0d,
+	0x8e, 0x96, 0x0f, 0xe4, 0x2a, 0xbf, 0xbb, 0xa2, 0xc4, 0x13, 0x0a, 0xfc, 0x2d, 0xac, 0xc6, 0x84,
+	0x45, 0xf3, 0x78, 0x4c, 0x1e, 0x12, 0x3f, 0x4e, 0x46, 0xc4, 0x4f, 0x9c, 0xe6, 0x6e, 0x6d, 0x6f,
+	0xf9, 0xe8, 0x23, 0x65, 0xed, 0xe5, 0xf5, 0x1e, 0x79, 0x75, 0xd2, 0xfc, 0xfe, 0xdd, 0xce, 0x2d,
+	0xaf, 0xe8, 0x8b, 0x3d, 0xc0, 0xe9, 0x04, 0x32, 0xc4, 0x96, 0x40, 0xbc, 0xab, 0x10, 0x4f, 0x0b,
+	0x06, 0x19, 0x64, 0x89, 0x37, 0xfe, 0x2d, 0xf4, 0xe8, 0x3c, 0x49, 0xbd, 0x9c, 0xb6, 0x40, 0xdb,
+	0x54, 0x68, 0x4f, 0x0d, 0x55, 0x86, 0x63, 0x79, 0x70, 0x84, 0x29, 0x31, 0x10, 0x3a, 0x16, 0xc2,
+	0x03, 0x52, 0x8a, 0x60, 0x7a, 0xe0, 0xcf, 0xa1, 0xe3, 0xcf, 0x66, 0xd1, 0xf8, 0x7c, 0xe8, 0x2c,
+	0x09, 0xe7, 0x55, 0xe5, 0x7c, 0x2c, 0xa5, 0x99, 0x9f, 0xb6, 0xc3, 0xa7, 0xd0, 0xf7, 0xd9, 0xcb,
+	0x13, 0x3f, 0x19, 0x5f, 0x3c, 0xa3, 0xb3, 0x20, 0x71, 0xba, 0xc2, 0xf1, 0xb6, 0x76, 0x34, 0x75,
+	0x99, 0xbb, 0xed, 0x83, 0x1f, 0x03, 0x1a, 0xc7, 0xc4, 0x4f, 0xc8, 0x90, 0xb0, 0x24, 0x8a, 0xaf,
+	0x82, 0x70, 0xea, 0x80, 0xc0, 0xd9, 0xd2, 0xd1, 0xcc, 0xa9, 0x33, 0xa8, 0x82, 0x27, 0x3e, 0x87,
+	0x15, 0x8f, 0xd0, 0x28, 0x4e, 0x94, 0x8c, 0x4c, 0x9c, 0x65, 0x01, 0x76, 0x27, 0xdd, 0x6c, 0x4b,
+	0x9b, 0x61, 0xe5, 0xfd, 0xf8, 0xea, 0xa6, 0x24, 0x31, 0x66, 0xd5, 0xb3, 0x56, 0xf7, 0xc0, 0xd4,
+	0x19, 0xab, 0xb3, 0x7c, 0x38, 0x88, 0x9c, 0xe3, 0x1f, 0xf9, 0x8a, 0x49, 0xec, 0xf4, 0x2d, 0x90,
+	0x53, 0x53, 0x67, 0x80, 0x58, 0x3e, 0x7c, 0x51, 0x52, 0xa0, 0x33, 0x95, 0x39, 0x03, 0x6b, 0x51,
+	0xa7, 0xb6, 0xd6, 0x58, 0x54, 0xce, 0x8f, 0x43, 0xc5, 0xe4, 0x32, 0x7a, 0x6d, 0x40, 0xad, 0xe4,
+	0xe2, 0x63, 0x69, 0x0d, 0xa8, 0x9c, 0x9f, 0x38, 0x08, 0x17, 0x64, 0xfc, 0x52, 0x4b, 0x9e, 0x25,
+	0x7e, 0x42, 0x1c, 0x64, 0x1f, 0x84, 0x82, 0x81, 0x79, 0x10, 0x0a, 0x4a, 0x9e, 0x0c, 0x74, 0x9e,
+	0x3c, 0x9d, 0xf9, 0x63, 0x72, 0x49, 0xc2, 0xc4, 0x9b, 0xcf, 0x88, 0xb3, 0x6a, 0x25, 0xc3, 0xd3,
+	0x9c, 0xda, 0x48, 0x86, 0xbc, 0x27, 0x5f, 0xec, 0x94, 0x24, 0xc7, 0x94, 0xce, 0x02, 0x32, 0xe1,
+	0x12, 0xe6, 0x60, 0x6b, 0xb1, 0x0f, 0x6c, 0xad, 0xb1, 0xd8, 0x9c, 0x1f, 0xfe, 0x02, 0xba, 0x32,
+	0x94, 0x8f, 0xa2, 0x91, 0xb3, 0x26, 0x40, 0xd6, 0xac, 0xe0, 0x3f, 0x8a, 0x46, 0x99, 0x7b, 0x66,
+	0xcb, 0x1d, 0x65, 0xe0, 0xb8, 0xe3, 0xba, 0xe5, 0xe8, 0x69, 0xb9, 0xe1, 0x98, 0xda, 0xe2, 0x2f,
+	0x01, 0xc8, 0x5b, 0x32, 0x9e, 0xcb, 0x4f, 0x6e, 0x08, 0xcf, 0x75, 0xe5, 0x79, 0x96, 0x2a, 0x32,
+	0x57, 0xc3, 0xda, 0xfd, 0x07, 0xc0, 0x92, 0x47, 0x18, 0x8d, 0x42, 0x46, 0x2a, 0xc9, 0x55, 0x53,
+	0x67, 0xbd, 0x8a, 0x3a, 0xd7, 0xa1, 0x45, 0xe2, 0x38, 0x8a, 0x05, 0xb9, 0x76, 0x3d, 0x39, 0xc0,
+	0x9b, 0xd0, 0x9e, 0x11, 0x7f, 0x42, 0x62, 0xc1, 0xa2, 0x5d, 0x4f, 0x8d, 0xca, 0x89, 0xb6, 0x75,
+	0x0d, 0xd1, 0x32, 0xfa, 0xa1, 0x44, 0xdb, 0xbe, 0x8e, 0x68, 0x53, 0xc8, 0x9b, 0x10, 0x6d, 0xa7,
+	0x9a, 0x68, 0x53, 0x9c, 0xc5, 0x44, 0xbb, 0x54, 0x4d, 0xb4, 0x19, 0x42, 0x15, 0xd1, 0x76, 0x4b,
+	0x89, 0x36, 0xf5, 0xab, 0x26, 0x5a, 0x58, 0x40, 0xb4, 0xa9, 0xfb, 0x0d, 0x88, 0x76, 0x79, 0x31,
+	0xd1, 0xa6, 0x50, 0x37, 0x22, 0xda, 0xde, 0x42, 0xa2, 0x4d, 0xb1, 0xae, 0x27, 0xda, 0xfe, 0x02,
+	0xa2, 0xcd, 0x56, 0x67, 0x13, 0xed, 0x01, 0xb4, 0xc8, 0x6b, 0x12, 0x26, 0x8a, 0x19, 0xb1, 0x3e,
+	0x29, 0x5c, 0xf6, 0x24, 0x4a, 0x82, 0x17, 0x57, 0xca, 0x4f, 0x9a, 0x95, 0x71, 0xea, 0xca, 0x42,
+	0x4e, 0xcd, 0xe6, 0x7f, 0x03, 0x4e, 0x45, 0x0b, 0x39, 0x35, 0x83, 0xba, 0x19, 0xa7, 0xae, 0x5e,
+	0xc7, 0xa9, 0x46, 0xce, 0xdf, 0x8c, 0x53, 0xf1, 0x62, 0x4e, 0xcd, 0xf6, 0xfd, 0x26, 0x9c, 0xba,
+	0xb6, 0x90, 0x53, 0xb3, 0xc5, 0x2e, 0xe4, 0xd4, 0xf5, 0x0a, 0x4e, 0x4d, 0xdd, 0xab, 0x38, 0x75,
+	0xa3, 0x82, 0x53, 0x33, 0xc7, 0x2a, 0x4e, 0xdd, 0xac, 0xe2, 0xd4, 0xd4, 0xd5, 0xe4, 0xd4, 0xbf,
+	0xd7, 0x61, 0xbd, 0xac, 0x52, 0xcc, 0x17, 0xa9, 0xb5, 0x62, 0x91, 0xba, 0x05, 0x4b, 0x9a, 0xde,
+	0x04, 0xdb, 0xf6, 0xbc, 0x74, 0x8c, 0x31, 0x34, 0x13, 0x12, 0x5f, 0x0a, 0x8e, 0x6d, 0x7a, 0xe2,
+	0x37, 0xfe, 0xb1, 0x45, 0xb1, 0xcb, 0x47, 0x2b, 0x07, 0xaa, 0xd0, 0xf6, 0x08, 0x9d, 0x05, 0x63,
+	0x3f, 0xe5, 0xdc, 0xaf, 0xa1, 0x37, 0x89, 0xde, 0x84, 0x4a, 0xcc, 0x9c, 0xd6, 0x6e, 0x43, 0xac,
+	0xc8, 0x36, 0xe7, 0x69, 0xc0, 0x34, 0x15, 0x99, 0xf6, 0xf8, 0x37, 0xb0, 0x42, 0x49, 0x38, 0x11,
+	0x05, 0x8c, 0x82, 0x68, 0x0b, 0x88, 0xfc, 0x17, 0xf5, 0x16, 0xe6, 0xac, 0xf1, 0xe7, 0xd0, 0x62,
+	0x1c, 0x5d, 0x11, 0xe9, 0x46, 0xe6, 0x96, 0x65, 0xa0, 0xfe, 0xb4, 0xb4, 0x74, 0xff, 0xdb, 0x28,
+	0x8b, 0x23, 0xa3, 0x78, 0x1b, 0x40, 0x47, 0x25, 0x0d, 0xa3, 0x21, 0xc1, 0xc7, 0xd0, 0xd7, 0xa3,
+	0x33, 0x1a, 0x8d, 0x2f, 0x44, 0x28, 0x4b, 0xbe, 0x29, 0x94, 0x9a, 0x24, 0x2c, 0x0f, 0xfc, 0x4b,
+	0xe8, 0x27, 0x7e, 0x3c, 0x25, 0x89, 0x5a, 0x80, 0x88, 0x7a, 0x49, 0x7c, 0x6d, 0x2b, 0xfc, 0x05,
+	0xf4, 0xc6, 0x51, 0xf8, 0x22, 0x98, 0x9e, 0x5e, 0xf8, 0xe1, 0x94, 0xa8, 0x5d, 0x59, 0xcb, 0xee,
+	0xa0, 0x54, 0xe5, 0x59, 0x86, 0xf8, 0x2b, 0x18, 0x24, 0xb1, 0x1f, 0xb2, 0x17, 0x24, 0x7e, 0x2c,
+	0x37, 0xb4, 0xa5, 0xe6, 0xac, 0x2e, 0x5b, 0x4b, 0xe9, 0xe5, 0x8c, 0xb1, 0x0b, 0xad, 0x4b, 0x12,
+	0x4f, 0x89, 0xba, 0xf4, 0x7a, 0xca, 0xeb, 0xf7, 0x5c, 0xe6, 0x49, 0x15, 0xfe, 0x12, 0xfa, 0x4c,
+	0xd6, 0xd7, 0x2a, 0xc1, 0x3a, 0x56, 0x56, 0x3f, 0x33, 0x75, 0x9e, 0x6d, 0xca, 0xa7, 0x67, 0x4e,
+	0xf7, 0xf9, 0x91, 0xba, 0xcd, 0x36, 0x4a, 0x56, 0xf6, 0xfc, 0xc8, 0xcb, 0x19, 0xe3, 0x3d, 0x58,
+	0x99, 0x48, 0x02, 0x1e, 0x06, 0x31, 0x19, 0x27, 0xb3, 0x2b, 0x71, 0xa1, 0x2d, 0x79, 0x79, 0xb1,
+	0x7b, 0x08, 0x2b, 0xb9, 0x26, 0x06, 0xdf, 0x85, 0x6e, 0x7a, 0x44, 0xc4, 0x66, 0xf7, 0xbc, 0x4c,
+	0xe0, 0x7e, 0x95, 0x73, 0x60, 0x14, 0xef, 0x03, 0xe2, 0xb0, 0x71, 0x74, 0x95, 0xd1, 0xac, 0xf4,
+	0x2b, 0xc8, 0xdd, 0x3f, 0xc3, 0x46, 0x69, 0x0b, 0x86, 0x8f, 0x74, 0xbe, 0xd6, 0xd4, 0xb5, 0xad,
+	0x36, 0x3e, 0xb5, 0x2e, 0x26, 0x2c, 0x3f, 0xa1, 0x13, 0x3f, 0xf1, 0xd5, 0xc9, 0x15, 0xbf, 0xdd,
+	0x7b, 0xa5, 0x1f, 0x60, 0x34, 0x35, 0xae, 0x19, 0xc6, 0x3f, 0x81, 0x95, 0x5c, 0x03, 0x56, 0x55,
+	0x93, 0xb9, 0xcf, 0x72, 0xa6, 0xe5, 0x88, 0xf8, 0xa7, 0x7a, 0x19, 0xf5, 0x45, 0xcb, 0xd0, 0x27,
+	0xae, 0x07, 0x90, 0xf5, 0x70, 0xee, 0xa7, 0xd9, 0x88, 0xd1, 0xca, 0x89, 0xfc, 0x1a, 0x50, 0xbe,
+	0x7d, 0x2b, 0x9d, 0xc9, 0x3a, 0xb4, 0xc6, 0xd1, 0x3c, 0x4c, 0xc4, 0x4c, 0xfa, 0x9e, 0x1c, 0xb8,
+	0xc3, 0xbc, 0x37, 0xa3, 0xf8, 0xe7, 0xb0, 0x24, 0xb2, 0xef, 0x7c, 0xc8, 0xa3, 0xcf, 0x49, 0x66,
+	0x60, 0xe6, 0xe8, 0xf9, 0x50, 0x45, 0x3d, 0xb5, 0x72, 0xff, 0x0a, 0x6b, 0x25, 0xad, 0x5f, 0x65,
+	0x3d, 0xbb, 0x0e, 0xad, 0x20, 0x9c, 0x90, 0xb7, 0xea, 0x99, 0x40, 0x0e, 0x24, 0xf7, 0x2a, 0x6e,
+	0x6b, 0xec, 0x36, 0xf6, 0x9a, 0x5e, 0x3a, 0x96, 0x8c, 0xc3, 0xef, 0x86, 0x21, 0x5f, 0x56, 0x53,
+	0xe4, 0xae, 0x21, 0x71, 0x4f, 0x4a, 0x26, 0xc0, 0x28, 0xbe, 0x27, 0xa3, 0x4f, 0xc4, 0x1c, 0x06,
+	0xe5, 0xa4, 0x47, 0x64, 0xf0, 0x89, 0xbb, 0x0f, 0x28, 0xdf, 0x29, 0x56, 0x06, 0x7d, 0x98, 0xb7,
+	0x15, 0x61, 0x6b, 0x73, 0xa0, 0xb9, 0x4e, 0x59, 0x47, 0x7f, 0x6d, 0x28, 0x93, 0x3e, 0x08, 0xa7,
+	0xcf, 0x84, 0xde, 0x53, 0x76, 0xee, 0x23, 0xc0, 0xc5, 0x26, 0xb7, 0x32, 0x6a, 0x77, 0xf9, 0x5d,
+	0x2a, 0xe2, 0x91, 0x3e, 0xb0, 0x64, 0x02, 0xf7, 0xb8, 0x88, 0xf5, 0xa1, 0x01, 0x38, 0x83, 0x8e,
+	0xda, 0x60, 0xbe, 0x43, 0x21, 0x79, 0x93, 0x92, 0xbb, 0x1c, 0xe0, 0x4f, 0xa1, 0x1f, 0x92, 0x37,
+	0x9e, 0xfe, 0x26, 0x4f, 0x6a, 0xbe, 0x4d, 0xb6, 0xd0, 0xfd, 0x0c, 0x50, 0xbe, 0x59, 0xe6, 0x09,
+	0xf9, 0x62, 0xe6, 0x4f, 0x05, 0x5c, 0xdf, 0x13, 0xbf, 0xdd, 0x3f, 0x01, 0x2e, 0x76, 0xc3, 0x72,
+	0x95, 0x19, 0x6b, 0x34, 0x38, 0xdb, 0xa4, 0x02, 0x3e, 0x83, 0x19, 0xf1, 0x59, 0x92, 0x5e, 0x82,
+	0x6a, 0x06, 0x96, 0xd0, 0x5d, 0x2f, 0x22, 0x33, 0xea, 0x1e, 0xf2, 0x08, 0xe5, 0x5b, 0x66, 0x7c,
+	0x07, 0x1a, 0xc1, 0x44, 0x7e, 0xa9, 0x79, 0xd2, 0x79, 0xff, 0x6e, 0xa7, 0x71, 0x3e, 0x64, 0x1e,
+	0x97, 0x71, 0x98, 0x62, 0x3d, 0xe8, 0x1e, 0xc1, 0x46, 0x69, 0xaf, 0x9c, 0x21, 0xd5, 0xf6, 0x7a,
+	0x39, 0xa4, 0x3f, 0x94, 0xfa, 0x30, 0xca, 0x57, 0xab, 0x28, 0x91, 0x4c, 0x34, 0xb7, 0xa6, 0x02,
+	0x9e, 0xf5, 0x93, 0x34, 0x77, 0x14, 0xab, 0x19, 0x12, 0xf7, 0x0c, 0xd6, 0x4a, 0x9a, 0x6c, 0x7c,
+	0x00, 0xcd, 0x98, 0x97, 0x8e, 0x35, 0xeb, 0x7e, 0xb1, 0xcc, 0xd4, 0x09, 0x16, 0x76, 0xee, 0x46,
+	0x09, 0x0c, 0xa3, 0xee, 0x2f, 0x00, 0x17, 0xbb, 0xee, 0xeb, 0xee, 0x7e, 0xf7, 0x9b, 0xa2, 0x97,
+	0x38, 0x1b, 0xad, 0x58, 0x54, 0xa0, 0x35, 0x55, 0xf7, 0x54, 0xcf, 0x49, 0x1a, 0xba, 0xf7, 0xa1,
+	0x67, 0xb6, 0xeb, 0xf8, 0x13, 0x68, 0xfc, 0x25, 0x1a, 0xa9, 0x35, 0x2d, 0xeb, 0x3c, 0x7e, 0x14,
+	0x8d, 0x94, 0x1b, 0xd7, 0xba, 0x03, 0xd3, 0x89, 0x51, 0x0e, 0x62, 0xb6, 0xee, 0x37, 0x06, 0x31,
+	0x6b, 0x53, 0xf7, 0x21, 0xf4, 0xad, 0x2e, 0xfe, 0x46, 0x28, 0xa5, 0x77, 0xd1, 0x27, 0x16, 0x52,
+	0xc5, 0x1d, 0xf4, 0xbf, 0x3a, 0x2c, 0x1b, 0xbd, 0x10, 0x46, 0xd0, 0x60, 0xe4, 0x95, 0x8a, 0x34,
+	0xff, 0x29, 0x0a, 0x51, 0xfd, 0x1c, 0xd0, 0x57, 0x2f, 0x00, 0x47, 0xd0, 0x0d, 0xc2, 0x20, 0x11,
+	0x8e, 0xaa, 0x56, 0xd2, 0x41, 0x3e, 0xd7, 0x72, 0xce, 0x94, 0x5e, 0x66, 0x86, 0xbf, 0x36, 0xca,
+	0x34, 0xe1, 0xd7, 0x54, 0xbc, 0x65, 0xbf, 0x01, 0x64, 0xbe, 0xb6, 0x39, 0x3e, 0x16, 0x45, 0x89,
+	0xbc, 0xc6, 0x24, 0x40, 0xcb, 0xee, 0xcb, 0x2c, 0xa5, 0x40, 0xc8, 0x39, 0xe0, 0x33, 0xc0, 0xb1,
+	0x59, 0x80, 0x4a, 0x98, 0xf6, 0x82, 0x12, 0xd5, 0x2b, 0x71, 0xc0, 0x0f, 0x61, 0x6d, 0x6c, 0x5d,
+	0xa8, 0x12, 0xa7, 0xb3, 0xf0, 0xce, 0x2d, 0x73, 0x71, 0xa7, 0xd0, 0xb7, 0xe2, 0x75, 0x0d, 0x1f,
+	0x39, 0xd0, 0x91, 0x05, 0xbe, 0x66, 0x22, 0x3d, 0xe4, 0xe7, 0x24, 0xc5, 0x97, 0xf7, 0x59, 0xcf,
+	0x33, 0x24, 0xee, 0x2b, 0x58, 0x2d, 0x04, 0xb8, 0xf4, 0xde, 0xce, 0x5e, 0x71, 0x24, 0xe7, 0xeb,
+	0x8e, 0xc2, 0x81, 0x8e, 0xbc, 0x00, 0x27, 0x62, 0xbf, 0x97, 0x3c, 0x3d, 0xe4, 0x1e, 0xb2, 0x03,
+	0x53, 0x17, 0xa5, 0x1a, 0xb9, 0x7b, 0x80, 0x8b, 0x5b, 0x52, 0x9a, 0x83, 0x57, 0xd0, 0x33, 0x2b,
+	0x4a, 0x7c, 0xc8, 0xbf, 0x25, 0xeb, 0xf0, 0x5a, 0x69, 0x1d, 0xae, 0x9f, 0x41, 0x94, 0x15, 0xfe,
+	0x15, 0xc0, 0x58, 0xb8, 0x7e, 0x97, 0xbd, 0x5b, 0x39, 0xc6, 0x3e, 0xa4, 0xd0, 0xe2, 0x11, 0xcb,
+	0xb0, 0x75, 0x8f, 0x61, 0x60, 0xd7, 0xda, 0x1f, 0xfc, 0x71, 0xf7, 0x0c, 0x06, 0x76, 0x3d, 0x8c,
+	0xef, 0x43, 0x47, 0x7e, 0x42, 0x13, 0x50, 0x59, 0x47, 0xa0, 0x61, 0x94, 0xa5, 0xbb, 0x03, 0x2d,
+	0x51, 0xbf, 0xf3, 0x78, 0xca, 0x2e, 0x43, 0xc5, 0x48, 0x8d, 0xdc, 0xa7, 0xd0, 0xb7, 0x8a, 0x76,
+	0x7c, 0x0f, 0xda, 0x34, 0x9a, 0x05, 0xe3, 0x2b, 0x75, 0xdd, 0xae, 0xa5, 0x2b, 0xe6, 0xe4, 0xff,
+	0x54, 0xa8, 0x3c, 0x65, 0xc2, 0xe3, 0xfe, 0x92, 0x5c, 0xc9, 0xbc, 0xe9, 0x79, 0xe2, 0xb7, 0x4b,
+	0x60, 0xe5, 0xb1, 0x3f, 0x22, 0xb3, 0xd3, 0x28, 0x64, 0x49, 0xec, 0x07, 0x61, 0xc2, 0x8f, 0xff,
+	0x4b, 0x22, 0x01, 0xbb, 0x1e, 0xff, 0x89, 0xf7, 0xa0, 0x1e, 0xd1, 0x34, 0xa6, 0x72, 0x1d, 0x39,
+	0xaf, 0x6f, 0xa9, 0x57, 0x8f, 0x78, 0xc9, 0xd8, 0x7e, 0xed, 0xcf, 0xe6, 0x44, 0xe6, 0x5f, 0xd7,
+	0x53, 0x23, 0xf7, 0x6f, 0x0d, 0xe8, 0xdb, 0x6f, 0x05, 0x59, 0xcd, 0xd1, 0xb5, 0x6a, 0x0e, 0x07,
+	0x3a, 0xd3, 0x38, 0x9a, 0x53, 0x55, 0x71, 0x74, 0x3d, 0x3d, 0xcc, 0x6a, 0xb8, 0x86, 0x2c, 0x27,
+	0xd3, 0x1a, 0x2e, 0x7a, 0x4d, 0xe2, 0x38, 0x98, 0xe8, 0xe4, 0x4b, 0xc7, 0x5c, 0xc7, 0x12, 0x3f,
+	0x4e, 0x7e, 0x47, 0xae, 0x04, 0x51, 0xf4, 0xbc, 0x74, 0xcc, 0x67, 0x4a, 0xc2, 0x09, 0xd7, 0xb4,
+	0x65, 0x88, 0xe5, 0x08, 0xef, 0x43, 0x33, 0x8e, 0x66, 0xb2, 0x55, 0x1a, 0xa4, 0x6f, 0x77, 0xba,
+	0xf9, 0x8b, 0x66, 0x32, 0x7f, 0x84, 0x4d, 0x56, 0xe0, 0x2e, 0x19, 0x05, 0x2e, 0x7e, 0x08, 0x68,
+	0x66, 0x07, 0x87, 0x39, 0x5d, 0x91, 0x03, 0x9b, 0xe5, 0xb1, 0xd3, 0xef, 0x29, 0x79, 0x2f, 0xfc,
+	0x19, 0x0c, 0x66, 0xd1, 0xd8, 0x4f, 0x82, 0x28, 0x14, 0x2e, 0xcc, 0x01, 0x11, 0xd5, 0x9c, 0x94,
+	0xdb, 0x05, 0x2c, 0x9a, 0x49, 0x11, 0x79, 0x4d, 0x66, 0xe2, 0xed, 0xae, 0xeb, 0xe5, 0xa4, 0xfb,
+	0xff, 0xec, 0x40, 0x93, 0x4f, 0x1f, 0xdf, 0x81, 0x0d, 0xb1, 0x0c, 0x32, 0x0d, 0x58, 0x42, 0xe2,
+	0xf4, 0x8c, 0xa2, 0x5b, 0xf8, 0x2e, 0x38, 0x52, 0x55, 0x7c, 0xcd, 0x40, 0xb5, 0x6a, 0x2d, 0xa3,
+	0xa8, 0x8e, 0x3f, 0x86, 0x3b, 0x5c, 0x5b, 0xda, 0x5e, 0xa1, 0xc6, 0x02, 0x35, 0xa3, 0xa8, 0x89,
+	0x6f, 0xc3, 0x1a, 0x57, 0xe7, 0x9a, 0x41, 0xd4, 0x2a, 0x55, 0x30, 0x8a, 0xda, 0x5a, 0x91, 0x6b,
+	0xa0, 0x50, 0xa7, 0x54, 0xc1, 0x28, 0x5a, 0xc2, 0x18, 0x06, 0x5c, 0x91, 0xb5, 0x3c, 0xa8, 0x9b,
+	0x97, 0x31, 0x8a, 0x00, 0x3b, 0xb0, 0x2e, 0x64, 0xb9, 0x36, 0x07, 0x2d, 0x97, 0x6b, 0x18, 0x45,
+	0x3d, 0xfc, 0x11, 0xdc, 0x16, 0xcb, 0x2b, 0xb6, 0x25, 0xa8, 0x5f, 0xa9, 0x64, 0x14, 0x0d, 0xf0,
+	0x16, 0x6c, 0xca, 0xa8, 0xe6, 0x2b, 0x73, 0xb4, 0x52, 0xa5, 0x63, 0x14, 0x21, 0x3d, 0x97, 0x7c,
+	0x0f, 0x81, 0x56, 0xcb, 0x35, 0x8c, 0x22, 0xac, 0x35, 0xf9, 0x7a, 0x19, 0xad, 0xe1, 0x35, 0x58,
+	0xe1, 0x1a, 0xa3, 0x12, 0x40, 0xeb, 0xfa, 0xf3, 0xc5, 0xb2, 0x19, 0x6d, 0x54, 0xe9, 0x18, 0x45,
+	0x9b, 0xd9, 0xb4, 0xf3, 0xe5, 0x2f, 0xba, 0x5d, 0xa5, 0x63, 0x14, 0x39, 0x69, 0x8e, 0x94, 0xd5,
+	0xbb, 0xe8, 0xce, 0x02, 0x35, 0xa3, 0x68, 0x4b, 0x47, 0xb9, 0xa4, 0x44, 0x45, 0x1f, 0x55, 0x2a,
+	0x19, 0x45, 0x77, 0xf5, 0x9c, 0x8a, 0xe5, 0x27, 0xfa, 0xb8, 0x4a, 0xc7, 0x28, 0xda, 0xc6, 0xeb,
+	0x80, 0xb2, 0x18, 0xc8, 0x6a, 0x0d, 0xed, 0x14, 0xa5, 0x8c, 0xa2, 0x5d, 0x2d, 0x35, 0xeb, 0x43,
+	0xf4, 0xa3, 0xa2, 0x94, 0x51, 0xe4, 0xe2, 0x0d, 0x58, 0x15, 0x9b, 0x61, 0x96, 0x81, 0xe8, 0x93,
+	0x12, 0x31, 0xa3, 0xe8, 0xd3, 0xfd, 0x53, 0xf1, 0xe0, 0x6e, 0x32, 0x14, 0xee, 0x42, 0xeb, 0x79,
+	0x94, 0x88, 0x23, 0x0d, 0xd0, 0x96, 0x17, 0x1b, 0xaa, 0xe1, 0x1e, 0x2c, 0x7d, 0x13, 0xcd, 0x66,
+	0xd1, 0x1b, 0x12, 0xa3, 0x3a, 0x5e, 0x86, 0xce, 0x63, 0xe2, 0xc7, 0xfc, 0xe4, 0x37, 0xf6, 0x8f,
+	0x61, 0xb5, 0x40, 0xea, 0xb8, 0x0d, 0xf5, 0xf3, 0x10, 0xdd, 0xe2, 0x70, 0x4f, 0xa2, 0xe4, 0x3c,
+	0x44, 0x35, 0x0e, 0x77, 0xf6, 0x36, 0x60, 0x09, 0x43, 0x75, 0xdc, 0x87, 0xee, 0x93, 0x28, 0x51,
+	0xc3, 0xc6, 0x09, 0xfa, 0xe1, 0x3f, 0xdb, 0xb7, 0xbe, 0x7f, 0xbf, 0x5d, 0xfb, 0xe1, 0xfd, 0x76,
+	0xed, 0xdf, 0xef, 0xb7, 0x6b, 0xa3, 0xb6, 0xf8, 0x87, 0xfe, 0xfd, 0xff, 0x07, 0x00, 0x00, 0xff,
+	0xff, 0x54, 0x2a, 0x4c, 0x5d, 0x63, 0x20, 0x00, 0x00,
 }
 
 func (m *Request) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -3454,233 +3514,191 @@ func (m *Request) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Request) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Request) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.ExecuteJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0xaa
-	{
-		size, err := m.RemoveJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0xa2
-	{
-		size, err := m.CreateJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x9a
-	{
-		size, err := m.GetAppliedRules.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x92
-	{
-		size, err := m.PutPlacementRule.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x8a
-	{
-		size, err := m.CheckResourceState.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x82
-	{
-		size, err := m.RemoveResources.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x7a
-	{
-		size, err := m.CreateResources.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x72
-	{
-		size, err := m.CreateWatcher.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x6a
-	{
-		size, err := m.BatchReportSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x62
-	{
-		size, err := m.ReportSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x5a
-	{
-		size, err := m.AskBatchSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x52
-	{
-		size, err := m.AskSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x4a
-	{
-		size, err := m.AllocID.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x42
-	{
-		size, err := m.GetContainer.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x3a
-	{
-		size, err := m.PutContainer.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x32
-	{
-		size, err := m.ContainerHeartbeat.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x2a
-	{
-		size, err := m.ResourceHeartbeat.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x22
-	if m.Type != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
-		i--
-		dAtA[i] = 0x18
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
 	}
 	if m.ContainerID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerID))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerID))
 	}
-	if m.ID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if m.Type != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
 	}
-	return len(dAtA) - i, nil
+	dAtA[i] = 0x22
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceHeartbeat.Size()))
+	n1, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n1
+	dAtA[i] = 0x2a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
+	n2, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n2
+	dAtA[i] = 0x32
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
+	n3, err := m.PutContainer.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n3
+	dAtA[i] = 0x3a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
+	n4, err := m.GetContainer.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n4
+	dAtA[i] = 0x42
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
+	n5, err := m.AllocID.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n5
+	dAtA[i] = 0x4a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
+	n6, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n6
+	dAtA[i] = 0x52
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestorying.Size()))
+	n7, err := m.CreateDestorying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n7
+	dAtA[i] = 0x5a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestoryed.Size()))
+	n8, err := m.ReportDestoryed.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n8
+	dAtA[i] = 0x62
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestorying.Size()))
+	n9, err := m.GetDestorying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n9
+	dAtA[i] = 0x6a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateWatcher.Size()))
+	n10, err := m.CreateWatcher.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n10
+	dAtA[i] = 0x72
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateResources.Size()))
+	n11, err := m.CreateResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n11
+	dAtA[i] = 0x7a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveResources.Size()))
+	n12, err := m.RemoveResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n12
+	dAtA[i] = 0x82
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckResourceState.Size()))
+	n13, err := m.CheckResourceState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n13
+	dAtA[i] = 0x8a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
+	n14, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n14
+	dAtA[i] = 0x92
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
+	n15, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n15
+	dAtA[i] = 0x9a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
+	n16, err := m.CreateJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n16
+	dAtA[i] = 0xa2
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
+	n17, err := m.RemoveJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n17
+	dAtA[i] = 0xaa
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
+	n18, err := m.ExecuteJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n18
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Response) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -3688,244 +3706,200 @@ func (m *Response) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Response) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.ExecuteJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0xb2
-	{
-		size, err := m.RemoveJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0xaa
-	{
-		size, err := m.CreateJob.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0xa2
-	{
-		size, err := m.GetAppliedRules.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x9a
-	{
-		size, err := m.PutPlacementRule.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x92
-	{
-		size, err := m.CheckResourceState.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x8a
-	{
-		size, err := m.RemoveResources.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1
-	i--
-	dAtA[i] = 0x82
-	{
-		size, err := m.CreateResources.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x7a
-	{
-		size, err := m.Event.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x72
-	{
-		size, err := m.BatchReportSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x6a
-	{
-		size, err := m.ReportSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x62
-	{
-		size, err := m.AskBatchSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x5a
-	{
-		size, err := m.AskSplit.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x52
-	{
-		size, err := m.AllocID.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x4a
-	{
-		size, err := m.GetContainer.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x42
-	{
-		size, err := m.PutContainer.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x3a
-	{
-		size, err := m.ContainerHeartbeat.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x32
-	{
-		size, err := m.ResourceHeartbeat.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x2a
-	if len(m.Leader) > 0 {
-		i -= len(m.Leader)
-		copy(dAtA[i:], m.Leader)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Leader)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.Error) > 0 {
-		i -= len(m.Error)
-		copy(dAtA[i:], m.Error)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Error)))
-		i--
-		dAtA[i] = 0x1a
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
 	}
 	if m.Type != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
 	}
-	if m.ID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if len(m.Error) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Error)))
+		i += copy(dAtA[i:], m.Error)
 	}
-	return len(dAtA) - i, nil
+	if len(m.Leader) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Leader)))
+		i += copy(dAtA[i:], m.Leader)
+	}
+	dAtA[i] = 0x2a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceHeartbeat.Size()))
+	n19, err := m.ResourceHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n19
+	dAtA[i] = 0x32
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerHeartbeat.Size()))
+	n20, err := m.ContainerHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n20
+	dAtA[i] = 0x3a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutContainer.Size()))
+	n21, err := m.PutContainer.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n21
+	dAtA[i] = 0x42
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetContainer.Size()))
+	n22, err := m.GetContainer.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n22
+	dAtA[i] = 0x4a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
+	n23, err := m.AllocID.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n23
+	dAtA[i] = 0x52
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
+	n24, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n24
+	dAtA[i] = 0x5a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestorying.Size()))
+	n25, err := m.CreateDestorying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n25
+	dAtA[i] = 0x62
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestoryed.Size()))
+	n26, err := m.ReportDestoryed.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n26
+	dAtA[i] = 0x6a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestorying.Size()))
+	n27, err := m.GetDestorying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n27
+	dAtA[i] = 0x72
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
+	n28, err := m.Event.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n28
+	dAtA[i] = 0x7a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateResources.Size()))
+	n29, err := m.CreateResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n29
+	dAtA[i] = 0x82
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveResources.Size()))
+	n30, err := m.RemoveResources.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n30
+	dAtA[i] = 0x8a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckResourceState.Size()))
+	n31, err := m.CheckResourceState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n31
+	dAtA[i] = 0x92
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
+	n32, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n32
+	dAtA[i] = 0x9a
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
+	n33, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n33
+	dAtA[i] = 0xa2
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
+	n34, err := m.CreateJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n34
+	dAtA[i] = 0xaa
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
+	n35, err := m.RemoveJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n35
+	dAtA[i] = 0xb2
+	i++
+	dAtA[i] = 0x1
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
+	n36, err := m.ExecuteJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n36
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResourceHeartbeatReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -3933,93 +3907,78 @@ func (m *ResourceHeartbeatReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceHeartbeatReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ContainerID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerID))
 	}
-	{
-		size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
+	if len(m.Resource) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Resource)))
+		i += copy(dAtA[i:], m.Resource)
+	}
+	if m.Term != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Term))
+	}
+	if m.Leader != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader.Size()))
+		n37, err := m.Leader.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x3a
-	if len(m.PendingReplicas) > 0 {
-		for iNdEx := len(m.PendingReplicas) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.PendingReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x32
-		}
+		i += n37
 	}
 	if len(m.DownReplicas) > 0 {
-		for iNdEx := len(m.DownReplicas) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.DownReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.DownReplicas {
 			dAtA[i] = 0x2a
-		}
-	}
-	if m.Leader != nil {
-		{
-			size, err := m.Leader.MarshalToSizedBuffer(dAtA[:i])
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
-		dAtA[i] = 0x22
 	}
-	if m.Term != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Term))
-		i--
-		dAtA[i] = 0x18
+	if len(m.PendingReplicas) > 0 {
+		for _, msg := range m.PendingReplicas {
+			dAtA[i] = 0x32
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
-	if len(m.Resource) > 0 {
-		i -= len(m.Resource)
-		copy(dAtA[i:], m.Resource)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Resource)))
-		i--
-		dAtA[i] = 0x12
+	dAtA[i] = 0x3a
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
+	n38, err := m.Stats.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
-	if m.ContainerID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerID))
-		i--
-		dAtA[i] = 0x8
+	i += n38
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ResourceHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4027,123 +3986,103 @@ func (m *ResourceHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceHeartbeatRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ResourceID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceID))
+	}
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEpoch.Size()))
+	n39, err := m.ResourceEpoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n39
+	if m.TargetReplica != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.TargetReplica.Size()))
+		n40, err := m.TargetReplica.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n40
+	}
+	if m.ConfigChange != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChange.Size()))
+		n41, err := m.ConfigChange.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n41
+	}
+	if m.TransferLeader != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
+		n42, err := m.TransferLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n42
+	}
+	if m.Merge != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
+		n43, err := m.Merge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n43
+	}
+	if m.SplitResource != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitResource.Size()))
+		n44, err := m.SplitResource.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n44
+	}
+	if m.ConfigChangeV2 != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChangeV2.Size()))
+		n45, err := m.ConfigChangeV2.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n45
 	}
 	if m.DestoryDirectly {
-		i--
+		dAtA[i] = 0x48
+		i++
 		if m.DestoryDirectly {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x48
+		i++
 	}
-	if m.ConfigChangeV2 != nil {
-		{
-			size, err := m.ConfigChangeV2.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.SplitResource != nil {
-		{
-			size, err := m.SplitResource.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.Merge != nil {
-		{
-			size, err := m.Merge.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.TransferLeader != nil {
-		{
-			size, err := m.TransferLeader.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.ConfigChange != nil {
-		{
-			size, err := m.ConfigChange.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.TargetReplica != nil {
-		{
-			size, err := m.TargetReplica.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	{
-		size, err := m.ResourceEpoch.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
-	if m.ResourceID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceID))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *PutContainerReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4151,33 +4090,26 @@ func (m *PutContainerReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutContainerReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PutContainerReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Container) > 0 {
-		i -= len(m.Container)
-		copy(dAtA[i:], m.Container)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Container)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Container)))
+		i += copy(dAtA[i:], m.Container)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *PutContainerRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4185,26 +4117,26 @@ func (m *PutContainerRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutContainerRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PutContainerRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.DestroyResources) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.DestroyResources)))
+		i += copy(dAtA[i:], m.DestroyResources)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ContainerHeartbeatReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4212,43 +4144,34 @@ func (m *ContainerHeartbeatReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ContainerHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ContainerHeartbeatReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0x12
-	}
-	{
-		size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
+	n46, err := m.Stats.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n46
+	if len(m.Data) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ContainerHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4256,33 +4179,26 @@ func (m *ContainerHeartbeatRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ContainerHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ContainerHeartbeatRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *GetContainerReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4290,31 +4206,25 @@ func (m *GetContainerReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetContainerReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *GetContainerReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.ID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *GetContainerRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4322,45 +4232,36 @@ func (m *GetContainerRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetContainerRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *GetContainerRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Data) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
 	if m.Stats != nil {
-		{
-			size, err := m.Stats.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
+		n47, err := m.Stats.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n47
 	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *AllocIDReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4368,26 +4269,20 @@ func (m *AllocIDReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AllocIDReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AllocIDReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *AllocIDRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4395,170 +4290,25 @@ func (m *AllocIDRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AllocIDRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AllocIDRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.ID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
 	}
-	return len(dAtA) - i, nil
-}
-
-func (m *AskSplitReq) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AskSplitReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AskSplitReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *AskSplitRsp) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AskSplitRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AskSplitRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.SplitID.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
-}
-
-func (m *ReportSplitReq) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ReportSplitReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ReportSplitReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Right) > 0 {
-		i -= len(m.Right)
-		copy(dAtA[i:], m.Right)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Right)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.Left) > 0 {
-		i -= len(m.Left)
-		copy(dAtA[i:], m.Left)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Left)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ReportSplitRsp) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ReportSplitRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ReportSplitRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *AskBatchSplitReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4566,38 +4316,31 @@ func (m *AskBatchSplitReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AskBatchSplitReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AskBatchSplitReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Data) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
 	if m.Count != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
 	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *AskBatchSplitRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4605,103 +4348,230 @@ func (m *AskBatchSplitRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AskBatchSplitRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AskBatchSplitRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.SplitIDs) > 0 {
-		for iNdEx := len(m.SplitIDs) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.SplitIDs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
+		for _, msg := range m.SplitIDs {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0xa
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
-func (m *BatchReportSplitReq) Marshal() (dAtA []byte, err error) {
+func (m *CreateDestoryingReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
 	return dAtA[:n], nil
 }
 
-func (m *BatchReportSplitReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *BatchReportSplitReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+func (m *CreateDestoryingReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
 	}
-	if len(m.Resources) > 0 {
-		for iNdEx := len(m.Resources) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Resources[iNdEx])
-			copy(dAtA[i:], m.Resources[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Resources[iNdEx])))
-			i--
-			dAtA[i] = 0xa
+	if m.Index != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
+	}
+	if len(m.Replicas) > 0 {
+		dAtA49 := make([]byte, len(m.Replicas)*10)
+		var j48 int
+		for _, num := range m.Replicas {
+			for num >= 1<<7 {
+				dAtA49[j48] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j48++
+			}
+			dAtA49[j48] = uint8(num)
+			j48++
 		}
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j48))
+		i += copy(dAtA[i:], dAtA49[:j48])
 	}
-	return len(dAtA) - i, nil
+	if m.RemoveData {
+		dAtA[i] = 0x20
+		i++
+		if m.RemoveData {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
-func (m *BatchReportSplitRsp) Marshal() (dAtA []byte, err error) {
+func (m *CreateDestoryingRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
 	return dAtA[:n], nil
 }
 
-func (m *BatchReportSplitRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *BatchReportSplitRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+func (m *CreateDestoryingRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.State != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetDestoryingReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetDestoryingReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetDestoryingRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetDestoryingRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Status != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Status.Size()))
+		n50, err := m.Status.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n50
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ReportDestoryedReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReportDestoryedReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ID))
+	}
+	if m.ReplicaID != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ReplicaID))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ReportDestoryedRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReportDestoryedRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.State != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.State))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *SplitID) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -4709,105 +4579,19 @@ func (m *SplitID) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitID) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *SplitID) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.NewID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
 	}
 	if len(m.NewReplicaIDs) > 0 {
-		dAtA50 := make([]byte, len(m.NewReplicaIDs)*10)
-		var j49 int
-		for _, num := range m.NewReplicaIDs {
-			for num >= 1<<7 {
-				dAtA50[j49] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j49++
-			}
-			dAtA50[j49] = uint8(num)
-			j49++
-		}
-		i -= j49
-		copy(dAtA[i:], dAtA50[:j49])
-		i = encodeVarintRpcpb(dAtA, i, uint64(j49))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.NewID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.NewID))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *CreateWatcherReq) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CreateWatcherReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CreateWatcherReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Flag != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Flag))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *CreateResourcesReq) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CreateResourcesReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CreateResourcesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.LeastReplicas) > 0 {
-		dAtA52 := make([]byte, len(m.LeastReplicas)*10)
+		dAtA52 := make([]byte, len(m.NewReplicaIDs)*10)
 		var j51 int
-		for _, num := range m.LeastReplicas {
+		for _, num := range m.NewReplicaIDs {
 			for num >= 1<<7 {
 				dAtA52[j51] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -4816,79 +4600,70 @@ func (m *CreateResourcesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA52[j51] = uint8(num)
 			j51++
 		}
-		i -= j51
-		copy(dAtA[i:], dAtA52[:j51])
-		i = encodeVarintRpcpb(dAtA, i, uint64(j51))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j51))
+		i += copy(dAtA[i:], dAtA52[:j51])
 	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CreateWatcherReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateWatcherReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Flag != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Flag))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CreateResourcesReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateResourcesReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
 	if len(m.Resources) > 0 {
-		for iNdEx := len(m.Resources) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Resources[iNdEx])
-			copy(dAtA[i:], m.Resources[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Resources[iNdEx])))
-			i--
+		for _, b := range m.Resources {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
-	return len(dAtA) - i, nil
-}
-
-func (m *CreateResourcesRsp) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CreateResourcesRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CreateResourcesRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *RemoveResourcesReq) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *RemoveResourcesReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RemoveResourcesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.IDs) > 0 {
-		dAtA54 := make([]byte, len(m.IDs)*10)
+	if len(m.LeastReplicas) > 0 {
+		dAtA54 := make([]byte, len(m.LeastReplicas)*10)
 		var j53 int
-		for _, num := range m.IDs {
+		for _, num := range m.LeastReplicas {
 			for num >= 1<<7 {
 				dAtA54[j53] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -4897,104 +4672,57 @@ func (m *RemoveResourcesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA54[j53] = uint8(num)
 			j53++
 		}
-		i -= j53
-		copy(dAtA[i:], dAtA54[:j53])
+		dAtA[i] = 0x12
+		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(j53))
-		i--
-		dAtA[i] = 0xa
+		i += copy(dAtA[i:], dAtA54[:j53])
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
-func (m *RemoveResourcesRsp) Marshal() (dAtA []byte, err error) {
+func (m *CreateResourcesRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
 	return dAtA[:n], nil
 }
 
-func (m *RemoveResourcesRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RemoveResourcesRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+func (m *CreateResourcesRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
-func (m *CheckResourceStateReq) Marshal() (dAtA []byte, err error) {
+func (m *RemoveResourcesReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
 	return dAtA[:n], nil
 }
 
-func (m *CheckResourceStateReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CheckResourceStateReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+func (m *RemoveResourcesReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.IDs) > 0 {
-		i -= len(m.IDs)
-		copy(dAtA[i:], m.IDs)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IDs)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *CheckResourceStateRsp) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CheckResourceStateRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CheckResourceStateRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Removed) > 0 {
-		dAtA56 := make([]byte, len(m.Removed)*10)
+		dAtA56 := make([]byte, len(m.IDs)*10)
 		var j55 int
-		for _, num := range m.Removed {
+		for _, num := range m.IDs {
 			for num >= 1<<7 {
 				dAtA56[j55] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -5003,19 +4731,102 @@ func (m *CheckResourceStateRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA56[j55] = uint8(num)
 			j55++
 		}
-		i -= j55
-		copy(dAtA[i:], dAtA56[:j55])
-		i = encodeVarintRpcpb(dAtA, i, uint64(j55))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j55))
+		i += copy(dAtA[i:], dAtA56[:j55])
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *RemoveResourcesRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RemoveResourcesRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CheckResourceStateReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CheckResourceStateReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.IDs) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IDs)))
+		i += copy(dAtA[i:], m.IDs)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CheckResourceStateRsp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CheckResourceStateRsp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Destroyed) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Destroyed)))
+		i += copy(dAtA[i:], m.Destroyed)
+	}
+	if len(m.Destroying) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Destroying)))
+		i += copy(dAtA[i:], m.Destroying)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *PutPlacementRuleReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5023,36 +4834,28 @@ func (m *PutPlacementRuleReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutPlacementRuleReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PutPlacementRuleReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Rule.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
+	n57, err := m.Rule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n57
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *PutPlacementRuleRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5060,26 +4863,20 @@ func (m *PutPlacementRuleRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PutPlacementRuleRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PutPlacementRuleRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *GetAppliedRulesReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5087,31 +4884,25 @@ func (m *GetAppliedRulesReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetAppliedRulesReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *GetAppliedRulesReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.ResourceID != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceID))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *GetAppliedRulesRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5119,40 +4910,32 @@ func (m *GetAppliedRulesRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *GetAppliedRulesRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *GetAppliedRulesRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Rules) > 0 {
-		for iNdEx := len(m.Rules) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Rules[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Rules {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *CreateJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5160,36 +4943,28 @@ func (m *CreateJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateJobReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CreateJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
+	n58, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n58
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *CreateJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5197,26 +4972,20 @@ func (m *CreateJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CreateJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CreateJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *RemoveJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5224,36 +4993,28 @@ func (m *RemoveJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveJobReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RemoveJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
+	n59, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n59
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RemoveJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5261,26 +5022,20 @@ func (m *RemoveJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RemoveJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ExecuteJobReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5288,43 +5043,34 @@ func (m *ExecuteJobReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ExecuteJobReq) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ExecuteJobReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0x12
-	}
-	{
-		size, err := m.Job.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
+	n60, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n60
+	if len(m.Data) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ExecuteJobRsp) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5332,33 +5078,26 @@ func (m *ExecuteJobRsp) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ExecuteJobRsp) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ExecuteJobRsp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *EventNotify) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5366,96 +5105,80 @@ func (m *EventNotify) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *EventNotify) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.ContainerStatsEvent != nil {
-		{
-			size, err := m.ContainerStatsEvent.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.ResourceStatsEvent != nil {
-		{
-			size, err := m.ResourceStatsEvent.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.ContainerEvent != nil {
-		{
-			size, err := m.ContainerEvent.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.ResourceEvent != nil {
-		{
-			size, err := m.ResourceEvent.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.InitEvent != nil {
-		{
-			size, err := m.InitEvent.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpcpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
+	if m.Seq != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Seq))
 	}
 	if m.Type != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Type))
 	}
-	if m.Seq != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Seq))
-		i--
-		dAtA[i] = 0x8
+	if m.InitEvent != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.InitEvent.Size()))
+		n61, err := m.InitEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n61
 	}
-	return len(dAtA) - i, nil
+	if m.ResourceEvent != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceEvent.Size()))
+		n62, err := m.ResourceEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n62
+	}
+	if m.ContainerEvent != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerEvent.Size()))
+		n63, err := m.ContainerEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n63
+	}
+	if m.ResourceStatsEvent != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ResourceStatsEvent.Size()))
+		n64, err := m.ResourceStatsEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n64
+	}
+	if m.ContainerStatsEvent != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ContainerStatsEvent.Size()))
+		n65, err := m.ContainerStatsEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n65
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *InitEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5463,26 +5186,16 @@ func (m *InitEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *InitEventData) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *InitEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Containers) > 0 {
-		for iNdEx := len(m.Containers) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Containers[iNdEx])
-			copy(dAtA[i:], m.Containers[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Containers[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
+	if len(m.Resources) > 0 {
+		for _, b := range m.Resources {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
 	if len(m.Leaders) > 0 {
@@ -5497,28 +5210,29 @@ func (m *InitEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA67[j66] = uint8(num)
 			j66++
 		}
-		i -= j66
-		copy(dAtA[i:], dAtA67[:j66])
-		i = encodeVarintRpcpb(dAtA, i, uint64(j66))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(j66))
+		i += copy(dAtA[i:], dAtA67[:j66])
 	}
-	if len(m.Resources) > 0 {
-		for iNdEx := len(m.Resources) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Resources[iNdEx])
-			copy(dAtA[i:], m.Resources[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Resources[iNdEx])))
-			i--
-			dAtA[i] = 0xa
+	if len(m.Containers) > 0 {
+		for _, b := range m.Containers {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResourceEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5526,58 +5240,51 @@ func (m *ResourceEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceEventData) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Data) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
-	if m.Create {
-		i--
-		if m.Create {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x20
+	if m.Leader != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader))
 	}
 	if m.Removed {
-		i--
+		dAtA[i] = 0x18
+		i++
 		if m.Removed {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x18
+		i++
 	}
-	if m.Leader != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader))
-		i--
-		dAtA[i] = 0x10
+	if m.Create {
+		dAtA[i] = 0x20
+		i++
+		if m.Create {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
 	}
-	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ContainerEventData) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5585,33 +5292,26 @@ func (m *ContainerEventData) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ContainerEventData) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ContainerEventData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Data) > 0 {
-		i -= len(m.Data)
-		copy(dAtA[i:], m.Data)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ConfigChange) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5619,41 +5319,33 @@ func (m *ConfigChange) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChange) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChange) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.ChangeType != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
-		i--
-		dAtA[i] = 0x10
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
+	n68, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n68
+	if m.ChangeType != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.ChangeType))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *TransferLeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5661,36 +5353,28 @@ func (m *TransferLeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TransferLeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpcpb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
+	n69, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n69
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ConfigChangeV2) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5698,40 +5382,32 @@ func (m *ConfigChangeV2) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeV2) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChangeV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Changes) > 0 {
-		for iNdEx := len(m.Changes) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Changes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Changes {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Merge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5739,33 +5415,26 @@ func (m *Merge) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Merge) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Merge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Target) > 0 {
-		i -= len(m.Target)
-		copy(dAtA[i:], m.Target)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Target)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Target)))
+		i += copy(dAtA[i:], m.Target)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *SplitResource) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5773,40 +5442,33 @@ func (m *SplitResource) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitResource) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *SplitResource) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Policy != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Policy))
 	}
 	if len(m.Keys) > 0 {
-		for iNdEx := len(m.Keys) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Keys[iNdEx])
-			copy(dAtA[i:], m.Keys[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Keys[iNdEx])))
-			i--
+		for _, b := range m.Keys {
 			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(len(b)))
+			i += copy(dAtA[i:], b)
 		}
 	}
-	if m.Policy != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Policy))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *LabelConstraint) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5814,47 +5476,46 @@ func (m *LabelConstraint) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *LabelConstraint) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *LabelConstraint) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Values) > 0 {
-		for iNdEx := len(m.Values) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Values[iNdEx])
-			copy(dAtA[i:], m.Values[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Values[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
-		}
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if m.Op != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Op))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Op))
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if len(m.Values) > 0 {
+		for _, s := range m.Values {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *PlacementRule) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -5862,115 +5523,106 @@ func (m *PlacementRule) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *PlacementRule) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PlacementRule) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.ID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
 	}
-	if len(m.IsolationLevel) > 0 {
-		i -= len(m.IsolationLevel)
-		copy(dAtA[i:], m.IsolationLevel)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IsolationLevel)))
-		i--
-		dAtA[i] = 0x5a
+	if len(m.GroupID) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupID)))
+		i += copy(dAtA[i:], m.GroupID)
 	}
-	if len(m.LocationLabels) > 0 {
-		for iNdEx := len(m.LocationLabels) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.LocationLabels[iNdEx])
-			copy(dAtA[i:], m.LocationLabels[iNdEx])
-			i = encodeVarintRpcpb(dAtA, i, uint64(len(m.LocationLabels[iNdEx])))
-			i--
-			dAtA[i] = 0x52
-		}
-	}
-	if len(m.LabelConstraints) > 0 {
-		for iNdEx := len(m.LabelConstraints) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.LabelConstraints[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpcpb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x4a
-		}
-	}
-	if m.Count != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
-		i--
-		dAtA[i] = 0x40
-	}
-	if m.Role != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Role))
-		i--
-		dAtA[i] = 0x38
-	}
-	if len(m.EndKey) > 0 {
-		i -= len(m.EndKey)
-		copy(dAtA[i:], m.EndKey)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.EndKey)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.StartKey) > 0 {
-		i -= len(m.StartKey)
-		copy(dAtA[i:], m.StartKey)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.StartKey)))
-		i--
-		dAtA[i] = 0x2a
+	if m.Index != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
 	}
 	if m.Override {
-		i--
+		dAtA[i] = 0x20
+		i++
 		if m.Override {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x20
+		i++
 	}
-	if m.Index != 0 {
-		i = encodeVarintRpcpb(dAtA, i, uint64(m.Index))
-		i--
-		dAtA[i] = 0x18
+	if len(m.StartKey) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.StartKey)))
+		i += copy(dAtA[i:], m.StartKey)
 	}
-	if len(m.GroupID) > 0 {
-		i -= len(m.GroupID)
-		copy(dAtA[i:], m.GroupID)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.GroupID)))
-		i--
-		dAtA[i] = 0x12
+	if len(m.EndKey) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.EndKey)))
+		i += copy(dAtA[i:], m.EndKey)
 	}
-	if len(m.ID) > 0 {
-		i -= len(m.ID)
-		copy(dAtA[i:], m.ID)
-		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.ID)))
-		i--
-		dAtA[i] = 0xa
+	if m.Role != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Role))
 	}
-	return len(dAtA) - i, nil
+	if m.Count != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(m.Count))
+	}
+	if len(m.LabelConstraints) > 0 {
+		for _, msg := range m.LabelConstraints {
+			dAtA[i] = 0x4a
+			i++
+			i = encodeVarintRpcpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.LocationLabels) > 0 {
+		for _, s := range m.LocationLabels {
+			dAtA[i] = 0x52
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.IsolationLevel) > 0 {
+		dAtA[i] = 0x5a
+		i++
+		i = encodeVarintRpcpb(dAtA, i, uint64(len(m.IsolationLevel)))
+		i += copy(dAtA[i:], m.IsolationLevel)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintRpcpb(dAtA []byte, offset int, v uint64) int {
-	offset -= sovRpcpb(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *Request) Size() (n int) {
 	if m == nil {
@@ -5997,13 +5649,13 @@ func (m *Request) Size() (n int) {
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.AllocID.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.AskSplit.Size()
-	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.AskBatchSplit.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.ReportSplit.Size()
+	l = m.CreateDestorying.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.BatchReportSplit.Size()
+	l = m.ReportDestoryed.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.GetDestorying.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.CreateWatcher.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
@@ -6059,13 +5711,13 @@ func (m *Response) Size() (n int) {
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.AllocID.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.AskSplit.Size()
-	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.AskBatchSplit.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.ReportSplit.Size()
+	l = m.CreateDestorying.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
-	l = m.BatchReportSplit.Size()
+	l = m.ReportDestoryed.Size()
+	n += 1 + l + sovRpcpb(uint64(l))
+	l = m.GetDestorying.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
 	l = m.Event.Size()
 	n += 1 + l + sovRpcpb(uint64(l))
@@ -6197,6 +5849,10 @@ func (m *PutContainerRsp) Size() (n int) {
 	}
 	var l int
 	_ = l
+	l = len(m.DestroyResources)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -6299,68 +5955,6 @@ func (m *AllocIDRsp) Size() (n int) {
 	return n
 }
 
-func (m *AskSplitReq) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Data)
-	if l > 0 {
-		n += 1 + l + sovRpcpb(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *AskSplitRsp) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = m.SplitID.Size()
-	n += 1 + l + sovRpcpb(uint64(l))
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *ReportSplitReq) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Left)
-	if l > 0 {
-		n += 1 + l + sovRpcpb(uint64(l))
-	}
-	l = len(m.Right)
-	if l > 0 {
-		n += 1 + l + sovRpcpb(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *ReportSplitRsp) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *AskBatchSplitReq) Size() (n int) {
 	if m == nil {
 		return 0
@@ -6398,17 +5992,27 @@ func (m *AskBatchSplitRsp) Size() (n int) {
 	return n
 }
 
-func (m *BatchReportSplitReq) Size() (n int) {
+func (m *CreateDestoryingReq) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if len(m.Resources) > 0 {
-		for _, b := range m.Resources {
-			l = len(b)
-			n += 1 + l + sovRpcpb(uint64(l))
+	if m.ID != 0 {
+		n += 1 + sovRpcpb(uint64(m.ID))
+	}
+	if m.Index != 0 {
+		n += 1 + sovRpcpb(uint64(m.Index))
+	}
+	if len(m.Replicas) > 0 {
+		l = 0
+		for _, e := range m.Replicas {
+			l += sovRpcpb(uint64(e))
 		}
+		n += 1 + sovRpcpb(uint64(l)) + l
+	}
+	if m.RemoveData {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -6416,12 +6020,79 @@ func (m *BatchReportSplitReq) Size() (n int) {
 	return n
 }
 
-func (m *BatchReportSplitRsp) Size() (n int) {
+func (m *CreateDestoryingRsp) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
+	if m.State != 0 {
+		n += 1 + sovRpcpb(uint64(m.State))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetDestoryingReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovRpcpb(uint64(m.ID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetDestoryingRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Status != nil {
+		l = m.Status.Size()
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ReportDestoryedReq) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovRpcpb(uint64(m.ID))
+	}
+	if m.ReplicaID != 0 {
+		n += 1 + sovRpcpb(uint64(m.ReplicaID))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ReportDestoryedRsp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.State != 0 {
+		n += 1 + sovRpcpb(uint64(m.State))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -6555,12 +6226,13 @@ func (m *CheckResourceStateRsp) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Removed) > 0 {
-		l = 0
-		for _, e := range m.Removed {
-			l += sovRpcpb(uint64(e))
-		}
-		n += 1 + sovRpcpb(uint64(l)) + l
+	l = len(m.Destroyed)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
+	}
+	l = len(m.Destroying)
+	if l > 0 {
+		n += 1 + l + sovRpcpb(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -6991,7 +6663,14 @@ func (m *PlacementRule) Size() (n int) {
 }
 
 func sovRpcpb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozRpcpb(x uint64) (n int) {
 	return sovRpcpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -7249,39 +6928,6 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 9:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AskSplit", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.AskSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 10:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AskBatchSplit", wireType)
 			}
 			var msglen int
@@ -7313,9 +6959,9 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 11:
+		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ReportSplit", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field CreateDestorying", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -7342,13 +6988,46 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := m.ReportSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.CreateDestorying.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReportDestoryed", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ReportDestoryed.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
 		case 12:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BatchReportSplit", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field GetDestorying", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -7375,7 +7054,7 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := m.BatchReportSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.GetDestorying.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -7682,7 +7361,10 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -7996,39 +7678,6 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AskSplit", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.AskSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 11:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AskBatchSplit", wireType)
 			}
 			var msglen int
@@ -8060,9 +7709,9 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 12:
+		case 11:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ReportSplit", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field CreateDestorying", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -8089,13 +7738,46 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := m.ReportSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.CreateDestorying.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReportDestoryed", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ReportDestoryed.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
 		case 13:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field BatchReportSplit", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field GetDestorying", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -8122,7 +7804,7 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := m.BatchReportSplit.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.GetDestorying.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -8429,7 +8111,10 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -8689,7 +8374,10 @@ func (m *ResourceHeartbeatReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9028,7 +8716,10 @@ func (m *ResourceHeartbeatRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9113,7 +8804,10 @@ func (m *PutContainerReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9158,13 +8852,50 @@ func (m *PutContainerRsp) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: PutContainerRsp: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DestroyResources", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DestroyResources = append(m.DestroyResources[:0], dAtA[iNdEx:postIndex]...)
+			if m.DestroyResources == nil {
+				m.DestroyResources = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9282,7 +9013,10 @@ func (m *ContainerHeartbeatReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9367,7 +9101,10 @@ func (m *ContainerHeartbeatRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9437,7 +9174,10 @@ func (m *GetContainerReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9558,7 +9298,10 @@ func (m *GetContainerRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9609,7 +9352,10 @@ func (m *AllocIDReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -9679,346 +9425,10 @@ func (m *AllocIDRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
 				return ErrInvalidLengthRpcpb
 			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *AskSplitReq) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpcpb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AskSplitReq: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AskSplitReq: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
-			if m.Data == nil {
-				m.Data = []byte{}
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpcpb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *AskSplitRsp) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpcpb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AskSplitRsp: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AskSplitRsp: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SplitID", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.SplitID.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpcpb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ReportSplitReq) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpcpb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ReportSplitReq: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ReportSplitReq: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Left", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Left = append(m.Left[:0], dAtA[iNdEx:postIndex]...)
-			if m.Left == nil {
-				m.Left = []byte{}
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Right", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpcpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Right = append(m.Right[:0], dAtA[iNdEx:postIndex]...)
-			if m.Right == nil {
-				m.Right = []byte{}
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpcpb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthRpcpb
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ReportSplitRsp) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpcpb
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ReportSplitRsp: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ReportSplitRsp: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpcpb(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10122,7 +9532,10 @@ func (m *AskBatchSplitReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10207,7 +9620,10 @@ func (m *AskBatchSplitRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10223,7 +9639,7 @@ func (m *AskBatchSplitRsp) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *BatchReportSplitReq) Unmarshal(dAtA []byte) error {
+func (m *CreateDestoryingReq) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -10246,17 +9662,17 @@ func (m *BatchReportSplitReq) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: BatchReportSplitReq: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateDestoryingReq: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: BatchReportSplitReq: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateDestoryingReq: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
 			}
-			var byteLen int
+			m.ID = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowRpcpb
@@ -10266,31 +9682,136 @@ func (m *BatchReportSplitReq) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				m.ID |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
-				return ErrInvalidLengthRpcpb
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Index", wireType)
 			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpcpb
+			m.Index = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Index |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
 			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
+		case 3:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.Replicas = append(m.Replicas, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthRpcpb
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.Replicas) == 0 {
+					m.Replicas = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpcpb
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.Replicas = append(m.Replicas, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Replicas", wireType)
 			}
-			m.Resources = append(m.Resources, make([]byte, postIndex-iNdEx))
-			copy(m.Resources[len(m.Resources)-1], dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RemoveData", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.RemoveData = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10306,7 +9827,7 @@ func (m *BatchReportSplitReq) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *BatchReportSplitRsp) Unmarshal(dAtA []byte) error {
+func (m *CreateDestoryingRsp) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -10329,19 +9850,369 @@ func (m *BatchReportSplitRsp) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: BatchReportSplitRsp: wiretype end group for non-group")
+			return fmt.Errorf("proto: CreateDestoryingRsp: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: BatchReportSplitRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: CreateDestoryingRsp: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
+			}
+			m.State = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.State |= metapb.ResourceState(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetDestoryingReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetDestoryingReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetDestoryingReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetDestoryingRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetDestoryingRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetDestoryingRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Status == nil {
+				m.Status = &metapb.DestroyingStatus{}
+			}
+			if err := m.Status.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ReportDestoryedReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReportDestoryedReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReportDestoryedReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ReplicaID", wireType)
+			}
+			m.ReplicaID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ReplicaID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ReportDestoryedRsp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpcpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReportDestoryedRsp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReportDestoryedRsp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field State", wireType)
+			}
+			m.State = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.State |= metapb.ResourceState(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpcpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10487,7 +10358,10 @@ func (m *SplitID) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10557,7 +10431,10 @@ func (m *CreateWatcherReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10716,7 +10593,10 @@ func (m *CreateResourcesReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10767,7 +10647,10 @@ func (m *CreateResourcesRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10894,7 +10777,10 @@ func (m *RemoveResourcesReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -10945,7 +10831,10 @@ func (m *RemoveResourcesRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11030,7 +10919,10 @@ func (m *CheckResourceStateReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11076,88 +10968,83 @@ func (m *CheckResourceStateRsp) Unmarshal(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType == 0 {
-				var v uint64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowRpcpb
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					v |= uint64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Destroyed", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
 				}
-				m.Removed = append(m.Removed, v)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowRpcpb
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= int(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLengthRpcpb
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex < 0 {
-					return ErrInvalidLengthRpcpb
-				}
-				if postIndex > l {
+				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
-				var elementCount int
-				var count int
-				for _, integer := range dAtA[iNdEx:postIndex] {
-					if integer < 128 {
-						count++
-					}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
 				}
-				elementCount = count
-				if elementCount != 0 && len(m.Removed) == 0 {
-					m.Removed = make([]uint64, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v uint64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflowRpcpb
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= uint64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					m.Removed = append(m.Removed, v)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Removed", wireType)
 			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Destroyed = append(m.Destroyed[:0], dAtA[iNdEx:postIndex]...)
+			if m.Destroyed == nil {
+				m.Destroyed = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Destroying", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpcpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Destroying = append(m.Destroying[:0], dAtA[iNdEx:postIndex]...)
+			if m.Destroying == nil {
+				m.Destroying = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpcpb(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11241,7 +11128,10 @@ func (m *PutPlacementRuleReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11292,7 +11182,10 @@ func (m *PutPlacementRuleRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11362,7 +11255,10 @@ func (m *GetAppliedRulesReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11447,7 +11343,10 @@ func (m *GetAppliedRulesRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11531,7 +11430,10 @@ func (m *CreateJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11582,7 +11484,10 @@ func (m *CreateJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11666,7 +11571,10 @@ func (m *RemoveJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11717,7 +11625,10 @@ func (m *RemoveJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11835,7 +11746,10 @@ func (m *ExecuteJobReq) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -11920,7 +11834,10 @@ func (m *ExecuteJobRsp) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12189,7 +12106,10 @@ func (m *EventNotify) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12380,7 +12300,10 @@ func (m *InitEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12524,7 +12447,10 @@ func (m *ResourceEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12609,7 +12535,10 @@ func (m *ContainerEventData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12712,7 +12641,10 @@ func (m *ConfigChange) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12796,7 +12728,10 @@ func (m *TransferLeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12881,7 +12816,10 @@ func (m *ConfigChangeV2) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -12966,7 +12904,10 @@ func (m *Merge) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -13068,7 +13009,10 @@ func (m *SplitResource) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -13202,7 +13146,10 @@ func (m *LabelConstraint) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -13560,7 +13507,10 @@ func (m *PlacementRule) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpcpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpcpb
 			}
 			if (iNdEx + skippy) > l {
@@ -13579,7 +13529,6 @@ func (m *PlacementRule) Unmarshal(dAtA []byte) error {
 func skipRpcpb(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -13611,8 +13560,10 @@ func skipRpcpb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -13633,30 +13584,55 @@ func skipRpcpb(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthRpcpb
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupRpcpb
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthRpcpb
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowRpcpb
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipRpcpb(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthRpcpb
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthRpcpb
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthRpcpb        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowRpcpb          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupRpcpb = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthRpcpb = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowRpcpb   = fmt.Errorf("proto: integer overflow")
 )

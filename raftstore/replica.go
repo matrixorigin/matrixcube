@@ -30,9 +30,9 @@ import (
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -43,13 +43,6 @@ import (
 
 var dn = util.DescribeReplica
 
-type trans interface {
-	Send(meta.RaftMessage) bool
-	SendingSnapshotCount() uint64
-	Start() error
-	Close() error
-}
-
 type replicaGetter interface {
 	getReplica(uint64) (*replica, bool)
 }
@@ -58,6 +51,7 @@ type replica struct {
 	logger                *zap.Logger
 	storeID               uint64
 	shardID               uint64
+	replicaID             uint64
 	replica               Replica
 	group                 uint64
 	startedC              chan struct{}
@@ -66,7 +60,7 @@ type replica struct {
 	leaderID              uint64
 	// FIXME: decouple replica from store
 	store     *store
-	transport trans
+	transport transport.Trans
 	aware     aware.ShardStateAware
 	logdb     logdb.LogDB
 	cfg       config.Config
@@ -94,6 +88,15 @@ type replica struct {
 	unloadedC  chan struct{}
 	destroyedC chan struct{}
 	stopOnce   sync.Once
+
+	// committedIndexes the committed value of all replicas is recorded, and this information is not
+	// necessarily up-to-date.
+	// this map must access in event worker
+	committedIndexes map[uint64]uint64 // replica-id -> committed index(saved into logdb)
+	// lastCommittedIndex last committed log
+	lastCommittedIndex uint64
+
+	destoryTaskFactory destroyReplicaTaskFactory
 }
 
 // createReplica called in:
@@ -105,6 +108,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 	l.Info("begin to create replica",
 		log.ReasonField(reason),
+		log.ReplicaField("replica", r),
 		log.ShardField("metadata", shard))
 
 	if r.ID == 0 {
@@ -122,6 +126,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		cfg:               *store.cfg,
 		aware:             store.aware,
 		replica:           r,
+		replicaID:         r.ID,
 		shardID:           shard.ID,
 		storeID:           store.Meta().ID,
 		group:             shard.Group,
@@ -141,6 +146,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),
 		destroyedC:        make(chan struct{}),
+		committedIndexes:  make(map[uint64]uint64),
 	}
 	// we are not guaranteed to have a prophet client in tests
 	if store.pd != nil {
@@ -149,12 +155,13 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 	storage := store.DataStorageByGroup(shard.Group)
 	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *replicaCreator { return newReplicaCreator(store) })
+	pr.destoryTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction, pr.prophetClient, defaultCheckInterval)
 	return pr, nil
 }
 
 func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
-	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replica.ID, pr.replica.ContainerID),
+	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replicaID, pr.replica.ContainerID),
 		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
@@ -182,7 +189,7 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
 	}
-	c := getRaftConfig(pr.replica.ID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
+	c := getRaftConfig(pr.replicaID, pr.appliedIndex, pr.lr, &pr.cfg, pr.logger)
 	rn, err := raft.NewRawNode(c)
 	if err != nil {
 		pr.logger.Fatal("fail to create raft node",
@@ -202,7 +209,7 @@ func (pr *replica) start() {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 		pr.addAction(action{actionType: campaignAction})
-	} else if shard.State == metapb.ResourceState_WaittingCreate &&
+	} else if shard.State == metapb.ResourceState_Creating &&
 		shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
@@ -305,7 +312,7 @@ func (pr *replica) initConfState() error {
 
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replica.ID)
+	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replicaID)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
 	}
@@ -322,6 +329,7 @@ func (pr *replica) initLogState() (bool, error) {
 		zap.Uint64("commit-index", rs.State.Commit),
 		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
+	pr.lastCommittedIndex = rs.State.Commit
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 
@@ -347,7 +355,7 @@ func (pr *replica) setLeaderReplicaID(id uint64) {
 }
 
 func (pr *replica) isLeader() bool {
-	return pr.getLeaderReplicaID() == pr.replica.ID
+	return pr.getLeaderReplicaID() == pr.replicaID
 }
 
 func (pr *replica) getLeaderReplicaID() uint64 {
@@ -453,7 +461,7 @@ func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
 	shard := pr.getShard()
 	var downReplicas []metapb.ReplicaStats
 	for _, p := range shard.Replicas {
-		if p.ID == pr.replica.ID {
+		if p.ID == pr.replicaID {
 			continue
 		}
 

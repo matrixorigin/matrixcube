@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/aware"
@@ -26,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
@@ -86,18 +88,19 @@ type store struct {
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
 
-	kvStorage       storage.KVStorage
-	logdb           logdb.LogDB
-	trans           trans
-	shardsProxy     ShardsProxy
-	router          Router
-	splitChecker    *splitChecker
-	watcher         prophet.Watcher
-	vacuumCleaner   *vacuumCleaner
-	keyRanges       sync.Map // group id -> *util.ShardTree
-	replicaRecords  sync.Map // replica id -> metapb.Replica
-	replicas        sync.Map // shard id -> *replica
-	droppedVoteMsgs sync.Map // shard id -> raftpb.Message
+	kvStorage             storage.KVStorage
+	logdb                 logdb.LogDB
+	trans                 transport.Trans
+	shardsProxy           ShardsProxy
+	router                Router
+	splitChecker          *splitChecker
+	watcher               prophet.Watcher
+	vacuumCleaner         *vacuumCleaner
+	createShardsProtector *createShardsProtector
+	keyRanges             sync.Map // group id -> *util.ShardTree
+	replicaRecords        sync.Map // replica id -> metapb.Replica
+	replicas              sync.Map // shard id -> *replica
+	droppedVoteMsgs       sync.Map // shard id -> raftpb.Message
 
 	state    uint32
 	stopOnce sync.Once
@@ -116,12 +119,13 @@ func NewStore(cfg *config.Config) Store {
 	kv := pebble.CreateLogDBStorage(cfg.DataPath, cfg.FS, cfg.Logger)
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
-		kvStorage: kv,
-		meta:      &containerAdapter{},
-		cfg:       cfg,
-		logger:    logger,
-		logdb:     logdb.NewKVLogDB(kv, logger.Named("logdb")),
-		stopper:   syncutil.NewStopper(),
+		kvStorage:             kv,
+		meta:                  &containerAdapter{},
+		cfg:                   cfg,
+		logger:                logger,
+		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
+		stopper:               syncutil.NewStopper(),
+		createShardsProtector: newCreateShardsProtector(),
 	}
 
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
@@ -368,9 +372,13 @@ func (s *store) startProphet() {
 }
 
 func (s *store) startTransport() {
-	s.trans = transport.NewTransport(s.logger,
-		s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable,
-		s.pd.GetStorage().GetContainer)
+	if s.cfg.Customize.CustomTransportFactory != nil {
+		s.trans = s.cfg.Customize.CustomTransportFactory()
+	} else {
+		s.trans = transport.NewTransport(s.logger,
+			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable,
+			s.pd.GetStorage().GetContainer)
+	}
 	s.trans.Start()
 }
 
@@ -378,8 +386,10 @@ func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 
-	var tomebstoneShards []Shard
-	var shards []Shard
+	var tomebstones []Shard
+	shards := make(map[uint64]Shard)
+	localDestoryings := make(map[uint64]meta.ShardMetadata)
+	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
@@ -399,28 +409,70 @@ func (s *store) startShards() {
 			}
 
 			if sls.State == meta.ReplicaState_Tombstone {
-				tomebstoneShards = append(tomebstoneShards, sls.Shard)
+				tomebstones = append(tomebstones, sls.Shard)
 				tomebstoneCount++
+
+				if sls.Shard.State == metapb.ResourceState_Destroyed {
+					s.createShardsProtector.addDestroyed(sls.Shard.ID)
+				}
+
 				s.logger.Info("shard is tombstone in store",
 					s.storeField(),
 					log.ShardIDField(sls.Shard.ID))
 				continue
 			}
 
-			shards = append(shards, sls.Shard)
+			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
+				s.createShardsProtector.addDestroyed(sls.Shard.ID)
+				localDestoryings[metadata.ShardID] = metadata
+			} else {
+				confirmShards.Add(sls.Shard.ID)
+			}
+
+			shards[sls.Shard.ID] = sls.Shard
 		}
 	})
 
+	for {
+		rsp, err := s.pd.GetClient().CheckResourceState(confirmShards)
+		if err != nil {
+			s.logger.Error("failed to check init shards, retry later",
+				zap.Error(err))
+			continue
+		}
+
+		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
+		bm.Or(putil.MustUnmarshalBM64(rsp.Destroying))
+		if bm.GetCardinality() > 0 {
+			for _, id := range bm.ToArray() {
+				tomebstones = append(tomebstones, shards[id])
+				delete(shards, id)
+			}
+		}
+		break
+	}
+
+	var readyBootstrapShards []Shard
+	for _, shard := range shards {
+		readyBootstrapShards = append(readyBootstrapShards, shard)
+	}
+
 	newReplicaCreator(s).
 		withReason("restart").
-		withStartReplica(nil).
-		create(shards)
+		withStartReplica(func(r *replica) {
+			if metadata, ok := localDestoryings[r.shardID]; ok {
+				r.startDestoryReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+			}
+		}).
+		create(readyBootstrapShards)
 
-	s.cleanupTombstones(tomebstoneShards)
+	// FIXME: all metadata should be removed from the disk.
+	s.cleanupTombstones(tomebstones)
 
 	s.logger.Info("shards started",
 		s.storeField(),
 		zap.Int("total", totalCount),
+		zap.Int("bootstrap", len(readyBootstrapShards)),
 		zap.Int("tomebstone", tomebstoneCount))
 }
 
@@ -539,19 +591,20 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 //         and this vote will dropped by p2 and p3 node,
 //         because shard a and shard b has overlapped range at p2 and p3 node
 // case 2: p2 or p3 apply split log is before p1, we can't mock shard b's vote msg
-func (s *store) cacheDroppedVoteMsg(id uint64, msg raftpb.Message) {
-	if msg.Type == raftpb.MsgVote || msg.Type == raftpb.MsgPreVote {
+func (s *store) cacheDroppedVoteMsg(id uint64, msg meta.RaftMessage) {
+	if msg.Message.Type == raftpb.MsgVote ||
+		msg.Message.Type == raftpb.MsgPreVote {
 		s.droppedVoteMsgs.Store(id, msg)
 	}
 }
 
-func (s *store) removeDroppedVoteMsg(id uint64) (raftpb.Message, bool) {
+func (s *store) removeDroppedVoteMsg(id uint64) (meta.RaftMessage, bool) {
 	if value, ok := s.droppedVoteMsgs.Load(id); ok {
 		s.droppedVoteMsgs.Delete(id)
-		return value.(raftpb.Message), true
+		return value.(meta.RaftMessage), true
 	}
 
-	return raftpb.Message{}, false
+	return meta.RaftMessage{}, false
 }
 
 func (s *store) validateStoreID(req rpc.RequestBatch) error {
@@ -589,9 +642,9 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 		}, true
 	}
 
-	if pr.replica.ID != replicaID {
+	if pr.replicaID != replicaID {
 		return errorpb.Error{
-			Message: fmt.Sprintf("mismatch replica id, want %d, but %d", pr.replica.ID, replicaID),
+			Message: fmt.Sprintf("mismatch replica id, want %d, but %d", pr.replicaID, replicaID),
 		}, true
 	}
 

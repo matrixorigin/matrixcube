@@ -15,9 +15,12 @@ package raftstore
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -52,7 +55,9 @@ func (s *store) handleShardStateCheck() {
 			return
 		}
 
-		for _, id := range rsp.Removed {
+		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
+		// FIXME: removeData always true?
+		for _, id := range bm.ToArray() {
 			s.destroyReplica(id, true, true, "shard state check")
 		}
 	}
@@ -86,7 +91,7 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 
 	s.replicaRecords.Store(msg.From.ID, msg.From)
 	pr := s.getReplica(msg.ShardID, false)
-	pr.addMessage(msg.Message)
+	pr.addMessage(msg)
 }
 
 func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
@@ -134,7 +139,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 
 		// we may encounter a message with larger peer id, which means
 		// current peer is stale, then we should remove current peer
-		if p.replica.ID < target.ID {
+		if p.replicaID < target.ID {
 			// TODO: check this.
 			// cancel snapshotting op
 
@@ -147,7 +152,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 			//}
 
 			stalePeer = p.replica
-		} else if p.replica.ID > target.ID {
+		} else if p.replicaID > target.ID {
 			s.logger.Info("from replica is stale",
 				s.storeField(),
 				log.ShardIDField(msg.ShardID),
@@ -183,12 +188,20 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		return false
 	}
 
+	if msg.From.Role == metapb.ReplicaRole_Learner {
+		s.logger.Fatal("received a learner vote/pre-vote message",
+			s.storeField(),
+			log.ShardIDField(msg.ShardID),
+			log.ReplicaField("to", target),
+			log.ReplicaField("from", msg.From))
+	}
+
 	// check range overlapped
 	if item := s.searchShard(msg.Group, msg.Start); item.ID > 0 {
 		if bytes.Compare(item.Start, msg.End) < 0 {
 			if p := s.getReplica(item.ID, false); p != nil {
 				// Maybe split, but not registered yet.
-				s.cacheDroppedVoteMsg(msg.ShardID, msg.Message)
+				s.cacheDroppedVoteMsg(msg.ShardID, msg)
 
 				s.logger.Info("replica has overlapped range",
 					s.storeField(),
@@ -200,8 +213,20 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		}
 	}
 
+	if s.createShardsProtector.inDestoryState(msg.ShardID) {
+		s.logger.Debug("skip create replica",
+			s.storeField(),
+			log.ReasonField("shard in destroy state"),
+			log.ShardIDField(msg.ShardID))
+		return false
+	}
+
 	newReplicaCreator(s).
-		withReason("raft message").
+		withReason(fmt.Sprintf("raft %s message from %d/%d/%s",
+			msg.Message.Type.String(),
+			msg.From.ID,
+			msg.From.ContainerID,
+			msg.From.Role.String())).
 		withStartReplica(nil).
 		withReplicaRecordGetter(func(s Shard) Replica { return target }).
 		create([]Shard{

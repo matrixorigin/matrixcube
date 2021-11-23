@@ -87,6 +87,13 @@ type ResourceStorage interface {
 	GetResource(id uint64) (metadata.Resource, error)
 	// LoadResources load all resources
 	LoadResources(limit int64, do func(metadata.Resource)) error
+
+	// PutResourceAndExtra puts the meta and the extra data to the storage
+	PutResourceAndExtra(meta metadata.Resource, extra []byte) error
+	// GetResourceExtra returns the resource extra data
+	PutResourceExtra(id uint64, extra []byte) error
+	// GetResourceExtra returns the resource extra data
+	GetResourceExtra(id uint64) ([]byte, error)
 }
 
 // ConfigStorage  config storage
@@ -149,6 +156,7 @@ type storage struct {
 	rootPath                 string
 	configPath               string
 	resourcePath             string
+	resourceExtraPath        string
 	containerPath            string
 	rulePath                 string
 	ruleGroupPath            string
@@ -173,6 +181,7 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		rootPath:                 rootPath,
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
+		resourceExtraPath:        fmt.Sprintf("%s/resources-extra", rootPath),
 		containerPath:            fmt.Sprintf("%s/containers", rootPath),
 		rulePath:                 fmt.Sprintf("%s/rules", rootPath),
 		ruleGroupPath:            fmt.Sprintf("%s/rule-groups", rootPath),
@@ -300,6 +309,33 @@ func (s *storage) PutResource(meta metadata.Resource) error {
 	}
 
 	return s.kv.Save(key, string(data))
+}
+
+func (s *storage) PutResourceAndExtra(res metadata.Resource, extra []byte) error {
+	data, err := res.Marshal()
+	if err != nil {
+		return err
+	}
+
+	batch := &Batch{}
+	batch.SaveKeys = append(batch.SaveKeys, s.getKey(res.ID(), s.resourcePath))
+	batch.SaveValues = append(batch.SaveValues, string(data))
+	batch.SaveKeys = append(batch.SaveKeys, s.getKey(res.ID(), s.resourceExtraPath))
+	batch.SaveValues = append(batch.SaveValues, string(extra))
+	return s.kv.Batch(batch)
+}
+
+func (s *storage) GetResourceExtra(id uint64) ([]byte, error) {
+	key := s.getKey(id, s.resourceExtraPath)
+	data, err := s.kv.Load(key)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(data), nil
+}
+
+func (s *storage) PutResourceExtra(id uint64, extra []byte) error {
+	return s.kv.Save(s.getKey(id, s.resourceExtraPath), string(extra))
 }
 
 func (s *storage) PutResources(resources ...metadata.Resource) error {

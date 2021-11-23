@@ -189,8 +189,8 @@ func (rc *replicaCreator) maybeStartReplicas(shards []Shard, replicas []*replica
 	}
 
 	groupBy := groupShardByGroupID(shards)
-	for g, v := range groupBy {
-		rc.store.updateShardKeyRange(g, v...)
+	for g, shards := range groupBy {
+		rc.store.updateShardKeyRange(g, shards...)
 	}
 }
 

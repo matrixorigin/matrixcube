@@ -309,9 +309,10 @@ func ConfigChangesField(key string, changes []rpc.ConfigChangeRequest) zap.Field
 }
 
 func doAppendConfigChange(confType metapb.ConfigChangeType, replica metapb.Replica, info *bytes.Buffer) {
-	info.WriteString("type: ")
+	info.WriteString("{type: ")
 	info.WriteString(confType.String())
 	appendReplica("replica", replica, info, false)
+	info.WriteString("}")
 }
 
 func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {

@@ -116,6 +116,9 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 
 		switch changeType {
 		case metapb.ConfigChangeType_AddNode, metapb.ConfigChangeType_AddLearnerNode:
+			if replica.ContainerID == pr.storeID {
+				pr.replica = replica
+			}
 			pr.replicaHeartbeatsMap.Store(replicaID, now)
 			pr.store.replicaRecords.Store(replicaID, replica)
 			if pr.isLeader() {
@@ -156,7 +159,8 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 	}
 
 	pr.logger.Info("applied changes completed",
-		log.ShardField("epoch", pr.getShard()))
+		log.ReplicaField("replica", pr.replica),
+		log.ShardField("shard", pr.getShard()))
 }
 
 func (pr *replica) applySplit(result *splitResult) {
@@ -199,9 +203,9 @@ func (pr *replica) applySplit(result *splitResult) {
 		}).
 		create(result.newShards)
 
-	// current shard not used, keep data.
-	pr.store.destroyReplica(pr.shardID, true, false, "splited")
 	if pr.aware != nil {
 		pr.aware.Splited(pr.getShard())
 	}
+
+	pr.startDestoryReplicaTaskAfterSplitted(pr.appliedIndex)
 }

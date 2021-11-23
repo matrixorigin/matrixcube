@@ -133,8 +133,8 @@ func TestStateMachineCanUpdateShard(t *testing.T) {
 func TestStateMachineSetShardState(t *testing.T) {
 	f := func(sm *stateMachine) {
 		assert.Equal(t, metapb.ResourceState_Running, sm.getShard().State)
-		sm.setShardState(metapb.ResourceState_Removed)
-		assert.Equal(t, metapb.ResourceState_Removed, sm.getShard().State)
+		sm.setShardState(metapb.ResourceState_Destroyed)
+		assert.Equal(t, metapb.ResourceState_Destroyed, sm.getShard().State)
 	}
 	runSimpleStateMachineTest(t, f, nil)
 }

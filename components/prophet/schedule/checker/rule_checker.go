@@ -139,6 +139,10 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 }
 
 func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
+	if res.IsDestroyState() {
+		return nil
+	}
+
 	keys := c.ruleManager.GetSplitKeys(res.GetStartKey(), res.GetEndKey())
 	if len(keys) == 0 {
 		return nil
@@ -156,7 +160,8 @@ func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
 
 func (c *RuleChecker) fixRulePeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit) (*operator.Operator, error) {
 	// make up peers.
-	if len(rf.Peers) < rf.Rule.Count {
+	if len(rf.Peers) < rf.Rule.Count &&
+		!res.IsDestroyState() {
 		return c.addRulePeer(res, rf)
 	}
 	// fix down/offline peers.
@@ -197,6 +202,13 @@ func (c *RuleChecker) addRulePeer(res *core.CachedResource, rf *placement.RuleFi
 }
 
 func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.RuleFit, peer metapb.Replica, status string) (*operator.Operator, error) {
+	if res.IsDestroyState() {
+		checkerCounter.WithLabelValues("rule_checker", "remove-"+status+"-peer").Inc()
+		c.cluster.GetLogger().Debug("remove down replica",
+			zap.Uint64("replica-id", peer.ID))
+		return operator.CreateRemovePeerOperator("remove-"+status+"-peer", c.cluster, operator.OpReplica, res, peer.ContainerID)
+	}
+
 	ruleContainers := c.getRuleFitContainers(rf)
 	container := c.strategy(res, rf.Rule).SelectContainerToReplace(ruleContainers, peer.ContainerID)
 	if container == 0 {
@@ -210,6 +222,10 @@ func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.Ru
 }
 
 func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit, peer metapb.Replica) (*operator.Operator, error) {
+	if res.IsDestroyState() {
+		return nil, nil
+	}
+
 	if metadata.IsLearner(peer) && rf.Rule.Role != placement.Learner {
 		checkerCounter.WithLabelValues("rule_checker", "fix-peer-role").Inc()
 		return operator.CreatePromoteLearnerOperator("fix-peer-role", c.cluster, res, peer)
@@ -259,6 +275,10 @@ func (c *RuleChecker) allowLeader(fit *placement.ResourceFit, peer metapb.Replic
 }
 
 func (c *RuleChecker) fixBetterLocation(res *core.CachedResource, rf *placement.RuleFit) (*operator.Operator, error) {
+	if res.IsDestroyState() {
+		return nil, nil
+	}
+
 	if len(rf.Rule.LocationLabels) == 0 || rf.Rule.Count <= 1 {
 		return nil, nil
 	}
@@ -293,7 +313,7 @@ func (c *RuleChecker) fixOrphanPeers(res *core.CachedResource, fit *placement.Re
 	}
 	checkerCounter.WithLabelValues("rule_checker", "remove-orphan-peer").Inc()
 	peer := fit.OrphanPeers[0]
-	return operator.CreateRemovePeerOperator("remove-orphan-peer", c.cluster, 0, res, peer.ContainerID)
+	return operator.CreateRemovePeerOperator("remove-orphan-peer", c.cluster, operator.OpReplica, res, peer.ContainerID)
 }
 
 func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) bool {

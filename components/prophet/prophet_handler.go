@@ -86,6 +86,24 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
+	case rpcpb.TypeCreateDestoryingReq:
+		resp.Type = rpcpb.TypeCreateDestoryingRsp
+		err := p.handleCreateDestorying(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeReportDestoryedReq:
+		resp.Type = rpcpb.TypeReportDestoryedRsp
+		err := p.handleReportDestoryed(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeGetDestoryingReq:
+		resp.Type = rpcpb.TypeGetDestoryingRsp
+		err := p.handleGetDestorying(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
 	case rpcpb.TypeAllocIDReq:
 		resp.Type = rpcpb.TypeAllocIDRsp
 		err := p.handleAllocID(rc, req, resp)
@@ -98,27 +116,9 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeAskSplitReq:
-		resp.Type = rpcpb.TypeAskSplitRsp
-		err := p.handleAskSplit(rc, req, resp)
-		if err != nil {
-			resp.Error = err.Error()
-		}
-	case rpcpb.TypeReportSplitReq:
-		resp.Type = rpcpb.TypeReportSplitRsp
-		err := p.handleReportSplit(rc, req, resp)
-		if err != nil {
-			resp.Error = err.Error()
-		}
 	case rpcpb.TypeAskBatchSplitReq:
 		resp.Type = rpcpb.TypeAskBatchSplitRsp
 		err := p.handleAskBatchSplit(rc, req, resp)
-		if err != nil {
-			resp.Error = err.Error()
-		}
-	case rpcpb.TypeBatchReportSplitReq:
-		resp.Type = rpcpb.TypeBatchReportSplitRsp
-		err := p.handleReportBatchSplit(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -272,6 +272,33 @@ func (p *defaultProphet) handleContainerHeartbeat(rc *cluster.RaftCluster, req *
 	return nil
 }
 
+func (p *defaultProphet) handleCreateDestorying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	state, err := rc.HandleCreateDestorying(req.CreateDestorying)
+	if err != nil {
+		return err
+	}
+	resp.CreateDestorying.State = state
+	return nil
+}
+
+func (p *defaultProphet) handleGetDestorying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	status, err := rc.HandleGetDestorying(req.GetDestorying)
+	if err != nil {
+		return err
+	}
+	resp.GetDestorying.Status = status
+	return nil
+}
+
+func (p *defaultProphet) handleReportDestoryed(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	state, err := rc.HandleReportDestoryed(req.ReportDestoryed)
+	if err != nil {
+		return err
+	}
+	resp.ReportDestoryed.State = state
+	return nil
+}
+
 func (p *defaultProphet) handleGetContainer(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
 	storeID := req.GetContainer.ID
 	store := rc.GetContainer(storeID)
@@ -299,25 +326,6 @@ func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.Reque
 	return nil
 }
 
-func (p *defaultProphet) handleAskSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	split, err := rc.HandleAskSplit(req)
-	if err != nil {
-		return err
-	}
-
-	resp.AskSplit = *split
-	return nil
-}
-
-func (p *defaultProphet) handleReportSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	_, err := rc.HandleReportSplit(req)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (p *defaultProphet) handleAskBatchSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
 	split, err := rc.HandleAskBatchSplit(req)
 	if err != nil {
@@ -325,14 +333,6 @@ func (p *defaultProphet) handleAskBatchSplit(rc *cluster.RaftCluster, req *rpcpb
 	}
 
 	resp.AskBatchSplit = *split
-	return nil
-}
-
-func (p *defaultProphet) handleReportBatchSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	_, err := rc.HandleBatchReportSplit(req)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

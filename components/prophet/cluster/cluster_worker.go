@@ -15,10 +15,9 @@
 package cluster
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -37,7 +36,7 @@ func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
 	c.RUnlock()
 
 	if err := c.processResourceHeartbeat(res); err != nil {
-		if err == errResourceRemoved {
+		if err == errResourceDestroyed {
 			co.opController.DispatchDestoryDirectly(res, schedule.DispatchFromHeartBeat)
 			return nil
 		}
@@ -48,42 +47,89 @@ func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-// HandleAskSplit handles the split request.
-func (c *RaftCluster) HandleAskSplit(request *rpcpb.Request) (*rpcpb.AskSplitRsp, error) {
-	reqResource := c.adapter.NewResource()
-	err := reqResource.Unmarshal(request.AskSplit.Data)
-	if err != nil {
-		return nil, err
+// HandleCreateDestorying handle create destroying
+func (c *RaftCluster) HandleCreateDestorying(req rpcpb.CreateDestoryingReq) (metapb.ResourceState, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.core.AlreadyRemoved(req.ID) {
+		return metapb.ResourceState_Destroyed, nil
 	}
 
-	err = c.ValidRequestResource(reqResource)
+	status, err := c.getDestroyingStatusLocked(req.ID)
 	if err != nil {
-		return nil, err
+		return metapb.ResourceState_Destroying, err
+	}
+	if status != nil {
+		return status.State, nil
 	}
 
-	newResourceID, err := c.AllocID()
-	if err != nil {
-		return nil, err
+	status = &metapb.DestroyingStatus{
+		State:      metapb.ResourceState_Destroying,
+		Index:      req.Index,
+		Replicas:   make(map[uint64]bool),
+		RemoveData: req.RemoveData,
+	}
+	for _, id := range req.Replicas {
+		status.Replicas[id] = false
+	}
+	if err := c.saveDestroyingStatusLocked(req.ID, status); err != nil {
+		return metapb.ResourceState_Destroying, err
 	}
 
-	peerIDs := make([]uint64, len(reqResource.Peers()))
-	for i := 0; i < len(peerIDs); i++ {
-		if peerIDs[i], err = c.AllocID(); err != nil {
-			return nil, err
+	return status.State, nil
+}
+
+// HandleReportDestoryed handle report destroyed
+func (c *RaftCluster) HandleReportDestoryed(req rpcpb.ReportDestoryedReq) (metapb.ResourceState, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.core.AlreadyRemoved(req.ID) {
+		return metapb.ResourceState_Destroyed, nil
+	}
+
+	status, err := c.getDestroyingStatusLocked(req.ID)
+	if err != nil {
+		return metapb.ResourceState_Destroying, err
+	}
+	if status == nil {
+		c.logger.Fatal("BUG: missing destroying status",
+			zap.Uint64("resource", req.ID))
+		return metapb.ResourceState_Destroying, nil
+	}
+
+	if status.State == metapb.ResourceState_Destroyed {
+		return metapb.ResourceState_Destroyed, nil
+	}
+	if v, ok := status.Replicas[req.ReplicaID]; !ok || v {
+		return status.State, nil
+	}
+
+	status.Replicas[req.ReplicaID] = true
+	n := 0
+	for _, destroyed := range status.Replicas {
+		if destroyed {
+			n++
 		}
 	}
+	if n == len(status.Replicas) {
+		status.State = metapb.ResourceState_Destroyed
+		status.Replicas = nil
+	}
+	if err := c.saveDestroyingStatusLocked(req.ID, status); err != nil {
+		return metapb.ResourceState_Destroying, err
+	}
 
-	// Disable merge for the 2 resources in a period of time.
-	c.GetMergeChecker().RecordResourceSplit([]uint64{reqResource.ID(), newResourceID})
+	return status.State, nil
+}
 
-	split := &rpcpb.AskSplitRsp{}
-	split.SplitID.NewID = newResourceID
-	split.SplitID.NewReplicaIDs = peerIDs
+// HandleGetDestorying returns resource destroying status
+func (c *RaftCluster) HandleGetDestorying(req rpcpb.GetDestoryingReq) (*metapb.DestroyingStatus, error) {
+	c.RLock()
+	defer c.RUnlock()
 
-	c.logger.Info("ids allocated for resource split",
-		zap.Uint64("resource", newResourceID),
-		zap.Any("peer-ids", peerIDs))
-	return split, nil
+	return c.getDestroyingStatusLocked(req.ID)
 }
 
 // ValidRequestResource is used to decide if the resource is valid.
@@ -155,108 +201,6 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.Request) (*rpcpb.AskBat
 	return &rpcpb.AskBatchSplitRsp{SplitIDs: splitIDs}, nil
 }
 
-func (c *RaftCluster) checkSplitResource(left metadata.Resource, right metadata.Resource) error {
-	if left == nil || right == nil {
-		return errors.New("invalid split resource")
-	}
-
-	leftStart, leftEnd := left.Range()
-	rightStart, rightEnd := right.Range()
-
-	if !bytes.Equal(leftEnd, rightStart) {
-		return errors.New("invalid split resource with leftEnd != rightStart")
-	}
-
-	if len(rightEnd) == 0 || bytes.Compare(leftStart, rightEnd) < 0 {
-		return nil
-	}
-
-	return errors.New("invalid split resource")
-}
-
-func (c *RaftCluster) checkSplitResources(resources []metadata.Resource) error {
-	if len(resources) <= 1 {
-		return errors.New("invalid split resource")
-	}
-
-	for i := 1; i < len(resources); i++ {
-		left := resources[i-1]
-		right := resources[i]
-
-		leftStart, leftEnd := left.Range()
-		rightStart, rightEnd := right.Range()
-
-		if !bytes.Equal(leftEnd, rightStart) {
-			return errors.New("invalid split resource")
-		}
-		if len(rightEnd) != 0 && bytes.Compare(leftStart, rightEnd) >= 0 {
-			return errors.New("invalid split resource")
-		}
-	}
-	return nil
-}
-
-// HandleReportSplit handles the report split request.
-func (c *RaftCluster) HandleReportSplit(request *rpcpb.Request) (*rpcpb.ReportSplitRsp, error) {
-	left := c.adapter.NewResource()
-	err := left.Unmarshal(request.ReportSplit.Left)
-	if err != nil {
-		return nil, err
-	}
-
-	right := c.adapter.NewResource()
-	err = right.Unmarshal(request.ReportSplit.Right)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.checkSplitResource(left, right)
-	if err != nil {
-		c.logger.Warn("report split resource is invalid",
-			zap.Any("left", left),
-			zap.Any("right", right),
-			zap.Error(err))
-		return nil, err
-	}
-
-	// Build origin resource by using left and right.
-	origin := right.Clone()
-	origin.SetEpoch(metapb.ResourceEpoch{})
-	start, _ := left.Range()
-	origin.SetStartKey(start)
-	c.logger.Info("resource split completed",
-		zap.Uint64("resource", origin.ID()))
-	return &rpcpb.ReportSplitRsp{}, nil
-}
-
-// HandleBatchReportSplit handles the batch report split request.
-func (c *RaftCluster) HandleBatchReportSplit(request *rpcpb.Request) (*rpcpb.BatchReportSplitRsp, error) {
-	var resources []metadata.Resource
-	for _, data := range request.BatchReportSplit.Resources {
-		res := c.adapter.NewResource()
-		err := res.Unmarshal(data)
-		if err != nil {
-			return nil, err
-		}
-		resources = append(resources, res)
-	}
-
-	hrm := core.ResourcesToHexMeta(resources)
-	err := c.checkSplitResources(resources)
-	if err != nil {
-		c.logger.Warn("report batch split resource is invalid",
-			zap.String("resource-data", hrm.String()),
-			zap.Error(err))
-		return nil, err
-	}
-	last := len(resources) - 1
-	origin := resources[last].Clone()
-	hrm = core.ResourcesToHexMeta(resources[:last])
-	c.logger.Info("resource batch split completed",
-		zap.Uint64("resource", origin.ID()))
-	return &rpcpb.BatchReportSplitRsp{}, nil
-}
-
 // HandleCreateResources handle create resources. It will create resources with full replica peers.
 func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.CreateResourcesRsp, error) {
 	if len(request.CreateResources.Resources) > 4 {
@@ -312,7 +256,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			return nil, err
 		}
 		res.SetID(id)
-		res.SetState(metapb.ResourceState_WaittingCreate)
+		res.SetState(metapb.ResourceState_Creating)
 
 		_, err = c.core.PreCheckPutResource(core.NewCachedResource(res, nil))
 		if err != nil {
@@ -354,19 +298,6 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 	return &rpcpb.CreateResourcesRsp{}, nil
 }
 
-func (c *RaftCluster) triggerNotifyCreateResources() {
-	select {
-	case c.createResourceC <- struct{}{}:
-	default:
-	}
-}
-
-func (c *RaftCluster) doNotifyCreateResources() {
-	c.core.ForeachWaittingCreateResources(func(res metadata.Resource) {
-		c.changedEvents <- event.NewResourceEvent(res, 0, false, true)
-	})
-}
-
 // HandleRemoveResources handle remove resources
 func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.RemoveResourcesRsp, error) {
 	if len(request.RemoveResources.IDs) > 4 {
@@ -380,6 +311,10 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 	var targets []metadata.Resource
 	var origin []metadata.Resource
 	for _, id := range request.RemoveResources.IDs {
+		if c.core.AlreadyRemoved(id) {
+			continue
+		}
+
 		v := c.core.GetResource(id)
 		if v == nil {
 			return nil, fmt.Errorf("resource %d not found in prophet", id)
@@ -387,7 +322,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 		origin = append(origin, v.Meta)
 
 		res := v.Meta.Clone() // use cloned value
-		res.SetState(metapb.ResourceState_Removed)
+		res.SetState(metapb.ResourceState_Destroyed)
 		targets = append(targets, res)
 	}
 	err := c.storage.PutResources(targets...)
@@ -397,7 +332,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 
 	c.core.AddRemovedResources(request.RemoveResources.IDs...)
 	for _, res := range origin {
-		res.SetState(metapb.ResourceState_Removed)
+		res.SetState(metapb.ResourceState_Destroyed)
 		c.changedEvents <- event.NewResourceEvent(res, 0, true, false)
 	}
 
@@ -406,8 +341,13 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 
 // HandleCheckResourceState handle check resource state
 func (c *RaftCluster) HandleCheckResourceState(request *rpcpb.Request) (*rpcpb.CheckResourceStateRsp, error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	destroyed, destroying := c.core.GetDestroyResources(util.MustUnmarshalBM64(request.CheckResourceState.IDs))
 	return &rpcpb.CheckResourceStateRsp{
-		Removed: c.core.GetRemovedResources(util.MustUnmarshalBM64(request.CheckResourceState.IDs)),
+		Destroyed:  util.MustMarshalBM64(destroyed),
+		Destroying: util.MustMarshalBM64(destroying),
 	}, nil
 }
 
@@ -427,4 +367,63 @@ func (c *RaftCluster) HandleAppliedRules(request *rpcpb.Request) (*rpcpb.GetAppl
 	return &rpcpb.GetAppliedRulesRsp{
 		Rules: placement.RPCRules(rules),
 	}, nil
+}
+
+func (c *RaftCluster) triggerNotifyCreateResources() {
+	select {
+	case c.createResourceC <- struct{}{}:
+	default:
+	}
+}
+
+func (c *RaftCluster) doNotifyCreateResources() {
+	c.core.ForeachWaittingCreateResources(func(res metadata.Resource) {
+		c.changedEvents <- event.NewResourceEvent(res, 0, false, true)
+	})
+}
+
+func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingStatus, error) {
+	status := c.core.GetDestroyingStatus(id)
+	if status != nil {
+		return status, nil
+	}
+
+	v, err := c.storage.GetResourceExtra(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(v) > 0 {
+		status = &metapb.DestroyingStatus{}
+		protoc.MustUnmarshal(status, []byte(v))
+		return status, nil
+	}
+	return nil, nil
+}
+
+func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.DestroyingStatus) error {
+	if status.State == metapb.ResourceState_Destroyed {
+		res := c.core.GetResource(id)
+		if res == nil {
+			c.logger.Fatal("missing resource to set destoryed",
+				zap.Uint64("resource", id))
+			return nil
+		}
+
+		v := res.Meta.Clone()
+		v.SetState(metapb.ResourceState_Destroyed)
+		if err := c.storage.PutResourceAndExtra(v, protoc.MustMarshal(status)); err != nil {
+			return err
+		}
+		c.core.AddRemovedResources(id)
+		res.Meta.SetState(metapb.ResourceState_Destroyed)
+	} else {
+		err := c.storage.PutResourceExtra(id, protoc.MustMarshal(status))
+		if err != nil {
+			return err
+		}
+	}
+
+	c.core.UpdateDestroyingStatus(id, status)
+	return nil
 }

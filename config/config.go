@@ -372,7 +372,7 @@ type CustomizeConfig struct {
 	// CustomSnapshotManagerFactory is a factory func to create a snapshot.SnapshotManager to handle snapshot by youself.
 	CustomSnapshotManagerFactory func() snapshot.SnapshotManager
 	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
-	CustomTransportFactory func() transport.Transport
+	CustomTransportFactory func() transport.Trans
 	// CustomSnapshotDataCreateFuncFactory is factory create a func which called by cube if a snapshot need to create.
 	CustomSnapshotDataCreateFuncFactory func(group uint64) func(dataPath string, shard meta.Shard) error
 	// CustomSnapshotDataApplyFuncFactory is factory create a func which called by cube if a snapshot need to apply.

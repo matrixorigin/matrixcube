@@ -354,7 +354,8 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 		data[7] = 0xbf
 		l := log.GetDefaultZapLogger()
 		r := replica{
-			store: &store{cfg: &config.Config{}},
+			store:     &store{cfg: &config.Config{}},
+			replicaID: 1,
 			replica: metapb.Replica{
 				ID: 1,
 			},

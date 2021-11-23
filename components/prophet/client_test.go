@@ -24,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -125,7 +126,7 @@ func TestCheckResourceState(t *testing.T) {
 	c := p.GetClient()
 	rsp, err := c.CheckResourceState(roaring64.BitmapOf(2))
 	assert.NoError(t, err)
-	assert.Empty(t, rsp.Removed)
+	assert.Equal(t, uint64(0), util.MustUnmarshalBM64(rsp.Destroyed).GetCardinality())
 }
 
 func TestPutPlacementRule(t *testing.T) {

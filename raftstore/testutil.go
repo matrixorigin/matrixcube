@@ -213,7 +213,7 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
 		default:
 			if !ts.hasShard(id) {
-				assert.Equal(t, metapb.ResourceState_Removed, ts.removed[id].State)
+				assert.Equal(t, metapb.ResourceState_Destroyed, ts.removed[id].State)
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -414,6 +414,8 @@ type TestRaftCluster interface {
 	EveryStore(fn func(i int, store Store))
 	// GetStore returns the node store
 	GetStore(node int) Store
+	// GetStoreByID returns the store
+	GetStoreByID(id uint64) Store
 	// // GetWatcher returns event watcher of the node
 	// GetWatcher(node int) prophet.Watcher
 	// Start start each node sequentially
@@ -440,6 +442,8 @@ type TestRaftCluster interface {
 	CheckShardRange(shardIndex int, start, end []byte)
 	// WaitRemovedByShardID check whether the specific shard removed from every node until timeout
 	WaitRemovedByShardID(shardID uint64, timeout time.Duration)
+	// WaitRemovedByShardIDAt check whether the specific shard removed from specific node until timeout
+	WaitRemovedByShardIDAt(shardID uint64, nodes []int, timeout time.Duration)
 	// WaitLeadersByCount check that the number of leaders of the cluster reaches at least the specified value
 	// until the timeout
 	WaitLeadersByCount(count int, timeout time.Duration)
@@ -449,6 +453,9 @@ type TestRaftCluster interface {
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
+	// WaitShardByCountOnNode check that the number of shard of the specified node reaches at least the specified value
+	// until the timeout
+	WaitShardByCountOnNode(node, count int, timeout time.Duration)
 	// WaitShardSplitByCount check whether the count of shard split reaches a specific value until timeout
 	WaitShardSplitByCount(id uint64, count int, timeout time.Duration)
 	// WaitShardByCounts check whether the number of shards reaches a specific value until timeout
@@ -794,6 +801,16 @@ func (c *testRaftCluster) GetStore(node int) Store {
 	return c.stores[node]
 }
 
+func (c *testRaftCluster) GetStoreByID(id uint64) Store {
+	for _, s := range c.stores {
+		if s.Meta().ID == id {
+			return s
+		}
+	}
+
+	return nil
+}
+
 func (c *testRaftCluster) Start() {
 	c.StartWithConcurrent(false)
 }
@@ -910,6 +927,12 @@ func (c *testRaftCluster) WaitRemovedByShardID(shardID uint64, timeout time.Dura
 	}
 }
 
+func (c *testRaftCluster) WaitRemovedByShardIDAt(shardID uint64, nodes []int, timeout time.Duration) {
+	for _, node := range nodes {
+		c.awares[node].waitRemovedByShardID(c.t, shardID, timeout)
+	}
+}
+
 func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
@@ -952,6 +975,10 @@ func (c *testRaftCluster) WaitShardByCountPerNode(count int, timeout time.Durati
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(c.t, count, timeout)
 	}
+}
+
+func (c *testRaftCluster) WaitShardByCountOnNode(node, count int, timeout time.Duration) {
+	c.awares[node].waitByShardCount(c.t, count, timeout)
 }
 
 func (c *testRaftCluster) WaitShardSplitByCount(id uint64, count int, timeout time.Duration) {
@@ -1053,11 +1080,23 @@ func calcRTTMillisecond(fs vfs.FS, dir string) uint64 {
 type testTransport struct {
 	sync.RWMutex
 	sendingSnapshotCount uint64
+	c                    TestRaftCluster
+	filter               func(msg meta.RaftMessage) bool
 }
 
-func (trans *testTransport) Start() error               { return nil }
-func (trans *testTransport) Close() error               { return nil }
-func (trans *testTransport) Send(meta.RaftMessage) bool { return true }
+func newTestTransport(c TestRaftCluster, filter func(msg meta.RaftMessage) bool) *testTransport {
+	return &testTransport{c: c, filter: filter}
+}
+
+func (trans *testTransport) Start() error { return nil }
+func (trans *testTransport) Close() error { return nil }
+func (trans *testTransport) Send(msg meta.RaftMessage) bool {
+	if !trans.filter(msg) {
+		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})
+		return true
+	}
+	return false
+}
 func (trans *testTransport) SendingSnapshotCount() uint64 {
 	trans.RLock()
 	defer trans.RUnlock()

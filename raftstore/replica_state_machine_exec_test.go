@@ -227,7 +227,7 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, ctx.req.AdminRequest.Splits.Requests[0].End, resp.AdminResponse.Splits.Shards[0].End)
 	assert.Equal(t, ctx.req.AdminRequest.Splits.Requests[1].Start, resp.AdminResponse.Splits.Shards[1].Start)
 	assert.Equal(t, pr.getShard().End, resp.AdminResponse.Splits.Shards[1].End)
-	assert.False(t, pr.sm.canContinue())
+	assert.False(t, pr.sm.canApply(raftpb.Entry{}))
 	assert.True(t, pr.sm.metadataMu.splited)
 
 	pr.sm.dataStorage.GetInitialStates()
@@ -247,7 +247,8 @@ func TestDoExecSplit(t *testing.T) {
 	metadata, err := pr.sm.dataStorage.GetInitialStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(metadata))
-	assert.Equal(t, meta.ReplicaState_Tombstone, metadata[0].Metadata.State)
+	assert.Equal(t, meta.ReplicaState_Normal, metadata[0].Metadata.State)
+	assert.Equal(t, metapb.ResourceState_Destroying, metadata[0].Metadata.Shard.State)
 	assert.Equal(t, meta.ReplicaState_Normal, metadata[1].Metadata.State)
 	assert.Equal(t, []byte{1}, metadata[1].Metadata.Shard.Start)
 	assert.Equal(t, []byte{5}, metadata[1].Metadata.Shard.End)

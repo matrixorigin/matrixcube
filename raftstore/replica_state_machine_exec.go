@@ -206,16 +206,22 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	d.replicaCreatorFactory().
 		withReason("splited").
 		withLogdbContext(d.wc).
-		withSaveMetadata(false).
+		withSaveMetadata(false). // no sync
 		create(newShards)
 
+	// We can't destroy Old Shard directly, but mark it as being destroyed. Because at this time, we are not
+	// sure that all Replcias have received the Log of this split, and if we destroy it directly,  then the
+	// majority of the entire Raft-Group will destroy itself, causing the minority never to receive this Log.
+	// The real destruction is performed in a subsequent asynchronous task.
+	current.State = metapb.ResourceState_Destroying
 	old := meta.ShardMetadata{
 		ShardID:  current.ID,
 		LogIndex: ctx.index,
 		LogTerm:  ctx.term,
 		Metadata: meta.ShardLocalState{
-			State: meta.ReplicaState_Tombstone,
-			Shard: current,
+			State:      meta.ReplicaState_Normal,
+			Shard:      current,
+			RemoveData: false,
 		},
 	}
 	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
@@ -228,6 +234,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	}
 
 	d.setSplited()
+	d.updateShard(current)
 	resp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
 		Shards: newShards,
 	})

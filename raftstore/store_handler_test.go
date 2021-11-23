@@ -124,6 +124,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 			c.pr.startedC = make(chan struct{})
 			c.pr.closedC = make(chan struct{})
 			c.pr.store = s
+			c.pr.replicaID = c.pr.replica.ID
 			c.pr.logger = s.logger
 			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil, nil)
 			close(c.pr.startedC)
@@ -136,7 +137,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 		if c.checkCache {
 			msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
 			assert.True(t, ok)
-			assert.Equal(t, c.msg.Message, msg)
+			assert.Equal(t, c.msg, msg)
 		}
 	}
 }

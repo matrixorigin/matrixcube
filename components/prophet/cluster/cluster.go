@@ -58,7 +58,7 @@ const (
 )
 
 var (
-	errResourceRemoved = errors.New("resource removed")
+	errResourceDestroyed = errors.New("resource destroyed")
 )
 
 // Server is the interface for cluster.
@@ -465,18 +465,18 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeRemoved metadata.Resource
+	var checkMaybeDestroyed metadata.Resource
 	if origin != nil {
-		checkMaybeRemoved = origin.Meta
+		checkMaybeDestroyed = origin.Meta
 	}
-	if checkMaybeRemoved == nil {
-		checkMaybeRemoved, err = c.storage.GetResource(res.Meta.ID())
+	if checkMaybeDestroyed == nil {
+		checkMaybeDestroyed, err = c.storage.GetResource(res.Meta.ID())
 		if err != nil {
 			return err
 		}
 	}
-	if checkMaybeRemoved != nil && checkMaybeRemoved.State() == metapb.ResourceState_Removed {
-		return errResourceRemoved
+	if checkMaybeDestroyed != nil && checkMaybeDestroyed.State() == metapb.ResourceState_Destroyed {
+		return errResourceDestroyed
 	}
 
 	// Save to storage if meta is updated.
@@ -524,6 +524,9 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
 			saveKV, saveCache = true, true
 		}
+		if res.Meta.State() != origin.Meta.State() {
+			saveKV, saveCache = true, true
+		}
 
 		if res.GetApproximateSize() != origin.GetApproximateSize() ||
 			res.GetApproximateKeys() != origin.GetApproximateKeys() {
@@ -543,9 +546,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 
 	c.Lock()
-	if isNew && c.core.IsWaittingCreateResource(res.Meta.ID()) {
+	inCreating := c.core.IsWaittingCreateResource(res.Meta.ID())
+	if isNew && inCreating {
 		if c.resourceStateChangedHandler != nil {
-			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_WaittingCreate,
+			c.resourceStateChangedHandler(res.Meta, metapb.ResourceState_Creating,
 				metapb.ResourceState_Running)
 		}
 	}
@@ -560,7 +564,6 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			return err
 		}
 
-		res.Meta.SetState(metapb.ResourceState_Running)
 		overlaps := c.core.PutResource(res)
 		if c.storage != nil {
 			for _, item := range overlaps {
@@ -613,6 +616,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// If there are concurrent heartbeats from the same resource, the last write will win even if
 	// writes to storage in the critical area. So don't use mutex to protect it.
 	if saveKV && c.storage != nil {
+		if !inCreating && res.Meta.State() == metapb.ResourceState_Creating {
+			res = res.Clone(core.WithState(metapb.ResourceState_Running))
+		}
+
 		if err := c.storage.PutResource(res.Meta); err != nil {
 			// Not successfully saved to storage is not fatal, it only leads to longer warm-up
 			// after restart. Here we only log the error then go on updating cache.

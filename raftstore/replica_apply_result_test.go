@@ -16,10 +16,10 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func TestApplySplit(t *testing.T) {
@@ -40,9 +40,10 @@ func TestApplySplit(t *testing.T) {
 			{ID: 3, Start: []byte{5}, End: []byte{10}, Replicas: []Replica{{ID: 300}}},
 		},
 	}
-	s.droppedVoteMsgs.Store(uint64(2), raftpb.Message{})
-	s.droppedVoteMsgs.Store(uint64(3), raftpb.Message{})
+	s.droppedVoteMsgs.Store(uint64(2), meta.RaftMessage{})
+	s.droppedVoteMsgs.Store(uint64(3), meta.RaftMessage{})
 
+	pr.destoryTaskFactory = newTestDestroyReplicaTaskFactory(true)
 	pr.applySplit(result)
 	_, ok := s.droppedVoteMsgs.Load(uint64(2))
 	assert.False(t, ok)
