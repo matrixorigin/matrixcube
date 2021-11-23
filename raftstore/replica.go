@@ -95,6 +95,8 @@ type replica struct {
 	committedIndexes map[uint64]uint64 // replica-id -> committed index(saved into logdb)
 	// lastCommittedIndex last committed log
 	lastCommittedIndex uint64
+
+	destoryTaskFactory destroyReplicaTaskFactory
 }
 
 // createReplica called in:
@@ -153,6 +155,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 
 	storage := store.DataStorageByGroup(shard.Group)
 	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *replicaCreator { return newReplicaCreator(store) })
+	pr.destoryTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction, pr.prophetClient, defaultCheckInterval)
 	return pr, nil
 }
 

@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
-	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -109,7 +108,7 @@ func TestSplitWithCase1(t *testing.T) {
 	sid := c.GetShardByIndex(0, 0).ID
 	c.EveryStore(func(i int, s Store) {
 		pr := s.(*store).getReplica(sid, false)
-		pr.readStopper = stop.NewStopper("noop", stop.WithNoop()) // skip destory task
+		pr.destoryTaskFactory = newTestDestroyReplicaTaskFactory(true) // skip destory task
 	})
 
 	prepareSplit(t, c, nil, []int{3, 3, 3})

@@ -39,7 +39,7 @@ func newTestDestoryMetadataStorage(watchPut bool) *testDestoryMetadataStorage {
 	}
 }
 
-func (s *testDestoryMetadataStorage) CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+func (s *testDestoryMetadataStorage) CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -49,29 +49,29 @@ func (s *testDestoryMetadataStorage) CreateDestroying(id uint64, index uint64, r
 		State:      metapb.ResourceState_Destroying,
 		Replicas:   make(map[uint64]bool),
 	}
-	for _, id := range replicas {
-		status.Replicas[id] = false
+	for _, replicaID := range replicas {
+		status.Replicas[replicaID] = false
 	}
 
-	s.data[id] = status
+	s.data[shardID] = status
 	if s.watchPut {
 		s.c <- struct{}{}
 	}
 	return metapb.ResourceState_Destroying, nil
 }
 
-func (s *testDestoryMetadataStorage) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) {
+func (s *testDestoryMetadataStorage) GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	return s.data[id], nil
+	return s.data[shardID], nil
 }
 
-func (s *testDestoryMetadataStorage) ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error) {
+func (s *testDestoryMetadataStorage) ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ResourceState, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	status, ok := s.data[id]
+	status, ok := s.data[shardID]
 	if !ok {
 		return metapb.ResourceState_Destroying, nil
 	}
@@ -91,7 +91,7 @@ func (s *testDestoryMetadataStorage) ReportDestroyed(id uint64, replicaID uint64
 	return status.State, nil
 }
 
-func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
+func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
@@ -102,13 +102,13 @@ func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
 
 	dms := newTestDestoryMetadataStorage(false)
 	c := make(chan []uint64)
-	go pr.destoryReplicaAfterLogApplied(ctx, 100, func(a action) {
+	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogCommittedAction {
 			assert.NotNil(t, a.actionCallback)
 			c <- []uint64{1, 2, 3}
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep1", time.Millisecond*10)
-
+	}).setCheckInterval(time.Millisecond * 10)
+	go f.new(pr, 100, false, "TestDestoryTaskWithStartCheckLogCommittedStep").run(ctx)
 	select {
 	case <-c:
 		break
@@ -117,7 +117,7 @@ func TestDestoryReplicaAfterLogAppliedStep1(t *testing.T) {
 	}
 }
 
-func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
+func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
@@ -127,12 +127,13 @@ func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
 	defer cancel()
 
 	dms := newTestDestoryMetadataStorage(true)
-	go pr.destoryReplicaAfterLogApplied(ctx, 100, func(a action) {
+	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogCommittedAction {
 			assert.NotNil(t, a.actionCallback)
 			go a.actionCallback([]uint64{1, 2, 3})
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep2", time.Millisecond*10)
+	}).setCheckInterval(time.Millisecond * 10)
+	go f.new(pr, 100, false, "TestDestoryTaskWithCompleteCheckLogCommittedStep").run(ctx)
 
 	select {
 	case <-dms.c:
@@ -145,7 +146,7 @@ func TestDestoryReplicaAfterLogAppliedStep2(t *testing.T) {
 	}
 }
 
-func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
+func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
@@ -157,12 +158,14 @@ func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
 	c := make(chan struct{})
 	dms := newTestDestoryMetadataStorage(false)
 	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
-	go pr.destoryReplicaAfterLogApplied(ctx, 100, func(a action) {
+
+	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogAppliedAction {
 			assert.NotNil(t, a.actionCallback)
 			c <- struct{}{}
 		}
-	}, dms, false, "TestDestoryReplicaAfterLogAppliedStep3", time.Millisecond*10)
+	}).setCheckInterval(time.Millisecond * 10)
+	go f.new(pr, 100, false, "TestDestoryTaskWithStartCheckLogAppliedStep").run(ctx)
 
 	select {
 	case <-c:
@@ -172,7 +175,7 @@ func TestDestoryReplicaAfterLogAppliedStep3(t *testing.T) {
 	}
 }
 
-func TestDestoryReplicaAfterLogAppliedStep4(t *testing.T) {
+func TestDestoryTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
@@ -185,15 +188,16 @@ func TestDestoryReplicaAfterLogAppliedStep4(t *testing.T) {
 	c := make(chan struct{})
 	dms := newTestDestoryMetadataStorage(false)
 	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
+
+	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
+		if a.actionType == checkLogAppliedAction {
+			go a.actionCallback(nil)
+		}
+	}).setCheckInterval(time.Millisecond * 10)
 	go func() {
-		pr.destoryReplicaAfterLogApplied(ctx, 100, func(a action) {
-			if a.actionType == checkLogAppliedAction {
-				go a.actionCallback(nil)
-			}
-		}, dms, false, "TestDestoryReplicaAfterLogAppliedStep4", time.Millisecond*10)
+		f.new(pr, 100, false, "TestDestoryTaskWithStartCompleteCheckLogAppliedStep").run(ctx)
 		close(c)
 	}()
-
 	select {
 	case <-c:
 		v, err := dms.GetDestroying(pr.shardID)
@@ -203,4 +207,76 @@ func TestDestoryReplicaAfterLogAppliedStep4(t *testing.T) {
 	case <-time.After(time.Second * 100):
 		assert.Fail(t, "timeout")
 	}
+}
+
+type emptyTask struct {
+}
+
+func (t *emptyTask) run(ctx context.Context) {
+
+}
+
+type testDestroyReplicaTaskFactory struct {
+	sync.RWMutex
+
+	noop          bool
+	actionHandler actionHandleFunc
+	storage       destroyingStorage
+	checkInterval time.Duration
+}
+
+func newTestDestroyReplicaTaskFactory(noop bool) *testDestroyReplicaTaskFactory {
+	return &testDestroyReplicaTaskFactory{
+		noop: noop,
+	}
+}
+
+func (f *testDestroyReplicaTaskFactory) setActionHandler(actionHandler actionHandleFunc) *testDestroyReplicaTaskFactory {
+	f.Lock()
+	defer f.Unlock()
+
+	f.actionHandler = actionHandler
+	return f
+}
+
+func (f *testDestroyReplicaTaskFactory) setDestroyingStorage(storage destroyingStorage) *testDestroyReplicaTaskFactory {
+	f.Lock()
+	defer f.Unlock()
+
+	f.storage = storage
+	return f
+}
+
+func (f *testDestroyReplicaTaskFactory) setCheckInterval(checkInterval time.Duration) *testDestroyReplicaTaskFactory {
+	f.Lock()
+	defer f.Unlock()
+
+	f.checkInterval = checkInterval
+	return f
+}
+
+func (f *testDestroyReplicaTaskFactory) new(pr *replica, targetIndex uint64, removeData bool, reason string) destroyReplicaTask {
+	f.RLock()
+	defer f.RUnlock()
+
+	if f.noop {
+		return &emptyTask{}
+	}
+
+	actionHandler := f.actionHandler
+	if actionHandler == nil {
+		actionHandler = pr.addAction
+	}
+
+	storage := f.storage
+	if storage == nil {
+		storage = pr.store.Prophet().GetClient()
+	}
+
+	checkInterval := f.checkInterval
+	if checkInterval == 0 {
+		checkInterval = defaultCheckInterval
+	}
+
+	return newDefaultDestroyReplicaTaskFactory(actionHandler, storage, checkInterval).new(pr, targetIndex, removeData, reason)
 }

@@ -207,5 +207,5 @@ func (pr *replica) applySplit(result *splitResult) {
 		pr.aware.Splited(pr.getShard())
 	}
 
-	pr.startDestoryReplicaTaskAfterSplitted()
+	pr.startDestoryReplicaTaskAfterSplitted(pr.appliedIndex)
 }
