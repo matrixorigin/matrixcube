@@ -91,7 +91,6 @@ type asyncClient struct {
 	containerID   uint64
 	adapter       metadata.Adapter
 	id            uint64
-	state         int32
 	contexts      sync.Map // id -> request
 	leaderConn    goetty.IOSession
 	currentLeader string
@@ -102,6 +101,11 @@ type asyncClient struct {
 	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
 	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
+
+	mu struct {
+		sync.RWMutex
+		state int32
+	}
 }
 
 // NewClient create a prophet client
@@ -127,12 +131,18 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 }
 
 func (c *asyncClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.mu.state == stateStopped {
+		return nil
+	}
+
 	// 1. stop write loop
 	// 2. stop read loop
 	// 3. no read and write, close all channels
-	if atomic.CompareAndSwapInt32(&c.state, stateRunning, stateStopped) {
-		c.writeC <- newStopCtx()
-	}
+	c.mu.state = stateStopped
+	c.writeC <- newStopCtx()
 	return nil
 }
 
@@ -517,19 +527,20 @@ func (c *asyncClient) start() {
 }
 
 func (c *asyncClient) running() bool {
-	return atomic.LoadInt32(&c.state) == stateRunning
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.mu.state == stateRunning
 }
 
 func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
 	for {
-		if !c.running() {
-			return nil, ErrClosed
+		ctx := newSyncCtx(req)
+		if err := c.do(ctx); err != nil {
+			return nil, err
 		}
 
-		ctx := newSyncCtx(req)
-		c.do(ctx)
 		ctx.wait()
-
 		if ctx.err != nil {
 			if ctx.err == util.ErrNotLeader {
 				time.Sleep(time.Millisecond * 100)
@@ -547,13 +558,21 @@ func (c *asyncClient) asyncDo(req *rpcpb.Request, cb func(*rpcpb.Response, error
 	c.do(newAsyncCtx(req, cb))
 }
 
-func (c *asyncClient) do(ctx *ctx) {
+func (c *asyncClient) do(ctx *ctx) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.mu.state == stateStopped {
+		return ErrClosed
+	}
+
 	ctx.req.ID = c.nextID()
 	if ctx.sync || ctx.cb != nil {
 		c.contexts.Store(ctx.req.ID, ctx)
 		util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
 	}
 	c.writeC <- ctx
+	return nil
 }
 
 func (c *asyncClient) timeout(arg interface{}) {

@@ -10,7 +10,7 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20210503173641-1387689d3d7c
 	github.com/coreos/go-semver v0.3.0
 	github.com/docker/go-units v0.4.0
-	github.com/fagongzi/goetty v1.11.2
+	github.com/fagongzi/goetty v1.11.3
 	github.com/fagongzi/util v0.0.0-20210923134909-bccc37b5040d
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.3.1
