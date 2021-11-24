@@ -78,6 +78,8 @@ func (pr *replica) handleRequest(items []interface{}) bool {
 			}
 			pr.incomingProposals.push(pr.group, req)
 		}
+	} else {
+		return false
 	}
 
 	for {
