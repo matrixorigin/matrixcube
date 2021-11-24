@@ -75,6 +75,7 @@ func getCloseableReplica() (*replica, func()) {
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
+		snapshotStatus:    task.New(32),
 		items:             make([]interface{}, 1024),
 		startedC:          make(chan struct{}),
 		closedC:           make(chan struct{}),

@@ -47,6 +47,11 @@ type replicaGetter interface {
 	getReplica(uint64) (*replica, bool)
 }
 
+type snapshotStatus struct {
+	to       uint64
+	rejected bool
+}
+
 type replica struct {
 	logger                *zap.Logger
 	storeID               uint64
@@ -77,6 +82,7 @@ type replica struct {
 	ticks                *task.Queue
 	messages             *task.Queue
 	feedbacks            *task.Queue
+	snapshotStatus       *task.Queue
 	requests             *task.Queue
 	actions              *task.Queue
 	items                []interface{}
@@ -142,6 +148,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		requests:          task.New(32),
 		actions:           task.New(32),
 		feedbacks:         task.New(32),
+		snapshotStatus:    task.New(32),
 		items:             make([]interface{}, readyBatchSize),
 		closedC:           make(chan struct{}),
 		unloadedC:         make(chan struct{}),

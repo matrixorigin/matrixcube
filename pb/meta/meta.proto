@@ -33,6 +33,23 @@ message RaftMessage  {
     uint64               commitIndex  = 13;
 }
 
+message SnapshotChunk {
+    uint64 shardID       = 1;
+    uint64 replicaID     = 2;
+    uint64 from          = 3;
+    uint64 chunkID       = 4;
+    uint64 chunkSize     = 5;
+    uint64 chunkCount    = 6;
+    uint64 index         = 7;
+    uint64 term          = 8;
+    string filePath      = 9;
+    uint64 fileSize      = 10;
+    uint64 fileChunkID   = 11;
+    uint64 fileChunkCount = 12;
+    bytes data            = 13;
+    bytes extra           = 14;
+}
+
 // SnapshotMessageHeader snapshot message header
 message SnapshotMessageHeader {
     Shard            shard = 1 [(gogoproto.nullable) = false];

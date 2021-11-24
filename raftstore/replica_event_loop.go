@@ -16,13 +16,15 @@ package raftstore
 import (
 	"time"
 
+	"go.etcd.io/etcd/raft/v3"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.uber.org/zap"
 )
 
 const (
@@ -91,6 +93,13 @@ func (pr *replica) addMessage(msg meta.RaftMessage) {
 func (pr *replica) addFeedback(feedback interface{}) {
 	if err := pr.feedbacks.Put(feedback); err != nil {
 		pr.logger.Info("raft feedback stopped")
+	}
+	pr.notifyWorker()
+}
+
+func (pr *replica) addSnapshotStatus(ss snapshotStatus) {
+	if err := pr.snapshotStatus.Put(ss); err != nil {
+		pr.logger.Info("snapshot status stopped")
 	}
 	pr.notifyWorker()
 }
@@ -180,6 +189,9 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 		hasEvent = true
 	}
 	if pr.handleFeedback(pr.items) {
+		hasEvent = true
+	}
+	if pr.handleSnapshotStatus(pr.items) {
 		hasEvent = true
 	}
 	if pr.handleRequest(pr.items) {
@@ -311,6 +323,34 @@ func (pr *replica) handleFeedback(items []interface{}) bool {
 	}
 
 	size := pr.feedbacks.Len()
+	metric.SetRaftReportQueueMetric(size)
+	if size > 0 {
+		pr.notifyWorker()
+	}
+
+	return true
+}
+
+func (pr *replica) handleSnapshotStatus(items []interface{}) bool {
+	if size := pr.snapshotStatus.Len(); size == 0 {
+		return false
+	}
+
+	n, err := pr.snapshotStatus.Get(readyBatchSize, items)
+	if err != nil {
+		return false
+	}
+	for i := int64(0); i < n; i++ {
+		if ss, ok := items[i].(snapshotStatus); ok {
+			rss := raft.SnapshotFinish
+			if ss.rejected {
+				rss = raft.SnapshotFailure
+			}
+			pr.rn.ReportSnapshot(ss.to, rss)
+		}
+	}
+
+	size := pr.snapshotStatus.Len()
 	metric.SetRaftReportQueueMetric(size)
 	if size > 0 {
 		pr.notifyWorker()
