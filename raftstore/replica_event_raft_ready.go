@@ -52,7 +52,7 @@ func (pr *replica) commitRaftReady(rd raft.Ready) {
 func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	if ce := pr.logger.Check(zap.DebugLevel, "begin handleReady"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
-			log.ReplicaIDField(pr.replica.ID))
+			log.ReplicaIDField(pr.replicaID))
 	}
 
 	pr.handleRaftState(rd)
@@ -74,7 +74,7 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 
 	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
 		ce.Write(log.ShardIDField(pr.shardID),
-			log.ReplicaIDField(pr.replica.ID))
+			log.ReplicaIDField(pr.replicaID))
 	}
 
 	return nil
@@ -118,7 +118,7 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"begin to append raft log"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
-				log.ReplicaIDField(pr.replica.ID),
+				log.ReplicaIDField(pr.replicaID),
 				log.IndexField(rd.Entries[0].Index),
 				zap.Int("estimated-size", getEstimatedAppendSize(rd)))
 		}
@@ -126,7 +126,7 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 		if ce := pr.logger.Check(zap.DebugLevel,
 			"append raft log completed"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
-				log.ReplicaIDField(pr.replica.ID),
+				log.ReplicaIDField(pr.replicaID),
 				log.IndexField(rd.Entries[0].Index))
 		}
 		pr.metrics.ready.append++
@@ -136,7 +136,16 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 }
 
 func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
-	return pr.logdb.SaveRaftState(pr.shardID, pr.replica.ID, rd, wc)
+	err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc)
+	if err != nil {
+		return err
+	}
+
+	if !raft.IsEmptyHardState(rd.HardState) {
+		pr.lastCommittedIndex = rd.HardState.Commit
+		pr.committedIndexes[pr.replicaID] = pr.lastCommittedIndex
+	}
+	return nil
 }
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
@@ -217,6 +226,7 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 		Unique:       shard.Unique,
 		RuleGroups:   shard.RuleGroups,
 		Message:      msg,
+		CommitIndex:  pr.lastCommittedIndex,
 	}
 
 	// There could be two cases:

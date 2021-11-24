@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
@@ -160,6 +161,7 @@ func TestValidateShard(t *testing.T) {
 	for idx, c := range cases {
 		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 		c.pr.store = s
+		c.pr.replicaID = c.pr.replica.ID
 		c.pr.sm = &stateMachine{}
 		c.pr.sm.metadataMu.shard = Shard{ID: c.pr.shardID, Epoch: c.epoch}
 		close(c.pr.startedC)
@@ -295,18 +297,18 @@ func TestValidateStoreID(t *testing.T) {
 
 func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
 	s := &store{}
-	s.cacheDroppedVoteMsg(1, raftpb.Message{})
+	s.cacheDroppedVoteMsg(1, meta.RaftMessage{})
 	v, ok := s.removeDroppedVoteMsg(1)
 	assert.False(t, ok)
-	assert.Equal(t, raftpb.Message{}, v)
+	assert.Equal(t, meta.RaftMessage{}, v)
 
-	s.cacheDroppedVoteMsg(1, raftpb.Message{Type: raftpb.MsgVote})
+	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, raftpb.Message{Type: raftpb.MsgVote}, v)
+	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}}, v)
 
-	s.cacheDroppedVoteMsg(1, raftpb.Message{Type: raftpb.MsgPreVote})
+	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, raftpb.Message{Type: raftpb.MsgPreVote}, v)
+	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
 }

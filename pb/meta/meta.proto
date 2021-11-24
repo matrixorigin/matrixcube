@@ -30,6 +30,7 @@ message RaftMessage  {
     bool                 disableSplit = 10;
     string               unique       = 11;
     repeated string      ruleGroups   = 12;
+    uint64               commitIndex  = 13;
 }
 
 message SnapshotChunk {
@@ -121,6 +122,9 @@ message ShardMetadata {
 message ShardLocalState {
     Shard     shard = 1 [(gogoproto.nullable) = false];
     ReplicaState state = 2;
+    // RemoveData Whether or not the local Shard data needs to be deleted, 
+    // which needs to be specified when the Shard status is set to Destroying
+    bool removeData = 3;
 }
 
 // Store the host store metadata

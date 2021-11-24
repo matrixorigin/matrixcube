@@ -86,7 +86,6 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 		c.WaitLeadersByCount(3, testWaitTimeout)
 	}
 
-	fn(1)
 	fn(3)
 }
 

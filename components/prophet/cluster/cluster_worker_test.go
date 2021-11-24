@@ -30,47 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReportSplit(t *testing.T) {
-	_, opt, err := newTestScheduleConfig()
-	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
-
-	left := &metadata.TestResource{ResID: 1, Start: []byte("a"), End: []byte("b")}
-	right := &metadata.TestResource{ResID: 2, Start: []byte("b"), End: []byte("c")}
-	request := &rpcpb.Request{}
-	request.ReportSplit.Left, _ = left.Marshal()
-	request.ReportSplit.Right, _ = right.Marshal()
-	_, err = cluster.HandleReportSplit(request)
-	assert.NoError(t, err)
-
-	request.ReportSplit.Left, _ = right.Marshal()
-	request.ReportSplit.Right, _ = left.Marshal()
-	_, err = cluster.HandleReportSplit(request)
-	assert.Error(t, err)
-}
-
-func TestReportBatchSplit(t *testing.T) {
-	_, opt, err := newTestScheduleConfig()
-	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestResourceFactory, nil))
-
-	resources := []*metadata.TestResource{
-		{ResID: 1, Start: []byte(""), End: []byte("a")},
-		{ResID: 2, Start: []byte("a"), End: []byte("b")},
-		{ResID: 3, Start: []byte("b"), End: []byte("c")},
-		{ResID: 3, Start: []byte("c"), End: []byte("")},
-	}
-
-	request := &rpcpb.Request{}
-	for _, res := range resources {
-		v, _ := res.Marshal()
-		request.BatchReportSplit.Resources = append(request.BatchReportSplit.Resources, v)
-	}
-
-	_, err = cluster.HandleBatchReportSplit(request)
-	assert.NoError(t, err)
-}
-
 func TestCreateResources(t *testing.T) {
 	cluster, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
@@ -124,13 +83,13 @@ func TestCreateResources(t *testing.T) {
 	for _, res := range cluster.core.WaittingCreateResources {
 		v, err := cluster.storage.GetResource(res.ID())
 		assert.NoError(t, err)
-		assert.Equal(t, metapb.ResourceState_WaittingCreate, v.State())
+		assert.Equal(t, metapb.ResourceState_Creating, v.State())
 
 		assert.NoError(t, cluster.HandleResourceHeartbeat(core.NewCachedResource(res, &res.Peers()[0])))
 		assert.Equal(t, 1, cluster.GetResourceCount())
 		assert.Equal(t, 0, len(cluster.core.WaittingCreateResources))
 		assert.NotNil(t, changedRes)
-		assert.Equal(t, changedResFrom, metapb.ResourceState_WaittingCreate)
+		assert.Equal(t, changedResFrom, metapb.ResourceState_Creating)
 		assert.Equal(t, changedResTo, metapb.ResourceState_Running)
 
 		v, err = cluster.storage.GetResource(res.ID())
@@ -188,8 +147,8 @@ func TestRemoveResources(t *testing.T) {
 		RemoveResources: rpcpb.RemoveResourcesReq{IDs: removed[:1]},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(1), cluster.core.RemovedResources.GetCardinality())
-	assert.True(t, cluster.core.RemovedResources.Contains(removed[0]))
+	assert.Equal(t, uint64(1), cluster.core.DestroyedResources.GetCardinality())
+	assert.True(t, cluster.core.DestroyedResources.Contains(removed[0]))
 	assert.Error(t, cluster.processResourceHeartbeat(resources[1]))
 	checkNotifyCount(t, nc, event.EventResource)
 
@@ -203,20 +162,20 @@ func TestRemoveResources(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	checkNotifyCount(t, nc, event.EventResource, event.EventResource, event.EventResource, event.EventResource)
-	assert.Equal(t, uint64(5), cluster.core.RemovedResources.GetCardinality())
+	assert.Equal(t, uint64(5), cluster.core.DestroyedResources.GetCardinality())
 	for _, id := range removed {
-		assert.True(t, cluster.core.RemovedResources.Contains(id))
+		assert.True(t, cluster.core.DestroyedResources.Contains(id))
 	}
 
 	for i := uint64(1); i < n-1; i++ {
-		assert.Equal(t, metapb.ResourceState_Removed, cache.GetResource(i).Meta.State())
+		assert.Equal(t, metapb.ResourceState_Destroyed, cache.GetResource(i).Meta.State())
 	}
 	assert.Equal(t, metapb.ResourceState_Running, cache.GetResource(n-1).Meta.State())
 
 	cnt := uint64(0)
 	storage.LoadResources(10, func(r metadata.Resource) {
 		if r.ID() < n-1 {
-			assert.Equal(t, metapb.ResourceState_Removed, r.State())
+			assert.Equal(t, metapb.ResourceState_Destroyed, r.State())
 		} else {
 			assert.Equal(t, metapb.ResourceState_Running, r.State())
 		}
@@ -228,9 +187,9 @@ func TestRemoveResources(t *testing.T) {
 	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
 	cluster.LoadClusterInfo()
 	cache = cluster.core.Resources
-	assert.Equal(t, uint64(len(removed)), cluster.core.RemovedResources.GetCardinality())
+	assert.Equal(t, uint64(len(removed)), cluster.core.DestroyedResources.GetCardinality())
 	for _, id := range removed {
-		assert.True(t, cluster.core.RemovedResources.Contains(id))
+		assert.True(t, cluster.core.DestroyedResources.Contains(id))
 	}
 	assert.NotNil(t, cache.GetResource(n-1))
 	assert.Equal(t, 1, cache.GetResourceCount())
@@ -282,7 +241,7 @@ func TestHandleCheckResourceState(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assert.Empty(t, rsp.Removed)
+	assert.Equal(t, uint64(0), util.MustUnmarshalBM64(rsp.Destroyed).GetCardinality())
 
 	cluster.HandleRemoveResources(&rpcpb.Request{
 		RemoveResources: rpcpb.RemoveResourcesReq{IDs: ids[:3]},
@@ -293,8 +252,9 @@ func TestHandleCheckResourceState(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, ids[:3], rsp.Removed)
-	assert.Equal(t, 3, len(rsp.Removed))
+	destroyed := util.MustUnmarshalBM64(rsp.Destroyed).ToArray()
+	assert.Equal(t, ids[:3], destroyed)
+	assert.Equal(t, 3, len(destroyed))
 
 	// restart
 	cluster = newTestRaftCluster(opt, cluster.storage, core.NewBasicCluster(metadata.TestResourceFactory, nil))
@@ -305,8 +265,9 @@ func TestHandleCheckResourceState(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, ids[:3], rsp.Removed)
-	assert.Equal(t, 3, len(rsp.Removed))
+	destroyed = util.MustUnmarshalBM64(rsp.Destroyed).ToArray()
+	assert.Equal(t, ids[:3], destroyed)
+	assert.Equal(t, 3, len(destroyed))
 }
 
 func checkNotifyCount(t *testing.T, nc <-chan rpcpb.EventNotify, expectNotifyTypes ...uint32) {

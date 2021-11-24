@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 )
@@ -34,6 +34,7 @@ const (
 type action struct {
 	actionType     actionType
 	splitCheckData splitCheckData
+	targetIndex    uint64
 	readMetrics    readMetrics
 	epoch          Epoch
 	actionCallback func(interface{})
@@ -60,6 +61,8 @@ const (
 	splitAction
 	heartbeatAction
 	updateReadMetrics
+	checkLogCommittedAction
+	checkLogAppliedAction
 )
 
 func (pr *replica) addRequest(req reqCtx) error {
@@ -79,7 +82,7 @@ func (pr *replica) addAction(act action) {
 	pr.notifyWorker()
 }
 
-func (pr *replica) addMessage(msg raftpb.Message) {
+func (pr *replica) addMessage(msg meta.RaftMessage) {
 	if err := pr.messages.Put(msg); err != nil {
 		pr.logger.Info("raft step stopped")
 		return
@@ -203,7 +206,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 	if pr.handleAction(pr.items) {
 		hasEvent = true
 	}
-	return true, nil
+	return hasEvent, nil
 }
 
 func (pr *replica) handleAction(items []interface{}) bool {
@@ -232,6 +235,10 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			pr.prophetHeartbeat()
 		case updateReadMetrics:
 			pr.doUpdateReadMetrics(act)
+		case checkLogCommittedAction:
+			pr.doCheckLogCommitted(act)
+		case checkLogAppliedAction:
+			pr.doCheckLogApplied(act)
 		}
 	}
 
@@ -256,7 +263,10 @@ func (pr *replica) handleMessage(items []interface{}) bool {
 		return false
 	}
 	for i := int64(0); i < n; i++ {
-		msg := items[i].(raftpb.Message)
+		raftMsg := items[i].(meta.RaftMessage)
+		msg := raftMsg.Message
+		pr.updateReplicasCommittedIndex(raftMsg)
+
 		if pr.isLeader() && msg.From != 0 {
 			pr.replicaHeartbeatsMap.Store(msg.From, time.Now())
 		}
@@ -273,6 +283,10 @@ func (pr *replica) handleMessage(items []interface{}) bool {
 		pr.notifyWorker()
 	}
 	return true
+}
+
+func (pr *replica) updateReplicasCommittedIndex(msg meta.RaftMessage) {
+	pr.committedIndexes[msg.From.ID] = msg.CommitIndex
 }
 
 func (pr *replica) handleTick(items []interface{}) bool {

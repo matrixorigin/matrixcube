@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
@@ -34,13 +35,18 @@ type BasicCluster struct {
 	factory                 func() metadata.Resource
 	Containers              *CachedContainers
 	Resources               *CachedResources
-	RemovedResources        *roaring64.Bitmap
+	DestroyedResources      *roaring64.Bitmap
 	WaittingCreateResources map[uint64]metadata.Resource
+	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
 }
 
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *BasicCluster {
-	bc := &BasicCluster{factory: factory, logger: log.Adjust(logger)}
+	bc := &BasicCluster{
+		factory:            factory,
+		logger:             log.Adjust(logger),
+		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
+	}
 	bc.Reset()
 	return bc
 }
@@ -52,7 +58,7 @@ func (bc *BasicCluster) Reset() {
 
 	bc.Containers = NewCachedContainers()
 	bc.Resources = NewCachedResources(bc.factory)
-	bc.RemovedResources = roaring64.NewBitmap()
+	bc.DestroyedResources = roaring64.NewBitmap()
 	bc.WaittingCreateResources = make(map[uint64]metadata.Resource)
 }
 
@@ -60,7 +66,13 @@ func (bc *BasicCluster) Reset() {
 func (bc *BasicCluster) AddRemovedResources(ids ...uint64) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.RemovedResources.AddMany(ids)
+	bc.DestroyedResources.AddMany(ids)
+	for _, id := range ids {
+		res := bc.Resources.GetResource(id)
+		if res != nil {
+			bc.Resources.RemoveResource(res)
+		}
+	}
 }
 
 // AddWaittingCreateResources add waitting create resources
@@ -98,14 +110,31 @@ func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
 	return ok
 }
 
-// GetRemovedResources get removed state resources
-func (bc *BasicCluster) GetRemovedResources(bm *roaring64.Bitmap) []uint64 {
-	bc.Lock()
-	defer bc.Unlock()
+// AlreadyRemoved returns true means resource already removed
+func (bc *BasicCluster) AlreadyRemoved(id uint64) bool {
+	bc.RLock()
+	defer bc.RUnlock()
 
-	v := bc.RemovedResources.Clone()
-	v.And(bm)
-	return v.ToArray()
+	return bc.DestroyedResources.Contains(id)
+}
+
+// GetDestroyResources get destroyed and destroying state resources
+func (bc *BasicCluster) GetDestroyResources(bm *roaring64.Bitmap) (*roaring64.Bitmap, *roaring64.Bitmap) {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	// read destroyed resources
+	destroyed := bc.DestroyedResources.Clone()
+	destroyed.And(bm)
+
+	// read destroying resources
+	destroying := roaring64.New()
+	for id, res := range bc.Resources.resources.m {
+		if res.Meta.State() == metapb.ResourceState_Destroying && bm.Contains(id) {
+			destroying.Add(id)
+		}
+	}
+	return destroyed, destroying
 }
 
 // GetContainers returns all Containers in the cluster.
@@ -365,7 +394,9 @@ func (bc *BasicCluster) TakeContainer(containerID uint64) *CachedContainer {
 func (bc *BasicCluster) PreCheckPutResource(res *CachedResource) (*CachedResource, error) {
 	bc.RLock()
 	origin := bc.Resources.GetResource(res.Meta.ID())
-	if origin == nil || !bytes.Equal(origin.GetStartKey(), res.GetStartKey()) || !bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
+	if origin == nil ||
+		!bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
+		!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
 		for _, item := range bc.Resources.GetOverlaps(res) {
 			if res.Meta.Epoch().Version < item.Meta.Epoch().Version {
 				bc.RUnlock()
@@ -395,17 +426,22 @@ func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
 	bc.Lock()
 	defer bc.Unlock()
 
-	delete(bc.WaittingCreateResources, res.Meta.ID())
+	if _, ok := bc.WaittingCreateResources[res.Meta.ID()]; ok {
+		delete(bc.WaittingCreateResources, res.Meta.ID())
+		if res.Meta.State() == metapb.ResourceState_Creating {
+			res.Meta.SetState(metapb.ResourceState_Running)
+		}
+	}
 	return bc.Resources.SetResource(res)
 }
 
 // CheckAndPutResource checks if the resource is valid to put,if valid then put.
 func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
 	switch res.Meta.State() {
-	case metapb.ResourceState_Removed:
+	case metapb.ResourceState_Destroyed:
 		bc.AddRemovedResources(res.Meta.ID())
 		return nil
-	case metapb.ResourceState_WaittingCreate:
+	case metapb.ResourceState_Creating:
 		bc.AddWaittingCreateResources(res.Meta)
 		return nil
 	}
@@ -454,6 +490,29 @@ func (bc *BasicCluster) GetOverlaps(res *CachedResource) []*CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Resources.GetOverlaps(res)
+}
+
+// GetDestroyingStatus returns DestroyingStatus
+func (bc *BasicCluster) GetDestroyingStatus(id uint64) *metapb.DestroyingStatus {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	v, ok := bc.DestroyingStatuses[id]
+	if !ok {
+		return nil
+	}
+
+	cloneValue := &metapb.DestroyingStatus{}
+	protoc.MustUnmarshal(cloneValue, protoc.MustMarshal(v))
+	return cloneValue
+}
+
+// UpdateDestroyingStatus update DestroyingStatus
+func (bc *BasicCluster) UpdateDestroyingStatus(id uint64, status *metapb.DestroyingStatus) {
+	bc.Lock()
+	defer bc.Unlock()
+
+	bc.DestroyingStatuses[id] = status
 }
 
 // ResourceSetInformer provides access to a shared informer of resources.

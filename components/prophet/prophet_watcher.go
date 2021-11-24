@@ -60,10 +60,10 @@ func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watch
 }
 
 func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.Response, session goetty.IOSession) error {
-	wn.logger.Info("watcher added",
-		zap.String("address", session.RemoteAddr()))
-
 	if wn != nil {
+		wn.logger.Info("watcher added",
+			zap.String("address", session.RemoteAddr()))
+
 		wn.cluster.RLock()
 		defer wn.cluster.RUnlock()
 		if event.MatchEvent(event.EventInit, req.CreateWatcher.Flag) {

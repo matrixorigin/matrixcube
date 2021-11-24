@@ -32,13 +32,14 @@ func TestTryCheckSplit(t *testing.T) {
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
 	// check approximateSize
+	pr.replicaID = 1
 	pr.replica.ID = 1
 	pr.stats.approximateSize = 100
 	pr.cfg.Replication.ShardSplitCheckBytes = 200
 	assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
 
 	pr.cfg.Replication.ShardSplitCheckBytes = 99
-	pr.rn, _ = raft.NewRawNode(getRaftConfig(pr.replica.ID, 0, pr.lr, &pr.cfg, log.Adjust(nil)))
+	pr.rn, _ = raft.NewRawNode(getRaftConfig(pr.replicaID, 0, pr.lr, &pr.cfg, log.Adjust(nil)))
 	assert.True(t, pr.tryCheckSplit(action{actionType: checkSplitAction, actionCallback: func(v interface{}) {
 		assert.Equal(t, pr.getShard(), v)
 	}}))

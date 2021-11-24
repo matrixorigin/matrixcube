@@ -311,7 +311,13 @@ func (s *Storage) Sync() error {
 }
 
 func (s *Storage) Stats() stats.Stats {
-	return s.stats
+	return stats.Stats{
+		WrittenKeys:  atomic.LoadUint64(&s.stats.WrittenKeys),
+		WrittenBytes: atomic.LoadUint64(&s.stats.WrittenBytes),
+		ReadKeys:     atomic.LoadUint64(&s.stats.ReadKeys),
+		ReadBytes:    atomic.LoadUint64(&s.stats.ReadBytes),
+		SyncCount:    atomic.LoadUint64(&s.stats.SyncCount),
+	}
 }
 
 // NewWriteBatch create and returns write batch

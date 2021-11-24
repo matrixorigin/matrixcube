@@ -18,6 +18,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 
@@ -85,6 +86,11 @@ func (t *ShardTree) length() int {
 func (t *ShardTree) Update(shards ...meta.Shard) {
 	t.Lock()
 	for _, shard := range shards {
+		if shard.State == metapb.ResourceState_Destroyed ||
+			shard.State == metapb.ResourceState_Destroying {
+			continue
+		}
+
 		item := &ShardItem{Shard: shard}
 
 		result := t.find(shard)

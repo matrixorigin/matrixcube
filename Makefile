@@ -105,6 +105,10 @@ test: components-unit-test test-raftstore
 .PHONY: all-tests
 all-tests: components-unit-test test-all-raftstore
 
+.PHONY: pb
+pb:
+	cd $(ROOT_DIR)/pb; ./gen.sh; cd $(ROOT_DIR)/components/prophet/pb; ./gen.sh
+
 ###############################################################################
 # static checks
 ###############################################################################

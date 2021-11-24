@@ -89,7 +89,7 @@ func TestReplicaCanBeClosed(t *testing.T) {
 	r, closer := getCloseableReplica()
 	defer r.close()
 	defer closer()
-	hasEvent, err := r.handleEvent(nil)
+	// we just check whether the replica can be created and closed
+	_, err := r.handleEvent(nil)
 	assert.NoError(t, err)
-	assert.True(t, hasEvent)
 }

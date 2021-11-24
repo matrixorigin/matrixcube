@@ -77,7 +77,6 @@ type defaultProphet struct {
 	cfg            *config.Config
 	persistOptions *pconfig.PersistOptions
 	runner         *task.Runner
-	wn             *watcherNotifier
 	stopOnce       sync.Once
 
 	// about leader election
@@ -103,6 +102,11 @@ type defaultProphet struct {
 	jobMu struct {
 		sync.RWMutex
 		jobs map[metapb.JobType]metapb.Job
+	}
+
+	mu struct {
+		sync.RWMutex
+		wn *watcherNotifier
 	}
 }
 

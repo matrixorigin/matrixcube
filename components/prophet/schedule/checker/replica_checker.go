@@ -185,6 +185,10 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.
 	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
 		return nil
 	}
+	if res.IsDestroyState() {
+		return nil
+	}
+
 	r.cluster.GetLogger().Debug("resource's peers fewer than max replicas",
 		log.ResourceField(res.Meta.ID()),
 		zap.Int("peers", len(res.Meta.Peers())))
@@ -239,6 +243,10 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 		return nil
 	}
 
+	if res.IsDestroyState() {
+		return nil
+	}
+
 	strategy := r.strategy(res)
 	resourceContainers := r.cluster.GetResourceContainers(res)
 	oldContainer := strategy.SelectContainerToRemove(resourceContainers)
@@ -265,7 +273,8 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 
 func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, status string) *operator.Operator {
 	// Check the number of replicas first.
-	if len(res.GetVoters()) > r.opts.GetMaxReplicas() {
+	if len(res.GetVoters()) > r.opts.GetMaxReplicas() ||
+		res.IsDestroyState() {
 		removeExtra := fmt.Sprintf("remove-extra-%s-replica", status)
 		op, err := operator.CreateRemovePeerOperator(removeExtra, r.cluster, operator.OpReplica, res, containerID)
 		if err != nil {

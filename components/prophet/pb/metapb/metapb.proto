@@ -32,12 +32,20 @@ enum ContainerState {
 
 // ResourceState the resource state
 enum ResourceState {
-    // Running is serve state
+    // Running is serve state,
+    // this state provides read and write services to the public normally.
     Running        = 0;
-    // Create is the destory state
-    WaittingCreate = 1;
-    // Removed is the destory state
-    Removed        = 2;
+    // Creating is waiting to create state, 
+    // this state does not provide read and write services to the public.
+    Creating       = 1;
+    // Destroying is waiting to destroy state,
+    // this state normally cannot provide read and write services to the public, 
+    // and the destruction process of resources has not yet been completed.
+    Destroying     = 2;
+    // Destroyed is the destoryed state,
+    // this state is normally not available for external read and write services, 
+    // the resources have been destroyed in the whole cluster and cannot be used again.
+    Destroyed      = 3;
 }
 
 // ConfigChangeType change replica type
@@ -233,4 +241,12 @@ message ResourcePool {
     uint64 group       = 1;
     uint64 capacity    = 2;
     bytes  rangePrefix = 3;
+}
+
+// DestroyingStatus destroying status
+message DestroyingStatus {
+    uint64 index = 1;
+    map<uint64, bool> replicas  = 2;
+    ResourceState state = 3;
+    bool             removeData = 4;
 }
