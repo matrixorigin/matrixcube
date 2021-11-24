@@ -195,7 +195,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 	if pr.handleAction(pr.items) {
 		hasEvent = true
 	}
-	return true, nil
+	return hasEvent, nil
 }
 
 func (pr *replica) handleAction(items []interface{}) bool {
