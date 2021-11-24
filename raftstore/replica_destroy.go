@@ -101,6 +101,12 @@ func (s *store) cleanupTombstones(shards []Shard) {
 // vacuum is the actual method for handling a vacuum task.
 func (s *store) vacuum(t vacuumTask) error {
 	if t.replica != nil {
+		if t.replica.closed() {
+			// this can happen when PD request to remove a splitting shard. two vaccum
+			// tasks will be created, one for splitting and one for removal.
+			t.replica.logger.Info("skip vacuuming already closed replica")
+			return nil
+		}
 		if err := t.replica.destroy(t.shardRemoved, t.reason); err != nil {
 			return err
 		}
