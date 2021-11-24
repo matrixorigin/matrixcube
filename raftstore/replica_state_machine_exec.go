@@ -44,9 +44,35 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 		return d.doExecSplit(ctx)
 	case rpc.AdminCmdType_UpdateMetadata:
 		return d.doUpdateMetadata(ctx)
+	case rpc.AdminCmdType_CompactLog:
+		return d.doExecCompactLog(ctx)
 	}
 
 	return rpc.ResponseBatch{}, nil
+}
+
+func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, error) {
+	ctx.metrics.admin.compact++
+
+	req := ctx.req.AdminRequest.CompactLog
+	compactIndex := req.CompactIndex
+	firstIndex := d.getFirstIndex()
+
+	if compactIndex <= firstIndex {
+		return rpc.ResponseBatch{}, nil
+	}
+
+	if err := d.logdb.RemoveEntriesTo(d.shardID, d.replica.ID, compactIndex); err != nil {
+		d.logger.Fatal("failed to compact log",
+			zap.Uint64("compact-index", compactIndex))
+	}
+
+	d.setFirstIndex(compactIndex + 1)
+	resp := newAdminResponseBatch(rpc.AdminCmdType_CompactLog, &rpc.CompactLogResponse{})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_CompactLog,
+	}
+	return resp, nil
 }
 
 func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {

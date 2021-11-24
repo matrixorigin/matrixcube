@@ -56,6 +56,7 @@ type actionType int
 const (
 	campaignAction actionType = iota
 	checkSplitAction
+	checkCompactLogAction
 	splitAction
 	heartbeatAction
 	updateReadMetrics
@@ -337,4 +338,82 @@ func (pr *replica) prophetHeartbeat() {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
 	}
+}
+
+func (pr *replica) doCheckLogCompact() {
+	// Leader will replicate the compact log command to followers,
+	// If we use current replicated_index (like 10) as the compact index,
+	// when we replicate this log, the newest replicated_index will be 11,
+	// but we only compact the log to 10, not 11, at that time,
+	// the first index is 10, and replicated_index is 11, with an extra log,
+	// and we will do compact again with compact index 11, in cycles...
+	// So we introduce a threshold, if replicated index - first index > threshold,
+	// we will try to compact log.
+	// raft log entries[..............................................]
+	//                  ^                                       ^
+	//                  |-----------------threshold------------ |
+	//              first_index                         replicated_index
+
+	var replicatedIdx uint64
+	for _, p := range pr.rn.Status().Progress {
+		if replicatedIdx == 0 {
+			replicatedIdx = p.Match
+		}
+
+		if p.Match < replicatedIdx {
+			replicatedIdx = p.Match
+		}
+	}
+
+	// When an election happened or a new replica is added, replicatedIdx can be 0.
+	if replicatedIdx > 0 {
+		lastIdx := pr.rn.LastIndex()
+		if lastIdx < replicatedIdx {
+			pr.logger.Fatal("invalid replicated index",
+				zap.Uint64("replicated", replicatedIdx),
+				zap.Uint64("last", lastIdx))
+		}
+
+		metric.ObserveRaftLogLag(lastIdx - replicatedIdx)
+	}
+
+	var compactIdx uint64
+	appliedIdx := pr.appliedIndex
+	firstIdx := pr.getFirstLog()
+
+	if replicatedIdx < firstIdx ||
+		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
+		return
+	}
+
+	if appliedIdx > firstIdx &&
+		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
+		compactIdx = appliedIdx
+	} else if pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
+		compactIdx = appliedIdx
+	}
+
+	// Have no idea why subtract 1 here, but original code did this by magic.
+	if compactIdx == 0 {
+		pr.logger.Fatal("unexpect compactIdx",
+			zap.Uint64("compact", compactIdx))
+	}
+
+	if compactIdx > replicatedIdx {
+		pr.logger.Info("some replica lag is too large, maybe sent a snapshot later",
+			zap.Uint64("lag", compactIdx-replicatedIdx))
+	}
+
+	compactIdx--
+	if compactIdx < firstIdx {
+		// In case compactIdx == firstIdx before subtraction.
+		return
+	}
+
+	pr.addAdminRequest(rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_CompactLog,
+		CompactLog: &rpc.CompactLogRequest{
+			CompactIndex: compactIdx,
+		},
+	})
 }

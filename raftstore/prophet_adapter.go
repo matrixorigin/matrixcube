@@ -251,36 +251,6 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 	return newContainerAdapter()
 }
 
-func (s *store) doShardHeartbeat() {
-	s.forEachReplica(func(pr *replica) bool {
-		pr.addAction(action{actionType: heartbeatAction})
-		return true
-	})
-}
-
-func (s *store) doStoreHeartbeat(last time.Time) {
-	req, err := s.getStoreHeartbeat(last)
-	if err != nil {
-		return
-	}
-
-	rsp, err := s.pd.GetClient().ContainerHeartbeat(req)
-	if err != nil {
-		s.logger.Error("fail to send store heartbeat",
-			s.storeField(),
-			zap.Error(err))
-		return
-	}
-	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
-		err := s.cfg.Customize.CustomStoreHeartbeatDataProcessor.HandleHeartbeatRsp(rsp.Data)
-		if err != nil {
-			s.logger.Error("fail to handle store heartbeat rsp data",
-				s.storeField(),
-				zap.Error(err))
-		}
-	}
-}
-
 func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, error) {
 	stats := metapb.ContainerStats{}
 	stats.ContainerID = s.Meta().ID

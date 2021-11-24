@@ -48,16 +48,15 @@ type replicaGetter interface {
 }
 
 type replica struct {
-	logger                *zap.Logger
-	storeID               uint64
-	shardID               uint64
-	replicaID             uint64
-	replica               Replica
-	group                 uint64
-	startedC              chan struct{}
-	disableCompactProtect bool
-	rn                    *raft.RawNode
-	leaderID              uint64
+	logger    *zap.Logger
+	storeID   uint64
+	shardID   uint64
+	replicaID uint64
+	replica   Replica
+	group     uint64
+	startedC  chan struct{}
+	rn        *raft.RawNode
+	leaderID  uint64
 	// FIXME: decouple replica from store
 	store     *store
 	transport transport.Trans
@@ -165,13 +164,6 @@ func (pr *replica) start() {
 		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
-	for _, g := range pr.cfg.Raft.RaftLog.DisableCompactProtect {
-		if shard.Group == g {
-			pr.disableCompactProtect = true
-			break
-		}
-	}
-
 	if err := pr.snapshotter.prepareReplicaSnapshotDir(); err != nil {
 		pr.logger.Fatal("failed to create replica snapshot dir",
 			zap.Error(err))
@@ -269,6 +261,10 @@ func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
 }
 
+func (pr *replica) getFirstLog() uint64 {
+	return pr.sm.getFirstIndex()
+}
+
 func (pr *replica) getShardID() uint64 {
 	return pr.shardID
 }
@@ -330,6 +326,7 @@ func (pr *replica) initLogState() (bool, error) {
 		zap.Uint64("term", rs.State.Term))
 	pr.lr.SetRange(rs.FirstIndex, rs.EntryCount)
 	pr.lastCommittedIndex = rs.State.Commit
+	pr.sm.setFirstIndex(rs.FirstIndex)
 	return !(rs.EntryCount > 0 || hasRaftHardState), nil
 }
 

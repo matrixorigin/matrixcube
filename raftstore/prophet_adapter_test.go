@@ -111,38 +111,6 @@ func TestContainerAdapter(t *testing.T) {
 	assert.Equal(t, ca, cv)
 }
 
-func TestDoShardHeartbeat(t *testing.T) {
-	cases := []struct {
-		pr        *replica
-		action    action
-		hasAction bool
-	}{
-		{
-			pr:        &replica{leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: false,
-		},
-		{
-			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: true,
-			action:    action{actionType: heartbeatAction},
-		},
-	}
-
-	for _, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		c.pr.store = s
-		c.pr.replicaID = c.pr.replica.ID
-		close(c.pr.startedC)
-		s.addReplica(c.pr)
-		s.doShardHeartbeat()
-		if c.hasAction {
-			v, err := c.pr.actions.Peek()
-			assert.NoError(t, err)
-			assert.Equal(t, c.action, v)
-		}
-	}
-}
-
 func TestGetStoreHeartbeat(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	s.addReplica(&replica{shardID: 1})
