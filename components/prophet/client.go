@@ -680,19 +680,24 @@ func (c *asyncClient) doWrite(ctx *ctx) {
 
 func (c *asyncClient) resetLeaderConn() error {
 	c.leaderConn.Close()
-	return c.initLeaderConn(c.leaderConn, c.opts.rpcTimeout, true)
+	addr, err := c.initLeaderConn(c.leaderConn, c.opts.rpcTimeout, true)
+	if err != nil {
+		return err
+	}
+	c.currentLeader = addr
+	return nil
 }
 
-func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) error {
+func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) (string, error) {
 	addr := ""
 	for {
 		if !c.running() {
-			return ErrClosed
+			return "", ErrClosed
 		}
 
 		select {
 		case <-time.After(timeout):
-			return ErrTimeout
+			return "", ErrTimeout
 		default:
 			leader := c.opts.leaderGetter()
 			if leader != nil {
@@ -709,7 +714,6 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 						c.maybeRegisterContainer()
 					}
 
-					c.currentLeader = addr
 					c.opts.logger.Info("connect to leader succeed",
 						zap.String("leader", addr))
 					if registerContainer {
@@ -720,7 +724,7 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 						}
 					}
 
-					return nil
+					return addr, nil
 				}
 
 				c.opts.logger.Error("fail to init leader connection, retry later",
