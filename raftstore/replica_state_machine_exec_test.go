@@ -256,3 +256,9 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
 }
+
+func TestDoExecCompactLog(t *testing.T) {
+	// s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	// pr := newTestReplica(Shard{ID: 1}, Replica{ID: 2}, s)
+
+}

@@ -137,16 +137,30 @@ func TestDoCheckCompactLog(t *testing.T) {
 	}, 102)
 	assert.Equal(t, int64(0), pr.requests.Len())
 
-	// // check approximateSize
-	// pr.replicaID = 1
-	// pr.replica.ID = 1
-	// pr.stats.approximateSize = 100
-	// pr.cfg.Replication.ShardSplitCheckBytes = 200
-	// assert.False(t, pr.tryCheckSplit(action{actionType: checkSplitAction}))
+	// force count
+	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
+	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1000
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.stats.raftLogSizeHint = 0
+	pr.sm.setFirstIndex(99)
+	pr.appliedIndex = 101
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 101)
+	v, _ := pr.requests.Peek()
+	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
 
-	// pr.cfg.Replication.ShardSplitCheckBytes = 99
-	// pr.rn, _ = raft.NewRawNode(getRaftConfig(pr.replicaID, 0, pr.lr, &pr.cfg, log.Adjust(nil)))
-	// assert.True(t, pr.tryCheckSplit(action{actionType: checkSplitAction, actionCallback: func(v interface{}) {
-	// 	assert.Equal(t, pr.getShard(), v)
-	// }}))
+	// force bytes
+	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000
+	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.stats.raftLogSizeHint = 1
+	pr.requests = task.New(32)
+	pr.sm.setFirstIndex(99)
+	pr.appliedIndex = 101
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 101)
+	v, _ = pr.requests.Peek()
+	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
 }
