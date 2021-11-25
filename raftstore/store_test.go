@@ -105,7 +105,7 @@ func TestStoreSelectShard(t *testing.T) {
 
 func TestStoreRemoveReplica(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-	aware := newTestShardAware()
+	aware := newTestShardAware(0)
 	s.aware = aware
 	pr := &replica{shardID: 1, sm: &stateMachine{}}
 	pr.sm.metadataMu.shard = Shard{ID: 1}
