@@ -14,10 +14,12 @@
 package raftstore
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -91,6 +93,58 @@ func TestCanAppendCmd(t *testing.T) {
 		}
 		assert.Equal(t, tt.canAppend, cmd.canBatches(req))
 	}
+}
+
+func TestBatchResp(t *testing.T) {
+	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
+		assert.True(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+
+		rsp := rb.Responses[0]
+		assert.Equal(t, "id", string(rsp.ID))
+		assert.Equal(t, "key", string(rsp.Key))
+		assert.Equal(t, int64(2), rsp.PID)
+		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
+		assert.Equal(t, "value", string(rsp.Value))
+	})
+	b.resp(rpc.ResponseBatch{Responses: []rpc.Response{{Value: []byte("value")}}})
+}
+
+func TestBatchRespWithError(t *testing.T) {
+	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
+		assert.False(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+
+		rsp := rb.Responses[0]
+		assert.Equal(t, "id", string(rsp.ID))
+		assert.Equal(t, "key", string(rsp.Key))
+		assert.Equal(t, int64(2), rsp.PID)
+		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
+		assert.Empty(t, rsp.Value)
+		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rsp.Error)
+		assert.NotNil(t, rsp.Request)
+	})
+
+	b.resp(errorOtherCMDResp(errors.New("error resp")))
+}
+
+func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType, pid int64, cb func(rpc.ResponseBatch)) batch {
+	return newBatch(nil,
+		rpc.RequestBatch{
+			Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+			Requests: []rpc.Request{
+				{
+					ID:         []byte(id),
+					PID:        pid,
+					Key:        []byte(key),
+					CustomType: customType,
+					Type:       cmdType,
+				},
+			},
+		},
+		cb,
+		0,
+		0)
 }
 
 // TODO: add more tests for cmd.go

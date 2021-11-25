@@ -36,7 +36,7 @@ type batch struct {
 
 func newBatch(logger *zap.Logger, requestBatch rpc.RequestBatch, cb func(rpc.ResponseBatch), tp int, byteSize int) batch {
 	return batch{
-		logger:       logger,
+		logger:       log.Adjust(logger),
 		requestBatch: requestBatch,
 		cb:           cb,
 		tp:           tp,
@@ -79,6 +79,7 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 
 				for _, req := range c.requestBatch.Requests {
 					rsp := rpc.Response{
+						Type:    req.Type,
 						ID:      req.ID,
 						PID:     req.PID,
 						Key:     req.Key,
@@ -95,15 +96,15 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 				}
 			}
 
-			if ce := c.logger.Check(zap.DebugLevel, "response to client"); ce != nil {
-				ce.Write(log.ResponseBatchField("responses", resp))
+			if !resp.Header.IsEmpty() {
+				for idx := range resp.Responses {
+					resp.Responses[idx].Request = &c.requestBatch.Requests[idx]
+					resp.Responses[idx].Error = resp.Header.Error
+				}
 			}
 
-			if !resp.Header.IsEmpty() {
-				for idx, rsp := range resp.Responses {
-					rsp.Request = &c.requestBatch.Requests[idx]
-					rsp.Error = resp.Header.Error
-				}
+			if ce := c.logger.Check(zap.DebugLevel, "response to client"); ce != nil {
+				ce.Write(log.ResponseBatchField("responses", resp))
 			}
 		}
 
