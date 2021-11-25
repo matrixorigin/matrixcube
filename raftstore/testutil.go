@@ -183,6 +183,7 @@ func recreateTestTempDir(fs vfs.FS, tmpDir string) {
 type testShardAware struct {
 	sync.RWMutex
 
+	node         int
 	wrapper      aware.ShardStateAware
 	shards       []Shard
 	leaders      map[uint64]bool
@@ -192,8 +193,9 @@ type testShardAware struct {
 	removed map[uint64]Shard
 }
 
-func newTestShardAware() *testShardAware {
+func newTestShardAware(node int) *testShardAware {
 	return &testShardAware{
+		node:         node,
 		leaders:      make(map[uint64]bool),
 		applied:      make(map[uint64]int),
 		removed:      make(map[uint64]Shard),
@@ -210,7 +212,8 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
+			assert.FailNowf(t, "", "wait shard %d removed at node %d timeout",
+				id, ts.node)
 		default:
 			if !ts.hasShard(id) {
 				assert.Equal(t, metapb.ResourceState_Destroyed, ts.removed[id].State)
@@ -226,7 +229,9 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shard count %d timeout", count)
+			assert.FailNowf(t, "", "wait shards count %d at node %d timeout",
+				count,
+				ts.node)
 		default:
 			if ts.shardCount() >= count {
 				return
@@ -241,7 +246,10 @@ func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count i
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shard %d split count %d timeout", id, count)
+			assert.FailNowf(t, "", "wait shard %d split count %d at node %d timeout",
+				id,
+				count,
+				ts.node)
 		default:
 			if ts.shardSplitedCount(id) >= count {
 				return
@@ -776,7 +784,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			c.dataStorages = append(c.dataStorages, dataStorage)
 		}
 
-		ts := newTestShardAware()
+		ts := newTestShardAware(i)
 		cfg.Test.ShardStateAware = ts
 
 		var s *store
@@ -988,8 +996,8 @@ func (c *testRaftCluster) WaitShardSplitByCount(id uint64, count int, timeout ti
 }
 
 func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration) {
-	for idx := range c.stores {
-		c.awares[idx].waitByShardCount(c.t, counts[idx], timeout)
+	for idx, n := range counts {
+		c.awares[idx].waitByShardCount(c.t, n, timeout)
 	}
 }
 

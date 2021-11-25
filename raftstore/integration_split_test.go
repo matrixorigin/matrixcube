@@ -175,7 +175,8 @@ func TestSplitWithCase2(t *testing.T) {
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
 
-	sid := prepareSplit(t, c, []int{0, 1}, []int{2, 2, 1})
+	// only check node0, node1's shard count.
+	sid := prepareSplit(t, c, []int{0, 1}, []int{2, 2})
 	c.EveryStore(func(index int, store Store) {
 		v := 2
 		if index == 2 {
