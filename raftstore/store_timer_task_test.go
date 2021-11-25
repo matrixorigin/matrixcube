@@ -16,10 +16,13 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleShardHeartbeatTask(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		shard     Shard
 		replica   Replica
@@ -55,6 +58,8 @@ func TestHandleShardHeartbeatTask(t *testing.T) {
 }
 
 func TestHandleSplitCheckTask(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		shard     Shard
 		replica   Replica
@@ -101,6 +106,8 @@ func TestHandleSplitCheckTask(t *testing.T) {
 }
 
 func TestHandleCompactLogTask(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		shard     Shard
 		replica   Replica

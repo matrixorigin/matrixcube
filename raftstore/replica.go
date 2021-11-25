@@ -261,7 +261,7 @@ func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
 }
 
-func (pr *replica) getFirstLog() uint64 {
+func (pr *replica) getFirstIndex() uint64 {
 	return pr.sm.getFirstIndex()
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
 )
 
@@ -228,6 +229,8 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			pr.doCheckLogCommitted(act)
 		case checkLogAppliedAction:
 			pr.doCheckLogApplied(act)
+		case checkCompactLogAction:
+			pr.doCheckLogCompact(pr.rn.Status().Progress, pr.rn.LastIndex())
 		}
 	}
 
@@ -340,7 +343,11 @@ func (pr *replica) prophetHeartbeat() {
 	}
 }
 
-func (pr *replica) doCheckLogCompact() {
+func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, lastIndex uint64) {
+	if !pr.isLeader() {
+		return
+	}
+
 	// Leader will replicate the compact log command to followers,
 	// If we use current replicated_index (like 10) as the compact index,
 	// when we replicate this log, the newest replicated_index will be 11,
@@ -354,58 +361,57 @@ func (pr *replica) doCheckLogCompact() {
 	//                  |-----------------threshold------------ |
 	//              first_index                         replicated_index
 
-	var replicatedIdx uint64
-	for _, p := range pr.rn.Status().Progress {
-		if replicatedIdx == 0 {
-			replicatedIdx = p.Match
+	var minReplicatedIndex uint64
+	for _, p := range progresses {
+		if minReplicatedIndex == 0 {
+			minReplicatedIndex = p.Match
 		}
 
-		if p.Match < replicatedIdx {
-			replicatedIdx = p.Match
+		if p.Match < minReplicatedIndex {
+			minReplicatedIndex = p.Match
 		}
 	}
 
 	// When an election happened or a new replica is added, replicatedIdx can be 0.
-	if replicatedIdx > 0 {
-		lastIdx := pr.rn.LastIndex()
-		if lastIdx < replicatedIdx {
+	if minReplicatedIndex > 0 {
+		if lastIndex < minReplicatedIndex {
 			pr.logger.Fatal("invalid replicated index",
-				zap.Uint64("replicated", replicatedIdx),
-				zap.Uint64("last", lastIdx))
+				zap.Uint64("replicated", minReplicatedIndex),
+				zap.Uint64("last", lastIndex))
 		}
 
-		metric.ObserveRaftLogLag(lastIdx - replicatedIdx)
+		metric.ObserveRaftLogLag(lastIndex - minReplicatedIndex)
 	}
 
-	var compactIdx uint64
-	appliedIdx := pr.appliedIndex
-	firstIdx := pr.getFirstLog()
+	var compactIndex uint64
+	appliedIndex := pr.appliedIndex
+	firstIndex := pr.getFirstIndex()
 
-	if replicatedIdx < firstIdx ||
-		replicatedIdx-firstIdx <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
+	if minReplicatedIndex < firstIndex ||
+		minReplicatedIndex-firstIndex <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
 		return
 	}
 
-	if appliedIdx > firstIdx &&
-		appliedIdx-firstIdx >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
-		compactIdx = appliedIdx
+	if appliedIndex > firstIndex &&
+		appliedIndex-firstIndex >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
+		compactIndex = appliedIndex
 	} else if pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
-		compactIdx = appliedIdx
+		compactIndex = appliedIndex
 	}
 
 	// Have no idea why subtract 1 here, but original code did this by magic.
-	if compactIdx == 0 {
+	if compactIndex == 0 {
 		pr.logger.Fatal("unexpect compactIdx",
-			zap.Uint64("compact", compactIdx))
+			zap.Uint64("compact", compactIndex))
 	}
 
-	if compactIdx > replicatedIdx {
+	if compactIndex > minReplicatedIndex {
 		pr.logger.Info("some replica lag is too large, maybe sent a snapshot later",
-			zap.Uint64("lag", compactIdx-replicatedIdx))
+			zap.Uint64("lag", compactIndex-minReplicatedIndex))
 	}
 
-	compactIdx--
-	if compactIdx < firstIdx {
+	compactIndex--
+	if compactIndex < firstIndex {
 		// In case compactIdx == firstIdx before subtraction.
 		return
 	}
@@ -413,7 +419,7 @@ func (pr *replica) doCheckLogCompact() {
 	pr.addAdminRequest(rpc.AdminRequest{
 		CmdType: rpc.AdminCmdType_CompactLog,
 		CompactLog: &rpc.CompactLogRequest{
-			CompactIndex: compactIdx,
+			CompactIndex: compactIndex,
 		},
 	})
 }
