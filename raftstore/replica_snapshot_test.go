@@ -114,6 +114,38 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 	runReplicaSnapshotTest(t, fn, fs)
 }
 
+func TestReplicaSnapshotCanBeApplied(t *testing.T) {
+	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
+		// reset the data storage
+		dsMem := mem.NewStorage()
+		base := kv.NewBaseStorage(dsMem, fs)
+		ds := kv.NewKVDataStorage(base, nil)
+		defer ds.Close()
+		shard := Shard{ID: 1}
+		replicaRec := Replica{ID: 1}
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+
+		assert.NoError(t, r.applySnapshot(ss))
+		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
+		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
+		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+
+		sms, err := r.sm.dataStorage.GetInitialStates()
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(sms))
+		assert.Equal(t, shard, sms[0].Metadata.Shard)
+	}
+	fs := vfs.GetTestFS()
+	runReplicaSnapshotTest(t, fn, fs)
+}
+
 func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
 		ss1, created, err := r.createSnapshot()

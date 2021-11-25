@@ -63,6 +63,9 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	if err := pr.appendEntries(rd); err != nil {
 		return err
 	}
+	if err := pr.onSnapshotSaved(rd); err != nil {
+		return err
+	}
 	pr.sendRaftMessages(rd)
 	if err := pr.applyCommittedEntries(rd); err != nil {
 		return err
@@ -77,6 +80,14 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 			log.ReplicaIDField(pr.replicaID))
 	}
 
+	return nil
+}
+
+func (pr *replica) onSnapshotSaved(rd raft.Ready) error {
+	if !raft.IsEmptySnap(rd.Snapshot) {
+		env := pr.snapshotter.getRecoverSnapshotEnv(rd.Snapshot)
+		return env.RemoveFlagFile()
+	}
 	return nil
 }
 
@@ -149,10 +160,14 @@ func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
 }
 
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
+	if !raft.IsEmptySnap(rd.Snapshot) {
+		if err := pr.applySnapshot(rd.Snapshot); err != nil {
+			return err
+		}
+	}
 	for _, entry := range rd.CommittedEntries {
 		pr.stats.raftLogSizeHint += uint64(len(entry.Data))
 	}
-
 	if len(rd.CommittedEntries) > 0 {
 		if err := pr.doApplyCommittedEntries(rd.CommittedEntries); err != nil {
 			return err

@@ -23,6 +23,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -67,6 +69,7 @@ func getCloseableReplica() (*replica, func()) {
 		replica:           r,
 		shardID:           shardID,
 		rn:                rn,
+		logdb:             ldb,
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(l, 0, shardID, r),
 		pendingReads:      &readIndexQueue{shardID: shardID, logger: l},
@@ -92,4 +95,42 @@ func TestReplicaCanBeClosed(t *testing.T) {
 	// we just check whether the replica can be created and closed
 	_, err := r.handleEvent(nil)
 	assert.NoError(t, err)
+}
+
+func TestApplyInitialSnapshot(t *testing.T) {
+	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
+		rd := raft.Ready{Snapshot: ss}
+		assert.NoError(t, r.logdb.SaveRaftState(1, 1, rd, r.logdb.NewWorkerContext()))
+		// reset the data storage
+		dsMem := mem.NewStorage()
+		base := kv.NewBaseStorage(dsMem, fs)
+		ds := kv.NewKVDataStorage(base, nil)
+		defer ds.Close()
+		shard := Shard{ID: 1}
+		replicaRec := Replica{ID: 1}
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+
+		assert.False(t, r.initialized)
+		hasEvent, err := r.handleEvent(r.logdb.NewWorkerContext())
+		assert.NoError(t, err)
+		assert.True(t, hasEvent)
+		assert.True(t, r.initialized)
+		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
+		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
+		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+
+		sms, err := r.sm.dataStorage.GetInitialStates()
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(sms))
+		assert.Equal(t, shard, sms[0].Metadata.Shard)
+	}
+	fs := vfs.GetTestFS()
+	runReplicaSnapshotTest(t, fn, fs)
 }

@@ -182,6 +182,13 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 	default:
 	}
 
+	hasEvent, err = pr.handleInitializedState()
+	if err != nil {
+		return hasEvent, err
+	}
+	if hasEvent {
+		return hasEvent, nil
+	}
 	if pr.handleMessage(pr.items) {
 		hasEvent = true
 	}
@@ -207,6 +214,29 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 		hasEvent = true
 	}
 	return hasEvent, nil
+}
+
+func (pr *replica) handleInitializedState() (bool, error) {
+	if pr.initialized {
+		return false, nil
+	}
+	pr.initialized = true
+	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err != nil {
+		if err == logdb.ErrNoSnapshot {
+			return false, nil
+		}
+	}
+	if raft.IsEmptySnap(ss) {
+		return false, nil
+	}
+	index, _ := pr.sm.getAppliedIndexTerm()
+	if ss.Metadata.Index > index {
+		if err := pr.applySnapshot(ss); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func (pr *replica) handleAction(items []interface{}) bool {
