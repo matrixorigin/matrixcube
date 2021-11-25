@@ -88,16 +88,15 @@ type Client interface {
 type asyncClient struct {
 	opts *options
 
-	containerID   uint64
-	adapter       metadata.Adapter
-	id            uint64
-	contexts      sync.Map // id -> request
-	leaderConn    goetty.IOSession
-	currentLeader string
+	containerID uint64
+	adapter     metadata.Adapter
+	id          uint64
+	contexts    sync.Map // id -> request
+	leaderConn  goetty.IOSession
 
 	ctx                   context.Context
 	cancel                context.CancelFunc
-	resetReadC            chan struct{}
+	resetReadC            chan string
 	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
 	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
@@ -114,7 +113,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		opts:                  &options{},
 		adapter:               adapter,
 		leaderConn:            createConn(),
-		resetReadC:            make(chan struct{}),
+		resetReadC:            make(chan string),
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
 		resourceHeartbeatRspC: make(chan rpcpb.ResourceHeartbeatRsp, 128),
@@ -619,14 +618,14 @@ OUTER:
 				return true
 			})
 			return
-		case _, ok := <-c.resetReadC:
+		case leader, ok := <-c.resetReadC:
 			if ok {
 				c.opts.logger.Info("read loop actived, ready to read from leader")
 				for {
 					msg, err := c.leaderConn.Read()
 					if err != nil {
 						c.opts.logger.Error("fail to read resp from leader",
-							zap.String("leader", c.currentLeader),
+							zap.String("leader", leader),
 							zap.Error(err))
 						if !c.scheduleResetLeaderConn() {
 							return
@@ -698,12 +697,8 @@ func (c *asyncClient) doWrite(ctx *ctx) {
 
 func (c *asyncClient) resetLeaderConn() error {
 	c.leaderConn.Close()
-	addr, err := c.initLeaderConn(c.leaderConn, c.opts.rpcTimeout, true)
-	if err != nil {
-		return err
-	}
-	c.currentLeader = addr
-	return nil
+	_, err := c.initLeaderConn(c.leaderConn, c.opts.rpcTimeout, true)
+	return err
 }
 
 func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) (string, error) {
@@ -736,7 +731,7 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 						zap.String("leader", addr))
 					if registerContainer {
 						select {
-						case c.resetReadC <- struct{}{}:
+						case c.resetReadC <- addr:
 						case <-time.After(time.Second * 10):
 							c.opts.logger.Fatal("BUG: active read loop timeout")
 						}
