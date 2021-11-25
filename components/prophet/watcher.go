@@ -100,12 +100,12 @@ func (w *watcher) watchDog() {
 }
 
 func (w *watcher) resetConn() error {
-	err := w.client.initLeaderConn(w.conn, w.client.opts.rpcTimeout, false)
+	leader, err := w.client.initLeaderConn(w.conn, w.client.opts.rpcTimeout, false)
 	if err != nil {
 		return err
 	}
 	w.logger.Info("connect to leader succeed",
-		zap.String("leader-address", w.conn.RemoteAddr()))
+		zap.String("leader-address", leader))
 	return w.conn.WriteAndFlush(&rpcpb.Request{
 		Type: rpcpb.TypeCreateWatcherReq,
 		CreateWatcher: rpcpb.CreateWatcherReq{
