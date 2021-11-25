@@ -635,38 +635,56 @@ OUTER:
 					}
 
 					resp := msg.(*rpcpb.Response)
-					v, ok := c.contexts.Load(resp.ID)
 					if resp.Error != "" && util.IsNotLeaderError(resp.Error) {
 						if !c.scheduleResetLeaderConn() {
 							return
 						}
 
 						// retry
-						if ok && v != nil {
-							v.(*ctx).done(nil, util.ErrNotLeader)
-						}
+						c.requestDoneWithRetry(resp)
 						continue OUTER
 					}
 
-					if resp.Type == rpcpb.TypeResourceHeartbeatRsp && resp.Error == "" && resp.ResourceHeartbeat.ResourceID > 0 {
-						c.opts.logger.Debug("resource heartbeat response added",
-							zap.Uint64("resource", resp.ResourceHeartbeat.ResourceID))
-						c.resourceHeartbeatRspC <- resp.ResourceHeartbeat
+					if c.maybeAddResourceHeartbeatResp(resp) {
 						continue
 					}
 
-					if ok && v != nil {
-						c.contexts.Delete(resp.ID)
-						if resp.Error != "" {
-							v.(*ctx).done(nil, errors.New(resp.Error))
-						} else {
-							v.(*ctx).done(resp, nil)
-						}
-					}
+					c.requestDone(resp)
 				}
 			}
 		}
 	}
+}
+
+func (c *asyncClient) requestDoneWithRetry(resp *rpcpb.Response) {
+	v, ok := c.contexts.Load(resp.ID)
+	if ok && v != nil {
+		v.(*ctx).done(nil, util.ErrNotLeader)
+	}
+}
+
+func (c *asyncClient) requestDone(resp *rpcpb.Response) {
+	v, ok := c.contexts.Load(resp.ID)
+	if ok && v != nil {
+		c.contexts.Delete(resp.ID)
+		if resp.Error != "" {
+			v.(*ctx).done(nil, errors.New(resp.Error))
+		} else {
+			v.(*ctx).done(resp, nil)
+		}
+	}
+}
+
+func (c *asyncClient) maybeAddResourceHeartbeatResp(resp *rpcpb.Response) bool {
+	if resp.Type == rpcpb.TypeResourceHeartbeatRsp &&
+		resp.Error == "" &&
+		resp.ResourceHeartbeat.ResourceID > 0 {
+		c.opts.logger.Debug("resource heartbeat response added",
+			zap.Uint64("resource", resp.ResourceHeartbeat.ResourceID))
+		c.resourceHeartbeatRspC <- resp.ResourceHeartbeat
+		return true
+	}
+	return false
 }
 
 func (c *asyncClient) doWrite(ctx *ctx) {
