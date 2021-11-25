@@ -43,6 +43,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 const (
@@ -64,14 +66,18 @@ type ContainerResolver func(storeID uint64) (metadata.Container, error)
 
 type MessageHandler func(meta.RaftMessageBatch)
 
+type SnapshotChunkHandler func(meta.SnapshotChunk) bool
+
 type UnreachableHandler func(uint64, uint64)
 
-type NodeInfo struct {
+type SnapshotStatusHandler func(uint64, uint64, bool)
+
+type nodeInfo struct {
 	ShardID   uint64
 	ReplicaID uint64
 }
 
-type nodeMap map[NodeInfo]struct{}
+type nodeMap map[nodeInfo]struct{}
 
 // Connection is the interface used by the transport module for sending Raft
 // messages. Each Connection works for a specified target store instance,
@@ -85,6 +91,19 @@ type Connection interface {
 	// best possible performance, but out of order delivery is allowed at the
 	// cost of reduced performance.
 	SendMessageBatch(batch meta.RaftMessageBatch) error
+}
+
+// SnapshotConnection is the interface used by the transport module for sending
+// snapshot chunks. Each SnapshotConnection works for a specified target
+// store instance.
+type SnapshotConnection interface {
+	// Close closes the SnapshotConnection instance.
+	Close()
+	// SendChunk sends the snapshot chunk to the target. It is
+	// recommended to have the snapshot chunk delivered in order for the best
+	// performance, but out of order delivery is allowed at the cost of reduced
+	// performance.
+	SendChunk(chunk meta.SnapshotChunk) error
 }
 
 // TransImpl is the interface to be implemented by a customized transport
@@ -102,6 +121,10 @@ type TransImpl interface {
 	// GetConnection returns an Connection instance used for sending messages
 	// to the specified target store instance.
 	GetConnection(ctx context.Context, target string) (Connection, error)
+	// GetSnapshotConnection returns an Connection instance used for transporting
+	// snapshots to the specified store instance.
+	GetSnapshotConnection(ctx context.Context,
+		target string) (SnapshotConnection, error)
 }
 
 type targetInfo struct {
@@ -116,35 +139,59 @@ type Transport struct {
 		queues   map[string]chan meta.RaftMessage
 		breakers map[string]*circuit.Breaker
 	}
-	logger      *zap.Logger
-	addr        string
-	storeID     uint64
-	ctx         context.Context
-	cancel      context.CancelFunc
-	handler     MessageHandler
-	unreachable UnreachableHandler
-	resolver    ContainerResolver
-	trans       TransImpl
-	stopper     *syncutil.Stopper
-	addrs       sync.Map // storeID -> targetInfo
-	addrsRevert sync.Map // addr -> storeID
+	logger         *zap.Logger
+	addr           string
+	storeID        uint64
+	jobs           uint64
+	ctx            context.Context
+	cancel         context.CancelFunc
+	handler        MessageHandler
+	unreachable    UnreachableHandler
+	snapshotStatus SnapshotStatusHandler
+	resolver       ContainerResolver
+	trans          TransImpl
+	dir            snapshot.SnapshotDirFunc
+	chunks         *Chunk
+	stopper        *syncutil.Stopper
+	addrs          sync.Map // storeID -> targetInfo
+	addrsRevert    sync.Map // addr -> storeID
+	fs             vfs.FS
 }
 
 func NewTransport(logger *zap.Logger, addr string,
 	storeID uint64, handler MessageHandler,
-	unreachable UnreachableHandler, resolver ContainerResolver) *Transport {
+	unreachable UnreachableHandler, snapshotStatus SnapshotStatusHandler,
+	dir snapshot.SnapshotDirFunc,
+	resolver ContainerResolver, fs vfs.FS) *Transport {
 	t := &Transport{
-		logger:      logger,
-		storeID:     storeID,
-		handler:     handler,
-		unreachable: unreachable,
-		resolver:    resolver,
-		stopper:     syncutil.NewStopper(),
+		logger:         logger,
+		storeID:        storeID,
+		handler:        handler,
+		unreachable:    unreachable,
+		snapshotStatus: snapshotStatus,
+		dir:            dir,
+		resolver:       resolver,
+		stopper:        syncutil.NewStopper(),
+		fs:             fs,
 	}
-	t.trans = NewTCPTransport(logger, addr, handler)
+	t.chunks = NewChunk(t.logger, t.handler, t.dir, fs)
+	t.trans = NewTCPTransport(logger, addr, handler, t.chunks.Add)
 	t.mu.queues = make(map[string]chan meta.RaftMessage)
 	t.mu.breakers = make(map[string]*circuit.Breaker)
 	t.ctx, t.cancel = context.WithCancel(context.Background())
+
+	t.stopper.RunWorker(func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				t.chunks.Tick()
+			case <-t.stopper.ShouldStop():
+				return
+			}
+		}
+	})
 
 	return t
 }
@@ -272,7 +319,7 @@ func (t *Transport) processMessages(addr string,
 		case <-idleTimer.C:
 			return nil
 		case req := <-ch:
-			n := NodeInfo{
+			n := nodeInfo{
 				ShardID:   req.ShardID,
 				ReplicaID: req.From.ID,
 			}

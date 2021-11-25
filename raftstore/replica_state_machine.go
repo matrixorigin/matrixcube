@@ -147,6 +147,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	// in the loop below, we are still applying entries one by one.
 	for _, entry := range entries {
 		d.applyCtx.initialize(entry)
+		d.checkEntryIndexTerm(entry)
 		// notify all clients that current shard has been removed or splitted
 		if !d.canApply(entry) {
 			if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
@@ -155,9 +156,9 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 					log.ReasonField("continue check failed"))
 			}
 			d.notifyShardRemoved(d.applyCtx)
+			d.updateAppliedIndexTerm(entry.Index, entry.Term)
 			continue
 		}
-		d.checkEntryIndexTerm(entry)
 		if len(entry.Data) == 0 {
 			// noop entry with empty payload proposed by the leader at the beginning
 			// of its term

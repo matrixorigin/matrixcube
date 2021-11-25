@@ -444,6 +444,53 @@ func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 	runSimpleStateMachineTest(t, f, h)
 }
 
+func TestStateMachineUpdatesAppliedIndexAfterSkippingEntries(t *testing.T) {
+	h := &testReplicaResultHandler{}
+	f := func(sm *stateMachine) {
+		batch := rpc.RequestBatch{
+			Header: rpc.RequestBatchHeader{
+				ID: []byte{0x1, 0x2, 0x3},
+				// ShardID missing here, this will cause the epoch check to fail
+			},
+			AdminRequest: rpc.AdminRequest{
+				CmdType:      rpc.AdminCmdType_ConfigChange,
+				ConfigChange: &rpc.ConfigChangeRequest{},
+			},
+		}
+		cc := raftpb.ConfChange{
+			Type:    raftpb.ConfChangeAddNode,
+			NodeID:  100,
+			Context: protoc.MustMarshal(&batch),
+		}
+		entry1 := raftpb.Entry{
+			Index: 1,
+			Term:  1,
+			Type:  raftpb.EntryNormal,
+		}
+		entry2 := raftpb.Entry{
+			Index: 2,
+			Term:  1,
+			Type:  raftpb.EntryNormal,
+		}
+		entry3 := raftpb.Entry{
+			Index: 3,
+			Term:  1,
+			Type:  raftpb.EntryConfChange,
+			Data:  protoc.MustMarshal(&cc),
+		}
+
+		// mark as splitted
+		sm.metadataMu.splited = true
+		assert.False(t, sm.canApply(entry1))
+		assert.False(t, sm.canApply(entry2))
+		sm.applyCommittedEntries([]raftpb.Entry{entry1, entry2, entry3})
+		index, term := sm.getAppliedIndexTerm()
+		assert.Equal(t, uint64(3), index)
+		assert.Equal(t, uint64(1), term)
+	}
+	runSimpleStateMachineTest(t, f, h)
+}
+
 func TestStateMachineApplyCommittedEntriesAllowEmptyInput(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {

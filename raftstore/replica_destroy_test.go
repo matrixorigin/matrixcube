@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
@@ -26,8 +27,7 @@ import (
 )
 
 func TestDestroyReplica(t *testing.T) {
-	// FIXME: re-enable the leak test below
-	// defer leaktest.AfterTest(t)()
+	defer leaktest.AfterTest(t)()
 	r := Replica{ID: 1}
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
@@ -82,6 +82,11 @@ func TestDestroyReplica(t *testing.T) {
 		if pr.closed() {
 			break
 		}
+	}
+	// when repeatedly request the the same replica to be destroyed, such requests
+	// should become NOOPs.
+	for i := 0; i < 100; i++ {
+		s.destroyReplica(pr.shardID, true, true, "testing")
 	}
 	wc := s.logdb.NewWorkerContext()
 	pr.handleEvent(wc)

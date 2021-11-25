@@ -376,8 +376,8 @@ func (s *store) startTransport() {
 		s.trans = s.cfg.Customize.CustomTransportFactory()
 	} else {
 		s.trans = transport.NewTransport(s.logger,
-			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable,
-			s.pd.GetStorage().GetContainer)
+			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
+			s.GetReplicaSnapshotDir, s.pd.GetStorage().GetContainer, s.cfg.FS)
 	}
 	s.trans.Start()
 }
@@ -755,6 +755,28 @@ func (s *store) unreachable(shardID uint64, replicaID uint64) {
 	if pr := s.getReplica(shardID, true); pr != nil {
 		pr.addFeedback(replicaID)
 	}
+}
+
+func (s *store) snapshotStatus(shardID uint64, replicaID uint64, rejected bool) {
+	waitTime := 5 * time.Second
+	if rejected {
+		waitTime = 0 * time.Second
+	}
+	// when not rejected, we wait a few seconds before notifying the leader,
+	// this prevents the leader sending a new append message only to be rejected
+	// by the remote replica and triggering a new snapshot.
+	s.stopper.RunWorker(func() {
+		timer := time.NewTimer(waitTime)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			if pr := s.getReplica(shardID, true); pr != nil {
+				pr.addSnapshotStatus(snapshotStatus{to: replicaID, rejected: rejected})
+			}
+		case <-s.stopper.ShouldStop():
+			return
+		}
+	})
 }
 
 type storeReplicaGetter struct {
