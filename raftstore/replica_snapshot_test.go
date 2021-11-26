@@ -114,6 +114,9 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 	runReplicaSnapshotTest(t, fn, fs)
 }
 
+// other related tests
+// TestApplyInitialSnapshot
+// TestApplyReceivedSnapshot
 func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
 		ss, created, err := r.createSnapshot()
@@ -141,6 +144,11 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
+
+		env := r.snapshotter.getRecoverSnapshotEnv(ss)
+		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
+		assert.NoError(t, err)
+		assert.False(t, exist)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

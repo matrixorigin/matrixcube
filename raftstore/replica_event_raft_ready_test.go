@@ -22,6 +22,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
@@ -253,6 +254,13 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
+
+		env = r.snapshotter.getRecoverSnapshotEnv(ss)
+		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
+		assert.NoError(t, err)
+		assert.False(t, exist)
+		_, err = r.logdb.GetSnapshot(1)
+		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

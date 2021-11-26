@@ -70,7 +70,7 @@ type SnapshotChunkHandler func(meta.SnapshotChunk) bool
 
 type UnreachableHandler func(uint64, uint64)
 
-type SnapshotStatusHandler func(uint64, uint64, bool)
+type SnapshotStatusHandler func(uint64, uint64, raftpb.Snapshot, bool)
 
 type nodeInfo struct {
 	ShardID   uint64

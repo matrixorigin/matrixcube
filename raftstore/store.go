@@ -795,7 +795,8 @@ func (s *store) unreachable(shardID uint64, replicaID uint64) {
 	}
 }
 
-func (s *store) snapshotStatus(shardID uint64, replicaID uint64, rejected bool) {
+func (s *store) snapshotStatus(shardID uint64,
+	replicaID uint64, ss raftpb.Snapshot, rejected bool) {
 	waitTime := 5 * time.Second
 	if rejected {
 		waitTime = 0 * time.Second
@@ -810,6 +811,7 @@ func (s *store) snapshotStatus(shardID uint64, replicaID uint64, rejected bool) 
 		case <-timer.C:
 			if pr := s.getReplica(shardID, true); pr != nil {
 				pr.addSnapshotStatus(snapshotStatus{to: replicaID, rejected: rejected})
+				pr.removeSnapshot(ss, false)
 			}
 		case <-s.stopper.ShouldStop():
 			return

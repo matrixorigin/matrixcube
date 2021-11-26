@@ -53,7 +53,7 @@ func (t *Transport) SendSnapshot(m meta.RaftMessage) bool {
 	if !t.sendSnapshot(m) {
 		t.logger.Error("failed to send snapshot",
 			log.RaftMessageField("message", m))
-		t.sendSnapshotNotification(m.ShardID, m.To.ID, true)
+		t.sendSnapshotNotification(m.ShardID, m.To.ID, m.Message.Snapshot, true)
 		return false
 	}
 	return true
@@ -91,7 +91,7 @@ func (t *Transport) sendSnapshot(m meta.RaftMessage) bool {
 		atomic.AddUint64(&t.jobs, ^uint64(0))
 	}
 	t.stopper.RunWorker(func() {
-		t.processSnapshot(job, targetInfo.addr)
+		t.processSnapshot(job, m.Message.Snapshot, targetInfo.addr)
 		shutdown()
 	})
 	job.addSnapshot(chunks)
@@ -120,7 +120,7 @@ func (t *Transport) createJob(shardID uint64, toReplicaID uint64,
 		sz, t.trans, t.dir, t.stopper.ShouldStop(), defaultSnapshotChunkSize, t.fs)
 }
 
-func (t *Transport) processSnapshot(c *job, addr string) {
+func (t *Transport) processSnapshot(c *job, ss raftpb.Snapshot, addr string) {
 	breaker := t.getCircuitBreaker(addr)
 	successes := breaker.Successes()
 	consecFailures := breaker.ConsecFailures()
@@ -130,7 +130,7 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 		if err := c.connect(addr); err != nil {
 			t.logger.Warn("failed to get snapshot connection",
 				zap.String("addr", addr))
-			t.sendSnapshotNotification(shardID, replicaID, true)
+			t.sendSnapshotNotification(shardID, replicaID, ss, true)
 			close(c.failed)
 			return err
 		}
@@ -145,7 +145,7 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 			t.logger.Error("failed to process snapshot chunk",
 				zap.Error(err))
 		}
-		t.sendSnapshotNotification(shardID, replicaID, err != nil)
+		t.sendSnapshotNotification(shardID, replicaID, ss, err != nil)
 		return err
 	}(); err != nil {
 		t.logger.Warn("processSnapshot failed",
@@ -155,8 +155,8 @@ func (t *Transport) processSnapshot(c *job, addr string) {
 }
 
 func (t *Transport) sendSnapshotNotification(shardID uint64,
-	replicaID uint64, rejected bool) {
-	t.snapshotStatus(shardID, replicaID, rejected)
+	replicaID uint64, ss raftpb.Snapshot, rejected bool) {
+	t.snapshotStatus(shardID, replicaID, ss, rejected)
 }
 
 func splitSnapshotMessage(m meta.RaftMessage,

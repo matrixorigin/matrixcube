@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -130,6 +131,13 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
+
+		env := r.snapshotter.getRecoverSnapshotEnv(ss)
+		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
+		assert.NoError(t, err)
+		assert.False(t, exist)
+		_, err = r.logdb.GetSnapshot(1)
+		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

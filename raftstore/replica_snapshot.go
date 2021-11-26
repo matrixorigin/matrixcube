@@ -78,5 +78,15 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	}
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
-	return nil
+	return r.removeSnapshot(ss, true)
+}
+
+func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error {
+	if removeFromLogDB {
+		if err := r.logdb.RemoveSnapshot(r.shardID, ss.Metadata.Index); err != nil {
+			return err
+		}
+	}
+	env := r.snapshotter.getRecoverSnapshotEnv(ss)
+	return env.RemoveFinalDir()
 }
