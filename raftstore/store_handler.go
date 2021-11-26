@@ -89,9 +89,11 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 		return
 	}
 
-	s.replicaRecords.Store(msg.From.ID, msg.From)
 	pr := s.getReplica(msg.ShardID, false)
-	pr.addMessage(msg)
+	if pr != nil {
+		s.replicaRecords.Store(msg.From.ID, msg.From)
+		pr.addMessage(msg)
+	}
 }
 
 func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
