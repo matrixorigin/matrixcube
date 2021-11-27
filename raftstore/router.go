@@ -317,8 +317,9 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 	r.mu.shards[res.meta.ID] = res.meta
 	r.updateShardKeyRangeLocked(res.meta)
 
-	r.logger.Info("shard metadata updated",
-		log.ShardField("shard", res.meta))
+	r.logger.Debug("shard route updated",
+		log.ShardField("shard", res.meta),
+		zap.Uint64("leader", leaderReplicaID))
 
 	if leaderReplicaID > 0 {
 		r.updateLeaderLocked(res.meta.ID, leaderReplicaID)
@@ -381,6 +382,11 @@ func (r *defaultRouter) mustGetShardLocked(id uint64) Shard {
 }
 
 func (r *defaultRouter) updateShardKeyRangeLocked(shard Shard) {
+	if shard.State == metapb.ResourceState_Destroying ||
+		shard.State == metapb.ResourceState_Destroyed {
+		return
+	}
+
 	if tree, ok := r.mu.keyRanges[shard.Group]; ok {
 		tree.Update(shard)
 		return

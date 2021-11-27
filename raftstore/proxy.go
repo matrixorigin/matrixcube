@@ -233,7 +233,7 @@ func (p *shardsProxy) createBackend(addr string) (backend, error) {
 	p.Lock()
 	defer p.Unlock()
 
-	bc, err := p.cfg.backendFactory.create(addr, p.cfg.successCallback, p.cfg.failureCallback)
+	bc, err := p.cfg.backendFactory.create(addr, p.done, p.doneWithError)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +258,10 @@ func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Respon
 	}
 
 	p.done(rsp)
+}
+
+func (p *shardsProxy) doneWithError(req *rpc.Request, err error) {
+	p.retryWithRaftError(req, err.Error())
 }
 
 func (p *shardsProxy) done(rsp rpc.Response) {

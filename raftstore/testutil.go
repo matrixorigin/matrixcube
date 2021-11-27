@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/util/testutil"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -502,7 +502,6 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 type testKVClient struct {
 	sync.RWMutex
 
-	id      uint64
 	runner  *task.Runner
 	proxy   ShardsProxy
 	doneCtx map[string]chan string
@@ -604,7 +603,7 @@ func (kv *testKVClient) errorDone(req *rpc.Request, err error) {
 }
 
 func (kv *testKVClient) nextID() string {
-	return fmt.Sprintf("%d", atomic.AddUint64(&kv.id, 1))
+	return string(uuid.NewV4().Bytes())
 }
 
 func createTestWriteReq(id, k, v string) rpc.Request {
