@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"sync/atomic"
 	"time"
 
 	"go.etcd.io/etcd/raft/v3"
@@ -113,6 +114,7 @@ func (pr *replica) addRaftTick() bool {
 	if err := pr.ticks.Put(struct{}{}); err != nil {
 		return false
 	}
+	atomic.AddUint64(&pr.tickTotalCount, 1)
 	pr.notifyWorker()
 	return true
 }
@@ -303,6 +305,7 @@ func (pr *replica) handleTick(items []interface{}) bool {
 	}
 	for i := int64(0); i < n; i++ {
 		pr.rn.Tick()
+		atomic.AddUint64(&pr.tickHandledCount, 1)
 	}
 
 	return true

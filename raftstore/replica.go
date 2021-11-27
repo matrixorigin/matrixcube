@@ -103,6 +103,9 @@ type replica struct {
 	lastCommittedIndex uint64
 
 	destoryTaskFactory destroyReplicaTaskFactory
+
+	tickTotalCount   uint64
+	tickHandledCount uint64
 }
 
 // createReplica called in:
@@ -494,6 +497,14 @@ func (pr *replica) collectPendingReplicas() []Replica {
 
 func (pr *replica) nextProposalIndex() uint64 {
 	return pr.rn.NextProposalIndex()
+}
+
+func (pr *replica) getTickTotalCount() uint64 {
+	return atomic.LoadUint64(&pr.tickTotalCount)
+}
+
+func (pr *replica) getTickHandledCount() uint64 {
+	return atomic.LoadUint64(&pr.tickHandledCount)
 }
 
 func getRaftConfig(id, appliedIndex uint64, lr *LogReader, cfg *config.Config, logger *zap.Logger) *raft.Config {
