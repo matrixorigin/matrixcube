@@ -499,6 +499,9 @@ func (s *store) startTimerTasks() {
 		storeheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
 		defer storeheartbeatTicker.Stop()
 
+		debugTicker := time.NewTicker(time.Second * 10)
+		defer debugTicker.Stop()
+
 		for {
 			select {
 			case <-s.stopper.ShouldStop():
@@ -516,6 +519,8 @@ func (s *store) startTimerTasks() {
 			case <-storeheartbeatTicker.C:
 				s.doStoreHeartbeat(last)
 				last = time.Now()
+			case <-debugTicker.C:
+				s.doLogDebugInfo()
 			}
 		}
 	})
