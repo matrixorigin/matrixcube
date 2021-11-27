@@ -83,8 +83,15 @@ func (w *replicaWorker) workerMain() {
 				zap.Uint64("worker-id", w.workerID))
 			return
 		case h := <-w.requestC:
+			shardID := h.getShardID()
+			if ce := w.logger.Check(zap.DebugLevel, "going to call handleEvent"); ce != nil {
+				ce.Write(log.ShardIDField(shardID))
+			}
 			if err := w.handleEvent(h); err != nil {
 				panic(err)
+			}
+			if ce := w.logger.Check(zap.DebugLevel, "handleEvent returned"); ce != nil {
+				ce.Write(log.ShardIDField(shardID))
 			}
 			w.completed()
 		}
@@ -223,9 +230,14 @@ func (p *workerPool) workerPoolMain() {
 		} else if chosen == 1 {
 			p.ready.Range(func(key interface{}, value interface{}) bool {
 				shardID := key.(uint64)
+				p.logger.Debug("worker pool received a new request",
+					log.ShardIDField(shardID))
 				if h, ok := p.loader.getReplica(shardID); ok {
 					p.addPending(h)
 					toSchedule = true
+				} else {
+					p.logger.Warn("work pool failed to locate the requested shard",
+						log.ShardIDField(shardID))
 				}
 				p.ready.Delete(key)
 				return true

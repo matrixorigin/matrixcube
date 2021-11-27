@@ -180,7 +180,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 			pr.shutdown()
 			pr.confirmUnloaded()
 		}
-		pr.logger.Debug("skip handling events on stoped replica")
+		pr.logger.Debug("skip handling events on stopped replica")
 		return false, nil
 	default:
 	}
