@@ -172,6 +172,8 @@ func TestSplitWithCase2(t *testing.T) {
 	defer c.Stop()
 
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitReplicaChangeToVoter(c.GetShardByID(0, 0).ID, testWaitTimeout)
+
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
 
@@ -237,6 +239,8 @@ func TestSplitWithCase3(t *testing.T) {
 	defer c.Stop()
 
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitReplicaChangeToVoter(c.GetShardByID(0, 0).ID, testWaitTimeout)
+
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
 

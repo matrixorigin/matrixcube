@@ -461,6 +461,8 @@ type TestRaftCluster interface {
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
+	// WaitReplicaChangeToVoter check that the role of shard of each node change to voter until the timeout
+	WaitReplicaChangeToVoter(shard uint64, timeout time.Duration)
 	// WaitShardByCountOnNode check that the number of shard of the specified node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountOnNode(node, count int, timeout time.Duration)
@@ -972,6 +974,29 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 			}
 			if shards >= count {
 				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitReplicaChangeToVoter(shardID uint64, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait replica of shard %d change to voter timeout", shardID)
+		default:
+			for idx := range c.stores {
+				if c.awares[idx].hasShard(shardID) {
+					pr := c.stores[idx].getReplica(shardID, false)
+					if pr != nil {
+						r := findReplica(pr.getShard(), c.stores[idx].Meta().ID)
+						if r != nil && r.Role == metapb.ReplicaRole_Voter {
+							return
+						}
+					}
+				}
 			}
 			time.Sleep(time.Millisecond * 100)
 		}
