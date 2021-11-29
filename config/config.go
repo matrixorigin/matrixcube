@@ -332,8 +332,8 @@ type RaftLogConfig struct {
 	DisableSync         bool   `toml:"disable-sync"`
 	CompactThreshold    uint64 `toml:"compact-threshold"`
 	MaxAllowTransferLag uint64 `toml:"max-allow-transfer-lag"`
-	ForceCompactCount   uint64
-	ForceCompactBytes   uint64
+	ForceCompactCount   uint64 `toml:"force-compact-log-count"`
+	ForceCompactBytes   uint64 `toml:"force-compact-log-bytes"`
 }
 
 func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
