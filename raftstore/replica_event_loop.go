@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"sync/atomic"
 	"time"
 
 	"go.etcd.io/etcd/raft/v3"
@@ -115,6 +116,7 @@ func (pr *replica) addRaftTick() bool {
 	if err := pr.ticks.Put(struct{}{}); err != nil {
 		return false
 	}
+	atomic.AddUint64(&pr.tickTotalCount, 1)
 	pr.notifyWorker()
 	return true
 }
@@ -180,6 +182,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 			pr.shutdown()
 			pr.confirmUnloaded()
 		}
+		pr.logger.Debug("skip handling events on stopped replica")
 		return false, nil
 	default:
 	}
@@ -306,6 +309,7 @@ func (pr *replica) handleTick(items []interface{}) bool {
 	}
 	for i := int64(0); i < n; i++ {
 		pr.rn.Tick()
+		atomic.AddUint64(&pr.tickHandledCount, 1)
 	}
 
 	return true

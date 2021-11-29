@@ -175,11 +175,12 @@ func TestSplitWithCase2(t *testing.T) {
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
 
-	sid := prepareSplit(t, c, []int{0, 1}, []int{2, 2, 1})
+	// only check node0, node1's shard count.
+	sid := prepareSplit(t, c, []int{0, 1, 2}, []int{2, 2, 0})
 	c.EveryStore(func(index int, store Store) {
 		v := 2
 		if index == 2 {
-			v = 1
+			v = 0
 		}
 		checkSplitWithStore(t, c, index, sid, v, index != 2)
 	})
@@ -239,11 +240,11 @@ func TestSplitWithCase3(t *testing.T) {
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
 
-	sid := prepareSplit(t, c, []int{0, 1}, []int{2, 2, 1})
+	sid := prepareSplit(t, c, []int{0, 1, 2}, []int{2, 2, 0})
 	c.EveryStore(func(index int, store Store) {
 		v := 2
 		if index == 2 {
-			v = 1
+			v = 0
 		}
 		checkSplitWithStore(t, c, index, sid, v, index != 2)
 	})
@@ -260,13 +261,14 @@ func TestSplitWithCase3(t *testing.T) {
 
 func prepareSplit(t *testing.T, c TestRaftCluster, removedNodes, counts []int) uint64 {
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	sid := c.GetShardByIndex(0, 0).ID
 
 	kv := c.CreateTestKVClient(0)
 	defer kv.Close()
 
-	sid := c.GetShardByIndex(0, 0).ID
-	kv.Set("k1", "v1", testWaitTimeout)
-	kv.Set("k2", "v2", testWaitTimeout)
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
+	assert.NoError(t, kv.Set("k2", "v2", testWaitTimeout))
 
 	c.WaitRemovedByShardIDAt(sid, removedNodes, testWaitTimeout)
 	c.WaitShardByCounts(counts, testWaitTimeout)
@@ -281,10 +283,13 @@ func checkSplitWithStore(t *testing.T, c TestRaftCluster, index int, parentShard
 
 	if checkRange {
 		// check new shards range
-		assert.Empty(t, c.GetShardByIndex(index, 0).Start, "index %d", index)
-		assert.Equal(t, []byte("k2"), c.GetShardByIndex(index, 0).End, "index %d", index)
-		assert.Empty(t, c.GetShardByIndex(index, 1).End, "index %d", index)
-		assert.Equal(t, []byte("k2"), c.GetShardByIndex(index, 1).Start, "index %d", index)
+		s := c.GetShardByIndex(index, 0)
+		assert.Empty(t, s.Start, "index %d", index)
+		assert.Equal(t, []byte("k2"), s.End, "index %d, %+v", s)
+
+		s = c.GetShardByIndex(index, 1)
+		assert.Empty(t, s.End, "index %d", index)
+		assert.Equal(t, []byte("k2"), s.Start, "index %d, %+v", s)
 	}
 
 	// read
@@ -312,6 +317,7 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 		assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
 		assert.Equal(t, replicaCount, len(v.Peers()))
 
+		pd.GetBasicCluster().RLock()
 		res := pd.GetBasicCluster().Resources.GetResource(sid)
 		assert.Nil(t, res)
 
@@ -322,5 +328,6 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 		res = pd.GetBasicCluster().SearchResource(0, []byte("k3"))
 		assert.NotNil(t, res)
 		assert.NotEqual(t, sid, res.Meta.ID())
+		pd.GetBasicCluster().RUnlock()
 	}
 }

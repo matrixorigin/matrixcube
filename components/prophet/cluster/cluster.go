@@ -246,8 +246,10 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 		case <-c.quit:
 			c.logger.Info("metrics are reset")
 			c.resetMetrics()
+			c.Lock()
 			close(c.createResourceC)
 			close(c.changedEvents)
+			c.Unlock()
 			c.logger.Info("background jobs has been stopped")
 			return
 		case <-ticker.C:
@@ -629,12 +631,14 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		}
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
 	}
+	c.RLock()
 	if saveKV || saveCache || isNew {
 		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
 	}
 	if saveCache {
 		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
 	}
+	c.RUnlock()
 
 	return nil
 }

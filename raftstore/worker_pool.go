@@ -50,6 +50,7 @@ var _ replicaEventHandler = (*replica)(nil)
 
 // replicaWorker is the worker type that actually processes replica raft updates
 type replicaWorker struct {
+	logger     *zap.Logger
 	stopper    *syncutil.Stopper
 	wc         *logdb.WorkerContext
 	requestC   chan replicaEventHandler
@@ -57,9 +58,10 @@ type replicaWorker struct {
 	workerID   uint64
 }
 
-func newReplicaWorker(workerID uint64,
+func newReplicaWorker(logger *zap.Logger, workerID uint64,
 	stopper *syncutil.Stopper, wc *logdb.WorkerContext) *replicaWorker {
 	w := &replicaWorker{
+		logger:     logger,
 		workerID:   workerID,
 		stopper:    stopper,
 		requestC:   make(chan replicaEventHandler, 1),
@@ -77,10 +79,19 @@ func (w *replicaWorker) workerMain() {
 		select {
 		case <-w.stopper.ShouldStop():
 			w.wc.Close()
+			w.logger.Debug("worker pool worker stopped",
+				zap.Uint64("worker-id", w.workerID))
 			return
 		case h := <-w.requestC:
+			shardID := h.getShardID()
+			if ce := w.logger.Check(zap.DebugLevel, "going to call handleEvent"); ce != nil {
+				ce.Write(log.ShardIDField(shardID))
+			}
 			if err := w.handleEvent(h); err != nil {
 				panic(err)
+			}
+			if ce := w.logger.Check(zap.DebugLevel, "handleEvent returned"); ce != nil {
+				ce.Write(log.ShardIDField(shardID))
 			}
 			w.completed()
 		}
@@ -159,7 +170,7 @@ func newWorkerPool(logger *zap.Logger, ldb logdb.LogDB, loader replicaLoader, wo
 func (p *workerPool) start() {
 	for workerID := uint64(0); workerID < p.workerCount; workerID++ {
 		workerContext := p.ldb.NewWorkerContext()
-		w := newReplicaWorker(workerID, p.workerStopper, workerContext)
+		w := newReplicaWorker(p.logger, workerID, p.workerStopper, workerContext)
 		p.workers = append(p.workers, w)
 	}
 
@@ -214,13 +225,19 @@ func (p *workerPool) workerPoolMain() {
 				default:
 				}
 			}
+			p.logger.Info("worker pool is ready to stop")
 			return
 		} else if chosen == 1 {
 			p.ready.Range(func(key interface{}, value interface{}) bool {
 				shardID := key.(uint64)
+				p.logger.Debug("worker pool received a new request",
+					log.ShardIDField(shardID))
 				if h, ok := p.loader.getReplica(shardID); ok {
 					p.addPending(h)
 					toSchedule = true
+				} else {
+					p.logger.Warn("work pool failed to locate the requested shard",
+						log.ShardIDField(shardID))
 				}
 				p.ready.Delete(key)
 				return true

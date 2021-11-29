@@ -167,14 +167,18 @@ func (s *store) Start() {
 	s.logger.Info("prophet started",
 		s.storeField())
 
-	s.startTransport()
-	s.logger.Info("raft internal transport started",
-		s.storeField(),
-		log.ListenAddressField(s.cfg.RaftAddr))
+	s.createTransport()
+	s.logger.Info("raft internal transport created",
+		s.storeField())
 
 	s.startShards()
 	s.logger.Info("shards started",
 		s.storeField())
+
+	s.startTransport()
+	s.logger.Info("raft internal transport started",
+		s.storeField(),
+		log.ListenAddressField(s.cfg.RaftAddr))
 
 	s.startTimerTasks()
 	s.logger.Info("shard timer based tasks started",
@@ -371,7 +375,7 @@ func (s *store) startProphet() {
 	s.shardPool.setProphetClient(s.pd.GetClient())
 }
 
-func (s *store) startTransport() {
+func (s *store) createTransport() {
 	if s.cfg.Customize.CustomTransportFactory != nil {
 		s.trans = s.cfg.Customize.CustomTransportFactory()
 	} else {
@@ -379,6 +383,9 @@ func (s *store) startTransport() {
 			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
 			s.GetReplicaSnapshotDir, s.pd.GetStorage().GetContainer, s.cfg.FS)
 	}
+}
+
+func (s *store) startTransport() {
 	s.trans.Start()
 }
 

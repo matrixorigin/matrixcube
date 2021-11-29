@@ -40,6 +40,9 @@ func (s *store) startTimerTasks() {
 		compactLogCheckTicker := time.NewTicker(s.cfg.Replication.CompactLogCheckDuration.Duration)
 		defer compactLogCheckTicker.Stop()
 
+		debugTicker := time.NewTicker(time.Second * 10)
+		defer debugTicker.Stop()
+
 		for {
 			select {
 			case <-s.stopper.ShouldStop():
@@ -57,6 +60,8 @@ func (s *store) startTimerTasks() {
 			case <-storeheartbeatTicker.C:
 				s.handleStoreHeartbeatTask(last)
 				last = time.Now()
+			case <-debugTicker.C:
+				s.doLogDebugInfo()
 			}
 		}
 	})

@@ -240,7 +240,7 @@ func (o *Operator) Check(res *core.CachedResource) OpStep {
 					startTime = time.Unix(0, atomic.LoadInt64(&(o.stepsTime[step-1])))
 				}
 				operatorStepDuration.WithLabelValues(reflect.TypeOf(o.steps[int(step)]).Name()).
-					Observe(time.Unix(0, o.stepsTime[step]).Sub(startTime).Seconds())
+					Observe(time.Unix(0, atomic.LoadInt64(&o.stepsTime[step])).Sub(startTime).Seconds())
 			}
 			atomic.StoreInt32(&o.currentStep, step+1)
 		} else {

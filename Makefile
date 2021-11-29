@@ -113,24 +113,34 @@ pb:
 # static checks
 ###############################################################################
 
+.PHONY: install-static-check-tools
+install-static-check-tools:
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | bash -s -- -b $GOROOT/bin v1.43.0
+
 # TODO: switch to the following two lists after some major cleanups
 # TODO: switch to a more recent version of golangci-lint, currently on v1.23.8
 # PKGS=$(shell go list ./...)
 # DIRS=$(subst $(PKGNAME), ,$(subst $(PKGNAME)/, ,$(CHECKED_PKGS))) .
-PKGS=$(PKGNAME)/storage $(PKGNAME)/storage/kv $(PKGNAME)/storage/executor/simple \
-	$(PKGNAME)/storage/stats $(PKGNAME)/snapshot
-DIRS=storage storage/kv storage/executor/simple storage/stats snapshot
-EXTRA_LINTERS=-E misspell -E scopelint -E rowserrcheck -E depguard -E unconvert \
-  -E prealloc -E gofmt -E stylecheck
+DIRS=storage \
+	   storage/kv \
+		 storage/executor/simple \
+		 storage/stats \
+		 config \
+		 aware \
+		 keys \
+		 util \
+		 vfs \
+		 server \
+		 snapshot \
+		 transport \
+		 logdb \
+		 raftstore
+
+EXTRA_LINTERS=-E misspell -E exportloopref -E rowserrcheck -E depguard -E unconvert \
+	-E prealloc -E gofmt -E stylecheck
 
 .PHONY: static-check
 static-check:
-	@for p in $(PKGS); do \
-    go vet -tests=false $$p; \
-    golint $$p; \
-    ineffassign $$p; \
-		errcheck -blank -ignoretests $$p; \
-  done;
 	@for p in $(DIRS); do \
     golangci-lint run $(EXTRA_LINTERS) $$p; \
   done;
