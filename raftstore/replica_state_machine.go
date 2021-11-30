@@ -92,11 +92,12 @@ type stateMachine struct {
 
 	metadataMu struct {
 		sync.Mutex
-		shard      Shard
-		removed    bool
-		splited    bool
-		index      uint64
-		term       uint64
+		shard   Shard
+		removed bool
+		splited bool
+		index   uint64
+		term    uint64
+		// TODO: maybe should move to replica struct
 		firstIndex uint64
 	}
 }

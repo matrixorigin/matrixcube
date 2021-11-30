@@ -392,19 +392,6 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 		return
 	}
 
-	// Leader will replicate the compact log command to followers,
-	// If we use current replicated_index (like 10) as the compact index,
-	// when we replicate this log, the newest replicated_index will be 11,
-	// but we only compact the log to 10, not 11, at that time,
-	// the first index is 10, and replicated_index is 11, with an extra log,
-	// and we will do compact again with compact index 11, in cycles...
-	// So we introduce a threshold, if replicated index - first index > threshold,
-	// we will try to compact log.
-	// raft log entries[..............................................]
-	//                  ^                                       ^
-	//                  |-----------------threshold------------ |
-	//              first_index                         replicated_index
-
 	var minReplicatedIndex uint64
 	for _, p := range progresses {
 		if minReplicatedIndex == 0 {
@@ -427,7 +414,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 		metric.ObserveRaftLogLag(lastIndex - minReplicatedIndex)
 	}
 
-	var compactIndex uint64
+	compactIndex := minReplicatedIndex
 	appliedIndex := pr.appliedIndex
 	firstIndex := pr.getFirstIndex()
 
@@ -443,10 +430,8 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 		compactIndex = appliedIndex
 	}
 
-	// Have no idea why subtract 1 here, but original code did this by magic.
 	if compactIndex == 0 {
-		pr.logger.Fatal("unexpect compactIdx",
-			zap.Uint64("compact", compactIndex))
+		return
 	}
 
 	if compactIndex > minReplicatedIndex {
@@ -456,7 +441,6 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 
 	compactIndex--
 	if compactIndex < firstIndex {
-		// In case compactIdx == firstIdx before subtraction.
 		return
 	}
 
