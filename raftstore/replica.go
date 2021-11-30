@@ -89,10 +89,11 @@ type replica struct {
 	stats                *replicaStats
 	metrics              localMetrics
 
-	closedC    chan struct{}
-	unloadedC  chan struct{}
-	destroyedC chan struct{}
-	stopOnce   sync.Once
+	initialized bool
+	closedC     chan struct{}
+	unloadedC   chan struct{}
+	destroyedC  chan struct{}
+	stopOnce    sync.Once
 
 	// committedIndexes the committed value of all replicas is recorded, and this information is not
 	// necessarily up-to-date.

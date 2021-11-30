@@ -42,6 +42,7 @@ import (
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -53,6 +54,15 @@ var (
 type saveable interface {
 	CreateSnapshot(shardID uint64, path string) (uint64, uint64, error)
 }
+
+var _ saveable = (storage.DataStorage)(nil)
+
+type recoverable interface {
+	ApplySnapshot(shardID uint64, path string) error
+	GetInitialStates() ([]meta.ShardMetadata, error)
+}
+
+var _ recoverable = (storage.DataStorage)(nil)
 
 type snapshotter struct {
 	logger      *zap.Logger
@@ -223,6 +233,32 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	}, env, nil
 }
 
+func (s *snapshotter) recover(rc recoverable,
+	ss raftpb.Snapshot) (meta.ShardMetadata, error) {
+	env := s.getRecoverSnapshotEnv(ss)
+	s.logger.Info("recovering from snapshot",
+		zap.String("dir", env.GetFinalDir()))
+	// TODO: double check to see whether we do have the snapshot folder on disk
+	if err := rc.ApplySnapshot(s.shardID, env.GetFinalDir()); err != nil {
+		return meta.ShardMetadata{}, err
+	}
+	sms, err := rc.GetInitialStates()
+	if err != nil {
+		return meta.ShardMetadata{}, err
+	}
+	for _, sm := range sms {
+		if sm.ShardID == s.shardID {
+			if sm.LogIndex > ss.Metadata.Index {
+				s.logger.Fatal("unexpected metadata log index",
+					zap.Uint64("log-index", sm.LogIndex),
+					zap.Uint64("snapshot-index", ss.Metadata.Index))
+			}
+			return sm, nil
+		}
+	}
+	panic("missing shard metadata after recovering from snapshot")
+}
+
 func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 	env.FinalizeIndex(ss.Metadata.Index)
 	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
@@ -239,6 +275,14 @@ func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 
 func (s *snapshotter) removeFlagFile(dirName string) error {
 	return fileutil.RemoveFlagFile(dirName, fileutil.SnapshotFlagFilename, s.fs)
+}
+
+func (s *snapshotter) getRecoverSnapshotEnv(ss raftpb.Snapshot) snapshot.SSEnv {
+	var si meta.SnapshotInfo
+	protoc.MustUnmarshal(&si, ss.Data)
+	env := s.getCreatingSnapshotEnv(si.Extra)
+	env.FinalizeIndex(ss.Metadata.Index)
+	return env
 }
 
 func (s *snapshotter) getCreatingSnapshotEnv(extra uint64) snapshot.SSEnv {
