@@ -22,8 +22,13 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/vfs"
 )
 
 func getRaftMessageTypes() []raftpb.MessageType {
@@ -212,4 +217,51 @@ func TestIssue386(t *testing.T) {
 	rs, err := s.logdb.ReadRaftState(1, 2)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), rs.State.Commit)
+}
+
+func TestApplyReceivedSnapshot(t *testing.T) {
+	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
+		// created snapshot doesn't have the flag file, we need to fake it to make
+		// the snapshot looks like a received snapshot
+		env := r.snapshotter.getRecoverSnapshotEnv(ss)
+		fileutil.CreateFlagFile(env.GetFinalDir(),
+			fileutil.SnapshotFlagFilename, &ss, fs)
+
+		// reset the data storage
+		dsMem := mem.NewStorage()
+		base := kv.NewBaseStorage(dsMem, fs)
+		ds := kv.NewKVDataStorage(base, nil)
+		defer ds.Close()
+		shard := Shard{ID: 1}
+		replicaRec := Replica{ID: 1}
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+
+		rd := raft.Ready{Snapshot: ss}
+
+		assert.NoError(t, r.processReady(rd, r.logdb.NewWorkerContext()))
+		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
+		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
+		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+
+		sms, err := r.sm.dataStorage.GetInitialStates()
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(sms))
+		assert.Equal(t, shard, sms[0].Metadata.Shard)
+
+		env = r.snapshotter.getRecoverSnapshotEnv(ss)
+		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
+		assert.NoError(t, err)
+		assert.False(t, exist)
+		_, err = r.logdb.GetSnapshot(1)
+		assert.Equal(t, logdb.ErrNoSnapshot, err)
+	}
+	fs := vfs.GetTestFS()
+	runReplicaSnapshotTest(t, fn, fs)
 }

@@ -70,3 +70,23 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 	// TODO: schedule log compacton here
 	return ss, true, nil
 }
+
+func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
+	md, err := r.snapshotter.recover(r.sm.dataStorage, ss)
+	if err != nil {
+		return err
+	}
+	r.sm.updateShard(md.Metadata.Shard)
+	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
+	return r.removeSnapshot(ss, true)
+}
+
+func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error {
+	if removeFromLogDB {
+		if err := r.logdb.RemoveSnapshot(r.shardID, ss.Metadata.Index); err != nil {
+			return err
+		}
+	}
+	env := r.snapshotter.getRecoverSnapshotEnv(ss)
+	return env.RemoveFinalDir()
+}

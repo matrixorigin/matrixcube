@@ -64,8 +64,8 @@ type job struct {
 }
 
 func newJob(logger *zap.Logger,
-	ctx context.Context, shardID uint64, replicaID uint64, count int,
-	trans TransImpl, dir snapshot.SnapshotDirFunc,
+	ctx context.Context, shardID uint64, replicaID uint64,
+	count int, trans TransImpl, dir snapshot.SnapshotDirFunc,
 	stopc chan struct{}, snapshotChunkSize uint64, fs vfs.FS) *job {
 	j := &job{
 		shardID:           shardID,

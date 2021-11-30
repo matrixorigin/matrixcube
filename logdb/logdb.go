@@ -108,6 +108,8 @@ type LogDB interface {
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
 	GetSnapshot(shardID uint64) (raftpb.Snapshot, error)
+	// RemoveSnapshot removes the specified snapshot.
+	RemoveSnapshot(shardID uint64, index uint64) error
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -139,6 +141,11 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 		idBuf: make([]byte, 8),
 		wb:    l.ms.NewWriteBatch().(util.WriteBatch),
 	}
+}
+
+func (l *KVLogDB) RemoveSnapshot(shardID uint64, index uint64) error {
+	key := keys.GetSnapshotKey(shardID, index, nil)
+	return l.ms.Delete(key, true)
 }
 
 func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {

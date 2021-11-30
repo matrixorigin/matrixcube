@@ -105,6 +105,30 @@ func TestLogDBGetSnapshot(t *testing.T) {
 	runLogDBTest(t, tf, fs)
 }
 
+func TestLogDBRemoveSnapshot(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		rd := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 100},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, 100, rd, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		v, err := db.GetSnapshot(testShardID)
+		assert.NoError(t, err)
+		assert.Equal(t, rd.Snapshot, v)
+		assert.NoError(t, db.RemoveSnapshot(testShardID, rd.Snapshot.Metadata.Index))
+
+		v, err = db.GetSnapshot(testShardID)
+		assert.Equal(t, ErrNoSnapshot, err)
+		assert.Empty(t, v)
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
 func TestLogDBGetSnapshotReturnsTheMostRecentSnapshot(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
 		rd1 := raft.Ready{
