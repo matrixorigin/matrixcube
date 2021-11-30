@@ -159,5 +159,9 @@ func (l *LeaderLease) setLeaseID(id clientv3.LeaseID) {
 }
 
 func (l *LeaderLease) getLeaseID() clientv3.LeaseID {
-	return l.id.Load().(clientv3.LeaseID)
+	v := l.id.Load()
+	if v == nil {
+		return clientv3.LeaseID(0)
+	}
+	return v.(clientv3.LeaseID)
 }
