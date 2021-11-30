@@ -83,6 +83,10 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	return nil
 }
 
+// the flag file is used to minimize the possibility to have the snapshot
+// re-transmitted after reboot. for a quick reboot, e.g. a 10 minutes offline,
+// it will be unlikely for the leader to have another log compaction, it thus
+// still make sense to apply the latest received but not applied snapshot.
 func (pr *replica) onSnapshotSaved(rd raft.Ready) error {
 	if !raft.IsEmptySnap(rd.Snapshot) {
 		env := pr.snapshotter.getRecoverSnapshotEnv(rd.Snapshot)

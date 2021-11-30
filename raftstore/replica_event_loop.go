@@ -216,6 +216,9 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 	return hasEvent, nil
 }
 
+// apply the already received snapshot
+// for safety, we have to apply the snapshot once it is received and acked. it
+// would corrupt the raft state if we just ignore such snapshots.
 func (pr *replica) handleInitializedState() (bool, error) {
 	if pr.initialized {
 		return false, nil
@@ -228,7 +231,9 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		}
 	}
 	if raft.IsEmptySnap(ss) {
-		return false, nil
+		// should never be empty here
+		// logdb.GetSnapshot returns logdb.ErrNoSnapshot when there is no snapshot
+		panic("unexpected empty snapshot")
 	}
 	index, _ := pr.sm.getAppliedIndexTerm()
 	if ss.Metadata.Index > index {
