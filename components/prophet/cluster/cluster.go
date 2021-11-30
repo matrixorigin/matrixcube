@@ -1240,7 +1240,8 @@ func (c *RaftCluster) takeResourceContainersLocked(res *core.CachedResource) []*
 
 // AllocID allocs ID.
 func (c *RaftCluster) AllocID() (uint64, error) {
-	return c.storage.KV().AllocID()
+	v, _, err := c.storage.KV().AllocID(1)
+	return v, err
 }
 
 // ChangedEventNotifier changedEventNotifier

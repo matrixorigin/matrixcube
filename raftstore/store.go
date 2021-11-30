@@ -349,14 +349,17 @@ func (s *store) MaybeLeader(shard uint64) bool {
 }
 
 func (s *store) MustAllocID() uint64 {
-	id, err := s.pd.GetClient().AllocID()
-	if err != nil {
-		s.logger.Fatal("fail to alloc id",
-			s.storeField(),
-			zap.Error(err))
-	}
+	for {
+		id, err := s.pd.GetClient().AllocID()
+		if err != nil {
+			s.logger.Error("failed to alloc id, retry later",
+				s.storeField(),
+				zap.Error(err))
+			continue
+		}
 
-	return id
+		return id
+	}
 }
 
 func (s *store) Prophet() prophet.Prophet {

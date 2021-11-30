@@ -16,6 +16,7 @@ package prophet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,10 @@ var (
 var (
 	stateRunning = int32(0)
 	stateStopped = int32(1)
+)
+
+var (
+	checkIdRangeInterval = time.Millisecond * 100
 )
 
 // Client prophet client
@@ -105,6 +110,44 @@ type asyncClient struct {
 		sync.RWMutex
 		state int32
 	}
+
+	idMu struct {
+		sync.RWMutex
+		version uint64
+		current *idRange
+		next    *idRange
+	}
+}
+
+// alloc id in [start, end)
+type idRange struct {
+	end     uint64
+	current uint64
+}
+
+func newEmptyIdRange() *idRange {
+	return &idRange{}
+}
+
+func newIdRange(start, end uint64) *idRange {
+	return &idRange{
+		end:     end + 1,
+		current: start,
+	}
+}
+
+func (id *idRange) alloc() (uint64, bool) {
+	if id.current == id.end {
+		return 0, false
+	}
+
+	v := id.current
+	id.current++
+	return v, true
+}
+
+func (id *idRange) idle() uint64 {
+	return id.end - id.current
 }
 
 // NewClient create a prophet client
@@ -125,6 +168,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 	c.opts.adjust()
 
 	c.ctx, c.cancel = context.WithCancel(context.Background())
+	c.idMu.current = newEmptyIdRange()
 	c.start()
 	return c
 }
@@ -153,19 +197,24 @@ func (c *asyncClient) doClose() {
 }
 
 func (c *asyncClient) AllocID() (uint64, error) {
-	if !c.running() {
-		return 0, ErrClosed
+	for {
+		if !c.running() {
+			return 0, ErrClosed
+		}
+
+		c.idMu.RLock()
+		version := c.idMu.version
+		id, ok := c.idMu.current.alloc()
+		c.idMu.RUnlock()
+		if ok {
+			return id, nil
+		}
+
+		// if the current range switch to next range success, retry immediately
+		if !c.switchCurrentIDRangeToNext(version) {
+			time.Sleep(checkIdRangeInterval)
+		}
 	}
-
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeAllocIDReq
-
-	resp, err := c.syncDo(req)
-	if err != nil {
-		return 0, err
-	}
-
-	return resp.AllocID.ID, nil
 }
 
 func (c *asyncClient) ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error {
@@ -498,6 +547,7 @@ func (c *asyncClient) ExecuteJob(job metapb.Job, data []byte) ([]byte, error) {
 func (c *asyncClient) start() {
 	go c.readLoop()
 	go c.writeLoop()
+	go c.allocIDLoop()
 	c.scheduleResetLeaderConn()
 	c.opts.logger.Info("started")
 }
@@ -565,7 +615,7 @@ func (c *asyncClient) scheduleResetLeaderConn() bool {
 
 	select {
 	case c.resetLeaderConnC <- struct{}{}:
-		c.opts.logger.Debug(" schedule reset leader connection")
+		c.opts.logger.Debug("schedule reset leader connection")
 	case <-time.After(time.Second * 10):
 		c.opts.logger.Fatal("BUG: schedule reset leader connection timeout")
 	}
@@ -598,6 +648,83 @@ func (c *asyncClient) writeLoop() {
 			}
 		}
 	}
+}
+
+func (c *asyncClient) allocIDLoop() {
+	ticker := time.NewTicker(checkIdRangeInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			c.opts.logger.Info("alloc id range loop exit")
+			return
+		case <-ticker.C:
+			if c.needAllocNewIDRange() {
+				next, err := c.doAlloc()
+				if err != nil {
+					c.opts.logger.Error("failed to alloc id range",
+						zap.Error(err))
+					break
+				}
+
+				c.addNextIDRangeNext(next)
+			}
+		}
+	}
+}
+
+func (c *asyncClient) switchCurrentIDRangeToNext(version uint64) bool {
+	c.idMu.Lock()
+	defer c.idMu.Unlock()
+
+	if c.idMu.next != nil && c.idMu.current.idle() == 0 {
+		c.idMu.current = c.idMu.next
+		c.idMu.next = nil
+		c.idMu.version++
+		return true
+	}
+
+	return c.idMu.version != version // means current changed in other goroutine
+}
+
+func (c *asyncClient) needAllocNewIDRange() bool {
+	alloc := false
+	c.idMu.RLock()
+	defer c.idMu.RUnlock()
+
+	idle := c.idMu.current.idle()
+	batch := c.opts.idAllocBatch
+	if idle < batch/2 && c.idMu.next == nil {
+		alloc = true
+		c.opts.logger.Debug("need to alloc from leader",
+			zap.Uint64("idle", idle),
+			zap.Uint64("alloc-batch", batch))
+	}
+	return alloc
+}
+
+func (c *asyncClient) addNextIDRangeNext(next *idRange) {
+	c.opts.logger.Debug("alloc new id range from leader",
+		zap.String("range", fmt.Sprintf("[%d-%d)",
+			next.current,
+			next.end)))
+	c.idMu.Lock()
+	defer c.idMu.Unlock()
+	c.idMu.next = next
+}
+
+func (c *asyncClient) doAlloc() (*idRange, error) {
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeAllocIDReq
+	req.AllocID.Count = c.opts.idAllocBatch
+
+	resp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return newIdRange(resp.AllocID.Start, resp.AllocID.End), nil
 }
 
 func (c *asyncClient) readLoop() {

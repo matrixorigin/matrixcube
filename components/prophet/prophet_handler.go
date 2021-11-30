@@ -317,12 +317,13 @@ func (p *defaultProphet) handleGetContainer(rc *cluster.RaftCluster, req *rpcpb.
 }
 
 func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	id, err := p.storage.KV().AllocID()
+	start, end, err := p.storage.KV().AllocID(req.AllocID.Count)
 	if err != nil {
 		return err
 	}
 
-	resp.AllocID.ID = id
+	resp.AllocID.Start = start
+	resp.AllocID.End = end
 	return nil
 }
 

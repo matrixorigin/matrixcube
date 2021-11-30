@@ -26,7 +26,7 @@ import (
 )
 
 func (s *store) ProphetBecomeLeader() {
-	s.logger.Info("*********Become prophet leader*********",
+	s.logger.Info("*********become prophet leader*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
 		s.doBootstrapCluster(true)
@@ -35,7 +35,7 @@ func (s *store) ProphetBecomeLeader() {
 }
 
 func (s *store) ProphetBecomeFollower() {
-	s.logger.Info("*********Become prophet follower*********",
+	s.logger.Info("*********become prophet follower*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
 		s.doBootstrapCluster(false)

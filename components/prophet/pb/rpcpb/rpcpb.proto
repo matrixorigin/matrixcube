@@ -176,11 +176,13 @@ message GetContainerRsp {
 
 // AllocIDReq alloc id request
 message AllocIDReq {
+    uint64 count = 1;
 }
 
 // AllocIDRsp alloc id response
 message AllocIDRsp {
-    uint64 id = 1 [(gogoproto.customname) = "ID"];
+    uint64 start = 1;
+    uint64 end   = 2;
 }
 
 // AskBatchSplitReq ask batch split request

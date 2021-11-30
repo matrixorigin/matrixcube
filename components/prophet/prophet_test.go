@@ -23,6 +23,7 @@ import (
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -115,7 +116,7 @@ func newTestProphet(t *testing.T, c *pconfig.Config) Prophet {
 	c.Adapter = metadata.NewTestAdapter()
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)
 
-	p := NewProphet(&config.Config{Prophet: *c, Logger: log.Adjust(nil)})
+	p := NewProphet(&config.Config{FS: vfs.GetTestFS(), Prophet: *c, Logger: log.Adjust(nil)})
 	p.Start()
 	select {
 	case <-time.After(time.Second * 10):

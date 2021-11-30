@@ -523,7 +523,7 @@ func (s *storage) RemoveCustomData(key []byte) error {
 }
 
 func (s *storage) PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error) {
-	clusterID, err := s.kv.AllocID()
+	clusterID, _, err := s.kv.AllocID(1)
 	if err != nil {
 		return false, err
 	}

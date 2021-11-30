@@ -31,11 +31,16 @@ type options struct {
 	logger       *zap.Logger
 	leaderGetter func() *metapb.Member
 	rpcTimeout   time.Duration
+	idAllocBatch uint64
 }
 
 func (opts *options) adjust() {
 	if opts.rpcTimeout == 0 {
 		opts.rpcTimeout = time.Second * 10
+	}
+
+	if opts.idAllocBatch == 0 {
+		opts.idAllocBatch = 1000
 	}
 
 	opts.logger = log.Adjust(opts.logger).Named("client")
@@ -52,6 +57,13 @@ func WithLogger(logger *zap.Logger) Option {
 func WithLeaderGetter(value func() *metapb.Member) Option {
 	return func(opts *options) {
 		opts.leaderGetter = value
+	}
+}
+
+// WithIDAllocBatch set alloc id batch
+func WithIDAllocBatch(value uint64) Option {
+	return func(opts *options) {
+		opts.idAllocBatch = value
 	}
 }
 

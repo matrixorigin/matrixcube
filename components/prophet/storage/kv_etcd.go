@@ -25,10 +25,6 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-const (
-	idBatch = 1000
-)
-
 type etcdKV struct {
 	sync.Mutex
 
@@ -201,22 +197,23 @@ func (s *etcdKV) RemoveIfValueMatched(key string, expect string) (bool, error) {
 	return true, nil
 }
 
-func (s *etcdKV) AllocID() (uint64, error) {
+func (s *etcdKV) AllocID(count uint64) (uint64, uint64, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	if s.base == s.end {
-		end, err := s.generate()
+		end, err := s.generate(count)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 
 		s.end = end
-		s.base = s.end - idBatch
+		s.base = s.end - count
 	}
 
-	s.base++
-	return s.base, nil
+	v := s.base
+	s.base += count
+	return v + 1, s.base, nil
 }
 
 func (s *etcdKV) SaveWithoutLeader(key, value string) error {
@@ -243,17 +240,17 @@ func (s *etcdKV) RemoveWithoutLeader(key string) error {
 	return nil
 }
 
-func (s *etcdKV) generate() (uint64, error) {
+func (s *etcdKV) generate(count uint64) (uint64, error) {
 	value, err := s.getID()
 	if err != nil {
 		return 0, err
 	}
 
-	max := value + idBatch
+	max := value + count
 
 	// create id
 	if value == 0 {
-		max := value + idBatch
+		max := value + count
 		err := s.createID(max)
 		if err != nil {
 			return 0, err

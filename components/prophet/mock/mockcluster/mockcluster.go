@@ -96,7 +96,8 @@ func (mc *Cluster) GetOpts() *config.PersistOptions {
 
 // AllocID allocs a new unique ID.
 func (mc *Cluster) AllocID() (uint64, error) {
-	return mc.storage.KV().AllocID()
+	v, _, err := mc.storage.KV().AllocID(1)
+	return v, err
 }
 
 // ScanResources scans resource with start key, until number greater than limit.

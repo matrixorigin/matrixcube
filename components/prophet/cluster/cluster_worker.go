@@ -251,7 +251,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 			continue
 		}
 
-		id, err := c.storage.KV().AllocID()
+		id, _, err := c.storage.KV().AllocID(1)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +274,7 @@ func (c *RaftCluster) HandleCreateResources(request *rpcpb.Request) (*rpcpb.Crea
 
 		res.SetEpoch(metapb.ResourceEpoch{ConfVer: uint64(len(res.Peers()))})
 		for idx := range res.Peers() {
-			id, err := c.storage.KV().AllocID()
+			id, _, err := c.storage.KV().AllocID(1)
 			if err != nil {
 				return nil, err
 			}

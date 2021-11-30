@@ -159,12 +159,13 @@ func (s *memStorage) RemoveIfValueMatched(key string, expect string) (bool, erro
 	return true, nil
 }
 
-func (s *memStorage) AllocID() (uint64, error) {
+func (s *memStorage) AllocID(count uint64) (uint64, uint64, error) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.id++
-	return s.id, nil
+	v := s.id
+	s.id += count
+	return v + 1, s.id, nil
 }
 
 func (s *memStorage) SaveWithoutLeader(key, value string) error {
