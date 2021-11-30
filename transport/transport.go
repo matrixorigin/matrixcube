@@ -57,6 +57,7 @@ const (
 
 type Trans interface {
 	Send(meta.RaftMessage) bool
+	SendSnapshot(meta.RaftMessage) bool
 	SendingSnapshotCount() uint64
 	Start() error
 	Close() error

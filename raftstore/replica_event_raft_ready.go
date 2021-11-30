@@ -267,11 +267,10 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 		m.End = shard.End
 	}
 
-	pr.transport.Send(m)
-	// FIXME: this should not be called until the snapshot is actually
-	// transmitted to the target replica.
 	if msg.Type == raftpb.MsgSnap {
-		pr.rn.ReportSnapshot(msg.To, raft.SnapshotFinish)
+		pr.transport.SendSnapshot(m)
+	} else {
+		pr.transport.Send(m)
 	}
 	pr.updateMessageMetrics(msg)
 	return nil

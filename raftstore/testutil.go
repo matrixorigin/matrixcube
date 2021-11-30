@@ -1123,7 +1123,14 @@ func newTestTransport(c TestRaftCluster, filter func(msg meta.RaftMessage) bool)
 func (trans *testTransport) Start() error { return nil }
 func (trans *testTransport) Close() error { return nil }
 func (trans *testTransport) Send(msg meta.RaftMessage) bool {
-	if !trans.filter(msg) {
+	if trans.filter != nil && !trans.filter(msg) {
+		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})
+		return true
+	}
+	return false
+}
+func (trans *testTransport) SendSnapshot(msg meta.RaftMessage) bool {
+	if trans.filter != nil && !trans.filter(msg) {
 		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})
 		return true
 	}
