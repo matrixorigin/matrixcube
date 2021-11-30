@@ -17,51 +17,12 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
-
-func (s *store) handleSplitCheck() {
-	s.forEachReplica(func(pr *replica) bool {
-		if pr.supportSplit() &&
-			pr.isLeader() {
-			pr.addAction(action{actionType: checkSplitAction, actionCallback: func(arg interface{}) {
-				s.splitChecker.add(arg.(Shard))
-			}})
-		}
-
-		return true
-	})
-}
-
-func (s *store) handleShardStateCheck() {
-	bm := roaring64.NewBitmap()
-	s.forEachReplica(func(pr *replica) bool {
-		bm.Add(pr.shardID)
-		return true
-	})
-
-	if bm.GetCardinality() > 0 {
-		rsp, err := s.pd.GetClient().CheckResourceState(bm)
-		if err != nil {
-			s.logger.Error("fail to check shards state, retry later",
-				s.storeField(),
-				zap.Error(err))
-			return
-		}
-
-		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
-		// FIXME: removeData always true?
-		for _, id := range bm.ToArray() {
-			s.destroyReplica(id, true, true, "shard state check")
-		}
-	}
-}
 
 // all raft message entrypoint
 func (s *store) handle(batch meta.RaftMessageBatch) {

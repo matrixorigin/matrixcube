@@ -193,7 +193,7 @@ func (s *store) Start() {
 		s.storeField(),
 		log.ListenAddressField(s.cfg.ClientAddr))
 
-	s.doStoreHeartbeat(time.Now())
+	s.handleStoreHeartbeatTask(time.Now())
 }
 
 func (s *store) Stop() {
@@ -481,49 +481,6 @@ func (s *store) startShards() {
 		zap.Int("total", totalCount),
 		zap.Int("bootstrap", len(readyBootstrapShards)),
 		zap.Int("tomebstone", tomebstoneCount))
-}
-
-func (s *store) startTimerTasks() {
-	s.stopper.RunWorker(func() {
-		last := time.Now()
-
-		splitCheckTicker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
-		defer splitCheckTicker.Stop()
-
-		stateCheckTicker := time.NewTicker(s.cfg.Replication.ShardStateCheckDuration.Duration)
-		defer stateCheckTicker.Stop()
-
-		shardLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.ShardHeartbeatDuration.Duration)
-		defer shardLeaderheartbeatTicker.Stop()
-
-		storeheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
-		defer storeheartbeatTicker.Stop()
-
-		debugTicker := time.NewTicker(time.Second * 10)
-		defer debugTicker.Stop()
-
-		for {
-			select {
-			case <-s.stopper.ShouldStop():
-				s.logger.Info("timer based tasks stopped",
-					s.storeField())
-				return
-			case <-splitCheckTicker.C:
-				if !s.cfg.Replication.DisableShardSplit {
-					s.handleSplitCheck()
-				}
-			case <-stateCheckTicker.C:
-				s.handleShardStateCheck()
-			case <-shardLeaderheartbeatTicker.C:
-				s.doShardHeartbeat()
-			case <-storeheartbeatTicker.C:
-				s.doStoreHeartbeat(last)
-				last = time.Now()
-			case <-debugTicker.C:
-				s.doLogDebugInfo()
-			}
-		}
-	})
 }
 
 func (s *store) addReplica(pr *replica) bool {

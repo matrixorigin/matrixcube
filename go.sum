@@ -118,8 +118,6 @@ github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad/go.m
 github.com/envoyproxy/go-control-plane v0.9.9-0.20210217033140-668b12f5399d/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
-github.com/fagongzi/goetty v1.11.2 h1:VPx+l1ToiPmnvdU5Kl53DN9kQeV7eZGsxD0mdd61BvM=
-github.com/fagongzi/goetty v1.11.2/go.mod h1:J5KOKdUzqQWinZWqULUPmr1l1bv27DxKKSlNc6jwSVg=
 github.com/fagongzi/goetty v1.11.3 h1:N4UcOF/wORC8nU4OcSnW6kekO+CTyl3XXKIETSizCvY=
 github.com/fagongzi/goetty v1.11.3/go.mod h1:J5KOKdUzqQWinZWqULUPmr1l1bv27DxKKSlNc6jwSVg=
 github.com/fagongzi/util v0.0.0-20201116094402-221cc40c4593/go.mod h1:jYDIbpaqHXCCQ7QIDXRVfsQYAGKSNNb6N8BPTgdpcdE=

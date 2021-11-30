@@ -97,6 +97,8 @@ type stateMachine struct {
 		splited bool
 		index   uint64
 		term    uint64
+		// TODO: maybe should move to replica struct
+		firstIndex uint64
 	}
 }
 
@@ -313,6 +315,20 @@ func (d *stateMachine) updateAppliedIndexTerm(index uint64, term uint64) {
 	defer d.metadataMu.Unlock()
 	d.metadataMu.index = index
 	d.metadataMu.term = term
+}
+
+func (d *stateMachine) getFirstIndex() uint64 {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+
+	return d.metadataMu.firstIndex
+}
+
+func (d *stateMachine) setFirstIndex(index uint64) {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+
+	d.metadataMu.firstIndex = index
 }
 
 func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {

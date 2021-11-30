@@ -19,6 +19,7 @@ import (
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
@@ -92,4 +93,74 @@ func TestReplicaCanBeClosed(t *testing.T) {
 	// we just check whether the replica can be created and closed
 	_, err := r.handleEvent(nil)
 	assert.NoError(t, err)
+}
+
+func TestDoCheckCompactLog(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
+	pr.leaderID = 2
+
+	// check not leader
+	pr.doCheckLogCompact(nil, 0)
+	assert.Equal(t, int64(0), pr.requests.Len())
+
+	// check min replicated index > last
+	pr.leaderID = 1
+	hasPanic := false
+	func() {
+		defer func() {
+			if err := recover(); err != nil {
+				hasPanic = true
+			}
+		}()
+
+		pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+			1: {Match: 101},
+		}, 100)
+	}()
+	assert.True(t, hasPanic)
+
+	// check minReplicatedIndex < firstIndex
+	pr.sm.setFirstIndex(102)
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 102)
+	assert.Equal(t, int64(0), pr.requests.Len())
+
+	// minReplicatedIndex-firstIndex <= CompactThreshold
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.sm.setFirstIndex(100)
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 102)
+	assert.Equal(t, int64(0), pr.requests.Len())
+
+	// force count
+	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
+	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1000
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.stats.raftLogSizeHint = 0
+	pr.sm.setFirstIndex(99)
+	pr.appliedIndex = 101
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 101)
+	v, _ := pr.requests.Peek()
+	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
+
+	// force bytes
+	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000
+	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.stats.raftLogSizeHint = 1
+	pr.requests = task.New(32)
+	pr.sm.setFirstIndex(99)
+	pr.appliedIndex = 101
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 101)
+	v, _ = pr.requests.Peek()
+	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
 }

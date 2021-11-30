@@ -46,6 +46,7 @@ var (
 	defaultRaftHeartbeatTick               = 2
 	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultShardStateCheckDuration         = time.Second * 60
+	defaultCompactLogCheckDuration         = time.Second * 60
 	defaultMaxEntryBytes                   = 10 * mb
 	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
 	defaultMaxAllowTransferLag      uint64 = 2
@@ -181,6 +182,7 @@ type ReplicationConfig struct {
 	StoreHeartbeatDuration  typeutil.Duration `toml:"store-heartbeat-duration"`
 	ShardSplitCheckDuration typeutil.Duration `toml:"shard-split-check-duration"`
 	ShardStateCheckDuration typeutil.Duration `toml:"shard-state-check-duration"`
+	CompactLogCheckDuration typeutil.Duration `toml:"compact-log-check-duration"`
 	DisableShardSplit       bool              `toml:"disable-shard-split"`
 	AllowRemoveLeader       bool              `toml:"allow-remove-leader"`
 	ShardCapacityBytes      typeutil.ByteSize `toml:"shard-capacity-bytes"`
@@ -206,6 +208,10 @@ func (c *ReplicationConfig) adjust() {
 
 	if c.ShardStateCheckDuration.Duration == 0 {
 		c.ShardStateCheckDuration.Duration = defaultShardStateCheckDuration
+	}
+
+	if c.CompactLogCheckDuration.Duration == 0 {
+		c.CompactLogCheckDuration.Duration = defaultCompactLogCheckDuration
 	}
 
 	if c.ShardCapacityBytes == 0 {
@@ -323,13 +329,11 @@ func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 
 // RaftLogConfig raft log config
 type RaftLogConfig struct {
-	DisableSync           bool     `toml:"disable-sync"`
-	CompactThreshold      uint64   `toml:"compact-threshold"`
-	DisableCompactProtect []uint64 `toml:"disable-compact-protect"`
-	MaxAllowTransferLag   uint64   `toml:"max-allow-transfer-lag"`
-	ForceCompactCount     uint64
-	ForceCompactBytes     uint64
-	CompactProtectLag     uint64
+	DisableSync         bool   `toml:"disable-sync"`
+	CompactThreshold    uint64 `toml:"compact-threshold"`
+	MaxAllowTransferLag uint64 `toml:"max-allow-transfer-lag"`
+	ForceCompactCount   uint64 `toml:"force-compact-log-count"`
+	ForceCompactBytes   uint64 `toml:"force-compact-log-bytes"`
 }
 
 func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
@@ -347,10 +351,6 @@ func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
 
 	if c.ForceCompactBytes == 0 {
 		c.ForceCompactBytes = shardCapacityBytes * 3 / 4
-	}
-
-	if c.CompactProtectLag == 0 {
-		c.CompactProtectLag = shardCapacityBytes * uint64(mb) / 256 / 16
 	}
 }
 
@@ -380,8 +380,6 @@ type CustomizeConfig struct {
 	// CustomSplitCompletedFuncFactory  is factory create a func which called by cube when the split operation of the shard is completed.
 	// We can update the attributes of old and news shards in this func
 	CustomSplitCompletedFuncFactory func(group uint64) func(old *meta.Shard, news []meta.Shard)
-	// CustomAdjustCompactFunc is factory create a func which used to adjust raft log compactIdx
-	CustomAdjustCompactFuncFactory func(group uint64) func(shard meta.Shard, compactIndex uint64) (newCompactIdx uint64, err error)
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
