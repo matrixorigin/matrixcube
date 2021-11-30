@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"sync/atomic"
 	"time"
 
 	"go.etcd.io/etcd/raft/v3"
@@ -25,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 )
 
 const (
@@ -58,6 +60,7 @@ type actionType int
 const (
 	campaignAction actionType = iota
 	checkSplitAction
+	checkCompactLogAction
 	splitAction
 	heartbeatAction
 	updateReadMetrics
@@ -113,6 +116,7 @@ func (pr *replica) addRaftTick() bool {
 	if err := pr.ticks.Put(struct{}{}); err != nil {
 		return false
 	}
+	atomic.AddUint64(&pr.tickTotalCount, 1)
 	pr.notifyWorker()
 	return true
 }
@@ -178,6 +182,7 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 			pr.shutdown()
 			pr.confirmUnloaded()
 		}
+		pr.logger.Debug("skip handling events on stopped replica")
 		return false, nil
 	default:
 	}
@@ -274,6 +279,8 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			pr.doCheckLogCommitted(act)
 		case checkLogAppliedAction:
 			pr.doCheckLogApplied(act)
+		case checkCompactLogAction:
+			pr.doCheckLogCompact(pr.rn.Status().Progress, pr.rn.LastIndex())
 		}
 	}
 
@@ -337,6 +344,7 @@ func (pr *replica) handleTick(items []interface{}) bool {
 	}
 	for i := int64(0); i < n; i++ {
 		pr.rn.Tick()
+		atomic.AddUint64(&pr.tickHandledCount, 1)
 	}
 
 	return true
@@ -412,4 +420,69 @@ func (pr *replica) prophetHeartbeat() {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
 	}
+}
+
+func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, lastIndex uint64) {
+	if !pr.isLeader() {
+		return
+	}
+
+	var minReplicatedIndex uint64
+	for _, p := range progresses {
+		if minReplicatedIndex == 0 {
+			minReplicatedIndex = p.Match
+		}
+
+		if p.Match < minReplicatedIndex {
+			minReplicatedIndex = p.Match
+		}
+	}
+
+	// When an election happened or a new replica is added, replicatedIdx can be 0.
+	if minReplicatedIndex > 0 {
+		if lastIndex < minReplicatedIndex {
+			pr.logger.Fatal("invalid replicated index",
+				zap.Uint64("replicated", minReplicatedIndex),
+				zap.Uint64("last", lastIndex))
+		}
+
+		metric.ObserveRaftLogLag(lastIndex - minReplicatedIndex)
+	}
+
+	compactIndex := minReplicatedIndex
+	appliedIndex := pr.appliedIndex
+	firstIndex := pr.getFirstIndex()
+
+	if minReplicatedIndex < firstIndex ||
+		minReplicatedIndex-firstIndex <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
+		return
+	}
+
+	if appliedIndex > firstIndex &&
+		appliedIndex-firstIndex >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
+		compactIndex = appliedIndex
+	} else if pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
+		compactIndex = appliedIndex
+	}
+
+	if compactIndex == 0 {
+		return
+	}
+
+	if compactIndex > minReplicatedIndex {
+		pr.logger.Info("some replica lag is too large, maybe sent a snapshot later",
+			zap.Uint64("lag", compactIndex-minReplicatedIndex))
+	}
+
+	compactIndex--
+	if compactIndex < firstIndex {
+		return
+	}
+
+	pr.addAdminRequest(rpc.AdminRequest{
+		CmdType: rpc.AdminCmdType_CompactLog,
+		CompactLog: &rpc.CompactLogRequest{
+			CompactIndex: compactIndex,
+		},
+	})
 }

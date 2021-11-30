@@ -28,10 +28,8 @@ const revokeLeaseTimeout = time.Second
 
 // LeaderLease is used for renewing leadership.
 type LeaderLease struct {
-	logger *zap.Logger
-	// tag          string
-	// purpose      string
-	id           clientv3.LeaseID
+	logger       *zap.Logger
+	id           atomic.Value //clientv3.LeaseID
 	lease        clientv3.Lease
 	leaseTimeout time.Duration
 	expireTime   atomic.Value
@@ -60,7 +58,7 @@ func (l *LeaderLease) grant(ctx context.Context, leaseTimeout int64) error {
 			zap.Duration("cost", cost))
 	}
 
-	l.id = leaseResp.ID
+	l.setLeaseID(leaseResp.ID)
 	l.leaseTimeout = time.Duration(leaseTimeout) * time.Second
 	l.expireTime.Store(start.Add(time.Duration(leaseResp.TTL) * time.Second))
 	return nil
@@ -76,7 +74,7 @@ func (l *LeaderLease) Close(pctx context.Context) error {
 		ctx, cancel := context.WithTimeout(pctx, revokeLeaseTimeout)
 		defer cancel()
 
-		_, err := l.lease.Revoke(ctx, l.id)
+		_, err := l.lease.Revoke(ctx, l.getLeaseID())
 		if err != nil {
 			l.logger.Info("fail to close lease",
 				zap.Error(err))
@@ -129,7 +127,7 @@ func (l *LeaderLease) keepAliveWorker(ctx context.Context, interval time.Duratio
 				start := time.Now()
 				ctx1, cancel := context.WithTimeout(ctx, l.leaseTimeout)
 				defer cancel()
-				res, err := l.lease.KeepAliveOnce(ctx1, l.id)
+				res, err := l.lease.KeepAliveOnce(ctx1, l.getLeaseID())
 				if err != nil {
 					l.logger.Error("fail to keep lease, retry later",
 						zap.Error(err))
@@ -154,4 +152,12 @@ func (l *LeaderLease) keepAliveWorker(ctx context.Context, interval time.Duratio
 	}()
 
 	return ch
+}
+
+func (l *LeaderLease) setLeaseID(id clientv3.LeaseID) {
+	l.id.Store(id)
+}
+
+func (l *LeaderLease) getLeaseID() clientv3.LeaseID {
+	return l.id.Load().(clientv3.LeaseID)
 }

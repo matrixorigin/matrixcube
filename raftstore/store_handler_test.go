@@ -24,47 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestHandleSplitCheck(t *testing.T) {
-	cases := []struct {
-		pr        *replica
-		action    action
-		hasAction bool
-	}{
-		{
-			pr:        &replica{leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: false,
-		},
-		{
-			pr:        &replica{startedC: make(chan struct{}), actions: task.New(32)},
-			hasAction: true,
-			action:    action{actionType: checkSplitAction},
-		},
-		{
-			pr:        &replica{startedC: make(chan struct{}), stats: &replicaStats{approximateSize: 1024 * 1024 * 1024}, actions: task.New(32)},
-			hasAction: true,
-			action:    action{actionType: checkSplitAction},
-		},
-	}
-
-	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		c.pr.store = s
-		c.pr.sm = &stateMachine{}
-		c.pr.sm.metadataMu.shard = Shard{}
-		close(c.pr.startedC)
-		s.addReplica(c.pr)
-		s.handleSplitCheck()
-		assert.Equal(t, c.hasAction, c.pr.actions.Len() > 0, "index %d", idx)
-		if c.hasAction {
-			v, err := c.pr.actions.Peek()
-			act := v.(action)
-			act.actionCallback = nil
-			assert.NoError(t, err, "index %d", idx)
-			assert.Equal(t, c.action, act, "index %d", idx)
-		}
-	}
-}
-
 func TestTryToCreateReplicate(t *testing.T) {
 	cases := []struct {
 		name       string

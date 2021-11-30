@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
@@ -255,4 +256,45 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, meta.ReplicaState_Normal, metadata[2].Metadata.State)
 	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
+}
+
+func TestDoExecCompactLog(t *testing.T) {
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	ctx := newApplyContext()
+
+	err := pr.sm.logdb.SaveRaftState(pr.shardID, pr.replicaID, raft.Ready{
+		Entries: []raftpb.Entry{
+			{
+				Index: 1,
+				Term:  1,
+			},
+			{
+				Index: 2,
+				Term:  1,
+			},
+			{
+				Index: 3,
+				Term:  1,
+			},
+		},
+		HardState: raftpb.HardState{
+			Commit: 3,
+			Term:   1,
+		},
+	}, pr.sm.logdb.NewWorkerContext())
+	assert.NoError(t, err)
+
+	ctx.req.AdminRequest.CompactLog = &rpc.CompactLogRequest{
+		CompactIndex: 2,
+	}
+	ctx.req.AdminRequest.CmdType = rpc.AdminCmdType_CompactLog
+
+	_, err = pr.sm.execAdminRequest(ctx)
+	assert.NoError(t, err)
+
+	state, err := pr.sm.logdb.ReadRaftState(pr.shardID, pr.replicaID)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(3), state.FirstIndex)
+	assert.Equal(t, uint64(1), state.EntryCount)
 }

@@ -167,14 +167,18 @@ func (s *store) Start() {
 	s.logger.Info("prophet started",
 		s.storeField())
 
-	s.startTransport()
-	s.logger.Info("raft internal transport started",
-		s.storeField(),
-		log.ListenAddressField(s.cfg.RaftAddr))
+	s.createTransport()
+	s.logger.Info("raft internal transport created",
+		s.storeField())
 
 	s.startShards()
 	s.logger.Info("shards started",
 		s.storeField())
+
+	s.startTransport()
+	s.logger.Info("raft internal transport started",
+		s.storeField(),
+		log.ListenAddressField(s.cfg.RaftAddr))
 
 	s.startTimerTasks()
 	s.logger.Info("shard timer based tasks started",
@@ -189,7 +193,7 @@ func (s *store) Start() {
 		s.storeField(),
 		log.ListenAddressField(s.cfg.ClientAddr))
 
-	s.doStoreHeartbeat(time.Now())
+	s.handleStoreHeartbeatTask(time.Now())
 }
 
 func (s *store) Stop() {
@@ -345,14 +349,17 @@ func (s *store) MaybeLeader(shard uint64) bool {
 }
 
 func (s *store) MustAllocID() uint64 {
-	id, err := s.pd.GetClient().AllocID()
-	if err != nil {
-		s.logger.Fatal("fail to alloc id",
+	for {
+		id, err := s.pd.GetClient().AllocID()
+		if err == nil {
+			return id
+		}
+
+		s.logger.Error("failed to alloc id",
 			s.storeField(),
 			zap.Error(err))
+		time.Sleep(time.Millisecond * 200)
 	}
-
-	return id
 }
 
 func (s *store) Prophet() prophet.Prophet {
@@ -371,7 +378,7 @@ func (s *store) startProphet() {
 	s.shardPool.setProphetClient(s.pd.GetClient())
 }
 
-func (s *store) startTransport() {
+func (s *store) createTransport() {
 	if s.cfg.Customize.CustomTransportFactory != nil {
 		s.trans = s.cfg.Customize.CustomTransportFactory()
 	} else {
@@ -379,6 +386,9 @@ func (s *store) startTransport() {
 			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
 			s.GetReplicaSnapshotDir, s.pd.GetStorage().GetContainer, s.cfg.FS)
 	}
+}
+
+func (s *store) startTransport() {
 	s.trans.Start()
 }
 
@@ -474,44 +484,6 @@ func (s *store) startShards() {
 		zap.Int("total", totalCount),
 		zap.Int("bootstrap", len(readyBootstrapShards)),
 		zap.Int("tomebstone", tomebstoneCount))
-}
-
-func (s *store) startTimerTasks() {
-	s.stopper.RunWorker(func() {
-		last := time.Now()
-
-		splitCheckTicker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
-		defer splitCheckTicker.Stop()
-
-		stateCheckTicker := time.NewTicker(s.cfg.Replication.ShardStateCheckDuration.Duration)
-		defer stateCheckTicker.Stop()
-
-		shardLeaderheartbeatTicker := time.NewTicker(s.cfg.Replication.ShardHeartbeatDuration.Duration)
-		defer shardLeaderheartbeatTicker.Stop()
-
-		storeheartbeatTicker := time.NewTicker(s.cfg.Replication.StoreHeartbeatDuration.Duration)
-		defer storeheartbeatTicker.Stop()
-
-		for {
-			select {
-			case <-s.stopper.ShouldStop():
-				s.logger.Info("timer based tasks stopped",
-					s.storeField())
-				return
-			case <-splitCheckTicker.C:
-				if !s.cfg.Replication.DisableShardSplit {
-					s.handleSplitCheck()
-				}
-			case <-stateCheckTicker.C:
-				s.handleShardStateCheck()
-			case <-shardLeaderheartbeatTicker.C:
-				s.doShardHeartbeat()
-			case <-storeheartbeatTicker.C:
-				s.doStoreHeartbeat(last)
-				last = time.Now()
-			}
-		}
-	})
 }
 
 func (s *store) addReplica(pr *replica) bool {

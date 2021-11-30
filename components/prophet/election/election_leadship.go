@@ -244,7 +244,7 @@ func (ls *Leadership) campaign() error {
 		If(clientv3.Compare(clientv3.CreateRevision(ls.leaderKey), "=", 0)).
 		Then(clientv3.OpPut(ls.leaderKey,
 			ls.nodeValue,
-			clientv3.WithLease(clientv3.LeaseID(l.id)))).
+			clientv3.WithLease(l.getLeaseID()))).
 		Commit()
 	if err != nil {
 		ls.GetLease().Close(ls.elector.client.Ctx())
@@ -266,7 +266,7 @@ func (ls *Leadership) campaign() error {
 	var lock *concurrency.Mutex
 	if ls.elector.options.lockIfBecomeLeader {
 		session, err := concurrency.NewSession(ls.elector.client,
-			concurrency.WithLease(clientv3.LeaseID(l.id)))
+			concurrency.WithLease(l.getLeaseID()))
 		if err != nil {
 			ls.logger.Error("fail to create etcd concurrency lock session",
 				keepaliveField,

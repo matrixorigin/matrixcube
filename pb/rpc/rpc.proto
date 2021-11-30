@@ -125,7 +125,6 @@ message ConfigChangeResponse {
 // CompactLogRequest compact raft log
 message CompactLogRequest {
     uint64 compactIndex = 1;
-    uint64 compactTerm  = 2;
 }
 
 // CompactLogResponse compact raft log

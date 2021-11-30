@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +41,7 @@ import (
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/util/testutil"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -183,6 +183,7 @@ func recreateTestTempDir(fs vfs.FS, tmpDir string) {
 type testShardAware struct {
 	sync.RWMutex
 
+	node         int
 	wrapper      aware.ShardStateAware
 	shards       []Shard
 	leaders      map[uint64]bool
@@ -192,8 +193,9 @@ type testShardAware struct {
 	removed map[uint64]Shard
 }
 
-func newTestShardAware() *testShardAware {
+func newTestShardAware(node int) *testShardAware {
 	return &testShardAware{
+		node:         node,
 		leaders:      make(map[uint64]bool),
 		applied:      make(map[uint64]int),
 		removed:      make(map[uint64]Shard),
@@ -210,7 +212,8 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait remove shard %d timeout", id)
+			assert.FailNowf(t, "", "wait shard %d removed at node %d timeout",
+				id, ts.node)
 		default:
 			if !ts.hasShard(id) {
 				assert.Equal(t, metapb.ResourceState_Destroyed, ts.removed[id].State)
@@ -226,7 +229,9 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shard count %d timeout", count)
+			assert.FailNowf(t, "", "wait shards count %d at node %d timeout",
+				count,
+				ts.node)
 		default:
 			if ts.shardCount() >= count {
 				return
@@ -241,7 +246,10 @@ func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count i
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shard %d split count %d timeout", id, count)
+			assert.FailNowf(t, "", "wait shard %d split count %d at node %d timeout",
+				id,
+				count,
+				ts.node)
 		default:
 			if ts.shardSplitedCount(id) >= count {
 				return
@@ -453,6 +461,8 @@ type TestRaftCluster interface {
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
+	// WaitReplicaChangeToVoter check that the role of shard of each node change to voter until the timeout
+	WaitReplicaChangeToVoter(shard uint64, timeout time.Duration)
 	// WaitShardByCountOnNode check that the number of shard of the specified node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountOnNode(node, count int, timeout time.Duration)
@@ -494,7 +504,6 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 type testKVClient struct {
 	sync.RWMutex
 
-	id      uint64
 	runner  *task.Runner
 	proxy   ShardsProxy
 	doneCtx map[string]chan string
@@ -596,7 +605,7 @@ func (kv *testKVClient) errorDone(req *rpc.Request, err error) {
 }
 
 func (kv *testKVClient) nextID() string {
-	return fmt.Sprintf("%d", atomic.AddUint64(&kv.id, 1))
+	return string(uuid.NewV4().Bytes())
 }
 
 func createTestWriteReq(id, k, v string) rpc.Request {
@@ -776,7 +785,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 			c.dataStorages = append(c.dataStorages, dataStorage)
 		}
 
-		ts := newTestShardAware()
+		ts := newTestShardAware(i)
 		cfg.Test.ShardStateAware = ts
 
 		var s *store
@@ -971,6 +980,29 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 	}
 }
 
+func (c *testRaftCluster) WaitReplicaChangeToVoter(shardID uint64, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait replica of shard %d change to voter timeout", shardID)
+		default:
+			for idx := range c.stores {
+				if c.awares[idx].hasShard(shardID) {
+					pr := c.stores[idx].getReplica(shardID, false)
+					if pr != nil {
+						r := findReplica(pr.getShard(), c.stores[idx].Meta().ID)
+						if r != nil && r.Role == metapb.ReplicaRole_Voter {
+							return
+						}
+					}
+				}
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
 func (c *testRaftCluster) WaitShardByCountPerNode(count int, timeout time.Duration) {
 	for idx := range c.stores {
 		c.awares[idx].waitByShardCount(c.t, count, timeout)
@@ -988,8 +1020,8 @@ func (c *testRaftCluster) WaitShardSplitByCount(id uint64, count int, timeout ti
 }
 
 func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration) {
-	for idx := range c.stores {
-		c.awares[idx].waitByShardCount(c.t, counts[idx], timeout)
+	for idx, n := range counts {
+		c.awares[idx].waitByShardCount(c.t, n, timeout)
 	}
 }
 

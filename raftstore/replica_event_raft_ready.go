@@ -239,6 +239,8 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 		ShardID:      pr.shardID,
 		From:         pr.replica,
 		To:           to,
+		Start:        shard.Start,
+		End:          shard.End,
 		ShardEpoch:   shard.Epoch,
 		Group:        shard.Group,
 		DisableSplit: shard.DisableSplit,
