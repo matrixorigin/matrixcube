@@ -342,6 +342,22 @@ func (ts *testShardAware) Created(shard Shard) {
 	}
 }
 
+func (ts *testShardAware) Updated(shard Shard) {
+	ts.Lock()
+	defer ts.Unlock()
+
+	for idx := range ts.shards {
+		if ts.shards[idx].ID == shard.ID {
+			ts.shards[idx] = shard
+			break
+		}
+	}
+
+	if ts.wrapper != nil {
+		ts.wrapper.Updated(shard)
+	}
+}
+
 func (ts *testShardAware) Splited(shard Shard) {
 	ts.Lock()
 	defer ts.Unlock()
@@ -988,14 +1004,10 @@ func (c *testRaftCluster) WaitReplicaChangeToVoter(shardID uint64, timeout time.
 			assert.FailNowf(c.t, "", "wait replica of shard %d change to voter timeout", shardID)
 		default:
 			for idx := range c.stores {
-				if c.awares[idx].hasShard(shardID) {
-					pr := c.stores[idx].getReplica(shardID, false)
-					if pr != nil {
-						r := findReplica(pr.getShard(), c.stores[idx].Meta().ID)
-						if r != nil && r.Role == metapb.ReplicaRole_Voter {
-							return
-						}
-					}
+				r := findReplica(c.awares[idx].getShardByID(shardID),
+					c.stores[idx].Meta().ID)
+				if r != nil && r.Role == metapb.ReplicaRole_Voter {
+					return
 				}
 			}
 			time.Sleep(time.Millisecond * 100)
