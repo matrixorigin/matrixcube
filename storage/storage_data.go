@@ -75,8 +75,8 @@ type BaseStorage interface {
 	WriteBatchCreator
 	// CreateSnapshot creates a snapshot from the specified shard and store the
 	// generated snapshot into the directory specified by the path parameter. It
-	// returns the raft log index and the encountered error if there is any.
-	CreateSnapshot(shardID uint64, path string) (uint64, error)
+	// returns the encountered error if there is any.
+	CreateSnapshot(shardID uint64, path string) error
 	// ApplySnapshot applies the snapshort stored in the given path into the
 	// specified shard.
 	ApplySnapshot(shardID uint64, path string) error

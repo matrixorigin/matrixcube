@@ -342,8 +342,7 @@ func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
 }
 
-func (kv *kvDataStorage) CreateSnapshot(shardID uint64,
-	path string) (uint64, error) {
+func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) error {
 	return kv.base.CreateSnapshot(shardID, path)
 }
 

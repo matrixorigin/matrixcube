@@ -169,8 +169,7 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		}
 		metadata = protoc.MustMarshal(&sm)
 		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm}))
-		index, err := base.CreateSnapshot(sm.ShardID, dir)
-		assert.Equal(t, sm.LogIndex, index)
+		err := base.CreateSnapshot(sm.ShardID, dir)
 		assert.NoError(t, err)
 	}()
 

@@ -63,6 +63,7 @@ func runReplicaSnapshotTest(t *testing.T,
 	assert.NoError(t, ds.Sync([]uint64{1}))
 
 	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
+	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
 		logger:      logger,
 		logdb:       ldb,
