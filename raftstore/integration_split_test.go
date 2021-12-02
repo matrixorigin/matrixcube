@@ -321,17 +321,18 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 		assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
 		assert.Equal(t, replicaCount, len(v.Peers()))
 
-		pd.GetBasicCluster().RLock()
-		res := pd.GetBasicCluster().Resources.GetResource(sid)
+		bc := pd.GetBasicCluster()
+		bc.RLock()
+		res := bc.Resources.GetResource(sid)
 		assert.Nil(t, res)
 
-		res = pd.GetBasicCluster().SearchResource(0, []byte("k1"))
+		res = bc.Resources.SearchResource(0, []byte("k1"))
 		assert.NotNil(t, res)
 		assert.NotEqual(t, sid, res.Meta.ID())
 
-		res = pd.GetBasicCluster().SearchResource(0, []byte("k3"))
+		res = bc.Resources.SearchResource(0, []byte("k3"))
 		assert.NotNil(t, res)
 		assert.NotEqual(t, sid, res.Meta.ID())
-		pd.GetBasicCluster().RUnlock()
+		bc.RUnlock()
 	}
 }
