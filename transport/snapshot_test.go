@@ -399,7 +399,9 @@ func (t *testTransportStatus) waitCount(tt *testing.T, value int, p *uint64, tim
 
 func TestSnapshotCanBeTransported(t *testing.T) {
 	// shard 1 replica 1 wants to send a snapshot at index 100 to replica 2, extra value is 12345
+	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
 	fs.RemoveAll(testSnapshotDir)
 	defer fs.RemoveAll(testSnapshotDir)
 	extra := uint64(12345)
