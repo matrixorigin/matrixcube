@@ -85,7 +85,7 @@ func TestGetAppliedIndex(t *testing.T) {
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 	defer ds.Close()
-	ctx := storage.NewSimpleWriteContext(100, kv, storage.Batch{Index: 200, Term: 300})
+	ctx := storage.NewSimpleWriteContext(100, kv, storage.Batch{Index: 200})
 	assert.NoError(t, ds.Write(ctx))
 	view := base.GetView()
 	defer view.Close()
@@ -94,7 +94,7 @@ func TestGetAppliedIndex(t *testing.T) {
 	var logIndex meta.LogIndex
 	protoc.MustUnmarshal(&logIndex, val)
 	assert.Equal(t, keys.GetAppliedIndexKey(100, nil), key[1:])
-	assert.Equal(t, meta.LogIndex{Index: 200, Term: 300}, logIndex)
+	assert.Equal(t, meta.LogIndex{Index: 200}, logIndex)
 }
 
 func TestGetShardMetadataReturnsErrorOnEmptyDB(t *testing.T) {
@@ -165,14 +165,12 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		sm := meta.ShardMetadata{
 			ShardID:  shardID,
 			LogIndex: 110,
-			LogTerm:  234,
 			Metadata: sls,
 		}
 		metadata = protoc.MustMarshal(&sm)
 		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm}))
-		index, term, err := base.CreateSnapshot(sm.ShardID, dir)
+		index, err := base.CreateSnapshot(sm.ShardID, dir)
 		assert.Equal(t, sm.LogIndex, index)
-		assert.Equal(t, sm.LogTerm, term)
 		assert.NoError(t, err)
 	}()
 
@@ -204,7 +202,6 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		protoc.MustUnmarshal(&logIndex, val)
 		assert.Equal(t, keys.GetAppliedIndexKey(shardID, nil), key[1:])
 		assert.Equal(t, uint64(110), logIndex.Index)
-		assert.Equal(t, uint64(234), logIndex.Term)
 
 		key, val, err = base.(*BaseStorage).getShardMetadata(view.Raw().(*pebble.Snapshot), shardID)
 		assert.NoError(t, err)

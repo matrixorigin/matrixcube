@@ -137,7 +137,6 @@ func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
 			sm = append(sm, meta.ShardMetadata{
 				ShardID:  shard.ID,
 				LogIndex: 1,
-				LogTerm:  1,
 				Metadata: meta.ShardLocalState{
 					State: meta.ReplicaState_Normal,
 					Shard: shard,

@@ -47,7 +47,7 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	ctx := newWriteContext(base)
 	assert.False(t, ctx.hasRequest())
 	for i, c := range cases {
-		ctx.initialize(shard, 0, 0, c.batch)
+		ctx.initialize(shard, 0, c.batch)
 		assert.True(t, ctx.hasRequest())
 		assert.Equal(t, len(c.batch.Requests), len(ctx.batch.Requests), "index %d", i)
 		for idx := range c.batch.Requests {

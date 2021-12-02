@@ -159,14 +159,14 @@ func (s *BaseStorage) getShardMetadata(ss *pebble.Snapshot,
 
 // CreateSnapshot create a snapshot file under the giving path
 func (s *BaseStorage) CreateSnapshot(shardID uint64,
-	path string) (uint64, uint64, error) {
+	path string) (uint64, error) {
 	if err := s.fs.MkdirAll(path, 0755); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	file := s.fs.PathJoin(path, "db.data")
 	f, err := s.fs.Create(file)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	defer f.Close()
 	view := s.kv.GetView()
@@ -175,11 +175,11 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	snap := view.Raw().(*pebble.Snapshot)
 	appliedIndexKey, appliedIndexValue, err := s.getAppliedIndex(snap, shardID)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "failed to get applied index in CreateSnapshot")
+		return 0, errors.Wrapf(err, "failed to get applied index in CreateSnapshot")
 	}
 	metadataKey, metadataValue, err := s.getShardMetadata(snap, shardID)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "failed to get shard in CreateSnapshot")
+		return 0, errors.Wrapf(err, "failed to get shard in CreateSnapshot")
 	}
 
 	var sls meta.ShardMetadata
@@ -189,22 +189,22 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	shard := sls.Metadata.Shard
 
 	if err := writeBytes(f, EncodeShardStart(shard.Start, nil)); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := writeBytes(f, EncodeShardEnd(shard.End, nil)); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := writeBytes(f, appliedIndexKey); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := writeBytes(f, appliedIndexValue); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := writeBytes(f, metadataKey); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	if err := writeBytes(f, metadataValue); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	ios := &pebble.IterOptions{
@@ -217,18 +217,18 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64,
 	iter.First()
 	for iter.Valid() {
 		if err := iter.Error(); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if err := writeBytes(f, iter.Key()); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		if err = writeBytes(f, iter.Value()); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 		iter.Next()
 	}
 
-	return logIndex.Index, logIndex.Term, nil
+	return logIndex.Index, nil
 }
 
 // ApplySnapshot apply a snapshort file from giving path
