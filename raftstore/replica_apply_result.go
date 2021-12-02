@@ -186,9 +186,10 @@ func (pr *replica) applySplit(result *splitResult) {
 	newReplicaCreator(pr.store).
 		withReason(reason).
 		withStartReplica(func(r *replica) {
-			shard := r.getShard()
 			r.stats.approximateKeys = estimatedKeys
 			r.stats.approximateSize = estimatedSize
+		}, func(r *replica) {
+			shard := r.getShard()
 			if isLeader && len(shard.Replicas) > 1 {
 				r.addAction(action{actionType: campaignAction})
 			}
