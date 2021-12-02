@@ -31,7 +31,7 @@ func (s *store) doDynamicallyCreate(shard Shard) bool {
 
 	newReplicaCreator(s).
 		withReason("event").
-		withStartReplica(nil).
+		withStartReplica(nil, nil).
 		withSaveMetadata(true).
 		create([]Shard{shard})
 	return true

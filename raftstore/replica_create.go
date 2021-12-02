@@ -35,14 +35,14 @@ type replicaCreatorFactory func() *replicaCreator
 // 2. Shards created dynamically through Prophet's API
 // 3. After Rebalance, we receive a raft message from leader and create the shard replica.
 type replicaCreator struct {
-	store               *store
-	sync, saveMetadata  bool
-	reason              string
-	startReplica        bool
-	afterStartedFunc    func(*replica)
-	replicaRecordGetter func(Shard) Replica
-	wc                  *logdb.WorkerContext
-	logger              *zap.Logger
+	store                             *store
+	sync, saveMetadata                bool
+	reason                            string
+	startReplica                      bool
+	afterStartedFunc, beforeStartFunc func(*replica)
+	replicaRecordGetter               func(Shard) Replica
+	wc                                *logdb.WorkerContext
+	logger                            *zap.Logger
 }
 
 func newReplicaCreator(store *store) *replicaCreator {
@@ -64,9 +64,10 @@ func (rc *replicaCreator) withReason(reason string) *replicaCreator {
 	return rc
 }
 
-func (rc *replicaCreator) withStartReplica(afterStartedFunc func(*replica)) *replicaCreator {
+func (rc *replicaCreator) withStartReplica(beforeStartFunc, afterStartedFunc func(*replica)) *replicaCreator {
 	rc.startReplica = true
 	rc.afterStartedFunc = afterStartedFunc
+	rc.beforeStartFunc = beforeStartFunc
 	return rc
 }
 
@@ -178,6 +179,9 @@ func (rc *replicaCreator) maybeStartReplicas(shards []Shard, replicas []*replica
 	}
 
 	for idx, pr := range replicas {
+		if rc.beforeStartFunc != nil {
+			rc.beforeStartFunc(pr)
+		}
 		pr.start()
 		shard := shards[idx]
 		for _, p := range shard.Replicas {
