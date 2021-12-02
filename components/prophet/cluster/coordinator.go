@@ -98,8 +98,12 @@ func (c *coordinator) patrolResources() {
 	defer timer.Stop()
 
 	c.cluster.logger.Info("coordinator starts patrol resources")
+	keys := make(map[uint64][]byte)
+	for _, g := range c.cluster.GetReplicationConfig().Groups {
+		keys[g] = nil
+	}
+
 	start := time.Now()
-	var key []byte
 	for {
 		select {
 		case <-timer.C:
@@ -117,42 +121,49 @@ func (c *coordinator) patrolResources() {
 		c.checkWaitingResources()
 
 		for _, group := range c.cluster.GetReplicationConfig().Groups {
-			resources := c.cluster.ScanResources(group, key, nil, patrolScanResourceLimit)
-			if len(resources) == 0 {
-				// Resets the scan key.
-				key = nil
-				continue
-			}
-
-			for _, res := range resources {
-				// Skips the resource if there is already a pending operator.
-				if c.opController.GetOperator(res.Meta.ID()) != nil {
-					continue
-				}
-
-				ops := c.checkers.CheckResource(res)
-
-				key = res.GetEndKey()
-				if len(ops) == 0 {
-					continue
-				}
-
-				if !c.opController.ExceedContainerLimit(ops...) {
-					c.opController.AddWaitingOperator(ops...)
-					c.checkers.RemoveWaitingResource(res.Meta.ID())
-					c.cluster.RemoveSuspectResource(res.Meta.ID())
-				} else {
-					c.checkers.AddWaitingResource(res)
-				}
-			}
-			// Updates the label level isolation statistics.
-			c.cluster.updateResourcesLabelLevelStats(resources)
-			if len(key) == 0 {
+			c.doScan(group, keys)
+			if len(keys[group]) == 0 {
 				patrolCheckResourcesGauge.Set(time.Since(start).Seconds())
 				start = time.Now()
 			}
 		}
 	}
+}
+
+func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
+	key := keys[group]
+	resources := c.cluster.ScanResources(group, key, nil, patrolScanResourceLimit)
+	if len(resources) == 0 {
+		// Resets the scan key.
+		keys[group] = nil
+		return
+	}
+
+	for _, res := range resources {
+		// Skips the resource if there is already a pending operator.
+		if c.opController.GetOperator(res.Meta.ID()) != nil {
+			continue
+		}
+
+		c.cluster.logger.Info("on check resource",
+			zap.Uint64("resource", res.Meta.ID()))
+		ops := c.checkers.CheckResource(res)
+
+		keys[group] = res.GetEndKey()
+		if len(ops) == 0 {
+			continue
+		}
+
+		if !c.opController.ExceedContainerLimit(ops...) {
+			c.opController.AddWaitingOperator(ops...)
+			c.checkers.RemoveWaitingResource(res.Meta.ID())
+			c.cluster.RemoveSuspectResource(res.Meta.ID())
+		} else {
+			c.checkers.AddWaitingResource(res)
+		}
+	}
+	// Updates the label level isolation statistics.
+	c.cluster.updateResourcesLabelLevelStats(resources)
 }
 
 func (c *coordinator) checkSuspectResources() {
