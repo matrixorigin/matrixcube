@@ -384,7 +384,7 @@ func (s *store) createTransport() {
 	} else {
 		s.trans = transport.NewTransport(s.logger,
 			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
-			s.GetReplicaSnapshotDir, s.pd.GetStorage().GetContainer, s.cfg.FS)
+			s.GetReplicaSnapshotDir, s.containerResolver, s.cfg.FS)
 	}
 }
 
@@ -759,6 +759,14 @@ func (s *store) nextShard(shard Shard) *Shard {
 
 func (s *store) storeField() zap.Field {
 	return log.StoreIDField(s.Meta().ID)
+}
+
+func (s *store) containerResolver(storeID uint64) (string, error) {
+	container, err := s.pd.GetStorage().GetContainer(storeID)
+	if err != nil {
+		return "", err
+	}
+	return container.ShardAddr(), nil
 }
 
 func (s *store) unreachable(shardID uint64, replicaID uint64) {

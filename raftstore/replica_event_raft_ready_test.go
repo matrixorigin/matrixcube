@@ -96,6 +96,11 @@ func (t *replicaTestTransport) Send(m meta.RaftMessage) bool {
 	return true
 }
 
+func (t *replicaTestTransport) SendSnapshot(m meta.RaftMessage) bool {
+	t.messages = append(t.messages, m)
+	return true
+}
+
 func (t *replicaTestTransport) Start() error {
 	return nil
 }

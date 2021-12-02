@@ -41,7 +41,6 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -57,12 +56,13 @@ const (
 
 type Trans interface {
 	Send(meta.RaftMessage) bool
+	SendSnapshot(meta.RaftMessage) bool
 	SendingSnapshotCount() uint64
 	Start() error
 	Close() error
 }
 
-type ContainerResolver func(storeID uint64) (metadata.Container, error)
+type ContainerResolver func(storeID uint64) (string, error)
 
 type MessageHandler func(meta.RaftMessageBatch)
 
@@ -402,15 +402,14 @@ func (t *Transport) resolve(storeID uint64, shardID uint64) (targetInfo, bool) {
 		return info.(targetInfo), true
 	}
 
-	container, err := t.resolver(storeID)
+	addr, err := t.resolver(storeID)
 	if err != nil {
 		t.logger.Error("failed to resolve store addr",
 			zap.Error(err))
 		return targetInfo{}, false
 	}
-	addr := container.ShardAddr()
 	rec := targetInfo{
-		addr: container.ShardAddr(),
+		addr: addr,
 		key:  fmt.Sprintf("%s-%d", addr, shardID%concurrencyFactor),
 	}
 	t.addrs.Store(storeID, rec)
