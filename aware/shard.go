@@ -21,6 +21,8 @@ import (
 type ShardStateAware interface {
 	// Created the shard was created on the current store
 	Created(meta.Shard)
+	// Updated the shard was updated on the current store
+	Updated(meta.Shard)
 	// Splited the shard was splited on the current store
 	Splited(meta.Shard)
 	// Destroyed the shard was destroyed on the current store

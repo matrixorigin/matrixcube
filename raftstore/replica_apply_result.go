@@ -158,6 +158,10 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 		}
 	}
 
+	if pr.store.aware != nil {
+		pr.store.aware.Updated(pr.getShard())
+	}
+
 	pr.logger.Info("applied changes completed",
 		log.ReplicaField("replica", pr.replica),
 		log.ShardField("shard", pr.getShard()))
