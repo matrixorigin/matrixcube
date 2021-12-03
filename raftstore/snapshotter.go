@@ -52,7 +52,7 @@ var (
 )
 
 type saveable interface {
-	CreateSnapshot(shardID uint64, path string) (uint64, uint64, error)
+	CreateSnapshot(shardID uint64, path string) error
 }
 
 var _ saveable = (storage.DataStorage)(nil)
@@ -201,7 +201,7 @@ func (s *snapshotter) processOrphans(dirName string,
 	return s.removeFlagFile(dirName)
 }
 
-func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
+func (s *snapshotter) save(de saveable, index uint64) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
 	extra := random.LockGuardedRand.Uint64()
 	env = s.getCreatingSnapshotEnv(extra)
@@ -210,17 +210,10 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 	if err := env.CreateTempDir(); err != nil {
 		return raftpb.Snapshot{}, env, err
 	}
-	index, term, err := de.CreateSnapshot(s.shardID, env.GetTempDir())
-	if err != nil {
+	if err := de.CreateSnapshot(s.shardID, env.GetTempDir()); err != nil {
 		s.logger.Error("data storage failed to create snapshot",
 			zap.Error(err))
 		return raftpb.Snapshot{}, env, err
-	}
-	if index == 0 {
-		panic("snapshot index is 0")
-	}
-	if term == 0 {
-		panic("snapshot term is 0")
 	}
 	env.FinalizeIndex(index)
 	s.logger.Info("snapshot saved")
@@ -228,7 +221,6 @@ func (s *snapshotter) save(de saveable) (ss raftpb.Snapshot,
 		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
 			Index: index,
-			Term:  term,
 		},
 	}, env, nil
 }

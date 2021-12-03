@@ -52,7 +52,6 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(stats))
 	assert.Equal(t, uint64(1), stats[0].LogIndex)
-	assert.Equal(t, uint64(1), stats[0].LogTerm)
 	assert.Equal(t, uint64(1), stats[0].ShardID)
 	assert.Equal(t, meta.ReplicaState_Normal, stats[0].Metadata.State)
 	if sync {

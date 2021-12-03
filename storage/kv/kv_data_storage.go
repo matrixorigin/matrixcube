@@ -115,7 +115,7 @@ func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 	r := ctx.WriteBatch()
 	defer r.Reset()
 
-	kv.setAppliedIndexToWriteBatch(ctx, batch.Index, batch.Term)
+	kv.setAppliedIndexToWriteBatch(ctx, batch.Index)
 	kv.updateAppliedIndex(ctx.Shard().ID, batch.Index)
 	if err := kv.executor.ApplyWriteBatch(r); err != nil {
 		return err
@@ -141,10 +141,7 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []meta.ShardMetadata) error
 		key := EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil)
 		wb.Set(key, protoc.MustMarshal(&m))
 
-		logIndex := meta.LogIndex{
-			Index: m.LogIndex,
-			Term:  m.LogTerm,
-		}
+		logIndex := meta.LogIndex{Index: m.LogIndex}
 		key = EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil)
 		wb.Set(key, protoc.MustMarshal(&logIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
@@ -309,14 +306,13 @@ func (kv *kvDataStorage) Split(old meta.ShardMetadata,
 	return kv.SaveShardMetadata(append(news, old))
 }
 
-func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext,
-	index uint64, term uint64) {
+func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
 	buffer := ctx.ByteBuf()
 	// TODO(fagongzi): avoid allocate for get applied index key
 	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(ctx.Shard().ID, nil), buffer)
-	val := protoc.MustMarshal(&meta.LogIndex{Index: index, Term: term})
+	val := protoc.MustMarshal(&meta.LogIndex{Index: index})
 	wb.Set(key, val)
 }
 
@@ -346,8 +342,7 @@ func (kv *kvDataStorage) Close() error {
 	return kv.base.Close()
 }
 
-func (kv *kvDataStorage) CreateSnapshot(shardID uint64,
-	path string) (uint64, uint64, error) {
+func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) error {
 	return kv.base.CreateSnapshot(shardID, path)
 }
 

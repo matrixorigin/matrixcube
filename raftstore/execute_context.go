@@ -71,11 +71,10 @@ func (ctx *writeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *writeContext) initialize(shard Shard,
-	index uint64, term uint64, batch rpc.RequestBatch) {
+func (ctx *writeContext) initialize(shard Shard, index uint64, batch rpc.RequestBatch) {
 	ctx.buf.Clear()
 	ctx.shard = shard
-	ctx.batch = storage.Batch{Index: index, Term: term}
+	ctx.batch = storage.Batch{Index: index}
 	ctx.responses = ctx.responses[:0]
 	ctx.writtenBytes = 0
 	ctx.diffBytes = 0

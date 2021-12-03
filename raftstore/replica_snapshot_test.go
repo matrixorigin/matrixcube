@@ -58,11 +58,12 @@ func runReplicaSnapshotTest(t *testing.T,
 	defer ds.Close()
 
 	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{
-		{ShardID: 1, LogIndex: 100, LogTerm: 200, Metadata: meta.ShardLocalState{Shard: shard}},
+		{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
 	}))
 	assert.NoError(t, ds.Sync([]uint64{1}))
 
 	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
+	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
 		logger:      logger,
 		logdb:       ldb,

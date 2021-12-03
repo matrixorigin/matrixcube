@@ -243,7 +243,6 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	old := meta.ShardMetadata{
 		ShardID:  current.ID,
 		LogIndex: ctx.index,
-		LogTerm:  ctx.term,
 		Metadata: meta.ShardLocalState{
 			State:      meta.ReplicaState_Normal,
 			Shard:      current,
@@ -288,7 +287,6 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 		{
 			ShardID:  d.shardID,
 			LogIndex: ctx.index,
-			LogTerm:  ctx.term,
 			Metadata: updateReq.Metadata,
 		},
 	})
@@ -314,7 +312,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
-	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.term, ctx.req)
+	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
 			ce.Write(log.HexField("id", req.ID),
@@ -365,7 +363,6 @@ func (d *stateMachine) saveShardMetedata(index uint64, term uint64,
 	return d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
-		LogTerm:  term,
 		Metadata: meta.ShardLocalState{
 			State: state,
 			Shard: shard,

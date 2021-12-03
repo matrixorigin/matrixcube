@@ -114,8 +114,7 @@ message LogIndex {
 message ShardMetadata {
   uint64 shardID  = 1;
 	uint64 logIndex = 2;
-  uint64 logTerm  = 3;
-	ShardLocalState metadata  = 4 [(gogoproto.nullable) = false];
+	ShardLocalState metadata  = 3 [(gogoproto.nullable) = false];
 }
 
 // ShardLocalState shard local state
