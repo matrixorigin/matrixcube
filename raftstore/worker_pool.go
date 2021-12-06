@@ -83,7 +83,6 @@ func (w *replicaWorker) workerMain() {
 				zap.Uint64("worker-id", w.workerID))
 			return
 		case h := <-w.requestC:
-			shardID := h.getShardID()
 			if err := w.handleEvent(h); err != nil {
 				panic(err)
 			}
