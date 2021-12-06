@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -369,8 +368,6 @@ type CustomizeConfig struct {
 	CustomShardStateAwareFactory func() aware.ShardStateAware
 	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
 	CustomInitShardsFactory func() []meta.Shard
-	// CustomSnapshotManagerFactory is a factory func to create a snapshot.SnapshotManager to handle snapshot by youself.
-	CustomSnapshotManagerFactory func() snapshot.SnapshotManager
 	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
 	CustomTransportFactory func() transport.Trans
 	// CustomSnapshotDataCreateFuncFactory is factory create a func which called by cube if a snapshot need to create.
