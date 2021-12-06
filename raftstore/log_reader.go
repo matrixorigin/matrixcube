@@ -242,6 +242,7 @@ func (lr *LogReader) Snapshot() (pb.Snapshot, error) {
 	snapshot := lr.snapshot
 	if raft.IsEmptySnap(snapshot) {
 		lr.snapshotRequested = true
+		panic("snapshot will be created")
 		return pb.Snapshot{}, raft.ErrSnapshotTemporarilyUnavailable
 	}
 	lr.snapshot = pb.Snapshot{}
@@ -271,6 +272,9 @@ func (lr *LogReader) GetSnapshotRequested() bool {
 	lr.Lock()
 	defer lr.Unlock()
 	v := lr.snapshotRequested
+	if v {
+		panic("lr reported that snapshot requested")
+	}
 	lr.snapshotRequested = false
 	return v
 }

@@ -268,6 +268,7 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 	}
 
 	if msg.Type == raftpb.MsgSnap {
+		panic("sending a snapshot")
 		pr.transport.SendSnapshot(m)
 	} else {
 		pr.transport.Send(m)

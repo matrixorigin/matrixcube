@@ -27,6 +27,7 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 	if !r.lr.GetSnapshotRequested() {
 		return nil
 	}
+	panic("snapshot requested!!!!!!!!!")
 	r.logger.Info("requested to create snapshot")
 	ss, created, err := r.createSnapshot()
 	if err != nil {
@@ -40,6 +41,7 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 }
 
 func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
+	panic("create snapshot called")
 	index, _ := r.sm.getAppliedIndexTerm()
 	if index == 0 {
 		panic("invalid snapshot index")
@@ -82,6 +84,7 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	}
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
+	panic("apply snapshot called")
 	return r.removeSnapshot(ss, true)
 }
 
