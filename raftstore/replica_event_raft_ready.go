@@ -50,11 +50,6 @@ func (pr *replica) commitRaftReady(rd raft.Ready) {
 }
 
 func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
-	if ce := pr.logger.Check(zap.DebugLevel, "begin handleReady"); ce != nil {
-		ce.Write(log.ShardIDField(pr.shardID),
-			log.ReplicaIDField(pr.replicaID))
-	}
-
 	pr.handleRaftState(rd)
 	pr.sendRaftAppendLogMessages(rd)
 	if err := pr.saveRaftState(rd, wc); err != nil {
@@ -74,12 +69,6 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	if err := pr.handleRaftCreateSnapshotRequest(); err != nil {
 		return err
 	}
-
-	if ce := pr.logger.Check(zap.DebugLevel, "handleReady completed"); ce != nil {
-		ce.Write(log.ShardIDField(pr.shardID),
-			log.ReplicaIDField(pr.replicaID))
-	}
-
 	return nil
 }
 
@@ -268,6 +257,7 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 	}
 
 	if msg.Type == raftpb.MsgSnap {
+		pr.logger.Info("sending a snapshot message")
 		pr.transport.SendSnapshot(m)
 	} else {
 		pr.transport.Send(m)

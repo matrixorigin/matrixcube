@@ -292,7 +292,15 @@ func TestDoExecCompactLog(t *testing.T) {
 
 	_, err = pr.sm.execAdminRequest(ctx)
 	assert.NoError(t, err)
+	result := applyResult{
+		shardID:     pr.sm.shardID,
+		adminResult: ctx.adminResult,
+		metrics:     ctx.metrics,
+	}
+	assert.NotNil(t, result.adminResult)
 
+	pr.lr.SetRange(1, 100)
+	pr.handleApplyResult(result)
 	state, err := pr.sm.logdb.ReadRaftState(pr.shardID, pr.replicaID)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), state.FirstIndex)

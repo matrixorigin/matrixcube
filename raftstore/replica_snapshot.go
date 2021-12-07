@@ -53,6 +53,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot save completed")
 	if err := r.snapshotter.commit(ss, ssenv); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
@@ -63,6 +64,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot committed")
 	if err := r.lr.CreateSnapshot(ss); err != nil {
 		if errors.Is(err, raft.ErrSnapOutOfDate) {
 			// lr already has a more recent snapshot
@@ -71,6 +73,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot created")
 	// TODO: schedule log compacton here
 	return ss, true, nil
 }
