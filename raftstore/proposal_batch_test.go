@@ -27,8 +27,8 @@ var (
 
 func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	r1 := newAdminReqCtx(rpc.AdminRequest{})
-	r2 := newAdminReqCtx(rpc.AdminRequest{})
+	r1 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
+	r2 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
 	b.push(1, r1)
 	b.push(1, r2)
 	assert.Equal(t, 2, b.size())

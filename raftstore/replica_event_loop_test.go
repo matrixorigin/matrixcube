@@ -199,9 +199,9 @@ func TestDoCheckCompactLog(t *testing.T) {
 		1: {Match: 101},
 	}, 101)
 	v, _ := pr.requests.Peek()
-	req := &rpc.AdminRequest{}
+	req := &rpc.CompactLogRequest{}
 	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, uint64(100), req.CompactLog.CompactIndex)
+	assert.Equal(t, uint64(100), req.CompactIndex)
 
 	// force bytes
 	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000
@@ -217,5 +217,5 @@ func TestDoCheckCompactLog(t *testing.T) {
 	v, _ = pr.requests.Peek()
 	req.Reset()
 	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, uint64(100), req.CompactLog.CompactIndex)
+	assert.Equal(t, uint64(100), req.CompactIndex)
 }

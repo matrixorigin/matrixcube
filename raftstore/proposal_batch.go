@@ -16,7 +16,6 @@ package raftstore
 import (
 	"fmt"
 
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -42,13 +41,6 @@ type reqCtx struct {
 	reqType int
 	req     rpc.Request
 	cb      func(rpc.ResponseBatch)
-}
-
-func newAdminReqCtx(req rpc.AdminRequest) reqCtx {
-	return newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Admin,
-		Cmd:  protoc.MustMarshal(&req),
-	}, nil)
 }
 
 func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
@@ -141,13 +133,7 @@ func (b *proposalBatch) push(group uint64, c reqCtx) {
 		rb.Header.ShardID = b.shardID
 		rb.Header.Replica = b.replica
 		rb.Header.ID = uuid.NewV4().Bytes()
-
-		if isAdmin {
-			protoc.MustUnmarshal(&rb.AdminRequest, c.req.Cmd)
-		} else {
-			rb.Requests = append(rb.Requests, req)
-		}
-
+		rb.Requests = append(rb.Requests, req)
 		b.batches = append(b.batches, newBatch(b.logger, rb, cb, tp, n))
 	}
 }

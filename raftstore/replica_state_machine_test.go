@@ -65,22 +65,16 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 
 func TestStateMachineApplyContextCanBeInitializedForConfigChange(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	batch := rpc.RequestBatch{
-		Header: rpc.RequestBatchHeader{
-			ID:      []byte{0x1, 0x2, 0x3},
-			ShardID: 1,
-		},
-		AdminRequest: rpc.AdminRequest{
-			CmdType: rpc.AdminCmdType_ConfigChange,
-			ConfigChange: &rpc.ConfigChangeRequest{
-				ChangeType: metapb.ConfigChangeType_AddNode,
-				Replica: metapb.Replica{
-					ID:          100,
-					ContainerID: 200,
-				},
+	batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
+		rpc.AdminCmdType_ConfigChange,
+		protoc.MustMarshal(&rpc.ConfigChangeRequest{
+			ChangeType: metapb.ConfigChangeType_AddNode,
+			Replica: metapb.Replica{
+				ID:          100,
+				ContainerID: 200,
 			},
-		},
-	}
+		}))
+	batch.Header.ShardID = 1
 	cc := raftpb.ConfChange{
 		Type:    raftpb.ConfChangeAddNode,
 		NodeID:  100,
@@ -357,22 +351,17 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 func TestStateMachineApplyConfigChange(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
-		batch := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
-				ID:      []byte{0x1, 0x2, 0x3},
-				ShardID: 1,
-			},
-			AdminRequest: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChange,
-				ConfigChange: &rpc.ConfigChangeRequest{
-					ChangeType: metapb.ConfigChangeType_AddNode,
-					Replica: metapb.Replica{
-						ID:          100,
-						ContainerID: 200,
-					},
+		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
+			rpc.AdminCmdType_ConfigChange,
+			protoc.MustMarshal(&rpc.ConfigChangeRequest{
+				ChangeType: metapb.ConfigChangeType_AddNode,
+				Replica: metapb.Replica{
+					ID:          100,
+					ContainerID: 200,
 				},
-			},
-		}
+			}))
+		batch.Header.ShardID = 1
+
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  100,
@@ -393,8 +382,8 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 		assert.Equal(t, uint64(1), h.notified)
 		assert.Equal(t, batch.Header.ID, h.id)
 		assert.Equal(t, true, h.isConfChange)
-		require.Equal(t, 0, len(h.resp.Responses))
-		assert.Equal(t, rpc.AdminCmdType_ConfigChange, h.resp.AdminResponse.CmdType)
+		require.Equal(t, 1, len(h.resp.Responses))
+		assert.Equal(t, rpc.AdminCmdType_ConfigChange, rpc.AdminCmdType(h.resp.Responses[0].CustomType))
 		// TODO: add a check to test whether the error field in the resp is empty
 
 		shard := sm.getShard()
@@ -408,16 +397,9 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
-		batch := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
-				ID: []byte{0x1, 0x2, 0x3},
-				// ShardID missing here, this will cause the epoch check to fail
-			},
-			AdminRequest: rpc.AdminRequest{
-				CmdType:      rpc.AdminCmdType_ConfigChange,
-				ConfigChange: &rpc.ConfigChangeRequest{},
-			},
-		}
+		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
+			rpc.AdminCmdType_ConfigChange,
+			protoc.MustMarshal(&rpc.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  100,
@@ -447,16 +429,9 @@ func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 func TestStateMachineUpdatesAppliedIndexAfterSkippingEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
-		batch := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
-				ID: []byte{0x1, 0x2, 0x3},
-				// ShardID missing here, this will cause the epoch check to fail
-			},
-			AdminRequest: rpc.AdminRequest{
-				CmdType:      rpc.AdminCmdType_ConfigChange,
-				ConfigChange: &rpc.ConfigChangeRequest{},
-			},
-		}
+		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
+			rpc.AdminCmdType_ConfigChange,
+			protoc.MustMarshal(&rpc.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  100,

@@ -96,14 +96,14 @@ func TestDoSplit(t *testing.T) {
 	assert.Equal(t, int64(1), pr.requests.Len())
 	v, err := pr.requests.Peek()
 	assert.NoError(t, err)
-	var req rpc.AdminRequest
+	var req rpc.BatchSplitRequest
 	protoc.MustUnmarshal(&req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, rpc.AdminCmdType_BatchSplit, req.CmdType)
-	assert.Equal(t, 2, len(req.Splits.Requests))
-	assert.Equal(t, pr.getShard().Start, req.Splits.Requests[0].Start)
-	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Splits.Requests[0].End)
-	assert.Equal(t, act.splitCheckData.splitIDs[0].NewID, req.Splits.Requests[0].NewShardID)
-	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Splits.Requests[1].Start)
-	assert.Equal(t, pr.getShard().End, req.Splits.Requests[1].End)
-	assert.Equal(t, act.splitCheckData.splitIDs[1].NewID, req.Splits.Requests[1].NewShardID)
+	assert.Equal(t, rpc.AdminCmdType_BatchSplit, rpc.AdminCmdType(v.(reqCtx).req.CustomType))
+	assert.Equal(t, 2, len(req.Requests))
+	assert.Equal(t, pr.getShard().Start, req.Requests[0].Start)
+	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Requests[0].End)
+	assert.Equal(t, act.splitCheckData.splitIDs[0].NewID, req.Requests[0].NewShardID)
+	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Requests[1].Start)
+	assert.Equal(t, pr.getShard().End, req.Requests[1].End)
+	assert.Equal(t, act.splitCheckData.splitIDs[1].NewID, req.Requests[1].NewShardID)
 }

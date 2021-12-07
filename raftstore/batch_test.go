@@ -17,7 +17,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -127,13 +126,26 @@ func TestBatchRespWithError(t *testing.T) {
 }
 
 func TestAdminResp(t *testing.T) {
-	resp := rpc.AdminResponse{CmdType: rpc.AdminCmdType_CompactLog}
-	b := newTestAdminBatch("id", 1, rpc.AdminRequest{}, func(rb rpc.ResponseBatch) {
-		assert.False(t, rb.Header.IsEmpty())
-		assert.Equal(t, 0, len(rb.Responses))
-		assert.Equal(t, resp, rb.AdminResponse)
+	resp := rpc.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
+	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+		assert.True(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+		assert.True(t, rb.IsAdmin())
+		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, resp, rb.GetBatchSplitResponse())
 	})
-	b.resp(rpc.ResponseBatch{AdminResponse: resp})
+	b.resp(newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &resp))
+}
+
+func TestAdminRespWithError(t *testing.T) {
+	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+		assert.False(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+		assert.True(t, rb.IsAdmin())
+		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rb.Header.Error)
+	})
+	b.resp(errorOtherCMDResp(errors.New("error resp")))
 }
 
 func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType, pid int64, cb func(rpc.ResponseBatch)) batch {
@@ -155,22 +167,19 @@ func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType,
 		0)
 }
 
-func newTestAdminBatch(id string, pid int64, request rpc.AdminRequest, cb func(rpc.ResponseBatch)) batch {
-	return newBatch(nil,
-		rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
-			Requests: []rpc.Request{
-				{
-					ID:   []byte(id),
-					PID:  pid,
-					Type: rpc.CmdType_Admin,
-					Cmd:  protoc.MustMarshal(&request),
-				},
+func newTestAdminRequestBatch(id string, pid int64, cmdType rpc.AdminCmdType, cmd []byte) rpc.RequestBatch {
+	return rpc.RequestBatch{
+		Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+		Requests: []rpc.Request{
+			{
+				ID:         []byte(id),
+				PID:        pid,
+				CustomType: uint64(cmdType),
+				Type:       rpc.CmdType_Admin,
+				Cmd:        cmd,
 			},
 		},
-		cb,
-		0,
-		0)
+	}
 }
 
 // TODO: add more tests for cmd.go

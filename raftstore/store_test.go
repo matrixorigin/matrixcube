@@ -196,54 +196,43 @@ func TestCheckEpoch(t *testing.T) {
 		ok    bool
 	}{
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_BatchSplit}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_BatchSplit}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_ConfigChange}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_ConfigChange}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_ConfigChangeV2}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_ConfigChangeV2}},
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
-			ok:    false,
-		},
-
-		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_TransferLeader}},
-			shard: Shard{},
-			ok:    true,
-		},
-		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_TransferLeader}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_TransferLeader}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    false,
 		},
 		{
-			req:   rpc.RequestBatch{AdminRequest: rpc.AdminRequest{CmdType: rpc.AdminCmdType_TransferLeader}},
+			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Version: 1, ConfVer: 1}},
 			ok:    false,
 		},

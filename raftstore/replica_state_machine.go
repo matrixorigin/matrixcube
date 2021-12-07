@@ -244,7 +244,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 		if ctx.req.IsAdmin() {
 			if ce := d.logger.Check(zap.DebugLevel, "apply admin request"); ce != nil {
 				ce.Write(zap.Uint64("index", ctx.index),
-					zap.String("type", ctx.req.AdminRequest.CmdType.String()))
+					zap.String("type", ctx.req.GetAdminCmdType().String()))
 			}
 			resp, err = d.execAdminRequest(ctx)
 			if err != nil {
@@ -252,8 +252,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 			}
 		} else {
 			if ce := d.logger.Check(zap.DebugLevel, "apply write requests"); ce != nil {
-				ce.Write(zap.Uint64("index", ctx.index),
-					zap.String("type", ctx.req.AdminRequest.CmdType.String()))
+				ce.Write(zap.Uint64("index", ctx.index))
 			}
 			resp = d.execWriteRequest(ctx)
 		}
@@ -348,6 +347,5 @@ func isConfigChangeEntry(entry raftpb.Entry) bool {
 
 func isConfigChangeRequestBatch(req rpc.RequestBatch) bool {
 	return req.IsAdmin() &&
-		(req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChange ||
-			req.AdminRequest.CmdType == rpc.AdminCmdType_ConfigChangeV2)
+		req.GetAdminCmdType() == rpc.AdminCmdType_ConfigChange
 }

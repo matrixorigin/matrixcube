@@ -79,15 +79,17 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 
 				for _, req := range c.requestBatch.Requests {
 					rsp := rpc.Response{
-						Type: req.Type,
-						ID:   req.ID,
-						PID:  req.PID,
+						Type:       req.Type,
+						CustomType: req.CustomType,
+						ID:         req.ID,
+						PID:        req.PID,
 					}
 					resp.Responses = append(resp.Responses, rsp)
 				}
 			} else {
 				for idx, req := range c.requestBatch.Requests {
 					resp.Responses[idx].Type = req.Type
+					resp.Responses[idx].CustomType = req.CustomType
 					resp.Responses[idx].ID = req.ID
 					resp.Responses[idx].PID = req.PID
 				}

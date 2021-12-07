@@ -210,9 +210,18 @@ func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state meta.ShardLocalState
 	rb.Header.ShardID = state.Shard.ID
 	rb.Header.Replica = replica
 	rb.Header.ID = uuid.NewV4().Bytes()
-	rb.AdminRequest.CmdType = rpc.AdminCmdType_UpdateMetadata
-	rb.AdminRequest.UpdateMetadata = &rpc.UpdateMetadataRequest{
-		Metadata: state,
+	rb.Requests = []rpc.Request{
+		{
+			ID:         uuid.NewV4().Bytes(),
+			ToShard:    state.Shard.ID,
+			Group:      state.Shard.Group,
+			Type:       rpc.CmdType_Admin,
+			CustomType: uint64(rpc.AdminCmdType_UpdateMetadata),
+			Epoch:      state.Shard.Epoch,
+			Cmd: protoc.MustMarshal(&rpc.UpdateMetadataRequest{
+				Metadata: state,
+			}),
+		},
 	}
 
 	rc.wc.Reset()

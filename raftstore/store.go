@@ -646,12 +646,10 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 	checkConfVer := false
 
 	if req.IsAdmin() {
-		switch req.AdminRequest.CmdType {
+		switch req.GetAdminCmdType() {
 		case rpc.AdminCmdType_BatchSplit:
 			checkVer = true
 		case rpc.AdminCmdType_ConfigChange:
-			checkConfVer = true
-		case rpc.AdminCmdType_ConfigChangeV2:
 			checkConfVer = true
 		case rpc.AdminCmdType_TransferLeader:
 			checkVer = true
@@ -676,32 +674,19 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 			(checkVer && fromEpoch.Version < lastestEpoch.Version)
 	}
 
-	// admin in a single batch
-	if req.IsAdmin() {
-		return !isStale(req.AdminRequest.Epoch)
-	}
-
 	// only check first request, becase requests inside a batch have the same epoch
 	return req.Requests[0].IgnoreEpochCheck ||
 		!isStale(req.Requests[0].Epoch)
 }
 
 func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.ResponseBatch {
-	adminResp := rpc.AdminResponse{}
-	adminResp.CmdType = adminType
-
-	switch adminType {
-	case rpc.AdminCmdType_ConfigChange:
-		adminResp.ConfigChange = rsp.(*rpc.ConfigChangeResponse)
-	case rpc.AdminCmdType_TransferLeader:
-		adminResp.TransferLeader = rsp.(*rpc.TransferLeaderResponse)
-	case rpc.AdminCmdType_BatchSplit:
-		adminResp.Splits = rsp.(*rpc.BatchSplitResponse)
+	return rpc.ResponseBatch{
+		Responses: []rpc.Response{
+			{
+				Value: protoc.MustMarshal(rsp),
+			},
+		},
 	}
-
-	resp := rpc.ResponseBatch{}
-	resp.AdminResponse = adminResp
-	return resp
 }
 
 func (s *store) updateShardKeyRange(group uint64, shards ...Shard) {
