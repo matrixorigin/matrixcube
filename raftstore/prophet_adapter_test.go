@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -123,9 +124,10 @@ func TestGetStoreHeartbeat(t *testing.T) {
 
 func TestDoResourceHeartbeatRsp(t *testing.T) {
 	cases := []struct {
-		rsp      rpcpb.ResourceHeartbeatRsp
-		fn       func(*store) *replica
-		adminReq rpc.AdminRequest
+		rsp            rpcpb.ResourceHeartbeatRsp
+		fn             func(*store) *replica
+		adminReq       protoc.PB
+		adminTargetReq protoc.PB
 	}{
 		{
 			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, ConfigChange: &rpcpb.ConfigChange{
@@ -139,13 +141,11 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				s.addReplica(pr)
 				return pr
 			},
-			adminReq: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChange,
-				ConfigChange: &rpc.ConfigChangeRequest{
-					ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-					Replica:    metapb.Replica{ID: 1, ContainerID: 1},
-				},
+			adminReq: &rpc.ConfigChangeRequest{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica:    metapb.Replica{ID: 1, ContainerID: 1},
 			},
+			adminTargetReq: &rpc.ConfigChangeRequest{},
 		},
 		{
 			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, TransferLeader: &rpcpb.TransferLeader{
@@ -158,12 +158,10 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				s.addReplica(pr)
 				return pr
 			},
-			adminReq: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_TransferLeader,
-				TransferLeader: &rpc.TransferLeaderRequest{
-					Replica: metapb.Replica{ID: 1, ContainerID: 1},
-				},
+			adminReq: &rpc.TransferLeaderRequest{
+				Replica: metapb.Replica{ID: 1, ContainerID: 1},
 			},
+			adminTargetReq: &rpc.TransferLeaderRequest{},
 		},
 	}
 
@@ -177,6 +175,8 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 
 		v, err := pr.requests.Peek()
 		assert.NoError(t, err)
-		assert.Equal(t, c.adminReq, v.(reqCtx).admin)
+
+		protoc.MustUnmarshal(c.adminTargetReq, v.(reqCtx).req.Cmd)
+		assert.Equal(t, c.adminReq, c.adminTargetReq)
 	}
 }

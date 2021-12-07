@@ -508,22 +508,25 @@ type TestKVClient interface {
 
 func newTestKVClient(t *testing.T, store Store) TestKVClient {
 	kv := &testKVClient{
-		errCtx:  make(map[string]chan error),
-		doneCtx: make(map[string]chan string),
-		runner:  task.NewRunner(),
+		errCtx:   make(map[string]chan error),
+		doneCtx:  make(map[string]chan string),
+		runner:   task.NewRunner(),
+		requests: make(map[string]rpc.Request),
 	}
 	kv.proxy = store.GetShardsProxy()
 	kv.proxy.SetCallback(kv.done, kv.errorDone)
+	kv.proxy.SetRetryController(kv)
 	return kv
 }
 
 type testKVClient struct {
 	sync.RWMutex
 
-	runner  *task.Runner
-	proxy   ShardsProxy
-	doneCtx map[string]chan string
-	errCtx  map[string]chan error
+	runner   *task.Runner
+	proxy    ShardsProxy
+	doneCtx  map[string]chan string
+	errCtx   map[string]chan error
+	requests map[string]rpc.Request
 }
 
 func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
@@ -539,6 +542,17 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 
 	req := createTestWriteReq(id, key, value)
 	req.StopAt = time.Now().Add(timeout).Unix()
+
+	kv.Lock()
+	kv.requests[id] = req
+	kv.Unlock()
+
+	defer func() {
+		kv.Lock()
+		delete(kv.requests, id)
+		kv.Unlock()
+	}()
+
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return err
@@ -567,6 +581,17 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 
 	req := createTestReadReq(id, key)
 	req.StopAt = time.Now().Add(timeout).Unix()
+
+	kv.Lock()
+	kv.requests[id] = req
+	kv.Unlock()
+
+	defer func() {
+		kv.Lock()
+		delete(kv.requests, id)
+		kv.Unlock()
+	}()
+
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return "", err
@@ -611,13 +636,21 @@ func (kv *testKVClient) done(resp rpc.Response) {
 	}
 }
 
-func (kv *testKVClient) errorDone(req *rpc.Request, err error) {
+func (kv *testKVClient) errorDone(requestID []byte, err error) {
 	kv.Lock()
 	defer kv.Unlock()
 
-	if c, ok := kv.errCtx[string(req.ID)]; ok {
+	if c, ok := kv.errCtx[string(requestID)]; ok {
 		c <- err
 	}
+}
+
+func (kv *testKVClient) Retry(requestID []byte) (rpc.Request, bool) {
+	kv.Lock()
+	defer kv.Unlock()
+
+	v, ok := kv.requests[string(requestID)]
+	return v, ok
 }
 
 func (kv *testKVClient) nextID() string {

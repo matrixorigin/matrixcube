@@ -77,16 +77,7 @@ func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint6
 
 func (r *defaultRPC) onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response) {
 	if rs, _ := r.app.GetSession(uint64(rsp.PID)); rs != nil {
-		if !header.IsEmpty() {
-			if header.Error.RaftEntryTooLarge == nil {
-				rsp.Type = rpc.CmdType_RaftError
-			} else {
-				rsp.Type = rpc.CmdType_Invalid
-			}
-
-			rsp.Error = header.Error
-		}
-
+		rsp.Error = header.Error
 		if ce := r.logger.Check(zap.DebugLevel, "rpc received response"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID),
 				log.RaftResponseField("response", &rsp))

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -34,10 +35,16 @@ var (
 )
 
 // SuccessCallback request success callback
-type SuccessCallback func(rpc.Response)
+type SuccessCallback func(resp rpc.Response)
 
 // FailureCallback request failure callback
-type FailureCallback func(*rpc.Request, error)
+type FailureCallback func(requestID []byte, err error)
+
+// RetryController retry controller
+type RetryController interface {
+	// Retry used to control retry if retryable error encountered. returns false means stop retry.
+	Retry(requestID []byte) (rpc.Request, bool)
+}
 
 // ShardsProxy Shards proxy, distribute the appropriate request to the corresponding backend,
 // retry the request for the error
@@ -47,6 +54,7 @@ type ShardsProxy interface {
 	Dispatch(req rpc.Request) error
 	DispatchTo(req rpc.Request, shard Shard, store string) error
 	SetCallback(SuccessCallback, FailureCallback)
+	SetRetryController(retryController RetryController)
 	OnResponse(rpc.ResponseBatch)
 	Router() Router
 }
@@ -64,6 +72,7 @@ type shardsProxyConfig struct {
 	backendFactory  backendFactory
 	successCallback SuccessCallback
 	failureCallback FailureCallback
+	retryController RetryController
 	logger          *zap.Logger
 	router          Router
 	rpc             proxyRPC
@@ -118,7 +127,7 @@ func (sb *shardsProxyBuilder) build(router Router) (ShardsProxy, error) {
 	}
 
 	if sb.cfg.failureCallback == nil {
-		sb.cfg.failureCallback = func(r *rpc.Request, e error) {}
+		sb.cfg.failureCallback = func(id []byte, e error) {}
 	}
 
 	if sb.cfg.retryInterval == 0 {
@@ -172,6 +181,10 @@ func (p *shardsProxy) SetCallback(success SuccessCallback, failure FailureCallba
 	p.cfg.failureCallback = failure
 }
 
+func (p *shardsProxy) SetRetryController(retryController RetryController) {
+	p.cfg.retryController = retryController
+}
+
 func (p *shardsProxy) Dispatch(req rpc.Request) error {
 	shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
 	return p.DispatchTo(req, shard, to)
@@ -187,7 +200,7 @@ func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error 
 
 	// No leader, retry after a leader tick
 	if to == "" {
-		p.retryWithRaftError(&req, "dispath to nil store")
+		p.retryDispatch(req.ID, "dispath to nil store")
 		return nil
 	}
 
@@ -247,55 +260,70 @@ func (p *shardsProxy) addBackendLocked(addr string, bc backend) {
 }
 
 func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
-	if !header.IsEmpty() {
-		if header.Error.RaftEntryTooLarge == nil {
-			rsp.Type = rpc.CmdType_RaftError
-		} else {
-			rsp.Type = rpc.CmdType_Invalid
-		}
-
-		rsp.Error = header.Error
-	}
-
+	rsp.Error = header.Error
 	p.done(rsp)
 }
 
-func (p *shardsProxy) doneWithError(req *rpc.Request, err error) {
-	p.retryWithRaftError(req, err.Error())
+func (p *shardsProxy) doneWithError(requestID []byte, err error) {
+	p.retryDispatch(requestID, err.Error())
 }
 
 func (p *shardsProxy) done(rsp rpc.Response) {
 	if ce := p.logger.Check(zap.DebugLevel, "requests done"); ce != nil {
 		ce.Write(log.RaftResponseField("resp", &rsp))
 	}
-	if rsp.Type == rpc.CmdType_Invalid && rsp.Error.Message != "" {
-		p.cfg.failureCallback(rsp.Request, errors.New(rsp.Error.String()))
-		return
-	}
 
-	if rsp.Type != rpc.CmdType_RaftError && !rsp.Stale {
+	if !errorpb.HasError(rsp.Error) {
 		p.cfg.successCallback(rsp)
 		return
 	}
 
-	p.retryWithRaftError(rsp.Request, rsp.Error.String())
+	if !errorpb.Retryable(rsp.Error) {
+		p.cfg.failureCallback(rsp.ID, errors.New(rsp.Error.String()))
+		return
+	}
+
+	p.retryDispatch(rsp.ID, rsp.Error.String())
 }
 
-func (p *shardsProxy) retryWithRaftError(req *rpc.Request, err string) {
-	if req != nil {
-		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed, retry later"); ce != nil {
-			ce.Write(log.HexField("id", req.ID),
-				log.ReasonField(err))
+func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
+	if p.cfg.retryController == nil {
+		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed with no retry"); ce != nil {
+			ce.Write(log.HexField("id", requestID),
+				log.ReasonField("retry controller not set"),
+				zap.String("cause", err))
 		}
-
-		if time.Now().Unix() >= req.StopAt {
-			p.logger.Info("timeout for dispatch")
-			p.cfg.failureCallback(req, errors.New(err))
-			return
-		}
-
-		util.DefaultTimeoutWheel().Schedule(p.cfg.retryInterval, p.doRetry, *req)
+		p.cfg.failureCallback(requestID, errors.New(err))
+		return
 	}
+
+	req, ok := p.cfg.retryController.Retry(requestID)
+	if !ok {
+		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed with no retry"); ce != nil {
+			ce.Write(log.HexField("id", requestID),
+				log.ReasonField("retry controller return false"),
+				zap.String("cause", err))
+		}
+		p.cfg.failureCallback(requestID, errors.New(err))
+		return
+	}
+
+	if time.Now().Unix() >= req.StopAt {
+		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed with no retry"); ce != nil {
+			ce.Write(log.HexField("id", requestID),
+				log.ReasonField("retry timeout"),
+				zap.String("cause", err))
+		}
+		p.cfg.failureCallback(requestID, errors.New(err))
+		return
+	}
+
+	// FIXME: more efficient retry mechanism
+	if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed, retry later"); ce != nil {
+		ce.Write(log.HexField("id", req.ID),
+			zap.String("cause", err))
+	}
+	util.DefaultTimeoutWheel().Schedule(p.cfg.retryInterval, p.doRetry, req)
 }
 
 func (p *shardsProxy) doRetry(arg interface{}) {

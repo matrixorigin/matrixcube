@@ -79,6 +79,7 @@ func (s *Application) Start() error {
 	}
 	s.shardsProxy = s.cfg.Store.GetShardsProxy()
 	s.shardsProxy.SetCallback(s.done, s.doneError)
+	s.shardsProxy.SetRetryController(s)
 	s.logger.Info("application started")
 	return nil
 }
@@ -143,6 +144,7 @@ func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte
 
 	s.callbackContext.Store(hack.SliceToString(req.ID), ctx{
 		cmd: cmd,
+		req: req,
 		cb:  cb,
 	})
 	if timeout > 0 {
@@ -170,6 +172,15 @@ func (s *Application) execTimeout(arg interface{}) {
 	}
 }
 
+func (s *Application) Retry(requestID []byte) (rpc.Request, bool) {
+	id := hack.SliceToString(requestID)
+	if value, ok := s.callbackContext.Load(id); ok {
+		return value.(ctx).req, true
+	}
+
+	return rpc.Request{}, false
+}
+
 func (s *Application) done(resp rpc.Response) {
 	if ce := s.logger.Check(zap.DebugLevel, "response received"); ce != nil {
 		ce.Write(log.RequestIDField(resp.ID))
@@ -186,25 +197,20 @@ func (s *Application) done(resp rpc.Response) {
 	}
 }
 
-func (s *Application) doneError(resp *rpc.Request, err error) {
-	if resp == nil && nil != err {
-		s.logger.Error("fail to response", zap.Error(err))
-		return
-	}
-
+func (s *Application) doneError(requestID []byte, err error) {
 	if ce := s.logger.Check(zap.DebugLevel, "error response received"); ce != nil {
-		ce.Write(log.RequestIDField(resp.ID), zap.Error(err))
+		ce.Write(log.RequestIDField(requestID), zap.Error(err))
 	}
 
-	id := hack.SliceToString(resp.ID)
-	if value, ok := s.callbackContext.Load(hack.SliceToString(resp.ID)); ok {
+	id := hack.SliceToString(requestID)
+	if value, ok := s.callbackContext.Load(id); ok {
 		s.callbackContext.Delete(id)
 		value.(ctx).resp(nil, err)
 	}
-
 }
 
 type ctx struct {
+	req rpc.Request
 	cmd CustomRequest
 	cb  func(CustomRequest, []byte, error)
 }

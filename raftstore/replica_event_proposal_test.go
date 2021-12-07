@@ -210,35 +210,15 @@ func TestGetRequestType(t *testing.T) {
 			readIndex,
 		},
 		{
-			rpc.RequestBatch{
-				AdminRequest: rpc.AdminRequest{
-					CmdType: rpc.AdminCmdType_ConfigChange,
-				},
-			},
+			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
 			proposalConfigChange,
 		},
 		{
-			rpc.RequestBatch{
-				AdminRequest: rpc.AdminRequest{
-					CmdType: rpc.AdminCmdType_ConfigChangeV2,
-				},
-			},
-			proposalConfigChange,
-		},
-		{
-			rpc.RequestBatch{
-				AdminRequest: rpc.AdminRequest{
-					CmdType: rpc.AdminCmdType_TransferLeader,
-				},
-			},
+			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
 			requestTransferLeader,
 		},
 		{
-			rpc.RequestBatch{
-				AdminRequest: rpc.AdminRequest{
-					CmdType: rpc.AdminCmdType_BatchSplit,
-				},
-			},
+			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
 			proposalNormal,
 		},
 	}
@@ -250,12 +230,10 @@ func TestGetRequestType(t *testing.T) {
 }
 
 func TestToConfigChangeIV1(t *testing.T) {
-	req := rpc.AdminRequest{
-		ConfigChange: &rpc.ConfigChangeRequest{
-			ChangeType: metapb.ConfigChangeType_RemoveNode,
-			Replica: metapb.Replica{
-				ID: 123,
-			},
+	req := rpc.ConfigChangeRequest{
+		ChangeType: metapb.ConfigChangeType_RemoveNode,
+		Replica: metapb.Replica{
+			ID: 123,
 		},
 	}
 	p := replica{}
@@ -265,8 +243,8 @@ func TestToConfigChangeIV1(t *testing.T) {
 	cci := p.toConfChangeI(req, data)
 	cc, ok := cci.(*raftpb.ConfChange)
 	require.True(t, ok)
-	assert.Equal(t, raftpb.ConfChangeType(req.ConfigChange.ChangeType), cc.Type)
-	assert.Equal(t, req.ConfigChange.Replica.ID, cc.NodeID)
+	assert.Equal(t, raftpb.ConfChangeType(req.ChangeType), cc.Type)
+	assert.Equal(t, req.Replica.ID, cc.NodeID)
 	assert.Equal(t, data, cc.Context)
 }
 
@@ -346,9 +324,6 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 	}
 
 	for idx, tt := range tests {
-		adminReq := rpc.AdminRequest{
-			ConfigChange: &tt.req,
-		}
 		data := make([]byte, 8)
 		data[0] = 0x23
 		data[7] = 0xbf
@@ -380,7 +355,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			NodeID: 200,
 		})
 
-		cci := r.toConfChangeI(adminReq, data)
+		cci := r.toConfChangeI(tt.req, data)
 		result := r.checkConfChange([]rpc.ConfigChangeRequest{tt.req}, cci)
 		assert.Equal(t, tt.err, result, "idx: %d", idx)
 	}

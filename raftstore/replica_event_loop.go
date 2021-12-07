@@ -20,12 +20,14 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.uber.org/zap"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 )
 
@@ -68,6 +70,19 @@ const (
 	checkLogAppliedAction
 )
 
+func (pr *replica) addAdminRequest(adminType rpc.AdminCmdType, request protoc.PB) {
+	shard := pr.getShard()
+	pr.addRequest(newReqCtx(rpc.Request{
+		ID:         uuid.NewV4().Bytes(),
+		Group:      shard.Group,
+		ToShard:    shard.ID,
+		Type:       rpc.CmdType_Admin,
+		CustomType: uint64(adminType),
+		Epoch:      shard.Epoch,
+		Cmd:        protoc.MustMarshal(request),
+	}, nil))
+}
+
 func (pr *replica) addRequest(req reqCtx) error {
 	if err := pr.requests.Put(req); err != nil {
 		return err
@@ -105,11 +120,6 @@ func (pr *replica) addSnapshotStatus(ss snapshotStatus) {
 		pr.logger.Info("snapshot status stopped")
 	}
 	pr.notifyWorker()
-}
-
-func (pr *replica) addAdminRequest(req rpc.AdminRequest) error {
-	req.Epoch = pr.getShard().Epoch
-	return pr.addRequest(newAdminReqCtx(req))
 }
 
 func (pr *replica) addRaftTick() bool {
@@ -479,10 +489,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 		return
 	}
 
-	pr.addAdminRequest(rpc.AdminRequest{
-		CmdType: rpc.AdminCmdType_CompactLog,
-		CompactLog: &rpc.CompactLogRequest{
-			CompactIndex: compactIndex,
-		},
+	pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+		CompactIndex: compactIndex,
 	})
 }

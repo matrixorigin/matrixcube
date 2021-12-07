@@ -14,6 +14,8 @@
 package raftstore
 
 import (
+	"fmt"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -37,24 +39,21 @@ var (
 
 type reqCtx struct {
 	reqType int
-	admin   rpc.AdminRequest
 	req     rpc.Request
 	cb      func(rpc.ResponseBatch)
 }
 
-func newAdminReqCtx(req rpc.AdminRequest) reqCtx {
-	return reqCtx{
-		admin:   req,
-		reqType: admin,
-	}
-}
-
 func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
 	ctx := reqCtx{req: req, cb: cb}
-	if req.Type == rpc.CmdType_Read {
+	switch req.Type {
+	case rpc.CmdType_Read:
 		ctx.reqType = read
-	} else {
+	case rpc.CmdType_Write:
 		ctx.reqType = write
+	case rpc.CmdType_Admin:
+		ctx.reqType = admin
+	default:
+		panic(fmt.Sprintf("request context type %s not support", ctx.req.Type.String()))
 	}
 	return ctx
 }
@@ -104,11 +103,9 @@ func (b *proposalBatch) pop() (batch, bool) {
 // push adds the specified req to a proposalBatch. The epoch value should
 // reflect client's view of the shard when the request is made.
 func (b *proposalBatch) push(group uint64, c reqCtx) {
-	adminReq := c.admin
 	req := c.req
 	cb := c.cb
 	tp := c.reqType
-
 	isAdmin := tp == admin
 
 	// use data key to store
@@ -136,13 +133,7 @@ func (b *proposalBatch) push(group uint64, c reqCtx) {
 		rb.Header.ShardID = b.shardID
 		rb.Header.Replica = b.replica
 		rb.Header.ID = uuid.NewV4().Bytes()
-
-		if isAdmin {
-			rb.AdminRequest = adminReq
-		} else {
-			rb.Requests = append(rb.Requests, req)
-		}
-
+		rb.Requests = append(rb.Requests, req)
 		b.batches = append(b.batches, newBatch(b.logger, rb, cb, tp, n))
 	}
 }

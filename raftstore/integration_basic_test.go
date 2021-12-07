@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSingleTestClusterStartAndStop(t *testing.T) {
+func TestSingleClusterStartAndStop(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")
 		return
