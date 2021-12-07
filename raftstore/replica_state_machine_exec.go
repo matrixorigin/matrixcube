@@ -59,15 +59,13 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 		return rpc.ResponseBatch{}, nil
 	}
 
-	if err := d.logdb.RemoveEntriesTo(d.shardID, d.replica.ID, compactIndex); err != nil {
-		d.logger.Fatal("failed to compact log",
-			zap.Uint64("compact-index", compactIndex))
-	}
-
 	d.setFirstIndex(compactIndex + 1)
 	resp := newAdminResponseBatch(rpc.AdminCmdType_CompactLog, &rpc.CompactLogResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_CompactLog,
+		compactionResult: &compactionResult{
+			index: compactIndex,
+		},
 	}
 	return resp, nil
 }
