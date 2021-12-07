@@ -109,6 +109,10 @@ func (t *replicaTestTransport) Close() error {
 	return nil
 }
 
+func (t *replicaTestTransport) SetFilter(func(meta.RaftMessage) bool) {
+	panic("not implemented")
+}
+
 func (t *replicaTestTransport) SendingSnapshotCount() uint64 {
 	return 0
 }

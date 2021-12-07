@@ -33,6 +33,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lni/goutils/netutil"
@@ -57,6 +58,7 @@ const (
 type Trans interface {
 	Send(meta.RaftMessage) bool
 	SendSnapshot(meta.RaftMessage) bool
+	SetFilter(func(meta.RaftMessage) bool)
 	SendingSnapshotCount() uint64
 	Start() error
 	Close() error
@@ -146,6 +148,7 @@ type Transport struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	handler        MessageHandler
+	filter         atomic.Value
 	unreachable    UnreachableHandler
 	snapshotStatus SnapshotStatusHandler
 	resolver       ContainerResolver
@@ -212,6 +215,10 @@ func (t *Transport) Name() string {
 	return t.trans.Name()
 }
 
+func (t *Transport) SetFilter(f func(meta.RaftMessage) bool) {
+	t.filter.Store(f)
+}
+
 func (t *Transport) SendingSnapshotCount() uint64 {
 	return 0
 }
@@ -222,6 +229,13 @@ func (t *Transport) Send(m meta.RaftMessage) bool {
 	}
 
 	storeID := m.To.ContainerID
+	if filter := t.filter.Load(); filter != nil {
+		ff := filter.(func(meta.RaftMessage) bool)
+		if ff(m) {
+			return false
+		}
+	}
+
 	targetInfo, resolved := t.resolve(storeID, m.ShardID)
 	if !resolved {
 		return false
