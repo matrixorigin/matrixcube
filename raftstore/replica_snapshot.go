@@ -27,7 +27,6 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 	if !r.lr.GetSnapshotRequested() {
 		return nil
 	}
-	panic("snapshot requested!!!!!!!!!")
 	r.logger.Info("requested to create snapshot")
 	ss, created, err := r.createSnapshot()
 	if err != nil {
@@ -41,7 +40,6 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 }
 
 func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
-	panic("create snapshot called")
 	index, _ := r.sm.getAppliedIndexTerm()
 	if index == 0 {
 		panic("invalid snapshot index")
@@ -55,6 +53,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot save completed")
 	if err := r.snapshotter.commit(ss, ssenv); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
@@ -65,6 +64,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot committed")
 	if err := r.lr.CreateSnapshot(ss); err != nil {
 		if errors.Is(err, raft.ErrSnapOutOfDate) {
 			// lr already has a more recent snapshot
@@ -73,6 +73,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		}
 		return raftpb.Snapshot{}, false, err
 	}
+	r.logger.Info("snapshot created")
 	// TODO: schedule log compacton here
 	return ss, true, nil
 }
@@ -84,7 +85,6 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	}
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
-	panic("apply snapshot called")
 	return r.removeSnapshot(ss, true)
 }
 

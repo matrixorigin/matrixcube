@@ -14,11 +14,13 @@
 package raftstore
 
 import (
+	"math"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3"
 
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -32,9 +34,9 @@ func TestCompactionAndSnapshot(t *testing.T) {
 		t.Skip("skipping in short mode.")
 		return
 	}
-
 	defer leaktest.AfterTest(t)()
 
+	snapshotTestTimeout := 20 * time.Second
 	skipStore := uint64(0)
 	filter := func(msg meta.RaftMessage) bool {
 		return msg.To.ContainerID == atomic.LoadUint64(&skipStore) ||
@@ -55,8 +57,8 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.WaitReplicaChangeToVoter(c.GetShardByIndex(0, 0).ID, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, snapshotTestTimeout)
+	c.WaitReplicaChangeToVoter(c.GetShardByIndex(0, 0).ID, snapshotTestTimeout)
 
 	shardID := c.GetShardByIndex(0, 0).ID
 
@@ -66,27 +68,67 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	kv := c.CreateTestKVClient(0)
 	defer kv.Close()
 
-	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
-	assert.NoError(t, kv.Set("k2", "v2", testWaitTimeout))
-	assert.NoError(t, kv.Set("k3", "v3", testWaitTimeout))
-	assert.NoError(t, kv.Set("k4", "v4", testWaitTimeout))
+	assert.NoError(t, kv.Set("k1", "v1", snapshotTestTimeout))
+	assert.NoError(t, kv.Set("k2", "v2", snapshotTestTimeout))
+	assert.NoError(t, kv.Set("k3", "v3", snapshotTestTimeout))
+	assert.NoError(t, kv.Set("k4", "v4", snapshotTestTimeout))
 
+	compactionCompleted := false
 	for i := 0; i < 2; i++ {
-		pr := c.GetStore(i).(*store).getReplica(shardID, true)
-		if pr != nil {
+		store := c.GetStore(i).(*store)
+		if pr := store.getReplica(shardID, true); pr != nil {
+			hasLog := func(index uint64) bool {
+				lr := pr.lr
+				_, err := lr.Entries(index, index+1, math.MaxUint64)
+				if err == nil {
+					return true
+				}
+				if err == raft.ErrCompacted {
+					return false
+				}
+				panic(err)
+			}
+
+			assert.True(t, hasLog(2))
 			pr.addAdminRequest(rpc.AdminRequest{
 				CmdType: rpc.AdminCmdType_CompactLog,
 				CompactLog: &rpc.CompactLogRequest{
 					CompactIndex: 3,
 				},
 			})
+			for i := 0; i < 10; i++ {
+				if hasLog(2) {
+					time.Sleep(time.Second)
+				} else {
+					compactionCompleted = true
+					break
+				}
+				if i == 9 {
+					t.Fatalf("failed to remove log entries from logdb")
+				}
+			}
 		}
 	}
 
-	time.Sleep(5 * time.Second)
+	assert.True(t, compactionCompleted)
+
 	// restore the network
 	atomic.StoreUint64(&skipStore, 0)
-	assert.NoError(t, kv.Set("k3", "v3", testWaitTimeout))
-	assert.NoError(t, kv.Set("k4", "v4", testWaitTimeout))
+	assert.NoError(t, kv.Set("k3", "v3", snapshotTestTimeout))
+	assert.NoError(t, kv.Set("k4", "v4", snapshotTestTimeout))
 	time.Sleep(5 * time.Second)
+	index := uint64(0)
+	term := uint64(0)
+	if pr := c.GetStore(2).(*store).getReplica(shardID, false); pr != nil {
+		index, term = pr.sm.getAppliedIndexTerm()
+	} else {
+		t.Fatalf("failed to get replica")
+	}
+	if pr := c.GetStore(2).(*store).getReplica(shardID, false); pr != nil {
+		index2, term2 := pr.sm.getAppliedIndexTerm()
+		assert.Equal(t, index, index2)
+		assert.Equal(t, term, term2)
+	} else {
+		t.Fatalf("failed to get replica")
+	}
 }
