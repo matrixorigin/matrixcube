@@ -98,11 +98,8 @@ func (pr *replica) doSplit(act action) {
 			zap.Int("but", len(act.splitCheckData.splitIDs)))
 	}
 
-	req := rpc.AdminRequest{
-		CmdType: rpc.AdminCmdType_BatchSplit,
-		Splits: &rpc.BatchSplitRequest{
-			Context: act.splitCheckData.ctx,
-		},
+	req := rpc.BatchSplitRequest{
+		Context: act.splitCheckData.ctx,
 	}
 
 	start := current.Start
@@ -124,7 +121,7 @@ func (pr *replica) doSplit(act action) {
 			})
 		}
 
-		req.Splits.Requests = append(req.Splits.Requests, rpc.SplitRequest{
+		req.Requests = append(req.Requests, rpc.SplitRequest{
 			Start:       start,
 			End:         end,
 			NewShardID:  act.splitCheckData.splitIDs[idx].NewID,
@@ -132,5 +129,6 @@ func (pr *replica) doSplit(act action) {
 		})
 		start = end
 	}
-	pr.addAdminRequest(req)
+
+	pr.addAdminRequest(rpc.AdminCmdType_BatchSplit, &req)
 }

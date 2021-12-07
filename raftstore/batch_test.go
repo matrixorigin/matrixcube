@@ -102,7 +102,6 @@ func TestBatchResp(t *testing.T) {
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
-		assert.Equal(t, "key", string(rsp.Key))
 		assert.Equal(t, int64(2), rsp.PID)
 		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
 		assert.Equal(t, "value", string(rsp.Value))
@@ -117,14 +116,35 @@ func TestBatchRespWithError(t *testing.T) {
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
-		assert.Equal(t, "key", string(rsp.Key))
 		assert.Equal(t, int64(2), rsp.PID)
 		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
 		assert.Empty(t, rsp.Value)
 		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rsp.Error)
-		assert.NotNil(t, rsp.Request)
 	})
 
+	b.resp(errorOtherCMDResp(errors.New("error resp")))
+}
+
+func TestAdminResp(t *testing.T) {
+	resp := rpc.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
+	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+		assert.True(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+		assert.True(t, rb.IsAdmin())
+		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, resp, rb.GetBatchSplitResponse())
+	})
+	b.resp(newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &resp))
+}
+
+func TestAdminRespWithError(t *testing.T) {
+	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+		assert.False(t, rb.Header.IsEmpty())
+		assert.Equal(t, 1, len(rb.Responses))
+		assert.True(t, rb.IsAdmin())
+		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rb.Header.Error)
+	})
 	b.resp(errorOtherCMDResp(errors.New("error resp")))
 }
 
@@ -145,6 +165,21 @@ func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType,
 		cb,
 		0,
 		0)
+}
+
+func newTestAdminRequestBatch(id string, pid int64, cmdType rpc.AdminCmdType, cmd []byte) rpc.RequestBatch {
+	return rpc.RequestBatch{
+		Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+		Requests: []rpc.Request{
+			{
+				ID:         []byte(id),
+				PID:        pid,
+				CustomType: uint64(cmdType),
+				Type:       rpc.CmdType_Admin,
+				Cmd:        cmd,
+			},
+		},
+	}
 }
 
 // TODO: add more tests for cmd.go

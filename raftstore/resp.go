@@ -15,8 +15,6 @@ func requestDone(req rpc.Request, cb func(rpc.ResponseBatch), data []byte) {
 
 func requestDoneWithReplicaRemoved(req rpc.Request, cb func(rpc.ResponseBatch), id uint64) {
 	r := getResponse(req)
-	// FIXME: delete Request field
-	r.Request = &req
 	cb(rpc.ResponseBatch{Responses: []rpc.Response{r}, Header: rpc.ResponseBatchHeader{Error: errorpb.Error{
 		Message: errShardNotFound.Error(),
 		ShardNotFound: &errorpb.ShardNotFound{
@@ -30,6 +28,5 @@ func getResponse(req rpc.Request) rpc.Response {
 		Type: req.Type,
 		ID:   req.ID,
 		PID:  req.PID,
-		Key:  req.Key,
 	}
 }

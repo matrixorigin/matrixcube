@@ -58,7 +58,7 @@ func TestRemoteBackend(t *testing.T) {
 
 	c2 := make(chan rpc.Response, 1)
 	ec2 := make(chan error, 10)
-	bc := newRemoteBackend(nil, func(r rpc.Response) { c2 <- r }, func(r *rpc.Request, e error) { ec2 <- e }, addr, conn)
+	bc := newRemoteBackend(nil, func(r rpc.Response) { c2 <- r }, func(id []byte, e error) { ec2 <- e }, addr, conn)
 
 	req := newTestRPCRequests(1)[0]
 	req.Cmd = []byte("c1")

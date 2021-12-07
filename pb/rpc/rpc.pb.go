@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -25,32 +24,26 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type CmdType int32
 
 const (
-	CmdType_Invalid   CmdType = 0
-	CmdType_RaftError CmdType = 1
-	CmdType_Snap      CmdType = 2
-	CmdType_Write     CmdType = 3
-	CmdType_Read      CmdType = 4
+	CmdType_Write CmdType = 0
+	CmdType_Read  CmdType = 1
+	CmdType_Admin CmdType = 2
 )
 
 var CmdType_name = map[int32]string{
-	0: "Invalid",
-	1: "RaftError",
-	2: "Snap",
-	3: "Write",
-	4: "Read",
+	0: "Write",
+	1: "Read",
+	2: "Admin",
 }
 
 var CmdType_value = map[string]int32{
-	"Invalid":   0,
-	"RaftError": 1,
-	"Snap":      2,
-	"Write":     3,
-	"Read":      4,
+	"Write": 0,
+	"Read":  1,
+	"Admin": 2,
 }
 
 func (x CmdType) String() string {
@@ -65,39 +58,33 @@ func (CmdType) EnumDescriptor() ([]byte, []int) {
 type AdminCmdType int32
 
 const (
-	AdminCmdType_InvalidAdmin   AdminCmdType = 0
-	AdminCmdType_ConfigChange   AdminCmdType = 1
-	AdminCmdType_CompactLog     AdminCmdType = 2
-	AdminCmdType_TransferLeader AdminCmdType = 3
-	AdminCmdType_ComputeHash    AdminCmdType = 4
-	AdminCmdType_VerifyHash     AdminCmdType = 5
-	AdminCmdType_BatchSplit     AdminCmdType = 6
-	AdminCmdType_ConfigChangeV2 AdminCmdType = 7
-	AdminCmdType_UpdateMetadata AdminCmdType = 8
+	AdminCmdType_ConfigChange   AdminCmdType = 0
+	AdminCmdType_CompactLog     AdminCmdType = 1
+	AdminCmdType_TransferLeader AdminCmdType = 2
+	AdminCmdType_ComputeHash    AdminCmdType = 3
+	AdminCmdType_VerifyHash     AdminCmdType = 4
+	AdminCmdType_BatchSplit     AdminCmdType = 5
+	AdminCmdType_UpdateMetadata AdminCmdType = 6
 )
 
 var AdminCmdType_name = map[int32]string{
-	0: "InvalidAdmin",
-	1: "ConfigChange",
-	2: "CompactLog",
-	3: "TransferLeader",
-	4: "ComputeHash",
-	5: "VerifyHash",
-	6: "BatchSplit",
-	7: "ConfigChangeV2",
-	8: "UpdateMetadata",
+	0: "ConfigChange",
+	1: "CompactLog",
+	2: "TransferLeader",
+	3: "ComputeHash",
+	4: "VerifyHash",
+	5: "BatchSplit",
+	6: "UpdateMetadata",
 }
 
 var AdminCmdType_value = map[string]int32{
-	"InvalidAdmin":   0,
-	"ConfigChange":   1,
-	"CompactLog":     2,
-	"TransferLeader": 3,
-	"ComputeHash":    4,
-	"VerifyHash":     5,
-	"BatchSplit":     6,
-	"ConfigChangeV2": 7,
-	"UpdateMetadata": 8,
+	"ConfigChange":   0,
+	"CompactLog":     1,
+	"TransferLeader": 2,
+	"ComputeHash":    3,
+	"VerifyHash":     4,
+	"BatchSplit":     5,
+	"UpdateMetadata": 6,
 }
 
 func (x AdminCmdType) String() string {
@@ -132,7 +119,7 @@ func (m *RequestBatchHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_RequestBatchHeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +181,7 @@ func (m *ResponseBatchHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ResponseBatchHeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +219,6 @@ func (m *ResponseBatchHeader) GetError() errorpb.Error {
 type RequestBatch struct {
 	Header               RequestBatchHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header"`
 	Requests             []Request          `protobuf:"bytes,2,rep,name=requests,proto3" json:"requests"`
-	AdminRequest         AdminRequest       `protobuf:"bytes,3,opt,name=adminRequest,proto3" json:"adminRequest"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -252,7 +238,7 @@ func (m *RequestBatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_RequestBatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -285,18 +271,10 @@ func (m *RequestBatch) GetRequests() []Request {
 	return nil
 }
 
-func (m *RequestBatch) GetAdminRequest() AdminRequest {
-	if m != nil {
-		return m.AdminRequest
-	}
-	return AdminRequest{}
-}
-
 // ResponseBatch response batch
 type ResponseBatch struct {
 	Header               ResponseBatchHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header"`
 	Responses            []Response          `protobuf:"bytes,2,rep,name=responses,proto3" json:"responses"`
-	AdminResponse        AdminResponse       `protobuf:"bytes,3,opt,name=adminResponse,proto3" json:"adminResponse"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`
 	XXX_sizecache        int32               `json:"-"`
@@ -316,7 +294,7 @@ func (m *ResponseBatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ResponseBatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -349,229 +327,6 @@ func (m *ResponseBatch) GetResponses() []Response {
 	return nil
 }
 
-func (m *ResponseBatch) GetAdminResponse() AdminResponse {
-	if m != nil {
-		return m.AdminResponse
-	}
-	return AdminResponse{}
-}
-
-// AdminRequest admin request
-type AdminRequest struct {
-	CmdType              AdminCmdType           `protobuf:"varint,1,opt,name=cmdType,proto3,enum=rpc.AdminCmdType" json:"cmdType,omitempty"`
-	Epoch                metapb.ResourceEpoch   `protobuf:"bytes,2,opt,name=epoch,proto3" json:"epoch"`
-	ConfigChange         *ConfigChangeRequest   `protobuf:"bytes,3,opt,name=configChange,proto3" json:"configChange,omitempty"`
-	CompactLog           *CompactLogRequest     `protobuf:"bytes,4,opt,name=compactLog,proto3" json:"compactLog,omitempty"`
-	TransferLeader       *TransferLeaderRequest `protobuf:"bytes,5,opt,name=transferLeader,proto3" json:"transferLeader,omitempty"`
-	VerifyHash           *VerifyHashRequest     `protobuf:"bytes,6,opt,name=verifyHash,proto3" json:"verifyHash,omitempty"`
-	Splits               *BatchSplitRequest     `protobuf:"bytes,7,opt,name=splits,proto3" json:"splits,omitempty"`
-	UpdateMetadata       *UpdateMetadataRequest `protobuf:"bytes,8,opt,name=updateMetadata,proto3" json:"updateMetadata,omitempty"`
-	ConfigChangeV2       *ConfigChangeV2Request `protobuf:"bytes,9,opt,name=configChangeV2,proto3" json:"configChangeV2,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
-}
-
-func (m *AdminRequest) Reset()         { *m = AdminRequest{} }
-func (m *AdminRequest) String() string { return proto.CompactTextString(m) }
-func (*AdminRequest) ProtoMessage()    {}
-func (*AdminRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{4}
-}
-func (m *AdminRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *AdminRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_AdminRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *AdminRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminRequest.Merge(m, src)
-}
-func (m *AdminRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *AdminRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminRequest proto.InternalMessageInfo
-
-func (m *AdminRequest) GetCmdType() AdminCmdType {
-	if m != nil {
-		return m.CmdType
-	}
-	return AdminCmdType_InvalidAdmin
-}
-
-func (m *AdminRequest) GetEpoch() metapb.ResourceEpoch {
-	if m != nil {
-		return m.Epoch
-	}
-	return metapb.ResourceEpoch{}
-}
-
-func (m *AdminRequest) GetConfigChange() *ConfigChangeRequest {
-	if m != nil {
-		return m.ConfigChange
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetCompactLog() *CompactLogRequest {
-	if m != nil {
-		return m.CompactLog
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetTransferLeader() *TransferLeaderRequest {
-	if m != nil {
-		return m.TransferLeader
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetVerifyHash() *VerifyHashRequest {
-	if m != nil {
-		return m.VerifyHash
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetSplits() *BatchSplitRequest {
-	if m != nil {
-		return m.Splits
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetUpdateMetadata() *UpdateMetadataRequest {
-	if m != nil {
-		return m.UpdateMetadata
-	}
-	return nil
-}
-
-func (m *AdminRequest) GetConfigChangeV2() *ConfigChangeV2Request {
-	if m != nil {
-		return m.ConfigChangeV2
-	}
-	return nil
-}
-
-// AdminResponse admin response
-type AdminResponse struct {
-	CmdType              AdminCmdType            `protobuf:"varint,1,opt,name=cmdType,proto3,enum=rpc.AdminCmdType" json:"cmdType,omitempty"`
-	ConfigChange         *ConfigChangeResponse   `protobuf:"bytes,2,opt,name=configChange,proto3" json:"configChange,omitempty"`
-	CompactLog           *CompactLogResponse     `protobuf:"bytes,3,opt,name=compactLog,proto3" json:"compactLog,omitempty"`
-	TransferLeader       *TransferLeaderResponse `protobuf:"bytes,4,opt,name=transferLeader,proto3" json:"transferLeader,omitempty"`
-	VerifyHash           *VerifyHashResponse     `protobuf:"bytes,5,opt,name=verifyHash,proto3" json:"verifyHash,omitempty"`
-	Splits               *BatchSplitResponse     `protobuf:"bytes,6,opt,name=splits,proto3" json:"splits,omitempty"`
-	ConfigChangeV2       *ConfigChangeV2Response `protobuf:"bytes,7,opt,name=configChangeV2,proto3" json:"configChangeV2,omitempty"`
-	UpdateMetadata       *UpdateMetadataResponse `protobuf:"bytes,8,opt,name=updateMetadata,proto3" json:"updateMetadata,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *AdminResponse) Reset()         { *m = AdminResponse{} }
-func (m *AdminResponse) String() string { return proto.CompactTextString(m) }
-func (*AdminResponse) ProtoMessage()    {}
-func (*AdminResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{5}
-}
-func (m *AdminResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *AdminResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_AdminResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *AdminResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminResponse.Merge(m, src)
-}
-func (m *AdminResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *AdminResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminResponse proto.InternalMessageInfo
-
-func (m *AdminResponse) GetCmdType() AdminCmdType {
-	if m != nil {
-		return m.CmdType
-	}
-	return AdminCmdType_InvalidAdmin
-}
-
-func (m *AdminResponse) GetConfigChange() *ConfigChangeResponse {
-	if m != nil {
-		return m.ConfigChange
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetCompactLog() *CompactLogResponse {
-	if m != nil {
-		return m.CompactLog
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetTransferLeader() *TransferLeaderResponse {
-	if m != nil {
-		return m.TransferLeader
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetVerifyHash() *VerifyHashResponse {
-	if m != nil {
-		return m.VerifyHash
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetSplits() *BatchSplitResponse {
-	if m != nil {
-		return m.Splits
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetConfigChangeV2() *ConfigChangeV2Response {
-	if m != nil {
-		return m.ConfigChangeV2
-	}
-	return nil
-}
-
-func (m *AdminResponse) GetUpdateMetadata() *UpdateMetadataResponse {
-	if m != nil {
-		return m.UpdateMetadata
-	}
-	return nil
-}
-
 // Request request
 type Request struct {
 	ID                   []byte               `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -594,7 +349,7 @@ func (m *Request) Reset()         { *m = Request{} }
 func (m *Request) String() string { return proto.CompactTextString(m) }
 func (*Request) ProtoMessage()    {}
 func (*Request) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{6}
+	return fileDescriptor_77a6da22d6a3feb1, []int{4}
 }
 func (m *Request) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -604,7 +359,7 @@ func (m *Request) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Request.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -641,7 +396,7 @@ func (m *Request) GetType() CmdType {
 	if m != nil {
 		return m.Type
 	}
-	return CmdType_Invalid
+	return CmdType_Write
 }
 
 func (m *Request) GetCustomType() uint64 {
@@ -704,12 +459,10 @@ func (m *Request) GetEpoch() metapb.ResourceEpoch {
 type Response struct {
 	ID                   []byte        `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Type                 CmdType       `protobuf:"varint,2,opt,name=type,proto3,enum=rpc.CmdType" json:"type,omitempty"`
-	Value                []byte        `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-	Request              *Request      `protobuf:"bytes,4,opt,name=request,proto3" json:"request,omitempty"`
+	CustomType           uint64        `protobuf:"varint,3,opt,name=customType,proto3" json:"customType,omitempty"`
+	Value                []byte        `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
 	PID                  int64         `protobuf:"varint,5,opt,name=pid,proto3" json:"pid,omitempty"`
 	Error                errorpb.Error `protobuf:"bytes,6,opt,name=error,proto3" json:"error"`
-	Stale                bool          `protobuf:"varint,7,opt,name=stale,proto3" json:"stale,omitempty"`
-	Key                  []byte        `protobuf:"bytes,8,opt,name=key,proto3" json:"key,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -719,7 +472,7 @@ func (m *Response) Reset()         { *m = Response{} }
 func (m *Response) String() string { return proto.CompactTextString(m) }
 func (*Response) ProtoMessage()    {}
 func (*Response) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{7}
+	return fileDescriptor_77a6da22d6a3feb1, []int{5}
 }
 func (m *Response) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -729,7 +482,7 @@ func (m *Response) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Response.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -759,19 +512,19 @@ func (m *Response) GetType() CmdType {
 	if m != nil {
 		return m.Type
 	}
-	return CmdType_Invalid
+	return CmdType_Write
+}
+
+func (m *Response) GetCustomType() uint64 {
+	if m != nil {
+		return m.CustomType
+	}
+	return 0
 }
 
 func (m *Response) GetValue() []byte {
 	if m != nil {
 		return m.Value
-	}
-	return nil
-}
-
-func (m *Response) GetRequest() *Request {
-	if m != nil {
-		return m.Request
 	}
 	return nil
 }
@@ -790,20 +543,6 @@ func (m *Response) GetError() errorpb.Error {
 	return errorpb.Error{}
 }
 
-func (m *Response) GetStale() bool {
-	if m != nil {
-		return m.Stale
-	}
-	return false
-}
-
-func (m *Response) GetKey() []byte {
-	if m != nil {
-		return m.Key
-	}
-	return nil
-}
-
 type ConfigChangeRequest struct {
 	// This can be only called in internal RaftStore now.
 	ChangeType           metapb.ConfigChangeType `protobuf:"varint,1,opt,name=changeType,proto3,enum=metapb.ConfigChangeType" json:"changeType,omitempty"`
@@ -817,7 +556,7 @@ func (m *ConfigChangeRequest) Reset()         { *m = ConfigChangeRequest{} }
 func (m *ConfigChangeRequest) String() string { return proto.CompactTextString(m) }
 func (*ConfigChangeRequest) ProtoMessage()    {}
 func (*ConfigChangeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{8}
+	return fileDescriptor_77a6da22d6a3feb1, []int{6}
 }
 func (m *ConfigChangeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -827,7 +566,7 @@ func (m *ConfigChangeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return xxx_messageInfo_ConfigChangeRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -872,7 +611,7 @@ func (m *ConfigChangeResponse) Reset()         { *m = ConfigChangeResponse{} }
 func (m *ConfigChangeResponse) String() string { return proto.CompactTextString(m) }
 func (*ConfigChangeResponse) ProtoMessage()    {}
 func (*ConfigChangeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{9}
+	return fileDescriptor_77a6da22d6a3feb1, []int{7}
 }
 func (m *ConfigChangeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -882,7 +621,7 @@ func (m *ConfigChangeResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return xxx_messageInfo_ConfigChangeResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -920,7 +659,7 @@ func (m *CompactLogRequest) Reset()         { *m = CompactLogRequest{} }
 func (m *CompactLogRequest) String() string { return proto.CompactTextString(m) }
 func (*CompactLogRequest) ProtoMessage()    {}
 func (*CompactLogRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{10}
+	return fileDescriptor_77a6da22d6a3feb1, []int{8}
 }
 func (m *CompactLogRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -930,7 +669,7 @@ func (m *CompactLogRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_CompactLogRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -967,7 +706,7 @@ func (m *CompactLogResponse) Reset()         { *m = CompactLogResponse{} }
 func (m *CompactLogResponse) String() string { return proto.CompactTextString(m) }
 func (*CompactLogResponse) ProtoMessage()    {}
 func (*CompactLogResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{11}
+	return fileDescriptor_77a6da22d6a3feb1, []int{9}
 }
 func (m *CompactLogResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -977,7 +716,7 @@ func (m *CompactLogResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_CompactLogResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1008,7 +747,7 @@ func (m *TransferLeaderRequest) Reset()         { *m = TransferLeaderRequest{} }
 func (m *TransferLeaderRequest) String() string { return proto.CompactTextString(m) }
 func (*TransferLeaderRequest) ProtoMessage()    {}
 func (*TransferLeaderRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{12}
+	return fileDescriptor_77a6da22d6a3feb1, []int{10}
 }
 func (m *TransferLeaderRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1018,7 +757,7 @@ func (m *TransferLeaderRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_TransferLeaderRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1054,7 +793,7 @@ func (m *TransferLeaderResponse) Reset()         { *m = TransferLeaderResponse{}
 func (m *TransferLeaderResponse) String() string { return proto.CompactTextString(m) }
 func (*TransferLeaderResponse) ProtoMessage()    {}
 func (*TransferLeaderResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{13}
+	return fileDescriptor_77a6da22d6a3feb1, []int{11}
 }
 func (m *TransferLeaderResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1064,7 +803,7 @@ func (m *TransferLeaderResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_TransferLeaderResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1096,7 +835,7 @@ func (m *VerifyHashRequest) Reset()         { *m = VerifyHashRequest{} }
 func (m *VerifyHashRequest) String() string { return proto.CompactTextString(m) }
 func (*VerifyHashRequest) ProtoMessage()    {}
 func (*VerifyHashRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{14}
+	return fileDescriptor_77a6da22d6a3feb1, []int{12}
 }
 func (m *VerifyHashRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1106,7 +845,7 @@ func (m *VerifyHashRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_VerifyHashRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1156,7 +895,7 @@ func (m *VerifyHashResponse) Reset()         { *m = VerifyHashResponse{} }
 func (m *VerifyHashResponse) String() string { return proto.CompactTextString(m) }
 func (*VerifyHashResponse) ProtoMessage()    {}
 func (*VerifyHashResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{15}
+	return fileDescriptor_77a6da22d6a3feb1, []int{13}
 }
 func (m *VerifyHashResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1166,7 +905,7 @@ func (m *VerifyHashResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_VerifyHashResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1201,7 +940,7 @@ func (m *BatchSplitRequest) Reset()         { *m = BatchSplitRequest{} }
 func (m *BatchSplitRequest) String() string { return proto.CompactTextString(m) }
 func (*BatchSplitRequest) ProtoMessage()    {}
 func (*BatchSplitRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{16}
+	return fileDescriptor_77a6da22d6a3feb1, []int{14}
 }
 func (m *BatchSplitRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1211,7 +950,7 @@ func (m *BatchSplitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_BatchSplitRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1262,7 +1001,7 @@ func (m *SplitRequest) Reset()         { *m = SplitRequest{} }
 func (m *SplitRequest) String() string { return proto.CompactTextString(m) }
 func (*SplitRequest) ProtoMessage()    {}
 func (*SplitRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{17}
+	return fileDescriptor_77a6da22d6a3feb1, []int{15}
 }
 func (m *SplitRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1272,7 +1011,7 @@ func (m *SplitRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_SplitRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1330,7 +1069,7 @@ func (m *BatchSplitResponse) Reset()         { *m = BatchSplitResponse{} }
 func (m *BatchSplitResponse) String() string { return proto.CompactTextString(m) }
 func (*BatchSplitResponse) ProtoMessage()    {}
 func (*BatchSplitResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{18}
+	return fileDescriptor_77a6da22d6a3feb1, []int{16}
 }
 func (m *BatchSplitResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1340,7 +1079,7 @@ func (m *BatchSplitResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return xxx_messageInfo_BatchSplitResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1366,100 +1105,6 @@ func (m *BatchSplitResponse) GetShards() []meta.Shard {
 	return nil
 }
 
-type ConfigChangeV2Request struct {
-	Changes              []ConfigChangeRequest `protobuf:"bytes,1,rep,name=changes,proto3" json:"changes"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *ConfigChangeV2Request) Reset()         { *m = ConfigChangeV2Request{} }
-func (m *ConfigChangeV2Request) String() string { return proto.CompactTextString(m) }
-func (*ConfigChangeV2Request) ProtoMessage()    {}
-func (*ConfigChangeV2Request) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{19}
-}
-func (m *ConfigChangeV2Request) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ConfigChangeV2Request) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ConfigChangeV2Request.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ConfigChangeV2Request) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConfigChangeV2Request.Merge(m, src)
-}
-func (m *ConfigChangeV2Request) XXX_Size() int {
-	return m.Size()
-}
-func (m *ConfigChangeV2Request) XXX_DiscardUnknown() {
-	xxx_messageInfo_ConfigChangeV2Request.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ConfigChangeV2Request proto.InternalMessageInfo
-
-func (m *ConfigChangeV2Request) GetChanges() []ConfigChangeRequest {
-	if m != nil {
-		return m.Changes
-	}
-	return nil
-}
-
-type ConfigChangeV2Response struct {
-	Shard                *meta.Shard `protobuf:"bytes,1,opt,name=shard,proto3" json:"shard,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
-}
-
-func (m *ConfigChangeV2Response) Reset()         { *m = ConfigChangeV2Response{} }
-func (m *ConfigChangeV2Response) String() string { return proto.CompactTextString(m) }
-func (*ConfigChangeV2Response) ProtoMessage()    {}
-func (*ConfigChangeV2Response) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{20}
-}
-func (m *ConfigChangeV2Response) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ConfigChangeV2Response) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ConfigChangeV2Response.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ConfigChangeV2Response) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ConfigChangeV2Response.Merge(m, src)
-}
-func (m *ConfigChangeV2Response) XXX_Size() int {
-	return m.Size()
-}
-func (m *ConfigChangeV2Response) XXX_DiscardUnknown() {
-	xxx_messageInfo_ConfigChangeV2Response.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ConfigChangeV2Response proto.InternalMessageInfo
-
-func (m *ConfigChangeV2Response) GetShard() *meta.Shard {
-	if m != nil {
-		return m.Shard
-	}
-	return nil
-}
-
 type UpdateMetadataRequest struct {
 	Metadata             meta.ShardLocalState `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
@@ -1471,7 +1116,7 @@ func (m *UpdateMetadataRequest) Reset()         { *m = UpdateMetadataRequest{} }
 func (m *UpdateMetadataRequest) String() string { return proto.CompactTextString(m) }
 func (*UpdateMetadataRequest) ProtoMessage()    {}
 func (*UpdateMetadataRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{21}
+	return fileDescriptor_77a6da22d6a3feb1, []int{17}
 }
 func (m *UpdateMetadataRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1481,7 +1126,7 @@ func (m *UpdateMetadataRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return xxx_messageInfo_UpdateMetadataRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1517,7 +1162,7 @@ func (m *UpdateMetadataResponse) Reset()         { *m = UpdateMetadataResponse{}
 func (m *UpdateMetadataResponse) String() string { return proto.CompactTextString(m) }
 func (*UpdateMetadataResponse) ProtoMessage()    {}
 func (*UpdateMetadataResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_77a6da22d6a3feb1, []int{22}
+	return fileDescriptor_77a6da22d6a3feb1, []int{18}
 }
 func (m *UpdateMetadataResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1527,7 +1172,7 @@ func (m *UpdateMetadataResponse) XXX_Marshal(b []byte, deterministic bool) ([]by
 		return xxx_messageInfo_UpdateMetadataResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1553,8 +1198,6 @@ func init() {
 	proto.RegisterType((*ResponseBatchHeader)(nil), "rpc.ResponseBatchHeader")
 	proto.RegisterType((*RequestBatch)(nil), "rpc.RequestBatch")
 	proto.RegisterType((*ResponseBatch)(nil), "rpc.ResponseBatch")
-	proto.RegisterType((*AdminRequest)(nil), "rpc.AdminRequest")
-	proto.RegisterType((*AdminResponse)(nil), "rpc.AdminResponse")
 	proto.RegisterType((*Request)(nil), "rpc.Request")
 	proto.RegisterType((*Response)(nil), "rpc.Response")
 	proto.RegisterType((*ConfigChangeRequest)(nil), "rpc.ConfigChangeRequest")
@@ -1568,8 +1211,6 @@ func init() {
 	proto.RegisterType((*BatchSplitRequest)(nil), "rpc.BatchSplitRequest")
 	proto.RegisterType((*SplitRequest)(nil), "rpc.SplitRequest")
 	proto.RegisterType((*BatchSplitResponse)(nil), "rpc.BatchSplitResponse")
-	proto.RegisterType((*ConfigChangeV2Request)(nil), "rpc.ConfigChangeV2Request")
-	proto.RegisterType((*ConfigChangeV2Response)(nil), "rpc.ConfigChangeV2Response")
 	proto.RegisterType((*UpdateMetadataRequest)(nil), "rpc.UpdateMetadataRequest")
 	proto.RegisterType((*UpdateMetadataResponse)(nil), "rpc.UpdateMetadataResponse")
 }
@@ -1577,97 +1218,75 @@ func init() {
 func init() { proto.RegisterFile("rpc.proto", fileDescriptor_77a6da22d6a3feb1) }
 
 var fileDescriptor_77a6da22d6a3feb1 = []byte{
-	// 1340 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x57, 0xcd, 0x6e, 0xdb, 0xc6,
-	0x13, 0x0f, 0x3f, 0xf4, 0xe1, 0x91, 0xec, 0xd0, 0x1b, 0xdb, 0x7f, 0x26, 0x01, 0x1c, 0xfd, 0x79,
-	0xa9, 0xeb, 0xb6, 0x12, 0xe2, 0x20, 0x71, 0x80, 0xb4, 0x0d, 0x22, 0x39, 0x40, 0x0c, 0xb8, 0x40,
-	0x4a, 0xa7, 0x09, 0x7a, 0xa4, 0xc8, 0xb5, 0x44, 0x44, 0x22, 0x59, 0x72, 0xe5, 0x8f, 0x5b, 0xdf,
-	0xa0, 0xd7, 0xbe, 0x45, 0x81, 0x1e, 0xfb, 0x04, 0xe9, 0x2d, 0x4f, 0x60, 0xb4, 0xbe, 0xf7, 0xdc,
-	0x6b, 0xb1, 0x5f, 0xd4, 0x52, 0xa4, 0x50, 0xf5, 0x62, 0x71, 0x66, 0xe7, 0x37, 0x3b, 0x3b, 0xf3,
-	0xdb, 0x99, 0x35, 0xac, 0xa5, 0x89, 0xdf, 0x4d, 0xd2, 0x98, 0xc4, 0xc8, 0x48, 0x13, 0xff, 0xde,
-	0xe3, 0x51, 0x48, 0xc6, 0xb3, 0x61, 0xd7, 0x8f, 0xa7, 0xbd, 0xa9, 0x47, 0xd2, 0xf0, 0x32, 0x4e,
-	0xc3, 0x51, 0x18, 0x09, 0xc1, 0x9f, 0x0d, 0x71, 0x2f, 0x19, 0xf6, 0xa6, 0x98, 0x78, 0xec, 0x0f,
-	0xc7, 0xde, 0x7b, 0xb6, 0x1a, 0x0c, 0xa7, 0x69, 0x9c, 0xce, 0x7f, 0x05, 0xf8, 0x64, 0x05, 0xb0,
-	0x1f, 0x4f, 0x93, 0x38, 0xc2, 0x11, 0xc9, 0x7a, 0x49, 0x1a, 0x27, 0x63, 0x4c, 0x64, 0x18, 0xf9,
-	0x8f, 0xf0, 0xf6, 0x85, 0xe2, 0x6d, 0x14, 0x8f, 0xe2, 0x1e, 0x53, 0x0f, 0x67, 0x67, 0x4c, 0x62,
-	0x02, 0xfb, 0xe2, 0xe6, 0xce, 0x05, 0x20, 0x17, 0xff, 0x30, 0xc3, 0x19, 0xe9, 0x7b, 0xc4, 0x1f,
-	0xbf, 0xc2, 0x5e, 0x80, 0x53, 0xb4, 0x03, 0x7a, 0x18, 0xd8, 0x5a, 0x47, 0xdb, 0x6b, 0xf7, 0xeb,
-	0x37, 0xd7, 0x0f, 0xf4, 0xe3, 0x23, 0x57, 0x0f, 0x03, 0x64, 0x43, 0x23, 0x1b, 0x7b, 0x69, 0x70,
-	0x7c, 0x64, 0xeb, 0x1d, 0x6d, 0xcf, 0x74, 0xa5, 0x88, 0x7a, 0xd0, 0x48, 0x71, 0x32, 0x09, 0x7d,
-	0xcf, 0x36, 0x3a, 0xda, 0x5e, 0xeb, 0xe0, 0x76, 0x57, 0x84, 0xe5, 0x72, 0x75, 0xdf, 0xfc, 0x70,
-	0xfd, 0xe0, 0x96, 0x2b, 0xad, 0x9c, 0xef, 0xe1, 0x8e, 0x8b, 0xb3, 0x24, 0x8e, 0x32, 0xbc, 0xca,
-	0xce, 0xfb, 0x50, 0x63, 0x59, 0x63, 0xfb, 0xb6, 0x0e, 0x36, 0xba, 0x32, 0x87, 0x2f, 0xe9, 0xaf,
-	0x70, 0xce, 0x4d, 0x9c, 0x5f, 0x35, 0x68, 0xab, 0x87, 0x42, 0x8f, 0xa1, 0x3e, 0x66, 0xee, 0x99,
-	0xe3, 0xd6, 0xc1, 0xff, 0xba, 0xb4, 0xec, 0xe5, 0x73, 0x0b, 0x37, 0xc2, 0x18, 0x75, 0xa1, 0x99,
-	0x72, 0x9b, 0xcc, 0xd6, 0x3b, 0xc6, 0x5e, 0xeb, 0xa0, 0x5d, 0x00, 0x72, 0xeb, 0xdc, 0x06, 0x3d,
-	0x83, 0xb6, 0x17, 0x4c, 0xc3, 0x48, 0xac, 0x8b, 0x44, 0x6c, 0x32, 0xcc, 0x0b, 0x65, 0x41, 0x00,
-	0x0b, 0xc6, 0xce, 0x6f, 0x1a, 0xac, 0x17, 0x12, 0x82, 0x9e, 0x2c, 0x44, 0x6d, 0x8b, 0xcd, 0x4b,
-	0x49, 0x5b, 0x08, 0xfb, 0x21, 0xac, 0xa5, 0xc2, 0x48, 0xc6, 0xbd, 0x5e, 0x84, 0x72, 0xfb, 0xb9,
-	0x15, 0xfa, 0x1a, 0xd6, 0x45, 0x30, 0x5c, 0x23, 0x42, 0x47, 0x6a, 0xe8, 0x05, 0x6c, 0xd1, 0xdc,
-	0xf9, 0xd9, 0x84, 0xb6, 0x7a, 0x42, 0xf4, 0x19, 0x34, 0xfc, 0x69, 0xf0, 0xe6, 0x2a, 0xc1, 0x2c,
-	0xf8, 0x0d, 0x35, 0x0b, 0x03, 0xbe, 0xe0, 0x4a, 0x0b, 0xf4, 0x10, 0x6a, 0x38, 0x89, 0xfd, 0xb1,
-	0xa8, 0xed, 0xf6, 0x9c, 0x39, 0x59, 0x3c, 0x4b, 0x7d, 0xfc, 0x92, 0x2e, 0xe6, 0x25, 0xa6, 0x02,
-	0xfa, 0x12, 0xda, 0x7e, 0x1c, 0x9d, 0x85, 0xa3, 0xc1, 0xd8, 0x8b, 0x46, 0x32, 0x5e, 0x9e, 0xa1,
-	0x81, 0xb2, 0x20, 0xe2, 0x71, 0x0b, 0xd6, 0xe8, 0x09, 0x00, 0xbd, 0x50, 0x9e, 0x4f, 0x4e, 0xe2,
-	0x91, 0x6d, 0x32, 0xec, 0x8e, 0xc0, 0x4a, 0xb5, 0x44, 0x2a, 0x96, 0xa8, 0x0f, 0x1b, 0x24, 0xf5,
-	0xa2, 0xec, 0x0c, 0xa7, 0x27, 0xbc, 0x32, 0x35, 0x86, 0xbd, 0xc7, 0xb0, 0x6f, 0x0a, 0x4b, 0x12,
-	0xbf, 0x80, 0xa0, 0x7b, 0x9f, 0xe3, 0x34, 0x3c, 0xbb, 0x7a, 0xe5, 0x65, 0x63, 0xbb, 0xae, 0xec,
-	0xfd, 0x36, 0x57, 0xe7, 0x7b, 0xcf, 0x2d, 0x51, 0x17, 0xea, 0x59, 0x32, 0x09, 0x49, 0x66, 0x37,
-	0x14, 0x0c, 0x63, 0xc1, 0x29, 0xd5, 0x4b, 0x8c, 0xb0, 0xa2, 0xb1, 0xce, 0x92, 0xc0, 0x23, 0xf8,
-	0x1b, 0x4c, 0xbc, 0xc0, 0x23, 0x9e, 0xdd, 0x54, 0x62, 0xfd, 0xae, 0xb0, 0x94, 0xc7, 0x5a, 0x44,
-	0x50, 0x1f, 0x6a, 0xde, 0xde, 0x1e, 0xd8, 0x6b, 0x8a, 0x8f, 0x41, 0x61, 0x29, 0xf7, 0x51, 0x44,
-	0x38, 0x7f, 0x19, 0xb0, 0x5e, 0x60, 0xd0, 0x7f, 0xe3, 0xc6, 0x57, 0x0b, 0x85, 0xe6, 0x14, 0xb9,
-	0x5b, 0x51, 0x68, 0xee, 0x7d, 0xa1, 0xd2, 0x87, 0x85, 0x4a, 0x1b, 0xca, 0xed, 0x57, 0x2b, 0x2d,
-	0xa0, 0x6a, 0xa9, 0x07, 0xa5, 0x52, 0x73, 0x9a, 0xdc, 0xaf, 0x2c, 0xb5, 0x70, 0xb0, 0x58, 0xeb,
-	0xc3, 0x42, 0xad, 0x6b, 0xca, 0xee, 0x6a, 0xad, 0xe5, 0xee, 0x4a, 0xb1, 0x7b, 0x79, 0xb1, 0xeb,
-	0x0a, 0x48, 0x2d, 0xb6, 0x00, 0xc9, 0x6a, 0x0f, 0x4a, 0x95, 0x6a, 0x28, 0xe1, 0x2e, 0x56, 0x4a,
-	0x86, 0x5b, 0x84, 0x50, 0x27, 0x95, 0x94, 0xb9, 0x5f, 0x49, 0x19, 0xe9, 0xa4, 0x08, 0x71, 0x7e,
-	0xd7, 0xa1, 0x21, 0xbb, 0xc0, 0xb2, 0x66, 0xbe, 0x05, 0xb5, 0x51, 0x1a, 0xcf, 0x12, 0x31, 0x44,
-	0xb8, 0x80, 0x3a, 0x60, 0x12, 0x4a, 0x0a, 0x83, 0x91, 0x82, 0xb7, 0x5a, 0xc9, 0x07, 0xb6, 0x82,
-	0x76, 0x01, 0xfc, 0x59, 0x46, 0xe2, 0x29, 0x23, 0x8f, 0xc9, 0xc0, 0x8a, 0x06, 0x59, 0x60, 0xbc,
-	0xc7, 0x57, 0x2c, 0xd1, 0x6d, 0x97, 0x7e, 0x52, 0x8d, 0x3f, 0x0d, 0x58, 0x16, 0xdb, 0x2e, 0xfd,
-	0x44, 0x77, 0xc1, 0x48, 0xc2, 0x80, 0xa5, 0xc7, 0xe8, 0x37, 0x6e, 0xae, 0x1f, 0x18, 0xaf, 0x8f,
-	0x8f, 0x5c, 0xaa, 0x43, 0x3b, 0x50, 0xcf, 0x48, 0x9c, 0xbc, 0x20, 0xec, 0xdc, 0x86, 0x2b, 0x24,
-	0x3a, 0xf5, 0x48, 0x7c, 0x4a, 0x07, 0x1d, 0xe3, 0xbf, 0xe9, 0x4a, 0x11, 0xed, 0x83, 0x15, 0x8e,
-	0xa2, 0x38, 0xe5, 0x2d, 0x6a, 0x30, 0xc6, 0xfe, 0x7b, 0x1b, 0x3a, 0xda, 0x5e, 0xd3, 0x2d, 0xe9,
-	0xe7, 0x5d, 0xae, 0xb5, 0x6a, 0x97, 0x73, 0xfe, 0xd6, 0xa0, 0x99, 0x5f, 0x9b, 0x65, 0xc9, 0x94,
-	0x69, 0xd3, 0x97, 0xa6, 0x6d, 0x0b, 0x6a, 0xe7, 0xde, 0x64, 0xc6, 0x33, 0xdb, 0x76, 0xb9, 0x80,
-	0x3e, 0xa7, 0x13, 0x9b, 0x0f, 0x2a, 0x4e, 0xed, 0xf2, 0x70, 0xd3, 0x5c, 0x69, 0x22, 0xd3, 0x56,
-	0xab, 0x48, 0x5b, 0x3e, 0x9a, 0xeb, 0xff, 0x3a, 0x9a, 0x69, 0x28, 0x19, 0xf1, 0x26, 0x98, 0xe5,
-	0xbf, 0xe9, 0x72, 0x41, 0xd6, 0xad, 0x99, 0xd7, 0xcd, 0xf9, 0x51, 0x83, 0x3b, 0x15, 0x7d, 0x1c,
-	0x3d, 0x05, 0xf0, 0x99, 0x42, 0x69, 0x1f, 0xb6, 0xcc, 0xa4, 0x0a, 0x60, 0xc7, 0x57, 0x6c, 0xd5,
-	0x07, 0x8a, 0xbe, 0xd2, 0x03, 0xe5, 0x39, 0x6c, 0x55, 0x35, 0x18, 0xf4, 0x09, 0xd4, 0xd8, 0xa3,
-	0x47, 0x4c, 0xe5, 0x16, 0x73, 0xd3, 0x65, 0x7c, 0x90, 0x67, 0x65, 0xeb, 0xce, 0x21, 0x6c, 0x96,
-	0xc6, 0x09, 0x72, 0x68, 0x3f, 0x63, 0xca, 0xe3, 0x28, 0xc0, 0x97, 0xcc, 0x89, 0xe9, 0x16, 0x74,
-	0xce, 0x16, 0xa0, 0x72, 0x77, 0x72, 0x5e, 0xc1, 0x76, 0xe5, 0x84, 0x51, 0x4f, 0xa6, 0xad, 0x74,
-	0x32, 0x1b, 0x76, 0xaa, 0x1b, 0x98, 0xf3, 0x0e, 0x36, 0x4b, 0x53, 0x88, 0xd6, 0x2c, 0x54, 0x62,
-	0xe5, 0x02, 0x42, 0x60, 0x8e, 0x69, 0x57, 0xd3, 0x59, 0xd1, 0xd8, 0x37, 0xbd, 0x28, 0x7e, 0x1c,
-	0x11, 0x7c, 0x49, 0x04, 0xd5, 0xa4, 0x48, 0x8f, 0x54, 0x6e, 0x79, 0xce, 0x10, 0x36, 0x4b, 0x03,
-	0x0c, 0x3d, 0x52, 0x5e, 0x5d, 0x1a, 0x7b, 0xbd, 0xf0, 0xf9, 0xa0, 0x1a, 0x95, 0x9e, 0x5e, 0xca,
-	0xce, 0x7a, 0x71, 0xe7, 0x9f, 0x34, 0x68, 0x17, 0xfc, 0x73, 0x0a, 0xa6, 0x84, 0x5f, 0x25, 0x97,
-	0x0b, 0x94, 0x82, 0x38, 0x0a, 0x04, 0x98, 0x7e, 0xd2, 0x66, 0x13, 0xe1, 0x8b, 0x53, 0xf1, 0xdc,
-	0x35, 0x78, 0xb3, 0x99, 0x6b, 0xd0, 0x21, 0xb4, 0x22, 0x7c, 0x21, 0x52, 0x9c, 0xd9, 0x26, 0x0b,
-	0x75, 0x49, 0xea, 0x55, 0x4b, 0xe7, 0x39, 0xa0, 0x72, 0x27, 0x47, 0x9f, 0x42, 0x9d, 0xd1, 0x46,
-	0x1e, 0xba, 0x82, 0x57, 0xc2, 0xc0, 0xf9, 0x16, 0xb6, 0x2b, 0x67, 0x2f, 0x7a, 0x0a, 0x0d, 0xce,
-	0x78, 0xe9, 0x64, 0xe9, 0x83, 0x48, 0x52, 0x42, 0x98, 0x3b, 0xcf, 0x60, 0xa7, 0x7a, 0x48, 0xa0,
-	0xff, 0x2f, 0xa7, 0xbb, 0x24, 0xfa, 0x6b, 0xd8, 0xae, 0x7c, 0x4f, 0xa0, 0x43, 0x68, 0x4e, 0xe5,
-	0x28, 0xd1, 0x94, 0xae, 0xc7, 0xe1, 0x27, 0xb1, 0xef, 0x4d, 0x4e, 0x89, 0x47, 0xe4, 0xa3, 0x32,
-	0x37, 0xa6, 0x0c, 0xad, 0x1e, 0x37, 0xfb, 0x47, 0xd0, 0x10, 0xcd, 0x0d, 0xb5, 0xa0, 0x71, 0x1c,
-	0x9d, 0x7b, 0x93, 0x30, 0xb0, 0x6e, 0xa1, 0x75, 0x58, 0x73, 0xbd, 0x33, 0xc2, 0x5a, 0x8e, 0xa5,
-	0xa1, 0x26, 0x98, 0xa7, 0x91, 0x97, 0x58, 0x3a, 0x5a, 0x83, 0xda, 0xbb, 0x34, 0x24, 0xd8, 0x32,
-	0xa8, 0xd2, 0xc5, 0x5e, 0x60, 0x99, 0xfb, 0xbf, 0x68, 0xe2, 0xbd, 0x2a, 0x7d, 0x59, 0xd0, 0x16,
-	0xbe, 0x98, 0xda, 0xba, 0x45, 0x35, 0x6a, 0x46, 0x2c, 0x0d, 0x6d, 0x00, 0xcc, 0xaf, 0xa5, 0xa5,
-	0x23, 0x04, 0x1b, 0xc5, 0x6b, 0x64, 0x19, 0xe8, 0x36, 0xb4, 0xa8, 0xcd, 0x8c, 0x60, 0x4a, 0x74,
-	0xcb, 0xa4, 0xa0, 0x39, 0xf1, 0xad, 0x1a, 0x95, 0xe7, 0xc5, 0xb7, 0xea, 0xd4, 0x49, 0x31, 0xf1,
-	0x56, 0x83, 0xea, 0x8a, 0xa7, 0xb7, 0x9a, 0x7d, 0xeb, 0xe3, 0x9f, 0xbb, 0xda, 0x87, 0x9b, 0x5d,
-	0xed, 0xe3, 0xcd, 0xae, 0xf6, 0xc7, 0xcd, 0xae, 0x36, 0xac, 0xb3, 0x7f, 0xe0, 0x1e, 0xfd, 0x13,
-	0x00, 0x00, 0xff, 0xff, 0x66, 0xe6, 0x04, 0xaa, 0xc3, 0x0e, 0x00, 0x00,
+	// 988 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0xcd, 0x6e, 0xdb, 0x46,
+	0x10, 0x36, 0x29, 0x51, 0x92, 0x47, 0x8c, 0x43, 0x6f, 0x64, 0x97, 0xcd, 0xc1, 0x16, 0x78, 0xa9,
+	0x62, 0xa0, 0x12, 0xe2, 0x20, 0x75, 0x81, 0x1e, 0x82, 0x58, 0x0e, 0x60, 0x03, 0x2e, 0x10, 0xd0,
+	0x69, 0x83, 0x1e, 0x57, 0xe4, 0x5a, 0x24, 0x62, 0x72, 0xd9, 0xe5, 0xb2, 0xb6, 0x7b, 0xea, 0xb5,
+	0xa7, 0x3e, 0x53, 0x6f, 0xe9, 0x2d, 0x4f, 0x60, 0xb4, 0x7a, 0x92, 0x62, 0xff, 0x24, 0x4a, 0x8e,
+	0x11, 0x5d, 0x4c, 0xce, 0xf0, 0x9b, 0xbf, 0x6f, 0xbf, 0x59, 0x0b, 0x36, 0x59, 0x11, 0x0d, 0x0b,
+	0x46, 0x39, 0x45, 0x0d, 0x56, 0x44, 0x4f, 0x5f, 0x4e, 0x53, 0x9e, 0x54, 0x93, 0x61, 0x44, 0xb3,
+	0x51, 0x86, 0x39, 0x4b, 0x6f, 0x28, 0x4b, 0xa7, 0x69, 0xae, 0x8d, 0xa8, 0x9a, 0x90, 0x51, 0x31,
+	0x19, 0x65, 0x84, 0x63, 0xf9, 0x47, 0xc5, 0x3e, 0xfd, 0x61, 0xbd, 0x30, 0xc2, 0x18, 0x65, 0x8b,
+	0xa7, 0x0e, 0x3e, 0x5f, 0x23, 0x38, 0xa2, 0x59, 0x41, 0x73, 0x92, 0xf3, 0x72, 0x54, 0x30, 0x5a,
+	0x24, 0x84, 0x9b, 0x36, 0xe6, 0x0f, 0x9d, 0xed, 0xdb, 0x5a, 0xb6, 0x29, 0x9d, 0xd2, 0x91, 0x74,
+	0x4f, 0xaa, 0x4b, 0x69, 0x49, 0x43, 0xbe, 0x29, 0x78, 0x70, 0x0d, 0x28, 0x24, 0xbf, 0x56, 0xa4,
+	0xe4, 0xc7, 0x98, 0x47, 0xc9, 0x29, 0xc1, 0x31, 0x61, 0x68, 0x17, 0xec, 0x34, 0xf6, 0xad, 0xbe,
+	0x35, 0x70, 0x8f, 0x5b, 0xb3, 0xbb, 0x7d, 0xfb, 0xec, 0x24, 0xb4, 0xd3, 0x18, 0xf9, 0xd0, 0x2e,
+	0x13, 0xcc, 0xe2, 0xb3, 0x13, 0xdf, 0xee, 0x5b, 0x83, 0x66, 0x68, 0x4c, 0x34, 0x82, 0x36, 0x23,
+	0xc5, 0x55, 0x1a, 0x61, 0xbf, 0xd1, 0xb7, 0x06, 0xdd, 0xc3, 0xc7, 0x43, 0xdd, 0x56, 0xa8, 0xdc,
+	0xc7, 0xcd, 0x8f, 0x77, 0xfb, 0x1b, 0xa1, 0x41, 0x05, 0xbf, 0xc0, 0x93, 0x90, 0x94, 0x05, 0xcd,
+	0x4b, 0xb2, 0x4e, 0xe5, 0x03, 0x70, 0x24, 0x6b, 0xb2, 0x6e, 0xf7, 0x70, 0x6b, 0x68, 0x38, 0x7c,
+	0x23, 0x9e, 0x3a, 0xb9, 0x82, 0x04, 0x15, 0xb8, 0xf5, 0x99, 0xd0, 0x4b, 0x68, 0x25, 0x32, 0xbb,
+	0xcc, 0xdb, 0x3d, 0xfc, 0x6a, 0x28, 0x4e, 0xfd, 0xfe, 0xd8, 0x3a, 0x8b, 0x06, 0xa3, 0x21, 0x74,
+	0x98, 0xc2, 0x94, 0xbe, 0xdd, 0x6f, 0x0c, 0xba, 0x87, 0xee, 0x52, 0xa0, 0x42, 0xcf, 0x31, 0xc1,
+	0xef, 0xf0, 0x68, 0x69, 0x22, 0xf4, 0xdd, 0x4a, 0x5d, 0x5f, 0x87, 0xdf, 0x9b, 0x7a, 0xa5, 0xf0,
+	0x73, 0xd8, 0x64, 0x1a, 0x64, 0x2a, 0x3f, 0x5a, 0x0e, 0x55, 0xf8, 0x05, 0x2a, 0xf8, 0xc7, 0x86,
+	0xb6, 0xee, 0xeb, 0x41, 0x0a, 0x7b, 0xe0, 0x4c, 0x19, 0xad, 0x0a, 0x7d, 0x74, 0xca, 0x40, 0x7d,
+	0x68, 0xf2, 0xdb, 0x82, 0xc8, 0x53, 0xdb, 0xd2, 0x13, 0x8e, 0xb3, 0xf8, 0xdd, 0x6d, 0x41, 0x42,
+	0xf9, 0x05, 0xed, 0x01, 0x44, 0x55, 0xc9, 0x69, 0x26, 0x7c, 0x7e, 0x53, 0x06, 0xd7, 0x3c, 0xc8,
+	0x83, 0xc6, 0x07, 0x72, 0xeb, 0x3b, 0xa2, 0x60, 0x28, 0x5e, 0x85, 0x27, 0xca, 0x62, 0xbf, 0xa5,
+	0x3c, 0x51, 0x16, 0xa3, 0xaf, 0xa1, 0x51, 0xa4, 0xb1, 0xdf, 0xee, 0x5b, 0x83, 0xc6, 0x71, 0x7b,
+	0x76, 0xb7, 0xdf, 0x78, 0x7b, 0x76, 0x12, 0x0a, 0x1f, 0xda, 0x85, 0x56, 0xc9, 0x69, 0xf1, 0x9a,
+	0xfb, 0x1d, 0xf1, 0x35, 0xd4, 0x96, 0xd0, 0x1a, 0xa7, 0x17, 0x42, 0x5e, 0xfe, 0xa6, 0xd2, 0x9a,
+	0x36, 0xd1, 0x01, 0x78, 0xe9, 0x34, 0xa7, 0x8c, 0xbc, 0x29, 0x68, 0x94, 0x8c, 0x13, 0x12, 0x7d,
+	0xf0, 0xa1, 0x6f, 0x0d, 0x3a, 0xe1, 0x3d, 0x3f, 0x7a, 0x0e, 0x0e, 0x11, 0x96, 0xdf, 0x95, 0x47,
+	0xb0, 0xb3, 0x50, 0x65, 0x49, 0x2b, 0x16, 0x29, 0xe8, 0x5c, 0x3e, 0xc2, 0x08, 0xfe, 0xb6, 0xa0,
+	0x63, 0x98, 0x7e, 0x90, 0x4c, 0x43, 0x9b, 0xbd, 0x26, 0x6d, 0x8d, 0x7b, 0xb4, 0xf5, 0xc0, 0xf9,
+	0x0d, 0x5f, 0x55, 0x8a, 0x51, 0x37, 0x54, 0x86, 0x21, 0xca, 0xf9, 0x0c, 0x51, 0xf3, 0x15, 0x68,
+	0x7d, 0x79, 0x05, 0xfe, 0xb0, 0xe0, 0xc9, 0x98, 0xe6, 0x97, 0xe9, 0x74, 0x9c, 0xe0, 0x7c, 0x4a,
+	0x8c, 0x36, 0xbe, 0x07, 0x88, 0xa4, 0x43, 0x36, 0x65, 0xc9, 0xe6, 0x7d, 0xc3, 0x49, 0x3d, 0x40,
+	0x0e, 0x52, 0xc3, 0xd6, 0x17, 0xdc, 0x5e, 0x6b, 0xc1, 0x5f, 0x41, 0x6f, 0xb9, 0x03, 0xcd, 0xe8,
+	0x37, 0xe0, 0xc8, 0x4b, 0x43, 0x2f, 0x45, 0x57, 0xa6, 0x19, 0xca, 0x93, 0x35, 0x33, 0xc8, 0xef,
+	0xc1, 0x11, 0x6c, 0x8f, 0x69, 0x56, 0xe0, 0x88, 0x9f, 0xd3, 0xa9, 0x19, 0x20, 0x00, 0x37, 0x52,
+	0xce, 0xb3, 0x3c, 0x26, 0x37, 0x32, 0x49, 0x33, 0x5c, 0xf2, 0x05, 0x3d, 0x40, 0xf5, 0x40, 0x55,
+	0x37, 0x38, 0x85, 0x9d, 0x77, 0x0c, 0xe7, 0xe5, 0x25, 0x61, 0xe7, 0x72, 0xcf, 0x4c, 0xca, 0xda,
+	0x64, 0xd6, 0x5a, 0x93, 0xf9, 0xb0, 0xbb, 0x9a, 0x49, 0xd7, 0x78, 0x0f, 0xdb, 0x3f, 0x13, 0x96,
+	0x5e, 0xde, 0x9e, 0xe2, 0x32, 0x31, 0xf9, 0x7b, 0xe0, 0xa4, 0xb5, 0x5e, 0x95, 0x81, 0x10, 0x34,
+	0x13, 0x5c, 0x26, 0x92, 0x4c, 0x37, 0x94, 0xef, 0x42, 0xf2, 0x11, 0xcd, 0x39, 0xb9, 0xe1, 0x52,
+	0x2f, 0x6e, 0x68, 0x4c, 0x31, 0x52, 0x3d, 0xb1, 0x2e, 0x37, 0x81, 0x6d, 0x79, 0x8b, 0x5c, 0x14,
+	0x57, 0x29, 0x37, 0xe5, 0x5e, 0xd4, 0xae, 0x2d, 0x4b, 0x5e, 0x1e, 0xdb, 0x52, 0x9d, 0x75, 0xd0,
+	0xea, 0xdd, 0x55, 0xaf, 0x6c, 0x2f, 0x57, 0xfe, 0xcb, 0x02, 0x77, 0x29, 0x7f, 0x0f, 0x9c, 0x92,
+	0x63, 0xc6, 0xd5, 0x52, 0x84, 0xca, 0x10, 0x2b, 0x4f, 0xf2, 0x58, 0x07, 0x8b, 0x57, 0xa1, 0xff,
+	0x9c, 0x5c, 0x5f, 0xe8, 0x7f, 0x17, 0x5a, 0xff, 0x0b, 0x0f, 0x3a, 0x82, 0x6e, 0x4e, 0xae, 0x35,
+	0xc5, 0xa5, 0xdf, 0x94, 0xad, 0x3e, 0x40, 0x7d, 0x1d, 0x19, 0xbc, 0x02, 0x54, 0x9f, 0x5a, 0xcb,
+	0xea, 0x19, 0xb4, 0xa4, 0x6c, 0xcc, 0xd0, 0x9f, 0xd1, 0x95, 0x06, 0x04, 0x6f, 0x61, 0xe7, 0xa7,
+	0x22, 0xc6, 0x9c, 0xfc, 0x48, 0x38, 0x8e, 0x31, 0xc7, 0x66, 0xb4, 0x23, 0xe8, 0x64, 0xda, 0xa5,
+	0xa5, 0xb0, 0x53, 0xcb, 0x72, 0x4e, 0x23, 0x7c, 0x75, 0xc1, 0x31, 0x37, 0xf7, 0xef, 0x1c, 0x2c,
+	0x14, 0xb1, 0x9a, 0x51, 0xb5, 0x75, 0xf0, 0x0c, 0xda, 0xfa, 0x5a, 0x40, 0x9b, 0xe0, 0xbc, 0x67,
+	0x29, 0x27, 0xde, 0x06, 0xea, 0x40, 0x33, 0x24, 0x38, 0xf6, 0x2c, 0xe1, 0x7c, 0x1d, 0x67, 0x69,
+	0xee, 0xd9, 0x07, 0x7f, 0x5a, 0xe0, 0xca, 0x77, 0x13, 0xe0, 0x81, 0x5b, 0xdf, 0x20, 0x6f, 0x03,
+	0x6d, 0x01, 0x2c, 0x94, 0xed, 0x59, 0x08, 0xc1, 0xd6, 0xb2, 0x12, 0x3d, 0x1b, 0x3d, 0x86, 0xae,
+	0xc0, 0x54, 0x9c, 0x08, 0xad, 0x78, 0x0d, 0x11, 0xb4, 0xd0, 0x8e, 0xd7, 0x14, 0xf6, 0x82, 0x3f,
+	0xcf, 0x11, 0x49, 0x96, 0x9b, 0xf7, 0x5a, 0xc7, 0xde, 0xa7, 0xff, 0xf6, 0xac, 0x8f, 0xb3, 0x3d,
+	0xeb, 0xd3, 0x6c, 0xcf, 0xfa, 0x77, 0xb6, 0x67, 0x4d, 0x5a, 0xf2, 0xf7, 0xc2, 0x8b, 0xff, 0x03,
+	0x00, 0x00, 0xff, 0xff, 0x29, 0x71, 0x72, 0xaf, 0x32, 0x09, 0x00, 0x00,
 }
 
 func (m *RequestBatchHeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1675,48 +1294,39 @@ func (m *RequestBatchHeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RequestBatchHeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RequestBatchHeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1a
-	if m.ShardID != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.ShardID))
-		i--
-		dAtA[i] = 0x10
-	}
 	if len(m.ID) > 0 {
-		i -= len(m.ID)
-		copy(dAtA[i:], m.ID)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
 	}
-	return len(dAtA) - i, nil
+	if m.ShardID != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.ShardID))
+	}
+	dAtA[i] = 0x1a
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Replica.Size()))
+	n1, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n1
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResponseBatchHeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1724,43 +1334,34 @@ func (m *ResponseBatchHeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResponseBatchHeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResponseBatchHeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Error.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
 	if len(m.ID) > 0 {
-		i -= len(m.ID)
-		copy(dAtA[i:], m.ID)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
-		i--
 		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
 	}
-	return len(dAtA) - i, nil
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Error.Size()))
+	n2, err := m.Error.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n2
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RequestBatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1768,60 +1369,40 @@ func (m *RequestBatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RequestBatch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RequestBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.AdminRequest.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1a
-	if len(m.Requests) > 0 {
-		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Requests[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x12
-		}
-	}
-	{
-		size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
+	n3, err := m.Header.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n3
+	if len(m.Requests) > 0 {
+		for _, msg := range m.Requests {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResponseBatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1829,302 +1410,40 @@ func (m *ResponseBatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResponseBatch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResponseBatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.AdminResponse.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x1a
-	if len(m.Responses) > 0 {
-		for iNdEx := len(m.Responses) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Responses[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x12
-		}
-	}
-	{
-		size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
-}
-
-func (m *AdminRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
+	n4, err := m.Header.MarshalTo(dAtA[i:])
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return dAtA[:n], nil
-}
-
-func (m *AdminRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AdminRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
+	i += n4
+	if len(m.Responses) > 0 {
+		for _, msg := range m.Responses {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.ConfigChangeV2 != nil {
-		{
-			size, err := m.ConfigChangeV2.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x4a
-	}
-	if m.UpdateMetadata != nil {
-		{
-			size, err := m.UpdateMetadata.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.Splits != nil {
-		{
-			size, err := m.Splits.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.VerifyHash != nil {
-		{
-			size, err := m.VerifyHash.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.TransferLeader != nil {
-		{
-			size, err := m.TransferLeader.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.CompactLog != nil {
-		{
-			size, err := m.CompactLog.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.ConfigChange != nil {
-		{
-			size, err := m.ConfigChange.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	{
-		size, err := m.Epoch.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
-	if m.CmdType != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.CmdType))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *AdminResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AdminResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *AdminResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.UpdateMetadata != nil {
-		{
-			size, err := m.UpdateMetadata.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.ConfigChangeV2 != nil {
-		{
-			size, err := m.ConfigChangeV2.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.Splits != nil {
-		{
-			size, err := m.Splits.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.VerifyHash != nil {
-		{
-			size, err := m.VerifyHash.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.TransferLeader != nil {
-		{
-			size, err := m.TransferLeader.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.CompactLog != nil {
-		{
-			size, err := m.CompactLog.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.ConfigChange != nil {
-		{
-			size, err := m.ConfigChange.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.CmdType != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.CmdType))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Request) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2132,97 +1451,86 @@ func (m *Request) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Request) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Request) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.ID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
 	}
-	{
-		size, err := m.Epoch.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
+	if m.Group != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Group))
 	}
-	i--
-	dAtA[i] = 0x5a
+	if m.Type != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
+	}
+	if m.CustomType != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.CustomType))
+	}
+	if len(m.Key) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
+	}
+	if len(m.Cmd) > 0 {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Cmd)))
+		i += copy(dAtA[i:], m.Cmd)
+	}
+	if m.PID != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.PID))
+	}
+	if m.StopAt != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.StopAt))
+	}
+	if m.ToShard != 0 {
+		dAtA[i] = 0x48
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.ToShard))
+	}
 	if m.IgnoreEpochCheck {
-		i--
+		dAtA[i] = 0x50
+		i++
 		if m.IgnoreEpochCheck {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x50
+		i++
 	}
-	if m.ToShard != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.ToShard))
-		i--
-		dAtA[i] = 0x48
+	dAtA[i] = 0x5a
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Epoch.Size()))
+	n5, err := m.Epoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
-	if m.StopAt != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.StopAt))
-		i--
-		dAtA[i] = 0x40
+	i += n5
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.PID != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.PID))
-		i--
-		dAtA[i] = 0x38
-	}
-	if len(m.Cmd) > 0 {
-		i -= len(m.Cmd)
-		copy(dAtA[i:], m.Cmd)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Cmd)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.CustomType != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.CustomType))
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.Type != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.Group != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.Group))
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.ID) > 0 {
-		i -= len(m.ID)
-		copy(dAtA[i:], m.ID)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Response) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2230,89 +1538,55 @@ func (m *Response) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Response) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.Stale {
-		i--
-		if m.Stale {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x38
-	}
-	{
-		size, err := m.Error.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x32
-	if m.PID != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.PID))
-		i--
-		dAtA[i] = 0x28
-	}
-	if m.Request != nil {
-		{
-			size, err := m.Request.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Value)))
-		i--
-		dAtA[i] = 0x1a
+	if len(m.ID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
+		i += copy(dAtA[i:], m.ID)
 	}
 	if m.Type != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Type))
 	}
-	if len(m.ID) > 0 {
-		i -= len(m.ID)
-		copy(dAtA[i:], m.ID)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.ID)))
-		i--
-		dAtA[i] = 0xa
+	if m.CustomType != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.CustomType))
 	}
-	return len(dAtA) - i, nil
+	if len(m.Value) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Value)))
+		i += copy(dAtA[i:], m.Value)
+	}
+	if m.PID != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.PID))
+	}
+	dAtA[i] = 0x32
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Error.Size()))
+	n6, err := m.Error.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n6
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ConfigChangeRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2320,41 +1594,33 @@ func (m *ConfigChangeRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChangeRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
 	if m.ChangeType != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.ChangeType))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.ChangeType))
 	}
-	return len(dAtA) - i, nil
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Replica.Size()))
+	n7, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n7
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ConfigChangeResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2362,36 +1628,28 @@ func (m *ConfigChangeResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ConfigChangeResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChangeResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Shard.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Shard.Size()))
+	n8, err := m.Shard.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *CompactLogRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2399,31 +1657,25 @@ func (m *CompactLogRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CompactLogRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CompactLogRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.CompactIndex != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.CompactIndex))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.CompactIndex))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *CompactLogResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2431,26 +1683,20 @@ func (m *CompactLogResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *CompactLogResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *CompactLogResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *TransferLeaderRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2458,36 +1704,28 @@ func (m *TransferLeaderRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeaderRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TransferLeaderRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Replica.Size()))
+	n9, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n9
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *TransferLeaderResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2495,26 +1733,20 @@ func (m *TransferLeaderResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TransferLeaderResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TransferLeaderResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *VerifyHashRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2522,45 +1754,37 @@ func (m *VerifyHashRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *VerifyHashRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *VerifyHashRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Context) > 0 {
-		i -= len(m.Context)
-		copy(dAtA[i:], m.Context)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Context)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Index != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Index))
 	}
 	if len(m.Hash) > 0 {
-		i -= len(m.Hash)
-		copy(dAtA[i:], m.Hash)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Hash)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Hash)))
+		i += copy(dAtA[i:], m.Hash)
 	}
-	if m.Index != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.Index))
-		i--
-		dAtA[i] = 0x8
+	if len(m.Context) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Context)))
+		i += copy(dAtA[i:], m.Context)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *VerifyHashResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2568,26 +1792,20 @@ func (m *VerifyHashResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *VerifyHashResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *VerifyHashResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *BatchSplitRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2595,47 +1813,38 @@ func (m *BatchSplitRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *BatchSplitRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *BatchSplitRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Context) > 0 {
-		i -= len(m.Context)
-		copy(dAtA[i:], m.Context)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Context)))
-		i--
-		dAtA[i] = 0x12
-	}
 	if len(m.Requests) > 0 {
-		for iNdEx := len(m.Requests) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Requests[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Requests {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if len(m.Context) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Context)))
+		i += copy(dAtA[i:], m.Context)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *SplitRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2643,59 +1852,49 @@ func (m *SplitRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *SplitRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *SplitRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.NewReplicas) > 0 {
-		for iNdEx := len(m.NewReplicas) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.NewReplicas[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x22
-		}
-	}
-	if m.NewShardID != 0 {
-		i = encodeVarintRpc(dAtA, i, uint64(m.NewShardID))
-		i--
-		dAtA[i] = 0x18
+	if len(m.Start) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Start)))
+		i += copy(dAtA[i:], m.Start)
 	}
 	if len(m.End) > 0 {
-		i -= len(m.End)
-		copy(dAtA[i:], m.End)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.End)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.End)))
+		i += copy(dAtA[i:], m.End)
 	}
-	if len(m.Start) > 0 {
-		i -= len(m.Start)
-		copy(dAtA[i:], m.Start)
-		i = encodeVarintRpc(dAtA, i, uint64(len(m.Start)))
-		i--
-		dAtA[i] = 0xa
+	if m.NewShardID != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.NewShardID))
 	}
-	return len(dAtA) - i, nil
+	if len(m.NewReplicas) > 0 {
+		for _, msg := range m.NewReplicas {
+			dAtA[i] = 0x22
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *BatchSplitResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2703,120 +1902,32 @@ func (m *BatchSplitResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *BatchSplitResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *BatchSplitResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Shards) > 0 {
-		for iNdEx := len(m.Shards) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Shards[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Shards {
 			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ConfigChangeV2Request) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ConfigChangeV2Request) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChangeV2Request) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Changes) > 0 {
-		for iNdEx := len(m.Changes) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Changes[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintRpc(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ConfigChangeV2Response) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ConfigChangeV2Response) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ConfigChangeV2Response) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Shard != nil {
-		{
-			size, err := m.Shard.MarshalToSizedBuffer(dAtA[:i])
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintRpc(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
-		dAtA[i] = 0xa
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *UpdateMetadataRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2824,36 +1935,28 @@ func (m *UpdateMetadataRequest) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateMetadataRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UpdateMetadataRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintRpc(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintRpc(dAtA, i, uint64(m.Metadata.Size()))
+	n10, err := m.Metadata.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n10
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *UpdateMetadataResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2861,32 +1964,24 @@ func (m *UpdateMetadataResponse) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *UpdateMetadataResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *UpdateMetadataResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func encodeVarintRpc(dAtA []byte, offset int, v uint64) int {
-	offset -= sovRpc(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *RequestBatchHeader) Size() (n int) {
 	if m == nil {
@@ -2941,8 +2036,6 @@ func (m *RequestBatch) Size() (n int) {
 			n += 1 + l + sovRpc(uint64(l))
 		}
 	}
-	l = m.AdminRequest.Size()
-	n += 1 + l + sovRpc(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -2962,96 +2055,6 @@ func (m *ResponseBatch) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovRpc(uint64(l))
 		}
-	}
-	l = m.AdminResponse.Size()
-	n += 1 + l + sovRpc(uint64(l))
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *AdminRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.CmdType != 0 {
-		n += 1 + sovRpc(uint64(m.CmdType))
-	}
-	l = m.Epoch.Size()
-	n += 1 + l + sovRpc(uint64(l))
-	if m.ConfigChange != nil {
-		l = m.ConfigChange.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.CompactLog != nil {
-		l = m.CompactLog.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.TransferLeader != nil {
-		l = m.TransferLeader.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.VerifyHash != nil {
-		l = m.VerifyHash.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.Splits != nil {
-		l = m.Splits.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.UpdateMetadata != nil {
-		l = m.UpdateMetadata.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.ConfigChangeV2 != nil {
-		l = m.ConfigChangeV2.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *AdminResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.CmdType != 0 {
-		n += 1 + sovRpc(uint64(m.CmdType))
-	}
-	if m.ConfigChange != nil {
-		l = m.ConfigChange.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.CompactLog != nil {
-		l = m.CompactLog.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.TransferLeader != nil {
-		l = m.TransferLeader.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.VerifyHash != nil {
-		l = m.VerifyHash.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.Splits != nil {
-		l = m.Splits.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.ConfigChangeV2 != nil {
-		l = m.ConfigChangeV2.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.UpdateMetadata != nil {
-		l = m.UpdateMetadata.Size()
-		n += 1 + l + sovRpc(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3119,12 +2122,11 @@ func (m *Response) Size() (n int) {
 	if m.Type != 0 {
 		n += 1 + sovRpc(uint64(m.Type))
 	}
+	if m.CustomType != 0 {
+		n += 1 + sovRpc(uint64(m.CustomType))
+	}
 	l = len(m.Value)
 	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.Request != nil {
-		l = m.Request.Size()
 		n += 1 + l + sovRpc(uint64(l))
 	}
 	if m.PID != 0 {
@@ -3132,13 +2134,6 @@ func (m *Response) Size() (n int) {
 	}
 	l = m.Error.Size()
 	n += 1 + l + sovRpc(uint64(l))
-	if m.Stale {
-		n += 2
-	}
-	l = len(m.Key)
-	if l > 0 {
-		n += 1 + l + sovRpc(uint64(l))
-	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -3333,40 +2328,6 @@ func (m *BatchSplitResponse) Size() (n int) {
 	return n
 }
 
-func (m *ConfigChangeV2Request) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.Changes) > 0 {
-		for _, e := range m.Changes {
-			l = e.Size()
-			n += 1 + l + sovRpc(uint64(l))
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *ConfigChangeV2Response) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Shard != nil {
-		l = m.Shard.Size()
-		n += 1 + l + sovRpc(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
 func (m *UpdateMetadataRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3394,7 +2355,14 @@ func (m *UpdateMetadataResponse) Size() (n int) {
 }
 
 func sovRpc(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozRpc(x uint64) (n int) {
 	return sovRpc(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -3520,7 +2488,10 @@ func (m *RequestBatchHeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -3638,7 +2609,10 @@ func (m *ResponseBatchHeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -3750,46 +2724,16 @@ func (m *RequestBatch) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AdminRequest", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.AdminRequest.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpc(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -3901,723 +2845,16 @@ func (m *ResponseBatch) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AdminResponse", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.AdminResponse.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpc(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
 				return ErrInvalidLengthRpc
 			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *AdminRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AdminRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AdminRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CmdType", wireType)
-			}
-			m.CmdType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.CmdType |= AdminCmdType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Epoch", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.Epoch.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConfigChange", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ConfigChange == nil {
-				m.ConfigChange = &ConfigChangeRequest{}
-			}
-			if err := m.ConfigChange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CompactLog", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.CompactLog == nil {
-				m.CompactLog = &CompactLogRequest{}
-			}
-			if err := m.CompactLog.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TransferLeader", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.TransferLeader == nil {
-				m.TransferLeader = &TransferLeaderRequest{}
-			}
-			if err := m.TransferLeader.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VerifyHash", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.VerifyHash == nil {
-				m.VerifyHash = &VerifyHashRequest{}
-			}
-			if err := m.VerifyHash.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Splits", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Splits == nil {
-				m.Splits = &BatchSplitRequest{}
-			}
-			if err := m.Splits.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UpdateMetadata", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.UpdateMetadata == nil {
-				m.UpdateMetadata = &UpdateMetadataRequest{}
-			}
-			if err := m.UpdateMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 9:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConfigChangeV2", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ConfigChangeV2 == nil {
-				m.ConfigChangeV2 = &ConfigChangeV2Request{}
-			}
-			if err := m.ConfigChangeV2.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *AdminResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AdminResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AdminResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CmdType", wireType)
-			}
-			m.CmdType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.CmdType |= AdminCmdType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConfigChange", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ConfigChange == nil {
-				m.ConfigChange = &ConfigChangeResponse{}
-			}
-			if err := m.ConfigChange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CompactLog", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.CompactLog == nil {
-				m.CompactLog = &CompactLogResponse{}
-			}
-			if err := m.CompactLog.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TransferLeader", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.TransferLeader == nil {
-				m.TransferLeader = &TransferLeaderResponse{}
-			}
-			if err := m.TransferLeader.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VerifyHash", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.VerifyHash == nil {
-				m.VerifyHash = &VerifyHashResponse{}
-			}
-			if err := m.VerifyHash.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Splits", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Splits == nil {
-				m.Splits = &BatchSplitResponse{}
-			}
-			if err := m.Splits.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ConfigChangeV2", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ConfigChangeV2 == nil {
-				m.ConfigChangeV2 = &ConfigChangeV2Response{}
-			}
-			if err := m.ConfigChangeV2.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UpdateMetadata", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.UpdateMetadata == nil {
-				m.UpdateMetadata = &UpdateMetadataResponse{}
-			}
-			if err := m.UpdateMetadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -4937,7 +3174,10 @@ func (m *Request) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5036,6 +3276,25 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 				}
 			}
 		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CustomType", wireType)
+			}
+			m.CustomType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.CustomType |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
 			}
@@ -5067,42 +3326,6 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 			m.Value = append(m.Value[:0], dAtA[iNdEx:postIndex]...)
 			if m.Value == nil {
 				m.Value = []byte{}
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Request", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Request == nil {
-				m.Request = &Request{}
-			}
-			if err := m.Request.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
 			}
 			iNdEx = postIndex
 		case 5:
@@ -5157,67 +3380,16 @@ func (m *Response) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 7:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Stale", wireType)
-			}
-			var v int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.Stale = bool(v != 0)
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Key = append(m.Key[:0], dAtA[iNdEx:postIndex]...)
-			if m.Key == nil {
-				m.Key = []byte{}
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipRpc(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5320,7 +3492,10 @@ func (m *ConfigChangeRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5404,7 +3579,10 @@ func (m *ConfigChangeResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5474,7 +3652,10 @@ func (m *CompactLogRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5525,7 +3706,10 @@ func (m *CompactLogResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5609,7 +3793,10 @@ func (m *TransferLeaderRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5660,7 +3847,10 @@ func (m *TransferLeaderResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5798,7 +3988,10 @@ func (m *VerifyHashRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5849,7 +4042,10 @@ func (m *VerifyHashResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -5968,7 +4164,10 @@ func (m *BatchSplitRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -6140,7 +4339,10 @@ func (m *SplitRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -6225,179 +4427,10 @@ func (m *BatchSplitResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
 				return ErrInvalidLengthRpc
 			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ConfigChangeV2Request) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ConfigChangeV2Request: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ConfigChangeV2Request: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Changes", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Changes = append(m.Changes, ConfigChangeRequest{})
-			if err := m.Changes[len(m.Changes)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ConfigChangeV2Response) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowRpc
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ConfigChangeV2Response: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ConfigChangeV2Response: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Shard", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowRpc
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthRpc
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthRpc
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Shard == nil {
-				m.Shard = &meta.Shard{}
-			}
-			if err := m.Shard.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipRpc(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -6481,7 +4514,10 @@ func (m *UpdateMetadataRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -6532,7 +4568,10 @@ func (m *UpdateMetadataResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthRpc
 			}
 			if (iNdEx + skippy) > l {
@@ -6551,7 +4590,6 @@ func (m *UpdateMetadataResponse) Unmarshal(dAtA []byte) error {
 func skipRpc(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -6583,8 +4621,10 @@ func skipRpc(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -6605,30 +4645,55 @@ func skipRpc(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthRpc
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupRpc
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthRpc
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipRpc(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthRpc
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthRpc
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthRpc        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowRpc          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupRpc = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthRpc = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowRpc   = fmt.Errorf("proto: integer overflow")
 )

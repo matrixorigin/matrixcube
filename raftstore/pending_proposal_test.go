@@ -57,26 +57,14 @@ func TestPendingProposalPop(t *testing.T) {
 
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	p := newPendingProposals()
-	cmd := batch{
-		requestBatch: rpc.RequestBatch{
-			AdminRequest: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChange,
-			},
-		},
-	}
+	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_ConfigChange), rpc.CmdType_Admin, 0, nil)
 	p.setConfigChange(cmd)
 	v := p.getConfigChange()
 	assert.Equal(t, cmd, v)
 }
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
-	cmd := batch{
-		requestBatch: rpc.RequestBatch{
-			AdminRequest: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_TransferLeader,
-			},
-		},
-	}
+	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_TransferLeader), rpc.CmdType_Admin, 0, nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatalf("failed to trigger panic")
@@ -108,18 +96,11 @@ func testPendingProposalClear(t *testing.T,
 		},
 		cb: cb,
 	}
+
 	ConfChangeCmd := batch{
-		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			AdminRequest: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChange,
-			},
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
-				ID: uuid.NewV4().Bytes(),
-			},
-		},
-		cb: cb,
+		logger:       log.Adjust(nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpc.AdminCmdType_ConfigChange, nil),
+		cb:           cb,
 	}
 	p := newPendingProposals()
 	p.append(cmd1)
@@ -158,17 +139,9 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	ConfChangeCmd := batch{
-		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			AdminRequest: rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_ConfigChange,
-			},
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
-				ID: uuid.NewV4().Bytes(),
-			},
-		},
-		cb: cb,
+		logger:       log.Adjust(nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpc.AdminCmdType_ConfigChange, nil),
+		cb:           cb,
 	}
 	p := newPendingProposals()
 	p.setConfigChange(ConfChangeCmd)

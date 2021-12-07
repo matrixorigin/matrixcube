@@ -61,11 +61,11 @@ func (f *testBackendFactory) create(addr string, success SuccessCallback, failur
 
 func TestLocalDispatch(t *testing.T) {
 	sc := make(chan rpc.Response, 1)
-	fc := make(chan *rpc.Request, 1)
+	fc := make(chan []byte, 1)
 	success := func(r rpc.Response) { sc <- r }
-	failure := func(r *rpc.Request, e error) {
+	failure := func(id []byte, e error) {
 		select {
-		case fc <- r:
+		case fc <- id:
 		default:
 		}
 	}
@@ -90,7 +90,7 @@ func TestLocalDispatch(t *testing.T) {
 	case <-sc:
 		assert.Fail(t, "need failure callback")
 	case v := <-fc:
-		assert.Equal(t, req, *v)
+		assert.Equal(t, req.ID, v)
 	case <-time.After(time.Millisecond * 150):
 		assert.Fail(t, "need failure callback")
 	}
@@ -140,11 +140,11 @@ func TestRPCDispatch(t *testing.T) {
 	})
 	factory1 := newTestBackendFactory()
 	sc1 := make(chan rpc.Response, 1)
-	fc1 := make(chan *rpc.Request, 1)
+	fc1 := make(chan []byte, 1)
 	success1 := func(r rpc.Response) { sc1 <- r }
-	failure1 := func(r *rpc.Request, e error) {
+	failure1 := func(id []byte, e error) {
 		select {
-		case fc1 <- r:
+		case fc1 <- id:
 		default:
 		}
 	}
@@ -166,11 +166,11 @@ func TestRPCDispatch(t *testing.T) {
 	})
 	factory2 := newTestBackendFactory()
 	sc2 := make(chan rpc.Response, 1)
-	fc2 := make(chan *rpc.Request, 1)
+	fc2 := make(chan []byte, 1)
 	success2 := func(r rpc.Response) { sc2 <- r }
-	failure2 := func(r *rpc.Request, e error) {
+	failure2 := func(id []byte, e error) {
 		select {
-		case fc2 <- r:
+		case fc2 <- id:
 		default:
 		}
 	}

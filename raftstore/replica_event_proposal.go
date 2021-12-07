@@ -219,9 +219,7 @@ func (pr *replica) proposeConfChange(c batch) bool {
 		return false
 	}
 
-	data := protoc.MustMarshal(&c.requestBatch)
-	admin := c.requestBatch.AdminRequest
-	if err := pr.proposeConfChangeInternal(c, admin, data); err != nil {
+	if err := pr.proposeConfChangeInternal(c); err != nil {
 		pr.logger.Error("fail to proposal conf change",
 			zap.Error(err))
 		return false
@@ -229,16 +227,11 @@ func (pr *replica) proposeConfChange(c batch) bool {
 	return true
 }
 
-func (pr *replica) proposeConfChangeInternal(c batch,
-	admin rpc.AdminRequest, data []byte) error {
-	cc := pr.toConfChangeI(admin, data)
+func (pr *replica) proposeConfChangeInternal(c batch) error {
+	req := c.requestBatch.GetConfigChangeRequest()
+	cc := pr.toConfChangeI(req, protoc.MustMarshal(&c.requestBatch))
 	var changes []rpc.ConfigChangeRequest
-	if admin.ConfigChangeV2 != nil {
-		panic("ConfigChangeV2 request?")
-	} else {
-		changes = append(changes, *admin.ConfigChange)
-	}
-
+	changes = append(changes, req)
 	if err := pr.checkConfChange(changes, cc); err != nil {
 		return err
 	}
@@ -262,21 +255,16 @@ func (pr *replica) proposeConfChangeInternal(c batch,
 	return nil
 }
 
-func (pr *replica) toConfChangeI(admin rpc.AdminRequest,
-	data []byte) raftpb.ConfChangeI {
-	if admin.ConfigChange != nil {
-		return &raftpb.ConfChange{
-			Type:    raftpb.ConfChangeType(admin.ConfigChange.ChangeType),
-			NodeID:  admin.ConfigChange.Replica.ID,
-			Context: data,
-		}
-	} else {
-		panic("ConfigChangeV2 request?")
+func (pr *replica) toConfChangeI(req rpc.ConfigChangeRequest, data []byte) raftpb.ConfChangeI {
+	return &raftpb.ConfChange{
+		Type:    raftpb.ConfChangeType(req.ChangeType),
+		NodeID:  req.Replica.ID,
+		Context: data,
 	}
 }
 
 func (pr *replica) requestTransferLeader(c batch) bool {
-	req := c.requestBatch.AdminRequest.TransferLeader
+	req := c.requestBatch.GetTransferLeaderRequest()
 	// has pending confChange, skip
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
 		pr.logger.Info("transfer leader ignored due to pending confChange")
@@ -458,10 +446,8 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker, error) {
 
 func (pr *replica) getRequestType(req rpc.RequestBatch) requestType {
 	if req.IsAdmin() {
-		switch req.AdminRequest.CmdType {
+		switch req.GetAdminCmdType() {
 		case rpc.AdminCmdType_ConfigChange:
-			return proposalConfigChange
-		case rpc.AdminCmdType_ConfigChangeV2:
 			return proposalConfigChange
 		case rpc.AdminCmdType_TransferLeader:
 			return requestTransferLeader
