@@ -79,11 +79,9 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 
 				for _, req := range c.requestBatch.Requests {
 					rsp := rpc.Response{
-						Type:    req.Type,
-						ID:      req.ID,
-						PID:     req.PID,
-						Key:     req.Key,
-						Request: &req,
+						Type: req.Type,
+						ID:   req.ID,
+						PID:  req.PID,
 					}
 					resp.Responses = append(resp.Responses, rsp)
 				}
@@ -92,13 +90,11 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 					resp.Responses[idx].Type = req.Type
 					resp.Responses[idx].ID = req.ID
 					resp.Responses[idx].PID = req.PID
-					resp.Responses[idx].Key = req.Key
 				}
 			}
 
 			if !resp.Header.IsEmpty() {
 				for idx := range resp.Responses {
-					resp.Responses[idx].Request = &c.requestBatch.Requests[idx]
 					resp.Responses[idx].Error = resp.Header.Error
 				}
 			}
@@ -163,10 +159,8 @@ func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
 		StoreNotMatch: storeNotMatch,
 	})
 	resp := rpc.Response{
-		ID:      req.ID,
-		PID:     req.PID,
-		Key:     req.Key,
-		Request: &req,
+		ID:  req.ID,
+		PID: req.PID,
 	}
 	rsp.Responses = append(rsp.Responses, resp)
 	cb(rsp)

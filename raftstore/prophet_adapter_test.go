@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -177,6 +178,8 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 
 		v, err := pr.requests.Peek()
 		assert.NoError(t, err)
-		assert.Equal(t, c.adminReq, v.(reqCtx).admin)
+		req := &rpc.AdminRequest{}
+		protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
+		assert.Equal(t, c.adminReq, *req)
 	}
 }

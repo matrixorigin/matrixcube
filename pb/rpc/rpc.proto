@@ -12,24 +12,21 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
 enum CmdType {
-    Invalid   = 0;
-    RaftError = 1;
-    Snap      = 2;
-    Write     = 3;
-    Read      = 4;
+    Write  = 0;
+    Read   = 1;
+    Admin  = 2;
 }
 
 // AdminCmdType admin cmd type
 enum AdminCmdType {
-    InvalidAdmin   = 0;
-    ConfigChange   = 1;
-    CompactLog     = 2;
-    TransferLeader = 3;
-    ComputeHash    = 4;
-    VerifyHash     = 5;
-    BatchSplit     = 6;
-    ConfigChangeV2 = 7;
-    UpdateMetadata = 8;
+    ConfigChange   = 0;
+    CompactLog     = 1;
+    TransferLeader = 2;
+    ComputeHash    = 3;
+    VerifyHash     = 4;
+    BatchSplit     = 5;
+    ConfigChangeV2 = 6;
+    UpdateMetadata = 7;
 }
 
 // RequestHeader raft request header, it contains the shard's metadata
@@ -104,11 +101,8 @@ message Response {
     bytes         id                = 1 [(gogoproto.customname) = "ID"];
     CmdType       type              = 2;
     bytes         value             = 3;
-    Request       request           = 4 [(gogoproto.nullable) = true];
-    int64         pid               = 5 [(gogoproto.customname) = "PID"];
-    errorpb.Error error             = 6 [(gogoproto.nullable) = false];
-    bool          stale             = 7;
-    bytes         key               = 8;
+    int64         pid               = 4 [(gogoproto.customname) = "PID"];
+    errorpb.Error error             = 5 [(gogoproto.nullable) = false];
 }
 
 message ConfigChangeRequest {

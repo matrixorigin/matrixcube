@@ -16,6 +16,7 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -95,7 +96,8 @@ func TestDoSplit(t *testing.T) {
 	assert.Equal(t, int64(1), pr.requests.Len())
 	v, err := pr.requests.Peek()
 	assert.NoError(t, err)
-	req := v.(reqCtx).admin
+	var req rpc.AdminRequest
+	protoc.MustUnmarshal(&req, v.(reqCtx).req.Cmd)
 	assert.Equal(t, rpc.AdminCmdType_BatchSplit, req.CmdType)
 	assert.Equal(t, 2, len(req.Splits.Requests))
 	assert.Equal(t, pr.getShard().Start, req.Splits.Requests[0].Start)

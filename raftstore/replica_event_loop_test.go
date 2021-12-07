@@ -17,12 +17,14 @@ import (
 	"testing"
 
 	cpebble "github.com/cockroachdb/pebble"
+	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
@@ -197,7 +199,9 @@ func TestDoCheckCompactLog(t *testing.T) {
 		1: {Match: 101},
 	}, 101)
 	v, _ := pr.requests.Peek()
-	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
+	req := &rpc.AdminRequest{}
+	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
+	assert.Equal(t, uint64(100), req.CompactLog.CompactIndex)
 
 	// force bytes
 	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000
@@ -211,5 +215,7 @@ func TestDoCheckCompactLog(t *testing.T) {
 		1: {Match: 101},
 	}, 101)
 	v, _ = pr.requests.Peek()
-	assert.Equal(t, uint64(100), v.(reqCtx).admin.CompactLog.CompactIndex)
+	req.Reset()
+	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
+	assert.Equal(t, uint64(100), req.CompactLog.CompactIndex)
 }

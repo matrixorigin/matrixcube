@@ -17,6 +17,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -102,7 +103,6 @@ func TestBatchResp(t *testing.T) {
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
-		assert.Equal(t, "key", string(rsp.Key))
 		assert.Equal(t, int64(2), rsp.PID)
 		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
 		assert.Equal(t, "value", string(rsp.Value))
@@ -117,15 +117,23 @@ func TestBatchRespWithError(t *testing.T) {
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
-		assert.Equal(t, "key", string(rsp.Key))
 		assert.Equal(t, int64(2), rsp.PID)
 		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
 		assert.Empty(t, rsp.Value)
 		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rsp.Error)
-		assert.NotNil(t, rsp.Request)
 	})
 
 	b.resp(errorOtherCMDResp(errors.New("error resp")))
+}
+
+func TestAdminResp(t *testing.T) {
+	resp := rpc.AdminResponse{CmdType: rpc.AdminCmdType_CompactLog}
+	b := newTestAdminBatch("id", 1, rpc.AdminRequest{}, func(rb rpc.ResponseBatch) {
+		assert.False(t, rb.Header.IsEmpty())
+		assert.Equal(t, 0, len(rb.Responses))
+		assert.Equal(t, resp, rb.AdminResponse)
+	})
+	b.resp(rpc.ResponseBatch{AdminResponse: resp})
 }
 
 func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType, pid int64, cb func(rpc.ResponseBatch)) batch {
@@ -139,6 +147,24 @@ func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType,
 					Key:        []byte(key),
 					CustomType: customType,
 					Type:       cmdType,
+				},
+			},
+		},
+		cb,
+		0,
+		0)
+}
+
+func newTestAdminBatch(id string, pid int64, request rpc.AdminRequest, cb func(rpc.ResponseBatch)) batch {
+	return newBatch(nil,
+		rpc.RequestBatch{
+			Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+			Requests: []rpc.Request{
+				{
+					ID:   []byte(id),
+					PID:  pid,
+					Type: rpc.CmdType_Admin,
+					Cmd:  protoc.MustMarshal(&request),
 				},
 			},
 		},
