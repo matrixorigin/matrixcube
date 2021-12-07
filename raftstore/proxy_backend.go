@@ -188,7 +188,7 @@ func (bc *remoteBackend) writeLoop() {
 			if err != nil {
 				for i := int64(0); i < n; i++ {
 					req := items[i].(rpc.Request)
-					bc.failureCallback(&req, err)
+					bc.failureCallback(req.ID, err)
 				}
 			}
 		}

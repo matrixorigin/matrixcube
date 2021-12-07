@@ -122,31 +122,7 @@ func ListenAddressField(address string) zap.Field {
 
 // ResponseBatchField rpc.ResponseBatch zap field
 func ResponseBatchField(key string, resp rpc.ResponseBatch) zap.Field {
-	if len(resp.Responses) == 0 {
-		return AdminResponseField(key, resp.AdminResponse)
-	}
-
 	return ResponsesField(key, resp.Responses)
-}
-
-// AdminResponseField rpc.AdminResponse zap field
-func AdminResponseField(key string, resp rpc.AdminResponse) zap.Field {
-	var info bytes.Buffer
-	info.WriteString("type: ")
-	info.WriteString(resp.CmdType.String())
-	switch resp.CmdType {
-	case rpc.AdminCmdType_BatchSplit:
-		info.WriteString(", shards {")
-		for _, shard := range resp.Splits.Shards {
-			appendShard(shard, &info, true)
-			info.WriteString("  ")
-		}
-		info.WriteString("}")
-	case rpc.AdminCmdType_ConfigChange:
-		appendReplicas("new-replicas", resp.ConfigChange.Shard.Replicas, &info, false)
-	}
-
-	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
 // ResponsesField []rpc.Response zap field
@@ -162,40 +138,7 @@ func ResponsesField(key string, resps []rpc.Response) zap.Field {
 
 // RequestBatchField request batch field
 func RequestBatchField(key string, req rpc.RequestBatch) zap.Field {
-	if len(req.Requests) == 0 {
-		return AdminRequestField(key, req.AdminRequest)
-	}
 	return RequestsField(key, req.Requests)
-}
-
-// AdminRequestField rpc.AdminRequest zap field
-func AdminRequestField(key string, req rpc.AdminRequest) zap.Field {
-	var info bytes.Buffer
-	info.WriteString("type: ")
-	info.WriteString(req.CmdType.String())
-	switch req.CmdType {
-	case rpc.AdminCmdType_BatchSplit:
-		info.WriteString(", context:")
-		info.WriteString(hex.EncodeToString(req.Splits.Context))
-		info.WriteString(", split-requests:{")
-		for _, req := range req.Splits.Requests {
-			appendSplitRequest(req, &info, false)
-			info.WriteString("  ")
-		}
-		info.WriteString("}")
-	case rpc.AdminCmdType_ConfigChange:
-		info.WriteString(", change-type:")
-		info.WriteString(req.ConfigChange.ChangeType.String())
-		appendReplica("replica", req.ConfigChange.Replica, &info, false)
-	case rpc.AdminCmdType_UpdateMetadata:
-		info.WriteString(", state:")
-		info.WriteString(req.UpdateMetadata.Metadata.State.String())
-		appendShard(req.UpdateMetadata.Metadata.Shard, &info, false)
-	case rpc.AdminCmdType_TransferLeader:
-		appendReplica("leader-replica", req.TransferLeader.Replica, &info, false)
-	}
-
-	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
 // RequestsField []rpc.Request zap field
@@ -323,9 +266,6 @@ func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
 	info.WriteString("id: ")
 	info.WriteString(hex.EncodeToString(resp.ID))
 
-	info.WriteString(", key: ")
-	info.WriteString(hex.EncodeToString(resp.Key))
-
 	info.WriteString(", pid: ")
 	info.WriteString(format.Int64ToString(resp.PID))
 
@@ -337,9 +277,6 @@ func appendRaftResponse(resp *rpc.Response, info *bytes.Buffer, first bool) {
 	info.WriteString(", value: ")
 	info.WriteString(format.Uint64ToString(uint64(len(resp.Value))))
 	info.WriteString(" bytes")
-
-	info.WriteString(", stale: ")
-	info.WriteString(format.BoolToString(resp.Stale))
 }
 
 func appendRaftRequest(req *rpc.Request, info *bytes.Buffer, first bool) {

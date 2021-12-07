@@ -12,24 +12,20 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
 enum CmdType {
-    Invalid   = 0;
-    RaftError = 1;
-    Snap      = 2;
-    Write     = 3;
-    Read      = 4;
+    Write  = 0;
+    Read   = 1;
+    Admin  = 2;
 }
 
 // AdminCmdType admin cmd type
 enum AdminCmdType {
-    InvalidAdmin   = 0;
-    ConfigChange   = 1;
-    CompactLog     = 2;
-    TransferLeader = 3;
-    ComputeHash    = 4;
-    VerifyHash     = 5;
-    BatchSplit     = 6;
-    ConfigChangeV2 = 7;
-    UpdateMetadata = 8;
+    ConfigChange   = 0;
+    CompactLog     = 1;
+    TransferLeader = 2;
+    ComputeHash    = 3;
+    VerifyHash     = 4;
+    BatchSplit     = 5;
+    UpdateMetadata = 6;
 }
 
 // RequestHeader raft request header, it contains the shard's metadata
@@ -49,39 +45,12 @@ message ResponseBatchHeader {
 message RequestBatch {
     RequestBatchHeader header       = 1 [(gogoproto.nullable) = false];
     repeated Request   requests     = 2 [(gogoproto.nullable) = false];
-    AdminRequest       adminRequest = 3 [(gogoproto.nullable) = false];
 }
 
 // ResponseBatch response batch
 message ResponseBatch {
     ResponseBatchHeader header        = 1 [(gogoproto.nullable) = false];
     repeated Response   responses     = 2 [(gogoproto.nullable) = false];
-    AdminResponse       adminResponse = 3 [(gogoproto.nullable) = false];
-}
-
-// AdminRequest admin request
-message AdminRequest {
-    AdminCmdType          cmdType        = 1;
-    metapb.ResourceEpoch  epoch          = 2 [(gogoproto.nullable) = false];
-    ConfigChangeRequest   configChange   = 3;
-    CompactLogRequest     compactLog     = 4;
-    TransferLeaderRequest transferLeader = 5;
-    VerifyHashRequest     verifyHash     = 6;
-    BatchSplitRequest     splits         = 7;
-    UpdateMetadataRequest updateMetadata = 8;
-    ConfigChangeV2Request configChangeV2 = 9;
-}
-
-// AdminResponse admin response
-message AdminResponse {
-    AdminCmdType           cmdType        = 1;
-    ConfigChangeResponse   configChange   = 2;
-    CompactLogResponse     compactLog     = 3;
-    TransferLeaderResponse transferLeader = 4;
-    VerifyHashResponse     verifyHash     = 5;
-    BatchSplitResponse     splits         = 6;
-    ConfigChangeV2Response configChangeV2 = 7;
-    UpdateMetadataResponse updateMetadata = 8;
 }
 
 // Request request
@@ -103,12 +72,10 @@ message Request {
 message Response {
     bytes         id                = 1 [(gogoproto.customname) = "ID"];
     CmdType       type              = 2;
-    bytes         value             = 3;
-    Request       request           = 4 [(gogoproto.nullable) = true];
+    uint64        customType        = 3;
+    bytes         value             = 4;
     int64         pid               = 5 [(gogoproto.customname) = "PID"];
     errorpb.Error error             = 6 [(gogoproto.nullable) = false];
-    bool          stale             = 7;
-    bytes         key               = 8;
 }
 
 message ConfigChangeRequest {
@@ -167,14 +134,6 @@ message SplitRequest {
 
 message BatchSplitResponse {
     repeated meta.Shard shards = 1 [(gogoproto.nullable) = false];
-}
-
-message ConfigChangeV2Request {
-    repeated ConfigChangeRequest changes = 1 [(gogoproto.nullable) = false];
-}
-
-message ConfigChangeV2Response {
-    meta.Shard shard = 1;
 }
 
 message UpdateMetadataRequest {

@@ -34,12 +34,9 @@ var (
 )
 
 func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, error) {
-	cmdType := ctx.req.AdminRequest.CmdType
-	switch cmdType {
+	switch ctx.req.GetAdminCmdType() {
 	case rpc.AdminCmdType_ConfigChange:
 		return d.doExecConfigChange(ctx)
-	case rpc.AdminCmdType_ConfigChangeV2:
-		panic("ConfigChangeV2 requested")
 	case rpc.AdminCmdType_BatchSplit:
 		return d.doExecSplit(ctx)
 	case rpc.AdminCmdType_UpdateMetadata:
@@ -54,7 +51,7 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, error) {
 	ctx.metrics.admin.compact++
 
-	req := ctx.req.AdminRequest.CompactLog
+	req := ctx.req.GetCompactLogRequest()
 	compactIndex := req.CompactIndex
 	firstIndex := d.getFirstIndex()
 
@@ -76,14 +73,14 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 }
 
 func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {
-	req := ctx.req.AdminRequest.ConfigChange
+	req := ctx.req.GetConfigChangeRequest()
 	replica := req.Replica
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica",
 		zap.Uint64("index", ctx.index),
 		log.ShardField("current", current),
-		log.ConfigChangeField("request", req))
+		log.ConfigChangeField("request", &req))
 
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
@@ -167,7 +164,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		adminType: rpc.AdminCmdType_ConfigChange,
 		configChangeResult: &configChangeResult{
 			index:   ctx.index,
-			changes: []rpc.ConfigChangeRequest{*req},
+			changes: []rpc.ConfigChangeRequest{req},
 			shard:   res,
 		},
 	}
@@ -176,7 +173,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 
 func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error) {
 	ctx.metrics.admin.split++
-	splitReqs := ctx.req.AdminRequest.Splits
+	splitReqs := ctx.req.GetBatchSplitRequest()
 
 	if len(splitReqs.Requests) == 0 {
 		d.logger.Fatal("missing splits request")
@@ -274,7 +271,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 
 func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, error) {
 	ctx.metrics.admin.updateMetadata++
-	updateReq := ctx.req.AdminRequest.UpdateMetadata
+	updateReq := ctx.req.GetUpdateMetadataRequest()
 
 	current := d.getShard()
 	if isEpochStale(current.Epoch, updateReq.Metadata.Shard.Epoch) {
