@@ -40,11 +40,12 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 }
 
 func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
-	index, _ := r.sm.getAppliedIndexTerm()
+	index, term := r.sm.getAppliedIndexTerm()
 	if index == 0 {
 		panic("invalid snapshot index")
 	}
-	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage, index)
+	cs := r.sm.getConfState()
+	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage, cs, index, term)
 	if err != nil {
 		if errors.Is(err, storage.ErrAborted) {
 			r.logger.Info("snapshot aborted")

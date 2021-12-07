@@ -157,6 +157,7 @@ func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 		if err := pr.applySnapshot(rd.Snapshot); err != nil {
 			return err
 		}
+		pr.logger.Info("snapshot applied into the replica")
 	}
 	for _, entry := range rd.CommittedEntries {
 		pr.stats.raftLogSizeHint += uint64(len(entry.Data))

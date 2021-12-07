@@ -201,7 +201,8 @@ func (s *snapshotter) processOrphans(dirName string,
 	return s.removeFlagFile(dirName)
 }
 
-func (s *snapshotter) save(de saveable, index uint64) (ss raftpb.Snapshot,
+func (s *snapshotter) save(de saveable,
+	cs raftpb.ConfState, index uint64, term uint64) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
 	extra := random.LockGuardedRand.Uint64()
 	env = s.getCreatingSnapshotEnv(extra)
@@ -216,11 +217,12 @@ func (s *snapshotter) save(de saveable, index uint64) (ss raftpb.Snapshot,
 		return raftpb.Snapshot{}, env, err
 	}
 	env.FinalizeIndex(index)
-	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
 		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
-			Index: index,
+			Index:     index,
+			Term:      term,
+			ConfState: cs,
 		},
 	}, env, nil
 }
