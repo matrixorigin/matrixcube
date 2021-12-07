@@ -90,11 +90,8 @@ func TestCompactionAndSnapshot(t *testing.T) {
 			}
 
 			assert.True(t, hasLog(2))
-			pr.addAdminRequest(rpc.AdminRequest{
-				CmdType: rpc.AdminCmdType_CompactLog,
-				CompactLog: &rpc.CompactLogRequest{
-					CompactIndex: 3,
-				},
+			pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+				CompactIndex: 3,
 			})
 			for i := 0; i < 10; i++ {
 				if hasLog(2) {
