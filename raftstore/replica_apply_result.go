@@ -17,11 +17,13 @@ import (
 	"fmt"
 	"time"
 
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.uber.org/zap"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-	"go.uber.org/zap"
 )
 
 type applyResult struct {
@@ -35,10 +37,12 @@ func (res *applyResult) hasSplitResult() bool {
 	return nil != res.adminResult && res.adminResult.splitResult != nil
 }
 
+// TODO: should probably use values not pointers
 type adminResult struct {
 	adminType          rpc.AdminCmdType
 	configChangeResult *configChangeResult
 	splitResult        *splitResult
+	compactionResult   *compactionResult
 }
 
 type configChangeResult struct {
@@ -50,6 +54,10 @@ type configChangeResult struct {
 
 type splitResult struct {
 	newShards []Shard
+}
+
+type compactionResult struct {
+	index uint64
 }
 
 func (pr *replica) notifyPendingProposal(id []byte,
@@ -71,10 +79,6 @@ func (pr *replica) updateAppliedIndex(result applyResult) {
 }
 
 func (pr *replica) updateMetricsHints(result applyResult) {
-	pr.logger.Debug("apply committied entries finished",
-		zap.Uint64("applied", pr.appliedIndex),
-		zap.Uint64("last", pr.rn.LastIndex()))
-
 	pr.metrics.admin.incBy(result.metrics.admin)
 
 	pr.stats.writtenBytes += result.metrics.writtenBytes
@@ -94,6 +98,22 @@ func (pr *replica) handleAdminResult(result applyResult) {
 		pr.applyConfChange(result.adminResult.configChangeResult)
 	case rpc.AdminCmdType_BatchSplit:
 		pr.applySplit(result.adminResult.splitResult)
+	case rpc.AdminCmdType_CompactLog:
+		pr.applyCompactionResult(result.adminResult.compactionResult)
+	}
+}
+
+func (pr *replica) applyCompactionResult(r *compactionResult) {
+	// update LogReader's range info to make the compacted entries invisible to
+	// raft.
+	if err := pr.lr.Compact(r.index); err != nil {
+		if err != raft.ErrCompacted {
+			// TODO: check whether any error should be tolerated.
+			panic(err)
+		}
+	}
+	if err := pr.logdb.RemoveEntriesTo(pr.shardID, pr.replicaID, r.index); err != nil {
+		panic(err)
 	}
 }
 
