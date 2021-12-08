@@ -36,6 +36,7 @@ import (
 	"sync/atomic"
 
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -373,12 +374,16 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 	if chunk.ChunkID != 0 {
 		panic("not the first snapshot chunk")
 	}
+	si := &meta.SnapshotInfo{
+		Extra: chunk.From,
+	}
 	s := raftpb.Snapshot{
 		Metadata: raftpb.SnapshotMetadata{
-			Index: chunk.Index,
-			Term:  chunk.Term,
+			Index:     chunk.Index,
+			Term:      chunk.Term,
+			ConfState: chunk.ConfState,
 		},
-		Data: chunk.Extra,
+		Data: protoc.MustMarshal(si),
 	}
 	m := raftpb.Message{
 		Type:     raftpb.MsgSnap,
@@ -390,7 +395,7 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 		Messages: []meta.RaftMessage{
 			{
 				ShardID: chunk.ShardID,
-				To:      metapb.Replica{ID: chunk.ReplicaID},
+				To:      metapb.Replica{ID: chunk.ReplicaID, ContainerID: chunk.ContainerID},
 				From:    metapb.Replica{ID: chunk.From},
 				Message: m,
 			},

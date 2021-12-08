@@ -22,10 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 
-	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
-	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
@@ -47,15 +45,15 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	c = NewTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
-		WithTestClusterNodeCount(3),
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Customize.CustomTransportFactory = func() transport.Trans {
-				return newTestTransport(c, filter)
-			}
-		}))
-
+		WithTestClusterNodeCount(3))
 	c.Start()
 	defer c.Stop()
+
+	// register the raft message filter
+	for i := 0; i < 3; i++ {
+		store := c.GetStore(i).(*store)
+		store.trans.SetFilter(filter)
+	}
 
 	c.WaitShardByCountPerNode(1, snapshotTestTimeout)
 	c.WaitReplicaChangeToVoter(c.GetShardByIndex(0, 0).ID, snapshotTestTimeout)

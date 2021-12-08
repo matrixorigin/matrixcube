@@ -1165,8 +1165,9 @@ func newTestTransport(c TestRaftCluster, filter func(msg meta.RaftMessage) bool)
 	return &testTransport{c: c, filter: filter}
 }
 
-func (trans *testTransport) Start() error { return nil }
-func (trans *testTransport) Close() error { return nil }
+func (trans *testTransport) Start() error                          { return nil }
+func (trans *testTransport) Close() error                          { return nil }
+func (trans *testTransport) SetFilter(func(meta.RaftMessage) bool) { panic("not implemented") }
 func (trans *testTransport) Send(msg meta.RaftMessage) bool {
 	if trans.filter != nil && !trans.filter(msg) {
 		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})

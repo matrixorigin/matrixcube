@@ -448,6 +448,9 @@ func TestToMessageFromChunk(t *testing.T) {
 		Term:      200,
 		Extra:     protoc.MustMarshal(si),
 	}
+	rsi := &meta.SnapshotInfo{
+		Extra: chunk.From,
+	}
 	chunks := &Chunk{}
 	mb := chunks.toMessage(chunk)
 	require.Equal(t, 1, len(mb.Messages))
@@ -458,7 +461,7 @@ func TestToMessageFromChunk(t *testing.T) {
 	assert.Equal(t, raftpb.MsgSnap, msg.Message.Type)
 	assert.Equal(t, chunk.Index, msg.Message.Snapshot.Metadata.Index)
 	assert.Equal(t, chunk.Term, msg.Message.Snapshot.Metadata.Term)
-	assert.Equal(t, chunk.Extra, msg.Message.Snapshot.Data)
+	assert.Equal(t, protoc.MustMarshal(rsi), msg.Message.Snapshot.Data)
 	assert.Equal(t, chunk.From, msg.Message.From)
 	assert.Equal(t, chunk.ReplicaID, msg.Message.To)
 }

@@ -135,6 +135,22 @@ func (d *stateMachine) getShard() Shard {
 	return d.metadataMu.shard
 }
 
+func (d *stateMachine) getConfState() raftpb.ConfState {
+	d.metadataMu.Lock()
+	defer d.metadataMu.Unlock()
+	cs := raftpb.ConfState{}
+	for _, r := range d.metadataMu.shard.Replicas {
+		if r.Role == metapb.ReplicaRole_Voter {
+			cs.Voters = append(cs.Voters, r.ID)
+		} else if r.Role == metapb.ReplicaRole_Learner {
+			cs.Learners = append(cs.Learners, r.ID)
+		} else {
+			panic("unknown replica role")
+		}
+	}
+	return cs
+}
+
 func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 	if len(entries) <= 0 {
 		return
