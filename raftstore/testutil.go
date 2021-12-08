@@ -440,8 +440,6 @@ type TestRaftCluster interface {
 	GetStore(node int) Store
 	// GetStoreByID returns the store
 	GetStoreByID(id uint64) Store
-	// // GetWatcher returns event watcher of the node
-	// GetWatcher(node int) prophet.Watcher
 	// Start start each node sequentially
 	Start()
 	// Stop stop each node sequentially
@@ -452,6 +450,12 @@ type TestRaftCluster interface {
 	Restart()
 	// RestartWithFunc restart the cluster, `beforeStartFunc` is called before starting
 	RestartWithFunc(beforeStartFunc func())
+	// StartNode start the node
+	StartNode(node int)
+	// StopNode stop the node
+	StopNode(node int)
+	// RestartNode restart the node
+	RestartNode(node int)
 	// GetPRCount returns the number of replicas on the node
 	GetPRCount(node int) int
 	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
@@ -716,17 +720,13 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluste
 }
 
 func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
-	c.opts = newTestClusterOptions()
-	c.stores = nil
-	c.awares = nil
-	c.dataStorages = nil
-
-	for _, opt := range opts {
-		opt(c.opts)
-	}
-	c.opts.adjust()
-
 	if init {
+		c.opts = newTestClusterOptions()
+		for _, opt := range opts {
+			opt(c.opts)
+		}
+		c.opts.adjust()
+
 		if c.opts.enableParallelTest {
 			c.t.Parallel()
 		}
@@ -741,112 +741,123 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		c.portsRPCAddr = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdClient = testutil.GenTestPorts(c.opts.nodes)
 		c.portsEtcdPeer = testutil.GenTestPorts(c.opts.nodes)
+
+		if c.opts.disableSchedule {
+			pconfig.DefaultSchedulers = nil
+		}
 	}
 
-	if c.opts.disableSchedule {
-		pconfig.DefaultSchedulers = nil
-	}
-
+	c.stores = make([]*store, c.opts.nodes)
+	c.awares = make([]*testShardAware, c.opts.nodes)
+	c.dataStorages = make([]storage.DataStorage, c.opts.nodes)
 	for i := 0; i < c.opts.nodes; i++ {
-		cfg := &config.Config{}
-		cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).WithOptions(zap.OnFatal(zapcore.WriteThenPanic)).With(zap.String("case", c.t.Name()))
-		cfg.UseMemoryAsStorage = true
-		cfg.FS = c.fs
-		cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, i)
-		if c.opts.recreate {
-			recreateTestTempDir(cfg.FS, cfg.DataPath)
-		}
-
-		cfg.RaftAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRaftAddr[i])
-		cfg.ClientAddr = fmt.Sprintf("127.0.0.1:%d", c.portsClientAddr[i])
-		cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", i)})
-
-		if c.opts.nodes < 3 {
-			cfg.Prophet.Replication.MaxReplicas = uint64(c.opts.nodes)
-		}
-
-		cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
-		cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
-		cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
-
-		cfg.Worker.RaftEventWorkers = 1
-		cfg.Worker.ApplyWorkerCount = 1
-		cfg.Worker.SendRaftMsgWorkerCount = 1
-
-		cfg.Prophet.Name = fmt.Sprintf("node-%d", i)
-		cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[i])
-		cfg.Prophet.Schedule.EnableJointConsensus = true
-		if i < 3 {
-			cfg.Prophet.StorageNode = true
-			if i != 0 {
-				cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0])
-			}
-			cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
-			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
-			cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[i])
-			cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdPeer[i])
-		} else {
-			cfg.Prophet.StorageNode = false
-			cfg.Prophet.ExternalEtcd = []string{
-				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0]),
-				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[1]),
-				fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[2]),
-			}
-		}
-
-		for _, fn := range c.opts.adjustConfigFuncs {
-			fn(i, cfg)
-		}
-
-		// check whether the raft tickinterval is set properly.
-		// If the time that the raft log persists to disk is longer
-		// than the election timeout time, then the entire cluster
-		// cannot work normally
-		electionDuration := cfg.Raft.GetElectionTimeoutDuration()
-		testFsyncDuration := getRTTMillisecond(cfg.FS, cfg.DataPath)
-		if !(electionDuration >= 10*testFsyncDuration) {
-			cfg.Raft.TickInterval.Duration = 10 * testFsyncDuration
-			cfg.Prophet.EmbedEtcd.TickInterval.Duration = 10 * testFsyncDuration
-			cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
-		}
-
-		if cfg.Storage.DataStorageFactory == nil {
-			var dataStorage storage.DataStorage
-			var kvs storage.KVStorage
-			if c.opts.useDisk {
-				c.opts.dataOpts.FS = vfs.NewPebbleFS(cfg.FS)
-				s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), cfg.Logger, c.opts.dataOpts)
-				assert.NoError(c.t, err)
-				kvs = s
-			} else {
-				kvs = mem.NewStorage()
-			}
-			base := kv.NewBaseStorage(kvs, cfg.FS)
-			dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs))
-
-			cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
-				return dataStorage
-			}
-			cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
-				cb(dataStorage)
-			}
-			c.dataStorages = append(c.dataStorages, dataStorage)
-		}
-
-		ts := newTestShardAware(i)
-		cfg.Test.ShardStateAware = ts
-
-		var s *store
-		if c.opts.storeFactory != nil {
-			s = c.opts.storeFactory(i, cfg).(*store)
-		} else {
-			s = NewStore(cfg).(*store)
-		}
-
-		c.stores = append(c.stores, s)
-		c.awares = append(c.awares, ts)
+		c.resetNode(i, init)
 	}
+}
+
+func (c *testRaftCluster) resetNode(node int, init bool) {
+	c.stores[node] = nil
+	c.awares[node] = nil
+	c.dataStorages[node] = nil
+
+	cfg := &config.Config{}
+	cfg.Logger = log.GetDefaultZapLoggerWithLevel(c.opts.logLevel).WithOptions(zap.OnFatal(zapcore.WriteThenPanic)).With(zap.String("case", c.t.Name()))
+	cfg.UseMemoryAsStorage = true
+	cfg.FS = c.fs
+	cfg.DataPath = fmt.Sprintf("%s/node-%d", c.baseDataDir, node)
+	if c.opts.recreate && init {
+		recreateTestTempDir(cfg.FS, cfg.DataPath)
+	}
+
+	cfg.RaftAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRaftAddr[node])
+	cfg.ClientAddr = fmt.Sprintf("127.0.0.1:%d", c.portsClientAddr[node])
+	cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", node)})
+
+	if c.opts.nodes < 3 {
+		cfg.Prophet.Replication.MaxReplicas = uint64(c.opts.nodes)
+	}
+
+	cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
+	cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
+	cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
+	cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
+
+	cfg.Worker.RaftEventWorkers = 1
+	cfg.Worker.ApplyWorkerCount = 1
+	cfg.Worker.SendRaftMsgWorkerCount = 1
+
+	cfg.Prophet.Name = fmt.Sprintf("node-%d", node)
+	cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[node])
+	cfg.Prophet.Schedule.EnableJointConsensus = true
+	if node < 3 {
+		cfg.Prophet.StorageNode = true
+		if node != 0 {
+			cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0])
+		}
+		cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
+		cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
+		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[node])
+		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdPeer[node])
+	} else {
+		cfg.Prophet.StorageNode = false
+		cfg.Prophet.ExternalEtcd = []string{
+			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0]),
+			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[1]),
+			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[2]),
+		}
+	}
+
+	for _, fn := range c.opts.adjustConfigFuncs {
+		fn(node, cfg)
+	}
+
+	// check whether the raft tickinterval is set properly.
+	// If the time that the raft log persists to disk is longer
+	// than the election timeout time, then the entire cluster
+	// cannot work normally
+	electionDuration := cfg.Raft.GetElectionTimeoutDuration()
+	testFsyncDuration := getRTTMillisecond(cfg.FS, cfg.DataPath)
+	if !(electionDuration >= 10*testFsyncDuration) {
+		cfg.Raft.TickInterval.Duration = 10 * testFsyncDuration
+		cfg.Prophet.EmbedEtcd.TickInterval.Duration = 10 * testFsyncDuration
+		cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = 5 * cfg.Prophet.EmbedEtcd.TickInterval.Duration
+	}
+
+	if cfg.Storage.DataStorageFactory == nil {
+		var dataStorage storage.DataStorage
+		var kvs storage.KVStorage
+		if c.opts.useDisk {
+			c.opts.dataOpts.FS = vfs.NewPebbleFS(cfg.FS)
+			s, err := pebble.NewStorage(cfg.FS.PathJoin(cfg.DataPath, "data"), cfg.Logger, c.opts.dataOpts)
+			assert.NoError(c.t, err)
+			kvs = s
+		} else {
+			kvs = mem.NewStorage()
+		}
+		base := kv.NewBaseStorage(kvs, cfg.FS)
+		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs))
+
+		cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
+			return dataStorage
+		}
+		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
+			cb(dataStorage)
+		}
+		c.dataStorages[node] = dataStorage
+	}
+
+	ts := newTestShardAware(node)
+	cfg.Test.ShardStateAware = ts
+
+	var s *store
+	if c.opts.storeFactory != nil {
+		s = c.opts.storeFactory(node, cfg).(*store)
+	} else {
+		s = NewStore(cfg).(*store)
+	}
+
+	c.stores[node] = s
+	c.awares[node] = ts
 }
 
 func (c *testRaftCluster) EveryStore(fn func(i int, store Store)) {
@@ -876,15 +887,10 @@ func (c *testRaftCluster) Start() {
 func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
 	var notProphetNodes []int
 	var wg sync.WaitGroup
-	fn := func(i int) {
-		defer wg.Done()
 
-		s := c.stores[i]
-		if c.opts.nodeStartFunc != nil {
-			c.opts.nodeStartFunc(i, s)
-		} else {
-			s.Start()
-		}
+	fn := func(i int) {
+		c.StartNode(i)
+		wg.Done()
 	}
 
 	for i := range c.stores {
@@ -918,12 +924,31 @@ func (c *testRaftCluster) Restart() {
 
 func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
 	c.Stop()
-	opts := append(c.initOpts, WithTestClusterRecreate(false))
-	c.reset(false, opts...)
+	c.reset(false)
 	if beforeStartFunc != nil {
 		beforeStartFunc()
 	}
 	c.StartWithConcurrent(true)
+}
+
+func (c *testRaftCluster) StartNode(node int) {
+	s := c.stores[node]
+	if c.opts.nodeStartFunc != nil {
+		c.opts.nodeStartFunc(node, s)
+	} else {
+		s.Start()
+	}
+}
+
+func (c *testRaftCluster) StopNode(node int) {
+	c.stores[node].Stop()
+	c.dataStorages[node].Close()
+}
+
+func (c *testRaftCluster) RestartNode(node int) {
+	c.StopNode(node)
+	c.resetNode(node, false)
+	c.StartNode(node)
 }
 
 func (c *testRaftCluster) Stop() {
