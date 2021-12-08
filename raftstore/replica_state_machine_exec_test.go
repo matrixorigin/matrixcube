@@ -17,13 +17,16 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
+
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/storage/stats"
 )
 
 func TestStateMachineAddNode(t *testing.T) {
@@ -244,6 +247,36 @@ func TestDoExecSplit(t *testing.T) {
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
 }
 
+type testDataStorage struct {
+	persistentLogIndex uint64
+}
+
+func (t *testDataStorage) Close() error                                     { panic("not implemented") }
+func (t *testDataStorage) Stats() stats.Stats                               { panic("not implemented") }
+func (t *testDataStorage) NewWriteBatch() storage.Resetable                 { panic("not implemented") }
+func (t *testDataStorage) CreateSnapshot(shardID uint64, path string) error { panic("not implemented") }
+func (t *testDataStorage) ApplySnapshot(shardID uint64, path string) error  { panic("not implemented") }
+func (t *testDataStorage) Write(storage.WriteContext) error                 { panic("not implemented") }
+func (t *testDataStorage) Read(storage.ReadContext) ([]byte, error)         { panic("not implemented") }
+func (t *testDataStorage) GetInitialStates() ([]meta.ShardMetadata, error) {
+	return nil, nil
+}
+func (t *testDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
+	return t.persistentLogIndex, nil
+}
+func (t *testDataStorage) SaveShardMetadata([]meta.ShardMetadata) error { panic("not implemented") }
+func (t *testDataStorage) RemoveShard(shard meta.Shard, removeData bool) error {
+	panic("not implemented")
+}
+func (t *testDataStorage) Sync([]uint64) error { panic("not implemented") }
+func (t *testDataStorage) SplitCheck(shard meta.Shard, size uint64) (currentApproximateSize uint64,
+	currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error) {
+	panic("not implemented")
+}
+func (t *testDataStorage) Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error {
+	panic("not implemented")
+}
+
 func TestDoExecCompactLog(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
@@ -263,17 +296,35 @@ func TestDoExecCompactLog(t *testing.T) {
 				Index: 3,
 				Term:  1,
 			},
+			{
+				Index: 4,
+				Term:  1,
+			},
+			{
+				Index: 5,
+				Term:  1,
+			},
 		},
 		HardState: raftpb.HardState{
-			Commit: 3,
+			Commit: 5,
 			Term:   1,
 		},
 	}, pr.sm.logdb.NewWorkerContext())
 	assert.NoError(t, err)
 
 	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_CompactLog, protoc.MustMarshal(&rpc.CompactLogRequest{
-		CompactIndex: 2,
+		CompactIndex: 4,
 	}))
+	ds := &testDataStorage{
+		persistentLogIndex: uint64(2),
+	}
+	pr.sm.dataStorage = ds
+
+	// our KV based data storage requires the GetInitialStates() to be invoked
+	// first
+	_, err = ds.GetInitialStates()
+	assert.NoError(t, err)
+
 	_, err = pr.sm.execAdminRequest(ctx)
 	assert.NoError(t, err)
 	result := applyResult{
@@ -282,11 +333,10 @@ func TestDoExecCompactLog(t *testing.T) {
 		metrics:     ctx.metrics,
 	}
 	assert.NotNil(t, result.adminResult)
-
-	pr.lr.SetRange(1, 100)
+	pr.lr.SetRange(0, 100)
 	pr.handleApplyResult(result)
 	state, err := pr.sm.logdb.ReadRaftState(pr.shardID, pr.replicaID)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), state.FirstIndex)
-	assert.Equal(t, uint64(1), state.EntryCount)
+	assert.Equal(t, uint64(3), state.EntryCount)
 }
