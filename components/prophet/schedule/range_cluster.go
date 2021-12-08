@@ -52,11 +52,11 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 	}
 
 	amplification := float64(s.GetResourceSize(r.group)) / used
-	leaderCount := r.subCluster.GetContainerLeaderCount(id)
-	leaderSize := r.subCluster.GetContainerLeaderResourceSize(id)
-	resourceCount := r.subCluster.GetContainerResourceCount(id)
-	resourceSize := r.subCluster.GetContainerResourceSize(id)
-	pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(id)
+	leaderCount := r.subCluster.GetContainerLeaderCount(r.group, id)
+	leaderSize := r.subCluster.GetContainerLeaderResourceSize(r.group, id)
+	resourceCount := r.subCluster.GetContainerResourceCount(r.group, id)
+	resourceSize := r.subCluster.GetContainerResourceSize(r.group, id)
+	pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(r.group, id)
 	newStats := proto.Clone(s.GetContainerStats()).(*metapb.ContainerStats)
 	newStats.UsedSize = uint64(float64(resourceSize)/amplification) * (1 << 20)
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
@@ -105,12 +105,12 @@ func (r *RangeCluster) GetTolerantSizeRatio() float64 {
 
 // RandFollowerResource returns a random resource that has a follower on the Container.
 func (r *RangeCluster) RandFollowerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandFollowerResource(containerID, ranges, opts...)
+	return r.subCluster.RandFollowerResource(r.group, containerID, ranges, opts...)
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
 func (r *RangeCluster) RandLeaderResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandLeaderResource(containerID, ranges, opts...)
+	return r.subCluster.RandLeaderResource(r.group, containerID, ranges, opts...)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.

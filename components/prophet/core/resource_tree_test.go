@@ -284,12 +284,12 @@ func TestResourceTreeSplitAndMerge(t *testing.T) {
 
 func TestRandomResource(t *testing.T) {
 	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource(nil)
+	r := tree.RandomResource(0, nil)
 	assert.Nil(t, r)
 
 	resA := NewTestCachedResource([]byte(""), []byte("g"))
 	tree.update(resA)
-	ra := tree.RandomResource([]KeyRange{NewKeyRange("", "")})
+	ra := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
 	resB := NewTestCachedResource([]byte("g"), []byte("n"))
@@ -299,84 +299,84 @@ func TestRandomResource(t *testing.T) {
 	tree.update(resC)
 	tree.update(resD)
 
-	rb := tree.RandomResource([]KeyRange{NewKeyRange("g", "n")})
+	rb := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "n")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rc := tree.RandomResource([]KeyRange{NewKeyRange("n", "t")})
+	rc := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "n", "t")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
-	rd := tree.RandomResource([]KeyRange{NewKeyRange("t", "")})
+	rd := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "t", "")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
-	re := tree.RandomResource([]KeyRange{NewKeyRange("", "a")})
+	re := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange("o", "s")})
+	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "o", "s")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange("", "a")})
+	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange("z", "")})
+	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "z", "")})
 	assert.Nil(t, re)
 
-	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange("", "")})
-	checkRandomResource(t, tree, []*CachedResource{resA, resB}, []KeyRange{NewKeyRange("", "n")})
-	checkRandomResource(t, tree, []*CachedResource{resC, resD}, []KeyRange{NewKeyRange("n", "")})
-	checkRandomResource(t, tree, []*CachedResource{}, []KeyRange{NewKeyRange("h", "s")})
-	checkRandomResource(t, tree, []*CachedResource{resB, resC}, []KeyRange{NewKeyRange("a", "z")})
+	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
+	checkRandomResource(t, tree, []*CachedResource{resA, resB}, []KeyRange{NewKeyRange(0, "", "n")})
+	checkRandomResource(t, tree, []*CachedResource{resC, resD}, []KeyRange{NewKeyRange(0, "n", "")})
+	checkRandomResource(t, tree, []*CachedResource{}, []KeyRange{NewKeyRange(0, "h", "s")})
+	checkRandomResource(t, tree, []*CachedResource{resB, resC}, []KeyRange{NewKeyRange(0, "a", "z")})
 }
 
 func TestRandomResourceDiscontinuous(t *testing.T) {
 	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource([]KeyRange{NewKeyRange("c", "f")})
+	r := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "f")})
 	assert.Nil(t, r)
 
 	// test for single resource
 	resA := NewTestCachedResource([]byte("c"), []byte("f"))
 	tree.update(resA)
-	ra := tree.RandomResource([]KeyRange{NewKeyRange("c", "e")})
+	ra := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange("c", "f")})
+	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange("c", "g")})
+	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange("a", "e")})
+	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange("a", "f")})
+	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange("a", "g")})
+	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
 	resB := NewTestCachedResource([]byte("n"), []byte("x"))
 	tree.update(resB)
-	rb := tree.RandomResource([]KeyRange{NewKeyRange("g", "x")})
+	rb := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "x")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange("g", "y")})
+	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange("n", "y")})
+	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "n", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange("o", "y")})
+	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "o", "y")})
 	assert.Nil(t, rb)
 
 	resC := NewTestCachedResource([]byte("z"), []byte(""))
 	tree.update(resC)
 
-	rc := tree.RandomResource([]KeyRange{NewKeyRange("y", "")})
+	rc := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "y", "")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
 	resD := NewTestCachedResource([]byte(""), []byte("a"))
 	tree.update(resD)
 
-	rd := tree.RandomResource([]KeyRange{NewKeyRange("", "b")})
+	rd := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "b")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
-	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange("", "")})
+	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
 }
 
 func updateTestResources(t *testing.T, tree *resourceTree, resources []*CachedResource) {
@@ -395,7 +395,7 @@ func updateTestResources(t *testing.T, tree *resourceTree, resources []*CachedRe
 func checkRandomResource(t *testing.T, tree *resourceTree, resources []*CachedResource, ranges []KeyRange) {
 	keys := make(map[string]struct{})
 	for i := 0; i < 10000 && len(keys) < len(resources); i++ {
-		re := tree.RandomResource(ranges)
+		re := tree.RandomResource(0, ranges)
 		if re == nil {
 			continue
 		}

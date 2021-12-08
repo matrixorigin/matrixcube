@@ -66,7 +66,7 @@ const (
 
 type balanceResourceSchedulerConfig struct {
 	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Ranges []core.KeyRange `json:"ranges"` // TODO: by group
 }
 
 type balanceResourceScheduler struct {
@@ -174,18 +174,18 @@ func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Clu
 		for i := 0; i < balanceResourceRetryLimit; i++ {
 			// Priority pick the Resource that has a pending peer.
 			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-			res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			res := cluster.RandPendingResource(group, sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			if res == nil {
 				// Then pick the Resource that has a follower in the source container.
-				res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandFollowerResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Then pick the Resource has the leader in the source container.
-				res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLeaderResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Finally pick learner.
-				res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLearnerResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()

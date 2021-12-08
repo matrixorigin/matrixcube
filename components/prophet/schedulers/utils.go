@@ -15,6 +15,7 @@
 package schedulers
 
 import (
+	"errors"
 	"math"
 	"net/url"
 	"strconv"
@@ -108,17 +109,17 @@ func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind cor
 	if resourceSize < cluster.GetAverageResourceSize() {
 		resourceSize = cluster.GetAverageResourceSize()
 	}
-	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(cluster))
+	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(res.Meta.Group(), cluster))
 	return resourceSize
 }
 
-func adjustTolerantRatio(cluster opt.Cluster) float64 {
+func adjustTolerantRatio(groupID uint64, cluster opt.Cluster) float64 {
 	tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 	if tolerantSizeRatio == 0 {
 		var maxResourceCount float64
 		containers := cluster.GetContainers()
 		for _, container := range containers {
-			resourceCount := float64(cluster.GetContainerResourceCount(container.Meta.ID()))
+			resourceCount := float64(cluster.GetContainerResourceCount(groupID, container.Meta.ID()))
 			if maxResourceCount < resourceCount {
 				maxResourceCount = resourceCount
 			}
@@ -146,21 +147,26 @@ func adjustBalanceLimit(group uint64, cluster opt.Cluster, kind metapb.ResourceK
 func getKeyRanges(args []string) ([]core.KeyRange, error) {
 	var ranges []core.KeyRange
 	for len(args) > 1 {
-		startKey, err := url.QueryUnescape(args[0])
+		groupID, err := strconv.ParseUint(args[0], 10, 64)
+		if err != nil {
+			return nil, errors.New("scheduler error coniguration")
+		}
+
+		startKey, err := url.QueryUnescape(args[1])
 		if err != nil {
 			return nil, err
 		}
-		endKey, err := url.QueryUnescape(args[1])
+		endKey, err := url.QueryUnescape(args[2])
 		if err != nil {
 			return nil, err
 		}
-		args = args[2:]
-		ranges = append(ranges, core.NewKeyRange(startKey, endKey))
-	}
-	if len(ranges) == 0 {
-		return []core.KeyRange{core.NewKeyRange("", "")}, nil
+		ranges = append(ranges, core.NewKeyRange(groupID, startKey, endKey))
 	}
 	return ranges, nil
+}
+
+func groupKeyRanges(ranges []core.KeyRange, groups []uint64) map[uint64][]core.KeyRange {
+	groups
 }
 
 // Influence records operator influence.

@@ -117,8 +117,8 @@ func (mc *Cluster) GetContainersLoads() map[uint64][]float64 {
 }
 
 // GetContainerResourceCount gets resource count with a given container.
-func (mc *Cluster) GetContainerResourceCount(containerID uint64) int {
-	return mc.Resources.GetContainerResourceCount(containerID)
+func (mc *Cluster) GetContainerResourceCount(groupID, containerID uint64) int {
+	return mc.Resources.GetContainerResourceCount(groupID, containerID)
 }
 
 // GetContainer gets a container with a given container ID.
@@ -567,11 +567,11 @@ func (mc *Cluster) UpdateStorageReadKeys(containerID uint64, keysRead uint64) {
 
 // UpdateContainerStatus updates container status.
 func (mc *Cluster) UpdateContainerStatus(id uint64) {
-	leaderCount := mc.Resources.GetContainerLeaderCount(id)
-	resourceCount := mc.Resources.GetContainerResourceCount(id)
-	pendingPeerCount := mc.Resources.GetContainerPendingPeerCount(id)
-	leaderSize := mc.Resources.GetContainerLeaderResourceSize(id)
-	resourceSize := mc.Resources.GetContainerResourceSize(id)
+	leaderCount := mc.Resources.GetContainerLeaderCount(0, id)
+	resourceCount := mc.Resources.GetContainerResourceCount(0, id)
+	pendingPeerCount := mc.Resources.GetContainerPendingPeerCount(0, id)
+	leaderSize := mc.Resources.GetContainerLeaderResourceSize(0, id)
+	resourceSize := mc.Resources.GetContainerResourceSize(0, id)
 	container := mc.Containers.GetContainer(id)
 	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity

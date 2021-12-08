@@ -66,8 +66,9 @@ func init() {
 }
 
 type balanceLeaderSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type balanceLeaderScheduler struct {
@@ -197,7 +198,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 				l.counter.WithLabelValues("low-score", targetContainerLabel).Inc()
 
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
-					if ops := l.transferLeaderIn(cluster, target); len(ops) > 0 {
+					if ops := l.transferLeaderIn(group, cluster, target); len(ops) > 0 {
 						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-in", targetContainerLabel))
 						return ops
 					}
@@ -218,7 +219,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 // the best follower peer and transfers the leader.
 func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Cluster, source *core.CachedContainer, opInfluence operator.OpInfluence) []*operator.Operator {
 	sourceID := source.Meta.ID()
-	resource := cluster.RandLeaderResource(sourceID, l.conf.Ranges, opt.HealthResource(cluster))
+	resource := cluster.RandLeaderResource(group, sourceID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no leader, nothing to do",
 			rebalanceLeaderField,
@@ -259,9 +260,9 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 // transferLeaderIn transfers leader to the target container.
 // It randomly selects a health resource from the target container, then picks
 // the worst follower peer and transfers the leader.
-func (l *balanceLeaderScheduler) transferLeaderIn(cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
+func (l *balanceLeaderScheduler) transferLeaderIn(group uint64, cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
 	targetID := target.Meta.ID()
-	resource := cluster.RandFollowerResource(targetID, l.conf.Ranges, opt.HealthResource(cluster))
+	resource := cluster.RandFollowerResource(group, targetID, l.conf.Ranges, opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no folower, nothing to do",
 			rebalanceLeaderField,

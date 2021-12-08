@@ -159,15 +159,15 @@ func TestTolerantRatio(t *testing.T) {
 
 	tc.SetTolerantSizeRatio(0)
 	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
 
 	tc.SetTolerantSizeRatio(10)
 	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(0, tc)*float64(resourceSize)))
 }
 
 type testBalanceLeaderScheduler struct {
@@ -1162,9 +1162,9 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 		schedule.ApplyOperator(tc, ops[0])
 	}
 	for i := 1; i <= 5; i++ {
-		leaderCount := tc.Resources.GetContainerLeaderCount(uint64(i))
+		leaderCount := tc.Resources.GetContainerLeaderCount(0, uint64(i))
 		assert.True(t, leaderCount <= 12)
-		resourceCount := tc.Resources.GetContainerResourceCount(uint64(i))
+		resourceCount := tc.Resources.GetContainerResourceCount(0, uint64(i))
 		assert.True(t, resourceCount <= 32)
 	}
 }

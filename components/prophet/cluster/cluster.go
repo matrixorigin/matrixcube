@@ -669,13 +669,13 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-func (c *RaftCluster) updateContainerStatusLocked(group, id uint64) {
-	leaderCount := c.core.GetContainerLeaderCount(id)
-	resourceCount := c.core.GetContainerResourceCount(id)
-	pendingPeerCount := c.core.GetContainerPendingPeerCount(id)
-	leaderResourceSize := c.core.GetContainerLeaderResourceSize(id)
-	resourceSize := c.core.GetContainerResourceSize(id)
-	c.core.UpdateContainerStatus(group, id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
+func (c *RaftCluster) updateContainerStatusLocked(groupID, id uint64) {
+	leaderCount := c.core.GetContainerLeaderCount(groupID, id)
+	resourceCount := c.core.GetContainerResourceCount(groupID, id)
+	pendingPeerCount := c.core.GetContainerPendingPeerCount(groupID, id)
+	leaderResourceSize := c.core.GetContainerLeaderResourceSize(groupID, id)
+	resourceSize := c.core.GetContainerResourceSize(groupID, id)
+	c.core.UpdateContainerStatus(groupID, id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
 }
 
 // GetResourceByKey gets CachedResource by resource key from cluster.
@@ -715,28 +715,28 @@ func (c *RaftCluster) GetResourceCount() int {
 }
 
 // GetContainerResources returns all resources' information with a given containerID.
-func (c *RaftCluster) GetContainerResources(containerID uint64) []*core.CachedResource {
-	return c.core.GetContainerResources(containerID)
+func (c *RaftCluster) GetContainerResources(groupID, containerID uint64) []*core.CachedResource {
+	return c.core.GetContainerResources(groupID, containerID)
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
-func (c *RaftCluster) RandLeaderResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandLeaderResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandLeaderResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandLeaderResource(groupID, containerID, ranges, opts...)
 }
 
 // RandFollowerResource returns a random resource that has a follower on the container.
-func (c *RaftCluster) RandFollowerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandFollowerResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandFollowerResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandFollowerResource(groupID, containerID, ranges, opts...)
 }
 
 // RandPendingResource returns a random resource that has a pending peer on the container.
-func (c *RaftCluster) RandPendingResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandPendingResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandPendingResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandPendingResource(groupID, containerID, ranges, opts...)
 }
 
 // RandLearnerResource returns a random resource that has a learner peer on the container.
-func (c *RaftCluster) RandLearnerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandLearnerResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandLearnerResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandLearnerResource(groupID, containerID, ranges, opts...)
 }
 
 // RandHotResourceFromContainer randomly picks a hot resource in specified container.
@@ -771,8 +771,8 @@ func (c *RaftCluster) GetContainerCount() int {
 }
 
 // GetContainerResourceCount returns the number of resources for a given container.
-func (c *RaftCluster) GetContainerResourceCount(containerID uint64) int {
-	return c.core.GetContainerResourceCount(containerID)
+func (c *RaftCluster) GetContainerResourceCount(groupID, containerID uint64) int {
+	return c.core.GetContainerResourceCount(groupID, containerID)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.
@@ -1111,8 +1111,12 @@ func (c *RaftCluster) checkContainers() {
 		}
 
 		offlineContainer := container.Meta
+		resourceCount := 0
+		for _, group := range groups {
+			resourceCount += c.core.GetContainerResourceCount(group, offlineContainer.ID())
+		}
+
 		// If the container is empty, it can be buried.
-		resourceCount := c.core.GetContainerResourceCount(offlineContainer.ID())
 		if resourceCount == 0 {
 			if err := c.buryContainer(offlineContainer.ID()); err != nil {
 				c.logger.Error("fail to bury container",

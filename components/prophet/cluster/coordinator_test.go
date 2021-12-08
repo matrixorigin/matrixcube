@@ -455,7 +455,7 @@ func TestShouldRun(t *testing.T) {
 	assert.Nil(t, tc.LoadResource(6, 2, 1, 4))
 	assert.Nil(t, tc.LoadResource(7, 2, 1, 4))
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 2, tc.core.Resources.GetContainerResourceCount(4))
+	assert.Equal(t, 2, tc.core.Resources.GetContainerResourceCount(0, 4))
 
 	tbl := []struct {
 		resourceID uint64
@@ -494,7 +494,7 @@ func TestShouldRunWithNonLeaderResources(t *testing.T) {
 		assert.Nil(t, tc.LoadResource(uint64(i+1), 1, 2, 3))
 	}
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 10, tc.core.Resources.GetContainerResourceCount(1))
+	assert.Equal(t, 10, tc.core.Resources.GetContainerResourceCount(0, 1))
 
 	tbl := []struct {
 		resourceID uint64

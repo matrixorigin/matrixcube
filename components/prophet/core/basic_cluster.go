@@ -227,10 +227,10 @@ func (bc *BasicCluster) GetMetaResources() []metadata.Resource {
 }
 
 // GetContainerResources gets all CachedResource with a given containerID.
-func (bc *BasicCluster) GetContainerResources(containerID uint64) []*CachedResource {
+func (bc *BasicCluster) GetContainerResources(groupID, containerID uint64) []*CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerResources(containerID)
+	return bc.Resources.GetContainerResources(groupID, containerID)
 }
 
 // GetResourceContainers returns all Containers that contains the resource's peer.
@@ -306,7 +306,7 @@ func (bc *BasicCluster) UpdateContainerStatus(group, containerID uint64, leaderC
 const randomResourceMaxRetry = 10
 
 // RandFollowerResource returns a random resource that has a follower on the container.
-func (bc *BasicCluster) RandFollowerResource(groupID uint64, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) RandFollowerResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
 	bc.RLock()
 	resources := bc.Resources.RandFollowerResources(groupID, containerID, ranges, randomResourceMaxRetry)
 	bc.RUnlock()
@@ -314,25 +314,25 @@ func (bc *BasicCluster) RandFollowerResource(groupID uint64, containerID uint64,
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
-func (bc *BasicCluster) RandLeaderResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) RandLeaderResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
 	bc.RLock()
-	resources := bc.Resources.RandLeaderResources(containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Resources.RandLeaderResources(groupID, containerID, ranges, randomResourceMaxRetry)
 	bc.RUnlock()
 	return bc.selectResource(resources, opts...)
 }
 
 // RandPendingResource returns a random resource that has a pending peer on the container.
-func (bc *BasicCluster) RandPendingResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) RandPendingResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
 	bc.RLock()
-	resources := bc.Resources.RandPendingResources(containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Resources.RandPendingResources(groupID, containerID, ranges, randomResourceMaxRetry)
 	bc.RUnlock()
 	return bc.selectResource(resources, opts...)
 }
 
 // RandLearnerResource returns a random resource that has a learner peer on the container.
-func (bc *BasicCluster) RandLearnerResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) RandLearnerResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
 	bc.RLock()
-	resources := bc.Resources.RandLearnerResources(containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Resources.RandLearnerResources(groupID, containerID, ranges, randomResourceMaxRetry)
 	bc.RUnlock()
 	return bc.selectResource(resources, opts...)
 }
@@ -364,49 +364,49 @@ func (bc *BasicCluster) GetContainerCount() int {
 }
 
 // GetContainerResourceCount gets the total count of a container's leader and follower CachedResource by containerID.
-func (bc *BasicCluster) GetContainerResourceCount(containerID uint64) int {
+func (bc *BasicCluster) GetContainerResourceCount(groupID, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderCount(containerID) +
-		bc.Resources.GetContainerFollowerCount(containerID) +
-		bc.Resources.GetContainerLearnerCount(containerID)
+	return bc.Resources.GetContainerLeaderCount(groupID, containerID) +
+		bc.Resources.GetContainerFollowerCount(groupID, containerID) +
+		bc.Resources.GetContainerLearnerCount(groupID, containerID)
 }
 
 // GetContainerLeaderCount get the total count of a container's leader CachedResource.
-func (bc *BasicCluster) GetContainerLeaderCount(containerID uint64) int {
+func (bc *BasicCluster) GetContainerLeaderCount(groupID, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderCount(containerID)
+	return bc.Resources.GetContainerLeaderCount(groupID, containerID)
 }
 
 // GetContainerFollowerCount get the total count of a container's follower CachedResource.
-func (bc *BasicCluster) GetContainerFollowerCount(containerID uint64) int {
+func (bc *BasicCluster) GetContainerFollowerCount(groupID, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerFollowerCount(containerID)
+	return bc.Resources.GetContainerFollowerCount(groupID, containerID)
 }
 
 // GetContainerPendingPeerCount gets the total count of a container's resource that includes pending peer.
-func (bc *BasicCluster) GetContainerPendingPeerCount(containerID uint64) int {
+func (bc *BasicCluster) GetContainerPendingPeerCount(groupID, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerPendingPeerCount(containerID)
+	return bc.Resources.GetContainerPendingPeerCount(groupID, containerID)
 }
 
 // GetContainerLeaderResourceSize get total size of container's leader resources.
-func (bc *BasicCluster) GetContainerLeaderResourceSize(containerID uint64) int64 {
+func (bc *BasicCluster) GetContainerLeaderResourceSize(groupID, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderResourceSize(containerID)
+	return bc.Resources.GetContainerLeaderResourceSize(groupID, containerID)
 }
 
 // GetContainerResourceSize get total size of container's resources.
-func (bc *BasicCluster) GetContainerResourceSize(containerID uint64) int64 {
+func (bc *BasicCluster) GetContainerResourceSize(groupID, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderResourceSize(containerID) +
-		bc.Resources.GetContainerFollowerResourceSize(containerID) +
-		bc.Resources.GetContainerLearnerResourceSize(containerID)
+	return bc.Resources.GetContainerLeaderResourceSize(groupID, containerID) +
+		bc.Resources.GetContainerFollowerResourceSize(groupID, containerID) +
+		bc.Resources.GetContainerLearnerResourceSize(groupID, containerID)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.
@@ -597,11 +597,11 @@ type ResourceSetInformer interface {
 	GetResourcesGroupByRule(group uint64) [][]*CachedResource
 	GetResourceCount() int
 	RandFollowerResource(group, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandLeaderResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandLearnerResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandPendingResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
+	RandLeaderResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
+	RandLearnerResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
+	RandPendingResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	GetAverageResourceSize() int64
-	GetContainerResourceCount(containerID uint64) int
+	GetContainerResourceCount(groupID, containerID uint64) int
 	GetResource(id uint64) *CachedResource
 	GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource)
 	ScanResources(group uint64, startKey, endKey []byte, limit int) []*CachedResource
@@ -634,8 +634,9 @@ type KeyRange struct {
 }
 
 // NewKeyRange create a KeyRange with the given start key and end key.
-func NewKeyRange(startKey, endKey string) KeyRange {
+func NewKeyRange(groupID uint64, startKey, endKey string) KeyRange {
 	return KeyRange{
+		Group:    groupID,
 		StartKey: []byte(startKey),
 		EndKey:   []byte(endKey),
 	}

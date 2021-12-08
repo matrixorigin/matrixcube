@@ -519,15 +519,15 @@ func (rst *resourceSubTree) length() int {
 	return rst.resourceTree.length()
 }
 
-func (rst *resourceSubTree) RandomResource(ranges []KeyRange) *CachedResource {
+func (rst *resourceSubTree) RandomResource(groupID uint64, ranges []KeyRange) *CachedResource {
 	if rst.length() == 0 {
 		return nil
 	}
 
-	return rst.resourceTree.RandomResource(ranges)
+	return rst.resourceTree.RandomResource(groupID, ranges)
 }
 
-func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedResource {
+func (rst *resourceSubTree) RandomResources(groupID uint64, n int, ranges []KeyRange) []*CachedResource {
 	if rst.length() == 0 {
 		return nil
 	}
@@ -535,7 +535,7 @@ func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedR
 	resources := make([]*CachedResource, 0, n)
 
 	for i := 0; i < n; i++ {
-		if resource := rst.resourceTree.RandomResource(ranges); resource != nil {
+		if resource := rst.resourceTree.RandomResource(groupID, ranges); resource != nil {
 			resources = append(resources, resource)
 		}
 	}
@@ -967,49 +967,49 @@ func (r *CachedResources) GetContainerLearnerCount(groupID, containerID uint64) 
 // RandPendingResource randomly gets a container's resource with a pending peer.
 func (r *CachedResources) RandPendingResource(groupID, containerID uint64, ranges []KeyRange) *CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.pendingReplicas[groupID][containerID].RandomResource(ranges)
+	return r.pendingReplicas[groupID][containerID].RandomResource(groupID, ranges)
 }
 
 // RandPendingResources randomly gets a container's n resources with a pending peer.
 func (r *CachedResources) RandPendingResources(groupID, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.pendingReplicas[groupID][containerID].RandomResources(n, ranges)
+	return r.pendingReplicas[groupID][containerID].RandomResources(groupID, n, ranges)
 }
 
 // RandLeaderResource randomly gets a container's leader resource.
 func (r *CachedResources) RandLeaderResource(groupID, containerID uint64, ranges []KeyRange) *CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.leaders[groupID][containerID].RandomResource(ranges)
+	return r.leaders[groupID][containerID].RandomResource(groupID, ranges)
 }
 
 // RandLeaderResources randomly gets a container's n leader resources.
 func (r *CachedResources) RandLeaderResources(groupID, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.leaders[groupID][containerID].RandomResources(n, ranges)
+	return r.leaders[groupID][containerID].RandomResources(groupID, n, ranges)
 }
 
 // RandFollowerResource randomly gets a container's follower resource.
 func (r *CachedResources) RandFollowerResource(groupID, containerID uint64, ranges []KeyRange) *CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.followers[groupID][containerID].RandomResource(ranges)
+	return r.followers[groupID][containerID].RandomResource(groupID, ranges)
 }
 
 // RandFollowerResources randomly gets a container's n follower resources.
 func (r *CachedResources) RandFollowerResources(groupID, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.followers[groupID][containerID].RandomResources(n, ranges)
+	return r.followers[groupID][containerID].RandomResources(groupID, n, ranges)
 }
 
 // RandLearnerResource randomly gets a container's learner resource.
 func (r *CachedResources) RandLearnerResource(groupID, containerID uint64, ranges []KeyRange) *CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.learners[groupID][containerID].RandomResource(ranges)
+	return r.learners[groupID][containerID].RandomResource(groupID, ranges)
 }
 
 // RandLearnerResources randomly gets a container's n learner resources.
 func (r *CachedResources) RandLearnerResources(groupID, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
 	r.maybeInitWithGroup(groupID)
-	return r.learners[groupID][containerID].RandomResources(n, ranges)
+	return r.learners[groupID][containerID].RandomResources(groupID, n, ranges)
 }
 
 // GetLeader return leader CachedResource by containerID and resourceID(now only used in test)
