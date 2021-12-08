@@ -48,6 +48,8 @@ enum Type {
     TypeRemoveJobRsp          = 34;
     TypeExecuteJobReq         = 35;
     TypeExecuteJobRsp         = 36;
+    TypeAddScheduleGroupRuleReq  = 37;
+    TypeAddScheduleGroupRuleRsp  = 38;
 }
 
 // Request the prophet rpc request
@@ -73,6 +75,7 @@ message Request {
     CreateJobReq          createJob          = 19 [(gogoproto.nullable) = false];
     RemoveJobReq          removeJob          = 20 [(gogoproto.nullable) = false];
     ExecuteJobReq         executeJob         = 21 [(gogoproto.nullable) = false];
+    AddScheduleGroupRuleReq         addScheduleGroupRule        = 22 [(gogoproto.nullable) = false];
 }
 
 // Response the prophet rpc response
@@ -99,6 +102,7 @@ message Response {
     CreateJobRsp          createJob          = 20 [(gogoproto.nullable) = false];
     RemoveJobRsp          removeJob          = 21 [(gogoproto.nullable) = false];
     ExecuteJobRsp         executeJob         = 22 [(gogoproto.nullable) = false];
+    AddScheduleGroupRuleRsp         addScheduleGroupRule        = 23 [(gogoproto.nullable) = false];
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -318,6 +322,14 @@ message ExecuteJobReq {
 // ExecuteJobRsp execute on job response
 message ExecuteJobRsp {
     bytes      data = 1;
+}
+
+message AddScheduleGroupRuleReq {
+    metapb.ScheduleGroupRule rule = 1 [(gogoproto.nullable) = false];
+}
+
+message AddScheduleGroupRuleRsp {
+
 }
 
 // EventNotify event notify

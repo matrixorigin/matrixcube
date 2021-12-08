@@ -38,6 +38,20 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// AddSchedulingRule mocks base method.
+func (m *MockClient) AddSchedulingRule(group uint64, ruleName, groupByLabel string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddSchedulingRule", group, ruleName, groupByLabel)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddSchedulingRule indicates an expected call of AddSchedulingRule.
+func (mr *MockClientMockRecorder) AddSchedulingRule(group, ruleName, groupByLabel interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddSchedulingRule", reflect.TypeOf((*MockClient)(nil).AddSchedulingRule), group, ruleName, groupByLabel)
+}
+
 // AllocID mocks base method.
 func (m *MockClient) AllocID() (uint64, error) {
 	m.ctrl.T.Helper()

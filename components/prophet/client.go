@@ -77,6 +77,11 @@ type Client interface {
 	// GetAppliedRules returns applied rules of the resource
 	GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error)
 
+	// AddSchedulingRule Add scheduling rules, scheduling rules are effective for all schedulers.
+	// The scheduling rules are based on the Label of the Resource to group all resources and do
+	// scheduling independently for these grouped resources.`ruleName` is unique within the group.
+	AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error
+
 	// CreateJob create job
 	CreateJob(metapb.Job) error
 	// RemoveJob remove job
@@ -441,6 +446,25 @@ func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) 
 	}
 
 	return rsp.GetAppliedRules.Rules, nil
+}
+
+func (c *asyncClient) AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error {
+	if !c.running() {
+		return ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeAddScheduleGroupRuleReq
+	req.AddScheduleGroupRule.Rule.GroupID = group
+	req.AddScheduleGroupRule.Rule.Name = ruleName
+	req.AddScheduleGroupRule.Rule.GroupByLabel = groupByLabel
+
+	_, err := c.syncDo(req)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *asyncClient) CreateJob(job metapb.Job) error {

@@ -230,8 +230,8 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 
 	// load resource group rules
 	start = time.Now()
-	c.storage.LoadResourceGroupRules(batch, func(rule metapb.ResourceGroupRule) {
-		c.core.AddResourceGroupRule(rule)
+	c.storage.LoadScheduleGroupRules(batch, func(rule metapb.ScheduleGroupRule) {
+		c.core.AddScheduleGroupRule(rule, false)
 	})
 	c.logger.Info("resource group rules loaded",
 		zap.Int("count", c.core.GetResourceGroupRuleCount()),

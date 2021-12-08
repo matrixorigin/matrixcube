@@ -369,6 +369,14 @@ func (c *RaftCluster) HandleAppliedRules(request *rpcpb.Request) (*rpcpb.GetAppl
 	}, nil
 }
 
+func (c *RaftCluster) HandleAddScheduleGroupRule(request *rpcpb.Request) error {
+	c.RLock()
+	defer c.RUnlock()
+
+	c.core.AddScheduleGroupRule(request.AddScheduleGroupRule.Rule, true)
+	return nil
+}
+
 func (c *RaftCluster) triggerNotifyCreateResources() {
 	select {
 	case c.createResourceC <- struct{}{}:
