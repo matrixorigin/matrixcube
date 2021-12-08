@@ -76,10 +76,6 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 }
 
 func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
-	// our KV based data storage requires the GetInitialStates() to be invoked first
-	if _, err := d.dataStorage.GetInitialStates(); err != nil {
-		return 0, err
-	}
 	// take current persistent log index into consideration, never compact those
 	// raft log entries that might be required after reboot.
 	persistentLogIndex, err := d.dataStorage.GetPersistentLogIndex(d.shardID)

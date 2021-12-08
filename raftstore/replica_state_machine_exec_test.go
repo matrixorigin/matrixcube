@@ -320,6 +320,11 @@ func TestDoExecCompactLog(t *testing.T) {
 	}
 	pr.sm.dataStorage = ds
 
+	// our KV based data storage requires the GetInitialStates() to be invoked
+	// first
+	_, err = ds.GetInitialStates()
+	assert.NoError(t, err)
+
 	_, err = pr.sm.execAdminRequest(ctx)
 	assert.NoError(t, err)
 	result := applyResult{
