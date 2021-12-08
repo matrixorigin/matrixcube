@@ -350,6 +350,20 @@ func appendShard(shard meta.Shard, info *bytes.Buffer, first bool) {
 
 	info.WriteString(", shard-disable-split: ")
 	info.WriteString(format.BoolToString(shard.DisableSplit))
+
+	l = len(shard.Labels)
+	if l > 0 {
+		info.WriteString(", shard-labels: [")
+		for idx, label := range shard.Labels {
+			info.WriteString(label.Key)
+			info.WriteString(":")
+			info.WriteString(label.Value)
+			if idx != (l - 1) {
+				info.WriteString(" ")
+			}
+		}
+		info.WriteString("]")
+	}
 }
 
 func appendRaftMessage(msg raftpb.Message, info *bytes.Buffer, first bool) {

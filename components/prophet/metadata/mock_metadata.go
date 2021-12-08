@@ -124,6 +124,11 @@ func (res *TestResource) Labels() []metapb.Pair {
 	return res.ResLabels
 }
 
+// SetLabels mock
+func (res *TestResource) SetLabels(labels []metapb.Pair) {
+	res.ResLabels = labels
+}
+
 // Unique mock
 func (res *TestResource) Unique() string {
 	return res.ResUnique

@@ -26,6 +26,7 @@ enum AdminCmdType {
     VerifyHash     = 4;
     BatchSplit     = 5;
     UpdateMetadata = 6;
+    UpdateLabels   = 7;
 }
 
 // RequestHeader raft request header, it contains the shard's metadata
@@ -141,5 +142,26 @@ message UpdateMetadataRequest {
 }
 
 message UpdateMetadataResponse {
+    
+}
+
+// UpdatePolicy update policy
+enum UpdatePolicy {
+    // Add add or update
+    Add      = 0;
+    // Remove remove
+    Remove   = 1;
+    // Reset reset
+    Reset    = 2;
+    // Clear clear
+    Clear    = 3;
+}
+
+message UpdateLabelsRequest {
+    repeated metapb.Pair labels = 1 [(gogoproto.nullable) = false];
+    UpdatePolicy policy = 2;
+}
+
+message UpdateLabelsResponse {
     
 }

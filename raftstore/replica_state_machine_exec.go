@@ -16,6 +16,7 @@ package raftstore
 import (
 	"bytes"
 	"math"
+	"sort"
 
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
@@ -43,6 +44,8 @@ func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, e
 		return d.doUpdateMetadata(ctx)
 	case rpc.AdminCmdType_CompactLog:
 		return d.doExecCompactLog(ctx)
+	case rpc.AdminCmdType_UpdateLabels:
+		return d.doUpdateLabels(ctx)
 	}
 
 	return rpc.ResponseBatch{}, nil
@@ -263,6 +266,77 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		splitResult: &splitResult{
 			newShards: newShards,
 		},
+	}
+	return resp, nil
+}
+
+func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpc.ResponseBatch, error) {
+	updateReq := ctx.req.GetUpdateLabelsRequest()
+	current := d.getShard()
+
+	switch updateReq.Policy {
+	case rpc.UpdatePolicy_Add:
+		var newLabels []metapb.Pair
+		for _, oldLabel := range current.Labels {
+			remove := false
+			for _, label := range updateReq.Labels {
+				if label.Key == oldLabel.Key {
+					remove = true
+				}
+			}
+
+			if !remove {
+				newLabels = append(newLabels, oldLabel)
+			}
+		}
+		current.Labels = append(newLabels, updateReq.Labels...)
+	case rpc.UpdatePolicy_Remove:
+		var newLabels []metapb.Pair
+		for _, oldLabel := range current.Labels {
+			remove := false
+			for _, label := range updateReq.Labels {
+				if label.Key == oldLabel.Key {
+					remove = true
+				}
+			}
+
+			if !remove {
+				newLabels = append(newLabels, oldLabel)
+			}
+		}
+		current.Labels = newLabels
+	case rpc.UpdatePolicy_Reset:
+		current.Labels = updateReq.Labels
+	case rpc.UpdatePolicy_Clear:
+		current.Labels = nil
+	}
+
+	err := d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+		{
+			ShardID:  d.shardID,
+			LogIndex: ctx.index,
+			Metadata: meta.ShardLocalState{
+				Shard: current,
+				State: meta.ReplicaState_Normal,
+			},
+		},
+	})
+	if err != nil {
+		d.logger.Fatal("failed to update labels",
+			zap.Error(err))
+	}
+
+	sort.Slice(current.Labels, func(i, j int) bool {
+		return current.Labels[i].Key < current.Labels[j].Key
+	})
+	d.updateShard(current)
+
+	d.logger.Info("shard labels updated",
+		log.ShardField("new-shard", current))
+
+	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateLabels, &rpc.UpdateLabelsResponse{})
+	ctx.adminResult = &adminResult{
+		adminType: rpc.AdminCmdType_UpdateLabels,
 	}
 	return resp, nil
 }

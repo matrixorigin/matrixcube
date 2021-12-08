@@ -94,6 +94,9 @@ type ResourceStorage interface {
 	PutResourceExtra(id uint64, extra []byte) error
 	// GetResourceExtra returns the resource extra data
 	GetResourceExtra(id uint64) ([]byte, error)
+
+	PutResourceGroupRule(metapb.ResourceGroupRule) error
+	LoadResourceGroupRules(limit int64, do func(metapb.ResourceGroupRule)) error
 }
 
 // ConfigStorage  config storage
@@ -157,6 +160,7 @@ type storage struct {
 	configPath               string
 	resourcePath             string
 	resourceExtraPath        string
+	resourceGroupRulePath    string
 	containerPath            string
 	rulePath                 string
 	ruleGroupPath            string
@@ -182,6 +186,7 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
 		resourceExtraPath:        fmt.Sprintf("%s/resources-extra", rootPath),
+		resourceGroupRulePath:    fmt.Sprintf("%s/resources-group-rules", rootPath),
 		containerPath:            fmt.Sprintf("%s/containers", rootPath),
 		rulePath:                 fmt.Sprintf("%s/rules", rootPath),
 		ruleGroupPath:            fmt.Sprintf("%s/rule-groups", rootPath),
@@ -309,6 +314,19 @@ func (s *storage) PutResource(meta metadata.Resource) error {
 	}
 
 	return s.kv.Save(key, string(data))
+}
+
+func (s *storage) PutResourceGroupRule(rule metapb.ResourceGroupRule) error {
+	return s.kv.Save(s.getKey(rule.ID, s.resourceGroupRulePath), string(protoc.MustMarshal(&rule)))
+}
+
+func (s *storage) LoadResourceGroupRules(limit int64, do func(metapb.ResourceGroupRule)) error {
+	return s.LoadRangeByPrefix(limit, s.resourceGroupRulePath+"/", func(k, v string) error {
+		var rule metapb.ResourceGroupRule
+		protoc.MustUnmarshal(&rule, []byte(v))
+		do(rule)
+		return nil
+	})
 }
 
 func (s *storage) PutResourceAndExtra(res metadata.Resource, extra []byte) error {

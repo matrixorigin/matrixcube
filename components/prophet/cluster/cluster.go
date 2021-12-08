@@ -227,6 +227,20 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	for _, container := range c.GetContainers() {
 		c.hotStat.GetOrCreateRollingContainerStats(container.Meta.ID())
 	}
+
+	// load resource group rules
+	start = time.Now()
+	c.storage.LoadResourceGroupRules(batch, func(rule metapb.ResourceGroupRule) {
+		c.core.AddResourceGroupRule(rule)
+	})
+	c.logger.Info("resource group rules loaded",
+		zap.Int("count", c.core.GetResourceGroupRuleCount()),
+		zap.Duration("cost", time.Since(start)))
+
+	// reset scheduling shard group
+	for _, group := range c.GetReplicationConfig().Groups {
+		c.core.ResetSchedulingResourceGroup(group)
+	}
 	return c, nil
 }
 
@@ -484,11 +498,11 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	// Save to storage if meta is updated.
 	// Save to cache if meta or leader is updated, or contains any down/pending peer.
 	// Mark isNew if the resource in cache does not have leader.
-	var saveKV, saveCache, isNew bool
+	var saveKV, saveCache, isNew, labelChanged bool
 	if origin == nil {
 		c.logger.Debug("insert new resource",
 			zap.Uint64("reosurce", res.Meta.ID()))
-		saveKV, saveCache, isNew = true, true, true
+		saveKV, saveCache, isNew, labelChanged = true, true, true, true
 	} else {
 		r := res.Meta.Epoch()
 		o := origin.Meta.Epoch()
@@ -523,6 +537,10 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if !core.SortedPeersEqual(res.GetPendingPeers(), origin.GetPendingPeers()) {
 			saveCache = true
 		}
+		if !core.SortedLabelsEqual(res.Meta.Labels(), origin.Meta.Labels()) {
+			saveCache = true
+			labelChanged = true
+		}
 		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
 			saveKV, saveCache = true, true
 		}
@@ -541,6 +559,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			res.GetKeysRead() != origin.GetKeysRead() {
 			saveCache = true
 		}
+
 	}
 
 	if len(writeItems) == 0 && len(readItems) == 0 && !saveKV && !saveCache && !isNew {
@@ -633,10 +652,17 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 	c.RLock()
 	if saveKV || saveCache || isNew {
-		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+		if c.changedEvents != nil {
+			c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+		}
 	}
 	if saveCache {
-		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
+		if c.changedEvents != nil {
+			c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
+		}
+	}
+	if labelChanged {
+		c.core.ResetSchedulingResourceGroup(res.Meta.Group())
 	}
 	c.RUnlock()
 
@@ -798,6 +824,10 @@ func (c *RaftCluster) GetContainers() []*core.CachedContainer {
 // GetContainer gets container from cluster.
 func (c *RaftCluster) GetContainer(containerID uint64) *core.CachedContainer {
 	return c.core.GetContainer(containerID)
+}
+
+func (c *RaftCluster) GetResourcesGroupByRule(group uint64) [][]*core.CachedResource {
+	return c.core.GetResourcesGroupByRule(group)
 }
 
 // IsResourceHot checks if a resource is in hot state.

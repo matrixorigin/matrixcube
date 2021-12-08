@@ -118,6 +118,14 @@ func (ra *resourceAdapter) SetRuleGroups(values ...string) {
 	ra.meta.RuleGroups = values
 }
 
+func (ra *resourceAdapter) Labels() []metapb.Pair {
+	return ra.meta.Labels
+}
+
+func (ra *resourceAdapter) SetLabels(labels []metapb.Pair) {
+	ra.meta.Labels = labels
+}
+
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
 	return protoc.MustMarshal(&ra.meta), nil
 }

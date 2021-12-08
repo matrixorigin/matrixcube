@@ -146,80 +146,91 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 
 	opts := cluster.GetOpts()
 	containers = filter.SelectSourceContainers(containers, s.filters, opts)
+	var ops []*operator.Operator
+	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+		v := s.scheduleByGroup(group, cluster, containers)
+		if len(v) > 0 {
+			ops = append(ops, v...)
+		}
+	}
+	return ops
+}
+
+func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Cluster, containers []*core.CachedContainer) []*operator.Operator {
+	opts := cluster.GetOpts()
 	opInfluence := s.opController.GetOpInfluence(cluster)
 	kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
 
-	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
-		sort.Slice(containers, func(i, j int) bool {
-			iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
-			jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
-			return containers[i].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
-				containers[j].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
-		})
-		for _, source := range containers {
-			sourceID := source.Meta.ID()
+	sort.Slice(containers, func(i, j int) bool {
+		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
+		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
+		return containers[i].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
+			containers[j].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
+	})
 
-			for i := 0; i < balanceResourceRetryLimit; i++ {
-				// Priority pick the Resource that has a pending peer.
-				// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-				res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-				if res == nil {
-					// Then pick the Resource that has a follower in the source store.
-					res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-				}
-				if res == nil {
-					// Then pick the Resource has the leader in the source store.
-					res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-				}
-				if res == nil {
-					// Finally pick learner.
-					res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
-				}
-				if res == nil {
-					schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
-					continue
-				}
+	for _, source := range containers {
+		sourceID := source.Meta.ID()
 
-				if len(containers) > 1 {
-					cluster.GetLogger().Debug("scheduler select resource",
-						rebalanceResourceField,
-						s.scheduleField,
-						resourceField(res.Meta.ID()))
-				}
+		for i := 0; i < balanceResourceRetryLimit; i++ {
+			// Priority pick the Resource that has a pending peer.
+			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
+			res := cluster.RandPendingResource(sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			if res == nil {
+				// Then pick the Resource that has a follower in the source container.
+				res = cluster.RandFollowerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			}
+			if res == nil {
+				// Then pick the Resource has the leader in the source container.
+				res = cluster.RandLeaderResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			}
+			if res == nil {
+				// Finally pick learner.
+				res = cluster.RandLearnerResource(sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			}
+			if res == nil {
+				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
+				continue
+			}
 
-				// Skip hot resources.
-				if cluster.IsResourceHot(res) {
-					cluster.GetLogger().Debug("skip hot resource",
-						rebalanceResourceField,
-						s.scheduleField,
-						resourceField(res.Meta.ID()))
-					schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
-					continue
-				}
-				// Check resource whether have leader
-				if res.GetLeader() == nil {
-					cluster.GetLogger().Debug("resource missing leader",
-						rebalanceResourceField,
-						s.scheduleField,
-						resourceField(res.Meta.ID()))
-					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
-					continue
-				}
-				// Skip destroyed res
-				if res.IsDestroyState() {
-					cluster.GetLogger().Debug("resource in destroy state",
-						rebalanceResourceField,
-						s.scheduleField,
-						resourceField(res.Meta.ID()))
-					schedulerCounter.WithLabelValues(s.GetName(), "destory").Inc()
-					continue
-				}
+			if len(containers) > 1 {
+				cluster.GetLogger().Debug("scheduler select resource",
+					rebalanceResourceField,
+					s.scheduleField,
+					resourceField(res.Meta.ID()))
+			}
 
-				oldPeer, _ := res.GetContainerPeer(sourceID)
-				if op := s.transferPeer(group, cluster, res, oldPeer); op != nil {
-					op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
-					return []*operator.Operator{op}
-				}
+			// Skip hot resources.
+			if cluster.IsResourceHot(res) {
+				cluster.GetLogger().Debug("skip hot resource",
+					rebalanceResourceField,
+					s.scheduleField,
+					resourceField(res.Meta.ID()))
+				schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
+				continue
+			}
+			// Check resource whether have leader
+			if res.GetLeader() == nil {
+				cluster.GetLogger().Debug("resource missing leader",
+					rebalanceResourceField,
+					s.scheduleField,
+					resourceField(res.Meta.ID()))
+				schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
+				continue
+			}
+			// Skip destroyed res
+			if res.IsDestroyState() {
+				cluster.GetLogger().Debug("resource in destroy state",
+					rebalanceResourceField,
+					s.scheduleField,
+					resourceField(res.Meta.ID()))
+				schedulerCounter.WithLabelValues(s.GetName(), "destory").Inc()
+				continue
+			}
+
+			oldPeer, _ := res.GetContainerPeer(sourceID)
+			if op := s.transferPeer(group, cluster, res, oldPeer); op != nil {
+				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
+				return []*operator.Operator{op}
 			}
 		}
 	}

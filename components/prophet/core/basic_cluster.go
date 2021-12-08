@@ -38,6 +38,8 @@ type BasicCluster struct {
 	DestroyedResources      *roaring64.Bitmap
 	WaittingCreateResources map[uint64]metadata.Resource
 	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
+	ResourceRules           map[uint64][]metapb.ResourceGroupRule // resource group id -> rules
+	SchedulingResourceGroup map[uint64][][]*CachedResource        // resource group id -> shard groups
 }
 
 // NewBasicCluster creates a BasicCluster.
@@ -51,6 +53,42 @@ func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *Basi
 	return bc
 }
 
+// ResetSchedulingResourceGroup reset reosurce scheduling group by shard group id
+func (bc *BasicCluster) ResetSchedulingResourceGroup(group uint64) {
+	bc.Lock()
+	defer bc.Lock()
+	bc.resetSchedulingResourceGroupLocked(group)
+}
+
+func (bc *BasicCluster) resetSchedulingResourceGroupLocked(group uint64) {
+	rules := bc.ResourceRules[group]
+	if len(rules) == 0 {
+		bc.SchedulingResourceGroup[group] = [][]*CachedResource{bc.Resources.GetResources()}
+		return
+	}
+
+	resources := make(map[string][]*CachedResource)
+	bc.Resources.ForeachCachedResources(group, func(res *CachedResource) {
+		labels := res.Meta.Labels()
+		m := make(map[string]string, len(labels))
+		for _, l := range labels {
+			m[l.Key] = l.Value
+		}
+
+		key := ""
+		for _, r := range rules {
+			if v, ok := m[r.GroupByLabel]; ok {
+				key += v
+			}
+		}
+
+		resources[key] = append(resources[key], res)
+	})
+	for _, v := range resources {
+		bc.SchedulingResourceGroup[group] = append(bc.SchedulingResourceGroup[group], v)
+	}
+}
+
 // Reset reset Basic Cluster info
 func (bc *BasicCluster) Reset() {
 	bc.Lock()
@@ -60,6 +98,7 @@ func (bc *BasicCluster) Reset() {
 	bc.Resources = NewCachedResources(bc.factory)
 	bc.DestroyedResources = roaring64.NewBitmap()
 	bc.WaittingCreateResources = make(map[uint64]metadata.Resource)
+	bc.ResourceRules = make(map[uint64][]metapb.ResourceGroupRule)
 }
 
 // AddRemovedResources add removed resources
@@ -172,6 +211,14 @@ func (bc *BasicCluster) GetResources() []*CachedResource {
 	return bc.Resources.GetResources()
 }
 
+// GetResourcesGroupByRule group resources according to resource label
+func (bc *BasicCluster) GetResourcesGroupByRule(group uint64) [][]*CachedResource {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	return bc.SchedulingResourceGroup[group]
+}
+
 // GetMetaResources gets a set of metadata.Resource from resourceMap.
 func (bc *BasicCluster) GetMetaResources() []metadata.Resource {
 	bc.RLock()
@@ -259,9 +306,9 @@ func (bc *BasicCluster) UpdateContainerStatus(group, containerID uint64, leaderC
 const randomResourceMaxRetry = 10
 
 // RandFollowerResource returns a random resource that has a follower on the container.
-func (bc *BasicCluster) RandFollowerResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) RandFollowerResource(groupID uint64, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
 	bc.RLock()
-	resources := bc.Resources.RandFollowerResources(containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Resources.RandFollowerResources(groupID, containerID, ranges, randomResourceMaxRetry)
 	bc.RUnlock()
 	return bc.selectResource(resources, opts...)
 }
@@ -461,6 +508,7 @@ func (bc *BasicCluster) RemoveResource(res *CachedResource) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.Resources.RemoveResource(res)
+	bc.resetSchedulingResourceGroupLocked(res.Meta.Group())
 }
 
 // SearchResource searches CachedResource from resourceTree.
@@ -515,10 +563,40 @@ func (bc *BasicCluster) UpdateDestroyingStatus(id uint64, status *metapb.Destroy
 	bc.DestroyingStatuses[id] = status
 }
 
+func (bc *BasicCluster) AddResourceGroupRule(rule metapb.ResourceGroupRule) {
+	bc.Lock()
+	defer bc.Unlock()
+	rules, ok := bc.ResourceRules[rule.GroupID]
+	if !ok {
+		rules = []metapb.ResourceGroupRule{rule}
+		bc.ResourceRules[rule.GroupID] = rules
+		return
+	}
+
+	for _, r := range rules {
+		if r.GroupByLabel == rule.GroupByLabel {
+			return
+		}
+	}
+	bc.ResourceRules[rule.GroupID] = rules
+}
+
+// GetResourceCount gets the total count of group rules
+func (bc *BasicCluster) GetResourceGroupRuleCount() int {
+	bc.RLock()
+	defer bc.RUnlock()
+	n := 0
+	for _, rules := range bc.ResourceRules {
+		n += len(rules)
+	}
+	return n
+}
+
 // ResourceSetInformer provides access to a shared informer of resources.
 type ResourceSetInformer interface {
+	GetResourcesGroupByRule(group uint64) [][]*CachedResource
 	GetResourceCount() int
-	RandFollowerResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
+	RandFollowerResource(group, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	RandLeaderResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	RandLearnerResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	RandPendingResource(containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource

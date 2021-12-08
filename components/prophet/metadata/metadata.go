@@ -58,6 +58,10 @@ type Resource interface {
 	RuleGroups() []string
 	// SetRuleGroups set rule groups
 	SetRuleGroups(...string)
+	// Labels returns the lable tag of the resource
+	Labels() []metapb.Pair
+	// SetLabels set labels
+	SetLabels(labels []metapb.Pair)
 	// Clone returns the cloned value
 	Clone() Resource
 	// Marshal returns error if marshal failed
