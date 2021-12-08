@@ -86,8 +86,11 @@ type replica struct {
 	actions              *task.Queue
 	items                []interface{}
 	appliedIndex         uint64
-	stats                *replicaStats
-	metrics              localMetrics
+	// pushedIndex is the log index that has been passed to the state machine to
+	// be applied
+	pushedIndex uint64
+	stats       *replicaStats
+	metrics     localMetrics
 
 	initialized bool
 	closedC     chan struct{}
@@ -291,6 +294,7 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 
 	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
+	pr.pushedIndex = persistentLogIndex
 	pr.logger.Info("applied index loaded",
 		zap.Uint64("applied-index", pr.appliedIndex))
 	return nil
