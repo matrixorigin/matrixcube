@@ -161,12 +161,27 @@ func getKeyRanges(args []string) ([]core.KeyRange, error) {
 			return nil, err
 		}
 		ranges = append(ranges, core.NewKeyRange(groupID, startKey, endKey))
+		args = args[3:]
 	}
 	return ranges, nil
 }
 
 func groupKeyRanges(ranges []core.KeyRange, groups []uint64) map[uint64][]core.KeyRange {
-	groups
+	groupRanges := make(map[uint64][]core.KeyRange)
+	for _, groupID := range groups {
+		var rs []core.KeyRange
+		for _, r := range ranges {
+			if r.Group == groupID {
+				rs = append(rs, r)
+			}
+		}
+
+		if len(rs) == 0 {
+			rs = append(rs, core.NewKeyRange(groupID, "", ""))
+		}
+		groupRanges[groupID] = rs
+	}
+	return groupRanges
 }
 
 // Influence records operator influence.

@@ -1367,8 +1367,13 @@ func (checker *prepareChecker) check(c *RaftCluster) bool {
 			continue
 		}
 		containerID := container.Meta.ID()
+		n := 0
+		for _, group := range c.GetReplicationConfig().Groups {
+			n += c.core.GetContainerResourceCount(group, containerID)
+		}
+
 		// For each container, the number of active resources should be more than total resource of the container * collectFactor
-		if float64(c.core.GetContainerResourceCount(containerID))*collectFactor > float64(checker.reactiveResources[containerID]) {
+		if float64(n)*collectFactor > float64(checker.reactiveResources[containerID]) {
 			return false
 		}
 	}

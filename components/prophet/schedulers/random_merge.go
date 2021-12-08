@@ -61,8 +61,9 @@ func init() {
 }
 
 type randomMergeSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type randomMergeScheduler struct {
@@ -74,6 +75,8 @@ type randomMergeScheduler struct {
 // then merges them.
 func newRandomMergeScheduler(opController *schedule.OperatorController, conf *randomMergeSchedulerConfig) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	return &randomMergeScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -110,7 +113,18 @@ func (s *randomMergeScheduler) Schedule(cluster opt.Cluster) []*operator.Operato
 		schedulerCounter.WithLabelValues(s.GetName(), "no-source-container").Inc()
 		return nil
 	}
-	res := cluster.RandLeaderResource(container.Meta.ID(), s.conf.Ranges, opt.HealthResource(cluster))
+
+	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+		ops := s.scheduleByGroup(group, container, cluster)
+		if len(ops) > 0 {
+			return ops
+		}
+	}
+	return nil
+}
+
+func (s *randomMergeScheduler) scheduleByGroup(group uint64, container *core.CachedContainer, cluster opt.Cluster) []*operator.Operator {
+	res := cluster.RandLeaderResource(group, container.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 		return nil

@@ -104,13 +104,13 @@ func (r *RangeCluster) GetTolerantSizeRatio() float64 {
 }
 
 // RandFollowerResource returns a random resource that has a follower on the Container.
-func (r *RangeCluster) RandFollowerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandFollowerResource(r.group, containerID, ranges, opts...)
+func (r *RangeCluster) RandFollowerResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return r.subCluster.RandFollowerResource(groupID, containerID, ranges, opts...)
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
-func (r *RangeCluster) RandLeaderResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandLeaderResource(r.group, containerID, ranges, opts...)
+func (r *RangeCluster) RandLeaderResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return r.subCluster.RandLeaderResource(groupID, containerID, ranges, opts...)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.

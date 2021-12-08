@@ -45,9 +45,10 @@ type BasicCluster struct {
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *BasicCluster {
 	bc := &BasicCluster{
-		factory:            factory,
-		logger:             log.Adjust(logger),
-		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
+		factory:                 factory,
+		logger:                  log.Adjust(logger),
+		DestroyingStatuses:      make(map[uint64]*metapb.DestroyingStatus),
+		SchedulingResourceGroup: make(map[uint64][][]*CachedResource),
 	}
 	bc.Reset()
 	return bc
@@ -56,7 +57,7 @@ func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *Basi
 // ResetSchedulingResourceGroup reset reosurce scheduling group by shard group id
 func (bc *BasicCluster) ResetSchedulingResourceGroup(group uint64) {
 	bc.Lock()
-	defer bc.Lock()
+	defer bc.Unlock()
 	bc.resetSchedulingResourceGroupLocked(group)
 }
 

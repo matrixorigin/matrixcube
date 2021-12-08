@@ -75,10 +75,11 @@ func init() {
 }
 
 type evictLeaderSchedulerConfig struct {
-	mu                    sync.RWMutex
-	storage               storage.Storage
-	ContainerIDWithRanges map[uint64][]core.KeyRange `json:"container-id-ranges"`
-	cluster               opt.Cluster
+	mu                         sync.RWMutex
+	storage                    storage.Storage
+	ContainerIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
+	cluster                    opt.Cluster
+	groupContainerIDWithRanges map[uint64]map[uint64][]core.KeyRange
 }
 
 func (conf *evictLeaderSchedulerConfig) BuildWithArgs(args []string) error {
@@ -132,6 +133,14 @@ type evictLeaderScheduler struct {
 // out of a container.
 func newEvictLeaderScheduler(opController *schedule.OperatorController, conf *evictLeaderSchedulerConfig) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
+	conf.groupContainerIDWithRanges = make(map[uint64]map[uint64][]core.KeyRange)
+	for _, group := range conf.cluster.GetOpts().GetReplicationConfig().Groups {
+		ms := make(map[uint64][]core.KeyRange)
+		for cid, rs := range conf.ContainerIDWithRanges {
+			ms[cid] = groupKeyRanges(rs, []uint64{group})[group]
+		}
+		conf.groupContainerIDWithRanges[group] = ms
+	}
 	return &evictLeaderScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -182,29 +191,30 @@ func (s *evictLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 
 func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Operator {
 	var ops []*operator.Operator
-	for id, ranges := range s.conf.ContainerIDWithRanges {
-		res := cluster.RandLeaderResource(id, ranges, opt.HealthResource(cluster))
-		if res == nil {
-			schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
-			continue
+	for group, ms := range s.conf.groupContainerIDWithRanges {
+		for id, ranges := range ms {
+			res := cluster.RandLeaderResource(group, id, ranges, opt.HealthResource(cluster))
+			if res == nil {
+				schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
+				continue
+			}
+			target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
+				FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
+				RandomPick()
+			if target == nil {
+				schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
+				continue
+			}
+			op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
+			if err != nil {
+				cluster.GetLogger().Debug("fail to create evict leader operator",
+					zap.Error(err))
+				continue
+			}
+			op.SetPriorityLevel(core.HighPriority)
+			op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
+			ops = append(ops, op)
 		}
-
-		target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
-			FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
-			RandomPick()
-		if target == nil {
-			schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
-			continue
-		}
-		op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
-		if err != nil {
-			cluster.GetLogger().Debug("fail to create evict leader operator",
-				zap.Error(err))
-			continue
-		}
-		op.SetPriorityLevel(core.HighPriority)
-		op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
-		ops = append(ops, op)
 	}
 	return ops
 }

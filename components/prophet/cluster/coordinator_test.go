@@ -758,7 +758,7 @@ func TestContainerOverloaded(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt := tc.GetOpts()
 	assert.Nil(t, tc.addResourceContainer(4, 100))
@@ -809,7 +809,7 @@ func TestContainerOverloadedWithReplace(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	assert.Nil(t, tc.addResourceContainer(4, 100))
@@ -858,7 +858,7 @@ func TestController(t *testing.T) {
 
 	assert.Nil(t, tc.addLeaderResource(1, 1))
 	assert.Nil(t, tc.addLeaderResource(2, 2))
-	scheduler, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"", ""}))
+	scheduler, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	lb := &mockLimitScheduler{
 		Scheduler: scheduler,
@@ -946,7 +946,7 @@ func TestInterval(t *testing.T) {
 	_, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 
-	lb, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, co.opController, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, co.opController, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	sc := newScheduleController(co, lb)
 

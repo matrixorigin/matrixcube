@@ -84,7 +84,7 @@ type balanceLeaderScheduler struct {
 // each container balanced.
 func newBalanceLeaderScheduler(opController *schedule.OperatorController, conf *balanceLeaderSchedulerConfig, options ...BalanceLeaderCreateOption) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
-
+	conf.groupRanges = groupKeyRanges(conf.Ranges, opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	s := &balanceLeaderScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -219,7 +219,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 // the best follower peer and transfers the leader.
 func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Cluster, source *core.CachedContainer, opInfluence operator.OpInfluence) []*operator.Operator {
 	sourceID := source.Meta.ID()
-	resource := cluster.RandLeaderResource(group, sourceID, l.conf.Ranges, opt.HealthResource(cluster))
+	resource := cluster.RandLeaderResource(group, sourceID, l.conf.groupRanges[group], opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no leader, nothing to do",
 			rebalanceLeaderField,
@@ -262,7 +262,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 // the worst follower peer and transfers the leader.
 func (l *balanceLeaderScheduler) transferLeaderIn(group uint64, cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
 	targetID := target.Meta.ID()
-	resource := cluster.RandFollowerResource(group, targetID, l.conf.Ranges, opt.HealthResource(cluster))
+	resource := cluster.RandFollowerResource(group, targetID, l.conf.groupRanges[group], opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no folower, nothing to do",
 			rebalanceLeaderField,

@@ -60,8 +60,9 @@ func init() {
 }
 
 type shuffleLeaderSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type shuffleLeaderScheduler struct {
@@ -78,6 +79,8 @@ func newShuffleLeaderScheduler(opController *schedule.OperatorController, conf *
 		filter.NewSpecialUseFilter(conf.Name),
 	}
 	base := NewBaseScheduler(opController)
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	return &shuffleLeaderScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -117,7 +120,18 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 		schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
 		return nil
 	}
-	res := cluster.RandFollowerResource(targetContainer.Meta.ID(), s.conf.Ranges, opt.HealthResource(cluster))
+
+	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+		ops := s.scheduleByGroup(group, targetContainer, cluster)
+		if len(ops) > 0 {
+			return ops
+		}
+	}
+	return nil
+}
+
+func (s *shuffleLeaderScheduler) scheduleByGroup(group uint64, targetContainer *core.CachedContainer, cluster opt.Cluster) []*operator.Operator {
+	res := cluster.RandFollowerResource(group, targetContainer.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-follower").Inc()
 		return nil

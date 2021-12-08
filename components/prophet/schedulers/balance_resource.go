@@ -65,8 +65,9 @@ const (
 )
 
 type balanceResourceSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"` // TODO: by group
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type balanceResourceScheduler struct {
@@ -83,6 +84,8 @@ type balanceResourceScheduler struct {
 // each container balanced.
 func newBalanceResourceScheduler(opController *schedule.OperatorController, conf *balanceResourceSchedulerConfig, opts ...BalanceResourceCreateOption) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	scheduler := &balanceResourceScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -146,14 +149,13 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 
 	opts := cluster.GetOpts()
 	containers = filter.SelectSourceContainers(containers, s.filters, opts)
-	var ops []*operator.Operator
 	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
-		v := s.scheduleByGroup(group, cluster, containers)
-		if len(v) > 0 {
-			ops = append(ops, v...)
+		ops := s.scheduleByGroup(group, cluster, containers)
+		if len(ops) > 0 {
+			return ops
 		}
 	}
-	return ops
+	return nil
 }
 
 func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Cluster, containers []*core.CachedContainer) []*operator.Operator {
@@ -174,18 +176,18 @@ func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Clu
 		for i := 0; i < balanceResourceRetryLimit; i++ {
 			// Priority pick the Resource that has a pending peer.
 			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-			res := cluster.RandPendingResource(group, sourceID, s.conf.Ranges, opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			res := cluster.RandPendingResource(group, sourceID, s.conf.groupRanges[group], opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			if res == nil {
 				// Then pick the Resource that has a follower in the source container.
-				res = cluster.RandFollowerResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandFollowerResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Then pick the Resource has the leader in the source container.
-				res = cluster.RandLeaderResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLeaderResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Finally pick learner.
-				res = cluster.RandLearnerResource(group, sourceID, s.conf.Ranges, opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLearnerResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()

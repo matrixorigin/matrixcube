@@ -72,6 +72,8 @@ func newShuffleResourceScheduler(opController *schedule.OperatorController, conf
 		filter.NewSpecialUseFilter(ShuffleResourceName),
 	}
 	base := NewBaseScheduler(opController)
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	return &shuffleResourceScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -129,24 +131,26 @@ func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*cor
 		Shuffle()
 
 	for _, source := range candidates.Containers {
-		var res *core.CachedResource
-		if s.conf.IsRoleAllow(roleFollower) {
-			res = cluster.RandFollowerResource(source.Meta.ID(), s.conf.GetRanges(), opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
-		}
-		if res == nil && s.conf.IsRoleAllow(roleLeader) {
-			res = cluster.RandLeaderResource(source.Meta.ID(), s.conf.GetRanges(), opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
-		}
-		if res == nil && s.conf.IsRoleAllow(roleLearner) {
-			res = cluster.RandLearnerResource(source.Meta.ID(), s.conf.GetRanges(), opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
-		}
-		if res != nil {
-			if p, ok := res.GetContainerPeer(source.Meta.ID()); ok {
-				return res, p
+		for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+			var res *core.CachedResource
+			if s.conf.IsRoleAllow(roleFollower) {
+				res = cluster.RandFollowerResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
 			}
+			if res == nil && s.conf.IsRoleAllow(roleLeader) {
+				res = cluster.RandLeaderResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+			}
+			if res == nil && s.conf.IsRoleAllow(roleLearner) {
+				res = cluster.RandLearnerResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+			}
+			if res != nil {
+				if p, ok := res.GetContainerPeer(source.Meta.ID()); ok {
+					return res, p
+				}
 
-			return nil, metapb.Replica{}
+				return nil, metapb.Replica{}
+			}
+			schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 		}
-		schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 	}
 
 	schedulerCounter.WithLabelValues(s.GetName(), "no-source-container").Inc()
