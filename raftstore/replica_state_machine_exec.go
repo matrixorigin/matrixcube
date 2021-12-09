@@ -80,6 +80,8 @@ func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
 	// raft log entries that might be required after reboot.
 	persistentLogIndex, err := d.dataStorage.GetPersistentLogIndex(d.shardID)
 	if err != nil {
+		d.logger.Error("failed to get persistent log index",
+			zap.Error(err))
 		return 0, err
 	}
 	if index > persistentLogIndex {
