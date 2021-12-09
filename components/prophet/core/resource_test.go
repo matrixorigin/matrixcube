@@ -359,17 +359,17 @@ func checkResources(t *testing.T, resources *CachedResources, msg string) {
 			}
 		}
 	}
-	resources.maybeInitWithGroup(0)
-	for key, value := range resources.leaders[0] {
+	resources.maybeInitWithGroup("")
+	for key, value := range resources.leaders[""] {
 		assert.Equal(t, int(leaderMap[key]), value.length(), msg)
 	}
-	for key, value := range resources.followers[0] {
+	for key, value := range resources.followers[""] {
 		assert.Equal(t, int(followerMap[key]), value.length(), msg)
 	}
-	for key, value := range resources.learners[0] {
+	for key, value := range resources.learners[""] {
 		assert.Equal(t, int(learnerMap[key]), value.length(), msg)
 	}
-	for key, value := range resources.pendingReplicas[0] {
+	for key, value := range resources.pendingReplicas[""] {
 		assert.Equal(t, int(pendingPeerMap[key]), value.length(), msg)
 	}
 }

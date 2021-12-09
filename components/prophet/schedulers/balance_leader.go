@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -152,7 +153,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	sources := filter.SelectSourceContainers(containers, l.filters, cluster.GetOpts())
 	targets := filter.SelectTargetContainers(containers, l.filters, cluster.GetOpts())
 	kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
-	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+	for _, group := range cluster.GetScheduleGroupKeys() {
 		sort.Slice(sources, func(i, j int) bool {
 			iOp := opInfluence.GetContainerInfluence(sources[i].Meta.ID()).ResourceProperty(kind)
 			jOp := opInfluence.GetContainerInfluence(sources[j].Meta.ID()).ResourceProperty(kind)
@@ -217,9 +218,9 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 // transferLeaderOut transfers leader from the source container.
 // It randomly selects a health resource from the source container, then picks
 // the best follower peer and transfers the leader.
-func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Cluster, source *core.CachedContainer, opInfluence operator.OpInfluence) []*operator.Operator {
+func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.Cluster, source *core.CachedContainer, opInfluence operator.OpInfluence) []*operator.Operator {
 	sourceID := source.Meta.ID()
-	resource := cluster.RandLeaderResource(group, sourceID, l.conf.groupRanges[group], opt.HealthResource(cluster))
+	resource := cluster.RandLeaderResource(groupKey, sourceID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no leader, nothing to do",
 			rebalanceLeaderField,
@@ -240,7 +241,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 		kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
 		iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind)
 		jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind)
-		return targets[i].LeaderScore(group, leaderSchedulePolicy, iOp) < targets[j].LeaderScore(group, leaderSchedulePolicy, jOp)
+		return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) < targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 	})
 	for _, target := range targets {
 		if op := l.createOperator(cluster, resource, source, target); len(op) > 0 {
@@ -260,9 +261,9 @@ func (l *balanceLeaderScheduler) transferLeaderOut(group uint64, cluster opt.Clu
 // transferLeaderIn transfers leader to the target container.
 // It randomly selects a health resource from the target container, then picks
 // the worst follower peer and transfers the leader.
-func (l *balanceLeaderScheduler) transferLeaderIn(group uint64, cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
+func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
 	targetID := target.Meta.ID()
-	resource := cluster.RandFollowerResource(group, targetID, l.conf.groupRanges[group], opt.HealthResource(cluster))
+	resource := cluster.RandFollowerResource(groupKey, targetID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no folower, nothing to do",
 			rebalanceLeaderField,

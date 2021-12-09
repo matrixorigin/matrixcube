@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.uber.org/zap"
 )
 
@@ -118,8 +119,8 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	cluster.GetLogger().Debug("label scheduler reject leader container list",
 		zap.Any("reject-containers", rejectLeaderContainers))
 	for id := range rejectLeaderContainers {
-		for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
-			if res := cluster.RandLeaderResource(group, id, s.conf.groupRanges[group]); res != nil {
+		for _, groupKey := range cluster.GetScheduleGroupKeys() {
+			if res := cluster.RandLeaderResource(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
 				cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
 					resourceField(res.Meta.ID()))
 				excludeContainers := make(map[uint64]struct{})

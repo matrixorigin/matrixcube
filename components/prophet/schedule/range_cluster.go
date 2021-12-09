@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 // RangeCluster isolates the cluster by range.
@@ -51,23 +52,35 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 		return s
 	}
 
-	amplification := float64(s.GetResourceSize(r.group)) / used
-	leaderCount := r.subCluster.GetContainerLeaderCount(r.group, id)
-	leaderSize := r.subCluster.GetContainerLeaderResourceSize(r.group, id)
-	resourceCount := r.subCluster.GetContainerResourceCount(r.group, id)
-	resourceSize := r.subCluster.GetContainerResourceSize(r.group, id)
-	pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(r.group, id)
+	groupKeys := r.Cluster.GetScheduleGroupKeysWithPrefix(util.EncodeGroupKey(r.group, nil, nil))
+	var amplification float64
+	var opts []core.ContainerCreateOption
+	var totalResourceSize int64
+	for _, groupKey := range groupKeys {
+		amplification += float64(s.GetResourceSize(groupKey))
+		leaderCount := r.subCluster.GetContainerLeaderCount(groupKey, id)
+		opts = append(opts, core.SetLeaderCount(groupKey, leaderCount))
+
+		leaderSize := r.subCluster.GetContainerLeaderResourceSize(groupKey, id)
+		opts = append(opts, core.SetLeaderSize(groupKey, leaderSize))
+
+		resourceCount := r.subCluster.GetContainerResourceCount(groupKey, id)
+		opts = append(opts, core.SetResourceCount(groupKey, resourceCount))
+
+		resourceSize := r.subCluster.GetContainerResourceSize(groupKey, id)
+		totalResourceSize += resourceSize
+		opts = append(opts, core.SetResourceSize(groupKey, resourceSize))
+
+		pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(groupKey, id)
+		opts = append(opts, core.SetPendingPeerCount(groupKey, pendingPeerCount))
+	}
+
+	amplification = amplification / used
 	newStats := proto.Clone(s.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.UsedSize = uint64(float64(resourceSize)/amplification) * (1 << 20)
+	newStats.UsedSize = uint64(float64(totalResourceSize)/amplification) * (1 << 20)
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
-	newContainer := s.Clone(
-		core.SetNewContainerStats(newStats), // it means to use instant value directly
-		core.SetLeaderCount(r.group, leaderCount),
-		core.SetResourceCount(r.group, resourceCount),
-		core.SetPendingPeerCount(r.group, pendingPeerCount),
-		core.SetLeaderSize(r.group, leaderSize),
-		core.SetResourceSize(r.group, resourceSize),
-	)
+	opts = append(opts, core.SetNewContainerStats(newStats))
+	newContainer := s.Clone(opts...)
 	return newContainer
 }
 
@@ -104,13 +117,13 @@ func (r *RangeCluster) GetTolerantSizeRatio() float64 {
 }
 
 // RandFollowerResource returns a random resource that has a follower on the Container.
-func (r *RangeCluster) RandFollowerResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandFollowerResource(groupID, containerID, ranges, opts...)
+func (r *RangeCluster) RandFollowerResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return r.subCluster.RandFollowerResource(groupKey, containerID, ranges, opts...)
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
-func (r *RangeCluster) RandLeaderResource(groupID, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandLeaderResource(groupID, containerID, ranges, opts...)
+func (r *RangeCluster) RandLeaderResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return r.subCluster.RandLeaderResource(groupKey, containerID, ranges, opts...)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.

@@ -62,11 +62,11 @@ func shouldBalance(cluster opt.Cluster,
 	opts := cluster.GetOpts()
 	switch kind.ResourceKind {
 	case metapb.ResourceKind_LeaderKind:
-		sourceScore = source.LeaderScore(res.Meta.Group(), kind.Policy, sourceDelta)
-		targetScore = target.LeaderScore(res.Meta.Group(), kind.Policy, targetDelta)
+		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
+		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
 	case metapb.ResourceKind_ReplicaKind:
-		sourceScore = source.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
-		targetScore = target.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
+		sourceScore = source.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
+		targetScore = target.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
 	if opts.IsDebugMetricsEnabled() {
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), "source").Set(float64(sourceInfluence))
@@ -83,8 +83,8 @@ func shouldBalance(cluster opt.Cluster,
 			zap.String("schedule", scheduleName),
 			sourceField(sourceID),
 			targetField(targetID),
-			zap.Int64("source-size", source.GetResourceSize(res.Meta.Group())),
-			zap.Int64("target-size", source.GetResourceSize(res.Meta.Group())),
+			zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
+			zap.Int64("target-size", source.GetResourceSize(res.GetGroupKey())),
 			zap.Int64("average-size", cluster.GetAverageResourceSize()),
 			zap.Int64("source-influence", sourceInfluence),
 			zap.Int64("target-influence", targetInfluence),
@@ -109,17 +109,17 @@ func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind cor
 	if resourceSize < cluster.GetAverageResourceSize() {
 		resourceSize = cluster.GetAverageResourceSize()
 	}
-	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(res.Meta.Group(), cluster))
+	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(res.GetGroupKey(), cluster))
 	return resourceSize
 }
 
-func adjustTolerantRatio(groupID uint64, cluster opt.Cluster) float64 {
+func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 	tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 	if tolerantSizeRatio == 0 {
 		var maxResourceCount float64
 		containers := cluster.GetContainers()
 		for _, container := range containers {
-			resourceCount := float64(cluster.GetContainerResourceCount(groupID, container.Meta.ID()))
+			resourceCount := float64(cluster.GetContainerResourceCount(groupKey, container.Meta.ID()))
 			if maxResourceCount < resourceCount {
 				maxResourceCount = resourceCount
 			}
@@ -132,12 +132,12 @@ func adjustTolerantRatio(groupID uint64, cluster opt.Cluster) float64 {
 	return tolerantSizeRatio
 }
 
-func adjustBalanceLimit(group uint64, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
+func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
 	containers := cluster.GetContainers()
 	counts := make([]float64, 0, len(containers))
 	for _, s := range containers {
 		if s.IsUp() {
-			counts = append(counts, float64(s.ResourceCount(group, kind)))
+			counts = append(counts, float64(s.ResourceCount(groupKey, kind)))
 		}
 	}
 	limit, _ := stats.StandardDeviation(counts)

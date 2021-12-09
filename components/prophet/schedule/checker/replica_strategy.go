@@ -71,9 +71,9 @@ func (s *ReplicaStrategy) SelectContainerToAdd(coLocationContainers []*core.Cach
 	strictStateFilter := &filter.ContainerStateFilter{ActionScope: s.checkerName, MoveResource: true}
 	target := filter.NewCandidates(s.cluster.GetContainers()).
 		FilterTarget(s.cluster.GetOpts(), filters...).
-		Sort(isolationComparer).Reverse().Top(isolationComparer).                         // greater isolation score is better
-		Sort(filter.ResourceScoreComparer(s.resource.Meta.Group(), s.cluster.GetOpts())). // less resource score is better
-		FilterTarget(s.cluster.GetOpts(), strictStateFilter).PickFirst()                  // the filter does not ignore temp states
+		Sort(isolationComparer).Reverse().Top(isolationComparer).                          // greater isolation score is better
+		Sort(filter.ResourceScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())). // less resource score is better
+		FilterTarget(s.cluster.GetOpts(), strictStateFilter).PickFirst()                   // the filter does not ignore temp states
 	if target == nil {
 		return 0
 	}
@@ -119,7 +119,7 @@ func (s *ReplicaStrategy) SelectContainerToRemove(coLocationContainers []*core.C
 	source := filter.NewCandidates(coLocationContainers).
 		FilterSource(s.cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: replicaCheckerName, MoveResource: true}).
 		Sort(isolationComparer).Top(isolationComparer).
-		Sort(filter.ResourceScoreComparer(s.resource.Meta.Group(), s.cluster.GetOpts())).Reverse().
+		Sort(filter.ResourceScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())).Reverse().
 		PickFirst()
 	if source == nil {
 		s.cluster.GetLogger().Debug("resource no removable container",

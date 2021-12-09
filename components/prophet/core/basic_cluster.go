@@ -16,6 +16,7 @@ package core
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
@@ -24,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 	"go.uber.org/zap"
 )
@@ -260,6 +262,19 @@ func (bc *BasicCluster) GetScheduleGroupKeys() []string {
 	var keys []string
 	for k := range bc.ScheduleGroupKeys {
 		keys = append(keys, k)
+	}
+	return keys
+}
+
+func (bc *BasicCluster) GetScheduleGroupKeysWithPrefix(prefix string) []string {
+	bc.RLock()
+	defer bc.RUnlock()
+	var keys []string
+	for k := range bc.ScheduleGroupKeys {
+		if strings.HasPrefix(k, prefix) ||
+			(k == "" && prefix == string(util.EncodeGroupKey(0, nil, nil))) {
+			keys = append(keys, k)
+		}
 	}
 	return keys
 }
@@ -563,6 +578,7 @@ func (bc *BasicCluster) GetResourceGroupRuleCount() int {
 // ResourceSetInformer provides access to a shared informer of resources.
 type ResourceSetInformer interface {
 	GetScheduleGroupKeys() []string
+	GetScheduleGroupKeysWithPrefix(prefix string) []string
 	GetResourceCount() int
 	RandFollowerResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	RandLeaderResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource

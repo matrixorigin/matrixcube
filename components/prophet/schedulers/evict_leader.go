@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.uber.org/zap"
 )
 
@@ -192,28 +193,32 @@ func (s *evictLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Operator {
 	var ops []*operator.Operator
 	for group, ms := range s.conf.groupContainerIDWithRanges {
-		for id, ranges := range ms {
-			res := cluster.RandLeaderResource(group, id, ranges, opt.HealthResource(cluster))
-			if res == nil {
-				schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
-				continue
+		prefix := util.EncodeGroupKey(group, nil, nil)
+		for containerID, ranges := range ms {
+			groupKeys := cluster.GetScheduleGroupKeysWithPrefix(prefix)
+			for _, groupKey := range groupKeys {
+				res := cluster.RandLeaderResource(groupKey, containerID, ranges, opt.HealthResource(cluster))
+				if res == nil {
+					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
+					continue
+				}
+				target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
+					FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
+					RandomPick()
+				if target == nil {
+					schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
+					continue
+				}
+				op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
+				if err != nil {
+					cluster.GetLogger().Debug("fail to create evict leader operator",
+						zap.Error(err))
+					continue
+				}
+				op.SetPriorityLevel(core.HighPriority)
+				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
+				ops = append(ops, op)
 			}
-			target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
-				FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
-				RandomPick()
-			if target == nil {
-				schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
-				continue
-			}
-			op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
-			if err != nil {
-				cluster.GetLogger().Debug("fail to create evict leader operator",
-					zap.Error(err))
-				continue
-			}
-			op.SetPriorityLevel(core.HighPriority)
-			op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
-			ops = append(ops, op)
 		}
 	}
 	return ops

@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -149,7 +150,7 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 
 	opts := cluster.GetOpts()
 	containers = filter.SelectSourceContainers(containers, s.filters, opts)
-	for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+	for _, group := range cluster.GetScheduleGroupKeys() {
 		ops := s.scheduleByGroup(group, cluster, containers)
 		if len(ops) > 0 {
 			return ops
@@ -158,7 +159,7 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 	return nil
 }
 
-func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Cluster, containers []*core.CachedContainer) []*operator.Operator {
+func (s *balanceResourceScheduler) scheduleByGroup(groupKey string, cluster opt.Cluster, containers []*core.CachedContainer) []*operator.Operator {
 	opts := cluster.GetOpts()
 	opInfluence := s.opController.GetOpInfluence(cluster)
 	kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
@@ -166,28 +167,29 @@ func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Clu
 	sort.Slice(containers, func(i, j int) bool {
 		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
 		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
-		return containers[i].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
-			containers[j].ResourceScore(group, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
+		return containers[i].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
+			containers[j].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
 	})
 
+	groupID := util.DecodeGroupKey(groupKey)
 	for _, source := range containers {
 		sourceID := source.Meta.ID()
 
 		for i := 0; i < balanceResourceRetryLimit; i++ {
 			// Priority pick the Resource that has a pending peer.
 			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-			res := cluster.RandPendingResource(group, sourceID, s.conf.groupRanges[group], opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+			res := cluster.RandPendingResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			if res == nil {
 				// Then pick the Resource that has a follower in the source container.
-				res = cluster.RandFollowerResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandFollowerResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Then pick the Resource has the leader in the source container.
-				res = cluster.RandLeaderResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLeaderResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				// Finally pick learner.
-				res = cluster.RandLearnerResource(group, sourceID, s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLearnerResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
 			}
 			if res == nil {
 				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
@@ -230,7 +232,7 @@ func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Clu
 			}
 
 			oldPeer, _ := res.GetContainerPeer(sourceID)
-			if op := s.transferPeer(group, cluster, res, oldPeer); op != nil {
+			if op := s.transferPeer(groupKey, cluster, res, oldPeer); op != nil {
 				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
 				return []*operator.Operator{op}
 			}
@@ -240,7 +242,7 @@ func (s *balanceResourceScheduler) scheduleByGroup(group uint64, cluster opt.Clu
 }
 
 // transferPeer selects the best container to create a new peer to replace the old peer.
-func (s *balanceResourceScheduler) transferPeer(group uint64, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) *operator.Operator {
+func (s *balanceResourceScheduler) transferPeer(group string, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) *operator.Operator {
 	// scoreGuard guarantees that the distinct score will not decrease.
 	sourceContainerID := oldPeer.GetContainerID()
 	source := cluster.GetContainer(sourceContainerID)

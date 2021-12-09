@@ -181,9 +181,27 @@ func (cr *CachedContainer) GetLeaderCount(groupKey string) int {
 	return cr.leaderInfo[groupKey].count
 }
 
+// GetTotalLeaderCount returns the leader count of the container.
+func (cr *CachedContainer) GetTotalLeaderCount() int {
+	n := 0
+	for _, v := range cr.leaderInfo {
+		n += v.count
+	}
+	return n
+}
+
 // GetResourceCount returns the Resource count of the container.
 func (cr *CachedContainer) GetResourceCount(groupKey string) int {
 	return cr.resourceInfo[groupKey].count
+}
+
+// GetTotalResourceCount returns the Resource count of the container.
+func (cr *CachedContainer) GetTotalResourceCount() int {
+	n := 0
+	for _, v := range cr.resourceInfo {
+		n += v.count
+	}
+	return n
 }
 
 // GetLeaderSize returns the leader size of the container.
@@ -191,9 +209,27 @@ func (cr *CachedContainer) GetLeaderSize(groupKey string) int64 {
 	return cr.leaderInfo[groupKey].size
 }
 
+// GetTotalLeaderSize returns the leader size of the container.
+func (cr *CachedContainer) GetTotalLeaderSize() int64 {
+	n := int64(0)
+	for _, v := range cr.leaderInfo {
+		n += v.size
+	}
+	return n
+}
+
 // GetResourceSize returns the Resource size of the container.
 func (cr *CachedContainer) GetResourceSize(groupKey string) int64 {
 	return cr.resourceInfo[groupKey].size
+}
+
+// GetTotalResourceSize returns the Resource size of the container.
+func (cr *CachedContainer) GetTotalResourceSize() int64 {
+	n := int64(0)
+	for _, v := range cr.resourceInfo {
+		n += v.size
+	}
+	return n
 }
 
 // GetPendingPeerCount returns the pending peer count of the container.
@@ -339,17 +375,14 @@ func (cr *CachedContainer) AvailableRatio() float64 {
 }
 
 // IsLowSpace checks if the container is lack of space.
-func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64, groupKeys []string) bool {
+func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64) bool {
 	if cr.GetContainerStats() == nil {
 		return false
 	}
 	// issue #3444
-	for _, groupKey := range groupKeys {
-		if cr.GetResourceCount(groupKey) < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
-			return false
-		}
+	if cr.GetTotalResourceCount() < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
+		return false
 	}
-
 	return cr.AvailableRatio() < 1-lowSpaceRatio
 }
 

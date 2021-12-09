@@ -375,7 +375,7 @@ func TestResourceHeartbeat(t *testing.T) {
 		}
 	}
 	for id, count := range resourceCounts {
-		assert.Equal(t, count, cluster.GetContainerResourceCount(0, id))
+		assert.Equal(t, count, cluster.GetContainerResourceCount("", id))
 	}
 
 	for _, res := range cluster.GetResources() {
@@ -397,10 +397,10 @@ func TestResourceHeartbeat(t *testing.T) {
 	}
 
 	for _, container := range cluster.core.Containers.GetContainers() {
-		assert.Equal(t, container.GetLeaderCount(0), cluster.core.Resources.GetContainerLeaderCount(0, container.Meta.ID()))
-		assert.Equal(t, container.GetResourceCount(0), cluster.core.Resources.GetContainerResourceCount(0, container.Meta.ID()))
-		assert.Equal(t, container.GetLeaderSize(0), cluster.core.Resources.GetContainerLeaderResourceSize(0, container.Meta.ID()))
-		assert.Equal(t, container.GetResourceSize(0), cluster.core.Resources.GetContainerResourceSize(0, container.Meta.ID()))
+		assert.Equal(t, container.GetLeaderCount(""), cluster.core.Resources.GetContainerLeaderCount("", container.Meta.ID()))
+		assert.Equal(t, container.GetResourceCount(""), cluster.core.Resources.GetContainerResourceCount("", container.Meta.ID()))
+		assert.Equal(t, container.GetLeaderSize(""), cluster.core.Resources.GetContainerLeaderResourceSize("", container.Meta.ID()))
+		assert.Equal(t, container.GetResourceSize(""), cluster.core.Resources.GetContainerResourceSize("", container.Meta.ID()))
 	}
 
 	// Test with storage.
@@ -691,10 +691,10 @@ func TestResources(t *testing.T) {
 	}
 
 	for i := uint64(0); i < n; i++ {
-		res := tc.RandLeaderResource(0, i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
+		res := tc.RandLeaderResource("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
 		assert.Equal(t, i, res.GetLeader().GetContainerID())
 
-		res = tc.RandFollowerResource(0, i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
+		res = tc.RandFollowerResource("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
 		assert.NotEqual(t, i, res.GetLeader().GetContainerID())
 		_, ok := res.GetContainerPeer(i)
 		assert.True(t, ok)
@@ -709,15 +709,15 @@ func TestResources(t *testing.T) {
 
 	// All resources will be filtered out if they have pending peers.
 	for i := uint64(0); i < n; i++ {
-		for j := 0; j < cache.GetContainerLeaderCount(0, i); j++ {
-			res := tc.RandLeaderResource(0, i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
+		for j := 0; j < cache.GetContainerLeaderCount("", i); j++ {
+			res := tc.RandLeaderResource("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc))
 			newRes := res.Clone(core.WithPendingPeers(res.Meta.Peers()))
 			cache.SetResource(newRes)
 		}
-		assert.Nil(t, tc.RandLeaderResource(0, i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc)))
+		assert.Nil(t, tc.RandLeaderResource("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc)))
 	}
 	for i := uint64(0); i < n; i++ {
-		assert.Nil(t, tc.RandFollowerResource(0, i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc)))
+		assert.Nil(t, tc.RandFollowerResource("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthResource(tc)))
 	}
 }
 
@@ -775,6 +775,7 @@ func newTestCluster(opt *config.PersistOptions) *testCluster {
 func newTestRaftCluster(opt *config.PersistOptions, storage storage.Storage, basicCluster *core.BasicCluster) *RaftCluster {
 	rc := &RaftCluster{ctx: context.TODO(), adapter: metadata.NewTestAdapter(), logger: log.Adjust(nil)}
 	rc.InitCluster(opt, storage, basicCluster)
+	basicCluster.ScheduleGroupKeys[""] = struct{}{}
 	return rc
 }
 
@@ -889,23 +890,23 @@ func checkResources(t *testing.T, cache *core.CachedResources, resources []*core
 			resourceCount[peer.ContainerID]++
 			if peer.ID == res.GetLeader().ID {
 				leaderCount[peer.ContainerID]++
-				checkResource(t, cache.GetLeader(0, peer.ContainerID, res), res)
+				checkResource(t, cache.GetLeader("", peer.ContainerID, res), res)
 			} else {
 				followerCount[peer.ContainerID]++
-				checkResource(t, cache.GetFollower(0, peer.ContainerID, res), res)
+				checkResource(t, cache.GetFollower("", peer.ContainerID, res), res)
 			}
 		}
 	}
 
 	assert.Equal(t, len(resources), cache.GetResourceCount())
 	for id, count := range resourceCount {
-		assert.Equal(t, cache.GetContainerResourceCount(0, id), count)
+		assert.Equal(t, cache.GetContainerResourceCount("", id), count)
 	}
 	for id, count := range leaderCount {
-		assert.Equal(t, cache.GetContainerLeaderCount(0, id), count)
+		assert.Equal(t, cache.GetContainerLeaderCount("", id), count)
 	}
 	for id, count := range followerCount {
-		assert.Equal(t, cache.GetContainerFollowerCount(0, id), count)
+		assert.Equal(t, cache.GetContainerFollowerCount("", id), count)
 	}
 
 	for _, res := range cache.GetResources() {

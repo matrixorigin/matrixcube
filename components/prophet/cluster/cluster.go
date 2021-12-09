@@ -319,6 +319,12 @@ func (c *RaftCluster) GetScheduleGroupKeys() []string {
 	return c.core.GetScheduleGroupKeys()
 }
 
+func (c *RaftCluster) GetScheduleGroupKeysWithPrefix(prefix string) []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.core.GetScheduleGroupKeysWithPrefix(prefix)
+}
+
 // GetOperatorController returns the operator controller.
 func (c *RaftCluster) GetOperatorController() *schedule.OperatorController {
 	c.RLock()
@@ -433,7 +439,7 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 		return fmt.Errorf("container %v not found", containerID)
 	}
 	newContainer := container.Clone(core.SetContainerStats(stats), core.SetLastHeartbeatTS(time.Now()))
-	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio(), c.core.GetScheduleGroupKeys()) {
+	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio()) {
 		c.logger.Warn("container does not have enough disk space, capacity %d, available %d",
 			zap.Uint64("container", newContainer.Meta.ID()),
 			zap.Uint64("capacity", newContainer.GetCapacity()),
@@ -1095,7 +1101,7 @@ func (c *RaftCluster) checkContainers() {
 		}
 
 		if container.IsUp() {
-			if !container.IsLowSpace(c.opt.GetLowSpaceRatio(), groupKeys) {
+			if !container.IsLowSpace(c.opt.GetLowSpaceRatio()) {
 				upContainerCount++
 			}
 			continue

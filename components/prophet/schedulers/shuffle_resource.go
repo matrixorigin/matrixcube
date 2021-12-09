@@ -24,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 )
 
 const (
@@ -131,16 +132,16 @@ func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*cor
 		Shuffle()
 
 	for _, source := range candidates.Containers {
-		for _, group := range cluster.GetOpts().GetReplicationConfig().Groups {
+		for _, groupKey := range cluster.GetScheduleGroupKeys() {
 			var res *core.CachedResource
 			if s.conf.IsRoleAllow(roleFollower) {
-				res = cluster.RandFollowerResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandFollowerResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLeader) {
-				res = cluster.RandLeaderResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandLeaderResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLearner) {
-				res = cluster.RandLearnerResource(group, source.Meta.ID(), s.conf.groupRanges[group], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandLearnerResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
 			}
 			if res != nil {
 				if p, ok := res.GetContainerPeer(source.Meta.ID()); ok {

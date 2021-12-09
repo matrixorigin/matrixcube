@@ -689,18 +689,18 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 		containerID := peer.ContainerID
 		if peer.ID == res.getLeaderID() {
 			// Add leader peer to leaders.
-			container, ok := r.leaders[res.Meta.Group()][containerID]
+			container, ok := r.leaders[res.groupKey][containerID]
 			if !ok {
 				container = newResourceSubTree(r.factory)
-				r.leaders[res.Meta.Group()][containerID] = container
+				r.leaders[res.groupKey][containerID] = container
 			}
 			container.update(res)
 		} else {
 			// Add follower peer to followers.
-			container, ok := r.followers[res.Meta.Group()][containerID]
+			container, ok := r.followers[res.groupKey][containerID]
 			if !ok {
 				container = newResourceSubTree(r.factory)
-				r.followers[res.Meta.Group()][containerID] = container
+				r.followers[res.groupKey][containerID] = container
 			}
 			container.update(res)
 		}
@@ -709,20 +709,20 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 	// Add to learners.
 	for _, peer := range res.GetLearners() {
 		containerID := peer.ContainerID
-		container, ok := r.learners[res.Meta.Group()][containerID]
+		container, ok := r.learners[res.groupKey][containerID]
 		if !ok {
 			container = newResourceSubTree(r.factory)
-			r.learners[res.Meta.Group()][containerID] = container
+			r.learners[res.groupKey][containerID] = container
 		}
 		container.update(res)
 	}
 
 	for _, peer := range res.pendingReplicas {
 		containerID := peer.ContainerID
-		container, ok := r.pendingReplicas[res.Meta.Group()][containerID]
+		container, ok := r.pendingReplicas[res.groupKey][containerID]
 		if !ok {
 			container = newResourceSubTree(r.factory)
-			r.pendingReplicas[res.Meta.Group()][containerID] = container
+			r.pendingReplicas[res.groupKey][containerID] = container
 		}
 		container.update(res)
 	}
@@ -749,15 +749,15 @@ func (r *CachedResources) removeResourceFromTreeAndMap(res *CachedResource) {
 
 // removeResourceFromSubTree removes CachedResource from resourcesubTrees
 func (r *CachedResources) removeResourceFromSubTree(res *CachedResource) {
-	r.maybeInitWithGroup(res.Meta.Group())
+	r.maybeInitWithGroup(res.groupKey)
 
 	// Remove from leaders and followers.
 	for _, peer := range res.Meta.Peers() {
 		containerID := peer.ContainerID
-		r.leaders[res.Meta.Group()][containerID].remove(res)
-		r.followers[res.Meta.Group()][containerID].remove(res)
-		r.learners[res.Meta.Group()][containerID].remove(res)
-		r.pendingReplicas[res.Meta.Group()][containerID].remove(res)
+		r.leaders[res.groupKey][containerID].remove(res)
+		r.followers[res.groupKey][containerID].remove(res)
+		r.learners[res.groupKey][containerID].remove(res)
+		r.pendingReplicas[res.groupKey][containerID].remove(res)
 	}
 }
 

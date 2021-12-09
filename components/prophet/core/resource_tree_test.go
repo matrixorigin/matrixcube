@@ -335,45 +335,45 @@ func TestRandomResourceDiscontinuous(t *testing.T) {
 	ra := tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "f")})
+	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "g")})
+	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "e")})
+	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "f")})
+	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "a", "g")})
+	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
 	resB := NewTestCachedResource([]byte("n"), []byte("x"))
 	tree.update(resB)
-	rb := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "x")})
+	rb := tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "x")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "y")})
+	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "n", "y")})
+	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "n", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "o", "y")})
+	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "o", "y")})
 	assert.Nil(t, rb)
 
 	resC := NewTestCachedResource([]byte("z"), []byte(""))
 	tree.update(resC)
 
-	rc := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "y", "")})
+	rc := tree.RandomResource([]KeyRange{NewKeyRange(0, "y", "")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
 	resD := NewTestCachedResource([]byte(""), []byte("a"))
 	tree.update(resD)
 
-	rd := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "b")})
+	rd := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "b")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
 	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
@@ -395,7 +395,7 @@ func updateTestResources(t *testing.T, tree *resourceTree, resources []*CachedRe
 func checkRandomResource(t *testing.T, tree *resourceTree, resources []*CachedResource, ranges []KeyRange) {
 	keys := make(map[string]struct{})
 	for i := 0; i < 10000 && len(keys) < len(resources); i++ {
-		re := tree.RandomResource(0, ranges)
+		re := tree.RandomResource(ranges)
 		if re == nil {
 			continue
 		}

@@ -184,8 +184,14 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 			resp.Error = err.Error()
 		}
 	case rpcpb.TypeAddScheduleGroupRuleReq:
-		resp.Type = rpcpb.TypeAddScheduleGroupRuleReq
+		resp.Type = rpcpb.TypeAddScheduleGroupRuleRsp
 		err := p.handleAddScheduleGroupRule(rc, req, resp)
+		if err != nil {
+			resp.Error = err.Error()
+		}
+	case rpcpb.TypeGetScheduleGroupRuleReq:
+		resp.Type = rpcpb.TypeGetScheduleGroupRuleRsp
+		err := p.handleGetScheduleGroupRule(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -391,6 +397,15 @@ func (p *defaultProphet) handleAddScheduleGroupRule(rc *cluster.RaftCluster, req
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p *defaultProphet) handleGetScheduleGroupRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	rules, err := rc.HandleGetScheduleGroupRule(req)
+	if err != nil {
+		return err
+	}
+	resp.GetScheduleGroupRule.Rules = rules
 	return nil
 }
 

@@ -64,6 +64,7 @@ func NewCluster(opts *config.PersistOptions) *Cluster {
 	if clus.PersistOptions.GetReplicationConfig().EnablePlacementRules {
 		clus.initRuleManager()
 	}
+	clus.BasicCluster.ScheduleGroupKeys[""] = struct{}{}
 	return clus
 }
 
@@ -117,8 +118,8 @@ func (mc *Cluster) GetContainersLoads() map[uint64][]float64 {
 }
 
 // GetContainerResourceCount gets resource count with a given container.
-func (mc *Cluster) GetContainerResourceCount(groupID, containerID uint64) int {
-	return mc.Resources.GetContainerResourceCount(groupID, containerID)
+func (mc *Cluster) GetContainerResourceCount(groupKey string, containerID uint64) int {
+	return mc.Resources.GetContainerResourceCount(groupKey, containerID)
 }
 
 // GetContainer gets a container with a given container ID.
@@ -247,8 +248,8 @@ func (mc *Cluster) AddLeaderContainer(containerID uint64, leaderCount int, leade
 	container := core.NewCachedContainer(
 		metadata.NewTestContainer(containerID),
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(0, leaderCount),
-		core.SetLeaderSize(0, leaderSize),
+		core.SetLeaderCount("", leaderCount),
+		core.SetLeaderSize("", leaderSize),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -270,8 +271,8 @@ func (mc *Cluster) AddResourceContainer(containerID uint64, resourceCount int) {
 			},
 		}},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(0, resourceCount),
-		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount("", resourceCount),
+		core.SetResourceSize("", int64(resourceCount)*defaultResourceSize/mb),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -308,8 +309,8 @@ func (mc *Cluster) AddLabelsContainer(containerID uint64, resourceCount int, lab
 			CLabels: newLabels,
 		},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(0, resourceCount),
-		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount("", resourceCount),
+		core.SetResourceSize("", int64(resourceCount)*defaultResourceSize/mb),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.SetContainerLimit(containerID, limit.AddPeer, 60)
@@ -414,10 +415,10 @@ func (mc *Cluster) UpdateContainerResourceWeight(containerID uint64, weight floa
 func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
 	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.Available = newStats.Capacity - uint64(container.GetLeaderSize(0))
+	newStats.Available = newStats.Capacity - uint64(container.GetLeaderSize(""))
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
-		core.SetLeaderSize(0, size),
+		core.SetLeaderSize("", size),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -426,10 +427,10 @@ func (mc *Cluster) UpdateContainerLeaderSize(containerID uint64, size int64) {
 func (mc *Cluster) UpdateContainerResourceSize(containerID uint64, size int64) {
 	container := mc.GetContainer(containerID)
 	newStats := proto.Clone(container.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.Available = newStats.Capacity - uint64(container.GetResourceSize(0))
+	newStats.Available = newStats.Capacity - uint64(container.GetResourceSize(""))
 	newContainer := container.Clone(
 		core.SetContainerStats(newStats),
-		core.SetResourceSize(0, size),
+		core.SetResourceSize("", size),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -438,8 +439,8 @@ func (mc *Cluster) UpdateContainerResourceSize(containerID uint64, size int64) {
 func (mc *Cluster) UpdateLeaderCount(containerID uint64, leaderCount int) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetLeaderCount(0, leaderCount),
-		core.SetLeaderSize(0, int64(leaderCount)*defaultResourceSize/mb),
+		core.SetLeaderCount("", leaderCount),
+		core.SetLeaderSize("", int64(leaderCount)*defaultResourceSize/mb),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -448,8 +449,8 @@ func (mc *Cluster) UpdateLeaderCount(containerID uint64, leaderCount int) {
 func (mc *Cluster) UpdateResourceCount(containerID uint64, resourceCount int) {
 	container := mc.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetResourceCount(0, resourceCount),
-		core.SetResourceSize(0, int64(resourceCount)*defaultResourceSize/mb),
+		core.SetResourceCount("", resourceCount),
+		core.SetResourceSize("", int64(resourceCount)*defaultResourceSize/mb),
 	)
 	mc.PutContainer(newContainer)
 }
@@ -466,7 +467,7 @@ func (mc *Cluster) UpdateSnapshotCount(containerID uint64, snapshotCount int) {
 // UpdatePendingPeerCount updates container pending peer count.
 func (mc *Cluster) UpdatePendingPeerCount(containerID uint64, pendingPeerCount int) {
 	container := mc.GetContainer(containerID)
-	newContainer := container.Clone(core.SetPendingPeerCount(0, pendingPeerCount))
+	newContainer := container.Clone(core.SetPendingPeerCount("", pendingPeerCount))
 	mc.PutContainer(newContainer)
 }
 
@@ -567,23 +568,23 @@ func (mc *Cluster) UpdateStorageReadKeys(containerID uint64, keysRead uint64) {
 
 // UpdateContainerStatus updates container status.
 func (mc *Cluster) UpdateContainerStatus(id uint64) {
-	leaderCount := mc.Resources.GetContainerLeaderCount(0, id)
-	resourceCount := mc.Resources.GetContainerResourceCount(0, id)
-	pendingPeerCount := mc.Resources.GetContainerPendingPeerCount(0, id)
-	leaderSize := mc.Resources.GetContainerLeaderResourceSize(0, id)
-	resourceSize := mc.Resources.GetContainerResourceSize(0, id)
+	leaderCount := mc.Resources.GetContainerLeaderCount("", id)
+	resourceCount := mc.Resources.GetContainerResourceCount("", id)
+	pendingPeerCount := mc.Resources.GetContainerPendingPeerCount("", id)
+	leaderSize := mc.Resources.GetContainerLeaderResourceSize("", id)
+	resourceSize := mc.Resources.GetContainerResourceSize("", id)
 	container := mc.Containers.GetContainer(id)
 	stats := &metapb.ContainerStats{}
 	stats.Capacity = defaultContainerCapacity
-	stats.Available = stats.Capacity - uint64(container.GetResourceSize(0)*mb)
-	stats.UsedSize = uint64(container.GetResourceSize(0) * mb)
+	stats.Available = stats.Capacity - uint64(container.GetResourceSize("")*mb)
+	stats.UsedSize = uint64(container.GetResourceSize("") * mb)
 	newContainer := container.Clone(
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(0, leaderCount),
-		core.SetResourceCount(0, resourceCount),
-		core.SetPendingPeerCount(0, pendingPeerCount),
-		core.SetLeaderSize(0, leaderSize),
-		core.SetResourceSize(0, resourceSize),
+		core.SetLeaderCount("", leaderCount),
+		core.SetResourceCount("", resourceCount),
+		core.SetPendingPeerCount("", pendingPeerCount),
+		core.SetLeaderSize("", leaderSize),
+		core.SetResourceSize("", resourceSize),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 	mc.PutContainer(newContainer)
