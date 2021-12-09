@@ -145,8 +145,6 @@ func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
 			continue
 		}
 
-		c.cluster.logger.Info("on check resource",
-			zap.Uint64("resource", res.Meta.ID()))
 		ops := c.checkers.CheckResource(res)
 
 		keys[group] = res.GetEndKey()
