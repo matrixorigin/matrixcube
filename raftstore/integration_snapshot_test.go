@@ -71,6 +71,15 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	assert.NoError(t, kv.Set("k3", "v3", snapshotTestTimeout))
 	assert.NoError(t, kv.Set("k4", "v4", snapshotTestTimeout))
 
+	// sync the data storage to move the persistent log index.
+	// otherwise compaction request at index 3 will be ignored
+	for i := 0; i < 3; i++ {
+		store := c.GetStore(i).(*store)
+		if pr := store.getReplica(shardID, true); pr != nil {
+			pr.sm.dataStorage.Sync([]uint64{shardID})
+		}
+	}
+
 	compactionCompleted := false
 	for i := 0; i < 2; i++ {
 		store := c.GetStore(i).(*store)
@@ -86,11 +95,13 @@ func TestCompactionAndSnapshot(t *testing.T) {
 				}
 				panic(err)
 			}
-
 			assert.True(t, hasLog(2))
+
 			pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
 				CompactIndex: 3,
 			})
+
+			// wait for compaction to complete
 			for i := 0; i < 10; i++ {
 				if hasLog(2) {
 					time.Sleep(time.Second)
