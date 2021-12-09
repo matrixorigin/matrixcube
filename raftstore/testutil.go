@@ -703,6 +703,7 @@ type testRaftCluster struct {
 	stores       []*store
 	awares       []*testShardAware
 	dataStorages []storage.DataStorage
+	status       []bool
 }
 
 // NewSingleTestClusterStore create test cluster with 1 node
@@ -747,6 +748,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 	}
 
+	c.status = make([]bool, c.opts.nodes)
 	c.stores = make([]*store, c.opts.nodes)
 	c.awares = make([]*testShardAware, c.opts.nodes)
 	c.dataStorages = make([]storage.DataStorage, c.opts.nodes)
@@ -938,15 +940,22 @@ func (c *testRaftCluster) StartNode(node int) {
 	} else {
 		s.Start()
 	}
+	c.status[node] = true
 }
 
 func (c *testRaftCluster) StopNode(node int) {
 	c.stores[node].Stop()
-	c.dataStorages[node].Close()
+	s := c.dataStorages[node]
+	if s != nil {
+		s.Close()
+	}
+	c.status[node] = false
 }
 
 func (c *testRaftCluster) RestartNode(node int) {
-	c.StopNode(node)
+	if c.status[node] {
+		c.StopNode(node)
+	}
 	c.resetNode(node, false)
 	c.StartNode(node)
 }
@@ -969,7 +978,9 @@ func (c *testRaftCluster) Stop() {
 
 func (c *testRaftCluster) closeStorage() {
 	for _, s := range c.dataStorages {
-		s.Close()
+		if s != nil {
+			s.Close()
+		}
 	}
 }
 
