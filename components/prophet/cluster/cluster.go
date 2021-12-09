@@ -231,16 +231,11 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	// load resource group rules
 	start = time.Now()
 	c.storage.LoadScheduleGroupRules(batch, func(rule metapb.ScheduleGroupRule) {
-		c.core.AddScheduleGroupRule(rule, false)
+		c.core.AddScheduleGroupRule(rule)
 	})
 	c.logger.Info("resource group rules loaded",
 		zap.Int("count", c.core.GetResourceGroupRuleCount()),
 		zap.Duration("cost", time.Since(start)))
-
-	// reset scheduling shard group
-	for _, group := range c.GetReplicationConfig().Groups {
-		c.core.ResetSchedulingResourceGroup(group)
-	}
 	return c, nil
 }
 
@@ -824,10 +819,6 @@ func (c *RaftCluster) GetContainers() []*core.CachedContainer {
 // GetContainer gets container from cluster.
 func (c *RaftCluster) GetContainer(containerID uint64) *core.CachedContainer {
 	return c.core.GetContainer(containerID)
-}
-
-func (c *RaftCluster) GetResourcesGroupByRule(group uint64) [][]*core.CachedResource {
-	return c.core.GetResourcesGroupByRule(group)
 }
 
 // IsResourceHot checks if a resource is in hot state.

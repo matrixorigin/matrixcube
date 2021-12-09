@@ -38,56 +38,18 @@ type BasicCluster struct {
 	DestroyedResources      *roaring64.Bitmap
 	WaittingCreateResources map[uint64]metadata.Resource
 	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules      map[uint64][]metapb.ScheduleGroupRule // resource group id -> rules
-	SchedulingResourceGroup map[uint64][][]*CachedResource        // resource group id -> shard groups
+	ScheduleGroupRules      []metapb.ScheduleGroupRule
 }
 
 // NewBasicCluster creates a BasicCluster.
 func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *BasicCluster {
 	bc := &BasicCluster{
-		factory:                 factory,
-		logger:                  log.Adjust(logger),
-		DestroyingStatuses:      make(map[uint64]*metapb.DestroyingStatus),
-		SchedulingResourceGroup: make(map[uint64][][]*CachedResource),
+		factory:            factory,
+		logger:             log.Adjust(logger),
+		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
 	}
 	bc.Reset()
 	return bc
-}
-
-// ResetSchedulingResourceGroup reset reosurce scheduling group by shard group id
-func (bc *BasicCluster) ResetSchedulingResourceGroup(group uint64) {
-	bc.Lock()
-	defer bc.Unlock()
-	bc.resetSchedulingResourceGroupLocked(group)
-}
-
-func (bc *BasicCluster) resetSchedulingResourceGroupLocked(group uint64) {
-	rules := bc.ScheduleGroupRules[group]
-	if len(rules) == 0 {
-		bc.SchedulingResourceGroup[group] = [][]*CachedResource{bc.Resources.GetResources()}
-		return
-	}
-
-	resources := make(map[string][]*CachedResource)
-	bc.Resources.ForeachCachedResources(group, func(res *CachedResource) {
-		labels := res.Meta.Labels()
-		m := make(map[string]string, len(labels))
-		for _, l := range labels {
-			m[l.Key] = l.Value
-		}
-
-		key := ""
-		for _, r := range rules {
-			if v, ok := m[r.GroupByLabel]; ok {
-				key += v
-			}
-		}
-
-		resources[key] = append(resources[key], res)
-	})
-	for _, v := range resources {
-		bc.SchedulingResourceGroup[group] = append(bc.SchedulingResourceGroup[group], v)
-	}
 }
 
 // Reset reset Basic Cluster info
@@ -99,7 +61,7 @@ func (bc *BasicCluster) Reset() {
 	bc.Resources = NewCachedResources(bc.factory)
 	bc.DestroyedResources = roaring64.NewBitmap()
 	bc.WaittingCreateResources = make(map[uint64]metadata.Resource)
-	bc.ScheduleGroupRules = make(map[uint64][]metapb.ScheduleGroupRule)
+	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
 // AddRemovedResources add removed resources
@@ -210,14 +172,6 @@ func (bc *BasicCluster) GetResources() []*CachedResource {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Resources.GetResources()
-}
-
-// GetResourcesGroupByRule group resources according to resource label
-func (bc *BasicCluster) GetResourcesGroupByRule(group uint64) [][]*CachedResource {
-	bc.RLock()
-	defer bc.RUnlock()
-
-	return bc.SchedulingResourceGroup[group]
 }
 
 // GetMetaResources gets a set of metadata.Resource from resourceMap.
@@ -509,7 +463,6 @@ func (bc *BasicCluster) RemoveResource(res *CachedResource) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.Resources.RemoveResource(res)
-	bc.resetSchedulingResourceGroupLocked(res.Meta.Group())
 }
 
 // SearchResource searches CachedResource from resourceTree.
@@ -564,25 +517,24 @@ func (bc *BasicCluster) UpdateDestroyingStatus(id uint64, status *metapb.Destroy
 	bc.DestroyingStatuses[id] = status
 }
 
-func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule, reset bool) {
+func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule) {
 	bc.Lock()
 	defer bc.Unlock()
-	rules, ok := bc.ScheduleGroupRules[rule.GroupID]
-	if !ok {
-		rules = []metapb.ScheduleGroupRule{rule}
-		bc.ScheduleGroupRules[rule.GroupID] = rules
-		return
-	}
 
-	for _, r := range rules {
-		if r.GroupByLabel == rule.GroupByLabel {
-			return
+	exists := false
+	for idx, r := range bc.ScheduleGroupRules {
+		if r.GroupID == rule.GroupID &&
+			r.Name == rule.Name {
+			exists = true
+			if r.GroupByLabel == rule.GroupByLabel {
+				return
+			}
+			bc.ScheduleGroupRules[idx].GroupByLabel = rule.GroupByLabel
+			break
 		}
 	}
-	bc.ScheduleGroupRules[rule.GroupID] = rules
-
-	if reset {
-		bc.resetSchedulingResourceGroupLocked(rule.GroupID)
+	if !exists {
+		bc.ScheduleGroupRules = append(bc.ScheduleGroupRules, rule)
 	}
 }
 
@@ -599,7 +551,6 @@ func (bc *BasicCluster) GetResourceGroupRuleCount() int {
 
 // ResourceSetInformer provides access to a shared informer of resources.
 type ResourceSetInformer interface {
-	GetResourcesGroupByRule(group uint64) [][]*CachedResource
 	GetResourceCount() int
 	RandFollowerResource(group, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
 	RandLeaderResource(groupID, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
