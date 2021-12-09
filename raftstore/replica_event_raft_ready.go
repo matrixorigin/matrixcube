@@ -152,11 +152,35 @@ func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
 	return nil
 }
 
+func (pr *replica) entriesToApply(entries []raftpb.Entry) []raftpb.Entry {
+	if len(entries) == 0 {
+		return entries
+	}
+	lastIndex := entries[len(entries)-1].Index
+	firstIndex := entries[0].Index
+	if lastIndex <= pr.pushedIndex {
+		pr.logger.Fatal("all entries older than current state",
+			zap.Uint64("firstIndex", firstIndex),
+			zap.Uint64("lastIndex", lastIndex),
+			zap.Uint64("expected", pr.pushedIndex+1))
+	}
+	if firstIndex > pr.pushedIndex+1 {
+		pr.logger.Fatal("entry hole found",
+			zap.Uint64("firstIndex", firstIndex),
+			zap.Uint64("expected", pr.pushedIndex+1))
+	}
+	if pr.pushedIndex-firstIndex+1 < uint64(len(entries)) {
+		return entries[pr.pushedIndex-firstIndex+1:]
+	}
+	return []raftpb.Entry{}
+}
+
 func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 	if !raft.IsEmptySnap(rd.Snapshot) {
 		if err := pr.applySnapshot(rd.Snapshot); err != nil {
 			return err
 		}
+		pr.pushedIndex = rd.Snapshot.Metadata.Index
 		pr.logger.Info("snapshot applied into the replica")
 	}
 	for _, entry := range rd.CommittedEntries {
@@ -289,10 +313,14 @@ func (pr *replica) updateMessageMetrics(msg raftpb.Message) {
 }
 
 func (pr *replica) doApplyCommittedEntries(entries []raftpb.Entry) error {
-	pr.sm.applyCommittedEntries(entries)
-	if pr.sm.isRemoved() {
-		// local replica is removed, keep the shard
-		pr.store.destroyReplica(pr.shardID, false, true, "removed by config change")
+	entries = pr.entriesToApply(entries)
+	if len(entries) > 0 {
+		pr.pushedIndex = entries[len(entries)-1].Index
+		pr.sm.applyCommittedEntries(entries)
+		if pr.sm.isRemoved() {
+			// local replica is removed, keep the shard
+			pr.store.destroyReplica(pr.shardID, false, true, "removed by config change")
+		}
 	}
 	return nil
 }
