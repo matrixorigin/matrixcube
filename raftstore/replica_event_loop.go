@@ -240,19 +240,28 @@ func (pr *replica) handleInitializedState() (bool, error) {
 	}
 	pr.initialized = true
 	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err == logdb.ErrNoSnapshot {
+		pr.logger.Info("no initial snapshot")
+		return false, nil
+	}
 	if err != nil {
-		if err == logdb.ErrNoSnapshot {
-			return false, nil
-		}
+		return false, err
 	}
 	if raft.IsEmptySnap(ss) {
 		// should never be empty here
-		// logdb.GetSnapshot returns logdb.ErrNoSnapshot when there is no snapshot
 		panic("unexpected empty snapshot")
 	}
 	index, _ := pr.sm.getAppliedIndexTerm()
+	pr.logger.Info("initial snapshot available",
+		zap.Uint64("applied-index", index),
+		zap.Uint64("snapshot-index", ss.Metadata.Index))
 	if ss.Metadata.Index > index {
 		if err := pr.applySnapshot(ss); err != nil {
+			return false, err
+		}
+	} else {
+		// snapshot is out of date, just remove it
+		if err := pr.removeSnapshot(ss, true); err != nil {
 			return false, err
 		}
 	}
@@ -263,7 +272,6 @@ func (pr *replica) handleAction(items []interface{}) bool {
 	if size := pr.actions.Len(); size == 0 {
 		return false
 	}
-
 	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
 		return false
