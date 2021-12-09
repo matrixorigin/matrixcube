@@ -260,6 +260,7 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		if err := pr.applySnapshot(ss); err != nil {
 			return false, err
 		}
+		pr.pushedIndex = ss.Metadata.Index
 	} else {
 		// snapshot is out of date, just remove it
 		if err := pr.removeSnapshot(ss, true); err != nil {
