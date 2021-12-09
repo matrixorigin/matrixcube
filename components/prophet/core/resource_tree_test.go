@@ -284,12 +284,12 @@ func TestResourceTreeSplitAndMerge(t *testing.T) {
 
 func TestRandomResource(t *testing.T) {
 	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource(0, nil)
+	r := tree.RandomResource(nil)
 	assert.Nil(t, r)
 
 	resA := NewTestCachedResource([]byte(""), []byte("g"))
 	tree.update(resA)
-	ra := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "")})
+	ra := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
 	resB := NewTestCachedResource([]byte("g"), []byte("n"))
@@ -299,22 +299,22 @@ func TestRandomResource(t *testing.T) {
 	tree.update(resC)
 	tree.update(resD)
 
-	rb := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "g", "n")})
+	rb := tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "n")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rc := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "n", "t")})
+	rc := tree.RandomResource([]KeyRange{NewKeyRange(0, "n", "t")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
-	rd := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "t", "")})
+	rd := tree.RandomResource([]KeyRange{NewKeyRange(0, "t", "")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
-	re := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "a")})
+	re := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "o", "s")})
+	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "o", "s")})
 	assert.Nil(t, re)
-	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "", "a")})
+	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "z", "")})
+	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "z", "")})
 	assert.Nil(t, re)
 
 	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
@@ -326,13 +326,13 @@ func TestRandomResource(t *testing.T) {
 
 func TestRandomResourceDiscontinuous(t *testing.T) {
 	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "f")})
+	r := tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "f")})
 	assert.Nil(t, r)
 
 	// test for single resource
 	resA := NewTestCachedResource([]byte("c"), []byte("f"))
 	tree.update(resA)
-	ra := tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "e")})
+	ra := tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "e")})
 	assert.Nil(t, ra)
 
 	ra = tree.RandomResource(0, []KeyRange{NewKeyRange(0, "c", "f")})

@@ -40,6 +40,9 @@ func (s *store) startTimerTasks() {
 		compactLogCheckTicker := time.NewTicker(s.cfg.Replication.CompactLogCheckDuration.Duration)
 		defer compactLogCheckTicker.Stop()
 
+		refreshScheduleGroupRuleTicker := time.NewTicker(time.Second * 30)
+		defer refreshScheduleGroupRuleTicker.Stop()
+
 		debugTicker := time.NewTicker(time.Second * 10)
 		defer debugTicker.Stop()
 
@@ -60,6 +63,8 @@ func (s *store) startTimerTasks() {
 			case <-storeheartbeatTicker.C:
 				s.handleStoreHeartbeatTask(last)
 				last = time.Now()
+			case <-refreshScheduleGroupRuleTicker.C:
+				s.handleRefreshScheduleGroupRule()
 			case <-debugTicker.C:
 				s.doLogDebugInfo()
 			}
@@ -147,4 +152,8 @@ func (s *store) handleStoreHeartbeatTask(last time.Time) {
 				zap.Error(err))
 		}
 	}
+}
+
+func (s *store) handleRefreshScheduleGroupRule() {
+
 }

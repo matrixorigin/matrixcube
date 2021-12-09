@@ -203,13 +203,13 @@ func (t *resourceTree) getAdjacentResources(res *CachedResource) (*resourceItem,
 }
 
 // RandomResource is used to get a random resource within ranges.
-func (t *resourceTree) RandomResource(groupID uint64, ranges []KeyRange) *CachedResource {
+func (t *resourceTree) RandomResource(ranges []KeyRange) *CachedResource {
 	if t.length() == 0 {
 		return nil
 	}
 
 	if len(ranges) == 0 {
-		ranges = []KeyRange{NewKeyRange(groupID, "", "")}
+		ranges = []KeyRange{NewKeyRange(0, "", "")}
 	}
 
 	for _, i := range rand.Perm(len(ranges)) {
