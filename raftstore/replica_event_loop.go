@@ -416,6 +416,7 @@ func (pr *replica) prophetHeartbeat() {
 	if !pr.isLeader() {
 		return
 	}
+	shard := pr.getShard()
 	req := rpcpb.ResourceHeartbeatReq{
 		Term:            pr.rn.BasicStatus().Term,
 		Leader:          &pr.replica,
@@ -423,9 +424,10 @@ func (pr *replica) prophetHeartbeat() {
 		DownReplicas:    pr.collectDownReplicas(),
 		PendingReplicas: pr.collectPendingReplicas(),
 		Stats:           pr.stats.heartbeatState(),
+		GroupKey:        pr.groupController.getShardGroupKey(shard),
 	}
 
-	resource := NewResourceAdapterWithShard(pr.getShard())
+	resource := NewResourceAdapterWithShard(shard)
 	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))

@@ -298,6 +298,20 @@ func (ts *testShardAware) shardCount() int {
 	return len(ts.shards)
 }
 
+func (ts *testShardAware) voterShardCount(storeID uint64) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for _, s := range ts.shards {
+		r := findReplica(s, storeID)
+		if r != nil && r.Role == metapb.ReplicaRole_Voter {
+			c++
+		}
+	}
+	return c
+}
+
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
 	ts.RLock()
 	defer ts.RUnlock()
@@ -478,6 +492,9 @@ type TestRaftCluster interface {
 	// WaitShardByCount check that the number of shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitShardByCount(count int, timeout time.Duration)
+	// WaitVoterReplicaByCount check that the number of voter shard of the cluster reaches at least the specified value
+	// until the timeout
+	WaitVoterReplicaByCount(count int, timeout time.Duration)
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
@@ -1045,6 +1062,25 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 			shards := 0
 			for idx := range c.stores {
 				shards += c.awares[idx].shardCount()
+			}
+			if shards >= count {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitVoterReplicaByCount(count int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait shards count %d of cluster timeout", count)
+		default:
+			shards := 0
+			for idx, s := range c.stores {
+				shards += c.awares[idx].voterShardCount(s.Meta().ID)
 			}
 			if shards >= count {
 				return

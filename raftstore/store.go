@@ -110,7 +110,8 @@ type store struct {
 	// the worker pool used to drive all replicas
 	workerPool *workerPool
 	// shard pool processor
-	shardPool *dynamicShardsPool
+	shardPool       *dynamicShardsPool
+	groupController *replicaGroupController
 }
 
 // NewStore returns a raft store
@@ -126,6 +127,7 @@ func NewStore(cfg *config.Config) Store {
 		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
 		stopper:               syncutil.NewStopper(),
 		createShardsProtector: newCreateShardsProtector(),
+		groupController:       newReplicaGroupController(),
 	}
 
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)

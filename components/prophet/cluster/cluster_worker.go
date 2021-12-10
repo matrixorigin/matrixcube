@@ -372,6 +372,12 @@ func (c *RaftCluster) HandleAppliedRules(request *rpcpb.Request) (*rpcpb.GetAppl
 func (c *RaftCluster) HandleAddScheduleGroupRule(request *rpcpb.Request) error {
 	c.RLock()
 	defer c.RUnlock()
+
+	id, err := c.AllocID()
+	if err != nil {
+		return err
+	}
+	request.AddScheduleGroupRule.Rule.ID = id
 	if !c.core.AddScheduleGroupRule(request.AddScheduleGroupRule.Rule) {
 		return nil
 	}

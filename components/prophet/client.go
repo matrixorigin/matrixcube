@@ -81,6 +81,8 @@ type Client interface {
 	// The scheduling rules are based on the Label of the Resource to group all resources and do
 	// scheduling independently for these grouped resources.`ruleName` is unique within the group.
 	AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error
+	// GetSchedulingRules get all schedule group rules
+	GetSchedulingRules() ([]metapb.ScheduleGroupRule, error)
 
 	// CreateJob create job
 	CreateJob(metapb.Job) error
@@ -465,6 +467,21 @@ func (c *asyncClient) AddSchedulingRule(group uint64, ruleName string, groupByLa
 	}
 
 	return nil
+}
+
+func (c *asyncClient) GetSchedulingRules() ([]metapb.ScheduleGroupRule, error) {
+	if !c.running() {
+		return nil, ErrClosed
+	}
+
+	req := &rpcpb.Request{}
+	req.Type = rpcpb.TypeGetScheduleGroupRuleReq
+	rsp, err := c.syncDo(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.GetScheduleGroupRule.Rules, nil
 }
 
 func (c *asyncClient) CreateJob(job metapb.Job) error {

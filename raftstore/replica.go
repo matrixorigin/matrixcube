@@ -78,6 +78,7 @@ type replica struct {
 	readStopper          *stop.Stopper
 	sm                   *stateMachine
 	prophetClient        prophet.Client
+	groupController      *replicaGroupController
 	ticks                *task.Queue
 	messages             *task.Queue
 	feedbacks            *task.Queue
@@ -134,6 +135,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		logdb:             store.logdb,
 		cfg:               *store.cfg,
 		aware:             store.aware,
+		groupController:   store.groupController,
 		replica:           r,
 		replicaID:         r.ID,
 		shardID:           shard.ID,

@@ -155,5 +155,14 @@ func (s *store) handleStoreHeartbeatTask(last time.Time) {
 }
 
 func (s *store) handleRefreshScheduleGroupRule() {
+	rules, err := s.pd.GetClient().GetSchedulingRules()
+	if err != nil {
+		s.logger.Error("failed to load scheduling rules from prophet",
+			zap.Error(err))
+		return
+	}
 
+	s.logger.Error("scheduling rules loadded",
+		zap.Int("count", len(rules)))
+	s.groupController.setRules(rules)
 }

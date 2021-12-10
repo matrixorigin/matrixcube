@@ -280,6 +280,21 @@ func (mr *MockClientMockRecorder) GetResourceHeartbeatRspNotifier() *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResourceHeartbeatRspNotifier", reflect.TypeOf((*MockClient)(nil).GetResourceHeartbeatRspNotifier))
 }
 
+// GetSchedulingRules mocks base method.
+func (m *MockClient) GetSchedulingRules() ([]metapb.ScheduleGroupRule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchedulingRules")
+	ret0, _ := ret[0].([]metapb.ScheduleGroupRule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchedulingRules indicates an expected call of GetSchedulingRules.
+func (mr *MockClientMockRecorder) GetSchedulingRules() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchedulingRules", reflect.TypeOf((*MockClient)(nil).GetSchedulingRules))
+}
+
 // NewWatcher mocks base method.
 func (m *MockClient) NewWatcher(flag uint32) (prophet.Watcher, error) {
 	m.ctrl.T.Helper()
