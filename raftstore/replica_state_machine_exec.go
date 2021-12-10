@@ -57,9 +57,14 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 	req := ctx.req.GetCompactLogRequest()
 	compactIndex := req.CompactIndex
 	firstIndex := d.getFirstIndex()
-
 	if compactIndex <= firstIndex {
 		return rpc.ResponseBatch{}, nil
+	}
+
+	var err error
+	compactIndex, err = d.adjustCompactionIndex(compactIndex)
+	if err != nil {
+		return rpc.ResponseBatch{}, err
 	}
 
 	d.setFirstIndex(compactIndex + 1)
@@ -71,6 +76,24 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 		},
 	}
 	return resp, nil
+}
+
+func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
+	// take current persistent log index into consideration, never compact those
+	// raft log entries that might be required after reboot.
+	persistentLogIndex, err := d.dataStorage.GetPersistentLogIndex(d.shardID)
+	if err != nil {
+		d.logger.Error("failed to get persistent log index",
+			zap.Error(err))
+		return 0, err
+	}
+	if index > persistentLogIndex {
+		d.logger.Info("adjusted compact log index",
+			zap.Uint64("persistentLogIndex", persistentLogIndex),
+			zap.Uint64("compactIndex", index))
+		index = persistentLogIndex
+	}
+	return index, nil
 }
 
 func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {

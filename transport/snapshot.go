@@ -214,8 +214,8 @@ func getChunks(m meta.RaftMessage,
 
 // filepath is the relative path from the snapshot dir
 func splitBySnapshotFile(msg meta.RaftMessage,
-	filepath string, filesize uint64, startChunkID uint64,
-	chunkSize uint64) []meta.SnapshotChunk {
+	filepath string, filesize uint64,
+	startChunkID uint64, chunkSize uint64) []meta.SnapshotChunk {
 	if filesize == 0 {
 		panic("empty file")
 	}
@@ -229,6 +229,7 @@ func splitBySnapshotFile(msg meta.RaftMessage,
 			csz = chunkSize
 		}
 		c := meta.SnapshotChunk{
+			ContainerID:    msg.To.ContainerID,
 			ShardID:        msg.ShardID,
 			ReplicaID:      msg.To.ID,
 			From:           msg.From.ID,
@@ -241,6 +242,7 @@ func splitBySnapshotFile(msg meta.RaftMessage,
 			Term:           msg.Message.Snapshot.Metadata.Term,
 			FilePath:       filepath,
 			FileSize:       filesize,
+			ConfState:      msg.Message.Snapshot.Metadata.ConfState,
 		}
 		results = append(results, c)
 	}

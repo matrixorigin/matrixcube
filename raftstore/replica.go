@@ -87,8 +87,11 @@ type replica struct {
 	actions              *task.Queue
 	items                []interface{}
 	appliedIndex         uint64
-	stats                *replicaStats
-	metrics              localMetrics
+	// pushedIndex is the log index that has been passed to the state machine to
+	// be applied
+	pushedIndex uint64
+	stats       *replicaStats
+	metrics     localMetrics
 
 	initialized bool
 	closedC     chan struct{}
@@ -166,14 +169,21 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 	}
 
 	storage := store.DataStorageByGroup(shard.Group)
-	pr.sm = newStateMachine(l, storage, pr.logdb, shard, r, pr, func() *replicaCreator { return newReplicaCreator(store) })
-	pr.destoryTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction, pr.prophetClient, defaultCheckInterval)
+	pr.sm = newStateMachine(l,
+		storage, pr.logdb, shard, r, pr,
+		func() *replicaCreator {
+			return newReplicaCreator(store)
+		})
+	pr.destoryTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction,
+		pr.prophetClient, defaultCheckInterval)
 	return pr, nil
 }
 
+// start() should return error
 func (pr *replica) start() {
 	pr.logger.Info("begin to start replica")
-	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]", pr.shardID, pr.replicaID, pr.replica.ContainerID),
+	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]",
+		pr.shardID, pr.replicaID, pr.replica.ContainerID),
 		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
@@ -181,6 +191,7 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to create replica snapshot dir",
 			zap.Error(err))
 	}
+	// pr.initAppliedIndex must be called before pr.initConfState()
 	if err := pr.initAppliedIndex(pr.sm.dataStorage); err != nil {
 		pr.logger.Fatal("failed to initialize applied index",
 			zap.Error(err))
@@ -189,7 +200,6 @@ func (pr *replica) start() {
 		pr.logger.Fatal("failed to initialize confState",
 			zap.Error(err))
 	}
-
 	if _, err := pr.initLogState(); err != nil {
 		pr.logger.Fatal("failed to initialize log state",
 			zap.Error(err))
@@ -293,6 +303,7 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 
 	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
+	pr.pushedIndex = persistentLogIndex
 	pr.logger.Info("applied index loaded",
 		zap.Uint64("applied-index", pr.appliedIndex))
 	return nil
@@ -304,18 +315,31 @@ func (pr *replica) initConfState() error {
 	// FIXME: this is using the latest confState, should be using the confState
 	// consistent with the aoe state.
 	confState := raftpb.ConfState{}
-	shard := pr.getShard()
-	for _, p := range shard.Replicas {
-		if p.Role == metapb.ReplicaRole_Voter {
-			confState.Voters = append(confState.Voters, p.ID)
-		} else if p.Role == metapb.ReplicaRole_Learner {
-			confState.Learners = append(confState.Learners, p.ID)
+	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err != nil && err != logdb.ErrNoSnapshot {
+		return err
+	} else {
+		if !raft.IsEmptySnap(ss) && ss.Metadata.Index > pr.appliedIndex {
+			confState = ss.Metadata.ConfState
+			pr.logger.Info("init conf state loaded from snapshot",
+				zap.Uint64("snapshot-index", ss.Metadata.Index),
+				zap.Uint64("applied-index", pr.appliedIndex))
+		} else {
+			shard := pr.getShard()
+			for _, p := range shard.Replicas {
+				if p.Role == metapb.ReplicaRole_Voter {
+					confState.Voters = append(confState.Voters, p.ID)
+				} else if p.Role == metapb.ReplicaRole_Learner {
+					confState.Learners = append(confState.Learners, p.ID)
+				}
+			}
+			pr.logger.Info("init conf state loaded from dataStorage metadata")
 		}
+		pr.logger.Info("init conf state loaded",
+			log.ReplicaIDsField("voters", confState.Voters),
+			log.ReplicaIDsField("learners", confState.Learners))
+		pr.lr.SetConfState(confState)
 	}
-	pr.logger.Info("init conf state loaded",
-		log.ReplicaIDsField("voters", confState.Voters),
-		log.ReplicaIDsField("learners", confState.Learners))
-	pr.lr.SetConfState(confState)
 	return nil
 }
 

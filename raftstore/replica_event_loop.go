@@ -239,20 +239,31 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		return false, nil
 	}
 	pr.initialized = true
+	pr.logger.Debug("checking initial snapshot")
 	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err == logdb.ErrNoSnapshot {
+		pr.logger.Info("no initial snapshot")
+		return false, nil
+	}
 	if err != nil {
-		if err == logdb.ErrNoSnapshot {
-			return false, nil
-		}
+		return false, err
 	}
 	if raft.IsEmptySnap(ss) {
 		// should never be empty here
-		// logdb.GetSnapshot returns logdb.ErrNoSnapshot when there is no snapshot
 		panic("unexpected empty snapshot")
 	}
 	index, _ := pr.sm.getAppliedIndexTerm()
+	pr.logger.Info("initial snapshot available",
+		zap.Uint64("applied-index", index),
+		zap.Uint64("snapshot-index", ss.Metadata.Index))
 	if ss.Metadata.Index > index {
 		if err := pr.applySnapshot(ss); err != nil {
+			return false, err
+		}
+		pr.pushedIndex = ss.Metadata.Index
+	} else {
+		// snapshot is out of date, just remove it
+		if err := pr.removeSnapshot(ss, true); err != nil {
 			return false, err
 		}
 	}
@@ -263,7 +274,6 @@ func (pr *replica) handleAction(items []interface{}) bool {
 	if size := pr.actions.Len(); size == 0 {
 		return false
 	}
-
 	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
 		return false
@@ -438,18 +448,15 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	if !pr.isLeader() {
 		return
 	}
-
 	var minReplicatedIndex uint64
 	for _, p := range progresses {
 		if minReplicatedIndex == 0 {
 			minReplicatedIndex = p.Match
 		}
-
 		if p.Match < minReplicatedIndex {
 			minReplicatedIndex = p.Match
 		}
 	}
-
 	// When an election happened or a new replica is added, replicatedIdx can be 0.
 	if minReplicatedIndex > 0 {
 		if lastIndex < minReplicatedIndex {
@@ -457,40 +464,35 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 				zap.Uint64("replicated", minReplicatedIndex),
 				zap.Uint64("last", lastIndex))
 		}
-
 		metric.ObserveRaftLogLag(lastIndex - minReplicatedIndex)
 	}
 
 	compactIndex := minReplicatedIndex
 	appliedIndex := pr.appliedIndex
 	firstIndex := pr.getFirstIndex()
-
 	if minReplicatedIndex < firstIndex ||
 		minReplicatedIndex-firstIndex <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
 		return
 	}
-
 	if appliedIndex > firstIndex &&
 		appliedIndex-firstIndex >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
 		compactIndex = appliedIndex
 	} else if pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
 		compactIndex = appliedIndex
 	}
-
 	if compactIndex == 0 {
 		return
 	}
-
 	if compactIndex > minReplicatedIndex {
 		pr.logger.Info("some replica lag is too large, maybe sent a snapshot later",
 			zap.Uint64("lag", compactIndex-minReplicatedIndex))
 	}
-
 	compactIndex--
 	if compactIndex < firstIndex {
 		return
 	}
-
+	pr.logger.Info("requesting log compaction",
+		zap.Uint64("index", compactIndex))
 	pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
 		CompactIndex: compactIndex,
 	})

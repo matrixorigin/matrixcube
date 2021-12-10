@@ -22,6 +22,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage/kv"
@@ -107,6 +108,10 @@ func (t *replicaTestTransport) Start() error {
 
 func (t *replicaTestTransport) Close() error {
 	return nil
+}
+
+func (t *replicaTestTransport) SetFilter(func(meta.RaftMessage) bool) {
+	panic("not implemented")
 }
 
 func (t *replicaTestTransport) SendingSnapshotCount() uint64 {
@@ -269,4 +274,47 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
+}
+
+func TestEntriesToApply(t *testing.T) {
+	tests := []struct {
+		inputIndex   uint64
+		inputLength  uint64
+		crash        bool
+		resultIndex  uint64
+		resultLength uint64
+		pushedIndex  uint64
+	}{
+		{1, 5, true, 0, 0, 10},
+		{1, 10, false, 0, 0, 10},
+		{1, 11, false, 11, 1, 10},
+		{1, 20, false, 11, 10, 10},
+		{10, 6, false, 11, 5, 10},
+		{11, 5, false, 11, 5, 10},
+		{12, 5, true, 0, 0, 10},
+	}
+	for idx, tt := range tests {
+		func() {
+			defer func() {
+				if r := recover(); r == nil && tt.crash {
+					t.Fatalf("%d, didn't panic", idx)
+				}
+			}()
+			inputs := make([]raftpb.Entry, 0)
+			for i := tt.inputIndex; i < tt.inputIndex+tt.inputLength; i++ {
+				inputs = append(inputs, raftpb.Entry{Index: i})
+			}
+			r := &replica{pushedIndex: tt.pushedIndex, logger: log.GetPanicZapLogger()}
+			results := r.entriesToApply(inputs)
+			if uint64(len(results)) != tt.resultLength {
+				t.Errorf("%d, result len %d, want %d", idx, len(results), tt.resultLength)
+			}
+			if len(results) > 0 {
+				if results[0].Index != tt.resultIndex {
+					t.Errorf("%d, first result index %d, want %d",
+						idx, results[0].Index, tt.resultIndex)
+				}
+			}
+		}()
+	}
 }

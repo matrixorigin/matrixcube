@@ -201,13 +201,16 @@ func (s *snapshotter) processOrphans(dirName string,
 	return s.removeFlagFile(dirName)
 }
 
-func (s *snapshotter) save(de saveable, index uint64) (ss raftpb.Snapshot,
+func (s *snapshotter) save(de saveable,
+	cs raftpb.ConfState, index uint64, term uint64) (ss raftpb.Snapshot,
 	env snapshot.SSEnv, err error) {
 	extra := random.LockGuardedRand.Uint64()
 	env = s.getCreatingSnapshotEnv(extra)
 	s.logger.Info("saving snapshot",
 		zap.String("tmpdir", env.GetTempDir()))
 	if err := env.CreateTempDir(); err != nil {
+		s.logger.Error("failed to create snapshot temp directory",
+			zap.Error(err))
 		return raftpb.Snapshot{}, env, err
 	}
 	if err := de.CreateSnapshot(s.shardID, env.GetTempDir()); err != nil {
@@ -216,11 +219,12 @@ func (s *snapshotter) save(de saveable, index uint64) (ss raftpb.Snapshot,
 		return raftpb.Snapshot{}, env, err
 	}
 	env.FinalizeIndex(index)
-	s.logger.Info("snapshot saved")
 	return raftpb.Snapshot{
 		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
-			Index: index,
+			Index:     index,
+			Term:      term,
+			ConfState: cs,
 		},
 	}, env, nil
 }
@@ -232,10 +236,14 @@ func (s *snapshotter) recover(rc recoverable,
 		zap.String("dir", env.GetFinalDir()))
 	// TODO: double check to see whether we do have the snapshot folder on disk
 	if err := rc.ApplySnapshot(s.shardID, env.GetFinalDir()); err != nil {
+		s.logger.Error("data storage failed to apply snapshot",
+			zap.Error(err))
 		return meta.ShardMetadata{}, err
 	}
 	sms, err := rc.GetInitialStates()
 	if err != nil {
+		s.logger.Error("failed to get initial states from data storage",
+			zap.Error(err))
 		return meta.ShardMetadata{}, err
 	}
 	for _, sm := range sms {
@@ -254,15 +262,24 @@ func (s *snapshotter) recover(rc recoverable,
 func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 	env.FinalizeIndex(ss.Metadata.Index)
 	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
+		s.logger.Error("failed to commit saved snapshot",
+			zap.Error(err))
 		return err
 	}
 	if err := env.FinalizeSnapshot(&ss); err != nil {
 		if errors.Is(err, snapshot.ErrSnapshotOutOfDate) {
 			return errSnapshotOutOfDate
 		}
+		s.logger.Error("failed to finalize saved snapshot",
+			zap.Error(err))
 		return err
 	}
-	return env.RemoveFlagFile()
+	if err := env.RemoveFlagFile(); err != nil {
+		s.logger.Error("failed to remove flag file",
+			zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (s *snapshotter) removeFlagFile(dirName string) error {

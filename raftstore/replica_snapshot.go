@@ -40,60 +40,93 @@ func (r *replica) handleRaftCreateSnapshotRequest() error {
 }
 
 func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
-	index, _ := r.sm.getAppliedIndexTerm()
+	index, term := r.sm.getAppliedIndexTerm()
 	if index == 0 {
 		panic("invalid snapshot index")
 	}
-	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage, index)
+	logger := r.logger.With(
+		zap.Uint64("snapshot-index", index))
+
+	cs := r.sm.getConfState()
+	logger.Info("createSnapshot called",
+		zap.Uint64("snapshot-term", term),
+		log.ReplicaIDsField("voters", cs.Voters),
+		log.ReplicaIDsField("learners", cs.Learners))
+
+	ss, ssenv, err := r.snapshotter.save(r.sm.dataStorage, cs, index, term)
 	if err != nil {
 		if errors.Is(err, storage.ErrAborted) {
-			r.logger.Info("snapshot aborted")
+			logger.Info("snapshot aborted")
 			ssenv.MustRemoveTempDir()
 			return raftpb.Snapshot{}, false, nil
 		}
+		logger.Error("failed to save snapshot",
+			zap.Error(err))
 		return raftpb.Snapshot{}, false, err
 	}
-	r.logger.Info("snapshot save completed")
+	logger.Info("snapshot save completed")
 	if err := r.snapshotter.commit(ss, ssenv); err != nil {
 		if errors.Is(err, errSnapshotOutOfDate) {
 			// the snapshot final dir already exist on disk
 			// same snapshot index and same random uint64
 			ssenv.MustRemoveTempDir()
-			r.logger.Fatal("snapshot final dir already exist",
-				zap.String("snapshot-dirname", ssenv.GetFinalDir()))
+			logger.Fatal("snapshot final dir already exist",
+				zap.String("directory", ssenv.GetFinalDir()))
 		}
+		logger.Error("failed to commit saved snapshot",
+			zap.Error(err))
 		return raftpb.Snapshot{}, false, err
 	}
-	r.logger.Info("snapshot committed")
+	logger.Info("snapshot committed")
 	if err := r.lr.CreateSnapshot(ss); err != nil {
 		if errors.Is(err, raft.ErrSnapOutOfDate) {
 			// lr already has a more recent snapshot
-			r.logger.Fatal("aborted registering an out of date snapshot",
+			logger.Fatal("aborted registering an out of date snapshot",
 				log.SnapshotField(ss))
 		}
+		logger.Error("failed to register the snapshot with the LogReader",
+			zap.Error(err))
 		return raftpb.Snapshot{}, false, err
 	}
-	r.logger.Info("snapshot created")
+	logger.Info("snapshot created")
 	// TODO: schedule log compacton here
 	return ss, true, nil
 }
 
 func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
+	logger := r.logger.With(
+		zap.Uint64("snapshot-index", ss.Metadata.Index))
 	md, err := r.snapshotter.recover(r.sm.dataStorage, ss)
 	if err != nil {
+		logger.Error("failed to recover from the snapshot",
+			zap.Error(err))
 		return err
 	}
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
-	return r.removeSnapshot(ss, true)
+	if err := r.removeSnapshot(ss, true); err != nil {
+		logger.Error("failed to remove snapshot",
+			zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error {
+	logger := r.logger.With(
+		zap.Uint64("snapshot-index", ss.Metadata.Index))
 	if removeFromLogDB {
 		if err := r.logdb.RemoveSnapshot(r.shardID, ss.Metadata.Index); err != nil {
+			logger.Error("failed to remove snapshot record from logdb",
+				zap.Error(err))
 			return err
 		}
 	}
 	env := r.snapshotter.getRecoverSnapshotEnv(ss)
-	return env.RemoveFinalDir()
+	if err := env.RemoveFinalDir(); err != nil {
+		logger.Error("failed to remove snapshot final directory",
+			zap.Error(err))
+		return err
+	}
+	return nil
 }
