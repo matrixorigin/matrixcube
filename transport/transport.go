@@ -42,6 +42,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -167,7 +168,7 @@ func NewTransport(logger *zap.Logger, addr string,
 	dir snapshot.SnapshotDirFunc,
 	resolver ContainerResolver, fs vfs.FS) *Transport {
 	t := &Transport{
-		logger:         logger,
+		logger:         log.Adjust(logger),
 		storeID:        storeID,
 		handler:        handler,
 		unreachable:    unreachable,
@@ -417,7 +418,7 @@ func (t *Transport) resolve(storeID uint64, shardID uint64) (targetInfo, bool) {
 	}
 
 	addr, err := t.resolver(storeID)
-	if err != nil {
+	if err != nil || addr == "" {
 		t.logger.Error("failed to resolve store addr",
 			zap.Error(err))
 		return targetInfo{}, false

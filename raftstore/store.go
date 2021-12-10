@@ -751,6 +751,9 @@ func (s *store) containerResolver(storeID uint64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if container == nil {
+		return "", nil
+	}
 	return container.ShardAddr(), nil
 }
 

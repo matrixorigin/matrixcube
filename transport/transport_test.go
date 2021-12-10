@@ -30,11 +30,17 @@
 package transport
 
 import (
+	"errors"
 	"sync"
+	"testing"
 
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func getNodeInfo(shardID uint64, replicaID uint64) nodeInfo {
@@ -178,4 +184,32 @@ func (h *testMessageHandler) getMessageCount(m map[nodeInfo]uint64,
 		return v
 	}
 	return 0
+}
+
+func TestContainerResolverReturnEmptyAddr(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+
+	trans := NewTransport(nil, testTransportAddr, 2,
+		nil, nil, nil,
+		getTestSnapshotDir, func(storeID uint64) (string, error) { return "", nil }, fs)
+	require.NoError(t, trans.Start())
+	defer trans.Close()
+
+	assert.False(t, trans.Send(meta.RaftMessage{}))
+}
+
+func TestContainerResolverReturnError(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+
+	trans := NewTransport(nil, testTransportAddr, 2,
+		nil, nil, nil,
+		getTestSnapshotDir, func(storeID uint64) (string, error) { return "", errors.New("error") }, fs)
+	require.NoError(t, trans.Start())
+	defer trans.Close()
+
+	assert.False(t, trans.Send(meta.RaftMessage{}))
 }
