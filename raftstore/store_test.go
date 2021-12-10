@@ -301,3 +301,11 @@ func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
 }
+
+func TestLogDBGetter(t *testing.T) {
+	// we just check whether this can compile
+	var s interface{}
+	s = &store{}
+	getter := s.(LogDBGetter)
+	assert.Nil(t, getter.GetLogDB())
+}
