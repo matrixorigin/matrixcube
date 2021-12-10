@@ -48,9 +48,10 @@ $(info Running selected tests $(TEST_TO_RUN))
 SELECTED_TESTS=-run $(TEST_TO_RUN)
 endif
 
+TEST_TAGS=-tags matrixone_test
 SHORT_ONLY=-short
 TEST_OPTIONS=test -timeout=1200s -count=1 -v $(RACE_FLAG) $(COVER_FLAG) $(SELECTED_TESTS)
-GOTEST=$(GO) $(TEST_OPTIONS) $(SHORT_ONLY)
+GOTEST=$(GO) $(TEST_OPTIONS) $(SHORT_ONLY) $(TEST_TAGS)
 
 ###############################################################################
 # tests
