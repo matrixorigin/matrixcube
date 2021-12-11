@@ -66,8 +66,8 @@ func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int
 	stats.Available = stats.Capacity - stats.UsedSize
 	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
 		core.SetContainerStats(stats),
-		core.SetResourceCount(0, resourceCount),
-		core.SetResourceSize(0, int64(resourceSize)),
+		core.SetResourceCount("", resourceCount),
+		core.SetResourceSize("", int64(resourceSize)),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 
@@ -94,8 +94,8 @@ func (c *testCluster) addLeaderResource(resourceID uint64, leaderContainerID uin
 func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) error {
 	container := c.GetContainer(containerID)
 	newContainer := container.Clone(
-		core.SetLeaderCount(0, leaderCount),
-		core.SetLeaderSize(0, int64(leaderCount)*10),
+		core.SetLeaderCount("", leaderCount),
+		core.SetLeaderSize("", int64(leaderCount)*10),
 	)
 	c.Lock()
 	defer c.Unlock()
@@ -106,8 +106,8 @@ func (c *testCluster) addLeaderContainer(containerID uint64, leaderCount int) er
 	stats := &metapb.ContainerStats{}
 	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
 		core.SetContainerStats(stats),
-		core.SetLeaderCount(0, leaderCount),
-		core.SetLeaderSize(0, int64(leaderCount)*10),
+		core.SetLeaderCount("", leaderCount),
+		core.SetLeaderSize("", int64(leaderCount)*10),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 
@@ -455,7 +455,7 @@ func TestShouldRun(t *testing.T) {
 	assert.Nil(t, tc.LoadResource(6, 2, 1, 4))
 	assert.Nil(t, tc.LoadResource(7, 2, 1, 4))
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 2, tc.core.Resources.GetContainerResourceCount(4))
+	assert.Equal(t, 2, tc.core.Resources.GetContainerResourceCount("", 4))
 
 	tbl := []struct {
 		resourceID uint64
@@ -494,7 +494,7 @@ func TestShouldRunWithNonLeaderResources(t *testing.T) {
 		assert.Nil(t, tc.LoadResource(uint64(i+1), 1, 2, 3))
 	}
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 10, tc.core.Resources.GetContainerResourceCount(1))
+	assert.Equal(t, 10, tc.core.Resources.GetContainerResourceCount("", 1))
 
 	tbl := []struct {
 		resourceID uint64
@@ -758,7 +758,7 @@ func TestContainerOverloaded(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt := tc.GetOpts()
 	assert.Nil(t, tc.addResourceContainer(4, 100))
@@ -809,7 +809,7 @@ func TestContainerOverloadedWithReplace(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	assert.Nil(t, tc.addResourceContainer(4, 100))
@@ -858,7 +858,7 @@ func TestController(t *testing.T) {
 
 	assert.Nil(t, tc.addLeaderResource(1, 1))
 	assert.Nil(t, tc.addLeaderResource(2, 2))
-	scheduler, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"", ""}))
+	scheduler, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	lb := &mockLimitScheduler{
 		Scheduler: scheduler,
@@ -946,7 +946,7 @@ func TestInterval(t *testing.T) {
 	_, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 
-	lb, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, co.opController, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, co.opController, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	sc := newScheduleController(co, lb)
 

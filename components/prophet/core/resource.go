@@ -39,6 +39,7 @@ type CachedResource struct {
 	Meta metadata.Resource
 
 	term            uint64
+	groupKey        string
 	learners        []metapb.Replica
 	voters          []metapb.Replica
 	leader          *metapb.Replica
@@ -99,12 +100,14 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 
 	res := &CachedResource{
 		Meta:            meta,
+		groupKey:        heartbeat.GroupKey,
 		term:            heartbeat.GetTerm(),
 		leader:          heartbeat.GetLeader(),
 		downReplicas:    heartbeat.GetDownReplicas(),
 		pendingReplicas: heartbeat.GetPendingReplicas(),
 		stats:           heartbeat.Stats,
 	}
+	res.stats.ApproximateSize = resourceSize
 
 	if res.stats.WrittenKeys >= ImpossibleFlowSize || res.stats.WrittenBytes >= ImpossibleFlowSize {
 		res.stats.WrittenKeys = 0
@@ -148,6 +151,11 @@ func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
 	}
 	classifyVoterAndLearner(res)
 	return res
+}
+
+// GetGroupKey returns group key
+func (r *CachedResource) GetGroupKey() string {
+	return r.groupKey
 }
 
 // IsDestroyState resource in Destroyed or Destroying state
@@ -545,12 +553,12 @@ func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedR
 // CachedResources for export
 type CachedResources struct {
 	factory         func() metadata.Resource
-	trees           map[uint64]*resourceTree
-	resources       *resourceMap                // resourceID -> CachedResource
-	leaders         map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	followers       map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	learners        map[uint64]*resourceSubTree // containerID -> resourceSubTree
-	pendingReplicas map[uint64]*resourceSubTree // containerID -> resourceSubTree
+	trees           map[uint64]*resourceTree               // group id -> resourceTree
+	resources       *resourceMap                           // resourceID -> CachedResource
+	leaders         map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
+	followers       map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
+	learners        map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
+	pendingReplicas map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
 }
 
 // NewCachedResources creates CachedResources with tree, resources, leaders and followers
@@ -559,10 +567,25 @@ func NewCachedResources(factory func() metadata.Resource) *CachedResources {
 		factory:         factory,
 		trees:           make(map[uint64]*resourceTree),
 		resources:       newResourceMap(),
-		leaders:         make(map[uint64]*resourceSubTree),
-		followers:       make(map[uint64]*resourceSubTree),
-		learners:        make(map[uint64]*resourceSubTree),
-		pendingReplicas: make(map[uint64]*resourceSubTree),
+		leaders:         make(map[string]map[uint64]*resourceSubTree),
+		followers:       make(map[string]map[uint64]*resourceSubTree),
+		learners:        make(map[string]map[uint64]*resourceSubTree),
+		pendingReplicas: make(map[string]map[uint64]*resourceSubTree),
+	}
+}
+
+func (r *CachedResources) maybeInitWithGroup(groupKey string) {
+	if _, ok := r.leaders[groupKey]; !ok {
+		r.leaders[groupKey] = make(map[uint64]*resourceSubTree)
+	}
+	if _, ok := r.followers[groupKey]; !ok {
+		r.followers[groupKey] = make(map[uint64]*resourceSubTree)
+	}
+	if _, ok := r.learners[groupKey]; !ok {
+		r.learners[groupKey] = make(map[uint64]*resourceSubTree)
+	}
+	if _, ok := r.pendingReplicas[groupKey]; !ok {
+		r.pendingReplicas[groupKey] = make(map[uint64]*resourceSubTree)
 	}
 }
 
@@ -571,6 +594,15 @@ func (r *CachedResources) ForeachResources(group uint64, fn func(res metadata.Re
 	for _, res := range r.resources.m {
 		if res.Meta.Group() == group {
 			fn(res.Meta)
+		}
+	}
+}
+
+// ForeachCachedResources foreach cached resource by group
+func (r *CachedResources) ForeachCachedResources(group uint64, fn func(res *CachedResource)) {
+	for _, res := range r.resources.m {
+		if res.Meta.Group() == group {
+			fn(res)
 		}
 	}
 }
@@ -651,23 +683,25 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 	// Add to resources.
 	r.resources.Put(res)
 
+	r.maybeInitWithGroup(res.groupKey)
+
 	// Add to leaders and followers.
 	for _, peer := range res.GetVoters() {
 		containerID := peer.ContainerID
 		if peer.ID == res.getLeaderID() {
 			// Add leader peer to leaders.
-			container, ok := r.leaders[containerID]
+			container, ok := r.leaders[res.groupKey][containerID]
 			if !ok {
 				container = newResourceSubTree(r.factory)
-				r.leaders[containerID] = container
+				r.leaders[res.groupKey][containerID] = container
 			}
 			container.update(res)
 		} else {
 			// Add follower peer to followers.
-			container, ok := r.followers[containerID]
+			container, ok := r.followers[res.groupKey][containerID]
 			if !ok {
 				container = newResourceSubTree(r.factory)
-				r.followers[containerID] = container
+				r.followers[res.groupKey][containerID] = container
 			}
 			container.update(res)
 		}
@@ -676,20 +710,20 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 	// Add to learners.
 	for _, peer := range res.GetLearners() {
 		containerID := peer.ContainerID
-		container, ok := r.learners[containerID]
+		container, ok := r.learners[res.groupKey][containerID]
 		if !ok {
 			container = newResourceSubTree(r.factory)
-			r.learners[containerID] = container
+			r.learners[res.groupKey][containerID] = container
 		}
 		container.update(res)
 	}
 
 	for _, peer := range res.pendingReplicas {
 		containerID := peer.ContainerID
-		container, ok := r.pendingReplicas[containerID]
+		container, ok := r.pendingReplicas[res.groupKey][containerID]
 		if !ok {
 			container = newResourceSubTree(r.factory)
-			r.pendingReplicas[containerID] = container
+			r.pendingReplicas[res.groupKey][containerID] = container
 		}
 		container.update(res)
 	}
@@ -716,13 +750,15 @@ func (r *CachedResources) removeResourceFromTreeAndMap(res *CachedResource) {
 
 // removeResourceFromSubTree removes CachedResource from resourcesubTrees
 func (r *CachedResources) removeResourceFromSubTree(res *CachedResource) {
+	r.maybeInitWithGroup(res.groupKey)
+
 	// Remove from leaders and followers.
 	for _, peer := range res.Meta.Peers() {
 		containerID := peer.ContainerID
-		r.leaders[containerID].remove(res)
-		r.followers[containerID].remove(res)
-		r.learners[containerID].remove(res)
-		r.pendingReplicas[containerID].remove(res)
+		r.leaders[res.groupKey][containerID].remove(res)
+		r.followers[res.groupKey][containerID].remove(res)
+		r.learners[res.groupKey][containerID].remove(res)
+		r.pendingReplicas[res.groupKey][containerID].remove(res)
 	}
 }
 
@@ -797,7 +833,8 @@ func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *C
 	return origin.getLeaderID() != res.getLeaderID() ||
 		checkPeersChange(origin.GetVoters(), res.GetVoters()) ||
 		checkPeersChange(origin.GetLearners(), res.GetLearners()) ||
-		checkPeersChange(origin.GetPendingPeers(), res.GetPendingPeers())
+		checkPeersChange(origin.GetPendingPeers(), res.GetPendingPeers()) ||
+		origin.groupKey != res.groupKey
 }
 
 // SearchResource searches CachedResource from resourceTree
@@ -836,38 +873,45 @@ func (r *CachedResources) GetResources() []*CachedResource {
 }
 
 // GetContainerResources gets all CachedResource with a given containerID
-func (r *CachedResources) GetContainerResources(containerID uint64) []*CachedResource {
-	resources := make([]*CachedResource, 0, r.GetContainerResourceCount(containerID))
-	if leaders, ok := r.leaders[containerID]; ok {
+func (r *CachedResources) GetContainerResources(groupKey string, containerID uint64) []*CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	resources := make([]*CachedResource, 0, r.GetContainerResourceCount(groupKey, containerID))
+	if leaders, ok := r.leaders[groupKey][containerID]; ok {
 		resources = append(resources, leaders.scanRanges()...)
 	}
-	if followers, ok := r.followers[containerID]; ok {
+	if followers, ok := r.followers[groupKey][containerID]; ok {
 		resources = append(resources, followers.scanRanges()...)
 	}
-	if learners, ok := r.learners[containerID]; ok {
+	if learners, ok := r.learners[groupKey][containerID]; ok {
 		resources = append(resources, learners.scanRanges()...)
 	}
 	return resources
 }
 
 // GetContainerLeaderResourceSize get total size of container's leader resources
-func (r *CachedResources) GetContainerLeaderResourceSize(containerID uint64) int64 {
-	return r.leaders[containerID].TotalSize()
+func (r *CachedResources) GetContainerLeaderResourceSize(groupKey string, containerID uint64) int64 {
+	r.maybeInitWithGroup(groupKey)
+	return r.leaders[groupKey][containerID].TotalSize()
 }
 
 // GetContainerFollowerResourceSize get total size of container's follower resources
-func (r *CachedResources) GetContainerFollowerResourceSize(containerID uint64) int64 {
-	return r.followers[containerID].TotalSize()
+func (r *CachedResources) GetContainerFollowerResourceSize(groupKey string, containerID uint64) int64 {
+	r.maybeInitWithGroup(groupKey)
+	return r.followers[groupKey][containerID].TotalSize()
 }
 
 // GetContainerLearnerResourceSize get total size of container's learner resources
-func (r *CachedResources) GetContainerLearnerResourceSize(containerID uint64) int64 {
-	return r.learners[containerID].TotalSize()
+func (r *CachedResources) GetContainerLearnerResourceSize(groupKey string, containerID uint64) int64 {
+	r.maybeInitWithGroup(groupKey)
+	return r.learners[groupKey][containerID].TotalSize()
 }
 
 // GetContainerResourceSize get total size of container's resources
-func (r *CachedResources) GetContainerResourceSize(containerID uint64) int64 {
-	return r.GetContainerLeaderResourceSize(containerID) + r.GetContainerFollowerResourceSize(containerID) + r.GetContainerLearnerResourceSize(containerID)
+func (r *CachedResources) GetContainerResourceSize(groupKey string, containerID uint64) int64 {
+	r.maybeInitWithGroup(groupKey)
+	return r.GetContainerLeaderResourceSize(groupKey, containerID) +
+		r.GetContainerFollowerResourceSize(groupKey, containerID) +
+		r.GetContainerLearnerResourceSize(groupKey, containerID)
 }
 
 // GetMetaResources gets a set of metadata.Resource from resourceMap
@@ -885,81 +929,98 @@ func (r *CachedResources) GetResourceCount() int {
 }
 
 // GetContainerResourceCount gets the total count of a container's leader, follower and learner CachedResource by containerID
-func (r *CachedResources) GetContainerResourceCount(containerID uint64) int {
-	return r.GetContainerLeaderCount(containerID) + r.GetContainerFollowerCount(containerID) + r.GetContainerLearnerCount(containerID)
+func (r *CachedResources) GetContainerResourceCount(groupKey string, containerID uint64) int {
+	r.maybeInitWithGroup(groupKey)
+	return r.GetContainerLeaderCount(groupKey, containerID) +
+		r.GetContainerFollowerCount(groupKey, containerID) +
+		r.GetContainerLearnerCount(groupKey, containerID)
 }
 
 // GetContainerPendingPeerCount gets the total count of a container's resource that includes pending peer
-func (r *CachedResources) GetContainerPendingPeerCount(containerID uint64) int {
-	return r.pendingReplicas[containerID].length()
+func (r *CachedResources) GetContainerPendingPeerCount(groupKey string, containerID uint64) int {
+	r.maybeInitWithGroup(groupKey)
+	return r.pendingReplicas[groupKey][containerID].length()
 }
 
 // GetContainerLeaderCount get the total count of a container's leader CachedResource
-func (r *CachedResources) GetContainerLeaderCount(containerID uint64) int {
-	return r.leaders[containerID].length()
+func (r *CachedResources) GetContainerLeaderCount(groupKey string, containerID uint64) int {
+	r.maybeInitWithGroup(groupKey)
+	return r.leaders[groupKey][containerID].length()
 }
 
 // GetContainerFollowerCount get the total count of a container's follower CachedResource
-func (r *CachedResources) GetContainerFollowerCount(containerID uint64) int {
-	return r.followers[containerID].length()
+func (r *CachedResources) GetContainerFollowerCount(groupKey string, containerID uint64) int {
+	r.maybeInitWithGroup(groupKey)
+	return r.followers[groupKey][containerID].length()
 }
 
 // GetContainerLearnerCount get the total count of a container's learner CachedResource
-func (r *CachedResources) GetContainerLearnerCount(containerID uint64) int {
-	return r.learners[containerID].length()
+func (r *CachedResources) GetContainerLearnerCount(groupKey string, containerID uint64) int {
+	r.maybeInitWithGroup(groupKey)
+	return r.learners[groupKey][containerID].length()
 }
 
 // RandPendingResource randomly gets a container's resource with a pending peer.
-func (r *CachedResources) RandPendingResource(containerID uint64, ranges []KeyRange) *CachedResource {
-	return r.pendingReplicas[containerID].RandomResource(ranges)
+func (r *CachedResources) RandPendingResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.pendingReplicas[groupKey][containerID].RandomResource(ranges)
 }
 
 // RandPendingResources randomly gets a container's n resources with a pending peer.
-func (r *CachedResources) RandPendingResources(containerID uint64, ranges []KeyRange, n int) []*CachedResource {
-	return r.pendingReplicas[containerID].RandomResources(n, ranges)
+func (r *CachedResources) RandPendingResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.pendingReplicas[groupKey][containerID].RandomResources(n, ranges)
 }
 
 // RandLeaderResource randomly gets a container's leader resource.
-func (r *CachedResources) RandLeaderResource(containerID uint64, ranges []KeyRange) *CachedResource {
-	return r.leaders[containerID].RandomResource(ranges)
+func (r *CachedResources) RandLeaderResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.leaders[groupKey][containerID].RandomResource(ranges)
 }
 
 // RandLeaderResources randomly gets a container's n leader resources.
-func (r *CachedResources) RandLeaderResources(containerID uint64, ranges []KeyRange, n int) []*CachedResource {
-	return r.leaders[containerID].RandomResources(n, ranges)
+func (r *CachedResources) RandLeaderResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.leaders[groupKey][containerID].RandomResources(n, ranges)
 }
 
 // RandFollowerResource randomly gets a container's follower resource.
-func (r *CachedResources) RandFollowerResource(containerID uint64, ranges []KeyRange) *CachedResource {
-	return r.followers[containerID].RandomResource(ranges)
+func (r *CachedResources) RandFollowerResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.followers[groupKey][containerID].RandomResource(ranges)
 }
 
 // RandFollowerResources randomly gets a container's n follower resources.
-func (r *CachedResources) RandFollowerResources(containerID uint64, ranges []KeyRange, n int) []*CachedResource {
-	return r.followers[containerID].RandomResources(n, ranges)
+func (r *CachedResources) RandFollowerResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.followers[groupKey][containerID].RandomResources(n, ranges)
 }
 
 // RandLearnerResource randomly gets a container's learner resource.
-func (r *CachedResources) RandLearnerResource(containerID uint64, ranges []KeyRange) *CachedResource {
-	return r.learners[containerID].RandomResource(ranges)
+func (r *CachedResources) RandLearnerResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.learners[groupKey][containerID].RandomResource(ranges)
 }
 
 // RandLearnerResources randomly gets a container's n learner resources.
-func (r *CachedResources) RandLearnerResources(containerID uint64, ranges []KeyRange, n int) []*CachedResource {
-	return r.learners[containerID].RandomResources(n, ranges)
+func (r *CachedResources) RandLearnerResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	return r.learners[groupKey][containerID].RandomResources(n, ranges)
 }
 
 // GetLeader return leader CachedResource by containerID and resourceID(now only used in test)
-func (r *CachedResources) GetLeader(containerID uint64, res *CachedResource) *CachedResource {
-	if leaders, ok := r.leaders[containerID]; ok {
+func (r *CachedResources) GetLeader(groupKey string, containerID uint64, res *CachedResource) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	if leaders, ok := r.leaders[groupKey][containerID]; ok {
 		return leaders.find(res).res
 	}
 	return nil
 }
 
 // GetFollower return follower CachedResource by containerID and resourceID(now only used in test)
-func (r *CachedResources) GetFollower(containerID uint64, res *CachedResource) *CachedResource {
-	if followers, ok := r.followers[containerID]; ok {
+func (r *CachedResources) GetFollower(groupKey string, containerID uint64, res *CachedResource) *CachedResource {
+	r.maybeInitWithGroup(groupKey)
+	if followers, ok := r.followers[groupKey][containerID]; ok {
 		return followers.find(res).res
 	}
 	return nil

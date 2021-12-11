@@ -123,45 +123,45 @@ func ResumeLeaderTransfer() ContainerCreateOption {
 }
 
 // SetLeaderCount sets the leader count for the container.
-func SetLeaderCount(group uint64, leaderCount int) ContainerCreateOption {
+func SetLeaderCount(groupKey string, leaderCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		info := container.leaderInfo[group]
+		info := container.leaderInfo[groupKey]
 		info.count = leaderCount
-		container.leaderInfo[group] = info
+		container.leaderInfo[groupKey] = info
 	}
 }
 
 // SetResourceCount sets the Resource count for the container.
-func SetResourceCount(group uint64, resourceCount int) ContainerCreateOption {
+func SetResourceCount(groupKey string, resourceCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		info := container.resourceInfo[group]
+		info := container.resourceInfo[groupKey]
 		info.count = resourceCount
-		container.resourceInfo[group] = info
+		container.resourceInfo[groupKey] = info
 	}
 }
 
 // SetPendingPeerCount sets the pending peer count for the container.
-func SetPendingPeerCount(group uint64, pendingPeerCount int) ContainerCreateOption {
+func SetPendingPeerCount(groupKey string, pendingPeerCount int) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		container.pendingPeerCounts[group] = pendingPeerCount
+		container.pendingPeerCounts[groupKey] = pendingPeerCount
 	}
 }
 
 // SetLeaderSize sets the leader size for the container.
-func SetLeaderSize(group uint64, leaderSize int64) ContainerCreateOption {
+func SetLeaderSize(groupKey string, leaderSize int64) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		info := container.leaderInfo[group]
+		info := container.leaderInfo[groupKey]
 		info.size = leaderSize
-		container.leaderInfo[group] = info
+		container.leaderInfo[groupKey] = info
 	}
 }
 
 // SetResourceSize sets the Resource size for the container.
-func SetResourceSize(group uint64, resourceSize int64) ContainerCreateOption {
+func SetResourceSize(groupKey string, resourceSize int64) ContainerCreateOption {
 	return func(container *CachedContainer) {
-		info := container.resourceInfo[group]
+		info := container.resourceInfo[groupKey]
 		info.size = resourceSize
-		container.resourceInfo[group] = info
+		container.resourceInfo[groupKey] = info
 	}
 }
 

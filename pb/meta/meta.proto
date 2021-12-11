@@ -96,6 +96,7 @@ message Shard {
     string                   unique          = 10;
     repeated string          ruleGroups      = 11;
     bytes                    data            = 12;
+    repeated metapb.Pair     labels          = 13 [(gogoproto.nullable) = false];
 }
 
 // ReplicaState the state of the shard peer

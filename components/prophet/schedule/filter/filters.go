@@ -183,7 +183,9 @@ func (f *excludedFilter) maybeLogWhy(container *core.CachedContainer) {
 	}
 }
 
-type storageThresholdFilter struct{ scope string }
+type storageThresholdFilter struct {
+	scope string
+}
 
 // NewStorageThresholdFilter creates a Filter that filters all containers that are
 // almost full.
@@ -204,7 +206,7 @@ func (f *storageThresholdFilter) Source(opt *config.PersistOptions, container *c
 }
 
 func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
-	v := !container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups)
+	v := !container.IsLowSpace(opt.GetLowSpaceRatio())
 	if !v && LogWhySkipped {
 		log.Printf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
 			container.Meta.ID(),
@@ -700,7 +702,7 @@ func (f *specialUseFilter) Type() string {
 }
 
 func (f *specialUseFilter) Source(opt *config.PersistOptions, container *core.CachedContainer) bool {
-	if container.IsLowSpace(opt.GetLowSpaceRatio(), opt.GetReplicationConfig().Groups) {
+	if container.IsLowSpace(opt.GetLowSpaceRatio()) {
 		return true
 	}
 	return !f.constraint.MatchContainer(container)

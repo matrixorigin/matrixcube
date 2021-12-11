@@ -94,6 +94,9 @@ type ResourceStorage interface {
 	PutResourceExtra(id uint64, extra []byte) error
 	// GetResourceExtra returns the resource extra data
 	GetResourceExtra(id uint64) ([]byte, error)
+
+	PutScheduleGroupRule(metapb.ScheduleGroupRule) error
+	LoadScheduleGroupRules(limit int64, do func(metapb.ScheduleGroupRule)) error
 }
 
 // ConfigStorage  config storage
@@ -157,6 +160,7 @@ type storage struct {
 	configPath               string
 	resourcePath             string
 	resourceExtraPath        string
+	scheduleGroupRulePath    string
 	containerPath            string
 	rulePath                 string
 	ruleGroupPath            string
@@ -182,11 +186,12 @@ func NewStorage(rootPath string, kv KV, adapter metadata.Adapter) Storage {
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
 		resourceExtraPath:        fmt.Sprintf("%s/resources-extra", rootPath),
+		scheduleGroupRulePath:    fmt.Sprintf("%s/schdule-group-rules", rootPath),
 		containerPath:            fmt.Sprintf("%s/containers", rootPath),
 		rulePath:                 fmt.Sprintf("%s/rules", rootPath),
 		ruleGroupPath:            fmt.Sprintf("%s/rule-groups", rootPath),
 		clusterPath:              fmt.Sprintf("%s/cluster", rootPath),
-		customScheduleConfigPath: fmt.Sprintf("%s/scheduler_config", rootPath),
+		customScheduleConfigPath: fmt.Sprintf("%s/scheduler-config", rootPath),
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
 		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
 		jobDataPath:              fmt.Sprintf("%s/job-data", rootPath),
@@ -309,6 +314,19 @@ func (s *storage) PutResource(meta metadata.Resource) error {
 	}
 
 	return s.kv.Save(key, string(data))
+}
+
+func (s *storage) PutScheduleGroupRule(rule metapb.ScheduleGroupRule) error {
+	return s.kv.Save(s.getKey(rule.ID, s.scheduleGroupRulePath), string(protoc.MustMarshal(&rule)))
+}
+
+func (s *storage) LoadScheduleGroupRules(limit int64, do func(metapb.ScheduleGroupRule)) error {
+	return s.LoadRangeByPrefix(limit, s.scheduleGroupRulePath+"/", func(k, v string) error {
+		var rule metapb.ScheduleGroupRule
+		protoc.MustUnmarshal(&rule, []byte(v))
+		do(rule)
+		return nil
+	})
 }
 
 func (s *storage) PutResourceAndExtra(res metadata.Resource, extra []byte) error {

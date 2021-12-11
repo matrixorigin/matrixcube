@@ -84,7 +84,7 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 		s.resetContainerStatistics(containerAddress, id)
 		return
 	}
-	if container.IsLowSpace(s.opt.GetLowSpaceRatio(), s.opt.GetReplicationConfig().Groups) {
+	if container.IsLowSpace(s.opt.GetLowSpaceRatio()) {
 		s.LowSpace++
 	}
 
@@ -92,26 +92,19 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 	s.StorageSize += container.StorageSize()
 	s.StorageCapacity += container.GetCapacity()
 
-	var resScore, leaderScore, resSize, resCount, leaderSize, leaderCount float64
-	for _, group := range s.opt.GetReplicationConfig().Groups {
-		s.ResourceCount += container.GetResourceCount(group)
-		s.LeaderCount += container.GetLeaderCount(group)
-
-		resScore += container.ResourceScore(group, s.opt.GetResourceScoreFormulaVersion(), s.opt.GetHighSpaceRatio(), s.opt.GetLowSpaceRatio(), 0, 0)
-		leaderScore += container.LeaderScore(group, s.opt.GetLeaderSchedulePolicy(), 0)
-		resSize += float64(container.GetResourceSize(group))
-		resCount += float64(container.GetResourceCount(group))
-		leaderSize += float64(container.GetLeaderSize(group))
-		leaderCount += float64(container.GetLeaderCount(group))
-	}
+	var resSize, resCount, leaderSize, leaderCount float64
+	s.ResourceCount += container.GetTotalResourceCount()
+	s.LeaderCount += container.GetTotalLeaderCount()
+	resSize += float64(container.GetTotalResourceSize())
+	resCount += float64(container.GetTotalResourceCount())
+	leaderSize += float64(container.GetTotalLeaderSize())
+	leaderCount += float64(container.GetTotalLeaderCount())
 
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available").Set(float64(container.GetAvailable()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_used").Set(float64(container.GetUsedSize()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_capacity").Set(float64(container.GetCapacity()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_avg").Set(float64(container.GetAvgAvailable()))
 	containerStatusGauge.WithLabelValues(containerAddress, id, "container_available_deviation").Set(float64(container.GetAvailableDeviation()))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "resource_score").Set(resScore)
-	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_score").Set(leaderScore)
 	containerStatusGauge.WithLabelValues(containerAddress, id, "resource_size").Set(resSize)
 	containerStatusGauge.WithLabelValues(containerAddress, id, "resource_count").Set(resCount)
 	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_size").Set(leaderSize)

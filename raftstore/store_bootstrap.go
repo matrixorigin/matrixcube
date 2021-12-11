@@ -29,8 +29,10 @@ func (s *store) ProphetBecomeLeader() {
 	s.logger.Info("*********Become prophet leader*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
-		s.doBootstrapCluster(true)
-		close(s.pdStartedC)
+		go func() {
+			s.doBootstrapCluster(true)
+			close(s.pdStartedC)
+		}()
 	})
 }
 
@@ -38,8 +40,10 @@ func (s *store) ProphetBecomeFollower() {
 	s.logger.Info("*********Become prophet follower*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
-		s.doBootstrapCluster(false)
-		close(s.pdStartedC)
+		go func() {
+			s.doBootstrapCluster(false)
+			close(s.pdStartedC)
+		}()
 	})
 }
 

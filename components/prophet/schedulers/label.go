@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.uber.org/zap"
 )
 
@@ -60,8 +61,9 @@ func init() {
 }
 
 type labelSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type labelScheduler struct {
@@ -73,6 +75,8 @@ type labelScheduler struct {
 // Now only used for reject leader schedule, that will move the leader out of
 // the container with the specific label.
 func newLabelScheduler(opController *schedule.OperatorController, conf *labelSchedulerConfig) schedule.Scheduler {
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	return &labelScheduler{
 		BaseScheduler: NewBaseScheduler(opController),
 		conf:          conf,
@@ -115,36 +119,38 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	cluster.GetLogger().Debug("label scheduler reject leader container list",
 		zap.Any("reject-containers", rejectLeaderContainers))
 	for id := range rejectLeaderContainers {
-		if res := cluster.RandLeaderResource(id, s.conf.Ranges); res != nil {
-			cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
-				resourceField(res.Meta.ID()))
-			excludeContainers := make(map[uint64]struct{})
-			for _, p := range res.GetDownPeers() {
-				excludeContainers[p.GetReplica().ContainerID] = struct{}{}
-			}
-			for _, p := range res.GetPendingPeers() {
-				excludeContainers[p.GetContainerID()] = struct{}{}
-			}
-			f := filter.NewExcludedFilter(s.GetName(), nil, excludeContainers)
-
-			target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
-				FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: LabelName, TransferLeader: true}, f).
-				RandomPick()
-			if target == nil {
-				cluster.GetLogger().Debug("label scheduler no target found for resource",
+		for _, groupKey := range cluster.GetScheduleGroupKeys() {
+			if res := cluster.RandLeaderResource(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
+				cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
 					resourceField(res.Meta.ID()))
-				schedulerCounter.WithLabelValues(s.GetName(), "no-target").Inc()
-				continue
-			}
+				excludeContainers := make(map[uint64]struct{})
+				for _, p := range res.GetDownPeers() {
+					excludeContainers[p.GetReplica().ContainerID] = struct{}{}
+				}
+				for _, p := range res.GetPendingPeers() {
+					excludeContainers[p.GetContainerID()] = struct{}{}
+				}
+				f := filter.NewExcludedFilter(s.GetName(), nil, excludeContainers)
 
-			op, err := operator.CreateTransferLeaderOperator("label-reject-leader", cluster, res, id, target.Meta.ID(), operator.OpLeader)
-			if err != nil {
-				cluster.GetLogger().Debug("fail to create transfer label reject leader operator failed with %+v",
-					zap.Error(err))
-				return nil
+				target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
+					FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: LabelName, TransferLeader: true}, f).
+					RandomPick()
+				if target == nil {
+					cluster.GetLogger().Debug("label scheduler no target found for resource",
+						resourceField(res.Meta.ID()))
+					schedulerCounter.WithLabelValues(s.GetName(), "no-target").Inc()
+					continue
+				}
+
+				op, err := operator.CreateTransferLeaderOperator("label-reject-leader", cluster, res, id, target.Meta.ID(), operator.OpLeader)
+				if err != nil {
+					cluster.GetLogger().Debug("fail to create transfer label reject leader operator",
+						zap.Error(err))
+					return nil
+				}
+				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
+				return []*operator.Operator{op}
 			}
-			op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
-			return []*operator.Operator{op}
 		}
 	}
 	schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()

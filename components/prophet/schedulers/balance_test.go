@@ -142,11 +142,11 @@ func TestBalanceLimit(t *testing.T) {
 	tc.AddLeaderContainer(3, 30)
 
 	// StandDeviation is sqrt((10^2+0+10^2)/3).
-	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit(0, tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit("", tc, metapb.ResourceKind_LeaderKind))
 
 	tc.SetContainerOffline(1)
 	// StandDeviation is sqrt((5^2+5^2)/2).
-	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit(0, tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit("", tc, metapb.ResourceKind_LeaderKind))
 }
 
 func TestTolerantRatio(t *testing.T) {
@@ -159,15 +159,15 @@ func TestTolerantRatio(t *testing.T) {
 
 	tc.SetTolerantSizeRatio(0)
 	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 
 	tc.SetTolerantSizeRatio(10)
 	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio(tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 }
 
 type testBalanceLeaderScheduler struct {
@@ -184,7 +184,7 @@ func (s *testBalanceLeaderScheduler) setup(t *testing.T) {
 	s.opt = config.NewTestOptions()
 	s.tc = mockcluster.NewCluster(s.opt)
 	s.oc = schedule.NewOperatorController(s.ctx, s.tc, nil)
-	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	s.lb = lb
 }
@@ -204,8 +204,8 @@ func TestLeaderBalanceLimit(t *testing.T) {
 
 	s.tc.SetTolerantSizeRatio(2.5)
 	// containers:     1    2    3    4
-	// Leaders:    1    0    0    0
-	// resource1:    L    F    F    F
+	// Leaders:        1    0    0    0
+	// resources:      L    F    F    F
 	s.tc.AddLeaderContainer(1, 1)
 	s.tc.AddLeaderContainer(2, 0)
 	s.tc.AddLeaderContainer(3, 0)
@@ -214,14 +214,14 @@ func TestLeaderBalanceLimit(t *testing.T) {
 	assert.Nil(t, s.schedule())
 
 	// containers:     1    2    3    4
-	// Leaders:    16   0    0    0
-	// resource1:    L    F    F    F
+	// Leaders:        16   0    0    0
+	// resources:      L    F    F    F
 	s.tc.UpdateLeaderCount(1, 16)
 	assert.NotNil(t, s.schedule())
 
 	// containers:     1    2    3    4
-	// Leaders:    7    8    9   10
-	// resource1:    F    F    F    L
+	// Leaders:        7    8    9   10
+	// resources:      F    F    F    L
 	s.tc.UpdateLeaderCount(1, 7)
 	s.tc.UpdateLeaderCount(2, 8)
 	s.tc.UpdateLeaderCount(3, 9)
@@ -230,8 +230,8 @@ func TestLeaderBalanceLimit(t *testing.T) {
 	assert.Nil(t, s.schedule())
 
 	// containers:     1    2    3    4
-	// Leaders:    7    8    9   16
-	// resource1:    F    F    F    L
+	// Leaders:        7    8    9   16
+	// resources:      F    F    F    L
 	s.tc.UpdateLeaderCount(4, 16)
 	assert.NotNil(t, s.schedule())
 }
@@ -275,9 +275,9 @@ func TestBalanceLeaderTolerantRatio(t *testing.T) {
 
 	assert.Equal(t, core.ByCount.String(), s.tc.GetScheduleConfig().LeaderSchedulePolicy) // default by count
 	assert.Nil(t, s.schedule())
-	assert.Equal(t, 14, s.tc.GetContainer(1).GetLeaderCount(0))
+	assert.Equal(t, 14, s.tc.GetContainer(1).GetLeaderCount(""))
 	s.tc.AddLeaderContainer(1, 15, 100)
-	assert.Equal(t, 15, s.tc.GetContainer(1).GetLeaderCount(0))
+	assert.Equal(t, 15, s.tc.GetContainer(1).GetLeaderCount(""))
 	assert.NotNil(t, s.schedule())
 	s.tc.SetTolerantSizeRatio(6) // (15-10)<6
 	assert.Nil(t, s.schedule())
@@ -540,29 +540,29 @@ func TestSingleRangeBalance(t *testing.T) {
 	s.tc.UpdateContainerLeaderWeight(3, 1)
 	s.tc.UpdateContainerLeaderWeight(4, 2)
 	s.tc.AddLeaderResourceWithRange(1, "a", "g", 1, 2, 3, 4)
-	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"", ""}))
+	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	ops := lb.Schedule(s.tc)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, 1, len(ops))
 	assert.Equal(t, 3, len(ops[0].Counters))
 	assert.Equal(t, 2, len(ops[0].FinishedCounters))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"h", "n"}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "h", "n"}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"b", "f"}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "b", "f"}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"", "a"}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", "a"}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"g", ""}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "g", ""}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"", "f"}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", "f"}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"b", ""}))
+	lb, err = schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "b", ""}))
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
 }
@@ -585,7 +585,7 @@ func TestMultiRangeBalance(t *testing.T) {
 	s.tc.UpdateContainerLeaderWeight(3, 1)
 	s.tc.UpdateContainerLeaderWeight(4, 2)
 	s.tc.AddLeaderResourceWithRange(1, "a", "g", 1, 2, 3, 4)
-	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"", "g", "o", "t"}))
+	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", "g", "0", "o", "t"}))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), lb.Schedule(s.tc)[0].ResourceID())
 	s.tc.RemoveResource(s.tc.GetResource(1))
@@ -723,7 +723,7 @@ func TestBalance(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	opt.SetMaxReplicas(1)
@@ -765,7 +765,7 @@ func TestReplicas3(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	s.checkReplica3(t, tc, opt, sb)
@@ -788,7 +788,7 @@ func TestReplicas5(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	s.checkReplica5(t, tc, opt, sb)
@@ -857,7 +857,7 @@ func TestBalance1(t *testing.T) {
 		core.SetApproximateKeys(200),
 	)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	tc.AddResourceContainer(1, 11)
@@ -906,7 +906,7 @@ func TestContainerWeight(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt.SetMaxReplicas(1)
 
@@ -938,7 +938,7 @@ func TestReplacePendingresource(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	s.checkReplacePendingResource(t, tc, sb)
@@ -958,7 +958,7 @@ func TestOpInfluence(t *testing.T) {
 	tc.DisableJointConsensus()
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := schedule.NewOperatorController(s.ctx, tc, stream)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt.SetMaxReplicas(1)
 	// Add containers 1,2,3,4.
@@ -990,7 +990,7 @@ func TestShouldNotBalance(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	resource := tc.MockCachedResource(1, 0, []uint64{2, 3, 4}, nil, metapb.ResourceEpoch{})
 	tc.PutResource(resource)
@@ -1011,7 +1011,7 @@ func TestEmptyResource(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""}))
+	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	tc.AddResourceContainer(1, 10)
 	tc.AddResourceContainer(2, 9)
@@ -1054,7 +1054,7 @@ func TestMerge(t *testing.T) {
 	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, true /* need to run */, nil)
 	oc := schedule.NewOperatorController(ctx, tc, stream)
 
-	mb, err := schedule.CreateScheduler(RandomMergeType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(RandomMergeType, []string{"", ""}))
+	mb, err := schedule.CreateScheduler(RandomMergeType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(RandomMergeType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	tc.AddResourceContainer(1, 4)
@@ -1162,9 +1162,9 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 		schedule.ApplyOperator(tc, ops[0])
 	}
 	for i := 1; i <= 5; i++ {
-		leaderCount := tc.Resources.GetContainerLeaderCount(uint64(i))
+		leaderCount := tc.Resources.GetContainerLeaderCount("", uint64(i))
 		assert.True(t, leaderCount <= 12)
-		resourceCount := tc.Resources.GetContainerResourceCount(uint64(i))
+		resourceCount := tc.Resources.GetContainerResourceCount("", uint64(i))
 		assert.True(t, resourceCount <= 32)
 	}
 }

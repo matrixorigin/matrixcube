@@ -77,6 +77,8 @@ type testClusterOptions struct {
 
 	disableSchedule    bool
 	enableParallelTest bool
+
+	storageStatsReader storageStatsReader
 }
 
 func newTestClusterOptions() *testClusterOptions {
@@ -95,6 +97,12 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.logLevel == 0 {
 		opts.logLevel = zap.DebugLevel
+	}
+}
+
+func withStorageStatsReader(storageStatsReader storageStatsReader) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.storageStatsReader = storageStatsReader
 	}
 }
 
@@ -298,6 +306,20 @@ func (ts *testShardAware) shardCount() int {
 	return len(ts.shards)
 }
 
+func (ts *testShardAware) voterShardCount(storeID uint64) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for _, s := range ts.shards {
+		r := findReplica(s, storeID)
+		if r != nil && r.Role == metapb.ReplicaRole_Voter {
+			c++
+		}
+	}
+	return c
+}
+
 func (ts *testShardAware) shardSplitedCount(id uint64) int {
 	ts.RLock()
 	defer ts.RUnlock()
@@ -478,6 +500,9 @@ type TestRaftCluster interface {
 	// WaitShardByCount check that the number of shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitShardByCount(count int, timeout time.Duration)
+	// WaitVoterReplicaByCount check that the number of voter shard of the cluster reaches at least the specified value
+	// until the timeout
+	WaitVoterReplicaByCountPerNode(count int, timeout time.Duration)
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
@@ -858,6 +883,10 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 		s = NewStore(cfg).(*store)
 	}
 
+	if c.opts.storageStatsReader != nil {
+		s.storageStatsReader = c.opts.storageStatsReader
+	}
+
 	c.stores[node] = s
 	c.awares[node] = ts
 }
@@ -1060,6 +1089,30 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 			if shards >= count {
 				return
 			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitVoterReplicaByCountPerNode(count int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait voter count %d of cluster timeout", count)
+		default:
+			ok := true
+			for idx, s := range c.stores {
+				ok = c.awares[idx].voterShardCount(s.Meta().ID) == count && c.awares[idx].shardCount() == count
+				if !ok {
+					break
+				}
+			}
+
+			if ok {
+				return
+			}
+
 			time.Sleep(time.Millisecond * 100)
 		}
 	}

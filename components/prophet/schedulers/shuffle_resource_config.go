@@ -36,8 +36,9 @@ type shuffleResourceSchedulerConfig struct {
 	sync.RWMutex
 	storage storage.Storage
 
-	Ranges []core.KeyRange `json:"ranges"`
-	Roles  []string        `json:"roles"` // can include `leader`, `follower`, `learner`.
+	Ranges      []core.KeyRange            `json:"ranges"`
+	Roles       []string                   `json:"roles"` // can include `leader`, `follower`, `learner`.
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 func (conf *shuffleResourceSchedulerConfig) EncodeConfig() ([]byte, error) {

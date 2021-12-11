@@ -39,10 +39,15 @@ func (res *applyResult) hasSplitResult() bool {
 
 // TODO: should probably use values not pointers
 type adminResult struct {
-	adminType          rpc.AdminCmdType
-	configChangeResult *configChangeResult
-	splitResult        *splitResult
-	compactionResult   *compactionResult
+	adminType            rpc.AdminCmdType
+	configChangeResult   *configChangeResult
+	splitResult          *splitResult
+	compactionResult     *compactionResult
+	updateMetadataResult *updateMetadataResult
+}
+
+type updateMetadataResult struct {
+	changes []raftpb.ConfChangeV2
 }
 
 type configChangeResult struct {
@@ -100,6 +105,14 @@ func (pr *replica) handleAdminResult(result applyResult) {
 		pr.applySplit(result.adminResult.splitResult)
 	case rpc.AdminCmdType_CompactLog:
 		pr.applyCompactionResult(result.adminResult.compactionResult)
+	case rpc.AdminCmdType_UpdateMetadata:
+		pr.applyUpdateMetadataResult(result.adminResult.updateMetadataResult)
+	}
+}
+
+func (pr *replica) applyUpdateMetadataResult(cp *updateMetadataResult) {
+	for _, cc := range cp.changes {
+		pr.rn.ApplyConfChange(cc)
 	}
 }
 
@@ -125,6 +138,9 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 		return
 	}
 
+	pr.logger.Debug("apply conf change result to raft",
+		log.ConfigChangesField("changes-v2", cp.changes),
+		log.ShardField("shard", pr.getShard()))
 	pr.rn.ApplyConfChange(cp.confChange)
 
 	needPing := false
