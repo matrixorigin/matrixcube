@@ -73,10 +73,17 @@ func (tl TransferLeader) Influence(opInfluence OpInfluence, res *core.CachedReso
 	from := opInfluence.GetContainerInfluence(tl.FromContainer)
 	to := opInfluence.GetContainerInfluence(tl.ToContainer)
 
-	from.LeaderSize -= res.GetApproximateSize()
-	from.LeaderCount--
-	to.LeaderSize += res.GetApproximateSize()
-	to.LeaderCount++
+	groupKey := res.GetGroupKey()
+
+	fromStats := from.InfluenceStats[groupKey]
+	fromStats.LeaderSize -= res.GetApproximateSize()
+	fromStats.LeaderCount--
+	from.InfluenceStats[groupKey] = fromStats
+
+	toStats := to.InfluenceStats[groupKey]
+	toStats.LeaderSize += res.GetApproximateSize()
+	toStats.LeaderCount++
+	to.InfluenceStats[groupKey] = toStats
 }
 
 // AddPeer is an OpStep that adds a resource peer.
@@ -111,8 +118,13 @@ func (ap AddPeer) Influence(opInfluence OpInfluence, res *core.CachedResource) {
 	to := opInfluence.GetContainerInfluence(ap.ToContainer)
 
 	size := res.GetApproximateSize()
-	to.ResourceSize += size
-	to.ResourceCount++
+
+	groupKey := res.GetGroupKey()
+	stats := to.InfluenceStats[groupKey]
+	stats.ResourceSize += size
+	stats.ResourceCount++
+	to.InfluenceStats[groupKey] = stats
+
 	to.AdjustStepCost(limit.AddPeer, size)
 }
 
@@ -172,8 +184,12 @@ func (al AddLearner) Influence(opInfluence OpInfluence, res *core.CachedResource
 	to := opInfluence.GetContainerInfluence(al.ToContainer)
 
 	size := res.GetApproximateSize()
-	to.ResourceSize += size
-	to.ResourceCount++
+	groupKey := res.GetGroupKey()
+	stats := to.InfluenceStats[groupKey]
+	stats.ResourceSize += size
+	stats.ResourceCount++
+	to.InfluenceStats[groupKey] = stats
+
 	to.AdjustStepCost(limit.AddPeer, size)
 }
 
@@ -255,8 +271,12 @@ func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedResource
 	from := opInfluence.GetContainerInfluence(rp.FromContainer)
 
 	size := res.GetApproximateSize()
-	from.ResourceSize -= size
-	from.ResourceCount--
+	groupKey := res.GetGroupKey()
+	stats := from.InfluenceStats[groupKey]
+	stats.ResourceSize -= size
+	stats.ResourceCount--
+	from.InfluenceStats[groupKey] = stats
+
 	from.AdjustStepCost(limit.RemovePeer, size)
 }
 
@@ -302,10 +322,15 @@ func (mr MergeResource) Influence(opInfluence OpInfluence, res *core.CachedResou
 	if mr.IsPassive {
 		for _, peer := range res.Meta.Peers() {
 			o := opInfluence.GetContainerInfluence(peer.ContainerID)
-			o.ResourceCount--
+
+			groupKey := res.GetGroupKey()
+			stats := o.InfluenceStats[groupKey]
+			stats.ResourceCount--
 			if res.GetLeader().GetID() == peer.ID {
-				o.LeaderCount--
+				stats.LeaderCount--
 			}
+
+			o.InfluenceStats[groupKey] = stats
 		}
 	}
 }
@@ -336,10 +361,14 @@ func (sr SplitResource) IsFinish(res *core.CachedResource) bool {
 func (sr SplitResource) Influence(opInfluence OpInfluence, res *core.CachedResource) {
 	for _, peer := range res.Meta.Peers() {
 		inf := opInfluence.GetContainerInfluence(peer.ContainerID)
-		inf.ResourceCount++
+
+		groupKey := res.GetGroupKey()
+		stats := inf.InfluenceStats[groupKey]
+		stats.ResourceCount++
 		if res.GetLeader().GetID() == peer.ID {
-			inf.LeaderCount++
+			stats.LeaderCount++
 		}
+		inf.InfluenceStats[groupKey] = stats
 	}
 }
 
@@ -388,8 +417,11 @@ func (ap AddLightPeer) CheckSafety(res *core.CachedResource) error {
 func (ap AddLightPeer) Influence(opInfluence OpInfluence, res *core.CachedResource) {
 	to := opInfluence.GetContainerInfluence(ap.ToContainer)
 
-	to.ResourceSize += res.GetApproximateSize()
-	to.ResourceCount++
+	groupKey := res.GetGroupKey()
+	stats := to.InfluenceStats[groupKey]
+	stats.ResourceSize += res.GetApproximateSize()
+	stats.ResourceCount++
+	to.InfluenceStats[groupKey] = stats
 }
 
 // AddLightLearner is an OpStep that adds a resource learner peer without considering the influence.
@@ -438,8 +470,11 @@ func (al AddLightLearner) CheckSafety(res *core.CachedResource) error {
 func (al AddLightLearner) Influence(opInfluence OpInfluence, res *core.CachedResource) {
 	to := opInfluence.GetContainerInfluence(al.ToContainer)
 
-	to.ResourceSize += res.GetApproximateSize()
-	to.ResourceCount++
+	groupKey := res.GetGroupKey()
+	stats := to.InfluenceStats[groupKey]
+	stats.ResourceSize += res.GetApproximateSize()
+	stats.ResourceCount++
+	to.InfluenceStats[groupKey] = stats
 }
 
 // DemoteFollower is an OpStep that demotes a resource follower peer to learner.

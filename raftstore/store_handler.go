@@ -201,9 +201,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 				Group:        msg.Group,
 				DisableSplit: msg.DisableSplit,
 				Unique:       msg.Unique,
-				// The only replica we currently know of is `From`. Later, we can get a replica of the quasi-group
-				// by executing the raft log of Config Change or receiving a snapshot.
-				Replicas: []Replica{msg.From},
+				Replicas:     []Replica{},
 			},
 		})
 	return true

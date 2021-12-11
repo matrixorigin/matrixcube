@@ -29,35 +29,41 @@ type OpInfluence struct {
 func (m OpInfluence) GetContainerInfluence(id uint64) *ContainerInfluence {
 	containerInfluence, ok := m.ContainersInfluence[id]
 	if !ok {
-		containerInfluence = &ContainerInfluence{}
+		containerInfluence = &ContainerInfluence{
+			InfluenceStats: map[string]InfluenceStats{},
+		}
 		m.ContainersInfluence[id] = containerInfluence
 	}
 	return containerInfluence
 }
 
-// ContainerInfluence records influences that pending operators will make.
-type ContainerInfluence struct {
+type InfluenceStats struct {
 	ResourceSize  int64
 	ResourceCount int64
 	LeaderSize    int64
 	LeaderCount   int64
-	StepCost      map[limit.Type]int64
+}
+
+// ContainerInfluence records influences that pending operators will make.
+type ContainerInfluence struct {
+	InfluenceStats map[string]InfluenceStats
+	StepCost       map[limit.Type]int64
 }
 
 // ResourceProperty returns delta size of leader/resource by influence.
-func (s ContainerInfluence) ResourceProperty(kind core.ScheduleKind) int64 {
+func (s ContainerInfluence) ResourceProperty(kind core.ScheduleKind, groupKey string) int64 {
 	switch kind.ResourceKind {
 	case metapb.ResourceKind_LeaderKind:
 		switch kind.Policy {
 		case core.ByCount:
-			return s.LeaderCount
+			return s.InfluenceStats[groupKey].LeaderCount
 		case core.BySize:
-			return s.LeaderSize
+			return s.InfluenceStats[groupKey].LeaderSize
 		default:
 			return 0
 		}
 	case metapb.ResourceKind_ReplicaKind:
-		return s.ResourceSize
+		return s.InfluenceStats[groupKey].ResourceSize
 	default:
 		return 0
 	}

@@ -54,6 +54,13 @@ func (m *RequestBatch) GetTransferLeaderRequest() TransferLeaderRequest {
 	return req
 }
 
+// GetUpdateLabelsRequest return UpdateLabelsRequest request
+func (m *RequestBatch) GetUpdateLabelsRequest() UpdateLabelsRequest {
+	var req UpdateLabelsRequest
+	protoc.MustUnmarshal(&req, m.GetAdminRequest().Cmd)
+	return req
+}
+
 // IsEmpty returns true if is a empty batch
 func (m *RequestBatch) IsEmpty() bool {
 	return len(m.Header.ID) == 0
@@ -108,6 +115,13 @@ func (m *ResponseBatch) GetBatchSplitResponse() BatchSplitResponse {
 // GetUpdateMetadataResponse return UpdateMetadataResponse Response
 func (m *ResponseBatch) GetUpdateMetadataResponse() UpdateMetadataResponse {
 	var req UpdateMetadataResponse
+	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
+	return req
+}
+
+// GetUpdateLabelsResponse return UpdateLabelsResponse Response
+func (m *ResponseBatch) GetUpdateLabelsResponse() UpdateLabelsResponse {
+	var req UpdateLabelsResponse
 	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
 	return req
 }

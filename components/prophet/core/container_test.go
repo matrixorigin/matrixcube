@@ -98,9 +98,9 @@ func TestResourceScore(t *testing.T) {
 	container := NewCachedContainer(
 		&metadata.TestContainer{CID: 1},
 		SetContainerStats(stats),
-		SetResourceSize(0, 1),
+		SetResourceSize("", 1),
 	)
-	score := container.ResourceScore(0, "v1", 0.7, 0.9, 0, 0)
+	score := container.ResourceScore("", "v1", 0.7, 0.9, 0, 0)
 	// Resource score should never be NaN, or /container API would fail.
 	assert.False(t, math.IsNaN(score))
 }
@@ -110,11 +110,11 @@ func TestLowSpaceRatio(t *testing.T) {
 	container.rawStats.Capacity = initialMinSpace << 4
 	container.rawStats.Available = container.rawStats.Capacity >> 3
 
-	assert.False(t, container.IsLowSpace(0.8, []uint64{0}))
-	info := container.resourceInfo[0]
+	assert.False(t, container.IsLowSpace(0.8))
+	info := container.resourceInfo[""]
 	info.count = 31
-	container.resourceInfo[0] = info
-	assert.True(t, container.IsLowSpace(0.8, []uint64{0}))
+	container.resourceInfo[""] = info
+	assert.True(t, container.IsLowSpace(0.8))
 	container.rawStats.Available = container.rawStats.Capacity >> 2
-	assert.False(t, container.IsLowSpace(0.8, []uint64{0}))
+	assert.False(t, container.IsLowSpace(0.8))
 }

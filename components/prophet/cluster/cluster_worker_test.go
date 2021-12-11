@@ -166,10 +166,7 @@ func TestRemoveResources(t *testing.T) {
 	for _, id := range removed {
 		assert.True(t, cluster.core.DestroyedResources.Contains(id))
 	}
-
-	for i := uint64(1); i < n-1; i++ {
-		assert.Equal(t, metapb.ResourceState_Destroyed, cache.GetResource(i).Meta.State())
-	}
+	assert.Equal(t, 1, cache.GetResourceCount())
 	assert.Equal(t, metapb.ResourceState_Running, cache.GetResource(n-1).Meta.State())
 
 	cnt := uint64(0)

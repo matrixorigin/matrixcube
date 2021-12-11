@@ -209,7 +209,7 @@ func (t *resourceTree) RandomResource(ranges []KeyRange) *CachedResource {
 	}
 
 	if len(ranges) == 0 {
-		ranges = []KeyRange{NewKeyRange("", "")}
+		ranges = []KeyRange{NewKeyRange(0, "", "")}
 	}
 
 	for _, i := range rand.Perm(len(ranges)) {

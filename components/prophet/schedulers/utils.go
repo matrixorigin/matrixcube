@@ -15,6 +15,7 @@
 package schedulers
 
 import (
+	"errors"
 	"math"
 	"net/url"
 	"strconv"
@@ -55,17 +56,17 @@ func shouldBalance(cluster opt.Cluster,
 	sourceID := source.Meta.ID()
 	targetID := target.Meta.ID()
 	tolerantResource := getTolerantResource(cluster, res, kind)
-	sourceInfluence := opInfluence.GetContainerInfluence(sourceID).ResourceProperty(kind)
-	targetInfluence := opInfluence.GetContainerInfluence(targetID).ResourceProperty(kind)
+	sourceInfluence := opInfluence.GetContainerInfluence(sourceID).ResourceProperty(kind, res.GetGroupKey())
+	targetInfluence := opInfluence.GetContainerInfluence(targetID).ResourceProperty(kind, res.GetGroupKey())
 	sourceDelta, targetDelta := sourceInfluence-tolerantResource, targetInfluence+tolerantResource
 	opts := cluster.GetOpts()
 	switch kind.ResourceKind {
 	case metapb.ResourceKind_LeaderKind:
-		sourceScore = source.LeaderScore(res.Meta.Group(), kind.Policy, sourceDelta)
-		targetScore = target.LeaderScore(res.Meta.Group(), kind.Policy, targetDelta)
+		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
+		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
 	case metapb.ResourceKind_ReplicaKind:
-		sourceScore = source.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
-		targetScore = target.ResourceScore(res.Meta.Group(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
+		sourceScore = source.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
+		targetScore = target.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
 	if opts.IsDebugMetricsEnabled() {
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), "source").Set(float64(sourceInfluence))
@@ -73,23 +74,26 @@ func shouldBalance(cluster opt.Cluster,
 		tolerantResourceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), strconv.FormatUint(targetID, 10)).Set(float64(tolerantResource))
 	}
 	// Make sure after move, source score is still greater than target score.
-	shouldBalance = sourceScore > targetScore
+	shouldBalance = sourceScore > targetScore ||
+		(sourceScore == targetScore && target.GetResourceCount(res.GetGroupKey()) == 0)
 
 	if !shouldBalance {
-		cluster.GetLogger().Debug("skip balance %s, scheduler %s, resource %d, source container %d, target container %d, source-size %d, source-score %d, source-influence %d, target-size %d, target-score %d, target-influence %d, average-resource-size %d, tolerant-resource %d",
-			zap.Uint64("resource", res.Meta.ID()),
-			zap.String("resource-kind", kind.ResourceKind.String()),
-			zap.String("schedule", scheduleName),
-			sourceField(sourceID),
-			targetField(targetID),
-			zap.Int64("source-size", source.GetResourceSize(res.Meta.Group())),
-			zap.Int64("target-size", source.GetResourceSize(res.Meta.Group())),
-			zap.Int64("average-size", cluster.GetAverageResourceSize()),
-			zap.Int64("source-influence", sourceInfluence),
-			zap.Int64("target-influence", targetInfluence),
-			zap.Float64("source-score", sourceScore),
-			zap.Float64("target-score", targetScore),
-			zap.Int64("tolerant-resource", tolerantResource))
+		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
+			ce.Write(log.HexField("group-key", []byte(res.GetGroupKey())),
+				zap.Uint64("resource", res.Meta.ID()),
+				zap.String("resource-kind", kind.ResourceKind.String()),
+				zap.String("schedule", scheduleName),
+				sourceField(sourceID),
+				targetField(targetID),
+				zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
+				zap.Int64("target-size", source.GetResourceSize(res.GetGroupKey())),
+				zap.Int64("average-size", cluster.GetAverageResourceSize()),
+				zap.Int64("source-influence", sourceInfluence),
+				zap.Int64("target-influence", targetInfluence),
+				zap.Float64("source-score", sourceScore),
+				zap.Float64("target-score", targetScore),
+				zap.Int64("tolerant-resource", tolerantResource))
+		}
 	}
 	return shouldBalance, sourceScore, targetScore
 }
@@ -108,17 +112,17 @@ func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind cor
 	if resourceSize < cluster.GetAverageResourceSize() {
 		resourceSize = cluster.GetAverageResourceSize()
 	}
-	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(cluster))
+	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(res.GetGroupKey(), cluster))
 	return resourceSize
 }
 
-func adjustTolerantRatio(cluster opt.Cluster) float64 {
+func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 	tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 	if tolerantSizeRatio == 0 {
 		var maxResourceCount float64
 		containers := cluster.GetContainers()
 		for _, container := range containers {
-			resourceCount := float64(cluster.GetContainerResourceCount(container.Meta.ID()))
+			resourceCount := float64(cluster.GetContainerResourceCount(groupKey, container.Meta.ID()))
 			if maxResourceCount < resourceCount {
 				maxResourceCount = resourceCount
 			}
@@ -131,12 +135,12 @@ func adjustTolerantRatio(cluster opt.Cluster) float64 {
 	return tolerantSizeRatio
 }
 
-func adjustBalanceLimit(group uint64, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
+func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
 	containers := cluster.GetContainers()
 	counts := make([]float64, 0, len(containers))
 	for _, s := range containers {
 		if s.IsUp() {
-			counts = append(counts, float64(s.ResourceCount(group, kind)))
+			counts = append(counts, float64(s.ResourceCount(groupKey, kind)))
 		}
 	}
 	limit, _ := stats.StandardDeviation(counts)
@@ -146,21 +150,41 @@ func adjustBalanceLimit(group uint64, cluster opt.Cluster, kind metapb.ResourceK
 func getKeyRanges(args []string) ([]core.KeyRange, error) {
 	var ranges []core.KeyRange
 	for len(args) > 1 {
-		startKey, err := url.QueryUnescape(args[0])
+		groupID, err := strconv.ParseUint(args[0], 10, 64)
+		if err != nil {
+			return nil, errors.New("scheduler error coniguration")
+		}
+
+		startKey, err := url.QueryUnescape(args[1])
 		if err != nil {
 			return nil, err
 		}
-		endKey, err := url.QueryUnescape(args[1])
+		endKey, err := url.QueryUnescape(args[2])
 		if err != nil {
 			return nil, err
 		}
-		args = args[2:]
-		ranges = append(ranges, core.NewKeyRange(startKey, endKey))
-	}
-	if len(ranges) == 0 {
-		return []core.KeyRange{core.NewKeyRange("", "")}, nil
+		ranges = append(ranges, core.NewKeyRange(groupID, startKey, endKey))
+		args = args[3:]
 	}
 	return ranges, nil
+}
+
+func groupKeyRanges(ranges []core.KeyRange, groups []uint64) map[uint64][]core.KeyRange {
+	groupRanges := make(map[uint64][]core.KeyRange)
+	for _, groupID := range groups {
+		var rs []core.KeyRange
+		for _, r := range ranges {
+			if r.Group == groupID {
+				rs = append(rs, r)
+			}
+		}
+
+		if len(rs) == 0 {
+			rs = append(rs, core.NewKeyRange(groupID, "", ""))
+		}
+		groupRanges[groupID] = rs
+	}
+	return groupRanges
 }
 
 // Influence records operator influence.

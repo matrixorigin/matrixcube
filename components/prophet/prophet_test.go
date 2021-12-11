@@ -23,7 +23,9 @@ import (
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestSingleStart(t *testing.T) {
@@ -64,14 +66,14 @@ func newTestSingleProphet(t *testing.T, adjustFunc func(*pconfig.Config)) Prophe
 	if adjustFunc != nil {
 		adjustFunc(c)
 	}
-	return newTestProphet(t, c)
+	return newTestProphet(t, c, vfs.GetTestFS())
 }
 
 func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)) []Prophet {
 	if n < 3 {
 		assert.FailNow(t, "cluster count must >= 3")
 	}
-
+	fs := vfs.GetTestFS()
 	var cluster []Prophet
 	for i := 0; i < n; i++ {
 		if len(cluster) >= 2 {
@@ -99,13 +101,13 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)
 		if adjustFunc != nil {
 			adjustFunc(c)
 		}
-		cluster = append(cluster, newTestProphet(t, c))
+		cluster = append(cluster, newTestProphet(t, c, fs))
 	}
 
 	return cluster
 }
 
-func newTestProphet(t *testing.T, c *pconfig.Config) Prophet {
+func newTestProphet(t *testing.T, c *pconfig.Config, fs vfs.FS) Prophet {
 	completedC := make(chan struct{})
 	cb := func() {
 		completedC <- struct{}{}
@@ -115,7 +117,11 @@ func newTestProphet(t *testing.T, c *pconfig.Config) Prophet {
 	c.Adapter = metadata.NewTestAdapter()
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)
 
-	p := NewProphet(&config.Config{Prophet: *c, Logger: log.Adjust(nil)})
+	p := NewProphet(&config.Config{
+		Prophet: *c,
+		Logger:  log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("testcase", t.Name()), zap.String("node", c.Name)),
+		FS:      fs,
+	})
 	p.Start()
 	select {
 	case <-time.After(time.Second * 10):

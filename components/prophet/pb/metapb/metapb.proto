@@ -250,3 +250,17 @@ message DestroyingStatus {
     ResourceState state = 3;
     bool             removeData = 4;
 }
+
+// ResourceExtra resource extra
+message ResourceExtra {
+    map<string, string> labels           = 1;
+    DestroyingStatus    destroyingStatus = 2;
+}
+
+// ScheduleGroupRule resoruce group rule
+message ScheduleGroupRule {
+    uint64 id           = 1 [(gogoproto.customname) = "ID"];
+    uint64 groupID      = 2;
+    string name         = 3;
+    string groupByLabel = 4;
+}

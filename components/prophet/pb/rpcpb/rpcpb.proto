@@ -48,6 +48,10 @@ enum Type {
     TypeRemoveJobRsp          = 34;
     TypeExecuteJobReq         = 35;
     TypeExecuteJobRsp         = 36;
+    TypeAddScheduleGroupRuleReq  = 37;
+    TypeAddScheduleGroupRuleRsp  = 38;
+    TypeGetScheduleGroupRuleReq  = 39;
+    TypeGetScheduleGroupRuleRsp  = 40;
 }
 
 // Request the prophet rpc request
@@ -73,6 +77,8 @@ message Request {
     CreateJobReq          createJob          = 19 [(gogoproto.nullable) = false];
     RemoveJobReq          removeJob          = 20 [(gogoproto.nullable) = false];
     ExecuteJobReq         executeJob         = 21 [(gogoproto.nullable) = false];
+    AddScheduleGroupRuleReq         addScheduleGroupRule        = 22 [(gogoproto.nullable) = false];
+    GetScheduleGroupRuleReq         getScheduleGroupRule        = 23 [(gogoproto.nullable) = false];
 }
 
 // Response the prophet rpc response
@@ -99,6 +105,8 @@ message Response {
     CreateJobRsp          createJob          = 20 [(gogoproto.nullable) = false];
     RemoveJobRsp          removeJob          = 21 [(gogoproto.nullable) = false];
     ExecuteJobRsp         executeJob         = 22 [(gogoproto.nullable) = false];
+    AddScheduleGroupRuleRsp         addScheduleGroupRule        = 23 [(gogoproto.nullable) = false];
+    GetScheduleGroupRuleRsp         getScheduleGroupRule        = 24 [(gogoproto.nullable) = false];
 }
 
 // ResourceHeartbeatReq resource heartbeat request
@@ -111,6 +119,7 @@ message ResourceHeartbeatReq {
     repeated metapb.ReplicaStats     downReplicas       = 5 [(gogoproto.nullable) = false];
     repeated metapb.Replica          pendingReplicas    = 6 [(gogoproto.nullable) = false];
              metapb.ResourceStats stats           = 7 [(gogoproto.nullable) = false];
+             string               groupKey        = 8;
 }
    
 // ResourceHeartbeatRsp resource heartbeat response.
@@ -318,6 +327,22 @@ message ExecuteJobReq {
 // ExecuteJobRsp execute on job response
 message ExecuteJobRsp {
     bytes      data = 1;
+}
+
+message AddScheduleGroupRuleReq {
+    metapb.ScheduleGroupRule rule = 1 [(gogoproto.nullable) = false];
+}
+
+message AddScheduleGroupRuleRsp {
+
+}
+
+message GetScheduleGroupRuleReq {
+    
+}
+
+message GetScheduleGroupRuleRsp {
+    repeated metapb.ScheduleGroupRule rules = 1 [(gogoproto.nullable) = false];
 }
 
 // EventNotify event notify

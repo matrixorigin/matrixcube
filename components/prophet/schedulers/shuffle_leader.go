@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"go.uber.org/zap"
 )
 
@@ -60,8 +61,9 @@ func init() {
 }
 
 type shuffleLeaderSchedulerConfig struct {
-	Name   string          `json:"name"`
-	Ranges []core.KeyRange `json:"ranges"`
+	Name        string                     `json:"name"`
+	Ranges      []core.KeyRange            `json:"ranges"`
+	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
 type shuffleLeaderScheduler struct {
@@ -78,6 +80,8 @@ func newShuffleLeaderScheduler(opController *schedule.OperatorController, conf *
 		filter.NewSpecialUseFilter(conf.Name),
 	}
 	base := NewBaseScheduler(opController)
+	conf.groupRanges = groupKeyRanges(conf.Ranges,
+		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
 	return &shuffleLeaderScheduler{
 		BaseScheduler: base,
 		conf:          conf,
@@ -117,7 +121,18 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 		schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
 		return nil
 	}
-	res := cluster.RandFollowerResource(targetContainer.Meta.ID(), s.conf.Ranges, opt.HealthResource(cluster))
+
+	for _, groupKey := range cluster.GetScheduleGroupKeys() {
+		ops := s.scheduleByGroup(groupKey, targetContainer, cluster)
+		if len(ops) > 0 {
+			return ops
+		}
+	}
+	return nil
+}
+
+func (s *shuffleLeaderScheduler) scheduleByGroup(groupKey string, targetContainer *core.CachedContainer, cluster opt.Cluster) []*operator.Operator {
+	res := cluster.RandFollowerResource(groupKey, targetContainer.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-follower").Inc()
 		return nil

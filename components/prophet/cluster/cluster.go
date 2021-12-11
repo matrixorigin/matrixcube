@@ -227,6 +227,15 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	for _, container := range c.GetContainers() {
 		c.hotStat.GetOrCreateRollingContainerStats(container.Meta.ID())
 	}
+
+	// load resource group rules
+	start = time.Now()
+	c.storage.LoadScheduleGroupRules(batch, func(rule metapb.ScheduleGroupRule) {
+		c.core.AddScheduleGroupRule(rule)
+	})
+	c.logger.Info("resource group rules loaded",
+		zap.Int("count", c.core.GetResourceGroupRuleCount()),
+		zap.Duration("cost", time.Since(start)))
 	return c, nil
 }
 
@@ -301,6 +310,19 @@ func (c *RaftCluster) IsRunning() bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.running
+}
+
+//GetScheduleGroupKeys returns group keys
+func (c *RaftCluster) GetScheduleGroupKeys() []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.core.GetScheduleGroupKeys()
+}
+
+func (c *RaftCluster) GetScheduleGroupKeysWithPrefix(prefix string) []string {
+	c.RLock()
+	defer c.RUnlock()
+	return c.core.GetScheduleGroupKeysWithPrefix(prefix)
 }
 
 // GetOperatorController returns the operator controller.
@@ -417,7 +439,7 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 		return fmt.Errorf("container %v not found", containerID)
 	}
 	newContainer := container.Clone(core.SetContainerStats(stats), core.SetLastHeartbeatTS(time.Now()))
-	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio(), c.GetReplicationConfig().Groups) {
+	if newContainer.IsLowSpace(c.opt.GetLowSpaceRatio()) {
 		c.logger.Warn("container does not have enough disk space, capacity %d, available %d",
 			zap.Uint64("container", newContainer.Meta.ID()),
 			zap.Uint64("capacity", newContainer.GetCapacity()),
@@ -529,12 +551,13 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if res.Meta.State() != origin.Meta.State() {
 			saveKV, saveCache = true, true
 		}
-
+		if res.GetGroupKey() != origin.GetGroupKey() {
+			saveCache = true
+		}
 		if res.GetApproximateSize() != origin.GetApproximateSize() ||
 			res.GetApproximateKeys() != origin.GetApproximateKeys() {
 			saveCache = true
 		}
-
 		if res.GetBytesWritten() != origin.GetBytesWritten() ||
 			res.GetBytesRead() != origin.GetBytesRead() ||
 			res.GetKeysWritten() != origin.GetKeysWritten() ||
@@ -594,7 +617,15 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 			}
 		}
 		for key := range containerMap {
-			c.updateContainerStatusLocked(res.Meta.Group(), key)
+			c.updateContainerStatusLocked(res.GetGroupKey(), key)
+			if origin != nil && origin.GetGroupKey() != res.GetGroupKey() {
+				c.logger.Debug("update container status",
+					zap.Uint64("resource", res.Meta.ID()),
+					zap.Uint64("size", uint64(res.GetApproximateSize())),
+					log.HexField("origin-group-key", []byte(origin.GetGroupKey())),
+					log.HexField("current-group-key", []byte(res.GetGroupKey())))
+				c.updateContainerStatusLocked(origin.GetGroupKey(), key)
+			}
 		}
 		resourceEventCounter.WithLabelValues("update_cache").Inc()
 	}
@@ -633,23 +664,27 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 	c.RLock()
 	if saveKV || saveCache || isNew {
-		c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+		if c.changedEvents != nil {
+			c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+		}
 	}
 	if saveCache {
-		c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
+		if c.changedEvents != nil {
+			c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
+		}
 	}
 	c.RUnlock()
 
 	return nil
 }
 
-func (c *RaftCluster) updateContainerStatusLocked(group, id uint64) {
-	leaderCount := c.core.GetContainerLeaderCount(id)
-	resourceCount := c.core.GetContainerResourceCount(id)
-	pendingPeerCount := c.core.GetContainerPendingPeerCount(id)
-	leaderResourceSize := c.core.GetContainerLeaderResourceSize(id)
-	resourceSize := c.core.GetContainerResourceSize(id)
-	c.core.UpdateContainerStatus(group, id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
+func (c *RaftCluster) updateContainerStatusLocked(groupKey string, containerID uint64) {
+	leaderCount := c.core.GetContainerLeaderCount(groupKey, containerID)
+	resourceCount := c.core.GetContainerResourceCount(groupKey, containerID)
+	pendingPeerCount := c.core.GetContainerPendingPeerCount(groupKey, containerID)
+	leaderResourceSize := c.core.GetContainerLeaderResourceSize(groupKey, containerID)
+	resourceSize := c.core.GetContainerResourceSize(groupKey, containerID)
+	c.core.UpdateContainerStatus(groupKey, containerID, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
 }
 
 // GetResourceByKey gets CachedResource by resource key from cluster.
@@ -689,28 +724,28 @@ func (c *RaftCluster) GetResourceCount() int {
 }
 
 // GetContainerResources returns all resources' information with a given containerID.
-func (c *RaftCluster) GetContainerResources(containerID uint64) []*core.CachedResource {
-	return c.core.GetContainerResources(containerID)
+func (c *RaftCluster) GetContainerResources(groupKey string, containerID uint64) []*core.CachedResource {
+	return c.core.GetContainerResources(groupKey, containerID)
 }
 
 // RandLeaderResource returns a random resource that has leader on the container.
-func (c *RaftCluster) RandLeaderResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandLeaderResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandLeaderResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandLeaderResource(groupKey, containerID, ranges, opts...)
 }
 
 // RandFollowerResource returns a random resource that has a follower on the container.
-func (c *RaftCluster) RandFollowerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandFollowerResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandFollowerResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandFollowerResource(groupKey, containerID, ranges, opts...)
 }
 
 // RandPendingResource returns a random resource that has a pending peer on the container.
-func (c *RaftCluster) RandPendingResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandPendingResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandPendingResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandPendingResource(groupKey, containerID, ranges, opts...)
 }
 
 // RandLearnerResource returns a random resource that has a learner peer on the container.
-func (c *RaftCluster) RandLearnerResource(containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return c.core.RandLearnerResource(containerID, ranges, opts...)
+func (c *RaftCluster) RandLearnerResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
+	return c.core.RandLearnerResource(groupKey, containerID, ranges, opts...)
 }
 
 // RandHotResourceFromContainer randomly picks a hot resource in specified container.
@@ -745,8 +780,8 @@ func (c *RaftCluster) GetContainerCount() int {
 }
 
 // GetContainerResourceCount returns the number of resources for a given container.
-func (c *RaftCluster) GetContainerResourceCount(containerID uint64) int {
-	return c.core.GetContainerResourceCount(containerID)
+func (c *RaftCluster) GetContainerResourceCount(groupKey string, containerID uint64) int {
+	return c.core.GetContainerResourceCount(groupKey, containerID)
 }
 
 // GetAverageResourceSize returns the average resource approximate size.
@@ -1066,7 +1101,7 @@ func (c *RaftCluster) checkContainers() {
 	var offlineContainers []metadata.Container
 	var upContainerCount int
 	containers := c.GetContainers()
-	groups := c.GetReplicationConfig().Groups
+	groupKeys := c.core.GetScheduleGroupKeys()
 	for _, container := range containers {
 		// the container has already been tombstone
 		if container.IsTombstone() {
@@ -1074,15 +1109,19 @@ func (c *RaftCluster) checkContainers() {
 		}
 
 		if container.IsUp() {
-			if !container.IsLowSpace(c.opt.GetLowSpaceRatio(), groups) {
+			if !container.IsLowSpace(c.opt.GetLowSpaceRatio()) {
 				upContainerCount++
 			}
 			continue
 		}
 
 		offlineContainer := container.Meta
+		resourceCount := 0
+		for _, group := range groupKeys {
+			resourceCount += c.core.GetContainerResourceCount(group, offlineContainer.ID())
+		}
+
 		// If the container is empty, it can be buried.
-		resourceCount := c.core.GetContainerResourceCount(offlineContainer.ID())
 		if resourceCount == 0 {
 			if err := c.buryContainer(offlineContainer.ID()); err != nil {
 				c.logger.Error("fail to bury container",
@@ -1113,10 +1152,10 @@ func (c *RaftCluster) checkContainers() {
 func (c *RaftCluster) RemoveTombStoneRecords() error {
 	c.Lock()
 	defer c.Unlock()
-	for _, group := range c.GetReplicationConfig().Groups {
+	for _, groupKey := range c.core.GetScheduleGroupKeys() {
 		for _, container := range c.GetContainers() {
 			if container.IsTombstone() {
-				if container.GetResourceCount(group) > 0 {
+				if container.GetResourceCount(groupKey) > 0 {
 					c.logger.Warn("skip removing tombstone container",
 						zap.Uint64("container", container.Meta.ID()),
 						zap.String("container-address", container.Meta.Addr()))
@@ -1333,8 +1372,13 @@ func (checker *prepareChecker) check(c *RaftCluster) bool {
 			continue
 		}
 		containerID := container.Meta.ID()
+		n := 0
+		for _, group := range c.GetScheduleGroupKeys() {
+			n += c.core.GetContainerResourceCount(group, containerID)
+		}
+
 		// For each container, the number of active resources should be more than total resource of the container * collectFactor
-		if float64(c.core.GetContainerResourceCount(containerID))*collectFactor > float64(checker.reactiveResources[containerID]) {
+		if float64(n)*collectFactor > float64(checker.reactiveResources[containerID]) {
 			return false
 		}
 	}
