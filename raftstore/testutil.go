@@ -77,6 +77,8 @@ type testClusterOptions struct {
 
 	disableSchedule    bool
 	enableParallelTest bool
+
+	storageStatsReader storageStatsReader
 }
 
 func newTestClusterOptions() *testClusterOptions {
@@ -95,6 +97,12 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.logLevel == 0 {
 		opts.logLevel = zap.DebugLevel
+	}
+}
+
+func withStorageStatsReader(storageStatsReader storageStatsReader) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.storageStatsReader = storageStatsReader
 	}
 }
 
@@ -494,7 +502,7 @@ type TestRaftCluster interface {
 	WaitShardByCount(count int, timeout time.Duration)
 	// WaitVoterReplicaByCount check that the number of voter shard of the cluster reaches at least the specified value
 	// until the timeout
-	WaitVoterReplicaByCount(count int, timeout time.Duration)
+	WaitVoterReplicaByCountPerNode(count int, timeout time.Duration)
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
@@ -720,6 +728,7 @@ type testRaftCluster struct {
 	stores       []*store
 	awares       []*testShardAware
 	dataStorages []storage.DataStorage
+	status       []bool
 }
 
 // NewSingleTestClusterStore create test cluster with 1 node
@@ -764,6 +773,7 @@ func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
 		}
 	}
 
+	c.status = make([]bool, c.opts.nodes)
 	c.stores = make([]*store, c.opts.nodes)
 	c.awares = make([]*testShardAware, c.opts.nodes)
 	c.dataStorages = make([]storage.DataStorage, c.opts.nodes)
@@ -873,6 +883,10 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 		s = NewStore(cfg).(*store)
 	}
 
+	if c.opts.storageStatsReader != nil {
+		s.storageStatsReader = c.opts.storageStatsReader
+	}
+
 	c.stores[node] = s
 	c.awares[node] = ts
 }
@@ -955,15 +969,22 @@ func (c *testRaftCluster) StartNode(node int) {
 	} else {
 		s.Start()
 	}
+	c.status[node] = true
 }
 
 func (c *testRaftCluster) StopNode(node int) {
 	c.stores[node].Stop()
-	c.dataStorages[node].Close()
+	s := c.dataStorages[node]
+	if s != nil {
+		s.Close()
+	}
+	c.status[node] = false
 }
 
 func (c *testRaftCluster) RestartNode(node int) {
-	c.StopNode(node)
+	if c.status[node] {
+		c.StopNode(node)
+	}
 	c.resetNode(node, false)
 	c.StartNode(node)
 }
@@ -986,7 +1007,9 @@ func (c *testRaftCluster) Stop() {
 
 func (c *testRaftCluster) closeStorage() {
 	for _, s := range c.dataStorages {
-		s.Close()
+		if s != nil {
+			s.Close()
+		}
 	}
 }
 
@@ -1071,20 +1094,25 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 	}
 }
 
-func (c *testRaftCluster) WaitVoterReplicaByCount(count int, timeout time.Duration) {
+func (c *testRaftCluster) WaitVoterReplicaByCountPerNode(count int, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(c.t, "", "wait shards count %d of cluster timeout", count)
+			assert.FailNowf(c.t, "", "wait voter count %d of cluster timeout", count)
 		default:
-			shards := 0
+			ok := true
 			for idx, s := range c.stores {
-				shards += c.awares[idx].voterShardCount(s.Meta().ID)
+				ok = c.awares[idx].voterShardCount(s.Meta().ID) == count && c.awares[idx].shardCount() == count
+				if !ok {
+					break
+				}
 			}
-			if shards >= count {
+
+			if ok {
 				return
 			}
+
 			time.Sleep(time.Millisecond * 100)
 		}
 	}

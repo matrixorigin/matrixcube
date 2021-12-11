@@ -262,29 +262,18 @@ func (pa *prophetAdapter) NewContainer() metadata.Container {
 func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, error) {
 	stats := metapb.ContainerStats{}
 	stats.ContainerID = s.Meta().ID
-	if s.cfg.UseMemoryAsStorage {
-		ms, err := util.MemStats()
-		if err != nil {
-			s.logger.Error("fail to get storage capacity status",
-				s.storeField(),
-				zap.Error(err))
-			return rpcpb.ContainerHeartbeatReq{}, err
-		}
-		stats.Capacity = ms.Total
-		stats.UsedSize = ms.Total - ms.Available
-		stats.Available = ms.Available
-	} else {
-		ms, err := util.DiskStats(s.cfg.DataPath)
-		if err != nil {
-			s.logger.Error("fail to get storage capacity status",
-				s.storeField(),
-				zap.Error(err))
-			return rpcpb.ContainerHeartbeatReq{}, err
-		}
-		stats.Capacity = ms.Total
-		stats.UsedSize = ms.Total - ms.Free
-		stats.Available = ms.Free
+
+	v, err := s.storageStatsReader.stats()
+	if err != nil {
+		s.logger.Error("fail to get storage capacity status",
+			s.storeField(),
+			zap.Error(err))
+		return rpcpb.ContainerHeartbeatReq{}, err
 	}
+	stats.Capacity = v.capacity
+	stats.UsedSize = v.usedSize
+	stats.Available = v.available
+
 	if s.cfg.Capacity > 0 && stats.Capacity > uint64(s.cfg.Capacity) {
 		stats.Capacity = uint64(s.cfg.Capacity)
 	}
@@ -439,4 +428,55 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			})
 		}
 	}
+}
+
+type storageStatsReader interface {
+	stats() (storageStats, error)
+}
+
+type storageStats struct {
+	capacity  uint64
+	available uint64
+	usedSize  uint64
+}
+
+type memoryStorageStatsReader struct {
+}
+
+func newMemoryStorageStatsReader() storageStatsReader {
+	return &memoryStorageStatsReader{}
+}
+
+func (s *memoryStorageStatsReader) stats() (storageStats, error) {
+	ms, err := util.MemStats()
+	if err != nil {
+		return storageStats{}, err
+	}
+
+	return storageStats{
+		capacity:  ms.Total,
+		usedSize:  ms.Total - ms.Available,
+		available: ms.Available,
+	}, nil
+}
+
+type diskStorageStatsReader struct {
+	dir string
+}
+
+func newDiskStorageStatsReader(dir string) storageStatsReader {
+	return &diskStorageStatsReader{dir: dir}
+}
+
+func (s *diskStorageStatsReader) stats() (storageStats, error) {
+	ms, err := util.DiskStats(s.dir)
+	if err != nil {
+		return storageStats{}, err
+	}
+
+	return storageStats{
+		capacity:  ms.Total,
+		usedSize:  ms.Total - ms.Free,
+		available: ms.Free,
+	}, nil
 }

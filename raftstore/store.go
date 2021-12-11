@@ -112,6 +112,8 @@ type store struct {
 	// shard pool processor
 	shardPool       *dynamicShardsPool
 	groupController *replicaGroupController
+
+	storageStatsReader storageStatsReader
 }
 
 // NewStore returns a raft store
@@ -144,6 +146,11 @@ func NewStore(cfg *config.Config) Store {
 		s.aware = cfg.Customize.CustomShardStateAwareFactory()
 	}
 
+	if s.cfg.UseMemoryAsStorage {
+		s.storageStatsReader = newMemoryStorageStatsReader()
+	} else {
+		s.storageStatsReader = newDiskStorageStatsReader(s.cfg.DataPath)
+	}
 	return s
 }
 

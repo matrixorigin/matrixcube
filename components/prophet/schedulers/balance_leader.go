@@ -153,18 +153,18 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	sources := filter.SelectSourceContainers(containers, l.filters, cluster.GetOpts())
 	targets := filter.SelectTargetContainers(containers, l.filters, cluster.GetOpts())
 	kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
-	for _, group := range cluster.GetScheduleGroupKeys() {
+	for _, groupKey := range cluster.GetScheduleGroupKeys() {
 		sort.Slice(sources, func(i, j int) bool {
-			iOp := opInfluence.GetContainerInfluence(sources[i].Meta.ID()).ResourceProperty(kind)
-			jOp := opInfluence.GetContainerInfluence(sources[j].Meta.ID()).ResourceProperty(kind)
-			return sources[i].LeaderScore(group, leaderSchedulePolicy, iOp) >
-				sources[j].LeaderScore(group, leaderSchedulePolicy, jOp)
+			iOp := opInfluence.GetContainerInfluence(sources[i].Meta.ID()).ResourceProperty(kind, groupKey)
+			jOp := opInfluence.GetContainerInfluence(sources[j].Meta.ID()).ResourceProperty(kind, groupKey)
+			return sources[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) >
+				sources[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 		})
 		sort.Slice(targets, func(i, j int) bool {
-			iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind)
-			jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind)
-			return targets[i].LeaderScore(group, leaderSchedulePolicy, iOp) <
-				targets[j].LeaderScore(group, leaderSchedulePolicy, jOp)
+			iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind, groupKey)
+			jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind, groupKey)
+			return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) <
+				targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 		})
 
 		for i := 0; i < len(sources) || i < len(targets); i++ {
@@ -178,7 +178,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 				sourceContainerLabel := strconv.FormatUint(sourceID, 10)
 				l.counter.WithLabelValues("high-score", sourceContainerLabel).Inc()
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
-					if ops := l.transferLeaderOut(group, cluster, source, opInfluence); len(ops) > 0 {
+					if ops := l.transferLeaderOut(groupKey, cluster, source, opInfluence); len(ops) > 0 {
 						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-out", sourceContainerLabel))
 						return ops
 					}
@@ -199,7 +199,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 				l.counter.WithLabelValues("low-score", targetContainerLabel).Inc()
 
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
-					if ops := l.transferLeaderIn(group, cluster, target); len(ops) > 0 {
+					if ops := l.transferLeaderIn(groupKey, cluster, target); len(ops) > 0 {
 						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-in", targetContainerLabel))
 						return ops
 					}
@@ -239,8 +239,8 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	sort.Slice(targets, func(i, j int) bool {
 		kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
-		iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind)
-		jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind)
+		iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind, groupKey)
+		jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind, groupKey)
 		return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) < targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 	})
 	for _, target := range targets {

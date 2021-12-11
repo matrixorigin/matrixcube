@@ -551,19 +551,19 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		if res.Meta.State() != origin.Meta.State() {
 			saveKV, saveCache = true, true
 		}
-
+		if res.GetGroupKey() != origin.GetGroupKey() {
+			saveCache = true
+		}
 		if res.GetApproximateSize() != origin.GetApproximateSize() ||
 			res.GetApproximateKeys() != origin.GetApproximateKeys() {
 			saveCache = true
 		}
-
 		if res.GetBytesWritten() != origin.GetBytesWritten() ||
 			res.GetBytesRead() != origin.GetBytesRead() ||
 			res.GetKeysWritten() != origin.GetKeysWritten() ||
 			res.GetKeysRead() != origin.GetKeysRead() {
 			saveCache = true
 		}
-
 	}
 
 	if len(writeItems) == 0 && len(readItems) == 0 && !saveKV && !saveCache && !isNew {
@@ -618,6 +618,14 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 		}
 		for key := range containerMap {
 			c.updateContainerStatusLocked(res.GetGroupKey(), key)
+			if origin != nil && origin.GetGroupKey() != res.GetGroupKey() {
+				c.logger.Debug("update container status",
+					zap.Uint64("resource", res.Meta.ID()),
+					zap.Uint64("size", uint64(res.GetApproximateSize())),
+					log.HexField("origin-group-key", []byte(origin.GetGroupKey())),
+					log.HexField("current-group-key", []byte(res.GetGroupKey())))
+				c.updateContainerStatusLocked(origin.GetGroupKey(), key)
+			}
 		}
 		resourceEventCounter.WithLabelValues("update_cache").Inc()
 	}
@@ -670,13 +678,13 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-func (c *RaftCluster) updateContainerStatusLocked(groupKey string, id uint64) {
-	leaderCount := c.core.GetContainerLeaderCount(groupKey, id)
-	resourceCount := c.core.GetContainerResourceCount(groupKey, id)
-	pendingPeerCount := c.core.GetContainerPendingPeerCount(groupKey, id)
-	leaderResourceSize := c.core.GetContainerLeaderResourceSize(groupKey, id)
-	resourceSize := c.core.GetContainerResourceSize(groupKey, id)
-	c.core.UpdateContainerStatus(groupKey, id, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
+func (c *RaftCluster) updateContainerStatusLocked(groupKey string, containerID uint64) {
+	leaderCount := c.core.GetContainerLeaderCount(groupKey, containerID)
+	resourceCount := c.core.GetContainerResourceCount(groupKey, containerID)
+	pendingPeerCount := c.core.GetContainerPendingPeerCount(groupKey, containerID)
+	leaderResourceSize := c.core.GetContainerLeaderResourceSize(groupKey, containerID)
+	resourceSize := c.core.GetContainerResourceSize(groupKey, containerID)
+	c.core.UpdateContainerStatus(groupKey, containerID, leaderCount, resourceCount, pendingPeerCount, leaderResourceSize, resourceSize)
 }
 
 // GetResourceByKey gets CachedResource by resource key from cluster.

@@ -107,6 +107,7 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 		pendingReplicas: heartbeat.GetPendingReplicas(),
 		stats:           heartbeat.Stats,
 	}
+	res.stats.ApproximateSize = resourceSize
 
 	if res.stats.WrittenKeys >= ImpossibleFlowSize || res.stats.WrittenBytes >= ImpossibleFlowSize {
 		res.stats.WrittenKeys = 0
@@ -832,7 +833,8 @@ func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *C
 	return origin.getLeaderID() != res.getLeaderID() ||
 		checkPeersChange(origin.GetVoters(), res.GetVoters()) ||
 		checkPeersChange(origin.GetLearners(), res.GetLearners()) ||
-		checkPeersChange(origin.GetPendingPeers(), res.GetPendingPeers())
+		checkPeersChange(origin.GetPendingPeers(), res.GetPendingPeers()) ||
+		origin.groupKey != res.groupKey
 }
 
 // SearchResource searches CachedResource from resourceTree

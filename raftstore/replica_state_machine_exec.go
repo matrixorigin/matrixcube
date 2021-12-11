@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
@@ -396,9 +397,27 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 		log.ShardField("new-shard", updateReq.Metadata.Shard),
 	)
 
+	var cc []raftpb.ConfChangeV2
+	sort.Slice(updateReq.Metadata.Shard.Replicas, func(i, j int) bool {
+		return updateReq.Metadata.Shard.Replicas[i].ID < updateReq.Metadata.Shard.Replicas[j].ID
+	})
+	for _, r := range updateReq.Metadata.Shard.Replicas {
+		cc = append(cc, raftpb.ConfChangeV2{
+			Changes: []raftpb.ConfChangeSingle{
+				{
+					Type:   raftpb.ConfChangeAddNode,
+					NodeID: r.ID,
+				},
+			},
+		})
+	}
+
 	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_UpdateMetadata,
+		updateMetadataResult: &updateMetadataResult{
+			changes: cc,
+		},
 	}
 	return resp, nil
 }

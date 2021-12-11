@@ -15,6 +15,8 @@
 package core
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strings"
@@ -202,6 +204,17 @@ func (cr *CachedContainer) GetTotalResourceCount() int {
 		n += v.count
 	}
 	return n
+}
+
+// GetTotalResourceCount returns the Resource count of the container.
+func (cr *CachedContainer) GetGroupKeys() string {
+	var v bytes.Buffer
+	for k, vs := range cr.resourceInfo {
+		v.WriteString(hex.EncodeToString([]byte(k)))
+		v.WriteString(fmt.Sprintf("/%d", vs.count))
+		v.WriteString(" ")
+	}
+	return v.String()
 }
 
 // GetLeaderSize returns the leader size of the container.

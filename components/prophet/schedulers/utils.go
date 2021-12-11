@@ -56,8 +56,8 @@ func shouldBalance(cluster opt.Cluster,
 	sourceID := source.Meta.ID()
 	targetID := target.Meta.ID()
 	tolerantResource := getTolerantResource(cluster, res, kind)
-	sourceInfluence := opInfluence.GetContainerInfluence(sourceID).ResourceProperty(kind)
-	targetInfluence := opInfluence.GetContainerInfluence(targetID).ResourceProperty(kind)
+	sourceInfluence := opInfluence.GetContainerInfluence(sourceID).ResourceProperty(kind, res.GetGroupKey())
+	targetInfluence := opInfluence.GetContainerInfluence(targetID).ResourceProperty(kind, res.GetGroupKey())
 	sourceDelta, targetDelta := sourceInfluence-tolerantResource, targetInfluence+tolerantResource
 	opts := cluster.GetOpts()
 	switch kind.ResourceKind {
@@ -74,23 +74,26 @@ func shouldBalance(cluster opt.Cluster,
 		tolerantResourceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), strconv.FormatUint(targetID, 10)).Set(float64(tolerantResource))
 	}
 	// Make sure after move, source score is still greater than target score.
-	shouldBalance = sourceScore > targetScore
+	shouldBalance = sourceScore > targetScore ||
+		(sourceScore == targetScore && target.GetResourceCount(res.GetGroupKey()) == 0)
 
 	if !shouldBalance {
-		cluster.GetLogger().Debug("skip balance %s, scheduler %s, resource %d, source container %d, target container %d, source-size %d, source-score %d, source-influence %d, target-size %d, target-score %d, target-influence %d, average-resource-size %d, tolerant-resource %d",
-			zap.Uint64("resource", res.Meta.ID()),
-			zap.String("resource-kind", kind.ResourceKind.String()),
-			zap.String("schedule", scheduleName),
-			sourceField(sourceID),
-			targetField(targetID),
-			zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
-			zap.Int64("target-size", source.GetResourceSize(res.GetGroupKey())),
-			zap.Int64("average-size", cluster.GetAverageResourceSize()),
-			zap.Int64("source-influence", sourceInfluence),
-			zap.Int64("target-influence", targetInfluence),
-			zap.Float64("source-score", sourceScore),
-			zap.Float64("target-score", targetScore),
-			zap.Int64("tolerant-resource", tolerantResource))
+		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
+			ce.Write(log.HexField("group-key", []byte(res.GetGroupKey())),
+				zap.Uint64("resource", res.Meta.ID()),
+				zap.String("resource-kind", kind.ResourceKind.String()),
+				zap.String("schedule", scheduleName),
+				sourceField(sourceID),
+				targetField(targetID),
+				zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
+				zap.Int64("target-size", source.GetResourceSize(res.GetGroupKey())),
+				zap.Int64("average-size", cluster.GetAverageResourceSize()),
+				zap.Int64("source-influence", sourceInfluence),
+				zap.Int64("target-influence", targetInfluence),
+				zap.Float64("source-score", sourceScore),
+				zap.Float64("target-score", targetScore),
+				zap.Int64("tolerant-resource", tolerantResource))
+		}
 	}
 	return shouldBalance, sourceScore, targetScore
 }

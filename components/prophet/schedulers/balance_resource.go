@@ -165,8 +165,8 @@ func (s *balanceResourceScheduler) scheduleByGroup(groupKey string, cluster opt.
 	kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
 
 	sort.Slice(containers, func(i, j int) bool {
-		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind)
-		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind)
+		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind, groupKey)
+		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind, groupKey)
 		return containers[i].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
 			containers[j].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
 	})

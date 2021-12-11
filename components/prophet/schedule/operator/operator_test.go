@@ -155,80 +155,121 @@ func TestInfluence(t *testing.T) {
 	resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
 	opInfluence := OpInfluence{ContainersInfluence: make(map[uint64]*ContainerInfluence)}
 	containerOpInfluence := opInfluence.ContainersInfluence
-	containerOpInfluence[1] = &ContainerInfluence{}
-	containerOpInfluence[2] = &ContainerInfluence{}
+	containerOpInfluence[1] = &ContainerInfluence{InfluenceStats: map[string]InfluenceStats{}}
+	containerOpInfluence[2] = &ContainerInfluence{InfluenceStats: map[string]InfluenceStats{}}
 
 	AddPeer{ToContainer: 2, PeerID: 2}.Influence(opInfluence, resource)
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
-		LeaderSize:    0,
-		LeaderCount:   0,
-		ResourceSize:  50,
-		ResourceCount: 1,
-		StepCost:      map[limit.Type]int64{limit.AddPeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    0,
+				LeaderCount:   0,
+				ResourceSize:  50,
+				ResourceCount: 1,
+			},
+		},
+		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
 	TransferLeader{FromContainer: 1, ToContainer: 2}.Influence(opInfluence, resource)
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
-		LeaderSize:    -50,
-		LeaderCount:   -1,
-		ResourceSize:  0,
-		ResourceCount: 0,
-		StepCost:      nil,
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    -50,
+				LeaderCount:   -1,
+				ResourceSize:  0,
+				ResourceCount: 0,
+			},
+		},
+		StepCost: nil,
 	}))
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
-		LeaderSize:    50,
-		LeaderCount:   1,
-		ResourceSize:  50,
-		ResourceCount: 1,
-		StepCost:      map[limit.Type]int64{limit.AddPeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    50,
+				LeaderCount:   1,
+				ResourceSize:  50,
+				ResourceCount: 1,
+			},
+		},
+		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
 	RemovePeer{FromContainer: 1}.Influence(opInfluence, resource)
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
-		LeaderSize:    -50,
-		LeaderCount:   -1,
-		ResourceSize:  -50,
-		ResourceCount: -1,
-		StepCost:      map[limit.Type]int64{limit.RemovePeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    -50,
+				LeaderCount:   -1,
+				ResourceSize:  -50,
+				ResourceCount: -1,
+			},
+		},
+		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
-		LeaderSize:    50,
-		LeaderCount:   1,
-		ResourceSize:  50,
-		ResourceCount: 1,
-		StepCost:      map[limit.Type]int64{limit.AddPeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    50,
+				LeaderCount:   1,
+				ResourceSize:  50,
+				ResourceCount: 1,
+			},
+		},
+
+		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
 	MergeResource{IsPassive: false}.Influence(opInfluence, resource)
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
-		LeaderSize:    -50,
-		LeaderCount:   -1,
-		ResourceSize:  -50,
-		ResourceCount: -1,
-		StepCost:      map[limit.Type]int64{limit.RemovePeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    -50,
+				LeaderCount:   -1,
+				ResourceSize:  -50,
+				ResourceCount: -1,
+			},
+		},
+
+		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
-		LeaderSize:    50,
-		LeaderCount:   1,
-		ResourceSize:  50,
-		ResourceCount: 1,
-		StepCost:      map[limit.Type]int64{limit.AddPeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    50,
+				LeaderCount:   1,
+				ResourceSize:  50,
+				ResourceCount: 1,
+			},
+		},
+
+		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
 	MergeResource{IsPassive: true}.Influence(opInfluence, resource)
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
-		LeaderSize:    -50,
-		LeaderCount:   -2,
-		ResourceSize:  -50,
-		ResourceCount: -2,
-		StepCost:      map[limit.Type]int64{limit.RemovePeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    -50,
+				LeaderCount:   -2,
+				ResourceSize:  -50,
+				ResourceCount: -2,
+			},
+		},
+
+		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
-		LeaderSize:    50,
-		LeaderCount:   1,
-		ResourceSize:  50,
-		ResourceCount: 0,
-		StepCost:      map[limit.Type]int64{limit.AddPeer: 1000},
+		InfluenceStats: map[string]InfluenceStats{
+			"": {
+				LeaderSize:    50,
+				LeaderCount:   1,
+				ResourceSize:  50,
+				ResourceCount: 0,
+			},
+		},
+
+		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 }
 
