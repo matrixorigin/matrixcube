@@ -89,7 +89,6 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 		return raftpb.Snapshot{}, false, err
 	}
 	logger.Info("snapshot created")
-	// TODO: schedule log compacton here
 	return ss, true, nil
 }
 
@@ -104,10 +103,28 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	}
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
-	if err := r.removeSnapshot(ss, true); err != nil {
-		logger.Error("failed to remove snapshot",
+	// FIXME: change this to an event worker action
+	if err := r.snapshotCompaction(ss); err != nil {
+		logger.Error("snapshot compaction failed",
 			zap.Error(err))
 		return err
+	}
+	return nil
+}
+
+// TODO: add a test for snapshotCompaction
+func (r *replica) snapshotCompaction(ss raftpb.Snapshot) error {
+	snapshots, err := r.logdb.GetAllSnapshots(r.shardID)
+	if err != nil {
+		return err
+	}
+	for _, cs := range snapshots {
+		// TODO: determine whether to delete ss based on persistentLogIndex value
+		if cs.Metadata.Index < ss.Metadata.Index {
+			if err := r.removeSnapshot(cs, true); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -123,10 +140,12 @@ func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error
 		}
 	}
 	env := r.snapshotter.getRecoverSnapshotEnv(ss)
-	if err := env.RemoveFinalDir(); err != nil {
-		logger.Error("failed to remove snapshot final directory",
-			zap.Error(err))
-		return err
+	if env.FinalDirExists() {
+		if err := env.RemoveFinalDir(); err != nil {
+			logger.Error("failed to remove snapshot final directory",
+				zap.Error(err))
+			return err
+		}
 	}
 	return nil
 }
