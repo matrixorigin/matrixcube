@@ -264,6 +264,10 @@ func (kv *kvDataStorage) RemoveShard(shard meta.Shard, removeData bool) error {
 
 	min := EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID), nil)
 	max := EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID+1), nil)
+	kv.mu.Lock()
+	delete(kv.mu.lastAppliedIndexes, shard.ID)
+	delete(kv.mu.persistentAppliedIndexes, shard.ID)
+	kv.mu.Unlock()
 	return kv.base.RangeDelete(min, max, false)
 }
 
