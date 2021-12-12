@@ -74,22 +74,6 @@ func TestClusterStartWithMoreNodes(t *testing.T) {
 	c.CheckShardCount(1)
 }
 
-func TestClusterStartConcurrent(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping in short mode.")
-		return
-	}
-
-	defer leaktest.AfterTest(t)()
-
-	c := NewTestClusterStore(t, DiskTestCluster)
-	c.StartWithConcurrent(true)
-	defer c.Stop()
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.CheckShardCount(1)
-}
-
 func TestReadAndWriteAndRestart(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")
