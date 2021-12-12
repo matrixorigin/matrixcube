@@ -168,6 +168,7 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config, logger *zap.Log
 
 		c, e, err := startEmbedEtcd(ctx, cfg, logger)
 		if err != nil && strings.Contains(err.Error(), "member count is unequal") {
+			logger.Error("failed to start etcd", zap.Error(err))
 			continue
 		}
 		if err != nil {

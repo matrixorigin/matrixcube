@@ -55,7 +55,7 @@ import (
 )
 
 var (
-	testSnapshotDir   = "snapshot_test_dir_safe_to_delete"
+	testSnapshotDir   = "/tmp/snapshot_test_dir_safe_to_delete"
 	testTransportAddr = "localhost:36001"
 )
 
