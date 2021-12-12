@@ -1298,7 +1298,7 @@ func (c *RaftCluster) GetMergeChecker() *checker.MergeChecker {
 func (c *RaftCluster) isPrepared() bool {
 	c.RLock()
 	defer c.RUnlock()
-	return c.prepareChecker.check(c)
+	return c.prepareChecker.checkLocked(c)
 }
 
 // GetContainersLoads returns load stats of all containers.
@@ -1359,7 +1359,7 @@ func newPrepareChecker() *prepareChecker {
 }
 
 // Before starting up the scheduler, we need to take the proportion of the resources on each container into consideration.
-func (checker *prepareChecker) check(c *RaftCluster) bool {
+func (checker *prepareChecker) checkLocked(c *RaftCluster) bool {
 	if checker.isPrepared || time.Since(checker.start) > collectTimeout {
 		return true
 	}
@@ -1367,13 +1367,13 @@ func (checker *prepareChecker) check(c *RaftCluster) bool {
 	if float64(c.core.GetResourceCount())*collectFactor > float64(checker.sum) {
 		return false
 	}
-	for _, container := range c.GetContainers() {
+	for _, container := range c.core.GetContainers() {
 		if !container.IsUp() {
 			continue
 		}
 		containerID := container.Meta.ID()
 		n := 0
-		for _, group := range c.GetScheduleGroupKeys() {
+		for _, group := range c.core.GetScheduleGroupKeys() {
 			n += c.core.GetContainerResourceCount(group, containerID)
 		}
 
