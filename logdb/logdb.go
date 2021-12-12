@@ -102,7 +102,7 @@ type LogDB interface {
 		size uint64, shardID uint64, replicaID uint64, low uint64,
 		high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error)
 	// ReadRaftState returns the persistented raft state found in Log DB.
-	ReadRaftState(shardID uint64, replicaID uint64) (RaftState, error)
+	ReadRaftState(shardID uint64, replicaID uint64, snapshotIndex uint64) (RaftState, error)
 	// RemoveEntriesTo removes entries with indexes between (0, index].
 	RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error
 	// GetSnapshot returns the most recent snapshot metadata for the specified
@@ -275,7 +275,7 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 
 func (l *KVLogDB) ReadRaftState(shardID uint64,
 	replicaID uint64, snapshotIndex uint64) (RaftState, error) {
-	firstIndex, length, err := r.getRange(shardID, replicaID, snapshotIndex)
+	firstIndex, length, err := l.getRange(shardID, replicaID, snapshotIndex)
 	if err != nil {
 		return RaftState{}, err
 	}
@@ -292,7 +292,7 @@ func (l *KVLogDB) ReadRaftState(shardID uint64,
 
 	return RaftState{
 		State:      st,
-		FirstIndex: startIndex,
+		FirstIndex: firstIndex,
 		EntryCount: length,
 	}, nil
 }
@@ -307,7 +307,7 @@ func (l *KVLogDB) RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64
 
 func (l *KVLogDB) getRange(shardID uint64,
 	replicaID uint64, snapshotIndex uint64) (uint64, uint64, error) {
-	maxIndex, err := r.getMaxIndex(clusterID, nodeID)
+	maxIndex, err := l.getMaxIndex(shardID, replicaID)
 	if err == ErrNoSavedLog {
 		return snapshotIndex, 0, nil
 	}

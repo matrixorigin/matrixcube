@@ -16,6 +16,7 @@ package raftstore
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -300,7 +301,6 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 	if err != nil {
 		return err
 	}
-
 	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
 	pr.appliedIndex = persistentLogIndex
 	pr.pushedIndex = persistentLogIndex
@@ -343,9 +343,50 @@ func (pr *replica) initConfState() error {
 	return nil
 }
 
+func (pr *replica) getLogMarkerState() (raftpb.Snapshot, error) {
+	persistentLogIndex, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+	if err != nil {
+		return raftpb.Snapshot{}, err
+	}
+	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err != nil && err != logdb.ErrNoSnapshot {
+		return raftpb.Snapshot{}, err
+	}
+
+	if raft.IsEmptySnap(ss) || ss.Metadata.Index < persistentLogIndex {
+		if persistentLogIndex == 0 {
+			// everything is empty
+			return raftpb.Snapshot{}, nil
+		}
+		ents, _, err := pr.logdb.IterateEntries(nil, 0, pr.shardID, pr.replicaID,
+			persistentLogIndex, persistentLogIndex+1, math.MaxUint64)
+		if err != nil {
+			return raftpb.Snapshot{}, err
+		}
+		if ents[0].Index != persistentLogIndex {
+			panic("unexpected entry")
+		}
+		return raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: persistentLogIndex,
+				Term:  ents[0].Term,
+			},
+		}, nil
+	} else if ss.Metadata.Index >= persistentLogIndex {
+		return ss, nil
+	}
+	panic("not suppose to reach here")
+}
+
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	rs, err := pr.logdb.ReadRaftState(pr.shardID, pr.replicaID)
+	dummySnapshot, err := pr.getLogMarkerState()
+	if err != nil {
+		return false, err
+	}
+	pr.lr.ApplySnapshot(dummySnapshot)
+	rs, err := pr.logdb.ReadRaftState(pr.shardID,
+		pr.replicaID, dummySnapshot.Metadata.Index)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
 	}

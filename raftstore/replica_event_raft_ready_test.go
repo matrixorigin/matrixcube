@@ -223,7 +223,7 @@ func TestIssue386(t *testing.T) {
 		HardState: raftpb.HardState{Commit: 1},
 	}, s.logdb.NewWorkerContext()))
 
-	rs, err := s.logdb.ReadRaftState(1, 2)
+	rs, err := s.logdb.ReadRaftState(1, 2, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), rs.State.Commit)
 }
