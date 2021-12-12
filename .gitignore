@@ -23,3 +23,4 @@ dist
 .DS_Store
 .vscode/
 vendor/
+tests
