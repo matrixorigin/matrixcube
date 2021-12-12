@@ -245,6 +245,10 @@ func (se *SSEnv) RemoveFlagFile() error {
 		fileutil.SnapshotFlagFilename, se.fs)
 }
 
+func (se *SSEnv) FinalDirExists() bool {
+	return se.finalDirExists()
+}
+
 func (se *SSEnv) createDir(dir string) error {
 	mustBeChild(se.rootDir, dir)
 	return fileutil.Mkdir(dir, se.fs)

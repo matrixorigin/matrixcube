@@ -105,6 +105,47 @@ func TestLogDBGetSnapshot(t *testing.T) {
 	runLogDBTest(t, tf, fs)
 }
 
+func TestLogDBGetAllSnapshots(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		v, err := db.GetSnapshot(testShardID)
+		assert.Equal(t, ErrNoSnapshot, err)
+		assert.Empty(t, v)
+		rd1 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 100},
+			},
+		}
+		rd2 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 150},
+			},
+		}
+		rd3 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 200},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, 100, rd1, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		if err := db.SaveRaftState(testShardID, 100, rd2, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		if err := db.SaveRaftState(testShardID, 100, rd3, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		results, err := db.GetAllSnapshots(testShardID)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(results))
+		assert.Equal(t, []raftpb.Snapshot{rd1.Snapshot, rd2.Snapshot, rd3.Snapshot}, results)
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
 func TestLogDBRemoveSnapshot(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
 		rd := raft.Ready{
