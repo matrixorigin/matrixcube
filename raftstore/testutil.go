@@ -506,8 +506,8 @@ type TestRaftCluster interface {
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
-	// WaitReplicaChangeToVoter check that the role of shard of each node change to voter until the timeout
-	WaitReplicaChangeToVoter(shard uint64, timeout time.Duration)
+	// WaitAllReplicasChangeToVoter check that the role of shard of each node change to voter until the timeout
+	WaitAllReplicasChangeToVoter(shard uint64, timeout time.Duration)
 	// WaitShardByCountOnNode check that the number of shard of the specified node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountOnNode(node, count int, timeout time.Duration)
@@ -1118,19 +1118,23 @@ func (c *testRaftCluster) WaitVoterReplicaByCountPerNode(count int, timeout time
 	}
 }
 
-func (c *testRaftCluster) WaitReplicaChangeToVoter(shardID uint64, timeout time.Duration) {
+func (c *testRaftCluster) WaitAllReplicasChangeToVoter(shardID uint64, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
 		case <-timeoutC:
 			assert.FailNowf(c.t, "", "wait replica of shard %d change to voter timeout", shardID)
 		default:
+			n := 0
 			for idx := range c.stores {
 				r := findReplica(c.awares[idx].getShardByID(shardID),
 					c.stores[idx].Meta().ID)
 				if r != nil && r.Role == metapb.ReplicaRole_Voter {
-					return
+					n++
 				}
+			}
+			if n == int(c.stores[0].cfg.Prophet.Replication.MaxReplicas) {
+				return
 			}
 			time.Sleep(time.Millisecond * 100)
 		}

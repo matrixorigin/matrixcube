@@ -56,7 +56,7 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	}
 
 	c.WaitShardByCountPerNode(1, snapshotTestTimeout)
-	c.WaitReplicaChangeToVoter(c.GetShardByIndex(0, 0).ID, snapshotTestTimeout)
+	c.WaitAllReplicasChangeToVoter(c.GetShardByIndex(0, 0).ID, snapshotTestTimeout)
 
 	shardID := c.GetShardByIndex(0, 0).ID
 
