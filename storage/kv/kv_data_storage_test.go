@@ -372,8 +372,17 @@ func TestRemoveShard(t *testing.T) {
 	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false)
 	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false)
 	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
+	ds.(*kvDataStorage).mu.Lock()
+	ds.(*kvDataStorage).mu.lastAppliedIndexes[2] = 100
+	ds.(*kvDataStorage).mu.persistentAppliedIndexes[2] = 100
+	ds.(*kvDataStorage).mu.Unlock()
 
 	assert.NoError(t, ds.RemoveShard(meta.Shard{ID: 2, Start: []byte{2}}, true))
+	ds.(*kvDataStorage).mu.RLock()
+	assert.Equal(t, uint64(0), ds.(*kvDataStorage).mu.lastAppliedIndexes[2])
+	assert.Equal(t, uint64(0), ds.(*kvDataStorage).mu.persistentAppliedIndexes[2])
+	ds.(*kvDataStorage).mu.RUnlock()
+
 	v, err = kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil))
 	assert.NoError(t, err)
 	assert.Empty(t, v)

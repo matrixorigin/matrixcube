@@ -155,7 +155,9 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 			}
 		} else {
 			err := errors.Wrapf(ErrReplicaNotFound,
-				"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
+				"shardID %d, replicaID %d found on container %d",
+				res.ID,
+				replica.ID, replica.ContainerID)
 			return rpc.ResponseBatch{}, err
 		}
 	case metapb.ConfigChangeType_AddLearnerNode:

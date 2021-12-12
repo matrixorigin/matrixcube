@@ -108,6 +108,8 @@ type LogDB interface {
 	// GetSnapshot returns the most recent snapshot metadata for the specified
 	// replica.
 	GetSnapshot(shardID uint64) (raftpb.Snapshot, error)
+	// GetAllSnapshots returns all snapshots known to the LogDB.
+	GetAllSnapshots(shardID uint64) ([]raftpb.Snapshot, error)
 	// RemoveSnapshot removes the specified snapshot.
 	RemoveSnapshot(shardID uint64, index uint64) error
 }
@@ -164,6 +166,21 @@ func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {
 	var ss raftpb.Snapshot
 	protoc.MustUnmarshal(&ss, v)
 	return ss, nil
+}
+
+func (l *KVLogDB) GetAllSnapshots(shardID uint64) ([]raftpb.Snapshot, error) {
+	fk := keys.GetSnapshotKey(shardID, 0, nil)
+	lk := keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
+	var results []raftpb.Snapshot
+	if err := l.ms.Scan(fk, lk, func(key, value []byte) (bool, error) {
+		var ss raftpb.Snapshot
+		protoc.MustUnmarshal(&ss, value)
+		results = append(results, ss)
+		return true, nil
+	}, true); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,

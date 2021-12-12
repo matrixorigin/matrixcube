@@ -149,7 +149,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		env := r.snapshotter.getRecoverSnapshotEnv(ss)
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
-		assert.False(t, exist)
+		assert.True(t, exist)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

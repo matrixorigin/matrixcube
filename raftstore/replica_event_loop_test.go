@@ -136,11 +136,12 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
 
 		env := r.snapshotter.getRecoverSnapshotEnv(ss)
+		// latest snapshot is not removed
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
-		assert.False(t, exist)
+		assert.True(t, exist)
 		_, err = r.logdb.GetSnapshot(1)
-		assert.Equal(t, logdb.ErrNoSnapshot, err)
+		assert.NoError(t, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
