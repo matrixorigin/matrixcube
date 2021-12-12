@@ -48,7 +48,7 @@ import (
 const (
 	tmpSnapshotDirSuffix = "generating"
 	recvTmpDirSuffix     = "receiving"
-	snapshotterTestDir   = "snapshotter_test_dir_safe_to_delete"
+	snapshotterTestDir   = "/tmp/snapshotter_test_dir_safe_to_delete"
 )
 
 func getNewTestDB() (logdb.LogDB, func()) {

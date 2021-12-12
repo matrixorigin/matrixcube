@@ -48,7 +48,7 @@ import (
 var (
 	testShardID    uint64 = 101
 	testReplicaID  uint64 = 202
-	testStorageDir        = "test_data_safe_to_delete"
+	testStorageDir        = "/tmp/test_data_safe_to_delete"
 )
 
 func getTestStorage(fs vfs.FS) storage.KVStorage {
