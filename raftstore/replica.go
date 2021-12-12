@@ -297,13 +297,14 @@ func (pr *replica) getShardID() uint64 {
 // state machine restart procedure.
 // initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
 func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
-	persistentLogIndex, err := storage.GetPersistentLogIndex(pr.shardID)
+	dummySnapshot, err := pr.getLogMarkerState()
 	if err != nil {
 		return err
 	}
-	pr.sm.updateAppliedIndexTerm(persistentLogIndex, 0)
-	pr.appliedIndex = persistentLogIndex
-	pr.pushedIndex = persistentLogIndex
+	index, term := dummySnapshot.Metadata.Index, dummySnapshot.Metadata.Term
+	pr.sm.updateAppliedIndexTerm(index, term)
+	pr.appliedIndex = index
+	pr.pushedIndex = index
 	pr.logger.Info("applied index loaded",
 		zap.Uint64("applied-index", pr.appliedIndex))
 	return nil
