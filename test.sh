@@ -4,8 +4,7 @@ doTesting(){
     dir=$2
     for i in {1..50000}
     do
-        echo "docker run -e RACE=1 -e MallocNanoZone=0  -it -v $base:/matrixcube matrixorigin/matrixcube-test all-tests > $dir/test.log" 
-        docker run -e RACE=1 -e MallocNanoZone=0 -i -v $base:/matrixcube matrixorigin/matrixcube-test all-tests > $dir/test.log
+        docker run -e RACE=1 -e MallocNanoZone=0 -e MEMFS_TEST=1 -i -v $base:/matrixcube matrixorigin/matrixcube-test all-tests > $dir/test.log
         v=`tail -n 1 $dir/test.log | awk {'print $1'}`
         if [ "$v" != "ok" ]
         then
@@ -17,6 +16,7 @@ doTesting(){
     done
 }
 
+rm -rf $PWD/tests
 for i in `seq 1 $1`
 do
     mkdir -p $PWD/tests/$i
