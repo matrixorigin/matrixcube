@@ -345,6 +345,39 @@ func (pr *replica) initConfState() error {
 }
 
 func (pr *replica) getLogMarkerState() (raftpb.Snapshot, error) {
+	// FIXME: this is an ugly hack
+	// the fundamental issue here is that we can't directly tell what is the term
+	// value of the persistentLogIndex and thus couldn't establish an marker point
+	// for the LogReader. getTerm() works around this issue by querying the
+	// underlying LogDB (LogReader.Term() is not ready yet as we are trying to
+	// correctly initialize LogReader). This in turn forces us not to cleanup
+	// all applied raft logs and snapshots.
+	getTerm := func(index uint64) (uint64, error) {
+		if index == 0 {
+			return 0, nil
+		}
+
+		snapshots, err := pr.logdb.GetAllSnapshots(pr.shardID)
+		if err != nil {
+			return 0, err
+		}
+		for _, cs := range snapshots {
+			if cs.Metadata.Index == index {
+				return cs.Metadata.Term, nil
+			}
+		}
+
+		ents, _, err := pr.logdb.IterateEntries(nil, 0, pr.shardID, pr.replicaID,
+			index, index+1, math.MaxUint64)
+		if err != nil {
+			return 0, err
+		}
+		if ents[0].Index != index {
+			panic("unexpected entry")
+		}
+		return ents[0].Term, nil
+	}
+
 	persistentLogIndex, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
 	if err != nil {
 		return raftpb.Snapshot{}, err
@@ -355,22 +388,14 @@ func (pr *replica) getLogMarkerState() (raftpb.Snapshot, error) {
 	}
 
 	if raft.IsEmptySnap(ss) || ss.Metadata.Index < persistentLogIndex {
-		if persistentLogIndex == 0 {
-			// everything is empty
-			return raftpb.Snapshot{}, nil
-		}
-		ents, _, err := pr.logdb.IterateEntries(nil, 0, pr.shardID, pr.replicaID,
-			persistentLogIndex, persistentLogIndex+1, math.MaxUint64)
+		term, err := getTerm(persistentLogIndex)
 		if err != nil {
 			return raftpb.Snapshot{}, err
-		}
-		if ents[0].Index != persistentLogIndex {
-			panic("unexpected entry")
 		}
 		return raftpb.Snapshot{
 			Metadata: raftpb.SnapshotMetadata{
 				Index: persistentLogIndex,
-				Term:  ents[0].Term,
+				Term:  term,
 			},
 		}, nil
 	} else if ss.Metadata.Index >= persistentLogIndex {
