@@ -248,8 +248,8 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
-		shard := Shard{ID: 1}
-		replicaRec := Replica{ID: 1}
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
 		rd := raft.Ready{Snapshot: ss}
@@ -257,7 +257,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.NoError(t, r.processReady(rd, r.logdb.NewWorkerContext()))
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
-		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)

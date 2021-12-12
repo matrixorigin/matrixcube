@@ -297,7 +297,7 @@ func (pr *replica) getShardID() uint64 {
 // state machine restart procedure.
 // initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
 func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
-	dummySnapshot, err := pr.getLogMarkerState()
+	dummySnapshot, err := pr.getLogReaderMarkerState()
 	if err != nil {
 		return err
 	}
@@ -344,7 +344,7 @@ func (pr *replica) initConfState() error {
 	return nil
 }
 
-func (pr *replica) getLogMarkerState() (raftpb.Snapshot, error) {
+func (pr *replica) getLogReaderMarkerState() (raftpb.Snapshot, error) {
 	// FIXME: this is an ugly hack
 	// the fundamental issue here is that we can't directly tell what is the term
 	// value of the persistentLogIndex and thus couldn't establish an marker point
@@ -406,11 +406,13 @@ func (pr *replica) getLogMarkerState() (raftpb.Snapshot, error) {
 
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	dummySnapshot, err := pr.getLogMarkerState()
+	dummySnapshot, err := pr.getLogReaderMarkerState()
 	if err != nil {
 		return false, err
 	}
-	pr.lr.ApplySnapshot(dummySnapshot)
+	if err := pr.lr.ApplySnapshot(dummySnapshot); err != nil {
+		return false, err
+	}
 	rs, err := pr.logdb.ReadRaftState(pr.shardID,
 		pr.replicaID, dummySnapshot.Metadata.Index)
 	if errors.Is(err, logdb.ErrNoSavedLog) {

@@ -104,7 +104,10 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	r.appliedIndex = ss.Metadata.Index
 	r.lr.ApplySnapshot(ss)
 	r.sm.updateShard(md.Metadata.Shard)
+	// r.replica is more like a local cached copy of the replica record.
+	r.replica = *findReplica(r.getShard(), r.storeID)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
+
 	// FIXME: change this to an event worker action
 	if err := r.snapshotCompaction(ss); err != nil {
 		logger.Error("snapshot compaction failed",
@@ -143,6 +146,8 @@ func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error
 	}
 	env := r.snapshotter.getRecoverSnapshotEnv(ss)
 	if env.FinalDirExists() {
+		r.logger.Info("removing snapshot dir",
+			zap.String("dir", env.GetFinalDir()))
 		if err := env.RemoveFinalDir(); err != nil {
 			logger.Error("failed to remove snapshot final directory",
 				zap.Error(err))
