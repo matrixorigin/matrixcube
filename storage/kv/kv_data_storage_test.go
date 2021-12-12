@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	testDir = "test-dir-safe-to-delete"
+	testDir = "/tmp/test-dir-safe-to-delete"
 )
 
 func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
