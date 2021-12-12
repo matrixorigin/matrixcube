@@ -113,7 +113,7 @@ func TestStateMachinePromoteLeanerToVoter(t *testing.T) {
 	runSimpleStateMachineTest(t, f, h)
 }
 
-func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole) {
+func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeReplica Replica) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		shard := Shard{
@@ -131,10 +131,7 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole) {
 			rpc.AdminCmdType_ConfigChange,
 			protoc.MustMarshal(&rpc.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
-				Replica: metapb.Replica{
-					ID:          100,
-					ContainerID: 200,
-				},
+				Replica:    removeReplica,
 			}))
 		batch.Header.ShardID = 1
 		cc := raftpb.ConfChange{
@@ -150,14 +147,29 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole) {
 		}
 		sm.applyCommittedEntries([]raftpb.Entry{entry})
 		shard = sm.getShard()
-		require.Equal(t, 0, len(shard.Replicas))
+		if removeReplica.ID == 100 {
+			require.Equal(t, 0, len(shard.Replicas))
+		} else {
+			require.Equal(t, 1, len(shard.Replicas))
+		}
+
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
 
 func TestStateMachineRemoveNode(t *testing.T) {
-	testStateMachineRemoveNode(t, metapb.ReplicaRole_Learner)
-	testStateMachineRemoveNode(t, metapb.ReplicaRole_Voter)
+	testStateMachineRemoveNode(t, metapb.ReplicaRole_Learner, metapb.Replica{
+		ID:          100,
+		ContainerID: 200,
+	})
+	testStateMachineRemoveNode(t, metapb.ReplicaRole_Voter, metapb.Replica{
+		ID:          100,
+		ContainerID: 200,
+	})
+	testStateMachineRemoveNode(t, metapb.ReplicaRole_Voter, metapb.Replica{
+		ID:          1000,
+		ContainerID: 2000,
+	})
 }
 
 // TODO: add tests to cover failed config change
