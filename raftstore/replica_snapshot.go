@@ -101,6 +101,8 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 			zap.Error(err))
 		return err
 	}
+	r.appliedIndex = ss.Metadata.Index
+	r.lr.ApplySnapshot(ss)
 	r.sm.updateShard(md.Metadata.Shard)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
 	// FIXME: change this to an event worker action
