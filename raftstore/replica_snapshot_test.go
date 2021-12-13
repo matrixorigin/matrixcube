@@ -121,6 +121,9 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 // TestApplyReceivedSnapshot
 func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		r.aware = newTestShardAware(0)
+		r.aware.Created(Shard{ID: 1})
+
 		ss, created, err := r.createSnapshot()
 		if err != nil {
 			t.Fatalf("failed to create snapshot %v", err)
@@ -143,6 +146,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
+		assert.Equal(t, r.aware.(*testShardAware).getShardByIndex(0), r.getShard())
 
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
