@@ -58,9 +58,6 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	if err := pr.appendEntries(rd); err != nil {
 		return err
 	}
-	if err := pr.onSnapshotSaved(rd); err != nil {
-		return err
-	}
 	pr.sendRaftMessages(rd)
 	if err := pr.applyCommittedEntries(rd); err != nil {
 		return err
@@ -68,18 +65,6 @@ func (pr *replica) processReady(rd raft.Ready, wc *logdb.WorkerContext) error {
 	pr.handleReadyToRead(rd)
 	if err := pr.handleRaftCreateSnapshotRequest(); err != nil {
 		return err
-	}
-	return nil
-}
-
-// the flag file is used to minimize the possibility to have the snapshot
-// re-transmitted after reboot. for a quick reboot, e.g. a 10 minutes offline,
-// it will be unlikely for the leader to have another log compaction, it thus
-// still make sense to apply the latest received but not applied snapshot.
-func (pr *replica) onSnapshotSaved(rd raft.Ready) error {
-	if !raft.IsEmptySnap(rd.Snapshot) {
-		env := pr.snapshotter.getRecoverSnapshotEnv(rd.Snapshot)
-		return env.RemoveFlagFile()
 	}
 	return nil
 }

@@ -40,7 +40,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
-	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -230,20 +229,11 @@ func TestOnlyMostRecentSnapshotIsKept(t *testing.T) {
 func TestFirstSnapshotBecomeOrphanedIsHandled(t *testing.T) {
 	fs := vfs.GetTestFS()
 	fn := func(t *testing.T, ldb logdb.LogDB, s *snapshotter) {
-		s1 := raftpb.Snapshot{
-			Metadata: raftpb.SnapshotMetadata{
-				Index: 100,
-				Term:  200,
-			},
-		}
 		env := s.getCreatingSnapshotEnv(0)
 		env.FinalizeIndex(100)
 		fd1 := env.GetFinalDir()
 		if err := fs.MkdirAll(fd1, 0755); err != nil {
 			t.Errorf("failed to create dir %v", err)
-		}
-		if err := fileutil.CreateFlagFile(fd1, fileutil.SnapshotFlagFilename, &s1, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
 		}
 		if err := s.removeOrphanSnapshots(); err != nil {
 			t.Errorf("failed to process orphaned snapshtos %s", err)
@@ -282,12 +272,6 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 		if err := fs.MkdirAll(fd2, 0755); err != nil {
 			t.Errorf("failed to create dir %v", err)
 		}
-		if err := fileutil.CreateFlagFile(fd1, fileutil.SnapshotFlagFilename, &s1, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
-		}
-		if err := fileutil.CreateFlagFile(fd2, fileutil.SnapshotFlagFilename, &s2, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
-		}
 		if err := s.saveSnapshot(s1); err != nil {
 			t.Errorf("failed to save snapshot to logdb")
 		}
@@ -303,9 +287,6 @@ func TestOrphanedSnapshotRecordIsRemoved(t *testing.T) {
 		}
 		if _, err := fs.Stat(fd2); vfs.IsNotExist(err) {
 			t.Errorf("unexpectedly removed fd2")
-		}
-		if fileutil.HasFlagFile(fd2, fileutil.SnapshotFlagFilename, fs) {
-			t.Errorf("flag for fd2 not removed")
 		}
 		snapshot, err := s.ldb.GetSnapshot(1)
 		if err != nil {
@@ -356,15 +337,6 @@ func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 		if err := fs.MkdirAll(fd4, 0755); err != nil {
 			t.Errorf("failed to create dir %v", err)
 		}
-		if err := fileutil.CreateFlagFile(fd1, fileutil.SnapshotFlagFilename, &s1, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
-		}
-		if err := fileutil.CreateFlagFile(fd2, fileutil.SnapshotFlagFilename, &s2, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
-		}
-		if err := fileutil.CreateFlagFile(fd4, fileutil.SnapshotFlagFilename, &s3, fs); err != nil {
-			t.Errorf("failed to create flag file %s", err)
-		}
 		if err := s.saveSnapshot(s1); err != nil {
 			t.Errorf("failed to save snapshot to logdb")
 		}
@@ -374,15 +346,6 @@ func TestOrphanedSnapshotsCanBeProcessed(t *testing.T) {
 		// in logdb is not for fd2, fd2 will be entirely removed
 		if err := s.removeOrphanSnapshots(); err != nil {
 			t.Errorf("failed to process orphaned snapshtos %s", err)
-		}
-		if fileutil.HasFlagFile(fd1, fileutil.SnapshotFlagFilename, fs) {
-			t.Errorf("flag for fd1 not removed")
-		}
-		if fileutil.HasFlagFile(fd2, fileutil.SnapshotFlagFilename, fs) {
-			t.Errorf("flag for fd2 not removed")
-		}
-		if !fileutil.HasFlagFile(fd4, fileutil.SnapshotFlagFilename, fs) {
-			t.Errorf("flag for fd4 is missing")
 		}
 		if _, err := fs.Stat(fd1); vfs.IsNotExist(err) {
 			t.Errorf("fd1 removed by mistake")
@@ -411,7 +374,7 @@ func TestSnapshotDirNameMatchWorks(t *testing.T) {
 			{"snapshot-", false},
 		}
 		for idx, tt := range tests {
-			v := s.dirMatch(tt.dirName)
+			v := s.isSnapshotDirectory(tt.dirName)
 			if v != tt.valid {
 				t.Errorf("dir name %s (%d) failed to match", tt.dirName, idx)
 			}
@@ -560,9 +523,6 @@ func TestSnapshotCanBeFinalized(t *testing.T) {
 		}
 		if !fi.IsDir() {
 			t.Errorf("not a dir")
-		}
-		if fileutil.HasFlagFile(finalSnapDir, fileutil.SnapshotFlagFilename, fs) {
-			t.Errorf("flag file not removed")
 		}
 		vfp := fs.PathJoin(finalSnapDir, "test.data")
 		fi, err = fs.Stat(vfp)

@@ -34,7 +34,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	pb "go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -216,34 +215,6 @@ func TestRenameTempDirToFinalDirCanComplete(t *testing.T) {
 		if !env.finalDirExists() {
 			t.Errorf("final dir does not exist")
 		}
-		if env.HasFlagFile() {
-			t.Errorf("flag file not suppose to be there")
-		}
-	}
-	fs := vfs.GetTestFS()
-	runEnvTest(t, tf, fs)
-}
-
-func TestFlagFileExists(t *testing.T) {
-	tf := func(t *testing.T, env SSEnv) {
-		env.FinalizeIndex(100)
-		if env.finalDirExists() {
-			t.Errorf("final dir already exist")
-		}
-		msg := &pb.Message{}
-		if err := env.createFlagFile(msg); err != nil {
-			t.Errorf("failed to create flag file")
-		}
-		err := env.renameToFinalDir()
-		if err != nil {
-			t.Errorf("rename tmp dir to final dir failed %v", err)
-		}
-		if !env.finalDirExists() {
-			t.Errorf("final dir does not exist")
-		}
-		if !env.HasFlagFile() {
-			t.Errorf("flag file not suppose to be there")
-		}
 	}
 	fs := vfs.GetTestFS()
 	runEnvTest(t, tf, fs)
@@ -251,13 +222,9 @@ func TestFlagFileExists(t *testing.T) {
 
 func TestFinalizeSnapshotCanComplete(t *testing.T) {
 	tf := func(t *testing.T, env SSEnv) {
-		m := &pb.Message{}
 		env.FinalizeIndex(100)
-		if err := env.FinalizeSnapshot(m); err != nil {
+		if err := env.FinalizeSnapshot(); err != nil {
 			t.Errorf("failed to finalize snapshot %v", err)
-		}
-		if !env.HasFlagFile() {
-			t.Errorf("no flag file")
 		}
 		if !env.finalDirExists() {
 			t.Errorf("no final dir")
@@ -274,12 +241,8 @@ func TestFinalizeSnapshotReturnOutOfDateWhenFinalDirExist(t *testing.T) {
 		if err := env.fs.MkdirAll(finalDir, 0755); err != nil {
 			t.Fatalf("%v", err)
 		}
-		m := &pb.Message{}
-		if err := env.FinalizeSnapshot(m); err != ErrSnapshotOutOfDate {
+		if err := env.FinalizeSnapshot(); err != ErrSnapshotOutOfDate {
 			t.Errorf("didn't return ErrSnapshotOutOfDate %v", err)
-		}
-		if env.HasFlagFile() {
-			t.Errorf("flag file exist")
 		}
 	}
 	fs := vfs.GetTestFS()

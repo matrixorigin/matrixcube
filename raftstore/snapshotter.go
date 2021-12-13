@@ -144,14 +144,7 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 		}
 		fn := dirInfo.Name()
 		dirName := s.fs.PathJoin(s.rootDir, fn)
-		if s.isOrphan(fn) {
-			s.logger.Info("found an orphan folder",
-				zap.String("dirname", fn))
-			// looks like a complete snapshot, but the flag file is still in the dir
-			if err := s.processOrphans(dirName, noss, ss, removeDir); err != nil {
-				return err
-			}
-		} else if s.isZombie(fn) {
+		if s.isZombie(fn) {
 			s.logger.Info("found a zombie folder",
 				zap.String("dirname", fn))
 			// snapshot dir name with the ".receiving" or ".generating" suffix
@@ -159,7 +152,7 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 			if err := removeDir(dirName); err != nil {
 				return err
 			}
-		} else if s.isSnapshot(fn) {
+		} else if s.isSnapshotDirectory(fn) {
 			// fully processed snapshot image with the flag file already removed
 			index := s.parseIndex(fn)
 			s.logger.Info("found a snapshot folder",
@@ -175,30 +168,6 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 		}
 	}
 	return nil
-}
-
-func (s *snapshotter) processOrphans(dirName string,
-	noss bool, ss raftpb.Snapshot, removeDir func(string) error) error {
-	var ssFromDir raftpb.Snapshot
-	if err := fileutil.GetFlagFileContent(dirName,
-		fileutil.SnapshotFlagFilename, &ssFromDir, s.fs); err != nil {
-		return err
-	}
-	if raft.IsEmptySnap(ssFromDir) {
-		panic("empty snapshot found")
-	}
-	remove := false
-	if noss {
-		remove = true
-	} else {
-		if ss.Metadata.Index != ssFromDir.Metadata.Index {
-			remove = true
-		}
-	}
-	if remove {
-		return removeDir(dirName)
-	}
-	return s.removeFlagFile(dirName)
 }
 
 func (s *snapshotter) save(de saveable,
@@ -261,12 +230,7 @@ func (s *snapshotter) recover(rc recoverable,
 
 func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 	env.FinalizeIndex(ss.Metadata.Index)
-	if err := env.SaveSSMetadata(&ss.Metadata); err != nil {
-		s.logger.Error("failed to commit saved snapshot",
-			zap.Error(err))
-		return err
-	}
-	if err := env.FinalizeSnapshot(&ss); err != nil {
+	if err := env.FinalizeSnapshot(); err != nil {
 		if errors.Is(err, snapshot.ErrSnapshotOutOfDate) {
 			return errSnapshotOutOfDate
 		}
@@ -274,16 +238,7 @@ func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 			zap.Error(err))
 		return err
 	}
-	if err := env.RemoveFlagFile(); err != nil {
-		s.logger.Error("failed to remove flag file",
-			zap.Error(err))
-		return err
-	}
 	return nil
-}
-
-func (s *snapshotter) removeFlagFile(dirName string) error {
-	return fileutil.RemoveFlagFile(dirName, fileutil.SnapshotFlagFilename, s.fs)
 }
 
 func (s *snapshotter) getRecoverSnapshotEnv(ss raftpb.Snapshot) snapshot.SSEnv {
@@ -299,7 +254,7 @@ func (s *snapshotter) getCreatingSnapshotEnv(extra uint64) snapshot.SSEnv {
 		s.shardID, s.replicaID, 0, extra, snapshot.CreatingMode, s.fs)
 }
 
-func (s *snapshotter) dirMatch(dir string) bool {
+func (s *snapshotter) isSnapshotDirectory(dir string) bool {
 	return snapshot.SnapshotDirNameRe.Match([]byte(dir))
 }
 
@@ -315,22 +270,6 @@ func (s *snapshotter) parseIndex(dir string) uint64 {
 	s.logger.Fatal("unknown snapshot fold name",
 		zap.String("dirname", dir))
 	return 0
-}
-
-func (s *snapshotter) isSnapshot(dir string) bool {
-	if !s.dirMatch(dir) {
-		return false
-	}
-	fdir := s.fs.PathJoin(s.rootDir, dir)
-	return !fileutil.HasFlagFile(fdir, fileutil.SnapshotFlagFilename, s.fs)
-}
-
-func (s *snapshotter) isOrphan(dir string) bool {
-	if !s.dirMatch(dir) {
-		return false
-	}
-	fdir := s.fs.PathJoin(s.rootDir, dir)
-	return fileutil.HasFlagFile(fdir, fileutil.SnapshotFlagFilename, s.fs)
 }
 
 func (s *snapshotter) isZombie(dir string) bool {
