@@ -241,7 +241,7 @@ func TestLogDBGetMaxIndex(t *testing.T) {
 
 func TestLogDBReadRaftStateReturnsNoSavedLogErrorWhenStateIsNeverSaved(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
-		if _, err := db.ReadRaftState(testShardID, testReplicaID); !errors.Is(err, ErrNoSavedLog) {
+		if _, err := db.ReadRaftState(testShardID, testReplicaID, 0); !errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to return the expected error")
 		}
 	}
@@ -259,7 +259,7 @@ func TestLogDBSaveRaftState(t *testing.T) {
 		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		rs, err := db.ReadRaftState(testShardID, testReplicaID)
+		rs, err := db.ReadRaftState(testShardID, testReplicaID, 0)
 		if errors.Is(err, ErrNoSavedLog) {
 			t.Fatalf("failed to get raft state, %v", err)
 		}
