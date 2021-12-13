@@ -277,6 +277,28 @@ func TestLogDBSaveRaftState(t *testing.T) {
 	runLogDBTest(t, tf, fs)
 }
 
+func TestLogDBReadRaftState(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		rd := raft.Ready{
+			Entries:   []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
+			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		rs, err := db.ReadRaftState(testShardID, testReplicaID, 5)
+		if errors.Is(err, ErrNoSavedLog) {
+			t.Fatalf("failed to get raft state, %v", err)
+		}
+		assert.Equal(t, uint64(5), rs.FirstIndex)
+		assert.Equal(t, uint64(2), rs.EntryCount)
+		assert.Equal(t, rd.HardState, rs.State)
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
 func TestLogDBIterateEntries(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
 		rd := raft.Ready{
