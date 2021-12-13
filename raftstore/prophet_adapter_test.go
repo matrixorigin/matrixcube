@@ -8,6 +8,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
@@ -116,7 +117,7 @@ func TestGetStoreHeartbeat(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	s.addReplica(&replica{shardID: 1})
 	s.addReplica(&replica{shardID: 2})
-	s.trans = &testTransport{}
+	s.trans = transport.NewTransport(nil, "", 0, nil, nil, nil, nil, nil, s.cfg.FS)
 	req, err := s.getStoreHeartbeat(time.Now())
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), req.Stats.ResourceCount)
