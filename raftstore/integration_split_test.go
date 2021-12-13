@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -162,9 +161,6 @@ func TestSplitWithCase2(t *testing.T) {
 			}
 			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second)
 			cfg.Prophet.Schedule.MaxContainerDownTime = typeutil.NewDuration(time.Second)
-			cfg.Customize.CustomTransportFactory = func() transport.Trans {
-				return newTestTransport(c, filter)
-			}
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 		}))
 
@@ -173,6 +169,10 @@ func TestSplitWithCase2(t *testing.T) {
 
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.WaitAllReplicasChangeToVoter(c.GetShardByIndex(0, 0).ID, testWaitTimeout)
+
+	c.EveryStore(func(i int, s Store) {
+		s.(*store).trans.SetFilter(filter)
+	})
 
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
@@ -229,9 +229,6 @@ func TestSplitWithCase3(t *testing.T) {
 			}
 			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second)
 			cfg.Prophet.Schedule.MaxContainerDownTime = typeutil.NewDuration(time.Second)
-			cfg.Customize.CustomTransportFactory = func() transport.Trans {
-				return newTestTransport(c, filter)
-			}
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 		}))
 
@@ -240,6 +237,10 @@ func TestSplitWithCase3(t *testing.T) {
 
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 	c.WaitAllReplicasChangeToVoter(c.GetShardByIndex(0, 0).ID, testWaitTimeout)
+
+	c.EveryStore(func(i int, s Store) {
+		s.(*store).trans.SetFilter(filter)
+	})
 
 	// now shard 1 has 3 replicas, skip send raft msg to the last store
 	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)

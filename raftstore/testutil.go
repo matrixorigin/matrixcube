@@ -31,7 +31,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -1245,40 +1244,6 @@ func calcRTTMillisecond(fs vfs.FS, dir string) uint64 {
 		}
 	}
 	return rttValues[len(rttValues)-1]
-}
-
-type testTransport struct {
-	sync.RWMutex
-	sendingSnapshotCount uint64
-	c                    TestRaftCluster
-	filter               func(msg meta.RaftMessage) bool
-}
-
-func newTestTransport(c TestRaftCluster, filter func(msg meta.RaftMessage) bool) *testTransport {
-	return &testTransport{c: c, filter: filter}
-}
-
-func (trans *testTransport) Start() error                          { return nil }
-func (trans *testTransport) Close() error                          { return nil }
-func (trans *testTransport) SetFilter(func(meta.RaftMessage) bool) { panic("not implemented") }
-func (trans *testTransport) Send(msg meta.RaftMessage) bool {
-	if trans.filter != nil && !trans.filter(msg) {
-		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})
-		return true
-	}
-	return false
-}
-func (trans *testTransport) SendSnapshot(msg meta.RaftMessage) bool {
-	if trans.filter != nil && !trans.filter(msg) {
-		trans.c.GetStoreByID(msg.To.ContainerID).(*store).handle(meta.RaftMessageBatch{Messages: []meta.RaftMessage{msg}})
-		return true
-	}
-	return false
-}
-func (trans *testTransport) SendingSnapshotCount() uint64 {
-	trans.RLock()
-	defer trans.RUnlock()
-	return trans.sendingSnapshotCount
 }
 
 // TestDataBuilder build test data
