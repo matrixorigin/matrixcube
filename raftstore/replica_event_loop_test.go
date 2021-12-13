@@ -117,8 +117,8 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
-		shard := Shard{ID: 1}
-		replicaRec := Replica{ID: 1}
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
 		assert.False(t, r.initialized)
@@ -128,7 +128,7 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.True(t, r.initialized)
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
-		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)

@@ -60,7 +60,7 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 		assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount == 0)
 	}
 
-	stat, err := s.logdb.ReadRaftState(1, 2)
+	stat, err := s.logdb.ReadRaftState(1, 2, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), stat.FirstIndex)
 	assert.Equal(t, uint64(1), stat.EntryCount)

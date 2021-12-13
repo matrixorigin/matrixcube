@@ -102,7 +102,7 @@ type LogDB interface {
 		size uint64, shardID uint64, replicaID uint64, low uint64,
 		high uint64, maxSize uint64) ([]raftpb.Entry, uint64, error)
 	// ReadRaftState returns the persistented raft state found in Log DB.
-	ReadRaftState(shardID uint64, replicaID uint64) (RaftState, error)
+	ReadRaftState(shardID uint64, replicaID uint64, snapshotIndex uint64) (RaftState, error)
 	// RemoveEntriesTo removes entries with indexes between (0, index].
 	RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error
 	// GetSnapshot returns the most recent snapshot metadata for the specified
@@ -273,25 +273,11 @@ func (l *KVLogDB) IterateEntries(ents []raftpb.Entry,
 	return ents, size, nil
 }
 
-func (l *KVLogDB) ReadRaftState(shardID uint64, replicaID uint64) (RaftState, error) {
-	target := keys.GetRaftLogKey(shardID, 0, nil)
-	key, _, err := l.ms.Seek(target)
+func (l *KVLogDB) ReadRaftState(shardID uint64,
+	replicaID uint64, snapshotIndex uint64) (RaftState, error) {
+	firstIndex, length, err := l.getRange(shardID, replicaID, snapshotIndex)
 	if err != nil {
 		return RaftState{}, err
-	}
-	if len(key) == 0 || !keys.IsRaftLogKey(key) {
-		return RaftState{}, ErrNoSavedLog
-	}
-	startIndex, err := keys.GetRaftLogIndex(key)
-	if err != nil {
-		return RaftState{}, err
-	}
-	maxIndex, err := l.getMaxIndex(shardID, replicaID)
-	if err != nil {
-		return RaftState{}, err
-	}
-	if maxIndex < startIndex {
-		panic("invalid maxIndex or startIndex")
 	}
 
 	var st raftpb.HardState
@@ -303,10 +289,11 @@ func (l *KVLogDB) ReadRaftState(shardID uint64, replicaID uint64) (RaftState, er
 		return RaftState{}, ErrNoSavedLog
 	}
 	protoc.MustUnmarshal(&st, v)
+
 	return RaftState{
 		State:      st,
-		FirstIndex: startIndex,
-		EntryCount: maxIndex - startIndex + 1,
+		FirstIndex: firstIndex,
+		EntryCount: length,
 	}, nil
 }
 
@@ -316,6 +303,38 @@ func (l *KVLogDB) RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64
 	startKey := keys.GetRaftLogKey(shardID, 0, nil)
 	endKey := keys.GetRaftLogKey(shardID, index+1, nil)
 	return l.ms.RangeDelete(startKey, endKey, true)
+}
+
+func (l *KVLogDB) getRange(shardID uint64,
+	replicaID uint64, snapshotIndex uint64) (uint64, uint64, error) {
+	maxIndex, err := l.getMaxIndex(shardID, replicaID)
+	if err == ErrNoSavedLog {
+		return snapshotIndex, 0, nil
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	if snapshotIndex == maxIndex {
+		return snapshotIndex, 0, nil
+	}
+
+	target := keys.GetRaftLogKey(shardID, snapshotIndex, nil)
+	key, _, err := l.ms.Seek(target)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(key) == 0 || !keys.IsRaftLogKey(key) {
+		return snapshotIndex, 0, nil
+	}
+	startIndex, err := keys.GetRaftLogIndex(key)
+	if err != nil {
+		return 0, 0, err
+	}
+	if startIndex == 0 && maxIndex != 0 {
+		l.logger.Fatal("maxIndex recorded, but no log entry found",
+			zap.Uint64("max-index", maxIndex))
+	}
+	return startIndex, maxIndex - startIndex + 1, nil
 }
 
 func (l *KVLogDB) getMaxIndex(shardID uint64, replicaID uint64) (uint64, error) {

@@ -50,8 +50,8 @@ func runReplicaSnapshotTest(t *testing.T,
 		return fp
 	}
 	snapshotter := newSnapshotter(1, 1, logger, replicaSnapshotDir, ldb, fs)
-	shard := Shard{ID: 1}
-	replicaRec := Replica{ID: 1}
+	replicaRec := Replica{ID: 1, ContainerID: 100}
+	shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 	dsMem := mem.NewStorage()
 	base := kv.NewBaseStorage(dsMem, fs)
 	ds := kv.NewKVDataStorage(base, nil)
@@ -65,6 +65,7 @@ func runReplicaSnapshotTest(t *testing.T,
 	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
 	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
+		storeID:     100,
 		logger:      logger,
 		logdb:       ldb,
 		sm:          sm,
@@ -132,14 +133,16 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
-		shard := Shard{ID: 1}
-		replicaRec := Replica{ID: 1}
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
+		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
+		assert.Equal(t, r.replica, replicaRec)
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
-		assert.Equal(t, Shard{ID: 1}, r.sm.metadataMu.shard)
+		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)

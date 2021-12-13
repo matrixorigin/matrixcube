@@ -214,7 +214,10 @@ func (pr *replica) proposeConfChange(c batch) bool {
 	}
 
 	if pr.rn.PendingConfIndex() > pr.appliedIndex {
-		pr.logger.Error(ErrPendingConfigChange.Error())
+		pr.logger.Error("pending config change",
+			zap.Error(ErrPendingConfigChange),
+			zap.Uint64("conf-index", pr.rn.PendingConfIndex()),
+			zap.Uint64("applied-index", pr.appliedIndex))
 		c.respOtherError(ErrPendingConfigChange)
 		return false
 	}
