@@ -62,8 +62,7 @@ type splitResult struct {
 }
 
 type compactionResult struct {
-	persistentLogIndex uint64
-	index              uint64
+	index uint64
 }
 
 func (pr *replica) notifyPendingProposal(id []byte,
@@ -119,30 +118,29 @@ func (pr *replica) applyUpdateMetadataResult(cp *updateMetadataResult) {
 
 func (pr *replica) applyCompactionResult(r *compactionResult) {
 	pr.logger.Info("log compaction called",
-		zap.Uint64("persistent-index", r.persistentLogIndex),
 		zap.Uint64("index", r.index))
-	if r.index > r.persistentLogIndex {
-		pr.logger.Fatal("invalid compaction index",
-			zap.Uint64("r.index", r.index),
-			zap.Uint64("persistentLogIndx", r.persistentLogIndex))
-	}
 	// generate a dummy snapshot so we can run the log compaction.
 	// this dummy snapshot will be used to establish the marker position of
 	// the LogReader on startup.
 	// such dummy snapshot will never be loaded, as its Index value is not
 	// greater than data storage's persistentLogIndex value.
-	if r.persistentLogIndex > 0 {
-		term, err := pr.lr.Term(r.persistentLogIndex)
+	if r.index > 0 {
+		term, err := pr.lr.Term(r.index)
 		if err != nil {
 			pr.logger.Error("failed to get term value",
 				zap.Error(err),
-				zap.Uint64("index", r.persistentLogIndex))
+				zap.Uint64("index", r.index))
+			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
+				// skip this compaction operation as we can't establish the marker
+				// position.
+				return
+			}
 			panic(err)
 		}
 		rd := raft.Ready{
 			Snapshot: raftpb.Snapshot{
 				Metadata: raftpb.SnapshotMetadata{
-					Index: r.persistentLogIndex,
+					Index: r.index,
 					Term:  term,
 				},
 			},

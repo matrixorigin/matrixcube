@@ -21,10 +21,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/stop"
 )
 
@@ -90,69 +87,4 @@ func newTestReplica(shard Shard, peer Replica, s *store) *replica {
 	pr.readStopper = stop.NewStopper("test")
 	pr.setStarted()
 	return pr
-}
-
-func TestGetLogReaderMarkerState(t *testing.T) {
-	tests := []struct {
-		snapshotIndex      uint64
-		snapshotTerm       uint64
-		hasSnapshotRec     bool
-		persistentLogIndex uint64
-		persistentLogTerm  uint64
-		hasLogEntry        bool
-		resultIndex        uint64
-		resultTerm         uint64
-		err                error
-	}{
-		{0, 0, false, 0, 0, false, 0, 0, nil},
-		{100, 2, true, 50, 1, true, 100, 2, nil},
-		{100, 2, true, 0, 0, false, 100, 2, nil},
-		{100, 2, true, 100, 2, true, 100, 2, nil},
-		{100, 2, true, 200, 3, true, 200, 3, nil},
-		{0, 0, false, 50, 1, true, 50, 1, nil},
-		{0, 0, false, 50, 1, false, 0, 0, raft.ErrUnavailable},
-	}
-
-	shardID := uint64(1)
-	replicaID := uint64(1)
-	for _, tt := range tests {
-		func() {
-			logger := log.GetDefaultZapLogger()
-			memKV := mem.NewStorage()
-			defer memKV.Close()
-			logdb := logdb.NewKVLogDB(memKV, logger)
-			if tt.snapshotIndex > 0 && tt.hasSnapshotRec {
-				rd := raft.Ready{
-					Snapshot: raftpb.Snapshot{
-						Metadata: raftpb.SnapshotMetadata{
-							Index: tt.snapshotIndex,
-							Term:  tt.snapshotTerm,
-						},
-					},
-				}
-				assert.NoError(t, logdb.SaveRaftState(1, 1, rd, logdb.NewWorkerContext()))
-			}
-			if tt.persistentLogIndex > 0 && tt.hasLogEntry {
-				rd := raft.Ready{
-					Entries: []raftpb.Entry{{Index: tt.persistentLogIndex, Term: tt.persistentLogTerm}},
-				}
-				assert.NoError(t, logdb.SaveRaftState(1, 1, rd, logdb.NewWorkerContext()))
-			}
-			ds := &testDataStorage{
-				persistentLogIndex: tt.persistentLogIndex,
-			}
-			pr := &replica{
-				logdb:     logdb,
-				shardID:   shardID,
-				replicaID: replicaID,
-				sm: &stateMachine{
-					dataStorage: ds,
-				},
-			}
-			ss, err := pr.getLogReaderMarkerState()
-			assert.Equal(t, tt.err, err)
-			assert.Equal(t, tt.resultIndex, ss.Metadata.Index)
-			assert.Equal(t, tt.resultTerm, ss.Metadata.Term)
-		}()
-	}
 }
