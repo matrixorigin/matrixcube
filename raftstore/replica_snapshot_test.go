@@ -95,20 +95,10 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 		if _, err := fs.Stat(snapshotDir); vfs.IsNotExist(err) {
 			t.Errorf("snapshot final dir not created, %v", err)
 		}
-		mf := fs.PathJoin(snapshotDir, snapshot.MetadataFilename)
-		if _, err := fs.Stat(mf); vfs.IsNotExist(err) {
-			t.Errorf("snapshot metadata file not created, %v", err)
-		}
 		dbf := fs.PathJoin(snapshotDir, "db.data")
 		if _, err := fs.Stat(dbf); vfs.IsNotExist(err) {
 			t.Errorf("snapshot data file not created, %v", err)
 		}
-		var ssFromDir raftpb.SnapshotMetadata
-		if err := fileutil.GetFlagFileContent(snapshotDir,
-			snapshot.MetadataFilename, &ssFromDir, fs); err != nil {
-			t.Errorf("failed to get flag file content %v", err)
-		}
-		assert.Equal(t, ss.Metadata.Index, ssFromDir.Index)
 		_, err = r.logdb.GetSnapshot(1)
 		assert.Equal(t, logdb.ErrNoSnapshot, err)
 	}

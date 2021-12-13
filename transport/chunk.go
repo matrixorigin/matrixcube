@@ -286,7 +286,7 @@ func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
 		c.logger.Debug("last snapshot chunk received",
 			zap.String("key", key))
 		defer c.reset(key)
-		if err := c.finalize(chunk, td); err != nil {
+		if err := c.finalize(td); err != nil {
 			c.removeTempDir(chunk)
 			if !errors.Is(err, ErrSnapshotOutOfDate) {
 				c.logger.Fatal("failed when finalizing snapshot dir",
@@ -351,14 +351,13 @@ func (c *Chunk) getEnv(chunk meta.SnapshotChunk) snapshot.SSEnv {
 		chunk.Index, chunk.From, snapshot.ReceivingMode, c.fs)
 }
 
-func (c *Chunk) finalize(chunk meta.SnapshotChunk, td *tracked) error {
-	env := c.getEnv(chunk)
+func (c *Chunk) finalize(td *tracked) error {
+	env := c.getEnv(td.first)
 	msg := c.toMessage(td.first)
 	if len(msg.Messages) != 1 || msg.Messages[0].Message.Type != raftpb.MsgSnap {
 		panic("invalid message")
 	}
-	ss := &msg.Messages[0].Message.Snapshot
-	err := env.FinalizeSnapshot(ss)
+	err := env.FinalizeSnapshot()
 	if err == snapshot.ErrSnapshotOutOfDate {
 		return ErrSnapshotOutOfDate
 	}

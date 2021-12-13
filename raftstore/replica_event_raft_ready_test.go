@@ -237,12 +237,6 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.Equal(t, uint64(100), ss.Metadata.Index)
 		assert.True(t, created)
 
-		// created snapshot doesn't have the flag file, we need to fake it to make
-		// the snapshot looks like a received snapshot
-		env := r.snapshotter.getRecoverSnapshotEnv(ss)
-		fileutil.CreateFlagFile(env.GetFinalDir(),
-			fileutil.SnapshotFlagFilename, &ss, fs)
-
 		// reset the data storage
 		dsMem := mem.NewStorage()
 		base := kv.NewBaseStorage(dsMem, fs)
@@ -264,7 +258,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.Equal(t, 1, len(sms))
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
 
-		env = r.snapshotter.getRecoverSnapshotEnv(ss)
+		env := r.snapshotter.getRecoverSnapshotEnv(ss)
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
 		assert.True(t, exist)

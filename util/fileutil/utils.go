@@ -44,11 +44,9 @@ import (
 
 const (
 	// DefaultFileMode is the default file mode for files generated.
-	DefaultFileMode = 0640
-	// SnapshotFlagFilename defines the filename of the snapshot flag file.
-	SnapshotFlagFilename = "matrixcube.snapshot.message"
-	defaultDirFileMode   = 0750
-	deleteFilename       = "DELETED.matrixcube"
+	DefaultFileMode    = 0640
+	defaultDirFileMode = 0750
+	deleteFilename     = "DELETED.matrixcube"
 )
 
 var firstError = util.FirstError

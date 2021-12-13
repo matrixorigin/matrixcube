@@ -45,8 +45,6 @@ import (
 var (
 	// ErrSnapshotOutOfDate is the error to indicate that snapshot is out of date.
 	ErrSnapshotOutOfDate = errors.New("snapshot out of date")
-	// MetadataFilename is the filename of a snapshot's metadata file.
-	MetadataFilename = "snapshot.metadata"
 	// SnapshotDirNameRe is the regex of snapshot names.
 	SnapshotDirNameRe = regexp.MustCompile(`^snapshot-[0-9A-F]+-[0-9A-F]+$`)
 	// SnapshotDirNamePartsRe is used to find the index value from snapshot folder name.
@@ -204,12 +202,9 @@ func (se *SSEnv) MustRemoveTempDir() {
 }
 
 // FinalizeSnapshot finalizes the snapshot.
-func (se *SSEnv) FinalizeSnapshot(msg fileutil.Marshaler) error {
+func (se *SSEnv) FinalizeSnapshot() error {
 	finalizeLock.Lock()
 	defer finalizeLock.Unlock()
-	if err := se.createFlagFile(msg); err != nil {
-		return err
-	}
 	if se.finalDirExists() {
 		return ErrSnapshotOutOfDate
 	}
@@ -224,25 +219,6 @@ func (se *SSEnv) CreateTempDir() error {
 // RemoveFinalDir removes the final snapshot directory.
 func (se *SSEnv) RemoveFinalDir() error {
 	return se.removeDir(se.GetFinalDir())
-}
-
-// SaveSSMetadata saves the metadata of the snapshot file.
-func (se *SSEnv) SaveSSMetadata(msg fileutil.Marshaler) error {
-	return fileutil.CreateFlagFile(se.GetTempDir(), MetadataFilename, msg, se.fs)
-}
-
-// HasFlagFile returns a boolean flag indicating whether the flag file is
-// available in the final directory.
-func (se *SSEnv) HasFlagFile() bool {
-	fp := se.fs.PathJoin(se.GetFinalDir(), fileutil.SnapshotFlagFilename)
-	_, err := se.fs.Stat(fp)
-	return !vfs.IsNotExist(err)
-}
-
-// RemoveFlagFile removes the flag file from the final directory.
-func (se *SSEnv) RemoveFlagFile() error {
-	return fileutil.RemoveFlagFile(se.GetFinalDir(),
-		fileutil.SnapshotFlagFilename, se.fs)
 }
 
 func (se *SSEnv) FinalDirExists() bool {
@@ -272,9 +248,4 @@ func (se *SSEnv) renameToFinalDir() error {
 		return err
 	}
 	return fileutil.SyncDir(se.rootDir, se.fs)
-}
-
-func (se *SSEnv) createFlagFile(msg fileutil.Marshaler) error {
-	return fileutil.CreateFlagFile(se.GetTempDir(),
-		fileutil.SnapshotFlagFilename, msg, se.fs)
 }
