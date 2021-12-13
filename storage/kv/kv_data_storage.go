@@ -242,8 +242,7 @@ func (kv *kvDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
 }
 
 func (kv *kvDataStorage) Sync(_ []uint64) error {
-	err := kv.base.Sync()
-	if err != nil {
+	if err := kv.base.Sync(); err != nil {
 		return err
 	}
 
@@ -320,10 +319,10 @@ func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, i
 	wb.Set(key, val)
 }
 
-func (kv *kvDataStorage) updateAppliedIndex(shard uint64, index uint64) {
+func (kv *kvDataStorage) updateAppliedIndex(shardID uint64, index uint64) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
-	kv.mu.lastAppliedIndexes[shard] = index
+	kv.mu.lastAppliedIndexes[shardID] = index
 }
 
 // trySync syncs the data to disk every interval and then mark the appliedIndex
@@ -351,7 +350,23 @@ func (kv *kvDataStorage) CreateSnapshot(shardID uint64, path string) error {
 }
 
 func (kv *kvDataStorage) ApplySnapshot(shardID uint64, path string) error {
-	return kv.base.ApplySnapshot(shardID, path)
+	// FIXME: kv.base.ApplySnapshot is not atomic
+	// kvDataStorage.ApplySnapshot suffers from the same issue
+	if err := kv.base.ApplySnapshot(shardID, path); err != nil {
+		return err
+	}
+	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
+	v, err := kv.base.Get(key)
+	if err != nil {
+		return err
+	}
+	if len(v) == 0 {
+		panic("no applied index record")
+	}
+	var idx meta.LogIndex
+	protoc.MustUnmarshal(&idx, v)
+	kv.updateAppliedIndex(shardID, idx.Index)
+	return kv.Sync(nil)
 }
 
 func (kv *kvDataStorage) Stats() stats.Stats {
