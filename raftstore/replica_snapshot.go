@@ -114,6 +114,14 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 			zap.Error(err))
 		return err
 	}
+
+	if r.aware != nil {
+		r.aware.Updated(md.Metadata.Shard)
+	}
+	logger.Info("metadata updated",
+		log.ReasonField("apply snapshot"),
+		log.ShardField("metadata", md.Metadata.Shard),
+		log.ReplicaField("replica", r.replica))
 	return nil
 }
 
