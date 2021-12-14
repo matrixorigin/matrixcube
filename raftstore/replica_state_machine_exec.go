@@ -89,8 +89,8 @@ func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
 	}
 	if index > persistentLogIndex {
 		d.logger.Info("adjusted compact log index",
-			zap.Uint64("persistentLogIndex", persistentLogIndex),
-			zap.Uint64("compactIndex", index))
+			zap.Uint64("persistent-index", persistentLogIndex),
+			zap.Uint64("compact-index", index))
 		index = persistentLogIndex
 	}
 	return index, nil
