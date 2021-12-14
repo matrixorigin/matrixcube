@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,4 +85,35 @@ func TestApplySplit(t *testing.T) {
 	v, err := kv.Get(skv.EncodeDataKey([]byte{1}, nil))
 	assert.NoError(t, err)
 	assert.NotEmpty(t, v)
+}
+
+func TestUpdateMetricsHints(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
+
+	pr.updateMetricsHints(applyResult{metrics: applyMetrics{approximateDiffHint: 1, deleteKeysHint: 1, writtenBytes: 1, writtenKeys: 1}})
+	assert.Equal(t, uint64(1), pr.stats.approximateSize)
+	assert.Equal(t, uint64(1), pr.stats.deleteKeysHint)
+	assert.Equal(t, uint64(1), pr.stats.writtenBytes)
+	assert.Equal(t, uint64(1), pr.stats.writtenKeys)
+
+	pr.updateMetricsHints(applyResult{metrics: applyMetrics{approximateDiffHint: 3, deleteKeysHint: 1, writtenBytes: 1, writtenKeys: 1}})
+	assert.Equal(t, uint64(3), pr.stats.approximateSize)
+	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
+	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
+	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
+
+	pr.updateMetricsHints(applyResult{})
+	assert.Equal(t, uint64(3), pr.stats.approximateSize)
+	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
+	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
+	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
+
+	pr.updateMetricsHints(applyResult{adminResult: &adminResult{splitResult: &splitResult{}}})
+	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	assert.Equal(t, uint64(0), pr.stats.deleteKeysHint)
+	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
+	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
 }
