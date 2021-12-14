@@ -130,8 +130,19 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
+		_, err = r.sm.dataStorage.GetInitialStates()
+		assert.NoError(t, err)
+		persistentLogIndex, err := r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0), persistentLogIndex)
+
 		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
+		// applySnapshot will have the persistentLogIndex value updated
+		persistentLogIndex, err = r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(100), persistentLogIndex)
+
 		assert.Equal(t, r.replica, replicaRec)
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
