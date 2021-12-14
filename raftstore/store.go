@@ -300,7 +300,7 @@ func (s *store) startRouter() {
 }
 
 func (s *store) Meta() meta.Store {
-	return s.meta.meta
+	return s.meta.Clone().(*containerAdapter).meta
 }
 
 func (s *store) OnRequest(req rpc.Request) error {
@@ -589,10 +589,10 @@ func (s *store) removeDroppedVoteMsg(id uint64) (meta.RaftMessage, bool) {
 }
 
 func (s *store) validateStoreID(req rpc.RequestBatch) error {
-	if req.Header.Replica.ContainerID != s.meta.meta.ID {
+	if req.Header.Replica.ContainerID != s.meta.ID() {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
 			req.Header.Replica.ContainerID,
-			s.meta.meta.ID)
+			s.meta.ID())
 	}
 
 	return nil
@@ -752,7 +752,7 @@ func (s *store) nextShard(shard Shard) *Shard {
 }
 
 func (s *store) storeField() zap.Field {
-	return log.StoreIDField(s.Meta().ID)
+	return log.StoreIDField(s.meta.ID())
 }
 
 func (s *store) containerResolver(storeID uint64) (string, error) {

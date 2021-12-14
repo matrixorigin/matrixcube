@@ -58,7 +58,7 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 }
 
 func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
-	if msg.To.ContainerID != s.meta.meta.ID {
+	if msg.To.ContainerID != s.meta.ID() {
 		s.logger.Warn("raft msg store not match",
 			s.storeField(),
 			zap.Uint64("actual", msg.To.ContainerID))

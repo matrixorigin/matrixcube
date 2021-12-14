@@ -26,7 +26,7 @@ import (
 )
 
 func (s *store) ProphetBecomeLeader() {
-	s.logger.Info("*********Become prophet leader*********",
+	s.logger.Info("*********become prophet leader*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
 		go func() {
@@ -37,7 +37,7 @@ func (s *store) ProphetBecomeLeader() {
 }
 
 func (s *store) ProphetBecomeFollower() {
-	s.logger.Info("*********Become prophet follower*********",
+	s.logger.Info("*********become prophet follower*********",
 		s.storeField())
 	s.bootOnce.Do(func() {
 		go func() {
@@ -48,7 +48,7 @@ func (s *store) ProphetBecomeFollower() {
 }
 
 func (s *store) initMeta() {
-	s.meta.meta.Labels = s.cfg.GetLabels()
+	s.meta.SetLabels(s.cfg.GetLabels())
 	s.meta.SetStartTimestamp(time.Now().Unix())
 	s.meta.SetDeployPath(s.cfg.DeployPath)
 	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
@@ -72,8 +72,7 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 
 	s.logger.Info("begin to create local store metadata",
 		s.storeField())
-	id := s.MustAllocID()
-	s.meta.meta.ID = id
+	s.meta.SetID(s.MustAllocID())
 	s.mustSaveStoreMetadata()
 	s.logger.Info("create local store",
 		s.storeField())
@@ -154,7 +153,7 @@ func (s *store) mustSaveStoreMetadata() {
 	}
 
 	v := &meta.StoreIdent{
-		StoreID:   s.meta.meta.ID,
+		StoreID:   s.meta.ID(),
 		ClusterID: s.pd.GetClusterID(),
 	}
 	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
@@ -184,7 +183,7 @@ func (s *store) mustLoadStoreMetadata() bool {
 				zap.Uint64("prophet", s.pd.GetClusterID()))
 		}
 
-		s.meta.meta.ID = v.StoreID
+		s.meta.SetID(v.StoreID)
 		s.logger.Info("load local store metadata",
 			s.storeField())
 		return true
@@ -201,7 +200,7 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.Epoch.ConfVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
-		ContainerID:   s.meta.meta.ID,
+		ContainerID:   s.meta.ID(),
 		InitialMember: true,
 	})
 }
