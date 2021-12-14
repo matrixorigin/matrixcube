@@ -40,7 +40,7 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	s, close := newTestStore(t)
 	defer close()
 
-	s.meta.meta.ID = 100
+	s.meta.SetID(100)
 	db := NewTestDataBuilder()
 	newReplicaCreator(s).
 		withReason("TestShardCreateWithSaveMetadata").

@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/fagongzi/util/protoc"
@@ -143,6 +144,7 @@ func (ra *resourceAdapter) Clone() metadata.Resource {
 }
 
 type containerAdapter struct {
+	sync.RWMutex
 	meta meta.Store
 }
 
@@ -151,88 +153,151 @@ func newContainerAdapter() metadata.Container {
 }
 
 func (ca *containerAdapter) SetAddrs(addr, shardAddr string) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.ClientAddr = addr
 	ca.meta.RaftAddr = shardAddr
 }
 
 func (ca *containerAdapter) Addr() string {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.ClientAddr
 }
 
 func (ca *containerAdapter) ShardAddr() string {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.RaftAddr
 }
 
 func (ca *containerAdapter) SetID(id uint64) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.ID = id
 }
 
 func (ca *containerAdapter) ID() uint64 {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.ID
 }
 
 func (ca *containerAdapter) Labels() []metapb.Pair {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.Labels
 }
 
 func (ca *containerAdapter) SetLabels(labels []metapb.Pair) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.Labels = labels
 }
 
 func (ca *containerAdapter) StartTimestamp() int64 {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.StartTime
 }
 
 func (ca *containerAdapter) SetStartTimestamp(value int64) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.StartTime = value
 }
 
 func (ca *containerAdapter) Version() (string, string) {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.Version, ca.meta.GitHash
 }
 
 func (ca *containerAdapter) SetVersion(version string, githash string) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.Version = version
 	ca.meta.GitHash = githash
 }
 
 func (ca *containerAdapter) DeployPath() string {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.DeployPath
 }
 
 func (ca *containerAdapter) SetDeployPath(value string) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.DeployPath = value
 }
 
 func (ca *containerAdapter) State() metapb.ContainerState {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.State
 }
 
 func (ca *containerAdapter) SetState(value metapb.ContainerState) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.State = value
 }
 
 func (ca *containerAdapter) LastHeartbeat() int64 {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.LastHeartbeatTime
 }
 
 func (ca *containerAdapter) SetLastHeartbeat(value int64) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.LastHeartbeatTime = value
 }
 
 func (ca *containerAdapter) PhysicallyDestroyed() bool {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return ca.meta.PhysicallyDestroyed
 }
 
 func (ca *containerAdapter) SetPhysicallyDestroyed(v bool) {
+	ca.Lock()
+	defer ca.Unlock()
+
 	ca.meta.PhysicallyDestroyed = v
 }
 
 func (ca *containerAdapter) Marshal() ([]byte, error) {
+	ca.RLock()
+	defer ca.RUnlock()
+
 	return protoc.MustMarshal(&ca.meta), nil
 }
 
 func (ca *containerAdapter) Unmarshal(data []byte) error {
+	ca.Lock()
+	defer ca.Unlock()
+
 	protoc.MustUnmarshal(&ca.meta, data)
 	return nil
 }
