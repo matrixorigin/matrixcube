@@ -17,12 +17,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -137,12 +139,19 @@ func (pr *replica) applyCompactionResult(r *compactionResult) {
 			}
 			panic(err)
 		}
+		// this is a dummy snapshot meaning there is no on disk snapshot image.
+		// we are not supposed to apply such dummy snapshot. the dummy flag is
+		// used for debugging purposes.
+		si := meta.SnapshotInfo{
+			Dummy: true,
+		}
 		rd := raft.Ready{
 			Snapshot: raftpb.Snapshot{
 				Metadata: raftpb.SnapshotMetadata{
 					Index: r.index,
 					Term:  term,
 				},
+				Data: protoc.MustMarshal(&si),
 			},
 		}
 		wc := pr.logdb.NewWorkerContext()
