@@ -93,7 +93,9 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	} else {
 		pr.stats.deleteKeysHint += result.metrics.deleteKeysHint
-		pr.stats.approximateSize = result.metrics.approximateDiffHint
+		if result.metrics.approximateDiffHint > 0 {
+			pr.stats.approximateSize = result.metrics.approximateDiffHint
+		}
 	}
 }
 
