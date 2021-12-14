@@ -58,6 +58,7 @@ func CreateLogDBStorage(rootDir string, fs vfs.FS, logger *zap.Logger) storage.K
 		MaxManifestFileSize:         1024 * 1024,
 		MaxConcurrentCompactions:    2,
 		EventListener:               getEventListener(log.Adjust(logger).Named("pebble")),
+		MaxOpenFiles:                1024,
 	}
 	kv, err := NewStorage(path, logger, opts)
 	if err != nil {
