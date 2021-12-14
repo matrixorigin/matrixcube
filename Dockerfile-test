@@ -10,8 +10,9 @@ RUN MAIN_VERSION=$(cat /etc/alpine-release | cut -d '.' -f 0-2) \
     } >> /etc/apk/repositories \
     && apk add --update --no-cache make \
     && apk add --update --no-cache gcc \
-    && apk add --update --no-cache g++
+    && apk add --update --no-cache g++ \
+    && apk add --update --no-cache bash
 
-ENTRYPOINT ["make"]
+ENTRYPOINT ["/matrixcube/test_loop.sh"]
 
 
