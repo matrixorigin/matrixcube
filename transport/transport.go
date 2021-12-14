@@ -327,6 +327,12 @@ func (t *Transport) processMessages(addr string,
 	batch := meta.RaftMessageBatch{}
 	requests := make([]meta.RaftMessage, 0)
 	for {
+		if !idleTimer.Stop() {
+			select {
+			case <-idleTimer.C:
+			default:
+			}
+		}
 		idleTimer.Reset(idleTimeout)
 		select {
 		case <-t.stopper.ShouldStop():
