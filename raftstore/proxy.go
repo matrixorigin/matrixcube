@@ -186,8 +186,14 @@ func (p *shardsProxy) SetRetryController(retryController RetryController) {
 }
 
 func (p *shardsProxy) Dispatch(req rpc.Request) error {
-	shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
-	return p.DispatchTo(req, shard, to)
+	if req.ToShard == 0 {
+		shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
+		return p.DispatchTo(req, shard, to)
+	}
+
+	return p.DispatchTo(req,
+		p.cfg.router.GetShard(req.ToShard),
+		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
 }
 
 func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error {
