@@ -144,12 +144,6 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(0), persistentLogIndex)
 
-		_, err = r.sm.dataStorage.GetInitialStates()
-		assert.NoError(t, err)
-		persistentLogIndex, err = r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
-		assert.NoError(t, err)
-		assert.Equal(t, uint64(0), persistentLogIndex)
-
 		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
 		// applySnapshot will have the persistentLogIndex value updated
