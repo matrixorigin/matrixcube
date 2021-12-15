@@ -191,4 +191,5 @@ message ShardsPoolAllocCmd {
 // SnapshotInfo contains additional information associated with a snapshot.
 message SnapshotInfo {
   uint64 extra = 1;
+  bool dummy = 2;
 }

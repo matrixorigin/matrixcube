@@ -17,12 +17,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
@@ -120,6 +122,47 @@ func (pr *replica) applyUpdateMetadataResult(cp updateMetadataResult) {
 }
 
 func (pr *replica) applyCompactionResult(r compactionResult) {
+	pr.logger.Info("log compaction called",
+		zap.Uint64("index", r.index))
+	// generate a dummy snapshot so we can run the log compaction.
+	// this dummy snapshot will be used to establish the marker position of
+	// the LogReader on startup.
+	// such dummy snapshot will never be loaded, as its Index value is not
+	// greater than data storage's persistentLogIndex value.
+	if r.index > 0 {
+		term, err := pr.lr.Term(r.index)
+		if err != nil {
+			pr.logger.Error("failed to get term value",
+				zap.Error(err),
+				zap.Uint64("index", r.index))
+			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
+				// skip this compaction operation as we can't establish the marker
+				// position.
+				return
+			}
+			panic(err)
+		}
+		// this is a dummy snapshot meaning there is no on disk snapshot image.
+		// we are not supposed to apply such dummy snapshot. the dummy flag is
+		// used for debugging purposes.
+		si := meta.SnapshotInfo{
+			Dummy: true,
+		}
+		rd := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{
+					Index: r.index,
+					Term:  term,
+				},
+				Data: protoc.MustMarshal(&si),
+			},
+		}
+		wc := pr.logdb.NewWorkerContext()
+		defer wc.Close()
+		if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
+			panic(err)
+		}
+	}
 	// update LogReader's range info to make the compacted entries invisible to
 	// raft.
 	if err := pr.lr.Compact(r.index); err != nil {
