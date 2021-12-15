@@ -66,6 +66,7 @@ func runReplicaSnapshotTest(t *testing.T,
 	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
 		storeID:     100,
+		store:       &store{},
 		logger:      logger,
 		logdb:       ldb,
 		sm:          sm,
@@ -112,7 +113,6 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
 		// setup key range and old metadata
-		r.store = &store{}
 		r.store.updateShardKeyRange(r.getShard().Group, r.getShard())
 		r.aware = newTestShardAware(0)
 		r.aware.Created(r.getShard())
