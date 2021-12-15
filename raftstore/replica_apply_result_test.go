@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -35,7 +36,7 @@ func TestApplySplit(t *testing.T) {
 	kv := pr.sm.dataStorage.(storage.KVStorageWrapper).GetKVStorage()
 	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte{1}, nil), []byte("v"), false))
 
-	result := &splitResult{
+	result := splitResult{
 		newShards: []Shard{
 			{ID: 2, Start: []byte{1}, End: []byte{5}, Replicas: []Replica{{ID: 200}}},
 			{ID: 3, Start: []byte{5}, End: []byte{10}, Replicas: []Replica{{ID: 300}}},
@@ -93,27 +94,72 @@ func TestUpdateMetricsHints(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
-	pr.updateMetricsHints(applyResult{metrics: applyMetrics{approximateDiffHint: 1, deleteKeysHint: 1, writtenBytes: 1, writtenKeys: 1}})
+	pr.updateMetricsHints(applyResult{
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+			deleteKeysHint:      1,
+			writtenBytes:        1,
+			writtenKeys:         1,
+		},
+	})
 	assert.Equal(t, uint64(1), pr.stats.approximateSize)
 	assert.Equal(t, uint64(1), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(1), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(1), pr.stats.writtenKeys)
 
-	pr.updateMetricsHints(applyResult{metrics: applyMetrics{approximateDiffHint: 3, deleteKeysHint: 1, writtenBytes: 1, writtenKeys: 1}})
+	pr.updateMetricsHints(applyResult{
+		metrics: applyMetrics{
+			approximateDiffHint: 3,
+			deleteKeysHint:      1,
+			writtenBytes:        1,
+			writtenKeys:         1,
+		},
+	})
 	assert.Equal(t, uint64(3), pr.stats.approximateSize)
 	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
 
 	pr.updateMetricsHints(applyResult{})
-	assert.Equal(t, uint64(3), pr.stats.approximateSize)
+	assert.Equal(t, uint64(0), pr.stats.approximateSize)
 	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
 
-	pr.updateMetricsHints(applyResult{adminResult: &adminResult{splitResult: &splitResult{}}})
+	pr.updateMetricsHints(applyResult{
+		adminResult: &adminResult{
+			adminType:   rpc.AdminCmdType_BatchSplit,
+			splitResult: splitResult{},
+		},
+	})
 	assert.Equal(t, uint64(0), pr.stats.approximateSize)
 	assert.Equal(t, uint64(0), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
+}
+
+func TestUpdateMetricsHintsCanBeIgnored(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
+	pr.updateMetricsHints(applyResult{
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+			deleteKeysHint:      1,
+			writtenBytes:        1,
+			writtenKeys:         1,
+		},
+	})
+	assert.Equal(t, uint64(1), pr.stats.approximateSize)
+	assert.Equal(t, uint64(1), pr.stats.deleteKeysHint)
+	assert.Equal(t, uint64(1), pr.stats.writtenBytes)
+	assert.Equal(t, uint64(1), pr.stats.writtenKeys)
+
+	pr.handleApplyResult(applyResult{
+		ignoreMetrics: true,
+	})
+	assert.Equal(t, uint64(1), pr.stats.approximateSize)
+	pr.handleApplyResult(applyResult{})
+	assert.Equal(t, uint64(0), pr.stats.approximateSize)
 }
