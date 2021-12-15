@@ -72,7 +72,7 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 	resp := newAdminResponseBatch(rpc.AdminCmdType_CompactLog, &rpc.CompactLogResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_CompactLog,
-		compactionResult: &compactionResult{
+		compactionResult: compactionResult{
 			index: compactIndex,
 		},
 	}
@@ -189,7 +189,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
-		configChangeResult: &configChangeResult{
+		configChangeResult: configChangeResult{
 			index:   ctx.index,
 			changes: []rpc.ConfigChangeRequest{req},
 			shard:   res,
@@ -289,7 +289,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_BatchSplit,
-		splitResult: &splitResult{
+		splitResult: splitResult{
 			newShards: newShards,
 		},
 	}
@@ -417,7 +417,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_UpdateMetadata,
-		updateMetadataResult: &updateMetadataResult{
+		updateMetadataResult: updateMetadataResult{
 			changes: cc,
 		},
 	}

@@ -180,22 +180,26 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 			// noop entry with empty payload proposed by the leader at the beginning
 			// of its term
 			d.updateAppliedIndexTerm(entry.Index, entry.Term)
-			d.resultHandler.handleApplyResult(applyResult{index: entry.Index})
+			d.resultHandler.handleApplyResult(applyResult{
+				index:         entry.Index,
+				ignoreMetrics: true,
+			})
 			continue
 		}
 
-		d.applyRequestBatch(d.applyCtx)
+		ignoreMetrics := d.applyRequestBatch(d.applyCtx)
 		result := applyResult{
-			shardID:     d.shardID,
-			adminResult: d.applyCtx.adminResult,
-			index:       entry.Index,
-			metrics:     d.applyCtx.metrics,
+			shardID:       d.shardID,
+			adminResult:   d.applyCtx.adminResult,
+			index:         entry.Index,
+			ignoreMetrics: ignoreMetrics,
+			metrics:       d.applyCtx.metrics,
 		}
 		if isConfigChangeEntry(entry) {
 			if result.adminResult == nil {
 				result.adminResult = &adminResult{
 					adminType:          rpc.AdminCmdType_ConfigChange,
-					configChangeResult: &configChangeResult{},
+					configChangeResult: configChangeResult{},
 				}
 			} else {
 				result.adminResult.configChangeResult.confChange = d.applyCtx.v2cc
@@ -232,7 +236,9 @@ func (d *stateMachine) notifyShardRemoved(ctx *applyContext) {
 		resp, isConfigChangeRequestBatch(ctx.req))
 }
 
-func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
+// applyRequestBatch returns a boolean value indicating whether to skip
+// updating the metrics.
+func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 	// FIXME: update impacted tests
 	// if sc, ok := d.store.cfg.Test.Shards[d.shardID]; ok && sc.SkipApply {
 	//	return
@@ -240,9 +246,9 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 	if d.isRemoved() {
 		d.logger.Fatal("applying entries on removed replica")
 	}
-
 	var err error
 	var resp rpc.ResponseBatch
+	ignoreMetrics := true
 	if !d.checkEpoch(ctx.req) {
 		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
 			ce.Write(zap.Uint64("index", ctx.index),
@@ -270,6 +276,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 			if ce := d.logger.Check(zap.DebugLevel, "apply write requests"); ce != nil {
 				ce.Write(zap.Uint64("index", ctx.index))
 			}
+			ignoreMetrics = false
 			resp = d.execWriteRequest(ctx)
 		}
 
@@ -283,6 +290,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) {
 	// executeContext
 	d.resultHandler.notifyPendingProposal(ctx.req.Header.ID,
 		resp, isConfigChangeRequestBatch(ctx.req))
+	return ignoreMetrics
 }
 
 func (d *stateMachine) close() {
