@@ -21,7 +21,9 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/hack"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
@@ -35,6 +37,8 @@ type CustomRequest struct {
 	Group uint64
 	// Key the key used to indicate which shard to send
 	Key []byte
+	// ToShard if the field is specified, Key are disabled
+	ToShard uint64
 	// CustomType type of custom request
 	CustomType uint64
 	// Cmd serialized custom request content
@@ -43,6 +47,8 @@ type CustomRequest struct {
 	Read bool
 	// Write write request
 	Write bool
+	// Amdin admin request
+	Admin bool
 	// Args custom args for async execute callback
 	Args interface{}
 }
@@ -122,6 +128,21 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 	}
 }
 
+// AddLabelToShard add label to shard
+func (s *Application) AddLabelToShard(group, shardID uint64, name, value string, timeout time.Duration) error {
+	_, err := s.Exec(CustomRequest{
+		Admin:      true,
+		CustomType: uint64(rpc.AdminCmdType_UpdateLabels),
+		Group:      group,
+		ToShard:    shardID,
+		Cmd: protoc.MustMarshal(&rpc.UpdateLabelsRequest{
+			Labels: []metapb.Pair{{Key: name, Value: value}},
+			Policy: rpc.UpdatePolicy_Add,
+		}),
+	}, timeout)
+	return err
+}
+
 // AsyncExec async exec the request, if the err is ErrTimeout means the request is timeout
 func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte, error), timeout time.Duration) {
 	req := rpc.Request{}
@@ -129,13 +150,15 @@ func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte
 	req.CustomType = cmd.CustomType
 	req.Group = cmd.Group
 	req.Key = cmd.Key
+	req.ToShard = cmd.ToShard
 	req.Cmd = cmd.Cmd
 	req.StopAt = time.Now().Add(timeout).Unix()
 	if cmd.Read {
 		req.Type = rpc.CmdType_Read
-	}
-	if cmd.Write {
+	} else if cmd.Write {
 		req.Type = rpc.CmdType_Write
+	} else if cmd.Admin {
+		req.Type = rpc.CmdType_Admin
 	}
 
 	if ce := s.logger.Check(zap.DebugLevel, "begin to send request"); ce != nil {

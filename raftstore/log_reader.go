@@ -166,7 +166,7 @@ func (lr *LogReader) entriesLocked(low uint64,
 		return nil, 0, raft.ErrCompacted
 	}
 	if high > lr.lastIndex()+1 {
-		lr.logger.Error("log reader unavailable",
+		lr.logger.Error("log entry unavailable",
 			zap.String("id", lr.id()),
 			zap.Uint64("low", low),
 			zap.Uint64("high", high),

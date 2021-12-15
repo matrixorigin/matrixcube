@@ -15,11 +15,13 @@ package raftstore
 
 import (
 	"github.com/cockroachdb/errors"
+	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -95,6 +97,14 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	logger := r.logger.With(
 		zap.Uint64("snapshot-index", ss.Metadata.Index))
+	// double check whether we are trying to recover from a dummy snapshot
+	if len(ss.Data) > 0 {
+		var si meta.SnapshotInfo
+		protoc.MustUnmarshal(&si, ss.Data)
+		if si.Dummy {
+			logger.Fatal("trying to recover from a dummy snapshot")
+		}
+	}
 	md, err := r.snapshotter.recover(r.sm.dataStorage, ss)
 	if err != nil {
 		logger.Error("failed to recover from the snapshot",
@@ -104,6 +114,9 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	r.appliedIndex = ss.Metadata.Index
 	r.lr.ApplySnapshot(ss)
 	r.sm.updateShard(md.Metadata.Shard)
+	// after snapshot applied, the shard range may changed, so we
+	// need update key ranges
+	r.store.updateShardKeyRange(r.group, md.Metadata.Shard)
 	// r.replica is more like a local cached copy of the replica record.
 	r.replica = *findReplica(r.getShard(), r.storeID)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)

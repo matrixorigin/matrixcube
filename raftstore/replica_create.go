@@ -43,6 +43,7 @@ type replicaCreator struct {
 	replicaRecordGetter               func(Shard) Replica
 	wc                                *logdb.WorkerContext
 	logger                            *zap.Logger
+	shardsMetadata                    []meta.ShardMetadata
 }
 
 func newReplicaCreator(store *store) *replicaCreator {
@@ -81,7 +82,7 @@ func (rc *replicaCreator) adjust() {
 	if rc.reason == "" {
 		rc.reason = "unknown"
 	}
-	if rc.saveMetadata && rc.wc == nil {
+	if rc.wc == nil {
 		rc.wc = rc.store.logdb.NewWorkerContext()
 	}
 	rc.logger = rc.store.logger.With(log.ReasonField(rc.reason))
@@ -92,6 +93,10 @@ func (rc *replicaCreator) create(shards []Shard) {
 	shards, replicas := rc.getTarget(shards)
 	rc.maybeSaveMetadata(shards)
 	rc.maybeStartReplicas(shards, replicas)
+}
+
+func (rc *replicaCreator) getShardsMetadata() []meta.ShardMetadata {
+	return rc.shardsMetadata
 }
 
 func (rc *replicaCreator) getTarget(originShards []Shard) ([]Shard, []*replica) {
@@ -123,10 +128,6 @@ func (rc *replicaCreator) getTarget(originShards []Shard) ([]Shard, []*replica) 
 }
 
 func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
-	if !rc.saveMetadata {
-		return
-	}
-
 	doWithShardsByGroupID(rc.store.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
 		var sm []meta.ShardMetadata
 		var ids []uint64
@@ -150,6 +151,18 @@ func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
 					log.ShardField("shard", shard),
 					zap.Error(err))
 			}
+		}
+
+		if len(sm) == 0 {
+			return
+		}
+
+		if len(sm) > 0 {
+			rc.shardsMetadata = append(rc.shardsMetadata, sm...)
+		}
+
+		if !rc.saveMetadata {
+			return
 		}
 
 		if err := ds.SaveShardMetadata(sm); err != nil {

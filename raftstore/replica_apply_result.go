@@ -17,33 +17,40 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 )
 
 type applyResult struct {
-	shardID     uint64
-	index       uint64
-	adminResult *adminResult
-	metrics     applyMetrics
+	shardID       uint64
+	index         uint64
+	adminResult   *adminResult
+	ignoreMetrics bool
+	metrics       applyMetrics
 }
 
 func (res *applyResult) hasSplitResult() bool {
-	return nil != res.adminResult && res.adminResult.splitResult != nil
+	return nil != res.adminResult &&
+		res.adminResult.adminType == rpc.AdminCmdType_BatchSplit
 }
 
-// TODO: should probably use values not pointers
 type adminResult struct {
 	adminType            rpc.AdminCmdType
-	configChangeResult   *configChangeResult
-	splitResult          *splitResult
-	compactionResult     *compactionResult
-	updateMetadataResult *updateMetadataResult
+	configChangeResult   configChangeResult
+	splitResult          splitResult
+	compactionResult     compactionResult
+	updateMetadataResult updateMetadataResult
+	updateLabelsResult   updateLabelsResult
+}
+
+type updateLabelsResult struct {
 }
 
 type updateMetadataResult struct {
@@ -72,7 +79,9 @@ func (pr *replica) notifyPendingProposal(id []byte,
 
 func (pr *replica) handleApplyResult(result applyResult) {
 	pr.updateAppliedIndex(result)
-	pr.updateMetricsHints(result)
+	if !result.ignoreMetrics {
+		pr.updateMetricsHints(result)
+	}
 	if result.adminResult != nil {
 		pr.handleAdminResult(result)
 	}
@@ -93,9 +102,7 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	} else {
 		pr.stats.deleteKeysHint += result.metrics.deleteKeysHint
-		if result.metrics.approximateDiffHint > 0 {
-			pr.stats.approximateSize = result.metrics.approximateDiffHint
-		}
+		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	}
 }
 
@@ -109,16 +116,65 @@ func (pr *replica) handleAdminResult(result applyResult) {
 		pr.applyCompactionResult(result.adminResult.compactionResult)
 	case rpc.AdminCmdType_UpdateMetadata:
 		pr.applyUpdateMetadataResult(result.adminResult.updateMetadataResult)
+	case rpc.AdminCmdType_UpdateLabels:
+		pr.applyUpdateLabels(result.adminResult.updateLabelsResult)
 	}
 }
 
-func (pr *replica) applyUpdateMetadataResult(cp *updateMetadataResult) {
+func (pr *replica) applyUpdateMetadataResult(cp updateMetadataResult) {
 	for _, cc := range cp.changes {
 		pr.rn.ApplyConfChange(cc)
 	}
 }
 
-func (pr *replica) applyCompactionResult(r *compactionResult) {
+func (pr *replica) applyUpdateLabels(result updateLabelsResult) {
+	if pr.aware != nil {
+		pr.aware.Updated(pr.getShard())
+	}
+}
+
+func (pr *replica) applyCompactionResult(r compactionResult) {
+	pr.logger.Info("log compaction called",
+		zap.Uint64("index", r.index))
+	// generate a dummy snapshot so we can run the log compaction.
+	// this dummy snapshot will be used to establish the marker position of
+	// the LogReader on startup.
+	// such dummy snapshot will never be loaded, as its Index value is not
+	// greater than data storage's persistentLogIndex value.
+	if r.index > 0 {
+		term, err := pr.lr.Term(r.index)
+		if err != nil {
+			pr.logger.Error("failed to get term value",
+				zap.Error(err),
+				zap.Uint64("index", r.index))
+			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
+				// skip this compaction operation as we can't establish the marker
+				// position.
+				return
+			}
+			panic(err)
+		}
+		// this is a dummy snapshot meaning there is no on disk snapshot image.
+		// we are not supposed to apply such dummy snapshot. the dummy flag is
+		// used for debugging purposes.
+		si := meta.SnapshotInfo{
+			Dummy: true,
+		}
+		rd := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{
+					Index: r.index,
+					Term:  term,
+				},
+				Data: protoc.MustMarshal(&si),
+			},
+		}
+		wc := pr.logdb.NewWorkerContext()
+		defer wc.Close()
+		if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
+			panic(err)
+		}
+	}
 	// update LogReader's range info to make the compacted entries invisible to
 	// raft.
 	if err := pr.lr.Compact(r.index); err != nil {
@@ -132,7 +188,7 @@ func (pr *replica) applyCompactionResult(r *compactionResult) {
 	}
 }
 
-func (pr *replica) applyConfChange(cp *configChangeResult) {
+func (pr *replica) applyConfChange(cp configChangeResult) {
 	if cp.index == 0 {
 		// TODO: when the entry was treated as a NoOP, configChangeResult should be
 		// nil and applyConfChange() should be called in the first place.
@@ -205,7 +261,7 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 		log.ShardField("shard", pr.getShard()))
 }
 
-func (pr *replica) applySplit(result *splitResult) {
+func (pr *replica) applySplit(result splitResult) {
 	pr.logger.Info("shard split applied, current shard will destory",
 		zap.Int("new-shards-count", len(result.newShards)))
 

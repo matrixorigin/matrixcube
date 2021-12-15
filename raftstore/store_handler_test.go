@@ -148,3 +148,20 @@ func TestIsRaftMsgValid(t *testing.T) {
 	assert.True(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 1}}))
 	assert.False(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 2}}))
 }
+
+func TestHasRangeConflict(t *testing.T) {
+	s := &store{}
+	s.updateShardKeyRange(0, Shard{ID: 1})
+
+	conflict, ok := s.hasRangeConflict(0, []byte{1}, nil)
+	assert.True(t, ok)
+	assert.Equal(t, Shard{ID: 1}, conflict)
+
+	conflict, ok = s.hasRangeConflict(0, nil, []byte{2})
+	assert.True(t, ok)
+	assert.Equal(t, Shard{ID: 1}, conflict)
+
+	conflict, ok = s.hasRangeConflict(0, []byte{1}, []byte{2})
+	assert.True(t, ok)
+	assert.Equal(t, Shard{ID: 1}, conflict)
+}

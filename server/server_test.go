@@ -61,6 +61,24 @@ func TestAsyncExec(t *testing.T) {
 	assert.Equal(t, newTestWriteCustomRequest("k", "v"), arg)
 }
 
+func TestAddShardLabel(t *testing.T) {
+	c := raftstore.NewSingleTestClusterStore(t)
+	defer c.Stop()
+
+	c.Start()
+	s := NewApplication(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s.Start()
+	defer s.Stop()
+
+	c.WaitShardByCount(1, time.Minute)
+
+	sid := c.GetShardByIndex(0, 0).ID
+	err := s.AddLabelToShard(0, sid, "l1", "v1", time.Minute)
+	assert.NoError(t, err)
+
+	c.WaitShardByLabel(sid, "l1", "v1", time.Minute)
+}
+
 func newTestWriteCustomRequest(k, v string) CustomRequest {
 	r := simple.NewWriteRequest([]byte(k), []byte(v))
 	return CustomRequest{

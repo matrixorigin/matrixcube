@@ -62,8 +62,7 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 		return rpc.ResponseBatch{}, nil
 	}
 
-	var err error
-	compactIndex, err = d.adjustCompactionIndex(compactIndex)
+	compactIndex, err := d.adjustCompactionIndex(compactIndex)
 	if err != nil {
 		return rpc.ResponseBatch{}, err
 	}
@@ -72,7 +71,7 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, e
 	resp := newAdminResponseBatch(rpc.AdminCmdType_CompactLog, &rpc.CompactLogResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_CompactLog,
-		compactionResult: &compactionResult{
+		compactionResult: compactionResult{
 			index: compactIndex,
 		},
 	}
@@ -90,8 +89,8 @@ func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
 	}
 	if index > persistentLogIndex {
 		d.logger.Info("adjusted compact log index",
-			zap.Uint64("persistentLogIndex", persistentLogIndex),
-			zap.Uint64("compactIndex", index))
+			zap.Uint64("persistent-index", persistentLogIndex),
+			zap.Uint64("compact-index", index))
 		index = persistentLogIndex
 	}
 	return index, nil
@@ -189,7 +188,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_ConfigChange,
-		configChangeResult: &configChangeResult{
+		configChangeResult: configChangeResult{
 			index:   ctx.index,
 			changes: []rpc.ConfigChangeRequest{req},
 			shard:   res,
@@ -218,7 +217,6 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 
 	newShardsCount := len(splitReqs.Requests)
 	var newShards []Shard
-	var metadata []meta.ShardMetadata
 	current.Epoch.Version += uint64(newShardsCount)
 	expectStart := current.Start
 	last := len(splitReqs.Requests) - 1
@@ -253,10 +251,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	d.replicaCreatorFactory().
-		withReason("splited").
+	// We only create shard init raft log in logdb, create new shards metadata in memory,
+	// and update atomically with the old metadata later.
+	replicaFactory := d.replicaCreatorFactory()
+	replicaFactory.withReason("splited").
 		withLogdbContext(d.wc).
-		withSaveMetadata(false). // no sync
 		create(newShards)
 
 	// We can't destroy Old Shard directly, but mark it as being destroyed. Because at this time, we are not
@@ -273,7 +272,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 			RemoveData: false,
 		},
 	}
-	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
+	err := d.dataStorage.Split(old, replicaFactory.getShardsMetadata(), splitReqs.Context)
 	if err != nil {
 		if err == storage.ErrAborted {
 			return rpc.ResponseBatch{}, nil
@@ -289,7 +288,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_BatchSplit,
-		splitResult: &splitResult{
+		splitResult: splitResult{
 			newShards: newShards,
 		},
 	}
@@ -417,7 +416,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
 	ctx.adminResult = &adminResult{
 		adminType: rpc.AdminCmdType_UpdateMetadata,
-		updateMetadataResult: &updateMetadataResult{
+		updateMetadataResult: updateMetadataResult{
 			changes: cc,
 		},
 	}

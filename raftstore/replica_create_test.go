@@ -11,8 +11,9 @@ import (
 )
 
 func TestShardCreateWithSaveMetadata(t *testing.T) {
-	testShardCreateWithSaveMetadataWithSync(t, false)
-	testShardCreateWithSaveMetadataWithSync(t, true)
+	testShardCreateWithSaveMetadataWithSync(t, true, false)
+	testShardCreateWithSaveMetadataWithSync(t, true, true)
+	testShardCreateWithSaveMetadataWithSync(t, false, false)
 }
 
 func TestShardCreateWithStart(t *testing.T) {
@@ -35,29 +36,44 @@ func TestShardCreateWithStart(t *testing.T) {
 	assert.Equal(t, db.CreateShard(1, "1/0"), pr.getShard())
 }
 
-func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
+func testShardCreateWithSaveMetadataWithSync(t *testing.T, save bool, sync bool) {
 	defer leaktest.AfterTest(t)()
 	s, close := newTestStore(t)
 	defer close()
 
-	s.meta.meta.ID = 100
+	s.meta.SetID(100)
 	db := NewTestDataBuilder()
-	newReplicaCreator(s).
-		withReason("TestShardCreateWithSaveMetadata").
-		withSaveMetadata(sync).
+	f := newReplicaCreator(s)
+	if save {
+		f.withSaveMetadata(sync)
+	}
+	f.withReason("TestShardCreateWithSaveMetadata").
 		create([]Shard{
 			db.CreateShard(1, "1/10/v/t,2/100/v/t"),
 		})
-	stats, err := s.DataStorageByGroup(0).GetInitialStates()
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(stats))
-	assert.Equal(t, uint64(1), stats[0].LogIndex)
-	assert.Equal(t, uint64(1), stats[0].ShardID)
-	assert.Equal(t, meta.ReplicaState_Normal, stats[0].Metadata.State)
-	if sync {
-		assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount > 0)
-	} else {
-		assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount == 0)
+
+	assert.Equal(t, 1, len(f.getShardsMetadata()))
+	assert.Equal(t, meta.ShardMetadata{
+		ShardID:  1,
+		LogIndex: 1,
+		Metadata: meta.ShardLocalState{
+			State: meta.ReplicaState_Normal,
+			Shard: db.CreateShard(1, "1/10/v/t,2/100/v/t"),
+		},
+	}, f.getShardsMetadata()[0])
+	if save {
+		stats, err := s.DataStorageByGroup(0).GetInitialStates()
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(stats))
+		assert.Equal(t, uint64(1), stats[0].LogIndex)
+		assert.Equal(t, uint64(1), stats[0].ShardID)
+		assert.Equal(t, meta.ReplicaState_Normal, stats[0].Metadata.State)
+
+		if sync {
+			assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount > 0)
+		} else {
+			assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount == 0)
+		}
 	}
 
 	stat, err := s.logdb.ReadRaftState(1, 2, 0)
