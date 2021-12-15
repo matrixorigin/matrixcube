@@ -111,8 +111,18 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 // TestApplyReceivedSnapshot
 func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		// setup key range and old metadata
+		r.store = &store{}
+		r.store.updateShardKeyRange(r.getShard().Group, r.getShard())
 		r.aware = newTestShardAware(0)
-		r.aware.Created(Shard{ID: 1})
+		r.aware.Created(r.getShard())
+
+		// update shard
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}, Start: []byte{1}, End: []byte{2}}
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+			{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
+		}))
 
 		ss, created, err := r.createSnapshot()
 		if err != nil {
@@ -126,10 +136,8 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
-		replicaRec := Replica{ID: 1, ContainerID: 100}
-		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
-		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 		_, err = r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
 		persistentLogIndex, err := r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
@@ -148,6 +156,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
 		assert.Equal(t, r.aware.(*testShardAware).getShardByIndex(0), r.getShard())
+		assert.Equal(t, shard, r.store.searchShard(shard.Group, shard.Start))
 
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
