@@ -159,21 +159,19 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 			log.ReplicaField("from", msg.From))
 	}
 
-	// check range overlapped
-	if item := s.searchShard(msg.Group, msg.Start); item.ID > 0 {
-		if bytes.Compare(item.Start, msg.End) < 0 {
-			if p := s.getReplica(item.ID, false); p != nil {
-				// Maybe split, but not registered yet.
-				s.cacheDroppedVoteMsg(msg.ShardID, msg)
+	// check range conflict
+	if conflictShard, ok := s.hasRangeConflict(msg.Group, msg.Start, msg.End); ok {
+		if p := s.getReplica(conflictShard.ID, false); p != nil {
+			// Maybe split, but not registered yet.
+			s.cacheDroppedVoteMsg(msg.ShardID, msg)
 
-				s.logger.Info("replica has overlapped range",
-					s.storeField(),
-					log.ShardField("overlapped-replica", item),
-					log.ShardField("local-replica", p.getShard()))
-			}
-
-			return false
+			s.logger.Info("replica has conflict range",
+				s.storeField(),
+				log.ShardField("conflict-shard", conflictShard),
+				log.ShardField("local-shard", p.getShard()))
 		}
+
+		return false
 	}
 
 	if s.createShardsProtector.inDestoryState(msg.ShardID) {
@@ -205,4 +203,14 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 			},
 		})
 	return true
+}
+
+func (s *store) hasRangeConflict(group uint64, start, end []byte) (Shard, bool) {
+	if item := s.searchShard(group, start); item.ID > 0 {
+		if !bytes.Equal(item.Start, start) ||
+			!bytes.Equal(item.End, end) {
+			return item, true
+		}
+	}
+	return Shard{}, false
 }
