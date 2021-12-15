@@ -160,7 +160,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 	}
 
 	// check range conflict
-	if conflictShard, ok := s.hasRangeConflict(msg.Group, msg.Start, msg.End); ok {
+	if conflictShard, conflict := s.hasRangeConflict(msg.Group, msg.Start, msg.End); conflict {
 		if p := s.getReplica(conflictShard.ID, false); p != nil {
 			// Maybe split, but not registered yet.
 			s.cacheDroppedVoteMsg(msg.ShardID, msg)
