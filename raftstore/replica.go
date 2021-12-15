@@ -16,7 +16,6 @@ package raftstore
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -297,11 +296,19 @@ func (pr *replica) getShardID() uint64 {
 // state machine restart procedure.
 // initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
 func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
-	dummySnapshot, err := pr.getLogReaderMarkerState()
+	persistentLogIndex, err := storage.GetPersistentLogIndex(pr.shardID)
 	if err != nil {
 		return err
 	}
-	index, term := dummySnapshot.Metadata.Index, dummySnapshot.Metadata.Term
+	index, term := persistentLogIndex, uint64(0)
+	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err != nil && err != logdb.ErrNoSnapshot {
+		return err
+	}
+	if !raft.IsEmptySnap(ss) && ss.Metadata.Index > persistentLogIndex {
+		index, term = ss.Metadata.Index, ss.Metadata.Term
+	}
+
 	pr.sm.updateAppliedIndexTerm(index, term)
 	pr.appliedIndex = index
 	pr.pushedIndex = index
@@ -313,108 +320,58 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 // initConfState initializes the ConfState of the LogReader which will be
 // applied to the raft module.
 func (pr *replica) initConfState() error {
-	// FIXME: this is using the latest confState, should be using the confState
-	// consistent with the aoe state.
-	confState := raftpb.ConfState{}
+	persistentLogIndex, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+	if err != nil {
+		return err
+	}
 	ss, err := pr.logdb.GetSnapshot(pr.shardID)
 	if err != nil && err != logdb.ErrNoSnapshot {
 		return err
+	}
+	fromSnapshot := false
+	if !raft.IsEmptySnap(ss) && ss.Metadata.Index > persistentLogIndex {
+		fromSnapshot = true
+	}
+
+	confState := raftpb.ConfState{}
+	if fromSnapshot {
+		confState = ss.Metadata.ConfState
+		pr.logger.Info("init conf state loaded from snapshot",
+			zap.Uint64("snapshot-index", ss.Metadata.Index),
+			zap.Uint64("applied-index", pr.appliedIndex))
 	} else {
-		if !raft.IsEmptySnap(ss) && ss.Metadata.Index > pr.appliedIndex {
-			confState = ss.Metadata.ConfState
-			pr.logger.Info("init conf state loaded from snapshot",
-				zap.Uint64("snapshot-index", ss.Metadata.Index),
-				zap.Uint64("applied-index", pr.appliedIndex))
-		} else {
-			shard := pr.getShard()
-			for _, p := range shard.Replicas {
-				if p.Role == metapb.ReplicaRole_Voter {
-					confState.Voters = append(confState.Voters, p.ID)
-				} else if p.Role == metapb.ReplicaRole_Learner {
-					confState.Learners = append(confState.Learners, p.ID)
-				}
+		shard := pr.getShard()
+		for _, p := range shard.Replicas {
+			if p.Role == metapb.ReplicaRole_Voter {
+				confState.Voters = append(confState.Voters, p.ID)
+			} else if p.Role == metapb.ReplicaRole_Learner {
+				confState.Learners = append(confState.Learners, p.ID)
 			}
-			pr.logger.Info("init conf state loaded from dataStorage metadata")
 		}
-		pr.logger.Info("init conf state loaded",
-			log.ReplicaIDsField("voters", confState.Voters),
-			log.ReplicaIDsField("learners", confState.Learners))
-		pr.lr.SetConfState(confState)
+		pr.logger.Info("init conf state loaded from dataStorage metadata")
 	}
+	pr.logger.Info("init conf state loaded",
+		log.ReplicaIDsField("voters", confState.Voters),
+		log.ReplicaIDsField("learners", confState.Learners))
+	pr.lr.SetConfState(confState)
+
 	return nil
-}
-
-func (pr *replica) getLogReaderMarkerState() (raftpb.Snapshot, error) {
-	// FIXME: this is an ugly hack
-	// the fundamental issue here is that we can't directly tell what is the term
-	// value of the persistentLogIndex and thus couldn't establish an marker point
-	// for the LogReader. getTerm() works around this issue by querying the
-	// underlying LogDB (LogReader.Term() is not ready yet as we are trying to
-	// correctly initialize LogReader). This in turn forces us not to cleanup
-	// all applied raft logs and snapshots.
-	getTerm := func(index uint64) (uint64, error) {
-		if index == 0 {
-			return 0, nil
-		}
-
-		snapshots, err := pr.logdb.GetAllSnapshots(pr.shardID)
-		if err != nil {
-			return 0, err
-		}
-		for _, cs := range snapshots {
-			if cs.Metadata.Index == index {
-				return cs.Metadata.Term, nil
-			}
-		}
-
-		ents, _, err := pr.logdb.IterateEntries(nil, 0, pr.shardID, pr.replicaID,
-			index, index+1, math.MaxUint64)
-		if err != nil {
-			return 0, err
-		}
-		if ents[0].Index != index {
-			panic("unexpected entry")
-		}
-		return ents[0].Term, nil
-	}
-
-	persistentLogIndex, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
-	if err != nil {
-		return raftpb.Snapshot{}, err
-	}
-	ss, err := pr.logdb.GetSnapshot(pr.shardID)
-	if err != nil && err != logdb.ErrNoSnapshot {
-		return raftpb.Snapshot{}, err
-	}
-
-	if raft.IsEmptySnap(ss) || ss.Metadata.Index < persistentLogIndex {
-		term, err := getTerm(persistentLogIndex)
-		if err != nil {
-			return raftpb.Snapshot{}, err
-		}
-		return raftpb.Snapshot{
-			Metadata: raftpb.SnapshotMetadata{
-				Index: persistentLogIndex,
-				Term:  term,
-			},
-		}, nil
-	} else if ss.Metadata.Index >= persistentLogIndex {
-		return ss, nil
-	}
-	panic("not suppose to reach here")
 }
 
 // initLogState returns a boolean flag indicating whether this is a new node.
 func (pr *replica) initLogState() (bool, error) {
-	dummySnapshot, err := pr.getLogReaderMarkerState()
-	if err != nil {
+	ss, err := pr.logdb.GetSnapshot(pr.shardID)
+	if err != nil && err != logdb.ErrNoSnapshot {
 		return false, err
 	}
-	if err := pr.lr.ApplySnapshot(dummySnapshot); err != nil {
-		return false, err
+	if !raft.IsEmptySnap(ss) {
+		if err := pr.lr.ApplySnapshot(ss); err != nil {
+			return false, err
+		}
 	}
+
 	rs, err := pr.logdb.ReadRaftState(pr.shardID,
-		pr.replicaID, dummySnapshot.Metadata.Index)
+		pr.replicaID, ss.Metadata.Index)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
 		return true, nil
 	}
