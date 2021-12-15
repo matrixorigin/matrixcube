@@ -217,7 +217,6 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 
 	newShardsCount := len(splitReqs.Requests)
 	var newShards []Shard
-	var metadata []meta.ShardMetadata
 	current.Epoch.Version += uint64(newShardsCount)
 	expectStart := current.Start
 	last := len(splitReqs.Requests) - 1
@@ -252,10 +251,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 		ctx.metrics.admin.splitSucceed++
 	}
 
-	d.replicaCreatorFactory().
-		withReason("splited").
+	// We only create shard init raft log in logdb, create new shards metadata in memory,
+	// and update atomically with the old metadata later.
+	replicaFactory := d.replicaCreatorFactory()
+	replicaFactory.withReason("splited").
 		withLogdbContext(d.wc).
-		withSaveMetadata(false). // no sync
 		create(newShards)
 
 	// We can't destroy Old Shard directly, but mark it as being destroyed. Because at this time, we are not
@@ -272,7 +272,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 			RemoveData: false,
 		},
 	}
-	err := d.dataStorage.Split(old, metadata, splitReqs.Context)
+	err := d.dataStorage.Split(old, replicaFactory.getShardsMetadata(), splitReqs.Context)
 	if err != nil {
 		if err == storage.ErrAborted {
 			return rpc.ResponseBatch{}, nil
