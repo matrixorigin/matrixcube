@@ -91,6 +91,18 @@ func (s *testDestoryMetadataStorage) ReportDestroyed(shardID uint64, replicaID u
 	return status.State, nil
 }
 
+func TestDestoryTaskWithMultiTimes(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
+	pr.destoryTaskMu.hasTask = true
+	pr.destoryTaskMu.reason = "1"
+
+	pr.startDestoryReplicaTask(0, false, "2")
+	assert.Equal(t, "1", pr.destoryTaskMu.reason)
+}
+
 func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 

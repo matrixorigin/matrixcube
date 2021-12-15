@@ -50,6 +50,19 @@ func (pr *replica) startDestoryReplicaTaskAfterSplitted(splitRequestLogIndex uin
 
 // startDestoryReplicaTask starts a task to destory all replicas of the shard after the specified Log applied.
 func (pr *replica) startDestoryReplicaTask(targetIndex uint64, removeData bool, reason string) {
+	pr.destoryTaskMu.Lock()
+	defer pr.destoryTaskMu.Unlock()
+
+	if pr.destoryTaskMu.hasTask {
+		pr.logger.Error("async task for destory replica already started",
+			log.ReasonField(reason),
+			zap.String("last-reason", pr.destoryTaskMu.reason),
+			destroyShardTaskField)
+		return
+	}
+
+	pr.destoryTaskMu.hasTask = true
+	pr.destoryTaskMu.reason = reason
 	task := pr.destoryTaskFactory.new(pr, targetIndex, removeData, reason)
 	if err := pr.readStopper.RunNamedTask(context.Background(), reason, task.run); err != nil {
 		pr.logger.Error("failed to start async task for destory replica",
@@ -190,10 +203,16 @@ func (t *defaultDestroyReplicaTask) maybeCheckDestroyExists() {
 			t.pr.logger.Debug("begin to check log committed",
 				destroyShardTaskField)
 		} else {
+			// update read index
+			t.targetIndex = status.Index
+			t.removeData = status.RemoveData
+
 			// means all replica committed at targetIndex, start step 3
 			t.doCheckApply = true
 			t.doCheckDestroyExists = false
 			t.pr.logger.Debug("begin to check log applied",
+				zap.Uint64("target-index", t.targetIndex),
+				zap.Bool("remove-data", t.removeData),
 				destroyShardTaskField)
 		}
 	}

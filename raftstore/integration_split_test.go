@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"math"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,8 +23,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3"
 )
 
 var (
@@ -98,7 +101,7 @@ func TestSplitWithCase1(t *testing.T) {
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
 			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
-			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second * 2)
+			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 		}))
 
 	c.Start()
@@ -263,6 +266,102 @@ func TestSplitWithCase3(t *testing.T) {
 		})
 	})
 	assert.Nil(t, c.GetStore(2).(*store).getReplica(sid, false))
+}
+
+func TestSplitWithApplySnapshotAndStartDestroyByStateCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
+	defer leaktest.AfterTest(t)()
+
+	var c TestRaftCluster
+	c = NewTestClusterStore(t,
+		DiskTestCluster,
+		OldTestCluster,
+		WithTestClusterNodeCount(3),
+		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
+			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
+			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
+		}))
+	c.Start()
+	defer c.Stop()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitAllReplicasChangeToVoter(c.GetShardByIndex(0, 0).ID, testWaitTimeout)
+
+	sid := c.GetShardByIndex(0, 0).ID
+
+	skipStore := uint64(0)
+	filter := func(msg meta.RaftMessage) bool {
+		return msg.To.ContainerID == atomic.LoadUint64(&skipStore) ||
+			msg.From.ContainerID == atomic.LoadUint64(&skipStore)
+	}
+	c.EveryStore(func(i int, s Store) {
+		s.(*store).trans.SetFilter(filter)
+	})
+
+	// network partition with node2
+	atomic.StoreUint64(&skipStore, c.GetStore(2).Meta().ID)
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
+
+	// force log compact
+	c.EveryStore(func(i int, s Store) {
+		pr := s.(*store).getReplica(sid, true)
+		if pr != nil {
+			idx, _ := pr.sm.getAppliedIndexTerm()
+			pr.sm.dataStorage.Sync([]uint64{sid})
+			pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+				CompactIndex: idx,
+			})
+
+			hasLog := func(index uint64) bool {
+				lr := pr.lr
+				_, err := lr.Entries(index, index+1, math.MaxUint64)
+				if err == nil {
+					return true
+				}
+				if err == raft.ErrCompacted {
+					return false
+				}
+				panic(err)
+			}
+
+			// wait for compaction to complete
+			for i := 0; i < 10; i++ {
+				if hasLog(idx) {
+					time.Sleep(time.Second)
+				} else {
+					break
+				}
+				if i == 9 {
+					t.Fatalf("failed to remove log entries from logdb")
+				}
+			}
+		}
+	})
+
+	// continue write data to ensure split
+	assert.NoError(t, kv.Set("k2", "v2", testWaitTimeout))
+
+	// resume node2
+	atomic.StoreUint64(&skipStore, 0)
+
+	// wait shard sid removed at all nodes
+	c.WaitRemovedByShardIDAt(sid, []int{0, 1, 2}, testWaitTimeout)
+
+	c.EveryStore(func(index int, store Store) {
+		checkSplitWithStore(t, c, index, sid, 2, true)
+	})
+	checkSplitWithProphet(t, c, sid, 3)
 }
 
 func prepareSplit(t *testing.T, c TestRaftCluster, removedNodes, counts []int) uint64 {

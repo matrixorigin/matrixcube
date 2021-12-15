@@ -108,6 +108,11 @@ type replica struct {
 	lastCommittedIndex uint64
 
 	destoryTaskFactory destroyReplicaTaskFactory
+	destoryTaskMu      struct {
+		sync.Mutex
+		hasTask bool
+		reason  string
+	}
 
 	tickTotalCount   uint64
 	tickHandledCount uint64
