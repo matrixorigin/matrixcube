@@ -464,6 +464,7 @@ func (s *store) startShards() {
 		bm.Or(putil.MustUnmarshalBM64(rsp.Destroying))
 		if bm.GetCardinality() > 0 {
 			for _, id := range bm.ToArray() {
+				s.createShardsProtector.addDestroyed(id)
 				tomebstones = append(tomebstones, shards[id])
 				delete(shards, id)
 			}

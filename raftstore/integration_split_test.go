@@ -98,6 +98,7 @@ func TestSplitWithCase1(t *testing.T) {
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
 			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
+			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second * 2)
 		}))
 
 	c.Start()
