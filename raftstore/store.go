@@ -62,6 +62,8 @@ type Store interface {
 	GetShardsProxy() ShardsProxy
 	// OnRequest receive a request, and call cb while the request is completed
 	OnRequest(rpc.Request) error
+	// OnRequestWithCB receive a request, and call cb while the request is completed
+	OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error
 	// DataStorage returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
@@ -304,10 +306,10 @@ func (s *store) Meta() meta.Store {
 }
 
 func (s *store) OnRequest(req rpc.Request) error {
-	return s.onRequestWithCB(req, s.shardsProxy.OnResponse)
+	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
-func (s *store) onRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
+func (s *store) OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
 	if ce := s.logger.Check(zap.DebugLevel, "receive request"); ce != nil {
 		ce.Write(log.RequestIDField(req.ID),
 			s.storeField())

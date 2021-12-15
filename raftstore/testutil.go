@@ -499,6 +499,8 @@ type TestRaftCluster interface {
 	// WaitShardByCount check that the number of shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitShardByCount(count int, timeout time.Duration)
+	// WaitShardByLabel check that the shard has the specified label until the timeout
+	WaitShardByLabel(id uint64, label, value string, timeout time.Duration)
 	// WaitVoterReplicaByCount check that the number of voter shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitVoterReplicaByCountPerNode(count int, timeout time.Duration)
@@ -1086,6 +1088,30 @@ func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 				shards += c.awares[idx].shardCount()
 			}
 			if shards >= count {
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitShardByLabel(id uint64, label, value string, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait shard %d label %s %s of cluster timeout", id, label, value)
+		default:
+			ok := false
+			for idx := range c.stores {
+				ok = false
+				for _, l := range c.awares[idx].getShardByID(id).Labels {
+					if l.Key == label && l.Value == value {
+						ok = true
+					}
+				}
+			}
+			if ok {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)

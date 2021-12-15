@@ -47,6 +47,10 @@ type adminResult struct {
 	splitResult          splitResult
 	compactionResult     compactionResult
 	updateMetadataResult updateMetadataResult
+	updateLabelsResult   updateLabelsResult
+}
+
+type updateLabelsResult struct {
 }
 
 type updateMetadataResult struct {
@@ -112,12 +116,20 @@ func (pr *replica) handleAdminResult(result applyResult) {
 		pr.applyCompactionResult(result.adminResult.compactionResult)
 	case rpc.AdminCmdType_UpdateMetadata:
 		pr.applyUpdateMetadataResult(result.adminResult.updateMetadataResult)
+	case rpc.AdminCmdType_UpdateLabels:
+		pr.applyUpdateLabels(result.adminResult.updateLabelsResult)
 	}
 }
 
 func (pr *replica) applyUpdateMetadataResult(cp updateMetadataResult) {
 	for _, cc := range cp.changes {
 		pr.rn.ApplyConfChange(cc)
+	}
+}
+
+func (pr *replica) applyUpdateLabels(result updateLabelsResult) {
+	if pr.aware != nil {
+		pr.aware.Updated(pr.getShard())
 	}
 }
 
