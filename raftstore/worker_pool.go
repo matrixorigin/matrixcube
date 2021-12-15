@@ -78,6 +78,11 @@ func (w *replicaWorker) workerMain() {
 	for {
 		select {
 		case <-w.stopper.ShouldStop():
+			select {
+			case <-w.requestC:
+				w.completed()
+			default:
+			}
 			w.wc.Close()
 			w.logger.Debug("worker pool worker stopped",
 				zap.Uint64("worker-id", w.workerID))
