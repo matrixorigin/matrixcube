@@ -146,7 +146,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 
 		_, err = r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
-		persistentLogIndex, err := r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
+		persistentLogIndex, err = r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(0), persistentLogIndex)
 
