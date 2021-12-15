@@ -104,6 +104,9 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	r.appliedIndex = ss.Metadata.Index
 	r.lr.ApplySnapshot(ss)
 	r.sm.updateShard(md.Metadata.Shard)
+	// after snapshot applied, the shard range may changed, so we
+	// need update key ranges
+	r.store.updateShardKeyRange(r.group, md.Metadata.Shard)
 	// r.replica is more like a local cached copy of the replica record.
 	r.replica = *findReplica(r.getShard(), r.storeID)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
