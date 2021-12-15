@@ -29,23 +29,24 @@ import (
 )
 
 type applyResult struct {
-	shardID     uint64
-	index       uint64
-	adminResult *adminResult
-	metrics     applyMetrics
+	shardID       uint64
+	index         uint64
+	adminResult   *adminResult
+	ignoreMetrics bool
+	metrics       applyMetrics
 }
 
 func (res *applyResult) hasSplitResult() bool {
-	return nil != res.adminResult && res.adminResult.splitResult != nil
+	return nil != res.adminResult &&
+		res.adminResult.adminType == rpc.AdminCmdType_BatchSplit
 }
 
-// TODO: should probably use values not pointers
 type adminResult struct {
 	adminType            rpc.AdminCmdType
-	configChangeResult   *configChangeResult
-	splitResult          *splitResult
-	compactionResult     *compactionResult
-	updateMetadataResult *updateMetadataResult
+	configChangeResult   configChangeResult
+	splitResult          splitResult
+	compactionResult     compactionResult
+	updateMetadataResult updateMetadataResult
 }
 
 type updateMetadataResult struct {
@@ -74,7 +75,9 @@ func (pr *replica) notifyPendingProposal(id []byte,
 
 func (pr *replica) handleApplyResult(result applyResult) {
 	pr.updateAppliedIndex(result)
-	pr.updateMetricsHints(result)
+	if !result.ignoreMetrics {
+		pr.updateMetricsHints(result)
+	}
 	if result.adminResult != nil {
 		pr.handleAdminResult(result)
 	}
@@ -95,9 +98,7 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	} else {
 		pr.stats.deleteKeysHint += result.metrics.deleteKeysHint
-		if result.metrics.approximateDiffHint > 0 {
-			pr.stats.approximateSize = result.metrics.approximateDiffHint
-		}
+		pr.stats.approximateSize = result.metrics.approximateDiffHint
 	}
 }
 
@@ -114,13 +115,13 @@ func (pr *replica) handleAdminResult(result applyResult) {
 	}
 }
 
-func (pr *replica) applyUpdateMetadataResult(cp *updateMetadataResult) {
+func (pr *replica) applyUpdateMetadataResult(cp updateMetadataResult) {
 	for _, cc := range cp.changes {
 		pr.rn.ApplyConfChange(cc)
 	}
 }
 
-func (pr *replica) applyCompactionResult(r *compactionResult) {
+func (pr *replica) applyCompactionResult(r compactionResult) {
 	pr.logger.Info("log compaction called",
 		zap.Uint64("index", r.index))
 	// generate a dummy snapshot so we can run the log compaction.
@@ -175,7 +176,7 @@ func (pr *replica) applyCompactionResult(r *compactionResult) {
 	}
 }
 
-func (pr *replica) applyConfChange(cp *configChangeResult) {
+func (pr *replica) applyConfChange(cp configChangeResult) {
 	if cp.index == 0 {
 		// TODO: when the entry was treated as a NoOP, configChangeResult should be
 		// nil and applyConfChange() should be called in the first place.
@@ -248,7 +249,7 @@ func (pr *replica) applyConfChange(cp *configChangeResult) {
 		log.ShardField("shard", pr.getShard()))
 }
 
-func (pr *replica) applySplit(result *splitResult) {
+func (pr *replica) applySplit(result splitResult) {
 	pr.logger.Info("shard split applied, current shard will destory",
 		zap.Int("new-shards-count", len(result.newShards)))
 
