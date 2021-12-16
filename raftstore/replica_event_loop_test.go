@@ -24,6 +24,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv"
@@ -117,6 +118,8 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
+		_, err = ds.GetInitialStates()
+		assert.NoError(t, err)
 		replicaRec := Replica{ID: 1, ContainerID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
@@ -140,8 +143,60 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
 		assert.True(t, exist)
+		// snapshot record is not removed
 		_, err = r.logdb.GetSnapshot(1)
 		assert.NoError(t, err)
+	}
+	fs := vfs.GetTestFS()
+	runReplicaSnapshotTest(t, fn, fs)
+}
+
+func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
+	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		ss, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		assert.True(t, created)
+
+		rd := raft.Ready{Snapshot: ss}
+		assert.NoError(t, r.logdb.SaveRaftState(1, 1, rd, r.logdb.NewWorkerContext()))
+		// reset the data storage
+		dsMem := mem.NewStorage()
+		base := kv.NewBaseStorage(dsMem, fs)
+		ds := kv.NewKVDataStorage(base, nil)
+		defer ds.Close()
+
+		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{
+			{
+				ShardID:  1,
+				LogIndex: 101,
+				Metadata: meta.ShardLocalState{
+					Shard: Shard{ID: 1},
+				},
+			},
+		}))
+		ds.Sync(nil)
+		_, err = ds.GetInitialStates()
+		assert.NoError(t, err)
+
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
+		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
+		assert.False(t, r.initialized)
+		_, err = r.handleEvent(r.logdb.NewWorkerContext())
+		assert.NoError(t, err)
+		assert.True(t, r.initialized)
+		// snapshot record is not removed
+		ss, err = r.logdb.GetSnapshot(1)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(100), ss.Metadata.Index)
+		env := r.snapshotter.getRecoverSnapshotEnv(ss)
+		// snapshot image is removed
+		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
+		assert.NoError(t, err)
+		assert.False(t, exist)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
