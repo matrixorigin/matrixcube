@@ -31,6 +31,8 @@ import (
 )
 
 type resourceAdapter struct {
+	sync.RWMutex
+
 	meta Shard
 }
 
@@ -44,14 +46,23 @@ func NewResourceAdapterWithShard(meta Shard) metadata.Resource {
 }
 
 func (ra *resourceAdapter) ID() uint64 {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.ID
 }
 
 func (ra *resourceAdapter) SetID(id uint64) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.ID = id
 }
 
 func (ra *resourceAdapter) Group() uint64 {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Group
 }
 
@@ -60,78 +71,135 @@ func (ra *resourceAdapter) SetGroup(group uint64) {
 }
 
 func (ra *resourceAdapter) Peers() []Replica {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Replicas
 }
 
 func (ra *resourceAdapter) SetPeers(peers []Replica) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Replicas = peers
 }
 
 func (ra *resourceAdapter) Range() ([]byte, []byte) {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Start, ra.meta.End
 }
 
 func (ra *resourceAdapter) SetStartKey(value []byte) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Start = value
 }
 
 func (ra *resourceAdapter) SetEndKey(value []byte) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.End = value
 }
 
 func (ra *resourceAdapter) Epoch() metapb.ResourceEpoch {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Epoch
 }
 
 func (ra *resourceAdapter) SetEpoch(value metapb.ResourceEpoch) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Epoch = value
 }
 
 func (ra *resourceAdapter) State() metapb.ResourceState {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.State
 }
 
 func (ra *resourceAdapter) SetState(state metapb.ResourceState) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.State = state
 }
 
 func (ra *resourceAdapter) Unique() string {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Unique
 }
 
 func (ra *resourceAdapter) SetUnique(value string) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Unique = value
 }
 
 func (ra *resourceAdapter) Data() []byte {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Data
 }
 
 func (ra *resourceAdapter) SetData(value []byte) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Data = value
 }
 
 func (ra *resourceAdapter) RuleGroups() []string {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.RuleGroups
 }
 
 func (ra *resourceAdapter) SetRuleGroups(values ...string) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.RuleGroups = values
 }
 
 func (ra *resourceAdapter) Labels() []metapb.Pair {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return ra.meta.Labels
 }
 
 func (ra *resourceAdapter) SetLabels(labels []metapb.Pair) {
+	ra.Lock()
+	defer ra.Unlock()
+
 	ra.meta.Labels = labels
 }
 
 func (ra *resourceAdapter) Marshal() ([]byte, error) {
+	ra.RLock()
+	defer ra.RUnlock()
+
 	return protoc.MustMarshal(&ra.meta), nil
 }
 
 func (ra *resourceAdapter) Unmarshal(data []byte) error {
+	ra.Lock()
+	defer ra.Unlock()
+
 	protoc.MustUnmarshal(&ra.meta, data)
 	return nil
 }
