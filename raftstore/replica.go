@@ -370,6 +370,8 @@ func (pr *replica) initLogState() (bool, error) {
 		return false, err
 	}
 	if !raft.IsEmptySnap(ss) {
+		pr.logger.Info("LogReader applied snapshot",
+			zap.Uint64("index", ss.Metadata.Index))
 		if err := pr.lr.ApplySnapshot(ss); err != nil {
 			return false, err
 		}
