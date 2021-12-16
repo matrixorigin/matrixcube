@@ -90,6 +90,7 @@ func (p *defaultProphet) initClient() {
 	p.clientOnce.Do(func() {
 		p.client = NewClient(p.cfg.Prophet.Adapter,
 			WithRPCTimeout(p.cfg.Prophet.RPCTimeout.Duration),
-			WithLeaderGetter(p.GetLeader))
+			WithLeaderGetter(p.GetLeader),
+			WithLogger(p.logger))
 	})
 }
