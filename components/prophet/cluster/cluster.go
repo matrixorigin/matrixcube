@@ -703,6 +703,11 @@ func (c *RaftCluster) ScanResources(group uint64, startKey, endKey []byte, limit
 	return c.core.ScanRange(group, startKey, endKey, limit)
 }
 
+// GetDestroyingResources returns all resources in destroying state
+func (c *RaftCluster) GetDestroyingResources() []*core.CachedResource {
+	return c.core.GetDestroyingResources()
+}
+
 // GetResource searches for a resource by ID.
 func (c *RaftCluster) GetResource(resourceID uint64) *core.CachedResource {
 	return c.core.GetResource(resourceID)
