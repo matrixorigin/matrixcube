@@ -31,7 +31,6 @@ func (s *store) ProphetBecomeLeader() {
 	s.bootOnce.Do(func() {
 		go func() {
 			s.doBootstrapCluster(true)
-			close(s.pdStartedC)
 		}()
 	})
 }
@@ -42,7 +41,6 @@ func (s *store) ProphetBecomeFollower() {
 	s.bootOnce.Do(func() {
 		go func() {
 			s.doBootstrapCluster(false)
-			close(s.pdStartedC)
 		}()
 	})
 }
@@ -62,12 +60,13 @@ func (s *store) initMeta() {
 }
 
 func (s *store) doBootstrapCluster(bootstrap bool) {
+	defer s.postBootstrapped()
+
 	s.logger.Info("begin to bootstrap the cluster",
 		s.storeField())
 	s.initMeta()
 
 	if s.mustLoadStoreMetadata() {
-		s.mustPutStore()
 		return
 	}
 
@@ -127,9 +126,12 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 			}
 		}
 	}
+}
 
+func (s *store) postBootstrapped() {
 	s.mustPutStore()
 	s.startHandleResourceHeartbeat()
+	close(s.pdStartedC)
 }
 
 func (s *store) mustPutStore() {
