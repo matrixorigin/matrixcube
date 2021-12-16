@@ -73,18 +73,28 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 	// etcd raft won't repeatedly return the same non-empty soft state
 	if rd.SoftState != nil {
 		pr.setLeaderReplicaID(rd.SoftState.Lead)
+		shard := pr.getShard()
 		// If we become leader, send heartbeat to pd
 		if rd.SoftState.RaftState == raft.StateLeader {
 			pr.logger.Info("********become leader now********")
 			pr.prophetHeartbeat()
 			pr.resetIncomingProposals()
 			if pr.aware != nil {
-				pr.aware.BecomeLeader(pr.getShard())
+				pr.aware.BecomeLeader(shard)
+			}
+			// When a replica is not started for other reasons, then the map does not contain
+			// information about the replica, and we cannot remove the replica.
+			for _, r := range shard.Replicas {
+				if r.ID != pr.replicaID {
+					if _, has := pr.replicaHeartbeatsMap.Load(r.ID); !has {
+						pr.replicaHeartbeatsMap.Store(r.ID, time.Now())
+					}
+				}
 			}
 		} else {
 			pr.logger.Info("********become follower now********")
 			if pr.aware != nil {
-				pr.aware.BecomeFollower(pr.getShard())
+				pr.aware.BecomeFollower(shard)
 			}
 		}
 	}

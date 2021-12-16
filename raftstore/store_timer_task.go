@@ -93,6 +93,20 @@ func (s *store) handleShardStateCheckTask() {
 		for _, id := range bm.ToArray() {
 			s.destroyReplica(id, true, true, "shard state check")
 		}
+
+		bm = putil.MustUnmarshalBM64(rsp.Destroying)
+		for _, id := range bm.ToArray() {
+			if pr := s.getReplica(id, false); pr != nil {
+				// There are a scenario that can trigger this process:
+				// The Shard A has 3 replcias A1, A2, A3. The current replica A3 is running status,
+				// and restart after a long time. During the time A3 was offline, A2 and A3 completed
+				// the deletion process. So A3's log cannot continue to execute and will not trigger
+				// the delete process.
+
+				// We don't known which log index destroy at and whether to remove data or not.
+				pr.startDestoryReplicaTask(0, false, "replicas state check")
+			}
+		}
 	}
 }
 

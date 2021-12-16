@@ -201,6 +201,10 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.GetBatchSplitRequest()
 
+	d.logger.Info("begin to apply split",
+		zap.Uint64("index", ctx.index),
+		zap.Int("split-keys", len(splitReqs.Requests)))
+
 	if len(splitReqs.Requests) == 0 {
 		d.logger.Fatal("missing splits request")
 	}

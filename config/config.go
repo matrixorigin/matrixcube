@@ -25,7 +25,6 @@ import (
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"go.uber.org/zap"
 )
@@ -368,8 +367,6 @@ type CustomizeConfig struct {
 	CustomShardStateAwareFactory func() aware.ShardStateAware
 	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
 	CustomInitShardsFactory func() []meta.Shard
-	// CustomTransportFactory is a factory func to create a transport.Transport to handle raft rpc by youself.
-	CustomTransportFactory func() transport.Trans
 	// CustomSnapshotDataCreateFuncFactory is factory create a func which called by cube if a snapshot need to create.
 	CustomSnapshotDataCreateFuncFactory func(group uint64) func(dataPath string, shard meta.Shard) error
 	// CustomSnapshotDataApplyFuncFactory is factory create a func which called by cube if a snapshot need to apply.
@@ -382,6 +379,8 @@ type CustomizeConfig struct {
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
 	// `ShardPool` based on `offsetInPool`, these can be modified, provided that the only non-conflict.
 	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard
+	// CustomTransportFilter transport filter
+	CustomTransportFilter func(meta.RaftMessage) bool
 }
 
 // GetLabels returns lables

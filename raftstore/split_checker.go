@@ -100,6 +100,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 	}
 
 	pr.logger.Debug("split check result",
+		log.ShardField("metadata", shard),
 		zap.Uint64("size", size),
 		zap.Uint64("capacity", sc.shardCapacityBytes),
 		zap.Uint64("keys", keys),
@@ -139,9 +140,9 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 		newShardsCount := len(splitKeys) + 1
 		newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(newShardsCount))
 		if err != nil {
-			pr.logger.Fatal("fail to ask batch split",
+			pr.logger.Error("fail to ask batch split",
 				zap.Error(err))
-
+			return false
 		}
 
 		if len(newIDs) != newShardsCount {
