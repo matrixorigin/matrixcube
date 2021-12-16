@@ -390,13 +390,10 @@ func (s *store) startProphet() {
 }
 
 func (s *store) createTransport() {
-	if s.cfg.Customize.CustomTransportFactory != nil {
-		s.trans = s.cfg.Customize.CustomTransportFactory()
-	} else {
-		s.trans = transport.NewTransport(s.logger,
-			s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
-			s.GetReplicaSnapshotDir, s.containerResolver, s.cfg.FS)
-	}
+	s.trans = transport.NewTransport(s.logger,
+		s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
+		s.GetReplicaSnapshotDir, s.containerResolver, s.cfg.FS)
+	s.trans.SetFilter(s.cfg.Customize.CustomTransportFilter)
 }
 
 func (s *store) startTransport() {

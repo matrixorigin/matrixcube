@@ -31,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -223,7 +224,6 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 				id, ts.node)
 		default:
 			if !ts.hasShard(id) {
-				assert.Equal(t, metapb.ResourceState_Destroyed, ts.removed[id].State)
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -236,9 +236,10 @@ func (ts *testShardAware) waitByShardCount(t *testing.T, count int, timeout time
 	for {
 		select {
 		case <-timeoutC:
-			assert.FailNowf(t, "", "wait shards count %d at node %d timeout",
+			assert.FailNowf(t, "", "wait shards count %d at node %d timeout, actual %d",
 				count,
-				ts.node)
+				ts.node,
+				ts.shardCount())
 		default:
 			if ts.shardCount() >= count {
 				return
@@ -477,6 +478,10 @@ type TestRaftCluster interface {
 	StopNode(node int)
 	// RestartNode restart the node
 	RestartNode(node int)
+	// StartNetworkPartition node will in network partition, must call after node started
+	StartNetworkPartition(partitions [][]int)
+	// StopNetworkPartition stop network partition
+	StopNetworkPartition()
 	// GetPRCount returns the number of replicas on the node
 	GetPRCount(node int) int
 	// GetShardByIndex returns the shard by `shardIndex`, `shardIndex` is the order in which
@@ -713,6 +718,8 @@ func createTestReadReq(id, k string) rpc.Request {
 type testRaftCluster struct {
 	sync.RWMutex
 
+	networkPartitions [][]uint64
+
 	// init fields
 	t               *testing.T
 	fs              vfs.FS
@@ -744,6 +751,49 @@ func NewTestClusterStore(t *testing.T, opts ...TestClusterOption) TestRaftCluste
 	c := &testRaftCluster{t: t, initOpts: opts}
 	c.reset(true, opts...)
 	return c
+}
+
+func (c *testRaftCluster) StartNetworkPartition(partitions [][]int) {
+	c.Lock()
+	defer c.Unlock()
+	c.networkPartitions = c.networkPartitions[:0]
+	for _, nodes := range partitions {
+		var partition []uint64
+		for _, node := range nodes {
+			partition = append(partition, c.stores[node].Meta().ID)
+		}
+		c.networkPartitions = append(c.networkPartitions, partition)
+	}
+}
+
+func (c *testRaftCluster) StopNetworkPartition() {
+	c.Lock()
+	defer c.Unlock()
+	c.networkPartitions = c.networkPartitions[:0]
+}
+
+func (c *testRaftCluster) transportFilter(msg meta.RaftMessage) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	if len(c.networkPartitions) == 0 {
+		return false
+	}
+
+	from, to := msg.From.ContainerID, msg.To.ContainerID
+	for _, partition := range c.networkPartitions {
+		n := 0
+		for _, id := range partition {
+			if id == from || id == to {
+				n++
+			}
+		}
+		if n > 0 && n == 2 {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *testRaftCluster) reset(init bool, opts ...TestClusterOption) {
@@ -876,6 +926,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 
 	ts := newTestShardAware(node)
 	cfg.Test.ShardStateAware = ts
+	cfg.Customize.CustomTransportFilter = c.transportFilter
 
 	var s *store
 	if c.opts.storeFactory != nil {
@@ -1196,8 +1247,7 @@ func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.Reso
 			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
 			res, err := c.GetProphet().GetStorage().GetResource(shardID)
-			assert.NoError(c.t, err)
-			if res != nil && res.State() == to {
+			if err == nil && res != nil && res.State() == to {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
