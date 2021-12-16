@@ -328,10 +328,12 @@ func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) 
 				zap.Uint64("container", containerID))
 			return false
 		}
-		if container.DownTime() < c.cluster.GetOpts().GetMaxContainerDownTime() {
+		if !res.IsDestroyState() &&
+			container.DownTime() < c.cluster.GetOpts().GetMaxContainerDownTime() {
 			continue
 		}
-		if stats.GetDownSeconds() < uint64(c.cluster.GetOpts().GetMaxContainerDownTime().Seconds()) {
+		if !res.IsDestroyState() &&
+			stats.GetDownSeconds() < uint64(c.cluster.GetOpts().GetMaxContainerDownTime().Seconds()) {
 			continue
 		}
 		return true

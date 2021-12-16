@@ -516,6 +516,13 @@ func (bc *BasicCluster) ScanRange(group uint64, startKey, endKey []byte, limit i
 	return bc.Resources.ScanRange(group, startKey, endKey, limit)
 }
 
+// GetDestroyingResources returns all resources in destroying state
+func (bc *BasicCluster) GetDestroyingResources() []*CachedResource {
+	bc.RLock()
+	defer bc.RUnlock()
+	return bc.Resources.GetDestroyingResources()
+}
+
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
 func (bc *BasicCluster) GetOverlaps(res *CachedResource) []*CachedResource {
 	bc.RLock()

@@ -805,7 +805,8 @@ func SortedPeersStatsEqual(peersA, peersB []metapb.ReplicaStats) bool {
 		return false
 	}
 	for i, peerStats := range peersA {
-		if peerStats.GetReplica().ID != peersB[i].GetReplica().ID {
+		if peerStats.GetReplica().ID != peersB[i].GetReplica().ID ||
+			peerStats.GetDownSeconds() != peersB[i].GetDownSeconds() {
 			return false
 		}
 	}
@@ -1041,6 +1042,17 @@ func (r *CachedResources) ScanRange(group uint64, startKey, endKey []byte, limit
 			resources = append(resources, r.GetResource(resource.Meta.ID()))
 			return true
 		})
+	}
+	return resources
+}
+
+// GetDestroyingResources returns all resources in destroying state
+func (r *CachedResources) GetDestroyingResources() []*CachedResource {
+	var resources []*CachedResource
+	for _, res := range r.resources.m {
+		if res.Meta.State() == metapb.ResourceState_Destroying {
+			resources = append(resources, res)
+		}
 	}
 	return resources
 }
