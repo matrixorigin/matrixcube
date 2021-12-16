@@ -252,18 +252,28 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		// should never be empty here
 		panic("unexpected empty snapshot")
 	}
-	index, _ := pr.sm.getAppliedIndexTerm()
+	index, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+	if err != nil {
+		return false, err
+	}
 	pr.logger.Info("initial snapshot available",
-		zap.Uint64("applied-index", index),
+		zap.Uint64("persistent-log-index", index),
 		zap.Uint64("snapshot-index", ss.Metadata.Index))
 	if ss.Metadata.Index > index {
+		pr.logger.Info("applying initial snapshot",
+			zap.Uint64("index", ss.Metadata.Index))
 		if err := pr.applySnapshot(ss); err != nil {
 			return false, err
 		}
 		pr.pushedIndex = ss.Metadata.Index
 	} else {
-		// snapshot is out of date, just remove it
-		if err := pr.removeSnapshot(ss, true); err != nil {
+		// snapshot is out of date, remove the disk image as we will never apply
+		// the snapshot in the future. keep the logdb record as LogReader needs
+		// this snapshot record to establish the starting point of the persisted
+		// raft log entries.
+		pr.logger.Info("skipped applying initial snapshot",
+			zap.Uint64("index", ss.Metadata.Index))
+		if err := pr.removeSnapshot(ss, false); err != nil {
 			return false, err
 		}
 	}

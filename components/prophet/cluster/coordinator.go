@@ -120,12 +120,42 @@ func (c *coordinator) patrolResources() {
 		// Check resources in the waiting list
 		c.checkWaitingResources()
 
+		// scan all resource in resources tree.
 		for _, group := range c.cluster.GetReplicationConfig().Groups {
 			c.doScan(group, keys)
 			if len(keys[group]) == 0 {
 				patrolCheckResourcesGauge.Set(time.Since(start).Seconds())
 				start = time.Now()
 			}
+		}
+
+		// check destroying resources
+		c.checkDestroyingResources()
+	}
+}
+
+func (c *coordinator) checkDestroyingResources() {
+	resources := c.cluster.GetDestroyingResources()
+	for _, res := range resources {
+		// Skips the resource if there is already a pending operator.
+		if c.opController.GetOperator(res.Meta.ID()) != nil {
+			continue
+		}
+
+		ops := c.checkers.CheckResource(res)
+		if len(ops) == 0 {
+			continue
+		}
+
+		if !c.opController.ExceedContainerLimit(ops...) {
+			n := c.opController.AddWaitingOperator(ops...)
+			c.cluster.logger.Info("added operators",
+				zap.Uint64("resource", res.Meta.ID()),
+				zap.Int("count", n))
+			c.checkers.RemoveWaitingResource(res.Meta.ID())
+			c.cluster.RemoveSuspectResource(res.Meta.ID())
+		} else {
+			c.checkers.AddWaitingResource(res)
 		}
 	}
 }
