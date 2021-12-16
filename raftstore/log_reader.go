@@ -312,6 +312,7 @@ func (lr *LogReader) SetRange(firstIndex uint64, length uint64) {
 	}
 	lr.Lock()
 	defer lr.Unlock()
+	inputFirstIndex, inputLength := firstIndex, length
 	first := lr.firstIndex()
 	last := firstIndex + length - 1
 	if last < first {
@@ -329,12 +330,12 @@ func (lr *LogReader) SetRange(firstIndex uint64, length uint64) {
 	case lr.length == offset:
 		lr.length += length
 	default:
-		lr.logger.Fatal("gap in log entries, marker %d, len %d, first %d, len %d",
+		lr.logger.Fatal("gap in log entries",
 			zap.String("id", lr.id()),
 			zap.Uint64("marker", lr.markerIndex),
 			zap.Uint64("lr.len", lr.length),
-			zap.Uint64("first", lr.markerIndex),
-			zap.Uint64("len", length))
+			zap.Uint64("first", inputFirstIndex),
+			zap.Uint64("len", inputLength))
 	}
 }
 

@@ -150,6 +150,8 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
 				// skip this compaction operation as we can't establish the marker
 				// position.
+				pr.logger.Info("skipped a compaction request",
+					zap.Uint64("index", r.index))
 				return
 			}
 			panic(err)
@@ -174,6 +176,8 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 		if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
 			panic(err)
 		}
+		pr.logger.Info("dummy snapshot saved",
+			zap.Uint64("index", r.index))
 	}
 	// update LogReader's range info to make the compacted entries invisible to
 	// raft.
@@ -186,6 +190,8 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 	if err := pr.logdb.RemoveEntriesTo(pr.shardID, pr.replicaID, r.index); err != nil {
 		panic(err)
 	}
+	pr.logger.Info("compaction completed",
+		zap.Uint64("index", r.index))
 }
 
 func (pr *replica) applyConfChange(cp configChangeResult) {
