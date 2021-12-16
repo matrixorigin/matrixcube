@@ -193,7 +193,7 @@ func (l *KVLogDB) SaveRaftState(shardID uint64,
 		log.ShardIDField(shardID),
 		log.ReplicaIDField(replicaID),
 		zap.Uint64("commit", rd.HardState.Commit),
-		zap.Uint64("term", rd.HardState.Commit),
+		zap.Uint64("term", rd.HardState.Term),
 		zap.Uint64("vote", rd.HardState.Vote))
 
 	if !raft.IsEmptyHardState(rd.HardState) {

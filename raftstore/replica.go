@@ -307,6 +307,11 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 	}
 	if !raft.IsEmptySnap(ss) && ss.Metadata.Index > persistentLogIndex {
 		index, term = ss.Metadata.Index, ss.Metadata.Term
+		pr.logger.Info("init applied index value determined by snapshot",
+			zap.Uint64("index", index))
+	} else {
+		pr.logger.Info("init applied index value determined by data storage",
+			zap.Uint64("index", index))
 	}
 
 	pr.sm.updateAppliedIndexTerm(index, term)
@@ -370,6 +375,8 @@ func (pr *replica) initLogState() (bool, error) {
 		}
 	}
 
+	pr.logger.Info("calling ReadRaftState",
+		zap.Uint64("index", ss.Metadata.Index))
 	rs, err := pr.logdb.ReadRaftState(pr.shardID,
 		pr.replicaID, ss.Metadata.Index)
 	if errors.Is(err, logdb.ErrNoSavedLog) {
