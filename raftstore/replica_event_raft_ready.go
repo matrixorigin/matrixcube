@@ -145,13 +145,13 @@ func (pr *replica) entriesToApply(entries []raftpb.Entry) []raftpb.Entry {
 	firstIndex := entries[0].Index
 	if lastIndex <= pr.pushedIndex {
 		pr.logger.Fatal("all entries older than current state",
-			zap.Uint64("firstIndex", firstIndex),
-			zap.Uint64("lastIndex", lastIndex),
+			zap.Uint64("first-index", firstIndex),
+			zap.Uint64("last-index", lastIndex),
 			zap.Uint64("expected", pr.pushedIndex+1))
 	}
 	if firstIndex > pr.pushedIndex+1 {
 		pr.logger.Fatal("entry hole found",
-			zap.Uint64("firstIndex", firstIndex),
+			zap.Uint64("first-index", firstIndex),
 			zap.Uint64("expected", pr.pushedIndex+1))
 	}
 	if pr.pushedIndex-firstIndex+1 < uint64(len(entries)) {
@@ -220,7 +220,7 @@ func (pr *replica) sendMessage(msg raftpb.Message) {
 		// We don't care such failed message transmission, just log the error
 		pr.logger.Debug("fail to send msg",
 			zap.Uint64("from", msg.From),
-			zap.Uint64("from", msg.To),
+			zap.Uint64("to", msg.To),
 			zap.Error(err))
 	}
 	pr.metrics.ready.message++

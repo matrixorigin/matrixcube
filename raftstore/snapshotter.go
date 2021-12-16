@@ -39,6 +39,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
@@ -158,8 +159,8 @@ func (s *snapshotter) removeOrphanSnapshots() error {
 			s.logger.Info("found a snapshot folder",
 				zap.String("dirname", fn),
 				zap.Bool("no-snapshot-in-logdb", noss),
-				zap.Uint64("index", index),
-				zap.Uint64("snapshot-index", ss.Metadata.Index))
+				log.IndexField(index),
+				log.SnapshotField(ss))
 			if noss || index != ss.Metadata.Index {
 				if err := removeDir(dirName); err != nil {
 					return err

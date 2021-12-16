@@ -95,8 +95,7 @@ func (r *replica) createSnapshot() (raftpb.Snapshot, bool, error) {
 }
 
 func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
-	logger := r.logger.With(
-		zap.Uint64("snapshot-index", ss.Metadata.Index))
+	logger := r.logger.With(log.SnapshotField(ss))
 	// double check whether we are trying to recover from a dummy snapshot
 	if len(ss.Data) > 0 {
 		var si meta.SnapshotInfo
@@ -156,8 +155,7 @@ func (r *replica) snapshotCompaction(ss raftpb.Snapshot) error {
 }
 
 func (r *replica) removeSnapshot(ss raftpb.Snapshot, removeFromLogDB bool) error {
-	logger := r.logger.With(
-		zap.Uint64("snapshot-index", ss.Metadata.Index))
+	logger := r.logger.With(log.SnapshotField(ss))
 	if removeFromLogDB {
 		if err := r.logdb.RemoveSnapshot(r.shardID, ss.Metadata.Index); err != nil {
 			logger.Error("failed to remove snapshot record from logdb",

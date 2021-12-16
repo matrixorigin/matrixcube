@@ -43,7 +43,7 @@ func (q *readIndexQueue) ready(state raft.ReadState) {
 	var batch rpc.RequestBatch
 	protoc.MustUnmarshal(&batch, state.RequestCtx)
 	if ce := q.logger.Check(zap.DebugLevel, "read index ready"); ce != nil {
-		ce.Write(zap.Uint64("index", state.Index),
+		ce.Write(log.IndexField(state.Index),
 			log.RequestBatchField("requests", batch))
 	}
 	q.reads = append(q.reads, readyRead{

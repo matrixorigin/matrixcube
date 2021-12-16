@@ -168,7 +168,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 		// notify all clients that current shard has been removed or splitted
 		if !d.canApply(entry) {
 			if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
-				ce.Write(zap.Uint64("index", entry.Index),
+				ce.Write(log.IndexField(entry.Index),
 					zap.String("type", entry.Type.String()),
 					log.ReasonField("continue check failed"))
 			}
@@ -251,21 +251,21 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 	ignoreMetrics := true
 	if !d.checkEpoch(ctx.req) {
 		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
-			ce.Write(zap.Uint64("index", ctx.index),
+			ce.Write(log.IndexField(ctx.index),
 				log.ReasonField("epoch check failed"),
 				log.EpochField("current-epoch", d.getShard().Epoch),
-				zap.Uint64("index", ctx.index))
+				log.IndexField(ctx.index))
 		}
 		resp = errorStaleEpochResp(ctx.req.Header.ID, d.getShard())
 	} else {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to apply committed log"); ce != nil {
-			ce.Write(zap.Uint64("index", ctx.index),
+			ce.Write(log.IndexField(ctx.index),
 				log.RequestBatchField("requests", ctx.req))
 		}
 
 		if ctx.req.IsAdmin() {
 			if ce := d.logger.Check(zap.DebugLevel, "apply admin request"); ce != nil {
-				ce.Write(zap.Uint64("index", ctx.index),
+				ce.Write(log.IndexField(ctx.index),
 					zap.String("type", ctx.req.GetAdminCmdType().String()))
 			}
 			resp, err = d.execAdminRequest(ctx)
@@ -274,14 +274,14 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 			}
 		} else {
 			if ce := d.logger.Check(zap.DebugLevel, "apply write requests"); ce != nil {
-				ce.Write(zap.Uint64("index", ctx.index))
+				ce.Write(log.IndexField(ctx.index))
 			}
 			ignoreMetrics = false
 			resp = d.execWriteRequest(ctx)
 		}
 
 		if ce := d.logger.Check(zap.DebugLevel, "apply committed log completed"); ce != nil {
-			ce.Write(zap.Uint64("index", ctx.index),
+			ce.Write(log.IndexField(ctx.index),
 				log.ResponseBatchField("responses", resp))
 		}
 	}
