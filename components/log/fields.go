@@ -30,7 +30,7 @@ import (
 
 // SnapshotField returns snapshot field
 func SnapshotField(ss raftpb.Snapshot) zap.Field {
-	return zap.Uint64("index", ss.Metadata.Index)
+	return zap.Uint64("snapshot-index", ss.Metadata.Index)
 }
 
 // SourceContainerField returns source container field

@@ -135,7 +135,7 @@ func (pr *replica) applyUpdateLabels(result updateLabelsResult) {
 
 func (pr *replica) applyCompactionResult(r compactionResult) {
 	pr.logger.Info("log compaction called",
-		zap.Uint64("index", r.index))
+		log.IndexField(r.index))
 	// generate a dummy snapshot so we can run the log compaction.
 	// this dummy snapshot will be used to establish the marker position of
 	// the LogReader on startup.
@@ -146,12 +146,12 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 		if err != nil {
 			pr.logger.Error("failed to get term value",
 				zap.Error(err),
-				zap.Uint64("index", r.index))
+				log.IndexField(r.index))
 			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
 				// skip this compaction operation as we can't establish the marker
 				// position.
 				pr.logger.Info("skipped a compaction request",
-					zap.Uint64("index", r.index))
+					log.IndexField(r.index))
 				return
 			}
 			panic(err)
@@ -177,7 +177,7 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 			panic(err)
 		}
 		pr.logger.Info("dummy snapshot saved",
-			zap.Uint64("index", r.index))
+			log.IndexField(r.index))
 	}
 	// update LogReader's range info to make the compacted entries invisible to
 	// raft.
@@ -191,7 +191,7 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 		panic(err)
 	}
 	pr.logger.Info("compaction completed",
-		zap.Uint64("index", r.index))
+		log.IndexField(r.index))
 }
 
 func (pr *replica) applyConfChange(cp configChangeResult) {

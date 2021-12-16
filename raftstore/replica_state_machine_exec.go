@@ -102,7 +102,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	current := d.getShard()
 
 	d.logger.Info("begin to apply change replica",
-		zap.Uint64("index", ctx.index),
+		log.IndexField(ctx.index),
 		log.ShardField("current", current),
 		log.ConfigChangeField("request", &req))
 

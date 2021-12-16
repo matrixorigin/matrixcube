@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
@@ -258,10 +259,10 @@ func (pr *replica) handleInitializedState() (bool, error) {
 	}
 	pr.logger.Info("initial snapshot available",
 		zap.Uint64("persistent-log-index", index),
-		zap.Uint64("snapshot-index", ss.Metadata.Index))
+		log.SnapshotField(ss))
 	if ss.Metadata.Index > index {
 		pr.logger.Info("applying initial snapshot",
-			zap.Uint64("index", ss.Metadata.Index))
+			log.IndexField(ss.Metadata.Index))
 		if err := pr.applySnapshot(ss); err != nil {
 			return false, err
 		}
@@ -272,7 +273,7 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		// this snapshot record to establish the starting point of the persisted
 		// raft log entries.
 		pr.logger.Info("skipped applying initial snapshot",
-			zap.Uint64("index", ss.Metadata.Index))
+			log.IndexField(ss.Metadata.Index))
 		if err := pr.removeSnapshot(ss, false); err != nil {
 			return false, err
 		}
@@ -502,7 +503,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 		return
 	}
 	pr.logger.Info("requesting log compaction",
-		zap.Uint64("index", compactIndex))
+		log.IndexField(compactIndex))
 	pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
 		CompactIndex: compactIndex,
 	})
