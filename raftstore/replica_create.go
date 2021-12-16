@@ -37,6 +37,7 @@ type replicaCreatorFactory func() *replicaCreator
 type replicaCreator struct {
 	store                             *store
 	sync, saveMetadata                bool
+	saveLog                           bool
 	reason                            string
 	startReplica                      bool
 	afterStartedFunc, beforeStartFunc func(*replica)
@@ -75,6 +76,12 @@ func (rc *replicaCreator) withStartReplica(beforeStartFunc, afterStartedFunc fun
 func (rc *replicaCreator) withSaveMetadata(sync bool) *replicaCreator {
 	rc.sync = sync
 	rc.saveMetadata = true
+	rc.saveLog = true
+	return rc
+}
+
+func (rc *replicaCreator) withSaveLog() *replicaCreator {
+	rc.saveLog = true
 	return rc
 }
 
@@ -91,7 +98,7 @@ func (rc *replicaCreator) adjust() {
 func (rc *replicaCreator) create(shards []Shard) {
 	rc.adjust()
 	shards, replicas := rc.getTarget(shards)
-	rc.maybeSaveMetadata(shards)
+	rc.maybeInitReplica(shards)
 	rc.maybeStartReplicas(shards, replicas)
 }
 
@@ -127,7 +134,11 @@ func (rc *replicaCreator) getTarget(originShards []Shard) ([]Shard, []*replica) 
 	return shards, replicas
 }
 
-func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
+func (rc *replicaCreator) maybeInitReplica(shards []Shard) {
+	if !rc.saveLog && !rc.saveMetadata {
+		return
+	}
+
 	doWithShardsByGroupID(rc.store.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
 		var sm []meta.ShardMetadata
 		var ids []uint64
@@ -145,11 +156,13 @@ func (rc *replicaCreator) maybeSaveMetadata(shards []Shard) {
 				},
 			})
 
-			err := rc.maybeInsertBootstrapRaftLog(sm[len(sm)-1].Metadata, rc.getLocalReplica(shard))
-			if err != nil {
-				rc.logger.Fatal("failed to add 1th raft log",
-					log.ShardField("shard", shard),
-					zap.Error(err))
+			if rc.saveLog {
+				err := rc.maybeInsertBootstrapRaftLog(sm[len(sm)-1].Metadata, rc.getLocalReplica(shard))
+				if err != nil {
+					rc.logger.Fatal("failed to add 1th raft log",
+						log.ShardField("shard", shard),
+						zap.Error(err))
+				}
 			}
 		}
 

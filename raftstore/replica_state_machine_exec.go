@@ -256,6 +256,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	replicaFactory := d.replicaCreatorFactory()
 	replicaFactory.withReason("splited").
 		withLogdbContext(d.wc).
+		withSaveLog().
 		create(newShards)
 
 	// We can't destroy Old Shard directly, but mark it as being destroyed. Because at this time, we are not
