@@ -67,6 +67,7 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 	s.initMeta()
 
 	if s.mustLoadStoreMetadata() {
+		s.mustPutStore()
 		return
 	}
 
@@ -127,13 +128,16 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 		}
 	}
 
+	s.mustPutStore()
+	s.startHandleResourceHeartbeat()
+}
+
+func (s *store) mustPutStore() {
 	if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
 		s.logger.Fatal("failed to put container to prophet",
 			s.storeField(),
 			zap.Error(err))
 	}
-
-	s.startHandleResourceHeartbeat()
 }
 
 func (s *store) mustSaveStoreMetadata() {
