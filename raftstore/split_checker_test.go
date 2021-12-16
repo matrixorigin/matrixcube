@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,6 +34,17 @@ func TestSplitCheckerAdd(t *testing.T) {
 		sc.add(Shard{ID: uint64(i)})
 		assert.Equal(t, 1, len(sc.shardsC))
 	}
+}
+
+func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
+	sc := newSplitChecker(1, 100, nil, nil)
+	sc.mu.running = true
+
+	sc.add(Shard{State: metapb.ResourceState_Destroying})
+	assert.Equal(t, 0, len(sc.shardsC))
+
+	sc.add(Shard{State: metapb.ResourceState_Destroyed})
+	assert.Equal(t, 0, len(sc.shardsC))
 }
 
 func TestSplitCheckerStartAndClose(t *testing.T) {

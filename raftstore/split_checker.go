@@ -20,6 +20,7 @@ import (
 
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"go.uber.org/zap"
 )
 
@@ -170,6 +171,11 @@ func (sc *splitChecker) add(shard Shard) {
 	defer sc.mu.Unlock()
 
 	if !sc.mu.running {
+		return
+	}
+
+	if shard.State == metapb.ResourceState_Destroying ||
+		shard.State == metapb.ResourceState_Destroyed {
 		return
 	}
 
