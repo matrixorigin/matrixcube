@@ -474,3 +474,16 @@ func TestStateMachineApplyCommittedEntriesAllowEmptyInput(t *testing.T) {
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
+
+func TestStateMachineCannotApplyInDestroyingAfterRestart(t *testing.T) {
+	h := &testReplicaResultHandler{}
+	f := func(sm *stateMachine) {
+		sm.metadataMu.removed = false
+		sm.metadataMu.splited = false
+		sm.metadataMu.shard.State = metapb.ResourceState_Destroying
+
+		assert.False(t, sm.canApply(raftpb.Entry{}))
+		assert.True(t, sm.canApply(raftpb.Entry{Type: raftpb.EntryConfChange}))
+	}
+	runSimpleStateMachineTest(t, f, h)
+}

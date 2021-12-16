@@ -319,10 +319,16 @@ func (d *stateMachine) canApply(entry raftpb.Entry) bool {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 
-	if !d.metadataMu.removed && !d.metadataMu.splited {
+	// After restart, the removed and splited in stateMachine is false.
+	// so we need check shard state.
+	if !d.metadataMu.removed &&
+		!d.metadataMu.splited &&
+		d.metadataMu.shard.State != metapb.ResourceState_Destroying {
 		return true
 	}
 
+	// In some scenarios, we need to remove the replica that is not online,
+	// so that the deletion task can be completed.
 	return isConfigChangeEntry(entry) &&
 		d.metadataMu.shard.State == metapb.ResourceState_Destroying
 }
