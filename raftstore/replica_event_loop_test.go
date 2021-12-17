@@ -245,6 +245,20 @@ func TestDoCheckCompactLog(t *testing.T) {
 	}, 102)
 	assert.Equal(t, int64(0), pr.requests.Len())
 
+	// force count, if minReplicated - first == CompactThreshold
+	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
+	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
+	pr.stats.raftLogSizeHint = 0
+	pr.sm.setFirstIndex(100)
+	pr.appliedIndex = 102
+	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
+		1: {Match: 101},
+	}, 101)
+	v, _ := pr.requests.Peek()
+	req := &rpc.CompactLogRequest{}
+	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
+	assert.Equal(t, uint64(101), req.CompactIndex)
+
 	// force count
 	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
 	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1000
@@ -255,10 +269,10 @@ func TestDoCheckCompactLog(t *testing.T) {
 	pr.doCheckLogCompact(map[uint64]trackerPkg.Progress{
 		1: {Match: 101},
 	}, 101)
-	v, _ := pr.requests.Peek()
-	req := &rpc.CompactLogRequest{}
+	v, _ = pr.requests.Peek()
+	req = &rpc.CompactLogRequest{}
 	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, uint64(100), req.CompactIndex)
+	assert.Equal(t, uint64(101), req.CompactIndex)
 
 	// force bytes
 	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000

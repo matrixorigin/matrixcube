@@ -483,19 +483,37 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	firstIndex := pr.getFirstIndex()
 	if minReplicatedIndex < firstIndex ||
 		minReplicatedIndex-firstIndex <= pr.store.cfg.Raft.RaftLog.CompactThreshold {
-		return
+		pr.logger.Debug("maybe skip requesting log compaction",
+			zap.Uint64("min-replicated-index", minReplicatedIndex),
+			zap.Uint64("applied-index", minReplicatedIndex),
+			zap.Uint64("last-index", lastIndex),
+			zap.Uint64("first-index", firstIndex),
+			zap.Uint64("threshold", pr.store.cfg.Raft.RaftLog.CompactThreshold))
+		compactIndex = 0
 	}
-	if appliedIndex > firstIndex &&
+
+	// check wether to force compaction or not
+	if compactIndex == 0 &&
+		appliedIndex > firstIndex &&
 		appliedIndex-firstIndex >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
 		compactIndex = appliedIndex
-	} else if pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
+	} else if compactIndex == 0 &&
+		pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
 		compactIndex = appliedIndex
 	}
+
 	if compactIndex == 0 {
+		pr.logger.Debug("requesting log compaction skipped",
+			zap.Uint64("min-replicated-index", minReplicatedIndex),
+			zap.Uint64("applied-index", minReplicatedIndex),
+			zap.Uint64("last-index", lastIndex),
+			zap.Uint64("first-index", firstIndex),
+			zap.Uint64("threshold", pr.store.cfg.Raft.RaftLog.CompactThreshold))
 		return
 	}
+
 	if compactIndex > minReplicatedIndex {
-		pr.logger.Info("some replica lag is too large, maybe sent a snapshot later",
+		pr.logger.Debug("some replica lag is too large, maybe sent a snapshot later",
 			zap.Uint64("lag", compactIndex-minReplicatedIndex))
 	}
 	compactIndex--
