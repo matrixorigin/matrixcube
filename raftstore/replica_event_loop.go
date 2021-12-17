@@ -253,7 +253,7 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		// should never be empty here
 		panic("unexpected empty snapshot")
 	}
-	index, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+	index, err := pr.getPersistentLogIndex()
 	if err != nil {
 		return false, err
 	}

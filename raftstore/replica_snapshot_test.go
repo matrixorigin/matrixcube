@@ -18,6 +18,7 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/log"
@@ -140,14 +141,14 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 		_, err = r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
-		persistentLogIndex, err := r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
+		persistentLogIndex, err := r.getPersistentLogIndex()
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(0), persistentLogIndex)
 
 		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
 		// applySnapshot will have the persistentLogIndex value updated
-		persistentLogIndex, err = r.sm.dataStorage.GetPersistentLogIndex(shard.ID)
+		persistentLogIndex, err = r.getPersistentLogIndex()
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(100), persistentLogIndex)
 
@@ -166,7 +167,7 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		env := r.snapshotter.getRecoverSnapshotEnv(ss)
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
-		assert.True(t, exist)
+		assert.False(t, exist)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
@@ -225,6 +226,79 @@ func TestCreatingOutOfDateSnapshotWillCausePanic(t *testing.T) {
 		}
 		assert.NoError(t, r.lr.CreateSnapshot(ss))
 		r.createSnapshot()
+	}
+	fs := vfs.GetTestFS()
+	runReplicaSnapshotTest(t, fn, fs)
+}
+
+func TestSnapshotCompactionWithMatchedPersistentLogIndex(t *testing.T) {
+	testSnapshotCompaction(t, 200, true)
+}
+
+func TestSnapshotCompactionWithMismatchedPersistentLogIndex(t *testing.T) {
+	testSnapshotCompaction(t, 199, false)
+}
+
+func testSnapshotCompaction(t *testing.T, index uint64, matched bool) {
+	fn := func(t *testing.T, r *replica, fs vfs.FS) {
+		// setup key range and old metadata
+		r.store.updateShardKeyRange(r.getShard().Group, r.getShard())
+		r.aware = newTestShardAware(0)
+		r.aware.Created(r.getShard())
+
+		// update shard
+		replicaRec := Replica{ID: 1, ContainerID: 100}
+		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}, Start: []byte{1}, End: []byte{2}}
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+			{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
+		}))
+		ss1, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(100), ss1.Metadata.Index)
+		assert.True(t, created)
+
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+			{ShardID: 1, LogIndex: 200, Metadata: meta.ShardLocalState{Shard: shard}},
+		}))
+		r.sm.updateAppliedIndexTerm(200, 2)
+		ss2, created, err := r.createSnapshot()
+		if err != nil {
+			t.Fatalf("failed to create snapshot %v", err)
+		}
+		assert.Equal(t, uint64(200), ss2.Metadata.Index)
+		assert.True(t, created)
+
+		rd1 := raft.Ready{Snapshot: ss1}
+		rd2 := raft.Ready{Snapshot: ss2}
+		wc := r.logdb.NewWorkerContext()
+		assert.NoError(t, r.logdb.SaveRaftState(1, 1, rd1, wc))
+		wc.Reset()
+		assert.NoError(t, r.logdb.SaveRaftState(1, 1, rd2, wc))
+		snapshots, err := r.logdb.GetAllSnapshots(r.shardID)
+		assert.NoError(t, err)
+		assert.Equal(t, []raftpb.Snapshot{ss1, ss2}, snapshots)
+
+		env1 := r.snapshotter.getRecoverSnapshotEnv(ss1)
+		env2 := r.snapshotter.getRecoverSnapshotEnv(ss2)
+		assert.True(t, env1.FinalDirExists())
+		assert.True(t, env2.FinalDirExists())
+
+		assert.NoError(t, r.snapshotCompaction(ss2, index))
+
+		// when matched, both snapshot images are suppose to be removed
+		// otherwise, the latest image should be kept
+		// the latest snapshot record is always kept
+		assert.False(t, env1.FinalDirExists())
+		if matched {
+			assert.False(t, env2.FinalDirExists())
+		} else {
+			assert.True(t, env2.FinalDirExists())
+		}
+		snapshots, err = r.logdb.GetAllSnapshots(r.shardID)
+		assert.NoError(t, err)
+		assert.Equal(t, []raftpb.Snapshot{ss2}, snapshots)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)
