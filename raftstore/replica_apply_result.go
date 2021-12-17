@@ -134,6 +134,9 @@ func (pr *replica) applyUpdateLabels(result updateLabelsResult) {
 }
 
 func (pr *replica) applyCompactionResult(r compactionResult) {
+	if r.index == 0 {
+		return
+	}
 	pr.logger.Info("log compaction called",
 		log.IndexField(r.index))
 	// generate a dummy snapshot so we can run the log compaction.
@@ -141,44 +144,42 @@ func (pr *replica) applyCompactionResult(r compactionResult) {
 	// the LogReader on startup.
 	// such dummy snapshot will never be loaded, as its Index value is not
 	// greater than data storage's persistentLogIndex value.
-	if r.index > 0 {
-		term, err := pr.lr.Term(r.index)
-		if err != nil {
-			pr.logger.Error("failed to get term value",
-				zap.Error(err),
-				log.IndexField(r.index))
-			if err == raft.ErrCompacted || err == raft.ErrUnavailable {
-				// skip this compaction operation as we can't establish the marker
-				// position.
-				pr.logger.Info("skipped a compaction request",
-					log.IndexField(r.index))
-				return
-			}
-			panic(err)
-		}
-		// this is a dummy snapshot meaning there is no on disk snapshot image.
-		// we are not supposed to apply such dummy snapshot. the dummy flag is
-		// used for debugging purposes.
-		si := meta.SnapshotInfo{
-			Dummy: true,
-		}
-		rd := raft.Ready{
-			Snapshot: raftpb.Snapshot{
-				Metadata: raftpb.SnapshotMetadata{
-					Index: r.index,
-					Term:  term,
-				},
-				Data: protoc.MustMarshal(&si),
-			},
-		}
-		wc := pr.logdb.NewWorkerContext()
-		defer wc.Close()
-		if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
-			panic(err)
-		}
-		pr.logger.Info("dummy snapshot saved",
+	term, err := pr.lr.Term(r.index)
+	if err != nil {
+		pr.logger.Error("failed to get term value",
+			zap.Error(err),
 			log.IndexField(r.index))
+		if err == raft.ErrCompacted || err == raft.ErrUnavailable {
+			// skip this compaction operation as we can't establish the marker
+			// position.
+			pr.logger.Info("skipped a compaction request",
+				log.IndexField(r.index))
+			return
+		}
+		panic(err)
 	}
+	// this is a dummy snapshot meaning there is no on disk snapshot image.
+	// we are not supposed to apply such dummy snapshot. the dummy flag is
+	// used for debugging purposes.
+	si := meta.SnapshotInfo{
+		Dummy: true,
+	}
+	rd := raft.Ready{
+		Snapshot: raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: r.index,
+				Term:  term,
+			},
+			Data: protoc.MustMarshal(&si),
+		},
+	}
+	wc := pr.logdb.NewWorkerContext()
+	defer wc.Close()
+	if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
+		panic(err)
+	}
+	pr.logger.Info("dummy snapshot saved",
+		log.IndexField(r.index))
 	// update LogReader's range info to make the compacted entries invisible to
 	// raft.
 	if err := pr.lr.Compact(r.index); err != nil {
