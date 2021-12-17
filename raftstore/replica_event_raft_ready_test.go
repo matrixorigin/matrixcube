@@ -253,6 +253,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
+		r.handleAction(make([]interface{}, readyBatchSize))
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))
