@@ -119,9 +119,17 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	// r.replica is more like a local cached copy of the replica record.
 	r.replica = *findReplica(r.getShard(), r.storeID)
 	r.sm.updateAppliedIndexTerm(ss.Metadata.Index, ss.Metadata.Term)
-
+	// persistentLogIndex is not guaranteed to be the same as ss.Metadata.Index
+	// as the log entry at ss.Metadata.Index, including a few nearby entries
+	// are entries not visible to the state machine, e.g. NOOP entries or admin
+	// entries. in such cases, we will have to keep both the ss snapshot record
+	// and its on disk snapshot image.
+	persistentLogIndex, err := r.getPersistentLogIndex()
+	if err != nil {
+		return err
+	}
 	// FIXME: change this to an event worker action
-	if err := r.snapshotCompaction(ss); err != nil {
+	if err := r.snapshotCompaction(ss, persistentLogIndex); err != nil {
 		logger.Error("snapshot compaction failed",
 			zap.Error(err))
 		return err
@@ -138,17 +146,22 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 }
 
 // TODO: add a test for snapshotCompaction
-func (r *replica) snapshotCompaction(ss raftpb.Snapshot) error {
+func (r *replica) snapshotCompaction(ss raftpb.Snapshot,
+	persistentLogIndex uint64) error {
 	snapshots, err := r.logdb.GetAllSnapshots(r.shardID)
 	if err != nil {
 		return err
 	}
 	for _, cs := range snapshots {
-		// TODO: determine whether to delete ss based on persistentLogIndex value
 		if cs.Metadata.Index < ss.Metadata.Index {
 			if err := r.removeSnapshot(cs, true); err != nil {
 				return err
 			}
+		}
+	}
+	if persistentLogIndex == ss.Metadata.Index {
+		if err := r.removeSnapshot(ss, false); err != nil {
+			return err
 		}
 	}
 	return nil

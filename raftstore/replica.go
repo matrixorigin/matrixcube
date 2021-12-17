@@ -197,7 +197,7 @@ func (pr *replica) start() {
 			zap.Error(err))
 	}
 	// pr.initAppliedIndex must be called before pr.initConfState()
-	if err := pr.initAppliedIndex(pr.sm.dataStorage); err != nil {
+	if err := pr.initAppliedIndex(); err != nil {
 		pr.logger.Fatal("failed to initialize applied index",
 			zap.Error(err))
 	}
@@ -289,6 +289,10 @@ func (pr *replica) getShard() Shard {
 	return pr.sm.getShard()
 }
 
+func (pr *replica) getPersistentLogIndex() (uint64, error) {
+	return pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+}
+
 func (pr *replica) getFirstIndex() uint64 {
 	return pr.sm.getFirstIndex()
 }
@@ -299,9 +303,8 @@ func (pr *replica) getShardID() uint64 {
 
 // TODO: move this into the state machine, it should be invoked as a part of the
 // state machine restart procedure.
-// initAppliedIndex load PersistentLogIndex from datastorage, use this index to init raft rawnode.
-func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
-	persistentLogIndex, err := storage.GetPersistentLogIndex(pr.shardID)
+func (pr *replica) initAppliedIndex() error {
+	persistentLogIndex, err := pr.getPersistentLogIndex()
 	if err != nil {
 		return err
 	}
@@ -330,7 +333,7 @@ func (pr *replica) initAppliedIndex(storage storage.DataStorage) error {
 // initConfState initializes the ConfState of the LogReader which will be
 // applied to the raft module.
 func (pr *replica) initConfState() error {
-	persistentLogIndex, err := pr.sm.dataStorage.GetPersistentLogIndex(pr.shardID)
+	persistentLogIndex, err := pr.getPersistentLogIndex()
 	if err != nil {
 		return err
 	}

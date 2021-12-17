@@ -139,10 +139,11 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.Equal(t, shard, sms[0].Metadata.Shard)
 
 		env := r.snapshotter.getRecoverSnapshotEnv(ss)
-		// latest snapshot is not removed
+		// latest snapshot is removed when the persistentLogIndex matches the
+		// ss.Metadata.Index
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
-		assert.True(t, exist)
+		assert.False(t, exist)
 		// snapshot record is not removed
 		_, err = r.logdb.GetSnapshot(1)
 		assert.NoError(t, err)

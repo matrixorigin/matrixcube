@@ -261,7 +261,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		env := r.snapshotter.getRecoverSnapshotEnv(ss)
 		exist, err := fileutil.Exist(env.GetFinalDir(), fs)
 		assert.NoError(t, err)
-		assert.True(t, exist)
+		assert.False(t, exist)
 		_, err = r.logdb.GetSnapshot(1)
 		assert.NoError(t, err)
 	}
