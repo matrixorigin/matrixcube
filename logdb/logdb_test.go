@@ -69,7 +69,7 @@ func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
 	defer leaktest.AfterTest(t)()
 	kv := getTestStorage(fs)
 	defer kv.Close()
-	db := NewKVLogDB(kv, log.GetDefaultZapLogger())
+	db := NewKVLogDB(kv, log.GetPanicZapLogger())
 	tf(t, db)
 }
 
@@ -148,23 +148,53 @@ func TestLogDBGetAllSnapshots(t *testing.T) {
 
 func TestLogDBRemoveSnapshot(t *testing.T) {
 	tf := func(t *testing.T, db *KVLogDB) {
-		rd := raft.Ready{
+		rd1 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 100},
+			},
+		}
+		rd2 := raft.Ready{
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{Index: 200},
+			},
+		}
+		wc := db.NewWorkerContext()
+		defer wc.Close()
+		if err := db.SaveRaftState(testShardID, 100, rd1, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		wc.Reset()
+		if err := db.SaveRaftState(testShardID, 100, rd2, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		assert.NoError(t, db.RemoveSnapshot(testShardID, rd1.Snapshot.Metadata.Index))
+
+		v, err := db.GetAllSnapshots(testShardID)
+		assert.NoError(t, err)
+		assert.Equal(t, []raftpb.Snapshot{rd2.Snapshot}, v)
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBRemovingTheMostRecentSnapshotWillPanic(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("panic not triggered")
+			}
+		}()
+		rd1 := raft.Ready{
 			Snapshot: raftpb.Snapshot{
 				Metadata: raftpb.SnapshotMetadata{Index: 100},
 			},
 		}
 		wc := db.NewWorkerContext()
-		if err := db.SaveRaftState(testShardID, 100, rd, wc); err != nil {
+		defer wc.Close()
+		if err := db.SaveRaftState(testShardID, 100, rd1, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		v, err := db.GetSnapshot(testShardID)
-		assert.NoError(t, err)
-		assert.Equal(t, rd.Snapshot, v)
-		assert.NoError(t, db.RemoveSnapshot(testShardID, rd.Snapshot.Metadata.Index))
-
-		v, err = db.GetSnapshot(testShardID)
-		assert.Equal(t, ErrNoSnapshot, err)
-		assert.Empty(t, v)
+		db.RemoveSnapshot(testShardID, rd1.Snapshot.Metadata.Index)
 	}
 	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)
@@ -334,6 +364,12 @@ func TestLogDBRemoveEntriesTo(t *testing.T) {
 		rd := raft.Ready{
 			Entries:   []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
 			HardState: raftpb.HardState{Commit: 4, Term: 1, Vote: 2},
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{
+					Index: 5,
+					Term:  1,
+				},
+			},
 		}
 		wc := db.NewWorkerContext()
 		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
@@ -353,6 +389,56 @@ func TestLogDBRemoveEntriesTo(t *testing.T) {
 		}
 		if len(ents) != 1 {
 			t.Errorf("unexpected entry count")
+		}
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBRemovingTooManyLogEntriesWillPanic(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("failed to trigger panic")
+			}
+		}()
+		rd := raft.Ready{
+			Entries: []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{
+					Index: 4,
+					Term:  1,
+				},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		if err := db.RemoveEntriesTo(testShardID, testReplicaID, 5); err != nil {
+			t.Fatalf("remove entries to failed, %v", err)
+		}
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBRemoveEntriesWithoutSnapshotWillPanic(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatalf("failed to trigger panic")
+			}
+		}()
+		rd := raft.Ready{
+			Entries: []raftpb.Entry{{Index: 4, Term: 1}, {Index: 5, Term: 1}, {Index: 6, Term: 1}},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		if err := db.RemoveEntriesTo(testShardID, testReplicaID, 5); err != nil {
+			t.Fatalf("remove entries to failed, %v", err)
 		}
 	}
 	fs := vfs.GetTestFS()

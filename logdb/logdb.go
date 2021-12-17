@@ -146,26 +146,26 @@ func (l *KVLogDB) NewWorkerContext() *WorkerContext {
 }
 
 func (l *KVLogDB) RemoveSnapshot(shardID uint64, index uint64) error {
+	ss, err := l.GetSnapshot(shardID)
+	if err != nil && err != ErrNoSnapshot {
+		return err
+	}
+	if !raft.IsEmptySnap(ss) && ss.Metadata.Index == index {
+		panic("trying to remove the most recent snapshot")
+	}
 	key := keys.GetSnapshotKey(shardID, index, nil)
 	return l.ms.Delete(key, true)
 }
 
 func (l *KVLogDB) GetSnapshot(shardID uint64) (raftpb.Snapshot, error) {
-	fk := keys.GetSnapshotKey(shardID, 0, nil)
-	lk := keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
-	var v []byte
-	if err := l.ms.Scan(fk, lk, func(key, value []byte) (bool, error) {
-		v = value
-		return true, nil
-	}, true); err != nil {
+	snapshots, err := l.GetAllSnapshots(shardID)
+	if err != nil {
 		return raftpb.Snapshot{}, err
 	}
-	if len(v) == 0 {
+	if len(snapshots) == 0 {
 		return raftpb.Snapshot{}, ErrNoSnapshot
 	}
-	var ss raftpb.Snapshot
-	protoc.MustUnmarshal(&ss, v)
-	return ss, nil
+	return snapshots[len(snapshots)-1], nil
 }
 
 func (l *KVLogDB) GetAllSnapshots(shardID uint64) ([]raftpb.Snapshot, error) {
@@ -300,6 +300,18 @@ func (l *KVLogDB) ReadRaftState(shardID uint64,
 // TODO: check whether index below is larger than the max index
 // RemoveEntriesTo deletes all raft log entries between [0, index].
 func (l *KVLogDB) RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64) error {
+	ss, err := l.GetSnapshot(shardID)
+	if err != nil && err != ErrNoSnapshot {
+		return err
+	}
+	if raft.IsEmptySnap(ss) {
+		panic("no snapshot")
+	}
+	if ss.Metadata.Index < index {
+		l.logger.Fatal("removing too many log entries",
+			log.SnapshotField(ss),
+			log.IndexField(index))
+	}
 	startKey := keys.GetRaftLogKey(shardID, 0, nil)
 	endKey := keys.GetRaftLogKey(shardID, index+1, nil)
 	return l.ms.RangeDelete(startKey, endKey, true)
