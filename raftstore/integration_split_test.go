@@ -235,6 +235,11 @@ func TestSplitWithCase3(t *testing.T) {
 }
 
 func TestSplitWithCase4(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
 	// A -> B+C
 	// A has 3 replcias A1, A2, A3
 	// network partition A3

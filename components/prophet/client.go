@@ -278,7 +278,7 @@ func (c *asyncClient) PutContainer(container metadata.Container) error {
 		return err
 	}
 
-	c.containerID = container.ID()
+	c.setContainerID(container.ID())
 	defer c.maybeRegisterContainer()
 
 	req := &rpcpb.Request{}
@@ -791,10 +791,10 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 }
 
 func (c *asyncClient) maybeRegisterContainer() {
-	if c.containerID > 0 {
+	if c.getContainerID() > 0 {
 		req := &rpcpb.Request{}
 		req.Type = rpcpb.TypeRegisterContainer
-		req.ContainerID = c.containerID
+		req.ContainerID = c.getContainerID()
 		c.doWrite(newAsyncCtx(req, nil))
 	}
 }
@@ -850,4 +850,12 @@ func (c *ctx) wait() {
 	if c.sync {
 		<-c.c
 	}
+}
+
+func (c *asyncClient) getContainerID() uint64 {
+	return atomic.LoadUint64(&c.containerID)
+}
+
+func (c *asyncClient) setContainerID(id uint64) {
+	atomic.StoreUint64(&c.containerID, id)
 }
