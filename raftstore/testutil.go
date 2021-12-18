@@ -65,15 +65,16 @@ var (
 type TestClusterOption func(*testClusterOptions)
 
 type testClusterOptions struct {
-	tmpDir            string
-	nodes             int
-	recreate          bool
-	adjustConfigFuncs []func(node int, cfg *config.Config)
-	storeFactory      func(node int, cfg *config.Config) Store
-	nodeStartFunc     func(node int, store Store)
-	logLevel          zapcore.Level
-	useDisk           bool
-	dataOpts          *cpebble.Options
+	tmpDir              string
+	nodes               int
+	recreate            bool
+	adjustConfigFuncs   []func(node int, cfg *config.Config)
+	storeFactory        func(node int, cfg *config.Config) Store
+	nodeStartFunc       func(node int, store Store)
+	logLevel            zapcore.Level
+	useDisk             bool
+	enableAdvertiseAddr bool
+	dataOpts            *cpebble.Options
 
 	disableSchedule    bool
 	enableParallelTest bool
@@ -110,6 +111,13 @@ func withStorageStatsReader(storageStatsReader storageStatsReader) TestClusterOp
 func WithTestClusterDataPath(path string) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.tmpDir = path
+	}
+}
+
+// WithTestClusterEnableAdvertiseAddr set data data storage directory
+func WithTestClusterEnableAdvertiseAddr() TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.enableAdvertiseAddr = true
 	}
 }
 
@@ -847,8 +855,16 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 		recreateTestTempDir(cfg.FS, cfg.DataPath)
 	}
 
-	cfg.RaftAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRaftAddr[node])
-	cfg.ClientAddr = fmt.Sprintf("127.0.0.1:%d", c.portsClientAddr[node])
+	listenIP := "127.0.0.1"
+	advertiseIP := "127.0.0.1"
+	if c.opts.enableAdvertiseAddr {
+		listenIP = "0.0.0.0"
+	}
+
+	cfg.RaftAddr = fmt.Sprintf("%s:%d", listenIP, c.portsRaftAddr[node])
+	cfg.AdvertiseRaftAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsRaftAddr[node])
+	cfg.ClientAddr = fmt.Sprintf("%s:%d", listenIP, c.portsClientAddr[node])
+	cfg.AdvertiseClientAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsClientAddr[node])
 	cfg.Labels = append(cfg.Labels, []string{"c", fmt.Sprintf("%d", node)})
 
 	if c.opts.nodes < 3 {
@@ -865,23 +881,26 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 	cfg.Worker.SendRaftMsgWorkerCount = 1
 
 	cfg.Prophet.Name = fmt.Sprintf("node-%d", node)
-	cfg.Prophet.RPCAddr = fmt.Sprintf("127.0.0.1:%d", c.portsRPCAddr[node])
+	cfg.Prophet.RPCAddr = fmt.Sprintf("%s:%d", listenIP, c.portsRPCAddr[node])
+	cfg.Prophet.AdvertiseRPCAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsRPCAddr[node])
 	cfg.Prophet.Schedule.EnableJointConsensus = true
 	if node < 3 {
 		cfg.Prophet.StorageNode = true
 		if node != 0 {
-			cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0])
+			cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0])
 		}
 		cfg.Prophet.EmbedEtcd.TickInterval.Duration = time.Millisecond * 30
 		cfg.Prophet.EmbedEtcd.ElectionInterval.Duration = time.Millisecond * 150
-		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[node])
-		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdPeer[node])
+		cfg.Prophet.EmbedEtcd.ClientUrls = fmt.Sprintf("http://%s:%d", listenIP, c.portsEtcdClient[node])
+		cfg.Prophet.EmbedEtcd.AdvertiseClientUrls = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[node])
+		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://%s:%d", listenIP, c.portsEtcdPeer[node])
+		cfg.Prophet.EmbedEtcd.AdvertisePeerUrls = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdPeer[node])
 	} else {
 		cfg.Prophet.StorageNode = false
 		cfg.Prophet.ExternalEtcd = []string{
-			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[0]),
-			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[1]),
-			fmt.Sprintf("http://127.0.0.1:%d", c.portsEtcdClient[2]),
+			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0]),
+			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[1]),
+			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[2]),
 		}
 	}
 

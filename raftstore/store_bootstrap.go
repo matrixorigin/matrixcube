@@ -50,7 +50,7 @@ func (s *store) initMeta() {
 	s.meta.SetStartTimestamp(time.Now().Unix())
 	s.meta.SetDeployPath(s.cfg.DeployPath)
 	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
-	s.meta.SetAddrs(s.cfg.ClientAddr, s.cfg.RaftAddr)
+	s.meta.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
 
 	s.logger.Info("store metadata init",
 		s.storeField(),

@@ -277,7 +277,7 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger)
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:        endpoints,
-		AutoSyncInterval: time.Second * 30,
+		AutoSyncInterval: time.Second * 5,
 		DialTimeout:      etcdTimeout,
 	})
 	if err != nil {

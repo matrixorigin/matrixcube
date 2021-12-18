@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
@@ -30,6 +31,37 @@ func TestStartAndStop(t *testing.T) {
 	c := NewSingleTestClusterStore(t)
 	c.Start()
 	defer c.Stop()
+}
+
+func TestAdvertiseAddr(t *testing.T) {
+	c := NewSingleTestClusterStore(t, WithTestClusterEnableAdvertiseAddr())
+	c.Start()
+	defer c.Stop()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+
+	for i := 0; i < 1; i++ {
+		assert.NoError(t, kv.Set(fmt.Sprintf("k-%d", i), fmt.Sprintf("v-%d", i), testWaitTimeout))
+	}
+
+	c.Restart()
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	kv2 := c.CreateTestKVClient(0)
+	defer kv2.Close()
+
+	for i := 0; i < 1; i++ {
+		v, err := kv2.Get(fmt.Sprintf("k-%d", i), testWaitTimeout)
+		assert.NoError(t, err)
+		assert.Equal(t, fmt.Sprintf("v-%d", i), v)
+	}
 }
 
 func TestSearchShard(t *testing.T) {
