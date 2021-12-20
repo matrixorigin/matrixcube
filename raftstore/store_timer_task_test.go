@@ -44,16 +44,19 @@ func TestHandleShardHeartbeatTask(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		pr := newTestReplica(c.shard, c.replica, s)
-		pr.leaderID = c.leader
-		s.addReplica(pr)
-		s.handleShardHeartbeatTask()
-		if c.hasAction {
-			v, err := pr.actions.Peek()
-			assert.NoError(t, err)
-			assert.Equal(t, c.action, v)
-		}
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			pr := newTestReplica(c.shard, c.replica, s)
+			pr.leaderID = c.leader
+			s.addReplica(pr)
+			s.handleShardHeartbeatTask()
+			if c.hasAction {
+				v, err := pr.actions.Peek()
+				assert.NoError(t, err)
+				assert.Equal(t, c.action, v)
+			}
+		}()
 	}
 }
 
@@ -88,20 +91,23 @@ func TestHandleSplitCheckTask(t *testing.T) {
 	}
 
 	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		pr := newTestReplica(c.shard, c.replica, s)
-		pr.stats = c.stats
-		pr.leaderID = c.leader
-		s.addReplica(pr)
-		s.handleSplitCheckTask()
-		assert.Equal(t, c.hasAction, pr.actions.Len() > 0, "index %d", idx)
-		if c.hasAction {
-			v, err := pr.actions.Peek()
-			act := v.(action)
-			act.actionCallback = nil
-			assert.NoError(t, err, "index %d", idx)
-			assert.Equal(t, c.action, act, "index %d", idx)
-		}
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			pr := newTestReplica(c.shard, c.replica, s)
+			pr.stats = c.stats
+			pr.leaderID = c.leader
+			s.addReplica(pr)
+			s.handleSplitCheckTask()
+			assert.Equal(t, c.hasAction, pr.actions.Len() > 0, "index %d", idx)
+			if c.hasAction {
+				v, err := pr.actions.Peek()
+				act := v.(action)
+				act.actionCallback = nil
+				assert.NoError(t, err, "index %d", idx)
+				assert.Equal(t, c.action, act, "index %d", idx)
+			}
+		}()
 	}
 }
 
@@ -128,18 +134,21 @@ func TestHandleCompactLogTask(t *testing.T) {
 	}
 
 	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		pr := newTestReplica(c.shard, c.replica, s)
-		pr.leaderID = c.leader
-		s.addReplica(pr)
-		s.handleCompactLogTask()
-		assert.Equal(t, c.hasAction, pr.actions.Len() > 0, "index %d", idx)
-		if c.hasAction {
-			v, err := pr.actions.Peek()
-			act := v.(action)
-			act.actionCallback = nil
-			assert.NoError(t, err, "index %d", idx)
-			assert.Equal(t, c.action, act, "index %d", idx)
-		}
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			pr := newTestReplica(c.shard, c.replica, s)
+			pr.leaderID = c.leader
+			s.addReplica(pr)
+			s.handleCompactLogTask()
+			assert.Equal(t, c.hasAction, pr.actions.Len() > 0, "index %d", idx)
+			if c.hasAction {
+				v, err := pr.actions.Peek()
+				act := v.(action)
+				act.actionCallback = nil
+				assert.NoError(t, err, "index %d", idx)
+				assert.Equal(t, c.action, act, "index %d", idx)
+			}
+		}()
 	}
 }
