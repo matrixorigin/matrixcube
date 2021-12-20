@@ -393,7 +393,9 @@ func (s *store) createTransport() {
 	s.trans = transport.NewTransport(s.logger,
 		s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
 		s.GetReplicaSnapshotDir, s.containerResolver, s.cfg.FS)
-	s.trans.SetFilter(s.cfg.Customize.CustomTransportFilter)
+	if s.cfg.Customize.CustomTransportFilter != nil {
+		s.trans.SetFilter(s.cfg.Customize.CustomTransportFilter)
+	}
 }
 
 func (s *store) startTransport() {
