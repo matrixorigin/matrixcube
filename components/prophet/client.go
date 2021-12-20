@@ -26,6 +26,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
 
@@ -101,12 +102,12 @@ type asyncClient struct {
 	contexts    sync.Map // id -> request
 	leaderConn  goetty.IOSession
 
-	ctx                   context.Context
-	cancel                context.CancelFunc
 	resetReadC            chan string
 	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
 	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
+	stopper               *stop.Stopper
+	closeOnce             sync.Once
 
 	mu struct {
 		sync.RWMutex
@@ -129,17 +130,16 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		opt(c.opts)
 	}
 	c.opts.adjust()
+	c.stopper = stop.NewStopper("prophet-client", stop.WithLogger(c.opts.logger))
 	c.leaderConn = createConn(c.opts.logger)
-	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.start()
 	return c
 }
 
 func (c *asyncClient) Close() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.mu.state == stateStopped {
+		c.mu.Unlock()
 		return nil
 	}
 
@@ -147,15 +147,21 @@ func (c *asyncClient) Close() error {
 	// 2. stop read loop
 	// 3. no read and write, close all channels
 	c.mu.state = stateStopped
-	c.writeC <- newStopCtx()
+	c.mu.Unlock()
+
+	c.stopper.Stop()
+	c.doClose()
 	return nil
 }
 
 func (c *asyncClient) doClose() {
-	close(c.resourceHeartbeatRspC)
-	close(c.resetLeaderConnC)
-	close(c.resetReadC)
-	close(c.writeC)
+	c.closeOnce.Do(func() {
+		close(c.resourceHeartbeatRspC)
+		close(c.resetLeaderConnC)
+		close(c.resetReadC)
+		close(c.writeC)
+		c.leaderConn.Close()
+	})
 }
 
 func (c *asyncClient) AllocID() (uint64, error) {
@@ -536,8 +542,8 @@ func (c *asyncClient) ExecuteJob(job metapb.Job, data []byte) ([]byte, error) {
 }
 
 func (c *asyncClient) start() {
-	go c.readLoop()
-	go c.writeLoop()
+	c.stopper.RunTask(context.Background(), c.readLoop)
+	c.stopper.RunTask(context.Background(), c.writeLoop)
 	c.scheduleResetLeaderConn()
 	c.opts.logger.Info("started")
 }
@@ -616,17 +622,16 @@ func (c *asyncClient) nextID() uint64 {
 	return atomic.AddUint64(&c.id, 1)
 }
 
-func (c *asyncClient) writeLoop() {
+func (c *asyncClient) writeLoop(stopCtx context.Context) {
+	c.opts.logger.Info("write loop started")
 	for {
 		select {
+		case <-stopCtx.Done():
+			c.opts.logger.Info("write loop stopped")
+			c.leaderConn.Close()
+			return
 		case ctx, ok := <-c.writeC:
 			if ok {
-				if ctx.stop {
-					c.cancel()
-					c.leaderConn.Close()
-					return
-				}
-
 				c.doWrite(ctx)
 			}
 		case _, ok := <-c.resetLeaderConnC:
@@ -640,23 +645,21 @@ func (c *asyncClient) writeLoop() {
 	}
 }
 
-func (c *asyncClient) readLoop() {
+func (c *asyncClient) readLoop(stopCtx context.Context) {
 	c.opts.logger.Info("read loop started")
-	defer func() {
-		c.doClose()
-		c.opts.logger.Error("read loop stopped")
-	}()
+	defer c.opts.logger.Error("read loop stopped")
 
 OUTER:
 	for {
 		select {
-		case <-c.ctx.Done():
+		case <-stopCtx.Done():
 			c.contexts.Range(func(key, value interface{}) bool {
 				if value != nil {
 					value.(*ctx).done(nil, ErrClosed)
 				}
 				return true
 			})
+			c.opts.logger.Error("read loop stopped")
 			return
 		case leader, ok := <-c.resetReadC:
 			if ok {
@@ -806,13 +809,6 @@ type ctx struct {
 	c     chan struct{}
 	cb    func(resp *rpcpb.Response, err error)
 	sync  bool
-	stop  bool
-}
-
-func newStopCtx() *ctx {
-	return &ctx{
-		stop: true,
-	}
 }
 
 func newSyncCtx(req *rpcpb.Request) *ctx {

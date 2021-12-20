@@ -82,10 +82,12 @@ func (w *watcher) watchDog() {
 		case <-w.ctx.Done():
 			w.doClose()
 			return
-		case <-w.client.ctx.Done():
-			w.doClose()
-			return
 		default:
+			if !w.client.running() {
+				w.doClose()
+				return
+			}
+
 			err := w.resetConn()
 			if err == nil {
 				w.startReadLoop()
