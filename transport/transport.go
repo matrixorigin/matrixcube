@@ -234,7 +234,10 @@ func (t *Transport) Send(m meta.RaftMessage) bool {
 
 	storeID := m.To.ContainerID
 	if filter := t.filter.Load(); filter != nil {
-		ff := filter.(func(meta.RaftMessage) bool)
+		ff, ok := filter.(func(meta.RaftMessage) bool)
+		if !ok {
+			panic(fmt.Errorf("invalid transport filter %T", ff))
+		}
 		if ff(m) {
 			return false
 		}
