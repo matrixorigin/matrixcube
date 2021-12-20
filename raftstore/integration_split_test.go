@@ -434,7 +434,7 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 		v, err := pd.GetStorage().GetResource(sid)
 		assert.NoError(t, err)
 		assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
-		assert.Equal(t, replicaCount, len(v.Peers()))
+		assert.True(t, len(v.Peers()) <= replicaCount) // maybe some replica removed by conf change
 
 		bc := pd.GetBasicCluster()
 		bc.RLock()
