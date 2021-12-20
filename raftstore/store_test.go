@@ -32,6 +32,37 @@ func TestStartAndStop(t *testing.T) {
 	defer c.Stop()
 }
 
+func TestAdvertiseAddr(t *testing.T) {
+	c := NewTestClusterStore(t,
+		WithTestClusterUseDisk(),
+		WithTestClusterEnableAdvertiseAddr())
+	c.Start()
+	defer c.Stop()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	for i := 0; i < 3; i++ {
+		kv := c.CreateTestKVClient(i)
+		defer kv.Close()
+		assert.NoError(t, kv.Set("key", "value", testWaitTimeout))
+	}
+
+	c.Restart()
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.WaitLeadersByCount(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	for i := 0; i < 3; i++ {
+		kv2 := c.CreateTestKVClient(i)
+		defer kv2.Close()
+		v, err := kv2.Get("key", testWaitTimeout)
+		assert.NoError(t, err)
+		assert.Equal(t, "value", v)
+	}
+}
+
 func TestSearchShard(t *testing.T) {
 	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
 

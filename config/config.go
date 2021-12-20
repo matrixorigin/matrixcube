@@ -63,13 +63,15 @@ var (
 
 // Config matrixcube config
 type Config struct {
-	RaftAddr   string     `toml:"addr-raft"`
-	ClientAddr string     `toml:"addr-client"`
-	DataPath   string     `toml:"dir-data"`
-	DeployPath string     `toml:"dir-deploy"`
-	Version    string     `toml:"version"`
-	GitHash    string     `toml:"githash"`
-	Labels     [][]string `toml:"labels"`
+	RaftAddr            string     `toml:"addr-raft"`
+	AdvertiseRaftAddr   string     `toml:"addr-advertise-raft"`
+	ClientAddr          string     `toml:"addr-client"`
+	AdvertiseClientAddr string     `toml:"addr-advertise-client"`
+	DataPath            string     `toml:"dir-data"`
+	DeployPath          string     `toml:"dir-deploy"`
+	Version             string     `toml:"version"`
+	GitHash             string     `toml:"githash"`
+	Labels              [][]string `toml:"labels"`
 	// Capacity max capacity can use
 	Capacity           typeutil.ByteSize `toml:"capacity"`
 	UseMemoryAsStorage bool              `toml:"use-memory-as-storage"`
@@ -108,8 +110,16 @@ func (c *Config) Adjust() {
 		c.RaftAddr = defaultRaftAddr
 	}
 
+	if c.AdvertiseRaftAddr == "" {
+		c.AdvertiseRaftAddr = c.RaftAddr
+	}
+
 	if c.ClientAddr == "" {
 		c.ClientAddr = defaultRPCAddr
+	}
+
+	if c.AdvertiseClientAddr == "" {
+		c.AdvertiseClientAddr = c.ClientAddr
 	}
 
 	if c.DataPath == "" {

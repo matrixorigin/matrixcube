@@ -33,10 +33,11 @@ import (
 
 // Config the prophet configuration
 type Config struct {
-	Name       string            `toml:"name" json:"name"`
-	DataDir    string            `toml:"data-dir"`
-	RPCAddr    string            `toml:"rpc-addr"`
-	RPCTimeout typeutil.Duration `toml:"rpc-timeout"`
+	Name             string            `toml:"name" json:"name"`
+	DataDir          string            `toml:"data-dir"`
+	RPCAddr          string            `toml:"rpc-addr"`
+	AdvertiseRPCAddr string            `toml:"rpc-advertise-addr"`
+	RPCTimeout       typeutil.Duration `toml:"rpc-timeout"`
 
 	// etcd configuration
 	StorageNode  bool            `toml:"storage-node"`

@@ -511,7 +511,7 @@ func (s *store) startShardsProxy() {
 	maxBodySize := int(s.cfg.Raft.MaxEntryBytes) * 2
 
 	rpc := newProxyRPC(s.logger.Named("proxy.rpc").With(s.storeField()),
-		s.Meta().ClientAddr,
+		s.cfg.ClientAddr,
 		maxBodySize,
 		s.OnRequest)
 

@@ -106,6 +106,7 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 	adjustString(&c.DataDir, fmt.Sprintf("/tmp/prophet/default.%s", c.Name))
 	adjustPath(&c.DataDir)
 	adjustString(&c.RPCAddr, defaultRPCAddr)
+	adjustString(&c.AdvertiseRPCAddr, c.RPCAddr)
 	adjustDuration(&c.RPCTimeout, defaultRPCTimeout)
 
 	if err := c.Validate(); err != nil {

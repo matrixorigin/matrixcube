@@ -170,7 +170,7 @@ func (p *defaultProphet) Start() {
 			zap.Error(err))
 	}
 
-	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.RPCAddr)
+	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
 	p.storage = storage.NewStorage(rootPath,
 		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
 		p.cfg.Prophet.Adapter)
