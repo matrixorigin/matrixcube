@@ -128,13 +128,13 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	if err != nil {
 		return err
 	}
-	// FIXME: change this to an event worker action
-	if err := r.snapshotCompaction(ss, persistentLogIndex); err != nil {
-		logger.Error("snapshot compaction failed",
-			zap.Error(err))
-		return err
-	}
-
+	r.addAction(action{
+		actionType: snapshotCompactionAction,
+		snapshotCompaction: snapshotCompactionDetails{
+			snapshot:           ss,
+			persistentLogIndex: persistentLogIndex,
+		},
+	})
 	if r.aware != nil {
 		r.aware.Updated(md.Metadata.Shard)
 	}

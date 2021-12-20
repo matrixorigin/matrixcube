@@ -29,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -66,8 +67,12 @@ func runReplicaSnapshotTest(t *testing.T,
 	sm := newStateMachine(logger, ds, ldb, shard, replicaRec, nil, nil)
 	sm.updateAppliedIndexTerm(100, 1)
 	r := &replica{
+		startedC: make(chan struct{}),
+		store: &store{
+			workerPool: newWorkerPool(logger, ldb, nil, 96),
+		},
+		actions:     task.New(32),
 		storeID:     100,
-		store:       &store{},
 		logger:      logger,
 		logdb:       ldb,
 		sm:          sm,
@@ -76,6 +81,7 @@ func runReplicaSnapshotTest(t *testing.T,
 		replica:     replicaRec,
 		lr:          lr,
 	}
+	r.setStarted()
 	fn(t, r, fs)
 }
 
@@ -147,6 +153,8 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 
 		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
+		r.handleAction(make([]interface{}, readyBatchSize))
+
 		// applySnapshot will have the persistentLogIndex value updated
 		persistentLogIndex, err = r.getPersistentLogIndex()
 		assert.NoError(t, err)

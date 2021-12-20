@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
+	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
 
 	"github.com/fagongzi/util/protoc"
@@ -29,7 +31,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/uuid"
-	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 )
 
 const (
@@ -37,12 +38,13 @@ const (
 )
 
 type action struct {
-	actionType     actionType
-	splitCheckData splitCheckData
-	targetIndex    uint64
-	readMetrics    readMetrics
-	epoch          Epoch
-	actionCallback func(interface{})
+	actionType         actionType
+	snapshotCompaction snapshotCompactionDetails
+	splitCheckData     splitCheckData
+	targetIndex        uint64
+	readMetrics        readMetrics
+	epoch              Epoch
+	actionCallback     func(interface{})
 }
 
 type readMetrics struct {
@@ -58,6 +60,11 @@ type splitCheckData struct {
 	ctx       []byte
 }
 
+type snapshotCompactionDetails struct {
+	snapshot           raftpb.Snapshot
+	persistentLogIndex uint64
+}
+
 type actionType int
 
 const (
@@ -69,6 +76,8 @@ const (
 	updateReadMetrics
 	checkLogCommittedAction
 	checkLogAppliedAction
+	logCompactionAction
+	snapshotCompactionAction
 )
 
 func (pr *replica) addAdminRequest(adminType rpc.AdminCmdType, request protoc.PB) {
@@ -312,6 +321,11 @@ func (pr *replica) handleAction(items []interface{}) bool {
 			pr.doCheckLogApplied(act)
 		case checkCompactLogAction:
 			pr.doCheckLogCompact(pr.rn.Status().Progress, pr.rn.LastIndex())
+		case logCompactionAction:
+			pr.doLogCompaction(act.targetIndex)
+		case snapshotCompactionAction:
+			pr.doSnapshotCompaction(act.snapshotCompaction.snapshot,
+				act.snapshotCompaction.persistentLogIndex)
 		}
 	}
 
@@ -525,4 +539,72 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
 		CompactIndex: compactIndex,
 	})
+}
+
+func (pr *replica) doLogCompaction(index uint64) {
+	if index == 0 {
+		return
+	}
+	pr.logger.Info("log compaction action handled",
+		log.IndexField(index))
+	// generate a dummy snapshot so we can run the log compaction.
+	// this dummy snapshot will be used to establish the marker position of
+	// the LogReader on startup.
+	// such dummy snapshot will never be loaded, as its Index value is not
+	// greater than data storage's persistentLogIndex value.
+	term, err := pr.lr.Term(index)
+	if err != nil {
+		pr.logger.Error("failed to get term value",
+			zap.Error(err),
+			log.IndexField(index))
+		if err == raft.ErrCompacted || err == raft.ErrUnavailable {
+			// skip this compaction operation as we can't establish the marker
+			// position.
+			pr.logger.Info("skipped a compaction action",
+				log.IndexField(index))
+			return
+		}
+		panic(err)
+	}
+	// this is a dummy snapshot meaning there is no on disk snapshot image.
+	// we are not supposed to apply such dummy snapshot. the dummy flag is
+	// used for debugging purposes.
+	si := meta.SnapshotInfo{
+		Dummy: true,
+	}
+	rd := raft.Ready{
+		Snapshot: raftpb.Snapshot{
+			Metadata: raftpb.SnapshotMetadata{
+				Index: index,
+				Term:  term,
+			},
+			Data: protoc.MustMarshal(&si),
+		},
+	}
+	wc := pr.logdb.NewWorkerContext()
+	defer wc.Close()
+	if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
+		panic(err)
+	}
+	pr.logger.Info("dummy snapshot saved",
+		log.IndexField(index))
+	// update LogReader's range info to make the compacted entries invisible to
+	// raft.
+	if err := pr.lr.Compact(index); err != nil {
+		if err != raft.ErrCompacted {
+			// TODO: check whether any error should be tolerated.
+			panic(err)
+		}
+	}
+	if err := pr.logdb.RemoveEntriesTo(pr.shardID, pr.replicaID, index); err != nil {
+		panic(err)
+	}
+	pr.logger.Info("compaction completed",
+		log.IndexField(index))
+}
+
+func (pr *replica) doSnapshotCompaction(ss raftpb.Snapshot, index uint64) {
+	if err := pr.snapshotCompaction(ss, index); err != nil {
+		panic(err)
+	}
 }
