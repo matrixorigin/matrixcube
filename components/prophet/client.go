@@ -119,7 +119,6 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 	c := &asyncClient{
 		opts:                  &options{},
 		adapter:               adapter,
-		leaderConn:            createConn(),
 		resetReadC:            make(chan string),
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
@@ -130,7 +129,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		opt(c.opts)
 	}
 	c.opts.adjust()
-
+	c.leaderConn = createConn(c.opts.logger)
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.start()
 	return c

@@ -62,10 +62,10 @@ func WithRPCTimeout(value time.Duration) Option {
 	}
 }
 
-func createConn() goetty.IOSession {
+func createConn(logger *zap.Logger) goetty.IOSession {
 	encoder, decoder := codec.NewClientCodec(10 * buf.MB)
 	return goetty.NewIOSession(goetty.WithCodec(encoder, decoder),
-		goetty.WithLogger(zap.L().Named("cube-prophet-client")),
+		goetty.WithLogger(logger),
 		goetty.WithEnableAsyncWrite(16))
 
 }
