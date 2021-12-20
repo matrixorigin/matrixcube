@@ -26,7 +26,7 @@ func (p *defaultProphet) startListen() {
 		p.handleRPCRequest,
 		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(zap.L().Named("cube-prophet-rpc"))))
+			goetty.WithLogger(p.logger.Named("rpc"))))
 	if err != nil {
 		p.logger.Fatal("fail to start transport", zap.Error(err))
 	}

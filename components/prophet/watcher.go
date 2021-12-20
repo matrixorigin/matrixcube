@@ -50,9 +50,8 @@ func newWatcher(flag uint32, client *asyncClient, logger *zap.Logger) Watcher {
 		flag:   flag,
 		client: client,
 		eventC: make(chan rpcpb.EventNotify, 128),
-		conn:   createConn(),
 	}
-
+	w.conn = createConn(w.logger)
 	go w.watchDog()
 	return w
 }
