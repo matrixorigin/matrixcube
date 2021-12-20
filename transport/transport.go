@@ -217,6 +217,9 @@ func (t *Transport) Name() string {
 }
 
 func (t *Transport) SetFilter(f func(meta.RaftMessage) bool) {
+	if f == nil {
+		panic("nil filter")
+	}
 	t.filter.Store(f)
 }
 
