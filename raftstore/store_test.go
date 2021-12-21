@@ -28,6 +28,8 @@ import (
 )
 
 func TestStartAndStop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	c := NewSingleTestClusterStore(t)
 	c.Start()
 	defer c.Stop()
