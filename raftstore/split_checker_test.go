@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// FIXME: add leaktest checks
+
 func TestSplitCheckerAdd(t *testing.T) {
 	sc := newSplitChecker(1, 100, nil, nil)
 

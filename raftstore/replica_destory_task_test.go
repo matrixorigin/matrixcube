@@ -94,7 +94,8 @@ func (s *testDestoryMetadataStorage) ReportDestroyed(shardID uint64, replicaID u
 func TestDestoryTaskWithMultiTimes(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 	pr.destoryTaskMu.hasTask = true
 	pr.destoryTaskMu.reason = "1"
@@ -106,7 +107,8 @@ func TestDestoryTaskWithMultiTimes(t *testing.T) {
 func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -132,7 +134,8 @@ func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -161,7 +164,8 @@ func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -190,7 +194,8 @@ func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 func TestDestoryTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 	s.addReplica(pr)
 

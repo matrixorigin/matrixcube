@@ -30,6 +30,8 @@ import (
 	"github.com/matrixorigin/matrixcube/util/testutil"
 )
 
+// FIXME: add leaktest checks
+
 type testBackendFactory struct {
 	sync.RWMutex
 	backends map[string]backend

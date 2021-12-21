@@ -18,6 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,6 +27,7 @@ var (
 )
 
 func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	r1 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
 	r2 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
@@ -35,6 +37,7 @@ func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 }
 
 func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpc.Request{
 		Type: rpc.CmdType_Write,
 	}, nil)
@@ -49,6 +52,7 @@ func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 }
 
 func TestProposalBatchLimitsBatchSize(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpc.Request{
 		Type: rpc.CmdType_Write,
 	}, nil)
@@ -70,7 +74,7 @@ func TestProposalBatchLimitsBatchSize(t *testing.T) {
 }
 
 func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
-
+	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpc.Request{
 		Type:  rpc.CmdType_Write,
 		Epoch: metapb.ResourceEpoch{ConfVer: 1, Version: 1},
@@ -92,6 +96,7 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 }
 
 func TestProposalBatchPop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpc.Request{
 		Type: rpc.CmdType_Write,
 	}, nil)

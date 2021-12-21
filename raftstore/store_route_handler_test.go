@@ -16,26 +16,30 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDoDynamicallyCreate(t *testing.T) {
-	c := NewSingleTestClusterStore(t)
-	s := c.GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+	s, cancel := newTestStore(t)
+	defer cancel()
 	s.DataStorageByGroup(1).GetInitialStates()
 	assert.True(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}}))
 	assert.NotNil(t, s.getReplica(100, false))
 }
 
 func TestDoDynamicallyCreateWithNoReplicaOnCurrentStore(t *testing.T) {
-	c := NewSingleTestClusterStore(t)
-	s := c.GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+	s, cancel := newTestStore(t)
+	defer cancel()
 	assert.False(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID + 1, InitialMember: true}}}))
 }
 
 func TestDoDynamicallyCreateWithExists(t *testing.T) {
-	c := NewSingleTestClusterStore(t)
-	s := c.GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+	s, cancel := newTestStore(t)
+	defer cancel()
 	s.addReplica(newTestReplica(Shard{ID: 1}, Replica{ID: 100}, s))
 	assert.False(t, s.doDynamicallyCreate(Shard{ID: 1, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}}))
 }

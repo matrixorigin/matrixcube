@@ -15,9 +15,13 @@ package raftstore
 
 import (
 	"testing"
+
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
 func TestDoBootstrapCluster(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	c := NewSingleTestClusterStore(t, DiskTestCluster, WithTestClusterRecreate(false))
 	c.Start()
 	defer c.Stop()

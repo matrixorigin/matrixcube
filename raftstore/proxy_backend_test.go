@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// FIXME: add leaktest checks
+
 func TestLocalBackend(t *testing.T) {
 	c := make(chan rpc.Request, 10)
 	bc := newLocalBackend(func(r rpc.Request) error {
