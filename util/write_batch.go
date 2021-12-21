@@ -19,6 +19,8 @@ type WriteBatch interface {
 	Set([]byte, []byte)
 	// Delete add delete key to the batch
 	Delete([]byte)
+	// DeleteRange deletes the keys specified in the range
+	DeleteRange([]byte, []byte)
 	// Reset reset the batch
 	Reset()
 	// Close close the batch
