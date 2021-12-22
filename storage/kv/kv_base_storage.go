@@ -237,6 +237,9 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 		return err
 	}
 	defer f.Close()
+	batch := s.kv.NewWriteBatch().(util.WriteBatch)
+	defer batch.Close()
+
 	start, err := readBytes(f)
 	if err != nil {
 		return err
@@ -267,15 +270,9 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.kv.RangeDelete(start, end, false); err != nil {
-		return errors.Wrapf(err, "RangeDelete failed in ApplySnapshot")
-	}
-	if err := s.kv.Set(appliedIndexKey, appliedIndexValue, false); err != nil {
-		return err
-	}
-	if err := s.kv.Set(metadataKey, metadataValue, false); err != nil {
-		return err
-	}
+	batch.DeleteRange(start, end)
+	batch.Set(appliedIndexKey, appliedIndexValue)
+	batch.Set(metadataKey, metadataValue)
 
 	for {
 		key, err := readBytes(f)
@@ -292,9 +289,10 @@ func (s *BaseStorage) ApplySnapshot(shardID uint64, path string) error {
 		if len(value) == 0 {
 			panic("key specified without value")
 		}
-		if err := s.kv.Set(key, value, false); err != nil {
-			return err
-		}
+		batch.Set(key, value)
+	}
+	if err := s.kv.Write(batch, true); err != nil {
+		return err
 	}
 
 	return s.kv.Sync()
