@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
 var (
@@ -108,7 +109,12 @@ func (s *store) vacuum(t vacuumTask) error {
 			return nil
 		}
 		if err := t.replica.destroy(t.shardRemoved, t.reason); err != nil {
-			return err
+			// storage.ErrShardNotFound is returned by the AOE when the shard has
+			// already been removed as a result of split. we just ignore such
+			// error here.
+			if err != storage.ErrShardNotFound {
+				return err
+			}
 		}
 		t.replica.close()
 		// wait for the replica to be fully unloaded before removing it from the
