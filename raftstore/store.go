@@ -419,7 +419,7 @@ func (s *store) startShards() {
 
 	var tomebstones []Shard
 	shards := make(map[uint64]Shard)
-	localDestoryings := make(map[uint64]meta.ShardMetadata)
+	localDestroyings := make(map[uint64]meta.ShardMetadata)
 	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
@@ -455,7 +455,7 @@ func (s *store) startShards() {
 
 			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
 				s.createShardsProtector.addDestroyed(sls.Shard.ID)
-				localDestoryings[metadata.ShardID] = metadata
+				localDestroyings[metadata.ShardID] = metadata
 			} else {
 				confirmShards.Add(sls.Shard.ID)
 			}
@@ -492,8 +492,8 @@ func (s *store) startShards() {
 	newReplicaCreator(s).
 		withReason("restart").
 		withStartReplica(nil, func(r *replica) {
-			if metadata, ok := localDestoryings[r.shardID]; ok {
-				r.startDestoryReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+			if metadata, ok := localDestroyings[r.shardID]; ok {
+				r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
 			}
 		}).
 		create(readyBootstrapShards)

@@ -58,7 +58,7 @@ func (csp *createShardsProtector) addDestroyed(id uint64) {
 	csp.destroyedShards.Add(id)
 }
 
-func (csp *createShardsProtector) inDestoryState(id uint64) bool {
+func (csp *createShardsProtector) inDestroyState(id uint64) bool {
 	csp.RLock()
 	defer csp.RUnlock()
 
@@ -147,7 +147,7 @@ func (s *store) vacuum(t vacuumTask) error {
 }
 
 func (pr *replica) destroy(shardRemoved bool, reason string) error {
-	pr.logger.Info("begin to destory",
+	pr.logger.Info("begin to destroy",
 		zap.Bool("shard-removed", shardRemoved),
 		log.ShardField("metadata", pr.getShard()),
 		log.ReasonField(reason))
