@@ -112,6 +112,9 @@ type LogDB interface {
 	GetAllSnapshots(shardID uint64) ([]raftpb.Snapshot, error)
 	// RemoveSnapshot removes the specified snapshot.
 	RemoveSnapshot(shardID uint64, index uint64) error
+	// RemoveReplicaData removes all LogDB data that belongs to the specified
+	// replica.
+	RemoveReplicaData(shardID uint64) error
 }
 
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
@@ -315,6 +318,27 @@ func (l *KVLogDB) RemoveEntriesTo(shardID uint64, replicaID uint64, index uint64
 	startKey := keys.GetRaftLogKey(shardID, 0, nil)
 	endKey := keys.GetRaftLogKey(shardID, index+1, nil)
 	return l.ms.RangeDelete(startKey, endKey, true)
+}
+
+func (l *KVLogDB) RemoveReplicaData(shardID uint64) error {
+	wc := l.NewWorkerContext()
+	defer wc.Close()
+	// raft log entries
+	fk := keys.GetRaftLogKey(shardID, 0, nil)
+	lk := keys.GetRaftLogKey(shardID, math.MaxUint64, nil)
+	wc.wb.DeleteRange(fk, lk)
+	// snapshots
+	fk = keys.GetSnapshotKey(shardID, 0, nil)
+	lk = keys.GetSnapshotKey(shardID, math.MaxUint64, nil)
+	wc.wb.DeleteRange(fk, lk)
+	// hard state
+	fk = keys.GetHardStateKey(shardID, 0, nil)
+	lk = keys.GetHardStateKey(shardID, math.MaxUint64, nil)
+	wc.wb.DeleteRange(fk, lk)
+	// max index
+	wc.wb.Delete(keys.GetMaxIndexKey(shardID, nil))
+
+	return l.ms.Write(wc.wb, true)
 }
 
 func (l *KVLogDB) getRange(shardID uint64,

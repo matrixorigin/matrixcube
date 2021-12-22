@@ -132,6 +132,9 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.logger.Info("deleting shard data",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID))
+	if err := s.logdb.RemoveReplicaData(t.shard.ID); err != nil {
+		return err
+	}
 	err := s.DataStorageByGroup(t.shard.Group).RemoveShard(t.shard, t.removeData)
 	s.logger.Info("delete shard data returned",
 		s.storeField(),

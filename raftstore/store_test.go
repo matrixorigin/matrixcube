@@ -206,7 +206,10 @@ func TestVacuum(t *testing.T) {
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
 	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello"), false)
 	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello"), false)
-	assert.NoError(t, s.vacuum(vacuumTask{shard: shard, removeData: true}))
+	assert.NoError(t, s.vacuum(vacuumTask{
+		shard:      shard,
+		removeData: true,
+	}))
 
 	c := 0
 	kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardEnd(shard.End, nil), func(key, value []byte) (bool, error) {
