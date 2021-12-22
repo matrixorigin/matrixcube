@@ -26,6 +26,9 @@ var (
 	// storage couldn't handle the request at the time of request. The client
 	// is suggested to retry later.
 	ErrAborted = errors.New("operation aborted")
+	// ErrShardNotFound is returned by the data storage to indicate that the
+	// requested shard is not found.
+	ErrShardNotFound = errors.New("shard not found")
 )
 
 // Closeable is an instance that can be closed.
