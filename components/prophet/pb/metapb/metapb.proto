@@ -26,7 +26,7 @@ enum ContainerState {
     UP        = 0;
     // Offline is the unavailable state
     Offline   = 1;
-    // Tombstone is the destory state
+    // Tombstone is the destroy state
     Tombstone = 2;
 }
 
@@ -42,7 +42,7 @@ enum ResourceState {
     // this state normally cannot provide read and write services to the public, 
     // and the destruction process of resources has not yet been completed.
     Destroying     = 2;
-    // Destroyed is the destoryed state,
+    // Destroyed is the destroyed state,
     // this state is normally not available for external read and write services, 
     // the resources have been destroyed in the whole cluster and cannot be used again.
     Destroyed      = 3;

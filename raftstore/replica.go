@@ -106,8 +106,8 @@ type replica struct {
 	// lastCommittedIndex last committed log
 	lastCommittedIndex uint64
 
-	destoryTaskFactory destroyReplicaTaskFactory
-	destoryTaskMu      struct {
+	destroyTaskFactory destroyReplicaTaskFactory
+	destroyTaskMu      struct {
 		sync.Mutex
 		hasTask bool
 		reason  string
@@ -179,7 +179,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		func() *replicaCreator {
 			return newReplicaCreator(store)
 		})
-	pr.destoryTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction,
+	pr.destroyTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction,
 		pr.prophetClient, defaultCheckInterval)
 	return pr, nil
 }

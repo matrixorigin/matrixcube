@@ -104,7 +104,7 @@ func (s *store) handleShardStateCheckTask() {
 				// the delete process.
 
 				// We don't known which log index destroy at and whether to remove data or not.
-				pr.startDestoryReplicaTask(0, false, "replicas state check")
+				pr.startDestroyReplicaTask(0, false, "replicas state check")
 			}
 		}
 	}

@@ -213,7 +213,7 @@ func (pr *replica) applyConfChange(cp configChangeResult) {
 }
 
 func (pr *replica) applySplit(result splitResult) {
-	pr.logger.Info("shard split applied, current shard will destory",
+	pr.logger.Info("shard split applied, current shard will destroy",
 		zap.Int("new-shards-count", len(result.newShards)))
 
 	if ce := pr.logger.Check(zap.DebugLevel, "shard split detail"); ce != nil {
@@ -257,5 +257,5 @@ func (pr *replica) applySplit(result splitResult) {
 		pr.aware.Splited(pr.getShard())
 	}
 
-	pr.startDestoryReplicaTaskAfterSplitted(pr.appliedIndex)
+	pr.startDestroyReplicaTaskAfterSplitted(pr.appliedIndex)
 }

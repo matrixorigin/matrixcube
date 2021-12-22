@@ -24,22 +24,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testDestoryMetadataStorage struct {
+type testDestroyMetadataStorage struct {
 	sync.Mutex
 	data     map[uint64]*metapb.DestroyingStatus
 	c        chan struct{}
 	watchPut bool
 }
 
-func newTestDestoryMetadataStorage(watchPut bool) *testDestoryMetadataStorage {
-	return &testDestoryMetadataStorage{
+func newTestDestroyMetadataStorage(watchPut bool) *testDestroyMetadataStorage {
+	return &testDestroyMetadataStorage{
 		data:     make(map[uint64]*metapb.DestroyingStatus),
 		c:        make(chan struct{}),
 		watchPut: watchPut,
 	}
 }
 
-func (s *testDestoryMetadataStorage) CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+func (s *testDestroyMetadataStorage) CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -60,14 +60,14 @@ func (s *testDestoryMetadataStorage) CreateDestroying(shardID uint64, index uint
 	return metapb.ResourceState_Destroying, nil
 }
 
-func (s *testDestoryMetadataStorage) GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error) {
+func (s *testDestroyMetadataStorage) GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	return s.data[shardID], nil
 }
 
-func (s *testDestoryMetadataStorage) ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ResourceState, error) {
+func (s *testDestroyMetadataStorage) ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ResourceState, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -91,20 +91,20 @@ func (s *testDestoryMetadataStorage) ReportDestroyed(shardID uint64, replicaID u
 	return status.State, nil
 }
 
-func TestDestoryTaskWithMultiTimes(t *testing.T) {
+func TestDestroyTaskWithMultiTimes(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s, cancel := newTestStore(t)
 	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
-	pr.destoryTaskMu.hasTask = true
-	pr.destoryTaskMu.reason = "1"
+	pr.destroyTaskMu.hasTask = true
+	pr.destroyTaskMu.reason = "1"
 
-	pr.startDestoryReplicaTask(0, false, "2")
-	assert.Equal(t, "1", pr.destoryTaskMu.reason)
+	pr.startDestroyReplicaTask(0, false, "2")
+	assert.Equal(t, "1", pr.destroyTaskMu.reason)
 }
 
-func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
+func TestDestroyTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s, cancel := newTestStore(t)
@@ -114,7 +114,7 @@ func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dms := newTestDestoryMetadataStorage(false)
+	dms := newTestDestroyMetadataStorage(false)
 	c := make(chan []uint64)
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogCommittedAction {
@@ -122,7 +122,7 @@ func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 			c <- []uint64{1, 2, 3}
 		}
 	}).setCheckInterval(time.Millisecond * 10)
-	go f.new(pr, 100, false, "TestDestoryTaskWithStartCheckLogCommittedStep").run(ctx)
+	go f.new(pr, 100, false, "TestDestroyTaskWithStartCheckLogCommittedStep").run(ctx)
 	select {
 	case <-c:
 		break
@@ -131,7 +131,7 @@ func TestDestoryTaskWithStartCheckLogCommittedStep(t *testing.T) {
 	}
 }
 
-func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
+func TestDestroyTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s, cancel := newTestStore(t)
@@ -141,14 +141,14 @@ func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dms := newTestDestoryMetadataStorage(true)
+	dms := newTestDestroyMetadataStorage(true)
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogCommittedAction {
 			assert.NotNil(t, a.actionCallback)
 			go a.actionCallback([]uint64{1, 2, 3})
 		}
 	}).setCheckInterval(time.Millisecond * 10)
-	go f.new(pr, 100, false, "TestDestoryTaskWithCompleteCheckLogCommittedStep").run(ctx)
+	go f.new(pr, 100, false, "TestDestroyTaskWithCompleteCheckLogCommittedStep").run(ctx)
 
 	select {
 	case <-dms.c:
@@ -161,7 +161,7 @@ func TestDestoryTaskWithCompleteCheckLogCommittedStep(t *testing.T) {
 	}
 }
 
-func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
+func TestDestroyTaskWithStartCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s, cancel := newTestStore(t)
@@ -172,7 +172,7 @@ func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 	defer cancel()
 
 	c := make(chan struct{})
-	dms := newTestDestoryMetadataStorage(false)
+	dms := newTestDestroyMetadataStorage(false)
 	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
 
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
@@ -181,7 +181,7 @@ func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 			c <- struct{}{}
 		}
 	}).setCheckInterval(time.Millisecond * 10)
-	go f.new(pr, 100, false, "TestDestoryTaskWithStartCheckLogAppliedStep").run(ctx)
+	go f.new(pr, 100, false, "TestDestroyTaskWithStartCheckLogAppliedStep").run(ctx)
 
 	select {
 	case <-c:
@@ -191,7 +191,7 @@ func TestDestoryTaskWithStartCheckLogAppliedStep(t *testing.T) {
 	}
 }
 
-func TestDestoryTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
+func TestDestroyTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s, cancel := newTestStore(t)
@@ -203,7 +203,7 @@ func TestDestoryTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 	defer cancel()
 
 	c := make(chan struct{})
-	dms := newTestDestoryMetadataStorage(false)
+	dms := newTestDestroyMetadataStorage(false)
 	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
 
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
@@ -212,7 +212,7 @@ func TestDestoryTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 		}
 	}).setCheckInterval(time.Millisecond * 10)
 	go func() {
-		f.new(pr, 100, false, "TestDestoryTaskWithStartCompleteCheckLogAppliedStep").run(ctx)
+		f.new(pr, 100, false, "TestDestroyTaskWithStartCompleteCheckLogAppliedStep").run(ctx)
 		close(c)
 	}()
 	select {

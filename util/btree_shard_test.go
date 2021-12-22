@@ -131,7 +131,7 @@ func TestTreeOverlap(t *testing.T) {
 	assert.Equal(t, uint64(1), s.ID)
 }
 
-func TestAddDestoryShard(t *testing.T) {
+func TestAddDestroyShard(t *testing.T) {
 	tree := NewShardTree()
 	tree.Update(
 		meta.Shard{
