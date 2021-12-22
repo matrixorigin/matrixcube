@@ -231,15 +231,26 @@ func (s *store) Stop() {
 		s.logger.Info("raft internal transport stopped",
 			s.storeField())
 
+		// requests all replicas to be shutdown
 		s.forEachReplica(func(pr *replica) bool {
 			pr.close()
 			return true
 		})
-		s.logger.Info("shards stopped",
+		s.logger.Info("shards requested to be stopped",
 			s.storeField())
-
+		// stop the worker pool
 		s.workerPool.close()
 		s.logger.Info("worker pool stopped",
+			s.storeField())
+		// worker pool stopped, its now safe to check whether all replicas have been
+		// shutdown, shutdown the replica if it is not stopped.
+		s.forEachReplica(func(pr *replica) bool {
+			if !pr.unloaded() {
+				pr.shutdown()
+			}
+			return true
+		})
+		s.logger.Info("shards stopped",
 			s.storeField())
 
 		s.stopper.Stop()
