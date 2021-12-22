@@ -227,7 +227,7 @@ func (s *balanceResourceScheduler) scheduleByGroup(groupKey string, cluster opt.
 					rebalanceResourceField,
 					s.scheduleField,
 					resourceField(res.Meta.ID()))
-				schedulerCounter.WithLabelValues(s.GetName(), "destory").Inc()
+				schedulerCounter.WithLabelValues(s.GetName(), "destroy").Inc()
 				continue
 			}
 

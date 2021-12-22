@@ -24,12 +24,12 @@ enum Type {
 	TypeAllocIDRsp            = 10;
     TypeAskBatchSplitReq      = 11;
 	TypeAskBatchSplitRsp      = 12;
-    TypeCreateDestoryingReq   = 13;
-    TypeCreateDestoryingRsp   = 14;
-    TypeReportDestoryedReq   = 15;
-    TypeReportDestoryedRsp   = 16;
-    TypeGetDestoryingReq      = 17;
-	TypeGetDestoryingRsp      = 18;
+    TypeCreateDestroyingReq   = 13;
+    TypeCreateDestroyingRsp   = 14;
+    TypeReportDestroyedReq   = 15;
+    TypeReportDestroyedRsp   = 16;
+    TypeGetDestroyingReq      = 17;
+	TypeGetDestroyingRsp      = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
     TypeCreateResourcesReq    = 21;
@@ -65,9 +65,9 @@ message Request {
     GetContainerReq       getContainer       = 7  [(gogoproto.nullable) = false];
     AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
     AskBatchSplitReq      askBatchSplit      = 9  [(gogoproto.nullable) = false];
-    CreateDestoryingReq   createDestorying   = 10 [(gogoproto.nullable) = false];
-    ReportDestoryedReq   ReportDestoryed   = 11 [(gogoproto.nullable) = false];
-    GetDestoryingReq      getDestorying      = 12 [(gogoproto.nullable) = false];
+    CreateDestroyingReq   createDestroying   = 10 [(gogoproto.nullable) = false];
+    ReportDestroyedReq   ReportDestroyed   = 11 [(gogoproto.nullable) = false];
+    GetDestroyingReq      getDestroying      = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
     CreateResourcesReq    createResources    = 14 [(gogoproto.nullable) = false];
     RemoveResourcesReq    removeResources    = 15 [(gogoproto.nullable) = false];
@@ -93,9 +93,9 @@ message Response {
     GetContainerRsp       getContainer       = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
     AskBatchSplitRsp      askBatchSplit      = 10 [(gogoproto.nullable) = false];
-    CreateDestoryingRsp   createDestorying   = 11 [(gogoproto.nullable) = false];
-    ReportDestoryedRsp   ReportDestoryed   = 12 [(gogoproto.nullable) = false];
-    GetDestoryingRsp      getDestorying      = 13 [(gogoproto.nullable) = false];
+    CreateDestroyingRsp   createDestroying   = 11 [(gogoproto.nullable) = false];
+    ReportDestroyedRsp   ReportDestroyed   = 12 [(gogoproto.nullable) = false];
+    GetDestroyingRsp      getDestroying      = 13 [(gogoproto.nullable) = false];
     EventNotify           event              = 14 [(gogoproto.nullable) = false];
     CreateResourcesRsp    createResources    = 15 [(gogoproto.nullable) = false];
     RemoveResourcesRsp    removeResources    = 16 [(gogoproto.nullable) = false];
@@ -147,8 +147,8 @@ message ResourceHeartbeatRsp {
     Merge                merge           = 6;
     SplitResource        splitResource   = 7;
     ConfigChangeV2         configChangeV2    = 8;
-    // DestoryDirectly the resource has been removed, destory directly without raft.
-    bool                 destoryDirectly = 9;
+    // DestroyDirectly the resource has been removed, destroy directly without raft.
+    bool                 destroyDirectly = 9;
 }
 
 // PutContainerReq put container request
@@ -204,37 +204,37 @@ message AskBatchSplitRsp {
 }
 
 
-// CreateDestoryingReq create destorying status request
-message CreateDestoryingReq {
+// CreateDestroyingReq create destroying status request
+message CreateDestroyingReq {
     uint64            id        = 1 [(gogoproto.customname) = "ID"];
     uint64            index     = 2;
     repeated uint64 replicas    = 3;
     bool             removeData = 4;
 }
 
-// CreateDestoryingRsp create destorying status response
-message CreateDestoryingRsp {
+// CreateDestroyingRsp create destroying status response
+message CreateDestroyingRsp {
     metapb.ResourceState state = 1;
 }
 
-// GetDestoryingReq get destorying status request
-message GetDestoryingReq {
+// GetDestroyingReq get destroying status request
+message GetDestroyingReq {
     uint64            id        = 1 [(gogoproto.customname) = "ID"];
 }
 
-// GetDestoryingRsp get destorying status response
-message GetDestoryingRsp {
+// GetDestroyingRsp get destroying status response
+message GetDestroyingRsp {
     metapb.DestroyingStatus status = 1;
 }
 
-// ReportDestoryedReq report destroying request
-message ReportDestoryedReq {
+// ReportDestroyedReq report destroying request
+message ReportDestroyedReq {
     uint64            id        = 1 [(gogoproto.customname) = "ID"];
     uint64            replicaID = 2;
 }
 
-// ReportDestoryedRsp report destroying rsp
-message ReportDestoryedRsp {
+// ReportDestroyedRsp report destroying rsp
+message ReportDestroyedRsp {
     metapb.ResourceState state = 1;
 }
 

@@ -789,29 +789,29 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 // Influence calculates the container difference that current step makes.
 func (cpl ChangePeerV2Leave) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
 
-// DestoryDirectly is an OpStep that destory current peer directly without raft.
-type DestoryDirectly struct {
+// DestroyDirectly is an OpStep that destroy current peer directly without raft.
+type DestroyDirectly struct {
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (tl DestoryDirectly) ConfVerChanged(res *core.CachedResource) uint64 {
+func (tl DestroyDirectly) ConfVerChanged(res *core.CachedResource) uint64 {
 	return 0 // RemoveDirectly never change the conf version
 }
 
-func (tl DestoryDirectly) String() string {
-	return "destory peer directly"
+func (tl DestroyDirectly) String() string {
+	return "destroy peer directly"
 }
 
 // IsFinish checks if current step is finished.
-func (tl DestoryDirectly) IsFinish(res *core.CachedResource) bool {
+func (tl DestroyDirectly) IsFinish(res *core.CachedResource) bool {
 	return true
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (tl DestoryDirectly) CheckSafety(res *core.CachedResource) error {
+func (tl DestroyDirectly) CheckSafety(res *core.CachedResource) error {
 	return nil
 }
 
 // Influence calculates the container difference that current step makes.
-func (tl DestoryDirectly) Influence(opInfluence OpInfluence, res *core.CachedResource) {
+func (tl DestroyDirectly) Influence(opInfluence OpInfluence, res *core.CachedResource) {
 }
