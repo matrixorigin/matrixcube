@@ -31,6 +31,8 @@ import (
 type Router interface {
 	// Start the router
 	Start() error
+	// Stop stops the router
+	Stop()
 	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
 	// If returns leader address is "", means the current shard has no leader
 	SelectShard(group uint64, key []byte) (Shard, string)
@@ -158,6 +160,10 @@ func newRouter(eventC chan rpcpb.EventNotify, options *routerOptions) (Router, e
 func (r *defaultRouter) Start() error {
 	r.options.stopper.RunWorker(r.eventLoop)
 	return nil
+}
+
+func (r *defaultRouter) Stop() {
+	r.options.stopper.Stop()
 }
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
