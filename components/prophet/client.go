@@ -581,20 +581,34 @@ func (c *asyncClient) asyncDo(req *rpcpb.Request, cb func(*rpcpb.Response, error
 }
 
 func (c *asyncClient) do(ctx *ctx) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	added := false
+	for {
+		c.mu.RLock()
+		if c.mu.state == stateStopped {
+			c.mu.RUnlock()
+			return ErrClosed
+		}
 
-	if c.mu.state == stateStopped {
-		return ErrClosed
-	}
+		if !added {
+			ctx.req.ID = c.nextID()
+			if ctx.sync || ctx.cb != nil {
+				c.contexts.Store(ctx.req.ID, ctx)
+				util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
+			}
+			added = true
+		}
 
-	ctx.req.ID = c.nextID()
-	if ctx.sync || ctx.cb != nil {
-		c.contexts.Store(ctx.req.ID, ctx)
-		util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
+		// Close the client need acquire the write lock, so we cann't block at here.
+		// The write loop may reset the leader's network link and may not be able to
+		// process writeC for a long time, causing the writeC buffer to reach its limit.
+		select {
+		case c.writeC <- ctx:
+			c.mu.RUnlock()
+			return nil
+		default:
+			c.mu.RUnlock()
+		}
 	}
-	c.writeC <- ctx
-	return nil
 }
 
 func (c *asyncClient) timeout(arg interface{}) {
