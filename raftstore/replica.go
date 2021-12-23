@@ -603,7 +603,7 @@ func (l *etcdRaftLoggerAdapter) Errorf(format string, v ...interface{}) {
 	l.logger.Errorf(format, v...)
 }
 func (l *etcdRaftLoggerAdapter) Info(v ...interface{})                 { l.logger.Info(v...) }
-func (l *etcdRaftLoggerAdapter) Infof(format string, v ...interface{}) { l.logger.Errorf(format, v...) }
+func (l *etcdRaftLoggerAdapter) Infof(format string, v ...interface{}) { l.logger.Infof(format, v...) }
 func (l *etcdRaftLoggerAdapter) Warning(v ...interface{})              { l.logger.Warn(v...) }
 func (l *etcdRaftLoggerAdapter) Warningf(format string, v ...interface{}) {
 	l.logger.Warnf(format, v...)
