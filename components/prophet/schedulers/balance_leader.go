@@ -144,7 +144,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	schedulerCounter.WithLabelValues(l.GetName(), "schedule").Inc()
 
 	containers := cluster.GetContainers()
-	if len(containers) <= cluster.GetOpts().GetMaxReplicas() {
+	if len(containers) <= 1 {
 		return nil
 	}
 

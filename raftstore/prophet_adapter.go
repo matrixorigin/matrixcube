@@ -535,6 +535,9 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
 		panic("ConfigChangeV2 request from prophet")
 	} else if rsp.TransferLeader != nil {
+		s.logger.Info("send transfer leader request",
+			s.storeField(),
+			log.ShardIDField(rsp.ResourceID))
 		pr.addAdminRequest(rpc.AdminCmdType_TransferLeader, &rpc.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
 		})

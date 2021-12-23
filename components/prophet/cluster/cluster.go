@@ -509,21 +509,22 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	var saveKV, saveCache, isNew bool
 	if origin == nil {
 		c.logger.Debug("insert new resource",
-			zap.Uint64("reosurce", res.Meta.ID()))
+			zap.Uint64("resource", res.Meta.ID()))
 		saveKV, saveCache, isNew = true, true, true
 	} else {
 		r := res.Meta.Epoch()
 		o := origin.Meta.Epoch()
 		if r.GetVersion() > o.GetVersion() {
 			c.logger.Info("resource version changed",
-				zap.Uint64("reosurce", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.ID()),
 				zap.Uint64("from", o.GetVersion()),
 				zap.Uint64("to", r.GetVersion()))
 			saveKV, saveCache = true, true
 		}
 		if r.GetConfVer() > o.GetConfVer() {
 			c.logger.Info("resource ConfVer changed",
-				zap.Uint64("reosurce", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.ID()),
+				log.ReplicasField("peers", res.Meta.Peers()),
 				zap.Uint64("from", o.GetConfVer()),
 				zap.Uint64("to", r.GetConfVer()))
 			saveKV, saveCache = true, true
@@ -533,7 +534,7 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 				isNew = true
 			} else {
 				c.logger.Info("resource leader changed",
-					zap.Uint64("reosurce", res.Meta.ID()),
+					zap.Uint64("resource", res.Meta.ID()),
 					zap.Uint64("from", origin.GetLeader().GetContainerID()),
 					zap.Uint64("to", res.GetLeader().GetContainerID()))
 			}
@@ -1498,6 +1499,7 @@ func (c *RaftCluster) AddContainerLimit(container metadata.Container) {
 	for i := 0; i < persistLimitRetryTimes; i++ {
 		if err = c.opt.Persist(c.storage); err == nil {
 			c.logger.Info("container limit added",
+				zap.Any("limit", cfg.ContainerLimit[containerID]),
 				zap.Uint64("container", containerID))
 			return
 		}

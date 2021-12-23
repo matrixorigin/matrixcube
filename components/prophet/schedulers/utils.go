@@ -62,6 +62,10 @@ func shouldBalance(cluster opt.Cluster,
 	opts := cluster.GetOpts()
 	switch kind.ResourceKind {
 	case metapb.ResourceKind_LeaderKind:
+		if kind.Policy == core.ByCount {
+			sourceDelta = -1
+			targetDelta = 1
+		}
 		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
 		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
 	case metapb.ResourceKind_ReplicaKind:
@@ -75,7 +79,8 @@ func shouldBalance(cluster opt.Cluster,
 	}
 	// Make sure after move, source score is still greater than target score.
 	shouldBalance = sourceScore > targetScore ||
-		(sourceScore == targetScore && target.GetResourceCount(res.GetGroupKey()) == 0)
+		(sourceScore == targetScore && target.GetResourceCount(res.GetGroupKey()) == 0) ||
+		(sourceScore == targetScore && kind.ResourceKind == metapb.ResourceKind_LeaderKind)
 
 	if !shouldBalance {
 		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
@@ -86,7 +91,7 @@ func shouldBalance(cluster opt.Cluster,
 				sourceField(sourceID),
 				targetField(targetID),
 				zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
-				zap.Int64("target-size", source.GetResourceSize(res.GetGroupKey())),
+				zap.Int64("target-size", target.GetResourceSize(res.GetGroupKey())),
 				zap.Int64("average-size", cluster.GetAverageResourceSize()),
 				zap.Int64("source-influence", sourceInfluence),
 				zap.Int64("target-influence", targetInfluence),
