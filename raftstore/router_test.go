@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// FIXME: add leaktest checks
+
 func TestHandleInitEvent(t *testing.T) {
 	b := NewTestDataBuilder()
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))

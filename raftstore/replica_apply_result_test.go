@@ -45,7 +45,7 @@ func TestApplySplit(t *testing.T) {
 	s.droppedVoteMsgs.Store(uint64(2), meta.RaftMessage{})
 	s.droppedVoteMsgs.Store(uint64(3), meta.RaftMessage{})
 
-	pr.destoryTaskFactory = newTestDestroyReplicaTaskFactory(true)
+	pr.destroyTaskFactory = newTestDestroyReplicaTaskFactory(true)
 	pr.applySplit(result)
 	_, ok := s.droppedVoteMsgs.Load(uint64(2))
 	assert.False(t, ok)
@@ -91,7 +91,8 @@ func TestApplySplit(t *testing.T) {
 func TestUpdateMetricsHints(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 
 	pr.updateMetricsHints(applyResult{
@@ -141,7 +142,8 @@ func TestUpdateMetricsHints(t *testing.T) {
 func TestUpdateMetricsHintsCanBeIgnored(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 	pr.updateMetricsHints(applyResult{
 		metrics: applyMetrics{

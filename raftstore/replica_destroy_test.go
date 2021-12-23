@@ -29,7 +29,8 @@ import (
 func TestDestroyReplica(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	r := Replica{ID: 1}
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false)
 	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false)

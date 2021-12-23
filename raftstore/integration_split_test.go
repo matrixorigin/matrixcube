@@ -112,7 +112,7 @@ func TestSplitWithCase1(t *testing.T) {
 	sid := c.GetShardByIndex(0, 0).ID
 	c.EveryStore(func(i int, s Store) {
 		pr := s.(*store).getReplica(sid, false)
-		pr.destoryTaskFactory = newTestDestroyReplicaTaskFactory(true) // skip destory task
+		pr.destroyTaskFactory = newTestDestroyReplicaTaskFactory(true) // skip destroy task
 	})
 
 	prepareSplit(t, c, nil, []int{3, 3, 3})

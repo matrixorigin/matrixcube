@@ -213,3 +213,18 @@ func TestContainerResolverReturnError(t *testing.T) {
 
 	assert.False(t, trans.Send(meta.RaftMessage{}))
 }
+
+func TestSetNilFilter(t *testing.T) {
+	hasPanic := false
+	func() {
+		defer func() {
+			if err := recover(); err != nil {
+				hasPanic = true
+			}
+		}()
+
+		trans := &Transport{}
+		trans.SetFilter(nil)
+	}()
+	assert.True(t, hasPanic)
+}

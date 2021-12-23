@@ -86,21 +86,21 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeCreateDestoryingReq:
-		resp.Type = rpcpb.TypeCreateDestoryingRsp
-		err := p.handleCreateDestorying(rc, req, resp)
+	case rpcpb.TypeCreateDestroyingReq:
+		resp.Type = rpcpb.TypeCreateDestroyingRsp
+		err := p.handleCreateDestroying(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeReportDestoryedReq:
-		resp.Type = rpcpb.TypeReportDestoryedRsp
-		err := p.handleReportDestoryed(rc, req, resp)
+	case rpcpb.TypeReportDestroyedReq:
+		resp.Type = rpcpb.TypeReportDestroyedRsp
+		err := p.handleReportDestroyed(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeGetDestoryingReq:
-		resp.Type = rpcpb.TypeGetDestoryingRsp
-		err := p.handleGetDestorying(rc, req, resp)
+	case rpcpb.TypeGetDestroyingReq:
+		resp.Type = rpcpb.TypeGetDestroyingRsp
+		err := p.handleGetDestroying(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -284,30 +284,30 @@ func (p *defaultProphet) handleContainerHeartbeat(rc *cluster.RaftCluster, req *
 	return nil
 }
 
-func (p *defaultProphet) handleCreateDestorying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	state, err := rc.HandleCreateDestorying(req.CreateDestorying)
+func (p *defaultProphet) handleCreateDestroying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	state, err := rc.HandleCreateDestroying(req.CreateDestroying)
 	if err != nil {
 		return err
 	}
-	resp.CreateDestorying.State = state
+	resp.CreateDestroying.State = state
 	return nil
 }
 
-func (p *defaultProphet) handleGetDestorying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	status, err := rc.HandleGetDestorying(req.GetDestorying)
+func (p *defaultProphet) handleGetDestroying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	status, err := rc.HandleGetDestroying(req.GetDestroying)
 	if err != nil {
 		return err
 	}
-	resp.GetDestorying.Status = status
+	resp.GetDestroying.Status = status
 	return nil
 }
 
-func (p *defaultProphet) handleReportDestoryed(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	state, err := rc.HandleReportDestoryed(req.ReportDestoryed)
+func (p *defaultProphet) handleReportDestroyed(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+	state, err := rc.HandleReportDestroyed(req.ReportDestroyed)
 	if err != nil {
 		return err
 	}
-	resp.ReportDestoryed.State = state
+	resp.ReportDestroyed.State = state
 	return nil
 }
 

@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,8 @@ import (
 )
 
 func TestTryToCreateReplicate(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		name       string
 		pr         *replica
@@ -77,33 +80,39 @@ func TestTryToCreateReplicate(t *testing.T) {
 	}
 
 	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		s.DataStorageByGroup(0).GetInitialStates()
-		if c.pr != nil {
-			c.pr.startedC = make(chan struct{})
-			c.pr.closedC = make(chan struct{})
-			c.pr.store = s
-			c.pr.replicaID = c.pr.replica.ID
-			c.pr.logger = s.logger
-			c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil, nil)
-			close(c.pr.startedC)
-			s.addReplica(c.pr)
-			s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
-		}
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			s.DataStorageByGroup(0).GetInitialStates()
+			if c.pr != nil {
+				c.pr.startedC = make(chan struct{})
+				c.pr.closedC = make(chan struct{})
+				c.pr.store = s
+				c.pr.replicaID = c.pr.replica.ID
+				c.pr.logger = s.logger
+				c.pr.sm = newStateMachine(c.pr.logger, s.DataStorageByGroup(0), nil, Shard{ID: c.pr.shardID, Start: c.start, End: c.end, Replicas: []Replica{c.pr.replica}}, c.pr.replica, nil, nil)
+				close(c.pr.startedC)
+				s.addReplica(c.pr)
+				s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
+			}
 
-		c.msg.From = Replica{ID: 100, ContainerID: 1000}
-		assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
-		if c.checkCache {
-			msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
-			assert.True(t, ok)
-			assert.Equal(t, c.msg, msg)
-		}
+			c.msg.From = Replica{ID: 100, ContainerID: 1000}
+			assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
+			if c.checkCache {
+				msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
+				assert.True(t, ok)
+				assert.Equal(t, c.msg, msg)
+			}
+		}()
 	}
 }
 
 func TestHandleDestroyReplicaMessage(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	r := Replica{ID: 1}
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := &replica{
 		shardID:           1,
 		replica:           r,

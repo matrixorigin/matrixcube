@@ -505,7 +505,7 @@ func (s *store) startHandleResourceHeartbeat() {
 }
 
 func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
-	if rsp.DestoryDirectly {
+	if rsp.DestroyDirectly {
 		s.destroyReplica(rsp.ResourceID, true, true, "remove by pd")
 		return
 	}

@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// FIXME: add leaktest checks
+
 func TestNewDynamicShardsPool(t *testing.T) {
 	cfg := NewSingleTestClusterStore(t).GetStore(0).GetConfig()
 	p := newDynamicShardsPool(cfg, nil)

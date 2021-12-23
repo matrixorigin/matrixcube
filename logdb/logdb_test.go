@@ -39,6 +39,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -440,6 +441,43 @@ func TestLogDBRemoveEntriesWithoutSnapshotWillPanic(t *testing.T) {
 		if err := db.RemoveEntriesTo(testShardID, testReplicaID, 5); err != nil {
 			t.Fatalf("remove entries to failed, %v", err)
 		}
+	}
+	fs := vfs.GetTestFS()
+	runLogDBTest(t, tf, fs)
+}
+
+func TestLogDBRemoveReplicaData(t *testing.T) {
+	tf := func(t *testing.T, db *KVLogDB) {
+		rd1 := raft.Ready{
+			Entries:   []raftpb.Entry{{Index: 1, Term: 1}, {Index: 2, Term: 1}, {Index: 3, Term: 1}},
+			HardState: raftpb.HardState{Term: 1, Vote: 3, Commit: 100},
+			Snapshot: raftpb.Snapshot{
+				Metadata: raftpb.SnapshotMetadata{
+					Index: 4,
+					Term:  1,
+				},
+			},
+		}
+		wc := db.NewWorkerContext()
+		if err := db.SaveRaftState(testShardID, testReplicaID, rd1, wc); err != nil {
+			t.Fatalf("failed to save raft state, %v", err)
+		}
+		assert.NoError(t, db.RemoveReplicaData(testShardID))
+		first, length, err := db.getRange(testShardID, testReplicaID, 0)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0), first)
+		assert.Equal(t, uint64(0), length)
+
+		_, err = db.getMaxIndex(testShardID, testReplicaID)
+		assert.Equal(t, ErrNoSavedLog, err)
+
+		snapshots, err := db.GetAllSnapshots(testShardID)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(snapshots))
+
+		v, err := db.ms.Get(keys.GetHardStateKey(testShardID, testReplicaID, nil))
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(v))
 	}
 	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)

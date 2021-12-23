@@ -207,7 +207,8 @@ func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
 func TestDoCheckCompactLog(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 1}, s)
 	pr.leaderID = 2
 

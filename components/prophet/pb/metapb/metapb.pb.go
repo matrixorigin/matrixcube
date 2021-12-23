@@ -84,7 +84,7 @@ const (
 	ContainerState_UP ContainerState = 0
 	// Offline is the unavailable state
 	ContainerState_Offline ContainerState = 1
-	// Tombstone is the destory state
+	// Tombstone is the destroy state
 	ContainerState_Tombstone ContainerState = 2
 )
 
@@ -122,7 +122,7 @@ const (
 	// this state normally cannot provide read and write services to the public,
 	// and the destruction process of resources has not yet been completed.
 	ResourceState_Destroying ResourceState = 2
-	// Destroyed is the destoryed state,
+	// Destroyed is the destroyed state,
 	// this state is normally not available for external read and write services,
 	// the resources have been destroyed in the whole cluster and cannot be used again.
 	ResourceState_Destroyed ResourceState = 3

@@ -21,51 +21,25 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func TestStartAndStop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	c := NewSingleTestClusterStore(t)
 	c.Start()
 	defer c.Stop()
 }
 
-func TestAdvertiseAddr(t *testing.T) {
-	c := NewTestClusterStore(t,
-		WithTestClusterUseDisk(),
-		WithTestClusterEnableAdvertiseAddr())
-	c.Start()
-	defer c.Stop()
-
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.WaitLeadersByCount(1, testWaitTimeout)
-	c.CheckShardCount(1)
-
-	for i := 0; i < 3; i++ {
-		kv := c.CreateTestKVClient(i)
-		defer kv.Close()
-		assert.NoError(t, kv.Set("key", "value", testWaitTimeout))
-	}
-
-	c.Restart()
-	c.WaitShardByCountPerNode(1, testWaitTimeout)
-	c.WaitLeadersByCount(1, testWaitTimeout)
-	c.CheckShardCount(1)
-
-	for i := 0; i < 3; i++ {
-		kv2 := c.CreateTestKVClient(i)
-		defer kv2.Close()
-		v, err := kv2.Get("key", testWaitTimeout)
-		assert.NoError(t, err)
-		assert.Equal(t, "value", v)
-	}
-}
-
 func TestSearchShard(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
 
+	s, cancel := newTestStore(t)
+	defer cancel()
 	tree := util.NewShardTree()
 	s.keyRanges.Store(uint64(1), tree)
 	tree.Update(Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
@@ -79,8 +53,10 @@ func TestSearchShard(t *testing.T) {
 }
 
 func TestNextShard(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
 
+	s, cancel := newTestStore(t)
+	defer cancel()
 	tree := util.NewShardTree()
 	s.keyRanges.Store(uint64(0), tree)
 	tree.Update(Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
@@ -95,7 +71,10 @@ func TestNextShard(t *testing.T) {
 }
 
 func TestRemoveShardKeyRange(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
 
 	tree := util.NewShardTree()
 	s.keyRanges.Store(uint64(0), tree)
@@ -107,7 +86,10 @@ func TestRemoveShardKeyRange(t *testing.T) {
 }
 
 func TestUpdateShardKeyRange(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
 
 	s.updateShardKeyRange(0, Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
 	assert.Equal(t, uint64(1), s.searchShard(0, []byte("a")).ID)
@@ -117,7 +99,10 @@ func TestUpdateShardKeyRange(t *testing.T) {
 }
 
 func TestStoreSelectShard(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
 	tree := util.NewShardTree()
 	s.keyRanges.Store(uint64(0), tree)
 	tree.Update(Shard{ID: 1, Start: []byte("a"), End: []byte("b")})
@@ -135,7 +120,10 @@ func TestStoreSelectShard(t *testing.T) {
 }
 
 func TestStoreRemoveReplica(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
 	aware := newTestShardAware(0)
 	s.aware = aware
 	pr := &replica{shardID: 1, sm: &stateMachine{}}
@@ -150,6 +138,8 @@ func TestStoreRemoveReplica(t *testing.T) {
 }
 
 func TestValidateShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		pr    *replica
 		req   rpc.RequestBatch
@@ -190,27 +180,36 @@ func TestValidateShard(t *testing.T) {
 	}
 
 	for idx, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
-		c.pr.store = s
-		c.pr.replicaID = c.pr.replica.ID
-		c.pr.sm = &stateMachine{}
-		c.pr.sm.metadataMu.shard = Shard{ID: c.pr.shardID, Epoch: c.epoch}
-		close(c.pr.startedC)
-		s.addReplica(c.pr)
+		func() {
+			s, cancel := newTestStore(t)
+			defer cancel()
+			c.pr.store = s
+			c.pr.replicaID = c.pr.replica.ID
+			c.pr.sm = &stateMachine{}
+			c.pr.sm.metadataMu.shard = Shard{ID: c.pr.shardID, Epoch: c.epoch}
+			close(c.pr.startedC)
+			s.addReplica(c.pr)
 
-		err, ok := s.validateShard(c.req)
-		assert.Equal(t, c.ok, ok, "index %d", idx)
-		assert.Equal(t, c.err, err.Message, "index %d", idx)
+			err, ok := s.validateShard(c.req)
+			assert.Equal(t, c.ok, ok, "index %d", idx)
+			assert.Equal(t, c.err, err.Message, "index %d", idx)
+		}()
 	}
 }
 
 func TestVacuum(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
 	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello"), false)
 	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello"), false)
-	assert.NoError(t, s.vacuum(vacuumTask{shard: shard, removeData: true}))
+	assert.NoError(t, s.vacuum(vacuumTask{
+		shard:      shard,
+		removeData: true,
+	}))
 
 	c := 0
 	kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardEnd(shard.End, nil), func(key, value []byte) (bool, error) {

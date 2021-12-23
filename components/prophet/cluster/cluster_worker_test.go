@@ -215,7 +215,7 @@ func TestResourceHeartbeatAtRemovedState(t *testing.T) {
 	assert.NoError(t, cluster.HandleResourceHeartbeat(resources[1]))
 	rsp := stream.Recv()
 	assert.NotNil(t, rsp)
-	assert.True(t, rsp.DestoryDirectly)
+	assert.True(t, rsp.DestroyDirectly)
 }
 
 func TestHandleCheckResourceState(t *testing.T) {

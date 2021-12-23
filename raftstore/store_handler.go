@@ -125,7 +125,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		}
 	}
 
-	// If we found stale peer, we will destory it
+	// If we found stale peer, we will destroy it
 	if stalePeer.ID > 0 {
 		s.logger.Info("found stale peer, need to remove self replica",
 			s.storeField(),
@@ -174,7 +174,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		return false
 	}
 
-	if s.createShardsProtector.inDestoryState(msg.ShardID) {
+	if s.createShardsProtector.inDestroyState(msg.ShardID) {
 		s.logger.Debug("skip create replica",
 			s.storeField(),
 			log.ReasonField("shard in destroy state"),

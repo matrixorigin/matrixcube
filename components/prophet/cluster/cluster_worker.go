@@ -37,7 +37,7 @@ func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
 
 	if err := c.processResourceHeartbeat(res); err != nil {
 		if err == errResourceDestroyed {
-			co.opController.DispatchDestoryDirectly(res, schedule.DispatchFromHeartBeat)
+			co.opController.DispatchDestroyDirectly(res, schedule.DispatchFromHeartBeat)
 			return nil
 		}
 		return err
@@ -47,8 +47,8 @@ func (c *RaftCluster) HandleResourceHeartbeat(res *core.CachedResource) error {
 	return nil
 }
 
-// HandleCreateDestorying handle create destroying
-func (c *RaftCluster) HandleCreateDestorying(req rpcpb.CreateDestoryingReq) (metapb.ResourceState, error) {
+// HandleCreateDestroying handle create destroying
+func (c *RaftCluster) HandleCreateDestroying(req rpcpb.CreateDestroyingReq) (metapb.ResourceState, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -80,8 +80,8 @@ func (c *RaftCluster) HandleCreateDestorying(req rpcpb.CreateDestoryingReq) (met
 	return status.State, nil
 }
 
-// HandleReportDestoryed handle report destroyed
-func (c *RaftCluster) HandleReportDestoryed(req rpcpb.ReportDestoryedReq) (metapb.ResourceState, error) {
+// HandleReportDestroyed handle report destroyed
+func (c *RaftCluster) HandleReportDestroyed(req rpcpb.ReportDestroyedReq) (metapb.ResourceState, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -124,8 +124,8 @@ func (c *RaftCluster) HandleReportDestoryed(req rpcpb.ReportDestoryedReq) (metap
 	return status.State, nil
 }
 
-// HandleGetDestorying returns resource destroying status
-func (c *RaftCluster) HandleGetDestorying(req rpcpb.GetDestoryingReq) (*metapb.DestroyingStatus, error) {
+// HandleGetDestroying returns resource destroying status
+func (c *RaftCluster) HandleGetDestroying(req rpcpb.GetDestroyingReq) (*metapb.DestroyingStatus, error) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -426,7 +426,7 @@ func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.Destr
 	if status.State == metapb.ResourceState_Destroyed {
 		res := c.core.GetResource(id)
 		if res == nil {
-			c.logger.Fatal("missing resource to set destoryed",
+			c.logger.Fatal("missing resource to set destroyed",
 				zap.Uint64("resource", id))
 			return nil
 		}

@@ -225,17 +225,17 @@ func (c *asyncClient) CreateDestroying(id uint64, index uint64, removeData bool,
 	}
 
 	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeCreateDestoryingReq
-	req.CreateDestorying.ID = id
-	req.CreateDestorying.Index = index
-	req.CreateDestorying.Replicas = replicas
-	req.CreateDestorying.RemoveData = removeData
+	req.Type = rpcpb.TypeCreateDestroyingReq
+	req.CreateDestroying.ID = id
+	req.CreateDestroying.Index = index
+	req.CreateDestroying.Replicas = replicas
+	req.CreateDestroying.RemoveData = removeData
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
 		return metapb.ResourceState_Destroying, err
 	}
-	return rsp.CreateDestorying.State, nil
+	return rsp.CreateDestroying.State, nil
 }
 
 func (c *asyncClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) {
@@ -244,15 +244,15 @@ func (c *asyncClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
 	}
 
 	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeGetDestoryingReq
-	req.GetDestorying.ID = id
+	req.Type = rpcpb.TypeGetDestroyingReq
+	req.GetDestroying.ID = id
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return rsp.GetDestorying.Status, nil
+	return rsp.GetDestroying.Status, nil
 }
 
 func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error) {
@@ -261,16 +261,16 @@ func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.Resou
 	}
 
 	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeReportDestoryedReq
-	req.ReportDestoryed.ID = id
-	req.ReportDestoryed.ReplicaID = replicaID
+	req.Type = rpcpb.TypeReportDestroyedReq
+	req.ReportDestroyed.ID = id
+	req.ReportDestroyed.ReplicaID = replicaID
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
 		return metapb.ResourceState_Destroying, err
 	}
 
-	return rsp.ReportDestoryed.State, nil
+	return rsp.ReportDestroyed.State, nil
 }
 
 func (c *asyncClient) PutContainer(container metadata.Container) error {

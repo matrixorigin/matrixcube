@@ -353,6 +353,10 @@ func (wb *writeBatch) Delete(key []byte) {
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)))
 }
 
+func (wb *writeBatch) DeleteRange(fk []byte, lk []byte) {
+	wb.batch.DeleteRange(fk, lk, nil)
+}
+
 func (wb *writeBatch) Set(key []byte, value []byte) {
 	wb.batch.Set(key, value, nil)
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)+len(value)))

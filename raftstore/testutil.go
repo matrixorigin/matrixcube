@@ -1208,6 +1208,14 @@ func (c *testRaftCluster) Stop() {
 	}
 }
 
+func (c *testRaftCluster) closeLogDBKVStorage() {
+	for _, s := range c.stores {
+		if s != nil && s.kvStorage != nil {
+			s.kvStorage.Close()
+		}
+	}
+}
+
 func (c *testRaftCluster) closeStorage() {
 	for _, s := range c.dataStorages {
 		if s != nil {
@@ -1638,7 +1646,10 @@ func newTestStore(t *testing.T) (*store, func()) {
 		_, err := ds.GetInitialStates()
 		assert.NoError(t, err)
 	}
-	return c.GetStore(0).(*store), func() { c.closeStorage() }
+	return c.GetStore(0).(*store), func() {
+		c.closeStorage()
+		c.closeLogDBKVStorage()
+	}
 }
 
 func hasLabel(s Shard, key, value string) bool {

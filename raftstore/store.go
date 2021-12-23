@@ -231,15 +231,26 @@ func (s *store) Stop() {
 		s.logger.Info("raft internal transport stopped",
 			s.storeField())
 
+		// requests all replicas to be shutdown
 		s.forEachReplica(func(pr *replica) bool {
 			pr.close()
 			return true
 		})
-		s.logger.Info("shards stopped",
+		s.logger.Info("shards requested to be stopped",
 			s.storeField())
-
+		// stop the worker pool
 		s.workerPool.close()
 		s.logger.Info("worker pool stopped",
+			s.storeField())
+		// worker pool stopped, its now safe to check whether all replicas have been
+		// shutdown, shutdown the replica if it is not stopped.
+		s.forEachReplica(func(pr *replica) bool {
+			if !pr.unloaded() {
+				pr.shutdown()
+			}
+			return true
+		})
+		s.logger.Info("shards stopped",
 			s.storeField())
 
 		s.stopper.Stop()
@@ -393,7 +404,9 @@ func (s *store) createTransport() {
 	s.trans = transport.NewTransport(s.logger,
 		s.cfg.RaftAddr, s.Meta().ID, s.handle, s.unreachable, s.snapshotStatus,
 		s.GetReplicaSnapshotDir, s.containerResolver, s.cfg.FS)
-	s.trans.SetFilter(s.cfg.Customize.CustomTransportFilter)
+	if s.cfg.Customize.CustomTransportFilter != nil {
+		s.trans.SetFilter(s.cfg.Customize.CustomTransportFilter)
+	}
 }
 
 func (s *store) startTransport() {
@@ -406,7 +419,7 @@ func (s *store) startShards() {
 
 	var tomebstones []Shard
 	shards := make(map[uint64]Shard)
-	localDestoryings := make(map[uint64]meta.ShardMetadata)
+	localDestroyings := make(map[uint64]meta.ShardMetadata)
 	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
@@ -442,7 +455,7 @@ func (s *store) startShards() {
 
 			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
 				s.createShardsProtector.addDestroyed(sls.Shard.ID)
-				localDestoryings[metadata.ShardID] = metadata
+				localDestroyings[metadata.ShardID] = metadata
 			} else {
 				confirmShards.Add(sls.Shard.ID)
 			}
@@ -479,8 +492,8 @@ func (s *store) startShards() {
 	newReplicaCreator(s).
 		withReason("restart").
 		withStartReplica(nil, func(r *replica) {
-			if metadata, ok := localDestoryings[r.shardID]; ok {
-				r.startDestoryReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
+			if metadata, ok := localDestroyings[r.shardID]; ok {
+				r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
 			}
 		}).
 		create(readyBootstrapShards)

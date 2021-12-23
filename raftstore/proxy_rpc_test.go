@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// FIXME: add leaktest checks
+
 func TestRPCProxy(t *testing.T) {
 	addr := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
 	c := make(chan rpc.Request, 10)

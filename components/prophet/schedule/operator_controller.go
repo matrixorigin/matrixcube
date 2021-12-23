@@ -98,10 +98,10 @@ func (oc *OperatorController) GetCluster() opt.Cluster {
 	return oc.cluster
 }
 
-// DispatchDestoryDirectly send DestoryDirect cmd to the current container, because
+// DispatchDestroyDirectly send DestroyDirect cmd to the current container, because
 // the resource has been removed.
-func (oc *OperatorController) DispatchDestoryDirectly(res *core.CachedResource, source string) {
-	oc.SendScheduleCommand(res, operator.DestoryDirectly{}, source)
+func (oc *OperatorController) DispatchDestroyDirectly(res *core.CachedResource, source string) {
+	oc.SendScheduleCommand(res, operator.DestroyDirectly{}, source)
 }
 
 // Dispatch is used to dispatch the operator of a resource.
@@ -618,9 +618,9 @@ func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step
 
 	var cmd *rpcpb.ResourceHeartbeatRsp
 	switch st := step.(type) {
-	case operator.DestoryDirectly:
+	case operator.DestroyDirectly:
 		cmd = &rpcpb.ResourceHeartbeatRsp{
-			DestoryDirectly: true,
+			DestroyDirectly: true,
 		}
 	case operator.TransferLeader:
 		p, _ := res.GetContainerPeer(st.ToContainer)

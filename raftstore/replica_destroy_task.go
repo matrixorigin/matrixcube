@@ -40,32 +40,32 @@ type destroyingStorage interface {
 	GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error)
 }
 
-// startDestoryReplicaTaskAfterSplitted starts a task used to destory old replicas. We cannot directly delete the current replica,
+// startDestroyReplicaTaskAfterSplitted starts a task used to destroy old replicas. We cannot directly delete the current replica,
 // because once deleted, it may result in some Replica not receiving Split's Log.
 // So we start a timer that periodically detects the replication of the Log, and once all the Replica are replicated,
 // set the condition on `Prophet` that the Shard can be deleted (AppliedIndex >= SplitLogIndex).
-func (pr *replica) startDestoryReplicaTaskAfterSplitted(splitRequestLogIndex uint64) {
-	pr.startDestoryReplicaTask(splitRequestLogIndex, false, "splitted")
+func (pr *replica) startDestroyReplicaTaskAfterSplitted(splitRequestLogIndex uint64) {
+	pr.startDestroyReplicaTask(splitRequestLogIndex, false, "splitted")
 }
 
-// startDestoryReplicaTask starts a task to destory all replicas of the shard after the specified Log applied.
-func (pr *replica) startDestoryReplicaTask(targetIndex uint64, removeData bool, reason string) {
-	pr.destoryTaskMu.Lock()
-	defer pr.destoryTaskMu.Unlock()
+// startDestroyReplicaTask starts a task to destroy all replicas of the shard after the specified Log applied.
+func (pr *replica) startDestroyReplicaTask(targetIndex uint64, removeData bool, reason string) {
+	pr.destroyTaskMu.Lock()
+	defer pr.destroyTaskMu.Unlock()
 
-	if pr.destoryTaskMu.hasTask {
-		pr.logger.Error("async task for destory replica already started",
+	if pr.destroyTaskMu.hasTask {
+		pr.logger.Error("async task for destroy replica already started",
 			log.ReasonField(reason),
-			zap.String("last-reason", pr.destoryTaskMu.reason),
+			zap.String("last-reason", pr.destroyTaskMu.reason),
 			destroyShardTaskField)
 		return
 	}
 
-	pr.destoryTaskMu.hasTask = true
-	pr.destoryTaskMu.reason = reason
-	task := pr.destoryTaskFactory.new(pr, targetIndex, removeData, reason)
+	pr.destroyTaskMu.hasTask = true
+	pr.destroyTaskMu.reason = reason
+	task := pr.destroyTaskFactory.new(pr, targetIndex, removeData, reason)
 	if err := pr.readStopper.RunNamedTask(context.Background(), reason, task.run); err != nil {
-		pr.logger.Error("failed to start async task for destory replica",
+		pr.logger.Error("failed to start async task for destroy replica",
 			zap.Error(err))
 	}
 }
@@ -111,8 +111,8 @@ type defaultDestroyReplicaTask struct {
 	doCheckApply         bool
 	checkInterval        time.Duration
 	checkTimer           *time.Timer
-	doSaveDestoryC       chan []uint64
-	doRealDestoryC       chan struct{}
+	doSaveDestroyC       chan []uint64
+	doRealDestroyC       chan struct{}
 }
 
 func newDestroyReplicaTask(pr *replica, targetIndex uint64,
@@ -131,14 +131,14 @@ func newDestroyReplicaTask(pr *replica, targetIndex uint64,
 		doCheckDestroyExists: true,
 		doCheckLog:           false,
 		doCheckApply:         false,
-		doSaveDestoryC:       make(chan []uint64, 1),
-		doRealDestoryC:       make(chan struct{}, 1),
+		doSaveDestroyC:       make(chan []uint64, 1),
+		doRealDestroyC:       make(chan struct{}, 1),
 		checkInterval:        checkInterval,
 		checkTimer:           time.NewTimer(checkInterval),
 	}
 }
 
-// destoryReplicaAfterLogApplied this task will be executed on all Replicas of a Shard. The task has 4 steps:
+// destroyReplicaAfterLogApplied this task will be executed on all Replicas of a Shard. The task has 4 steps:
 // 1. Periodically check all replicas for CommitIndex >= TargetIndex
 // 2. Put the check result into storage
 // 3. Periodically check all replicas for AppliedIndex >= TargetIndex
@@ -157,7 +157,7 @@ func (t *defaultDestroyReplicaTask) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.checkTimer.C:
-			// we need check the destory record exist if restart.
+			// we need check the destroy record exist if restart.
 			t.maybeCheckDestroyExists()
 			// step 1
 			t.maybeCheckLog()
@@ -165,14 +165,14 @@ func (t *defaultDestroyReplicaTask) run(ctx context.Context) {
 			t.maybeCheckTargetLogApplied()
 
 			t.checkTimer.Reset(t.checkInterval)
-		case replicas := <-t.doSaveDestoryC: // step 2
+		case replicas := <-t.doSaveDestroyC: // step 2
 			// leader path, only leader node can reach here.
 			// Reaching here means that all Replicas of the Shard have completed the log replication of
 			// the TargetIndex and have been Committed.
-			// Only if the Destoryed information corresponding to the Shard is set in storage, all replicas
+			// Only if the Destroyed information corresponding to the Shard is set in storage, all replicas
 			// can be safely deleted.
 			t.createDestroying(replicas)
-		case <-t.doRealDestoryC: // step 4
+		case <-t.doRealDestroyC: // step 4
 			if t.performDestroy() {
 				return
 			}
@@ -182,15 +182,15 @@ func (t *defaultDestroyReplicaTask) run(ctx context.Context) {
 
 func (t *defaultDestroyReplicaTask) close() {
 	t.checkTimer.Stop()
-	close(t.doSaveDestoryC)
-	close(t.doRealDestoryC)
+	close(t.doSaveDestroyC)
+	close(t.doRealDestroyC)
 }
 
 func (t *defaultDestroyReplicaTask) maybeCheckDestroyExists() {
 	if t.doCheckDestroyExists {
 		status, err := t.ds.GetDestroying(t.pr.shardID)
 		if err != nil {
-			t.pr.logger.Error("failed to get shard destory metadata, retry later",
+			t.pr.logger.Error("failed to get shard destroy metadata, retry later",
 				destroyShardTaskField,
 				zap.Error(err))
 			t.watiToRetry()
@@ -198,7 +198,7 @@ func (t *defaultDestroyReplicaTask) maybeCheckDestroyExists() {
 		}
 
 		if status == nil {
-			// no destorying record exists means we need check log committed info, start step 1
+			// no destroying record exists means we need check log committed info, start step 1
 			t.doCheckLog = true
 			t.pr.logger.Debug("begin to check log committed",
 				destroyShardTaskField)
@@ -224,7 +224,7 @@ func (t *defaultDestroyReplicaTask) maybeCheckLog() {
 			actionType:  checkLogCommittedAction,
 			targetIndex: t.targetIndex,
 			actionCallback: func(replicas interface{}) {
-				t.doSaveDestoryC <- replicas.([]uint64)
+				t.doSaveDestroyC <- replicas.([]uint64)
 				t.pr.logger.Debug("log committed on all replicas",
 					destroyShardTaskField)
 			},
@@ -237,12 +237,12 @@ func (t *defaultDestroyReplicaTask) createDestroying(replicas []uint64) {
 
 	_, err := t.ds.CreateDestroying(t.pr.shardID, t.targetIndex, t.removeData, replicas)
 	if err != nil {
-		t.pr.logger.Error("failed to save replica destory metadata, retry later",
+		t.pr.logger.Error("failed to save replica destroy metadata, retry later",
 			destroyShardTaskField,
 			zap.Error(err))
 		t.watiToRetry()
 		select {
-		case t.doSaveDestoryC <- replicas: // retry
+		case t.doSaveDestroyC <- replicas: // retry
 		default:
 		}
 		return
@@ -250,7 +250,7 @@ func (t *defaultDestroyReplicaTask) createDestroying(replicas []uint64) {
 
 	t.doCheckApply = true
 	t.doCheckDestroyExists = false
-	t.pr.logger.Debug("destory metadata saved",
+	t.pr.logger.Debug("destroy metadata saved",
 		destroyShardTaskField)
 }
 
@@ -261,7 +261,7 @@ func (t *defaultDestroyReplicaTask) performDestroy() bool {
 			zap.Error(err))
 		t.watiToRetry()
 		select {
-		case t.doRealDestoryC <- struct{}{}: // retry
+		case t.doRealDestroyC <- struct{}{}: // retry
 		default:
 		}
 		return false
@@ -279,7 +279,7 @@ func (t *defaultDestroyReplicaTask) maybeCheckTargetLogApplied() {
 			actionType:  checkLogAppliedAction,
 			targetIndex: t.targetIndex,
 			actionCallback: func(i interface{}) {
-				t.doRealDestoryC <- struct{}{}
+				t.doRealDestroyC <- struct{}{}
 				t.pr.logger.Debug("log applied",
 					destroyShardTaskField)
 			},

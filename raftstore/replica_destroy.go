@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/storage"
 )
 
 var (
@@ -58,7 +59,7 @@ func (csp *createShardsProtector) addDestroyed(id uint64) {
 	csp.destroyedShards.Add(id)
 }
 
-func (csp *createShardsProtector) inDestoryState(id uint64) bool {
+func (csp *createShardsProtector) inDestroyState(id uint64) bool {
 	csp.RLock()
 	defer csp.RUnlock()
 
@@ -108,7 +109,12 @@ func (s *store) vacuum(t vacuumTask) error {
 			return nil
 		}
 		if err := t.replica.destroy(t.shardRemoved, t.reason); err != nil {
-			return err
+			// storage.ErrShardNotFound is returned by the AOE when the shard has
+			// already been removed as a result of split. we just ignore such
+			// error here.
+			if err != storage.ErrShardNotFound {
+				return err
+			}
 		}
 		t.replica.close()
 		// wait for the replica to be fully unloaded before removing it from the
@@ -132,6 +138,9 @@ func (s *store) vacuum(t vacuumTask) error {
 	s.logger.Info("deleting shard data",
 		s.storeField(),
 		log.ShardIDField(t.shard.ID))
+	if err := s.logdb.RemoveReplicaData(t.shard.ID); err != nil {
+		return err
+	}
 	err := s.DataStorageByGroup(t.shard.Group).RemoveShard(t.shard, t.removeData)
 	s.logger.Info("delete shard data returned",
 		s.storeField(),
@@ -144,7 +153,7 @@ func (s *store) vacuum(t vacuumTask) error {
 }
 
 func (pr *replica) destroy(shardRemoved bool, reason string) error {
-	pr.logger.Info("begin to destory",
+	pr.logger.Info("begin to destroy",
 		zap.Bool("shard-removed", shardRemoved),
 		log.ShardField("metadata", pr.getShard()),
 		log.ReasonField(reason))
