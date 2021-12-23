@@ -176,7 +176,7 @@ func (s *store) handleRefreshScheduleGroupRule() bool {
 		return false
 	}
 
-	s.logger.Error("scheduling rules loadded",
+	s.logger.Info("scheduling rules loadded",
 		zap.Int("count", len(rules)))
 	s.groupController.setRules(rules)
 	return true
