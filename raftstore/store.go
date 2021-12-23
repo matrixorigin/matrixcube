@@ -231,6 +231,12 @@ func (s *store) Stop() {
 		s.logger.Info("raft internal transport stopped",
 			s.storeField())
 
+		// stop the router first to prevent any new replica to be created when
+		// closing replicas.
+		s.router.Stop()
+		s.logger.Info("store router stopped",
+			s.storeField())
+
 		// requests all replicas to be shutdown
 		s.forEachReplica(func(pr *replica) bool {
 			pr.close()
@@ -288,7 +294,6 @@ func (s *store) startRouter() {
 	}
 	r, err := newRouterBuilder().
 		withLogger(s.logger).
-		withStopper(s.stopper).
 		withCreatShardHandle(func(shard Shard) {
 			s.doDynamicallyCreate(shard)
 		}).
