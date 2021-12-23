@@ -809,6 +809,15 @@ func (s *store) snapshotStatus(shardID uint64,
 	})
 }
 
+func (s *store) getReplicaCount() uint64 {
+	n := uint64(0)
+	s.replicas.Range(func(key, value interface{}) bool {
+		n++
+		return true
+	})
+	return n
+}
+
 type storeReplicaGetter struct {
 	store *store
 }

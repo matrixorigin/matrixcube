@@ -407,7 +407,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 	stats.UsedSize = v.usedSize
 	stats.Available = v.available
 
-	if s.cfg.Capacity > 0 && stats.Capacity > uint64(s.cfg.Capacity) {
+	if s.cfg.Capacity > 0 {
 		stats.Capacity = uint64(s.cfg.Capacity)
 	}
 
@@ -535,6 +535,9 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
 		panic("ConfigChangeV2 request from prophet")
 	} else if rsp.TransferLeader != nil {
+		s.logger.Info("send transfer leader request",
+			s.storeField(),
+			log.ShardIDField(rsp.ResourceID))
 		pr.addAdminRequest(rpc.AdminCmdType_TransferLeader, &rpc.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
 		})

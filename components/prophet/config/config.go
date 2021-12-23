@@ -279,8 +279,9 @@ type SchedulerConfig struct {
 var DefaultSchedulers = SchedulerConfigs{
 	{Type: "balance-resource"},
 	{Type: "balance-leader"},
-	{Type: "hot-resource"},
-	{Type: "label"},
+	// TODO: disable hot
+	// {Type: "hot-resource"},
+	// {Type: "label"},
 }
 
 // IsDefaultScheduler checks whether the scheduler is enable by default.
@@ -475,7 +476,9 @@ func (c *ReplicationConfig) adjust(meta *configMetaData) error {
 		c.StrictlyMatchLabel = defaultStrictlyMatchLabel
 	}
 	if !meta.IsDefined("location-labels") {
-		c.LocationLabels = defaultLocationLabels
+		if len(c.LocationLabels) == 0 {
+			c.LocationLabels = defaultLocationLabels
+		}
 	}
 	if !meta.IsDefined("groups") {
 		if len(c.Groups) == 0 {

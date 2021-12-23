@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/log"
 	"go.uber.org/zap"
 )
 
@@ -26,10 +27,20 @@ func (s *store) doLogDebugInfo() {
 }
 
 func (s *store) logReplicaTickInfo() {
+	var shards []uint64
 	s.forEachReplica(func(r *replica) bool {
-		r.logger.Debug("replica tick info",
-			zap.Uint64("total", r.getTickTotalCount()),
-			zap.Uint64("handled", r.getTickHandledCount()))
+		shards = append(shards, r.getShardID())
+		r.logger.Debug("replica debug info",
+			zap.Bool("leader", r.isLeader()),
+			log.HexField("group-key", []byte(s.groupController.getShardGroupKey(r.getShard()))),
+			zap.Uint64("tick-total", r.getTickTotalCount()),
+			zap.Uint64("tick-handled", r.getTickHandledCount()),
+			log.ShardField("metadata", r.getShard()))
 		return true
 	})
+
+	s.logger.Debug("store shards",
+		s.storeField(),
+		zap.Int("shard-count", len(shards)),
+		zap.Any("shards", shards))
 }

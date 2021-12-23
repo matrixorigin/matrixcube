@@ -134,7 +134,8 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 		adjustString(&c.EmbedEtcd.InitialClusterState, defaultInitialClusterState)
 		adjustString(&c.EmbedEtcd.AutoCompactionMode, defaultCompactionMode)
 		adjustString(&c.EmbedEtcd.AutoCompactionRetention, defaultAutoCompactionRetention)
-		if !configMetaData.IsDefined("quota-backend-bytes") {
+		if !configMetaData.IsDefined("quota-backend-bytes") &&
+			c.EmbedEtcd.QuotaBackendBytes == 0 {
 			c.EmbedEtcd.QuotaBackendBytes = defaultQuotaBackendBytes
 		}
 		adjustDuration(&c.EmbedEtcd.TickInterval, defaultTickInterval)

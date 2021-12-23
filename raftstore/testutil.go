@@ -24,6 +24,7 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/format"
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
@@ -79,7 +80,7 @@ type testClusterOptions struct {
 	disableSchedule    bool
 	enableParallelTest bool
 
-	storageStatsReader storageStatsReader
+	storageStatsReaderFunc func(*store) storageStatsReader
 }
 
 func newTestClusterOptions() *testClusterOptions {
@@ -101,9 +102,9 @@ func (opts *testClusterOptions) adjust() {
 	}
 }
 
-func withStorageStatsReader(storageStatsReader storageStatsReader) TestClusterOption {
+func withStorageStatsReader(storageStatsReaderFunc func(*store) storageStatsReader) TestClusterOption {
 	return func(opts *testClusterOptions) {
-		opts.storageStatsReader = storageStatsReader
+		opts.storageStatsReaderFunc = storageStatsReaderFunc
 	}
 }
 
@@ -295,9 +296,10 @@ func (ts *testShardAware) getShardByIndex(index int) Shard {
 }
 
 func (ts *testShardAware) getShardByID(id uint64) Shard {
-	ts.RLock()
-	defer ts.RUnlock()
+	return ts.getShardByIDLocked(id)
+}
 
+func (ts *testShardAware) getShardByIDLocked(id uint64) Shard {
 	for _, s := range ts.shards {
 		if s.ID == id {
 			return s
@@ -314,6 +316,32 @@ func (ts *testShardAware) shardCount() int {
 	return len(ts.shards)
 }
 
+func (ts *testShardAware) shardCountByFilter(fn func(Shard) bool) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	n := 0
+	for _, s := range ts.shards {
+		if fn(s) {
+			n++
+		}
+	}
+	return n
+}
+
+func (ts *testShardAware) shardCountByGroup(group uint64) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	n := 0
+	for _, s := range ts.shards {
+		if s.Group == group {
+			n++
+		}
+	}
+	return n
+}
+
 func (ts *testShardAware) voterShardCount(storeID uint64) int {
 	ts.RLock()
 	defer ts.RUnlock()
@@ -322,6 +350,34 @@ func (ts *testShardAware) voterShardCount(storeID uint64) int {
 	for _, s := range ts.shards {
 		r := findReplica(s, storeID)
 		if r != nil && r.Role == metapb.ReplicaRole_Voter {
+			c++
+		}
+	}
+	return c
+}
+
+func (ts *testShardAware) voterShardCountByFilter(storeID uint64, fn func(Shard) bool) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for _, s := range ts.shards {
+		r := findReplica(s, storeID)
+		if r != nil && r.Role == metapb.ReplicaRole_Voter && fn(s) {
+			c++
+		}
+	}
+	return c
+}
+
+func (ts *testShardAware) voterShardCountByGroup(storeID, groupID uint64) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for _, s := range ts.shards {
+		r := findReplica(s, storeID)
+		if r != nil && r.Role == metapb.ReplicaRole_Voter && s.Group == groupID {
 			c++
 		}
 	}
@@ -342,6 +398,19 @@ func (ts *testShardAware) leaderCount() int {
 	c := 0
 	for _, ok := range ts.leaders {
 		if ok {
+			c++
+		}
+	}
+	return c
+}
+
+func (ts *testShardAware) leaderCountByFilter(fn func(Shard) bool) int {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	c := 0
+	for sid, ok := range ts.leaders {
+		if ok && fn(ts.getShardByIDLocked(sid)) {
 			c++
 		}
 	}
@@ -509,6 +578,9 @@ type TestRaftCluster interface {
 	// WaitLeadersByCount check that the number of leaders of the cluster reaches at least the specified value
 	// until the timeout
 	WaitLeadersByCount(count int, timeout time.Duration)
+	// WaitLeadersByCountsAndShardGroupAndLabel check that the number of leaders of the cluster reaches at least the specified value
+	// until the timeout
+	WaitLeadersByCountsAndShardGroupAndLabel(counts []int, group uint64, key, value string, timeout time.Duration)
 	// WaitShardByCount check that the number of shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitShardByCount(count int, timeout time.Duration)
@@ -517,6 +589,15 @@ type TestRaftCluster interface {
 	// WaitVoterReplicaByCount check that the number of voter shard of the cluster reaches at least the specified value
 	// until the timeout
 	WaitVoterReplicaByCountPerNode(count int, timeout time.Duration)
+	// WaitVoterReplicaByCounts check that the number of voter shard of the cluster reaches at least the specified value
+	// until the timeout
+	WaitVoterReplicaByCounts(counts []int, timeout time.Duration)
+	// WaitVoterReplicaByCountsAndShardGroup check that the number of voter shard of the cluster reaches at least the specified value
+	// until the timeout
+	WaitVoterReplicaByCountsAndShardGroup(counts []int, shardGroup uint64, timeout time.Duration)
+	// WaitVoterReplicaByCountsAndShardGroupAndLabel check that the number of voter shard of the cluster reaches at least the specified value
+	// until the timeout
+	WaitVoterReplicaByCountsAndShardGroupAndLabel(counts []int, shardGroup uint64, label, value string, timeout time.Duration)
 	// WaitShardByCountPerNode check that the number of shard of each node reaches at least the specified value
 	// until the timeout
 	WaitShardByCountPerNode(count int, timeout time.Duration)
@@ -545,6 +626,8 @@ type TestKVClient interface {
 	Set(key, value string, timeout time.Duration) error
 	// Get returns the value of the specific key from backend kv storage
 	Get(key string, timeout time.Duration) (string, error)
+	// UpdateLabel update the shard label
+	UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error
 	// Close close the test client
 	Close()
 }
@@ -584,6 +667,55 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 	defer kv.clearContext(id)
 
 	req := createTestWriteReq(id, key, value)
+	req.StopAt = time.Now().Add(timeout).Unix()
+
+	kv.Lock()
+	kv.requests[id] = req
+	kv.Unlock()
+
+	defer func() {
+		kv.Lock()
+		delete(kv.requests, id)
+		kv.Unlock()
+	}()
+
+	err := kv.proxy.Dispatch(req)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-doneC:
+		return nil
+	case err := <-errorC:
+		return err
+	case <-time.After(timeout):
+		return ErrTimeout
+	}
+}
+
+func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error {
+	doneC := make(chan string, 1)
+	defer close(doneC)
+
+	errorC := make(chan error, 1)
+	defer close(errorC)
+
+	id := kv.nextID()
+	kv.addContext(id, doneC, errorC)
+	defer kv.clearContext(id)
+
+	req := rpc.Request{
+		ID:         []byte(id),
+		Type:       rpc.CmdType_Admin,
+		CustomType: uint64(rpc.AdminCmdType_UpdateLabels),
+		Group:      group,
+		ToShard:    shard,
+		Cmd: protoc.MustMarshal(&rpc.UpdateLabelsRequest{
+			Labels: []metapb.Pair{{Key: key, Value: value}},
+			Policy: rpc.UpdatePolicy_Add,
+		}),
+	}
 	req.StopAt = time.Now().Add(timeout).Unix()
 
 	kv.Lock()
@@ -954,8 +1086,8 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 		s = NewStore(cfg).(*store)
 	}
 
-	if c.opts.storageStatsReader != nil {
-		s.storageStatsReader = c.opts.storageStatsReader
+	if c.opts.storageStatsReaderFunc != nil {
+		s.storageStatsReader = c.opts.storageStatsReaderFunc(s)
 	}
 
 	c.stores[node] = s
@@ -1154,6 +1286,33 @@ func (c *testRaftCluster) WaitLeadersByCount(count int, timeout time.Duration) {
 	}
 }
 
+func (c *testRaftCluster) WaitLeadersByCountsAndShardGroupAndLabel(counts []int, group uint64, key, value string, timeout time.Duration) {
+
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait leader by counts %+v of cluster timeout", counts)
+		default:
+			ok := true
+			for idx := range c.stores {
+				ok = c.awares[idx].leaderCountByFilter(func(s Shard) bool {
+					return s.Group == group && hasLabel(s, key, value)
+				}) == counts[idx]
+				if !ok {
+					break
+				}
+			}
+
+			if ok {
+				return
+			}
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
 func (c *testRaftCluster) WaitShardByCount(count int, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
@@ -1207,6 +1366,84 @@ func (c *testRaftCluster) WaitVoterReplicaByCountPerNode(count int, timeout time
 			ok := true
 			for idx, s := range c.stores {
 				ok = c.awares[idx].voterShardCount(s.Meta().ID) == count && c.awares[idx].shardCount() == count
+				if !ok {
+					break
+				}
+			}
+
+			if ok {
+				return
+			}
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitVoterReplicaByCounts(counts []int, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait voter count %+v of cluster timeout", counts)
+		default:
+			ok := true
+			for idx, s := range c.stores {
+				ok = c.awares[idx].voterShardCount(s.Meta().ID) == counts[idx] && c.awares[idx].shardCount() == counts[idx]
+				if !ok {
+					break
+				}
+			}
+
+			if ok {
+				return
+			}
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitVoterReplicaByCountsAndShardGroup(counts []int, shardGroup uint64, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait voter count %+v of cluster timeout", counts)
+		default:
+			ok := true
+			for idx, s := range c.stores {
+				ok = c.awares[idx].voterShardCountByGroup(s.Meta().ID, shardGroup) == counts[idx] &&
+					c.awares[idx].shardCountByGroup(shardGroup) == counts[idx]
+				if !ok {
+					break
+				}
+			}
+
+			if ok {
+				return
+			}
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
+}
+
+func (c *testRaftCluster) WaitVoterReplicaByCountsAndShardGroupAndLabel(counts []int, shardGroup uint64, key, value string, timeout time.Duration) {
+	timeoutC := time.After(timeout)
+	fn := func(s Shard) bool {
+		return s.Group == shardGroup && hasLabel(s, key, value)
+	}
+
+	for {
+		select {
+		case <-timeoutC:
+			assert.FailNowf(c.t, "", "wait voter count %+v of cluster timeout", counts)
+		default:
+			ok := true
+			for idx, s := range c.stores {
+				ok = c.awares[idx].voterShardCountByFilter(s.Meta().ID, fn) == counts[idx] &&
+					c.awares[idx].shardCountByFilter(fn) == counts[idx]
 				if !ok {
 					break
 				}
@@ -1413,4 +1650,13 @@ func newTestStore(t *testing.T) (*store, func()) {
 		c.closeStorage()
 		c.closeLogDBKVStorage()
 	}
+}
+
+func hasLabel(s Shard, key, value string) bool {
+	for _, l := range s.Labels {
+		if l.Key == key && l.Value == value {
+			return true
+		}
+	}
+	return false
 }
