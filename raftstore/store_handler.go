@@ -16,6 +16,7 @@ package raftstore
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -26,7 +27,12 @@ import (
 
 // all raft message entrypoint
 func (s *store) handle(batch meta.RaftMessageBatch) {
+	now := uint64(time.Now().UnixMilli())
 	for _, msg := range batch.Messages {
+		if now > msg.SendTime && now-msg.SendTime > 500 {
+			s.logger.Debug("delayed message found",
+				zap.Uint64("delay-millisecond", now-msg.SendTime))
+		}
 		s.onRaftMessage(msg)
 	}
 }

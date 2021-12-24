@@ -31,6 +31,7 @@ message RaftMessage  {
     string               unique       = 11;
     repeated string      ruleGroups   = 12;
     uint64               commitIndex  = 13;
+    uint64               sendTime     = 14;
 }
 
 message SnapshotChunk {
