@@ -235,9 +235,12 @@ func (pr *replica) handleEvent(wc *logdb.WorkerContext) (hasEvent bool, err erro
 			return hasEvent, err
 		}
 	}
-	if pr.handleAction(pr.items) {
+	if newEvent, err := pr.handleAction(pr.items); err != nil {
+		return hasEvent, err
+	} else if newEvent {
 		hasEvent = true
 	}
+
 	return hasEvent, nil
 }
 
@@ -290,13 +293,13 @@ func (pr *replica) handleInitializedState() (bool, error) {
 	return true, nil
 }
 
-func (pr *replica) handleAction(items []interface{}) bool {
+func (pr *replica) handleAction(items []interface{}) (bool, error) {
 	if size := pr.actions.Len(); size == 0 {
-		return false
+		return false, nil
 	}
 	n, err := pr.actions.Get(readyBatchSize, items)
 	if err != nil {
-		return false
+		return false, nil
 	}
 
 	for i := int64(0); i < n; i++ {
@@ -322,17 +325,21 @@ func (pr *replica) handleAction(items []interface{}) bool {
 		case checkCompactLogAction:
 			pr.doCheckLogCompact(pr.rn.Status().Progress, pr.rn.LastIndex())
 		case logCompactionAction:
-			pr.doLogCompaction(act.targetIndex)
+			if err := pr.doLogCompaction(act.targetIndex); err != nil {
+				return false, err
+			}
 		case snapshotCompactionAction:
-			pr.doSnapshotCompaction(act.snapshotCompaction.snapshot,
-				act.snapshotCompaction.persistentLogIndex)
+			if err := pr.snapshotCompaction(act.snapshotCompaction.snapshot,
+				act.snapshotCompaction.persistentLogIndex); err != nil {
+				return false, err
+			}
 		}
 	}
 
 	if pr.actions.Len() > 0 {
 		pr.notifyWorker()
 	}
-	return true
+	return true, nil
 }
 
 func (pr *replica) doUpdateReadMetrics(act action) {
@@ -541,9 +548,9 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	})
 }
 
-func (pr *replica) doLogCompaction(index uint64) {
+func (pr *replica) doLogCompaction(index uint64) error {
 	if index == 0 {
-		return
+		return nil
 	}
 	pr.logger.Info("log compaction action handled",
 		log.IndexField(index))
@@ -562,9 +569,9 @@ func (pr *replica) doLogCompaction(index uint64) {
 			// position.
 			pr.logger.Info("skipped a compaction action",
 				log.IndexField(index))
-			return
+			return nil
 		}
-		panic(err)
+		return err
 	}
 	// this is a dummy snapshot meaning there is no on disk snapshot image.
 	// we are not supposed to apply such dummy snapshot. the dummy flag is
@@ -584,7 +591,7 @@ func (pr *replica) doLogCompaction(index uint64) {
 	wc := pr.logdb.NewWorkerContext()
 	defer wc.Close()
 	if err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc); err != nil {
-		panic(err)
+		return err
 	}
 	pr.logger.Info("dummy snapshot saved",
 		log.IndexField(index))
@@ -593,18 +600,14 @@ func (pr *replica) doLogCompaction(index uint64) {
 	if err := pr.lr.Compact(index); err != nil {
 		if err != raft.ErrCompacted {
 			// TODO: check whether any error should be tolerated.
-			panic(err)
+			return err
 		}
 	}
 	if err := pr.logdb.RemoveEntriesTo(pr.shardID, pr.replicaID, index); err != nil {
-		panic(err)
+		return err
 	}
 	pr.logger.Info("compaction completed",
 		log.IndexField(index))
-}
 
-func (pr *replica) doSnapshotCompaction(ss raftpb.Snapshot, index uint64) {
-	if err := pr.snapshotCompaction(ss, index); err != nil {
-		panic(err)
-	}
+	return nil
 }
