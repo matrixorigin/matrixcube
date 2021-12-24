@@ -111,7 +111,12 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 		return err
 	}
 	r.appliedIndex = ss.Metadata.Index
-	r.lr.ApplySnapshot(ss)
+	// when applying initial snapshot, we've already applied the ss record into
+	// the LogReader beforehand, applying the ss record again here would void
+	// the lr.SetRange change.
+	if r.initialized {
+		r.lr.ApplySnapshot(ss)
+	}
 	r.sm.updateShard(md.Metadata.Shard)
 	// after snapshot applied, the shard range may changed, so we
 	// need update key ranges

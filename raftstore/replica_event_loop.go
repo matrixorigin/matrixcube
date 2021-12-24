@@ -251,7 +251,9 @@ func (pr *replica) handleInitializedState() (bool, error) {
 	if pr.initialized {
 		return false, nil
 	}
-	pr.initialized = true
+	defer func() {
+		pr.initialized = true
+	}()
 	pr.logger.Debug("checking initial snapshot")
 	ss, err := pr.logdb.GetSnapshot(pr.shardID)
 	if err == logdb.ErrNoSnapshot {
