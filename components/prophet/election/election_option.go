@@ -76,3 +76,10 @@ func WithLockIfBecomeLeader(value bool) ElectorOption {
 		opts.lockIfBecomeLeader = value
 	}
 }
+
+// WithLogger sets logger
+func WithLogger(logger *zap.Logger) ElectorOption {
+	return func(opts *electorOptions) {
+		opts.logger = logger
+	}
+}
