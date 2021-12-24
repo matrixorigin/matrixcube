@@ -119,6 +119,7 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 			ce.Write(log.ShardIDField(pr.shardID),
 				log.ReplicaIDField(pr.replicaID),
 				log.IndexField(rd.Entries[0].Index),
+				zap.Uint64("last-index", rd.Entries[len(rd.Entries)-1].Index),
 				zap.Int("estimated-size", getEstimatedAppendSize(rd)))
 		}
 		err := pr.lr.Append(rd.Entries)
@@ -126,7 +127,8 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 			"append raft log completed"); ce != nil {
 			ce.Write(log.ShardIDField(pr.shardID),
 				log.ReplicaIDField(pr.replicaID),
-				log.IndexField(rd.Entries[0].Index))
+				log.IndexField(rd.Entries[0].Index),
+				zap.Uint64("last-index", rd.Entries[len(rd.Entries)-1].Index))
 		}
 		pr.metrics.ready.append++
 		return err
@@ -135,9 +137,19 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 }
 
 func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
+	var startTime int64
+	if ce := pr.logger.Check(zap.DebugLevel,
+		"begin to save raft state"); ce != nil {
+		startTime = time.Now().UnixMilli()
+	}
 	err := pr.logdb.SaveRaftState(pr.shardID, pr.replicaID, rd, wc)
 	if err != nil {
 		return err
+	}
+	if ce := pr.logger.Check(zap.DebugLevel,
+		"save raft state completed"); ce != nil {
+		cost := time.Now().UnixMilli() - startTime
+		ce.Write(zap.Uint64("cost-millisecond", uint64(cost)))
 	}
 
 	if !raft.IsEmptyHardState(rd.HardState) {
@@ -182,8 +194,21 @@ func (pr *replica) applyCommittedEntries(rd raft.Ready) error {
 		pr.stats.raftLogSizeHint += uint64(len(entry.Data))
 	}
 	if len(rd.CommittedEntries) > 0 {
+		var startTime int64
+		if ce := pr.logger.Check(zap.DebugLevel,
+			"begin to apply committed entries"); ce != nil {
+			startTime = time.Now().UnixMilli()
+		}
 		if err := pr.doApplyCommittedEntries(rd.CommittedEntries); err != nil {
 			return err
+		}
+		if ce := pr.logger.Check(zap.DebugLevel,
+			"apply committed entries completed"); ce != nil {
+			cost := time.Now().UnixMilli() - startTime
+			ce.Write(
+				zap.Uint64("cost-millisecond", uint64(cost)),
+				zap.Uint64("entriy-count", uint64(len(rd.CommittedEntries))),
+			)
 		}
 		pr.metrics.ready.commit++
 	}
@@ -257,6 +282,8 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 		RuleGroups:   shard.RuleGroups,
 		Message:      msg,
 		CommitIndex:  pr.lastCommittedIndex,
+		// FIXME: remove this hack
+		SendTime: uint64(time.Now().UnixMilli()),
 	}
 
 	// There could be two cases:
