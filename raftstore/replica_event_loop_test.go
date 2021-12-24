@@ -125,10 +125,13 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
 		assert.False(t, r.initialized)
+		assert.Equal(t, uint64(0), r.lr.markerIndex)
 		hasEvent, err := r.handleEvent(r.logdb.NewWorkerContext())
 		assert.NoError(t, err)
 		assert.True(t, hasEvent)
 		assert.True(t, r.initialized)
+		// when applying initial snapshot, r.lr.ApplySnapshot should not be invoked
+		assert.Equal(t, uint64(0), r.lr.markerIndex)
 		assert.Equal(t, ss.Metadata.Index, r.sm.metadataMu.index)
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
