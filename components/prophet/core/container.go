@@ -521,7 +521,7 @@ func DistinctScore(labels []string, containers []*CachedContainer, other *Cached
 // MergeLabels merges the passed in labels with origins, overriding duplicated
 // ones.
 func (cr *CachedContainer) MergeLabels(labels []metapb.Pair) []metapb.Pair {
-	containerLabels := cr.Meta.Labels()
+	containerLabels := cr.Meta.Clone().Labels()
 L:
 	for _, newLabel := range labels {
 		for _, label := range containerLabels {
