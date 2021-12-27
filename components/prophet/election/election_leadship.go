@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
@@ -52,8 +53,8 @@ type Leadership struct {
 	ctx                          context.Context
 	allowCampaign                bool
 	becomeLeader, becomeFollower func(string) bool
-
-	logger *zap.Logger
+	stopper                      *stop.Stopper
+	logger                       *zap.Logger
 }
 
 func newLeadership(elector *elector,
@@ -74,6 +75,7 @@ func newLeadership(elector *elector,
 		tag:            tag,
 		logger: log.Adjust(logger).With(zap.String("tag", tag),
 			zap.String("purpose", purpose)),
+		stopper: stop.NewStopper("leadership"),
 	}
 }
 
@@ -113,7 +115,7 @@ func (ls *Leadership) Stop() error {
 	if lease != nil {
 		return lease.Close(ls.elector.client.Ctx())
 	}
-
+	ls.stopper.Stop()
 	return nil
 }
 
@@ -160,6 +162,7 @@ func (ls *Leadership) ElectionLoop(ctx context.Context) {
 		case <-ctx.Done():
 			ls.logger.Info("loop exit due to context done",
 				mainLoopFiled)
+			ls.stopper.Stop()
 			return
 		default:
 			currentLeader, rev, err := ls.CurrentLeader()
@@ -261,7 +264,7 @@ func (ls *Leadership) campaign() error {
 	// Start keepalive
 	ctx, cancel := context.WithCancel(ls.ctx)
 	defer cancel()
-	go l.keepAlive(ctx)
+	ls.stopper.RunTask(ctx, l.keepAlive)
 
 	var lock *concurrency.Mutex
 	if ls.elector.options.lockIfBecomeLeader {
