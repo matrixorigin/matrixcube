@@ -404,11 +404,11 @@ func checkSplitWithStore(t *testing.T, c TestRaftCluster, index int, parentShard
 		// check new shards range
 		s := c.GetShardByIndex(index, 0)
 		assert.Empty(t, s.Start, "index %d", index)
-		assert.Equal(t, []byte("k2"), s.End, "index %d, %+v", s)
+		assert.Equal(t, []byte("k2"), s.End, "index %d, %+v", index, s)
 
 		s = c.GetShardByIndex(index, 1)
 		assert.Empty(t, s.End, "index %d", index)
-		assert.Equal(t, []byte("k2"), s.Start, "index %d, %+v", s)
+		assert.Equal(t, []byte("k2"), s.Start, "index %d, %+v", index, s)
 	}
 
 	// read
@@ -433,8 +433,10 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 	if pd.GetMember().IsLeader() {
 		v, err := pd.GetStorage().GetResource(sid)
 		assert.NoError(t, err)
-		assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
-		assert.True(t, len(v.Peers()) <= replicaCount) // maybe some replica removed by conf change
+		if v != nil {
+			assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
+			assert.True(t, len(v.Peers()) <= replicaCount) // maybe some replica removed by conf change
+		}
 
 		bc := pd.GetBasicCluster()
 		bc.RLock()
