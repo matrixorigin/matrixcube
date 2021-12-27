@@ -20,12 +20,14 @@ import (
 	"sync/atomic"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	"go.uber.org/zap"
 )
 
 // Option option func
@@ -33,6 +35,7 @@ type Option func(*options)
 
 type options struct {
 	sampleSync uint64
+	logger     *zap.Logger
 }
 
 // WithSampleSync set sync sample interval. `Cube` will call the `GetPersistentLogIndex` method of `DataStorage` to obtain
@@ -45,6 +48,13 @@ func WithSampleSync(value uint64) Option {
 	}
 }
 
+// WithLogger set logger
+func WithLogger(logger *zap.Logger) Option {
+	return func(opts *options) {
+		opts.logger = logger
+	}
+}
+
 func newOptions() *options {
 	return &options{}
 }
@@ -53,6 +63,8 @@ func (opts *options) adjust() {
 	if opts.sampleSync == 0 {
 		opts.sampleSync = 100
 	}
+
+	opts.logger = log.Adjust(opts.logger).Named("kv-data-storage")
 }
 
 type kvDataStorage struct {
@@ -256,6 +268,10 @@ func (kv *kvDataStorage) RemoveShard(shard meta.Shard, removeData bool) error {
 	if removeData {
 		min := EncodeShardStart(shard.Start, nil)
 		max := EncodeShardEnd(shard.End, nil)
+		kv.opts.logger.Debug("remove shard data",
+			log.ShardField("shard", shard),
+			log.HexField("from", min),
+			log.HexField("to", max))
 		if err := kv.base.RangeDelete(min, max, false); err != nil {
 			return err
 		}
