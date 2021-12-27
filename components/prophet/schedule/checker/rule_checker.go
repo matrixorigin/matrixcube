@@ -85,7 +85,7 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) err
 			}
 
 			peers := res.Meta.Peers()
-			peers = append(peers, metapb.Replica{ContainerID: container})
+			peers = append(peers, p)
 			res.Meta.SetPeers(peers)
 		}
 	}
