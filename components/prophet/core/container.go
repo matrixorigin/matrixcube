@@ -296,7 +296,7 @@ func (cr *CachedContainer) LeaderScore(groupKey string, policy SchedulePolicy, d
 func (cr *CachedContainer) ResourceScore(groupKey string, version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
 	switch version {
 	case "v2":
-		return cr.resourceScoreV2(groupKey, delta, deviation, lowSpaceRatio)
+		return cr.resourceScoreV2(groupKey, delta, deviation, highSpaceRatio, lowSpaceRatio)
 	case "v1":
 		fallthrough
 	default:
@@ -349,7 +349,7 @@ func (cr *CachedContainer) resourceScoreV1(groupKey string, highSpaceRatio, lowS
 	return score / math.Max(cr.GetResourceWeight(), minWeight)
 }
 
-func (cr *CachedContainer) resourceScoreV2(groupKey string, delta int64, deviation int, lowSpaceRatio float64) float64 {
+func (cr *CachedContainer) resourceScoreV2(groupKey string, delta int64, deviation int, highSpaceRatio, lowSpaceRatio float64) float64 {
 	A := float64(float64(cr.GetAvgAvailable())-float64(deviation)*float64(cr.GetAvailableDeviation())) / gb
 	C := float64(cr.GetCapacity()) / gb
 	R := float64(cr.GetResourceSize(groupKey) + delta)
@@ -358,9 +358,10 @@ func (cr *CachedContainer) resourceScoreV2(groupKey string, delta int64, deviati
 		F    float64 = 50     // Experience value to prevent some nodes from running out of disk space prematurely.
 		B            = 1e7
 	)
+
 	F = math.Max(F, C*(1-lowSpaceRatio))
 	var score float64
-	if A >= C || C < 1 {
+	if A >= C || cr.GetUsedRatio() <= highSpaceRatio || C < 1 {
 		score = R
 	} else if A > F {
 		// As the amount of data increases (available becomes smaller), the weight of resource size on total score

@@ -88,6 +88,13 @@ func (ss *containerStats) GetUsedSize() uint64 {
 	return ss.rawStats.GetUsedSize()
 }
 
+// GetUsedRatio returns the used ratio of the container.
+func (ss *containerStats) GetUsedRatio() float64 {
+	ss.mu.RLock()
+	defer ss.mu.RUnlock()
+	return float64(ss.rawStats.GetUsedSize()) / float64(ss.rawStats.GetCapacity())
+}
+
 // GetBytesWritten returns the bytes written for the container during this period.
 func (ss *containerStats) GetBytesWritten() uint64 {
 	ss.mu.RLock()
