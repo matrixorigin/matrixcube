@@ -78,9 +78,7 @@ func shouldBalance(cluster opt.Cluster,
 		tolerantResourceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), strconv.FormatUint(targetID, 10)).Set(float64(tolerantResource))
 	}
 	// Make sure after move, source score is still greater than target score.
-	shouldBalance = sourceScore > targetScore ||
-		(sourceScore == targetScore && target.GetResourceCount(res.GetGroupKey()) == 0) ||
-		(sourceScore == targetScore && kind.ResourceKind == metapb.ResourceKind_LeaderKind)
+	shouldBalance = sourceScore >= targetScore
 
 	if !shouldBalance {
 		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
