@@ -496,7 +496,7 @@ func (s *store) startShards() {
 
 	newReplicaCreator(s).
 		withReason("restart").
-		withStartReplica(nil, func(r *replica) {
+		withStartReplica(true, nil, func(r *replica) {
 			if metadata, ok := localDestroyings[r.shardID]; ok {
 				r.startDestroyReplicaTask(metadata.LogIndex, metadata.Metadata.RemoveData, "restart")
 			}

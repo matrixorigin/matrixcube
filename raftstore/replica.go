@@ -185,7 +185,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 }
 
 // start() should return error
-func (pr *replica) start() {
+func (pr *replica) start(campaign bool) {
 	pr.logger.Info("begin to start replica")
 	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]",
 		pr.shardID, pr.replicaID, pr.replica.ContainerID),
@@ -225,7 +225,11 @@ func (pr *replica) start() {
 
 	pr.setStarted()
 	// If this shard has only one replica and I am the one, campaign directly.
-	if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
+	if campaign {
+		pr.logger.Info("try to campaign",
+			log.ReasonField("restart"))
+		pr.addAction(action{actionType: campaignAction})
+	} else if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 		pr.addAction(action{actionType: campaignAction})

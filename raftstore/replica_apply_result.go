@@ -234,7 +234,7 @@ func (pr *replica) applySplit(result splitResult) {
 	reason := fmt.Sprintf("create by shard %d splitted", pr.shardID)
 	newReplicaCreator(pr.store).
 		withReason(reason).
-		withStartReplica(func(r *replica) {
+		withStartReplica(false, func(r *replica) {
 			r.stats.approximateKeys = estimatedKeys
 			r.stats.approximateSize = estimatedSize
 		}, func(r *replica) {
