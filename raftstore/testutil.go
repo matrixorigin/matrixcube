@@ -40,7 +40,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util"
-	"github.com/matrixorigin/matrixcube/util/task"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -636,7 +636,7 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 	kv := &testKVClient{
 		errCtx:   make(map[string]chan error),
 		doneCtx:  make(map[string]chan string),
-		runner:   task.NewRunner(),
+		stopper:  stop.NewStopper("test-kv-client"),
 		requests: make(map[string]rpc.Request),
 	}
 	kv.proxy = store.GetShardsProxy()
@@ -648,7 +648,7 @@ func newTestKVClient(t *testing.T, store Store) TestKVClient {
 type testKVClient struct {
 	sync.RWMutex
 
-	runner   *task.Runner
+	stopper  *stop.Stopper
 	proxy    ShardsProxy
 	doneCtx  map[string]chan string
 	errCtx   map[string]chan error
@@ -783,7 +783,7 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 }
 
 func (kv *testKVClient) Close() {
-	kv.runner.Stop()
+	kv.stopper.Stop()
 }
 
 func (kv *testKVClient) addContext(id string, c chan string, ec chan error) {

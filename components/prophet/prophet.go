@@ -35,7 +35,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/util/task"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
@@ -76,7 +75,6 @@ type defaultProphet struct {
 	cancel         context.CancelFunc
 	cfg            *config.Config
 	persistOptions *pconfig.PersistOptions
-	runner         *task.Runner
 	stopOnce       sync.Once
 
 	// about leader election
@@ -153,7 +151,6 @@ func NewProphet(cfg *config.Config) Prophet {
 	p.elector = elector
 	p.etcd = etcd
 	p.member = member.NewMember(etcdClient, etcd, elector, cfg.Prophet.StorageNode, p.enableLeader, p.disableLeader, logger)
-	p.runner = task.NewRunner()
 	p.completeC = make(chan struct{})
 	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
 	return p
@@ -193,8 +190,6 @@ func (p *defaultProphet) Stop() {
 		p.logger.Info("client stopped")
 		p.trans.Stop()
 		p.logger.Info("transport stopped")
-		p.runner.Stop()
-		p.logger.Info("runner stopped")
 		p.member.Stop()
 		p.logger.Info("member stopped")
 		p.cancel()

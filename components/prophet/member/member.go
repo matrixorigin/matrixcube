@@ -17,14 +17,10 @@ package member
 import (
 	"context"
 	"sync/atomic"
-	"time"
 
-	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/codec"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/util/buf"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
@@ -32,16 +28,15 @@ import (
 
 // Member is used for the election related logic.
 type Member struct {
-	candidate   bool
-	etcd        *embed.Etcd
-	client      *clientv3.Client
-	elector     election.Elector
-	leadership  *election.Leadership
-	leader      atomic.Value   // stored as *metapb.Member
-	member      *metapb.Member // current prophet's info.
-	memberValue string
-	id          uint64 //etcd server id
-
+	candidate                            bool
+	etcd                                 *embed.Etcd
+	client                               *clientv3.Client
+	elector                              election.Elector
+	leadership                           *election.Leadership
+	leader                               atomic.Value   // stored as *metapb.Member
+	member                               *metapb.Member // current prophet's info.
+	memberValue                          string
+	id                                   uint64 //etcd server id
 	becomeLeaderFunc, becomeFollowerFunc func() error
 	logger                               *zap.Logger
 }
@@ -178,35 +173,4 @@ func (m *Member) Client() *clientv3.Client {
 // GetEtcdLeader returns the etcd leader ID.
 func (m *Member) GetEtcdLeader() uint64 {
 	return m.etcd.Server.Lead()
-}
-
-func (m *Member) getLeaderClient(addr string) goetty.IOSession {
-	for {
-		leader := m.GetLeader()
-		if leader != nil {
-			conn, err := m.createLeaderClient(leader.Addr)
-			if err == nil {
-				m.logger.Info("create leader connection", zap.String("leader", leader.Addr))
-				return conn
-			}
-
-			m.logger.Error("fail to create leader connection",
-				zap.String("leader", leader.Addr),
-				zap.Error(err))
-		}
-
-		time.Sleep(time.Second)
-	}
-}
-
-func (m *Member) createLeaderClient(leader string) (goetty.IOSession, error) {
-	encoder, decoder := codec.NewClientCodec(10 * buf.MB)
-	conn := goetty.NewIOSession(goetty.WithCodec(encoder, decoder),
-		goetty.WithEnableAsyncWrite(16))
-	_, err := conn.Connect(leader, time.Second*3)
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
 }
