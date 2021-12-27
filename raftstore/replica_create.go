@@ -40,6 +40,7 @@ type replicaCreator struct {
 	saveLog                           bool
 	reason                            string
 	startReplica                      bool
+	campaign                          bool
 	afterStartedFunc, beforeStartFunc func(*replica)
 	replicaRecordGetter               func(Shard) Replica
 	wc                                *logdb.WorkerContext
@@ -66,10 +67,12 @@ func (rc *replicaCreator) withReason(reason string) *replicaCreator {
 	return rc
 }
 
-func (rc *replicaCreator) withStartReplica(beforeStartFunc, afterStartedFunc func(*replica)) *replicaCreator {
+func (rc *replicaCreator) withStartReplica(campaign bool,
+	beforeStartFunc, afterStartedFunc func(*replica)) *replicaCreator {
 	rc.startReplica = true
 	rc.afterStartedFunc = afterStartedFunc
 	rc.beforeStartFunc = beforeStartFunc
+	rc.campaign = campaign
 	return rc
 }
 
@@ -207,7 +210,7 @@ func (rc *replicaCreator) maybeStartReplicas(shards []Shard, replicas []*replica
 		if rc.beforeStartFunc != nil {
 			rc.beforeStartFunc(pr)
 		}
-		pr.start()
+		pr.start(rc.campaign)
 		shard := shards[idx]
 		for _, p := range shard.Replicas {
 			rc.store.replicaRecords.Store(p.ID, p)

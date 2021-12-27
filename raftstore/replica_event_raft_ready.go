@@ -137,6 +137,10 @@ func (pr *replica) appendEntries(rd raft.Ready) error {
 }
 
 func (pr *replica) saveRaftState(rd raft.Ready, wc *logdb.WorkerContext) error {
+	if logdb.IsEmptyRaftReady(rd) {
+		return nil
+	}
+
 	var startTime int64
 	if ce := pr.logger.Check(zap.DebugLevel,
 		"begin to save raft state"); ce != nil {

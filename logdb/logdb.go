@@ -188,7 +188,7 @@ func (l *KVLogDB) GetAllSnapshots(shardID uint64) ([]raftpb.Snapshot, error) {
 
 func (l *KVLogDB) SaveRaftState(shardID uint64,
 	replicaID uint64, rd raft.Ready, ctx *WorkerContext) error {
-	if isEmptyRaftReady(rd) {
+	if IsEmptyRaftReady(rd) {
 		return nil
 	}
 
@@ -387,7 +387,7 @@ func (l *KVLogDB) getMaxIndex(shardID uint64, replicaID uint64) (uint64, error) 
 	return binary.BigEndian.Uint64(v), nil
 }
 
-func isEmptyRaftReady(rd raft.Ready) bool {
+func IsEmptyRaftReady(rd raft.Ready) bool {
 	return raft.IsEmptyHardState(rd.HardState) &&
 		raft.IsEmptySnap(rd.Snapshot) &&
 		len(rd.Entries) == 0

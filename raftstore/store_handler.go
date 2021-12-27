@@ -194,7 +194,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 			msg.From.ID,
 			msg.From.ContainerID,
 			msg.From.Role.String())).
-		withStartReplica(nil, nil).
+		withStartReplica(false, nil, nil).
 		withReplicaRecordGetter(func(s Shard) Replica { return target }).
 		create([]Shard{
 			{
