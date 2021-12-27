@@ -232,7 +232,7 @@ func (ts *testShardAware) waitRemovedByShardID(t *testing.T, id uint64, timeout 
 			assert.FailNowf(t, "", "wait shard %d removed at node %d timeout",
 				id, ts.node)
 		default:
-			if !ts.hasShard(id) {
+			if !ts.shardRemoved(id) {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -286,6 +286,14 @@ func (ts *testShardAware) hasShard(id uint64) bool {
 		}
 	}
 	return false
+}
+
+func (ts *testShardAware) shardRemoved(id uint64) bool {
+	ts.RLock()
+	defer ts.RUnlock()
+
+	_, ok := ts.removed[id]
+	return ok
 }
 
 func (ts *testShardAware) getShardByIndex(index int) Shard {
@@ -1064,7 +1072,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 			kvs = mem.NewStorage()
 		}
 		base := kv.NewBaseStorage(kvs, cfg.FS)
-		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs))
+		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs), kv.WithLogger(cfg.Logger))
 
 		cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
 			return dataStorage

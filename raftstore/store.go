@@ -422,8 +422,8 @@ func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 
-	var tomebstones []Shard
-	shards := make(map[uint64]Shard)
+	var tomebstones []meta.ShardLocalState
+	shards := make(map[uint64]meta.ShardLocalState)
 	localDestroyings := make(map[uint64]meta.ShardMetadata)
 	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
@@ -445,7 +445,7 @@ func (s *store) startShards() {
 			}
 
 			if sls.State == meta.ReplicaState_Tombstone {
-				tomebstones = append(tomebstones, sls.Shard)
+				tomebstones = append(tomebstones, sls)
 				tomebstoneCount++
 
 				if sls.Shard.State == metapb.ResourceState_Destroyed {
@@ -465,7 +465,7 @@ func (s *store) startShards() {
 				confirmShards.Add(sls.Shard.ID)
 			}
 
-			shards[sls.Shard.ID] = sls.Shard
+			shards[sls.Shard.ID] = sls
 		}
 	})
 
@@ -490,8 +490,8 @@ func (s *store) startShards() {
 	}
 
 	var readyBootstrapShards []Shard
-	for _, shard := range shards {
-		readyBootstrapShards = append(readyBootstrapShards, shard)
+	for _, sls := range shards {
+		readyBootstrapShards = append(readyBootstrapShards, sls.Shard)
 	}
 
 	newReplicaCreator(s).
@@ -503,7 +503,6 @@ func (s *store) startShards() {
 		}).
 		create(readyBootstrapShards)
 
-	// FIXME: all metadata should be removed from the disk.
 	s.cleanupTombstones(tomebstones)
 
 	s.logger.Info("shards started",
@@ -518,10 +517,10 @@ func (s *store) addReplica(pr *replica) bool {
 	return !loaded
 }
 
-func (s *store) removeReplica(pr *replica) {
-	s.replicas.Delete(pr.shardID)
+func (s *store) removeReplica(shard Shard) {
+	s.replicas.Delete(shard.ID)
 	if s.aware != nil {
-		s.aware.Destroyed(pr.getShard())
+		s.aware.Destroyed(shard)
 	}
 }
 

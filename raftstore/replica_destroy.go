@@ -91,16 +91,24 @@ func (s *store) destroyReplica(shardID uint64,
 
 // cleanupTombstones is invoked during restart to cleanup data belongs to those
 // shards that have been tombstoned.
-func (s *store) cleanupTombstones(shards []Shard) {
-	for _, shard := range shards {
+func (s *store) cleanupTombstones(shards []meta.ShardLocalState) {
+	for _, sls := range shards {
 		s.vacuumCleaner.addTask(vacuumTask{
-			shard: shard,
+			shard:      sls.Shard,
+			removeData: sls.RemoveData,
+			reason:     "restart-clean-tombstone",
 		})
 	}
 }
 
 // vacuum is the actual method for handling a vacuum task.
 func (s *store) vacuum(t vacuumTask) error {
+	s.logger.Info("begin to destroy replica",
+		s.storeField(),
+		log.ReasonField(t.reason),
+		zap.Bool("remove-data", t.removeData),
+		log.ShardIDField(t.shard.ID))
+
 	if t.replica != nil {
 		if t.replica.closed() {
 			// this can happen when PD request to remove a splitting shard. two vaccum
@@ -123,7 +131,7 @@ func (s *store) vacuum(t vacuumTask) error {
 		t.replica.logger.Info("waiting for the replica to be unloaded",
 			log.ReplicaIDField(t.shard.ID))
 		t.replica.waitUnloaded()
-		s.removeReplica(t.replica)
+
 		t.replica.logger.Info("replica unloaded",
 			log.ReplicaIDField(t.shard.ID))
 	}
@@ -148,6 +156,13 @@ func (s *store) vacuum(t vacuumTask) error {
 		zap.Error(err))
 	if t.replica != nil && err == nil {
 		t.replica.confirmDestroyed()
+	}
+
+	if err == nil {
+		if t.replica != nil {
+			t.shard = t.replica.getShard()
+		}
+		s.removeReplica(t.shard)
 	}
 	return err
 }

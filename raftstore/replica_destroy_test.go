@@ -17,6 +17,8 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/log"
+	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -111,4 +113,77 @@ func TestReplicaDestroyedState(t *testing.T) {
 		t.Fatalf("failed to set destroyed flag")
 	}
 	p.waitDestroyed()
+}
+
+func TestDestroyReplicaAndKeepShardDataAfterRestart(t *testing.T) {
+	testDestroyReplicaWithRemoveShardDataAfterRestart(t, false)
+}
+
+func TestDestroyReplicaAndRemoveShardDataAfterRestart(t *testing.T) {
+	testDestroyReplicaWithRemoveShardDataAfterRestart(t, true)
+}
+
+func testDestroyReplicaWithRemoveShardDataAfterRestart(t *testing.T, removeData bool) {
+	defer leaktest.AfterTest(t)()
+
+	c := NewSingleTestClusterStore(t, DiskTestCluster, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard {
+			return []meta.Shard{
+				{
+					Start: []byte("k1"),
+					End:   []byte("k2"),
+				},
+				{
+					Start: []byte("k2"),
+					End:   []byte("k3"),
+				},
+			}
+		}
+	}))
+	c.Start()
+	defer c.Stop()
+
+	c.WaitLeadersByCount(2, testWaitTimeout)
+	kv := c.CreateTestKVClient(0)
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
+	assert.NoError(t, kv.Set("k2", "v2", testWaitTimeout))
+
+	sid := c.GetShardByIndex(0, 0).ID
+	ds := c.GetStore(0).DataStorageByGroup(0)
+	assert.NoError(t, ds.Sync([]uint64{sid}))
+
+	c.RestartWithFunc(func() {
+		ds = c.GetStore(0).DataStorageByGroup(0)
+		states, err := ds.GetInitialStates()
+		assert.NoError(t, err)
+		for _, state := range states {
+			if state.ShardID == sid {
+				state.Metadata.State = meta.ReplicaState_Tombstone
+				state.Metadata.RemoveData = removeData
+				assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{state}))
+				assert.NoError(t, ds.Sync([]uint64{sid}))
+				break
+			}
+		}
+	})
+	c.WaitLeadersByCount(1, testWaitTimeout)
+
+	c.WaitRemovedByShardID(sid, testWaitTimeout)
+
+	s := c.GetStore(0).(*store)
+	ds = s.DataStorageByGroup(0)
+	assert.NoError(t, ds.Sync([]uint64{sid}))
+
+	kvs := ds.(storage.KVStorageWrapper).GetKVStorage()
+	v, err := kvs.Get(skv.EncodeDataKey([]byte("k1"), nil))
+	assert.NoError(t, err)
+	if !removeData {
+		assert.Equal(t, "v1", string(v))
+	} else {
+		assert.Empty(t, v)
+	}
+
+	v, err = kvs.Get(skv.EncodeDataKey([]byte("k2"), nil))
+	assert.NoError(t, err)
+	assert.Equal(t, "v2", string(v))
 }

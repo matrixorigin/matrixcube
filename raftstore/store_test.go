@@ -131,7 +131,7 @@ func TestStoreRemoveReplica(t *testing.T) {
 	s.addReplica(pr)
 	assert.NotNil(t, s.getReplica(1, false))
 
-	s.removeReplica(pr)
+	s.removeReplica(pr.getShard())
 	assert.Nil(t, s.getReplica(1, false))
 
 	assert.Equal(t, 1, len(aware.removed))
