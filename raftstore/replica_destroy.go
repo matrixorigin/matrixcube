@@ -154,15 +154,11 @@ func (s *store) vacuum(t vacuumTask) error {
 		s.storeField(),
 		log.ShardIDField(t.shard.ID),
 		zap.Error(err))
-	if t.replica != nil && err == nil {
-		t.replica.confirmDestroyed()
-	}
-
 	if err == nil {
-		if t.replica != nil {
-			t.shard = t.replica.getShard()
-		}
 		s.removeReplica(t.shard)
+		if t.replica != nil {
+			t.replica.confirmDestroyed()
+		}
 	}
 	return err
 }
