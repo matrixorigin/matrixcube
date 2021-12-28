@@ -273,7 +273,6 @@ func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStor
 
 		dsp.waitProphetClientSetted()
 
-		dsp.logger.Info("dynamic shards pool job started 2")
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 

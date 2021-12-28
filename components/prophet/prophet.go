@@ -187,9 +187,6 @@ func (p *defaultProphet) Start() {
 
 func (p *defaultProphet) Stop() {
 	p.stopOnce.Do(func() {
-		p.stopper.Stop()
-		p.logger.Info("stopper stopped")
-
 		if p.client != nil {
 			p.client.Close()
 		}
@@ -208,6 +205,8 @@ func (p *defaultProphet) Stop() {
 		if p.etcd != nil {
 			p.etcd.Close()
 		}
+
+		p.stopper.Stop()
 		p.logger.Info("prophet stopped")
 	})
 }
