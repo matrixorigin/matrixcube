@@ -525,9 +525,9 @@ func (cr *CachedContainer) MergeLabels(labels []metapb.Pair) []metapb.Pair {
 	containerLabels := cr.Meta.Clone().Labels()
 L:
 	for _, newLabel := range labels {
-		for _, label := range containerLabels {
-			if strings.EqualFold(label.Key, newLabel.Key) {
-				label.Value = newLabel.Value
+		for idx := range containerLabels {
+			if strings.EqualFold(containerLabels[idx].Key, newLabel.Key) {
+				containerLabels[idx].Value = newLabel.Value
 				continue L
 			}
 		}
