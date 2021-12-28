@@ -21,10 +21,13 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildID(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		batch      *rpc.ResponseBatch
 		id, expect []byte
@@ -53,6 +56,8 @@ func TestBuildID(t *testing.T) {
 }
 
 func TestErrorOtherCMDResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		err   error
 		batch rpc.ResponseBatch
@@ -69,6 +74,8 @@ func TestErrorOtherCMDResp(t *testing.T) {
 }
 
 func TestErrorPbResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		id  []byte
 		err errorpb.Error
@@ -93,6 +100,8 @@ func TestErrorPbResp(t *testing.T) {
 }
 
 func TestErrorStaleCMDResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		id  []byte
 		err errorpb.Error
@@ -114,6 +123,8 @@ func TestErrorStaleCMDResp(t *testing.T) {
 }
 
 func TestErrorStaleEpochResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		id     []byte
 		shards []meta.Shard
@@ -149,6 +160,8 @@ func TestErrorStaleEpochResp(t *testing.T) {
 }
 
 func TestErrorBaseResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		id    []byte
 		batch rpc.ResponseBatch
@@ -165,6 +178,8 @@ func TestErrorBaseResp(t *testing.T) {
 }
 
 func TestCheckKeyInShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		key     []byte
 		shard   Shard

@@ -102,6 +102,8 @@ func TestDestroyReplica(t *testing.T) {
 }
 
 func TestReplicaDestroyedState(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	p := replica{
 		logger:     log.GetDefaultZapLogger(),
 		destroyedC: make(chan struct{}, 1),

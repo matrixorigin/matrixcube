@@ -19,17 +19,22 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPendingProposalsCanBeCreated(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	p := newPendingProposals()
 	assert.Empty(t, p.cmds)
 	assert.Equal(t, batch{}, p.confChangeCmd)
 }
 
 func TestPendingProposalAppend(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	p := newPendingProposals()
 	p.append(batch{})
 	p.append(batch{})
@@ -37,6 +42,8 @@ func TestPendingProposalAppend(t *testing.T) {
 }
 
 func TestPendingProposalPop(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	p := newPendingProposals()
 	cmd1 := batch{byteSize: 100}
 	cmd2 := batch{byteSize: 200}
@@ -56,6 +63,8 @@ func TestPendingProposalPop(t *testing.T) {
 }
 
 func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	p := newPendingProposals()
 	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_ConfigChange), rpc.CmdType_Admin, 0, nil)
 	p.setConfigChange(cmd)
@@ -64,6 +73,8 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 }
 
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_TransferLeader), rpc.CmdType_Admin, 0, nil)
 	defer func() {
 		if r := recover(); r == nil {
@@ -116,6 +127,8 @@ func testPendingProposalClear(t *testing.T,
 }
 
 func TestPendingProposalClear(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	check := func(resp rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
@@ -124,6 +137,8 @@ func TestPendingProposalClear(t *testing.T) {
 }
 
 func TestPendingProposalDestroy(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	check := func(resp rpc.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
@@ -132,6 +147,8 @@ func TestPendingProposalDestroy(t *testing.T) {
 }
 
 func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	called := false
 	cb := func(resp rpc.ResponseBatch) {
 		called = true
@@ -152,6 +169,8 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 }
 
 func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	called := false
 	staleCalled := false
 	staleCB := func(resp rpc.ResponseBatch) {

@@ -19,11 +19,14 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEpochMatch(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		confVer1 uint64
 		version1 uint64
@@ -51,6 +54,8 @@ func TestEpochMatch(t *testing.T) {
 }
 
 func TestCanAppendCmd(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		ignored1  bool
 		confVer1  uint64
@@ -96,6 +101,8 @@ func TestCanAppendCmd(t *testing.T) {
 }
 
 func TestBatchResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
 		assert.True(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
@@ -110,6 +117,8 @@ func TestBatchResp(t *testing.T) {
 }
 
 func TestBatchRespWithError(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
 		assert.False(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
@@ -126,6 +135,8 @@ func TestBatchRespWithError(t *testing.T) {
 }
 
 func TestAdminResp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	resp := rpc.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
 	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
 		assert.True(t, rb.Header.IsEmpty())
@@ -138,6 +149,8 @@ func TestAdminResp(t *testing.T) {
 }
 
 func TestAdminRespWithError(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
 		assert.False(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))

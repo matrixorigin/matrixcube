@@ -17,10 +17,13 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIsEpochStale(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	assert.True(t, isEpochStale(metapb.ResourceEpoch{ConfVer: 1}, metapb.ResourceEpoch{ConfVer: 2}))
 	assert.True(t, isEpochStale(metapb.ResourceEpoch{Version: 1}, metapb.ResourceEpoch{Version: 2}))
 
@@ -29,6 +32,8 @@ func TestIsEpochStale(t *testing.T) {
 }
 
 func TestFindReplica(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	shard := Shard{
 		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
@@ -44,6 +49,8 @@ func TestFindReplica(t *testing.T) {
 }
 
 func TestRemoveReplica(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	shard := &Shard{
 		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},
@@ -62,6 +69,8 @@ func TestRemoveReplica(t *testing.T) {
 }
 
 func TestRemovedReplicas(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	old := Shard{
 		Replicas: []Replica{
 			{ID: 1, ContainerID: 10000},

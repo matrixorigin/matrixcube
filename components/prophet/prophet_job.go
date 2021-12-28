@@ -14,6 +14,7 @@
 package prophet
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
@@ -23,8 +24,8 @@ import (
 )
 
 func (p *defaultProphet) startJobs() {
-	p.jobMu.Lock()
-	go func() {
+	p.stopper.RunTask(context.Background(), func(ctx context.Context) {
+		p.jobMu.Lock()
 		defer p.jobMu.Unlock()
 		p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
 
@@ -36,12 +37,24 @@ func (p *defaultProphet) startJobs() {
 				break
 			}
 
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			p.logger.Error("fail to load job, retry later",
 				zap.Error(err))
 		}
 
 		p.logger.Info("load jobs", zap.Int("count", len(p.jobMu.jobs)))
 		for _, job := range p.jobMu.jobs {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			if job.State == metapb.JobState_Completed {
 				err := p.GetStorage().RemoveJob(job.Type)
 				if err != nil {
@@ -62,15 +75,21 @@ func (p *defaultProphet) startJobs() {
 			p.logger.Error("missing job processor",
 				zap.String("type", job.Type.String()))
 		}
-	}()
+	})
 }
 
 func (p *defaultProphet) stopJobs() {
-	p.jobMu.Lock()
-	go func() {
+	p.stopper.RunTask(context.Background(), func(ctx context.Context) {
+		p.jobMu.Lock()
 		defer p.jobMu.Unlock()
 
 		for _, job := range p.jobMu.jobs {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			if job.State == metapb.JobState_Completed {
 				err := p.GetStorage().RemoveJob(job.Type)
 				if err != nil {
@@ -92,7 +111,7 @@ func (p *defaultProphet) stopJobs() {
 		}
 
 		p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
-	}()
+	})
 }
 
 func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {

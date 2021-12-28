@@ -19,10 +19,13 @@ package raftstore
 import (
 	"testing"
 
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLogDBGetter(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	// we just check whether this can compile
 	var s interface{}
 	s = &store{}

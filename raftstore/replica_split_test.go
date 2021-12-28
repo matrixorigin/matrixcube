@@ -20,12 +20,17 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 )
 
 func TestTryCheckSplit(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	pr := newTestReplica(Shard{ID: 1}, Replica{ID: 2}, s)
 	pr.leaderID = 1
 
@@ -47,7 +52,11 @@ func TestTryCheckSplit(t *testing.T) {
 }
 
 func TestDoSplit(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}}, Replica{ID: 2}, s)
 	pr.leaderID = 1
 

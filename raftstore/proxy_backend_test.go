@@ -22,13 +22,14 @@ import (
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-// FIXME: add leaktest checks
-
 func TestLocalBackend(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	c := make(chan rpc.Request, 10)
 	bc := newLocalBackend(func(r rpc.Request) error {
 		c <- r
@@ -42,13 +43,14 @@ func TestLocalBackend(t *testing.T) {
 }
 
 func TestRemoteBackend(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	addr := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
 
 	c1 := make(chan rpc.Request, 1)
-	ec1 := make(chan error, 10)
 	p := newProxyRPC(nil, addr, 1024*1024, func(r rpc.Request) error {
 		c1 <- r
-		return <-ec1
+		return nil
 	})
 	assert.NoError(t, p.start())
 	defer p.stop()
@@ -61,6 +63,7 @@ func TestRemoteBackend(t *testing.T) {
 	c2 := make(chan rpc.Response, 1)
 	ec2 := make(chan error, 10)
 	bc := newRemoteBackend(nil, func(r rpc.Response) { c2 <- r }, func(id []byte, e error) { ec2 <- e }, addr, conn)
+	defer bc.close()
 
 	req := newTestRPCRequests(1)[0]
 	req.Cmd = []byte("c1")

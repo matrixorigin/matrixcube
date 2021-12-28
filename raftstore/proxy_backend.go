@@ -90,6 +90,7 @@ type remoteBackend struct {
 	failureCallback FailureCallback
 	conn            goetty.IOSession
 	reqs            *task.Queue
+	closed          chan struct{}
 }
 
 func newRemoteBackend(logger *zap.Logger,
@@ -104,6 +105,7 @@ func newRemoteBackend(logger *zap.Logger,
 		addr:            addr,
 		conn:            conn,
 		reqs:            task.New(32),
+		closed:          make(chan struct{}),
 	}
 
 	bc.writeLoop()
@@ -120,6 +122,7 @@ func (bc *remoteBackend) dispatch(req rpc.Request) error {
 
 func (bc *remoteBackend) close() {
 	bc.reqs.Put(closeFlag)
+	<-bc.closed
 }
 
 func (bc *remoteBackend) checkConnect() bool {
@@ -158,6 +161,8 @@ func (bc *remoteBackend) writeLoop() {
 				bc.writeLoop()
 			}
 		}()
+
+		defer close(bc.closed)
 
 		batch := int64(16)
 		bc.logger.Info("backend write loop started")

@@ -19,10 +19,13 @@ import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDecodeResponse(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		resp rpc.Response
 	}{
@@ -54,6 +57,8 @@ func TestDecodeResponse(t *testing.T) {
 }
 
 func TestDecodeRequest(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		resp rpc.Request
 	}{

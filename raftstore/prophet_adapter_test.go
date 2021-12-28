@@ -22,13 +22,14 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/transport"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
 
-// FIXME: add leaktest checks
-
 func TestResourceAdapter(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	ma := NewResourceAdapterWithShard(Shard{}).(*resourceAdapter)
 
 	data := []byte("data")
@@ -80,6 +81,8 @@ func TestResourceAdapter(t *testing.T) {
 }
 
 func TestContainerAdapter(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	ca := newContainerAdapter().(*containerAdapter)
 
 	ca.SetAddrs("a1", "a2")
@@ -129,16 +132,23 @@ func TestContainerAdapter(t *testing.T) {
 }
 
 func TestGetStoreHeartbeat(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	s.addReplica(&replica{shardID: 1})
 	s.addReplica(&replica{shardID: 2})
 	s.trans = transport.NewTransport(nil, "", 0, nil, nil, nil, nil, nil, s.cfg.FS)
+	defer s.trans.Close()
 	req, err := s.getStoreHeartbeat(time.Now())
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), req.Stats.ResourceCount)
 }
 
 func TestDoResourceHeartbeatRsp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		rsp            rpcpb.ResourceHeartbeatRsp
 		fn             func(*store) *replica
@@ -182,7 +192,8 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+		s, cancel := newTestStore(t)
+		defer cancel()
 		s.workerPool.close() // avoid admin request real handled by event worker
 		pr := c.fn(s)
 		pr.sm = &stateMachine{}
