@@ -304,6 +304,8 @@ func (ts *testShardAware) getShardByIndex(index int) Shard {
 }
 
 func (ts *testShardAware) getShardByID(id uint64) Shard {
+	ts.RLock()
+	defer ts.RUnlock()
 	return ts.getShardByIDLocked(id)
 }
 
