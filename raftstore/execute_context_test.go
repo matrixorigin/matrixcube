@@ -20,11 +20,14 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWriteContextCanBeInitialized(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		batch rpc.RequestBatch
 	}{

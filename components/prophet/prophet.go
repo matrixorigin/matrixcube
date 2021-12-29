@@ -35,6 +35,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
@@ -76,6 +77,7 @@ type defaultProphet struct {
 	cfg            *config.Config
 	persistOptions *pconfig.PersistOptions
 	stopOnce       sync.Once
+	stopper        *stop.Stopper
 
 	// about leader election
 	etcd       *embed.Etcd
@@ -153,6 +155,7 @@ func NewProphet(cfg *config.Config) Prophet {
 	p.member = member.NewMember(etcdClient, etcd, elector, cfg.Prophet.StorageNode, p.enableLeader, p.disableLeader, logger)
 	p.completeC = make(chan struct{})
 	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
+	p.stopper = stop.NewStopper("prophet", stop.WithLogger(p.logger))
 	return p
 }
 
@@ -188,16 +191,22 @@ func (p *defaultProphet) Stop() {
 			p.client.Close()
 		}
 		p.logger.Info("client stopped")
+
 		p.trans.Stop()
 		p.logger.Info("transport stopped")
+
 		p.member.Stop()
 		p.logger.Info("member stopped")
+
 		p.cancel()
 		p.elector.Client().Close()
 		p.logger.Info("etcd client stopped")
+
 		if p.etcd != nil {
 			p.etcd.Close()
 		}
+
+		p.stopper.Stop()
 		p.logger.Info("prophet stopped")
 	})
 }

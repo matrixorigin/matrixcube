@@ -153,12 +153,16 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 }
 
 func TestIsRaftMsgValid(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	s := &store{meta: &containerAdapter{meta: meta.Store{ID: 1}}, logger: zap.L()}
 	assert.True(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 1}}))
 	assert.False(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 2}}))
 }
 
 func TestHasRangeConflict(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	s := &store{}
 	s.updateShardKeyRange(0, Shard{ID: 1})
 

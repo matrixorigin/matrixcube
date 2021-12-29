@@ -89,6 +89,8 @@ func runSnapshotterTest(t *testing.T,
 }
 
 func TestPrepareReplicaSnapshotDir(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.GetTestFS()
 	ldb, closer := getNewTestDB()
 	defer closer()

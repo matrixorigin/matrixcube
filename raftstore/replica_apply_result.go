@@ -122,6 +122,9 @@ func (pr *replica) applyUpdateMetadataResult(cp updateMetadataResult) {
 	for _, cc := range cp.changes {
 		pr.rn.ApplyConfChange(cc)
 	}
+	if pr.aware != nil {
+		pr.aware.Updated(pr.getShard())
+	}
 }
 
 func (pr *replica) applyUpdateLabels(result updateLabelsResult) {

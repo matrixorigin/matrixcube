@@ -69,10 +69,6 @@ func TestIssue192(t *testing.T) {
 
 	defer leaktest.AfterTest(t)()
 	wc := make(chan struct{})
-	defer func() {
-		wc <- struct{}{}
-	}()
-
 	c := NewSingleTestClusterStore(t,
 		WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
 			cfg.Customize.CustomInitShardsFactory = func() []Shard { return []Shard{{Start: []byte("a"), End: []byte("b")}} }
@@ -90,4 +86,5 @@ func TestIssue192(t *testing.T) {
 	_, err = p.Alloc(0, []byte("purpose"))
 	assert.Error(t, err)
 	assert.False(t, strings.Contains(err.Error(), "timeout"))
+	close(wc)
 }

@@ -27,9 +27,12 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
 func TestGetConfigChangeKind(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		changeNum int
 		kind      confChangeKind
@@ -49,6 +52,8 @@ func TestGetConfigChangeKind(t *testing.T) {
 }
 
 func TestIsValidConfigChangeRequest(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		ct      metapb.ConfigChangeType
 		replica metapb.Replica
@@ -91,6 +96,8 @@ func TestIsValidConfigChangeRequest(t *testing.T) {
 }
 
 func TestIsRemovingOrDemotingLeader(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		kind            confChangeKind
 		leaderReplicaID uint64
@@ -118,6 +125,8 @@ func TestIsRemovingOrDemotingLeader(t *testing.T) {
 }
 
 func TestRemovingVoterDirectlyInJointConsensusCC(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		kind   confChangeKind
 		ct     metapb.ConfigChangeType
@@ -164,6 +173,8 @@ func TestRemovingVoterDirectlyInJointConsensusCC(t *testing.T) {
 }
 
 func TestGetRequestTypeWillPanicWhenBatchHasBothReadWrite(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	batch := rpc.RequestBatch{
 		Requests: []rpc.Request{
 			{
@@ -185,6 +196,8 @@ func TestGetRequestTypeWillPanicWhenBatchHasBothReadWrite(t *testing.T) {
 }
 
 func TestGetRequestType(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		req rpc.RequestBatch
 		rt  requestType
@@ -230,6 +243,8 @@ func TestGetRequestType(t *testing.T) {
 }
 
 func TestToConfigChangeIV1(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	req := rpc.ConfigChangeRequest{
 		ChangeType: metapb.ConfigChangeType_RemoveNode,
 		Replica: metapb.Replica{
@@ -249,6 +264,8 @@ func TestToConfigChangeIV1(t *testing.T) {
 }
 
 func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		req rpc.ConfigChangeRequest
 		err error
@@ -336,7 +353,11 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			},
 		}
 		kv := getTestStorage()
+		defer kv.Close()
+
 		ldb := logdb.NewKVLogDB(kv, log.GetDefaultZapLogger())
+		defer ldb.Close()
+
 		c := &raft.Config{
 			ID:              1,
 			ElectionTick:    10,

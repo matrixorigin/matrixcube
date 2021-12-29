@@ -29,6 +29,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -67,6 +68,8 @@ func getTestLogReader(entries []pb.Entry,
 }
 
 func TestLogReaderTerm(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	testLogReaderTerm(t, fs)
 }
@@ -108,6 +111,8 @@ func testLogReaderTerm(t *testing.T, fs vfs.FS) {
 }
 
 func TestLogReaderEntries(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	testLogReaderEntries(t, fs)
 }
@@ -149,6 +154,8 @@ func testLogReaderEntries(t *testing.T, fs vfs.FS) {
 }
 
 func TestLogReaderLastIndex(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	testLogReaderLastIndex(t, fs)
 }
@@ -177,6 +184,8 @@ func testLogReaderLastIndex(t *testing.T, fs vfs.FS) {
 }
 
 func TestLogReaderFirstIndex(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	testLogReaderFirstIndex(t, fs)
 }
@@ -219,6 +228,8 @@ func testLogReaderFirstIndex(t *testing.T, fs vfs.FS) {
 }
 
 func TestLogReaderAppend(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	testLogReaderAppend(t, fs)
 }
@@ -305,6 +316,8 @@ func testLogReaderAppend(t *testing.T, fs vfs.FS) {
 }
 
 func TestLogReaderApplySnapshot(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	ents := []pb.Entry{{Index: 0, Term: 0}}
 	cs := &pb.ConfState{
@@ -332,6 +345,8 @@ func TestLogReaderApplySnapshot(t *testing.T) {
 }
 
 func TestLogReaderCreateSnapshot(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
 	cs := &pb.ConfState{Voters: []uint64{1, 2, 3}}
@@ -359,6 +374,8 @@ func TestLogReaderCreateSnapshot(t *testing.T) {
 }
 
 func TestLogReaderSetRange(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
 	tests := []struct {
@@ -386,6 +403,8 @@ func TestLogReaderSetRange(t *testing.T) {
 }
 
 func TestLogReaderGetSnapshot(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
 	cs := &pb.ConfState{
@@ -404,6 +423,8 @@ func TestLogReaderGetSnapshot(t *testing.T) {
 }
 
 func TestLogReaderInitialState(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	fs := vfs.NewMemFS()
 	ents := []pb.Entry{{Index: 3, Term: 3}, {Index: 4, Term: 4}, {Index: 5, Term: 5}}
 	cs := pb.ConfState{
@@ -431,6 +452,8 @@ func TestLogReaderInitialState(t *testing.T) {
 }
 
 func TestLogReaderSnapshotReturnsErrSnapshotTemporarilyUnavailable(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	lr := &LogReader{logger: log.GetPanicZapLogger()}
 	v, err := lr.Snapshot()
 	assert.Equal(t, pb.Snapshot{}, v)

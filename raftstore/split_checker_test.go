@@ -20,12 +20,13 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
-// FIXME: add leaktest checks
-
 func TestSplitCheckerAdd(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	sc := newSplitChecker(1, 100, nil, nil)
 
 	sc.add(Shard{})
@@ -39,6 +40,8 @@ func TestSplitCheckerAdd(t *testing.T) {
 }
 
 func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	sc := newSplitChecker(1, 100, nil, nil)
 	sc.mu.running = true
 
@@ -50,6 +53,8 @@ func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
 }
 
 func TestSplitCheckerStartAndClose(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	sc := newSplitChecker(1, 100, nil, nil)
 
 	assert.False(t, sc.mu.running)
@@ -61,6 +66,8 @@ func TestSplitCheckerStartAndClose(t *testing.T) {
 }
 
 func TestSplitCheckerDoCheck(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	var currentSize uint64
 	var currentKeys uint64
 	var splitKeys [][]byte
@@ -75,7 +82,9 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	// check with replica not found
 	assert.False(t, sc.doChecker(Shard{}))
 
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 1}}, Replica{ID: 1}, s)
 	trg.replicas[1] = pr
 

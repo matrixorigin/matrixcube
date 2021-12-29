@@ -20,12 +20,13 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
-// FIXME: add leaktest checks
-
 func TestHandleInitEvent(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
@@ -51,6 +52,8 @@ func TestHandleInitEvent(t *testing.T) {
 }
 
 func TestHandleResourceEvent(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
@@ -73,6 +76,8 @@ func TestHandleResourceEvent(t *testing.T) {
 }
 
 func TestHandleResourceEventWithLeader(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
@@ -104,6 +109,8 @@ func TestHandleResourceEventWithLeader(t *testing.T) {
 }
 
 func TestHandleResourceEventWithMissingLeaderStore(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
@@ -138,6 +145,8 @@ func TestHandleResourceEventWithMissingLeaderStore(t *testing.T) {
 }
 
 func TestHandleStoreEvent(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
 	r := rr.(*defaultRouter)
@@ -154,6 +163,8 @@ func TestHandleStoreEvent(t *testing.T) {
 }
 
 func TestSelectShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 
 	cases := []struct {
@@ -204,6 +215,8 @@ func TestSelectShard(t *testing.T) {
 }
 
 func TestForeachShards(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 
 	cases := []struct {
@@ -243,6 +256,8 @@ func TestForeachShards(t *testing.T) {
 }
 
 func TestGetShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	b := NewTestDataBuilder()
 
 	cases := []struct {

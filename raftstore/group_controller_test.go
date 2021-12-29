@@ -18,10 +18,13 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSetRules(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	gc := newReplicaGroupController()
 
 	gc.setRules(nil)
@@ -34,6 +37,8 @@ func TestSetRules(t *testing.T) {
 }
 
 func TestGetShardGroupKey(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	rules := []metapb.ScheduleGroupRule{{ID: 1, GroupByLabel: "l1"}}
 
 	gc := newReplicaGroupController()

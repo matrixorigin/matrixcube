@@ -14,7 +14,9 @@
 package raftstore
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 )
 
@@ -90,6 +93,7 @@ type remoteBackend struct {
 	failureCallback FailureCallback
 	conn            goetty.IOSession
 	reqs            *task.Queue
+	stopper         *stop.Stopper
 }
 
 func newRemoteBackend(logger *zap.Logger,
@@ -105,8 +109,8 @@ func newRemoteBackend(logger *zap.Logger,
 		conn:            conn,
 		reqs:            task.New(32),
 	}
-
-	bc.writeLoop()
+	bc.stopper = stop.NewStopper(fmt.Sprintf("rpc-backend-%s", addr))
+	bc.stopper.RunTask(context.Background(), bc.writeLoop)
 	return bc
 }
 
@@ -120,6 +124,7 @@ func (bc *remoteBackend) dispatch(req rpc.Request) error {
 
 func (bc *remoteBackend) close() {
 	bc.reqs.Put(closeFlag)
+	bc.stopper.Stop()
 }
 
 func (bc *remoteBackend) checkConnect() bool {
@@ -145,20 +150,12 @@ func (bc *remoteBackend) checkConnect() bool {
 		return false
 	}
 
-	bc.readLoop()
+	bc.stopper.RunTask(context.Background(), bc.readLoop)
 	return ok
 }
 
-func (bc *remoteBackend) writeLoop() {
+func (bc *remoteBackend) writeLoop(ctx context.Context) {
 	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				bc.logger.Error("backend write loop failed, restart later",
-					zap.Any("err", err))
-				bc.writeLoop()
-			}
-		}()
-
 		batch := int64(16)
 		bc.logger.Info("backend write loop started")
 
@@ -195,7 +192,7 @@ func (bc *remoteBackend) writeLoop() {
 	}()
 }
 
-func (bc *remoteBackend) readLoop() {
+func (bc *remoteBackend) readLoop(ctx context.Context) {
 	go func() {
 		bc.logger.Info("backend read loop started")
 
@@ -205,7 +202,6 @@ func (bc *remoteBackend) readLoop() {
 				bc.logger.Info("backend read loop stopped")
 				bc.conn.Close()
 				return
-
 			}
 
 			if rsp, ok := data.(rpc.Response); ok {

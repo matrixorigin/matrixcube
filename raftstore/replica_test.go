@@ -22,6 +22,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 )
 
@@ -45,7 +46,11 @@ func (trg *testReplicaGetter) getReplica(id uint64) (*replica, bool) {
 }
 
 func TestInitAppliedIndex(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	ds := s.DataStorageByGroup(0)
 	ds.GetInitialStates()
 

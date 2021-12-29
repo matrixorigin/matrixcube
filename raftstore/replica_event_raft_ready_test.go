@@ -45,6 +45,8 @@ func getRaftMessageTypes() []raftpb.MessageType {
 }
 
 func TestUpdateMessageMetrics(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	r := replica{}
 	for _, mt := range getRaftMessageTypes() {
 		m := raftpb.Message{
@@ -68,6 +70,8 @@ func TestUpdateMessageMetrics(t *testing.T) {
 }
 
 func TestIsMsgApp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	for _, mt := range getRaftMessageTypes() {
 		m := raftpb.Message{Type: mt}
 		assert.Equal(t, mt == raftpb.MsgApp, isMsgApp(m))
@@ -208,6 +212,8 @@ func TestSendOtherMessages(t *testing.T) {
 }
 
 func TestIssue386(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	// See https://github.com/matrixorigin/matrixcube/issues/386
 	// Missing save hardstate to logdb if append entries is empty.
 	s, closer := newTestStore(t)
@@ -271,6 +277,8 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 }
 
 func TestEntriesToApply(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	tests := []struct {
 		inputIndex   uint64
 		inputLength  uint64

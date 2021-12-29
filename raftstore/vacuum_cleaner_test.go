@@ -70,6 +70,8 @@ func TestVacuumCanProcessTasks(t *testing.T) {
 }
 
 func TestVacuumMethodWillPanicOnError(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	panicFunc := func(vacuumTask) error {
 		panic("panic now")
 	}

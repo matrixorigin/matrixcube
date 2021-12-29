@@ -28,6 +28,8 @@ import (
 var (
 	// ErrTimeout timeout error
 	ErrTimeout = errors.New("exec timeout")
+
+	errStopped = errors.New("stopped")
 )
 
 var (
@@ -144,6 +146,7 @@ type shardsProxy struct {
 	cfg      shardsProxyConfig
 	logger   *zap.Logger
 	backends map[string]backend
+	stopped  bool
 }
 
 func newShardsProxy(cfg shardsProxyConfig) (ShardsProxy, error) {
@@ -155,6 +158,13 @@ func newShardsProxy(cfg shardsProxyConfig) (ShardsProxy, error) {
 }
 
 func (p *shardsProxy) Start() error {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.stopped {
+		return errStopped
+	}
+
 	if p.cfg.rpc != nil {
 		return p.cfg.rpc.start()
 	}
@@ -165,6 +175,10 @@ func (p *shardsProxy) Stop() error {
 	p.Lock()
 	defer p.Unlock()
 
+	if p.stopped {
+		return nil
+	}
+
 	if p.cfg.rpc != nil {
 		p.cfg.rpc.stop()
 	}
@@ -173,6 +187,7 @@ func (p *shardsProxy) Stop() error {
 		b.close()
 		delete(p.backends, k)
 	}
+	p.stopped = true
 	return nil
 }
 
@@ -222,7 +237,14 @@ func (p *shardsProxy) forwardToBackend(req rpc.Request, leader string) error {
 	var err error
 	bc := p.getBackend(leader)
 	if bc == nil {
-		bc, err = p.createBackend(leader)
+		p.Lock()
+		defer p.Unlock()
+
+		if p.stopped {
+			return errStopped
+		}
+
+		bc, err = p.createBackendLocked(leader)
 		if err != nil {
 			return err
 		}
@@ -248,10 +270,7 @@ func (p *shardsProxy) getBackend(addr string) backend {
 	return p.backends[addr]
 }
 
-func (p *shardsProxy) createBackend(addr string) (backend, error) {
-	p.Lock()
-	defer p.Unlock()
-
+func (p *shardsProxy) createBackendLocked(addr string) (backend, error) {
 	bc, err := p.cfg.backendFactory.create(addr, p.done, p.doneWithError)
 	if err != nil {
 		return nil, err

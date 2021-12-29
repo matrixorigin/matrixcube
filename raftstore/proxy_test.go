@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 )
 
@@ -62,6 +63,8 @@ func (f *testBackendFactory) create(addr string, success SuccessCallback, failur
 }
 
 func TestLocalDispatch(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	sc := make(chan rpc.Response, 1)
 	fc := make(chan []byte, 1)
 	success := func(r rpc.Response) { sc <- r }
@@ -128,6 +131,8 @@ func TestLocalDispatch(t *testing.T) {
 }
 
 func TestRPCDispatch(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
 

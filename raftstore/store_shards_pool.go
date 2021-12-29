@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
 
@@ -60,10 +61,9 @@ type dynamicShardsPool struct {
 	logger  *zap.Logger
 	factory func(g uint64, start, end []byte, unique string, offsetInPool uint64) Shard
 	job     metapb.Job
-	ctx     context.Context
-	cancel  context.CancelFunc
 	pd      prophet.Client
 	pdC     chan struct{}
+	stopper *stop.Stopper
 
 	mu struct {
 		sync.RWMutex
@@ -77,6 +77,7 @@ type dynamicShardsPool struct {
 func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShardsPool {
 	p := &dynamicShardsPool{pdC: make(chan struct{}, 1), cfg: cfg, logger: log.Adjust(logger).Named("shard-pool")}
 	p.factory = p.shardFactory
+	p.stopper = stop.NewStopper("shards-pool", stop.WithLogger(p.logger))
 	if cfg.Customize.CustomShardPoolShardFactory != nil {
 		p.factory = cfg.Customize.CustomShardPoolShardFactory
 	}
@@ -162,24 +163,20 @@ func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aw
 	dsp.mu.state = 1
 	dsp.job = job
 	dsp.mu.createC = make(chan struct{}, 8)
-	dsp.ctx, dsp.cancel = context.WithCancel(context.Background())
-	dsp.startLocked(dsp.ctx, dsp.mu.createC, store, aware)
+	dsp.startLocked(dsp.mu.createC, store, aware)
 }
 
 func (dsp *dynamicShardsPool) Stop(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
 	dsp.mu.Lock()
-	defer dsp.mu.Unlock()
-
 	if !dsp.isStartedLocked() {
+		dsp.mu.Unlock()
 		return
 	}
 
 	dsp.mu.state = 0
-	if dsp.cancel != nil {
-		dsp.cancel()
-		dsp.ctx = nil
-		dsp.cancel = nil
-	}
+	dsp.mu.Unlock()
+
+	dsp.stopper.Stop()
 }
 
 func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
@@ -266,9 +263,9 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	return protoc.MustMarshal(allocated), nil
 }
 
-func (dsp *dynamicShardsPool) startLocked(ctx context.Context, c chan struct{}, store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStorage, aware pconfig.ResourcesAware) {
 	dsp.triggerCreateLocked()
-	go func(ctx context.Context, c chan struct{}) {
+	dsp.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		dsp.logger.Info("dynamic shards pool job started")
 		defer func() {
 			close(c)
@@ -300,7 +297,7 @@ func (dsp *dynamicShardsPool) startLocked(ctx context.Context, c chan struct{}, 
 				dsp.gcAllocating(store, aware)
 			}
 		}
-	}(ctx, c)
+	})
 }
 
 func (dsp *dynamicShardsPool) isStartedLocked() bool {

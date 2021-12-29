@@ -220,6 +220,8 @@ func TestVacuum(t *testing.T) {
 }
 
 func TestCheckEpoch(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	cases := []struct {
 		req   rpc.RequestBatch
 		shard Shard
@@ -307,6 +309,8 @@ func TestCheckEpoch(t *testing.T) {
 }
 
 func TestValidateStoreID(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	s := &store{}
 	s.meta = &containerAdapter{}
 
@@ -315,6 +319,8 @@ func TestValidateStoreID(t *testing.T) {
 }
 
 func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
 	s := &store{}
 	s.cacheDroppedVoteMsg(1, meta.RaftMessage{})
 	v, ok := s.removeDroppedVoteMsg(1)

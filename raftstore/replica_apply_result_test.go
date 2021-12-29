@@ -25,7 +25,11 @@ import (
 )
 
 func TestApplySplit(t *testing.T) {
-	s := NewSingleTestClusterStore(t).GetStore(0).(*store)
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
 	pr := newTestReplica(Shard{ID: 1, Start: []byte{1}, End: []byte{10}}, Replica{ID: 100}, s)
 
 	s.updateShardKeyRange(0, pr.getShard())
