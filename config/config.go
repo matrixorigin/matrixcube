@@ -89,11 +89,11 @@ type Config struct {
 	// Customize config
 	Customize CustomizeConfig
 	// Logger logger used in cube
-	Logger *zap.Logger
+	Logger *zap.Logger `json:"-" toml:"-"`
 	// Metric Config
 	Metric metric.Cfg `toml:"metric"`
 	// FS used in MatrixCube
-	FS vfs.FS
+	FS vfs.FS `json:"-" toml:"-"`
 	// Test only used in testing
 	Test TestConfig
 }
@@ -366,24 +366,24 @@ func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
 type StorageConfig struct {
 
 	// DataStorageFactory is a storage factory  to store application's data
-	DataStorageFactory func(group uint64) storage.DataStorage
+	DataStorageFactory func(group uint64) storage.DataStorage `json:"-" toml:"-"`
 	// ForeachDataStorageFunc do in every storage
-	ForeachDataStorageFunc func(cb func(storage.DataStorage))
+	ForeachDataStorageFunc func(cb func(storage.DataStorage)) `json:"-" toml:"-"`
 }
 
 // CustomizeConfig customize config
 type CustomizeConfig struct {
 	// CustomShardStateAwareFactory is a factory func to create aware.ShardStateAware to handled shard life cycle.
-	CustomShardStateAwareFactory func() aware.ShardStateAware
+	CustomShardStateAwareFactory func() aware.ShardStateAware `json:"-" toml:"-"`
 	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
-	CustomInitShardsFactory func() []meta.Shard
+	CustomInitShardsFactory func() []meta.Shard `json:"-" toml:"-"`
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
-	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor
+	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor `json:"-" toml:"-"`
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
 	// `ShardPool` based on `offsetInPool`, these can be modified, provided that the only non-conflict.
-	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard
+	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard `json:"-" toml:"-"`
 	// CustomTransportFilter transport filter
-	CustomTransportFilter func(meta.RaftMessage) bool
+	CustomTransportFilter func(meta.RaftMessage) bool `json:"-" toml:"-"`
 }
 
 // GetLabels returns lables
@@ -413,15 +413,15 @@ type StoreHeartbeatDataProcessor interface {
 type TestConfig struct {
 	// ShardStateAware is a ShardStateAware wrapper for the aware which created by
 	// `CustomizeConfig.CustomShardStateAwareFactory`
-	ShardStateAware aware.TestShardStateAware
+	ShardStateAware aware.TestShardStateAware `json:"-" toml:"-"`
 	// ReplicaSetSnapshotJobWait sleep before set snapshot job
 	ReplicaSetSnapshotJobWait time.Duration
 	// SaveDynamicallyShardInitStateWait wait before save dynamically shard init state
 	SaveDynamicallyShardInitStateWait time.Duration
 	// ShardPoolCreateWaitC waiting delay for shard creation
-	ShardPoolCreateWaitC chan struct{}
+	ShardPoolCreateWaitC chan struct{} `json:"-" toml:"-"`
 	// Shards test config for shards
-	Shards map[uint64]*TestShardConfig
+	Shards map[uint64]*TestShardConfig `json:"-" toml:"-"`
 }
 
 // TestShardConfig shard test config
