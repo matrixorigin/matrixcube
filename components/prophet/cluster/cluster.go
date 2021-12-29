@@ -666,6 +666,16 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	c.RLock()
 	if saveKV || saveCache || isNew {
 		if c.changedEvents != nil {
+			if res.GetLeader().GetID() != 0 {
+				from := uint64(0)
+				if origin != nil {
+					from = origin.GetLeader().GetContainerID()
+				}
+				c.logger.Debug("notify resource leader changed",
+					zap.Uint64("resource", res.Meta.ID()),
+					zap.Uint64("from", from),
+					zap.Uint64("to", res.GetLeader().GetContainerID()))
+			}
 			c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
 		}
 	}
