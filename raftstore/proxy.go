@@ -308,7 +308,14 @@ func (p *shardsProxy) done(rsp rpc.Response) {
 		return
 	}
 
+	p.adjustRoute(rsp.Error)
 	p.retryDispatch(rsp.ID, rsp.Error.String())
+}
+
+func (p *shardsProxy) adjustRoute(err errorpb.Error) {
+	if err.NotLeader != nil {
+		p.cfg.router.UpdateLeader(err.NotLeader.ShardID, err.NotLeader.Leader.ID)
+	}
 }
 
 func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
