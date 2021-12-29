@@ -673,7 +673,6 @@ OUTER:
 				}
 				return true
 			})
-			c.opts.logger.Error("read loop stopped")
 			return
 		case leader, ok := <-c.resetReadC:
 			if ok {
@@ -789,8 +788,7 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 					if registerContainer {
 						select {
 						case c.resetReadC <- addr:
-						case <-time.After(time.Second * 10):
-							c.opts.logger.Fatal("BUG: active read loop timeout")
+						default:
 						}
 					}
 
