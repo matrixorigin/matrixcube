@@ -120,7 +120,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 	c := &asyncClient{
 		opts:                  &options{},
 		adapter:               adapter,
-		resetReadC:            make(chan string),
+		resetReadC:            make(chan string, 1),
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
 		resourceHeartbeatRspC: make(chan rpcpb.ResourceHeartbeatRsp, 128),
@@ -686,6 +686,7 @@ OUTER:
 						if !c.scheduleResetLeaderConn() {
 							return
 						}
+						c.opts.logger.Info("read loop actived, ready to read from leader, exit")
 						continue OUTER
 					}
 
@@ -697,6 +698,7 @@ OUTER:
 
 						// retry
 						c.requestDoneWithRetry(resp)
+						c.opts.logger.Info("read loop actived, ready to read from leader, exit, not leader")
 						continue OUTER
 					}
 
