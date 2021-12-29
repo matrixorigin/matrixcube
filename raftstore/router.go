@@ -42,6 +42,8 @@ type Router interface {
 	ForeachShards(group uint64, fn func(shard Shard) bool)
 	// GetShard returns the shard by shard id
 	GetShard(id uint64) Shard
+	// UpdateLeader update shard leader
+	UpdateLeader(shardID uint64, leaderReplciaID uint64)
 
 	// LeaderStore return leader replica store
 	LeaderReplicaStore(shardID uint64) meta.Store
@@ -241,6 +243,17 @@ func (r *defaultRouter) GetStoreStats(id uint64) metapb.ContainerStats {
 	defer r.mu.RUnlock()
 
 	return r.mu.storeStats[id]
+}
+
+func (r *defaultRouter) UpdateLeader(shardID uint64, leaderReplciaID uint64) {
+	if leaderReplciaID == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.updateLeaderLocked(shardID, leaderReplciaID)
 }
 
 func (r *defaultRouter) eventLoop() {
