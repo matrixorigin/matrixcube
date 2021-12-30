@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -173,13 +172,13 @@ func (pr *replica) destroy(shardRemoved bool, reason string) error {
 		pr.sm.setShardState(metapb.ResourceState_Destroyed)
 	}
 	shard := pr.getShard()
-	// FIXME: updating the state of replicated state machine outside of the
-	// protocol. is it okay to just use math.MaxUint64 as the index below?
-	// or maybe we should just propose a new command to move such procedure into
-	// the wal/sm?
-	//index, _ := pr.sm.getAppliedIndexTerm()
-	return pr.sm.saveShardMetedata(math.MaxUint64,
-		math.MaxUint64, shard, meta.ReplicaState_Tombstone)
+
+	// Use last applied index as Tombstone metadata's log index. And any logs are
+	// not executed by the state machine anymore. So the index+1's metedata never
+	// be overrided.
+	index, term := pr.sm.getAppliedIndexTerm()
+	return pr.sm.saveShardMetedata(index+1,
+		term, shard, meta.ReplicaState_Tombstone)
 }
 
 func (pr *replica) confirmDestroyed() {
