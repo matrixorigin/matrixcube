@@ -177,6 +177,7 @@ func (dsp *dynamicShardsPool) Stop(job metapb.Job, store storage.JobStorage, awa
 	dsp.mu.Unlock()
 
 	dsp.stopper.Stop()
+	dsp.stopper = stop.NewStopper("shards-pool", stop.WithLogger(dsp.logger))
 }
 
 func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
