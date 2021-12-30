@@ -25,6 +25,9 @@ import (
 
 func (p *defaultProphet) startJobs() {
 	p.stopper.RunTask(context.Background(), func(ctx context.Context) {
+		p.logger.Info("start jobs")
+		defer p.logger.Info("start jobs completed")
+
 		p.jobMu.Lock()
 		defer p.jobMu.Unlock()
 		p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
@@ -80,26 +83,14 @@ func (p *defaultProphet) startJobs() {
 
 func (p *defaultProphet) stopJobs() {
 	p.stopper.RunTask(context.Background(), func(ctx context.Context) {
+		p.logger.Info("stop jobs")
+		defer p.logger.Info("stop jobs completed")
+
 		p.jobMu.Lock()
 		defer p.jobMu.Unlock()
 
+		p.logger.Info("stop jobs", zap.Int("count", len(p.jobMu.jobs)))
 		for _, job := range p.jobMu.jobs {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			if job.State == metapb.JobState_Completed {
-				err := p.GetStorage().RemoveJob(job.Type)
-				if err != nil {
-					p.logger.Error("fail to remove completed job",
-						zap.String("type", job.Type.String()),
-						zap.Error(err))
-				}
-				continue
-			}
-
 			processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 			if processor != nil {
 				processor.Stop(job, p.storage, p.basicCluster)

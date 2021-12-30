@@ -160,6 +160,7 @@ func NewProphet(cfg *config.Config) Prophet {
 }
 
 func (p *defaultProphet) Start() {
+	p.logger.Info("begin to start prophet")
 	var err error
 	for i := 0; i < initClusterMaxRetryTimes; i++ {
 		if err = p.initClusterID(); err == nil {
@@ -170,19 +171,33 @@ func (p *defaultProphet) Start() {
 		p.logger.Fatal("fail to init cluster",
 			zap.Error(err))
 	}
+	p.logger.Info("init cluster id completed")
 
 	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
+	p.logger.Info("member init completed")
+
 	p.storage = storage.NewStorage(rootPath,
 		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
 		p.cfg.Prophet.Adapter)
+	p.logger.Info("storage created")
+
 	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewResource, p.logger)
+	p.logger.Info("basic cluster created")
+
 	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
 		p.cfg.Prophet.ResourceStateChangedHandler, p.logger)
+	p.logger.Info("raft cluster created")
+
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)
+	p.logger.Info("heartbeat streams created")
 
 	p.startSystemMonitor()
+
 	p.startListen()
+	p.logger.Info("rpc started")
+
 	p.startLeaderLoop()
+	p.logger.Info("lead loop completed")
 }
 
 func (p *defaultProphet) Stop() {
@@ -206,6 +221,7 @@ func (p *defaultProphet) Stop() {
 			p.etcd.Close()
 		}
 
+		p.stopJobs()
 		p.stopper.Stop()
 		p.logger.Info("prophet stopped")
 	})
