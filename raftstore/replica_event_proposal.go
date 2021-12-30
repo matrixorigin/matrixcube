@@ -161,7 +161,7 @@ func (pr *replica) execReadIndex(c batch) {
 	prevPendingReadCount := pr.pendingReadCount()
 	prevReadyReadCount := pr.readyReadCount()
 
-	pr.rn.ReadIndex(c.requestBatch.Header.ID)
+	pr.rn.ReadIndex(c.getRequestID())
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()

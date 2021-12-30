@@ -78,6 +78,7 @@ const (
 	checkLogAppliedAction
 	logCompactionAction
 	snapshotCompactionAction
+	checkPendingReadsAction
 )
 
 func (pr *replica) addAdminRequest(adminType rpc.AdminCmdType, request protoc.PB) {
@@ -148,6 +149,25 @@ func (pr *replica) onRaftTick(arg interface{}) {
 		return
 	}
 	pr.logger.Info("raft tick stopped")
+}
+
+func (pr *replica) addCheckPendingReads() bool {
+	if err := pr.actions.Put(action{actionType: checkPendingReadsAction}); err != nil {
+		return false
+	}
+	pr.notifyWorker()
+	return true
+}
+
+func (pr *replica) onCheckPendingReads(arg interface{}) {
+	// If read index message lost, the pending reads cannot be removed from the `pr.pendingReads`.
+	// We periodically check whether there are read requests that need to be cleaned up. These requests
+	// will not be responded to, and the client will try again.
+	if pr.addCheckPendingReads() {
+		util.DefaultTimeoutWheel().Schedule(time.Minute, pr.onCheckPendingReads, nil)
+		return
+	}
+	pr.logger.Info("check pending reads stopped")
 }
 
 func (pr *replica) shutdown() {
@@ -306,6 +326,8 @@ func (pr *replica) handleAction(items []interface{}) (bool, error) {
 				act.snapshotCompaction.persistentLogIndex); err != nil {
 				return false, err
 			}
+		case checkPendingReadsAction:
+			pr.pendingReads.removeLost()
 		}
 	}
 
