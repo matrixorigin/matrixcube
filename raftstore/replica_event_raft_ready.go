@@ -96,6 +96,7 @@ func (pr *replica) handleRaftState(rd raft.Ready) {
 			if pr.aware != nil {
 				pr.aware.BecomeFollower(shard)
 			}
+			pr.pendingReads.leaderChanged(pr.getLeaderReplica())
 		}
 	}
 }

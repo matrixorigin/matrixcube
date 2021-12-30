@@ -98,6 +98,19 @@ func (b *proposalBatch) pop() (batch, bool) {
 	return value, true
 }
 
+func (b *proposalBatch) close() {
+	for {
+		if b.isEmpty() {
+			break
+		}
+		if c, ok := b.pop(); ok {
+			for _, req := range c.requestBatch.Requests {
+				respStoreNotMatch(errStoreNotMatch, req, c.cb)
+			}
+		}
+	}
+}
+
 // TODO: might make sense to move the epoch value into c.req
 
 // push adds the specified req to a proposalBatch. The epoch value should

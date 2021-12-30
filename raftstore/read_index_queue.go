@@ -14,7 +14,8 @@
 package raftstore
 
 import (
-	"github.com/fagongzi/util/protoc"
+	"bytes"
+
 	"go.etcd.io/etcd/raft/v3"
 	"go.uber.org/zap"
 
@@ -25,7 +26,7 @@ import (
 type requestExecutor func(req rpc.Request)
 
 type readyRead struct {
-	batch rpc.RequestBatch
+	batch batch
 	index uint64
 }
 
@@ -39,17 +40,37 @@ func (q *readIndexQueue) reset() {
 	q.reads = q.reads[:0]
 }
 
+func (q *readIndexQueue) close() {
+	for _, rr := range q.reads {
+		rr.batch.respShardNotFound(q.shardID)
+	}
+	q.reset()
+}
+
+func (q *readIndexQueue) leaderChanged(newLeader Replica) {
+	for _, rr := range q.reads {
+		rr.batch.respNotLeader(q.shardID, newLeader)
+	}
+	q.reset()
+}
+
+func (q *readIndexQueue) append(c batch) {
+	q.reads = append(q.reads, readyRead{
+		batch: c,
+	})
+}
+
 func (q *readIndexQueue) ready(state raft.ReadState) {
-	var batch rpc.RequestBatch
-	protoc.MustUnmarshal(&batch, state.RequestCtx)
 	if ce := q.logger.Check(zap.DebugLevel, "read index ready"); ce != nil {
 		ce.Write(log.IndexField(state.Index),
-			log.RequestBatchField("requests", batch))
+			log.HexField("batch-id", state.RequestCtx))
 	}
-	q.reads = append(q.reads, readyRead{
-		batch: batch,
-		index: state.Index,
-	})
+
+	for idx := range q.reads {
+		if bytes.Equal(q.reads[idx].batch.requestBatch.Header.ID, state.RequestCtx) {
+			q.reads[idx].index = state.Index
+		}
+	}
 }
 
 func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) {
@@ -60,7 +81,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) {
 	newReady := q.reads[:0] // avoid alloc new slice
 	for _, ready := range q.reads {
 		if ready.index > 0 && ready.index <= appliedIndex {
-			for _, req := range ready.batch.Requests {
+			for _, req := range ready.batch.requestBatch.Requests {
 				exector(req)
 			}
 		} else {

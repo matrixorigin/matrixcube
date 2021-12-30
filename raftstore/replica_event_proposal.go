@@ -141,8 +141,12 @@ func (pr *replica) updatePendingProposal(c batch, isConfChange bool) error {
 }
 
 func (pr *replica) respNotLeader(c batch) {
+	c.respNotLeader(pr.shardID, pr.getLeaderReplica())
+}
+
+func (pr *replica) getLeaderReplica() Replica {
 	target, _ := pr.store.getReplicaRecord(pr.getLeaderReplicaID())
-	c.respNotLeader(pr.shardID, target)
+	return target
 }
 
 func (pr *replica) execReadIndex(c batch) {
@@ -157,7 +161,7 @@ func (pr *replica) execReadIndex(c batch) {
 	prevPendingReadCount := pr.pendingReadCount()
 	prevReadyReadCount := pr.readyReadCount()
 
-	pr.rn.ReadIndex(protoc.MustMarshal(&c.requestBatch))
+	pr.rn.ReadIndex(c.requestBatch.Header.ID)
 
 	pendingReadCount := pr.pendingReadCount()
 	readyReadCount := pr.readyReadCount()
@@ -171,6 +175,8 @@ func (pr *replica) execReadIndex(c batch) {
 	if ce := pr.logger.Check(zap.DebugLevel, "call read index"); ce != nil {
 		ce.Write(log.HexField("id", c.getRequestID()))
 	}
+
+	pr.pendingReads.append(c)
 }
 
 func (pr *replica) proposeNormal(c batch) bool {

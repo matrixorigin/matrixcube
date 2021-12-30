@@ -157,36 +157,7 @@ func (pr *replica) shutdown() {
 	pr.messages.Dispose()
 	pr.feedbacks.Dispose()
 
-	// resp all stale requests in batch and queue
-	for {
-		if pr.incomingProposals.isEmpty() {
-			break
-		}
-		if c, ok := pr.incomingProposals.pop(); ok {
-			for _, req := range c.requestBatch.Requests {
-				respStoreNotMatch(errStoreNotMatch, req, c.cb)
-			}
-		}
-	}
-
-	// resp all pending proposals
-	pr.pendingProposals.close()
-
-	// resp all pending requests in batch and queue
-	for _, rr := range pr.pendingReads.reads {
-		for _, req := range rr.batch.Requests {
-			respStoreNotMatch(errStoreNotMatch, req, pr.store.shardsProxy.OnResponse)
-		}
-	}
-	pr.pendingReads.reset()
-
-	requests := pr.requests.Dispose()
-	for _, r := range requests {
-		req := r.(reqCtx)
-		if req.cb != nil {
-			respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
-		}
-	}
+	pr.notifyShutdownToPendings()
 
 	// This replica won't be processed by the eventWorker again.
 	// This means no further read requests will be started using the stopper.
@@ -613,4 +584,23 @@ func (pr *replica) doLogCompaction(index uint64) error {
 		log.IndexField(index))
 
 	return nil
+}
+
+func (pr *replica) notifyShutdownToPendings() {
+	// resp all stale requests in batch and queue
+	pr.incomingProposals.close()
+
+	// resp all pending proposals
+	pr.pendingProposals.close()
+
+	// resp all pending requests in batch and queue
+	pr.pendingReads.close()
+
+	requests := pr.requests.Dispose()
+	for _, r := range requests {
+		req := r.(reqCtx)
+		if req.cb != nil {
+			respStoreNotMatch(errStoreNotMatch, req.req, req.cb)
+		}
+	}
 }
