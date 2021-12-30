@@ -470,12 +470,13 @@ func (pr *replica) prophetHeartbeat() {
 		Stats:           pr.stats.heartbeatState(),
 		GroupKey:        pr.groupController.getShardGroupKey(shard),
 	}
-
+	pr.logger.Debug("start send shard heartbeat")
 	resource := NewResourceAdapterWithShard(shard)
 	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
 	}
+	pr.logger.Debug("end send shard heartbeat")
 }
 
 func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, lastIndex uint64) {
