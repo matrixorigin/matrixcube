@@ -92,7 +92,7 @@ func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) b
 	}
 
 	handled := false
-	newReady := q.reads[:0] // avoid alloc new slice
+	newReads := q.reads[:0] // avoid alloc new slice
 	for idx := range q.reads {
 		if q.reads[idx].index > 0 && q.reads[idx].index <= appliedIndex {
 			handled = true
@@ -101,14 +101,14 @@ func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) b
 			}
 			q.readyCount--
 		} else {
-			newReady = append(newReady, q.reads[idx])
+			newReads = append(newReads, q.reads[idx])
 			if q.reads[idx].index > 0 {
-				q.lastReadyIdx = len(newReady) - 1
+				q.lastReadyIdx = len(newReads) - 1
 			}
 		}
 	}
 
-	q.reads = newReady
+	q.reads = newReads
 	return handled
 }
 
@@ -122,16 +122,16 @@ func (q *readIndexQueue) removeLost() bool {
 	// the ReadIndex request closer to the end of the queue is sent later.
 	// So all read requests that are not set to ready before `lastReadyIdx`
 	// need to be cleaned up.
-	newReady := q.reads[:0]
+	newReads := q.reads[:0]
 	for idx := range q.reads[:q.lastReadyIdx] {
 		if q.reads[idx].index > 0 {
-			newReady = append(newReady, q.reads[idx])
+			newReads = append(newReads, q.reads[idx])
 		}
 	}
 
 	old := q.lastReadyIdx
-	q.lastReadyIdx = len(newReady)
-	newReady = append(newReady, q.reads[old:]...)
-	q.reads = newReady
+	q.lastReadyIdx = len(newReads)
+	newReads = append(newReads, q.reads[old:]...)
+	q.reads = newReads
 	return true
 }
