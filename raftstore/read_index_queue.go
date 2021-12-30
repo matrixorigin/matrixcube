@@ -14,59 +14,124 @@
 package raftstore
 
 import (
-	"github.com/fagongzi/util/protoc"
-	"go.etcd.io/etcd/raft/v3"
-	"go.uber.org/zap"
+	"bytes"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"go.etcd.io/etcd/raft/v3"
+	"go.uber.org/zap"
 )
 
 type requestExecutor func(req rpc.Request)
 
 type readyRead struct {
-	batch rpc.RequestBatch
+	batch batch
 	index uint64
 }
 
 type readIndexQueue struct {
-	logger  *zap.Logger
-	shardID uint64
-	reads   []readyRead
+	logger       *zap.Logger
+	shardID      uint64
+	reads        []readyRead
+	readyCount   int
+	lastReadyIdx int
+}
+
+func newReadIndexQueue(shardID uint64, logger *zap.Logger) *readIndexQueue {
+	return &readIndexQueue{
+		shardID: shardID,
+		logger:  log.Adjust(logger),
+	}
 }
 
 func (q *readIndexQueue) reset() {
 	q.reads = q.reads[:0]
+	q.readyCount = 0
+	q.lastReadyIdx = 0
 }
 
-func (q *readIndexQueue) ready(state raft.ReadState) {
-	var batch rpc.RequestBatch
-	protoc.MustUnmarshal(&batch, state.RequestCtx)
-	if ce := q.logger.Check(zap.DebugLevel, "read index ready"); ce != nil {
-		ce.Write(log.IndexField(state.Index),
-			log.RequestBatchField("requests", batch))
+func (q *readIndexQueue) close() {
+	for _, rr := range q.reads {
+		rr.batch.respShardNotFound(q.shardID)
 	}
+	q.reset()
+}
+
+func (q *readIndexQueue) leaderChanged(newLeader Replica) {
+	for _, rr := range q.reads {
+		rr.batch.respNotLeader(q.shardID, newLeader)
+	}
+	q.reset()
+}
+
+func (q *readIndexQueue) append(c batch) {
 	q.reads = append(q.reads, readyRead{
-		batch: batch,
-		index: state.Index,
+		batch: c,
 	})
 }
 
-func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) {
-	if len(q.reads) == 0 {
-		return
+func (q *readIndexQueue) ready(state raft.ReadState) {
+	if ce := q.logger.Check(zap.DebugLevel, "read index ready"); ce != nil {
+		ce.Write(log.IndexField(state.Index),
+			log.HexField("batch-id", state.RequestCtx))
 	}
 
-	newReady := q.reads[:0] // avoid alloc new slice
-	for _, ready := range q.reads {
-		if ready.index > 0 && ready.index <= appliedIndex {
-			for _, req := range ready.batch.Requests {
+	for idx := range q.reads {
+		if bytes.Equal(q.reads[idx].batch.requestBatch.Header.ID, state.RequestCtx) {
+			q.reads[idx].index = state.Index
+			q.readyCount++
+			q.lastReadyIdx = idx
+			return
+		}
+	}
+}
+
+func (q *readIndexQueue) process(appliedIndex uint64, exector requestExecutor) bool {
+	if len(q.reads) == 0 || q.readyCount == 0 {
+		return false
+	}
+
+	handled := false
+	newReads := q.reads[:0] // avoid alloc new slice
+	for idx := range q.reads {
+		if q.reads[idx].index > 0 && q.reads[idx].index <= appliedIndex {
+			handled = true
+			for _, req := range q.reads[idx].batch.requestBatch.Requests {
 				exector(req)
 			}
+			q.readyCount--
 		} else {
-			newReady = append(newReady, ready)
+			newReads = append(newReads, q.reads[idx])
+			if q.reads[idx].index > 0 {
+				q.lastReadyIdx = len(newReads) - 1
+			}
 		}
 	}
 
-	q.reads = newReady
+	q.reads = newReads
+	return handled
+}
+
+func (q *readIndexQueue) removeLost() bool {
+	if q.readyCount == 0 ||
+		len(q.reads[:q.lastReadyIdx+1]) == q.readyCount {
+		return false
+	}
+
+	// Our request is added to the queue in a FIFO manner, which means that
+	// the ReadIndex request closer to the end of the queue is sent later.
+	// So all read requests that are not set to ready before `lastReadyIdx`
+	// need to be cleaned up.
+	newReads := q.reads[:0]
+	for idx := range q.reads[:q.lastReadyIdx] {
+		if q.reads[idx].index > 0 {
+			newReads = append(newReads, q.reads[idx])
+		}
+	}
+
+	old := q.lastReadyIdx
+	q.lastReadyIdx = len(newReads)
+	newReads = append(newReads, q.reads[old:]...)
+	q.reads = newReads
+	return true
 }

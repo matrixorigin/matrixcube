@@ -154,7 +154,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		lr:                NewLogReader(l, shard.ID, r.ID, store.logdb),
 		pendingProposals:  newPendingProposals(),
 		incomingProposals: newProposalBatch(l, maxBatchSize, shard.ID, r),
-		pendingReads:      &readIndexQueue{shardID: shard.ID, logger: l},
+		pendingReads:      newReadIndexQueue(shard.ID, l),
 		snapshotter:       snapshotter,
 		ticks:             task.New(32),
 		messages:          task.New(32),
@@ -241,6 +241,7 @@ func (pr *replica) start(campaign bool) {
 	}
 
 	pr.onRaftTick(nil)
+	pr.onCheckPendingReads(nil)
 	pr.logger.Info("replica started")
 }
 
