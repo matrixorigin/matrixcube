@@ -487,3 +487,13 @@ func TestStateMachineCannotApplyInDestroyingAfterRestart(t *testing.T) {
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
+
+func TestStateMachineCannotApplyIfRemovedFlagSetted(t *testing.T) {
+	h := &testReplicaResultHandler{}
+	f := func(sm *stateMachine) {
+		sm.metadataMu.removed = true
+
+		assert.False(t, sm.canApply(raftpb.Entry{}))
+	}
+	runSimpleStateMachineTest(t, f, h)
+}
