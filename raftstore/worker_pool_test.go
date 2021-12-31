@@ -227,15 +227,26 @@ func testWorkerPoolConcurrentJobs(t *testing.T, moreJob bool) {
 	assert.Equal(t, 32, len(p.busy))
 	assert.Equal(t, 32, len(p.processing))
 
+	verified := false
 	if moreJob {
 		p.notify(64)
 		p.notify(65)
-		count := 0
-		p.ready.Range(func(k, v interface{}) bool {
-			count++
-			return true
-		})
-		assert.Equal(t, 2, count)
+
+		for wait := 0; wait < 100; wait++ {
+			count := 0
+			p.ready.Range(func(k, v interface{}) bool {
+				count++
+				return true
+			})
+
+			if count == 2 {
+				verified = true
+				break
+			} else {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+		assert.True(t, verified)
 	}
 
 	for _, h := range handlers {
