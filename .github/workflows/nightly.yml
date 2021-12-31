@@ -1,0 +1,17 @@
+on:
+  schedule:
+  - cron: '30 19 * * *'
+name: Nightly
+jobs:
+  monkey-test:
+    runs-on: ubuntu-18.04
+    steps:
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17.x
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Test
+      run: |
+        make all-tests
