@@ -154,15 +154,17 @@ func (ls *Leadership) DoIfLeader(conditions []clientv3.Cmp, ops ...clientv3.Op) 
 }
 
 // ElectionLoop start lead election
-func (ls *Leadership) ElectionLoop(ctx context.Context) {
-	ls.ctx = ctx
+func (ls *Leadership) ElectionLoop() {
+	ls.stopper.RunTask(context.Background(), ls.doElectionLoop)
+}
 
+func (ls *Leadership) doElectionLoop(ctx context.Context) {
+	ls.ctx = ctx
 	for {
 		select {
 		case <-ctx.Done():
 			ls.logger.Info("loop exit due to context done",
 				mainLoopFiled)
-			ls.stopper.Stop()
 			return
 		default:
 			currentLeader, rev, err := ls.CurrentLeader()

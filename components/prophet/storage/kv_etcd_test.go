@@ -15,7 +15,6 @@
 package storage
 
 import (
-	"context"
 	"testing"
 	time "time"
 
@@ -37,7 +36,7 @@ func TestEtcdKV(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	kv := NewEtcdKV("/root", client, ls)
