@@ -111,12 +111,13 @@ func (ls *Leadership) ChangeLeaderTo(newLeader string) error {
 
 // Stop stop the current leadship
 func (ls *Leadership) Stop() error {
+	var err error
 	lease := ls.GetLease()
 	if lease != nil {
-		return lease.Close(ls.elector.client.Ctx())
+		err = lease.Close(ls.elector.client.Ctx())
 	}
 	ls.stopper.Stop()
-	return nil
+	return err
 }
 
 // CurrentLeader returns the current leader
