@@ -33,9 +33,11 @@ else
 GO=$(GOEXEC)
 endif
 
-ifeq ($(RACE),1)
+ifeq ($(NO_RACE),1)
+RACE_FLAG=
+$(warning "data race detector disabled")
+else
 RACE_FLAG=-race
-$(warning "data race detector enabled")
 endif
 
 ifeq ($(COVER),1)
