@@ -58,7 +58,7 @@ func newElectorTester(group string, id string, elector Elector) *electorTester {
 }
 
 func (t *electorTester) start() {
-	go t.leadship.ElectionLoop(t.ctx)
+	go t.leadship.doElectionLoop(t.ctx)
 	<-t.startedC
 }
 

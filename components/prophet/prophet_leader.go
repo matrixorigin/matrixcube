@@ -18,7 +18,7 @@ import (
 )
 
 func (p *defaultProphet) startLeaderLoop() {
-	go p.member.ElectionLoop(p.ctx)
+	p.member.ElectionLoop()
 	p.logger.Info("lead loop started")
 	<-p.completeC
 }

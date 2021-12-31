@@ -15,7 +15,6 @@
 package storage
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ func TestPutAndGetResource(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -62,7 +61,7 @@ func TestPutAndGetContainer(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -86,7 +85,7 @@ func TestLoadResources(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -121,7 +120,7 @@ func TestLoadContainers(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -156,7 +155,7 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -196,7 +195,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -234,7 +233,7 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
@@ -275,7 +274,7 @@ func TestBatchPutCustomData(t *testing.T) {
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
-	go ls.ElectionLoop(context.Background())
+	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
 	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}

@@ -15,7 +15,6 @@
 package member
 
 import (
-	"context"
 	"sync/atomic"
 
 	"github.com/matrixorigin/matrixcube/components/log"
@@ -137,8 +136,8 @@ func (m *Member) GetLeader() *metapb.Member {
 }
 
 // ElectionLoop start leader election loop
-func (m *Member) ElectionLoop(ctx context.Context) {
-	m.leadership.ElectionLoop(ctx)
+func (m *Member) ElectionLoop() {
+	m.leadership.ElectionLoop()
 }
 
 // MemberInfo initializes the member info.
