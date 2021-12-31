@@ -1167,7 +1167,7 @@ func (c *testRaftCluster) Restart() {
 }
 
 func (c *testRaftCluster) RestartWithFunc(beforeStartFunc func()) {
-	c.Stop()
+	c.stop(false)
 	c.reset(false)
 	if beforeStartFunc != nil {
 		beforeStartFunc()
@@ -1203,6 +1203,10 @@ func (c *testRaftCluster) RestartNode(node int) {
 }
 
 func (c *testRaftCluster) Stop() {
+	c.stop(true)
+}
+
+func (c *testRaftCluster) stop(clean bool) {
 	for _, s := range c.stores {
 		s.Stop()
 	}
@@ -1215,6 +1219,16 @@ func (c *testRaftCluster) Stop() {
 			panic("fs not set")
 		}
 		vfs.ReportLeakedFD(fs, c.t)
+	}
+
+	if clean {
+		c.removeDataIfSucceed()
+	}
+}
+
+func (c *testRaftCluster) removeDataIfSucceed() {
+	if !c.t.Failed() {
+		assert.NoError(c.t, c.fs.RemoveAll(c.baseDataDir))
 	}
 }
 
@@ -1659,6 +1673,7 @@ func newTestStore(t *testing.T) (*store, func()) {
 	return c.GetStore(0).(*store), func() {
 		c.closeStorage()
 		c.closeLogDBKVStorage()
+		c.removeDataIfSucceed()
 	}
 }
 
