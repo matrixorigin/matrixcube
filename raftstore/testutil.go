@@ -1018,10 +1018,6 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 	cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
 	cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
 
-	cfg.Worker.RaftEventWorkers = 1
-	cfg.Worker.ApplyWorkerCount = 1
-	cfg.Worker.SendRaftMsgWorkerCount = 1
-
 	cfg.Prophet.Name = fmt.Sprintf("node-%d", node)
 	cfg.Prophet.RPCAddr = fmt.Sprintf("%s:%d", listenIP, c.portsRPCAddr[node])
 	cfg.Prophet.AdvertiseRPCAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsRPCAddr[node])

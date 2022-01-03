@@ -37,9 +37,7 @@ var (
 	defaultSendRaftBatchSize        uint64 = 64
 	defaultMaxConcurrencySnapChunks uint64 = 8
 	defaultSnapChunkSize                   = 4 * mb
-	defaultApplyWorkerCount         uint64 = 32
-	defaultSendRaftMsgWorkerCount   uint64 = 8
-	defaultRaftMaxWorkers           uint64 = 32
+	defaultRaftMaxWorkers           uint64 = 64
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
 	defaultShardSplitCheckDuration         = time.Second * 30
@@ -249,20 +247,10 @@ func (c *SnapshotConfig) adjust() {
 
 // WorkerConfig worker config
 type WorkerConfig struct {
-	ApplyWorkerCount       uint64 `toml:"raft-apply-worker"`
-	SendRaftMsgWorkerCount uint64 `toml:"raft-msg-worker"`
-	RaftEventWorkers       uint64 `toml:"raft-event-workers"`
+	RaftEventWorkers uint64 `toml:"raft-event-workers"`
 }
 
 func (c *WorkerConfig) adjust() {
-	if c.ApplyWorkerCount == 0 {
-		c.ApplyWorkerCount = defaultApplyWorkerCount
-	}
-
-	if c.SendRaftMsgWorkerCount == 0 {
-		c.SendRaftMsgWorkerCount = defaultSendRaftMsgWorkerCount
-	}
-
 	if c.RaftEventWorkers == 0 {
 		c.RaftEventWorkers = defaultRaftMaxWorkers
 	}
