@@ -52,7 +52,7 @@ endif
 
 TEST_TAGS=-tags matrixone_test
 SHORT_ONLY=-short
-TEST_OPTIONS=test -timeout=1200s -count=1 -v $(RACE_FLAG) $(COVER_FLAG) $(SELECTED_TESTS)
+TEST_OPTIONS=test -timeout=3600s -count=1 -v $(RACE_FLAG) $(COVER_FLAG) $(SELECTED_TESTS)
 GOTEST=$(GO) $(TEST_OPTIONS) $(SHORT_ONLY) $(TEST_TAGS)
 
 ###############################################################################
