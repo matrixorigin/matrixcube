@@ -111,11 +111,13 @@ func (ls *Leadership) ChangeLeaderTo(newLeader string) error {
 
 // Stop stop the current leadship
 func (ls *Leadership) Stop() error {
+	ls.logger.Info("begin to stop")
 	var err error
 	lease := ls.GetLease()
 	if lease != nil {
 		err = lease.Close(ls.elector.client.Ctx())
 	}
+	ls.logger.Info("begin to stop stopper")
 	ls.stopper.Stop()
 	return err
 }
@@ -162,12 +164,16 @@ func (ls *Leadership) ElectionLoop() {
 func (ls *Leadership) doElectionLoop(ctx context.Context) {
 	ls.ctx = ctx
 	for {
+		ls.logger.Info("ready to next loop",
+			mainLoopFiled)
 		select {
 		case <-ctx.Done():
 			ls.logger.Info("loop exit due to context done",
 				mainLoopFiled)
 			return
 		default:
+			ls.logger.Info("ready to load current leader",
+				mainLoopFiled)
 			currentLeader, rev, err := ls.CurrentLeader()
 			if err != nil {
 				ls.logger.Error("fail to load current leader, retry later",
@@ -206,6 +212,8 @@ func (ls *Leadership) doElectionLoop(ctx context.Context) {
 			}
 
 			if ls.allowCampaign {
+				ls.logger.Info("start checkExpectLeader",
+					mainLoopFiled)
 				// check expect leader exists
 				err := ls.checkExpectLeader()
 				if err != nil {
@@ -215,7 +223,8 @@ func (ls *Leadership) doElectionLoop(ctx context.Context) {
 					time.Sleep(200 * time.Millisecond)
 					continue
 				}
-
+				ls.logger.Info("end checkExpectLeader, and start campaign",
+					mainLoopFiled)
 				if err = ls.campaign(); err != nil {
 					ls.logger.Error("fail to campaign leader",
 						mainLoopFiled,
@@ -223,6 +232,8 @@ func (ls *Leadership) doElectionLoop(ctx context.Context) {
 					time.Sleep(time.Second * time.Duration(ls.elector.options.leaseSec))
 					continue
 				}
+				ls.logger.Info("end campaign",
+					mainLoopFiled)
 			}
 
 			time.Sleep(loopInterval)
@@ -345,7 +356,7 @@ func (ls *Leadership) campaign() error {
 			ls.logger.Info("exit due to client context done",
 				keepaliveField)
 			return errors.New("etcd client closed")
-		case <-ctx.Done():
+		case <-ls.ctx.Done():
 			ls.logger.Info("exit due to context done",
 				keepaliveField)
 			return nil
