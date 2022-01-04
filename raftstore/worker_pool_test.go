@@ -233,16 +233,17 @@ func testWorkerPoolConcurrentJobs(t *testing.T, moreJob bool) {
 		p.notify(65)
 
 		for wait := 0; wait < 100; wait++ {
-			count := 0
+			shards := make([]uint64, 0)
 			p.ready.Range(func(k, v interface{}) bool {
-				count++
+				shards = append(shards, k.(uint64))
 				return true
 			})
 
-			if count == 2 {
+			if len(shards) == 2 {
 				verified = true
 				break
 			} else {
+				t.Logf("expect two ready shards, got %v", shards)
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
