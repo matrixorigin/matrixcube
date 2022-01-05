@@ -210,18 +210,21 @@ func (p *defaultProphet) Stop() {
 		p.trans.Stop()
 		p.logger.Info("transport stopped")
 
-		p.member.Stop()
-		p.logger.Info("member stopped")
-
 		p.cancel()
 		p.elector.Client().Close()
 		p.logger.Info("etcd client stopped")
 
+		p.member.Stop()
+		p.logger.Info("member stopped")
+
 		if p.etcd != nil {
 			p.etcd.Close()
 		}
+		p.logger.Info("etcd server stopped")
 
 		p.stopJobs()
+		p.logger.Info("job begin to stopped")
+
 		p.stopper.Stop()
 		p.logger.Info("prophet stopped")
 	})

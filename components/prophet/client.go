@@ -99,7 +99,6 @@ type asyncClient struct {
 	containerID uint64
 	adapter     metadata.Adapter
 	id          uint64
-	contexts    sync.Map // id -> request
 	leaderConn  goetty.IOSession
 
 	resetReadC            chan string
@@ -112,6 +111,11 @@ type asyncClient struct {
 	mu struct {
 		sync.RWMutex
 		state int32
+	}
+
+	contextsMu struct {
+		sync.RWMutex
+		contexts map[uint64]*ctx
 	}
 }
 
@@ -132,6 +136,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 	c.opts.adjust()
 	c.stopper = stop.NewStopper("prophet-client", stop.WithLogger(c.opts.logger))
 	c.leaderConn = createConn(c.opts.logger)
+	c.contextsMu.contexts = make(map[uint64]*ctx)
 	c.start()
 	return c
 }
@@ -592,8 +597,10 @@ func (c *asyncClient) do(ctx *ctx) error {
 		if !added {
 			ctx.req.ID = c.nextID()
 			if ctx.sync || ctx.cb != nil {
-				c.contexts.Store(ctx.req.ID, ctx)
+				c.contextsMu.Lock()
+				c.contextsMu.contexts[ctx.req.ID] = ctx
 				util.DefaultTimeoutWheel().Schedule(c.opts.rpcTimeout, c.timeout, ctx.req.ID)
+				c.contextsMu.Unlock()
 			}
 			added = true
 		}
@@ -612,9 +619,11 @@ func (c *asyncClient) do(ctx *ctx) error {
 }
 
 func (c *asyncClient) timeout(arg interface{}) {
-	if v, ok := c.contexts.Load(arg); ok {
-		c.contexts.Delete(arg)
-		v.(*ctx).done(nil, ErrTimeout)
+	c.contextsMu.RLock()
+	defer c.contextsMu.RUnlock()
+
+	if ctx, ok := c.contextsMu.contexts[arg.(uint64)]; ok {
+		ctx.done(nil, ErrTimeout)
 	}
 }
 
@@ -667,12 +676,12 @@ OUTER:
 	for {
 		select {
 		case <-stopCtx.Done():
-			c.contexts.Range(func(key, value interface{}) bool {
-				if value != nil {
-					value.(*ctx).done(nil, ErrClosed)
-				}
-				return true
-			})
+			c.contextsMu.Lock()
+			for k, ctx := range c.contextsMu.contexts {
+				ctx.done(nil, ErrClosed)
+				delete(c.contextsMu.contexts, k)
+			}
+			c.contextsMu.Unlock()
 			return
 		case leader, ok := <-c.resetReadC:
 			if ok {
@@ -714,20 +723,25 @@ OUTER:
 }
 
 func (c *asyncClient) requestDoneWithRetry(resp *rpcpb.Response) {
-	v, ok := c.contexts.Load(resp.ID)
-	if ok && v != nil {
-		v.(*ctx).done(nil, util.ErrNotLeader)
+	c.contextsMu.Lock()
+	defer c.contextsMu.Unlock()
+
+	if ctx, ok := c.contextsMu.contexts[resp.ID]; ok {
+		delete(c.contextsMu.contexts, resp.ID)
+		ctx.done(nil, util.ErrNotLeader)
 	}
 }
 
 func (c *asyncClient) requestDone(resp *rpcpb.Response) {
-	v, ok := c.contexts.Load(resp.ID)
-	if ok && v != nil {
-		c.contexts.Delete(resp.ID)
+	c.contextsMu.Lock()
+	defer c.contextsMu.Unlock()
+
+	if ctx, ok := c.contextsMu.contexts[resp.ID]; ok {
+		delete(c.contextsMu.contexts, resp.ID)
 		if resp.Error != "" {
-			v.(*ctx).done(nil, errors.New(resp.Error))
+			ctx.done(nil, errors.New(resp.Error))
 		} else {
-			v.(*ctx).done(resp, nil)
+			ctx.done(resp, nil)
 		}
 	}
 }

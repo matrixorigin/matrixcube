@@ -333,7 +333,7 @@ func (c *RaftCluster) HandleRemoveResources(request *rpcpb.Request) (*rpcpb.Remo
 	c.core.AddRemovedResources(request.RemoveResources.IDs...)
 	for _, res := range origin {
 		res.SetState(metapb.ResourceState_Destroyed)
-		c.changedEvents <- event.NewResourceEvent(res, 0, true, false)
+		c.addNotifyLocked(event.NewResourceEvent(res, 0, true, false))
 	}
 
 	return &rpcpb.RemoveResourcesRsp{}, nil
@@ -391,15 +391,17 @@ func (c *RaftCluster) HandleGetScheduleGroupRule(request *rpcpb.Request) ([]meta
 }
 
 func (c *RaftCluster) triggerNotifyCreateResources() {
-	select {
-	case c.createResourceC <- struct{}{}:
-	default:
+	if c.createResourceC != nil {
+		select {
+		case c.createResourceC <- struct{}{}:
+		default:
+		}
 	}
 }
 
 func (c *RaftCluster) doNotifyCreateResources() {
 	c.core.ForeachWaittingCreateResources(func(res metadata.Resource) {
-		c.changedEvents <- event.NewResourceEvent(res, 0, false, true)
+		c.addNotifyLocked(event.NewResourceEvent(res, 0, false, true))
 	})
 }
 

@@ -258,6 +258,8 @@ func (c *RaftCluster) runBackgroundJobs(interval time.Duration) {
 			c.Lock()
 			close(c.createResourceC)
 			close(c.changedEvents)
+			c.createResourceC = nil
+			c.changedEvents = nil
 			c.Unlock()
 			c.logger.Info("background jobs has been stopped")
 			return
@@ -454,13 +456,15 @@ func (c *RaftCluster) HandleContainerHeartbeat(stats *metapb.ContainerStats) err
 			newContainer = newContainer.Clone(core.SetLastPersistTime(time.Now()))
 		}
 
-		c.changedEvents <- event.NewContainerEvent(newContainer.Meta)
+		c.addNotifyLocked(event.NewContainerEvent(newContainer.Meta))
 	}
 	if container := c.core.GetContainer(newContainer.Meta.ID()); container != nil {
 		c.hotStat.UpdateContainerHeartbeatMetrics(container)
 	}
+
 	c.core.PutContainer(newContainer)
-	c.changedEvents <- event.NewContainerStatsEvent(newContainer.GetContainerStats())
+	c.addNotifyLocked(event.NewContainerStatsEvent(newContainer.GetContainerStats()))
+
 	c.hotStat.Observe(newContainer.Meta.ID(), newContainer.GetContainerStats())
 	c.hotStat.UpdateTotalLoad(c.core.GetContainers())
 	c.hotStat.FilterUnhealthyContainer(c)
@@ -665,24 +669,20 @@ func (c *RaftCluster) processResourceHeartbeat(res *core.CachedResource) error {
 	}
 	c.RLock()
 	if saveKV || saveCache || isNew {
-		if c.changedEvents != nil {
-			if res.GetLeader().GetID() != 0 {
-				from := uint64(0)
-				if origin != nil {
-					from = origin.GetLeader().GetContainerID()
-				}
-				c.logger.Debug("notify resource leader changed",
-					zap.Uint64("resource", res.Meta.ID()),
-					zap.Uint64("from", from),
-					zap.Uint64("to", res.GetLeader().GetContainerID()))
+		if res.GetLeader().GetID() != 0 {
+			from := uint64(0)
+			if origin != nil {
+				from = origin.GetLeader().GetContainerID()
 			}
-			c.changedEvents <- event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false)
+			c.logger.Debug("notify resource leader changed",
+				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("from", from),
+				zap.Uint64("to", res.GetLeader().GetContainerID()))
 		}
+		c.addNotifyLocked(event.NewResourceEvent(res.Meta, res.GetLeader().GetID(), false, false))
 	}
 	if saveCache {
-		if c.changedEvents != nil {
-			c.changedEvents <- event.NewResourceStatsEvent(res.GetStat())
-		}
+		c.addNotifyLocked(event.NewResourceStatsEvent(res.GetStat()))
 	}
 	c.RUnlock()
 
@@ -1300,6 +1300,8 @@ func (c *RaftCluster) AllocID() (uint64, error) {
 
 // ChangedEventNotifier changedEventNotifier
 func (c *RaftCluster) ChangedEventNotifier() <-chan rpcpb.EventNotify {
+	c.RLock()
+	defer c.RUnlock()
 	return c.changedEvents
 }
 
@@ -1605,4 +1607,10 @@ func (c *RaftCluster) JointConsensusEnabled() bool {
 // GetResourceFactory resource factory
 func (c *RaftCluster) GetResourceFactory() func() metadata.Resource {
 	return c.adapter.NewResource
+}
+
+func (c *RaftCluster) addNotifyLocked(event rpcpb.EventNotify) {
+	if c.changedEvents != nil {
+		c.changedEvents <- event
+	}
 }

@@ -14,6 +14,7 @@
 package prophet
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -23,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
 
@@ -49,14 +51,17 @@ type watcherNotifier struct {
 	logger   *zap.Logger
 	watchers map[uint64]*watcherSession
 	cluster  *cluster.RaftCluster
+	stopper  *stop.Stopper
 }
 
 func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watcherNotifier {
-	return &watcherNotifier{
+	wn := &watcherNotifier{
 		logger:   log.Adjust(logger).Named("watch-notify"),
 		cluster:  cluster,
 		watchers: make(map[uint64]*watcherSession),
 	}
+	wn.stopper = stop.NewStopper("event-notifier", stop.WithLogger(wn.logger))
+	return wn
 }
 
 func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.Response, session goetty.IOSession) error {
@@ -131,33 +136,36 @@ func (wn *watcherNotifier) doNotify(evt rpcpb.EventNotify) {
 }
 
 func (wn *watcherNotifier) start() {
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				wn.logger.Error("fail to notify event, restart later", zap.Any("error", err))
-				wn.start()
-			}
-		}()
+	wn.stopper.RunTask(context.Background(), func(ctx context.Context) {
+		eventC := wn.cluster.ChangedEventNotifier()
+		if eventC == nil {
+			wn.logger.Info("watcher notifer exit with nil event channel")
+			return
+		}
 
 		for {
-			evt, ok := <-wn.cluster.ChangedEventNotifier()
-			if !ok {
+			select {
+			case <-ctx.Done():
 				wn.logger.Info("watcher notifer exit")
 				return
+			case evt, ok := <-eventC:
+				if !ok {
+					wn.logger.Info("watcher notifer exit with channel closed")
+					return
+				}
+				wn.doNotify(evt)
 			}
-
-			wn.doNotify(evt)
 		}
-	}()
+	})
 }
 
 func (wn *watcherNotifier) stop() {
 	wn.Lock()
-	defer wn.Unlock()
-
 	for _, wt := range wn.watchers {
 		wn.doClearWatcherLocked(wt)
 	}
 	wn.watchers = nil
 	wn.logger.Info("watcher notifier stopped")
+	wn.Unlock()
+	wn.stopper.Stop()
 }
