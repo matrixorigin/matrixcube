@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -346,7 +347,7 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 				log.ReasonField("retry timeout"),
 				zap.String("cause", err))
 		}
-		p.cfg.failureCallback(requestID, errors.New(err))
+		p.cfg.failureCallback(requestID, multierr.Append(errors.New(err), ErrTimeout))
 		return
 	}
 
