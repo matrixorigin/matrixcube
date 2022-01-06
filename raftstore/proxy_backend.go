@@ -23,6 +23,7 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
@@ -116,7 +117,9 @@ func newRemoteBackend(logger *zap.Logger,
 
 func (bc *remoteBackend) dispatch(req rpc.Request) error {
 	if !bc.checkConnect() {
-		return errConnect
+		return multierr.Append(errConnect, &ErrTryAgain{
+			Wait: time.Second,
+		})
 	}
 
 	return bc.reqs.Put(req)

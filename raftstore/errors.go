@@ -16,6 +16,8 @@ package raftstore
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpc"
@@ -97,4 +99,14 @@ func checkKeyInShard(key []byte, shard Shard) *errorpb.Error {
 		Message:       errKeyNotInShard.Error(),
 		KeyNotInShard: e,
 	}
+}
+
+// ErrTryAgain indicates that an operation should retry later
+type ErrTryAgain struct {
+	// caller should wait for this period before retry
+	Wait time.Duration
+}
+
+func (e *ErrTryAgain) Error() string {
+	return fmt.Sprintf("should try again after %v", e.Wait)
 }

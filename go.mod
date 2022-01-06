@@ -28,6 +28,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.0
 	go.etcd.io/etcd/raft/v3 v3.5.0
 	go.etcd.io/etcd/server/v3 v3.5.0
+	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.18.1
 )
 
