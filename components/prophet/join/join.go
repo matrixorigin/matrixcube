@@ -37,6 +37,7 @@ var (
 	etcdTimeout = time.Second * 3
 	// listMemberRetryTimes is the retry times of list member.
 	listMemberRetryTimes = 20
+	listMemberInterval   = time.Second * 5
 )
 
 const (
@@ -272,8 +273,12 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger)
 		return nil, nil, errors.New("context cancaled")
 	}
 
-	endpoints := []string{etcdCfg.ACUrls[0].String()}
-	logger.Info("etcd v3 client created")
+	var endpoints []string
+	for _, u := range etcdCfg.ACUrls {
+		endpoints = append(endpoints, u.String())
+	}
+	logger.Info("start to create etcd v3 client",
+		zap.Strings("endpoints", endpoints))
 
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:        endpoints,
@@ -287,15 +292,20 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger)
 	for i := 0; i < listMemberRetryTimes; i++ {
 		etcdServerID := uint64(etcd.Server.ID())
 		etcdMembers, err := util.ListEtcdMembers(client)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, m := range etcdMembers.Members {
-			if etcdServerID == m.ID && m.Name == cfg.Prophet.Name {
-				return client, etcd, nil
+		if err == nil {
+			for _, m := range etcdMembers.Members {
+				if etcdServerID == m.ID && m.Name == cfg.Prophet.Name {
+					return client, etcd, nil
+				}
 			}
+
+			logger.Error("failed to check members, current node not found")
+		} else {
+			logger.Error("failed to list embed etcd member, retry later",
+				zap.Error(err))
 		}
-		time.Sleep(time.Second * 1)
+
+		time.Sleep(listMemberInterval)
 	}
 
 	logger.Fatal("start etcd server timeout")
