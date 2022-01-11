@@ -313,26 +313,35 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	p.Start(metapb.Job{Type: metapb.JobType_CreateResourcePool, Content: protoc.MustMarshal(&metapb.ResourcePoolJob{
 		Pools: []metapb.ResourcePool{{Group: 0, Capacity: 2}},
 	})}, s, nil)
+	p.mu.RLock()
 	assert.Equal(t, 1, p.mu.state)
 	assert.NotNil(t, p.mu.createC)
 	assert.Equal(t, uint64(2), p.mu.pools.Pools[0].Capacity)
+	p.mu.RUnlock()
 
 	p.Start(metapb.Job{Type: metapb.JobType_CreateResourcePool, Content: protoc.MustMarshal(&metapb.ResourcePoolJob{
 		Pools: []metapb.ResourcePool{{Group: 0, Capacity: 3}},
 	})}, s, nil)
+	p.mu.RLock()
 	assert.Equal(t, 1, p.mu.state)
 	assert.NotNil(t, p.mu.createC)
 	assert.Equal(t, uint64(2), p.mu.pools.Pools[0].Capacity)
+	p.mu.RUnlock()
 
+	p.mu.Lock()
 	p.mu.state = 0
+	p.mu.Unlock()
 	job := metapb.Job{Type: metapb.JobType_CreateResourcePool}
 	pools := meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
 	pools.Pools[0] = &meta.ShardPool{Capacity: 4}
 	s.PutJobData(job, protoc.MustMarshal(&pools))
 	p.Start(job, s, nil)
+
+	p.mu.RLock()
 	assert.Equal(t, 1, p.mu.state)
 	assert.NotNil(t, p.mu.createC)
 	assert.Equal(t, uint64(4), p.mu.pools.Pools[0].Capacity)
+	p.mu.RUnlock()
 
 	p.Stop(job, s, nil)
 	p.Stop(job, s, nil)
@@ -360,14 +369,18 @@ func TestExecute(t *testing.T) {
 	assert.Error(t, err)
 
 	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.mu.Lock()
 	p.mu.state = 1
 	p.mu.createC = make(chan struct{}, 10)
 	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
 	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
+	p.mu.Unlock()
 	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
 	assert.Error(t, err)
 
 	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Type: meta.ShardsPoolCmdType_AllocShard, Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
 	assert.NoError(t, err)
+	p.mu.RLock()
 	assert.Equal(t, 1, len(p.mu.createC))
+	p.mu.RUnlock()
 }
