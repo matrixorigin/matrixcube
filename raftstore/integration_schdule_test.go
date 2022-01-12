@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"sort"
-	"sync"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
@@ -24,42 +23,6 @@ import (
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
-
-var (
-	gb = uint64(1 << 30)
-)
-
-type customStorageStatsReader struct {
-	sync.RWMutex
-
-	s            *store
-	addShardSize bool
-	capacity     uint64
-	available    uint64
-}
-
-func (s *customStorageStatsReader) setStatsWithGB(capacity, available uint64) {
-	s.Lock()
-	defer s.Unlock()
-	s.capacity = capacity * gb
-	s.available = available * gb
-}
-
-func (s *customStorageStatsReader) stats() (storageStats, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	used := uint64(0)
-	if s.addShardSize {
-		used += s.s.getReplicaCount() * gb
-	}
-
-	return storageStats{
-		capacity:  s.capacity,
-		available: s.available - used,
-		usedSize:  s.capacity - s.available + used,
-	}, nil
-}
 
 func TestRebalanceWithLabel(t *testing.T) {
 	if testing.Short() {

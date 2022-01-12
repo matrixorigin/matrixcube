@@ -100,6 +100,16 @@ func (opts *testClusterOptions) adjust() {
 	if opts.logLevel == 0 {
 		opts.logLevel = zap.DebugLevel
 	}
+	if opts.storageStatsReaderFunc == nil {
+		opts.storageStatsReaderFunc = func(s *store) storageStatsReader {
+			return &customStorageStatsReader{
+				s:            s,
+				addShardSize: false,
+				capacity:     100 * gb,
+				available:    90 * gb,
+			}
+		}
+	}
 }
 
 func withStorageStatsReader(storageStatsReaderFunc func(*store) storageStatsReader) TestClusterOption {
@@ -1680,4 +1690,40 @@ func hasLabel(s Shard, key, value string) bool {
 		}
 	}
 	return false
+}
+
+var (
+	gb = uint64(1 << 30)
+)
+
+type customStorageStatsReader struct {
+	sync.RWMutex
+
+	s            *store
+	addShardSize bool
+	capacity     uint64
+	available    uint64
+}
+
+func (s *customStorageStatsReader) setStatsWithGB(capacity, available uint64) {
+	s.Lock()
+	defer s.Unlock()
+	s.capacity = capacity * gb
+	s.available = available * gb
+}
+
+func (s *customStorageStatsReader) stats() (storageStats, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	used := uint64(0)
+	if s.addShardSize {
+		used += s.s.getReplicaCount() * gb
+	}
+
+	return storageStats{
+		capacity:  s.capacity,
+		available: s.available - used,
+		usedSize:  s.capacity - s.available + used,
+	}, nil
 }
