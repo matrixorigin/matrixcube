@@ -132,10 +132,10 @@ type workerPool struct {
 	logger  *zap.Logger
 	loader  replicaLoader
 	workers []*replicaWorker
-	// workerID -> replica
+	// workerID -> replicaEventHandler
 	busy map[uint64]replicaEventHandler
-	// shardID -> replica
-	pending map[uint64]replicaEventHandler
+	// shardID -> replicaEventHandler
+	pending sync.Map
 	// shardID -> struct{}{}
 	processing map[uint64]struct{}
 	// shardID -> struct{}{}
@@ -153,7 +153,6 @@ func newWorkerPool(logger *zap.Logger, ldb logdb.LogDB, loader replicaLoader, wo
 		logger:        log.Adjust(logger).Named("worker-pool"),
 		loader:        loader,
 		busy:          make(map[uint64]replicaEventHandler),
-		pending:       make(map[uint64]replicaEventHandler),
 		processing:    make(map[uint64]struct{}),
 		readyC:        make(chan struct{}, 1),
 		workerStopper: syncutil.NewStopper(),
@@ -253,11 +252,20 @@ func (p *workerPool) workerPoolMain() {
 }
 
 func (p *workerPool) addPending(h replicaEventHandler) {
-	p.pending[h.getShardID()] = h
+	p.pending.Store(h.getShardID(), h)
 }
 
 func (p *workerPool) removePending(shardID uint64) {
-	delete(p.pending, shardID)
+	p.pending.Delete(shardID)
+}
+
+func (p *workerPool) getPendingCount() int {
+	count := 0
+	p.pending.Range(func(k, v interface{}) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 func (p *workerPool) completed(workerID uint64) {
@@ -324,19 +332,22 @@ func (p *workerPool) canSchedule(h replicaEventHandler) bool {
 }
 
 func (p *workerPool) scheduleWorker() bool {
-	if len(p.pending) == 0 {
-		return false
-	}
+	scheduled := false
 	if w := p.getWorker(); w != nil {
-		for shardID, h := range p.pending {
+		p.pending.Range(func(k, v interface{}) bool {
+			shardID := k.(uint64)
+			h := v.(replicaEventHandler)
 			if p.canSchedule(h) {
 				p.scheduleJob(h, w)
 				p.removePending(shardID)
-				return true
+				scheduled = true
+				return false
 			}
-		}
+			return true
+		})
 	}
-	return false
+
+	return scheduled
 }
 
 func (p *workerPool) scheduleJob(h replicaEventHandler, w *replicaWorker) {
