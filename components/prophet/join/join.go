@@ -125,6 +125,7 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config, logger *zap.Log
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   strings.Split(cfg.Prophet.EmbedEtcd.Join, ","),
 		DialTimeout: option.DefaultDialTimeout,
+		Logger:      logger,
 	})
 	if err != nil {
 		logger.Fatal("create etcd client",
@@ -284,6 +285,7 @@ func startEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger)
 		Endpoints:        endpoints,
 		AutoSyncInterval: time.Second * 5,
 		DialTimeout:      etcdTimeout,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, nil, err
