@@ -129,6 +129,7 @@ func NewProphet(cfg *config.Config) Prophet {
 			Endpoints:        cfg.Prophet.ExternalEtcd,
 			AutoSyncInterval: time.Second * 30,
 			DialTimeout:      time.Second * 10,
+			Logger:           logger,
 		})
 		if err != nil {
 			logger.Fatal("fail to create external etcd client",
