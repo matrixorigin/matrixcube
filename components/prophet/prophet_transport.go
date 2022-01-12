@@ -22,11 +22,16 @@ import (
 
 func (p *defaultProphet) startListen() {
 	encoder, decoder := codec.NewServerCodec(10 * buf.MB)
-	app, err := goetty.NewTCPApplication(p.cfg.Prophet.RPCAddr,
+	app, err := goetty.NewTCPApplication(
+		p.cfg.Prophet.RPCAddr,
 		p.handleRPCRequest,
-		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
+		goetty.WithAppLogger(p.logger.Named("rpc")),
+		goetty.WithAppSessionOptions(
+			goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(p.logger.Named("rpc"))))
+			goetty.WithLogger(p.logger.Named("rpc")),
+		),
+	)
 	if err != nil {
 		p.logger.Fatal("fail to start transport", zap.Error(err))
 	}
