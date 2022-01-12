@@ -40,10 +40,16 @@ func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(
 	}
 
 	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, maxBodySize)
-	app, err := goetty.NewTCPApplication(addr, rpc.onMessage,
-		goetty.WithAppSessionOptions(goetty.WithCodec(encoder, decoder),
+	app, err := goetty.NewTCPApplication(
+		addr,
+		rpc.onMessage,
+		goetty.WithAppLogger(logger),
+		goetty.WithAppSessionOptions(
+			goetty.WithCodec(encoder, decoder),
 			goetty.WithEnableAsyncWrite(16),
-			goetty.WithLogger(logger)))
+			goetty.WithLogger(logger),
+		),
+	)
 
 	if err != nil {
 		rpc.logger.Fatal("fail to create rpc",
