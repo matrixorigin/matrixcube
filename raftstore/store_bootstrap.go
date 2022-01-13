@@ -135,10 +135,16 @@ func (s *store) postBootstrapped() {
 }
 
 func (s *store) mustPutStore() {
-	if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
-		s.logger.Fatal("failed to put container to prophet",
-			s.storeField(),
-			zap.Error(err))
+	for {
+		if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
+			s.logger.Info("failed to put container to prophet",
+				s.storeField(),
+				zap.Error(err),
+			)
+			time.Sleep(time.Second)
+			continue
+		}
+		break
 	}
 }
 
