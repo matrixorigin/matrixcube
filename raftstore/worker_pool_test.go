@@ -95,7 +95,7 @@ func TestWorkerPoolCanScheduleSimpleJob(t *testing.T) {
 	p.start()
 	defer func() {
 		p.close()
-		assert.Equal(t, 0, len(p.pending))
+		assert.Equal(t, 0, p.getPendingCount())
 		assert.Equal(t, 0, len(p.busy))
 	}()
 	p.notify(h.getShardID())
@@ -156,7 +156,7 @@ func TestWorkerPoolScheduleNothingWhenNoIdleWorker(t *testing.T) {
 	p := newWorkerPool(nil, ldb, nil, 32)
 	p.start()
 	defer p.close()
-	p.pending[20] = nil
+	p.pending.Store(20, nil)
 	for _, w := range p.workers {
 		p.busy[w.workerID] = nil
 	}
@@ -174,7 +174,7 @@ func TestWorkerPoolWillNotConcurrentlyProcessTheSameShard(t *testing.T) {
 	p := newWorkerPool(nil, ldb, nil, 32)
 	p.start()
 	defer p.close()
-	p.pending[10] = nil
+	p.pending.Store(10, nil)
 	p.processing[10] = struct{}{}
 	assert.False(t, p.canSchedule(&testReplicaEventHandler{shardID: 10}))
 }
