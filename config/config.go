@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"go.uber.org/zap"
 )
@@ -372,6 +373,8 @@ type CustomizeConfig struct {
 	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard `json:"-" toml:"-"`
 	// CustomTransportFilter transport filter
 	CustomTransportFilter func(meta.RaftMessage) bool `json:"-" toml:"-"`
+	// CustomWrapNewTransport wraps new transports
+	CustomWrapNewTransport func(transport.Trans) transport.Trans
 }
 
 // GetLabels returns lables
