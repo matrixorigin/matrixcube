@@ -77,8 +77,9 @@ type testClusterOptions struct {
 	enableAdvertiseAddr bool
 	dataOpts            *cpebble.Options
 
-	disableSchedule    bool
-	enableParallelTest bool
+	disableSchedule       bool
+	enableParallelTest    bool
+	useProphetInitCluster bool
 
 	storageStatsReaderFunc func(*store) storageStatsReader
 }
@@ -122,6 +123,13 @@ func withStorageStatsReader(storageStatsReaderFunc func(*store) storageStatsRead
 func WithTestClusterDataPath(path string) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.tmpDir = path
+	}
+}
+
+// WithTestClusterUseInitProphetCluster set using init prophet cluster config
+func WithTestClusterUseInitProphetCluster() TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.useProphetInitCluster = true
 	}
 }
 
@@ -1043,6 +1051,14 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 		cfg.Prophet.EmbedEtcd.AdvertiseClientUrls = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[node])
 		cfg.Prophet.EmbedEtcd.PeerUrls = fmt.Sprintf("http://%s:%d", listenIP, c.portsEtcdPeer[node])
 		cfg.Prophet.EmbedEtcd.AdvertisePeerUrls = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdPeer[node])
+
+		if c.opts.useProphetInitCluster {
+			cfg.Prophet.EmbedEtcd.Join = ""
+			for i := 0; i < c.opts.nodes; i++ {
+				cfg.Prophet.EmbedEtcd.InitialCluster += fmt.Sprintf("node-%d=http://%s:%d,", i, advertiseIP, c.portsEtcdPeer[i])
+			}
+			cfg.Prophet.EmbedEtcd.InitialCluster = cfg.Prophet.EmbedEtcd.InitialCluster[:len(cfg.Prophet.EmbedEtcd.InitialCluster)-1]
+		}
 	} else {
 		cfg.Prophet.StorageNode = false
 		cfg.Prophet.ExternalEtcd = []string{
@@ -1131,7 +1147,7 @@ func (c *testRaftCluster) GetStoreByID(id uint64) Store {
 }
 
 func (c *testRaftCluster) Start() {
-	c.StartWithConcurrent(false)
+	c.StartWithConcurrent(c.opts.useProphetInitCluster)
 }
 
 func (c *testRaftCluster) StartWithConcurrent(concurrent bool) {
