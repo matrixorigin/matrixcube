@@ -86,7 +86,7 @@ func PrepareJoinCluster(ctx context.Context, cfg *config.Config, logger *zap.Log
 	logger = log.Adjust(logger)
 
 	// - A Prophet tries to join itself.
-	if cfg.Prophet.EmbedEtcd.Join == "" {
+	if cfg.Prophet.EmbedEtcd.Join == "" || cfg.Prophet.EmbedEtcd.InitialCluster != "" {
 		return startEmbedEtcd(ctx, cfg, logger)
 	}
 

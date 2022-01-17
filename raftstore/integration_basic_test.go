@@ -96,6 +96,28 @@ func TestClusterStartAndStop(t *testing.T) {
 	c.CheckShardCount(1)
 }
 
+func TestClusterWithInitClusterStartAndStop(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
+	defer leaktest.AfterTest(t)()
+
+	c := NewTestClusterStore(t,
+		WithTestClusterUseDisk(),
+		WithTestClusterUseInitProphetCluster())
+	c.Start()
+	defer c.Stop()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	c.Restart()
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
+}
+
 func TestClusterStartWithMoreNodes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")
@@ -174,7 +196,7 @@ func TestAddShardLabel(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	c.WaitShardByCount(1, testWaitTimeout)
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
 	sid := c.GetShardByIndex(0, 0).ID
 	c.WaitAllReplicasChangeToVoter(sid, testWaitTimeout)
