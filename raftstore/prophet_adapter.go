@@ -409,6 +409,8 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 
 	if s.cfg.Capacity > 0 {
 		stats.Capacity = uint64(s.cfg.Capacity)
+		// If `Capacity` set, calculate `Available` using `Capacity`
+		stats.Available = stats.Capacity - stats.UsedSize
 	}
 
 	// cpu usages
