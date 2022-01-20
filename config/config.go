@@ -374,7 +374,7 @@ type CustomizeConfig struct {
 	// CustomTransportFilter transport filter
 	CustomTransportFilter func(meta.RaftMessage) bool `json:"-" toml:"-"`
 	// CustomWrapNewTransport wraps new transports
-	CustomWrapNewTransport func(transport.Trans) transport.Trans
+	CustomWrapNewTransport func(transport.Trans) transport.Trans `json:"-" toml:"-"`
 }
 
 // GetLabels returns lables
