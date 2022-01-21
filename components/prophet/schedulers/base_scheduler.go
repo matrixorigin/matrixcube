@@ -63,7 +63,6 @@ func intervalGrow(x time.Duration, maxInterval time.Duration, typ intervalGrowth
 	default:
 		panic(fmt.Sprintf("type %+v error", typ))
 	}
-	return 0
 }
 
 // BaseScheduler is a basic scheduler for all other complex scheduler
