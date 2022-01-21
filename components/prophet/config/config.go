@@ -59,12 +59,6 @@ type Config struct {
 	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState) `toml:"-" json:"-"`
 	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
 
-	// Job processor register
-	jobMu struct {
-		sync.RWMutex
-		jobProcessors map[metapb.JobType]JobProcessor
-	} `toml:"-" json:"-"`
-
 	// TODO(fagongzi): the following test-related configurations are moved to a separate struct
 	// Only test can change them.
 	DisableStrictReconfigCheck bool `toml:"-" json:"-"`
@@ -73,6 +67,8 @@ type Config struct {
 	// EnableResponseNotLeader return not leader error for all client request
 	EnableResponseNotLeader bool      `toml:"-" json:"-"`
 	TestCtx                 *sync.Map `toml:"-" json:"-"`
+
+	jobRegister *jobRegister `toml:"-" json:"-"`
 }
 
 // NewConfig creates a new config.

@@ -157,6 +157,10 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 		return err
 	}
 
+	if c.jobRegister == nil {
+		c.jobRegister = &jobRegister{}
+	}
+
 	return nil
 }
 
