@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // ContainerCreateOption is used to create container.

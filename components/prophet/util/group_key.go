@@ -19,7 +19,7 @@ import (
 	"sort"
 
 	"github.com/fagongzi/util/format"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // EncodeGroupKey encode group key

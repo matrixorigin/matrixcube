@@ -16,7 +16,7 @@ import (
 	"testing"
 
 	"github.com/fagongzi/goetty/buf"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 

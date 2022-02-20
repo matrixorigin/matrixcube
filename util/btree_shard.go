@@ -18,7 +18,7 @@ import (
 	"sync"
 
 	"github.com/google/btree"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/meta"
 )
 

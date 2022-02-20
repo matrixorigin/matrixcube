@@ -18,8 +18,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 type containerStats struct {

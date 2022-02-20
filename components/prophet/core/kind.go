@@ -15,7 +15,7 @@
 package core
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // PriorityLevel lower level means higher priority

@@ -18,8 +18,8 @@ import (
 	"strings"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // LabelConstraintOp defines how a LabelConstraint matches a container. It can be one of

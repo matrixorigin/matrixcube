@@ -17,7 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 var (

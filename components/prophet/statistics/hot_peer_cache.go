@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (

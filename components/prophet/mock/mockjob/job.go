@@ -11,7 +11,7 @@ import (
 	config "github.com/matrixorigin/matrixcube/components/prophet/config"
 	core "github.com/matrixorigin/matrixcube/components/prophet/core"
 	metadata "github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	metapb "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	metapb "github.com/matrixorigin/matrixcube/pb/metapb"
 	storage "github.com/matrixorigin/matrixcube/components/prophet/storage"
 )
 

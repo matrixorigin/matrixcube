@@ -14,7 +14,7 @@
 package metadata
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // Resource is an abstraction of data shard in a distributed system.

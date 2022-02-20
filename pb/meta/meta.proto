@@ -1,7 +1,7 @@
 syntax = "proto3";
 package meta;
 
-import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "go.etcd.io/etcd/raft/v3/raftpb/raft.proto";
 

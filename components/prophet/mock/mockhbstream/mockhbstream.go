@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // HeartbeatStream is used to mock HeartbeatStream for test use.

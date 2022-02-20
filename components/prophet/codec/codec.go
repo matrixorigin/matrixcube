@@ -20,7 +20,7 @@ import (
 	gcodec "github.com/fagongzi/goetty/codec"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 var (

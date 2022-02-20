@@ -14,7 +14,7 @@
 package util
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // EmptyPeer returns a peer is a empty peer

@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
 )

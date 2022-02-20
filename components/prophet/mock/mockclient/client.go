@@ -11,8 +11,8 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	prophet "github.com/matrixorigin/matrixcube/components/prophet"
 	metadata "github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	metapb "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	rpcpb "github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	metapb "github.com/matrixorigin/matrixcube/pb/metapb"
+	rpcpb "github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // MockClient is a mock of Client interface.
