@@ -45,10 +45,10 @@ func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
 	sc := newSplitChecker(1, 100, nil, nil)
 	sc.mu.running = true
 
-	sc.add(Shard{State: metapb.ResourceState_Destroying})
+	sc.add(Shard{State: metapb.ShardState_Destroying})
 	assert.Equal(t, 0, len(sc.shardsC))
 
-	sc.add(Shard{State: metapb.ResourceState_Destroyed})
+	sc.add(Shard{State: metapb.ShardState_Destroyed})
 	assert.Equal(t, 0, len(sc.shardsC))
 }
 

@@ -79,7 +79,7 @@ func TestStatEntriesAppend(t *testing.T) {
 	// fill 2*N entries, 2 entries for each container
 	for i := 0; i < 2*N; i++ {
 		entry := &StatEntry{
-			ContainerID: uint64(i % N),
+			StoreID: uint64(i % N),
 			CpuUsages:   cpu(20),
 		}
 		assert.True(t, cst.Append(entry))
@@ -103,7 +103,7 @@ func TestStatEntriesCPU(t *testing.T) {
 	// 2 entries per container
 	for i := 0; i < 2*N; i++ {
 		entry := &StatEntry{
-			ContainerID: uint64(i % N),
+			StoreID: uint64(i % N),
 			CpuUsages:   usages,
 		}
 		assert.True(t, cst.Append(entry))
@@ -124,7 +124,7 @@ func TestStatEntriesCPUStale(t *testing.T) {
 	ThreadsCollected = []string{"cpu:"}
 	for i := 0; i < 2*N; i++ {
 		entry := &StatEntry{
-			ContainerID: uint64(i % N),
+			StoreID: uint64(i % N),
 			CpuUsages:   usages,
 		}
 		cst.Append(entry)
@@ -142,7 +142,7 @@ func TestStatEntriesState(t *testing.T) {
 
 		for i := 0; i < NumberOfEntries; i++ {
 			entry := &StatEntry{
-				ContainerID: 0,
+				StoreID: 0,
 				CpuUsages:   usages,
 			}
 			cst.Append(entry)

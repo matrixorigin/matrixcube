@@ -15,12 +15,12 @@ package raftstore
 
 import (
 	"errors"
+
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,21 +29,21 @@ func TestBuildID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		batch      *rpc.ResponseBatch
+		batch      *rpcpb.ResponseBatch
 		id, expect []byte
 	}{
 		{
-			batch:  &rpc.ResponseBatch{},
+			batch:  &rpcpb.ResponseBatch{},
 			id:     []byte("id1"),
 			expect: nil,
 		},
 		{
-			batch:  &rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{Error: errorpb.Error{Message: "error2"}}},
+			batch:  &rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{Error: errorpb.Error{Message: "error2"}}},
 			id:     []byte("id2"),
 			expect: []byte("id2"),
 		},
 		{
-			batch:  &rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{ID: []byte("id2"), Error: errorpb.Error{Message: "error3"}}},
+			batch:  &rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{ID: []byte("id2"), Error: errorpb.Error{Message: "error3"}}},
 			id:     []byte("id3"),
 			expect: []byte("id2"),
 		},
@@ -60,11 +60,11 @@ func TestErrorOtherCMDResp(t *testing.T) {
 
 	cases := []struct {
 		err   error
-		batch rpc.ResponseBatch
+		batch rpcpb.ResponseBatch
 	}{
 		{
 			err:   errors.New("error1"),
-			batch: rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{Error: errorpb.Error{Message: "error1"}}},
+			batch: rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{Error: errorpb.Error{Message: "error1"}}},
 		},
 	}
 
@@ -86,7 +86,7 @@ func TestErrorPbResp(t *testing.T) {
 				Message: errNotLeader.Error(),
 				NotLeader: &errorpb.NotLeader{
 					ShardID: 1,
-					Leader:  metapb.Replica{ID: 1, ContainerID: 1},
+					Leader:  metapb.Replica{ID: 1, StoreID: 1},
 				},
 			},
 		},
@@ -127,26 +127,26 @@ func TestErrorStaleEpochResp(t *testing.T) {
 
 	cases := []struct {
 		id     []byte
-		shards []meta.Shard
+		shards []metapb.Shard
 		err    errorpb.Error
 	}{
 		{
 			id:     []byte("id1"),
-			shards: []meta.Shard{{ID: 1}},
+			shards: []metapb.Shard{{ID: 1}},
 			err: errorpb.Error{
 				Message: errStaleCMD.Error(),
 				StaleEpoch: &errorpb.StaleEpoch{
-					NewShards: []meta.Shard{{ID: 1}},
+					NewShards: []metapb.Shard{{ID: 1}},
 				},
 			},
 		},
 		{
 			id:     []byte("id2"),
-			shards: []meta.Shard{{ID: 1}, {ID: 2}},
+			shards: []metapb.Shard{{ID: 1}, {ID: 2}},
 			err: errorpb.Error{
 				Message: errStaleCMD.Error(),
 				StaleEpoch: &errorpb.StaleEpoch{
-					NewShards: []meta.Shard{{ID: 1}, {ID: 2}},
+					NewShards: []metapb.Shard{{ID: 1}, {ID: 2}},
 				},
 			},
 		},
@@ -164,11 +164,11 @@ func TestErrorBaseResp(t *testing.T) {
 
 	cases := []struct {
 		id    []byte
-		batch rpc.ResponseBatch
+		batch rpcpb.ResponseBatch
 	}{
 		{
 			id:    []byte("id1"),
-			batch: rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{ID: []byte("id1")}},
+			batch: rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{ID: []byte("id1")}},
 		},
 	}
 

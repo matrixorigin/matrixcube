@@ -18,9 +18,9 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
@@ -202,19 +202,19 @@ func TestAddShardLabel(t *testing.T) {
 	c.WaitAllReplicasChangeToVoter(sid, testWaitTimeout)
 
 	for {
-		ch := make(chan rpc.ResponseBatch)
-		c.GetStore(0).OnRequestWithCB(rpc.Request{
+		ch := make(chan rpcpb.ResponseBatch)
+		c.GetStore(0).OnRequestWithCB(rpcpb.Request{
 			ID:         uuid.NewV4().Bytes(),
 			Group:      0,
-			Type:       rpc.CmdType_Admin,
-			CustomType: uint64(rpc.AdminCmdType_UpdateLabels),
+			Type:       rpcpb.Admin,
+			CustomType: uint64(rpcpb.AdminUpdateLabels),
 			ToShard:    sid,
 			Epoch:      c.GetShardByIndex(0, 0).Epoch,
-			Cmd: protoc.MustMarshal(&rpc.UpdateLabelsRequest{
+			Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
 				Labels: []metapb.Pair{{Key: "label1", Value: "value1"}},
-				Policy: rpc.UpdatePolicy_Add,
+				Policy: rpcpb.Add,
 			}),
-		}, func(resp rpc.ResponseBatch) {
+		}, func(resp rpcpb.ResponseBatch) {
 			ch <- resp
 		})
 
@@ -222,7 +222,7 @@ func TestAddShardLabel(t *testing.T) {
 		if resp.Header.IsEmpty() {
 			assert.True(t, resp.Header.IsEmpty()) // no error
 			assert.True(t, resp.IsAdmin())
-			assert.Equal(t, rpc.AdminCmdType_UpdateLabels, resp.GetAdminCmdType())
+			assert.Equal(t, rpcpb.AdminUpdateLabels, resp.GetAdminCmdType())
 			break
 		}
 	}

@@ -32,13 +32,13 @@ func TestActivity(t *testing.T) {
 	defer cancel()
 
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
-	cluster.AddResourceContainer(1, 1)
-	cluster.AddResourceContainer(2, 0)
-	cluster.AddLeaderResource(1, 1)
-	resource := cluster.GetResource(1)
-	msg := &rpcpb.ResourceHeartbeatRsp{
+	cluster.AddShardStore(1, 1)
+	cluster.AddShardStore(2, 0)
+	cluster.AddLeaderShard(1, 1)
+	resource := cluster.GetShard(1)
+	msg := &rpcpb.ShardHeartbeatRsp{
 		ConfigChange: &rpcpb.ConfigChange{
-			Replica:    metapb.Replica{ID: 2, ContainerID: 2},
+			Replica:    metapb.Replica{ID: 2, StoreID: 2},
 			ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 		},
 	}
@@ -49,20 +49,20 @@ func TestActivity(t *testing.T) {
 	// Active stream is stream1.
 	hbs.BindStream(1, stream1)
 	testutil.WaitUntil(t, func(t *testing.T) bool {
-		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ResourceHeartbeatRsp))
+		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ShardHeartbeatRsp))
 		return stream1.Recv() != nil && stream2.Recv() == nil
 	})
 	// Rebind to stream2.
 	hbs.BindStream(1, stream2)
 	testutil.WaitUntil(t, func(t *testing.T) bool {
-		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ResourceHeartbeatRsp))
+		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ShardHeartbeatRsp))
 		return stream1.Recv() == nil && stream2.Recv() != nil
 	})
 
 	// Switch back to 1 again.
 	hbs.BindStream(1, stream1)
 	testutil.WaitUntil(t, func(t *testing.T) bool {
-		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ResourceHeartbeatRsp))
+		hbs.SendMsg(resource, proto.Clone(msg).(*rpcpb.ShardHeartbeatRsp))
 		return stream1.Recv() != nil && stream2.Recv() == nil
 	})
 }

@@ -24,8 +24,8 @@ import (
 )
 
 // params about hot resource.
-func initHotResourceScheduleConfig() *hotResourceSchedulerConfig {
-	return &hotResourceSchedulerConfig{
+func initHotShardScheduleConfig() *hotShardSchedulerConfig {
+	return &hotShardSchedulerConfig{
 		MinHotByteRate:        100,
 		MinHotKeyRate:         10,
 		MaxZombieRounds:       3,
@@ -40,7 +40,7 @@ func initHotResourceScheduleConfig() *hotResourceSchedulerConfig {
 	}
 }
 
-type hotResourceSchedulerConfig struct {
+type hotShardSchedulerConfig struct {
 	sync.RWMutex
 	storage storage.Storage
 
@@ -60,85 +60,85 @@ type hotResourceSchedulerConfig struct {
 	DstToleranceRatio     float64 `json:"dst-tolerance-ratio"`
 }
 
-func (conf *hotResourceSchedulerConfig) EncodeConfig() ([]byte, error) {
+func (conf *hotShardSchedulerConfig) EncodeConfig() ([]byte, error) {
 	conf.RLock()
 	defer conf.RUnlock()
 	return schedule.EncodeConfig(conf)
 }
 
-func (conf *hotResourceSchedulerConfig) GetMaxZombieDuration() time.Duration {
+func (conf *hotShardSchedulerConfig) GetMaxZombieDuration() time.Duration {
 	conf.RLock()
 	defer conf.RUnlock()
-	return time.Duration(conf.MaxZombieRounds) * statistics.ContainerHeartBeatReportInterval * time.Second
+	return time.Duration(conf.MaxZombieRounds) * statistics.StoreHeartBeatReportInterval * time.Second
 }
 
-func (conf *hotResourceSchedulerConfig) GetMaxPeerNumber() int {
+func (conf *hotShardSchedulerConfig) GetMaxPeerNumber() int {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.MaxPeerNum
 }
 
-func (conf *hotResourceSchedulerConfig) GetSrcToleranceRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetSrcToleranceRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.SrcToleranceRatio
 }
 
-func (conf *hotResourceSchedulerConfig) SetSrcToleranceRatio(tol float64) {
+func (conf *hotShardSchedulerConfig) SetSrcToleranceRatio(tol float64) {
 	conf.Lock()
 	defer conf.Unlock()
 	conf.SrcToleranceRatio = tol
 }
 
-func (conf *hotResourceSchedulerConfig) GetDstToleranceRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetDstToleranceRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.DstToleranceRatio
 }
 
-func (conf *hotResourceSchedulerConfig) SetDstToleranceRatio(tol float64) {
+func (conf *hotShardSchedulerConfig) SetDstToleranceRatio(tol float64) {
 	conf.Lock()
 	defer conf.Unlock()
 	conf.DstToleranceRatio = tol
 }
 
-func (conf *hotResourceSchedulerConfig) GetByteRankStepRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetByteRankStepRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.ByteRateRankStepRatio
 }
 
-func (conf *hotResourceSchedulerConfig) GetKeyRankStepRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetKeyRankStepRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.KeyRateRankStepRatio
 }
 
-func (conf *hotResourceSchedulerConfig) GetCountRankStepRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetCountRankStepRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.CountRankStepRatio
 }
 
-func (conf *hotResourceSchedulerConfig) GetGreatDecRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetGreatDecRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.GreatDecRatio
 }
 
-func (conf *hotResourceSchedulerConfig) GetMinorGreatDecRatio() float64 {
+func (conf *hotShardSchedulerConfig) GetMinorGreatDecRatio() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.MinorDecRatio
 }
 
-func (conf *hotResourceSchedulerConfig) GetMinHotKeyRate() float64 {
+func (conf *hotShardSchedulerConfig) GetMinHotKeyRate() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.MinHotKeyRate
 }
 
-func (conf *hotResourceSchedulerConfig) GetMinHotByteRate() float64 {
+func (conf *hotShardSchedulerConfig) GetMinHotByteRate() float64 {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.MinHotByteRate

@@ -16,7 +16,7 @@ package raftstore
 import (
 	"bytes"
 
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 type pendingProposals struct {
@@ -67,7 +67,7 @@ func (p *pendingProposals) append(c batch) {
 
 func (p *pendingProposals) setConfigChange(c batch) {
 	cmdType := c.requestBatch.GetAdminCmdType()
-	if cmdType != rpc.AdminCmdType_ConfigChange {
+	if cmdType != rpcpb.AdminConfigChange {
 		panic("not a config change request")
 	}
 	p.confChangeCmd = c
@@ -78,7 +78,7 @@ func (p *pendingProposals) getConfigChange() batch {
 }
 
 func (p *pendingProposals) notify(id []byte,
-	resp rpc.ResponseBatch, confChange bool) {
+	resp rpcpb.ResponseBatch, confChange bool) {
 	if confChange {
 		c := p.confChangeCmd
 		if bytes.Equal(id, c.getRequestID()) {

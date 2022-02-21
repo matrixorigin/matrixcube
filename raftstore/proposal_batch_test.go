@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,8 +29,8 @@ var (
 func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
-	r1 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
-	r2 := newReqCtx(rpc.Request{Type: rpc.CmdType_Admin}, nil)
+	r1 := newReqCtx(rpcpb.Request{Type: rpcpb.Admin}, nil)
+	r2 := newReqCtx(rpcpb.Request{Type: rpcpb.Admin}, nil)
 	b.push(1, r1)
 	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
@@ -38,11 +38,11 @@ func TestProposalBatchNeverBatchesAdminReq(t *testing.T) {
 
 func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	r1 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+	r1 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Write,
 	}, nil)
-	r2 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Read,
+	r2 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Read,
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b.push(1, r1)
@@ -53,11 +53,11 @@ func TestProposalBatchNeverBatchesDifferentTypeOfRequest(t *testing.T) {
 
 func TestProposalBatchLimitsBatchSize(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	r1 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+	r1 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Write,
 	}, nil)
-	r2 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+	r2 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Write,
 	}, nil)
 	b1 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b1.push(1, r1)
@@ -75,20 +75,20 @@ func TestProposalBatchLimitsBatchSize(t *testing.T) {
 
 func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	r1 := newReqCtx(rpc.Request{
-		Type:  rpc.CmdType_Write,
-		Epoch: metapb.ResourceEpoch{ConfVer: 1, Version: 1},
+	r1 := newReqCtx(rpcpb.Request{
+		Type:  rpcpb.Write,
+		Epoch: metapb.ShardEpoch{ConfVer: 1, Version: 1},
 	}, nil)
-	r2 := newReqCtx(rpc.Request{
-		Type:  rpc.CmdType_Write,
-		Epoch: metapb.ResourceEpoch{ConfVer: 2, Version: 2},
+	r2 := newReqCtx(rpcpb.Request{
+		Type:  rpcpb.Write,
+		Epoch: metapb.ShardEpoch{ConfVer: 2, Version: 2},
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b.push(1, r1)
 	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
 
-	r2.req.Epoch = metapb.ResourceEpoch{ConfVer: 1, Version: 1}
+	r2.req.Epoch = metapb.ShardEpoch{ConfVer: 1, Version: 1}
 	b2 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b2.push(1, r1)
 	b2.push(1, r2)
@@ -97,11 +97,11 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 
 func TestProposalBatchPop(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	r1 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Write,
+	r1 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Write,
 	}, nil)
-	r2 := newReqCtx(rpc.Request{
-		Type: rpc.CmdType_Read,
+	r2 := newReqCtx(rpcpb.Request{
+		Type: rpcpb.Read,
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b.push(1, r1)

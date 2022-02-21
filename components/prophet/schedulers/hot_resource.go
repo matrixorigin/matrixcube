@@ -36,13 +36,13 @@ import (
 )
 
 func init() {
-	schedule.RegisterSliceDecoderBuilder(HotResourceType, func(args []string) schedule.ConfigDecoder {
+	schedule.RegisterSliceDecoderBuilder(HotShardType, func(args []string) schedule.ConfigDecoder {
 		return func(v interface{}) error {
 			return nil
 		}
 	})
-	schedule.RegisterScheduler(HotResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := initHotResourceScheduleConfig()
+	schedule.RegisterScheduler(HotShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+		conf := initHotShardScheduleConfig()
 		if err := decoder(conf); err != nil {
 			return nil, err
 		}
@@ -52,25 +52,25 @@ func init() {
 
 	// FIXME: remove this two schedule after the balance test move in schedulers package
 	{
-		schedule.RegisterScheduler(HotWriteResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-			return newHotWriteScheduler(opController, initHotResourceScheduleConfig()), nil
+		schedule.RegisterScheduler(HotWriteShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+			return newHotWriteScheduler(opController, initHotShardScheduleConfig()), nil
 		})
-		schedule.RegisterScheduler(HotReadResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-			return newHotReadScheduler(opController, initHotResourceScheduleConfig()), nil
+		schedule.RegisterScheduler(HotReadShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+			return newHotReadScheduler(opController, initHotShardScheduleConfig()), nil
 		})
 
 	}
 }
 
 const (
-	// HotResourceName is balance hot resource scheduler name.
-	HotResourceName = "balance-hot-resource-scheduler"
-	// HotResourceType is balance hot resource scheduler type.
-	HotResourceType = "hot-resource"
-	// HotReadResourceType is hot read resource scheduler type.
-	HotReadResourceType = "hot-read-resource"
-	// HotWriteResourceType is hot write resource scheduler type.
-	HotWriteResourceType = "hot-write-resource"
+	// HotShardName is balance hot resource scheduler name.
+	HotShardName = "balance-hot-resource-scheduler"
+	// HotShardType is balance hot resource scheduler type.
+	HotShardType = "hot-resource"
+	// HotReadShardType is hot read resource scheduler type.
+	HotReadShardType = "hot-read-resource"
+	// HotWriteShardType is hot write resource scheduler type.
+	HotWriteShardType = "hot-write-resource"
 
 	minHotScheduleInterval = time.Second
 	maxHotScheduleInterval = 20 * time.Second
@@ -101,13 +101,13 @@ type hotScheduler struct {
 	// This containers the pending Influence for each container by resource type.
 	pendingSums [resourceTypeLen]map[uint64]Influence
 	// config of hot scheduler
-	conf *hotResourceSchedulerConfig
+	conf *hotShardSchedulerConfig
 }
 
-func newHotScheduler(opController *schedule.OperatorController, conf *hotResourceSchedulerConfig) *hotScheduler {
+func newHotScheduler(opController *schedule.OperatorController, conf *hotShardSchedulerConfig) *hotScheduler {
 	base := NewBaseScheduler(opController)
 	ret := &hotScheduler{
-		name:             HotResourceName,
+		name:             HotShardName,
 		BaseScheduler:    base,
 		leaderLimit:      1,
 		peerLimit:        1,
@@ -123,14 +123,14 @@ func newHotScheduler(opController *schedule.OperatorController, conf *hotResourc
 	return ret
 }
 
-func newHotReadScheduler(opController *schedule.OperatorController, conf *hotResourceSchedulerConfig) *hotScheduler {
+func newHotReadScheduler(opController *schedule.OperatorController, conf *hotShardSchedulerConfig) *hotScheduler {
 	ret := newHotScheduler(opController, conf)
 	ret.name = ""
 	ret.types = []rwType{read}
 	return ret
 }
 
-func newHotWriteScheduler(opController *schedule.OperatorController, conf *hotResourceSchedulerConfig) *hotScheduler {
+func newHotWriteScheduler(opController *schedule.OperatorController, conf *hotShardSchedulerConfig) *hotScheduler {
 	ret := newHotScheduler(opController, conf)
 	ret.name = ""
 	ret.types = []rwType{write}
@@ -142,7 +142,7 @@ func (h *hotScheduler) GetName() string {
 }
 
 func (h *hotScheduler) GetType() string {
-	return HotResourceType
+	return HotShardType
 }
 
 func (h *hotScheduler) GetMinInterval() time.Duration {
@@ -153,25 +153,25 @@ func (h *hotScheduler) GetNextInterval(interval time.Duration) time.Duration {
 }
 
 func (h *hotScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return h.allowBalanceLeader(cluster) || h.allowBalanceResource(cluster)
+	return h.allowBalanceLeader(cluster) || h.allowBalanceShard(cluster)
 }
 
 func (h *hotScheduler) allowBalanceLeader(cluster opt.Cluster) bool {
-	hotResourceAllowed := h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit()
+	hotShardAllowed := h.OpController.OperatorCount(operator.OpHotShard) < cluster.GetOpts().GetHotShardScheduleLimit()
 	leaderAllowed := h.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
-	if !hotResourceAllowed {
-		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotResource.String()).Inc()
+	if !hotShardAllowed {
+		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotShard.String()).Inc()
 	}
 	if !leaderAllowed {
 		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpLeader.String()).Inc()
 	}
-	return hotResourceAllowed && leaderAllowed
+	return hotShardAllowed && leaderAllowed
 }
 
-func (h *hotScheduler) allowBalanceResource(cluster opt.Cluster) bool {
-	allowed := h.OpController.OperatorCount(operator.OpHotResource) < cluster.GetOpts().GetHotResourceScheduleLimit()
+func (h *hotScheduler) allowBalanceShard(cluster opt.Cluster) bool {
+	allowed := h.OpController.OperatorCount(operator.OpHotShard) < cluster.GetOpts().GetHotShardScheduleLimit()
 	if !allowed {
-		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(h.GetType(), operator.OpHotShard.String()).Inc()
 	}
 	return allowed
 }
@@ -189,9 +189,9 @@ func (h *hotScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Ope
 
 	switch typ {
 	case read:
-		return h.balanceHotReadResources(cluster)
+		return h.balanceHotReadShards(cluster)
 	case write:
-		return h.balanceHotWriteResources(cluster)
+		return h.balanceHotWriteShards(cluster)
 	}
 	return nil
 }
@@ -201,30 +201,30 @@ func (h *hotScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Ope
 func (h *hotScheduler) prepareForBalance(cluster opt.Cluster) {
 	h.summaryPendingInfluence()
 
-	containersLoads := cluster.GetContainersLoads()
+	containersLoads := cluster.GetStoresLoads()
 
 	{ // update read statistics
-		resourceRead := cluster.ResourceReadStats()
-		h.stLoadInfos[readLeader] = summaryContainersLoad(
+		resourceRead := cluster.ShardReadStats()
+		h.stLoadInfos[readLeader] = summaryStoresLoad(
 			containersLoads,
 			h.pendingSums[readLeader],
 			resourceRead,
-			read, metapb.ResourceKind_LeaderKind)
+			read, metapb.ShardKind_LeaderKind)
 	}
 
 	{ // update write statistics
-		resourceWrite := cluster.ResourceWriteStats()
-		h.stLoadInfos[writeLeader] = summaryContainersLoad(
+		resourceWrite := cluster.ShardWriteStats()
+		h.stLoadInfos[writeLeader] = summaryStoresLoad(
 			containersLoads,
 			h.pendingSums[writeLeader],
 			resourceWrite,
-			write, metapb.ResourceKind_LeaderKind)
+			write, metapb.ShardKind_LeaderKind)
 
-		h.stLoadInfos[writePeer] = summaryContainersLoad(
+		h.stLoadInfos[writePeer] = summaryStoresLoad(
 			containersLoads,
 			h.pendingSums[writePeer],
 			resourceWrite,
-			write, metapb.ResourceKind_ReplicaKind)
+			write, metapb.ShardKind_ReplicaKind)
 	}
 }
 
@@ -234,12 +234,12 @@ func (h *hotScheduler) summaryPendingInfluence() {
 	for ty := resourceType(0); ty < resourceTypeLen; ty++ {
 		h.pendingSums[ty] = summaryPendingInfluence(h.pendings[ty], h.calcPendingWeight)
 	}
-	h.gcResourcePendings()
+	h.gcShardPendings()
 }
 
-// gcResourcePendings check the resource whether it need to be deleted from resourcePendings depended on whether it have
+// gcShardPendings check the resource whether it need to be deleted from resourcePendings depended on whether it have
 // ended operator
-func (h *hotScheduler) gcResourcePendings() {
+func (h *hotScheduler) gcShardPendings() {
 	for resID, pendings := range h.resourcePendings {
 		empty := true
 		for ty, op := range pendings {
@@ -261,14 +261,14 @@ func (h *hotScheduler) gcResourcePendings() {
 	}
 }
 
-// summaryContainersLoad Load information of all available containers.
+// summaryStoresLoad Load information of all available containers.
 // it will filtered the hot peer and calculate the current and future stat(byte/key rate,count) for each container
-func summaryContainersLoad(
+func summaryStoresLoad(
 	containersLoads map[uint64][]float64,
 	containerPendings map[uint64]Influence,
 	containerHotPeers map[uint64][]*statistics.HotPeerStat,
 	rwTy rwType,
-	kind metapb.ResourceKind,
+	kind metapb.ShardKind,
 ) map[uint64]*containerLoadDetail {
 	// loadDetail stores the storeID -> hotPeers stat and its current and future stat(key/byte rate,count)
 	loadDetail := make(map[uint64]*containerLoadDetail, len(containersLoads))
@@ -280,9 +280,9 @@ func summaryContainersLoad(
 		var byteRate, keyRate float64
 		switch rwTy {
 		case read:
-			byteRate, keyRate = loads[statistics.ContainerReadBytes], loads[statistics.ContainerReadKeys]
+			byteRate, keyRate = loads[statistics.StoreReadBytes], loads[statistics.StoreReadKeys]
 		case write:
-			byteRate, keyRate = loads[statistics.ContainerWriteBytes], loads[statistics.ContainerWriteKeys]
+			byteRate, keyRate = loads[statistics.StoreWriteBytes], loads[statistics.StoreWriteKeys]
 		}
 
 		// Find all hot peers first
@@ -298,7 +298,7 @@ func summaryContainersLoad(
 			// Use sum of hot peers to estimate leader-only byte rate.
 			// For write requests, Write{Bytes, Keys} is applied to all Peers at the same time, while the Leader and Follower are under different loads (usually the Leader consumes more CPU).
 			// But none of the current dimension reflect this difference, so we create a new dimension to reflect it.
-			if kind == metapb.ResourceKind_LeaderKind && rwTy == write {
+			if kind == metapb.ShardKind_LeaderKind && rwTy == write {
 				byteRate = byteSum
 				keyRate = keySum
 			}
@@ -359,12 +359,12 @@ func summaryContainersLoad(
 
 // filterHotPeers filter the peer whose hot degree is less than minHotDegress
 func filterHotPeers(
-	kind metapb.ResourceKind,
+	kind metapb.ShardKind,
 	peers []*statistics.HotPeerStat,
 ) []*statistics.HotPeerStat {
 	var ret []*statistics.HotPeerStat
 	for _, peer := range peers {
-		if kind == metapb.ResourceKind_LeaderKind && !peer.IsLeader() {
+		if kind == metapb.ShardKind_LeaderKind && !peer.IsLeader() {
 			continue
 		}
 		ret = append(ret, peer)
@@ -372,16 +372,16 @@ func filterHotPeers(
 	return ret
 }
 
-func (h *hotScheduler) addPendingInfluence(op *operator.Operator, srcContainer, dstContainer uint64, infl Influence, rwTy rwType, opTy opType) bool {
-	resID := op.ResourceID()
+func (h *hotScheduler) addPendingInfluence(op *operator.Operator, srcStore, dstStore uint64, infl Influence, rwTy rwType, opTy opType) bool {
+	resID := op.ShardID()
 	_, ok := h.resourcePendings[resID]
 	if ok {
 		schedulerStatus.WithLabelValues(h.GetName(), "pending_op_fails").Inc()
 		return false
 	}
 
-	influence := newPendingInfluence(op, srcContainer, dstContainer, infl)
-	rcTy := toResourceType(rwTy, opTy)
+	influence := newPendingInfluence(op, srcStore, dstStore, infl)
+	rcTy := toShardType(rwTy, opTy)
 	h.pendings[rcTy][influence] = struct{}{}
 
 	h.resourcePendings[resID] = [2]*operator.Operator{nil, nil}
@@ -395,7 +395,7 @@ func (h *hotScheduler) addPendingInfluence(op *operator.Operator, srcContainer, 
 	return true
 }
 
-func (h *hotScheduler) balanceHotReadResources(cluster opt.Cluster) []*operator.Operator {
+func (h *hotScheduler) balanceHotReadShards(cluster opt.Cluster) []*operator.Operator {
 	// prefer to balance by leader
 	leaderSolver := newBalanceSolver(h, cluster, read, transferLeader)
 	ops := leaderSolver.solve()
@@ -413,7 +413,7 @@ func (h *hotScheduler) balanceHotReadResources(cluster opt.Cluster) []*operator.
 	return nil
 }
 
-func (h *hotScheduler) balanceHotWriteResources(cluster opt.Cluster) []*operator.Operator {
+func (h *hotScheduler) balanceHotWriteShards(cluster opt.Cluster) []*operator.Operator {
 	// prefer to balance by peer
 	s := h.r.Intn(100)
 	switch {
@@ -451,10 +451,10 @@ type balanceSolver struct {
 }
 
 type solution struct {
-	srcContainerID uint64
+	srcStoreID uint64
 	srcPeerStat    *statistics.HotPeerStat
-	resource       *core.CachedResource
-	dstContainerID uint64
+	resource       *core.CachedShard
+	dstStoreID uint64
 
 	// progressiveRank measures the contribution for balance.
 	// The smaller the rank, the better this solution is.
@@ -463,7 +463,7 @@ type solution struct {
 }
 
 func (bs *balanceSolver) init() {
-	switch toResourceType(bs.rwTy, bs.opTy) {
+	switch toShardType(bs.rwTy, bs.opTy) {
 	case writePeer:
 		bs.stLoadDetail = bs.sche.stLoadInfos[writePeer]
 	case writeLeader:
@@ -535,17 +535,17 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 		infls []Influence
 	)
 
-	for srcContainerID := range bs.filterSrcContainers() {
-		bs.cur.srcContainerID = srcContainerID
+	for srcStoreID := range bs.filterSrcStores() {
+		bs.cur.srcStoreID = srcStoreID
 
 		for _, srcPeerStat := range bs.filterHotPeers() {
 			bs.cur.srcPeerStat = srcPeerStat
-			bs.cur.resource = bs.getResource()
+			bs.cur.resource = bs.getShard()
 			if bs.cur.resource == nil {
 				continue
 			}
-			for dstContainerID := range bs.filterDstContainers() {
-				bs.cur.dstContainerID = dstContainerID
+			for dstStoreID := range bs.filterDstStores() {
+				bs.cur.dstStoreID = dstStoreID
 				bs.calcProgressiveRank()
 				if bs.cur.progressiveRank < 0 && bs.betterThan(best) {
 					if newOps, newInfls := bs.buildOperators(); len(newOps) > 0 {
@@ -561,7 +561,7 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 
 	for i := 0; i < len(ops); i++ {
 		// TODO: multiple operators need to be atomic.
-		if !bs.sche.addPendingInfluence(ops[i], best.srcContainerID, best.dstContainerID, infls[i], bs.rwTy, bs.opTy) {
+		if !bs.sche.addPendingInfluence(ops[i], best.srcStoreID, best.dstStoreID, infls[i], bs.rwTy, bs.opTy) {
 			return nil
 		}
 	}
@@ -572,7 +572,7 @@ func (bs *balanceSolver) solve() []*operator.Operator {
 func (bs *balanceSolver) allowBalance() bool {
 	switch bs.opTy {
 	case movePeer:
-		return bs.sche.allowBalanceResource(bs.cluster)
+		return bs.sche.allowBalanceShard(bs.cluster)
 	case transferLeader:
 		return bs.sche.allowBalanceLeader(bs.cluster)
 	default:
@@ -580,12 +580,12 @@ func (bs *balanceSolver) allowBalance() bool {
 	}
 }
 
-// filterSrcContainers compare the min rate and the ratio * expectation rate, if both key and byte rate is greater than
+// filterSrcStores compare the min rate and the ratio * expectation rate, if both key and byte rate is greater than
 // its expectation * ratio, the container would be selected as hot source container
-func (bs *balanceSolver) filterSrcContainers() map[uint64]*containerLoadDetail {
+func (bs *balanceSolver) filterSrcStores() map[uint64]*containerLoadDetail {
 	ret := make(map[uint64]*containerLoadDetail)
 	for id, detail := range bs.stLoadDetail {
-		if bs.cluster.GetContainer(id) == nil {
+		if bs.cluster.GetStore(id) == nil {
 			bs.cluster.GetLogger().Error("source container not found",
 				rebalanceHotField,
 				zap.Uint64("container", id))
@@ -607,13 +607,13 @@ func (bs *balanceSolver) filterSrcContainers() map[uint64]*containerLoadDetail {
 // filterHotPeers filtered hot peers from statistics.HotPeerStat and deleted the peer if its resource is in pending status.
 // The returned hotPeer count in controlled by `max-peer-number`.
 func (bs *balanceSolver) filterHotPeers() []*statistics.HotPeerStat {
-	ret := bs.stLoadDetail[bs.cur.srcContainerID].HotPeers
+	ret := bs.stLoadDetail[bs.cur.srcStoreID].HotPeers
 	// Return at most MaxPeerNum peers, to prevent balanceSolver.solve() too slow.
 	maxPeerNum := bs.sche.conf.GetMaxPeerNumber()
 
 	// filter pending resource
 	appendItem := func(items []*statistics.HotPeerStat, item *statistics.HotPeerStat) []*statistics.HotPeerStat {
-		minHotDegree := bs.cluster.GetOpts().GetHotResourceCacheHitsThreshold()
+		minHotDegree := bs.cluster.GetOpts().GetHotShardCacheHitsThreshold()
 		if _, ok := bs.sche.resourcePendings[item.ID()]; !ok && !item.IsNeedCoolDownTransferLeader(minHotDegree) {
 			// no in pending operator and no need cool down after transfer leader
 			items = append(items, item)
@@ -665,8 +665,8 @@ func (bs *balanceSolver) filterHotPeers() []*statistics.HotPeerStat {
 	return ret
 }
 
-// isResourceAvailable checks whether the given resource is not available to schedule.
-func (bs *balanceSolver) isResourceAvailable(res *core.CachedResource) bool {
+// isShardAvailable checks whether the given resource is not available to schedule.
+func (bs *balanceSolver) isShardAvailable(res *core.CachedShard) bool {
 	if res == nil {
 		schedulerCounter.WithLabelValues(bs.sche.GetName(), "no-resource").Inc()
 		return false
@@ -687,7 +687,7 @@ func (bs *balanceSolver) isResourceAvailable(res *core.CachedResource) bool {
 		return false
 	}
 
-	if !opt.IsResourceReplicated(bs.cluster, res) {
+	if !opt.IsShardReplicated(bs.cluster, res) {
 		bs.cluster.GetLogger().Debug("resource has abnormal replica count",
 			rebalanceHotField,
 			resourceField(res.Meta.ID()),
@@ -699,15 +699,15 @@ func (bs *balanceSolver) isResourceAvailable(res *core.CachedResource) bool {
 	return true
 }
 
-func (bs *balanceSolver) getResource() *core.CachedResource {
-	res := bs.cluster.GetResource(bs.cur.srcPeerStat.ID())
-	if !bs.isResourceAvailable(res) {
+func (bs *balanceSolver) getShard() *core.CachedShard {
+	res := bs.cluster.GetShard(bs.cur.srcPeerStat.ID())
+	if !bs.isShardAvailable(res) {
 		return nil
 	}
 
 	switch bs.opTy {
 	case movePeer:
-		_, ok := res.GetContainerPeer(bs.cur.srcContainerID)
+		_, ok := res.GetStorePeer(bs.cur.srcStoreID)
 		if !ok {
 			bs.cluster.GetLogger().Debug("resource does not have a peer on source container, maybe stat out of date",
 				rebalanceHotField,
@@ -715,7 +715,7 @@ func (bs *balanceSolver) getResource() *core.CachedResource {
 			return nil
 		}
 	case transferLeader:
-		if res.GetLeader().GetContainerID() != bs.cur.srcContainerID {
+		if res.GetLeader().GetStoreID() != bs.cur.srcStoreID {
 			bs.cluster.GetLogger().Debug("resource leader is not on source container, maybe stat out of date",
 				rebalanceHotField,
 				resourceField(bs.cur.srcPeerStat.ID()))
@@ -728,40 +728,40 @@ func (bs *balanceSolver) getResource() *core.CachedResource {
 	return res
 }
 
-// filterDstContainers select the candidate container by filters
-func (bs *balanceSolver) filterDstContainers() map[uint64]*containerLoadDetail {
+// filterDstStores select the candidate container by filters
+func (bs *balanceSolver) filterDstStores() map[uint64]*containerLoadDetail {
 	var (
 		filters    []filter.Filter
-		candidates []*core.CachedContainer
+		candidates []*core.CachedStore
 	)
-	srcContainer := bs.cluster.GetContainer(bs.cur.srcContainerID)
-	if srcContainer == nil {
+	srcStore := bs.cluster.GetStore(bs.cur.srcStoreID)
+	if srcStore == nil {
 		return nil
 	}
 
 	switch bs.opTy {
 	case movePeer:
 		filters = []filter.Filter{
-			&filter.ContainerStateFilter{ActionScope: bs.sche.GetName(), MoveResource: true},
-			filter.NewExcludedFilter(bs.sche.GetName(), bs.cur.resource.GetContainerIDs(), bs.cur.resource.GetContainerIDs()),
-			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotResource),
-			filter.NewPlacementSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcContainer, bs.cluster.GetResourceFactory()),
+			&filter.StoreStateFilter{ActionScope: bs.sche.GetName(), MoveShard: true},
+			filter.NewExcludedFilter(bs.sche.GetName(), bs.cur.resource.GetStoreIDs(), bs.cur.resource.GetStoreIDs()),
+			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotShard),
+			filter.NewPlacementSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore, bs.cluster.GetShardFactory()),
 		}
 
 		for containerID := range bs.stLoadDetail {
-			candidates = append(candidates, bs.cluster.GetContainer(containerID))
+			candidates = append(candidates, bs.cluster.GetStore(containerID))
 		}
 
 	case transferLeader:
 		filters = []filter.Filter{
-			&filter.ContainerStateFilter{ActionScope: bs.sche.GetName(), TransferLeader: true},
-			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotResource),
+			&filter.StoreStateFilter{ActionScope: bs.sche.GetName(), TransferLeader: true},
+			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotShard),
 		}
-		if leaderFilter := filter.NewPlacementLeaderSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcContainer, bs.cluster.GetResourceFactory()); leaderFilter != nil {
+		if leaderFilter := filter.NewPlacementLeaderSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore, bs.cluster.GetShardFactory()); leaderFilter != nil {
 			filters = append(filters, leaderFilter)
 		}
 
-		for _, container := range bs.cluster.GetFollowerContainers(bs.cur.resource) {
+		for _, container := range bs.cluster.GetFollowerStores(bs.cur.resource) {
 			if _, ok := bs.stLoadDetail[container.Meta.ID()]; ok {
 				candidates = append(candidates, container)
 			}
@@ -770,10 +770,10 @@ func (bs *balanceSolver) filterDstContainers() map[uint64]*containerLoadDetail {
 	default:
 		return nil
 	}
-	return bs.pickDstContainers(filters, candidates)
+	return bs.pickDstStores(filters, candidates)
 }
 
-func (bs *balanceSolver) pickDstContainers(filters []filter.Filter, candidates []*core.CachedContainer) map[uint64]*containerLoadDetail {
+func (bs *balanceSolver) pickDstStores(filters []filter.Filter, candidates []*core.CachedStore) map[uint64]*containerLoadDetail {
 	ret := make(map[uint64]*containerLoadDetail, len(candidates))
 	dstToleranceRatio := bs.sche.conf.GetDstToleranceRatio()
 	for _, container := range candidates {
@@ -793,8 +793,8 @@ func (bs *balanceSolver) pickDstContainers(filters []filter.Filter, candidates [
 // calcProgressiveRank calculates `bs.cur.progressiveRank`.
 // See the comments of `solution.progressiveRank` for more about progressive rank.
 func (bs *balanceSolver) calcProgressiveRank() {
-	srcLd := bs.stLoadDetail[bs.cur.srcContainerID].LoadPred.min()
-	dstLd := bs.stLoadDetail[bs.cur.dstContainerID].LoadPred.max()
+	srcLd := bs.stLoadDetail[bs.cur.srcStoreID].LoadPred.min()
+	dstLd := bs.stLoadDetail[bs.cur.dstStoreID].LoadPred.max()
 	peer := bs.cur.srcPeerStat
 	rank := int64(0)
 	if bs.rwTy == write && bs.opTy == transferLeader {
@@ -845,13 +845,13 @@ func (bs *balanceSolver) betterThan(old *solution) bool {
 		return false
 	}
 
-	if r := bs.compareSrcContainer(bs.cur.srcContainerID, old.srcContainerID); r < 0 {
+	if r := bs.compareSrcStore(bs.cur.srcStoreID, old.srcStoreID); r < 0 {
 		return true
 	} else if r > 0 {
 		return false
 	}
 
-	if r := bs.compareDstContainer(bs.cur.dstContainerID, old.dstContainerID); r < 0 {
+	if r := bs.compareDstStore(bs.cur.dstStoreID, old.dstStoreID); r < 0 {
 		return true
 	} else if r > 0 {
 		return false
@@ -898,7 +898,7 @@ func (bs *balanceSolver) betterThan(old *solution) bool {
 }
 
 // smaller is better
-func (bs *balanceSolver) compareSrcContainer(st1, st2 uint64) int {
+func (bs *balanceSolver) compareSrcStore(st1, st2 uint64) int {
 	if st1 != st2 {
 		// compare source container
 		var lpCmp containerLPCmp
@@ -934,7 +934,7 @@ func (bs *balanceSolver) compareSrcContainer(st1, st2 uint64) int {
 }
 
 // smaller is better
-func (bs *balanceSolver) compareDstContainer(st1, st2 uint64) int {
+func (bs *balanceSolver) compareDstStore(st1, st2 uint64) int {
 	if st1 != st2 {
 		// compare destination container
 		var lpCmp containerLPCmp
@@ -975,11 +975,11 @@ func stepRank(rk0 float64, step float64) func(float64) int64 {
 }
 
 func (bs *balanceSolver) isReadyToBuild() bool {
-	if bs.cur.srcContainerID == 0 || bs.cur.dstContainerID == 0 ||
+	if bs.cur.srcStoreID == 0 || bs.cur.dstStoreID == 0 ||
 		bs.cur.srcPeerStat == nil || bs.cur.resource == nil {
 		return false
 	}
-	if bs.cur.srcContainerID != bs.cur.srcPeerStat.ContainerID ||
+	if bs.cur.srcStoreID != bs.cur.srcPeerStat.StoreID ||
 		bs.cur.resource.Meta.ID() != bs.cur.srcPeerStat.ID() {
 		return false
 	}
@@ -998,22 +998,22 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 
 	switch bs.opTy {
 	case movePeer:
-		srcPeer, _ := bs.cur.resource.GetContainerPeer(bs.cur.srcContainerID) // checked in getResourceAndSrcPeer
-		dstPeer := metapb.Replica{ContainerID: bs.cur.dstContainerID, Role: srcPeer.Role}
+		srcPeer, _ := bs.cur.resource.GetStorePeer(bs.cur.srcStoreID) // checked in getShardAndSrcPeer
+		dstPeer := metapb.Replica{StoreID: bs.cur.dstStoreID, Role: srcPeer.Role}
 		desc := "move-hot-" + bs.rwTy.String() + "-peer"
 		op, err = operator.CreateMovePeerOperator(
 			desc,
 			bs.cluster,
 			bs.cur.resource,
-			operator.OpHotResource,
-			bs.cur.srcContainerID,
+			operator.OpHotShard,
+			bs.cur.srcStoreID,
 			dstPeer)
 
 		counters = append(counters,
-			hotDirectionCounter.WithLabelValues("move-peer", bs.rwTy.String(), strconv.FormatUint(bs.cur.srcContainerID, 10), "out"),
-			hotDirectionCounter.WithLabelValues("move-peer", bs.rwTy.String(), strconv.FormatUint(dstPeer.GetContainerID(), 10), "in"))
+			hotDirectionCounter.WithLabelValues("move-peer", bs.rwTy.String(), strconv.FormatUint(bs.cur.srcStoreID, 10), "out"),
+			hotDirectionCounter.WithLabelValues("move-peer", bs.rwTy.String(), strconv.FormatUint(dstPeer.GetStoreID(), 10), "in"))
 	case transferLeader:
-		if _, ok := bs.cur.resource.GetContainerVoter(bs.cur.dstContainerID); !ok {
+		if _, ok := bs.cur.resource.GetStoreVoter(bs.cur.dstStoreID); !ok {
 			return nil, nil
 		}
 		desc := "transfer-hot-" + bs.rwTy.String() + "-leader"
@@ -1021,12 +1021,12 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 			desc,
 			bs.cluster,
 			bs.cur.resource,
-			bs.cur.srcContainerID,
-			bs.cur.dstContainerID,
-			operator.OpHotResource)
+			bs.cur.srcStoreID,
+			bs.cur.dstStoreID,
+			operator.OpHotShard)
 		counters = append(counters,
-			hotDirectionCounter.WithLabelValues("transfer-leader", bs.rwTy.String(), strconv.FormatUint(bs.cur.srcContainerID, 10), "out"),
-			hotDirectionCounter.WithLabelValues("transfer-leader", bs.rwTy.String(), strconv.FormatUint(bs.cur.dstContainerID, 10), "in"))
+			hotDirectionCounter.WithLabelValues("transfer-leader", bs.rwTy.String(), strconv.FormatUint(bs.cur.srcStoreID, 10), "out"),
+			hotDirectionCounter.WithLabelValues("transfer-leader", bs.rwTy.String(), strconv.FormatUint(bs.cur.dstStoreID, 10), "in"))
 	}
 
 	if err != nil {
@@ -1053,30 +1053,30 @@ func (bs *balanceSolver) buildOperators() ([]*operator.Operator, []Influence) {
 	return []*operator.Operator{op}, []Influence{infl}
 }
 
-func (h *hotScheduler) GetHotReadStatus() *statistics.ContainerHotPeersInfos {
+func (h *hotScheduler) GetHotReadStatus() *statistics.StoreHotPeersInfos {
 	h.RLock()
 	defer h.RUnlock()
-	asLeader := make(statistics.ContainerHotPeersStat, len(h.stLoadInfos[readLeader]))
+	asLeader := make(statistics.StoreHotPeersStat, len(h.stLoadInfos[readLeader]))
 	for id, detail := range h.stLoadInfos[readLeader] {
 		asLeader[id] = detail.toHotPeersStat()
 	}
-	return &statistics.ContainerHotPeersInfos{
+	return &statistics.StoreHotPeersInfos{
 		AsLeader: asLeader,
 	}
 }
 
-func (h *hotScheduler) GetHotWriteStatus() *statistics.ContainerHotPeersInfos {
+func (h *hotScheduler) GetHotWriteStatus() *statistics.StoreHotPeersInfos {
 	h.RLock()
 	defer h.RUnlock()
-	asLeader := make(statistics.ContainerHotPeersStat, len(h.stLoadInfos[writeLeader]))
-	asPeer := make(statistics.ContainerHotPeersStat, len(h.stLoadInfos[writePeer]))
+	asLeader := make(statistics.StoreHotPeersStat, len(h.stLoadInfos[writeLeader]))
+	asPeer := make(statistics.StoreHotPeersStat, len(h.stLoadInfos[writePeer]))
 	for id, detail := range h.stLoadInfos[writeLeader] {
 		asLeader[id] = detail.toHotPeersStat()
 	}
 	for id, detail := range h.stLoadInfos[writePeer] {
 		asPeer[id] = detail.toHotPeersStat()
 	}
-	return &statistics.ContainerHotPeersInfos{
+	return &statistics.StoreHotPeersInfos{
 		AsLeader: asLeader,
 		AsPeer:   asPeer,
 	}
@@ -1178,7 +1178,7 @@ const (
 	resourceTypeLen
 )
 
-func toResourceType(rwTy rwType, opTy opType) resourceType {
+func toShardType(rwTy rwType, opTy opType) resourceType {
 	switch rwTy {
 	case write:
 		switch opTy {
@@ -1190,5 +1190,5 @@ func toResourceType(rwTy rwType, opTy opType) resourceType {
 	case read:
 		return readLeader
 	}
-	panic(fmt.Sprintf("invalid arguments for toResourceType: rwTy = %v, opTy = %v", rwTy, opTy))
+	panic(fmt.Sprintf("invalid arguments for toShardType: rwTy = %v, opTy = %v", rwTy, opTy))
 }

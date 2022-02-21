@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeTestContainers() ContainerSet {
-	containers := core.NewCachedContainers()
+func makeTestStores() StoreSet {
+	containers := core.NewCachedStores()
 	for zone := 1; zone <= 5; zone++ {
 		for rack := 1; rack <= 5; rack++ {
 			for host := 1; host <= 5; host++ {
@@ -39,7 +39,7 @@ func makeTestContainers() ContainerSet {
 						"host": fmt.Sprintf("host%d", host),
 						"id":   fmt.Sprintf("id%d", x),
 					}
-					containers.SetContainer(core.NewTestContainerInfoWithLabel(id, 0, labels))
+					containers.SetStore(core.NewTestStoreInfoWithLabel(id, 0, labels))
 				}
 			}
 		}
@@ -48,8 +48,8 @@ func makeTestContainers() ContainerSet {
 }
 
 // example: "1111_leader,1234,2111_learner"
-func makeTestResource(def string) *core.CachedResource {
-	var resourceMeta metadata.TestResource
+func makeTestShard(def string) *core.CachedShard {
+	var resourceMeta metadata.TestShard
 	var leader *metapb.Replica
 	for _, peerDef := range strings.Split(def, ",") {
 		role, idStr := Follower, peerDef
@@ -58,13 +58,13 @@ func makeTestResource(def string) *core.CachedResource {
 			idStr, role = splits[0], ReplicaRoleType(splits[1])
 		}
 		id, _ := strconv.Atoi(idStr)
-		peer := metapb.Replica{ID: uint64(id), ContainerID: uint64(id), Role: role.MetaPeerRole()}
+		peer := metapb.Replica{ID: uint64(id), StoreID: uint64(id), Role: role.MetaPeerRole()}
 		resourceMeta.ResPeers = append(resourceMeta.ResPeers, peer)
 		if role == Leader {
 			leader = &peer
 		}
 	}
-	return core.NewCachedResource(&resourceMeta, leader)
+	return core.NewCachedShard(&resourceMeta, leader)
 }
 
 // example: "3/voter/zone=zone1+zone2,rack=rack2/zone,rack,host"
@@ -110,7 +110,7 @@ func checkPeerMatch(peers []metapb.Replica, expect string) bool {
 }
 
 func TestFitresource(t *testing.T) {
-	containers := makeTestContainers()
+	containers := makeTestStores()
 
 	cases := []struct {
 		resource string
@@ -138,12 +138,12 @@ func TestFitresource(t *testing.T) {
 	}
 
 	for _, cc := range cases {
-		resource := makeTestResource(cc.resource)
+		resource := makeTestShard(cc.resource)
 		var rules []*Rule
 		for _, r := range cc.rules {
 			rules = append(rules, makeTestRule(r))
 		}
-		rf := FitResource(containers, resource, rules)
+		rf := FitShard(containers, resource, rules)
 		expects := strings.Split(cc.fitPeers, "/")
 		for i, f := range rf.RuleFits {
 			assert.True(t, checkPeerMatch(f.Peers, expects[i]))
@@ -155,7 +155,7 @@ func TestFitresource(t *testing.T) {
 }
 
 func TestIsolationScore(t *testing.T) {
-	containers := makeTestContainers()
+	containers := makeTestStores()
 	testCases := []struct {
 		peers1 []uint64
 		op     string
@@ -172,8 +172,8 @@ func TestIsolationScore(t *testing.T) {
 		var peers []*fitPeer
 		for _, id := range ids {
 			peers = append(peers, &fitPeer{
-				Replica:   metapb.Replica{ContainerID: id},
-				container: containers.GetContainer(id),
+				Replica:   metapb.Replica{StoreID: id},
+				container: containers.GetStore(id),
 			})
 		}
 		return peers

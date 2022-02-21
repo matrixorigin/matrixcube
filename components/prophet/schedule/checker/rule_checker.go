@@ -54,12 +54,12 @@ func (c *RuleChecker) GetType() string {
 }
 
 // FillReplicas make up all replica for a empty resource
-func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) error {
+func (c *RuleChecker) FillReplicas(res *core.CachedShard, leastPeers int) error {
 	if len(res.Meta.Peers()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
-	fit := c.ruleManager.FitResource(c.cluster, res)
+	fit := c.ruleManager.FitShard(c.cluster, res)
 	if len(fit.RuleFits) == 0 {
 		return fmt.Errorf("fill resource replicas cann't matches no rules")
 	}
@@ -68,15 +68,15 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) err
 	for _, rf := range fit.RuleFits {
 		cnt += rf.Rule.Count
 		rs := c.strategy(res, rf.Rule)
-		ruleContainers := c.getRuleFitContainers(rf)
+		ruleStores := c.getRuleFitStores(rf)
 
 		for i := 0; i < rf.Rule.Count; i++ {
-			container := rs.SelectContainerToAdd(ruleContainers)
+			container := rs.SelectStoreToAdd(ruleStores)
 			if container == 0 {
 				break
 			}
 
-			p := metapb.Replica{ContainerID: container}
+			p := metapb.Replica{StoreID: container}
 			switch rf.Rule.Role {
 			case placement.Voter, placement.Follower, placement.Leader:
 				p.Role = metapb.ReplicaRole_Voter
@@ -100,10 +100,10 @@ func (c *RuleChecker) FillReplicas(res *core.CachedResource, leastPeers int) err
 
 // Check checks if the resource matches placement rules and returns Operator to
 // fix it.
-func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
+func (c *RuleChecker) Check(res *core.CachedShard) *operator.Operator {
 	checkerCounter.WithLabelValues("rule_checker", "check").Inc()
 
-	fit := c.cluster.FitResource(res)
+	fit := c.cluster.FitShard(res)
 	if len(fit.RuleFits) == 0 {
 		checkerCounter.WithLabelValues("rule_checker", "fix-range").Inc()
 		// If the resource matches no rules, the most possible reason is it spans across
@@ -138,7 +138,7 @@ func (c *RuleChecker) Check(res *core.CachedResource) *operator.Operator {
 	return nil
 }
 
-func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
+func (c *RuleChecker) fixRange(res *core.CachedShard) *operator.Operator {
 	if res.IsDestroyState() {
 		return nil
 	}
@@ -148,7 +148,7 @@ func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
 		return nil
 	}
 
-	op, err := operator.CreateSplitResourceOperator("rule-split-resource", res, 0, metapb.CheckPolicy_USEKEY, keys)
+	op, err := operator.CreateSplitShardOperator("rule-split-resource", res, 0, metapb.CheckPolicy_USEKEY, keys)
 	if err != nil {
 		c.cluster.GetLogger().Debug("fail to create split resource operator",
 			zap.Error(err))
@@ -158,7 +158,7 @@ func (c *RuleChecker) fixRange(res *core.CachedResource) *operator.Operator {
 	return op
 }
 
-func (c *RuleChecker) fixRulePeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit) (*operator.Operator, error) {
+func (c *RuleChecker) fixRulePeer(res *core.CachedShard, fit *placement.ShardFit, rf *placement.RuleFit) (*operator.Operator, error) {
 	// make up peers.
 	if len(rf.Peers) < rf.Rule.Count &&
 		!res.IsDestroyState() {
@@ -188,40 +188,40 @@ func (c *RuleChecker) fixRulePeer(res *core.CachedResource, fit *placement.Resou
 	return c.fixBetterLocation(res, rf)
 }
 
-func (c *RuleChecker) addRulePeer(res *core.CachedResource, rf *placement.RuleFit) (*operator.Operator, error) {
+func (c *RuleChecker) addRulePeer(res *core.CachedShard, rf *placement.RuleFit) (*operator.Operator, error) {
 	checkerCounter.WithLabelValues("rule_checker", "add-rule-peer").Inc()
-	ruleContainers := c.getRuleFitContainers(rf)
-	container := c.strategy(res, rf.Rule).SelectContainerToAdd(ruleContainers)
+	ruleStores := c.getRuleFitStores(rf)
+	container := c.strategy(res, rf.Rule).SelectStoreToAdd(ruleStores)
 	if container == 0 {
 		checkerCounter.WithLabelValues("rule_checker", "no-container-add").Inc()
 		c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		return nil, errors.New("no container to add peer")
 	}
-	peer := metapb.Replica{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
+	peer := metapb.Replica{StoreID: container, Role: rf.Rule.Role.MetaPeerRole()}
 	return operator.CreateAddPeerOperator("add-rule-peer", c.cluster, res, peer, operator.OpReplica)
 }
 
-func (c *RuleChecker) replaceRulePeer(res *core.CachedResource, rf *placement.RuleFit, peer metapb.Replica, status string) (*operator.Operator, error) {
+func (c *RuleChecker) replaceRulePeer(res *core.CachedShard, rf *placement.RuleFit, peer metapb.Replica, status string) (*operator.Operator, error) {
 	if res.IsDestroyState() {
 		checkerCounter.WithLabelValues("rule_checker", "remove-"+status+"-peer").Inc()
 		c.cluster.GetLogger().Debug("remove down replica",
 			zap.Uint64("replica-id", peer.ID))
-		return operator.CreateRemovePeerOperator("remove-"+status+"-peer", c.cluster, operator.OpReplica, res, peer.ContainerID)
+		return operator.CreateRemovePeerOperator("remove-"+status+"-peer", c.cluster, operator.OpReplica, res, peer.StoreID)
 	}
 
-	ruleContainers := c.getRuleFitContainers(rf)
-	container := c.strategy(res, rf.Rule).SelectContainerToReplace(ruleContainers, peer.ContainerID)
+	ruleStores := c.getRuleFitStores(rf)
+	container := c.strategy(res, rf.Rule).SelectStoreToReplace(ruleStores, peer.StoreID)
 	if container == 0 {
 		checkerCounter.WithLabelValues("rule_checker", "no-container-replace").Inc()
 		c.resourceWaitingList.Put(res.Meta.ID(), nil)
 		return nil, errors.New("no container to replace peer")
 	}
-	newPeer := metapb.Replica{ContainerID: container, Role: rf.Rule.Role.MetaPeerRole()}
+	newPeer := metapb.Replica{StoreID: container, Role: rf.Rule.Role.MetaPeerRole()}
 	return operator.CreateMovePeerOperator("replace-rule-"+status+"-peer",
-		c.cluster, res, operator.OpReplica, peer.ContainerID, newPeer)
+		c.cluster, res, operator.OpReplica, peer.StoreID, newPeer)
 }
 
-func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement.ResourceFit, rf *placement.RuleFit, peer metapb.Replica) (*operator.Operator, error) {
+func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedShard, fit *placement.ShardFit, rf *placement.RuleFit, peer metapb.Replica) (*operator.Operator, error) {
 	if res.IsDestroyState() {
 		return nil, nil
 	}
@@ -234,7 +234,7 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement
 		checkerCounter.WithLabelValues("rule_checker", "fix-leader-role").Inc()
 		if c.allowLeader(fit, peer) {
 			return operator.CreateTransferLeaderOperator("fix-leader-role",
-				c.cluster, res, res.GetLeader().ContainerID, peer.ContainerID, 0)
+				c.cluster, res, res.GetLeader().StoreID, peer.StoreID, 0)
 		}
 		checkerCounter.WithLabelValues("rule_checker", "not-allow-leader")
 		return nil, errors.New("peer cannot be leader")
@@ -244,7 +244,7 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement
 		for _, p := range res.Meta.Peers() {
 			if c.allowLeader(fit, p) {
 				return operator.CreateTransferLeaderOperator("fix-follower-role",
-					c.cluster, res, peer.ContainerID, p.ContainerID, 0)
+					c.cluster, res, peer.StoreID, p.StoreID, 0)
 			}
 		}
 		checkerCounter.WithLabelValues("rule_checker", "no-new-leader").Inc()
@@ -253,15 +253,15 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedResource, fit *placement
 	return nil, nil
 }
 
-func (c *RuleChecker) allowLeader(fit *placement.ResourceFit, peer metapb.Replica) bool {
+func (c *RuleChecker) allowLeader(fit *placement.ShardFit, peer metapb.Replica) bool {
 	if metadata.IsLearner(peer) {
 		return false
 	}
-	s := c.cluster.GetContainer(peer.ContainerID)
+	s := c.cluster.GetStore(peer.StoreID)
 	if s == nil {
 		return false
 	}
-	stateFilter := &filter.ContainerStateFilter{ActionScope: "rule-checker", TransferLeader: true}
+	stateFilter := &filter.StoreStateFilter{ActionScope: "rule-checker", TransferLeader: true}
 	if !stateFilter.Target(c.cluster.GetOpts(), s) {
 		return false
 	}
@@ -274,7 +274,7 @@ func (c *RuleChecker) allowLeader(fit *placement.ResourceFit, peer metapb.Replic
 	return false
 }
 
-func (c *RuleChecker) fixBetterLocation(res *core.CachedResource, rf *placement.RuleFit) (*operator.Operator, error) {
+func (c *RuleChecker) fixBetterLocation(res *core.CachedShard, rf *placement.RuleFit) (*operator.Operator, error) {
 	if res.IsDestroyState() {
 		return nil, nil
 	}
@@ -284,23 +284,23 @@ func (c *RuleChecker) fixBetterLocation(res *core.CachedResource, rf *placement.
 	}
 
 	strategy := c.strategy(res, rf.Rule)
-	ruleContainers := c.getRuleFitContainers(rf)
-	oldContainer := strategy.SelectContainerToRemove(ruleContainers)
-	if oldContainer == 0 {
+	ruleStores := c.getRuleFitStores(rf)
+	oldStore := strategy.SelectStoreToRemove(ruleStores)
+	if oldStore == 0 {
 		return nil, nil
 	}
-	newContainer := strategy.SelectContainerToImprove(ruleContainers, oldContainer)
-	if newContainer == 0 {
+	newStore := strategy.SelectStoreToImprove(ruleStores, oldStore)
+	if newStore == 0 {
 		c.cluster.GetLogger().Debug("resource no replacement container",
 			log.ResourceField(res.Meta.ID()))
 		return nil, nil
 	}
 	checkerCounter.WithLabelValues("rule_checker", "move-to-better-location").Inc()
-	newPeer := metapb.Replica{ContainerID: newContainer, Role: rf.Rule.Role.MetaPeerRole()}
-	return operator.CreateMovePeerOperator("move-to-better-location", c.cluster, res, operator.OpReplica, oldContainer, newPeer)
+	newPeer := metapb.Replica{StoreID: newStore, Role: rf.Rule.Role.MetaPeerRole()}
+	return operator.CreateMovePeerOperator("move-to-better-location", c.cluster, res, operator.OpReplica, oldStore, newPeer)
 }
 
-func (c *RuleChecker) fixOrphanPeers(res *core.CachedResource, fit *placement.ResourceFit) (*operator.Operator, error) {
+func (c *RuleChecker) fixOrphanPeers(res *core.CachedShard, fit *placement.ShardFit) (*operator.Operator, error) {
 	if len(fit.OrphanPeers) == 0 {
 		return nil, nil
 	}
@@ -313,27 +313,27 @@ func (c *RuleChecker) fixOrphanPeers(res *core.CachedResource, fit *placement.Re
 	}
 	checkerCounter.WithLabelValues("rule_checker", "remove-orphan-peer").Inc()
 	peer := fit.OrphanPeers[0]
-	return operator.CreateRemovePeerOperator("remove-orphan-peer", c.cluster, operator.OpReplica, res, peer.ContainerID)
+	return operator.CreateRemovePeerOperator("remove-orphan-peer", c.cluster, operator.OpReplica, res, peer.StoreID)
 }
 
-func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) bool {
+func (c *RuleChecker) isDownPeer(res *core.CachedShard, peer metapb.Replica) bool {
 	for _, stats := range res.GetDownPeers() {
 		if stats.GetReplica().ID != peer.ID {
 			continue
 		}
-		containerID := peer.ContainerID
-		container := c.cluster.GetContainer(containerID)
+		containerID := peer.StoreID
+		container := c.cluster.GetStore(containerID)
 		if container == nil {
 			c.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
 				zap.Uint64("container", containerID))
 			return false
 		}
 		if !res.IsDestroyState() &&
-			container.DownTime() < c.cluster.GetOpts().GetMaxContainerDownTime() {
+			container.DownTime() < c.cluster.GetOpts().GetMaxStoreDownTime() {
 			continue
 		}
 		if !res.IsDestroyState() &&
-			stats.GetDownSeconds() < uint64(c.cluster.GetOpts().GetMaxContainerDownTime().Seconds()) {
+			stats.GetDownSeconds() < uint64(c.cluster.GetOpts().GetMaxStoreDownTime().Seconds()) {
 			continue
 		}
 		return true
@@ -341,17 +341,17 @@ func (c *RuleChecker) isDownPeer(res *core.CachedResource, peer metapb.Replica) 
 	return false
 }
 
-func (c *RuleChecker) isOfflinePeer(res *core.CachedResource, peer metapb.Replica) bool {
-	container := c.cluster.GetContainer(peer.ContainerID)
+func (c *RuleChecker) isOfflinePeer(res *core.CachedShard, peer metapb.Replica) bool {
+	container := c.cluster.GetStore(peer.StoreID)
 	if container == nil {
 		c.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
-			zap.Uint64("container", peer.ContainerID))
+			zap.Uint64("container", peer.StoreID))
 		return false
 	}
 	return !container.IsUp()
 }
 
-func (c *RuleChecker) strategy(res *core.CachedResource, rule *placement.Rule) *ReplicaStrategy {
+func (c *RuleChecker) strategy(res *core.CachedShard, rule *placement.Rule) *ReplicaStrategy {
 	return &ReplicaStrategy{
 		checkerName:    c.name,
 		cluster:        c.cluster,
@@ -362,10 +362,10 @@ func (c *RuleChecker) strategy(res *core.CachedResource, rule *placement.Rule) *
 	}
 }
 
-func (c *RuleChecker) getRuleFitContainers(rf *placement.RuleFit) []*core.CachedContainer {
-	var containers []*core.CachedContainer
+func (c *RuleChecker) getRuleFitStores(rf *placement.RuleFit) []*core.CachedStore {
+	var containers []*core.CachedStore
 	for _, p := range rf.Peers {
-		if s := c.cluster.GetContainer(p.ContainerID); s != nil {
+		if s := c.cluster.GetStore(p.StoreID); s != nil {
 			containers = append(containers, s)
 		}
 	}

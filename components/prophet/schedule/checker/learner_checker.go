@@ -34,7 +34,7 @@ func NewLearnerChecker(cluster opt.Cluster) *LearnerChecker {
 }
 
 // Check verifies a resource's role, creating an Operator if need.
-func (l *LearnerChecker) Check(res *core.CachedResource) *operator.Operator {
+func (l *LearnerChecker) Check(res *core.CachedShard) *operator.Operator {
 	for _, p := range res.GetLearners() {
 		op, err := operator.CreatePromoteLearnerOperator("promote-learner", l.cluster, res, p)
 		if err != nil {

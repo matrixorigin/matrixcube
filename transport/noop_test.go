@@ -32,7 +32,7 @@ package transport
 import (
 	"context"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // NOOPConnection is the connection used to exchange messages between node hosts.
@@ -46,14 +46,14 @@ func (c *NOOPConnection) Close() {
 }
 
 // SendMessageBatch return ErrRequestedToFail when requested.
-func (c *NOOPConnection) SendMessageBatch(batch meta.RaftMessageBatch) error {
+func (c *NOOPConnection) SendMessageBatch(batch metapb.RaftMessageBatch) error {
 	return nil
 }
 
 // NOOPSnapshotConnection is the connection used to send snapshots.
 type NOOPSnapshotConnection struct {
 	sendChunksCount uint64
-	chunk           meta.SnapshotChunk
+	chunk           metapb.SnapshotChunk
 }
 
 var _ SnapshotConnection = (*NOOPSnapshotConnection)(nil)
@@ -63,7 +63,7 @@ func (c *NOOPSnapshotConnection) Close() {
 }
 
 // SendChunk returns ErrRequestedToFail when requested.
-func (c *NOOPSnapshotConnection) SendChunk(chunk meta.SnapshotChunk) error {
+func (c *NOOPSnapshotConnection) SendChunk(chunk metapb.SnapshotChunk) error {
 	c.sendChunksCount++
 	c.chunk = chunk
 	return nil

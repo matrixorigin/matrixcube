@@ -22,28 +22,27 @@ import (
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
 
-type testResourcesAware struct {
-	aware  pconfig.ResourcesAware
-	adjust func(*core.CachedResource) *core.CachedResource
+type testShardsAware struct {
+	aware  pconfig.ShardsAware
+	adjust func(*core.CachedShard) *core.CachedShard
 }
 
-func (tra *testResourcesAware) ForeachWaittingCreateResources(do func(res metadata.Resource)) {
-	tra.aware.ForeachWaittingCreateResources(do)
+func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res metadata.Shard)) {
+	tra.aware.ForeachWaittingCreateShards(do)
 }
-func (tra *testResourcesAware) ForeachResources(group uint64, fn func(res metadata.Resource)) {
-	tra.aware.ForeachResources(group, fn)
+func (tra *testShardsAware) ForeachShards(group uint64, fn func(res metadata.Shard)) {
+	tra.aware.ForeachShards(group, fn)
 }
 
-func (tra *testResourcesAware) GetResource(resourceID uint64) *core.CachedResource {
-	res := tra.aware.GetResource(resourceID)
+func (tra *testShardsAware) GetShard(resourceID uint64) *core.CachedShard {
+	res := tra.aware.GetShard(resourceID)
 	if tra.adjust != nil && res != nil {
 		return tra.adjust(res)
 	}
@@ -76,7 +75,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 		c.WaitShardByCountPerNode(2, testWaitTimeout)
 		c.WaitLeadersByCount(2, testWaitTimeout)
 
-		err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
+		err := c.GetProphet().GetClient().AsyncAddShards(NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
 		assert.NoError(t, err)
 		c.WaitShardByCountPerNode(3, testWaitTimeout)
 		c.WaitLeadersByCount(3, testWaitTimeout)
@@ -105,14 +104,14 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	err := c.GetProphet().GetClient().AsyncAddResources(NewResourceAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
+	err := c.GetProphet().GetClient().AsyncAddShards(NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
 	assert.NoError(t, err)
 
 	c.WaitShardByCountPerNode(2, testWaitTimeout)
 	c.CheckShardCount(2)
 
 	id := c.GetShardByIndex(0, 1).ID
-	c.WaitShardStateChangedTo(id, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(id, metapb.ShardState_Running, testWaitTimeout)
 }
 
 func TestAddShardWithShardPool(t *testing.T) {
@@ -130,7 +129,7 @@ func TestAddShardWithShardPool(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -146,7 +145,7 @@ func TestAddShardWithShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose1"), allocated.Purpose)
-	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ShardState_Running, testWaitTimeout)
 
 	// create 3th shards
 	c.WaitShardByCountPerNode(4, testWaitTimeout)
@@ -156,28 +155,28 @@ func TestAddShardWithShardPool(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), allocated.AllocatedAt)
 	assert.Equal(t, []byte("propose2"), allocated.Purpose)
-	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(allocated.ShardID, metapb.ShardState_Running, testWaitTimeout)
 
 	// create 4th shards
 	c.WaitShardByCountPerNode(5, testWaitTimeout)
 	c.WaitLeadersByCount(5, testWaitTimeout)
 
-	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateShardPool})
 	assert.NoError(t, err)
-	sp := &meta.ShardsPool{}
+	sp := &metapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
 	assert.True(t, sp.Pools[0].Seq >= 3)
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
 	assert.Equal(t, 2, len(sp.Pools[0].AllocatedShards))
 
 	// ensure the 4th shard is saved into prophet storage
-	c.WaitShardStateChangedTo(c.GetShardByIndex(0, 4).ID, metapb.ResourceState_Running, testWaitTimeout)
+	c.WaitShardStateChangedTo(c.GetShardByIndex(0, 4).ID, metapb.ShardState_Running, testWaitTimeout)
 
 	c.EveryStore(func(i int, s Store) {
-		sp := s.GetResourcePool().(*dynamicShardsPool)
+		sp := s.GetShardPool().(*dynamicShardsPool)
 		pd := s.Prophet()
 		if sp.isStartedLocked() {
-			tra := &testResourcesAware{aware: pd.GetBasicCluster(), adjust: func(res *core.CachedResource) *core.CachedResource {
+			tra := &testShardsAware{aware: pd.GetBasicCluster(), adjust: func(res *core.CachedShard) *core.CachedShard {
 				v := res.Clone(core.SetWrittenKeys(1))
 				return v
 			}}
@@ -185,9 +184,9 @@ func TestAddShardWithShardPool(t *testing.T) {
 		}
 	})
 
-	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateResourcePool})
+	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateShardPool})
 	assert.NoError(t, err)
-	sp = &meta.ShardsPool{}
+	sp = &metapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
 	assert.Equal(t, uint64(4), sp.Pools[0].Seq)
 	assert.Equal(t, uint64(2), sp.Pools[0].AllocatedOffset)
@@ -221,7 +220,7 @@ func TestShardPoolWithFactory(t *testing.T) {
 		c.Start()
 		defer c.Stop()
 
-		p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
+		p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{Group: 0, Capacity: 2, RangePrefix: []byte("b")})
 		assert.NoError(t, err)
 		assert.NotNil(t, p)
 

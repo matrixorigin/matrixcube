@@ -17,26 +17,25 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTree(t *testing.T) {
 	tree := NewShardTree()
 
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    1,
 		Start: []byte{0},
 		End:   []byte{1},
 	})
 
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},
 	})
 
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    3,
 		Start: []byte{4},
 		End:   []byte{5},
@@ -48,7 +47,7 @@ func TestTree(t *testing.T) {
 
 	expect := []byte{0, 2, 4}
 	count := 0
-	tree.Ascend(func(Shard *meta.Shard) bool {
+	tree.Ascend(func(Shard *metapb.Shard) bool {
 		if expect[count] != Shard.Start[0] {
 			t.Error("tree failed, asc order is error")
 		}
@@ -68,7 +67,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{4}, func(Shard *meta.Shard) bool {
+	tree.AscendRange(nil, []byte{4}, func(Shard *metapb.Shard) bool {
 		count++
 		return true
 	})
@@ -78,7 +77,7 @@ func TestTree(t *testing.T) {
 	}
 
 	count = 0
-	tree.AscendRange(nil, []byte{5}, func(Shard *meta.Shard) bool {
+	tree.AscendRange(nil, []byte{5}, func(Shard *metapb.Shard) bool {
 		count++
 		return true
 	})
@@ -88,7 +87,7 @@ func TestTree(t *testing.T) {
 	}
 
 	// it will replace with 0,1 Shard
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    10,
 		Start: nil,
 		End:   []byte{1},
@@ -98,7 +97,7 @@ func TestTree(t *testing.T) {
 		t.Error("tree failed, update overlaps failed")
 	}
 
-	tree.Remove(meta.Shard{
+	tree.Remove(metapb.Shard{
 		ID:    2,
 		Start: []byte{2},
 		End:   []byte{3},
@@ -110,17 +109,17 @@ func TestTree(t *testing.T) {
 
 func TestTreeOverlap(t *testing.T) {
 	tree := NewShardTree()
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    1,
 		Start: []byte{1},
 		End:   []byte{10},
 	})
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    2,
 		Start: []byte{5},
 		End:   []byte{10},
 	})
-	tree.Update(meta.Shard{
+	tree.Update(metapb.Shard{
 		ID:    1,
 		Start: []byte{1},
 		End:   []byte{5},
@@ -134,20 +133,20 @@ func TestTreeOverlap(t *testing.T) {
 func TestAddDestroyShard(t *testing.T) {
 	tree := NewShardTree()
 	tree.Update(
-		meta.Shard{
+		metapb.Shard{
 			ID:    1,
 			Start: []byte{1},
 			End:   []byte{10},
-			State: metapb.ResourceState_Destroyed,
+			State: metapb.ShardState_Destroyed,
 		},
-		meta.Shard{
+		metapb.Shard{
 			ID:    1,
 			Start: []byte{10},
 			End:   []byte{20},
-			State: metapb.ResourceState_Destroying,
+			State: metapb.ShardState_Destroying,
 		},
 	)
 
-	assert.Equal(t, meta.Shard{}, tree.Search([]byte{1}))
-	assert.Equal(t, meta.Shard{}, tree.Search([]byte{10}))
+	assert.Equal(t, metapb.Shard{}, tree.Search([]byte{1}))
+	assert.Equal(t, metapb.Shard{}, tree.Search([]byte{10}))
 }

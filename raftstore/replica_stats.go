@@ -35,9 +35,9 @@ func newReplicaStats() *replicaStats {
 	return &replicaStats{}
 }
 
-func (rs *replicaStats) heartbeatState() metapb.ResourceStats {
+func (rs *replicaStats) heartbeatState() metapb.ShardStats {
 	now := uint64(time.Now().Unix())
-	stats := metapb.ResourceStats{
+	stats := metapb.ShardStats{
 		WrittenBytes:    rs.writtenBytes,
 		WrittenKeys:     rs.writtenKeys,
 		ReadBytes:       rs.readBytes,

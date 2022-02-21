@@ -23,8 +23,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -39,12 +38,12 @@ func TestStateMachineAddLearner(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
-					ID:          100,
-					ContainerID: 200,
+					ID:      100,
+					StoreID: 200,
 				},
 			}))
 		batch.Header.ShardID = 1
@@ -63,7 +62,7 @@ func TestStateMachineAddLearner(t *testing.T) {
 		shard := sm.getShard()
 		require.Equal(t, 1, len(shard.Replicas))
 		assert.Equal(t, uint64(100), shard.Replicas[0].ID)
-		assert.Equal(t, uint64(200), shard.Replicas[0].ContainerID)
+		assert.Equal(t, uint64(200), shard.Replicas[0].StoreID)
 		assert.Equal(t, metapb.ReplicaRole_Learner, shard.Replicas[0].Role)
 	}
 	runSimpleStateMachineTest(t, f, h)
@@ -75,21 +74,21 @@ func TestStateMachinePromoteLeanerToVoter(t *testing.T) {
 		shard := Shard{
 			Replicas: []metapb.Replica{
 				{
-					ID:          100,
-					ContainerID: 200,
-					Role:        metapb.ReplicaRole_Learner,
+					ID:      100,
+					StoreID: 200,
+					Role:    metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 		sm.updateShard(shard)
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
-					ID:          100,
-					ContainerID: 200,
+					ID:      100,
+					StoreID: 200,
 				},
 			}))
 		batch.Header.ShardID = 1
@@ -108,7 +107,7 @@ func TestStateMachinePromoteLeanerToVoter(t *testing.T) {
 		shard = sm.getShard()
 		require.Equal(t, 1, len(shard.Replicas))
 		assert.Equal(t, uint64(100), shard.Replicas[0].ID)
-		assert.Equal(t, uint64(200), shard.Replicas[0].ContainerID)
+		assert.Equal(t, uint64(200), shard.Replicas[0].StoreID)
 		assert.Equal(t, metapb.ReplicaRole_Voter, shard.Replicas[0].Role)
 	}
 	runSimpleStateMachineTest(t, f, h)
@@ -120,17 +119,17 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 		shard := Shard{
 			Replicas: []metapb.Replica{
 				{
-					ID:          100,
-					ContainerID: 200,
-					Role:        role,
+					ID:      100,
+					StoreID: 200,
+					Role:    role,
 				},
 			},
 		}
 		sm.updateShard(shard)
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
 				Replica:    removeReplica,
 			}))
@@ -160,16 +159,16 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 
 func TestStateMachineRemoveNode(t *testing.T) {
 	testStateMachineRemoveNode(t, metapb.ReplicaRole_Learner, metapb.Replica{
-		ID:          100,
-		ContainerID: 200,
+		ID:      100,
+		StoreID: 200,
 	})
 	testStateMachineRemoveNode(t, metapb.ReplicaRole_Voter, metapb.Replica{
-		ID:          100,
-		ContainerID: 200,
+		ID:      100,
+		StoreID: 200,
 	})
 	testStateMachineRemoveNode(t, metapb.ReplicaRole_Voter, metapb.Replica{
-		ID:          1000,
-		ContainerID: 2000,
+		ID:      1000,
+		StoreID: 2000,
 	})
 }
 
@@ -197,29 +196,29 @@ func TestDoExecSplit(t *testing.T) {
 	}
 
 	// check split panic
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, protoc.MustMarshal(&rpc.BatchSplitRequest{}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check range not match
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, protoc.MustMarshal(&rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}}, {End: []byte{5}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}}, {End: []byte{5}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check key not in range
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, protoc.MustMarshal(&rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{20}}, {End: []byte{10}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{20}}, {End: []byte{10}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check range discontinuity
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, protoc.MustMarshal(&rpc.BatchSplitRequest{Requests: []rpc.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// s1 -> s2+s3
 	ctx.index = 100
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, protoc.MustMarshal(&rpc.BatchSplitRequest{
-		Requests: []rpc.SplitRequest{
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{
+		Requests: []rpcpb.SplitRequest{
 			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}},
 			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300}}},
 		},
@@ -254,12 +253,12 @@ func TestDoExecSplit(t *testing.T) {
 	metadata, err := pr.sm.dataStorage.GetInitialStates()
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(metadata))
-	assert.Equal(t, meta.ReplicaState_Normal, metadata[0].Metadata.State)
-	assert.Equal(t, metapb.ResourceState_Destroying, metadata[0].Metadata.Shard.State)
-	assert.Equal(t, meta.ReplicaState_Normal, metadata[1].Metadata.State)
+	assert.Equal(t, metapb.ReplicaState_Normal, metadata[0].Metadata.State)
+	assert.Equal(t, metapb.ShardState_Destroying, metadata[0].Metadata.Shard.State)
+	assert.Equal(t, metapb.ReplicaState_Normal, metadata[1].Metadata.State)
 	assert.Equal(t, []byte{1}, metadata[1].Metadata.Shard.Start)
 	assert.Equal(t, []byte{5}, metadata[1].Metadata.Shard.End)
-	assert.Equal(t, meta.ReplicaState_Normal, metadata[2].Metadata.State)
+	assert.Equal(t, metapb.ReplicaState_Normal, metadata[2].Metadata.State)
 	assert.Equal(t, []byte{5}, metadata[2].Metadata.Shard.Start)
 	assert.Equal(t, []byte{10}, metadata[2].Metadata.Shard.End)
 }
@@ -275,22 +274,22 @@ func (t *testDataStorage) CreateSnapshot(shardID uint64, path string) error { pa
 func (t *testDataStorage) ApplySnapshot(shardID uint64, path string) error  { panic("not implemented") }
 func (t *testDataStorage) Write(storage.WriteContext) error                 { panic("not implemented") }
 func (t *testDataStorage) Read(storage.ReadContext) ([]byte, error)         { panic("not implemented") }
-func (t *testDataStorage) GetInitialStates() ([]meta.ShardMetadata, error) {
+func (t *testDataStorage) GetInitialStates() ([]metapb.ShardMetadata, error) {
 	return nil, nil
 }
 func (t *testDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
 	return t.persistentLogIndex, nil
 }
-func (t *testDataStorage) SaveShardMetadata([]meta.ShardMetadata) error { panic("not implemented") }
-func (t *testDataStorage) RemoveShard(shard meta.Shard, removeData bool) error {
+func (t *testDataStorage) SaveShardMetadata([]metapb.ShardMetadata) error { panic("not implemented") }
+func (t *testDataStorage) RemoveShard(shard metapb.Shard, removeData bool) error {
 	panic("not implemented")
 }
 func (t *testDataStorage) Sync([]uint64) error { panic("not implemented") }
-func (t *testDataStorage) SplitCheck(shard meta.Shard, size uint64) (currentApproximateSize uint64,
+func (t *testDataStorage) SplitCheck(shard metapb.Shard, size uint64) (currentApproximateSize uint64,
 	currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error) {
 	panic("not implemented")
 }
-func (t *testDataStorage) Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error {
+func (t *testDataStorage) Split(old metapb.ShardMetadata, news []metapb.ShardMetadata, ctx []byte) error {
 	panic("not implemented")
 }
 
@@ -333,7 +332,7 @@ func TestDoExecCompactLog(t *testing.T) {
 	}, pr.sm.logdb.NewWorkerContext())
 	assert.NoError(t, err)
 
-	ctx.req = newTestAdminRequestBatch("", 0, rpc.AdminCmdType_CompactLog, protoc.MustMarshal(&rpc.CompactLogRequest{
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminCompactLog, protoc.MustMarshal(&rpcpb.CompactLogRequest{
 		CompactIndex: 4,
 	}))
 	ds := &testDataStorage{

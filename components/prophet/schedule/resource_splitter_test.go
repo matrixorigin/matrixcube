@@ -26,19 +26,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockSplitResourcesHandler struct {
+type mockSplitShardsHandler struct {
 	// resourceID -> startKey, endKey
 	resources map[uint64][2][]byte
 }
 
-func newMockSplitResourcesHandler() *mockSplitResourcesHandler {
-	return &mockSplitResourcesHandler{
+func newMockSplitShardsHandler() *mockSplitShardsHandler {
+	return &mockSplitShardsHandler{
 		resources: map[uint64][2][]byte{},
 	}
 }
 
-// SplitResourceByKeys mock SplitresourcesHandler
-func (m *mockSplitResourcesHandler) SplitResourceByKeys(resource *core.CachedResource, splitKeys [][]byte) error {
+// SplitShardByKeys mock SplitresourcesHandler
+func (m *mockSplitShardsHandler) SplitShardByKeys(resource *core.CachedShard, splitKeys [][]byte) error {
 	m.resources[resource.Meta.ID()] = [2][]byte{
 		resource.GetStartKey(),
 		resource.GetEndKey(),
@@ -47,7 +47,7 @@ func (m *mockSplitResourcesHandler) SplitResourceByKeys(resource *core.CachedRes
 }
 
 // WatchresourcesByKeyRange mock SplitresourcesHandler
-func (m *mockSplitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
+func (m *mockSplitShardsHandler) ScanShardsByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
 	splitKeys := groupKeys.keys
 	startKey, endKey := groupKeys.resource.GetStartKey(), groupKeys.resource.GetEndKey()
 	for resourceID, keyRange := range m.resources {
@@ -56,50 +56,50 @@ func (m *mockSplitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupK
 			for i := 0; i < len(splitKeys); i++ {
 				resources[resourceID+uint64(i)+1000] = splitKeys[i]
 			}
-			results.addResourcesID(resources)
+			results.addShardsID(resources)
 		}
 	}
 	groupKeys.finished = true
 }
 
-func TestResourceSplitter(t *testing.T) {
+func TestShardSplitter(t *testing.T) {
 	ctx := context.Background()
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
 	tc := mockcluster.NewCluster(opt)
-	handler := newMockSplitResourcesHandler()
-	tc.AddLeaderResourceWithRange(1, "eee", "hhh", 2, 3, 4)
-	splitter := NewResourceSplitter(tc, handler)
+	handler := newMockSplitShardsHandler()
+	tc.AddLeaderShardWithRange(1, "eee", "hhh", 2, 3, 4)
+	splitter := NewShardSplitter(tc, handler)
 	newresources := map[uint64]struct{}{}
 	// assert success
-	failureKeys := splitter.splitResourcesByKeys(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, newresources)
+	failureKeys := splitter.splitShardsByKeys(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, newresources)
 	assert.Empty(t, failureKeys)
 	assert.Equal(t, 2, len(newresources))
 
-	percentage, newresourcesID := splitter.SplitResources(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, 1)
+	percentage, newresourcesID := splitter.SplitShards(ctx, 0, [][]byte{[]byte("fff"), []byte("ggg")}, 1)
 	assert.Equal(t, 100, percentage)
 	assert.Equal(t, 2, len(newresourcesID))
 	// assert out of range
 	newresources = map[uint64]struct{}{}
-	failureKeys = splitter.splitResourcesByKeys(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, newresources)
+	failureKeys = splitter.splitShardsByKeys(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, newresources)
 	assert.Equal(t, len(failureKeys), 2)
 	assert.Empty(t, len(newresources))
 
-	percentage, newresourcesID = splitter.SplitResources(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, 1)
+	percentage, newresourcesID = splitter.SplitShards(ctx, 0, [][]byte{[]byte("aaa"), []byte("bbb")}, 1)
 	assert.Equal(t, 0, percentage)
 	assert.Empty(t, newresourcesID)
 }
 
-func TestGroupKeysByResource(t *testing.T) {
+func TestGroupKeysByShard(t *testing.T) {
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
 	tc := mockcluster.NewCluster(opt)
-	handler := newMockSplitResourcesHandler()
-	tc.AddLeaderResourceWithRange(1, "aaa", "ccc", 2, 3, 4)
-	tc.AddLeaderResourceWithRange(2, "ccc", "eee", 2, 3, 4)
-	tc.AddLeaderResourceWithRange(3, "fff", "ggg", 2, 3, 4)
-	splitter := NewResourceSplitter(tc, handler)
-	groupKeys := splitter.groupKeysByResource(0, [][]byte{
+	handler := newMockSplitShardsHandler()
+	tc.AddLeaderShardWithRange(1, "aaa", "ccc", 2, 3, 4)
+	tc.AddLeaderShardWithRange(2, "ccc", "eee", 2, 3, 4)
+	tc.AddLeaderShardWithRange(3, "fff", "ggg", 2, 3, 4)
+	splitter := NewShardSplitter(tc, handler)
+	groupKeys := splitter.groupKeysByShard(0, [][]byte{
 		[]byte("bbb"),
 		[]byte("ddd"),
 		[]byte("fff"),

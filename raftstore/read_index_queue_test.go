@@ -16,7 +16,7 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 )
@@ -34,7 +34,7 @@ func TestReadIndexQueueReset(t *testing.T) {
 
 func TestReadIndexQueueAppend(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
 	assert.Equal(t, 1, len(q.reads))
 	assert.Equal(t, 0, q.readyCount)
 	assert.Equal(t, 0, q.lastReadyIdx)
@@ -42,8 +42,8 @@ func TestReadIndexQueueAppend(t *testing.T) {
 
 func TestReadIndexQueueReadyWithOrder(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
 	assert.Equal(t, 2, len(q.reads))
 
 	q.ready(raft.ReadState{
@@ -65,8 +65,8 @@ func TestReadIndexQueueReadyWithOrder(t *testing.T) {
 
 func TestReadIndexQueueReadyWithDisorder(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
 	assert.Equal(t, 2, len(q.reads))
 
 	q.ready(raft.ReadState{
@@ -90,9 +90,9 @@ func TestReadIndexQueueRemoveLostWithNoLost(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
 	assert.False(t, q.removeLost())
 
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("3", "k2", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("3", "k2", 1, rpcpb.Write, 0, nil))
 	assert.False(t, q.removeLost())
 
 	q.ready(raft.ReadState{
@@ -117,9 +117,9 @@ func TestReadIndexQueueRemoveLostWithNoLost(t *testing.T) {
 func TestReadIndexQueueRemoveLostWithLost(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
 
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("3", "k2", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("3", "k2", 1, rpcpb.Write, 0, nil))
 	id1 := q.reads[1].batch.getRequestID()
 	id2 := q.reads[2].batch.getRequestID()
 
@@ -149,14 +149,14 @@ func TestReadIndexQueueProcessWithEmpty(t *testing.T) {
 
 func TestReadIndexQueueProcessWithNoReady(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
 	assert.False(t, q.process(1, nil))
 }
 
 func TestReadIndexQueueProcessWithReadyNotApplied(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
 	q.ready(raft.ReadState{
 		Index:      2,
 		RequestCtx: q.reads[0].batch.getRequestID(),
@@ -176,9 +176,9 @@ func TestReadIndexQueueProcessWithReadyNotApplied(t *testing.T) {
 
 func TestReadIndexQueueProcessWithReadyApplied(t *testing.T) {
 	q := newReadIndexQueue(1, nil)
-	q.append(newTestBatch("1", "k1", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("2", "k2", 1, rpc.CmdType_Write, 0, nil))
-	q.append(newTestBatch("3", "k3", 1, rpc.CmdType_Write, 0, nil))
+	q.append(newTestBatch("1", "k1", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("2", "k2", 1, rpcpb.Write, 0, nil))
+	q.append(newTestBatch("3", "k3", 1, rpcpb.Write, 0, nil))
 
 	q.ready(raft.ReadState{
 		Index:      1,
@@ -194,7 +194,7 @@ func TestReadIndexQueueProcessWithReadyApplied(t *testing.T) {
 	})
 
 	n := 0
-	assert.True(t, q.process(2, func(req rpc.Request) { n++ }))
+	assert.True(t, q.process(2, func(req rpcpb.Request) { n++ }))
 
 	assert.Equal(t, 2, n)
 	assert.Equal(t, 1, len(q.reads))

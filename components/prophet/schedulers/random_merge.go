@@ -107,8 +107,8 @@ func (s *randomMergeScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (s *randomMergeScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 
-	container := filter.NewCandidates(cluster.GetContainers()).
-		FilterSource(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: s.conf.Name, MoveResource: true}).
+	container := filter.NewCandidates(cluster.GetStores()).
+		FilterSource(cluster.GetOpts(), &filter.StoreStateFilter{ActionScope: s.conf.Name, MoveShard: true}).
 		RandomPick()
 	if container == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-source-container").Inc()
@@ -124,14 +124,14 @@ func (s *randomMergeScheduler) Schedule(cluster opt.Cluster) []*operator.Operato
 	return nil
 }
 
-func (s *randomMergeScheduler) scheduleByGroup(groupKey string, container *core.CachedContainer, cluster opt.Cluster) []*operator.Operator {
-	res := cluster.RandLeaderResource(groupKey, container.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
+func (s *randomMergeScheduler) scheduleByGroup(groupKey string, container *core.CachedStore, cluster opt.Cluster) []*operator.Operator {
+	res := cluster.RandLeaderShard(groupKey, container.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 		return nil
 	}
 
-	other, target := cluster.GetAdjacentResources(res)
+	other, target := cluster.GetAdjacentShards(res)
 	if !cluster.GetOpts().IsOneWayMergeEnabled() && ((rand.Int()%2 == 0 && other != nil) || target == nil) {
 		target = other
 	}
@@ -145,7 +145,7 @@ func (s *randomMergeScheduler) scheduleByGroup(groupKey string, container *core.
 		return nil
 	}
 
-	ops, err := operator.CreateMergeResourceOperator(RandomMergeType, cluster, res, target, operator.OpAdmin)
+	ops, err := operator.CreateMergeShardOperator(RandomMergeType, cluster, res, target, operator.OpAdmin)
 	if err != nil {
 		cluster.GetLogger().Error("fail to create merge resource operator",
 			randomMergeField,
@@ -156,14 +156,14 @@ func (s *randomMergeScheduler) scheduleByGroup(groupKey string, container *core.
 	return ops
 }
 
-func (s *randomMergeScheduler) allowMerge(cluster opt.Cluster, res, target *core.CachedResource) bool {
-	if !opt.IsResourceHealthy(cluster, res) || !opt.IsResourceHealthy(cluster, target) {
+func (s *randomMergeScheduler) allowMerge(cluster opt.Cluster, res, target *core.CachedShard) bool {
+	if !opt.IsShardHealthy(cluster, res) || !opt.IsShardHealthy(cluster, target) {
 		return false
 	}
-	if !opt.IsResourceReplicated(cluster, res) || !opt.IsResourceReplicated(cluster, target) {
+	if !opt.IsShardReplicated(cluster, res) || !opt.IsShardReplicated(cluster, target) {
 		return false
 	}
-	if cluster.IsResourceHot(res) || cluster.IsResourceHot(target) {
+	if cluster.IsShardHot(res) || cluster.IsShardHot(target) {
 		return false
 	}
 	return checker.AllowMerge(cluster, res, target)

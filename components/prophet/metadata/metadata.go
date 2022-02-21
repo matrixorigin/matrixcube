@@ -17,9 +17,9 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// Resource is an abstraction of data shard in a distributed system.
-// Each Resource has multiple replication and is distributed on different nodes.
-type Resource interface {
+// Shard is an abstraction of data shard in a distributed system.
+// Each Shard has multiple replication and is distributed on different nodes.
+type Shard interface {
 	// ID returns the resource id
 	ID() uint64
 	// SetID update the resource id
@@ -39,13 +39,13 @@ type Resource interface {
 	// SetEndKey set startKey
 	SetEndKey([]byte)
 	// Epoch returns resource epoch
-	Epoch() metapb.ResourceEpoch
+	Epoch() metapb.ShardEpoch
 	// SetEpoch set epoch
-	SetEpoch(metapb.ResourceEpoch)
+	SetEpoch(metapb.ShardEpoch)
 	// State resource state
-	State() metapb.ResourceState
+	State() metapb.ShardState
 	// SetState set resource state
-	SetState(metapb.ResourceState)
+	SetState(metapb.ShardState)
 	// Unique is identifier of the resources, used for dynamic create resources.
 	Unique() string
 	// SetUnique set Unique
@@ -63,16 +63,16 @@ type Resource interface {
 	// SetLabels set labels
 	SetLabels(labels []metapb.Pair)
 	// Clone returns the cloned value
-	Clone() Resource
+	Clone() Shard
 	// Marshal returns error if marshal failed
 	Marshal() ([]byte, error)
 	// Unmarshal returns error if unmarshal failed
 	Unmarshal(data []byte) error
 }
 
-// Container is an abstraction of the node in a distributed system.
+// Store is an abstraction of the node in a distributed system.
 // Usually a container has many resoruces
-type Container interface {
+type Store interface {
 	// SetAddrs set addrs
 	SetAddrs(addr, shardAddr string)
 	// Addr returns address that used for client request
@@ -100,9 +100,9 @@ type Container interface {
 	// SetDeployPath set deploy path
 	SetDeployPath(string)
 	// State returns the state of the container
-	State() metapb.ContainerState
+	State() metapb.StoreState
 	// SetState set state
-	SetState(metapb.ContainerState)
+	SetState(metapb.StoreState)
 	// The last heartbeat timestamp of the container.
 	LastHeartbeat() int64
 	//SetLastHeartbeat set the last heartbeat timestamp of the container.
@@ -114,7 +114,7 @@ type Container interface {
 	SetPhysicallyDestroyed(bool)
 
 	// Clone returns the cloned value
-	Clone() Container
+	Clone() Store
 	// Marshal returns error if marshal failed
 	Marshal() ([]byte, error)
 	// Unmarshal returns error if unmarshal failed

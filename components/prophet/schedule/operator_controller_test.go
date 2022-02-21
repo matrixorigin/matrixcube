@@ -57,14 +57,14 @@ func TestGetOpInfluence(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	oc := NewOperatorController(s.ctx, tc, nil)
-	tc.AddLeaderContainer(2, 1)
-	tc.AddLeaderResource(1, 1, 2)
-	tc.AddLeaderResource(2, 1, 2)
+	tc.AddLeaderStore(2, 1)
+	tc.AddLeaderShard(1, 1, 2)
+	tc.AddLeaderShard(2, 1, 2)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 2},
+		operator.RemovePeer{FromStore: 2},
 	}
-	op1 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	op2 := operator.NewOperator("test", "test", 2, metapb.ResourceEpoch{}, operator.OpResource, steps...)
+	op1 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	op2 := operator.NewOperator("test", "test", 2, metapb.ShardEpoch{}, operator.OpShard, steps...)
 	assert.True(t, op1.Start())
 	oc.SetOperator(op1)
 	assert.True(t, op2.Start())
@@ -103,18 +103,18 @@ func TestOperatorStatus(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 2)
-	tc.AddLeaderContainer(2, 0)
-	tc.AddLeaderResource(1, 1, 2)
-	tc.AddLeaderResource(2, 1, 2)
+	tc.AddLeaderStore(1, 2)
+	tc.AddLeaderStore(2, 0)
+	tc.AddLeaderShard(1, 1, 2)
+	tc.AddLeaderShard(2, 1, 2)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 2},
-		operator.AddPeer{ToContainer: 2, PeerID: 4},
+		operator.RemovePeer{FromStore: 2},
+		operator.AddPeer{ToStore: 2, PeerID: 4},
 	}
-	op1 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	op2 := operator.NewOperator("test", "test", 2, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	res1 := tc.GetResource(1)
-	res2 := tc.GetResource(2)
+	op1 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	op2 := operator.NewOperator("test", "test", 2, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	res1 := tc.GetShard(1)
+	res2 := tc.GetShard(2)
 	assert.True(t, op1.Start())
 	oc.SetOperator(op1)
 	assert.True(t, op2.Start())
@@ -123,7 +123,7 @@ func TestOperatorStatus(t *testing.T) {
 	assert.Equal(t, oc.GetOperatorStatus(2).Status, metapb.OperatorStatus_RUNNING)
 	operator.SetOperatorStatusReachTime(op1, operator.STARTED, time.Now().Add(-10*time.Minute))
 	res2 = ApplyOperatorStep(res2, op2)
-	tc.PutResource(res2)
+	tc.PutShard(res2)
 	oc.Dispatch(res1, "test")
 	oc.Dispatch(res2, "test")
 	assert.Equal(t, oc.GetOperatorStatus(1).Status, metapb.OperatorStatus_TIMEOUT)
@@ -142,16 +142,16 @@ func TestFastFailOperator(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 2)
-	tc.AddLeaderContainer(2, 0)
-	tc.AddLeaderContainer(3, 0)
-	tc.AddLeaderResource(1, 1, 2)
+	tc.AddLeaderStore(1, 2)
+	tc.AddLeaderStore(2, 0)
+	tc.AddLeaderStore(3, 0)
+	tc.AddLeaderShard(1, 1, 2)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 2},
-		operator.AddPeer{ToContainer: 3, PeerID: 4},
+		operator.RemovePeer{FromStore: 2},
+		operator.AddPeer{ToStore: 3, PeerID: 4},
 	}
-	op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	res := tc.GetResource(1)
+	op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	res := tc.GetShard(1)
 	assert.True(t, op.Start())
 	oc.SetOperator(op)
 	oc.Dispatch(res, "test")
@@ -164,7 +164,7 @@ func TestFastFailOperator(t *testing.T) {
 	assert.Nil(t, oc.GetOperator(res.Meta.ID()))
 
 	// transfer leader to an illegal container.
-	op = operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 5})
+	op = operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 5})
 	oc.SetOperator(op)
 	oc.Dispatch(res, DispatchFromHeartBeat)
 	assert.Equal(t, operator.CANCELED, op.Status())
@@ -180,18 +180,18 @@ func TestCheckAddUnexpectedStatus(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 0)
-	tc.AddLeaderContainer(2, 1)
-	tc.AddLeaderResource(1, 2, 1)
-	tc.AddLeaderResource(2, 2, 1)
-	res1 := tc.GetResource(1)
+	tc.AddLeaderStore(1, 0)
+	tc.AddLeaderStore(2, 1)
+	tc.AddLeaderShard(1, 2, 1)
+	tc.AddLeaderShard(2, 2, 1)
+	res1 := tc.GetShard(1)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 1},
-		operator.AddPeer{ToContainer: 1, PeerID: 4},
+		operator.RemovePeer{FromStore: 1},
+		operator.AddPeer{ToStore: 1, PeerID: 4},
 	}
 	{
 		// finished op
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
 		assert.True(t, oc.checkAddOperator(op))
 		op.Start()
 		assert.False(t, oc.checkAddOperator(op)) // started
@@ -201,14 +201,14 @@ func TestCheckAddUnexpectedStatus(t *testing.T) {
 	}
 	{
 		// finished op canceled
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
 		assert.True(t, oc.checkAddOperator(op))
 		assert.True(t, op.Cancel())
 		assert.False(t, oc.checkAddOperator(op))
 	}
 	{
 		// finished op replaced
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
 		assert.True(t, oc.checkAddOperator(op))
 		assert.True(t, op.Start())
 		assert.True(t, op.Replace())
@@ -216,8 +216,8 @@ func TestCheckAddUnexpectedStatus(t *testing.T) {
 	}
 	{
 		// finished op expired
-		op1 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
-		op2 := operator.NewOperator("test", "test", 2, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 1})
+		op1 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
+		op2 := operator.NewOperator("test", "test", 2, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 1})
 		assert.True(t, oc.checkAddOperator(op1, op2))
 		operator.SetOperatorStatusReachTime(op1, operator.CREATED, time.Now().Add(-operator.OperatorExpireTime))
 		operator.SetOperatorStatusReachTime(op2, operator.CREATED, time.Now().Add(-operator.OperatorExpireTime))
@@ -229,7 +229,7 @@ func TestCheckAddUnexpectedStatus(t *testing.T) {
 
 	{
 		// unfinished op timeout
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, steps...)
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, steps...)
 		assert.True(t, oc.checkAddOperator(op))
 		op.Start()
 		operator.SetOperatorStatusReachTime(op, operator.STARTED, time.Now().Add(-operator.SlowOperatorWaitTime))
@@ -248,18 +248,18 @@ func TestConcurrentRemoveOperator(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 0)
-	tc.AddLeaderContainer(2, 1)
-	tc.AddLeaderResource(1, 2, 1)
-	res1 := tc.GetResource(1)
+	tc.AddLeaderStore(1, 0)
+	tc.AddLeaderStore(2, 1)
+	tc.AddLeaderShard(1, 2, 1)
+	res1 := tc.GetShard(1)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 1},
-		operator.AddPeer{ToContainer: 1, PeerID: 4},
+		operator.RemovePeer{FromStore: 1},
+		operator.AddPeer{ToStore: 1, PeerID: 4},
 	}
 	// finished op with normal priority
-	op1 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
+	op1 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
 	// unfinished op with high priority
-	op2 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource|operator.OpAdmin, steps...)
+	op2 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard|operator.OpAdmin, steps...)
 
 	assert.True(t, op1.Start())
 	oc.SetOperator(op1)
@@ -282,7 +282,7 @@ func TestConcurrentRemoveOperator(t *testing.T) {
 	assert.Equal(t, op2, oc.GetOperator(1))
 }
 
-func TestPollDispatchResource(t *testing.T) {
+func TestPollDispatchShard(t *testing.T) {
 	s := &testOperatorController{}
 	s.setup(t)
 	defer s.tearDown()
@@ -291,22 +291,22 @@ func TestPollDispatchResource(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 2)
-	tc.AddLeaderContainer(2, 1)
-	tc.AddLeaderResource(1, 1, 2)
-	tc.AddLeaderResource(2, 1, 2)
-	tc.AddLeaderResource(4, 2, 1)
+	tc.AddLeaderStore(1, 2)
+	tc.AddLeaderStore(2, 1)
+	tc.AddLeaderShard(1, 1, 2)
+	tc.AddLeaderShard(2, 1, 2)
+	tc.AddLeaderShard(4, 2, 1)
 	steps := []operator.OpStep{
-		operator.RemovePeer{FromContainer: 2},
-		operator.AddPeer{ToContainer: 2, PeerID: 4},
+		operator.RemovePeer{FromStore: 2},
+		operator.AddPeer{ToStore: 2, PeerID: 4},
 	}
-	op1 := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
-	op2 := operator.NewOperator("test", "test", 2, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	op3 := operator.NewOperator("test", "test", 3, metapb.ResourceEpoch{}, operator.OpResource, steps...)
-	op4 := operator.NewOperator("test", "test", 4, metapb.ResourceEpoch{}, operator.OpResource, operator.TransferLeader{ToContainer: 2})
-	res1 := tc.GetResource(1)
-	res2 := tc.GetResource(2)
-	res4 := tc.GetResource(4)
+	op1 := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
+	op2 := operator.NewOperator("test", "test", 2, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	op3 := operator.NewOperator("test", "test", 3, metapb.ShardEpoch{}, operator.OpShard, steps...)
+	op4 := operator.NewOperator("test", "test", 4, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 2})
+	res1 := tc.GetShard(1)
+	res2 := tc.GetShard(2)
+	res4 := tc.GetShard(4)
 	// Adds operator and pushes to the notifier queue.
 	{
 		assert.True(t, op1.Start())
@@ -323,42 +323,42 @@ func TestPollDispatchResource(t *testing.T) {
 		heap.Push(&oc.opNotifierQueue, &operatorWithTime{op: op2, time: time.Now().Add(500 * time.Millisecond)})
 	}
 	// first poll got nil
-	r, next := oc.pollNeedDispatchResource()
+	r, next := oc.pollNeedDispatchShard()
 	assert.Nil(t, r)
 	assert.False(t, next)
 
 	// after wait 100 millisecond, the resource1 need to dispatch, but not resource2.
 	time.Sleep(100 * time.Millisecond)
-	r, next = oc.pollNeedDispatchResource()
+	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
 	assert.Equal(t, res1.Meta.ID(), r.Meta.ID())
 
 	// find op3 with nil resource, remove it
 	assert.NotNil(t, oc.GetOperator(3))
-	r, next = oc.pollNeedDispatchResource()
+	r, next = oc.pollNeedDispatchShard()
 	assert.Nil(t, r)
 	assert.True(t, next)
 	assert.Nil(t, oc.GetOperator(3))
 
 	// find op4 finished
-	r, next = oc.pollNeedDispatchResource()
+	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
 	assert.Equal(t, res4.Meta.ID(), r.Meta.ID())
 
 	// after waiting 500 milliseconds, the resource2 need to dispatch
 	time.Sleep(400 * time.Millisecond)
-	r, next = oc.pollNeedDispatchResource()
+	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
 	assert.Equal(t, res2.Meta.ID(), r.Meta.ID())
-	r, next = oc.pollNeedDispatchResource()
+	r, next = oc.pollNeedDispatchShard()
 	assert.Nil(t, r)
 	assert.False(t, next)
 }
 
-func TestContainerLimit(t *testing.T) {
+func TestStoreLimit(t *testing.T) {
 	s := &testOperatorController{}
 	s.setup(t)
 	defer s.tearDown()
@@ -367,64 +367,64 @@ func TestContainerLimit(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := NewOperatorController(s.ctx, tc, stream)
-	tc.AddLeaderContainer(1, 0)
+	tc.AddLeaderStore(1, 0)
 	tc.UpdateLeaderCount(1, 1000)
-	tc.AddLeaderContainer(2, 0)
+	tc.AddLeaderStore(2, 0)
 	for i := uint64(1); i <= 1000; i++ {
-		tc.AddLeaderResource(i, i)
+		tc.AddLeaderShard(i, i)
 		// make it small resource
-		tc.PutResource(tc.GetResource(i).Clone(core.SetApproximateSize(10)))
+		tc.PutShard(tc.GetShard(i).Clone(core.SetApproximateSize(10)))
 	}
 
-	tc.SetContainerLimit(2, limit.AddPeer, 60)
+	tc.SetStoreLimit(2, limit.AddPeer, 60)
 	for i := uint64(1); i <= 5; i++ {
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: i})
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: i})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: 1})
+	op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: 1})
 	assert.False(t, oc.AddOperator(op))
 	assert.False(t, oc.RemoveOperator(op, ""))
 
-	tc.SetContainerLimit(2, limit.AddPeer, 120)
+	tc.SetStoreLimit(2, limit.AddPeer, 120)
 	for i := uint64(1); i <= 10; i++ {
-		op = operator.NewOperator("test", "test", i, metapb.ResourceEpoch{}, operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: i})
+		op = operator.NewOperator("test", "test", i, metapb.ShardEpoch{}, operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: i})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	tc.SetAllContainersLimit(limit.AddPeer, 60)
+	tc.SetAllStoresLimit(limit.AddPeer, 60)
 	for i := uint64(1); i <= 5; i++ {
-		op = operator.NewOperator("test", "test", i, metapb.ResourceEpoch{}, operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: i})
+		op = operator.NewOperator("test", "test", i, metapb.ShardEpoch{}, operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: i})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	op = operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: 1})
+	op = operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: 1})
 	assert.False(t, oc.AddOperator(op))
 	assert.False(t, oc.RemoveOperator(op, ""))
 
-	tc.SetContainerLimit(2, limit.RemovePeer, 60)
+	tc.SetStoreLimit(2, limit.RemovePeer, 60)
 	for i := uint64(1); i <= 5; i++ {
-		op := operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.RemovePeer{FromContainer: 2})
+		op := operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.RemovePeer{FromStore: 2})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	op = operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.RemovePeer{FromContainer: 2})
+	op = operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.RemovePeer{FromStore: 2})
 	assert.False(t, oc.AddOperator(op))
 	assert.False(t, oc.RemoveOperator(op, ""))
 
-	tc.SetContainerLimit(2, limit.RemovePeer, 120)
+	tc.SetStoreLimit(2, limit.RemovePeer, 120)
 	for i := uint64(1); i <= 10; i++ {
-		op = operator.NewOperator("test", "test", i, metapb.ResourceEpoch{}, operator.OpResource, operator.RemovePeer{FromContainer: 2})
+		op = operator.NewOperator("test", "test", i, metapb.ShardEpoch{}, operator.OpShard, operator.RemovePeer{FromStore: 2})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	tc.SetAllContainersLimit(limit.RemovePeer, 60)
+	tc.SetAllStoresLimit(limit.RemovePeer, 60)
 	for i := uint64(1); i <= 5; i++ {
-		op = operator.NewOperator("test", "test", i, metapb.ResourceEpoch{}, operator.OpResource, operator.RemovePeer{FromContainer: 2})
+		op = operator.NewOperator("test", "test", i, metapb.ShardEpoch{}, operator.OpShard, operator.RemovePeer{FromStore: 2})
 		assert.True(t, oc.AddOperator(op))
 		checkRemoveOperatorSuccess(t, oc, op)
 	}
-	op = operator.NewOperator("test", "test", 1, metapb.ResourceEpoch{}, operator.OpResource, operator.RemovePeer{FromContainer: 2})
+	op = operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.RemovePeer{FromStore: 2})
 	assert.False(t, oc.AddOperator(op))
 	assert.False(t, oc.RemoveOperator(op, ""))
 }
@@ -439,32 +439,32 @@ func TestDispatchOutdatedresource(t *testing.T) {
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */, nil)
 	controller := NewOperatorController(s.ctx, cluster, stream)
 
-	cluster.AddLeaderContainer(1, 2)
-	cluster.AddLeaderContainer(2, 0)
-	cluster.SetAllContainersLimit(limit.RemovePeer, 600)
-	cluster.AddLeaderResource(1, 1, 2)
+	cluster.AddLeaderStore(1, 2)
+	cluster.AddLeaderStore(2, 0)
+	cluster.SetAllStoresLimit(limit.RemovePeer, 600)
+	cluster.AddLeaderShard(1, 1, 2)
 	steps := []operator.OpStep{
-		operator.TransferLeader{FromContainer: 1, ToContainer: 2},
-		operator.RemovePeer{FromContainer: 1},
+		operator.TransferLeader{FromStore: 1, ToStore: 2},
+		operator.RemovePeer{FromStore: 1},
 	}
 
 	op := operator.NewOperator("test", "test", 1,
-		metapb.ResourceEpoch{ConfVer: 0, Version: 0},
-		operator.OpResource, steps...)
+		metapb.ShardEpoch{ConfVer: 0, Version: 0},
+		operator.OpShard, steps...)
 	assert.True(t, controller.AddOperator(op))
 	assert.Equal(t, 1, stream.MsgLength())
 
 	// report the result of transferring leader
-	resource := cluster.MockCachedResource(1, 2, []uint64{1, 2}, []uint64{},
-		metapb.ResourceEpoch{ConfVer: 0, Version: 0})
+	resource := cluster.MockCachedShard(1, 2, []uint64{1, 2}, []uint64{},
+		metapb.ShardEpoch{ConfVer: 0, Version: 0})
 
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
 	assert.Equal(t, 2, stream.MsgLength())
 
 	// report the result of removing peer
-	resource = cluster.MockCachedResource(1, 2, []uint64{2}, []uint64{},
-		metapb.ResourceEpoch{ConfVer: 0, Version: 0})
+	resource = cluster.MockCachedShard(1, 2, []uint64{2}, []uint64{},
+		metapb.ShardEpoch{ConfVer: 0, Version: 0})
 
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(1), op.ConfVerChanged(resource))
@@ -472,15 +472,15 @@ func TestDispatchOutdatedresource(t *testing.T) {
 
 	// add and dispatch op again, the op should be stale
 	op = operator.NewOperator("test", "test", 1,
-		metapb.ResourceEpoch{ConfVer: 0, Version: 0},
-		operator.OpResource, steps...)
+		metapb.ShardEpoch{ConfVer: 0, Version: 0},
+		operator.OpShard, steps...)
 	assert.True(t, controller.AddOperator(op))
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
 	assert.Equal(t, 3, stream.MsgLength())
 
 	// report resource with an abnormal confver
-	resource = cluster.MockCachedResource(1, 1, []uint64{1, 2}, []uint64{},
-		metapb.ResourceEpoch{ConfVer: 1, Version: 0})
+	resource = cluster.MockCachedShard(1, 1, []uint64{1, 2}, []uint64{},
+		metapb.ShardEpoch{ConfVer: 1, Version: 0})
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
 	// no new step
@@ -498,35 +498,35 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 
 	// Create a new resource with epoch(0, 0)
 	// the resource has two peers with its peer id allocated incrementally.
-	// so the two peers are {peerID: 1, ContainerID:  1}, {peerID: 2, ContainerID:  2}
+	// so the two peers are {peerID: 1, StoreID:  1}, {peerID: 2, StoreID:  2}
 	// The peer on container 1 is the leader
-	epoch := metapb.ResourceEpoch{ConfVer: 0, Version: 0}
-	resource := cluster.MockCachedResource(1, 1, []uint64{2}, []uint64{}, epoch)
+	epoch := metapb.ShardEpoch{ConfVer: 0, Version: 0}
+	resource := cluster.MockCachedShard(1, 1, []uint64{2}, []uint64{}, epoch)
 	// Put resource into cluster, otherwise, AddOperator will fail because of
 	// missing resource
-	cluster.PutResource(resource)
+	cluster.PutShard(resource)
 
 	// The next allocated peer should have peerid 3, so we add this peer
 	// to container 3
 	testSteps := [][]operator.OpStep{
 		{
-			operator.AddLearner{ToContainer: 3, PeerID: 3},
-			operator.PromoteLearner{ToContainer: 3, PeerID: 3},
-			operator.TransferLeader{ToContainer: 3},
-			operator.RemovePeer{FromContainer: 1},
+			operator.AddLearner{ToStore: 3, PeerID: 3},
+			operator.PromoteLearner{ToStore: 3, PeerID: 3},
+			operator.TransferLeader{ToStore: 3},
+			operator.RemovePeer{FromStore: 1},
 		},
 		{
-			operator.AddLightLearner{ToContainer: 3, PeerID: 3},
-			operator.PromoteLearner{ToContainer: 3, PeerID: 3},
-			operator.TransferLeader{ToContainer: 3},
-			operator.RemovePeer{FromContainer: 1},
+			operator.AddLightLearner{ToStore: 3, PeerID: 3},
+			operator.PromoteLearner{ToStore: 3, PeerID: 3},
+			operator.TransferLeader{ToStore: 3},
+			operator.RemovePeer{FromStore: 1},
 		},
 	}
 
 	for _, steps := range testSteps {
 		// Create an operator
 		op := operator.NewOperator("test", "test", 1, epoch,
-			operator.OpResource, steps...)
+			operator.OpShard, steps...)
 		assert.True(t, controller.AddOperator(op))
 		assert.Equal(t, 1, stream.MsgLength())
 
@@ -534,9 +534,9 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 		// resource2 has peer 2 in pending state, so the AddPeer step
 		// is left unfinished
 		resource2 := resource.Clone(
-			core.WithAddPeer(metapb.Replica{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}),
+			core.WithAddPeer(metapb.Replica{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner}),
 			core.WithPendingPeers([]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 			}),
 			core.WithIncConfVer(),
 		)
@@ -556,7 +556,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 
 		// Finish the step by clearing the pending state
 		resource3 := resource.Clone(
-			core.WithAddPeer(metapb.Replica{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner}),
+			core.WithAddPeer(metapb.Replica{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner}),
 			core.WithIncConfVer(),
 		)
 		assert.True(t, steps[0].IsFinish(resource3))
@@ -574,7 +574,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 		assert.Equal(t, 3, stream.MsgLength())
 
 		// Transfer leader
-		p, _ := resource4.GetContainerPeer(3)
+		p, _ := resource4.GetStorePeer(3)
 		resource5 := resource4.Clone(
 			core.WithLeader(&p),
 		)
@@ -585,7 +585,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 
 		// Remove peer
 		resource6 := resource5.Clone(
-			core.WithRemoveContainerPeer(1),
+			core.WithRemoveStorePeer(1),
 			core.WithIncConfVer(),
 		)
 		assert.True(t, steps[3].IsFinish(resource6))
@@ -600,17 +600,17 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 	}
 }
 
-func TestContainerLimitWithMerge(t *testing.T) {
+func TestStoreLimitWithMerge(t *testing.T) {
 	s := &testOperatorController{}
 	s.setup(t)
 	defer s.tearDown()
 
 	cfg := config.NewTestOptions()
 	tc := mockcluster.NewCluster(cfg)
-	tc.SetMaxMergeResourceSize(2)
-	tc.SetMaxMergeResourceKeys(2)
+	tc.SetMaxMergeShardSize(2)
+	tc.SetMaxMergeShardKeys(2)
 	tc.SetSplitMergeInterval(0)
-	resources := []*core.CachedResource{
+	resources := []*core.CachedShard{
 		newresourceInfo(1, "", "a", 1, 1, []uint64{101, 1}, []uint64{101, 1}, []uint64{102, 2}),
 		newresourceInfo(2, "a", "t", 200, 200, []uint64{104, 4}, []uint64{103, 1}, []uint64{104, 4}, []uint64{105, 5}),
 		newresourceInfo(3, "t", "x", 1, 1, []uint64{108, 6}, []uint64{106, 2}, []uint64{107, 5}, []uint64{108, 6}),
@@ -618,11 +618,11 @@ func TestContainerLimitWithMerge(t *testing.T) {
 	}
 
 	for i := uint64(1); i <= 6; i++ {
-		tc.AddLeaderContainer(i, 10)
+		tc.AddLeaderStore(i, 10)
 	}
 
 	for _, resource := range resources {
-		tc.PutResource(resource)
+		tc.PutShard(resource)
 	}
 
 	mc := checker.NewMergeChecker(s.ctx, tc)
@@ -631,13 +631,13 @@ func TestContainerLimitWithMerge(t *testing.T) {
 
 	resources[2] = resources[2].Clone(
 		core.SetPeers([]metapb.Replica{
-			{ID: 109, ContainerID: 2},
-			{ID: 110, ContainerID: 3},
-			{ID: 111, ContainerID: 6},
+			{ID: 109, StoreID: 2},
+			{ID: 110, StoreID: 3},
+			{ID: 111, StoreID: 6},
 		}),
-		core.WithLeader(&metapb.Replica{ID: 109, ContainerID: 2}),
+		core.WithLeader(&metapb.Replica{ID: 109, StoreID: 2}),
 	)
-	tc.PutResource(resources[2])
+	tc.PutShard(resources[2])
 	// The size of resource is less or equal than 1MB.
 	for i := 0; i < 50; i++ {
 		ops := mc.Check(resources[2])
@@ -651,7 +651,7 @@ func TestContainerLimitWithMerge(t *testing.T) {
 		core.SetApproximateSize(2),
 		core.SetApproximateKeys(2),
 	)
-	tc.PutResource(resources[2])
+	tc.PutShard(resources[2])
 	// The size of resource is more than 1MB but no more than 20MB.
 	for i := 0; i < 5; i++ {
 		ops := mc.Check(resources[2])
@@ -676,16 +676,16 @@ func TestAddWaitingOperator(t *testing.T) {
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, cluster.ID, cluster, false /* no need to run */, nil)
 	controller := NewOperatorController(s.ctx, cluster, stream)
-	cluster.AddLabelsContainer(1, 1, map[string]string{"host": "host1"})
-	cluster.AddLabelsContainer(2, 1, map[string]string{"host": "host2"})
-	cluster.AddLabelsContainer(3, 1, map[string]string{"host": "host3"})
+	cluster.AddLabelsStore(1, 1, map[string]string{"host": "host1"})
+	cluster.AddLabelsStore(2, 1, map[string]string{"host": "host2"})
+	cluster.AddLabelsStore(3, 1, map[string]string{"host": "host3"})
 	addPeerOp := func(i uint64) *operator.Operator {
 		start := fmt.Sprintf("%da", i)
 		end := fmt.Sprintf("%db", i)
 		resource := newresourceInfo(i, start, end, 1, 1, []uint64{101, 1}, []uint64{101, 1})
-		cluster.PutResource(resource)
+		cluster.PutShard(resource)
 		peer := metapb.Replica{
-			ContainerID: 2,
+			StoreID: 2,
 		}
 		op, err := operator.CreateAddPeerOperator("add-peer", cluster, resource, peer, operator.OpKind(0))
 		assert.NoError(t, err)
@@ -705,7 +705,7 @@ func TestAddWaitingOperator(t *testing.T) {
 	target := newresourceInfo(0, "0a", "0b", 1, 1, []uint64{101, 1}, []uint64{101, 1})
 	// now there is one operator being allowed to add, if it is a merge operator
 	// both of the pair are allowed
-	ops, err := operator.CreateMergeResourceOperator("merge-resource", cluster, source, target, operator.OpMerge)
+	ops, err := operator.CreateMergeShardOperator("merge-resource", cluster, source, target, operator.OpMerge)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(ops))
 	assert.Equal(t, 2, controller.AddWaitingOperator(ops...))
@@ -717,22 +717,22 @@ func TestAddWaitingOperator(t *testing.T) {
 func checkRemoveOperatorSuccess(t *testing.T, oc *OperatorController, op *operator.Operator) {
 	assert.True(t, oc.RemoveOperator(op, ""))
 	assert.True(t, op.IsEnd())
-	assert.True(t, reflect.DeepEqual(op, oc.GetOperatorStatus(op.ResourceID()).Op))
+	assert.True(t, reflect.DeepEqual(op, oc.GetOperatorStatus(op.ShardID()).Op))
 }
 
-func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leader []uint64, peers ...[]uint64) *core.CachedResource {
+func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leader []uint64, peers ...[]uint64) *core.CachedShard {
 	prs := make([]metapb.Replica, 0, len(peers))
 	for _, peer := range peers {
-		prs = append(prs, metapb.Replica{ID: peer[0], ContainerID: peer[1]})
+		prs = append(prs, metapb.Replica{ID: peer[0], StoreID: peer[1]})
 	}
-	return core.NewCachedResource(
-		&metadata.TestResource{
+	return core.NewCachedShard(
+		&metadata.TestShard{
 			ResID:    id,
 			Start:    []byte(startKey),
 			End:      []byte(endKey),
 			ResPeers: prs,
 		},
-		&metapb.Replica{ID: leader[0], ContainerID: leader[1]},
+		&metapb.Replica{ID: leader[0], StoreID: leader[1]},
 		core.SetApproximateSize(size),
 		core.SetApproximateKeys(keys),
 	)

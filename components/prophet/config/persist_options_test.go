@@ -12,7 +12,7 @@ import (
 func TestIssue85(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Adjust(nil, false)
-	cfg.ResourceStateChangedHandler = func(res metadata.Resource, from, to metapb.ResourceState) {}
+	cfg.ShardStateChangedHandler = func(res metadata.Shard, from, to metapb.ShardState) {}
 
 	pc := NewPersistOptions(cfg, nil)
 	s := storage.NewTestStorage()

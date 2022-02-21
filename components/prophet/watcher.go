@@ -107,7 +107,7 @@ func (w *watcher) resetConn() error {
 	}
 	w.logger.Info("connect to leader succeed",
 		zap.String("leader-address", leader))
-	return w.conn.WriteAndFlush(&rpcpb.Request{
+	return w.conn.WriteAndFlush(&rpcpb.ProphetRequest{
 		Type: rpcpb.TypeCreateWatcherReq,
 		CreateWatcher: rpcpb.CreateWatcherReq{
 			Flag: w.flag,
@@ -126,7 +126,7 @@ func (w *watcher) startReadLoop() {
 			return
 		}
 
-		resp := data.(*rpcpb.Response)
+		resp := data.(*rpcpb.ProphetResponse)
 		if resp.Error != "" {
 			w.logger.Error("error response",
 				zap.String("error", resp.Error))

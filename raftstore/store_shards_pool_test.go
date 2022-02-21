@@ -24,9 +24,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockjob"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,7 +38,7 @@ func TestNewDynamicShardsPool(t *testing.T) {
 
 	cfg := s.GetConfig()
 	p := newDynamicShardsPool(cfg, nil)
-	assert.Equal(t, p, cfg.Prophet.GetJobProcessor(metapb.JobType_CreateResourcePool))
+	assert.Equal(t, p, cfg.Prophet.GetJobProcessor(metapb.JobType_CreateShardPool))
 }
 
 func TestSetProphetClient(t *testing.T) {
@@ -82,7 +81,7 @@ func TestAlloc(t *testing.T) {
 			return nil, nil
 		}
 
-		return protoc.MustMarshal(&meta.AllocatedShard{ShardID: 1}), nil
+		return protoc.MustMarshal(&metapb.AllocatedShard{ShardID: 1}), nil
 	})
 
 	s, cancel := newTestStore(t)
@@ -94,12 +93,12 @@ func TestAlloc(t *testing.T) {
 
 	v, err := p.Alloc(0, nil)
 	assert.Error(t, err)
-	assert.Equal(t, meta.AllocatedShard{}, v)
+	assert.Equal(t, metapb.AllocatedShard{}, v)
 	assert.Equal(t, 2, c)
 
 	v, err = p.Alloc(0, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, meta.AllocatedShard{ShardID: 1}, v)
+	assert.Equal(t, metapb.AllocatedShard{ShardID: 1}, v)
 	assert.Equal(t, 3, c)
 }
 
@@ -111,7 +110,7 @@ func TestUnique(t *testing.T) {
 
 	cfg := s.GetConfig()
 	p := newDynamicShardsPool(cfg, nil)
-	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.job = metapb.Job{Type: metapb.JobType_CreateShardPool}
 	assert.Equal(t, "1-0-1", p.unique(0, 1))
 }
 
@@ -133,7 +132,7 @@ func TestGCAllocating(t *testing.T) {
 
 	cfg := s.GetConfig()
 	p := newDynamicShardsPool(cfg, nil)
-	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.job = metapb.Job{Type: metapb.JobType_CreateShardPool}
 
 	ss := storage.NewTestStorage()
 	p.gcAllocating(ss, nil)
@@ -142,19 +141,19 @@ func TestGCAllocating(t *testing.T) {
 	assert.Empty(t, v)
 
 	p.mu.state = 1
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[1] = &meta.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[1] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
 	p.gcAllocating(ss, nil)
 	v, err = ss.GetJobData(p.job)
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 
-	aware := mockjob.NewMockResourcesAware(ctrl)
-	aware.EXPECT().GetResource(gomock.Eq(uint64(1))).Return(core.NewCachedResource(newResourceAdapter(), nil))
-	aware.EXPECT().GetResource(gomock.Eq(uint64(2))).Return(core.NewCachedResource(newResourceAdapter(), nil, core.SetWrittenKeys(1)))
+	aware := mockjob.NewMockShardsAware(ctrl)
+	aware.EXPECT().GetShard(gomock.Eq(uint64(1))).Return(core.NewCachedShard(newShardAdapter(), nil))
+	aware.EXPECT().GetShard(gomock.Eq(uint64(2))).Return(core.NewCachedShard(newShardAdapter(), nil, core.SetWrittenKeys(1)))
 	p.mu.state = 1
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[1] = &meta.ShardPool{Capacity: 2, Seq: 2, AllocatedOffset: 2, AllocatedShards: []*meta.AllocatedShard{
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[1] = &metapb.ShardPool{Capacity: 2, Seq: 2, AllocatedOffset: 2, AllocatedShards: []*metapb.AllocatedShard{
 		{
 			ShardID:     1,
 			AllocatedAt: 1,
@@ -184,13 +183,13 @@ func TestMaybeCreate(t *testing.T) {
 
 	cfg := s.GetConfig()
 	p := newDynamicShardsPool(cfg, nil)
-	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.job = metapb.Job{Type: metapb.JobType_CreateShardPool}
 
 	c := 0
 	ok := false
 	client := mockclient.NewMockClient(ctrl)
 	p.setProphetClient(client)
-	client.EXPECT().AsyncAddResources(gomock.Any()).AnyTimes().DoAndReturn(func(resources ...interface{}) error {
+	client.EXPECT().AsyncAddShards(gomock.Any()).AnyTimes().DoAndReturn(func(resources ...interface{}) error {
 		if !ok {
 			return errors.New("error")
 		}
@@ -206,8 +205,8 @@ func TestMaybeCreate(t *testing.T) {
 
 	p.mu.state = 1
 	p.mu.createC = make(chan struct{}, 10)
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: uint64(batchCreateCount)}
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: uint64(batchCreateCount)}
 
 	// pd return error
 	ok = false
@@ -232,62 +231,62 @@ func TestDoAllocLocked(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	aware := mockjob.NewMockResourcesAware(ctrl)
+	aware := mockjob.NewMockShardsAware(ctrl)
 	ss := storage.NewTestStorage()
 	s, cancel := newTestStore(t)
 	defer cancel()
 
 	cfg := s.GetConfig()
 	p := newDynamicShardsPool(cfg, nil)
-	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.job = metapb.Job{Type: metapb.JobType_CreateShardPool}
 	p.mu.state = 1
 	p.mu.createC = make(chan struct{}, 10)
 
 	// allocate retry again
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
-	v, err := p.doAllocLocked(&meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
+	v, err := p.doAllocLocked(&metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	assert.Equal(t, 1, len(p.mu.createC))
 
 	// already allocated
 	p.mu.createC = make(chan struct{}, 10)
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 1, AllocatedShards: []*meta.AllocatedShard{
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 1, AllocatedShards: []*metapb.AllocatedShard{
 		{
 			ShardID:     1,
 			AllocatedAt: 1,
 			Purpose:     []byte("p1"),
 		},
 	}}
-	v, err = p.doAllocLocked(&meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
+	v, err = p.doAllocLocked(&metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, v)
 	assert.Equal(t, 1, len(p.mu.createC))
 
 	// pd has no corresponding data
-	aware = mockjob.NewMockResourcesAware(ctrl)
-	aware.EXPECT().ForeachResources(gomock.Any(), gomock.Any()).DoAndReturn(func(group uint64, fn func(res metadata.Resource)) {})
-	aware.EXPECT().ForeachWaittingCreateResources(gomock.Any()).DoAndReturn(func(fn func(res metadata.Resource)) {})
+	aware = mockjob.NewMockShardsAware(ctrl)
+	aware.EXPECT().ForeachShards(gomock.Any(), gomock.Any()).DoAndReturn(func(group uint64, fn func(res metadata.Shard)) {})
+	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res metadata.Shard)) {})
 	p.mu.createC = make(chan struct{}, 10)
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
-	v, err = p.doAllocLocked(&meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
+	v, err = p.doAllocLocked(&metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	assert.Equal(t, 0, len(p.mu.createC))
 	assert.Equal(t, uint64(0), p.mu.pools.Pools[0].AllocatedOffset)
 
 	// allocate from created
-	aware = mockjob.NewMockResourcesAware(ctrl)
-	aware.EXPECT().ForeachWaittingCreateResources(gomock.Any()).DoAndReturn(func(fn func(res metadata.Resource)) {
-		fn(NewResourceAdapterWithShard(Shard{ID: 1, Unique: p.unique(0, 1)}))
+	aware = mockjob.NewMockShardsAware(ctrl)
+	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res metadata.Shard)) {
+		fn(NewShardAdapterWithShard(Shard{ID: 1, Unique: p.unique(0, 1)}))
 	})
 	p.mu.createC = make(chan struct{}, 10)
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
-	v, err = p.doAllocLocked(&meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
+	v, err = p.doAllocLocked(&metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}, ss, aware)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, v)
 	assert.Equal(t, 1, len(p.mu.createC))
@@ -310,8 +309,8 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	p := newDynamicShardsPool(cfg, nil)
 	p.setProphetClient(c.GetProphet().GetClient())
 
-	p.Start(metapb.Job{Type: metapb.JobType_CreateResourcePool, Content: protoc.MustMarshal(&metapb.ResourcePoolJob{
-		Pools: []metapb.ResourcePool{{Group: 0, Capacity: 2}},
+	p.Start(metapb.Job{Type: metapb.JobType_CreateShardPool, Content: protoc.MustMarshal(&metapb.ShardPoolJob{
+		Pools: []metapb.ShardPoolJobMeta{{Group: 0, Capacity: 2}},
 	})}, s, nil)
 	p.mu.RLock()
 	assert.Equal(t, 1, p.mu.state)
@@ -319,8 +318,8 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	assert.Equal(t, uint64(2), p.mu.pools.Pools[0].Capacity)
 	p.mu.RUnlock()
 
-	p.Start(metapb.Job{Type: metapb.JobType_CreateResourcePool, Content: protoc.MustMarshal(&metapb.ResourcePoolJob{
-		Pools: []metapb.ResourcePool{{Group: 0, Capacity: 3}},
+	p.Start(metapb.Job{Type: metapb.JobType_CreateShardPool, Content: protoc.MustMarshal(&metapb.ShardPoolJob{
+		Pools: []metapb.ShardPoolJobMeta{{Group: 0, Capacity: 3}},
 	})}, s, nil)
 	p.mu.RLock()
 	assert.Equal(t, 1, p.mu.state)
@@ -331,9 +330,9 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	p.mu.Lock()
 	p.mu.state = 0
 	p.mu.Unlock()
-	job := metapb.Job{Type: metapb.JobType_CreateResourcePool}
-	pools := meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	pools.Pools[0] = &meta.ShardPool{Capacity: 4}
+	job := metapb.Job{Type: metapb.JobType_CreateShardPool}
+	pools := metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	pools.Pools[0] = &metapb.ShardPool{Capacity: 4}
 	s.PutJobData(job, protoc.MustMarshal(&pools))
 	p.Start(job, s, nil)
 
@@ -353,7 +352,7 @@ func TestExecute(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	aware := mockjob.NewMockResourcesAware(ctrl)
+	aware := mockjob.NewMockShardsAware(ctrl)
 
 	ss := storage.NewTestStorage()
 	s, cancel := newTestStore(t)
@@ -368,17 +367,17 @@ func TestExecute(t *testing.T) {
 	_, err = p.Execute(make([]byte, 10), ss, aware)
 	assert.Error(t, err)
 
-	p.job = metapb.Job{Type: metapb.JobType_CreateResourcePool}
+	p.job = metapb.Job{Type: metapb.JobType_CreateShardPool}
 	p.mu.Lock()
 	p.mu.state = 1
 	p.mu.createC = make(chan struct{}, 10)
-	p.mu.pools = meta.ShardsPool{Pools: make(map[uint64]*meta.ShardPool)}
-	p.mu.pools.Pools[0] = &meta.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
+	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
+	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 0, AllocatedOffset: 0}
 	p.mu.Unlock()
-	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
+	_, err = p.Execute(protoc.MustMarshal(&metapb.ShardsPoolCmd{Alloc: &metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
 	assert.Error(t, err)
 
-	_, err = p.Execute(protoc.MustMarshal(&meta.ShardsPoolCmd{Type: meta.ShardsPoolCmdType_AllocShard, Alloc: &meta.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
+	_, err = p.Execute(protoc.MustMarshal(&metapb.ShardsPoolCmd{Type: metapb.ShardsPoolCmdType_AllocShard, Alloc: &metapb.ShardsPoolAllocCmd{Purpose: []byte("p1")}}), ss, aware)
 	assert.NoError(t, err)
 	p.mu.RLock()
 	assert.Equal(t, 1, len(p.mu.createC))

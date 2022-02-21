@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"fmt"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,13 +27,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -54,16 +53,16 @@ type Store interface {
 	Stop()
 	// GetConfig returns the config of the store
 	GetConfig() *config.Config
-	// Meta returns store meta
-	Meta() meta.Store
+	// Meta returns store metapb
+	Meta() metapb.Store
 	// GetRouter returns a router
 	GetRouter() Router
 	// GetShardsProxy get shards proxy to dispatch requests
 	GetShardsProxy() ShardsProxy
 	// OnRequest receive a request, and call cb while the request is completed
-	OnRequest(rpc.Request) error
+	OnRequest(rpcpb.Request) error
 	// OnRequestWithCB receive a request, and call cb while the request is completed
-	OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error
+	OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error
 	// DataStorage returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
@@ -73,19 +72,19 @@ type Store interface {
 	// Prophet return current prophet instance
 	Prophet() prophet.Prophet
 
-	// CreateResourcePool create resource pools, the resource pool will create shards,
+	// CreateShardPool create resource pools, the resource pool will create shards,
 	// and try to maintain the number of shards in the pool not less than the `capacity`
 	// parameter. This is an idempotent operation.
-	CreateResourcePool(...metapb.ResourcePool) (ShardsPool, error)
-	// GetResourcePool returns `ShardsPool`, nil if `CreateResourcePool` not completed
-	GetResourcePool() ShardsPool
+	CreateShardPool(...metapb.ShardPoolJobMeta) (ShardsPool, error)
+	// GetShardPool returns `ShardsPool`, nil if `CreateShardPool` not completed
+	GetShardPool() ShardsPool
 }
 
 type store struct {
 	cfg    *config.Config
 	logger *zap.Logger
 
-	meta       *containerAdapter
+	metapb     *containerAdapter
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
@@ -125,7 +124,7 @@ func NewStore(cfg *config.Config) Store {
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		kvStorage:             kv,
-		meta:                  &containerAdapter{},
+		metapb:                &containerAdapter{},
 		cfg:                   cfg,
 		logger:                logger,
 		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
@@ -316,15 +315,15 @@ func (s *store) startRouter() {
 	s.watcher = watcher
 }
 
-func (s *store) Meta() meta.Store {
-	return s.meta.Clone().(*containerAdapter).meta
+func (s *store) Meta() metapb.Store {
+	return s.metapb.Clone().(*containerAdapter).meta
 }
 
-func (s *store) OnRequest(req rpc.Request) error {
+func (s *store) OnRequest(req rpcpb.Request) error {
 	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
-func (s *store) OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
+func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error {
 	if ce := s.logger.Check(zap.DebugLevel, "receive request"); ce != nil {
 		ce.Write(log.RequestIDField(req.ID),
 			s.storeField())
@@ -424,9 +423,9 @@ func (s *store) startShards() {
 	totalCount := 0
 	tomebstoneCount := 0
 
-	var tomebstones []meta.ShardLocalState
-	shards := make(map[uint64]meta.ShardLocalState)
-	localDestroyings := make(map[uint64]meta.ShardMetadata)
+	var tomebstones []metapb.ShardLocalState
+	shards := make(map[uint64]metapb.ShardLocalState)
+	localDestroyings := make(map[uint64]metapb.ShardMetadata)
 	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
@@ -446,11 +445,11 @@ func (s *store) startShards() {
 					zap.Uint64("actual", metadata.ShardID))
 			}
 
-			if sls.State == meta.ReplicaState_Tombstone {
+			if sls.State == metapb.ReplicaState_ReplicaTombstone {
 				tomebstones = append(tomebstones, sls)
 				tomebstoneCount++
 
-				if sls.Shard.State == metapb.ResourceState_Destroyed {
+				if sls.Shard.State == metapb.ShardState_Destroyed {
 					s.createShardsProtector.addDestroyed(sls.Shard.ID)
 				}
 
@@ -460,7 +459,7 @@ func (s *store) startShards() {
 				continue
 			}
 
-			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
+			if metadata.Metadata.Shard.State == metapb.ShardState_Destroying {
 				s.createShardsProtector.addDestroyed(sls.Shard.ID)
 				localDestroyings[metadata.ShardID] = metadata
 			} else {
@@ -472,7 +471,7 @@ func (s *store) startShards() {
 	})
 
 	for {
-		rsp, err := s.pd.GetClient().CheckResourceState(confirmShards)
+		rsp, err := s.pd.GetClient().CheckShardState(confirmShards)
 		if err != nil {
 			s.logger.Error("failed to check init shards, retry later",
 				zap.Error(err))
@@ -529,7 +528,7 @@ func (s *store) removeReplica(shard Shard) {
 func (s *store) startShardsProxy() {
 	maxBodySize := int(s.cfg.Raft.MaxEntryBytes) * 2
 
-	rpc := newProxyRPC(s.logger.Named("proxy.rpc").With(s.storeField()),
+	rpcpb := newProxyRPC(s.logger.Named("proxy.rpcpb").With(s.storeField()),
 		s.cfg.ClientAddr,
 		maxBodySize,
 		s.OnRequest)
@@ -539,7 +538,7 @@ func (s *store) startShardsProxy() {
 		withLogger(l).
 		withBackendFactory(newBackendFactory(l, s)).
 		withMaxBodySize(maxBodySize).
-		withRPC(rpc).
+		withRPC(rpcpb).
 		build(s.router)
 	if err != nil {
 		s.logger.Fatal("fail to create shards proxy", zap.Error(err))
@@ -591,33 +590,33 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 //         and this vote will dropped by p2 and p3 node,
 //         because shard a and shard b has overlapped range at p2 and p3 node
 // case 2: p2 or p3 apply split log is before p1, we can't mock shard b's vote msg
-func (s *store) cacheDroppedVoteMsg(id uint64, msg meta.RaftMessage) {
+func (s *store) cacheDroppedVoteMsg(id uint64, msg metapb.RaftMessage) {
 	if msg.Message.Type == raftpb.MsgVote ||
 		msg.Message.Type == raftpb.MsgPreVote {
 		s.droppedVoteMsgs.Store(id, msg)
 	}
 }
 
-func (s *store) removeDroppedVoteMsg(id uint64) (meta.RaftMessage, bool) {
+func (s *store) removeDroppedVoteMsg(id uint64) (metapb.RaftMessage, bool) {
 	if value, ok := s.droppedVoteMsgs.Load(id); ok {
 		s.droppedVoteMsgs.Delete(id)
-		return value.(meta.RaftMessage), true
+		return value.(metapb.RaftMessage), true
 	}
 
-	return meta.RaftMessage{}, false
+	return metapb.RaftMessage{}, false
 }
 
-func (s *store) validateStoreID(req rpc.RequestBatch) error {
-	if req.Header.Replica.ContainerID != s.meta.ID() {
+func (s *store) validateStoreID(req rpcpb.RequestBatch) error {
+	if req.Header.Replica.StoreID != s.metapb.ID() {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
-			req.Header.Replica.ContainerID,
-			s.meta.ID())
+			req.Header.Replica.StoreID,
+			s.metapb.ID())
 	}
 
 	return nil
 }
 
-func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
+func (s *store) validateShard(req rpcpb.RequestBatch) (errorpb.Error, bool) {
 	shardID := req.Header.ShardID
 	replicaID := req.Header.Replica.ID
 
@@ -652,8 +651,8 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	if !checkEpoch(shard, req) {
 		err := new(errorpb.StaleEpoch)
 		// Attach the next shard which might be split from the current shard. But it doesn't
-		// matter if the next shard is not split from the current shard. If the shard meta
-		// received by the KV driver is newer than the meta cached in the driver, the meta is
+		// matter if the next shard is not split from the current shard. If the shard metapb
+		// received by the KV driver is newer than the metapb cached in the driver, the metapb is
 		// updated.
 		newShard := s.nextShard(shard)
 		if newShard != nil {
@@ -669,17 +668,17 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	return errorpb.Error{}, false
 }
 
-func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
+func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 	checkVer := false
 	checkConfVer := false
 
 	if req.IsAdmin() {
 		switch req.GetAdminCmdType() {
-		case rpc.AdminCmdType_BatchSplit:
+		case rpcpb.AdminBatchSplit:
 			checkVer = true
-		case rpc.AdminCmdType_ConfigChange:
+		case rpcpb.AdminConfigChange:
 			checkConfVer = true
-		case rpc.AdminCmdType_TransferLeader:
+		case rpcpb.AdminTransferLeader:
 			checkVer = true
 			checkConfVer = true
 		}
@@ -707,9 +706,9 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 		!isStale(req.Requests[0].Epoch)
 }
 
-func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.ResponseBatch {
-	return rpc.ResponseBatch{
-		Responses: []rpc.Response{
+func newAdminResponseBatch(adminType rpcpb.AdminCmdType, rsp protoc.PB) rpcpb.ResponseBatch {
+	return rpcpb.ResponseBatch{
+		Responses: []rpcpb.Response{
 			{
 				Value: protoc.MustMarshal(rsp),
 			},
@@ -771,11 +770,11 @@ func (s *store) nextShard(shard Shard) *Shard {
 }
 
 func (s *store) storeField() zap.Field {
-	return log.StoreIDField(s.meta.ID())
+	return log.StoreIDField(s.metapb.ID())
 }
 
 func (s *store) containerResolver(storeID uint64) (string, error) {
-	container, err := s.pd.GetStorage().GetContainer(storeID)
+	container, err := s.pd.GetStorage().GetStore(storeID)
 	if err != nil {
 		return "", err
 	}

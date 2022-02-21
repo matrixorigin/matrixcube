@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
@@ -36,9 +36,9 @@ func TestCompactionAndSnapshot(t *testing.T) {
 
 	snapshotTestTimeout := 20 * time.Second
 	skipStore := uint64(0)
-	filter := func(msg meta.RaftMessage) bool {
-		return msg.To.ContainerID == atomic.LoadUint64(&skipStore) ||
-			msg.From.ContainerID == atomic.LoadUint64(&skipStore)
+	filter := func(msg metapb.RaftMessage) bool {
+		return msg.To.StoreID == atomic.LoadUint64(&skipStore) ||
+			msg.From.StoreID == atomic.LoadUint64(&skipStore)
 	}
 
 	var c TestRaftCluster
@@ -97,7 +97,7 @@ func TestCompactionAndSnapshot(t *testing.T) {
 			}
 			assert.True(t, hasLog(2))
 
-			pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+			pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
 				CompactIndex: 3,
 			})
 

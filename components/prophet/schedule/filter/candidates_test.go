@@ -24,7 +24,7 @@ import (
 )
 
 // A dummy comparer for testing.
-func idComparer(a, b *core.CachedContainer) int {
+func idComparer(a, b *core.CachedStore) int {
 	if a.Meta.ID() > b.Meta.ID() {
 		return 1
 	}
@@ -35,7 +35,7 @@ func idComparer(a, b *core.CachedContainer) int {
 }
 
 // Another dummy comparer for testing.
-func idComparer2(a, b *core.CachedContainer) int {
+func idComparer2(a, b *core.CachedStore) int {
 	if a.Meta.ID()/10 > b.Meta.ID()/10 {
 		return 1
 	}
@@ -49,10 +49,10 @@ type idFilter func(uint64) bool
 
 func (f idFilter) Scope() string { return "idFilter" }
 func (f idFilter) Type() string  { return "idFilter" }
-func (f idFilter) Source(opt *config.PersistOptions, container *core.CachedContainer) bool {
+func (f idFilter) Source(opt *config.PersistOptions, container *core.CachedStore) bool {
 	return f(container.Meta.ID())
 }
-func (f idFilter) Target(opt *config.PersistOptions, container *core.CachedContainer) bool {
+func (f idFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
 	return f(container.Meta.ID())
 }
 
@@ -89,17 +89,17 @@ func TestCandidates(t *testing.T) {
 	checkCandidates(t, cs, 33, 32, 31)
 }
 
-func newCandidates(ids ...uint64) *ContainerCandidates {
-	var containers []*core.CachedContainer
+func newCandidates(ids ...uint64) *StoreCandidates {
+	var containers []*core.CachedStore
 	for _, id := range ids {
-		containers = append(containers, core.NewCachedContainer(metadata.NewTestContainer(id)))
+		containers = append(containers, core.NewCachedStore(metadata.NewTestStore(id)))
 	}
 	return NewCandidates(containers)
 }
 
-func checkCandidates(t *testing.T, candidates *ContainerCandidates, ids ...uint64) {
-	assert.Equal(t, len(ids), len(candidates.Containers))
-	for i, s := range candidates.Containers {
+func checkCandidates(t *testing.T, candidates *StoreCandidates, ids ...uint64) {
+	assert.Equal(t, len(ids), len(candidates.Stores))
+	for i, s := range candidates.Stores {
 		assert.Equal(t, ids[i], s.Meta.ID())
 	}
 }

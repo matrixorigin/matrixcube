@@ -22,7 +22,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 type applyResult struct {
@@ -35,11 +35,11 @@ type applyResult struct {
 
 func (res *applyResult) hasSplitResult() bool {
 	return nil != res.adminResult &&
-		res.adminResult.adminType == rpc.AdminCmdType_BatchSplit
+		res.adminResult.adminType == rpcpb.AdminBatchSplit
 }
 
 type adminResult struct {
-	adminType            rpc.AdminCmdType
+	adminType            rpcpb.AdminCmdType
 	configChangeResult   configChangeResult
 	splitResult          splitResult
 	compactionResult     compactionResult
@@ -57,7 +57,7 @@ type updateMetadataResult struct {
 type configChangeResult struct {
 	index      uint64
 	confChange raftpb.ConfChangeV2
-	changes    []rpc.ConfigChangeRequest
+	changes    []rpcpb.ConfigChangeRequest
 	shard      Shard
 }
 
@@ -70,7 +70,7 @@ type compactionResult struct {
 }
 
 func (pr *replica) notifyPendingProposal(id []byte,
-	resp rpc.ResponseBatch, isConfChange bool) {
+	resp rpcpb.ResponseBatch, isConfChange bool) {
 	pr.pendingProposals.notify(id, resp, isConfChange)
 }
 
@@ -105,15 +105,15 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 
 func (pr *replica) handleAdminResult(result applyResult) {
 	switch result.adminResult.adminType {
-	case rpc.AdminCmdType_ConfigChange:
+	case rpcpb.AdminConfigChange:
 		pr.applyConfChange(result.adminResult.configChangeResult)
-	case rpc.AdminCmdType_BatchSplit:
+	case rpcpb.AdminBatchSplit:
 		pr.applySplit(result.adminResult.splitResult)
-	case rpc.AdminCmdType_CompactLog:
+	case rpcpb.AdminCompactLog:
 		pr.applyCompactionResult(result.adminResult.compactionResult)
-	case rpc.AdminCmdType_UpdateMetadata:
+	case rpcpb.AdminUpdateMetadata:
 		pr.applyUpdateMetadataResult(result.adminResult.updateMetadataResult)
-	case rpc.AdminCmdType_UpdateLabels:
+	case rpcpb.AdminUpdateLabels:
 		pr.applyUpdateLabels(result.adminResult.updateLabelsResult)
 	}
 }
@@ -164,7 +164,7 @@ func (pr *replica) applyConfChange(cp configChangeResult) {
 
 		switch changeType {
 		case metapb.ConfigChangeType_AddNode, metapb.ConfigChangeType_AddLearnerNode:
-			if replica.ContainerID == pr.storeID {
+			if replica.StoreID == pr.storeID {
 				pr.replica = replica
 			}
 			pr.replicaHeartbeatsMap.Store(replicaID, now)

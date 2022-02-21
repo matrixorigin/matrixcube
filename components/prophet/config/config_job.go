@@ -14,26 +14,26 @@ type jobRegister struct {
 	jobProcessors map[metapb.JobType]JobProcessor
 }
 
-// ResourcesAware resources aware
-type ResourcesAware interface {
-	// ForeachWaittingCreateResources do every waitting resources
-	ForeachWaittingCreateResources(do func(res metadata.Resource))
-	// ForeachResources foreach resource by group
-	ForeachResources(group uint64, fn func(res metadata.Resource))
-	// GetResource returns resource runtime info
-	GetResource(resourceID uint64) *core.CachedResource
+// ShardsAware resources aware
+type ShardsAware interface {
+	// ForeachWaittingCreateShards do every waitting resources
+	ForeachWaittingCreateShards(do func(res metadata.Shard))
+	// ForeachShards foreach resource by group
+	ForeachShards(group uint64, fn func(res metadata.Shard))
+	// GetShard returns resource runtime info
+	GetShard(resourceID uint64) *core.CachedShard
 }
 
 // JobProcessor job processor
 type JobProcessor interface {
 	// Start create the job
-	Start(metapb.Job, storage.JobStorage, ResourcesAware)
+	Start(metapb.Job, storage.JobStorage, ShardsAware)
 	// Stop stop the job, the job will restart at other node
-	Stop(metapb.Job, storage.JobStorage, ResourcesAware)
+	Stop(metapb.Job, storage.JobStorage, ShardsAware)
 	// Remove remove job, the job will never start again
-	Remove(metapb.Job, storage.JobStorage, ResourcesAware)
+	Remove(metapb.Job, storage.JobStorage, ShardsAware)
 	// Execute execute the data on job and returns the result
-	Execute([]byte, storage.JobStorage, ResourcesAware) ([]byte, error)
+	Execute([]byte, storage.JobStorage, ShardsAware) ([]byte, error)
 }
 
 // RegisterJobProcessor register job processor

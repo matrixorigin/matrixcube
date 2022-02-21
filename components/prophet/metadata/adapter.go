@@ -15,10 +15,10 @@ package metadata
 
 // Adapter metadata adapter
 type Adapter interface {
-	// NewResource return a new resource
-	NewResource() Resource
-	// NewContainer return a new container
-	NewContainer() Container
+	// NewShard return a new resource
+	NewShard() Shard
+	// NewStore return a new container
+	NewStore() Store
 }
 
 // RoleChangeHandler prophet role change handler

@@ -41,7 +41,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
@@ -59,12 +58,12 @@ var (
 
 var firstError = util.FirstError
 
-func chunkKey(c meta.SnapshotChunk) string {
+func chunkKey(c metapb.SnapshotChunk) string {
 	return fmt.Sprintf("%d:%d:%d", c.ShardID, c.ReplicaID, c.Index)
 }
 
 type tracked struct {
-	first meta.SnapshotChunk
+	first metapb.SnapshotChunk
 	tick  uint64
 	next  uint64
 }
@@ -86,7 +85,7 @@ type Chunk struct {
 	logger    *zap.Logger
 	fs        vfs.FS
 	dir       snapshot.SnapshotDirFunc
-	onReceive func(meta.RaftMessageBatch)
+	onReceive func(metapb.RaftMessageBatch)
 	timeout   uint64
 	tick      uint64
 	gcTick    uint64
@@ -100,7 +99,7 @@ type Chunk struct {
 
 // NewChunk creates and returns a new snapshot chunks instance.
 func NewChunk(logger *zap.Logger,
-	onReceive func(meta.RaftMessageBatch),
+	onReceive func(metapb.RaftMessageBatch),
 	dir snapshot.SnapshotDirFunc, fs vfs.FS) *Chunk {
 	c := &Chunk{
 		logger:    logger,
@@ -117,7 +116,7 @@ func NewChunk(logger *zap.Logger,
 }
 
 // Add adds a received trunk to chunks.
-func (c *Chunk) Add(chunk meta.SnapshotChunk) bool {
+func (c *Chunk) Add(chunk metapb.SnapshotChunk) bool {
 	key := chunkKey(chunk)
 	lock := c.getSnapshotLock(key)
 	lock.lock()
@@ -202,7 +201,7 @@ func (c *Chunk) isFull() bool {
 	return uint64(len(c.mu.tracked)) >= maxConcurrentSlot
 }
 
-func (c *Chunk) record(chunk meta.SnapshotChunk) *tracked {
+func (c *Chunk) record(chunk metapb.SnapshotChunk) *tracked {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	key := chunkKey(chunk)
@@ -257,7 +256,7 @@ func (c *Chunk) record(chunk meta.SnapshotChunk) *tracked {
 	return td
 }
 
-func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
+func (c *Chunk) addLocked(chunk metapb.SnapshotChunk) bool {
 	key := chunkKey(chunk)
 	td := c.record(chunk)
 	if td == nil {
@@ -303,13 +302,13 @@ func (c *Chunk) addLocked(chunk meta.SnapshotChunk) bool {
 	return true
 }
 
-func (c *Chunk) nodeRemoved(chunk meta.SnapshotChunk) (bool, error) {
+func (c *Chunk) nodeRemoved(chunk metapb.SnapshotChunk) (bool, error) {
 	env := c.getEnv(chunk)
 	dir := env.GetRootDir()
 	return fileutil.IsDirMarkedAsDeleted(dir, c.fs)
 }
 
-func (c *Chunk) save(chunk meta.SnapshotChunk) (err error) {
+func (c *Chunk) save(chunk metapb.SnapshotChunk) (err error) {
 	env := c.getEnv(chunk)
 	if chunk.ChunkID == 0 {
 		if err := env.CreateTempDir(); err != nil {
@@ -346,7 +345,7 @@ func (c *Chunk) save(chunk meta.SnapshotChunk) (err error) {
 	return nil
 }
 
-func (c *Chunk) getEnv(chunk meta.SnapshotChunk) snapshot.SSEnv {
+func (c *Chunk) getEnv(chunk metapb.SnapshotChunk) snapshot.SSEnv {
 	return snapshot.NewSSEnv(c.dir, chunk.ShardID, chunk.ReplicaID,
 		chunk.Index, chunk.From, snapshot.ReceivingMode, c.fs)
 }
@@ -364,16 +363,16 @@ func (c *Chunk) finalize(td *tracked) error {
 	return err
 }
 
-func (c *Chunk) removeTempDir(chunk meta.SnapshotChunk) {
+func (c *Chunk) removeTempDir(chunk metapb.SnapshotChunk) {
 	env := c.getEnv(chunk)
 	env.MustRemoveTempDir()
 }
 
-func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
+func (c *Chunk) toMessage(chunk metapb.SnapshotChunk) metapb.RaftMessageBatch {
 	if chunk.ChunkID != 0 {
 		panic("not the first snapshot chunk")
 	}
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: chunk.From,
 	}
 	s := raftpb.Snapshot{
@@ -390,11 +389,11 @@ func (c *Chunk) toMessage(chunk meta.SnapshotChunk) meta.RaftMessageBatch {
 		To:       chunk.ReplicaID,
 		Snapshot: s,
 	}
-	return meta.RaftMessageBatch{
-		Messages: []meta.RaftMessage{
+	return metapb.RaftMessageBatch{
+		Messages: []metapb.RaftMessage{
 			{
 				ShardID: chunk.ShardID,
-				To:      metapb.Replica{ID: chunk.ReplicaID, ContainerID: chunk.ContainerID},
+				To:      metapb.Replica{ID: chunk.ReplicaID, StoreID: chunk.StoreID},
 				From:    metapb.Replica{ID: chunk.From},
 				Message: m,
 			},

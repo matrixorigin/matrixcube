@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	s, close := newTestStore(t)
 	defer close()
 
-	s.meta.SetID(100)
+	s.metapb.SetID(100)
 	db := NewTestDataBuilder()
 	f := newReplicaCreator(s)
 	f.withReason("TestShardCreateWithSaveMetadata").
@@ -54,11 +54,11 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 		})
 
 	assert.Equal(t, 1, len(f.getShardsMetadata()))
-	assert.Equal(t, meta.ShardMetadata{
+	assert.Equal(t, metapb.ShardMetadata{
 		ShardID:  1,
 		LogIndex: 1,
-		Metadata: meta.ShardLocalState{
-			State: meta.ReplicaState_Normal,
+		Metadata: metapb.ShardLocalState{
+			State: metapb.ReplicaState_Normal,
 			Shard: db.CreateShard(1, "1/10/v/t,2/100/v/t"),
 		},
 	}, f.getShardsMetadata()[0])
@@ -67,7 +67,7 @@ func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	assert.Equal(t, 1, len(stats))
 	assert.Equal(t, uint64(1), stats[0].LogIndex)
 	assert.Equal(t, uint64(1), stats[0].ShardID)
-	assert.Equal(t, meta.ReplicaState_Normal, stats[0].Metadata.State)
+	assert.Equal(t, metapb.ReplicaState_Normal, stats[0].Metadata.State)
 
 	if sync {
 		assert.True(t, s.DataStorageByGroup(0).(storage.StatsKeeper).Stats().SyncCount > 0)

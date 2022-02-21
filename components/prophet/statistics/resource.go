@@ -18,62 +18,62 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 )
 
-// ResourceStats records a list of resources' statistics and distribution status.
-type ResourceStats struct {
+// ShardStats records a list of resources' statistics and distribution status.
+type ShardStats struct {
 	Count                int              `json:"count"`
 	EmptyCount           int              `json:"empty_count"`
 	StorageSize          int64            `json:"storage_size"`
 	StorageKeys          int64            `json:"storage_keys"`
-	ContainerLeaderCount map[uint64]int   `json:"container_leader_count"`
-	ContainerPeerCount   map[uint64]int   `json:"container_peer_count"`
-	ContainerLeaderSize  map[uint64]int64 `json:"container_leader_size"`
-	ContainerLeaderKeys  map[uint64]int64 `json:"container_leader_keys"`
-	ContainerPeerSize    map[uint64]int64 `json:"container_peer_size"`
-	ContainerPeerKeys    map[uint64]int64 `json:"container_peer_keys"`
+	StoreLeaderCount map[uint64]int   `json:"container_leader_count"`
+	StorePeerCount   map[uint64]int   `json:"container_peer_count"`
+	StoreLeaderSize  map[uint64]int64 `json:"container_leader_size"`
+	StoreLeaderKeys  map[uint64]int64 `json:"container_leader_keys"`
+	StorePeerSize    map[uint64]int64 `json:"container_peer_size"`
+	StorePeerKeys    map[uint64]int64 `json:"container_peer_keys"`
 }
 
-// GetResourceStats sums resources' statistics.
-func GetResourceStats(resources []*core.CachedResource) *ResourceStats {
-	stats := newResourceStats()
+// GetShardStats sums resources' statistics.
+func GetShardStats(resources []*core.CachedShard) *ShardStats {
+	stats := newShardStats()
 	for _, resource := range resources {
 		stats.Observe(resource)
 	}
 	return stats
 }
 
-func newResourceStats() *ResourceStats {
-	return &ResourceStats{
-		ContainerLeaderCount: make(map[uint64]int),
-		ContainerPeerCount:   make(map[uint64]int),
-		ContainerLeaderSize:  make(map[uint64]int64),
-		ContainerLeaderKeys:  make(map[uint64]int64),
-		ContainerPeerSize:    make(map[uint64]int64),
-		ContainerPeerKeys:    make(map[uint64]int64),
+func newShardStats() *ShardStats {
+	return &ShardStats{
+		StoreLeaderCount: make(map[uint64]int),
+		StorePeerCount:   make(map[uint64]int),
+		StoreLeaderSize:  make(map[uint64]int64),
+		StoreLeaderKeys:  make(map[uint64]int64),
+		StorePeerSize:    make(map[uint64]int64),
+		StorePeerKeys:    make(map[uint64]int64),
 	}
 }
 
-// Observe adds a resource's statistics into ResourceStats.
-func (s *ResourceStats) Observe(r *core.CachedResource) {
+// Observe adds a resource's statistics into ShardStats.
+func (s *ShardStats) Observe(r *core.CachedShard) {
 	s.Count++
 	approximateKeys := r.GetApproximateKeys()
 	approximateSize := r.GetApproximateSize()
-	if approximateSize <= core.EmptyResourceApproximateSize {
+	if approximateSize <= core.EmptyShardApproximateSize {
 		s.EmptyCount++
 	}
 	s.StorageSize += approximateSize
 	s.StorageKeys += approximateKeys
 	leader := r.GetLeader()
 	if leader != nil {
-		containerID := leader.GetContainerID()
-		s.ContainerLeaderCount[containerID]++
-		s.ContainerLeaderSize[containerID] += approximateSize
-		s.ContainerLeaderKeys[containerID] += approximateKeys
+		containerID := leader.GetStoreID()
+		s.StoreLeaderCount[containerID]++
+		s.StoreLeaderSize[containerID] += approximateSize
+		s.StoreLeaderKeys[containerID] += approximateKeys
 	}
 	peers := r.Meta.Peers()
 	for _, p := range peers {
-		containerID := p.GetContainerID()
-		s.ContainerPeerCount[containerID]++
-		s.ContainerPeerSize[containerID] += approximateSize
-		s.ContainerPeerKeys[containerID] += approximateKeys
+		containerID := p.GetStoreID()
+		s.StorePeerCount[containerID]++
+		s.StorePeerSize[containerID] += approximateSize
+		s.StorePeerKeys[containerID] += approximateKeys
 	}
 }

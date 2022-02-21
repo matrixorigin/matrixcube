@@ -21,13 +21,13 @@ import (
 )
 
 var (
-	// TestResourceFactory test factory
-	TestResourceFactory = func() Resource {
-		return &TestResource{}
+	// TestShardFactory test factory
+	TestShardFactory = func() Shard {
+		return &TestShard{}
 	}
 )
 
-type TestResource struct {
+type TestShard struct {
 	ResID         uint64               `json:"id"`
 	ResGroup      uint64               `json:"group"`
 	Version       uint64               `json:"version"`
@@ -35,135 +35,135 @@ type TestResource struct {
 	ResLabels     []metapb.Pair        `json:"labels"`
 	Start         []byte               `json:"start"`
 	End           []byte               `json:"end"`
-	ResEpoch      metapb.ResourceEpoch `json:"epoch"`
-	ResState      metapb.ResourceState `json:"state"`
+	ResEpoch      metapb.ShardEpoch `json:"epoch"`
+	ResState      metapb.ShardState `json:"state"`
 	ResUnique     string               `json:"unique"`
 	ResData       []byte               `json:"data"`
 	ResRuleGroups []string             `json:"rule-groups"`
 	Err           bool                 `json:"-"`
 }
 
-func NewTestResource(id uint64) *TestResource {
-	return &TestResource{ResID: id}
+func NewTestShard(id uint64) *TestShard {
+	return &TestShard{ResID: id}
 }
 
-func (res *TestResource) State() metapb.ResourceState {
+func (res *TestShard) State() metapb.ShardState {
 	return res.ResState
 }
 
-func (res *TestResource) SetState(state metapb.ResourceState) {
+func (res *TestShard) SetState(state metapb.ShardState) {
 	res.ResState = state
 }
 
 // ID mock
-func (res *TestResource) ID() uint64 {
+func (res *TestShard) ID() uint64 {
 	return res.ResID
 }
 
 // SetID mock
-func (res *TestResource) SetID(id uint64) {
+func (res *TestShard) SetID(id uint64) {
 	res.ResID = id
 }
 
-func (res *TestResource) Group() uint64 {
+func (res *TestShard) Group() uint64 {
 	return res.ResGroup
 }
 
 // SetGroup set raft group
-func (res *TestResource) SetGroup(group uint64) {
+func (res *TestShard) SetGroup(group uint64) {
 	res.ResGroup = group
 }
 
 // Peers mock
-func (res *TestResource) Peers() []metapb.Replica {
+func (res *TestShard) Peers() []metapb.Replica {
 	return res.ResPeers
 }
 
 // SetPeers mock
-func (res *TestResource) SetPeers(peers []metapb.Replica) {
+func (res *TestShard) SetPeers(peers []metapb.Replica) {
 	res.ResPeers = peers
 }
 
 // Range mock
-func (res *TestResource) Range() ([]byte, []byte) {
+func (res *TestShard) Range() ([]byte, []byte) {
 	return []byte(res.Start), []byte(res.End)
 }
 
 // SetStartKey mock
-func (res *TestResource) SetStartKey(value []byte) {
+func (res *TestShard) SetStartKey(value []byte) {
 	res.Start = value
 }
 
 // SetEndKey mock
-func (res *TestResource) SetEndKey(value []byte) {
+func (res *TestShard) SetEndKey(value []byte) {
 	res.End = value
 }
 
 // Epoch mock
-func (res *TestResource) Epoch() metapb.ResourceEpoch {
+func (res *TestShard) Epoch() metapb.ShardEpoch {
 	return res.ResEpoch
 }
 
 // SetEpoch mock
-func (res *TestResource) SetEpoch(value metapb.ResourceEpoch) {
+func (res *TestShard) SetEpoch(value metapb.ShardEpoch) {
 	res.ResEpoch = value
 }
 
 // Data mock
-func (res *TestResource) Data() []byte {
+func (res *TestShard) Data() []byte {
 	return res.ResData
 }
 
 // SetData mock
-func (res *TestResource) SetData(data []byte) {
+func (res *TestShard) SetData(data []byte) {
 	res.ResData = data
 }
 
 // Labels mock
-func (res *TestResource) Labels() []metapb.Pair {
+func (res *TestShard) Labels() []metapb.Pair {
 	return res.ResLabels
 }
 
 // SetLabels mock
-func (res *TestResource) SetLabels(labels []metapb.Pair) {
+func (res *TestShard) SetLabels(labels []metapb.Pair) {
 	res.ResLabels = labels
 }
 
 // Unique mock
-func (res *TestResource) Unique() string {
+func (res *TestShard) Unique() string {
 	return res.ResUnique
 }
 
 // SetUnique mock
-func (res *TestResource) SetUnique(value string) {
+func (res *TestShard) SetUnique(value string) {
 	res.ResUnique = value
 }
 
 // RuleGroups mock
-func (res *TestResource) RuleGroups() []string {
+func (res *TestShard) RuleGroups() []string {
 	return res.ResRuleGroups
 }
 
 // SetRuleGroups mock
-func (res *TestResource) SetRuleGroups(ruleGroups ...string) {
+func (res *TestShard) SetRuleGroups(ruleGroups ...string) {
 	res.ResRuleGroups = ruleGroups
 }
 
 // Clone mock
-func (res *TestResource) Clone() Resource {
+func (res *TestShard) Clone() Shard {
 	data, _ := res.Marshal()
-	value := NewTestResource(res.ResID)
+	value := NewTestShard(res.ResID)
 	value.Unmarshal(data)
 	return value
 }
 
 // ScaleCompleted mock
-func (res *TestResource) ScaleCompleted(uint64) bool {
+func (res *TestShard) ScaleCompleted(uint64) bool {
 	return false
 }
 
 // Marshal mock
-func (res *TestResource) Marshal() ([]byte, error) {
+func (res *TestShard) Marshal() ([]byte, error) {
 	if res.Err {
 		return nil, errors.New("test error")
 	}
@@ -172,7 +172,7 @@ func (res *TestResource) Marshal() ([]byte, error) {
 }
 
 // Unmarshal mock
-func (res *TestResource) Unmarshal(data []byte) error {
+func (res *TestShard) Unmarshal(data []byte) error {
 	if res.Err {
 		return errors.New("test error")
 	}
@@ -181,17 +181,17 @@ func (res *TestResource) Unmarshal(data []byte) error {
 }
 
 // SupportRebalance mock
-func (res *TestResource) SupportRebalance() bool {
+func (res *TestShard) SupportRebalance() bool {
 	return true
 }
 
 // SupportTransferLeader mock
-func (res *TestResource) SupportTransferLeader() bool {
+func (res *TestShard) SupportTransferLeader() bool {
 	return true
 }
 
-// TestContainer mock
-type TestContainer struct {
+// TestStore mock
+type TestStore struct {
 	CID                  uint64        `json:"cid"`
 	CAddr                string        `json:"addr"`
 	CShardAddr           string        `json:"shardAddr"`
@@ -203,126 +203,126 @@ type TestContainer struct {
 	CDeployPath          string        `json:"deployPath"`
 	CPhysicallyDestroyed bool          `json:"physicallyDestroyed"`
 
-	CState  metapb.ContainerState `json:"state"`
+	CState  metapb.StoreState `json:"state"`
 	CAction metapb.Action         `json:"action"`
 }
 
-// NewTestContainer mock
-func NewTestContainer(id uint64) *TestContainer {
-	return &TestContainer{CID: id}
+// NewTestStore mock
+func NewTestStore(id uint64) *TestStore {
+	return &TestStore{CID: id}
 }
 
 // SetAddrs mock
-func (c *TestContainer) SetAddrs(addr, shardAddr string) {
+func (c *TestStore) SetAddrs(addr, shardAddr string) {
 	c.CAddr = addr
 	c.CShardAddr = shardAddr
 }
 
 // Addr mock
-func (c *TestContainer) Addr() string {
+func (c *TestStore) Addr() string {
 	return c.CAddr
 }
 
 // ShardAddr mock
-func (c *TestContainer) ShardAddr() string {
+func (c *TestStore) ShardAddr() string {
 	return c.CShardAddr
 }
 
 // SetID mock
-func (c *TestContainer) SetID(id uint64) {
+func (c *TestStore) SetID(id uint64) {
 	c.CID = id
 }
 
 // ID mock
-func (c *TestContainer) ID() uint64 {
+func (c *TestStore) ID() uint64 {
 	return c.CID
 }
 
 // Labels mock
-func (c *TestContainer) Labels() []metapb.Pair {
+func (c *TestStore) Labels() []metapb.Pair {
 	return c.CLabels
 }
 
 // SetLabels mock
-func (c *TestContainer) SetLabels(labels []metapb.Pair) {
+func (c *TestStore) SetLabels(labels []metapb.Pair) {
 	c.CLabels = labels
 }
 
 // StartTimestamp mock
-func (c *TestContainer) StartTimestamp() int64 {
+func (c *TestStore) StartTimestamp() int64 {
 	return c.StartTS
 }
 
 // SetStartTimestamp mock
-func (c *TestContainer) SetStartTimestamp(startTS int64) {
+func (c *TestStore) SetStartTimestamp(startTS int64) {
 	c.StartTS = startTS
 }
 
 // LastHeartbeat mock
-func (c *TestContainer) LastHeartbeat() int64 {
+func (c *TestStore) LastHeartbeat() int64 {
 	return c.CLastHeartbeat
 }
 
 //SetLastHeartbeat mock.
-func (c *TestContainer) SetLastHeartbeat(value int64) {
+func (c *TestStore) SetLastHeartbeat(value int64) {
 	c.CLastHeartbeat = value
 }
 
 // Version returns version and githash
-func (c *TestContainer) Version() (string, string) {
+func (c *TestStore) Version() (string, string) {
 	return c.CVerion, c.CGitHash
 }
 
 // SetVersion set version
-func (c *TestContainer) SetVersion(version string, githash string) {
+func (c *TestStore) SetVersion(version string, githash string) {
 	c.CVerion = version
 	c.CGitHash = githash
 }
 
 // DeployPath returns the container deploy path
-func (c *TestContainer) DeployPath() string {
+func (c *TestStore) DeployPath() string {
 	return c.CDeployPath
 }
 
 // SetDeployPath set deploy path
-func (c *TestContainer) SetDeployPath(value string) {
+func (c *TestStore) SetDeployPath(value string) {
 	c.CDeployPath = value
 }
 
 // State mock
-func (c *TestContainer) State() metapb.ContainerState {
+func (c *TestStore) State() metapb.StoreState {
 	return c.CState
 }
 
 // SetState mock
-func (c *TestContainer) SetState(state metapb.ContainerState) {
+func (c *TestStore) SetState(state metapb.StoreState) {
 	c.CState = state
 }
 
 // PhysicallyDestroyed mock
-func (c *TestContainer) PhysicallyDestroyed() bool {
+func (c *TestStore) PhysicallyDestroyed() bool {
 	return c.CPhysicallyDestroyed
 }
 
 // SetPhysicallyDestroyed mock
-func (c *TestContainer) SetPhysicallyDestroyed(v bool) {
+func (c *TestStore) SetPhysicallyDestroyed(v bool) {
 	c.CPhysicallyDestroyed = v
 }
 
 // Clone mock
-func (c *TestContainer) Clone() Container {
-	value := NewTestContainer(c.CID)
+func (c *TestStore) Clone() Store {
+	value := NewTestStore(c.CID)
 	data, _ := c.Marshal()
 	value.Unmarshal(data)
 	return value
 }
 
 // Marshal mock
-func (c *TestContainer) Marshal() ([]byte, error) {
+func (c *TestStore) Marshal() ([]byte, error) {
 	return json.Marshal(c)
 }
 
 // Unmarshal mock
-func (c *TestContainer) Unmarshal(data []byte) error {
+func (c *TestStore) Unmarshal(data []byte) error {
 	return json.Unmarshal(data, c)
 }

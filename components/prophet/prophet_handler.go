@@ -31,19 +31,19 @@ type heartbeatStream struct {
 	rs          goetty.IOSession
 }
 
-func (hs heartbeatStream) Send(resp *rpcpb.ResourceHeartbeatRsp) error {
-	rsp := &rpcpb.Response{}
-	rsp.Type = rpcpb.TypeResourceHeartbeatRsp
-	rsp.ResourceHeartbeat = *resp
+func (hs heartbeatStream) Send(resp *rpcpb.ShardHeartbeatRsp) error {
+	rsp := &rpcpb.ProphetResponse{}
+	rsp.Type = rpcpb.TypeShardHeartbeatRsp
+	rsp.ShardHeartbeat = *resp
 	return hs.rs.WriteAndFlush(rsp)
 }
 
 func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{}, received uint64) error {
-	req := data.(*rpcpb.Request)
-	if req.Type == rpcpb.TypeRegisterContainer {
-		p.hbStreams.BindStream(req.ContainerID, &heartbeatStream{containerID: req.ContainerID, rs: rs})
+	req := data.(*rpcpb.ProphetRequest)
+	if req.Type == rpcpb.TypeRegisterStore {
+		p.hbStreams.BindStream(req.StoreID, &heartbeatStream{containerID: req.StoreID, rs: rs})
 		p.logger.Info("heartbeat stream binded",
-			zap.Uint64("contianer", req.ContainerID))
+			zap.Uint64("contianer", req.StoreID))
 		return nil
 	}
 
@@ -58,7 +58,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	}
 
 	doResponse := true
-	resp := &rpcpb.Response{}
+	resp := &rpcpb.ProphetResponse{}
 	resp.ID = req.ID
 	rc := p.GetRaftCluster()
 	if p.cfg.Prophet.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
@@ -68,21 +68,21 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	}
 
 	switch req.Type {
-	case rpcpb.TypePutContainerReq:
-		resp.Type = rpcpb.TypePutContainerRsp
-		err := p.handlePutContainer(rc, req, resp)
+	case rpcpb.TypePutStoreReq:
+		resp.Type = rpcpb.TypePutStoreRsp
+		err := p.handlePutStore(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeResourceHeartbeatReq:
-		resp.Type = rpcpb.TypeResourceHeartbeatRsp
-		err := p.handleResourceHeartbeat(rc, req, resp)
+	case rpcpb.TypeShardHeartbeatReq:
+		resp.Type = rpcpb.TypeShardHeartbeatRsp
+		err := p.handleShardHeartbeat(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeContainerHeartbeatReq:
-		resp.Type = rpcpb.TypeContainerHeartbeatRsp
-		err := p.handleContainerHeartbeat(rc, req, resp)
+	case rpcpb.TypeStoreHeartbeatReq:
+		resp.Type = rpcpb.TypeStoreHeartbeatRsp
+		err := p.handleStoreHeartbeat(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -110,9 +110,9 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeGetContainerReq:
-		resp.Type = rpcpb.TypeGetContainerRsp
-		err := p.handleGetContainer(rc, req, resp)
+	case rpcpb.TypeGetStoreReq:
+		resp.Type = rpcpb.TypeGetStoreRsp
+		err := p.handleGetStore(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -135,21 +135,21 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		} else {
 			return fmt.Errorf("leader not init completed")
 		}
-	case rpcpb.TypeCreateResourcesReq:
-		resp.Type = rpcpb.TypeCreateResourcesRsp
-		err := p.handleCreateResources(rc, req, resp)
+	case rpcpb.TypeCreateShardsReq:
+		resp.Type = rpcpb.TypeCreateShardsRsp
+		err := p.handleCreateShards(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeRemoveResourcesReq:
-		resp.Type = rpcpb.TypeRemoveResourcesRsp
-		err := p.handleRemoveResources(rc, req, resp)
+	case rpcpb.TypeRemoveShardsReq:
+		resp.Type = rpcpb.TypeRemoveShardsRsp
+		err := p.handleRemoveShards(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
-	case rpcpb.TypeCheckResourceStateReq:
-		resp.Type = rpcpb.TypeCheckResourceStateRsp
-		err := p.handleCheckResourceState(rc, req, resp)
+	case rpcpb.TypeCheckShardStateReq:
+		resp.Type = rpcpb.TypeCheckShardStateRsp
+		err := p.handleCheckShardState(rc, req, resp)
 		if err != nil {
 			resp.Error = err.Error()
 		}
@@ -210,38 +210,38 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	return nil
 }
 
-func (p *defaultProphet) handlePutContainer(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	meta := p.cfg.Prophet.Adapter.NewContainer()
-	err := meta.Unmarshal(req.PutContainer.Container)
+func (p *defaultProphet) handlePutStore(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	meta := p.cfg.Prophet.Adapter.NewStore()
+	err := meta.Unmarshal(req.PutStore.Store)
 	if err != nil {
 		return err
 	}
 
-	if err := checkContainer(rc, meta.ID()); err != nil {
+	if err := checkStore(rc, meta.ID()); err != nil {
 		return err
 	}
 
-	if err := rc.PutContainer(meta); err != nil {
+	if err := rc.PutStore(meta); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *defaultProphet) handleResourceHeartbeat(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	meta := p.cfg.Prophet.Adapter.NewResource()
-	err := meta.Unmarshal(req.ResourceHeartbeat.Resource)
+func (p *defaultProphet) handleShardHeartbeat(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	meta := p.cfg.Prophet.Adapter.NewShard()
+	err := meta.Unmarshal(req.ShardHeartbeat.Shard)
 	if err != nil {
 		return err
 	}
 
-	storeID := req.ResourceHeartbeat.GetLeader().GetContainerID()
-	store := rc.GetContainer(storeID)
+	storeID := req.ShardHeartbeat.GetLeader().GetStoreID()
+	store := rc.GetStore(storeID)
 	if store == nil {
 		return fmt.Errorf("invalid contianer ID %d, not found", storeID)
 	}
 
-	res := core.ResourceFromHeartbeat(req.ResourceHeartbeat, meta)
+	res := core.ShardFromHeartbeat(req.ShardHeartbeat, meta)
 	if res.GetLeader() == nil {
 		err := errors.New("invalid request, the leader is nil")
 		p.logger.Error("invalid request, the leader is nil")
@@ -259,32 +259,32 @@ func (p *defaultProphet) handleResourceHeartbeat(rc *cluster.RaftCluster, req *r
 		return err
 	}
 
-	return rc.HandleResourceHeartbeat(res)
+	return rc.HandleShardHeartbeat(res)
 }
 
-func (p *defaultProphet) handleContainerHeartbeat(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	if err := checkContainer(rc, req.ContainerHeartbeat.Stats.ContainerID); err != nil {
+func (p *defaultProphet) handleStoreHeartbeat(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	if err := checkStore(rc, req.StoreHeartbeat.Stats.StoreID); err != nil {
 		return err
 	}
 
-	err := rc.HandleContainerHeartbeat(&req.ContainerHeartbeat.Stats)
+	err := rc.HandleStoreHeartbeat(&req.StoreHeartbeat.Stats)
 	if err != nil {
 		return err
 	}
 
-	if p.cfg.Prophet.ContainerHeartbeatDataProcessor != nil {
-		data, err := p.cfg.Prophet.ContainerHeartbeatDataProcessor.HandleHeartbeatReq(req.ContainerHeartbeat.Stats.ContainerID,
-			req.ContainerHeartbeat.Data, p.GetStorage())
+	if p.cfg.Prophet.StoreHeartbeatDataProcessor != nil {
+		data, err := p.cfg.Prophet.StoreHeartbeatDataProcessor.HandleHeartbeatReq(req.StoreHeartbeat.Stats.StoreID,
+			req.StoreHeartbeat.Data, p.GetStorage())
 		if err != nil {
 			return err
 		}
-		resp.ContainerHeartbeat.Data = data
+		resp.StoreHeartbeat.Data = data
 	}
 
 	return nil
 }
 
-func (p *defaultProphet) handleCreateDestroying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleCreateDestroying(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	state, err := rc.HandleCreateDestroying(req.CreateDestroying)
 	if err != nil {
 		return err
@@ -293,7 +293,7 @@ func (p *defaultProphet) handleCreateDestroying(rc *cluster.RaftCluster, req *rp
 	return nil
 }
 
-func (p *defaultProphet) handleGetDestroying(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleGetDestroying(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	status, err := rc.HandleGetDestroying(req.GetDestroying)
 	if err != nil {
 		return err
@@ -302,7 +302,7 @@ func (p *defaultProphet) handleGetDestroying(rc *cluster.RaftCluster, req *rpcpb
 	return nil
 }
 
-func (p *defaultProphet) handleReportDestroyed(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleReportDestroyed(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	state, err := rc.HandleReportDestroyed(req.ReportDestroyed)
 	if err != nil {
 		return err
@@ -311,9 +311,9 @@ func (p *defaultProphet) handleReportDestroyed(rc *cluster.RaftCluster, req *rpc
 	return nil
 }
 
-func (p *defaultProphet) handleGetContainer(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	storeID := req.GetContainer.ID
-	store := rc.GetContainer(storeID)
+func (p *defaultProphet) handleGetStore(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	storeID := req.GetStore.ID
+	store := rc.GetStore(storeID)
 	if store == nil {
 		return fmt.Errorf("invalid container ID %d, not found", storeID)
 	}
@@ -323,12 +323,12 @@ func (p *defaultProphet) handleGetContainer(rc *cluster.RaftCluster, req *rpcpb.
 		return err
 	}
 
-	resp.GetContainer.Data = data
-	resp.GetContainer.Stats = store.GetContainerStats()
+	resp.GetStore.Data = data
+	resp.GetStore.Stats = store.GetStoreStats()
 	return nil
 }
 
-func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	id, err := p.storage.KV().AllocID()
 	if err != nil {
 		return err
@@ -338,7 +338,7 @@ func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.Reque
 	return nil
 }
 
-func (p *defaultProphet) handleAskBatchSplit(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleAskBatchSplit(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	split, err := rc.HandleAskBatchSplit(req)
 	if err != nil {
 		return err
@@ -348,41 +348,41 @@ func (p *defaultProphet) handleAskBatchSplit(rc *cluster.RaftCluster, req *rpcpb
 	return nil
 }
 
-func (p *defaultProphet) handleCreateResources(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	rsp, err := rc.HandleCreateResources(req)
+func (p *defaultProphet) handleCreateShards(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	rsp, err := rc.HandleCreateShards(req)
 	if err != nil {
 		return err
 	}
 
-	resp.CreateResources = *rsp
+	resp.CreateShards = *rsp
 	return nil
 }
 
-func (p *defaultProphet) handleRemoveResources(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	rsp, err := rc.HandleRemoveResources(req)
+func (p *defaultProphet) handleRemoveShards(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	rsp, err := rc.HandleRemoveShards(req)
 	if err != nil {
 		return err
 	}
 
-	resp.RemoveResources = *rsp
+	resp.RemoveShards = *rsp
 	return nil
 }
 
-func (p *defaultProphet) handleCheckResourceState(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
-	rsp, err := rc.HandleCheckResourceState(req)
+func (p *defaultProphet) handleCheckShardState(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
+	rsp, err := rc.HandleCheckShardState(req)
 	if err != nil {
 		return err
 	}
 
-	resp.CheckResourceState = *rsp
+	resp.CheckShardState = *rsp
 	return nil
 }
 
-func (p *defaultProphet) handlePutPlacementRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handlePutPlacementRule(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	return rc.HandlePutPlacementRule(req)
 }
 
-func (p *defaultProphet) handleGetAppliedRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleGetAppliedRule(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	rsp, err := rc.HandleAppliedRules(req)
 	if err != nil {
 		return err
@@ -392,7 +392,7 @@ func (p *defaultProphet) handleGetAppliedRule(rc *cluster.RaftCluster, req *rpcp
 	return nil
 }
 
-func (p *defaultProphet) handleAddScheduleGroupRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleAddScheduleGroupRule(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	err := rc.HandleAddScheduleGroupRule(req)
 	if err != nil {
 		return err
@@ -400,7 +400,7 @@ func (p *defaultProphet) handleAddScheduleGroupRule(rc *cluster.RaftCluster, req
 	return nil
 }
 
-func (p *defaultProphet) handleGetScheduleGroupRule(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleGetScheduleGroupRule(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	rules, err := rc.HandleGetScheduleGroupRule(req)
 	if err != nil {
 		return err
@@ -409,12 +409,12 @@ func (p *defaultProphet) handleGetScheduleGroupRule(rc *cluster.RaftCluster, req
 	return nil
 }
 
-// checkContainer returns an error response if the store exists and is in tombstone state.
+// checkStore returns an error response if the store exists and is in tombstone state.
 // It returns nil if it can't get the store.
-func checkContainer(rc *cluster.RaftCluster, storeID uint64) error {
-	store := rc.GetContainer(storeID)
+func checkStore(rc *cluster.RaftCluster, storeID uint64) error {
+	store := rc.GetStore(storeID)
 	if store != nil {
-		if store.GetState() == metapb.ContainerState_Tombstone {
+		if store.GetState() == metapb.StoreState_StoreTombstone {
 			return errors.New("container is tombstone")
 		}
 	}

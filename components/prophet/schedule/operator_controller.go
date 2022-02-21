@@ -48,8 +48,8 @@ var (
 	fastNotifyInterval = 2 * time.Second
 	// PushOperatorTickInterval is the interval try to push the operator.
 	PushOperatorTickInterval = 500 * time.Millisecond
-	// ContainerBalanceBaseTime represents the base time of balance rate.
-	ContainerBalanceBaseTime float64 = 60
+	// StoreBalanceBaseTime represents the base time of balance rate.
+	StoreBalanceBaseTime float64 = 60
 )
 
 // OperatorController is used to limit the speed of scheduling.
@@ -62,7 +62,7 @@ type OperatorController struct {
 	histories       *list.List
 	counts          map[operator.OpKind]uint64
 	opRecords       *OperatorRecords
-	containersLimit map[uint64]map[limit.Type]*limit.ContainerLimit
+	containersLimit map[uint64]map[limit.Type]*limit.StoreLimit
 	wop             WaitingOperator
 	wopStatus       *WaitingOperatorStatus
 	opNotifierQueue operatorQueue
@@ -78,7 +78,7 @@ func NewOperatorController(ctx context.Context, cluster opt.Cluster, hbStreams *
 		histories:       list.New(),
 		counts:          make(map[operator.OpKind]uint64),
 		opRecords:       NewOperatorRecords(ctx),
-		containersLimit: make(map[uint64]map[limit.Type]*limit.ContainerLimit),
+		containersLimit: make(map[uint64]map[limit.Type]*limit.StoreLimit),
 		wop:             NewRandBuckets(),
 		wopStatus:       NewWaitingOperatorStatus(),
 		opNotifierQueue: make(operatorQueue, 0),
@@ -100,12 +100,12 @@ func (oc *OperatorController) GetCluster() opt.Cluster {
 
 // DispatchDestroyDirectly send DestroyDirect cmd to the current container, because
 // the resource has been removed.
-func (oc *OperatorController) DispatchDestroyDirectly(res *core.CachedResource, source string) {
+func (oc *OperatorController) DispatchDestroyDirectly(res *core.CachedShard, source string) {
 	oc.SendScheduleCommand(res, operator.DestroyDirectly{}, source)
 }
 
 // Dispatch is used to dispatch the operator of a resource.
-func (oc *OperatorController) Dispatch(res *core.CachedResource, source string) {
+func (oc *OperatorController) Dispatch(res *core.CachedShard, source string) {
 	// Check existed operator.
 	if op := oc.GetOperator(res.Meta.ID()); op != nil {
 		// Update operator status:
@@ -136,7 +136,7 @@ func (oc *OperatorController) Dispatch(res *core.CachedResource, source string) 
 				// CREATED, EXPIRED must not appear.
 				// CANCELED, REPLACED must remove before transition.
 				oc.cluster.GetLogger().Error("resource dispatching operator with unexpected status",
-					log.ResourceField(op.ResourceID()),
+					log.ResourceField(op.ShardID()),
 					zap.Stringer("op", op),
 					zap.String("status", operator.OpStatusToString(op.Status())))
 
@@ -150,7 +150,7 @@ func (oc *OperatorController) Dispatch(res *core.CachedResource, source string) 
 	}
 }
 
-func (oc *OperatorController) checkStaleOperator(op *operator.Operator, step operator.OpStep, res *core.CachedResource) bool {
+func (oc *OperatorController) checkStaleOperator(op *operator.Operator, step operator.OpStep, res *core.CachedShard) bool {
 	err := step.CheckSafety(res)
 	if err != nil {
 		if oc.RemoveOperator(op, err.Error()) {
@@ -164,7 +164,7 @@ func (oc *OperatorController) checkStaleOperator(op *operator.Operator, step ope
 	// confver than the resource that the operator holds. In this case,
 	// the operator is stale, and will not be executed even we would
 	// have sent it to your storage applications. Here, we just cancel it.
-	origin := op.ResourceEpoch()
+	origin := op.ShardEpoch()
 	latest := res.Meta.Epoch()
 	changes := latest.GetConfVer() - origin.GetConfVer()
 	if changes > op.ConfVerChanged(res) {
@@ -191,27 +191,27 @@ func (oc *OperatorController) getNextPushOperatorTime(step operator.OpStep, now 
 	return now.Add(nextTime)
 }
 
-// pollNeedDispatchResource returns the resource need to dispatch,
+// pollNeedDispatchShard returns the resource need to dispatch,
 // "next" is true to indicate that it may exist in next attempt,
 // and false is the end for the poll.
-func (oc *OperatorController) pollNeedDispatchResource() (r *core.CachedResource, next bool) {
+func (oc *OperatorController) pollNeedDispatchShard() (r *core.CachedShard, next bool) {
 	oc.Lock()
 	defer oc.Unlock()
 	if oc.opNotifierQueue.Len() == 0 {
 		return nil, false
 	}
 	item := heap.Pop(&oc.opNotifierQueue).(*operatorWithTime)
-	resID := item.op.ResourceID()
+	resID := item.op.ShardID()
 	op, ok := oc.operators[resID]
 	if !ok || op == nil {
 		return nil, true
 	}
-	r = oc.cluster.GetResource(resID)
+	r = oc.cluster.GetShard(resID)
 	if r == nil {
 		_ = oc.removeOperatorLocked(op)
 		if op.Cancel() {
 			oc.cluster.GetLogger().Warn("remove operator because resource disappeared",
-				log.ResourceField(op.ResourceID()),
+				log.ResourceField(op.ShardID()),
 				zap.Stringer("op", op))
 			operatorCounter.WithLabelValues(op.Desc(), "disappear").Inc()
 		}
@@ -237,7 +237,7 @@ func (oc *OperatorController) pollNeedDispatchResource() (r *core.CachedResource
 // PushOperators periodically pushes the unfinished operator to the executor(your storage application).
 func (oc *OperatorController) PushOperators() {
 	for {
-		r, next := oc.pollNeedDispatchResource()
+		r, next := oc.pollNeedDispatchShard()
 		if !next {
 			break
 		}
@@ -310,7 +310,7 @@ func (oc *OperatorController) AddOperator(ops ...*operator.Operator) bool {
 	oc.Lock()
 	defer oc.Unlock()
 
-	if oc.exceedContainerLimitLocked(ops...) || !oc.checkAddOperator(ops...) {
+	if oc.exceedStoreLimitLocked(ops...) || !oc.checkAddOperator(ops...) {
 		for _, op := range ops {
 			_ = op.Cancel()
 			oc.buryOperator(op, "")
@@ -338,7 +338,7 @@ func (oc *OperatorController) PromoteWaitingOperator() {
 		}
 		operatorWaitCounter.WithLabelValues(ops[0].Desc(), "get").Inc()
 
-		if oc.exceedContainerLimitLocked(ops...) || !oc.checkAddOperator(ops...) {
+		if oc.exceedStoreLimitLocked(ops...) || !oc.checkAddOperator(ops...) {
 			for _, op := range ops {
 				operatorWaitCounter.WithLabelValues(op.Desc(), "promote-canceled").Inc()
 				_ = op.Cancel()
@@ -367,33 +367,33 @@ func (oc *OperatorController) PromoteWaitingOperator() {
 // - At least one operator is expired.
 func (oc *OperatorController) checkAddOperator(ops ...*operator.Operator) bool {
 	for _, op := range ops {
-		res := oc.cluster.GetResource(op.ResourceID())
+		res := oc.cluster.GetShard(op.ShardID())
 		if res == nil {
 			oc.cluster.GetLogger().Debug("resource not found, cancel add operator",
-				log.ResourceField(op.ResourceID()))
+				log.ResourceField(op.ShardID()))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "not-found").Inc()
 			return false
 		}
 		epoch := res.Meta.Epoch()
-		if epoch.GetVersion() != op.ResourceEpoch().Version ||
-			epoch.GetConfVer() != op.ResourceEpoch().ConfVer {
+		if epoch.GetVersion() != op.ShardEpoch().Version ||
+			epoch.GetConfVer() != op.ShardEpoch().ConfVer {
 			oc.cluster.GetLogger().Debug("resource epoch not match, cancel add operator",
-				log.ResourceField(op.ResourceID()),
+				log.ResourceField(op.ShardID()),
 				log.EpochField("old", epoch),
-				log.EpochField("new", op.ResourceEpoch()))
+				log.EpochField("new", op.ShardEpoch()))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "epoch-not-match").Inc()
 			return false
 		}
-		if old := oc.operators[op.ResourceID()]; old != nil && !isHigherPriorityOperator(op, old) {
+		if old := oc.operators[op.ShardID()]; old != nil && !isHigherPriorityOperator(op, old) {
 			oc.cluster.GetLogger().Debug("resource already have operator, cancel add operator",
-				log.ResourceField(op.ResourceID()),
+				log.ResourceField(op.ShardID()),
 				zap.Stringer("old", old))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "already-have").Inc()
 			return false
 		}
 		if op.Status() != operator.CREATED {
 			oc.cluster.GetLogger().Error("resource trying to add operator with unexpected status",
-				log.ResourceField(op.ResourceID()),
+				log.ResourceField(op.ShardID()),
 				zap.Stringer("op", op),
 				zap.String("status", operator.OpStatusToString(op.Status())))
 			operatorWaitCounter.WithLabelValues(op.Desc(), "unexpected-status").Inc()
@@ -423,7 +423,7 @@ func isHigherPriorityOperator(new, old *operator.Operator) bool {
 }
 
 func (oc *OperatorController) addOperatorLocked(op *operator.Operator) bool {
-	resID := op.ResourceID()
+	resID := op.ShardID()
 
 	oc.cluster.GetLogger().Info("resource add operator",
 		log.ResourceField(resID),
@@ -450,7 +450,7 @@ func (oc *OperatorController) addOperatorLocked(op *operator.Operator) bool {
 	operatorCounter.WithLabelValues(op.Desc(), "start").Inc()
 	operatorWaitDuration.WithLabelValues(op.Desc()).Observe(op.ElapsedTime().Seconds())
 	opInfluence := NewTotalOpInfluence([]*operator.Operator{op}, oc.cluster)
-	for containerID := range opInfluence.ContainersInfluence {
+	for containerID := range opInfluence.StoresInfluence {
 		if oc.containersLimit[containerID] == nil {
 			continue
 		}
@@ -459,18 +459,18 @@ func (oc *OperatorController) addOperatorLocked(op *operator.Operator) bool {
 			if containerLimit == nil {
 				continue
 			}
-			stepCost := opInfluence.GetContainerInfluence(containerID).GetStepCost(v)
+			stepCost := opInfluence.GetStoreInfluence(containerID).GetStepCost(v)
 			if stepCost == 0 {
 				continue
 			}
 			containerLimit.Take(stepCost)
-			containerLimitCostCounter.WithLabelValues(strconv.FormatUint(containerID, 10), n).Add(float64(stepCost) / float64(limit.ResourceInfluence[v]))
+			containerLimitCostCounter.WithLabelValues(strconv.FormatUint(containerID, 10), n).Add(float64(stepCost) / float64(limit.ShardInfluence[v]))
 		}
 	}
 	oc.updateCounts(oc.operators)
 
 	var step operator.OpStep
-	if res := oc.cluster.GetResource(op.ResourceID()); res != nil {
+	if res := oc.cluster.GetShard(op.ShardID()); res != nil {
 		if step = op.Check(res); step != nil {
 			oc.SendScheduleCommand(res, step, DispatchFromCreate)
 		}
@@ -492,7 +492,7 @@ func (oc *OperatorController) RemoveOperator(op *operator.Operator, extra string
 	if removed {
 		if op.Cancel() {
 			oc.cluster.GetLogger().Info("resource operator removed",
-				log.ResourceField(op.ResourceID()),
+				log.ResourceField(op.ShardID()),
 				zap.Stringer("op", op),
 				zap.Duration("takes", op.RunningTime()))
 		}
@@ -508,7 +508,7 @@ func (oc *OperatorController) removeOperatorWithoutBury(op *operator.Operator) b
 }
 
 func (oc *OperatorController) removeOperatorLocked(op *operator.Operator) bool {
-	resID := op.ResourceID()
+	resID := op.ShardID()
 	if cur := oc.operators[resID]; cur == op {
 		delete(oc.operators, resID)
 		oc.updateCounts(oc.operators)
@@ -523,7 +523,7 @@ func (oc *OperatorController) buryOperator(op *operator.Operator, extra string) 
 
 	if !operator.IsEndStatus(st) {
 		oc.cluster.GetLogger().Error("resource burying operator with non-end status",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.String("status", operator.OpStatusToString(op.Status())))
 		operatorCounter.WithLabelValues(op.Desc(), "unexpected").Inc()
@@ -533,7 +533,7 @@ func (oc *OperatorController) buryOperator(op *operator.Operator, extra string) 
 	switch st {
 	case operator.SUCCESS:
 		oc.cluster.GetLogger().Info("resource operator finish",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.Duration("takes", op.RunningTime()),
 			zap.String("info", op.GetAdditionalInfo()))
@@ -544,25 +544,25 @@ func (oc *OperatorController) buryOperator(op *operator.Operator, extra string) 
 		}
 	case operator.REPLACED:
 		oc.cluster.GetLogger().Info("resource replace old operator",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.Duration("takes", op.RunningTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "replace").Inc()
 	case operator.EXPIRED:
 		oc.cluster.GetLogger().Info("resource operator expired",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.Duration("lives", op.ElapsedTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "expire").Inc()
 	case operator.TIMEOUT:
 		oc.cluster.GetLogger().Info("resource operator timeout",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.Duration("takes", op.RunningTime()))
 		operatorCounter.WithLabelValues(op.Desc(), "timeout").Inc()
 	case operator.CANCELED:
 		oc.cluster.GetLogger().Info("resource operator canceled",
-			log.ResourceField(op.ResourceID()),
+			log.ResourceField(op.ShardID()),
 			zap.Stringer("op", op),
 			zap.Duration("takes", op.RunningTime()),
 			zap.String("extra", extra))
@@ -610,141 +610,141 @@ func (oc *OperatorController) GetWaitingOperators() []*operator.Operator {
 }
 
 // SendScheduleCommand sends a command to the resource.
-func (oc *OperatorController) SendScheduleCommand(res *core.CachedResource, step operator.OpStep, source string) {
+func (oc *OperatorController) SendScheduleCommand(res *core.CachedShard, step operator.OpStep, source string) {
 	oc.cluster.GetLogger().Info("resource send schedule command",
 		log.ResourceField(res.Meta.ID()),
 		zap.Stringer("step", step),
 		zap.String("source", source))
 
-	var cmd *rpcpb.ResourceHeartbeatRsp
+	var cmd *rpcpb.ShardHeartbeatRsp
 	switch st := step.(type) {
 	case operator.DestroyDirectly:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			DestroyDirectly: true,
 		}
 	case operator.TransferLeader:
-		p, _ := res.GetContainerPeer(st.ToContainer)
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		p, _ := res.GetStorePeer(st.ToStore)
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			TransferLeader: &rpcpb.TransferLeader{
 				Replica: p,
 			},
 		}
 	case operator.AddPeer:
-		if _, ok := res.GetContainerPeer(st.ToContainer); ok {
+		if _, ok := res.GetStorePeer(st.ToStore); ok {
 			// The newly added peer is pending.
 			return
 		}
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Voter,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Voter,
 				},
 			},
 		}
 	case operator.AddLightPeer:
-		if _, ok := res.GetContainerPeer(st.ToContainer); ok {
+		if _, ok := res.GetStorePeer(st.ToStore); ok {
 			// The newly added peer is pending.
 			return
 		}
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Voter,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Voter,
 				},
 			},
 		}
 	case operator.AddLearner:
-		if _, ok := res.GetContainerPeer(st.ToContainer); ok {
+		if _, ok := res.GetStorePeer(st.ToStore); ok {
 			// The newly added peer is pending.
 			return
 		}
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Learner,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 	case operator.AddLightLearner:
-		if _, ok := res.GetContainerPeer(st.ToContainer); ok {
+		if _, ok := res.GetStorePeer(st.ToStore); ok {
 			// The newly added peer is pending.
 			return
 		}
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Learner,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 	case operator.PromoteLearner:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				// reuse AddNode type
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Voter,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Voter,
 				},
 			},
 		}
 	case operator.DemoteFollower:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				// reuse AddLearnerNode type
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
-					ID:          st.PeerID,
-					ContainerID: st.ToContainer,
-					Role:        metapb.ReplicaRole_Learner,
+					ID:      st.PeerID,
+					StoreID: st.ToStore,
+					Role:    metapb.ReplicaRole_Learner,
 				},
 			},
 		}
 	case operator.RemovePeer:
-		p, _ := res.GetContainerPeer(st.FromContainer)
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		p, _ := res.GetStorePeer(st.FromStore)
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChange: &rpcpb.ConfigChange{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
 				Replica:    p,
 			},
 		}
-	case operator.MergeResource:
+	case operator.MergeShard:
 		if st.IsPassive {
 			return
 		}
 
-		data, _ := st.ToResource.Marshal()
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		data, _ := st.ToShard.Marshal()
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			Merge: &rpcpb.Merge{
 				Target: data,
 			},
 		}
-	case operator.SplitResource:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
-			SplitResource: &rpcpb.SplitResource{
+	case operator.SplitShard:
+		cmd = &rpcpb.ShardHeartbeatRsp{
+			SplitShard: &rpcpb.SplitShard{
 				Policy: st.Policy,
 				Keys:   st.SplitKeys,
 			},
 		}
 	case operator.ChangePeerV2Enter:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChangeV2: st.GetRequest(),
 		}
 	case operator.ChangePeerV2Leave:
-		cmd = &rpcpb.ResourceHeartbeatRsp{
+		cmd = &rpcpb.ShardHeartbeatRsp{
 			ConfigChangeV2: &rpcpb.ConfigChangeV2{},
 		}
 	default:
@@ -816,13 +816,13 @@ func (oc *OperatorController) OperatorCount(mask operator.OpKind) uint64 {
 // GetOpInfluence gets OpInfluence.
 func (oc *OperatorController) GetOpInfluence(cluster opt.Cluster) operator.OpInfluence {
 	influence := operator.OpInfluence{
-		ContainersInfluence: make(map[uint64]*operator.ContainerInfluence),
+		StoresInfluence: make(map[uint64]*operator.StoreInfluence),
 	}
 	oc.RLock()
 	defer oc.RUnlock()
 	for _, op := range oc.operators {
 		if !op.CheckTimeout() && !op.CheckSuccess() {
-			res := cluster.GetResource(op.ResourceID())
+			res := cluster.GetShard(op.ShardID())
 			if res != nil {
 				op.UnfinishedInfluence(influence, res)
 			}
@@ -834,11 +834,11 @@ func (oc *OperatorController) GetOpInfluence(cluster opt.Cluster) operator.OpInf
 // NewTotalOpInfluence creates a OpInfluence.
 func NewTotalOpInfluence(operators []*operator.Operator, cluster opt.Cluster) operator.OpInfluence {
 	influence := operator.OpInfluence{
-		ContainersInfluence: make(map[uint64]*operator.ContainerInfluence),
+		StoresInfluence: make(map[uint64]*operator.StoreInfluence),
 	}
 
 	for _, op := range operators {
-		res := cluster.GetResource(op.ResourceID())
+		res := cluster.GetShard(op.ShardID())
 		if res != nil {
 			op.TotalInfluence(influence, res)
 		}
@@ -851,7 +851,7 @@ func NewTotalOpInfluence(operators []*operator.Operator, cluster opt.Cluster) op
 func (oc *OperatorController) SetOperator(op *operator.Operator) {
 	oc.Lock()
 	defer oc.Unlock()
-	oc.operators[op.ResourceID()] = op
+	oc.operators[op.ShardID()] = op
 	oc.updateCounts(oc.operators)
 }
 
@@ -899,28 +899,28 @@ func (o *OperatorRecords) Get(id uint64) *OperatorWithStatus {
 
 // Put puts the operator and its status.
 func (o *OperatorRecords) Put(op *operator.Operator) {
-	id := op.ResourceID()
+	id := op.ShardID()
 	record := NewOperatorWithStatus(op)
 	o.ttl.Put(id, record)
 }
 
-// ExceedContainerLimit returns true if the container exceeds the cost limit after adding the operator. Otherwise, returns false.
-func (oc *OperatorController) ExceedContainerLimit(ops ...*operator.Operator) bool {
+// ExceedStoreLimit returns true if the container exceeds the cost limit after adding the operator. Otherwise, returns false.
+func (oc *OperatorController) ExceedStoreLimit(ops ...*operator.Operator) bool {
 	oc.Lock()
 	defer oc.Unlock()
-	return oc.exceedContainerLimitLocked(ops...)
+	return oc.exceedStoreLimitLocked(ops...)
 }
 
-// exceedContainerLimitLocked returns true if the container exceeds the cost limit after adding the operator. Otherwise, returns false.
-func (oc *OperatorController) exceedContainerLimitLocked(ops ...*operator.Operator) bool {
+// exceedStoreLimitLocked returns true if the container exceeds the cost limit after adding the operator. Otherwise, returns false.
+func (oc *OperatorController) exceedStoreLimitLocked(ops ...*operator.Operator) bool {
 	opInfluence := NewTotalOpInfluence(ops, oc.cluster)
-	for containerID := range opInfluence.ContainersInfluence {
+	for containerID := range opInfluence.StoresInfluence {
 		for _, v := range limit.TypeNameValue {
-			stepCost := opInfluence.GetContainerInfluence(containerID).GetStepCost(v)
+			stepCost := opInfluence.GetStoreInfluence(containerID).GetStepCost(v)
 			if stepCost == 0 {
 				continue
 			}
-			if oc.getOrCreateContainerLimit(containerID, v).Available() < stepCost {
+			if oc.getOrCreateStoreLimit(containerID, v).Available() < stepCost {
 				return true
 			}
 		}
@@ -928,36 +928,36 @@ func (oc *OperatorController) exceedContainerLimitLocked(ops ...*operator.Operat
 	return false
 }
 
-// newContainerLimit is used to create the limit of a container.
-func (oc *OperatorController) newContainerLimit(containerID uint64, ratePerSec float64, limitType limit.Type) {
+// newStoreLimit is used to create the limit of a container.
+func (oc *OperatorController) newStoreLimit(containerID uint64, ratePerSec float64, limitType limit.Type) {
 	oc.cluster.GetLogger().Info("create or update a container",
 		zap.Uint64("container", containerID),
 		zap.Stringer("limit", limitType),
 		zap.Float64("rate", ratePerSec))
 
 	if oc.containersLimit[containerID] == nil {
-		oc.containersLimit[containerID] = make(map[limit.Type]*limit.ContainerLimit)
+		oc.containersLimit[containerID] = make(map[limit.Type]*limit.StoreLimit)
 	}
-	oc.containersLimit[containerID][limitType] = limit.NewContainerLimit(ratePerSec, limit.ResourceInfluence[limitType])
+	oc.containersLimit[containerID][limitType] = limit.NewStoreLimit(ratePerSec, limit.ShardInfluence[limitType])
 }
 
-// getOrCreateContainerLimit is used to get or create the limit of a container.
-func (oc *OperatorController) getOrCreateContainerLimit(containerID uint64, limitType limit.Type) *limit.ContainerLimit {
+// getOrCreateStoreLimit is used to get or create the limit of a container.
+func (oc *OperatorController) getOrCreateStoreLimit(containerID uint64, limitType limit.Type) *limit.StoreLimit {
 	if oc.containersLimit[containerID][limitType] == nil {
-		ratePerSec := oc.cluster.GetOpts().GetContainerLimitByType(containerID, limitType) / ContainerBalanceBaseTime
-		oc.newContainerLimit(containerID, ratePerSec, limitType)
+		ratePerSec := oc.cluster.GetOpts().GetStoreLimitByType(containerID, limitType) / StoreBalanceBaseTime
+		oc.newStoreLimit(containerID, ratePerSec, limitType)
 		oc.cluster.AttachAvailableFunc(containerID, limitType, func() bool {
 			oc.RLock()
 			defer oc.RUnlock()
 			if oc.containersLimit[containerID][limitType] == nil {
 				return true
 			}
-			return oc.containersLimit[containerID][limitType].Available() >= limit.ResourceInfluence[limitType]
+			return oc.containersLimit[containerID][limitType].Available() >= limit.ShardInfluence[limitType]
 		})
 	}
-	ratePerSec := oc.cluster.GetOpts().GetContainerLimitByType(containerID, limitType) / ContainerBalanceBaseTime
+	ratePerSec := oc.cluster.GetOpts().GetStoreLimitByType(containerID, limitType) / StoreBalanceBaseTime
 	if ratePerSec != oc.containersLimit[containerID][limitType].Rate() {
-		oc.newContainerLimit(containerID, ratePerSec, limitType)
+		oc.newStoreLimit(containerID, ratePerSec, limitType)
 	}
 	return oc.containersLimit[containerID][limitType]
 }
@@ -970,28 +970,28 @@ func (oc *OperatorController) GetLeaderSchedulePolicy() core.SchedulePolicy {
 	return oc.cluster.GetOpts().GetLeaderSchedulePolicy()
 }
 
-// CollectContainerLimitMetrics collects the metrics about container limit
-func (oc *OperatorController) CollectContainerLimitMetrics() {
+// CollectStoreLimitMetrics collects the metrics about container limit
+func (oc *OperatorController) CollectStoreLimitMetrics() {
 	oc.RLock()
 	defer oc.RUnlock()
 	if oc.containersLimit == nil {
 		return
 	}
-	containers := oc.cluster.GetContainers()
+	containers := oc.cluster.GetStores()
 	for _, container := range containers {
 		if container != nil {
 			containerID := container.Meta.ID()
 			containerIDStr := strconv.FormatUint(containerID, 10)
 			for n, v := range limit.TypeNameValue {
-				var containerLimit *limit.ContainerLimit
+				var containerLimit *limit.StoreLimit
 				if oc.containersLimit[containerID] == nil || oc.containersLimit[containerID][v] == nil {
 					// Set to 0 to represent the container limit of the specific type is not initialized.
 					containerLimitRateGauge.WithLabelValues(containerIDStr, n).Set(0)
 					continue
 				}
 				containerLimit = oc.containersLimit[containerID][v]
-				containerLimitAvailableGauge.WithLabelValues(containerIDStr, n).Set(float64(containerLimit.Available()) / float64(limit.ResourceInfluence[v]))
-				containerLimitRateGauge.WithLabelValues(containerIDStr, n).Set(containerLimit.Rate() * ContainerBalanceBaseTime)
+				containerLimitAvailableGauge.WithLabelValues(containerIDStr, n).Set(float64(containerLimit.Available()) / float64(limit.ShardInfluence[v]))
+				containerLimitRateGauge.WithLabelValues(containerIDStr, n).Set(containerLimit.Rate() * StoreBalanceBaseTime)
 			}
 		}
 	}

@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
@@ -41,11 +41,11 @@ func TestEpochMatch(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		e1 := metapb.ResourceEpoch{
+		e1 := metapb.ShardEpoch{
 			ConfVer: tt.confVer1,
 			Version: tt.version1,
 		}
-		e2 := metapb.ResourceEpoch{
+		e2 := metapb.ShardEpoch{
 			ConfVer: tt.confVer2,
 			Version: tt.version2,
 		}
@@ -77,10 +77,10 @@ func TestCanAppendCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		cmd := &batch{
-			requestBatch: rpc.RequestBatch{
-				Requests: []rpc.Request{
+			requestBatch: rpcpb.RequestBatch{
+				Requests: []rpcpb.Request{
 					{
-						Epoch: metapb.ResourceEpoch{
+						Epoch: metapb.ShardEpoch{
 							ConfVer: tt.confVer1,
 							Version: tt.version1,
 						},
@@ -89,8 +89,8 @@ func TestCanAppendCmd(t *testing.T) {
 				},
 			},
 		}
-		req := rpc.Request{
-			Epoch: metapb.ResourceEpoch{
+		req := rpcpb.Request{
+			Epoch: metapb.ShardEpoch{
 				ConfVer: tt.confVer2,
 				Version: tt.version2,
 			},
@@ -103,30 +103,30 @@ func TestCanAppendCmd(t *testing.T) {
 func TestBatchResp(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
+	b := newTestBatch("id", "key", 1, rpcpb.Read, 2, func(rb rpcpb.ResponseBatch) {
 		assert.True(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
 		assert.Equal(t, int64(2), rsp.PID)
-		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
+		assert.Equal(t, rpcpb.Read, rsp.Type)
 		assert.Equal(t, "value", string(rsp.Value))
 	})
-	b.resp(rpc.ResponseBatch{Responses: []rpc.Response{{Value: []byte("value")}}})
+	b.resp(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{Value: []byte("value")}}})
 }
 
 func TestBatchRespWithError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	b := newTestBatch("id", "key", 1, rpc.CmdType_Read, 2, func(rb rpc.ResponseBatch) {
+	b := newTestBatch("id", "key", 1, rpcpb.Read, 2, func(rb rpcpb.ResponseBatch) {
 		assert.False(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 
 		rsp := rb.Responses[0]
 		assert.Equal(t, "id", string(rsp.ID))
 		assert.Equal(t, int64(2), rsp.PID)
-		assert.Equal(t, rpc.CmdType_Read, rsp.Type)
+		assert.Equal(t, rpcpb.Read, rsp.Type)
 		assert.Empty(t, rsp.Value)
 		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rsp.Error)
 	})
@@ -137,35 +137,35 @@ func TestBatchRespWithError(t *testing.T) {
 func TestAdminResp(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	resp := rpc.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
-	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+	resp := rpcpb.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
+	b := newTestBatch("id", "", uint64(rpcpb.AdminBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
 		assert.True(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 		assert.True(t, rb.IsAdmin())
-		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, rpcpb.AdminBatchSplit, rb.GetAdminCmdType())
 		assert.Equal(t, resp, rb.GetBatchSplitResponse())
 	})
-	b.resp(newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &resp))
+	b.resp(newAdminResponseBatch(rpcpb.AdminBatchSplit, &resp))
 }
 
 func TestAdminRespWithError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	b := newTestBatch("id", "", uint64(rpc.AdminCmdType_BatchSplit), rpc.CmdType_Admin, 1, func(rb rpc.ResponseBatch) {
+	b := newTestBatch("id", "", uint64(rpcpb.AdminBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
 		assert.False(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 		assert.True(t, rb.IsAdmin())
-		assert.Equal(t, rpc.AdminCmdType_BatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, rpcpb.AdminBatchSplit, rb.GetAdminCmdType())
 		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rb.Header.Error)
 	})
 	b.resp(errorOtherCMDResp(errors.New("error resp")))
 }
 
-func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType, pid int64, cb func(rpc.ResponseBatch)) batch {
+func newTestBatch(id string, key string, customType uint64, cmdType rpcpb.CmdType, pid int64, cb func(rpcpb.ResponseBatch)) batch {
 	return newBatch(nil,
-		rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
-			Requests: []rpc.Request{
+		rpcpb.RequestBatch{
+			Header: rpcpb.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+			Requests: []rpcpb.Request{
 				{
 					ID:         []byte(id),
 					PID:        pid,
@@ -180,15 +180,15 @@ func newTestBatch(id string, key string, customType uint64, cmdType rpc.CmdType,
 		0)
 }
 
-func newTestAdminRequestBatch(id string, pid int64, cmdType rpc.AdminCmdType, cmd []byte) rpc.RequestBatch {
-	return rpc.RequestBatch{
-		Header: rpc.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
-		Requests: []rpc.Request{
+func newTestAdminRequestBatch(id string, pid int64, cmdType rpcpb.AdminCmdType, cmd []byte) rpcpb.RequestBatch {
+	return rpcpb.RequestBatch{
+		Header: rpcpb.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
+		Requests: []rpcpb.Request{
 			{
 				ID:         []byte(id),
 				PID:        pid,
 				CustomType: uint64(cmdType),
-				Type:       rpc.CmdType_Admin,
+				Type:       rpcpb.Admin,
 				Cmd:        cmd,
 			},
 		},

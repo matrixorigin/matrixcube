@@ -20,7 +20,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
@@ -36,14 +36,14 @@ import (
 
 func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	req := rpc.RequestBatch{
-		Header: rpc.RequestBatchHeader{
+	req := rpcpb.RequestBatch{
+		Header: rpcpb.RequestBatchHeader{
 			ID: []byte{0x1, 0x2, 0x3},
 		},
-		Requests: []rpc.Request{
+		Requests: []rpcpb.Request{
 			{
 				ID:         []byte{100, 200, 200},
-				Type:       rpc.CmdType_Write,
+				Type:       rpcpb.Write,
 				Key:        []byte{101, 202, 203},
 				CustomType: 100,
 				Cmd:        []byte{200, 201, 202},
@@ -66,12 +66,12 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 func TestStateMachineApplyContextCanBeInitializedForConfigChange(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-		rpc.AdminCmdType_ConfigChange,
-		protoc.MustMarshal(&rpc.ConfigChangeRequest{
+		rpcpb.AdminConfigChange,
+		protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 			ChangeType: metapb.ConfigChangeType_AddNode,
 			Replica: metapb.Replica{
-				ID:          100,
-				ContainerID: 200,
+				ID:      100,
+				StoreID: 200,
 			},
 		}))
 	batch.Header.ShardID = 1
@@ -126,9 +126,9 @@ func TestStateMachineCanUpdateShard(t *testing.T) {
 
 func TestStateMachineSetShardState(t *testing.T) {
 	f := func(sm *stateMachine) {
-		assert.Equal(t, metapb.ResourceState_Running, sm.getShard().State)
-		sm.setShardState(metapb.ResourceState_Destroyed)
-		assert.Equal(t, metapb.ResourceState_Destroyed, sm.getShard().State)
+		assert.Equal(t, metapb.ShardState_Running, sm.getShard().State)
+		sm.setShardState(metapb.ShardState_Destroyed)
+		assert.Equal(t, metapb.ShardState_Destroyed, sm.getShard().State)
 	}
 	runSimpleStateMachineTest(t, f, nil)
 }
@@ -221,7 +221,7 @@ type testReplicaResultHandler struct {
 	appliedIndex uint64
 	notified     uint64
 	id           []byte
-	resp         rpc.ResponseBatch
+	resp         rpcpb.ResponseBatch
 	isConfChange bool
 }
 
@@ -232,7 +232,7 @@ func (t *testReplicaResultHandler) handleApplyResult(a applyResult) {
 }
 
 func (t *testReplicaResultHandler) notifyPendingProposal(id []byte,
-	resp rpc.ResponseBatch, isConfChange bool) {
+	resp rpcpb.ResponseBatch, isConfChange bool) {
 	t.id = id
 	t.resp = resp
 	t.isConfChange = isConfChange
@@ -267,15 +267,15 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 	f := func(sm *stateMachine) {
 		key1 := []byte("test-key")
 		value1 := []byte("test-value")
-		batch1 := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
+		batch1 := rpcpb.RequestBatch{
+			Header: rpcpb.RequestBatchHeader{
 				ID:      []byte{0x1, 0x2, 0x3},
 				ShardID: 1,
 			},
-			Requests: []rpc.Request{
+			Requests: []rpcpb.Request{
 				{
 					ID:         []byte{100, 200, 200},
-					Type:       rpc.CmdType_Write,
+					Type:       rpcpb.Write,
 					Key:        key1,
 					CustomType: 1,
 					Cmd:        value1,
@@ -290,15 +290,15 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 		}
 		key2 := []byte("test-key-2")
 		value2 := []byte("test-value-2")
-		batch2 := rpc.RequestBatch{
-			Header: rpc.RequestBatchHeader{
+		batch2 := rpcpb.RequestBatch{
+			Header: rpcpb.RequestBatchHeader{
 				ID:      []byte{0x4, 0x5, 0x6},
 				ShardID: 1,
 			},
-			Requests: []rpc.Request{
+			Requests: []rpcpb.Request{
 				{
 					ID:         []byte{220, 230, 235},
-					Type:       rpc.CmdType_Write,
+					Type:       rpcpb.Write,
 					Key:        key2,
 					CustomType: 1,
 					Cmd:        value2,
@@ -352,12 +352,12 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
-					ID:          100,
-					ContainerID: 200,
+					ID:      100,
+					StoreID: 200,
 				},
 			}))
 		batch.Header.ShardID = 1
@@ -383,13 +383,13 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 		assert.Equal(t, batch.Header.ID, h.id)
 		assert.Equal(t, true, h.isConfChange)
 		require.Equal(t, 1, len(h.resp.Responses))
-		assert.Equal(t, rpc.AdminCmdType_ConfigChange, rpc.AdminCmdType(h.resp.Responses[0].CustomType))
+		assert.Equal(t, rpcpb.AdminConfigChange, rpcpb.AdminCmdType(h.resp.Responses[0].CustomType))
 		// TODO: add a check to test whether the error field in the resp is empty
 
 		shard := sm.getShard()
 		require.Equal(t, 1, len(shard.Replicas))
 		assert.Equal(t, uint64(100), shard.Replicas[0].ID)
-		assert.Equal(t, uint64(200), shard.Replicas[0].ContainerID)
+		assert.Equal(t, uint64(200), shard.Replicas[0].StoreID)
 	}
 	runSimpleStateMachineTest(t, f, h)
 }
@@ -398,8 +398,8 @@ func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{}))
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  100,
@@ -430,8 +430,8 @@ func TestStateMachineUpdatesAppliedIndexAfterSkippingEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpc.AdminCmdType_ConfigChange,
-			protoc.MustMarshal(&rpc.ConfigChangeRequest{}))
+			rpcpb.AdminConfigChange,
+			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
 			NodeID:  100,
@@ -480,7 +480,7 @@ func TestStateMachineCannotApplyInDestroyingAfterRestart(t *testing.T) {
 	f := func(sm *stateMachine) {
 		sm.metadataMu.removed = false
 		sm.metadataMu.splited = false
-		sm.metadataMu.shard.State = metapb.ResourceState_Destroying
+		sm.metadataMu.shard.State = metapb.ShardState_Destroying
 
 		assert.False(t, sm.canApply(raftpb.Entry{}))
 		assert.True(t, sm.canApply(raftpb.Entry{Type: raftpb.EntryConfChange}))

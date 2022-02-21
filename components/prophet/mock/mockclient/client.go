@@ -68,7 +68,7 @@ func (mr *MockClientMockRecorder) AllocID() *gomock.Call {
 }
 
 // AskBatchSplit mocks base method.
-func (m *MockClient) AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error) {
+func (m *MockClient) AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AskBatchSplit", res, count)
 	ret0, _ := ret[0].([]rpcpb.SplitID)
@@ -82,69 +82,69 @@ func (mr *MockClientMockRecorder) AskBatchSplit(res, count interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AskBatchSplit", reflect.TypeOf((*MockClient)(nil).AskBatchSplit), res, count)
 }
 
-// AsyncAddResources mocks base method.
-func (m *MockClient) AsyncAddResources(resources ...metadata.Resource) error {
+// AsyncAddShards mocks base method.
+func (m *MockClient) AsyncAddShards(resources ...metadata.Shard) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range resources {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "AsyncAddResources", varargs...)
+	ret := m.ctrl.Call(m, "AsyncAddShards", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AsyncAddResources indicates an expected call of AsyncAddResources.
-func (mr *MockClientMockRecorder) AsyncAddResources(resources ...interface{}) *gomock.Call {
+// AsyncAddShards indicates an expected call of AsyncAddShards.
+func (mr *MockClientMockRecorder) AsyncAddShards(resources ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncAddResources", reflect.TypeOf((*MockClient)(nil).AsyncAddResources), resources...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncAddShards", reflect.TypeOf((*MockClient)(nil).AsyncAddShards), resources...)
 }
 
-// AsyncAddResourcesWithLeastPeers mocks base method.
-func (m *MockClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error {
+// AsyncAddShardsWithLeastPeers mocks base method.
+func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AsyncAddResourcesWithLeastPeers", resources, leastPeers)
+	ret := m.ctrl.Call(m, "AsyncAddShardsWithLeastPeers", resources, leastPeers)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AsyncAddResourcesWithLeastPeers indicates an expected call of AsyncAddResourcesWithLeastPeers.
-func (mr *MockClientMockRecorder) AsyncAddResourcesWithLeastPeers(resources, leastPeers interface{}) *gomock.Call {
+// AsyncAddShardsWithLeastPeers indicates an expected call of AsyncAddShardsWithLeastPeers.
+func (mr *MockClientMockRecorder) AsyncAddShardsWithLeastPeers(resources, leastPeers interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncAddResourcesWithLeastPeers", reflect.TypeOf((*MockClient)(nil).AsyncAddResourcesWithLeastPeers), resources, leastPeers)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncAddShardsWithLeastPeers", reflect.TypeOf((*MockClient)(nil).AsyncAddShardsWithLeastPeers), resources, leastPeers)
 }
 
-// AsyncRemoveResources mocks base method.
-func (m *MockClient) AsyncRemoveResources(ids ...uint64) error {
+// AsyncRemoveShards mocks base method.
+func (m *MockClient) AsyncRemoveShards(ids ...uint64) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range ids {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "AsyncRemoveResources", varargs...)
+	ret := m.ctrl.Call(m, "AsyncRemoveShards", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// AsyncRemoveResources indicates an expected call of AsyncRemoveResources.
-func (mr *MockClientMockRecorder) AsyncRemoveResources(ids ...interface{}) *gomock.Call {
+// AsyncRemoveShards indicates an expected call of AsyncRemoveShards.
+func (mr *MockClientMockRecorder) AsyncRemoveShards(ids ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncRemoveResources", reflect.TypeOf((*MockClient)(nil).AsyncRemoveResources), ids...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AsyncRemoveShards", reflect.TypeOf((*MockClient)(nil).AsyncRemoveShards), ids...)
 }
 
-// CheckResourceState mocks base method.
-func (m *MockClient) CheckResourceState(resources *roaring64.Bitmap) (rpcpb.CheckResourceStateRsp, error) {
+// CheckShardState mocks base method.
+func (m *MockClient) CheckShardState(resources *roaring64.Bitmap) (rpcpb.CheckShardStateRsp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CheckResourceState", resources)
-	ret0, _ := ret[0].(rpcpb.CheckResourceStateRsp)
+	ret := m.ctrl.Call(m, "CheckShardState", resources)
+	ret0, _ := ret[0].(rpcpb.CheckShardStateRsp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CheckResourceState indicates an expected call of CheckResourceState.
-func (mr *MockClientMockRecorder) CheckResourceState(resources interface{}) *gomock.Call {
+// CheckShardState indicates an expected call of CheckShardState.
+func (mr *MockClientMockRecorder) CheckShardState(resources interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckResourceState", reflect.TypeOf((*MockClient)(nil).CheckResourceState), resources)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckShardState", reflect.TypeOf((*MockClient)(nil).CheckShardState), resources)
 }
 
 // Close mocks base method.
@@ -161,26 +161,26 @@ func (mr *MockClientMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockClient)(nil).Close))
 }
 
-// ContainerHeartbeat mocks base method.
-func (m *MockClient) ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.ContainerHeartbeatRsp, error) {
+// StoreHeartbeat mocks base method.
+func (m *MockClient) StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerHeartbeat", hb)
-	ret0, _ := ret[0].(rpcpb.ContainerHeartbeatRsp)
+	ret := m.ctrl.Call(m, "StoreHeartbeat", hb)
+	ret0, _ := ret[0].(rpcpb.StoreHeartbeatRsp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ContainerHeartbeat indicates an expected call of ContainerHeartbeat.
-func (mr *MockClientMockRecorder) ContainerHeartbeat(hb interface{}) *gomock.Call {
+// StoreHeartbeat indicates an expected call of StoreHeartbeat.
+func (mr *MockClientMockRecorder) StoreHeartbeat(hb interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerHeartbeat", reflect.TypeOf((*MockClient)(nil).ContainerHeartbeat), hb)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHeartbeat", reflect.TypeOf((*MockClient)(nil).StoreHeartbeat), hb)
 }
 
 // CreateDestroying mocks base method.
-func (m *MockClient) CreateDestroying(id, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+func (m *MockClient) CreateDestroying(id, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDestroying", id, index, removeData, replicas)
-	ret0, _ := ret[0].(metapb.ResourceState)
+	ret0, _ := ret[0].(metapb.ShardState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -235,19 +235,19 @@ func (mr *MockClientMockRecorder) GetAppliedRules(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppliedRules", reflect.TypeOf((*MockClient)(nil).GetAppliedRules), id)
 }
 
-// GetContainer mocks base method.
-func (m *MockClient) GetContainer(containerID uint64) (metadata.Container, error) {
+// GetStore mocks base method.
+func (m *MockClient) GetStore(containerID uint64) (metadata.Store, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetContainer", containerID)
-	ret0, _ := ret[0].(metadata.Container)
+	ret := m.ctrl.Call(m, "GetStore", containerID)
+	ret0, _ := ret[0].(metadata.Store)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetContainer indicates an expected call of GetContainer.
-func (mr *MockClientMockRecorder) GetContainer(containerID interface{}) *gomock.Call {
+// GetStore indicates an expected call of GetStore.
+func (mr *MockClientMockRecorder) GetStore(containerID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetContainer", reflect.TypeOf((*MockClient)(nil).GetContainer), containerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStore", reflect.TypeOf((*MockClient)(nil).GetStore), containerID)
 }
 
 // GetDestroying mocks base method.
@@ -265,19 +265,19 @@ func (mr *MockClientMockRecorder) GetDestroying(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDestroying", reflect.TypeOf((*MockClient)(nil).GetDestroying), id)
 }
 
-// GetResourceHeartbeatRspNotifier mocks base method.
-func (m *MockClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error) {
+// GetShardHeartbeatRspNotifier mocks base method.
+func (m *MockClient) GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetResourceHeartbeatRspNotifier")
-	ret0, _ := ret[0].(chan rpcpb.ResourceHeartbeatRsp)
+	ret := m.ctrl.Call(m, "GetShardHeartbeatRspNotifier")
+	ret0, _ := ret[0].(chan rpcpb.ShardHeartbeatRsp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetResourceHeartbeatRspNotifier indicates an expected call of GetResourceHeartbeatRspNotifier.
-func (mr *MockClientMockRecorder) GetResourceHeartbeatRspNotifier() *gomock.Call {
+// GetShardHeartbeatRspNotifier indicates an expected call of GetShardHeartbeatRspNotifier.
+func (mr *MockClientMockRecorder) GetShardHeartbeatRspNotifier() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResourceHeartbeatRspNotifier", reflect.TypeOf((*MockClient)(nil).GetResourceHeartbeatRspNotifier))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardHeartbeatRspNotifier", reflect.TypeOf((*MockClient)(nil).GetShardHeartbeatRspNotifier))
 }
 
 // GetSchedulingRules mocks base method.
@@ -310,18 +310,18 @@ func (mr *MockClientMockRecorder) NewWatcher(flag interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewWatcher", reflect.TypeOf((*MockClient)(nil).NewWatcher), flag)
 }
 
-// PutContainer mocks base method.
-func (m *MockClient) PutContainer(container metadata.Container) error {
+// PutStore mocks base method.
+func (m *MockClient) PutStore(container metadata.Store) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PutContainer", container)
+	ret := m.ctrl.Call(m, "PutStore", container)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// PutContainer indicates an expected call of PutContainer.
-func (mr *MockClientMockRecorder) PutContainer(container interface{}) *gomock.Call {
+// PutStore indicates an expected call of PutStore.
+func (mr *MockClientMockRecorder) PutStore(container interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutContainer", reflect.TypeOf((*MockClient)(nil).PutContainer), container)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutStore", reflect.TypeOf((*MockClient)(nil).PutStore), container)
 }
 
 // PutPlacementRule mocks base method.
@@ -353,10 +353,10 @@ func (mr *MockClientMockRecorder) RemoveJob(arg0 interface{}) *gomock.Call {
 }
 
 // ReportDestroyed mocks base method.
-func (m *MockClient) ReportDestroyed(id, replicaID uint64) (metapb.ResourceState, error) {
+func (m *MockClient) ReportDestroyed(id, replicaID uint64) (metapb.ShardState, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReportDestroyed", id, replicaID)
-	ret0, _ := ret[0].(metapb.ResourceState)
+	ret0, _ := ret[0].(metapb.ShardState)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -367,16 +367,16 @@ func (mr *MockClientMockRecorder) ReportDestroyed(id, replicaID interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReportDestroyed", reflect.TypeOf((*MockClient)(nil).ReportDestroyed), id, replicaID)
 }
 
-// ResourceHeartbeat mocks base method.
-func (m *MockClient) ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error {
+// ShardHeartbeat mocks base method.
+func (m *MockClient) ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ResourceHeartbeat", meta, hb)
+	ret := m.ctrl.Call(m, "ShardHeartbeat", meta, hb)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// ResourceHeartbeat indicates an expected call of ResourceHeartbeat.
-func (mr *MockClientMockRecorder) ResourceHeartbeat(meta, hb interface{}) *gomock.Call {
+// ShardHeartbeat indicates an expected call of ShardHeartbeat.
+func (mr *MockClientMockRecorder) ShardHeartbeat(meta, hb interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResourceHeartbeat", reflect.TypeOf((*MockClient)(nil).ResourceHeartbeat), meta, hb)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardHeartbeat", reflect.TypeOf((*MockClient)(nil).ShardHeartbeat), meta, hb)
 }

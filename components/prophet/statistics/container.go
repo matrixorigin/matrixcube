@@ -23,61 +23,61 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// ContainersStats is a cache hold hot resources.
-type ContainersStats struct {
+// StoresStats is a cache hold hot resources.
+type StoresStats struct {
 	sync.RWMutex
-	rollingContainersStats map[uint64]*RollingContainerStats
+	rollingStoresStats map[uint64]*RollingStoreStats
 	totalLoads             []float64
 }
 
-// NewContainersStats creates a new hot spot cache.
-func NewContainersStats() *ContainersStats {
-	return &ContainersStats{
-		rollingContainersStats: make(map[uint64]*RollingContainerStats),
-		totalLoads:             make([]float64, ContainerStatCount),
+// NewStoresStats creates a new hot spot cache.
+func NewStoresStats() *StoresStats {
+	return &StoresStats{
+		rollingStoresStats: make(map[uint64]*RollingStoreStats),
+		totalLoads:             make([]float64, StoreStatCount),
 	}
 }
 
-// RemoveRollingContainerStats removes RollingContainerStats with a given container ID.
-func (s *ContainersStats) RemoveRollingContainerStats(ContainerID uint64) {
+// RemoveRollingStoreStats removes RollingStoreStats with a given container ID.
+func (s *StoresStats) RemoveRollingStoreStats(StoreID uint64) {
 	s.Lock()
 	defer s.Unlock()
-	delete(s.rollingContainersStats, ContainerID)
+	delete(s.rollingStoresStats, StoreID)
 }
 
-// GetRollingContainerStats gets RollingContainerStats with a given container ID.
-func (s *ContainersStats) GetRollingContainerStats(containerID uint64) *RollingContainerStats {
+// GetRollingStoreStats gets RollingStoreStats with a given container ID.
+func (s *StoresStats) GetRollingStoreStats(containerID uint64) *RollingStoreStats {
 	s.RLock()
 	defer s.RUnlock()
-	return s.rollingContainersStats[containerID]
+	return s.rollingStoresStats[containerID]
 }
 
-// GetOrCreateRollingContainerStats gets or creates RollingContainerStats with a given container ID.
-func (s *ContainersStats) GetOrCreateRollingContainerStats(containerID uint64) *RollingContainerStats {
+// GetOrCreateRollingStoreStats gets or creates RollingStoreStats with a given container ID.
+func (s *StoresStats) GetOrCreateRollingStoreStats(containerID uint64) *RollingStoreStats {
 	s.Lock()
 	defer s.Unlock()
-	ret, ok := s.rollingContainersStats[containerID]
+	ret, ok := s.rollingStoresStats[containerID]
 	if !ok {
-		ret = newRollingContainerStats()
-		s.rollingContainersStats[containerID] = ret
+		ret = newRollingStoreStats()
+		s.rollingStoresStats[containerID] = ret
 	}
 	return ret
 }
 
 // Observe records the current container status with a given container.
-func (s *ContainersStats) Observe(containerID uint64, stats *metapb.ContainerStats) {
-	container := s.GetOrCreateRollingContainerStats(containerID)
+func (s *StoresStats) Observe(containerID uint64, stats *metapb.StoreStats) {
+	container := s.GetOrCreateRollingStoreStats(containerID)
 	container.Observe(stats)
 }
 
 // Set sets the container statistics (for test).
-func (s *ContainersStats) Set(containerID uint64, stats *metapb.ContainerStats) {
-	container := s.GetOrCreateRollingContainerStats(containerID)
+func (s *StoresStats) Set(containerID uint64, stats *metapb.StoreStats) {
+	container := s.GetOrCreateRollingStoreStats(containerID)
 	container.Set(stats)
 }
 
 // UpdateTotalLoad updates the total loads of all stores.
-func (s *ContainersStats) UpdateTotalLoad(containers []*core.CachedContainer) {
+func (s *StoresStats) UpdateTotalLoad(containers []*core.CachedStore) {
 	s.Lock()
 	defer s.Unlock()
 	for i := range s.totalLoads {
@@ -87,55 +87,55 @@ func (s *ContainersStats) UpdateTotalLoad(containers []*core.CachedContainer) {
 		if !container.IsUp() {
 			continue
 		}
-		stats, ok := s.rollingContainersStats[container.Meta.ID()]
+		stats, ok := s.rollingStoresStats[container.Meta.ID()]
 		if !ok {
 			continue
 		}
 		for i := range s.totalLoads {
-			s.totalLoads[i] += stats.GetLoad(ContainerStatKind(i))
+			s.totalLoads[i] += stats.GetLoad(StoreStatKind(i))
 		}
 	}
 }
 
-// GetContainersLoads returns all stores loads.
-func (s *ContainersStats) GetContainersLoads() map[uint64][]float64 {
+// GetStoresLoads returns all stores loads.
+func (s *StoresStats) GetStoresLoads() map[uint64][]float64 {
 	s.RLock()
 	defer s.RUnlock()
-	res := make(map[uint64][]float64, len(s.rollingContainersStats))
-	for storeID, stats := range s.rollingContainersStats {
-		for i := ContainerStatKind(0); i < ContainerStatCount; i++ {
+	res := make(map[uint64][]float64, len(s.rollingStoresStats))
+	for storeID, stats := range s.rollingStoresStats {
+		for i := StoreStatKind(0); i < StoreStatCount; i++ {
 			res[storeID] = append(res[storeID], stats.GetLoad(i))
 		}
 	}
 	return res
 }
 
-func (s *ContainersStats) containerIsUnhealthy(cluster core.ContainerSetInformer, containerID uint64) bool {
-	container := cluster.GetContainer(containerID)
+func (s *StoresStats) containerIsUnhealthy(cluster core.StoreSetInformer, containerID uint64) bool {
+	container := cluster.GetStore(containerID)
 	return container.IsTombstone() || container.IsUnhealthy() || container.IsPhysicallyDestroyed()
 }
 
-// FilterUnhealthyContainer filter unhealthy container
-func (s *ContainersStats) FilterUnhealthyContainer(cluster core.ContainerSetInformer) {
+// FilterUnhealthyStore filter unhealthy container
+func (s *StoresStats) FilterUnhealthyStore(cluster core.StoreSetInformer) {
 	s.Lock()
 	defer s.Unlock()
-	for containerID := range s.rollingContainersStats {
+	for containerID := range s.rollingStoresStats {
 		if s.containerIsUnhealthy(cluster, containerID) {
-			delete(s.rollingContainersStats, containerID)
+			delete(s.rollingStoresStats, containerID)
 		}
 	}
 }
 
-// UpdateContainerHeartbeatMetrics is used to update container heartbeat interval metrics
-func (s *ContainersStats) UpdateContainerHeartbeatMetrics(container *core.CachedContainer) {
+// UpdateStoreHeartbeatMetrics is used to update container heartbeat interval metrics
+func (s *StoresStats) UpdateStoreHeartbeatMetrics(container *core.CachedStore) {
 	containerHeartbeatIntervalHist.Observe(time.Since(container.GetLastHeartbeatTS()).Seconds())
 }
 
-// RollingContainerStats are multiple sets of recent historical records with specified windows size.
-type RollingContainerStats struct {
+// RollingStoreStats are multiple sets of recent historical records with specified windows size.
+type RollingStoreStats struct {
 	sync.RWMutex
-	timeMedians map[ContainerStatKind]*movingaverage.TimeMedian
-	movingAvgs  map[ContainerStatKind]movingaverage.MovingAvg
+	timeMedians map[StoreStatKind]*movingaverage.TimeMedian
+	movingAvgs  map[StoreStatKind]movingaverage.MovingAvg
 }
 
 const (
@@ -148,21 +148,21 @@ const (
 	DefaultReadMfSize = 3
 )
 
-// newRollingContainerStats creates a RollingContainerStats.
-func newRollingContainerStats() *RollingContainerStats {
-	timeMedians := make(map[ContainerStatKind]*movingaverage.TimeMedian)
-	interval := ContainerHeartBeatReportInterval * time.Second
-	timeMedians[ContainerReadBytes] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultReadMfSize, interval)
-	timeMedians[ContainerReadKeys] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultReadMfSize, interval)
-	timeMedians[ContainerWriteBytes] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultWriteMfSize, interval)
-	timeMedians[ContainerWriteKeys] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultWriteMfSize, interval)
+// newRollingStoreStats creates a RollingStoreStats.
+func newRollingStoreStats() *RollingStoreStats {
+	timeMedians := make(map[StoreStatKind]*movingaverage.TimeMedian)
+	interval := StoreHeartBeatReportInterval * time.Second
+	timeMedians[StoreReadBytes] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultReadMfSize, interval)
+	timeMedians[StoreReadKeys] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultReadMfSize, interval)
+	timeMedians[StoreWriteBytes] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultWriteMfSize, interval)
+	timeMedians[StoreWriteKeys] = movingaverage.NewTimeMedian(DefaultAotSize, DefaultWriteMfSize, interval)
 
-	movingAvgs := make(map[ContainerStatKind]movingaverage.MovingAvg)
-	movingAvgs[ContainerCPUUsage] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
-	movingAvgs[ContainerDiskReadRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
-	movingAvgs[ContainerDiskWriteRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
+	movingAvgs := make(map[StoreStatKind]movingaverage.MovingAvg)
+	movingAvgs[StoreCPUUsage] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
+	movingAvgs[StoreDiskReadRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
+	movingAvgs[StoreDiskWriteRate] = movingaverage.NewMedianFilter(containerStatsRollingWindows)
 
-	return &RollingContainerStats{
+	return &RollingStoreStats{
 		timeMedians: timeMedians,
 		movingAvgs:  movingAvgs,
 	}
@@ -176,26 +176,26 @@ func collect(records []metapb.RecordPair) float64 {
 }
 
 // Observe records current statistics.
-func (r *RollingContainerStats) Observe(stats *metapb.ContainerStats) {
+func (r *RollingStoreStats) Observe(stats *metapb.StoreStats) {
 	statInterval := stats.GetInterval()
 	interval := statInterval.GetEnd() - statInterval.GetStart()
 
 	r.Lock()
 	defer r.Unlock()
-	r.timeMedians[ContainerWriteBytes].Add(float64(stats.WrittenBytes), time.Duration(interval)*time.Second)
-	r.timeMedians[ContainerWriteKeys].Add(float64(stats.WrittenKeys), time.Duration(interval)*time.Second)
-	r.timeMedians[ContainerReadBytes].Add(float64(stats.ReadBytes), time.Duration(interval)*time.Second)
-	r.timeMedians[ContainerReadKeys].Add(float64(stats.ReadKeys), time.Duration(interval)*time.Second)
+	r.timeMedians[StoreWriteBytes].Add(float64(stats.WrittenBytes), time.Duration(interval)*time.Second)
+	r.timeMedians[StoreWriteKeys].Add(float64(stats.WrittenKeys), time.Duration(interval)*time.Second)
+	r.timeMedians[StoreReadBytes].Add(float64(stats.ReadBytes), time.Duration(interval)*time.Second)
+	r.timeMedians[StoreReadKeys].Add(float64(stats.ReadKeys), time.Duration(interval)*time.Second)
 
-	// Updates the cpu usages and disk rw rates of Container.
-	r.movingAvgs[ContainerCPUUsage].Add(collect(stats.GetCpuUsages()))
-	r.movingAvgs[ContainerDiskReadRate].Add(collect(stats.GetReadIORates()))
-	r.movingAvgs[ContainerDiskWriteRate].Add(collect(stats.GetWriteIORates()))
+	// Updates the cpu usages and disk rw rates of Store.
+	r.movingAvgs[StoreCPUUsage].Add(collect(stats.GetCpuUsages()))
+	r.movingAvgs[StoreDiskReadRate].Add(collect(stats.GetReadIORates()))
+	r.movingAvgs[StoreDiskWriteRate].Add(collect(stats.GetWriteIORates()))
 
 }
 
 // Set sets the statistics (for test).
-func (r *RollingContainerStats) Set(stats *metapb.ContainerStats) {
+func (r *RollingStoreStats) Set(stats *metapb.StoreStats) {
 	statInterval := stats.GetInterval()
 	interval := statInterval.GetEnd() - statInterval.GetStart()
 	if interval == 0 {
@@ -203,59 +203,59 @@ func (r *RollingContainerStats) Set(stats *metapb.ContainerStats) {
 	}
 	r.Lock()
 	defer r.Unlock()
-	r.timeMedians[ContainerWriteBytes].Set(float64(stats.WrittenBytes) / float64(interval))
-	r.timeMedians[ContainerReadBytes].Set(float64(stats.ReadBytes) / float64(interval))
-	r.timeMedians[ContainerWriteKeys].Set(float64(stats.WrittenKeys) / float64(interval))
-	r.timeMedians[ContainerReadKeys].Set(float64(stats.WrittenKeys) / float64(interval))
-	r.movingAvgs[ContainerCPUUsage].Set(collect(stats.GetCpuUsages()))
-	r.movingAvgs[ContainerDiskReadRate].Set(collect(stats.GetReadIORates()))
-	r.movingAvgs[ContainerDiskWriteRate].Set(collect(stats.GetWriteIORates()))
+	r.timeMedians[StoreWriteBytes].Set(float64(stats.WrittenBytes) / float64(interval))
+	r.timeMedians[StoreReadBytes].Set(float64(stats.ReadBytes) / float64(interval))
+	r.timeMedians[StoreWriteKeys].Set(float64(stats.WrittenKeys) / float64(interval))
+	r.timeMedians[StoreReadKeys].Set(float64(stats.WrittenKeys) / float64(interval))
+	r.movingAvgs[StoreCPUUsage].Set(collect(stats.GetCpuUsages()))
+	r.movingAvgs[StoreDiskReadRate].Set(collect(stats.GetReadIORates()))
+	r.movingAvgs[StoreDiskWriteRate].Set(collect(stats.GetWriteIORates()))
 
 }
 
 // GetLoad returns store's load.
-func (r *RollingContainerStats) GetLoad(k ContainerStatKind) float64 {
+func (r *RollingStoreStats) GetLoad(k StoreStatKind) float64 {
 	r.RLock()
 	defer r.RUnlock()
 	switch k {
-	case ContainerReadBytes:
-		return r.timeMedians[ContainerReadBytes].Get()
-	case ContainerReadKeys:
-		return r.timeMedians[ContainerReadKeys].Get()
-	case ContainerWriteBytes:
-		return r.timeMedians[ContainerWriteBytes].Get()
-	case ContainerWriteKeys:
-		return r.timeMedians[ContainerWriteKeys].Get()
-	case ContainerCPUUsage:
-		return r.movingAvgs[ContainerCPUUsage].Get()
-	case ContainerDiskReadRate:
-		return r.movingAvgs[ContainerDiskReadRate].Get()
-	case ContainerDiskWriteRate:
-		return r.movingAvgs[ContainerDiskWriteRate].Get()
+	case StoreReadBytes:
+		return r.timeMedians[StoreReadBytes].Get()
+	case StoreReadKeys:
+		return r.timeMedians[StoreReadKeys].Get()
+	case StoreWriteBytes:
+		return r.timeMedians[StoreWriteBytes].Get()
+	case StoreWriteKeys:
+		return r.timeMedians[StoreWriteKeys].Get()
+	case StoreCPUUsage:
+		return r.movingAvgs[StoreCPUUsage].Get()
+	case StoreDiskReadRate:
+		return r.movingAvgs[StoreDiskReadRate].Get()
+	case StoreDiskWriteRate:
+		return r.movingAvgs[StoreDiskWriteRate].Get()
 	}
 	return 0
 }
 
-// GetInstantLoad returns Container's instant load.
+// GetInstantLoad returns Store's instant load.
 // MovingAvgs do not support GetInstantaneous() so they return average values.
-func (r *RollingContainerStats) GetInstantLoad(k ContainerStatKind) float64 {
+func (r *RollingStoreStats) GetInstantLoad(k StoreStatKind) float64 {
 	r.RLock()
 	defer r.RUnlock()
 	switch k {
-	case ContainerReadBytes:
-		return r.timeMedians[ContainerReadBytes].GetInstantaneous()
-	case ContainerReadKeys:
-		return r.timeMedians[ContainerReadKeys].GetInstantaneous()
-	case ContainerWriteBytes:
-		return r.timeMedians[ContainerWriteBytes].GetInstantaneous()
-	case ContainerWriteKeys:
-		return r.timeMedians[ContainerWriteKeys].GetInstantaneous()
-	case ContainerCPUUsage:
-		return r.movingAvgs[ContainerCPUUsage].Get()
-	case ContainerDiskReadRate:
-		return r.movingAvgs[ContainerDiskReadRate].Get()
-	case ContainerDiskWriteRate:
-		return r.movingAvgs[ContainerDiskWriteRate].Get()
+	case StoreReadBytes:
+		return r.timeMedians[StoreReadBytes].GetInstantaneous()
+	case StoreReadKeys:
+		return r.timeMedians[StoreReadKeys].GetInstantaneous()
+	case StoreWriteBytes:
+		return r.timeMedians[StoreWriteBytes].GetInstantaneous()
+	case StoreWriteKeys:
+		return r.timeMedians[StoreWriteKeys].GetInstantaneous()
+	case StoreCPUUsage:
+		return r.movingAvgs[StoreCPUUsage].Get()
+	case StoreDiskReadRate:
+		return r.movingAvgs[StoreDiskReadRate].Get()
+	case StoreDiskWriteRate:
+		return r.movingAvgs[StoreDiskWriteRate].Get()
 	}
 	return 0
 }

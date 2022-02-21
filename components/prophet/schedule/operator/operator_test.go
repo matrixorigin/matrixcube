@@ -38,8 +38,8 @@ type testOperator struct {
 func (s *testOperator) setup() {
 	cfg := config.NewTestOptions()
 	s.cluster = mockcluster.NewCluster(cfg)
-	s.cluster.SetMaxMergeResourceSize(2)
-	s.cluster.SetMaxMergeResourceKeys(2)
+	s.cluster.SetMaxMergeShardSize(2)
+	s.cluster.SetMaxMergeShardKeys(2)
 	s.cluster.SetLabelPropertyConfig(config.LabelPropertyConfig{
 		opt.RejectLeader: {{Key: "reject", Value: "leader"}},
 	})
@@ -49,34 +49,34 @@ func (s *testOperator) setup() {
 		8: {"reject", "leader"},
 	}
 	for containerID, labels := range containers {
-		s.cluster.PutContainerWithLabels(containerID, labels...)
+		s.cluster.PutStoreWithLabels(containerID, labels...)
 	}
 }
 
-func (s *testOperator) newTestResource(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedResource {
+func (s *testOperator) newTestShard(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedShard {
 	var (
-		resource = &metadata.TestResource{}
+		resource = &metadata.TestShard{}
 		leader   *metapb.Replica
 	)
 	resource.SetID(resourceID)
 	for i := range peers {
 		peer := metapb.Replica{
 			ID:          peers[i][1],
-			ContainerID: peers[i][0],
+			StoreID: peers[i][0],
 		}
 		resource.ResPeers = append(resource.ResPeers, peer)
 		if peer.ID == leaderPeer {
 			leader = &peer
 		}
 	}
-	resourceInfo := core.NewCachedResource(resource, leader,
+	resourceInfo := core.NewCachedShard(resource, leader,
 		core.SetApproximateSize(50),
 		core.SetApproximateKeys(50))
 	return resourceInfo
 }
 
 func (s *testOperator) newTestOperator(resourceID uint64, kind OpKind, steps ...OpStep) *Operator {
-	return NewOperator("test", "test", resourceID, metapb.ResourceEpoch{}, OpAdmin|kind, steps...)
+	return NewOperator("test", "test", resourceID, metapb.ShardEpoch{}, OpAdmin|kind, steps...)
 }
 
 func (s *testOperator) checkSteps(t *testing.T, op *Operator, steps []OpStep) {
@@ -90,27 +90,27 @@ func TestOperatorStep(t *testing.T) {
 	s := &testOperator{}
 	s.setup()
 
-	resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
-	assert.False(t, TransferLeader{FromContainer: 1, ToContainer: 2}.IsFinish(resource))
-	assert.True(t, TransferLeader{FromContainer: 2, ToContainer: 1}.IsFinish(resource))
-	assert.False(t, AddPeer{ToContainer: 3, PeerID: 3}.IsFinish(resource))
-	assert.True(t, AddPeer{ToContainer: 1, PeerID: 1}.IsFinish(resource))
-	assert.False(t, RemovePeer{FromContainer: 1}.IsFinish(resource))
-	assert.True(t, RemovePeer{FromContainer: 3}.IsFinish(resource))
+	resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+	assert.False(t, TransferLeader{FromStore: 1, ToStore: 2}.IsFinish(resource))
+	assert.True(t, TransferLeader{FromStore: 2, ToStore: 1}.IsFinish(resource))
+	assert.False(t, AddPeer{ToStore: 3, PeerID: 3}.IsFinish(resource))
+	assert.True(t, AddPeer{ToStore: 1, PeerID: 1}.IsFinish(resource))
+	assert.False(t, RemovePeer{FromStore: 1}.IsFinish(resource))
+	assert.True(t, RemovePeer{FromStore: 3}.IsFinish(resource))
 }
 
 func TestOperator(t *testing.T) {
 	s := &testOperator{}
 	s.setup()
 
-	resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+	resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
 	// addPeer1, transferLeader1, removePeer3
 	steps := []OpStep{
-		AddPeer{ToContainer: 1, PeerID: 1},
-		TransferLeader{FromContainer: 3, ToContainer: 1},
-		RemovePeer{FromContainer: 3},
+		AddPeer{ToStore: 1, PeerID: 1},
+		TransferLeader{FromStore: 3, ToStore: 1},
+		RemovePeer{FromStore: 3},
 	}
-	op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+	op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 	assert.Equal(t, core.HighPriority, op.GetPriorityLevel())
 	s.checkSteps(t, op, steps)
 	op.Start()
@@ -121,14 +121,14 @@ func TestOperator(t *testing.T) {
 
 	// addPeer1, transferLeader1, removePeer2
 	steps = []OpStep{
-		AddPeer{ToContainer: 1, PeerID: 1},
-		TransferLeader{FromContainer: 2, ToContainer: 1},
-		RemovePeer{FromContainer: 2},
+		AddPeer{ToStore: 1, PeerID: 1},
+		TransferLeader{FromStore: 2, ToStore: 1},
+		RemovePeer{FromStore: 2},
 	}
-	op = s.newTestOperator(1, OpLeader|OpResource, steps...)
+	op = s.newTestOperator(1, OpLeader|OpShard, steps...)
 	s.checkSteps(t, op, steps)
 	op.Start()
-	assert.Equal(t, op.Check(resource), RemovePeer{FromContainer: 2})
+	assert.Equal(t, op.Check(resource), RemovePeer{FromStore: 2})
 	assert.Equal(t, atomic.LoadInt32(&op.currentStep), int32(2))
 	assert.False(t, op.CheckTimeout())
 	SetOperatorStatusReachTime(op, STARTED, op.GetStartTime().Add(-FastOperatorWaitTime-time.Second))
@@ -140,7 +140,7 @@ func TestOperator(t *testing.T) {
 	assert.Equal(t, len(res), len(op.String())+2)
 
 	// check short timeout for transfer leader only operators.
-	steps = []OpStep{TransferLeader{FromContainer: 2, ToContainer: 1}}
+	steps = []OpStep{TransferLeader{FromStore: 2, ToStore: 1}}
 	op = s.newTestOperator(1, OpLeader, steps...)
 	op.Start()
 	assert.False(t, op.CheckTimeout())
@@ -152,120 +152,120 @@ func TestInfluence(t *testing.T) {
 	s := &testOperator{}
 	s.setup()
 
-	resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
-	opInfluence := OpInfluence{ContainersInfluence: make(map[uint64]*ContainerInfluence)}
-	containerOpInfluence := opInfluence.ContainersInfluence
-	containerOpInfluence[1] = &ContainerInfluence{InfluenceStats: map[string]InfluenceStats{}}
-	containerOpInfluence[2] = &ContainerInfluence{InfluenceStats: map[string]InfluenceStats{}}
+	resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+	opInfluence := OpInfluence{StoresInfluence: make(map[uint64]*StoreInfluence)}
+	containerOpInfluence := opInfluence.StoresInfluence
+	containerOpInfluence[1] = &StoreInfluence{InfluenceStats: map[string]InfluenceStats{}}
+	containerOpInfluence[2] = &StoreInfluence{InfluenceStats: map[string]InfluenceStats{}}
 
-	AddPeer{ToContainer: 2, PeerID: 2}.Influence(opInfluence, resource)
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
+	AddPeer{ToStore: 2, PeerID: 2}.Influence(opInfluence, resource)
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    0,
 				LeaderCount:   0,
-				ResourceSize:  50,
-				ResourceCount: 1,
+				ShardSize:  50,
+				ShardCount: 1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
-	TransferLeader{FromContainer: 1, ToContainer: 2}.Influence(opInfluence, resource)
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
+	TransferLeader{FromStore: 1, ToStore: 2}.Influence(opInfluence, resource)
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    -50,
 				LeaderCount:   -1,
-				ResourceSize:  0,
-				ResourceCount: 0,
+				ShardSize:  0,
+				ShardCount: 0,
 			},
 		},
 		StepCost: nil,
 	}))
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    50,
 				LeaderCount:   1,
-				ResourceSize:  50,
-				ResourceCount: 1,
+				ShardSize:  50,
+				ShardCount: 1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
-	RemovePeer{FromContainer: 1}.Influence(opInfluence, resource)
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
+	RemovePeer{FromStore: 1}.Influence(opInfluence, resource)
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    -50,
 				LeaderCount:   -1,
-				ResourceSize:  -50,
-				ResourceCount: -1,
+				ShardSize:  -50,
+				ShardCount: -1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    50,
 				LeaderCount:   1,
-				ResourceSize:  50,
-				ResourceCount: 1,
+				ShardSize:  50,
+				ShardCount: 1,
 			},
 		},
 
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
-	MergeResource{IsPassive: false}.Influence(opInfluence, resource)
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
+	MergeShard{IsPassive: false}.Influence(opInfluence, resource)
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    -50,
 				LeaderCount:   -1,
-				ResourceSize:  -50,
-				ResourceCount: -1,
+				ShardSize:  -50,
+				ShardCount: -1,
 			},
 		},
 
 		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    50,
 				LeaderCount:   1,
-				ResourceSize:  50,
-				ResourceCount: 1,
+				ShardSize:  50,
+				ShardCount: 1,
 			},
 		},
 
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
 	}))
 
-	MergeResource{IsPassive: true}.Influence(opInfluence, resource)
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], ContainerInfluence{
+	MergeShard{IsPassive: true}.Influence(opInfluence, resource)
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    -50,
 				LeaderCount:   -2,
-				ResourceSize:  -50,
-				ResourceCount: -2,
+				ShardSize:  -50,
+				ShardCount: -2,
 			},
 		},
 
 		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
 	}))
-	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], ContainerInfluence{
+	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
 				LeaderSize:    50,
 				LeaderCount:   1,
-				ResourceSize:  50,
-				ResourceCount: 0,
+				ShardSize:  50,
+				ShardCount: 0,
 			},
 		},
 
@@ -281,7 +281,7 @@ func TestOperatorKind(t *testing.T) {
 	assert.Equal(t, "unknown", OpKind(0).String())
 	k, err := ParseOperatorKind("resource,leader")
 	assert.NoError(t, err)
-	assert.Equal(t, OpResource|OpLeader, k)
+	assert.Equal(t, OpShard|OpLeader, k)
 	_, err = ParseOperatorKind("leader,resource")
 	assert.NoError(t, err)
 	_, err = ParseOperatorKind("foobar")
@@ -294,11 +294,11 @@ func TestCheckSuccess(t *testing.T) {
 
 	{
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.Equal(t, CREATED, op.Status())
 		assert.False(t, op.CheckSuccess())
 		assert.True(t, op.Start())
@@ -308,11 +308,11 @@ func TestCheckSuccess(t *testing.T) {
 	}
 	{
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		op.currentStep = int32(len(op.steps))
 		assert.Equal(t, CREATED, op.Status())
 		assert.False(t, op.CheckSuccess())
@@ -327,11 +327,11 @@ func TestCheckTimeout(t *testing.T) {
 
 	{
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.Equal(t, CREATED, op.Status())
 		assert.True(t, op.Start())
 		op.currentStep = int32(len(op.steps))
@@ -340,11 +340,11 @@ func TestCheckTimeout(t *testing.T) {
 	}
 	{
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.Equal(t, CREATED, op.Status())
 		assert.True(t, op.Start())
 		op.currentStep = int32(len(op.steps))
@@ -359,11 +359,11 @@ func TestStart(t *testing.T) {
 	s.setup()
 
 	steps := []OpStep{
-		AddPeer{ToContainer: 1, PeerID: 1},
-		TransferLeader{FromContainer: 2, ToContainer: 1},
-		RemovePeer{FromContainer: 2},
+		AddPeer{ToStore: 1, PeerID: 1},
+		TransferLeader{FromStore: 2, ToStore: 1},
+		RemovePeer{FromStore: 2},
 	}
-	op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+	op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 	assert.Equal(t, 0, op.GetStartTime().Nanosecond())
 	assert.Equal(t, CREATED, op.Status())
 	assert.True(t, op.Start())
@@ -376,11 +376,11 @@ func TestCheckExpired(t *testing.T) {
 	s.setup()
 
 	steps := []OpStep{
-		AddPeer{ToContainer: 1, PeerID: 1},
-		TransferLeader{FromContainer: 2, ToContainer: 1},
-		RemovePeer{FromContainer: 2},
+		AddPeer{ToStore: 1, PeerID: 1},
+		TransferLeader{FromStore: 2, ToStore: 1},
+		RemovePeer{FromStore: 2},
 	}
-	op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+	op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 	assert.False(t, op.CheckExpired())
 	assert.Equal(t, CREATED, op.Status())
 	SetOperatorStatusReachTime(op, CREATED, time.Now().Add(-OperatorExpireTime))
@@ -393,28 +393,28 @@ func TestCheck(t *testing.T) {
 	s.setup()
 
 	{
-		resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+		resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.True(t, op.Start())
 		assert.NotNil(t, op.Check(resource))
 		assert.Equal(t, STARTED, op.Status())
-		resource = s.newTestResource(1, 1, [2]uint64{1, 1})
+		resource = s.newTestShard(1, 1, [2]uint64{1, 1})
 		assert.Nil(t, op.Check(resource))
 		assert.Equal(t, SUCCESS, op.Status())
 	}
 	{
-		resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+		resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.True(t, op.Start())
 		assert.NotNil(t, op.Check(resource))
 		assert.Equal(t, STARTED, op.Status())
@@ -423,18 +423,18 @@ func TestCheck(t *testing.T) {
 		assert.Equal(t, TIMEOUT, op.Status())
 	}
 	{
-		resource := s.newTestResource(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
+		resource := s.newTestShard(1, 1, [2]uint64{1, 1}, [2]uint64{2, 2})
 		steps := []OpStep{
-			AddPeer{ToContainer: 1, PeerID: 1},
-			TransferLeader{FromContainer: 2, ToContainer: 1},
-			RemovePeer{FromContainer: 2},
+			AddPeer{ToStore: 1, PeerID: 1},
+			TransferLeader{FromStore: 2, ToStore: 1},
+			RemovePeer{FromStore: 2},
 		}
-		op := s.newTestOperator(1, OpLeader|OpResource, steps...)
+		op := s.newTestOperator(1, OpLeader|OpShard, steps...)
 		assert.True(t, op.Start())
 		assert.NotNil(t, op.Check(resource))
 		assert.Equal(t, STARTED, op.Status())
 		op.status.setTime(STARTED, time.Now().Add(-SlowOperatorWaitTime))
-		resource = s.newTestResource(1, 1, [2]uint64{1, 1})
+		resource = s.newTestShard(1, 1, [2]uint64{1, 1})
 		assert.Nil(t, op.Check(resource))
 		assert.Equal(t, SUCCESS, op.Status())
 	}

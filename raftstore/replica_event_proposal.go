@@ -17,9 +17,9 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 	"go.uber.org/zap"
@@ -239,7 +239,7 @@ func (pr *replica) proposeConfChange(c batch) bool {
 func (pr *replica) proposeConfChangeInternal(c batch) error {
 	req := c.requestBatch.GetConfigChangeRequest()
 	cc := pr.toConfChangeI(req, protoc.MustMarshal(&c.requestBatch))
-	var changes []rpc.ConfigChangeRequest
+	var changes []rpcpb.ConfigChangeRequest
 	changes = append(changes, req)
 	if err := pr.checkConfChange(changes, cc); err != nil {
 		return err
@@ -264,7 +264,7 @@ func (pr *replica) proposeConfChangeInternal(c batch) error {
 	return nil
 }
 
-func (pr *replica) toConfChangeI(req rpc.ConfigChangeRequest, data []byte) raftpb.ConfChangeI {
+func (pr *replica) toConfChangeI(req rpcpb.ConfigChangeRequest, data []byte) raftpb.ConfChangeI {
 	return &raftpb.ConfChange{
 		Type:    raftpb.ConfChangeType(req.ChangeType),
 		NodeID:  req.Replica.ID,
@@ -287,8 +287,8 @@ func (pr *replica) requestTransferLeader(c batch) bool {
 	}
 	// we submitted the request to start the leadership transfer, but there is no
 	// guarantee that it will successfully complete.
-	c.resp(newAdminResponseBatch(rpc.AdminCmdType_TransferLeader,
-		&rpc.TransferLeaderResponse{}))
+	c.resp(newAdminResponseBatch(rpcpb.AdminTransferLeader,
+		&rpcpb.TransferLeaderResponse{}))
 	return false
 }
 
@@ -336,7 +336,7 @@ func (pr *replica) checkProposal(c batch) bool {
 	return true
 }
 
-func isValidConfigChangeRequest(ccr rpc.ConfigChangeRequest) bool {
+func isValidConfigChangeRequest(ccr rpcpb.ConfigChangeRequest) bool {
 	// remove voter or learner
 	if ccr.ChangeType == metapb.ConfigChangeType_RemoveNode {
 		return true
@@ -355,7 +355,7 @@ func isValidConfigChangeRequest(ccr rpc.ConfigChangeRequest) bool {
 }
 
 func isRemovingOrDemotingLeader(kind confChangeKind,
-	ccr rpc.ConfigChangeRequest, leaderReplicaID uint64) bool {
+	ccr rpcpb.ConfigChangeRequest, leaderReplicaID uint64) bool {
 	// targetting the leader
 	if ccr.Replica.ID != leaderReplicaID {
 		return false
@@ -373,7 +373,7 @@ func isRemovingOrDemotingLeader(kind confChangeKind,
 }
 
 func removingVoterDirectlyInJointConsensusCC(kind confChangeKind,
-	ccr rpc.ConfigChangeRequest) bool {
+	ccr rpcpb.ConfigChangeRequest) bool {
 	if kind != simpleKind {
 		if ccr.ChangeType == metapb.ConfigChangeType_RemoveNode &&
 			ccr.Replica.Role == metapb.ReplicaRole_Voter {
@@ -383,7 +383,7 @@ func removingVoterDirectlyInJointConsensusCC(kind confChangeKind,
 	return false
 }
 
-func (pr *replica) checkConfChange(changes []rpc.ConfigChangeRequest,
+func (pr *replica) checkConfChange(changes []rpcpb.ConfigChangeRequest,
 	cci raftpb.ConfChangeI) error {
 	cc := cci.AsV2()
 	if _, err := pr.checkJointState(cc); err != nil {
@@ -453,12 +453,12 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker, error) {
 	return trk, nil
 }
 
-func (pr *replica) getRequestType(req rpc.RequestBatch) requestType {
+func (pr *replica) getRequestType(req rpcpb.RequestBatch) requestType {
 	if req.IsAdmin() {
 		switch req.GetAdminCmdType() {
-		case rpc.AdminCmdType_ConfigChange:
+		case rpcpb.AdminConfigChange:
 			return proposalConfigChange
-		case rpc.AdminCmdType_TransferLeader:
+		case rpcpb.AdminTransferLeader:
 			return requestTransferLeader
 		default:
 			return proposalNormal
@@ -467,10 +467,10 @@ func (pr *replica) getRequestType(req rpc.RequestBatch) requestType {
 	var hasRead, hasWrite bool
 	for _, r := range req.Requests {
 		if !hasRead {
-			hasRead = r.Type == rpc.CmdType_Read
+			hasRead = r.Type == rpcpb.Read
 		}
 		if !hasWrite {
-			hasWrite = r.Type == rpc.CmdType_Write
+			hasWrite = r.Type == rpcpb.Write
 		}
 	}
 	if hasRead && hasWrite {

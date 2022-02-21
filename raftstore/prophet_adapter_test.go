@@ -20,17 +20,16 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResourceAdapter(t *testing.T) {
+func TestShardAdapter(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	ma := NewResourceAdapterWithShard(Shard{}).(*resourceAdapter)
+	ma := NewShardAdapterWithShard(Shard{}).(*resourceAdapter)
 
 	data := []byte("data")
 	ma.SetData(data)
@@ -45,7 +44,7 @@ func TestResourceAdapter(t *testing.T) {
 	assert.Equal(t, data, s)
 	assert.Equal(t, data, e)
 
-	epoch := metapb.ResourceEpoch{Version: 1, ConfVer: 2}
+	epoch := metapb.ShardEpoch{Version: 1, ConfVer: 2}
 	ma.SetEpoch(epoch)
 	assert.Equal(t, epoch, ma.meta.Epoch)
 	assert.Equal(t, epoch, ma.Epoch())
@@ -58,7 +57,7 @@ func TestResourceAdapter(t *testing.T) {
 	assert.Equal(t, uint64(1), ma.meta.ID)
 	assert.Equal(t, uint64(1), ma.ID())
 
-	peers := []Replica{{ID: 1, ContainerID: 1}, {ID: 2, ContainerID: 2}}
+	peers := []Replica{{ID: 1, StoreID: 1}, {ID: 2, StoreID: 2}}
 	ma.SetPeers(peers)
 	assert.Equal(t, peers, ma.meta.Replicas)
 	assert.Equal(t, peers, ma.Peers())
@@ -68,9 +67,9 @@ func TestResourceAdapter(t *testing.T) {
 	assert.Equal(t, rules, ma.meta.RuleGroups)
 	assert.Equal(t, rules, ma.RuleGroups())
 
-	ma.SetState(metapb.ResourceState_Destroyed)
-	assert.Equal(t, metapb.ResourceState_Destroyed, ma.meta.State)
-	assert.Equal(t, metapb.ResourceState_Destroyed, ma.State())
+	ma.SetState(metapb.ShardState_Destroyed)
+	assert.Equal(t, metapb.ShardState_Destroyed, ma.meta.State)
+	assert.Equal(t, metapb.ShardState_Destroyed, ma.State())
 
 	ma.SetUnique("unique")
 	assert.Equal(t, "unique", ma.meta.Unique)
@@ -80,10 +79,10 @@ func TestResourceAdapter(t *testing.T) {
 	assert.Equal(t, ma, v)
 }
 
-func TestContainerAdapter(t *testing.T) {
+func TestStoreAdapter(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	ca := newContainerAdapter().(*containerAdapter)
+	ca := newStoreAdapter().(*containerAdapter)
 
 	ca.SetAddrs("a1", "a2")
 	assert.Equal(t, "a1", ca.meta.ClientAddr)
@@ -116,9 +115,9 @@ func TestContainerAdapter(t *testing.T) {
 	assert.Equal(t, int64(1), ca.meta.StartTime)
 	assert.Equal(t, int64(1), ca.StartTimestamp())
 
-	ca.SetState(metapb.ContainerState_Tombstone)
-	assert.Equal(t, metapb.ContainerState_Tombstone, ca.meta.State)
-	assert.Equal(t, metapb.ContainerState_Tombstone, ca.State())
+	ca.SetState(metapb.StoreState_StoreTombstone)
+	assert.Equal(t, metapb.StoreState_StoreTombstone, ca.meta.State)
+	assert.Equal(t, metapb.StoreState_StoreTombstone, ca.State())
 
 	ca.SetVersion("v1", "v2")
 	v, g := ca.Version()
@@ -143,21 +142,21 @@ func TestGetStoreHeartbeat(t *testing.T) {
 	defer s.trans.Close()
 	req, err := s.getStoreHeartbeat(time.Now())
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(2), req.Stats.ResourceCount)
+	assert.Equal(t, uint64(2), req.Stats.ShardCount)
 }
 
-func TestDoResourceHeartbeatRsp(t *testing.T) {
+func TestDoShardHeartbeatRsp(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		rsp            rpcpb.ResourceHeartbeatRsp
+		rsp            rpcpb.ShardHeartbeatRsp
 		fn             func(*store) *replica
 		adminReq       protoc.PB
 		adminTargetReq protoc.PB
 	}{
 		{
-			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, ConfigChange: &rpcpb.ConfigChange{
-				Replica:    metapb.Replica{ID: 1, ContainerID: 1},
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, ConfigChange: &rpcpb.ConfigChange{
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 			}},
 			fn: func(s *store) *replica {
@@ -167,15 +166,15 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				s.addReplica(pr)
 				return pr
 			},
-			adminReq: &rpc.ConfigChangeRequest{
+			adminReq: &rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
-				Replica:    metapb.Replica{ID: 1, ContainerID: 1},
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
 			},
-			adminTargetReq: &rpc.ConfigChangeRequest{},
+			adminTargetReq: &rpcpb.ConfigChangeRequest{},
 		},
 		{
-			rsp: rpcpb.ResourceHeartbeatRsp{ResourceID: 1, TransferLeader: &rpcpb.TransferLeader{
-				Replica: metapb.Replica{ID: 1, ContainerID: 1},
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, TransferLeader: &rpcpb.TransferLeader{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
 			}},
 			fn: func(s *store) *replica {
 				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
@@ -184,10 +183,10 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 				s.addReplica(pr)
 				return pr
 			},
-			adminReq: &rpc.TransferLeaderRequest{
-				Replica: metapb.Replica{ID: 1, ContainerID: 1},
+			adminReq: &rpcpb.TransferLeaderRequest{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
 			},
-			adminTargetReq: &rpc.TransferLeaderRequest{},
+			adminTargetReq: &rpcpb.TransferLeaderRequest{},
 		},
 	}
 
@@ -198,7 +197,7 @@ func TestDoResourceHeartbeatRsp(t *testing.T) {
 		pr := c.fn(s)
 		pr.sm = &stateMachine{}
 		pr.sm.metadataMu.shard = Shard{}
-		s.doResourceHeartbeatRsp(c.rsp)
+		s.doShardHeartbeatRsp(c.rsp)
 
 		v, err := pr.requests.Peek()
 		assert.NoError(t, err)

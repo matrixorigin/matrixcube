@@ -25,12 +25,12 @@ import (
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
@@ -188,7 +188,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 func (pr *replica) start(campaign bool) {
 	pr.logger.Info("begin to start replica")
 	pr.readStopper = stop.NewStopper(fmt.Sprintf("read-stopper[%d/%d/%d]",
-		pr.shardID, pr.replicaID, pr.replica.ContainerID),
+		pr.shardID, pr.replicaID, pr.replica.StoreID),
 		stop.WithLogger(pr.logger))
 
 	shard := pr.getShard()
@@ -229,12 +229,12 @@ func (pr *replica) start(campaign bool) {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("restart"))
 		pr.addAction(action{actionType: campaignAction})
-	} else if len(shard.Replicas) == 1 && shard.Replicas[0].ContainerID == pr.storeID {
+	} else if len(shard.Replicas) == 1 && shard.Replicas[0].StoreID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("only self"))
 		pr.addAction(action{actionType: campaignAction})
-	} else if shard.State == metapb.ResourceState_Creating &&
-		shard.Replicas[0].ContainerID == pr.storeID {
+	} else if shard.State == metapb.ShardState_Creating &&
+		shard.Replicas[0].StoreID == pr.storeID {
 		pr.logger.Info("try to campaign",
 			log.ReasonField("first replica of dynamically created"))
 		pr.addAction(action{actionType: campaignAction})
@@ -461,7 +461,7 @@ func (pr *replica) doCampaign() error {
 	return pr.rn.Campaign()
 }
 
-func (pr *replica) onReq(req rpc.Request, cb func(rpc.ResponseBatch)) error {
+func (pr *replica) onReq(req rpcpb.Request, cb func(rpcpb.ResponseBatch)) error {
 	metric.IncComandCount(format.Uint64ToString(req.CustomType))
 	return pr.addRequest(newReqCtx(req, cb))
 }
@@ -470,7 +470,7 @@ func (pr *replica) maybeExecRead() {
 	pr.pendingReads.process(pr.appliedIndex, pr.execReadRequest)
 }
 
-func (pr *replica) execReadRequest(req rpc.Request) {
+func (pr *replica) execReadRequest(req rpcpb.Request) {
 	// FIXME: use an externally passed context instead of `context.Background()` for future tracking.
 	err := pr.readStopper.RunTask(context.Background(), func(ctx context.Context) {
 		select {
@@ -511,7 +511,7 @@ func (pr *replica) execReadRequest(req rpc.Request) {
 		}
 	})
 	if err == stop.ErrUnavailable {
-		pr.store.shardsProxy.OnResponse(rpc.ResponseBatch{Header: rpc.ResponseBatchHeader{Error: errorpb.Error{
+		pr.store.shardsProxy.OnResponse(rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{Error: errorpb.Error{
 			Message: errShardNotFound.Error(),
 			ShardNotFound: &errorpb.ShardNotFound{
 				ShardID: pr.shardID,
@@ -551,7 +551,7 @@ func (pr *replica) collectDownReplicas() []metapb.ReplicaStats {
 			last := value.(time.Time)
 			if now.Sub(last) >= pr.cfg.Replication.MaxPeerDownTime.Duration {
 				state := metapb.ReplicaStats{}
-				state.Replica = Replica{ID: p.ID, ContainerID: p.ContainerID}
+				state.Replica = Replica{ID: p.ID, StoreID: p.StoreID}
 				state.DownSeconds = uint64(now.Sub(last).Seconds())
 
 				downReplicas = append(downReplicas, state)

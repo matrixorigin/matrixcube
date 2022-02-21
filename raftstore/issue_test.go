@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -42,7 +42,7 @@ func TestIssue123(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{
+	p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{
 		RangePrefix: []byte("b"),
 		Capacity:    20,
 	})
@@ -79,7 +79,7 @@ func TestIssue192(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{Group: 0, Capacity: 1, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 

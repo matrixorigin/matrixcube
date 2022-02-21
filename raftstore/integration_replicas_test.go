@@ -53,8 +53,8 @@ func TestScheduleReplicasWithRules(t *testing.T) {
 			},
 		},
 	}))
-	res := NewResourceAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
-	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
+	res := NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
+	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]metadata.Shard{res}, []int{2})
 	assert.NoError(t, err)
 	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
 }

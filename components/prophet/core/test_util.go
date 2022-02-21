@@ -22,14 +22,14 @@ import (
 )
 
 var (
-	testResourceFactory = func() metadata.Resource {
-		return &metadata.TestResource{}
+	testShardFactory = func() metadata.Shard {
+		return &metadata.TestShard{}
 	}
 )
 
-// SplitTestResources split a set of CachedResource by the middle of resourceKey
-func SplitTestResources(resources []*CachedResource) []*CachedResource {
-	results := make([]*CachedResource, 0, len(resources)*2)
+// SplitTestShards split a set of CachedShard by the middle of resourceKey
+func SplitTestShards(resources []*CachedShard) []*CachedShard {
+	results := make([]*CachedShard, 0, len(resources)*2)
 	for _, res := range resources {
 		resStart, resEnd := res.Meta.Range()
 		start, end := byte(0), byte(math.MaxUint8)
@@ -59,9 +59,9 @@ func SplitTestResources(resources []*CachedResource) []*CachedResource {
 	return results
 }
 
-// MergeTestResources merge a set of CachedResource by resourceKey
-func MergeTestResources(resources []*CachedResource) []*CachedResource {
-	results := make([]*CachedResource, 0, len(resources)/2)
+// MergeTestShards merge a set of CachedShard by resourceKey
+func MergeTestShards(resources []*CachedShard) []*CachedShard {
+	results := make([]*CachedShard, 0, len(resources)/2)
 	for i := 0; i < len(resources); i += 2 {
 		left := resources[i]
 		right := resources[i]
@@ -71,7 +71,7 @@ func MergeTestResources(resources []*CachedResource) []*CachedResource {
 
 		leftStart, _ := left.Meta.Range()
 		_, rightEnd := right.Meta.Range()
-		res := &CachedResource{Meta: &metadata.TestResource{
+		res := &CachedShard{Meta: &metadata.TestShard{
 			ResID: left.Meta.ID() + uint64(len(resources)),
 			Start: leftStart,
 			End:   rightEnd,
@@ -90,17 +90,17 @@ func MergeTestResources(resources []*CachedResource) []*CachedResource {
 	return results
 }
 
-// NewTestCachedResource creates a CachedResource for test.
-func NewTestCachedResource(start, end []byte) *CachedResource {
-	return &CachedResource{Meta: &metadata.TestResource{
+// NewTestCachedShard creates a CachedShard for test.
+func NewTestCachedShard(start, end []byte) *CachedShard {
+	return &CachedShard{Meta: &metadata.TestShard{
 		Start:    start,
 		End:      end,
-		ResEpoch: metapb.ResourceEpoch{},
+		ResEpoch: metapb.ShardEpoch{},
 	}}
 }
 
-// NewTestContainerInfoWithLabel is create a container with specified labels.
-func NewTestContainerInfoWithLabel(id uint64, resourceCount int, labels map[string]string) *CachedContainer {
+// NewTestStoreInfoWithLabel is create a container with specified labels.
+func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]string) *CachedStore {
 	containerLabels := make([]metapb.Pair, 0, len(labels))
 	for k, v := range labels {
 		containerLabels = append(containerLabels, metapb.Pair{
@@ -108,45 +108,45 @@ func NewTestContainerInfoWithLabel(id uint64, resourceCount int, labels map[stri
 			Value: v,
 		})
 	}
-	stats := &metapb.ContainerStats{}
+	stats := &metapb.StoreStats{}
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
-	container := NewCachedContainer(
-		&metadata.TestContainer{
+	container := NewCachedStore(
+		&metadata.TestStore{
 			CID:     id,
 			CLabels: containerLabels,
 		},
-		SetContainerStats(stats),
-		SetResourceCount("", resourceCount),
-		SetResourceSize("", int64(resourceCount)*10),
+		SetStoreStats(stats),
+		SetShardCount("", resourceCount),
+		SetShardSize("", int64(resourceCount)*10),
 	)
 	return container
 }
 
-// NewTestCachedContainerWithSizeCount is create a container with size and count.
-func NewTestCachedContainerWithSizeCount(id uint64, resourceCount, leaderCount int, resourceSize, leaderSize int64) *CachedContainer {
-	stats := &metapb.ContainerStats{}
+// NewTestCachedStoreWithSizeCount is create a container with size and count.
+func NewTestCachedStoreWithSizeCount(id uint64, resourceCount, leaderCount int, resourceSize, leaderSize int64) *CachedStore {
+	stats := &metapb.StoreStats{}
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
-	container := NewCachedContainer(
-		&metadata.TestContainer{
+	container := NewCachedStore(
+		&metadata.TestStore{
 			CID: id,
 		},
-		SetContainerStats(stats),
-		SetResourceCount("", resourceCount),
-		SetResourceSize("", resourceSize),
+		SetStoreStats(stats),
+		SetShardCount("", resourceCount),
+		SetShardSize("", resourceSize),
 		SetLeaderCount("", leaderCount),
 		SetLeaderSize("", leaderSize),
 	)
 	return container
 }
 
-func newTestResourceItem(start, end []byte) *resourceItem {
-	return &resourceItem{res: NewTestCachedResource(start, end)}
+func newTestShardItem(start, end []byte) *resourceItem {
+	return &resourceItem{res: NewTestCachedShard(start, end)}
 }
 
-func newResourceWithStat(start, end string, size, keys int64) *CachedResource {
-	res := NewTestCachedResource([]byte(start), []byte(end))
+func newShardWithStat(start, end string, size, keys int64) *CachedShard {
+	res := NewTestCachedShard([]byte(start), []byte(end))
 	res.stats.ApproximateSize, res.stats.ApproximateKeys = uint64(size), uint64(keys)
 	return res
 }

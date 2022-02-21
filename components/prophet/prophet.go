@@ -182,11 +182,11 @@ func (p *defaultProphet) Start() {
 		p.cfg.Prophet.Adapter)
 	p.logger.Info("storage created")
 
-	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewResource, p.logger)
+	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewShard, p.logger)
 	p.logger.Info("basic cluster created")
 
 	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
-		p.cfg.Prophet.ResourceStateChangedHandler, p.logger)
+		p.cfg.Prophet.ShardStateChangedHandler, p.logger)
 	p.logger.Info("raft cluster created")
 
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)

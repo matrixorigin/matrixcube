@@ -24,8 +24,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// ContainerLimiter adjust the container limit dynamically
-type ContainerLimiter struct {
+// StoreLimiter adjust the container limit dynamically
+type StoreLimiter struct {
 	m       sync.RWMutex
 	logger  *zap.Logger
 	opt     *config.PersistOptions
@@ -34,14 +34,14 @@ type ContainerLimiter struct {
 	current LoadState
 }
 
-// NewContainerLimiter builds a container limiter object using the operator controller
-func NewContainerLimiter(opt *config.PersistOptions, logger *zap.Logger) *ContainerLimiter {
+// NewStoreLimiter builds a container limiter object using the operator controller
+func NewStoreLimiter(opt *config.PersistOptions, logger *zap.Logger) *StoreLimiter {
 	defaultScene := map[limit.Type]*limit.Scene{
 		limit.AddPeer:    limit.DefaultScene(limit.AddPeer),
 		limit.RemovePeer: limit.DefaultScene(limit.RemovePeer),
 	}
 
-	return &ContainerLimiter{
+	return &StoreLimiter{
 		opt:     opt,
 		logger:  log.Adjust(logger),
 		state:   NewState(),
@@ -51,7 +51,7 @@ func NewContainerLimiter(opt *config.PersistOptions, logger *zap.Logger) *Contai
 }
 
 // Collect the container statistics and update the cluster state
-func (s *ContainerLimiter) Collect(stats *metapb.ContainerStats) {
+func (s *StoreLimiter) Collect(stats *metapb.StoreStats) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -65,13 +65,13 @@ func (s *ContainerLimiter) Collect(stats *metapb.ContainerStats) {
 
 	if ratePeerAdd > 0 || ratePeerRemove > 0 {
 		if ratePeerAdd > 0 {
-			s.opt.SetAllContainersLimit(limit.AddPeer, ratePeerAdd)
+			s.opt.SetAllStoresLimit(limit.AddPeer, ratePeerAdd)
 			s.logger.Info("change container resource add limit for cluster",
 				zap.String("state", state.String()),
 				zap.Float64("rate-peer-add", ratePeerAdd))
 		}
 		if ratePeerRemove > 0 {
-			s.opt.SetAllContainersLimit(limit.RemovePeer, ratePeerRemove)
+			s.opt.SetAllStoresLimit(limit.RemovePeer, ratePeerRemove)
 			s.logger.Info("change container resource remove limit for cluster",
 				zap.String("state", state.String()),
 				zap.Float64("rate-peer-remove", ratePeerRemove))
@@ -91,7 +91,7 @@ func collectClusterStateCurrent(state LoadState) {
 	}
 }
 
-func (s *ContainerLimiter) calculateRate(limitType limit.Type, state LoadState) float64 {
+func (s *StoreLimiter) calculateRate(limitType limit.Type, state LoadState) float64 {
 	rate := float64(0)
 	switch state {
 	case LoadStateIdle:
@@ -106,8 +106,8 @@ func (s *ContainerLimiter) calculateRate(limitType limit.Type, state LoadState) 
 	return rate
 }
 
-// ReplaceContainerLimitScene replaces the container limit values for different scenes
-func (s *ContainerLimiter) ReplaceContainerLimitScene(scene *limit.Scene, limitType limit.Type) {
+// ReplaceStoreLimitScene replaces the container limit values for different scenes
+func (s *StoreLimiter) ReplaceStoreLimitScene(scene *limit.Scene, limitType limit.Type) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if s.scene == nil {
@@ -116,8 +116,8 @@ func (s *ContainerLimiter) ReplaceContainerLimitScene(scene *limit.Scene, limitT
 	s.scene[limitType] = scene
 }
 
-// ContainerLimitScene returns the current limit for different scenes
-func (s *ContainerLimiter) ContainerLimitScene(limitType limit.Type) *limit.Scene {
+// StoreLimitScene returns the current limit for different scenes
+func (s *StoreLimiter) StoreLimitScene(limitType limit.Type) *limit.Scene {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.scene[limitType]

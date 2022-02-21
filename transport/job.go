@@ -36,7 +36,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"go.uber.org/zap"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -54,7 +54,7 @@ type job struct {
 	ctx               context.Context
 	dir               snapshot.SnapshotDirFunc
 	transImpl         TransImpl
-	ch                chan meta.SnapshotChunk
+	ch                chan metapb.SnapshotChunk
 	completed         chan struct{}
 	stopc             chan struct{}
 	failed            chan struct{}
@@ -80,7 +80,7 @@ func newJob(logger *zap.Logger,
 		fs:                fs,
 		snapshotChunkSize: snapshotChunkSize,
 	}
-	j.ch = make(chan meta.SnapshotChunk, count)
+	j.ch = make(chan metapb.SnapshotChunk, count)
 	return j
 }
 
@@ -102,7 +102,7 @@ func (j *job) connect(addr string) error {
 	return nil
 }
 
-func (j *job) addSnapshot(chunks []meta.SnapshotChunk) {
+func (j *job) addSnapshot(chunks []metapb.SnapshotChunk) {
 	if len(chunks) != cap(j.ch) {
 		j.logger.Fatal("unexpected snapshot chunk count")
 	}
@@ -120,7 +120,7 @@ func (j *job) process() error {
 }
 
 func (j *job) sendSnapshot() error {
-	chunks := make([]meta.SnapshotChunk, 0)
+	chunks := make([]metapb.SnapshotChunk, 0)
 	for {
 		select {
 		case <-j.stopc:
@@ -137,7 +137,7 @@ func (j *job) sendSnapshot() error {
 	}
 }
 
-func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
+func (j *job) sendChunks(chunks []metapb.SnapshotChunk) error {
 	chunkData := make([]byte, j.snapshotChunkSize)
 	for _, chunk := range chunks {
 		select {
@@ -160,8 +160,8 @@ func (j *job) sendChunks(chunks []meta.SnapshotChunk) error {
 	return nil
 }
 
-func (j *job) getEnv(chunk meta.SnapshotChunk) snapshot.SSEnv {
-	si := meta.SnapshotInfo{}
+func (j *job) getEnv(chunk metapb.SnapshotChunk) snapshot.SSEnv {
+	si := metapb.SnapshotInfo{}
 	protoc.MustUnmarshal(&si, chunk.Extra)
 	env := snapshot.NewSSEnv(j.dir, chunk.ShardID, chunk.From,
 		chunk.Index, si.Extra, snapshot.CreatingMode, j.fs)

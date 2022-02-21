@@ -56,8 +56,8 @@ type Config struct {
 
 	Handler                         metadata.RoleChangeHandler                                                      `toml:"-" json:"-"`
 	Adapter                         metadata.Adapter                                                                `toml:"-" json:"-"`
-	ResourceStateChangedHandler     func(res metadata.Resource, from metapb.ResourceState, to metapb.ResourceState) `toml:"-" json:"-"`
-	ContainerHeartbeatDataProcessor ContainerHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
+	ShardStateChangedHandler     func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState) `toml:"-" json:"-"`
+	StoreHeartbeatDataProcessor StoreHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
 
 	// TODO(fagongzi): the following test-related configurations are moved to a separate struct
 	// Only test can change them.
@@ -174,11 +174,11 @@ type ScheduleConfig struct {
 	// it will never be used as a source or target container.
 	MaxSnapshotCount    uint64 `toml:"max-snapshot-count" json:"max-snapshot-count"`
 	MaxPendingPeerCount uint64 `toml:"max-pending-peer-count" json:"max-pending-peer-count"`
-	// If both the size of resource is smaller than MaxMergeResourceSize
-	// and the number of rows in resource is smaller than MaxMergeResourceKeys,
+	// If both the size of resource is smaller than MaxMergeShardSize
+	// and the number of rows in resource is smaller than MaxMergeShardKeys,
 	// it will try to merge with adjacent resources.
-	MaxMergeResourceSize uint64 `toml:"max-merge-resource-size" json:"max-merge-resource-size"`
-	MaxMergeResourceKeys uint64 `toml:"max-merge-resource-keys" json:"max-merge-resource-keys"`
+	MaxMergeShardSize uint64 `toml:"max-merge-resource-size" json:"max-merge-resource-size"`
+	MaxMergeShardKeys uint64 `toml:"max-merge-resource-keys" json:"max-merge-resource-keys"`
 	// SplitMergeInterval is the minimum interval time to permit merge after split.
 	SplitMergeInterval typeutil.Duration `toml:"split-merge-interval" json:"split-merge-interval"`
 	// EnableOneWayMerge is the option to enable one way merge. This means a resource can only be merged into the next resource of it.
@@ -186,29 +186,29 @@ type ScheduleConfig struct {
 	// EnableCrossTableMerge is the option to enable cross table merge. This means two resources can be merged with different table IDs.
 	// This option only works when key type is "table".
 	EnableCrossTableMerge bool `toml:"enable-cross-table-merge" json:"enable-cross-table-merge,string"`
-	// PatrolResourceInterval is the interval for scanning resource during patrol.
-	PatrolResourceInterval typeutil.Duration `toml:"patrol-resource-interval" json:"patrol-resource-interval"`
-	// MaxContainerDownTime is the max duration after which
+	// PatrolShardInterval is the interval for scanning resource during patrol.
+	PatrolShardInterval typeutil.Duration `toml:"patrol-resource-interval" json:"patrol-resource-interval"`
+	// MaxStoreDownTime is the max duration after which
 	// a container will be considered to be down if it hasn't reported heartbeats.
-	MaxContainerDownTime typeutil.Duration `toml:"max-container-down-time" json:"max-container-down-time"`
+	MaxStoreDownTime typeutil.Duration `toml:"max-container-down-time" json:"max-container-down-time"`
 	// LeaderScheduleLimit is the max coexist leader schedules.
 	LeaderScheduleLimit uint64 `toml:"leader-schedule-limit" json:"leader-schedule-limit"`
 	// LeaderSchedulePolicy is the option to balance leader, there are some policies supported: ["count", "size"], default: "count"
 	LeaderSchedulePolicy string `toml:"leader-schedule-policy" json:"leader-schedule-policy"`
-	// ResourceScheduleLimit is the max coexist resource schedules.
-	ResourceScheduleLimit uint64 `toml:"resource-schedule-limit" json:"resource-schedule-limit"`
+	// ShardScheduleLimit is the max coexist resource schedules.
+	ShardScheduleLimit uint64 `toml:"resource-schedule-limit" json:"resource-schedule-limit"`
 	// ReplicaScheduleLimit is the max coexist replica schedules.
 	ReplicaScheduleLimit uint64 `toml:"replica-schedule-limit" json:"replica-schedule-limit"`
 	// MergeScheduleLimit is the max coexist merge schedules.
 	MergeScheduleLimit uint64 `toml:"merge-schedule-limit" json:"merge-schedule-limit"`
-	// HotResourceScheduleLimit is the max coexist hot resource schedules.
-	HotResourceScheduleLimit uint64 `toml:"hot-resource-schedule-limit" json:"hot-resource-schedule-limit"`
-	// HotResourceCacheHitsThreshold is the cache hits threshold of the hot resource.
+	// HotShardScheduleLimit is the max coexist hot resource schedules.
+	HotShardScheduleLimit uint64 `toml:"hot-resource-schedule-limit" json:"hot-resource-schedule-limit"`
+	// HotShardCacheHitsThreshold is the cache hits threshold of the hot resource.
 	// If the number of times a resource hits the hot cache is greater than this
 	// threshold, it is considered a hot resource.
-	HotResourceCacheHitsThreshold uint64 `toml:"hot-resource-cache-hits-threshold" json:"hot-resource-cache-hits-threshold"`
-	// ContainerLimit is the limit of scheduling for containers.
-	ContainerLimit map[uint64]ContainerLimitConfig `toml:"container-limit" json:"container-limit"`
+	HotShardCacheHitsThreshold uint64 `toml:"hot-resource-cache-hits-threshold" json:"hot-resource-cache-hits-threshold"`
+	// StoreLimit is the limit of scheduling for containers.
+	StoreLimit map[uint64]StoreLimitConfig `toml:"container-limit" json:"container-limit"`
 	// TolerantSizeRatio is the ratio of buffer size for balance scheduler.
 	TolerantSizeRatio float64 `toml:"tolerant-size-ratio" json:"tolerant-size-ratio"`
 	//
@@ -223,8 +223,8 @@ type ScheduleConfig struct {
 	// HighSpaceRatio is the highest usage ratio of container which regraded as high space.
 	// High space means there is a lot of spare capacity, and container resource score varies directly with used size.
 	HighSpaceRatio float64 `toml:"high-space-ratio" json:"high-space-ratio"`
-	// ResourceScoreFormulaVersion is used to control the formula used to calculate resource score.
-	ResourceScoreFormulaVersion string `toml:"resource-score-formula-version" json:"resource-score-formula-version"`
+	// ShardScoreFormulaVersion is used to control the formula used to calculate resource score.
+	ShardScoreFormulaVersion string `toml:"resource-score-formula-version" json:"resource-score-formula-version"`
 	// SchedulerMaxWaitingOperator is the max coexist operators for each scheduler.
 	SchedulerMaxWaitingOperator uint64 `toml:"scheduler-max-waiting-operator" json:"scheduler-max-waiting-operator"`
 
@@ -249,13 +249,13 @@ type ScheduleConfig struct {
 	// Only used to display
 	SchedulersPayload map[string]interface{} `toml:"schedulers-payload" json:"schedulers-payload"`
 
-	// ContainerLimitMode can be auto or manual, when set to auto,
+	// StoreLimitMode can be auto or manual, when set to auto,
 	// Prophet tries to change the container limit values according to
 	// the load state of the cluster dynamically. User can
 	// overwrite the auto-tuned value by pd-ctl, when the value
 	// is overwritten, the value is fixed until it is deleted.
 	// Default: manual
-	ContainerLimitMode string `toml:"container-limit-mode" json:"container-limit-mode"`
+	StoreLimitMode string `toml:"container-limit-mode" json:"container-limit-mode"`
 }
 
 // SchedulerConfigs is a slice of customized scheduler configuration.
@@ -290,8 +290,8 @@ func IsDefaultScheduler(typ string) bool {
 	return false
 }
 
-// ContainerLimitConfig is a config about scheduling rate limit of different types for a container.
-type ContainerLimitConfig struct {
+// StoreLimitConfig is a config about scheduling rate limit of different types for a container.
+type StoreLimitConfig struct {
 	AddPeer    float64 `toml:"add-peer" json:"add-peer"`
 	RemovePeer float64 `toml:"remove-peer" json:"remove-peer"`
 }
@@ -299,15 +299,15 @@ type ContainerLimitConfig struct {
 // Clone returns a cloned scheduling configuration.
 func (c *ScheduleConfig) Clone() *ScheduleConfig {
 	schedulers := append(c.Schedulers[:0:0], c.Schedulers...)
-	var containerLimit map[uint64]ContainerLimitConfig
-	if c.ContainerLimit != nil {
-		containerLimit = make(map[uint64]ContainerLimitConfig, len(c.ContainerLimit))
-		for k, v := range c.ContainerLimit {
+	var containerLimit map[uint64]StoreLimitConfig
+	if c.StoreLimit != nil {
+		containerLimit = make(map[uint64]StoreLimitConfig, len(c.StoreLimit))
+		for k, v := range c.StoreLimit {
 			containerLimit[k] = v
 		}
 	}
 	cfg := *c
-	cfg.ContainerLimit = containerLimit
+	cfg.StoreLimit = containerLimit
 	cfg.Schedulers = schedulers
 	cfg.SchedulersPayload = nil
 	return &cfg
@@ -321,19 +321,19 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 		adjustUint64(&c.MaxPendingPeerCount, defaultMaxPendingPeerCount)
 	}
 	if !meta.IsDefined("max-merge-resource-size") {
-		adjustUint64(&c.MaxMergeResourceSize, defaultMaxMergeResourceSize)
+		adjustUint64(&c.MaxMergeShardSize, defaultMaxMergeShardSize)
 	}
 	if !meta.IsDefined("max-merge-resource-keys") {
-		adjustUint64(&c.MaxMergeResourceKeys, defaultMaxMergeResourceKeys)
+		adjustUint64(&c.MaxMergeShardKeys, defaultMaxMergeShardKeys)
 	}
 	adjustDuration(&c.SplitMergeInterval, defaultSplitMergeInterval)
-	adjustDuration(&c.PatrolResourceInterval, defaultPatrolResourceInterval)
-	adjustDuration(&c.MaxContainerDownTime, defaultMaxContainerDownTime)
+	adjustDuration(&c.PatrolShardInterval, defaultPatrolShardInterval)
+	adjustDuration(&c.MaxStoreDownTime, defaultMaxStoreDownTime)
 	if !meta.IsDefined("leader-schedule-limit") {
 		adjustUint64(&c.LeaderScheduleLimit, defaultLeaderScheduleLimit)
 	}
 	if !meta.IsDefined("resource-schedule-limit") {
-		adjustUint64(&c.ResourceScheduleLimit, defaultResourceScheduleLimit)
+		adjustUint64(&c.ShardScheduleLimit, defaultShardScheduleLimit)
 	}
 	if !meta.IsDefined("replica-schedule-limit") {
 		adjustUint64(&c.ReplicaScheduleLimit, defaultReplicaScheduleLimit)
@@ -342,10 +342,10 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 		adjustUint64(&c.MergeScheduleLimit, defaultMergeScheduleLimit)
 	}
 	if !meta.IsDefined("hot-resource-schedule-limit") {
-		adjustUint64(&c.HotResourceScheduleLimit, defaultHotResourceScheduleLimit)
+		adjustUint64(&c.HotShardScheduleLimit, defaultHotShardScheduleLimit)
 	}
 	if !meta.IsDefined("hot-resource-cache-hits-threshold") {
-		adjustUint64(&c.HotResourceCacheHitsThreshold, defaultHotResourceCacheHitsThreshold)
+		adjustUint64(&c.HotShardCacheHitsThreshold, defaultHotShardCacheHitsThreshold)
 	}
 	if !meta.IsDefined("tolerant-size-ratio") {
 		adjustFloat64(&c.TolerantSizeRatio, defaultTolerantSizeRatio)
@@ -357,7 +357,7 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 		adjustString(&c.LeaderSchedulePolicy, defaultLeaderSchedulePolicy)
 	}
 	if !meta.IsDefined("container-limit-mode") {
-		adjustString(&c.ContainerLimitMode, defaultContainerLimitMode)
+		adjustString(&c.StoreLimitMode, defaultStoreLimitMode)
 	}
 	if !meta.IsDefined("enable-joint-consensus") {
 		c.EnableJointConsensus = defaultEnableJointConsensus
@@ -370,13 +370,13 @@ func (c *ScheduleConfig) adjust(meta *configMetaData, reloading bool) error {
 
 	// new cluster:v2, old cluster:v1
 	if !meta.IsDefined("resource-score-formula-version") && !reloading {
-		adjustString(&c.ResourceScoreFormulaVersion, defaultResourceScoreFormulaVersion)
+		adjustString(&c.ShardScoreFormulaVersion, defaultShardScoreFormulaVersion)
 	}
 
 	adjustSchedulers(&c.Schedulers, DefaultSchedulers)
 
-	if c.ContainerLimit == nil {
-		c.ContainerLimit = make(map[uint64]ContainerLimitConfig)
+	if c.StoreLimit == nil {
+		c.StoreLimit = make(map[uint64]StoreLimitConfig)
 	}
 
 	// TODO: disable JointConsensus. Consider opening again in the future
@@ -485,27 +485,27 @@ func (c *ReplicationConfig) adjust(meta *configMetaData) error {
 }
 
 // LabelPropertyConfig is the config section to set properties to container labels.
-type LabelPropertyConfig map[string][]ContainerLabel
+type LabelPropertyConfig map[string][]StoreLabel
 
-// ContainerLabel is the config item of LabelPropertyConfig.
-type ContainerLabel struct {
+// StoreLabel is the config item of LabelPropertyConfig.
+type StoreLabel struct {
 	Key   string `toml:"key" json:"key"`
 	Value string `toml:"value" json:"value"`
 }
 
 // Clone returns a cloned label property configuration.
 func (c LabelPropertyConfig) Clone() LabelPropertyConfig {
-	m := make(map[string][]ContainerLabel, len(c))
+	m := make(map[string][]StoreLabel, len(c))
 	for k, sl := range c {
-		sl2 := make([]ContainerLabel, 0, len(sl))
+		sl2 := make([]StoreLabel, 0, len(sl))
 		sl2 = append(sl2, sl...)
 		m[k] = sl2
 	}
 	return m
 }
 
-// ContainerLimit is the default limit of adding peer and removing peer when putting containers.
-type ContainerLimit struct {
+// StoreLimit is the default limit of adding peer and removing peer when putting containers.
+type StoreLimit struct {
 	mu sync.RWMutex
 	// AddPeer is the default rate of adding peers for container limit (per minute).
 	AddPeer float64
@@ -513,8 +513,8 @@ type ContainerLimit struct {
 	RemovePeer float64
 }
 
-// SetDefaultContainerLimit sets the default container limit for a given type.
-func (sl *ContainerLimit) SetDefaultContainerLimit(typ limit.Type, ratePerMin float64) {
+// SetDefaultStoreLimit sets the default container limit for a given type.
+func (sl *StoreLimit) SetDefaultStoreLimit(typ limit.Type, ratePerMin float64) {
 	sl.mu.Lock()
 	defer sl.mu.Unlock()
 	switch typ {
@@ -525,8 +525,8 @@ func (sl *ContainerLimit) SetDefaultContainerLimit(typ limit.Type, ratePerMin fl
 	}
 }
 
-// GetDefaultContainerLimit gets the default container limit for a given type.
-func (sl *ContainerLimit) GetDefaultContainerLimit(typ limit.Type) float64 {
+// GetDefaultStoreLimit gets the default container limit for a given type.
+func (sl *StoreLimit) GetDefaultStoreLimit(typ limit.Type) float64 {
 	sl.mu.RLock()
 	defer sl.mu.RUnlock()
 	switch typ {
@@ -539,8 +539,8 @@ func (sl *ContainerLimit) GetDefaultContainerLimit(typ limit.Type) float64 {
 	}
 }
 
-// ContainerHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
-type ContainerHeartbeatDataProcessor interface {
+// StoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
+type StoreHeartbeatDataProcessor interface {
 	// Start init all customize data if the current node became the prophet leader
 	Start(storage.Storage) error
 	// Stop clear all customize data at current node, and other node became leader and will call `Start`

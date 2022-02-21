@@ -24,7 +24,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -58,7 +58,7 @@ type Application struct {
 	cfg             Cfg
 	shardsProxy     raftstore.ShardsProxy
 	callbackContext sync.Map // id -> application cb
-	dispatcher      func(req rpc.Request, cmd CustomRequest, proxy raftstore.ShardsProxy) error
+	dispatcher      func(req rpcpb.Request, cmd CustomRequest, proxy raftstore.ShardsProxy) error
 	logger          *zap.Logger
 }
 
@@ -68,7 +68,7 @@ func NewApplication(cfg Cfg) *Application {
 }
 
 // NewApplication returns a tcp application server
-func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req rpc.Request, cmd CustomRequest, proxy raftstore.ShardsProxy) error) *Application {
+func NewApplicationWithDispatcher(cfg Cfg, dispatcher func(req rpcpb.Request, cmd CustomRequest, proxy raftstore.ShardsProxy) error) *Application {
 	return &Application{
 		cfg:        cfg,
 		dispatcher: dispatcher,
@@ -132,12 +132,12 @@ func (s *Application) Exec(cmd CustomRequest, timeout time.Duration) ([]byte, er
 func (s *Application) AddLabelToShard(group, shardID uint64, name, value string, timeout time.Duration) error {
 	_, err := s.Exec(CustomRequest{
 		Admin:      true,
-		CustomType: uint64(rpc.AdminCmdType_UpdateLabels),
+		CustomType: uint64(rpcpb.AdminUpdateLabels),
 		Group:      group,
 		ToShard:    shardID,
-		Cmd: protoc.MustMarshal(&rpc.UpdateLabelsRequest{
+		Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
 			Labels: []metapb.Pair{{Key: name, Value: value}},
-			Policy: rpc.UpdatePolicy_Add,
+			Policy: rpcpb.Add,
 		}),
 	}, timeout)
 	return err
@@ -145,7 +145,7 @@ func (s *Application) AddLabelToShard(group, shardID uint64, name, value string,
 
 // AsyncExec async exec the request, if the err is ErrTimeout means the request is timeout
 func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte, error), timeout time.Duration) {
-	req := rpc.Request{}
+	req := rpcpb.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.CustomType = cmd.CustomType
 	req.Group = cmd.Group
@@ -154,11 +154,11 @@ func (s *Application) AsyncExec(cmd CustomRequest, cb func(CustomRequest, []byte
 	req.Cmd = cmd.Cmd
 	req.StopAt = time.Now().Add(timeout).Unix()
 	if cmd.Read {
-		req.Type = rpc.CmdType_Read
+		req.Type = rpcpb.Read
 	} else if cmd.Write {
-		req.Type = rpc.CmdType_Write
+		req.Type = rpcpb.Write
 	} else if cmd.Admin {
-		req.Type = rpc.CmdType_Admin
+		req.Type = rpcpb.Admin
 	}
 
 	if ce := s.logger.Check(zap.DebugLevel, "begin to send request"); ce != nil {
@@ -195,16 +195,16 @@ func (s *Application) execTimeout(arg interface{}) {
 	}
 }
 
-func (s *Application) Retry(requestID []byte) (rpc.Request, bool) {
+func (s *Application) Retry(requestID []byte) (rpcpb.Request, bool) {
 	id := hack.SliceToString(requestID)
 	if value, ok := s.callbackContext.Load(id); ok {
 		return value.(ctx).req, true
 	}
 
-	return rpc.Request{}, false
+	return rpcpb.Request{}, false
 }
 
-func (s *Application) done(resp rpc.Response) {
+func (s *Application) done(resp rpcpb.Response) {
 	if ce := s.logger.Check(zap.DebugLevel, "response received"); ce != nil {
 		ce.Write(log.RequestIDField(resp.ID))
 	}
@@ -233,7 +233,7 @@ func (s *Application) doneError(requestID []byte, err error) {
 }
 
 type ctx struct {
-	req rpc.Request
+	req rpcpb.Request
 	cmd CustomRequest
 	cb  func(CustomRequest, []byte, error)
 }

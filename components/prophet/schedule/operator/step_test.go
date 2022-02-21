@@ -31,13 +31,13 @@ type testCase struct {
 }
 
 func TestDemoteFollower(t *testing.T) {
-	df := DemoteFollower{ToContainer: 2, PeerID: 2}
+	df := DemoteFollower{ToStore: 2, PeerID: 2}
 	cases := []testCase{
 		{ // before step
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -45,9 +45,9 @@ func TestDemoteFollower(t *testing.T) {
 		},
 		{ // after step
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			1,
 			true,
@@ -55,9 +55,9 @@ func TestDemoteFollower(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -65,9 +65,9 @@ func TestDemoteFollower(t *testing.T) {
 		},
 		{ // miss container id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -75,9 +75,9 @@ func TestDemoteFollower(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -85,9 +85,9 @@ func TestDemoteFollower(t *testing.T) {
 		},
 		{ // demote leader
 			[]metapb.Replica{
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -99,16 +99,16 @@ func TestDemoteFollower(t *testing.T) {
 
 func TestChangePeerV2Enter(t *testing.T) {
 	cpe := ChangePeerV2Enter{
-		PromoteLearners: []PromoteLearner{{PeerID: 3, ToContainer: 3}, {PeerID: 4, ToContainer: 4}},
-		DemoteVoters:    []DemoteVoter{{PeerID: 1, ToContainer: 1}, {PeerID: 2, ToContainer: 2}},
+		PromoteLearners: []PromoteLearner{{PeerID: 3, ToStore: 3}, {PeerID: 4, ToStore: 4}},
+		DemoteVoters:    []DemoteVoter{{PeerID: 1, ToStore: 1}, {PeerID: 2, ToStore: 2}},
 	}
 	cases := []testCase{
 		{ // before step
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
@@ -116,10 +116,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // after step
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			4,
 			true,
@@ -127,10 +127,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
@@ -138,10 +138,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // miss container id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
@@ -149,10 +149,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 5, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 5, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -160,10 +160,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // change is not atomic
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -171,10 +171,10 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // change is not atomic
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Learner},
 			},
 			0,
 			false,
@@ -182,11 +182,11 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // there are other peers in the joint state
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			4,
 			true,
@@ -194,12 +194,12 @@ func TestChangePeerV2Enter(t *testing.T) {
 		},
 		{ // there are other peers in the joint state
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Learner},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 6, ContainerID: 6, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Learner},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 6, StoreID: 6, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			0,
 			false,
@@ -214,16 +214,16 @@ func TestChangePeerV2Enter(t *testing.T) {
 
 func TestChangePeerV2Leave(t *testing.T) {
 	cpl := ChangePeerV2Leave{
-		PromoteLearners: []PromoteLearner{{PeerID: 3, ToContainer: 3}, {PeerID: 4, ToContainer: 4}},
-		DemoteVoters:    []DemoteVoter{{PeerID: 1, ToContainer: 1}, {PeerID: 2, ToContainer: 2}},
+		PromoteLearners: []PromoteLearner{{PeerID: 3, ToStore: 3}, {PeerID: 4, ToStore: 4}},
+		DemoteVoters:    []DemoteVoter{{PeerID: 1, ToStore: 1}, {PeerID: 2, ToStore: 2}},
 	}
 	cases := []testCase{
 		{ // before step
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -231,10 +231,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // after step
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			4,
 			true,
@@ -242,10 +242,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 5, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -253,10 +253,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // miss container id
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 1, ContainerID: 5, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 5, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -264,10 +264,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // miss peer id
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -275,10 +275,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // change is not atomic
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -286,10 +286,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // change is not atomic
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			false,
@@ -297,11 +297,11 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // there are other peers in the joint state
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -309,12 +309,12 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // there are other peers in the joint state
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Learner},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 6, ContainerID: 6, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Learner},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 6, StoreID: 6, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			4,
 			false,
@@ -322,10 +322,10 @@ func TestChangePeerV2Leave(t *testing.T) {
 		},
 		{ // demote leader
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			false,
@@ -341,7 +341,7 @@ func TestChangePeerV2Leave(t *testing.T) {
 func checkStep(t *testing.T, step OpStep, desc string, cases []testCase) {
 	assert.Equal(t, desc, step.String())
 	for _, tc := range cases {
-		resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: tc.Peers}, &tc.Peers[0])
+		resource := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: tc.Peers}, &tc.Peers[0])
 		assert.Equal(t, tc.ConfVerChanged, step.ConfVerChanged(resource))
 		assert.Equal(t, tc.IsFinish, step.IsFinish(resource))
 		switch tc.CheckSafety {

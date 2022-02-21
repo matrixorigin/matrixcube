@@ -29,49 +29,49 @@ import (
 )
 
 // CreateAddPeerOperator creates an operator that adds a new peer.
-func CreateAddPeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Replica, kind OpKind) (*Operator, error) {
+func CreateAddPeerOperator(desc string, cluster opt.Cluster, res *core.CachedShard, peer metapb.Replica, kind OpKind) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		AddPeer(peer).
 		Build(kind)
 }
 
 // CreatePromoteLearnerOperator creates an operator that promotes a learner.
-func CreatePromoteLearnerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, peer metapb.Replica) (*Operator, error) {
+func CreatePromoteLearnerOperator(desc string, cluster opt.Cluster, res *core.CachedShard, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
-		PromoteLearner(peer.ContainerID).
+		PromoteLearner(peer.StoreID).
 		Build(0)
 }
 
 // CreateRemovePeerOperator creates an operator that removes a peer from resource.
-func CreateRemovePeerOperator(desc string, cluster opt.Cluster, kind OpKind, res *core.CachedResource, containerID uint64) (*Operator, error) {
+func CreateRemovePeerOperator(desc string, cluster opt.Cluster, kind OpKind, res *core.CachedShard, containerID uint64) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
 		RemovePeer(containerID).
 		Build(kind)
 }
 
 // CreateTransferLeaderOperator creates an operator that transfers the leader from a source container to a target container.
-func CreateTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, sourceContainerID uint64, targetContainerID uint64, kind OpKind) (*Operator, error) {
+func CreateTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedShard, sourceStoreID uint64, targetStoreID uint64, kind OpKind) (*Operator, error) {
 	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).
-		SetLeader(targetContainerID).
+		SetLeader(targetStoreID).
 		Build(kind)
 }
 
 // CreateForceTransferLeaderOperator creates an operator that transfers the leader from a source container to a target container forcible.
-func CreateForceTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, sourceContainerID uint64, targetContainerID uint64, kind OpKind) (*Operator, error) {
+func CreateForceTransferLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedShard, sourceStoreID uint64, targetStoreID uint64, kind OpKind) (*Operator, error) {
 	return NewBuilder(desc, cluster, res, SkipOriginJointStateCheck).
-		SetLeader(targetContainerID).
+		SetLeader(targetStoreID).
 		EnableForceTargetLeader().
 		Build(kind)
 }
 
-// CreateMoveResourceOperator creates an operator that moves a resource to specified containers.
-func CreateMoveResourceOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, roles map[uint64]placement.ReplicaRoleType) (*Operator, error) {
+// CreateMoveShardOperator creates an operator that moves a resource to specified containers.
+func CreateMoveShardOperator(desc string, cluster opt.Cluster, res *core.CachedShard, kind OpKind, roles map[uint64]placement.ReplicaRoleType) (*Operator, error) {
 	// construct the peers from roles
 	peers := make(map[uint64]metapb.Replica)
 	for containerID, role := range roles {
 		peers[containerID] = metapb.Replica{
-			ContainerID: containerID,
-			Role:        role.MetaPeerRole(),
+			StoreID: containerID,
+			Role:    role.MetaPeerRole(),
 		}
 	}
 	builder := NewBuilder(desc, cluster, res).SetPeers(peers).SetExpectedRoles(roles)
@@ -79,30 +79,30 @@ func CreateMoveResourceOperator(desc string, cluster opt.Cluster, res *core.Cach
 }
 
 // CreateMovePeerOperator creates an operator that replaces an old peer with a new peer.
-func CreateMovePeerOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Replica) (*Operator, error) {
+func CreateMovePeerOperator(desc string, cluster opt.Cluster, res *core.CachedShard, kind OpKind, oldStore uint64, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
-		RemovePeer(oldContainer).
+		RemovePeer(oldStore).
 		AddPeer(peer).
 		Build(kind)
 }
 
 // CreateMoveLeaderOperator creates an operator that replaces an old leader with a new leader.
-func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedResource, kind OpKind, oldContainer uint64, peer metapb.Replica) (*Operator, error) {
+func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.CachedShard, kind OpKind, oldStore uint64, peer metapb.Replica) (*Operator, error) {
 	return NewBuilder(desc, cluster, res).
-		RemovePeer(oldContainer).
+		RemovePeer(oldStore).
 		AddPeer(peer).
-		SetLeader(peer.ContainerID).
+		SetLeader(peer.StoreID).
 		Build(kind)
 }
 
-// CreateSplitResourceOperator creates an operator that splits a resource.
-func CreateSplitResourceOperator(desc string, res *core.CachedResource, kind OpKind, policy metapb.CheckPolicy, keys [][]byte) (*Operator, error) {
+// CreateSplitShardOperator creates an operator that splits a resource.
+func CreateSplitShardOperator(desc string, res *core.CachedShard, kind OpKind, policy metapb.CheckPolicy, keys [][]byte) (*Operator, error) {
 	if metadata.IsInJointState(res.Meta.Peers()...) {
 		return nil, fmt.Errorf("cannot split resource which is in joint state")
 	}
 
 	start, end := res.Meta.Range()
-	step := SplitResource{
+	step := SplitShard{
 		StartKey:  start,
 		EndKey:    end,
 		Policy:    policy,
@@ -119,19 +119,19 @@ func CreateSplitResourceOperator(desc string, res *core.CachedResource, kind OpK
 	return NewOperator(desc, brief, res.Meta.ID(), res.Meta.Epoch(), kind|OpSplit, step), nil
 }
 
-// CreateMergeResourceOperator creates an operator that merge two resource into one.
-func CreateMergeResourceOperator(desc string, cluster opt.Cluster, source *core.CachedResource, target *core.CachedResource, kind OpKind) ([]*Operator, error) {
+// CreateMergeShardOperator creates an operator that merge two resource into one.
+func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.CachedShard, target *core.CachedShard, kind OpKind) ([]*Operator, error) {
 	if metadata.IsInJointState(source.Meta.Peers()...) || metadata.IsInJointState(target.Meta.Peers()...) {
 		return nil, errors.New("cannot merge resources which are in joint state")
 	}
 
 	var steps []OpStep
-	if !isResourceMatch(source, target) {
+	if !isShardMatch(source, target) {
 		peers := make(map[uint64]metapb.Replica)
 		for _, p := range target.Meta.Peers() {
-			peers[p.ContainerID] = metapb.Replica{
-				ContainerID: p.ContainerID,
-				Role:        p.Role,
+			peers[p.StoreID] = metapb.Replica{
+				StoreID: p.StoreID,
+				Role:    p.Role,
 			}
 		}
 		matchOp, err := NewBuilder("", cluster, source).
@@ -145,29 +145,29 @@ func CreateMergeResourceOperator(desc string, cluster opt.Cluster, source *core.
 		kind = matchOp.Kind()
 	}
 
-	steps = append(steps, MergeResource{
-		FromResource: source.Meta,
-		ToResource:   target.Meta,
-		IsPassive:    false,
+	steps = append(steps, MergeShard{
+		FromShard: source.Meta,
+		ToShard:   target.Meta,
+		IsPassive: false,
 	})
 
 	brief := fmt.Sprintf("merge: resource %v to %v", source.Meta.ID(), target.Meta.ID())
 	op1 := NewOperator(desc, brief, source.Meta.ID(), source.Meta.Epoch(), kind|OpMerge, steps...)
-	op2 := NewOperator(desc, brief, target.Meta.ID(), target.Meta.Epoch(), kind|OpMerge, MergeResource{
-		FromResource: source.Meta,
-		ToResource:   target.Meta,
-		IsPassive:    true,
+	op2 := NewOperator(desc, brief, target.Meta.ID(), target.Meta.Epoch(), kind|OpMerge, MergeShard{
+		FromShard: source.Meta,
+		ToShard:   target.Meta,
+		IsPassive: true,
 	})
 
 	return []*Operator{op1, op2}, nil
 }
 
-func isResourceMatch(a, b *core.CachedResource) bool {
+func isShardMatch(a, b *core.CachedShard) bool {
 	if len(a.Meta.Peers()) != len(b.Meta.Peers()) {
 		return false
 	}
 	for _, pa := range a.Meta.Peers() {
-		pb, ok := b.GetContainerPeer(pa.ContainerID)
+		pb, ok := b.GetStorePeer(pa.StoreID)
 		if !ok || metadata.IsLearner(pb) != metadata.IsLearner(pa) {
 			return false
 		}
@@ -175,8 +175,8 @@ func isResourceMatch(a, b *core.CachedResource) bool {
 	return true
 }
 
-// CreateScatterResourceOperator creates an operator that scatters the specified resource.
-func CreateScatterResourceOperator(desc string, cluster opt.Cluster, origin *core.CachedResource, targetPeers map[uint64]metapb.Replica, targetLeader uint64) (*Operator, error) {
+// CreateScatterShardOperator creates an operator that scatters the specified resource.
+func CreateScatterShardOperator(desc string, cluster opt.Cluster, origin *core.CachedShard, targetPeers map[uint64]metapb.Replica, targetLeader uint64) (*Operator, error) {
 	// randomly pick a leader.
 	var ids []uint64
 	for id, peer := range targetPeers {
@@ -199,7 +199,7 @@ func CreateScatterResourceOperator(desc string, cluster opt.Cluster, origin *cor
 }
 
 // CreateLeaveJointStateOperator creates an operator that let resource leave joint state.
-func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *core.CachedResource) (*Operator, error) {
+func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *core.CachedShard) (*Operator, error) {
 	b := NewBuilder(desc, cluster, origin, SkipOriginJointStateCheck)
 
 	if b.err == nil && !metadata.IsInJointState(origin.Meta.Peers()...) {
@@ -222,14 +222,14 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 		}
 	}
 
-	leader, ok := b.originPeers[b.originLeaderContainerID]
+	leader, ok := b.originPeers[b.originLeaderStoreID]
 	if !ok || !b.allowLeader(leader, true) {
-		b.targetLeaderContainerID = 0
+		b.targetLeaderStoreID = 0
 	} else {
-		b.targetLeaderContainerID = b.originLeaderContainerID
+		b.targetLeaderStoreID = b.originLeaderStoreID
 	}
 
-	b.currentPeers, b.currentLeaderContainerID = b.originPeers.Copy(), b.originLeaderContainerID
+	b.currentPeers, b.currentLeaderStoreID = b.originPeers.Copy(), b.originLeaderStoreID
 	b.peerAddStep = make(map[uint64]int)
 	brief := b.brief()
 
@@ -237,19 +237,19 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 	var kind OpKind
 
 	b.setTargetLeaderIfNotExist()
-	if b.targetLeaderContainerID == 0 {
+	if b.targetLeaderStoreID == 0 {
 		// Because the demote leader will be rejected by TiKV,
 		// when the target leader cannot be found, we need to force a target to be found.
 		b.forceTargetLeader = true
 		b.setTargetLeaderIfNotExist()
 	}
 
-	if b.targetLeaderContainerID == 0 {
+	if b.targetLeaderStoreID == 0 {
 		cluster.GetLogger().Error(
 			"resource unable to find target leader",
 			log.ResourceField(origin.Meta.ID()))
-		b.originLeaderContainerID = 0
-	} else if b.originLeaderContainerID != b.targetLeaderContainerID {
+		b.originLeaderStoreID = 0
+	} else if b.originLeaderStoreID != b.targetLeaderStoreID {
 		kind |= OpLeader
 	}
 

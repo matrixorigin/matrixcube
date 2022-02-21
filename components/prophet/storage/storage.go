@@ -55,11 +55,11 @@ type RuleStorage interface {
 	// RemoveRule remove rule
 	RemoveRule(key string) error
 
-	// PutResource puts the meta to the storage
+	// PutShard puts the meta to the storage
 	PutRuleGroup(groupID string, group interface{}) error
 	// RemoveRule remove rule group
 	RemoveRuleGroup(groupID string) error
-	// LoadResources load all rule groups
+	// LoadShards load all rule groups
 	LoadRuleGroups(limit int64, f func(k, v string) error) error
 }
 
@@ -75,25 +75,25 @@ type CustomDataStorage interface {
 	RemoveCustomData(key []byte) error
 }
 
-// ResourceStorage resource storage
-type ResourceStorage interface {
-	// PutResource puts the meta to the storage
-	PutResource(meta metadata.Resource) error
-	// PutResources put resource in batch
-	PutResources(resources ...metadata.Resource) error
-	// RemoveResource remove resource from storage
-	RemoveResource(meta metadata.Resource) error
-	// GetResource returns the spec resource
-	GetResource(id uint64) (metadata.Resource, error)
-	// LoadResources load all resources
-	LoadResources(limit int64, do func(metadata.Resource)) error
+// ShardStorage resource storage
+type ShardStorage interface {
+	// PutShard puts the meta to the storage
+	PutShard(meta metadata.Shard) error
+	// PutShards put resource in batch
+	PutShards(resources ...metadata.Shard) error
+	// RemoveShard remove resource from storage
+	RemoveShard(meta metadata.Shard) error
+	// GetShard returns the spec resource
+	GetShard(id uint64) (metadata.Shard, error)
+	// LoadShards load all resources
+	LoadShards(limit int64, do func(metadata.Shard)) error
 
-	// PutResourceAndExtra puts the meta and the extra data to the storage
-	PutResourceAndExtra(meta metadata.Resource, extra []byte) error
-	// GetResourceExtra returns the resource extra data
-	PutResourceExtra(id uint64, extra []byte) error
-	// GetResourceExtra returns the resource extra data
-	GetResourceExtra(id uint64) ([]byte, error)
+	// PutShardAndExtra puts the meta and the extra data to the storage
+	PutShardAndExtra(meta metadata.Shard, extra []byte) error
+	// GetShardExtra returns the resource extra data
+	PutShardExtra(id uint64, extra []byte) error
+	// GetShardExtra returns the resource extra data
+	GetShardExtra(id uint64) ([]byte, error)
 
 	PutScheduleGroupRule(metapb.ScheduleGroupRule) error
 	LoadScheduleGroupRules(limit int64, do func(metapb.ScheduleGroupRule)) error
@@ -116,18 +116,18 @@ type ConfigStorage interface {
 	LoadAllScheduleConfig() ([]string, []string, error)
 }
 
-// ContainerStorage container storage
-type ContainerStorage interface {
-	// PutContainer returns nil if container is add or update succ
-	PutContainer(meta metadata.Container) error
-	// RemoveContainer remove container from storage
-	RemoveContainer(meta metadata.Container) error
-	// GetContainer returns the spec container
-	GetContainer(id uint64) (metadata.Container, error)
-	// LoadContainers load all containers
-	LoadContainers(limit int64, do func(meta metadata.Container, leaderWeight float64, resourceWeight float64)) error
-	//PutContainerWeight saves a container's leader and resource weight to storage.
-	PutContainerWeight(id uint64, leaderWeight, resourceWeight float64) error
+// StoreStorage container storage
+type StoreStorage interface {
+	// PutStore returns nil if container is add or update succ
+	PutStore(meta metadata.Store) error
+	// RemoveStore remove container from storage
+	RemoveStore(meta metadata.Store) error
+	// GetStore returns the spec container
+	GetStore(id uint64) (metadata.Store, error)
+	// LoadStores load all containers
+	LoadStores(limit int64, do func(meta metadata.Store, leaderWeight float64, resourceWeight float64)) error
+	//PutStoreWeight saves a container's leader and resource weight to storage.
+	PutStoreWeight(id uint64, leaderWeight, resourceWeight float64) error
 }
 
 // ClusterStorage cluster storage
@@ -135,7 +135,7 @@ type ClusterStorage interface {
 	// AlreadyBootstrapped returns the cluster was already bootstrapped
 	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
-	PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error)
+	PutBootstrapped(container metadata.Store, resources ...metadata.Shard) (bool, error)
 }
 
 // Storage meta storage
@@ -144,9 +144,9 @@ type Storage interface {
 	CustomDataStorage
 	RuleStorage
 	ConfigStorage
-	ContainerStorage
-	ResourceStorage
-	ContainerStorage
+	StoreStorage
+	ShardStorage
+	StoreStorage
 	ClusterStorage
 
 	// KV return KV storage
@@ -306,7 +306,7 @@ func (s *storage) SaveJSON(prefix, key string, data interface{}) error {
 	return s.kv.Save(path.Join(prefix, key), string(value))
 }
 
-func (s *storage) PutResource(meta metadata.Resource) error {
+func (s *storage) PutShard(meta metadata.Shard) error {
 	key := s.getKey(meta.ID(), s.resourcePath)
 	data, err := meta.Marshal()
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *storage) LoadScheduleGroupRules(limit int64, do func(metapb.ScheduleGro
 	})
 }
 
-func (s *storage) PutResourceAndExtra(res metadata.Resource, extra []byte) error {
+func (s *storage) PutShardAndExtra(res metadata.Shard, extra []byte) error {
 	data, err := res.Marshal()
 	if err != nil {
 		return err
@@ -343,7 +343,7 @@ func (s *storage) PutResourceAndExtra(res metadata.Resource, extra []byte) error
 	return s.kv.Batch(batch)
 }
 
-func (s *storage) GetResourceExtra(id uint64) ([]byte, error) {
+func (s *storage) GetShardExtra(id uint64) ([]byte, error) {
 	key := s.getKey(id, s.resourceExtraPath)
 	data, err := s.kv.Load(key)
 	if err != nil {
@@ -352,11 +352,11 @@ func (s *storage) GetResourceExtra(id uint64) ([]byte, error) {
 	return []byte(data), nil
 }
 
-func (s *storage) PutResourceExtra(id uint64, extra []byte) error {
+func (s *storage) PutShardExtra(id uint64, extra []byte) error {
 	return s.kv.Save(s.getKey(id, s.resourceExtraPath), string(extra))
 }
 
-func (s *storage) PutResources(resources ...metadata.Resource) error {
+func (s *storage) PutShards(resources ...metadata.Shard) error {
 	batch := &Batch{}
 	for _, res := range resources {
 		data, err := res.Marshal()
@@ -369,11 +369,11 @@ func (s *storage) PutResources(resources ...metadata.Resource) error {
 	return s.kv.Batch(batch)
 }
 
-func (s *storage) RemoveResource(meta metadata.Resource) error {
+func (s *storage) RemoveShard(meta metadata.Shard) error {
 	return s.kv.Remove(s.getKey(meta.ID(), s.resourcePath))
 }
 
-func (s *storage) GetResource(id uint64) (metadata.Resource, error) {
+func (s *storage) GetShard(id uint64) (metadata.Shard, error) {
 	key := s.getKey(id, s.resourcePath)
 	data, err := s.kv.Load(key)
 	if err != nil {
@@ -384,7 +384,7 @@ func (s *storage) GetResource(id uint64) (metadata.Resource, error) {
 		return nil, nil
 	}
 
-	res := s.adapter.NewResource()
+	res := s.adapter.NewShard()
 	err = res.Unmarshal([]byte(data))
 	if err != nil {
 		return nil, err
@@ -393,9 +393,9 @@ func (s *storage) GetResource(id uint64) (metadata.Resource, error) {
 	return res, nil
 }
 
-func (s *storage) LoadResources(limit int64, do func(metadata.Resource)) error {
+func (s *storage) LoadShards(limit int64, do func(metadata.Shard)) error {
 	return s.LoadRangeByPrefix(limit, s.resourcePath+"/", func(k, v string) error {
-		data := s.adapter.NewResource()
+		data := s.adapter.NewShard()
 		err := data.Unmarshal([]byte(v))
 		if err != nil {
 			return err
@@ -405,7 +405,7 @@ func (s *storage) LoadResources(limit int64, do func(metadata.Resource)) error {
 	})
 }
 
-func (s *storage) PutContainer(meta metadata.Container) error {
+func (s *storage) PutStore(meta metadata.Store) error {
 	key := s.getKey(meta.ID(), s.containerPath)
 	data, err := meta.Marshal()
 	if err != nil {
@@ -415,11 +415,11 @@ func (s *storage) PutContainer(meta metadata.Container) error {
 	return s.kv.Save(key, string(data))
 }
 
-func (s *storage) RemoveContainer(meta metadata.Container) error {
+func (s *storage) RemoveStore(meta metadata.Store) error {
 	return s.kv.Remove(s.getKey(meta.ID(), s.containerPath))
 }
 
-func (s *storage) GetContainer(id uint64) (metadata.Container, error) {
+func (s *storage) GetStore(id uint64) (metadata.Store, error) {
 	key := s.getKey(id, s.containerPath)
 	data, err := s.kv.Load(key)
 	if err != nil {
@@ -430,7 +430,7 @@ func (s *storage) GetContainer(id uint64) (metadata.Container, error) {
 		return nil, nil
 	}
 
-	c := s.adapter.NewContainer()
+	c := s.adapter.NewStore()
 	err = c.Unmarshal([]byte(data))
 	if err != nil {
 		return nil, err
@@ -439,9 +439,9 @@ func (s *storage) GetContainer(id uint64) (metadata.Container, error) {
 	return c, nil
 }
 
-func (s *storage) LoadContainers(limit int64, do func(metadata.Container, float64, float64)) error {
+func (s *storage) LoadStores(limit int64, do func(metadata.Store, float64, float64)) error {
 	return s.LoadRangeByPrefix(limit, s.containerPath+"/", func(k, v string) error {
-		data := s.adapter.NewContainer()
+		data := s.adapter.NewStore()
 		err := data.Unmarshal([]byte(v))
 		if err != nil {
 			return err
@@ -462,7 +462,7 @@ func (s *storage) LoadContainers(limit int64, do func(metadata.Container, float6
 	})
 }
 
-func (s *storage) PutContainerWeight(id uint64, leaderWeight, resourceWeight float64) error {
+func (s *storage) PutStoreWeight(id uint64, leaderWeight, resourceWeight float64) error {
 	batch := &Batch{}
 	batch.SaveKeys = append(batch.SaveKeys, s.containerWeightPath(id, "leader"))
 	batch.SaveValues = append(batch.SaveValues, strconv.FormatFloat(leaderWeight, 'f', -1, 64))
@@ -540,7 +540,7 @@ func (s *storage) RemoveCustomData(key []byte) error {
 	return s.kv.Remove(path.Join(s.customDataPath, string(key)))
 }
 
-func (s *storage) PutBootstrapped(container metadata.Container, resources ...metadata.Resource) (bool, error) {
+func (s *storage) PutBootstrapped(container metadata.Store, resources ...metadata.Shard) (bool, error) {
 	clusterID, err := s.kv.AllocID()
 	if err != nil {
 		return false, err

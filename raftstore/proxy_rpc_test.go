@@ -21,7 +21,7 @@ import (
 
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/stretchr/testify/assert"
@@ -31,9 +31,9 @@ func TestRPCProxy(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	addr := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
-	c := make(chan rpc.Request, 10)
+	c := make(chan rpcpb.Request, 10)
 	ec := make(chan error, 10)
-	p := newProxyRPC(nil, addr, 1024*1024, func(r rpc.Request) error {
+	p := newProxyRPC(nil, addr, 1024*1024, func(r rpcpb.Request) error {
 		c <- r
 		return <-ec
 	})
@@ -78,10 +78,10 @@ func TestRPCProxy(t *testing.T) {
 	}
 	data, err := conn.Read()
 	assert.NoError(t, err)
-	assert.Equal(t, string(req.Cmd), data.(rpc.Response).Error.Message)
+	assert.Equal(t, string(req.Cmd), data.(rpcpb.Response).Error.Message)
 
-	rsp := rpc.Response{PID: pid, Value: []byte("v1")}
-	p.onResponse(rpc.ResponseBatchHeader{}, rsp)
+	rsp := rpcpb.Response{PID: pid, Value: []byte("v1")}
+	p.onResponse(rpcpb.ResponseBatchHeader{}, rsp)
 	data, err = conn.Read()
 	assert.NoError(t, err)
 	assert.Equal(t, data, rsp)

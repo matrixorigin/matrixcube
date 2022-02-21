@@ -34,60 +34,60 @@ const (
 	timeout       = 1 * time.Minute
 )
 
-// SplitResourcesHandler used to handle resource splitting
-type SplitResourcesHandler interface {
-	SplitResourceByKeys(res *core.CachedResource, splitKeys [][]byte) error
-	ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults)
+// SplitShardsHandler used to handle resource splitting
+type SplitShardsHandler interface {
+	SplitShardByKeys(res *core.CachedShard, splitKeys [][]byte) error
+	ScanShardsByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults)
 }
 
-// NewSplitResourcesHandler return SplitResourcesHandler
-func NewSplitResourcesHandler(cluster opt.Cluster, oc *OperatorController) SplitResourcesHandler {
-	return &splitResourcesHandler{
+// NewSplitShardsHandler return SplitShardsHandler
+func NewSplitShardsHandler(cluster opt.Cluster, oc *OperatorController) SplitShardsHandler {
+	return &splitShardsHandler{
 		cluster: cluster,
 		oc:      oc,
 	}
 }
 
-// ResourceSplitter handles split resources
-type ResourceSplitter struct {
+// ShardSplitter handles split resources
+type ShardSplitter struct {
 	cluster opt.Cluster
-	handler SplitResourcesHandler
+	handler SplitShardsHandler
 }
 
-// NewResourceSplitter return a resource splitter
-func NewResourceSplitter(cluster opt.Cluster, handler SplitResourcesHandler) *ResourceSplitter {
-	return &ResourceSplitter{
+// NewShardSplitter return a resource splitter
+func NewShardSplitter(cluster opt.Cluster, handler SplitShardsHandler) *ShardSplitter {
+	return &ShardSplitter{
 		cluster: cluster,
 		handler: handler,
 	}
 }
 
-// SplitResources support splitResources by given split keys.
-func (r *ResourceSplitter) SplitResources(ctx context.Context, group uint64, splitKeys [][]byte, retryLimit int) (int, []uint64) {
+// SplitShards support splitShards by given split keys.
+func (r *ShardSplitter) SplitShards(ctx context.Context, group uint64, splitKeys [][]byte, retryLimit int) (int, []uint64) {
 	if len(splitKeys) < 1 {
 		return 0, nil
 	}
 	unprocessedKeys := splitKeys
-	newResources := make(map[uint64]struct{}, len(splitKeys))
+	newShards := make(map[uint64]struct{}, len(splitKeys))
 	for i := 0; i <= retryLimit; i++ {
-		unprocessedKeys = r.splitResourcesByKeys(ctx, group, unprocessedKeys, newResources)
+		unprocessedKeys = r.splitShardsByKeys(ctx, group, unprocessedKeys, newShards)
 		if len(unprocessedKeys) < 1 {
 			break
 		}
 		// sleep for a while between each retry
 		time.Sleep(typeutil.MinDuration(maxSleepDuration, time.Duration(math.Pow(2, float64(i)))*initialSleepDuration))
 	}
-	returned := make([]uint64, 0, len(newResources))
-	for resID := range newResources {
+	returned := make([]uint64, 0, len(newShards))
+	for resID := range newShards {
 		returned = append(returned, resID)
 	}
 	return 100 - len(unprocessedKeys)*100/len(splitKeys), returned
 }
 
-func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, resGroup uint64, splitKeys [][]byte, newResources map[uint64]struct{}) [][]byte {
-	validGroups := r.groupKeysByResource(resGroup, splitKeys)
+func (r *ShardSplitter) splitShardsByKeys(parCtx context.Context, resGroup uint64, splitKeys [][]byte, newShards map[uint64]struct{}) [][]byte {
+	validGroups := r.groupKeysByShard(resGroup, splitKeys)
 	for key, group := range validGroups {
-		err := r.handler.SplitResourceByKeys(group.resource, group.keys)
+		err := r.handler.SplitShardByKeys(group.resource, group.keys)
 		if err != nil {
 			delete(validGroups, key)
 			continue
@@ -107,7 +107,7 @@ func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, resGroup
 				if groupKeys.finished {
 					continue
 				}
-				r.handler.ScanResourcesByKeyRange(resGroup, groupKeys, results)
+				r.handler.ScanShardsByKeyRange(resGroup, groupKeys, results)
 			}
 		case <-ctx.Done():
 		}
@@ -121,24 +121,24 @@ func (r *ResourceSplitter) splitResourcesByKeys(parCtx context.Context, resGroup
 			break
 		}
 	}
-	for newID := range results.getSplitResources() {
-		newResources[newID] = struct{}{}
+	for newID := range results.getSplitShards() {
+		newShards[newID] = struct{}{}
 	}
 	return results.getUnProcessedKeys(splitKeys)
 }
 
-// groupKeysByResource separates keys into groups by their belonging Resources.
-func (r *ResourceSplitter) groupKeysByResource(group uint64, keys [][]byte) map[uint64]*resourceGroupKeys {
+// groupKeysByShard separates keys into groups by their belonging Shards.
+func (r *ShardSplitter) groupKeysByShard(group uint64, keys [][]byte) map[uint64]*resourceGroupKeys {
 	groups := make(map[uint64]*resourceGroupKeys, len(keys))
 	for _, key := range keys {
-		res := r.cluster.GetResourceByKey(group, key)
+		res := r.cluster.GetShardByKey(group, key)
 		if res == nil {
 			r.cluster.GetLogger().Error("resource hollow",
 				log.HexField("key", key))
 			continue
 		}
 		// assert resource valid
-		if !r.checkResourceValid(res) {
+		if !r.checkShardValid(res) {
 			continue
 		}
 		r.cluster.GetLogger().Info("found resource",
@@ -159,12 +159,12 @@ func (r *ResourceSplitter) groupKeysByResource(group uint64, keys [][]byte) map[
 	return groups
 }
 
-func (r *ResourceSplitter) checkResourceValid(res *core.CachedResource) bool {
-	if r.cluster.IsResourceHot(res) {
+func (r *ShardSplitter) checkShardValid(res *core.CachedShard) bool {
+	if r.cluster.IsShardHot(res) {
 		return false
 	}
-	if !opt.IsResourceReplicated(r.cluster, res) {
-		r.cluster.AddSuspectResources(res.Meta.ID())
+	if !opt.IsShardReplicated(r.cluster, res) {
+		r.cluster.AddSuspectShards(res.Meta.ID())
 		return false
 	}
 	if res.GetLeader() == nil {
@@ -173,13 +173,13 @@ func (r *ResourceSplitter) checkResourceValid(res *core.CachedResource) bool {
 	return true
 }
 
-type splitResourcesHandler struct {
+type splitShardsHandler struct {
 	cluster opt.Cluster
 	oc      *OperatorController
 }
 
-func (h *splitResourcesHandler) SplitResourceByKeys(res *core.CachedResource, splitKeys [][]byte) error {
-	op, err := operator.CreateSplitResourceOperator("resource-splitter", res, 0, metapb.CheckPolicy_USEKEY, splitKeys)
+func (h *splitShardsHandler) SplitShardByKeys(res *core.CachedShard, splitKeys [][]byte) error {
+	op, err := operator.CreateSplitShardOperator("resource-splitter", res, 0, metapb.CheckPolicy_USEKEY, splitKeys)
 	if err != nil {
 		return err
 	}
@@ -192,25 +192,25 @@ func (h *splitResourcesHandler) SplitResourceByKeys(res *core.CachedResource, sp
 	return nil
 }
 
-func (h *splitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
+func (h *splitShardsHandler) ScanShardsByKeyRange(group uint64, groupKeys *resourceGroupKeys, results *splitKeyResults) {
 	splitKeys := groupKeys.keys
 	startKey, endKey := groupKeys.resource.GetStartKey(), groupKeys.resource.GetEndKey()
-	createdResources := make(map[uint64][]byte, len(splitKeys))
+	createdShards := make(map[uint64][]byte, len(splitKeys))
 	defer func() {
-		results.addResourcesID(createdResources)
+		results.addShardsID(createdShards)
 	}()
-	resources := h.cluster.ScanResources(group, startKey, endKey, -1)
+	resources := h.cluster.ScanShards(group, startKey, endKey, -1)
 	for _, res := range resources {
 		for _, splitKey := range splitKeys {
 			if bytes.Equal(splitKey, res.GetStartKey()) {
 				h.cluster.GetLogger().Info("resource found split key",
 					log.ResourceField(res.Meta.ID()),
 					log.HexField("split-key", splitKey))
-				createdResources[res.Meta.ID()] = splitKey
+				createdShards[res.Meta.ID()] = splitKey
 			}
 		}
 	}
-	if len(createdResources) >= len(splitKeys) {
+	if len(createdShards) >= len(splitKeys) {
 		groupKeys.finished = true
 	}
 }
@@ -218,36 +218,36 @@ func (h *splitResourcesHandler) ScanResourcesByKeyRange(group uint64, groupKeys 
 type resourceGroupKeys struct {
 	// finished indicates all the split resources have been found in `resource` according to the `keys`
 	finished bool
-	resource *core.CachedResource
+	resource *core.CachedShard
 	keys     [][]byte
 }
 
 type splitKeyResults struct {
-	// newResourceID -> newResourceID's startKey
-	newResources map[uint64][]byte
+	// newShardID -> newShardID's startKey
+	newShards map[uint64][]byte
 }
 
 func newSplitKeyResults() *splitKeyResults {
 	s := &splitKeyResults{}
-	s.newResources = make(map[uint64][]byte)
+	s.newShards = make(map[uint64][]byte)
 	return s
 }
 
-func (r *splitKeyResults) addResourcesID(resourceIDs map[uint64][]byte) {
+func (r *splitKeyResults) addShardsID(resourceIDs map[uint64][]byte) {
 	for id, splitKey := range resourceIDs {
-		r.newResources[id] = splitKey
+		r.newShards[id] = splitKey
 	}
 }
 
-func (r *splitKeyResults) getSplitResources() map[uint64][]byte {
-	return r.newResources
+func (r *splitKeyResults) getSplitShards() map[uint64][]byte {
+	return r.newShards
 }
 
 func (r *splitKeyResults) getUnProcessedKeys(splitKeys [][]byte) [][]byte {
 	var unProcessedKeys [][]byte
 	for _, splitKey := range splitKeys {
 		processed := false
-		for _, resStartKey := range r.newResources {
+		for _, resStartKey := range r.newShards {
 			if bytes.Equal(splitKey, resStartKey) {
 				processed = true
 				break

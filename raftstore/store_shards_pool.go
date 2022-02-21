@@ -14,10 +14,9 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
@@ -37,11 +36,11 @@ var (
 type ShardsPool interface {
 	// Alloc alloc a shard from shards pool, returns error if no idle shards left. The `purpose` is used to avoid
 	// duplicate allocation.
-	Alloc(group uint64, purpose []byte) (meta.AllocatedShard, error)
+	Alloc(group uint64, purpose []byte) (metapb.AllocatedShard, error)
 }
 
-func (s *store) CreateResourcePool(pools ...metapb.ResourcePool) (ShardsPool, error) {
-	err := s.pd.GetClient().CreateJob(metapb.Job{Type: metapb.JobType_CreateResourcePool, Content: protoc.MustMarshal(&metapb.ResourcePoolJob{
+func (s *store) CreateShardPool(pools ...metapb.ShardPoolJobMeta) (ShardsPool, error) {
+	err := s.pd.GetClient().CreateJob(metapb.Job{Type: metapb.JobType_CreateShardPool, Content: protoc.MustMarshal(&metapb.ShardPoolJob{
 		Pools: pools,
 	})})
 	if err != nil {
@@ -51,7 +50,7 @@ func (s *store) CreateResourcePool(pools ...metapb.ResourcePool) (ShardsPool, er
 	return s.shardPool, nil
 }
 
-func (s *store) GetResourcePool() ShardsPool {
+func (s *store) GetShardPool() ShardsPool {
 	return s.shardPool
 }
 
@@ -69,7 +68,7 @@ type dynamicShardsPool struct {
 		sync.RWMutex
 
 		state   int
-		pools   meta.ShardsPool
+		pools   metapb.ShardsPool
 		createC chan struct{}
 	}
 }
@@ -82,7 +81,7 @@ func newDynamicShardsPool(cfg *config.Config, logger *zap.Logger) *dynamicShards
 		p.factory = cfg.Customize.CustomShardPoolShardFactory
 	}
 
-	cfg.Prophet.RegisterJobProcessor(metapb.JobType_CreateResourcePool, p)
+	cfg.Prophet.RegisterJobProcessor(metapb.JobType_CreateShardPool, p)
 	return p
 }
 
@@ -98,14 +97,14 @@ func (dsp *dynamicShardsPool) waitProphetClientSetted() {
 	<-dsp.pdC
 }
 
-func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (meta.AllocatedShard, error) {
-	allocated := meta.AllocatedShard{}
+func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (metapb.AllocatedShard, error) {
+	allocated := metapb.AllocatedShard{}
 	retry := 0
 	for {
-		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateResourcePool},
-			protoc.MustMarshal(&meta.ShardsPoolCmd{
-				Type: meta.ShardsPoolCmdType_AllocShard,
-				Alloc: &meta.ShardsPoolAllocCmd{
+		v, err := dsp.pd.ExecuteJob(metapb.Job{Type: metapb.JobType_CreateShardPool},
+			protoc.MustMarshal(&metapb.ShardsPoolCmd{
+				Type: metapb.ShardsPoolCmdType_AllocShard,
+				Alloc: &metapb.ShardsPoolAllocCmd{
 					Group:   group,
 					Purpose: purpose,
 				},
@@ -131,7 +130,7 @@ func (dsp *dynamicShardsPool) Alloc(group uint64, purpose []byte) (meta.Allocate
 	}
 }
 
-func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.mu.Lock()
 	defer dsp.mu.Unlock()
 
@@ -145,15 +144,15 @@ func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aw
 		return
 	}
 	if len(value) > 0 {
-		dsp.mu.pools = meta.ShardsPool{}
+		dsp.mu.pools = metapb.ShardsPool{}
 		protoc.MustUnmarshal(&dsp.mu.pools, value)
 	} else {
-		jobContent := &metapb.ResourcePoolJob{}
+		jobContent := &metapb.ShardPoolJob{}
 		protoc.MustUnmarshal(jobContent, job.Content)
 
-		dsp.mu.pools.Pools = make(map[uint64]*meta.ShardPool)
+		dsp.mu.pools.Pools = make(map[uint64]*metapb.ShardPool)
 		for _, p := range jobContent.Pools {
-			dsp.mu.pools.Pools[p.Group] = &meta.ShardPool{
+			dsp.mu.pools.Pools[p.Group] = &metapb.ShardPool{
 				Capacity:    p.Capacity,
 				RangePrefix: p.RangePrefix,
 			}
@@ -166,7 +165,7 @@ func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aw
 	dsp.startLocked(dsp.mu.createC, store, aware)
 }
 
-func (dsp *dynamicShardsPool) Stop(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) Stop(job metapb.Job, store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.mu.Lock()
 	if !dsp.isStartedLocked() {
 		dsp.mu.Unlock()
@@ -180,11 +179,11 @@ func (dsp *dynamicShardsPool) Stop(job metapb.Job, store storage.JobStorage, awa
 	dsp.stopper = stop.NewStopper("shards-pool", stop.WithLogger(dsp.logger))
 }
 
-func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.Stop(job, store, aware)
 }
 
-func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, aware pconfig.ResourcesAware) ([]byte, error) {
+func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, aware pconfig.ShardsAware) ([]byte, error) {
 	if len(data) <= 0 {
 		return nil, errors.New("error execute data")
 	}
@@ -196,17 +195,17 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 		return nil, fmt.Errorf("job not started")
 	}
 
-	cmd := &meta.ShardsPoolCmd{}
+	cmd := &metapb.ShardsPoolCmd{}
 	protoc.MustUnmarshal(cmd, data)
 	switch cmd.Type {
-	case meta.ShardsPoolCmdType_AllocShard:
+	case metapb.ShardsPoolCmdType_AllocShard:
 		return dsp.doAllocLocked(cmd.Alloc, store, aware)
 	default:
 		return nil, fmt.Errorf("invalid execute cmd %d", cmd.Type)
 	}
 }
 
-func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store storage.JobStorage, aware pconfig.ResourcesAware) ([]byte, error) {
+func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, store storage.JobStorage, aware pconfig.ShardsAware) ([]byte, error) {
 	group := cmd.Group
 	p := dsp.mu.pools.Pools[group]
 
@@ -230,15 +229,15 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	id := uint64(0)
 	p.AllocatedOffset++
 	unique := dsp.unique(group, p.AllocatedOffset)
-	fn := func(res metadata.Resource) {
+	fn := func(res metadata.Shard) {
 		shard := res.(*resourceAdapter).meta
 		if shard.Unique == unique {
 			id = shard.ID
 		}
 	}
-	aware.ForeachWaittingCreateResources(fn)
+	aware.ForeachWaittingCreateShards(fn)
 	if id == 0 {
-		aware.ForeachResources(group, fn)
+		aware.ForeachShards(group, fn)
 	}
 	if id == 0 {
 		// Anyway the prophet leader node has no corresponding data in memory,
@@ -247,7 +246,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 		return nil, nil
 	}
 
-	allocated := &meta.AllocatedShard{
+	allocated := &metapb.AllocatedShard{
 		ShardID:     id,
 		AllocatedAt: p.AllocatedOffset,
 		Purpose:     cmd.Purpose,
@@ -264,7 +263,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *meta.ShardsPoolAllocCmd, store 
 	return protoc.MustMarshal(allocated), nil
 }
 
-func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.triggerCreateLocked()
 	dsp.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		dsp.logger.Info("dynamic shards pool job started")
@@ -321,14 +320,14 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 
 	// we don't modify directly
 	modified := dsp.cloneDataLocked()
-	var creates []metadata.Resource
+	var creates []metadata.Shard
 	for {
 		changed := false
 		for g, p := range modified.Pools {
 			if p.Seq == 0 ||
 				(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < batchCreateCount) {
 				p.Seq++
-				creates = append(creates, NewResourceAdapterWithShard(dsp.factory(g,
+				creates = append(creates, NewShardAdapterWithShard(dsp.factory(g,
 					addPrefix(p.RangePrefix, p.Seq),
 					addPrefix(p.RangePrefix, p.Seq+1),
 					dsp.unique(g, p.Seq),
@@ -347,7 +346,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		if dsp.cfg.Test.ShardPoolCreateWaitC != nil {
 			<-dsp.cfg.Test.ShardPoolCreateWaitC
 		}
-		err := dsp.pd.AsyncAddResources(creates...)
+		err := dsp.pd.AsyncAddShards(creates...)
 		if err != nil {
 			dsp.logger.Error("fail to create shard",
 				zap.Error(err))
@@ -370,7 +369,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 	}
 }
 
-func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconfig.ResourcesAware) {
+func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.mu.Lock()
 	defer dsp.mu.Unlock()
 
@@ -382,7 +381,7 @@ func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconf
 	for g, p := range dsp.mu.pools.Pools {
 		var gc []int
 		for idx, allocated := range p.AllocatedShards {
-			stats := aware.GetResource(allocated.ShardID).GetStat()
+			stats := aware.GetShard(allocated.ShardID).GetStat()
 			if stats != nil && stats.WrittenKeys > 0 {
 				gc = append(gc, idx)
 			}
@@ -430,8 +429,8 @@ func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) error {
 	return err
 }
 
-func (dsp *dynamicShardsPool) cloneDataLocked() meta.ShardsPool {
-	old := meta.ShardsPool{}
+func (dsp *dynamicShardsPool) cloneDataLocked() metapb.ShardsPool {
+	old := metapb.ShardsPool{}
 	protoc.MustUnmarshal(&old, protoc.MustMarshal(&dsp.mu.pools))
 	return old
 }

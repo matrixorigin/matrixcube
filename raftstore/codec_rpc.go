@@ -16,7 +16,7 @@ package raftstore
 import (
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 var (
@@ -29,7 +29,7 @@ type rpcCodec struct {
 
 func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	if c.clientSide {
-		value := rpc.Response{}
+		value := rpcpb.Response{}
 		err := value.Unmarshal(in.GetMarkedRemindData())
 		if err != nil {
 			return false, nil, err
@@ -39,7 +39,7 @@ func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 		return true, value, nil
 	}
 
-	value := rpc.Request{}
+	value := rpcpb.Request{}
 	err := value.Unmarshal(in.GetMarkedRemindData())
 	if err != nil {
 		return false, nil, err
@@ -52,10 +52,10 @@ func (c *rpcCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 func (c *rpcCodec) Encode(data interface{}, out *buf.ByteBuf) error {
 	var rsp protoc.PB
 	if c.clientSide {
-		v := data.(rpc.Request)
+		v := data.(rpcpb.Request)
 		rsp = &v
 	} else {
-		v := data.(rpc.Response)
+		v := data.(rpcpb.Response)
 		rsp = &v
 	}
 

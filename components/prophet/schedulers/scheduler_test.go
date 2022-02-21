@@ -44,15 +44,15 @@ func TestShuffle(t *testing.T) {
 	assert.Empty(t, sl.Schedule(tc))
 
 	// Add containers 1,2,3,4
-	tc.AddLeaderContainer(1, 6)
-	tc.AddLeaderContainer(2, 7)
-	tc.AddLeaderContainer(3, 8)
-	tc.AddLeaderContainer(4, 9)
+	tc.AddLeaderStore(1, 6)
+	tc.AddLeaderStore(2, 7)
+	tc.AddLeaderStore(3, 8)
+	tc.AddLeaderStore(4, 9)
 	// Add resources 1,2,3,4 with leaders in containers 1,2,3,4
-	tc.AddLeaderResource(1, 1, 2, 3, 4)
-	tc.AddLeaderResource(2, 2, 3, 4, 1)
-	tc.AddLeaderResource(3, 3, 4, 1, 2)
-	tc.AddLeaderResource(4, 4, 1, 2, 3)
+	tc.AddLeaderShard(1, 1, 2, 3, 4)
+	tc.AddLeaderShard(2, 2, 3, 4, 1)
+	tc.AddLeaderShard(3, 3, 4, 1, 2)
+	tc.AddLeaderShard(4, 4, 1, 2, 3)
 
 	for i := 0; i < 4; i++ {
 		op := sl.Schedule(tc)
@@ -71,13 +71,13 @@ func TestRejectLeader(t *testing.T) {
 	tc := mockcluster.NewCluster(opts)
 
 	// Add 3 containers 1,2,3.
-	tc.AddLabelsContainer(1, 1, map[string]string{"noleader": "true"})
+	tc.AddLabelsStore(1, 1, map[string]string{"noleader": "true"})
 	tc.UpdateLeaderCount(1, 1)
-	tc.AddLeaderContainer(2, 10)
-	tc.AddLeaderContainer(3, 0)
+	tc.AddLeaderStore(2, 10)
+	tc.AddLeaderStore(3, 0)
 	// Add 2 resources with leader on 1 and 2.
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 2, 1, 3)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 2, 1, 3)
 
 	// The label scheduler transfers leader out of container1.
 	oc := schedule.NewOperatorController(ctx, tc, nil)
@@ -87,7 +87,7 @@ func TestRejectLeader(t *testing.T) {
 	testutil.CheckTransferLeaderFrom(t, op[0], operator.OpLeader, 1)
 
 	// If container3 is disconnected, transfer leader to container 2.
-	tc.SetContainerDisconnect(3)
+	tc.SetStoreDisconnect(3)
 	op = sl.Schedule(tc)
 	testutil.CheckTransferLeader(t, op[0], operator.OpLeader, 1, 2)
 
@@ -105,15 +105,15 @@ func TestRejectLeader(t *testing.T) {
 	assert.Nil(t, op)
 
 	// If the peer on container3 is pending, not transfer to container3 neither.
-	tc.SetContainerUP(3)
-	resource := tc.Resources.GetResource(1)
+	tc.SetStoreUP(3)
+	resource := tc.Shards.GetShard(1)
 	for _, p := range resource.Meta.Peers() {
-		if p.GetContainerID() == 3 {
+		if p.GetStoreID() == 3 {
 			resource = resource.Clone(core.WithPendingPeers(append(resource.GetPendingPeers(), p)))
 			break
 		}
 	}
-	tc.Resources.AddResource(resource)
+	tc.Shards.AddShard(resource)
 	op = sl.Schedule(tc)
 	testutil.CheckTransferLeader(t, op[0], operator.OpLeader, 1, 2)
 }
@@ -126,7 +126,7 @@ func TestShuffleHotBalance(t *testing.T) {
 	tc.SetMaxReplicas(3)
 	tc.SetLocationLabels([]string{"zone", "host"})
 	tc.DisableJointConsensus()
-	hb, err := schedule.CreateScheduler(ShuffleHotResourceType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder("shuffle-hot-resource", []string{"", ""}))
+	hb, err := schedule.CreateScheduler(ShuffleHotShardType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder("shuffle-hot-resource", []string{"", ""}))
 	assert.NoError(t, err)
 
 	checkBalance(t, tc, opt, hb)
@@ -140,23 +140,23 @@ func TestAbnormalReplica(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	tc.SetLeaderScheduleLimit(0)
-	hb, err := schedule.CreateScheduler(HotReadResourceType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), nil)
+	hb, err := schedule.CreateScheduler(HotReadShardType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), nil)
 	assert.NoError(t, err)
 
-	tc.AddResourceContainer(1, 3)
-	tc.AddResourceContainer(2, 2)
-	tc.AddResourceContainer(3, 2)
+	tc.AddShardStore(1, 3)
+	tc.AddShardStore(2, 2)
+	tc.AddShardStore(3, 2)
 
 	// Report container read bytes.
-	tc.UpdateStorageReadBytes(1, 7.5*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageReadBytes(2, 4.5*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageReadBytes(3, 4.5*MB*statistics.ContainerHeartBeatReportInterval)
+	tc.UpdateStorageReadBytes(1, 7.5*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageReadBytes(2, 4.5*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageReadBytes(3, 4.5*MB*statistics.StoreHeartBeatReportInterval)
 
-	tc.AddLeaderResourceWithReadInfo(1, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2})
-	tc.AddLeaderResourceWithReadInfo(2, 2, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{1, 3})
-	tc.AddLeaderResourceWithReadInfo(3, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 3})
-	tc.SetHotResourceCacheHitsThreshold(0)
-	assert.True(t, tc.IsResourceHot(tc.GetResource(1)))
+	tc.AddLeaderShardWithReadInfo(1, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2})
+	tc.AddLeaderShardWithReadInfo(2, 2, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{1, 3})
+	tc.AddLeaderShardWithReadInfo(3, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 3})
+	tc.SetHotShardCacheHitsThreshold(0)
+	assert.True(t, tc.IsShardHot(tc.GetShard(1)))
 	assert.Empty(t, hb.Schedule(tc))
 }
 
@@ -167,13 +167,13 @@ func TestEvictLeader(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 
 	// Add containers 1, 2, 3
-	tc.AddLeaderContainer(1, 0)
-	tc.AddLeaderContainer(2, 0)
-	tc.AddLeaderContainer(3, 0)
+	tc.AddLeaderStore(1, 0)
+	tc.AddLeaderStore(2, 0)
+	tc.AddLeaderStore(3, 0)
 	// Add resources 1, 2, 3 with leaders in containers 1, 2, 3
-	tc.AddLeaderResource(1, 1, 2)
-	tc.AddLeaderResource(2, 2, 1)
-	tc.AddLeaderResource(3, 3, 1)
+	tc.AddLeaderShard(1, 1, 2)
+	tc.AddLeaderShard(2, 2, 1)
+	tc.AddLeaderShard(3, 3, 1)
 
 	sl, err := schedule.CreateScheduler(EvictLeaderType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(EvictLeaderType, []string{"1"}))
 	assert.NoError(t, err)
@@ -188,26 +188,26 @@ func TestShuffleresource(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 
-	sl, err := schedule.CreateScheduler(ShuffleResourceType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(ShuffleResourceType, []string{"", ""}))
+	sl, err := schedule.CreateScheduler(ShuffleShardType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(ShuffleShardType, []string{"", ""}))
 	assert.NoError(t, err)
 	assert.True(t, sl.IsScheduleAllowed(tc))
 	assert.Empty(t, sl.Schedule(tc))
 
 	// Add containers 1, 2, 3, 4
-	tc.AddResourceContainer(1, 6)
-	tc.AddResourceContainer(2, 7)
-	tc.AddResourceContainer(3, 8)
-	tc.AddResourceContainer(4, 9)
+	tc.AddShardStore(1, 6)
+	tc.AddShardStore(2, 7)
+	tc.AddShardStore(3, 8)
+	tc.AddShardStore(4, 9)
 	// Add resources 1, 2, 3, 4 with leaders in containers 1,2,3,4
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 2, 3, 4)
-	tc.AddLeaderResource(3, 3, 4, 1)
-	tc.AddLeaderResource(4, 4, 1, 2)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 2, 3, 4)
+	tc.AddLeaderShard(3, 3, 4, 1)
+	tc.AddLeaderShard(4, 4, 1, 2)
 
 	for i := 0; i < 4; i++ {
 		op := sl.Schedule(tc)
 		assert.NotNil(t, op)
-		assert.Equal(t, operator.OpResource|operator.OpAdmin, op[0].Kind())
+		assert.Equal(t, operator.OpShard|operator.OpAdmin, op[0].Kind())
 	}
 }
 
@@ -234,28 +234,28 @@ func TestRole(t *testing.T) {
 	})
 
 	// Add containers 1, 2, 3, 4
-	tc.AddResourceContainer(1, 6)
-	tc.AddResourceContainer(2, 7)
-	tc.AddResourceContainer(3, 8)
-	tc.AddResourceContainer(4, 9)
+	tc.AddShardStore(1, 6)
+	tc.AddShardStore(2, 7)
+	tc.AddShardStore(3, 8)
+	tc.AddShardStore(4, 9)
 
 	// Put a resource with 1leader + 1follower + 1learner
 	peers := []metapb.Replica{
-		{ID: 1, ContainerID: 1},
-		{ID: 2, ContainerID: 2},
-		{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+		{ID: 1, StoreID: 1},
+		{ID: 2, StoreID: 2},
+		{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 	}
-	resource := core.NewCachedResource(&metadata.TestResource{
+	resource := core.NewCachedShard(&metadata.TestShard{
 		ResID:    1,
-		ResEpoch: metapb.ResourceEpoch{ConfVer: 1, Version: 1},
+		ResEpoch: metapb.ShardEpoch{ConfVer: 1, Version: 1},
 		ResPeers: peers,
 	}, &peers[0])
-	tc.PutResource(resource)
+	tc.PutShard(resource)
 
-	sl, err := schedule.CreateScheduler(ShuffleResourceType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(ShuffleResourceType, []string{"", ""}))
+	sl, err := schedule.CreateScheduler(ShuffleShardType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(ShuffleShardType, []string{"", ""}))
 	assert.NoError(t, err)
 
-	conf := sl.(*shuffleResourceScheduler).conf
+	conf := sl.(*shuffleShardScheduler).conf
 	conf.Roles = []string{"follower"}
 	ops := sl.Schedule(tc)
 	assert.Equal(t, 1, len(ops))
@@ -263,7 +263,7 @@ func TestRole(t *testing.T) {
 	conf.Roles = []string{"learner"}
 	ops = sl.Schedule(tc)
 	assert.Equal(t, 1, len(ops))
-	testutil.CheckTransferLearner(t, ops[0], operator.OpResource, 3, 4) // transfer learner
+	testutil.CheckTransferLearner(t, ops[0], operator.OpShard, 3, 4) // transfer learner
 }
 
 func TestSpecialUseHotresource(t *testing.T) {
@@ -274,24 +274,24 @@ func TestSpecialUseHotresource(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	oc := schedule.NewOperatorController(ctx, tc, nil)
 	storage := storage.NewTestStorage()
-	cd := schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""})
-	bs, err := schedule.CreateScheduler(BalanceResourceType, oc, storage, cd)
+	cd := schedule.ConfigSliceDecoder(BalanceShardType, []string{"", ""})
+	bs, err := schedule.CreateScheduler(BalanceShardType, oc, storage, cd)
 	assert.NoError(t, err)
-	hs, err := schedule.CreateScheduler(HotWriteResourceType, oc, storage, cd)
+	hs, err := schedule.CreateScheduler(HotWriteShardType, oc, storage, cd)
 	assert.NoError(t, err)
 
-	tc.SetHotResourceCacheHitsThreshold(0)
+	tc.SetHotShardCacheHitsThreshold(0)
 	tc.DisableJointConsensus()
-	tc.AddResourceContainer(1, 10)
-	tc.AddResourceContainer(2, 4)
-	tc.AddResourceContainer(3, 2)
-	tc.AddResourceContainer(4, 0)
-	tc.AddResourceContainer(5, 10)
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 1, 2, 3)
-	tc.AddLeaderResource(3, 1, 2, 3)
-	tc.AddLeaderResource(4, 1, 2, 3)
-	tc.AddLeaderResource(5, 1, 2, 3)
+	tc.AddShardStore(1, 10)
+	tc.AddShardStore(2, 4)
+	tc.AddShardStore(3, 2)
+	tc.AddShardStore(4, 0)
+	tc.AddShardStore(5, 10)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 1, 2, 3)
+	tc.AddLeaderShard(3, 1, 2, 3)
+	tc.AddLeaderShard(4, 1, 2, 3)
+	tc.AddLeaderShard(5, 1, 2, 3)
 
 	// balance resource without label
 	ops := bs.Schedule(tc)
@@ -299,25 +299,25 @@ func TestSpecialUseHotresource(t *testing.T) {
 	testutil.CheckTransferPeer(t, ops[0], operator.OpKind(0), 1, 4)
 
 	// cannot balance to container 4 and 5 with label
-	tc.AddLabelsContainer(4, 0, map[string]string{"specialUse": "hotResource"})
-	tc.AddLabelsContainer(5, 0, map[string]string{"specialUse": "reserved"})
+	tc.AddLabelsStore(4, 0, map[string]string{"specialUse": "hotShard"})
+	tc.AddLabelsStore(5, 0, map[string]string{"specialUse": "reserved"})
 	ops = bs.Schedule(tc)
 	assert.Empty(t, ops)
 
 	// can only move peer to 4
-	tc.UpdateStorageWrittenBytes(1, 60*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageWrittenBytes(2, 6*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageWrittenBytes(3, 6*MB*statistics.ContainerHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(1, 60*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(2, 6*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(3, 6*MB*statistics.StoreHeartBeatReportInterval)
 	tc.UpdateStorageWrittenBytes(4, 0)
 	tc.UpdateStorageWrittenBytes(5, 0)
-	tc.AddLeaderResourceWithWriteInfo(1, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 3})
-	tc.AddLeaderResourceWithWriteInfo(2, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 3})
-	tc.AddLeaderResourceWithWriteInfo(3, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 3})
-	tc.AddLeaderResourceWithWriteInfo(4, 2, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{1, 3})
-	tc.AddLeaderResourceWithWriteInfo(5, 3, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{1, 2})
+	tc.AddLeaderShardWithWriteInfo(1, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 3})
+	tc.AddLeaderShardWithWriteInfo(2, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 3})
+	tc.AddLeaderShardWithWriteInfo(3, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 3})
+	tc.AddLeaderShardWithWriteInfo(4, 2, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{1, 3})
+	tc.AddLeaderShardWithWriteInfo(5, 3, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{1, 2})
 	ops = hs.Schedule(tc)
 	assert.Equal(t, 1, len(ops))
-	testutil.CheckTransferPeer(t, ops[0], operator.OpHotResource, 1, 4)
+	testutil.CheckTransferPeer(t, ops[0], operator.OpHotShard, 1, 4)
 }
 
 func TestSpecialUseReserved(t *testing.T) {
@@ -328,21 +328,21 @@ func TestSpecialUseReserved(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	oc := schedule.NewOperatorController(ctx, tc, nil)
 	storage := storage.NewTestStorage()
-	cd := schedule.ConfigSliceDecoder(BalanceResourceType, []string{"", ""})
-	bs, err := schedule.CreateScheduler(BalanceResourceType, oc, storage, cd)
+	cd := schedule.ConfigSliceDecoder(BalanceShardType, []string{"", ""})
+	bs, err := schedule.CreateScheduler(BalanceShardType, oc, storage, cd)
 	assert.NoError(t, err)
 
-	tc.SetHotResourceCacheHitsThreshold(0)
+	tc.SetHotShardCacheHitsThreshold(0)
 	tc.DisableJointConsensus()
-	tc.AddResourceContainer(1, 10)
-	tc.AddResourceContainer(2, 4)
-	tc.AddResourceContainer(3, 2)
-	tc.AddResourceContainer(4, 0)
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 1, 2, 3)
-	tc.AddLeaderResource(3, 1, 2, 3)
-	tc.AddLeaderResource(4, 1, 2, 3)
-	tc.AddLeaderResource(5, 1, 2, 3)
+	tc.AddShardStore(1, 10)
+	tc.AddShardStore(2, 4)
+	tc.AddShardStore(3, 2)
+	tc.AddShardStore(4, 0)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 1, 2, 3)
+	tc.AddLeaderShard(3, 1, 2, 3)
+	tc.AddLeaderShard(4, 1, 2, 3)
+	tc.AddLeaderShard(5, 1, 2, 3)
 
 	// balance resource without label
 	ops := bs.Schedule(tc)
@@ -350,7 +350,7 @@ func TestSpecialUseReserved(t *testing.T) {
 	testutil.CheckTransferPeer(t, ops[0], operator.OpKind(0), 1, 4)
 
 	// cannot balance to container 4 with label
-	tc.AddLabelsContainer(4, 0, map[string]string{"specialUse": "reserved"})
+	tc.AddLabelsStore(4, 0, map[string]string{"specialUse": "reserved"})
 	ops = bs.Schedule(tc)
 	assert.Empty(t, ops)
 }
@@ -391,17 +391,17 @@ func TestBalanceLeaderWithConflictRule(t *testing.T) {
 	// containers:     1    2    3
 	// Leaders:    1    0    0
 	// resource1:    L    F    F
-	s.tc.AddLeaderContainer(1, 1)
-	s.tc.AddLeaderContainer(2, 0)
-	s.tc.AddLeaderContainer(3, 0)
-	s.tc.AddLeaderResource(1, 1, 2, 3)
-	s.tc.SetContainerLabel(1, map[string]string{
+	s.tc.AddLeaderStore(1, 1)
+	s.tc.AddLeaderStore(2, 0)
+	s.tc.AddLeaderStore(3, 0)
+	s.tc.AddLeaderShard(1, 1, 2, 3)
+	s.tc.SetStoreLabel(1, map[string]string{
 		"host": "a",
 	})
-	s.tc.SetContainerLabel(2, map[string]string{
+	s.tc.SetStoreLabel(2, map[string]string{
 		"host": "b",
 	})
-	s.tc.SetContainerLabel(3, map[string]string{
+	s.tc.SetStoreLabel(3, map[string]string{
 		"host": "c",
 	})
 
@@ -485,18 +485,18 @@ func TestBalanceLeaderWithConflictRule(t *testing.T) {
 
 func checkBalance(t *testing.T, tc *mockcluster.Cluster, opt *config.PersistOptions, hb schedule.Scheduler) {
 	// Add containers 1, 2, 3, 4, 5, 6  with hot peer counts 3, 2, 2, 2, 0, 0.
-	tc.AddLabelsContainer(1, 3, map[string]string{"zone": "z1", "host": "h1"})
-	tc.AddLabelsContainer(2, 2, map[string]string{"zone": "z2", "host": "h2"})
-	tc.AddLabelsContainer(3, 2, map[string]string{"zone": "z3", "host": "h3"})
-	tc.AddLabelsContainer(4, 2, map[string]string{"zone": "z4", "host": "h4"})
-	tc.AddLabelsContainer(5, 0, map[string]string{"zone": "z5", "host": "h5"})
-	tc.AddLabelsContainer(6, 0, map[string]string{"zone": "z4", "host": "h6"})
+	tc.AddLabelsStore(1, 3, map[string]string{"zone": "z1", "host": "h1"})
+	tc.AddLabelsStore(2, 2, map[string]string{"zone": "z2", "host": "h2"})
+	tc.AddLabelsStore(3, 2, map[string]string{"zone": "z3", "host": "h3"})
+	tc.AddLabelsStore(4, 2, map[string]string{"zone": "z4", "host": "h4"})
+	tc.AddLabelsStore(5, 0, map[string]string{"zone": "z5", "host": "h5"})
+	tc.AddLabelsStore(6, 0, map[string]string{"zone": "z4", "host": "h6"})
 
 	// Report container written bytes.
-	tc.UpdateStorageWrittenBytes(1, 7.5*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageWrittenBytes(2, 4.5*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageWrittenBytes(3, 4.5*MB*statistics.ContainerHeartBeatReportInterval)
-	tc.UpdateStorageWrittenBytes(4, 6*MB*statistics.ContainerHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(1, 7.5*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(2, 4.5*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(3, 4.5*MB*statistics.StoreHeartBeatReportInterval)
+	tc.UpdateStorageWrittenBytes(4, 6*MB*statistics.StoreHeartBeatReportInterval)
 	tc.UpdateStorageWrittenBytes(5, 0)
 	tc.UpdateStorageWrittenBytes(6, 0)
 
@@ -506,10 +506,10 @@ func checkBalance(t *testing.T, tc *mockcluster.Cluster, opt *config.PersistOpti
 	//|     1     |       1      |        2       |       3        |      512KB    |
 	//|     2     |       1      |        3       |       4        |      512KB    |
 	//|     3     |       1      |        2       |       4        |      512KB    |
-	tc.AddLeaderResourceWithWriteInfo(1, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 3})
-	tc.AddLeaderResourceWithWriteInfo(2, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{3, 4})
-	tc.AddLeaderResourceWithWriteInfo(3, 1, 512*KB*statistics.ResourceHeartBeatReportInterval, 0, statistics.ResourceHeartBeatReportInterval, []uint64{2, 4})
-	tc.SetHotResourceCacheHitsThreshold(0)
+	tc.AddLeaderShardWithWriteInfo(1, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 3})
+	tc.AddLeaderShardWithWriteInfo(2, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{3, 4})
+	tc.AddLeaderShardWithWriteInfo(3, 1, 512*KB*statistics.ShardHeartBeatReportInterval, 0, statistics.ShardHeartBeatReportInterval, []uint64{2, 4})
+	tc.SetHotShardCacheHitsThreshold(0)
 
 	// try to get an operator
 	var op []*operator.Operator
@@ -520,6 +520,6 @@ func checkBalance(t *testing.T, tc *mockcluster.Cluster, opt *config.PersistOpti
 		}
 	}
 	assert.NotNil(t, op)
-	assert.Equal(t, op[0].Step(op[0].Len()-1).(operator.TransferLeader).ToContainer, op[0].Step(1).(operator.PromoteLearner).ToContainer)
-	assert.NotEqual(t, 6, op[0].Step(1).(operator.PromoteLearner).ToContainer)
+	assert.Equal(t, op[0].Step(op[0].Len()-1).(operator.TransferLeader).ToStore, op[0].Step(1).(operator.PromoteLearner).ToStore)
+	assert.NotEqual(t, 6, op[0].Step(1).(operator.PromoteLearner).ToStore)
 }

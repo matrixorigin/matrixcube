@@ -43,7 +43,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -57,19 +57,19 @@ const (
 )
 
 type Trans interface {
-	Send(meta.RaftMessage) bool
-	SendSnapshot(meta.RaftMessage) bool
-	SetFilter(func(meta.RaftMessage) bool)
+	Send(metapb.RaftMessage) bool
+	SendSnapshot(metapb.RaftMessage) bool
+	SetFilter(func(metapb.RaftMessage) bool)
 	SendingSnapshotCount() uint64
 	Start() error
 	Close() error
 }
 
-type ContainerResolver func(storeID uint64) (string, error)
+type StoreResolver func(storeID uint64) (string, error)
 
-type MessageHandler func(meta.RaftMessageBatch)
+type MessageHandler func(metapb.RaftMessageBatch)
 
-type SnapshotChunkHandler func(meta.SnapshotChunk) bool
+type SnapshotChunkHandler func(metapb.SnapshotChunk) bool
 
 type UnreachableHandler func(uint64, uint64)
 
@@ -93,7 +93,7 @@ type Connection interface {
 	// recommended to deliver the message batch to the target in order to enjoy
 	// best possible performance, but out of order delivery is allowed at the
 	// cost of reduced performance.
-	SendMessageBatch(batch meta.RaftMessageBatch) error
+	SendMessageBatch(batch metapb.RaftMessageBatch) error
 }
 
 // SnapshotConnection is the interface used by the transport module for sending
@@ -106,7 +106,7 @@ type SnapshotConnection interface {
 	// recommended to have the snapshot chunk delivered in order for the best
 	// performance, but out of order delivery is allowed at the cost of reduced
 	// performance.
-	SendChunk(chunk meta.SnapshotChunk) error
+	SendChunk(chunk metapb.SnapshotChunk) error
 }
 
 // TransImpl is the interface to be implemented by a customized transport
@@ -139,7 +139,7 @@ type targetInfo struct {
 type Transport struct {
 	mu struct {
 		sync.Mutex
-		queues   map[string]chan meta.RaftMessage
+		queues   map[string]chan metapb.RaftMessage
 		breakers map[string]*circuit.Breaker
 	}
 	logger         *zap.Logger
@@ -152,7 +152,7 @@ type Transport struct {
 	filter         atomic.Value
 	unreachable    UnreachableHandler
 	snapshotStatus SnapshotStatusHandler
-	resolver       ContainerResolver
+	resolver       StoreResolver
 	trans          TransImpl
 	dir            snapshot.SnapshotDirFunc
 	chunks         *Chunk
@@ -166,7 +166,7 @@ func NewTransport(logger *zap.Logger, addr string,
 	storeID uint64, handler MessageHandler,
 	unreachable UnreachableHandler, snapshotStatus SnapshotStatusHandler,
 	dir snapshot.SnapshotDirFunc,
-	resolver ContainerResolver, fs vfs.FS) *Transport {
+	resolver StoreResolver, fs vfs.FS) *Transport {
 	t := &Transport{
 		logger:         log.Adjust(logger),
 		storeID:        storeID,
@@ -180,7 +180,7 @@ func NewTransport(logger *zap.Logger, addr string,
 	}
 	t.chunks = NewChunk(t.logger, t.handler, t.dir, fs)
 	t.trans = NewTCPTransport(logger, addr, handler, t.chunks.Add)
-	t.mu.queues = make(map[string]chan meta.RaftMessage)
+	t.mu.queues = make(map[string]chan metapb.RaftMessage)
 	t.mu.breakers = make(map[string]*circuit.Breaker)
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
@@ -216,7 +216,7 @@ func (t *Transport) Name() string {
 	return t.trans.Name()
 }
 
-func (t *Transport) SetFilter(f func(meta.RaftMessage) bool) {
+func (t *Transport) SetFilter(f func(metapb.RaftMessage) bool) {
 	if f == nil {
 		panic("nil filter")
 	}
@@ -227,14 +227,14 @@ func (t *Transport) SendingSnapshotCount() uint64 {
 	return 0
 }
 
-func (t *Transport) Send(m meta.RaftMessage) bool {
+func (t *Transport) Send(m metapb.RaftMessage) bool {
 	if m.Message.Type == raftpb.MsgSnap {
 		panic("sending snapshot message as regular message")
 	}
 
-	storeID := m.To.ContainerID
+	storeID := m.To.StoreID
 	if filter := t.filter.Load(); filter != nil {
-		ff, ok := filter.(func(meta.RaftMessage) bool)
+		ff, ok := filter.(func(metapb.RaftMessage) bool)
 		if !ok {
 			panic(fmt.Errorf("invalid transport filter %T", ff))
 		}
@@ -256,7 +256,7 @@ func (t *Transport) Send(m meta.RaftMessage) bool {
 	t.mu.Lock()
 	ch, ok := t.mu.queues[targetInfo.key]
 	if !ok {
-		ch = make(chan meta.RaftMessage, sendQueueLen)
+		ch = make(chan metapb.RaftMessage, sendQueueLen)
 		t.mu.queues[targetInfo.key] = ch
 	}
 	t.mu.Unlock()
@@ -286,7 +286,7 @@ func (t *Transport) Send(m meta.RaftMessage) bool {
 }
 
 func (t *Transport) connectAndProcess(addr string,
-	ch chan meta.RaftMessage, affected nodeMap) bool {
+	ch chan metapb.RaftMessage, affected nodeMap) bool {
 	breaker := t.getCircuitBreaker(addr)
 	successes := breaker.Successes()
 	consecFailures := breaker.ConsecFailures()
@@ -326,12 +326,12 @@ func (t *Transport) notifyUnreachable(addr string, affected nodeMap) {
 }
 
 func (t *Transport) processMessages(addr string,
-	ch chan meta.RaftMessage, conn Connection, affected nodeMap) error {
+	ch chan metapb.RaftMessage, conn Connection, affected nodeMap) error {
 	idleTimer := time.NewTimer(idleTimeout)
 	defer idleTimer.Stop()
 	sz := uint64(0)
-	batch := meta.RaftMessageBatch{}
-	requests := make([]meta.RaftMessage, 0)
+	batch := metapb.RaftMessageBatch{}
+	requests := make([]metapb.RaftMessage, 0)
 	for {
 		if !idleTimer.Stop() {
 			select {
@@ -379,7 +379,7 @@ func (t *Transport) processMessages(addr string,
 				return err
 			}
 			if twoBatch {
-				batch.Messages = []meta.RaftMessage{requests[len(requests)-1]}
+				batch.Messages = []metapb.RaftMessage{requests[len(requests)-1]}
 				if err := t.sendMessageBatch(conn, batch); err != nil {
 					t.logger.Error("send batch failed",
 						zap.String("target", addr),
@@ -394,17 +394,17 @@ func (t *Transport) processMessages(addr string,
 	}
 }
 
-func lazyFree(reqs []meta.RaftMessage,
-	mb meta.RaftMessageBatch) ([]meta.RaftMessage, meta.RaftMessageBatch) {
+func lazyFree(reqs []metapb.RaftMessage,
+	mb metapb.RaftMessageBatch) ([]metapb.RaftMessage, metapb.RaftMessageBatch) {
 	for i := 0; i < len(reqs); i++ {
 		reqs[i].Message.Entries = nil
 	}
-	mb.Messages = []meta.RaftMessage{}
+	mb.Messages = []metapb.RaftMessage{}
 	return reqs, mb
 }
 
 func (t *Transport) sendMessageBatch(conn Connection,
-	batch meta.RaftMessageBatch) error {
+	batch metapb.RaftMessageBatch) error {
 	// TODO: add pre-send hook here
 	return conn.SendMessageBatch(batch)
 }

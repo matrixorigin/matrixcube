@@ -28,16 +28,16 @@ import (
 )
 
 const (
-	// ShuffleResourceName is shuffle resource scheduler name.
-	ShuffleResourceName = "shuffle-resource-scheduler"
-	// ShuffleResourceType is shuffle resource scheduler type.
-	ShuffleResourceType = "shuffle-resource"
+	// ShuffleShardName is shuffle resource scheduler name.
+	ShuffleShardName = "shuffle-resource-scheduler"
+	// ShuffleShardType is shuffle resource scheduler type.
+	ShuffleShardType = "shuffle-resource"
 )
 
 func init() {
-	schedule.RegisterSliceDecoderBuilder(ShuffleResourceType, func(args []string) schedule.ConfigDecoder {
+	schedule.RegisterSliceDecoderBuilder(ShuffleShardType, func(args []string) schedule.ConfigDecoder {
 		return func(v interface{}) error {
-			conf, ok := v.(*shuffleResourceSchedulerConfig)
+			conf, ok := v.(*shuffleShardSchedulerConfig)
 			if !ok {
 				return errors.New("scheduler error configuration")
 			}
@@ -50,59 +50,59 @@ func init() {
 			return nil
 		}
 	})
-	schedule.RegisterScheduler(ShuffleResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := &shuffleResourceSchedulerConfig{storage: storage}
+	schedule.RegisterScheduler(ShuffleShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+		conf := &shuffleShardSchedulerConfig{storage: storage}
 		if err := decoder(conf); err != nil {
 			return nil, err
 		}
-		return newShuffleResourceScheduler(opController, conf), nil
+		return newShuffleShardScheduler(opController, conf), nil
 	})
 }
 
-type shuffleResourceScheduler struct {
+type shuffleShardScheduler struct {
 	*BaseScheduler
-	conf    *shuffleResourceSchedulerConfig
+	conf    *shuffleShardSchedulerConfig
 	filters []filter.Filter
 }
 
-// newShuffleResourceScheduler creates an admin scheduler that shuffles resources
+// newShuffleShardScheduler creates an admin scheduler that shuffles resources
 // between containers.
-func newShuffleResourceScheduler(opController *schedule.OperatorController, conf *shuffleResourceSchedulerConfig) schedule.Scheduler {
+func newShuffleShardScheduler(opController *schedule.OperatorController, conf *shuffleShardSchedulerConfig) schedule.Scheduler {
 	filters := []filter.Filter{
-		&filter.ContainerStateFilter{ActionScope: ShuffleResourceName, MoveResource: true},
-		filter.NewSpecialUseFilter(ShuffleResourceName),
+		&filter.StoreStateFilter{ActionScope: ShuffleShardName, MoveShard: true},
+		filter.NewSpecialUseFilter(ShuffleShardName),
 	}
 	base := NewBaseScheduler(opController)
 	conf.groupRanges = groupKeyRanges(conf.Ranges,
 		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
-	return &shuffleResourceScheduler{
+	return &shuffleShardScheduler{
 		BaseScheduler: base,
 		conf:          conf,
 		filters:       filters,
 	}
 }
 
-func (s *shuffleResourceScheduler) GetName() string {
-	return ShuffleResourceName
+func (s *shuffleShardScheduler) GetName() string {
+	return ShuffleShardName
 }
 
-func (s *shuffleResourceScheduler) GetType() string {
-	return ShuffleResourceType
+func (s *shuffleShardScheduler) GetType() string {
+	return ShuffleShardType
 }
 
-func (s *shuffleResourceScheduler) EncodeConfig() ([]byte, error) {
+func (s *shuffleShardScheduler) EncodeConfig() ([]byte, error) {
 	return s.conf.EncodeConfig()
 }
 
-func (s *shuffleResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	allowed := s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit()
+func (s *shuffleShardScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
+	allowed := s.OpController.OperatorCount(operator.OpShard) < cluster.GetOpts().GetShardScheduleLimit()
 	if !allowed {
-		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpShard.String()).Inc()
 	}
 	return allowed
 }
 
-func (s *shuffleResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
+func (s *shuffleShardScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 	res, oldPeer := s.scheduleRemovePeer(cluster)
 	if res == nil {
@@ -116,7 +116,7 @@ func (s *shuffleResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 		return nil
 	}
 
-	op, err := operator.CreateMovePeerOperator(ShuffleResourceType, cluster, res, operator.OpAdmin, oldPeer.GetContainerID(), newPeer)
+	op, err := operator.CreateMovePeerOperator(ShuffleShardType, cluster, res, operator.OpAdmin, oldPeer.GetStoreID(), newPeer)
 	if err != nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "create-operator-fail").Inc()
 		return nil
@@ -126,25 +126,25 @@ func (s *shuffleResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 	return []*operator.Operator{op}
 }
 
-func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.CachedResource, metapb.Replica) {
-	candidates := filter.NewCandidates(cluster.GetContainers()).
+func (s *shuffleShardScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.CachedShard, metapb.Replica) {
+	candidates := filter.NewCandidates(cluster.GetStores()).
 		FilterSource(cluster.GetOpts(), s.filters...).
 		Shuffle()
 
-	for _, source := range candidates.Containers {
+	for _, source := range candidates.Stores {
 		for _, groupKey := range cluster.GetScheduleGroupKeys() {
-			var res *core.CachedResource
+			var res *core.CachedShard
 			if s.conf.IsRoleAllow(roleFollower) {
-				res = cluster.RandFollowerResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandFollowerShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLeader) {
-				res = cluster.RandLeaderResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandLeaderShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLearner) {
-				res = cluster.RandLearnerResource(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster), opt.ReplicatedResource(cluster))
+				res = cluster.RandLearnerShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res != nil {
-				if p, ok := res.GetContainerPeer(source.Meta.ID()); ok {
+				if p, ok := res.GetStorePeer(source.Meta.ID()); ok {
 					return res, p
 				}
 
@@ -158,16 +158,16 @@ func (s *shuffleResourceScheduler) scheduleRemovePeer(cluster opt.Cluster) (*cor
 	return nil, metapb.Replica{}
 }
 
-func (s *shuffleResourceScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) (metapb.Replica, bool) {
-	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetContainer(oldPeer.ContainerID), s.OpController.GetCluster().GetResourceFactory())
-	excludedFilter := filter.NewExcludedFilter(s.GetName(), nil, res.GetContainerIDs())
+func (s *shuffleShardScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedShard, oldPeer metapb.Replica) (metapb.Replica, bool) {
+	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetStore(oldPeer.StoreID), s.OpController.GetCluster().GetShardFactory())
+	excludedFilter := filter.NewExcludedFilter(s.GetName(), nil, res.GetStoreIDs())
 
-	target := filter.NewCandidates(cluster.GetContainers()).
+	target := filter.NewCandidates(cluster.GetStores()).
 		FilterTarget(cluster.GetOpts(), s.filters...).
 		FilterTarget(cluster.GetOpts(), scoreGuard, excludedFilter).
 		RandomPick()
 	if target == nil {
 		return metapb.Replica{}, false
 	}
-	return metapb.Replica{ContainerID: target.Meta.ID(), Role: oldPeer.GetRole()}, true
+	return metapb.Replica{StoreID: target.Meta.ID(), Role: oldPeer.GetRole()}, true
 }

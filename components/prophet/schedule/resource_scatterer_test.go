@@ -56,43 +56,43 @@ func (s *sequencer) next() uint64 {
 	return s.curID
 }
 
-type testScatterResource struct{}
+type testScatterShard struct{}
 
-func (s *testScatterResource) checkOperator(op *operator.Operator, t *testing.T) {
+func (s *testScatterShard) checkOperator(op *operator.Operator, t *testing.T) {
 	for i := 0; i < op.Len(); i++ {
 		if rp, ok := op.Step(i).(operator.RemovePeer); ok {
 			for j := i + 1; j < op.Len(); j++ {
 				if tr, ok := op.Step(j).(operator.TransferLeader); ok {
-					assert.NotEqual(t, tr.FromContainer, rp.FromContainer)
-					assert.NotEqual(t, tr.ToContainer, rp.FromContainer)
+					assert.NotEqual(t, tr.FromStore, rp.FromStore)
+					assert.NotEqual(t, tr.ToStore, rp.FromStore)
 				}
 			}
 		}
 	}
 }
 
-func (s *testScatterResource) scatter(t *testing.T, numContainers, numResources uint64, useRules bool) {
+func (s *testScatterShard) scatter(t *testing.T, numStores, numShards uint64, useRules bool) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 
 	// Add ordinary containers.
-	for i := uint64(1); i <= numContainers; i++ {
-		tc.AddResourceContainer(i, 0)
+	for i := uint64(1); i <= numStores; i++ {
+		tc.AddShardStore(i, 0)
 	}
 	tc.SetEnablePlacementRules(useRules)
 
-	for i := uint64(1); i <= numResources; i++ {
+	for i := uint64(1); i <= numShards; i++ {
 		// resource distributed in same containers.
-		tc.AddLeaderResource(i, 1, 2, 3)
+		tc.AddLeaderShard(i, 1, 2, 3)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	scatterer := NewResourceScatterer(ctx, tc)
+	scatterer := NewShardScatterer(ctx, tc)
 
-	for i := uint64(1); i <= numResources; i++ {
-		resource := tc.GetResource(i)
+	for i := uint64(1); i <= numShards; i++ {
+		resource := tc.GetShard(i)
 		if op, _ := scatterer.Scatter(resource, ""); op != nil {
 			s.checkOperator(op, t)
 			ApplyOperator(tc, op)
@@ -101,44 +101,44 @@ func (s *testScatterResource) scatter(t *testing.T, numContainers, numResources 
 
 	countPeers := make(map[uint64]uint64)
 	countLeader := make(map[uint64]uint64)
-	for i := uint64(1); i <= numResources; i++ {
-		resource := tc.GetResource(i)
-		leaderContainerID := resource.GetLeader().GetContainerID()
+	for i := uint64(1); i <= numShards; i++ {
+		resource := tc.GetShard(i)
+		leaderStoreID := resource.GetLeader().GetStoreID()
 		for _, peer := range resource.Meta.Peers() {
-			countPeers[peer.GetContainerID()]++
-			if peer.GetContainerID() == leaderContainerID {
-				countLeader[peer.GetContainerID()]++
+			countPeers[peer.GetStoreID()]++
+			if peer.GetStoreID() == leaderStoreID {
+				countLeader[peer.GetStoreID()]++
 			}
 		}
 	}
 
 	// Each container should have the same number of peers.
 	for _, count := range countPeers {
-		assert.True(t, float64(count) <= 1.1*float64(numResources*3)/float64(numContainers))
-		assert.True(t, float64(count) >= 0.9*float64(numResources*3)/float64(numContainers))
+		assert.True(t, float64(count) <= 1.1*float64(numShards*3)/float64(numStores))
+		assert.True(t, float64(count) >= 0.9*float64(numShards*3)/float64(numStores))
 	}
 
 	// Each container should have the same number of leaders.
-	assert.Equal(t, int(numContainers), len(countPeers))
-	assert.Equal(t, int(numContainers), len(countLeader))
+	assert.Equal(t, int(numStores), len(countPeers))
+	assert.Equal(t, int(numStores), len(countLeader))
 	for _, count := range countLeader {
-		assert.True(t, float64(count) <= 1.1*float64(numResources)/float64(numContainers))
-		assert.True(t, float64(count) >= 0.9*float64(numResources)/float64(numContainers))
+		assert.True(t, float64(count) <= 1.1*float64(numShards)/float64(numStores))
+		assert.True(t, float64(count) >= 0.9*float64(numShards)/float64(numStores))
 	}
 }
 
-func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers, numSpecialContainers, numresources uint64) {
+func (s *testScatterShard) scatterSpecial(t *testing.T, numOrdinaryStores, numSpecialStores, numresources uint64) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 
 	// Add ordinary containers.
-	for i := uint64(1); i <= numOrdinaryContainers; i++ {
-		tc.AddResourceContainer(i, 0)
+	for i := uint64(1); i <= numOrdinaryStores; i++ {
+		tc.AddShardStore(i, 0)
 	}
 	// Add special containers.
-	for i := uint64(1); i <= numSpecialContainers; i++ {
-		tc.AddLabelsContainer(numOrdinaryContainers+i, 0, map[string]string{"engine": "tiflash"})
+	for i := uint64(1); i <= numSpecialStores; i++ {
+		tc.AddLabelsStore(numOrdinaryStores+i, 0, map[string]string{"engine": "tiflash"})
 	}
 	tc.SetEnablePlacementRules(true)
 	assert.Nil(t, tc.RuleManager.SetRule(&placement.Rule{
@@ -146,22 +146,22 @@ func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers
 		LabelConstraints: []placement.LabelConstraint{{Key: "engine", Op: placement.In, Values: []string{"tiflash"}}}}))
 
 	// resource 1 has the same distribution with the resource 2, which is used to test selectPeerToReplace.
-	tc.AddResourceWithLearner(1, 1, []uint64{2, 3}, []uint64{numOrdinaryContainers + 1, numOrdinaryContainers + 2, numOrdinaryContainers + 3})
+	tc.AddShardWithLearner(1, 1, []uint64{2, 3}, []uint64{numOrdinaryStores + 1, numOrdinaryStores + 2, numOrdinaryStores + 3})
 	for i := uint64(2); i <= numresources; i++ {
-		tc.AddResourceWithLearner(
+		tc.AddShardWithLearner(
 			i,
 			1,
 			[]uint64{2, 3},
-			[]uint64{numOrdinaryContainers + 1, numOrdinaryContainers + 2, numOrdinaryContainers + 3},
+			[]uint64{numOrdinaryStores + 1, numOrdinaryStores + 2, numOrdinaryStores + 3},
 		)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	scatterer := NewResourceScatterer(ctx, tc)
+	scatterer := NewShardScatterer(ctx, tc)
 
 	for i := uint64(1); i <= numresources; i++ {
-		resource := tc.GetResource(i)
+		resource := tc.GetShard(i)
 		if op, _ := scatterer.Scatter(resource, ""); op != nil {
 			s.checkOperator(op, t)
 			ApplyOperator(tc, op)
@@ -172,17 +172,17 @@ func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers
 	countSpecialPeers := make(map[uint64]uint64)
 	countOrdinaryLeaders := make(map[uint64]uint64)
 	for i := uint64(1); i <= numresources; i++ {
-		resource := tc.GetResource(i)
-		leaderContainerID := resource.GetLeader().GetContainerID()
+		resource := tc.GetShard(i)
+		leaderStoreID := resource.GetLeader().GetStoreID()
 		for _, peer := range resource.Meta.Peers() {
-			containerID := peer.GetContainerID()
-			container := tc.Containers.GetContainer(containerID)
+			containerID := peer.GetStoreID()
+			container := tc.Stores.GetStore(containerID)
 			if container.GetLabelValue("engine") == "tiflash" {
 				countSpecialPeers[containerID]++
 			} else {
 				countOrdinaryPeers[containerID]++
 			}
-			if peer.GetContainerID() == leaderContainerID {
+			if peer.GetStoreID() == leaderStoreID {
 				countOrdinaryLeaders[containerID]++
 			}
 		}
@@ -190,21 +190,21 @@ func (s *testScatterResource) scatterSpecial(t *testing.T, numOrdinaryContainers
 
 	// Each container should have the same number of peers.
 	for _, count := range countOrdinaryPeers {
-		assert.True(t, float64(count) <= 1.1*float64(numresources*3)/float64(numOrdinaryContainers))
-		assert.True(t, float64(count) >= 0.9*float64(numresources*3)/float64(numOrdinaryContainers))
+		assert.True(t, float64(count) <= 1.1*float64(numresources*3)/float64(numOrdinaryStores))
+		assert.True(t, float64(count) >= 0.9*float64(numresources*3)/float64(numOrdinaryStores))
 	}
 	for _, count := range countSpecialPeers {
-		assert.True(t, float64(count) <= 1.1*float64(numresources*3)/float64(numSpecialContainers))
-		assert.True(t, float64(count) >= 0.9*float64(numresources*3)/float64(numSpecialContainers))
+		assert.True(t, float64(count) <= 1.1*float64(numresources*3)/float64(numSpecialStores))
+		assert.True(t, float64(count) >= 0.9*float64(numresources*3)/float64(numSpecialStores))
 	}
 	for _, count := range countOrdinaryLeaders {
-		assert.True(t, float64(count) <= 1.1*float64(numresources)/float64(numOrdinaryContainers))
-		assert.True(t, float64(count) >= 0.9*float64(numresources)/float64(numOrdinaryContainers))
+		assert.True(t, float64(count) <= 1.1*float64(numresources)/float64(numOrdinaryStores))
+		assert.True(t, float64(count) >= 0.9*float64(numresources)/float64(numOrdinaryStores))
 	}
 }
 
-func TestSixContainers(t *testing.T) {
-	s := testScatterResource{}
+func TestSixStores(t *testing.T) {
+	s := testScatterShard{}
 
 	s.scatter(t, 6, 100, false)
 	s.scatter(t, 6, 100, true)
@@ -212,8 +212,8 @@ func TestSixContainers(t *testing.T) {
 	s.scatter(t, 6, 1000, true)
 }
 
-func TestFiveContainers(t *testing.T) {
-	s := testScatterResource{}
+func TestFiveStores(t *testing.T) {
+	s := testScatterShard{}
 
 	s.scatter(t, 5, 100, false)
 	s.scatter(t, 5, 100, true)
@@ -221,20 +221,20 @@ func TestFiveContainers(t *testing.T) {
 	s.scatter(t, 5, 1000, true)
 }
 
-func TestSixSpecialContainers(t *testing.T) {
-	s := testScatterResource{}
+func TestSixSpecialStores(t *testing.T) {
+	s := testScatterShard{}
 	s.scatterSpecial(t, 3, 6, 100)
 	s.scatterSpecial(t, 3, 6, 1000)
 }
 
-func TestFiveSpecialContainers(t *testing.T) {
-	s := testScatterResource{}
+func TestFiveSpecialStores(t *testing.T) {
+	s := testScatterShard{}
 
 	s.scatterSpecial(t, 5, 5, 100)
 	s.scatterSpecial(t, 5, 5, 1000)
 }
 
-func TestScatterContainerLimit(t *testing.T) {
+func TestScatterStoreLimit(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	opt := config.NewTestOptions()
@@ -242,23 +242,23 @@ func TestScatterContainerLimit(t *testing.T) {
 	stream := hbstream.NewTestHeartbeatStreams(ctx, tc.ID, tc, false, nil)
 	oc := NewOperatorController(ctx, tc, stream)
 
-	// Add Containers 1~6.
+	// Add Stores 1~6.
 	for i := uint64(1); i <= 5; i++ {
-		tc.AddResourceContainer(i, 0)
+		tc.AddShardStore(i, 0)
 	}
 
 	// Add resources 1~4.
 	seq := newSequencer(3)
 	// resource 1 has the same distribution with the resource 2, which is used to test selectPeerToReplace.
-	tc.AddLeaderResource(1, 1, 2, 3)
+	tc.AddLeaderShard(1, 1, 2, 3)
 	for i := uint64(2); i <= 5; i++ {
-		tc.AddLeaderResource(i, seq.next(), seq.next(), seq.next())
+		tc.AddLeaderShard(i, seq.next(), seq.next(), seq.next())
 	}
 
-	scatterer := NewResourceScatterer(ctx, tc)
+	scatterer := NewShardScatterer(ctx, tc)
 
 	for i := uint64(1); i <= 5; i++ {
-		resource := tc.GetResource(i)
+		resource := tc.GetShard(i)
 		if op, _ := scatterer.Scatter(resource, ""); op != nil {
 			assert.Equal(t, 1, oc.AddWaitingOperator(op))
 		}
@@ -268,44 +268,44 @@ func TestScatterContainerLimit(t *testing.T) {
 func TestScatterCheck(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	// Add 5 Containers.
+	// Add 5 Stores.
 	for i := uint64(1); i <= 5; i++ {
-		tc.AddResourceContainer(i, 0)
+		tc.AddShardStore(i, 0)
 	}
 	testcases := []struct {
 		name          string
-		checkresource *core.CachedResource
+		checkresource *core.CachedShard
 		needFix       bool
 	}{
 		{
 			name:          "resource with 4 replicas",
-			checkresource: tc.AddLeaderResource(1, 1, 2, 3, 4),
+			checkresource: tc.AddLeaderShard(1, 1, 2, 3, 4),
 			needFix:       true,
 		},
 		{
 			name:          "resource with 3 replicas",
-			checkresource: tc.AddLeaderResource(1, 1, 2, 3),
+			checkresource: tc.AddLeaderShard(1, 1, 2, 3),
 			needFix:       false,
 		},
 		{
 			name:          "resource with 2 replicas",
-			checkresource: tc.AddLeaderResource(1, 1, 2),
+			checkresource: tc.AddLeaderShard(1, 1, 2),
 			needFix:       true,
 		},
 	}
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 		ctx, cancel := context.WithCancel(context.Background())
-		scatterer := NewResourceScatterer(ctx, tc)
+		scatterer := NewShardScatterer(ctx, tc)
 		_, err := scatterer.Scatter(testcase.checkresource, "")
 		if testcase.needFix {
 			assert.NotNil(t, err)
-			assert.True(t, tc.CheckResourceUnderSuspect(1))
+			assert.True(t, tc.CheckShardUnderSuspect(1))
 		} else {
 			assert.Nil(t, err)
-			assert.False(t, tc.CheckResourceUnderSuspect(1))
+			assert.False(t, tc.CheckShardUnderSuspect(1))
 		}
-		tc.ResetSuspectResources()
+		tc.ResetSuspectShards()
 		cancel()
 	}
 }
@@ -313,9 +313,9 @@ func TestScatterCheck(t *testing.T) {
 func TestScatterGroup(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	// Add 5 Containers.
+	// Add 5 Stores.
 	for i := uint64(1); i <= 5; i++ {
-		tc.AddResourceContainer(i, 0)
+		tc.AddShardStore(i, 0)
 	}
 
 	testcases := []struct {
@@ -339,17 +339,17 @@ func TestScatterGroup(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Logf(testcase.name)
 		ctx, cancel := context.WithCancel(context.Background())
-		scatterer := NewResourceScatterer(ctx, tc)
+		scatterer := NewShardScatterer(ctx, tc)
 		resourceID := 1
 		for i := 0; i < 100; i++ {
 			for j := 0; j < testcase.groupCount; j++ {
-				_, err := scatterer.Scatter(tc.AddLeaderResource(uint64(resourceID), 1, 2, 3),
+				_, err := scatterer.Scatter(tc.AddLeaderShard(uint64(resourceID), 1, 2, 3),
 					fmt.Sprintf("group-%v", j))
 				assert.Nil(t, err)
 				resourceID++
 			}
 			// insert resource with no group
-			_, err := scatterer.Scatter(tc.AddLeaderResource(uint64(resourceID), 1, 2, 3), "")
+			_, err := scatterer.Scatter(tc.AddLeaderShard(uint64(resourceID), 1, 2, 3), "")
 			assert.Nil(t, err)
 			resourceID++
 		}
@@ -368,7 +368,7 @@ func TestScatterGroup(t *testing.T) {
 					min = count
 				}
 			}
-			// 100 resources divided 5 Containers, each Container expected to have about 20 resources.
+			// 100 resources divided 5 Stores, each Store expected to have about 20 resources.
 			assert.True(t, min <= 20)
 			assert.True(t, max >= 20)
 			assert.True(t, (max-min) <= 5)
@@ -380,9 +380,9 @@ func TestScatterGroup(t *testing.T) {
 func TestScattersGroup(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	// Add 5 Containers.
+	// Add 5 Stores.
 	for i := uint64(1); i <= 5; i++ {
-		tc.AddResourceContainer(i, 0)
+		tc.AddShardStore(i, 0)
 	}
 	testcases := []struct {
 		name    string
@@ -396,14 +396,14 @@ func TestScattersGroup(t *testing.T) {
 	group := "group"
 	for _, testcase := range testcases {
 		ctx, cancel := context.WithCancel(context.Background())
-		scatterer := NewResourceScatterer(ctx, tc)
-		resources := map[uint64]*core.CachedResource{}
+		scatterer := NewShardScatterer(ctx, tc)
+		resources := map[uint64]*core.CachedShard{}
 		for i := 1; i <= 100; i++ {
-			resources[uint64(i)] = tc.AddLeaderResource(uint64(i), 1, 2, 3)
+			resources[uint64(i)] = tc.AddLeaderShard(uint64(i), 1, 2, 3)
 		}
 		t.Log(testcase.name)
 		failures := map[uint64]error{}
-		scatterer.ScatterResources(resources, failures, group, 3)
+		scatterer.ScatterShards(resources, failures, group, 3)
 		max := uint64(0)
 		min := uint64(math.MaxUint64)
 		groupDistribution, exist := scatterer.ordinaryEngine.selectedLeader.GetGroupDistribution(group)
@@ -416,7 +416,7 @@ func TestScattersGroup(t *testing.T) {
 				min = count
 			}
 		}
-		// 100 resources divided 5 Containers, each Container expected to have about 20 resources.
+		// 100 resources divided 5 Stores, each Store expected to have about 20 resources.
 		assert.True(t, min <= 20)
 		assert.True(t, max >= 20)
 		assert.True(t, (max-min) <= 3)
@@ -431,13 +431,13 @@ func TestScattersGroup(t *testing.T) {
 	}
 }
 
-func TestSelectedContainerGC(t *testing.T) {
+func TestSelectedStoreGC(t *testing.T) {
 	// use a shorter gcTTL and gcInterval during the test
 	gcInterval = time.Second
 	gcTTL = time.Second * 3
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	containers := newSelectedContainers(ctx)
+	containers := newSelectedStores(ctx)
 	containers.put(1, "testgroup")
 	_, ok := containers.GetGroupDistribution("testgroup")
 	assert.True(t, ok)

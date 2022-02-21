@@ -37,7 +37,7 @@ type clientCodec struct {
 
 func (c *clientCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 	data := in.GetMarkedRemindData()
-	resp := &rpcpb.Response{}
+	resp := &rpcpb.ProphetResponse{}
 	err := resp.Unmarshal(data)
 	if err != nil {
 		return false, nil, err
@@ -48,7 +48,7 @@ func (c *clientCodec) Decode(in *buf.ByteBuf) (bool, interface{}, error) {
 }
 
 func (c *clientCodec) Encode(data interface{}, out *buf.ByteBuf) error {
-	if req, ok := data.(*rpcpb.Request); ok {
+	if req, ok := data.(*rpcpb.ProphetRequest); ok {
 		index := out.GetWriteIndex()
 		size := req.Size()
 		out.Expansion(size)

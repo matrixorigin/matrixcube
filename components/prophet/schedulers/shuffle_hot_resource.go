@@ -30,16 +30,16 @@ import (
 )
 
 const (
-	// ShuffleHotResourceName is shuffle hot resource scheduler name.
-	ShuffleHotResourceName = "shuffle-hot-resource-scheduler"
-	// ShuffleHotResourceType is shuffle hot resource scheduler type.
-	ShuffleHotResourceType = "shuffle-hot-resource"
+	// ShuffleHotShardName is shuffle hot resource scheduler name.
+	ShuffleHotShardName = "shuffle-hot-resource-scheduler"
+	// ShuffleHotShardType is shuffle hot resource scheduler type.
+	ShuffleHotShardType = "shuffle-hot-resource"
 )
 
 func init() {
-	schedule.RegisterSliceDecoderBuilder(ShuffleHotResourceType, func(args []string) schedule.ConfigDecoder {
+	schedule.RegisterSliceDecoderBuilder(ShuffleHotShardType, func(args []string) schedule.ConfigDecoder {
 		return func(v interface{}) error {
-			conf, ok := v.(*shuffleHotResourceSchedulerConfig)
+			conf, ok := v.(*shuffleHotShardSchedulerConfig)
 			if !ok {
 				return errors.New("scheduler error configuration")
 			}
@@ -51,41 +51,41 @@ func init() {
 				}
 				conf.Limit = limit
 			}
-			conf.Name = ShuffleHotResourceName
+			conf.Name = ShuffleHotShardName
 			return nil
 		}
 	})
 
-	schedule.RegisterScheduler(ShuffleHotResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := &shuffleHotResourceSchedulerConfig{Limit: uint64(1)}
+	schedule.RegisterScheduler(ShuffleHotShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+		conf := &shuffleHotShardSchedulerConfig{Limit: uint64(1)}
 		if err := decoder(conf); err != nil {
 			return nil, err
 		}
-		return newShuffleHotResourceScheduler(opController, conf), nil
+		return newShuffleHotShardScheduler(opController, conf), nil
 	})
 }
 
-type shuffleHotResourceSchedulerConfig struct {
+type shuffleHotShardSchedulerConfig struct {
 	Name  string `json:"name"`
 	Limit uint64 `json:"limit"`
 }
 
-// ShuffleHotResourceScheduler mainly used to test.
+// ShuffleHotShardScheduler mainly used to test.
 // It will randomly pick a hot peer, and move the peer
 // to a random container, and then transfer the leader to
 // the hot peer.
-type shuffleHotResourceScheduler struct {
+type shuffleHotShardScheduler struct {
 	*BaseScheduler
 	stLoadInfos [resourceTypeLen]map[uint64]*containerLoadDetail
 	r           *rand.Rand
-	conf        *shuffleHotResourceSchedulerConfig
+	conf        *shuffleHotShardSchedulerConfig
 	types       []rwType
 }
 
-// newShuffleHotResourceScheduler creates an admin scheduler that random balance hot resources
-func newShuffleHotResourceScheduler(opController *schedule.OperatorController, conf *shuffleHotResourceSchedulerConfig) schedule.Scheduler {
+// newShuffleHotShardScheduler creates an admin scheduler that random balance hot resources
+func newShuffleHotShardScheduler(opController *schedule.OperatorController, conf *shuffleHotShardSchedulerConfig) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
-	ret := &shuffleHotResourceScheduler{
+	ret := &shuffleHotShardScheduler{
 		BaseScheduler: base,
 		conf:          conf,
 		types:         []rwType{read, write},
@@ -97,27 +97,27 @@ func newShuffleHotResourceScheduler(opController *schedule.OperatorController, c
 	return ret
 }
 
-func (s *shuffleHotResourceScheduler) GetName() string {
+func (s *shuffleHotShardScheduler) GetName() string {
 	return s.conf.Name
 }
 
-func (s *shuffleHotResourceScheduler) GetType() string {
-	return ShuffleHotResourceType
+func (s *shuffleHotShardScheduler) GetType() string {
+	return ShuffleHotShardType
 }
 
-func (s *shuffleHotResourceScheduler) EncodeConfig() ([]byte, error) {
+func (s *shuffleHotShardScheduler) EncodeConfig() ([]byte, error) {
 	return schedule.EncodeConfig(s.conf)
 }
 
-func (s *shuffleHotResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	hotRegionAllowed := s.OpController.OperatorCount(operator.OpHotResource) < s.conf.Limit
-	regionAllowed := s.OpController.OperatorCount(operator.OpResource) < cluster.GetOpts().GetResourceScheduleLimit()
+func (s *shuffleHotShardScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
+	hotRegionAllowed := s.OpController.OperatorCount(operator.OpHotShard) < s.conf.Limit
+	regionAllowed := s.OpController.OperatorCount(operator.OpShard) < cluster.GetOpts().GetShardScheduleLimit()
 	leaderAllowed := s.OpController.OperatorCount(operator.OpLeader) < cluster.GetOpts().GetLeaderScheduleLimit()
 	if !hotRegionAllowed {
-		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpHotResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpHotShard.String()).Inc()
 	}
 	if !regionAllowed {
-		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpShard.String()).Inc()
 	}
 	if !leaderAllowed {
 		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpLeader.String()).Inc()
@@ -125,34 +125,34 @@ func (s *shuffleHotResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) boo
 	return hotRegionAllowed && regionAllowed && leaderAllowed
 }
 
-func (s *shuffleHotResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
+func (s *shuffleHotShardScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 	i := s.r.Int() % len(s.types)
 	return s.dispatch(s.types[i], cluster)
 }
 
-func (s *shuffleHotResourceScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Operator {
-	storesLoads := cluster.GetContainersLoads()
+func (s *shuffleHotShardScheduler) dispatch(typ rwType, cluster opt.Cluster) []*operator.Operator {
+	storesLoads := cluster.GetStoresLoads()
 	switch typ {
 	case read:
-		s.stLoadInfos[readLeader] = summaryContainersLoad(
+		s.stLoadInfos[readLeader] = summaryStoresLoad(
 			storesLoads,
 			map[uint64]Influence{},
-			cluster.ResourceReadStats(),
-			read, metapb.ResourceKind_LeaderKind)
+			cluster.ShardReadStats(),
+			read, metapb.ShardKind_LeaderKind)
 		return s.randomSchedule(cluster, s.stLoadInfos[readLeader])
 	case write:
-		s.stLoadInfos[writeLeader] = summaryContainersLoad(
+		s.stLoadInfos[writeLeader] = summaryStoresLoad(
 			storesLoads,
 			map[uint64]Influence{},
-			cluster.ResourceWriteStats(),
-			write, metapb.ResourceKind_LeaderKind)
+			cluster.ShardWriteStats(),
+			write, metapb.ShardKind_LeaderKind)
 		return s.randomSchedule(cluster, s.stLoadInfos[writeLeader])
 	}
 	return nil
 }
 
-func (s *shuffleHotResourceScheduler) randomSchedule(cluster opt.Cluster, loadDetail map[uint64]*containerLoadDetail) []*operator.Operator {
+func (s *shuffleHotShardScheduler) randomSchedule(cluster opt.Cluster, loadDetail map[uint64]*containerLoadDetail) []*operator.Operator {
 	for _, detail := range loadDetail {
 		if len(detail.HotPeers) < 1 {
 			continue
@@ -160,44 +160,44 @@ func (s *shuffleHotResourceScheduler) randomSchedule(cluster opt.Cluster, loadDe
 		i := s.r.Intn(len(detail.HotPeers))
 		r := detail.HotPeers[i]
 		// select src resource
-		srcResource := cluster.GetResource(r.ResourceID)
-		if srcResource == nil || len(srcResource.GetDownPeers()) != 0 || len(srcResource.GetPendingPeers()) != 0 {
+		srcShard := cluster.GetShard(r.ShardID)
+		if srcShard == nil || len(srcShard.GetDownPeers()) != 0 || len(srcShard.GetPendingPeers()) != 0 {
 			continue
 		}
-		srcContainerID := srcResource.GetLeader().GetContainerID()
-		srcContainer := cluster.GetContainer(srcContainerID)
-		if srcContainer == nil {
+		srcStoreID := srcShard.GetLeader().GetStoreID()
+		srcStore := cluster.GetStore(srcStoreID)
+		if srcStore == nil {
 			cluster.GetLogger().Debug("source container not found",
 				shuffleHotField,
-				sourceField(srcContainerID))
+				sourceField(srcStoreID))
 		}
 
 		filters := []filter.Filter{
-			&filter.ContainerStateFilter{ActionScope: s.GetName(), MoveResource: true},
-			filter.NewExcludedFilter(s.GetName(), srcResource.GetContainerIDs(), srcResource.GetContainerIDs()),
-			filter.NewPlacementSafeguard(s.GetName(), cluster, srcResource, srcContainer, s.OpController.GetCluster().GetResourceFactory()),
+			&filter.StoreStateFilter{ActionScope: s.GetName(), MoveShard: true},
+			filter.NewExcludedFilter(s.GetName(), srcShard.GetStoreIDs(), srcShard.GetStoreIDs()),
+			filter.NewPlacementSafeguard(s.GetName(), cluster, srcShard, srcStore, s.OpController.GetCluster().GetShardFactory()),
 		}
-		containers := cluster.GetContainers()
-		destContainerIDs := make([]uint64, 0, len(containers))
+		containers := cluster.GetStores()
+		destStoreIDs := make([]uint64, 0, len(containers))
 		for _, container := range containers {
 			if !filter.Target(cluster.GetOpts(), container, filters) {
 				continue
 			}
-			destContainerIDs = append(destContainerIDs, container.Meta.ID())
+			destStoreIDs = append(destStoreIDs, container.Meta.ID())
 		}
-		if len(destContainerIDs) == 0 {
+		if len(destStoreIDs) == 0 {
 			return nil
 		}
 		// random pick a dest container
-		destContainerID := destContainerIDs[s.r.Intn(len(destContainerIDs))]
-		if destContainerID == 0 {
+		destStoreID := destStoreIDs[s.r.Intn(len(destStoreIDs))]
+		if destStoreID == 0 {
 			return nil
 		}
-		if _, ok := srcResource.GetContainerPeer(srcContainerID); !ok {
+		if _, ok := srcShard.GetStorePeer(srcStoreID); !ok {
 			return nil
 		}
-		destPeer := metapb.Replica{ContainerID: destContainerID}
-		op, err := operator.CreateMoveLeaderOperator("random-move-hot-leader", cluster, srcResource, operator.OpResource|operator.OpLeader, srcContainerID, destPeer)
+		destPeer := metapb.Replica{StoreID: destStoreID}
+		op, err := operator.CreateMoveLeaderOperator("random-move-hot-leader", cluster, srcShard, operator.OpShard|operator.OpLeader, srcStoreID, destPeer)
 		if err != nil {
 			cluster.GetLogger().Error("fail to create move leader operator",
 				shuffleHotField,

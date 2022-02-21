@@ -19,8 +19,8 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.etcd.io/etcd/raft/v3"
@@ -45,7 +45,7 @@ type replicaCreator struct {
 	replicaRecordGetter               func(Shard) Replica
 	wc                                *logdb.WorkerContext
 	logger                            *zap.Logger
-	shardsMetadata                    []meta.ShardMetadata
+	shardsMetadata                    []metapb.ShardMetadata
 }
 
 func newReplicaCreator(store *store) *replicaCreator {
@@ -105,7 +105,7 @@ func (rc *replicaCreator) create(shards []Shard) {
 	rc.maybeStartReplicas(shards, replicas)
 }
 
-func (rc *replicaCreator) getShardsMetadata() []meta.ShardMetadata {
+func (rc *replicaCreator) getShardsMetadata() []metapb.ShardMetadata {
 	return rc.shardsMetadata
 }
 
@@ -143,18 +143,18 @@ func (rc *replicaCreator) maybeInitReplica(shards []Shard) {
 	}
 
 	doWithShardsByGroupID(rc.store.DataStorageByGroup, func(ds storage.DataStorage, v []Shard) {
-		var sm []meta.ShardMetadata
+		var sm []metapb.ShardMetadata
 		var ids []uint64
 		for _, shard := range v {
 			rc.logger.Info("begin to save shard metadata",
 				log.ShardField("shard", shard))
 
 			ids = append(ids, shard.ID)
-			sm = append(sm, meta.ShardMetadata{
+			sm = append(sm, metapb.ShardMetadata{
 				ShardID:  shard.ID,
 				LogIndex: 1,
-				Metadata: meta.ShardLocalState{
-					State: meta.ReplicaState_Normal,
+				Metadata: metapb.ShardLocalState{
+					State: metapb.ReplicaState_Normal,
 					Shard: shard,
 				},
 			})
@@ -229,25 +229,25 @@ func (rc *replicaCreator) maybeStartReplicas(shards []Shard, replicas []*replica
 // maybeInsertBootstrapRaftLog the first log of all shards is a log of updated metadata, and all
 // subsequent metadata changes need to correspond to a raft log, which is used to ensure the consistency
 // of metadata. Only InitialMember can add.
-func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state meta.ShardLocalState, replica Replica) error {
+func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state metapb.ShardLocalState, replica Replica) error {
 	// only InitialMember replica need to add this raft log
 	if !replica.InitialMember {
 		return nil
 	}
 
-	rb := rpc.RequestBatch{}
+	rb := rpcpb.RequestBatch{}
 	rb.Header.ShardID = state.Shard.ID
 	rb.Header.Replica = replica
 	rb.Header.ID = uuid.NewV4().Bytes()
-	rb.Requests = []rpc.Request{
+	rb.Requests = []rpcpb.Request{
 		{
 			ID:         uuid.NewV4().Bytes(),
 			ToShard:    state.Shard.ID,
 			Group:      state.Shard.Group,
-			Type:       rpc.CmdType_Admin,
-			CustomType: uint64(rpc.AdminCmdType_UpdateMetadata),
+			Type:       rpcpb.Admin,
+			CustomType: uint64(rpcpb.AdminUpdateMetadata),
 			Epoch:      state.Shard.Epoch,
-			Cmd: protoc.MustMarshal(&rpc.UpdateMetadataRequest{
+			Cmd: protoc.MustMarshal(&rpcpb.UpdateMetadataRequest{
 				Metadata: state,
 			}),
 		},

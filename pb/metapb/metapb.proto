@@ -2,6 +2,7 @@ syntax = "proto3";
 package metapb;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "go.etcd.io/etcd/raft/v3/raftpb/raft.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -14,24 +15,24 @@ enum Action {
     ScaleOut = 1;
 }
 
-// ResourceKind the resource king
-enum ResourceKind {
+// ShardKind the shard kind
+enum ShardKind {
     LeaderKind     = 0;
     ReplicaKind    = 1;
 }
 
-// State the container state
-enum ContainerState {
+// State the store state
+enum StoreState {
     // UP is normal state
     UP        = 0;
     // Offline is the unavailable state
     Offline   = 1;
     // Tombstone is the destroy state
-    Tombstone = 2;
+    StoreTombstone = 2;
 }
 
-// ResourceState the resource state
-enum ResourceState {
+// ShardState the shard state
+enum ShardState {
     // Running is serve state,
     // this state provides read and write services to the public normally.
     Running        = 0;
@@ -40,11 +41,11 @@ enum ResourceState {
     Creating       = 1;
     // Destroying is waiting to destroy state,
     // this state normally cannot provide read and write services to the public, 
-    // and the destruction process of resources has not yet been completed.
+    // and the destruction process of shards has not yet been completed.
     Destroying     = 2;
     // Destroyed is the destroyed state,
     // this state is normally not available for external read and write services, 
-    // the resources have been destroyed in the whole cluster and cannot be used again.
+    // the shards have been destroyed in the whole cluster and cannot be used again.
     Destroyed      = 3;
 }
 
@@ -83,10 +84,10 @@ enum OperatorStatus {
 
 // JobType job type
 enum JobType {
-    // RemoveResource remove resource job
-    RemoveResource = 0;
-    // CreateResourcePool create resource pool
-    CreateResourcePool = 1;
+    // RemoveShard remove shard job
+    RemoveShard = 0;
+    // CreateShardPool create shard pool
+    CreateShardPool = 1;
     // CustomStartAt custom job
 	CustomStartAt = 100;
 }
@@ -101,18 +102,18 @@ enum JobState {
 	Completed = 2;
 }
 
-// ResourceEpoch resource epoch
-message ResourceEpoch {
+// ShardEpoch shard epoch
+message ShardEpoch {
     // Conf change version, auto increment when add or remove replica
     uint64 confVer = 1;
-    // Resource version, auto increment when split or merge
+    // Shard version, auto increment when split or merge
     uint64 version = 2;
 }
 
-// Replica of the resource
+// Replica of the shard
 message Replica {
     uint64   id            = 1 [(gogoproto.customname) = "ID"];
-    uint64   containerID   = 2;
+    uint64   storeID     = 2;
     ReplicaRole role          = 3;
     bool     initialMember = 4;
 }
@@ -129,10 +130,10 @@ message Pair {
     string value = 2;
 }
 
-// ResourceStats resource stats
-message ResourceStats {
-    // resource ID
-    uint64       resourceID      = 1;
+// ShardStats shard stats
+message ShardStats {
+    // shard ID
+    uint64       shardID      = 1;
     // bytes written during this period
 	uint64       writtenBytes    = 2;
 	// keys written during this period
@@ -141,53 +142,53 @@ message ResourceStats {
 	uint64       readBytes       = 4;     
 	// keys read during this period
 	uint64       readKeys        = 5;
-	// approximate data size in bytes of the resource
+	// approximate data size in bytes of the shard
 	uint64       approximateSize = 6;
-	// approximate count of keys in the resource
+	// approximate count of keys in the shard
 	uint64       approximateKeys = 7;
     // Actually reported time interval
     TimeInterval interval        = 8;
 }
 
-// ContainerStats container stats
-message ContainerStats {
-             // Container id
-             uint64       containerID        = 1;
-             // When the container is started (unix timestamp in seconds).
+// StoreStats store stats
+message StoreStats {
+             // Store id
+             uint64       storeID        = 1;
+             // When the store is started (unix timestamp in seconds).
              uint64       startTime          = 2;
              // Actually reported time interval
              TimeInterval interval           = 3;
-             // Capacity for the container.
+             // Capacity for the store.
              uint64       capacity           = 4;
-             // Available size for the container.
+             // Available size for the store.
              uint64       available          = 5;
              // Actually used space by db
              uint64       usedSize           = 6;
-             // If the container is busy
+             // If the store is busy
              bool         isBusy             = 7;
-             // Total resource count in this container.
-             uint64       resourceCount      = 8;
+             // Total shard count in this store.
+             uint64       shardCount      = 8;
              // Current sending snapshot count.
              uint64       sendingSnapCount   = 9;
              // Current receiving snapshot count.
              uint64       receivingSnapCount = 10;
-             // How many resource is applying snapshot.
+             // How many shard is applying snapshot.
              uint64       applyingSnapCount  = 11;
-             // Bytes written for the container during this period.
+             // Bytes written for the store during this period.
              uint64       writtenBytes       = 12;
-             // Bytes read for the container during this period.
+             // Bytes read for the store during this period.
              uint64       readBytes          = 13;
-             // Bytes written for the container during this period.
+             // Bytes written for the store during this period.
              uint64       writtenKeys        = 14;
-             // Bytes read for the container during this period.
+             // Bytes read for the store during this period.
              uint64       readKeys           = 15;
-    // Threads' CPU usages in the container
+    // Threads' CPU usages in the store
     repeated RecordPair   cpuUsages          = 16 [(gogoproto.nullable) = false];
-    // Threads' read disk I/O rates in the container
+    // Threads' read disk I/O rates in the store
     repeated RecordPair   readIORates        = 17 [(gogoproto.nullable) = false];
-    // Threads' write disk I/O rates in the container
+    // Threads' write disk I/O rates in the store
     repeated RecordPair   writeIORates       = 18 [(gogoproto.nullable) = false];
-    // Operations' latencies in the container
+    // Operations' latencies in the store
     repeated RecordPair   opLatencies        = 19 [(gogoproto.nullable) = false];
 }
 
@@ -204,8 +205,8 @@ message Member {
     string addr = 3;
 }
 
-// Cluster prophet cluster
-message Cluster {
+// ProphetCluster prophet cluster
+message ProphetCluster {
     uint64 id           = 1 [(gogoproto.customname) = "ID"];
     uint32 maxReplicaCount = 2;
 }
@@ -225,19 +226,19 @@ message Job {
     JobState state  = 3;
 }
 
-// RemoveResourceJob remove resources job
-message RemoveResourceJob {
-    uint64        resourceID = 1 [(gogoproto.customname) = "ID"];
+// RemoveShardJob remove shards job
+message RemoveShardJob {
+    uint64        shardID = 1 [(gogoproto.customname) = "ID"];
     repeated Replica replicass      = 2 [(gogoproto.nullable) = false];
 }
 
-// ResourcePoolJob resource pool job
-message ResourcePoolJob {
-    repeated ResourcePool pools = 1 [(gogoproto.nullable) = false];
+// ShardPoolJob shard pool job
+message ShardPoolJob {
+    repeated ShardPoolJobMeta pools = 1 [(gogoproto.nullable) = false];
 }
 
-// ResourcePool resource pool
-message ResourcePool {
+// ShardPoolJobMeta shard pool
+message ShardPoolJobMeta {
     uint64 group       = 1;
     uint64 capacity    = 2;
     bytes  rangePrefix = 3;
@@ -247,12 +248,12 @@ message ResourcePool {
 message DestroyingStatus {
     uint64 index = 1;
     map<uint64, bool> replicas  = 2;
-    ResourceState state = 3;
+    ShardState state = 3;
     bool             removeData = 4;
 }
 
-// ResourceExtra resource extra
-message ResourceExtra {
+// ShardExtra shard extra
+message ShardExtra {
     map<string, string> labels           = 1;
     DestroyingStatus    destroyingStatus = 2;
 }
@@ -263,4 +264,188 @@ message ScheduleGroupRule {
     uint64 groupID      = 2;
     string name         = 3;
     string groupByLabel = 4;
+}
+
+// RaftMessageBatch is a group of messages sent to the same store.
+message RaftMessageBatch {
+    repeated RaftMessage messages = 1 [(gogoproto.nullable) = false];
+}
+
+// RaftMessage the message wrapped raft msg with shard info
+message RaftMessage  {
+    uint64               shardID      = 1;
+    uint64               group        = 2;
+    metapb.Replica       from         = 3 [(gogoproto.nullable) = false];
+    metapb.Replica       to           = 4 [(gogoproto.nullable) = false];
+    raftpb.Message       message      = 5 [(gogoproto.nullable) = false];
+    metapb.ShardEpoch shardEpoch   = 6 [(gogoproto.nullable) = false];
+    bool                 isTombstone  = 7;
+    bytes                start        = 8;
+    bytes                end          = 9;
+    bool                 disableSplit = 10;
+    string               unique       = 11;
+    repeated string      ruleGroups   = 12;
+    uint64               commitIndex  = 13;
+    uint64               sendTime     = 14;
+}
+
+message SnapshotChunk {
+    uint64 storeID   = 1;
+    uint64 shardID       = 2;
+    uint64 replicaID     = 3;
+    uint64 from          = 4;
+    uint64 chunkID       = 5;
+    uint64 chunkSize     = 6;
+    uint64 chunkCount    = 7;
+    uint64 index         = 8;
+    uint64 term          = 9;
+    string filePath      = 10;
+    uint64 fileSize      = 11;
+    uint64 fileChunkID   = 12;
+    uint64 fileChunkCount = 13;
+    bytes data            = 14;
+    bytes extra           = 15;
+    raftpb.ConfState confState = 16 [(gogoproto.nullable) = false];
+}
+
+// SnapshotMessageHeader snapshot message header
+message SnapshotMessageHeader {
+    Shard            shard = 1 [(gogoproto.nullable) = false];
+    metapb.Replica   from  = 2 [(gogoproto.nullable) = false];
+    metapb.Replica   to    = 3 [(gogoproto.nullable) = false];
+    uint64           term  = 4;
+    uint64           index = 5;
+}
+
+// SnapshotMessage snapshot message
+message SnapshotMessage {
+    SnapshotMessageHeader header    = 1 [(gogoproto.nullable) = false];
+    bytes                 data      = 2;
+    bool                  first     = 3;
+    bool                  last      = 4;
+    uint64                fileSize  = 5;
+    uint64                checkSum  = 6;
+}
+
+// StoreIdent store ident
+message StoreIdent {
+    uint64 clusterID = 1;
+    uint64 storeID   = 2;
+}
+
+// Cluster the cluster info
+message Cluster {
+    uint64 id          = 1 [(gogoproto.customname) = "ID"];
+    uint32 maxReplicas = 2;
+}
+
+// Shard a shard [start,end) of the data
+message Shard {
+    uint64                   id              = 1 [(gogoproto.customname) = "ID"];
+    bytes                    start           = 2;
+    bytes                    end             = 3;
+    metapb.ShardEpoch     epoch           = 4 [(gogoproto.nullable) = false];
+    metapb.ShardState     state           = 5;
+    repeated metapb.Replica  replicas        = 6 [(gogoproto.nullable) = false];
+    bool                     disableSplit    = 7;
+    uint64                   group           = 8;
+    string                   unique          = 10;
+    repeated string          ruleGroups      = 11;
+    bytes                    data            = 12;
+    repeated metapb.Pair     labels          = 13 [(gogoproto.nullable) = false];
+}
+
+// ReplicaState the state of the shard peer
+enum ReplicaState {
+    Normal    = 0;
+    Applying  = 1;
+    ReplicaTombstone = 2;
+}
+
+// LogIndex is used to indicate a position in the log.
+message LogIndex {
+    uint64 index = 1;
+    uint64 term = 2;
+}
+
+// ShardMetadata is the metadata of the shard consistent with the current table
+// shard data
+message ShardMetadata {
+    uint64 shardID  = 1;
+    uint64 logIndex = 2;
+    ShardLocalState metadata  = 3 [(gogoproto.nullable) = false];
+}
+
+// ShardLocalState shard local state
+message ShardLocalState {
+    Shard     shard = 1 [(gogoproto.nullable) = false];
+    ReplicaState state = 2;
+    // RemoveData Whether or not the local Shard data needs to be deleted,
+    // which needs to be specified when the Shard status is set to Destroying
+    bool removeData = 3;
+}
+
+// Store the host store metadata
+message Store {
+    uint64                id                  = 1 [(gogoproto.customname) = "ID"];
+    string                raftAddr            = 2;
+    string                clientAddr          = 3;
+    repeated metapb.Pair  labels              = 4 [(gogoproto.nullable) = false];
+    metapb.StoreState state                   = 5;
+    int64                 startTime           = 6;
+    int64                 lastHeartbeatTime   = 7;
+    string                version             = 8;
+    string                gitHash             = 9;
+    string                deployPath          = 10;
+    bool                  physicallyDestroyed = 11;
+}
+
+// ShardsPool shards pool
+message ShardsPool {
+    map<uint64, ShardPool> pools = 1;
+}
+
+// ShardPool shard pool
+message ShardPool {
+    uint64          capacity                = 1;
+    bytes           rangePrefix             = 2;
+    repeated AllocatedShard allocatedShards = 3;
+    uint64          seq                     = 4;
+    uint64          allocatedOffset         = 5;
+}
+
+// AllocatedShard allocated shard info
+message AllocatedShard {
+    uint64 shardID     = 1;
+    uint64 allocatedAt = 2;
+    bytes  purpose     = 3;
+}
+
+// ShardsPoolCmdType shards pool cmd
+enum ShardsPoolCmdType {
+    CreateShard = 0;
+    AllocShard  = 1;
+}
+
+// ShardsPoolCmd shards pool cmd
+message ShardsPoolCmd {
+    ShardsPoolCmdType   type   = 1;
+    ShardsPoolCreateCmd create = 2;
+    ShardsPoolAllocCmd  alloc  = 3;
+}
+
+// ShardsPoolCreateCmd shards pool create cmd
+message ShardsPoolCreateCmd {
+}
+
+// ShardsPoolAllocCmd shards pool create cmd
+message ShardsPoolAllocCmd {
+    uint64 group   = 1;
+    bytes  purpose = 2;
+}
+
+// SnapshotInfo contains additional information associated with a snapshot.
+message SnapshotInfo {
+    uint64 extra = 1;
+    bool dummy = 2;
 }

@@ -22,8 +22,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
@@ -35,42 +34,42 @@ var (
 	ErrReplicaDuplicated = errors.New("replica duplicated")
 )
 
-func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	switch ctx.req.GetAdminCmdType() {
-	case rpc.AdminCmdType_ConfigChange:
+	case rpcpb.AdminConfigChange:
 		return d.doExecConfigChange(ctx)
-	case rpc.AdminCmdType_BatchSplit:
+	case rpcpb.AdminBatchSplit:
 		return d.doExecSplit(ctx)
-	case rpc.AdminCmdType_UpdateMetadata:
+	case rpcpb.AdminUpdateMetadata:
 		return d.doUpdateMetadata(ctx)
-	case rpc.AdminCmdType_CompactLog:
+	case rpcpb.AdminCompactLog:
 		return d.doExecCompactLog(ctx)
-	case rpc.AdminCmdType_UpdateLabels:
+	case rpcpb.AdminUpdateLabels:
 		return d.doUpdateLabels(ctx)
 	}
 
-	return rpc.ResponseBatch{}, nil
+	return rpcpb.ResponseBatch{}, nil
 }
 
-func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	ctx.metrics.admin.compact++
 
 	req := ctx.req.GetCompactLogRequest()
 	compactIndex := req.CompactIndex
 	firstIndex := d.getFirstIndex()
 	if compactIndex <= firstIndex {
-		return rpc.ResponseBatch{}, nil
+		return rpcpb.ResponseBatch{}, nil
 	}
 
 	compactIndex, err := d.adjustCompactionIndex(compactIndex)
 	if err != nil {
-		return rpc.ResponseBatch{}, err
+		return rpcpb.ResponseBatch{}, err
 	}
 
 	d.setFirstIndex(compactIndex + 1)
-	resp := newAdminResponseBatch(rpc.AdminCmdType_CompactLog, &rpc.CompactLogResponse{})
+	resp := newAdminResponseBatch(rpcpb.AdminCompactLog, &rpcpb.CompactLogResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_CompactLog,
+		adminType: rpcpb.AdminCompactLog,
 		compactionResult: compactionResult{
 			index: compactIndex,
 		},
@@ -96,7 +95,7 @@ func (d *stateMachine) adjustCompactionIndex(index uint64) (uint64, error) {
 	return index, nil
 }
 
-func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	req := ctx.req.GetConfigChangeRequest()
 	replica := req.Replica
 	current := d.getShard()
@@ -109,7 +108,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
 	res.Epoch.ConfVer++
-	p := findReplica(res, replica.ContainerID)
+	p := findReplica(res, replica.StoreID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
 		exists := false
@@ -119,17 +118,17 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 				if p.Role != metapb.ReplicaRole_Learner {
 					err := errors.Wrapf(ErrReplicaDuplicated,
 						"shardID %d, replicaID %d, role %v", res.ID, p.ID, p.Role)
-					return rpc.ResponseBatch{}, err
+					return rpcpb.ResponseBatch{}, err
 				}
 			} else {
 				err := errors.Wrapf(ErrReplicaDuplicated,
-					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
-				return rpc.ResponseBatch{}, err
+					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.StoreID)
+				return rpcpb.ResponseBatch{}, err
 			}
 			p.Role = metapb.ReplicaRole_Voter
 			d.logger.Info("learner promoted to voter",
 				log.ReplicaField("replica", *p),
-				log.StoreIDField(replica.ContainerID))
+				log.StoreIDField(replica.StoreID))
 		}
 		if !exists {
 			replica.Role = metapb.ReplicaRole_Voter
@@ -139,10 +138,10 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		if p != nil {
 			if p.ID != replica.ID {
 				err := errors.Wrapf(ErrReplicaNotFound,
-					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.ContainerID)
-				return rpc.ResponseBatch{}, err
+					"shardID %d, replicaID %d found on container %d", res.ID, p.ID, replica.StoreID)
+				return rpcpb.ResponseBatch{}, err
 			} else {
-				removeReplica(&res, replica.ContainerID)
+				removeReplica(&res, replica.StoreID)
 			}
 
 			if d.replica.ID == replica.ID {
@@ -150,28 +149,28 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 				d.setRemoved()
 				d.logger.Info("replica remoted itself",
 					log.ReplicaField("replica", *p),
-					log.StoreIDField(replica.ContainerID))
+					log.StoreIDField(replica.StoreID))
 			}
 		} else {
 			err := errors.Wrapf(ErrReplicaNotFound,
 				"shardID %d, replicaID %d found on container %d",
 				res.ID,
-				replica.ID, replica.ContainerID)
-			return rpc.ResponseBatch{}, err
+				replica.ID, replica.StoreID)
+			return rpcpb.ResponseBatch{}, err
 		}
 	case metapb.ConfigChangeType_AddLearnerNode:
 		if p != nil {
 			err := errors.Wrapf(ErrReplicaDuplicated,
 				"shardID %d, replicaID %d role %v already exist on store %d",
-				res.ID, p.ID, p.Role, replica.ContainerID)
-			return rpc.ResponseBatch{}, err
+				res.ID, p.ID, p.Role, replica.StoreID)
+			return rpcpb.ResponseBatch{}, err
 		}
 		replica.Role = metapb.ReplicaRole_Learner
 		res.Replicas = append(res.Replicas, replica)
 	}
-	state := meta.ReplicaState_Normal
+	state := metapb.ReplicaState_Normal
 	if d.isRemoved() {
-		state = meta.ReplicaState_Tombstone
+		state = metapb.ReplicaState_ReplicaTombstone
 	}
 	d.updateShard(res)
 	if err := d.saveShardMetedata(ctx.index, ctx.term, res, state); err != nil {
@@ -183,21 +182,21 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpc.ResponseBatch,
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
-	resp := newAdminResponseBatch(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeResponse{
+	resp := newAdminResponseBatch(rpcpb.AdminConfigChange, &rpcpb.ConfigChangeResponse{
 		Shard: res,
 	})
 	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_ConfigChange,
+		adminType: rpcpb.AdminConfigChange,
 		configChangeResult: configChangeResult{
 			index:   ctx.index,
-			changes: []rpc.ConfigChangeRequest{req},
+			changes: []rpcpb.ConfigChangeRequest{req},
 			shard:   res,
 		},
 	}
 	return resp, nil
 }
 
-func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	ctx.metrics.admin.split++
 	splitReqs := ctx.req.GetBatchSplitRequest()
 
@@ -267,12 +266,12 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	// sure that all Replcias have received the Log of this split, and if we destroy it directly,  then the
 	// majority of the entire Raft-Group will destroy itself, causing the minority never to receive this Log.
 	// The real destruction is performed in a subsequent asynchronous task.
-	current.State = metapb.ResourceState_Destroying
-	old := meta.ShardMetadata{
+	current.State = metapb.ShardState_Destroying
+	old := metapb.ShardMetadata{
 		ShardID:  current.ID,
 		LogIndex: ctx.index,
-		Metadata: meta.ShardLocalState{
-			State:      meta.ReplicaState_Normal,
+		Metadata: metapb.ShardLocalState{
+			State:      metapb.ReplicaState_Normal,
 			Shard:      current,
 			RemoveData: false,
 		},
@@ -280,7 +279,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	err := d.dataStorage.Split(old, replicaFactory.getShardsMetadata(), splitReqs.Context)
 	if err != nil {
 		if err == storage.ErrAborted {
-			return rpc.ResponseBatch{}, nil
+			return rpcpb.ResponseBatch{}, nil
 		}
 		d.logger.Fatal("failed to split on data storage",
 			zap.Error(err))
@@ -288,11 +287,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 
 	d.setSplited()
 	d.updateShard(current)
-	resp := newAdminResponseBatch(rpc.AdminCmdType_BatchSplit, &rpc.BatchSplitResponse{
+	resp := newAdminResponseBatch(rpcpb.AdminBatchSplit, &rpcpb.BatchSplitResponse{
 		Shards: newShards,
 	})
 	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_BatchSplit,
+		adminType: rpcpb.AdminBatchSplit,
 		splitResult: splitResult{
 			newShards: newShards,
 		},
@@ -300,12 +299,12 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpc.ResponseBatch, error)
 	return resp, nil
 }
 
-func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	updateReq := ctx.req.GetUpdateLabelsRequest()
 	current := d.getShard()
 
 	switch updateReq.Policy {
-	case rpc.UpdatePolicy_Add:
+	case rpcpb.Add:
 		var newLabels []metapb.Pair
 		for _, oldLabel := range current.Labels {
 			remove := false
@@ -320,7 +319,7 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpc.ResponseBatch, err
 			}
 		}
 		current.Labels = append(newLabels, updateReq.Labels...)
-	case rpc.UpdatePolicy_Remove:
+	case rpcpb.Remove:
 		var newLabels []metapb.Pair
 		for _, oldLabel := range current.Labels {
 			remove := false
@@ -335,19 +334,19 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpc.ResponseBatch, err
 			}
 		}
 		current.Labels = newLabels
-	case rpc.UpdatePolicy_Reset:
+	case rpcpb.Reset:
 		current.Labels = updateReq.Labels
-	case rpc.UpdatePolicy_Clear:
+	case rpcpb.Clear:
 		current.Labels = nil
 	}
 
-	err := d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+	err := d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
 		{
 			ShardID:  d.shardID,
 			LogIndex: ctx.index,
-			Metadata: meta.ShardLocalState{
+			Metadata: metapb.ShardLocalState{
 				Shard: current,
-				State: meta.ReplicaState_Normal,
+				State: metapb.ReplicaState_Normal,
 			},
 		},
 	})
@@ -364,14 +363,14 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpc.ResponseBatch, err
 	d.logger.Info("shard labels updated",
 		log.ShardField("new-shard", current))
 
-	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateLabels, &rpc.UpdateLabelsResponse{})
+	resp := newAdminResponseBatch(rpcpb.AdminUpdateLabels, &rpcpb.UpdateLabelsResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_UpdateLabels,
+		adminType: rpcpb.AdminUpdateLabels,
 	}
 	return resp, nil
 }
 
-func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, error) {
+func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	ctx.metrics.admin.updateMetadata++
 	updateReq := ctx.req.GetUpdateMetadataRequest()
 
@@ -382,7 +381,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 			log.ShardField("new-shard", updateReq.Metadata.Shard))
 	}
 
-	err := d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
+	err := d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
 		{
 			ShardID:  d.shardID,
 			LogIndex: ctx.index,
@@ -418,9 +417,9 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 		})
 	}
 
-	resp := newAdminResponseBatch(rpc.AdminCmdType_UpdateMetadata, &rpc.UpdateMetadataResponse{})
+	resp := newAdminResponseBatch(rpcpb.AdminUpdateMetadata, &rpcpb.UpdateMetadataResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpc.AdminCmdType_UpdateMetadata,
+		adminType: rpcpb.AdminUpdateMetadata,
 		updateMetadataResult: updateMetadataResult{
 			changes: cc,
 		},
@@ -428,7 +427,7 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpc.ResponseBatch, e
 	return resp, nil
 }
 
-func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
+func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
 	for _, req := range ctx.req.Requests {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
@@ -451,10 +450,10 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpc.ResponseBatch {
 		}
 	}
 
-	resp := rpc.ResponseBatch{}
+	resp := rpcpb.ResponseBatch{}
 	for _, v := range d.writeCtx.responses {
 		ctx.metrics.writtenKeys++
-		r := rpc.Response{Value: v}
+		r := rpcpb.Response{Value: v}
 		resp.Responses = append(resp.Responses, r)
 	}
 	d.updateWriteMetrics()
@@ -476,11 +475,11 @@ func (d *stateMachine) updateWriteMetrics() {
 }
 
 func (d *stateMachine) saveShardMetedata(index uint64, term uint64,
-	shard Shard, state meta.ReplicaState) error {
-	return d.dataStorage.SaveShardMetadata([]meta.ShardMetadata{{
+	shard Shard, state metapb.ReplicaState) error {
+	return d.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{{
 		ShardID:  shard.ID,
 		LogIndex: index,
-		Metadata: meta.ShardLocalState{
+		Metadata: metapb.ShardLocalState{
 			State: state,
 			Shard: shard,
 		},

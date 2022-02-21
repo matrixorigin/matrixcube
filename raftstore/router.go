@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
 )
@@ -37,7 +36,7 @@ type Router interface {
 	// If returns leader address is "", means the current shard has no leader
 	SelectShard(group uint64, key []byte) (Shard, string)
 	// Every do with all shards
-	Every(group uint64, mustLeader bool, fn func(shard Shard, store meta.Store) bool)
+	Every(group uint64, mustLeader bool, fn func(shard Shard, store metapb.Store) bool)
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard Shard) bool)
 	// GetShard returns the shard by shard id
@@ -46,14 +45,14 @@ type Router interface {
 	UpdateLeader(shardID uint64, leaderReplciaID uint64)
 
 	// LeaderStore return leader replica store
-	LeaderReplicaStore(shardID uint64) meta.Store
+	LeaderReplicaStore(shardID uint64) metapb.Store
 	// RandomReplicaStore return random replica store
-	RandomReplicaStore(shardID uint64) meta.Store
+	RandomReplicaStore(shardID uint64) metapb.Store
 
 	// GetShardStats returns the runtime stats info of the shard
-	GetShardStats(id uint64) metapb.ResourceStats
+	GetShardStats(id uint64) metapb.ShardStats
 	// GetStoreStats returns the runtime stats info of the store
-	GetStoreStats(id uint64) metapb.ContainerStats
+	GetStoreStats(id uint64) metapb.StoreStats
 }
 
 type op struct {
@@ -130,14 +129,14 @@ type defaultRouter struct {
 	mu struct {
 		sync.RWMutex
 
-		keyRanges                map[uint64]*util.ShardTree       // shard.Group -> *util.ShardTree
-		leaders                  map[uint64]meta.Store            // shard id -> leader replica store
-		stores                   map[uint64]meta.Store            // store id -> metapb.Store metadata
-		shards                   map[uint64]Shard                 // shard id -> metapb.Shard
-		missingLeaderStoreShards map[uint64]Replica               // shard id -> Replica
-		opts                     map[uint64]op                    // shard id -> op
-		shardStats               map[uint64]metapb.ResourceStats  // shard id -> metapb.ResourceStats
-		storeStats               map[uint64]metapb.ContainerStats // store id -> metapb.ContainerStats
+		keyRanges                map[uint64]*util.ShardTree   // shard.Group -> *util.ShardTree
+		leaders                  map[uint64]metapb.Store      // shard id -> leader replica store
+		stores                   map[uint64]metapb.Store      // store id -> metapb.Store metadata
+		shards                   map[uint64]Shard             // shard id -> metapb.Shard
+		missingLeaderStoreShards map[uint64]Replica           // shard id -> Replica
+		opts                     map[uint64]op                // shard id -> op
+		shardStats               map[uint64]metapb.ShardStats // shard id -> metapb.ShardStats
+		storeStats               map[uint64]metapb.StoreStats // store id -> metapb.StoreStats
 	}
 }
 
@@ -149,13 +148,13 @@ func newRouter(eventC chan rpcpb.EventNotify, options *routerOptions) (Router, e
 		eventC:  eventC,
 	}
 	r.mu.keyRanges = make(map[uint64]*util.ShardTree)
-	r.mu.leaders = make(map[uint64]meta.Store)
-	r.mu.stores = make(map[uint64]meta.Store)
-	r.mu.shards = make(map[uint64]meta.Shard)
+	r.mu.leaders = make(map[uint64]metapb.Store)
+	r.mu.stores = make(map[uint64]metapb.Store)
+	r.mu.shards = make(map[uint64]metapb.Shard)
 	r.mu.missingLeaderStoreShards = make(map[uint64]Replica)
 	r.mu.opts = make(map[uint64]op)
-	r.mu.shardStats = make(map[uint64]metapb.ResourceStats)
-	r.mu.storeStats = make(map[uint64]metapb.ContainerStats)
+	r.mu.shardStats = make(map[uint64]metapb.ShardStats)
+	r.mu.storeStats = make(map[uint64]metapb.StoreStats)
 	return r, nil
 }
 
@@ -180,7 +179,7 @@ func (r *defaultRouter) GetShard(id uint64) Shard {
 	return r.mu.shards[id]
 }
 
-func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(Shard, meta.Store) bool) {
+func (r *defaultRouter) Every(group uint64, mustLeader bool, doFunc func(Shard, metapb.Store) bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -213,14 +212,14 @@ func (r *defaultRouter) ForeachShards(group uint64, fn func(shard Shard) bool) {
 	}
 }
 
-func (r *defaultRouter) LeaderReplicaStore(shardID uint64) meta.Store {
+func (r *defaultRouter) LeaderReplicaStore(shardID uint64) metapb.Store {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	return r.getLeaderReplicaStoreLocked(shardID)
 }
 
-func (r *defaultRouter) RandomReplicaStore(shardID uint64) meta.Store {
+func (r *defaultRouter) RandomReplicaStore(shardID uint64) metapb.Store {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -228,17 +227,17 @@ func (r *defaultRouter) RandomReplicaStore(shardID uint64) meta.Store {
 		return r.mustGetStoreLocked(r.selectStoreLocked(shard))
 	}
 
-	return meta.Store{}
+	return metapb.Store{}
 }
 
-func (r *defaultRouter) GetShardStats(id uint64) metapb.ResourceStats {
+func (r *defaultRouter) GetShardStats(id uint64) metapb.ShardStats {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	return r.mu.shardStats[id]
 }
 
-func (r *defaultRouter) GetStoreStats(id uint64) metapb.ContainerStats {
+func (r *defaultRouter) GetStoreStats(id uint64) metapb.StoreStats {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -278,28 +277,28 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	case event.EventInit:
 		r.logger.Info("reset",
 			zap.String("event", event.EventTypeName(evt.Type)),
-			zap.Int("shard-count", len(evt.InitEvent.Resources)),
-			zap.Int("store-count", len(evt.InitEvent.Containers)))
+			zap.Int("shard-count", len(evt.InitEvent.Shards)),
+			zap.Int("store-count", len(evt.InitEvent.Stores)))
 		for key := range r.mu.keyRanges {
 			delete(r.mu.keyRanges, key)
 		}
 
-		for _, data := range evt.InitEvent.Containers {
+		for _, data := range evt.InitEvent.Stores {
 			r.updateStoreLocked(data)
 		}
 
-		for i, data := range evt.InitEvent.Resources {
+		for i, data := range evt.InitEvent.Shards {
 			r.updateShardLocked(data, evt.InitEvent.Leaders[i], false, false)
 		}
-	case event.EventResource:
-		r.updateShardLocked(evt.ResourceEvent.Data, evt.ResourceEvent.Leader,
-			evt.ResourceEvent.Removed, evt.ResourceEvent.Create)
-	case event.EventContainer:
-		r.updateStoreLocked(evt.ContainerEvent.Data)
-	case event.EventResourceStats:
-		r.mu.shardStats[evt.ResourceStatsEvent.ResourceID] = *evt.ResourceStatsEvent
-	case event.EventContainerStats:
-		r.mu.storeStats[evt.ContainerStatsEvent.ContainerID] = *evt.ContainerStatsEvent
+	case event.EventShard:
+		r.updateShardLocked(evt.ShardEvent.Data, evt.ShardEvent.Leader,
+			evt.ShardEvent.Removed, evt.ShardEvent.Create)
+	case event.EventStore:
+		r.updateStoreLocked(evt.StoreEvent.Data)
+	case event.EventShardStats:
+		r.mu.shardStats[evt.ShardStatsEvent.ShardID] = *evt.ShardStatsEvent
+	case event.EventStoreStats:
+		r.mu.storeStats[evt.StoreStatsEvent.StoreID] = *evt.StoreStatsEvent
 	}
 }
 
@@ -356,7 +355,7 @@ func (r *defaultRouter) updateStoreLocked(data []byte) {
 
 	r.mu.stores[s.meta.ID] = s.meta
 	for k, v := range r.mu.missingLeaderStoreShards {
-		if v.ContainerID == s.meta.ID {
+		if v.StoreID == s.meta.ID {
 			if _, ok := r.mu.shards[k]; ok {
 				r.updateLeaderLocked(k, v.ID)
 			}
@@ -369,7 +368,7 @@ func (r *defaultRouter) updateLeaderLocked(shardID, leaderReplicaID uint64) {
 
 	for _, p := range shard.Replicas {
 		if p.ID == leaderReplicaID {
-			if s, ok := r.mu.stores[p.ContainerID]; ok {
+			if s, ok := r.mu.stores[p.StoreID]; ok {
 				delete(r.mu.missingLeaderStoreShards, shardID)
 				r.mu.leaders[shard.ID] = s
 				r.logger.Info("shard leader updated",
@@ -401,8 +400,8 @@ func (r *defaultRouter) mustGetShardLocked(id uint64) Shard {
 }
 
 func (r *defaultRouter) updateShardKeyRangeLocked(shard Shard) {
-	if shard.State == metapb.ResourceState_Destroying ||
-		shard.State == metapb.ResourceState_Destroyed {
+	if shard.State == metapb.ShardState_Destroying ||
+		shard.State == metapb.ShardState_Destroyed {
 		return
 	}
 
@@ -417,7 +416,7 @@ func (r *defaultRouter) updateShardKeyRangeLocked(shard Shard) {
 	r.mu.keyRanges[shard.Group] = tree
 }
 
-func (r *defaultRouter) mustGetStoreLocked(id uint64) meta.Store {
+func (r *defaultRouter) mustGetStoreLocked(id uint64) metapb.Store {
 	value, ok := r.mu.stores[id]
 	if !ok {
 		r.logger.Fatal("store must exist",
@@ -427,18 +426,18 @@ func (r *defaultRouter) mustGetStoreLocked(id uint64) meta.Store {
 	return value
 }
 
-func (r *defaultRouter) getLeaderReplicaStoreLocked(shardID uint64) meta.Store {
+func (r *defaultRouter) getLeaderReplicaStoreLocked(shardID uint64) metapb.Store {
 	if value, ok := r.mu.leaders[shardID]; ok {
 		return value
 	}
 	r.logger.Debug("missing leader",
 		log.ShardIDField(shardID))
-	return meta.Store{}
+	return metapb.Store{}
 }
 
 func (r *defaultRouter) selectStoreLocked(shard Shard) uint64 {
 	ops := r.mu.opts[shard.ID]
-	storeID := shard.Replicas[int(ops.next())%len(shard.Replicas)].ContainerID
+	storeID := shard.Replicas[int(ops.next())%len(shard.Replicas)].StoreID
 	r.mu.opts[shard.ID] = ops
 	return storeID
 }

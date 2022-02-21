@@ -7,7 +7,7 @@ set -e
 
 # directories containing protos to be built
 MOD="github.com/matrixorigin/matrixcube"
-DIRS="./meta ./rpc ./errorpb ./metapb ./rpcpb"
+DIRS="./errorpb ./metapb ./rpcpb"
 VENDOR_DIR=$(dirname "$PWD")/vendor
 PB_DIR=$(dirname "$PWD")/pb
 # PROPHET_PB_DIR=$(dirname "$PWD")/pb
@@ -16,7 +16,7 @@ if [ ! -d "$VENDOR_DIR/$MOD" ]; then
   rm -rf $VENDOR_DIR/$MOD
 fi
 
-# mkdir -p $VENDOR_DIR/$MOD/components/prophet
+mkdir -p $VENDOR_DIR/$MOD/
 cp -R $PB_DIR $VENDOR_DIR/$MOD
 # cp -R $PROPHET_PB_DIR $VENDOR_DIR/$MOD/components/prophet
 

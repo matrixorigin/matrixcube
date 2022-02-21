@@ -40,7 +40,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -69,7 +68,7 @@ func TestSendSavedSnapshotPutsAllChunksInCh(t *testing.T) {
 
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
 	defer fs.RemoveAll(testSnapshotDir)
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
 	shardID := uint64(100)
@@ -78,7 +77,7 @@ func TestSendSavedSnapshotPutsAllChunksInCh(t *testing.T) {
 	index := uint64(300)
 	term := uint64(200)
 
-	m := meta.RaftMessage{
+	m := metapb.RaftMessage{
 		ShardID: shardID,
 		From:    metapb.Replica{ID: from},
 		To:      metapb.Replica{ID: to},

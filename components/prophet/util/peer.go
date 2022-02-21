@@ -19,13 +19,13 @@ import (
 
 // EmptyPeer returns a peer is a empty peer
 func EmptyPeer(value metapb.Replica) bool {
-	return value.ID == 0 && value.ContainerID == 0
+	return value.ID == 0 && value.StoreID == 0
 }
 
 // FindPeer find peer at the spec container
 func FindPeer(peers []*metapb.Replica, containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range peers {
-		if peer.ContainerID == containerID {
+		if peer.StoreID == containerID {
 			return *peer, true
 		}
 	}

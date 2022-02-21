@@ -19,7 +19,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
@@ -105,9 +104,9 @@ func TestDoSplit(t *testing.T) {
 	assert.Equal(t, int64(1), pr.requests.Len())
 	v, err := pr.requests.Peek()
 	assert.NoError(t, err)
-	var req rpc.BatchSplitRequest
+	var req rpcpb.BatchSplitRequest
 	protoc.MustUnmarshal(&req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, rpc.AdminCmdType_BatchSplit, rpc.AdminCmdType(v.(reqCtx).req.CustomType))
+	assert.Equal(t, rpcpb.AdminBatchSplit, rpcpb.AdminCmdType(v.(reqCtx).req.CustomType))
 	assert.Equal(t, 2, len(req.Requests))
 	assert.Equal(t, pr.getShard().Start, req.Requests[0].Start)
 	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Requests[0].End)

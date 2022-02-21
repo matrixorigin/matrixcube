@@ -36,7 +36,7 @@ type watcherSession struct {
 
 func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 	if event.MatchEvent(evt.Type, wt.flag) {
-		resp := &rpcpb.Response{}
+		resp := &rpcpb.ProphetResponse{}
 		resp.Type = rpcpb.TypeEventNotify
 		resp.Event = evt
 		resp.Event.Seq = atomic.AddUint64(&wt.seq, 1)
@@ -64,7 +64,7 @@ func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watch
 	return wn
 }
 
-func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.Response, session goetty.IOSession) error {
+func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse, session goetty.IOSession) error {
 	if wn != nil {
 		wn.logger.Info("watcher added",
 			zap.String("address", session.RemoteAddr()))
@@ -75,11 +75,11 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.Request, resp *rpcpb.R
 			snap := event.Snapshot{
 				Leaders: make(map[uint64]uint64),
 			}
-			for _, c := range wn.cluster.GetContainers() {
-				snap.Containers = append(snap.Containers, c.Meta.Clone())
+			for _, c := range wn.cluster.GetStores() {
+				snap.Stores = append(snap.Stores, c.Meta.Clone())
 			}
-			for _, res := range wn.cluster.GetResources() {
-				snap.Resources = append(snap.Resources, res.Meta.Clone())
+			for _, res := range wn.cluster.GetShards() {
+				snap.Shards = append(snap.Shards, res.Meta.Clone())
 				leader := res.GetLeader()
 				if leader != nil {
 					snap.Leaders[res.Meta.ID()] = leader.ID

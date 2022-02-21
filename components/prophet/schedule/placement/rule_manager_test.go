@@ -83,19 +83,19 @@ func TestApplyRule(t *testing.T) {
 		Count:       5,
 	})
 
-	rules := s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
+	rules := s.manager.GetRulesForApplyShard(core.NewCachedShard(&metadata.TestShard{
 		ResID:    1,
 		Start:    []byte("a"),
 		End:      []byte("c"),
-		ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1}},
+		ResPeers: []metapb.Replica{{ID: 1, StoreID: 1}},
 	}, nil))
 	assert.Equal(t, 3, len(rules))
 
-	rules = s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
+	rules = s.manager.GetRulesForApplyShard(core.NewCachedShard(&metadata.TestShard{
 		ResID:         1,
 		Start:         []byte("a"),
 		End:           []byte("c"),
-		ResPeers:      []metapb.Replica{{ID: 1, ContainerID: 1}},
+		ResPeers:      []metapb.Replica{{ID: 1, StoreID: 1}},
 		ResRuleGroups: []string{"group1", "group2"},
 	}, nil))
 	assert.Equal(t, 2, len(rules))
@@ -220,8 +220,8 @@ func TestKeys(t *testing.T) {
 		{{"11", "33"}},
 	}
 	for _, keys := range resourceKeys {
-		resource := core.NewCachedResource(&metadata.TestResource{Start: s.dhex(keys[0][0]), End: s.dhex(keys[0][1])}, nil)
-		rules := s.manager.GetRulesForApplyResource(resource)
+		resource := core.NewCachedShard(&metadata.TestShard{Start: s.dhex(keys[0][0]), End: s.dhex(keys[0][1])}, nil)
+		rules := s.manager.GetRulesForApplyShard(resource)
 		assert.Equal(t, len(keys)-1, len(rules))
 		for i := range rules {
 			assert.Equal(t, keys[i+1][0], rules[i].StartKeyHex)

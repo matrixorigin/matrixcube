@@ -22,14 +22,14 @@ const (
 
 // check whether checkEpoch is more recent than epoch. returns true means
 // epoch < checkEpoch
-func isEpochStale(epoch metapb.ResourceEpoch, checkEpoch metapb.ResourceEpoch) bool {
+func isEpochStale(epoch metapb.ShardEpoch, checkEpoch metapb.ShardEpoch) bool {
 	return epoch.Version < checkEpoch.Version ||
 		epoch.ConfVer < checkEpoch.ConfVer
 }
 
 func findReplica(shard Shard, storeID uint64) *Replica {
 	for idx := range shard.Replicas {
-		if shard.Replicas[idx].ContainerID == storeID {
+		if shard.Replicas[idx].StoreID == storeID {
 			return &shard.Replicas[idx]
 		}
 	}
@@ -41,7 +41,7 @@ func removeReplica(shard *Shard, storeID uint64) *Replica {
 	var removed *Replica
 	var newReplicas []Replica
 	for _, replica := range shard.Replicas {
-		if replica.ContainerID == storeID {
+		if replica.StoreID == storeID {
 			p := replica
 			removed = &p
 		} else {

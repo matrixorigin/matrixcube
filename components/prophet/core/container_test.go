@@ -31,7 +31,7 @@ func TestDistinctScore(t *testing.T) {
 	racks := []string{"r1", "r2", "r3"}
 	hosts := []string{"h1", "h2", "h3"}
 
-	var containers []*CachedContainer
+	var containers []*CachedStore
 	for i, zone := range zones {
 		for j, rack := range racks {
 			for k, host := range hosts {
@@ -41,7 +41,7 @@ func TestDistinctScore(t *testing.T) {
 					"rack": rack,
 					"host": host,
 				}
-				container := NewTestContainerInfoWithLabel(containerID, 1, containerLabels)
+				container := NewTestStoreInfoWithLabel(containerID, 1, containerLabels)
 				containers = append(containers, container)
 
 				// Number of containers in different zones.
@@ -55,13 +55,13 @@ func TestDistinctScore(t *testing.T) {
 			}
 		}
 	}
-	container := NewTestContainerInfoWithLabel(100, 1, nil)
+	container := NewTestStoreInfoWithLabel(100, 1, nil)
 	assert.Equal(t, float64(0), DistinctScore(labels, containers, container))
 }
 
-func TestCloneContainer(t *testing.T) {
-	meta := &metadata.TestContainer{CID: 1, CAddr: "mock://s-1", CLabels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}}
-	container := NewCachedContainer(meta)
+func TestCloneStore(t *testing.T) {
+	meta := &metadata.TestStore{CID: 1, CAddr: "mock://s-1", CLabels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}}
+	container := NewCachedStore(meta)
 	start := time.Now()
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -81,7 +81,7 @@ func TestCloneContainer(t *testing.T) {
 				break
 			}
 			container.Clone(
-				UpContainer(),
+				UpStore(),
 				SetLastHeartbeatTS(time.Now()),
 			)
 		}
@@ -89,24 +89,24 @@ func TestCloneContainer(t *testing.T) {
 	wg.Wait()
 }
 
-func TestResourceScore(t *testing.T) {
-	stats := &metapb.ContainerStats{}
+func TestShardScore(t *testing.T) {
+	stats := &metapb.StoreStats{}
 	stats.Capacity = 512 * (1 << 20)  // 512 MB
 	stats.Available = 100 * (1 << 20) // 100 MB
 	stats.UsedSize = 0
 
-	container := NewCachedContainer(
-		&metadata.TestContainer{CID: 1},
-		SetContainerStats(stats),
-		SetResourceSize("", 1),
+	container := NewCachedStore(
+		&metadata.TestStore{CID: 1},
+		SetStoreStats(stats),
+		SetShardSize("", 1),
 	)
-	score := container.ResourceScore("", "v1", 0.7, 0.9, 0, 0)
-	// Resource score should never be NaN, or /container API would fail.
+	score := container.ShardScore("", "v1", 0.7, 0.9, 0, 0)
+	// Shard score should never be NaN, or /container API would fail.
 	assert.False(t, math.IsNaN(score))
 }
 
 func TestLowSpaceRatio(t *testing.T) {
-	container := NewTestContainerInfoWithLabel(1, 20, nil)
+	container := NewTestStoreInfoWithLabel(1, 20, nil)
 	container.rawStats.Capacity = initialMinSpace << 4
 	container.rawStats.Available = container.rawStats.Capacity >> 3
 

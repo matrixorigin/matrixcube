@@ -142,28 +142,28 @@ func (o *PersistOptions) SetMaxReplicas(replicas int) {
 
 const (
 	maxSnapshotCountKey            = "schedule.max-snapshot-count"
-	maxMergeResourceSizeKey        = "schedule.max-merge-resource-size"
+	maxMergeShardSizeKey        = "schedule.max-merge-resource-size"
 	maxPendingPeerCountKey         = "schedule.max-pending-peer-count"
-	maxMergeResourceKeysKey        = "schedule.max-merge-resource-keys"
+	maxMergeShardKeysKey        = "schedule.max-merge-resource-keys"
 	leaderScheduleLimitKey         = "schedule.leader-schedule-limit"
 	resourceScheduleLimitKey       = "schedule.resource-schedule-limit"
 	replicaRescheduleLimitKey      = "schedule.replica-schedule-limit"
 	mergeScheduleLimitKey          = "schedule.merge-schedule-limit"
-	hotResourceScheduleLimitKey    = "schedule.hot-resource-schedule-limit"
+	hotShardScheduleLimitKey    = "schedule.hot-resource-schedule-limit"
 	schedulerMaxWaitingOperatorKey = "schedule.scheduler-max-waiting-operator"
 	enableLocationReplacement      = "schedule.enable-location-replacement"
 )
 
 var supportedTTLConfigs = []string{
 	maxSnapshotCountKey,
-	maxMergeResourceSizeKey,
+	maxMergeShardSizeKey,
 	maxPendingPeerCountKey,
-	maxMergeResourceKeysKey,
+	maxMergeShardKeysKey,
 	leaderScheduleLimitKey,
 	resourceScheduleLimitKey,
 	replicaRescheduleLimitKey,
 	mergeScheduleLimitKey,
-	hotResourceScheduleLimitKey,
+	hotShardScheduleLimitKey,
 	schedulerMaxWaitingOperatorKey,
 	enableLocationReplacement,
 	"default-add-peer",
@@ -190,14 +190,14 @@ func (o *PersistOptions) GetMaxPendingPeerCount() uint64 {
 	return o.getTTLUintOr(maxPendingPeerCountKey, o.GetScheduleConfig().MaxPendingPeerCount)
 }
 
-// GetMaxMergeResourceSize returns the max resource size.
-func (o *PersistOptions) GetMaxMergeResourceSize() uint64 {
-	return o.getTTLUintOr(maxMergeResourceSizeKey, o.GetScheduleConfig().MaxMergeResourceSize)
+// GetMaxMergeShardSize returns the max resource size.
+func (o *PersistOptions) GetMaxMergeShardSize() uint64 {
+	return o.getTTLUintOr(maxMergeShardSizeKey, o.GetScheduleConfig().MaxMergeShardSize)
 }
 
-// GetMaxMergeResourceKeys returns the max number of keys.
-func (o *PersistOptions) GetMaxMergeResourceKeys() uint64 {
-	return o.getTTLUintOr(maxMergeResourceKeysKey, o.GetScheduleConfig().MaxMergeResourceKeys)
+// GetMaxMergeShardKeys returns the max number of keys.
+func (o *PersistOptions) GetMaxMergeShardKeys() uint64 {
+	return o.getTTLUintOr(maxMergeShardKeysKey, o.GetScheduleConfig().MaxMergeShardKeys)
 }
 
 // GetSplitMergeInterval returns the interval between finishing split and starting to merge.
@@ -212,46 +212,46 @@ func (o *PersistOptions) SetSplitMergeInterval(splitMergeInterval time.Duration)
 	o.SetScheduleConfig(v)
 }
 
-// SetContainerLimit sets a container limit for a given type and rate.
-func (o *PersistOptions) SetContainerLimit(containerID uint64, typ limit.Type, ratePerMin float64) {
+// SetStoreLimit sets a container limit for a given type and rate.
+func (o *PersistOptions) SetStoreLimit(containerID uint64, typ limit.Type, ratePerMin float64) {
 	v := o.GetScheduleConfig().Clone()
-	var sc ContainerLimitConfig
+	var sc StoreLimitConfig
 	var rate float64
 	switch typ {
 	case limit.AddPeer:
-		if _, ok := v.ContainerLimit[containerID]; !ok {
-			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.RemovePeer)
+		if _, ok := v.StoreLimit[containerID]; !ok {
+			rate = DefaultStoreLimit.GetDefaultStoreLimit(limit.RemovePeer)
 		} else {
-			rate = v.ContainerLimit[containerID].RemovePeer
+			rate = v.StoreLimit[containerID].RemovePeer
 		}
-		sc = ContainerLimitConfig{AddPeer: ratePerMin, RemovePeer: rate}
+		sc = StoreLimitConfig{AddPeer: ratePerMin, RemovePeer: rate}
 	case limit.RemovePeer:
-		if _, ok := v.ContainerLimit[containerID]; !ok {
-			rate = DefaultContainerLimit.GetDefaultContainerLimit(limit.AddPeer)
+		if _, ok := v.StoreLimit[containerID]; !ok {
+			rate = DefaultStoreLimit.GetDefaultStoreLimit(limit.AddPeer)
 		} else {
-			rate = v.ContainerLimit[containerID].AddPeer
+			rate = v.StoreLimit[containerID].AddPeer
 		}
-		sc = ContainerLimitConfig{AddPeer: rate, RemovePeer: ratePerMin}
+		sc = StoreLimitConfig{AddPeer: rate, RemovePeer: ratePerMin}
 	}
-	v.ContainerLimit[containerID] = sc
+	v.StoreLimit[containerID] = sc
 	o.SetScheduleConfig(v)
 }
 
-// SetAllContainersLimit sets all container limit for a given type and rate.
-func (o *PersistOptions) SetAllContainersLimit(typ limit.Type, ratePerMin float64) {
+// SetAllStoresLimit sets all container limit for a given type and rate.
+func (o *PersistOptions) SetAllStoresLimit(typ limit.Type, ratePerMin float64) {
 	v := o.GetScheduleConfig().Clone()
 	switch typ {
 	case limit.AddPeer:
-		DefaultContainerLimit.SetDefaultContainerLimit(limit.AddPeer, ratePerMin)
-		for containerID := range v.ContainerLimit {
-			sc := ContainerLimitConfig{AddPeer: ratePerMin, RemovePeer: v.ContainerLimit[containerID].RemovePeer}
-			v.ContainerLimit[containerID] = sc
+		DefaultStoreLimit.SetDefaultStoreLimit(limit.AddPeer, ratePerMin)
+		for containerID := range v.StoreLimit {
+			sc := StoreLimitConfig{AddPeer: ratePerMin, RemovePeer: v.StoreLimit[containerID].RemovePeer}
+			v.StoreLimit[containerID] = sc
 		}
 	case limit.RemovePeer:
-		DefaultContainerLimit.SetDefaultContainerLimit(limit.RemovePeer, ratePerMin)
-		for containerID := range v.ContainerLimit {
-			sc := ContainerLimitConfig{AddPeer: v.ContainerLimit[containerID].AddPeer, RemovePeer: ratePerMin}
-			v.ContainerLimit[containerID] = sc
+		DefaultStoreLimit.SetDefaultStoreLimit(limit.RemovePeer, ratePerMin)
+		for containerID := range v.StoreLimit {
+			sc := StoreLimitConfig{AddPeer: v.StoreLimit[containerID].AddPeer, RemovePeer: ratePerMin}
+			v.StoreLimit[containerID] = sc
 		}
 	}
 
@@ -268,14 +268,14 @@ func (o *PersistOptions) IsCrossTableMergeEnabled() bool {
 	return o.GetScheduleConfig().EnableCrossTableMerge
 }
 
-// GetPatrolResourceInterval returns the interval of patrolling resource.
-func (o *PersistOptions) GetPatrolResourceInterval() time.Duration {
-	return o.GetScheduleConfig().PatrolResourceInterval.Duration
+// GetPatrolShardInterval returns the interval of patrolling resource.
+func (o *PersistOptions) GetPatrolShardInterval() time.Duration {
+	return o.GetScheduleConfig().PatrolShardInterval.Duration
 }
 
-// GetMaxContainerDownTime returns the max down time of a container.
-func (o *PersistOptions) GetMaxContainerDownTime() time.Duration {
-	return o.GetScheduleConfig().MaxContainerDownTime.Duration
+// GetMaxStoreDownTime returns the max down time of a container.
+func (o *PersistOptions) GetMaxStoreDownTime() time.Duration {
+	return o.GetScheduleConfig().MaxStoreDownTime.Duration
 }
 
 // GetLeaderScheduleLimit returns the limit for leader schedule.
@@ -283,9 +283,9 @@ func (o *PersistOptions) GetLeaderScheduleLimit() uint64 {
 	return o.getTTLUintOr(leaderScheduleLimitKey, o.GetScheduleConfig().LeaderScheduleLimit)
 }
 
-// GetResourceScheduleLimit returns the limit for resource schedule.
-func (o *PersistOptions) GetResourceScheduleLimit() uint64 {
-	return o.getTTLUintOr(resourceScheduleLimitKey, o.GetScheduleConfig().ResourceScheduleLimit)
+// GetShardScheduleLimit returns the limit for resource schedule.
+func (o *PersistOptions) GetShardScheduleLimit() uint64 {
+	return o.getTTLUintOr(resourceScheduleLimitKey, o.GetScheduleConfig().ShardScheduleLimit)
 }
 
 // GetReplicaScheduleLimit returns the limit for replica schedule.
@@ -298,24 +298,24 @@ func (o *PersistOptions) GetMergeScheduleLimit() uint64 {
 	return o.getTTLUintOr(mergeScheduleLimitKey, o.GetScheduleConfig().MergeScheduleLimit)
 }
 
-// GetHotResourceScheduleLimit returns the limit for hot resource schedule.
-func (o *PersistOptions) GetHotResourceScheduleLimit() uint64 {
-	return o.getTTLUintOr(hotResourceScheduleLimitKey, o.GetScheduleConfig().HotResourceScheduleLimit)
+// GetHotShardScheduleLimit returns the limit for hot resource schedule.
+func (o *PersistOptions) GetHotShardScheduleLimit() uint64 {
+	return o.getTTLUintOr(hotShardScheduleLimitKey, o.GetScheduleConfig().HotShardScheduleLimit)
 }
 
-// GetContainerLimit returns the limit of a container.
-func (o *PersistOptions) GetContainerLimit(containerID uint64) (returnSC ContainerLimitConfig) {
+// GetStoreLimit returns the limit of a container.
+func (o *PersistOptions) GetStoreLimit(containerID uint64) (returnSC StoreLimitConfig) {
 	defer func() {
 		returnSC.RemovePeer = o.getTTLFloatOr(fmt.Sprintf("remove-peer-%v", containerID), returnSC.RemovePeer)
 		returnSC.AddPeer = o.getTTLFloatOr(fmt.Sprintf("add-peer-%v", containerID), returnSC.AddPeer)
 	}()
-	if limit, ok := o.GetScheduleConfig().ContainerLimit[containerID]; ok {
+	if limit, ok := o.GetScheduleConfig().StoreLimit[containerID]; ok {
 		return limit
 	}
 	cfg := o.GetScheduleConfig().Clone()
-	sc := ContainerLimitConfig{
-		AddPeer:    DefaultContainerLimit.GetDefaultContainerLimit(limit.AddPeer),
-		RemovePeer: DefaultContainerLimit.GetDefaultContainerLimit(limit.RemovePeer),
+	sc := StoreLimitConfig{
+		AddPeer:    DefaultStoreLimit.GetDefaultStoreLimit(limit.AddPeer),
+		RemovePeer: DefaultStoreLimit.GetDefaultStoreLimit(limit.RemovePeer),
 	}
 	v, ok1, err := o.getTTLFloat("default-add-peer")
 	if err != nil {
@@ -338,13 +338,13 @@ func (o *PersistOptions) GetContainerLimit(containerID uint64) (returnSC Contain
 	if canSetAddPeer || canSetRemovePeer {
 		return returnSC
 	}
-	cfg.ContainerLimit[containerID] = sc
+	cfg.StoreLimit[containerID] = sc
 	o.SetScheduleConfig(cfg)
-	return o.GetScheduleConfig().ContainerLimit[containerID]
+	return o.GetScheduleConfig().StoreLimit[containerID]
 }
 
-// GetContainerLimitByType returns the limit of a container with a given type.
-func (o *PersistOptions) GetContainerLimitByType(containerID uint64, typ limit.Type) (returned float64) {
+// GetStoreLimitByType returns the limit of a container with a given type.
+func (o *PersistOptions) GetStoreLimitByType(containerID uint64, typ limit.Type) (returned float64) {
 	defer func() {
 		if typ == limit.RemovePeer {
 			returned = o.getTTLFloatOr(fmt.Sprintf("remove-peer-%v", containerID), returned)
@@ -352,7 +352,7 @@ func (o *PersistOptions) GetContainerLimitByType(containerID uint64, typ limit.T
 			returned = o.getTTLFloatOr(fmt.Sprintf("add-peer-%v", containerID), returned)
 		}
 	}()
-	l := o.GetContainerLimit(containerID)
+	l := o.GetStoreLimit(containerID)
 	switch typ {
 	case limit.AddPeer:
 		return l.AddPeer
@@ -363,14 +363,14 @@ func (o *PersistOptions) GetContainerLimitByType(containerID uint64, typ limit.T
 	}
 }
 
-// GetAllContainersLimit returns the limit of all containers.
-func (o *PersistOptions) GetAllContainersLimit() map[uint64]ContainerLimitConfig {
-	return o.GetScheduleConfig().ContainerLimit
+// GetAllStoresLimit returns the limit of all containers.
+func (o *PersistOptions) GetAllStoresLimit() map[uint64]StoreLimitConfig {
+	return o.GetScheduleConfig().StoreLimit
 }
 
-// GetContainerLimitMode returns the limit mode of container.
-func (o *PersistOptions) GetContainerLimitMode() string {
-	return o.GetScheduleConfig().ContainerLimitMode
+// GetStoreLimitMode returns the limit mode of container.
+func (o *PersistOptions) GetStoreLimitMode() string {
+	return o.GetScheduleConfig().StoreLimitMode
 }
 
 // GetTolerantSizeRatio gets the tolerant size ratio.
@@ -388,9 +388,9 @@ func (o *PersistOptions) GetHighSpaceRatio() float64 {
 	return o.GetScheduleConfig().HighSpaceRatio
 }
 
-// GetResourceScoreFormulaVersion returns the formula version config.
-func (o *PersistOptions) GetResourceScoreFormulaVersion() string {
-	return o.GetScheduleConfig().ResourceScoreFormulaVersion
+// GetShardScoreFormulaVersion returns the formula version config.
+func (o *PersistOptions) GetShardScoreFormulaVersion() string {
+	return o.GetScheduleConfig().ShardScoreFormulaVersion
 }
 
 // GetSchedulerMaxWaitingOperator returns the number of the max waiting operators.
@@ -452,9 +452,9 @@ func (o *PersistOptions) SetEnableJointConsensus(enableJointConsensus bool) {
 	o.SetScheduleConfig(v)
 }
 
-// GetHotResourceCacheHitsThreshold is a threshold to decide if a resource is hot.
-func (o *PersistOptions) GetHotResourceCacheHitsThreshold() int {
-	return int(o.GetScheduleConfig().HotResourceCacheHitsThreshold)
+// GetHotShardCacheHitsThreshold is a threshold to decide if a resource is hot.
+func (o *PersistOptions) GetHotShardCacheHitsThreshold() int {
+	return int(o.GetScheduleConfig().HotShardCacheHitsThreshold)
 }
 
 // GetSchedulers gets the scheduler configurations.
@@ -492,7 +492,7 @@ func (o *PersistOptions) SetLabelProperty(typ, labelKey, labelValue string) {
 			return
 		}
 	}
-	cfg[typ] = append(cfg[typ], ContainerLabel{Key: labelKey, Value: labelValue})
+	cfg[typ] = append(cfg[typ], StoreLabel{Key: labelKey, Value: labelValue})
 	o.labelProperty.Store(cfg)
 }
 
@@ -500,7 +500,7 @@ func (o *PersistOptions) SetLabelProperty(typ, labelKey, labelValue string) {
 func (o *PersistOptions) DeleteLabelProperty(typ, labelKey, labelValue string) {
 	cfg := o.GetLabelPropertyConfig().Clone()
 	oldLabels := cfg[typ]
-	cfg[typ] = []ContainerLabel{}
+	cfg[typ] = []StoreLabel{}
 	for _, l := range oldLabels {
 		if l.Key == labelKey && l.Value == labelValue {
 			continue

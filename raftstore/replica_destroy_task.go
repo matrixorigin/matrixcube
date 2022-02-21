@@ -35,8 +35,8 @@ type actionHandleFunc func(action)
 // The default implementation is to store it on the `Prophet` via the `Prophet`'s client.
 // This interface used to testing.
 type destroyingStorage interface {
-	CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error)
-	ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ResourceState, error)
+	CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error)
+	ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ShardState, error)
 	GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error)
 }
 

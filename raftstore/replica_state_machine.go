@@ -22,18 +22,18 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
 type applyContext struct {
 	index       uint64
 	term        uint64
-	req         rpc.RequestBatch
+	req         rpcpb.RequestBatch
 	v2cc        raftpb.ConfChangeV2
 	adminResult *adminResult
 	metrics     applyMetrics
@@ -41,14 +41,14 @@ type applyContext struct {
 
 func newApplyContext() *applyContext {
 	return &applyContext{
-		req: rpc.RequestBatch{},
+		req: rpcpb.RequestBatch{},
 	}
 }
 
 func (ctx *applyContext) initialize(entry raftpb.Entry) {
 	ctx.index = entry.Index
 	ctx.term = entry.Term
-	ctx.req = rpc.RequestBatch{}
+	ctx.req = rpcpb.RequestBatch{}
 	ctx.adminResult = nil
 	ctx.metrics = applyMetrics{}
 	ctx.v2cc = raftpb.ConfChangeV2{}
@@ -73,7 +73,7 @@ func (ctx *applyContext) initialize(entry raftpb.Entry) {
 
 type replicaResultHandler interface {
 	handleApplyResult(applyResult)
-	notifyPendingProposal(id []byte, resp rpc.ResponseBatch, isConfChange bool)
+	notifyPendingProposal(id []byte, resp rpcpb.ResponseBatch, isConfChange bool)
 }
 
 var _ replicaResultHandler = (*replica)(nil)
@@ -198,7 +198,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 		if isConfigChangeEntry(entry) {
 			if result.adminResult == nil {
 				result.adminResult = &adminResult{
-					adminType:          rpc.AdminCmdType_ConfigChange,
+					adminType:          rpcpb.AdminConfigChange,
 					configChangeResult: configChangeResult{},
 				}
 			} else {
@@ -247,7 +247,7 @@ func (d *stateMachine) applyRequestBatch(ctx *applyContext) bool {
 		d.logger.Fatal("applying entries on removed replica")
 	}
 	var err error
-	var resp rpc.ResponseBatch
+	var resp rpcpb.ResponseBatch
 	ignoreMetrics := true
 	if !d.checkEpoch(ctx.req) {
 		if ce := d.logger.Check(zap.DebugLevel, "apply committed log skipped"); ce != nil {
@@ -327,17 +327,17 @@ func (d *stateMachine) canApply(entry raftpb.Entry) bool {
 	// so we need check shard state.
 	if !d.metadataMu.removed &&
 		!d.metadataMu.splited &&
-		d.metadataMu.shard.State != metapb.ResourceState_Destroying {
+		d.metadataMu.shard.State != metapb.ShardState_Destroying {
 		return true
 	}
 
 	// In some scenarios, we need to remove the replica that is not online,
 	// so that the deletion task can be completed.
 	return isConfigChangeEntry(entry) &&
-		d.metadataMu.shard.State == metapb.ResourceState_Destroying
+		d.metadataMu.shard.State == metapb.ShardState_Destroying
 }
 
-func (d *stateMachine) setShardState(st metapb.ResourceState) {
+func (d *stateMachine) setShardState(st metapb.ShardState) {
 	d.metadataMu.Lock()
 	defer d.metadataMu.Unlock()
 	d.metadataMu.shard.State = st
@@ -370,7 +370,7 @@ func (d *stateMachine) getAppliedIndexTerm() (uint64, uint64) {
 	return d.metadataMu.index, d.metadataMu.term
 }
 
-func (d *stateMachine) checkEpoch(req rpc.RequestBatch) bool {
+func (d *stateMachine) checkEpoch(req rpcpb.RequestBatch) bool {
 	return checkEpoch(d.getShard(), req)
 }
 
@@ -379,7 +379,7 @@ func isConfigChangeEntry(entry raftpb.Entry) bool {
 		entry.Type == raftpb.EntryConfChangeV2
 }
 
-func isConfigChangeRequestBatch(req rpc.RequestBatch) bool {
+func isConfigChangeRequestBatch(req rpcpb.RequestBatch) bool {
 	return req.IsAdmin() &&
-		req.GetAdminCmdType() == rpc.AdminCmdType_ConfigChange
+		req.GetAdminCmdType() == rpcpb.AdminConfigChange
 }
