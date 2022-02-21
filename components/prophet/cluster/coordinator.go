@@ -45,7 +45,7 @@ const (
 	maxScheduleRetries        = 10
 	maxLoadConfigRetries      = 10
 
-	patrolScanResourceLimit = 128 // It takes about 14 minutes to iterate 1 million resources.
+	patrolScanShardLimit = 128 // It takes about 14 minutes to iterate 1 million resources.
 )
 
 // coordinator is used to manage all schedulers and checkers to decide if the resource needs to be scheduled.
@@ -57,8 +57,8 @@ type coordinator struct {
 	cancel            context.CancelFunc
 	cluster           *RaftCluster
 	checkers          *schedule.CheckerController
-	resourceScatterer *schedule.ResourceScatterer
-	resourceSplitter  *schedule.ResourceSplitter
+	resourceScatterer *schedule.ShardScatterer
+	resourceSplitter  *schedule.ShardSplitter
 	schedulers        map[string]*scheduleController
 	opController      *schedule.OperatorController
 	hbStreams         *hbstream.HeartbeatStreams
@@ -74,8 +74,8 @@ func newCoordinator(ctx context.Context, cluster *RaftCluster, hbStreams *hbstre
 		cancel:            cancel,
 		cluster:           cluster,
 		checkers:          schedule.NewCheckerController(ctx, cluster, cluster.ruleManager, opController),
-		resourceScatterer: schedule.NewResourceScatterer(ctx, cluster),
-		resourceSplitter:  schedule.NewResourceSplitter(cluster, schedule.NewSplitResourcesHandler(cluster, opController)),
+		resourceScatterer: schedule.NewShardScatterer(ctx, cluster),
+		resourceSplitter:  schedule.NewShardSplitter(cluster, schedule.NewSplitShardsHandler(cluster, opController)),
 		schedulers:        make(map[string]*scheduleController),
 		opController:      opController,
 		hbStreams:         hbStreams,
@@ -83,9 +83,9 @@ func newCoordinator(ctx context.Context, cluster *RaftCluster, hbStreams *hbstre
 	}
 }
 
-// patrolResources is used to scan resources.
+// patrolShards is used to scan resources.
 // The checkers will check these resources to decide if they need to do some operations.
-func (c *coordinator) patrolResources() {
+func (c *coordinator) patrolShards() {
 	defer func() {
 		if err := recover(); err != nil {
 			c.cluster.logger.Error("fail to patrol resources",
@@ -94,7 +94,7 @@ func (c *coordinator) patrolResources() {
 	}()
 
 	defer c.wg.Done()
-	timer := time.NewTimer(c.cluster.GetOpts().GetPatrolResourceInterval())
+	timer := time.NewTimer(c.cluster.GetOpts().GetPatrolShardInterval())
 	defer timer.Stop()
 
 	c.cluster.logger.Info("coordinator starts patrol resources")
@@ -107,62 +107,62 @@ func (c *coordinator) patrolResources() {
 	for {
 		select {
 		case <-timer.C:
-			timer.Reset(c.cluster.GetOpts().GetPatrolResourceInterval())
+			timer.Reset(c.cluster.GetOpts().GetPatrolShardInterval())
 		case <-c.ctx.Done():
 			c.cluster.logger.Info("patrol resources has been stopped")
 			return
 		}
 
 		// Check suspect resources first.
-		c.checkSuspectResources()
+		c.checkSuspectShards()
 		// Check suspect key ranges
 		c.checkSuspectKeyRanges()
 		// Check resources in the waiting list
-		c.checkWaitingResources()
+		c.checkWaitingShards()
 
 		// scan all resource in resources tree.
 		for _, group := range c.cluster.GetReplicationConfig().Groups {
 			c.doScan(group, keys)
 			if len(keys[group]) == 0 {
-				patrolCheckResourcesGauge.Set(time.Since(start).Seconds())
+				patrolCheckShardsGauge.Set(time.Since(start).Seconds())
 				start = time.Now()
 			}
 		}
 
 		// check destroying resources
-		c.checkDestroyingResources()
+		c.checkDestroyingShards()
 	}
 }
 
-func (c *coordinator) checkDestroyingResources() {
-	resources := c.cluster.GetDestroyingResources()
+func (c *coordinator) checkDestroyingShards() {
+	resources := c.cluster.GetDestroyingShards()
 	for _, res := range resources {
 		// Skips the resource if there is already a pending operator.
 		if c.opController.GetOperator(res.Meta.ID()) != nil {
 			continue
 		}
 
-		ops := c.checkers.CheckResource(res)
+		ops := c.checkers.CheckShard(res)
 		if len(ops) == 0 {
 			continue
 		}
 
-		if !c.opController.ExceedContainerLimit(ops...) {
+		if !c.opController.ExceedStoreLimit(ops...) {
 			n := c.opController.AddWaitingOperator(ops...)
 			c.cluster.logger.Info("added operators",
 				zap.Uint64("resource", res.Meta.ID()),
 				zap.Int("count", n))
-			c.checkers.RemoveWaitingResource(res.Meta.ID())
-			c.cluster.RemoveSuspectResource(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.ID())
+			c.cluster.RemoveSuspectShard(res.Meta.ID())
 		} else {
-			c.checkers.AddWaitingResource(res)
+			c.checkers.AddWaitingShard(res)
 		}
 	}
 }
 
 func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
 	key := keys[group]
-	resources := c.cluster.ScanResources(group, key, nil, patrolScanResourceLimit)
+	resources := c.cluster.ScanShards(group, key, nil, patrolScanShardLimit)
 	if len(resources) == 0 {
 		// Resets the scan key.
 		keys[group] = nil
@@ -175,44 +175,44 @@ func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
 			continue
 		}
 
-		ops := c.checkers.CheckResource(res)
+		ops := c.checkers.CheckShard(res)
 
 		keys[group] = res.GetEndKey()
 		if len(ops) == 0 {
 			continue
 		}
 
-		if !c.opController.ExceedContainerLimit(ops...) {
+		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.checkers.RemoveWaitingResource(res.Meta.ID())
-			c.cluster.RemoveSuspectResource(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.ID())
+			c.cluster.RemoveSuspectShard(res.Meta.ID())
 		} else {
-			c.checkers.AddWaitingResource(res)
+			c.checkers.AddWaitingShard(res)
 		}
 	}
 	// Updates the label level isolation statistics.
-	c.cluster.updateResourcesLabelLevelStats(resources)
+	c.cluster.updateShardsLabelLevelStats(resources)
 }
 
-func (c *coordinator) checkSuspectResources() {
-	for _, id := range c.cluster.GetSuspectResources() {
-		res := c.cluster.GetResource(id)
+func (c *coordinator) checkSuspectShards() {
+	for _, id := range c.cluster.GetSuspectShards() {
+		res := c.cluster.GetShard(id)
 		if res == nil {
 			// the resource could be recent split, continue to wait.
 			continue
 		}
 		if c.opController.GetOperator(id) != nil {
-			c.cluster.RemoveSuspectResource(id)
+			c.cluster.RemoveSuspectShard(id)
 			continue
 		}
-		ops := c.checkers.CheckResource(res)
+		ops := c.checkers.CheckShard(res)
 		if len(ops) == 0 {
 			continue
 		}
 
-		if !c.opController.ExceedContainerLimit(ops...) {
+		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.cluster.RemoveSuspectResource(res.Meta.ID())
+			c.cluster.RemoveSuspectShard(res.Meta.ID())
 		}
 	}
 }
@@ -226,7 +226,7 @@ func (c *coordinator) checkSuspectKeyRanges() {
 		return
 	}
 	limit := 1024
-	resources := c.cluster.ScanResources(group, keyRange[0], keyRange[1], limit)
+	resources := c.cluster.ScanShards(group, keyRange[0], keyRange[1], limit)
 	if len(resources) == 0 {
 		return
 	}
@@ -241,31 +241,31 @@ func (c *coordinator) checkSuspectKeyRanges() {
 	if lastRes.GetEndKey() != nil && bytes.Compare(lastRes.GetEndKey(), keyRange[1]) < 0 {
 		c.cluster.AddSuspectKeyRange(group, lastRes.GetEndKey(), keyRange[1])
 	}
-	c.cluster.AddSuspectResources(resourceIDList...)
+	c.cluster.AddSuspectShards(resourceIDList...)
 }
 
-func (c *coordinator) checkWaitingResources() {
-	items := c.checkers.GetWaitingResources()
+func (c *coordinator) checkWaitingShards() {
+	items := c.checkers.GetWaitingShards()
 	resourceWaitingListGauge.Set(float64(len(items)))
 	for _, item := range items {
 		id := item.Key
-		res := c.cluster.GetResource(id)
+		res := c.cluster.GetShard(id)
 		if res == nil {
 			// the resource could be recent split, continue to wait.
 			continue
 		}
 		if c.opController.GetOperator(id) != nil {
-			c.checkers.RemoveWaitingResource(id)
+			c.checkers.RemoveWaitingShard(id)
 			continue
 		}
-		ops := c.checkers.CheckResource(res)
+		ops := c.checkers.CheckShard(res)
 		if len(ops) == 0 {
 			continue
 		}
 
-		if !c.opController.ExceedContainerLimit(ops...) {
+		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.checkers.RemoveWaitingResource(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.ID())
 		}
 	}
 }
@@ -425,7 +425,7 @@ func (c *coordinator) run() {
 
 	c.wg.Add(2)
 	// Starts to patrol resources.
-	go c.patrolResources()
+	go c.patrolShards()
 	go c.drivePushOperator()
 }
 
@@ -436,16 +436,16 @@ func (c *coordinator) stop() {
 // Hack to retrieve info from scheduler.
 // TODO: remove it.
 type hasHotStatus interface {
-	GetHotReadStatus() *statistics.ContainerHotPeersInfos
-	GetHotWriteStatus() *statistics.ContainerHotPeersInfos
+	GetHotReadStatus() *statistics.StoreHotPeersInfos
+	GetHotWriteStatus() *statistics.StoreHotPeersInfos
 	GetWritePendingInfluence() map[uint64]schedulers.Influence
 	GetReadPendingInfluence() map[uint64]schedulers.Influence
 }
 
-func (c *coordinator) getHotWriteResources() *statistics.ContainerHotPeersInfos {
+func (c *coordinator) getHotWriteShards() *statistics.StoreHotPeersInfos {
 	c.RLock()
 	defer c.RUnlock()
-	s, ok := c.schedulers[schedulers.HotResourceName]
+	s, ok := c.schedulers[schedulers.HotShardName]
 	if !ok {
 		return nil
 	}
@@ -455,10 +455,10 @@ func (c *coordinator) getHotWriteResources() *statistics.ContainerHotPeersInfos 
 	return nil
 }
 
-func (c *coordinator) getHotReadResources() *statistics.ContainerHotPeersInfos {
+func (c *coordinator) getHotReadShards() *statistics.StoreHotPeersInfos {
 	c.RLock()
 	defer c.RUnlock()
-	s, ok := c.schedulers[schedulers.HotResourceName]
+	s, ok := c.schedulers[schedulers.HotShardName]
 	if !ok {
 		return nil
 	}
@@ -509,13 +509,13 @@ func (c *coordinator) resetSchedulerMetrics() {
 func (c *coordinator) collectHotSpotMetrics() {
 	c.RLock()
 	// Collects hot write resource metrics.
-	s, ok := c.schedulers[schedulers.HotResourceName]
+	s, ok := c.schedulers[schedulers.HotShardName]
 	if !ok {
 		c.RUnlock()
 		return
 	}
 	c.RUnlock()
-	containers := c.cluster.GetContainers()
+	containers := c.cluster.GetStores()
 	status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
 	pendings := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
 	for _, s := range containers {

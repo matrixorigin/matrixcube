@@ -20,7 +20,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (
@@ -39,19 +39,19 @@ type containerStatistics struct {
 	LowSpace        int
 	StorageSize     uint64
 	StorageCapacity uint64
-	ResourceCount   int
+	ShardCount      int
 	LeaderCount     int
 	LabelCounter    map[string]int
 }
 
-func newContainerStatistics(opt *config.PersistOptions) *containerStatistics {
+func newStoreStatistics(opt *config.PersistOptions) *containerStatistics {
 	return &containerStatistics{
 		opt:          opt,
 		LabelCounter: make(map[string]int),
 	}
 }
 
-func (s *containerStatistics) Observe(container *core.CachedContainer, stats *ContainersStats) {
+func (s *containerStatistics) Observe(container *core.CachedStore, stats *StoresStats) {
 	for _, k := range s.opt.GetLocationLabels() {
 		v := container.GetLabelValue(k)
 		if v == "" {
@@ -59,16 +59,16 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 		}
 		key := fmt.Sprintf("%s:%s", k, v)
 		// exclude tombstone
-		if container.GetState() != metapb.ContainerState_Tombstone {
+		if container.GetState() != metapb.StoreState_StoreTombstone {
 			s.LabelCounter[key]++
 		}
 	}
 	containerAddress := container.Meta.Addr()
 	id := strconv.FormatUint(container.Meta.ID(), 10)
-	// Container state.
+	// Store state.
 	switch container.GetState() {
-	case metapb.ContainerState_UP:
-		if container.DownTime() >= s.opt.GetMaxContainerDownTime() {
+	case metapb.StoreState_UP:
+		if container.DownTime() >= s.opt.GetMaxStoreDownTime() {
 			s.Down++
 		} else if container.IsUnhealthy() {
 			s.Unhealthy++
@@ -77,26 +77,26 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 		} else {
 			s.Up++
 		}
-	case metapb.ContainerState_Offline:
+	case metapb.StoreState_Offline:
 		s.Offline++
-	case metapb.ContainerState_Tombstone:
+	case metapb.StoreState_StoreTombstone:
 		s.Tombstone++
-		s.resetContainerStatistics(containerAddress, id)
+		s.resetStoreStatistics(containerAddress, id)
 		return
 	}
 	if container.IsLowSpace(s.opt.GetLowSpaceRatio()) {
 		s.LowSpace++
 	}
 
-	// Container stats.
+	// Store stats.
 	s.StorageSize += container.StorageSize()
 	s.StorageCapacity += container.GetCapacity()
 
 	var resSize, resCount, leaderSize, leaderCount float64
-	s.ResourceCount += container.GetTotalResourceCount()
+	s.ShardCount += container.GetTotalShardCount()
 	s.LeaderCount += container.GetTotalLeaderCount()
-	resSize += float64(container.GetTotalResourceSize())
-	resCount += float64(container.GetTotalResourceCount())
+	resSize += float64(container.GetTotalShardSize())
+	resCount += float64(container.GetTotalShardCount())
 	leaderSize += float64(container.GetTotalLeaderSize())
 	leaderCount += float64(container.GetTotalLeaderCount())
 
@@ -110,23 +110,23 @@ func (s *containerStatistics) Observe(container *core.CachedContainer, stats *Co
 	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_size").Set(leaderSize)
 	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_count").Set(leaderCount)
 
-	// Container flows.
-	containerFlowStats := stats.GetRollingContainerStats(container.Meta.ID())
+	// Store flows.
+	containerFlowStats := stats.GetRollingStoreStats(container.Meta.ID())
 	if containerFlowStats == nil {
 		return
 	}
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes").Set(containerFlowStats.GetLoad(ContainerWriteBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes").Set(containerFlowStats.GetLoad(ContainerReadBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys").Set(containerFlowStats.GetLoad(ContainerWriteKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys").Set(containerFlowStats.GetLoad(ContainerReadKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_cpu_usage").Set(containerFlowStats.GetLoad(ContainerCPUUsage))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_read_rate").Set(containerFlowStats.GetLoad(ContainerDiskReadRate))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_write_rate").Set(containerFlowStats.GetLoad(ContainerDiskWriteRate))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes").Set(containerFlowStats.GetLoad(StoreWriteBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes").Set(containerFlowStats.GetLoad(StoreReadBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys").Set(containerFlowStats.GetLoad(StoreWriteKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys").Set(containerFlowStats.GetLoad(StoreReadKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_cpu_usage").Set(containerFlowStats.GetLoad(StoreCPUUsage))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_read_rate").Set(containerFlowStats.GetLoad(StoreDiskReadRate))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_disk_write_rate").Set(containerFlowStats.GetLoad(StoreDiskWriteRate))
 
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(ContainerWriteBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(ContainerReadBytes))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(ContainerWriteKeys))
-	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(ContainerReadKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_bytes_instant").Set(containerFlowStats.GetInstantLoad(StoreReadBytes))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_write_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreWriteKeys))
+	containerStatusGauge.WithLabelValues(containerAddress, id, "container_read_rate_keys_instant").Set(containerFlowStats.GetInstantLoad(StoreReadKeys))
 }
 
 func (s *containerStatistics) Collect() {
@@ -138,7 +138,7 @@ func (s *containerStatistics) Collect() {
 	metrics["container_offline_count"] = float64(s.Offline)
 	metrics["container_tombstone_count"] = float64(s.Tombstone)
 	metrics["container_low_space_count"] = float64(s.LowSpace)
-	metrics["resource_count"] = float64(s.ResourceCount)
+	metrics["resource_count"] = float64(s.ShardCount)
 	metrics["leader_count"] = float64(s.LeaderCount)
 	metrics["storage_size"] = float64(s.StorageSize)
 	metrics["storage_capacity"] = float64(s.StorageCapacity)
@@ -150,19 +150,19 @@ func (s *containerStatistics) Collect() {
 	// Current scheduling configurations of the cluster
 	configs := make(map[string]float64)
 	configs["leader-schedule-limit"] = float64(s.opt.GetLeaderScheduleLimit())
-	configs["resource-schedule-limit"] = float64(s.opt.GetResourceScheduleLimit())
+	configs["resource-schedule-limit"] = float64(s.opt.GetShardScheduleLimit())
 	configs["merge-schedule-limit"] = float64(s.opt.GetMergeScheduleLimit())
 	configs["replica-schedule-limit"] = float64(s.opt.GetReplicaScheduleLimit())
 	configs["max-replicas"] = float64(s.opt.GetMaxReplicas())
 	configs["high-space-ratio"] = s.opt.GetHighSpaceRatio()
 	configs["low-space-ratio"] = s.opt.GetLowSpaceRatio()
 	configs["tolerant-size-ratio"] = s.opt.GetTolerantSizeRatio()
-	configs["hot-resource-schedule-limit"] = float64(s.opt.GetHotResourceScheduleLimit())
-	configs["hot-resource-cache-hits-threshold"] = float64(s.opt.GetHotResourceCacheHitsThreshold())
+	configs["hot-resource-schedule-limit"] = float64(s.opt.GetHotShardScheduleLimit())
+	configs["hot-resource-cache-hits-threshold"] = float64(s.opt.GetHotShardCacheHitsThreshold())
 	configs["max-pending-peer-count"] = float64(s.opt.GetMaxPendingPeerCount())
 	configs["max-snapshot-count"] = float64(s.opt.GetMaxSnapshotCount())
-	configs["max-merge-resource-size"] = float64(s.opt.GetMaxMergeResourceSize())
-	configs["max-merge-resource-keys"] = float64(s.opt.GetMaxMergeResourceKeys())
+	configs["max-merge-resource-size"] = float64(s.opt.GetMaxMergeShardSize())
+	configs["max-merge-resource-keys"] = float64(s.opt.GetMaxMergeShardKeys())
 
 	var enableMakeUpReplica, enableRemoveDownReplica, enableRemoveExtraReplica, enableReplaceOfflineReplica float64
 	if s.opt.IsMakeUpReplicaEnabled() {
@@ -192,7 +192,7 @@ func (s *containerStatistics) Collect() {
 	}
 }
 
-func (s *containerStatistics) resetContainerStatistics(containerAddress string, id string) {
+func (s *containerStatistics) resetStoreStatistics(containerAddress string, id string) {
 	metrics := []string{
 		"resource_score",
 		"leader_score",
@@ -218,15 +218,15 @@ type containerStatisticsMap struct {
 	stats *containerStatistics
 }
 
-// NewContainerStatisticsMap create a container statistics map
-func NewContainerStatisticsMap(opt *config.PersistOptions) *containerStatisticsMap {
+// NewStoreStatisticsMap create a container statistics map
+func NewStoreStatisticsMap(opt *config.PersistOptions) *containerStatisticsMap {
 	return &containerStatisticsMap{
 		opt:   opt,
-		stats: newContainerStatistics(opt),
+		stats: newStoreStatistics(opt),
 	}
 }
 
-func (m *containerStatisticsMap) Observe(container *core.CachedContainer, stats *ContainersStats) {
+func (m *containerStatisticsMap) Observe(container *core.CachedStore, stats *StoresStats) {
 	m.stats.Observe(container, stats)
 }
 

@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/etcd/raft/v3"
@@ -280,7 +280,7 @@ func TestSplitWithCase4(t *testing.T) {
 	assert.NoError(t, kv.Set("k2", "v2", testWaitTimeout))
 	c.WaitShardByCounts([]int{3, 3, 1}, testWaitTimeout)
 
-	c.WaitShardStateChangedTo(sid, metapb.ResourceState_Destroying, testWaitTimeout)
+	c.WaitShardStateChangedTo(sid, metapb.ShardState_Destroying, testWaitTimeout)
 
 	c.RestartWithFunc(func() {
 		c.StopNetworkPartition()
@@ -333,7 +333,7 @@ func TestSplitWithApplySnapshotAndStartDestroyByStateCheck(t *testing.T) {
 		if pr != nil {
 			idx, _ := pr.sm.getAppliedIndexTerm()
 			pr.sm.dataStorage.Sync([]uint64{sid})
-			pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+			pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
 				CompactIndex: idx,
 			})
 
@@ -431,23 +431,23 @@ func checkSplitWithStore(t *testing.T, c TestRaftCluster, index int, parentShard
 func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaCount int) {
 	pd := c.GetStore(0).Prophet()
 	if pd.GetMember().IsLeader() {
-		v, err := pd.GetStorage().GetResource(sid)
+		v, err := pd.GetStorage().GetShard(sid)
 		assert.NoError(t, err)
 		if v != nil {
-			assert.Equal(t, metapb.ResourceState_Destroyed, v.State())
+			assert.Equal(t, metapb.ShardState_Destroyed, v.State())
 			assert.True(t, len(v.Peers()) <= replicaCount) // maybe some replica removed by conf change
 		}
 
 		bc := pd.GetBasicCluster()
 		bc.RLock()
-		res := bc.Resources.GetResource(sid)
+		res := bc.Shards.GetShard(sid)
 		assert.Nil(t, res)
 
-		res = bc.Resources.SearchResource(0, []byte("k1"))
+		res = bc.Shards.SearchShard(0, []byte("k1"))
 		assert.NotNil(t, res)
 		assert.NotEqual(t, sid, res.Meta.ID())
 
-		res = bc.Resources.SearchResource(0, []byte("k3"))
+		res = bc.Shards.SearchShard(0, []byte("k3"))
 		assert.NotNil(t, res)
 		assert.NotEqual(t, sid, res.Meta.ID())
 		bc.RUnlock()

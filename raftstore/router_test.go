@@ -18,8 +18,8 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,13 +33,13 @@ func TestHandleInitEvent(t *testing.T) {
 	r := rr.(*defaultRouter)
 
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
-	store := meta.Store{ID: 101}
+	store := metapb.Store{ID: 101}
 	e := rpcpb.EventNotify{}
 	e.Type = event.EventInit
 	e.InitEvent = &rpcpb.InitEventData{
-		Resources:  [][]byte{protoc.MustMarshal(&shard)},
-		Containers: [][]byte{protoc.MustMarshal(&store)},
-		Leaders:    []uint64{100},
+		Shards:  [][]byte{protoc.MustMarshal(&shard)},
+		Stores:  [][]byte{protoc.MustMarshal(&store)},
+		Leaders: []uint64{100},
 	}
 	r.handleEvent(e)
 
@@ -51,7 +51,7 @@ func TestHandleInitEvent(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestHandleResourceEvent(t *testing.T) {
+func TestHandleShardEvent(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	b := NewTestDataBuilder()
@@ -62,8 +62,8 @@ func TestHandleResourceEvent(t *testing.T) {
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventResource
-	e.ResourceEvent = &rpcpb.ResourceEventData{
+	e.Type = event.EventShard
+	e.ShardEvent = &rpcpb.ShardEventData{
 		Data: protoc.MustMarshal(&shard),
 	}
 	r.handleEvent(e)
@@ -75,7 +75,7 @@ func TestHandleResourceEvent(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestHandleResourceEventWithLeader(t *testing.T) {
+func TestHandleShardEventWithLeader(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	b := NewTestDataBuilder()
@@ -84,17 +84,17 @@ func TestHandleResourceEventWithLeader(t *testing.T) {
 	r := rr.(*defaultRouter)
 
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
-	store := meta.Store{ID: 101}
+	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventContainer
-	e.ContainerEvent = &rpcpb.ContainerEventData{
+	e.Type = event.EventStore
+	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}
 	r.handleEvent(e)
 
-	e.Type = event.EventResource
-	e.ResourceEvent = &rpcpb.ResourceEventData{
+	e.Type = event.EventShard
+	e.ShardEvent = &rpcpb.ShardEventData{
 		Data:   protoc.MustMarshal(&shard),
 		Leader: 100,
 	}
@@ -108,7 +108,7 @@ func TestHandleResourceEventWithLeader(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestHandleResourceEventWithMissingLeaderStore(t *testing.T) {
+func TestHandleShardEventWithMissingLeaderStore(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	b := NewTestDataBuilder()
@@ -117,11 +117,11 @@ func TestHandleResourceEventWithMissingLeaderStore(t *testing.T) {
 	r := rr.(*defaultRouter)
 
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
-	store := meta.Store{ID: 101}
+	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventResource
-	e.ResourceEvent = &rpcpb.ResourceEventData{
+	e.Type = event.EventShard
+	e.ShardEvent = &rpcpb.ShardEventData{
 		Data:   protoc.MustMarshal(&shard),
 		Leader: 100,
 	}
@@ -129,11 +129,11 @@ func TestHandleResourceEventWithMissingLeaderStore(t *testing.T) {
 
 	assert.Equal(t, shard, r.mu.shards[shard.ID])
 	assert.Equal(t, shard, r.mu.keyRanges[0].Search(shard.Start))
-	assert.Equal(t, meta.Store{}, r.mu.leaders[shard.ID])
-	assert.Equal(t, Replica{ID: 100, ContainerID: 101}, r.mu.missingLeaderStoreShards[shard.ID])
+	assert.Equal(t, metapb.Store{}, r.mu.leaders[shard.ID])
+	assert.Equal(t, Replica{ID: 100, StoreID: 101}, r.mu.missingLeaderStoreShards[shard.ID])
 
-	e.Type = event.EventContainer
-	e.ContainerEvent = &rpcpb.ContainerEventData{
+	e.Type = event.EventStore
+	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}
 	r.handleEvent(e)
@@ -150,11 +150,11 @@ func TestHandleStoreEvent(t *testing.T) {
 	rr, err := newRouterBuilder().build(make(chan rpcpb.EventNotify))
 	assert.NoError(t, err)
 	r := rr.(*defaultRouter)
-	store := meta.Store{ID: 101}
+	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventContainer
-	e.ContainerEvent = &rpcpb.ContainerEventData{
+	e.Type = event.EventStore
+	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}
 	r.handleEvent(e)
@@ -171,7 +171,7 @@ func TestSelectShard(t *testing.T) {
 		key             []byte
 		leaderReplicaID uint64
 		shard           Shard
-		store           meta.Store
+		store           metapb.Store
 		expectID        uint64
 		expectAddr      string
 	}{
@@ -179,7 +179,7 @@ func TestSelectShard(t *testing.T) {
 			key:             b.CreateShard(1, "100/101,200/201,300/301").Start,
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
-			store:           meta.Store{ID: 101, ClientAddr: "101"},
+			store:           metapb.Store{ID: 101, ClientAddr: "101"},
 			expectID:        1,
 			expectAddr:      "101",
 		},
@@ -187,7 +187,7 @@ func TestSelectShard(t *testing.T) {
 			key:             b.CreateShard(2, "").Start,
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
-			store:           meta.Store{ID: 101, ClientAddr: "101"},
+			store:           metapb.Store{ID: 101, ClientAddr: "101"},
 			expectID:        0,
 			expectAddr:      "",
 		},
@@ -195,7 +195,7 @@ func TestSelectShard(t *testing.T) {
 			key:             b.CreateShard(1, "").Start,
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
-			store:           meta.Store{ID: 102, ClientAddr: "102"},
+			store:           metapb.Store{ID: 102, ClientAddr: "102"},
 			expectID:        1,
 			expectAddr:      "",
 		},

@@ -29,12 +29,12 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/join"
 	"github.com/matrixorigin/matrixcube/components/prophet/member"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
@@ -182,11 +182,11 @@ func (p *defaultProphet) Start() {
 		p.cfg.Prophet.Adapter)
 	p.logger.Info("storage created")
 
-	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewResource, p.logger)
+	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewShard, p.logger)
 	p.logger.Info("basic cluster created")
 
 	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
-		p.cfg.Prophet.ResourceStateChangedHandler, p.logger)
+		p.cfg.Prophet.ShardStateChangedHandler, p.logger)
 	p.logger.Info("raft cluster created")
 
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)

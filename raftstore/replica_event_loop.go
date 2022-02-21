@@ -24,11 +24,10 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 )
@@ -81,13 +80,13 @@ const (
 	checkPendingReadsAction
 )
 
-func (pr *replica) addAdminRequest(adminType rpc.AdminCmdType, request protoc.PB) {
+func (pr *replica) addAdminRequest(adminType rpcpb.AdminCmdType, request protoc.PB) {
 	shard := pr.getShard()
-	pr.addRequest(newReqCtx(rpc.Request{
+	pr.addRequest(newReqCtx(rpcpb.Request{
 		ID:         uuid.NewV4().Bytes(),
 		Group:      shard.Group,
 		ToShard:    shard.ID,
-		Type:       rpc.CmdType_Admin,
+		Type:       rpcpb.Admin,
 		CustomType: uint64(adminType),
 		Epoch:      shard.Epoch,
 		Cmd:        protoc.MustMarshal(request),
@@ -111,7 +110,7 @@ func (pr *replica) addAction(act action) {
 	pr.notifyWorker()
 }
 
-func (pr *replica) addMessage(msg meta.RaftMessage) {
+func (pr *replica) addMessage(msg metapb.RaftMessage) {
 	if err := pr.messages.Put(msg); err != nil {
 		pr.logger.Info("raft step stopped")
 		return
@@ -352,7 +351,7 @@ func (pr *replica) handleMessage(items []interface{}) bool {
 		return false
 	}
 	for i := int64(0); i < n; i++ {
-		raftMsg := items[i].(meta.RaftMessage)
+		raftMsg := items[i].(metapb.RaftMessage)
 		msg := raftMsg.Message
 		pr.updateReplicasCommittedIndex(raftMsg)
 
@@ -374,7 +373,7 @@ func (pr *replica) handleMessage(items []interface{}) bool {
 	return true
 }
 
-func (pr *replica) updateReplicasCommittedIndex(msg meta.RaftMessage) {
+func (pr *replica) updateReplicasCommittedIndex(msg metapb.RaftMessage) {
 	pr.committedIndexes[msg.From.ID] = msg.CommitIndex
 }
 
@@ -454,18 +453,18 @@ func (pr *replica) prophetHeartbeat() {
 		return
 	}
 	shard := pr.getShard()
-	req := rpcpb.ResourceHeartbeatReq{
+	req := rpcpb.ShardHeartbeatReq{
 		Term:            pr.rn.BasicStatus().Term,
 		Leader:          &pr.replica,
-		ContainerID:     pr.storeID,
+		StoreID:         pr.storeID,
 		DownReplicas:    pr.collectDownReplicas(),
 		PendingReplicas: pr.collectPendingReplicas(),
 		Stats:           pr.stats.heartbeatState(),
 		GroupKey:        pr.groupController.getShardGroupKey(shard),
 	}
 	pr.logger.Debug("start send shard heartbeat")
-	resource := NewResourceAdapterWithShard(shard)
-	if err := pr.prophetClient.ResourceHeartbeat(resource, req); err != nil {
+	resource := NewShardAdapterWithShard(shard)
+	if err := pr.prophetClient.ShardHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))
 	}
@@ -539,7 +538,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	}
 	pr.logger.Info("requesting log compaction",
 		log.IndexField(compactIndex))
-	pr.addAdminRequest(rpc.AdminCmdType_CompactLog, &rpc.CompactLogRequest{
+	pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
 		CompactIndex: compactIndex,
 	})
 }
@@ -572,7 +571,7 @@ func (pr *replica) doLogCompaction(index uint64) error {
 	// this is a dummy snapshot meaning there is no on disk snapshot image.
 	// we are not supposed to apply such dummy snapshot. the dummy flag is
 	// used for debugging purposes.
-	si := meta.SnapshotInfo{
+	si := metapb.SnapshotInfo{
 		Dummy: true,
 	}
 	rd := raft.Ready{

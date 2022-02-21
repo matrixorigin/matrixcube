@@ -13,26 +13,24 @@
 
 package aware
 
-import (
-	"github.com/matrixorigin/matrixcube/pb/meta"
-)
+import "github.com/matrixorigin/matrixcube/pb/metapb"
 
 // ShardStateAware shard state aware
 type ShardStateAware interface {
 	// Created the shard was created on the current store
-	Created(meta.Shard)
+	Created(metapb.Shard)
 	// Updated the shard was updated on the current store
-	Updated(meta.Shard)
+	Updated(metapb.Shard)
 	// Splited the shard was splited on the current store
-	Splited(meta.Shard)
+	Splited(metapb.Shard)
 	// Destroyed the shard was destroyed on the current store
-	Destroyed(meta.Shard)
+	Destroyed(metapb.Shard)
 	// BecomeLeader the shard was become leader on the current store
-	BecomeLeader(meta.Shard)
+	BecomeLeader(metapb.Shard)
 	// BecomeLeader the shard was become follower on the current store
-	BecomeFollower(meta.Shard)
+	BecomeFollower(metapb.Shard)
 	// SnapshotApplied snapshot applied
-	SnapshotApplied(meta.Shard)
+	SnapshotApplied(metapb.Shard)
 }
 
 // TestShardStateAware just for test

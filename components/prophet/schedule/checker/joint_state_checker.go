@@ -35,7 +35,7 @@ func NewJointStateChecker(cluster opt.Cluster) *JointStateChecker {
 }
 
 // Check verifies a resource's role, creating an Operator if need.
-func (c *JointStateChecker) Check(res *core.CachedResource) *operator.Operator {
+func (c *JointStateChecker) Check(res *core.CachedShard) *operator.Operator {
 	checkerCounter.WithLabelValues("joint_state_checker", "check").Inc()
 	if !metadata.IsInJointState(res.Meta.Peers()...) {
 		return nil

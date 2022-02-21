@@ -18,7 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/util/buf"
 
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -84,7 +84,7 @@ func (ctx *writeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *writeContext) initialize(shard Shard, index uint64, batch rpc.RequestBatch) {
+func (ctx *writeContext) initialize(shard Shard, index uint64, batch rpcpb.RequestBatch) {
 	ctx.buf.Clear()
 	ctx.shard = shard
 	ctx.batch = storage.Batch{Index: index}

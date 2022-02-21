@@ -18,14 +18,14 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestContainerStats(t *testing.T) {
+func TestStoreStats(t *testing.T) {
 	G := uint64(1024 * 1024 * 1024)
-	meta := &metadata.TestContainer{CID: 1, CState: metapb.ContainerState_UP}
-	container := NewCachedContainer(meta, SetContainerStats(&metapb.ContainerStats{
+	meta := &metadata.TestStore{CID: 1, CState: metapb.StoreState_UP}
+	container := NewCachedStore(meta, SetStoreStats(&metapb.StoreStats{
 		Capacity:  200 * G,
 		UsedSize:  50 * G,
 		Available: 150 * G,
@@ -37,7 +37,7 @@ func TestContainerStats(t *testing.T) {
 	assert.Equal(t, 150*G, container.GetAvgAvailable())
 	assert.Equal(t, uint64(0), container.GetAvailableDeviation())
 
-	container = container.Clone(SetContainerStats(&metapb.ContainerStats{
+	container = container.Clone(SetStoreStats(&metapb.StoreStats{
 		Capacity:  200 * G,
 		UsedSize:  50 * G,
 		Available: 160 * G,

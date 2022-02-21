@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -29,16 +29,16 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		batch rpc.RequestBatch
+		batch rpcpb.RequestBatch
 	}{
 		{
-			batch: rpc.RequestBatch{Requests: newTestRPCRequests(1)},
+			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(1)},
 		},
 		{
-			batch: rpc.RequestBatch{Requests: newTestRPCRequests(2)},
+			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(2)},
 		},
 		{
-			batch: rpc.RequestBatch{Requests: newTestRPCRequests(3)},
+			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(3)},
 		},
 	}
 
@@ -63,10 +63,10 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	}
 }
 
-func newTestRPCRequests(n uint64) []rpc.Request {
-	var requests []rpc.Request
+func newTestRPCRequests(n uint64) []rpcpb.Request {
+	var requests []rpcpb.Request
 	for i := uint64(0); i < n; i++ {
-		requests = append(requests, rpc.Request{
+		requests = append(requests, rpcpb.Request{
 			ID:         []byte(fmt.Sprintf("%d", n)),
 			Key:        []byte(fmt.Sprintf("%d", n)),
 			CustomType: n,

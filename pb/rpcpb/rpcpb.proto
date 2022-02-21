@@ -1,7 +1,8 @@
 syntax = "proto3";
 package rpcpb;
 
-import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/errorpb/errorpb.proto";
+import "github.com/matrixorigin/matrixcube/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -11,15 +12,15 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 
 // Type rpc type
 enum Type {
-    TypeRegisterContainer     = 0;
-    TypeResourceHeartbeatReq  = 1;
-	TypeResourceHeartbeatRsp  = 2;
-	TypeContainerHeartbeatReq = 3;
-	TypeContainerHeartbeatRsp = 4;
-    TypePutContainerReq       = 5;
-	TypePutContainerRsp       = 6;
-	TypeGetContainerReq       = 7;
-	TypeGetContainerRsp       = 8;
+    TypeRegisterStore     = 0;
+    TypeShardHeartbeatReq  = 1;
+	TypeShardHeartbeatRsp  = 2;
+	TypeStoreHeartbeatReq = 3;
+	TypeStoreHeartbeatRsp = 4;
+    TypePutStoreReq       = 5;
+	TypePutStoreRsp       = 6;
+	TypeGetStoreReq       = 7;
+	TypeGetStoreRsp       = 8;
 	TypeAllocIDReq            = 9;
 	TypeAllocIDRsp            = 10;
     TypeAskBatchSplitReq      = 11;
@@ -32,12 +33,12 @@ enum Type {
 	TypeGetDestroyingRsp      = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
-    TypeCreateResourcesReq    = 21;
-    TypeCreateResourcesRsp    = 22;
-    TypeRemoveResourcesReq    = 23;
-    TypeRemoveResourcesRsp    = 24;
-    TypeCheckResourceStateReq = 25;
-    TypeCheckResourceStateRsp = 26;
+    TypeCreateShardsReq    = 21;
+    TypeCreateShardsRsp    = 22;
+    TypeRemoveShardsReq    = 23;
+    TypeRemoveShardsRsp    = 24;
+    TypeCheckShardStateReq = 25;
+    TypeCheckShardStateRsp = 26;
     TypePutPlacementRuleReq   = 27;
     TypePutPlacementRuleRsp   = 28;
     TypeGetAppliedRulesReq    = 29;
@@ -54,24 +55,24 @@ enum Type {
     TypeGetScheduleGroupRuleRsp  = 40;
 }
 
-// Request the prophet rpc request
-message Request {
+// ProphetRequest the prophet rpc request
+message ProphetRequest {
     uint64                id                 = 1  [(gogoproto.customname) = "ID"];
-    uint64                containerID        = 2;
+    uint64                storeID        = 2;
     Type                  type               = 3;
-    ResourceHeartbeatReq  resourceHeartbeat  = 4  [(gogoproto.nullable) = false]; 
-    ContainerHeartbeatReq containerHeartbeat = 5  [(gogoproto.nullable) = false]; 
-    PutContainerReq       putContainer       = 6  [(gogoproto.nullable) = false]; 
-    GetContainerReq       getContainer       = 7  [(gogoproto.nullable) = false];
+    ShardHeartbeatReq  shardHeartbeat  = 4  [(gogoproto.nullable) = false];
+    StoreHeartbeatReq storeHeartbeat = 5  [(gogoproto.nullable) = false];
+    PutStoreReq       putStore       = 6  [(gogoproto.nullable) = false];
+    GetStoreReq       getStore       = 7  [(gogoproto.nullable) = false];
     AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
     AskBatchSplitReq      askBatchSplit      = 9  [(gogoproto.nullable) = false];
     CreateDestroyingReq   createDestroying   = 10 [(gogoproto.nullable) = false];
     ReportDestroyedReq   ReportDestroyed   = 11 [(gogoproto.nullable) = false];
     GetDestroyingReq      getDestroying      = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
-    CreateResourcesReq    createResources    = 14 [(gogoproto.nullable) = false];
-    RemoveResourcesReq    removeResources    = 15 [(gogoproto.nullable) = false];
-    CheckResourceStateReq checkResourceState = 16 [(gogoproto.nullable) = false];
+    CreateShardsReq    createShards    = 14 [(gogoproto.nullable) = false];
+    RemoveShardsReq    removeShards    = 15 [(gogoproto.nullable) = false];
+    CheckShardStateReq checkShardState = 16 [(gogoproto.nullable) = false];
     PutPlacementRuleReq   putPlacementRule   = 17 [(gogoproto.nullable) = false];
     GetAppliedRulesReq    getAppliedRules    = 18 [(gogoproto.nullable) = false];
     CreateJobReq          createJob          = 19 [(gogoproto.nullable) = false];
@@ -81,25 +82,25 @@ message Request {
     GetScheduleGroupRuleReq         getScheduleGroupRule        = 23 [(gogoproto.nullable) = false];
 }
 
-// Response the prophet rpc response
-message Response {
+// ProphetResponse the prophet rpc response
+message ProphetResponse {
     uint64                id                 = 1  [(gogoproto.customname) = "ID"];
     Type                  type               = 2;
     string                error              = 3;
     string                leader             = 4;
-    ResourceHeartbeatRsp  resourceHeartbeat  = 5  [(gogoproto.nullable) = false]; 
-    ContainerHeartbeatRsp containerHeartbeat = 6  [(gogoproto.nullable) = false]; 
-    PutContainerRsp       putContainer       = 7  [(gogoproto.nullable) = false]; 
-    GetContainerRsp       getContainer       = 8  [(gogoproto.nullable) = false];
+    ShardHeartbeatRsp  shardHeartbeat  = 5  [(gogoproto.nullable) = false];
+    StoreHeartbeatRsp storeHeartbeat = 6  [(gogoproto.nullable) = false];
+    PutStoreRsp       putStore       = 7  [(gogoproto.nullable) = false];
+    GetStoreRsp       getStore       = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
     AskBatchSplitRsp      askBatchSplit      = 10 [(gogoproto.nullable) = false];
     CreateDestroyingRsp   createDestroying   = 11 [(gogoproto.nullable) = false];
     ReportDestroyedRsp   ReportDestroyed   = 12 [(gogoproto.nullable) = false];
     GetDestroyingRsp      getDestroying      = 13 [(gogoproto.nullable) = false];
     EventNotify           event              = 14 [(gogoproto.nullable) = false];
-    CreateResourcesRsp    createResources    = 15 [(gogoproto.nullable) = false];
-    RemoveResourcesRsp    removeResources    = 16 [(gogoproto.nullable) = false];
-    CheckResourceStateRsp checkResourceState = 17 [(gogoproto.nullable) = false];
+    CreateShardsRsp    createShards    = 15 [(gogoproto.nullable) = false];
+    RemoveShardsRsp    removeShards    = 16 [(gogoproto.nullable) = false];
+    CheckShardStateRsp checkShardState = 17 [(gogoproto.nullable) = false];
     PutPlacementRuleRsp   putPlacementRule   = 18 [(gogoproto.nullable) = false];
     GetAppliedRulesRsp    getAppliedRules    = 19 [(gogoproto.nullable) = false];
     CreateJobRsp          createJob          = 20 [(gogoproto.nullable) = false];
@@ -109,33 +110,33 @@ message Response {
     GetScheduleGroupRuleRsp         getScheduleGroupRule        = 24 [(gogoproto.nullable) = false];
 }
 
-// ResourceHeartbeatReq resource heartbeat request
-message ResourceHeartbeatReq {
-             uint64               containerID     = 1;
-             bytes                resource        = 2;
+// ShardHeartbeatReq shard heartbeat request
+message ShardHeartbeatReq {
+             uint64               storeID     = 1;
+             bytes                shard        = 2;
              // Term is the term of raft group.
              uint64               term            = 3;
              metapb.Replica          leader          = 4;
     repeated metapb.ReplicaStats     downReplicas       = 5 [(gogoproto.nullable) = false];
     repeated metapb.Replica          pendingReplicas    = 6 [(gogoproto.nullable) = false];
-             metapb.ResourceStats stats           = 7 [(gogoproto.nullable) = false];
+             metapb.ShardStats stats           = 7 [(gogoproto.nullable) = false];
              string               groupKey        = 8;
 }
    
-// ResourceHeartbeatRsp resource heartbeat response.
-message ResourceHeartbeatRsp {
-    uint64               resourceID      = 1;
-    metapb.ResourceEpoch resourceEpoch   = 2 [(gogoproto.nullable) = false];
-    // Leader of the resource at the moment of the corresponding request was made.
+// ShardHeartbeatRsp shard heartbeat response.
+message ShardHeartbeatRsp {
+    uint64               shardID      = 1;
+    metapb.ShardEpoch shardEpoch   = 2 [(gogoproto.nullable) = false];
+    // Leader of the shard at the moment of the corresponding request was made.
     metapb.Replica         targetReplica      = 3;
     // Notice, prophet only allows handling reported epoch >= current prophet's.
-    // Leader peer reports resource status with ResourceHeartbeatReq
-    // to prophet regularly, prophet will determine whether this resource
+    // Leader peer reports shard status with ShardHeartbeatReq
+    // to prophet regularly, prophet will determine whether this shard
     // should do ChangePeer or not.
-    // E,g, max peer number is 3, resource A, first only peer 1 in A.
-    // 1. prophet resource state -> Peers (1), ConfVer (1).
-    // 2. Leader peer 1 reports resource state to prophet, prophet finds the
-    // peer number is < 3, so first changes its current resource
+    // E,g, max peer number is 3, shard A, first only peer 1 in A.
+    // 1. prophet shard state -> Peers (1), ConfVer (1).
+    // 2. Leader peer 1 reports shard state to prophet, prophet finds the
+    // peer number is < 3, so first changes its current shard
     // state -> Peers (1, 2), ConfVer (1), and returns ChangePeer Adding 2.
     // 3. Leader does ChangePeer, then reports Peers (1, 2), ConfVer (2),
     // prophet updates its state -> Peers (1, 2), ConfVer (2).
@@ -145,42 +146,42 @@ message ResourceHeartbeatRsp {
     ConfigChange           configChange     = 4;
     TransferLeader       transferLeader  = 5;
     Merge                merge           = 6;
-    SplitResource        splitResource   = 7;
+    SplitShard        splitShard   = 7;
     ConfigChangeV2         configChangeV2    = 8;
-    // DestroyDirectly the resource has been removed, destroy directly without raft.
+    // DestroyDirectly the shard has been removed, destroy directly without raft.
     bool                 destroyDirectly = 9;
 }
 
-// PutContainerReq put container request
-message PutContainerReq {
-    bytes container = 1;        
+// PutStoreReq put store request
+message PutStoreReq {
+    bytes store = 1;
 }
 
-// PutContainerRsp put container response
-message PutContainerRsp {
-    bytes destroyResources = 1;
+// PutStoreRsp put store response
+message PutStoreRsp {
+    bytes destroyShards = 1;
 }
 
-// ContainerHeartbeatReq container heartbeat request
-message ContainerHeartbeatReq {
-    metapb.ContainerStats stats = 1 [(gogoproto.nullable) = false];  
+// StoreHeartbeatReq store heartbeat request
+message StoreHeartbeatReq {
+    metapb.StoreStats stats = 1 [(gogoproto.nullable) = false];
     bytes                 data  = 2;      
 }
 
-// ContainerHeartbeatRsp container heartbeat response
-message ContainerHeartbeatRsp {
+// StoreHeartbeatRsp store heartbeat response
+message StoreHeartbeatRsp {
     bytes                 data  = 1;
 }
 
-// GetContainerReq get container request
-message GetContainerReq {
+// GetStoreReq get store request
+message GetStoreReq {
     uint64 id = 1 [(gogoproto.customname) = "ID"];
 }
 
-// GetContainerRsp get container response
-message GetContainerRsp {
+// GetStoreRsp get store response
+message GetStoreRsp {
     bytes                 data  = 1;
-    metapb.ContainerStats stats = 2;
+    metapb.StoreStats stats = 2;
 }
 
 // AllocIDReq alloc id request
@@ -214,7 +215,7 @@ message CreateDestroyingReq {
 
 // CreateDestroyingRsp create destroying status response
 message CreateDestroyingRsp {
-    metapb.ResourceState state = 1;
+    metapb.ShardState state = 1;
 }
 
 // GetDestroyingReq get destroying status request
@@ -235,7 +236,7 @@ message ReportDestroyedReq {
 
 // ReportDestroyedRsp report destroying rsp
 message ReportDestroyedRsp {
-    metapb.ResourceState state = 1;
+    metapb.ShardState state = 1;
 }
 
 // SplitID split id
@@ -249,32 +250,32 @@ message CreateWatcherReq {
     uint32 flag = 1;
 }
 
-// CreateResourcesReq create resources req
-message CreateResourcesReq {
-    repeated bytes  resources   = 1;
+// CreateShardsReq create shards req
+message CreateShardsReq {
+    repeated bytes  shards   = 1;
     repeated uint64 leastReplicas  = 2;
 }
 
-// CreateResourcesRsp create resources rsp
-message CreateResourcesRsp {
+// CreateShardsRsp create shards rsp
+message CreateShardsRsp {
 }
 
-// RemoveResourcesReq remove resources req
-message RemoveResourcesReq {
+// RemoveShardsReq remove shards req
+message RemoveShardsReq {
     repeated uint64 ids = 1 [(gogoproto.customname) = "IDs"];
 }
 
-// RemoveResourcesRsp remove resources rsp
-message RemoveResourcesRsp {
+// RemoveShardsRsp remove shards rsp
+message RemoveShardsRsp {
 }
 
-// CheckResourceStateReq check resource state req
-message CheckResourceStateReq {
+// CheckShardStateReq check shard state req
+message CheckShardStateReq {
     bytes ids = 1 [(gogoproto.customname) = "IDs"];
 }
 
-// CheckResourceStateReq check resource state rsp
-message CheckResourceStateRsp {
+// CheckShardStateReq check shard state rsp
+message CheckShardStateRsp {
     bytes destroyed  = 1;
     bytes destroying  = 2;
 }
@@ -290,7 +291,7 @@ message PutPlacementRuleRsp {
 
 // GetAppliedRulesReq get applied rules req
 message GetAppliedRulesReq {
-    uint64 resourceID = 1;
+    uint64 shardID = 1;
 }
 
 // GetAppliedRulesRsp get applied rules rsp
@@ -350,29 +351,29 @@ message EventNotify {
     uint64                 seq                 = 1;
     uint32                 type                = 2;
     InitEventData          initEvent           = 3;
-    ResourceEventData      resourceEvent       = 4;
-    ContainerEventData     containerEvent      = 5;
-    metapb.ResourceStats   resourceStatsEvent  = 6;
-    metapb.ContainerStats  containerStatsEvent = 7;
+    ShardEventData      shardEvent       = 4;
+    StoreEventData     storeEvent      = 5;
+    metapb.ShardStats   shardStatsEvent  = 6;
+    metapb.StoreStats  storeStatsEvent = 7;
 }
 
 // InitEventData init event data
 message InitEventData {
-    repeated bytes  resources  = 1;
+    repeated bytes  shards  = 1;
     repeated uint64 leaders    = 2;
-    repeated bytes  containers = 3;
+    repeated bytes  stores = 3;
 }
 
-// ResourceEventData resource created or updated
-message ResourceEventData {
+// ShardEventData shard created or updated
+message ShardEventData {
     bytes  data    = 1;
     uint64 leader  = 2;
     bool   removed = 3;
     bool   create  = 4;
 }
 
-// ContainerEventData container created or updated
-message ContainerEventData {
+// StoreEventData store created or updated
+message StoreEventData {
     bytes data = 1;
 }
 
@@ -395,12 +396,12 @@ message ConfigChangeV2 {
 
 // Merge merge
 message Merge {
-    // target resource
+    // target shard
     bytes target = 1;
 }
 
-// SplitResource split resource
-message SplitResource {
+// SplitShard split shard
+message SplitShard {
     metapb.CheckPolicy policy = 1;
     repeated bytes     keys   = 2;
 }
@@ -417,20 +418,20 @@ enum ReplicaRoleType {
     Learner  = 3;
 }
 
-// LabelConstraintOp defines how a LabelConstraint matches a container. It can be one of
+// LabelConstraintOp defines how a LabelConstraint matches a store. It can be one of
 // 'in', 'notIn', 'exists', or 'notExists'.
 enum LabelConstraintOp {
     // In If label does not exist, `in` is always false.
     In        = 0;
-    // NotIn restricts the container label value should not in the value list.
+    // NotIn restricts the store label value should not in the value list.
     NotIn     = 1;
-    // Exists restricts the container should have the label.
+    // Exists restricts the store should have the label.
     Exists    = 2;
-    // NotExists restricts the container should not have the label.
+    // NotExists restricts the store should not have the label.
     NotExists = 3;
 }
 
-// LabelConstraint is used to filter container when trying to place peer of a resource.
+// LabelConstraint is used to filter store when trying to place peer of a shard.
 message LabelConstraint {
     string            key    = 1;
     LabelConstraintOp op     = 2;
@@ -453,10 +454,165 @@ message PlacementRule {
     ReplicaRoleType role     = 7;
     // Count expected count of the peers
     uint32       count    = 8;
-    // LabelConstraints used to select containers to place peers
+    // LabelConstraints used to select stores to place peers
     repeated LabelConstraint labelConstraints = 9 [(gogoproto.nullable) = false];
     // LocationLabels used to make peers isolated physically
     repeated string          locationLabels   = 10;
     // IsolationLevelused to isolate replicas explicitly and forcibly
     string                   isolationLevel   = 11;
+}
+
+enum CmdType {
+    Write  = 0;
+    Read   = 1;
+    Admin  = 2;
+}
+
+// AdminCmdType admin cmd type
+enum AdminCmdType {
+    AdminConfigChange   = 0;
+    AdminCompactLog     = 1;
+    AdminTransferLeader = 2;
+    AdminComputeHash    = 3;
+    AdminVerifyHash     = 4;
+    AdminBatchSplit     = 5;
+    AdminUpdateMetadata = 6;
+    AdminUpdateLabels   = 7;
+}
+
+// RequestHeader raft request header, it contains the shard's metadata
+message RequestBatchHeader {
+    bytes                id               = 1 [(gogoproto.customname) = "ID"];
+    uint64               shardID          = 2;
+    metapb.Replica       replica          = 3 [(gogoproto.nullable) = false];
+}
+
+message ResponseBatchHeader {
+    bytes         id          = 1 [(gogoproto.customname) = "ID"];
+    errorpb.Error error       = 2 [(gogoproto.nullable) = false];
+}
+
+// RequestBatch we can't include both normal requests and administrator request
+// at same time.
+message RequestBatch {
+    RequestBatchHeader header       = 1 [(gogoproto.nullable) = false];
+    repeated Request   requests     = 2 [(gogoproto.nullable) = false];
+}
+
+// ResponseBatch response batch
+message ResponseBatch {
+    ResponseBatchHeader header        = 1 [(gogoproto.nullable) = false];
+    repeated Response   responses     = 2 [(gogoproto.nullable) = false];
+}
+
+// Request request
+message Request {
+    bytes   id                 = 1 [(gogoproto.customname) = "ID"];
+    uint64  group              = 2;
+    CmdType type               = 3;
+    uint64  customType         = 4;
+    bytes   key                = 5;
+    bytes   cmd                = 6;
+    int64   pid                = 7 [(gogoproto.customname) = "PID"];
+    int64   stopAt             = 8;
+    uint64  toShard            = 9;
+    bool    ignoreEpochCheck   = 10;
+    metapb.ShardEpoch epoch = 11 [(gogoproto.nullable) = false];
+}
+
+// Response response
+message Response {
+    bytes         id                = 1 [(gogoproto.customname) = "ID"];
+    CmdType       type              = 2;
+    uint64        customType        = 3;
+    bytes         value             = 4;
+    int64         pid               = 5 [(gogoproto.customname) = "PID"];
+    errorpb.Error error             = 6 [(gogoproto.nullable) = false];
+}
+
+message ConfigChangeRequest {
+    // This can be only called in internal RaftStore now.
+    metapb.ConfigChangeType changeType = 1;
+    metapb.Replica replica = 2 [(gogoproto.nullable) = false];
+}
+
+// ConfigChangeResponse change peer response
+message ConfigChangeResponse {
+    metapb.Shard shard = 1 [(gogoproto.nullable) = false];
+}
+
+// CompactLogRequest compact raft log
+message CompactLogRequest {
+    uint64 compactIndex = 1;
+}
+
+// CompactLogResponse compact raft log
+message CompactLogResponse {}
+
+// TransferLeaderRequest transfer leader
+message TransferLeaderRequest {
+    metapb.Replica replica = 1 [(gogoproto.nullable) = false];
+}
+
+message TransferLeaderResponse {}
+
+message VerifyHashRequest {
+    uint64 index = 1;
+    bytes hash = 2;
+    bytes context = 3;
+}
+
+message VerifyHashResponse {}
+
+// BatchSplitRequest batch split requests.
+message BatchSplitRequest {
+    // The requests for splitting a shard into multiple shards.
+    // We split Shard A [0, 10) into B [0, 5) and C [5, 10), the len(requests) = 2, and
+    // Shard A will not used after split completed.
+    repeated SplitRequest requests = 1 [(gogoproto.nullable) = false];
+    bytes        context  = 2;
+}
+
+message SplitRequest {
+    // The start of the sub shard range
+    bytes start = 1;
+    // The end of the sub shard range
+    bytes end   = 2;
+    // The new shard id
+    uint64 newShardID = 3;
+    // The new replcias of the new shard
+    repeated metapb.Replica newReplicas = 4 [(gogoproto.nullable) = false];
+}
+
+message BatchSplitResponse {
+    repeated metapb.Shard shards = 1 [(gogoproto.nullable) = false];
+}
+
+message UpdateMetadataRequest {
+    metapb.ShardLocalState metadata = 1 [(gogoproto.nullable) = false];
+}
+
+message UpdateMetadataResponse {
+
+}
+
+// UpdatePolicy update policy
+enum UpdatePolicy {
+    // Add add or update
+    Add      = 0;
+    // Remove remove
+    Remove   = 1;
+    // Reset reset
+    Reset    = 2;
+    // Clear clear
+    Clear    = 3;
+}
+
+message UpdateLabelsRequest {
+    repeated metapb.Pair labels = 1 [(gogoproto.nullable) = false];
+    UpdatePolicy policy = 2;
+}
+
+message UpdateLabelsResponse {
+
 }

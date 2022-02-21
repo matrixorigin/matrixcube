@@ -25,12 +25,12 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/filter"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"go.uber.org/zap"
 )
 
@@ -39,19 +39,19 @@ const resourceScatterName = "resource-scatter"
 var gcInterval = time.Minute
 var gcTTL = time.Minute * 3
 
-type selectedContainers struct {
+type selectedStores struct {
 	mu sync.RWMutex
 
 	groupDistribution *cache.TTLString // value type: map[uint64]uint64, group -> containerID -> count
 }
 
-func newSelectedContainers(ctx context.Context) *selectedContainers {
-	return &selectedContainers{
+func newSelectedStores(ctx context.Context) *selectedStores {
+	return &selectedStores{
 		groupDistribution: cache.NewStringTTL(ctx, gcInterval, gcTTL),
 	}
 }
 
-func (s *selectedContainers) put(id uint64, group string) {
+func (s *selectedStores) put(id uint64, group string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	distribution, ok := s.getDistributionByGroupLocked(group)
@@ -63,7 +63,7 @@ func (s *selectedContainers) put(id uint64, group string) {
 	s.groupDistribution.Put(group, distribution)
 }
 
-func (s *selectedContainers) get(id uint64, group string) uint64 {
+func (s *selectedStores) get(id uint64, group string) uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	distribution, ok := s.getDistributionByGroupLocked(group)
@@ -78,22 +78,22 @@ func (s *selectedContainers) get(id uint64, group string) uint64 {
 }
 
 // GetGroupDistribution get distribution group by `group`
-func (s *selectedContainers) GetGroupDistribution(group string) (map[uint64]uint64, bool) {
+func (s *selectedStores) GetGroupDistribution(group string) (map[uint64]uint64, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.getDistributionByGroupLocked(group)
 }
 
 // getDistributionByGroupLocked should be called with lock
-func (s *selectedContainers) getDistributionByGroupLocked(group string) (map[uint64]uint64, bool) {
+func (s *selectedStores) getDistributionByGroupLocked(group string) (map[uint64]uint64, bool) {
 	if result, ok := s.groupDistribution.Get(group); ok {
 		return result.(map[uint64]uint64), true
 	}
 	return nil, false
 }
 
-// ResourceScatterer scatters resources.
-type ResourceScatterer struct {
+// ShardScatterer scatters resources.
+type ShardScatterer struct {
 	ctx            context.Context
 	name           string
 	cluster        opt.Cluster
@@ -101,10 +101,10 @@ type ResourceScatterer struct {
 	specialEngines map[string]engineContext
 }
 
-// NewResourceScatterer creates a resource scatterer.
-// ResourceScatter is used for the `Lightning`, it will scatter the specified resources before import data.
-func NewResourceScatterer(ctx context.Context, cluster opt.Cluster) *ResourceScatterer {
-	return &ResourceScatterer{
+// NewShardScatterer creates a resource scatterer.
+// ShardScatter is used for the `Lightning`, it will scatter the specified resources before import data.
+func NewShardScatterer(ctx context.Context, cluster opt.Cluster) *ShardScatterer {
+	return &ShardScatterer{
 		ctx:            ctx,
 		name:           resourceScatterName,
 		cluster:        cluster,
@@ -115,16 +115,16 @@ func NewResourceScatterer(ctx context.Context, cluster opt.Cluster) *ResourceSca
 
 type engineContext struct {
 	filters        []filter.Filter
-	selectedPeer   *selectedContainers
-	selectedLeader *selectedContainers
+	selectedPeer   *selectedStores
+	selectedLeader *selectedStores
 }
 
 func newEngineContext(ctx context.Context, filters ...filter.Filter) engineContext {
-	filters = append(filters, &filter.ContainerStateFilter{ActionScope: resourceScatterName, MoveResource: true, ScatterResource: true})
+	filters = append(filters, &filter.StoreStateFilter{ActionScope: resourceScatterName, MoveShard: true, ScatterShard: true})
 	return engineContext{
 		filters:        filters,
-		selectedPeer:   newSelectedContainers(ctx),
-		selectedLeader: newSelectedContainers(ctx),
+		selectedPeer:   newSelectedStores(ctx),
+		selectedLeader: newSelectedStores(ctx),
 	}
 }
 
@@ -132,36 +132,36 @@ const maxSleepDuration = 1 * time.Minute
 const initialSleepDuration = 100 * time.Millisecond
 const maxRetryLimit = 30
 
-// ScatterResourcesByRange directly scatter resources by ScatterResources
-func (r *ResourceScatterer) ScatterResourcesByRange(resGroup uint64, startKey, endKey []byte, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
-	resources := r.cluster.ScanResources(resGroup, startKey, endKey, -1)
+// ScatterShardsByRange directly scatter resources by ScatterShards
+func (r *ShardScatterer) ScatterShardsByRange(resGroup uint64, startKey, endKey []byte, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
+	resources := r.cluster.ScanShards(resGroup, startKey, endKey, -1)
 	if len(resources) < 1 {
 		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, nil, errors.New("empty resource")
 	}
 	failures := make(map[uint64]error, len(resources))
-	resourceMap := make(map[uint64]*core.CachedResource, len(resources))
+	resourceMap := make(map[uint64]*core.CachedShard, len(resources))
 	for _, res := range resources {
 		resourceMap[res.Meta.ID()] = res
 	}
-	// If there existed any resource failed to relocated after retry, add it into unProcessedResources
-	ops, err := r.ScatterResources(resourceMap, failures, group, retryLimit)
+	// If there existed any resource failed to relocated after retry, add it into unProcessedShards
+	ops, err := r.ScatterShards(resourceMap, failures, group, retryLimit)
 	if err != nil {
 		return nil, nil, err
 	}
 	return ops, failures, nil
 }
 
-// ScatterResourcesByID directly scatter resources by ScatterResources
-func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
+// ScatterShardsByID directly scatter resources by ScatterShards
+func (r *ShardScatterer) ScatterShardsByID(resourceIDs []uint64, group string, retryLimit int) ([]*operator.Operator, map[uint64]error, error) {
 	if len(resourceIDs) < 1 {
 		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, nil, errors.New("empty resource")
 	}
 	failures := make(map[uint64]error, len(resourceIDs))
-	var resources []*core.CachedResource
+	var resources []*core.CachedShard
 	for _, id := range resourceIDs {
-		res := r.cluster.GetResource(id)
+		res := r.cluster.GetShard(id)
 		if res == nil {
 			scatterCounter.WithLabelValues("skip", "no-resource").Inc()
 			r.cluster.GetLogger().Warn("failed to find resource during scatter",
@@ -171,25 +171,25 @@ func (r *ResourceScatterer) ScatterResourcesByID(resourceIDs []uint64, group str
 		}
 		resources = append(resources, res)
 	}
-	resourceMap := make(map[uint64]*core.CachedResource, len(resources))
+	resourceMap := make(map[uint64]*core.CachedShard, len(resources))
 	for _, res := range resources {
 		resourceMap[res.Meta.ID()] = res
 	}
-	// If there existed any resource failed to relocated after retry, add it into unProcessedResources
-	ops, err := r.ScatterResources(resourceMap, failures, group, retryLimit)
+	// If there existed any resource failed to relocated after retry, add it into unProcessedShards
+	ops, err := r.ScatterShards(resourceMap, failures, group, retryLimit)
 	if err != nil {
 		return nil, nil, err
 	}
 	return ops, failures, nil
 }
 
-// ScatterResources relocates the resources. If the group is defined, the resources' leader with the same group would be scattered
+// ScatterShards relocates the resources. If the group is defined, the resources' leader with the same group would be scattered
 // in a group level instead of cluster level.
 // RetryTimes indicates the retry times if any of the resources failed to relocate during scattering. There will be
 // time.Sleep between each retry.
 // Failures indicates the resources which are failed to be relocated, the key of the failures indicates the resID
 // and the value of the failures indicates the failure error.
-func (r *ResourceScatterer) ScatterResources(resources map[uint64]*core.CachedResource, failures map[uint64]error, group string, retryLimit int) ([]*operator.Operator, error) {
+func (r *ShardScatterer) ScatterShards(resources map[uint64]*core.CachedShard, failures map[uint64]error, group string, retryLimit int) ([]*operator.Operator, error) {
 	if len(resources) < 1 {
 		scatterCounter.WithLabelValues("skip", "empty-resource").Inc()
 		return nil, errors.New("empty resource")
@@ -223,9 +223,9 @@ func (r *ResourceScatterer) ScatterResources(resources map[uint64]*core.CachedRe
 
 // Scatter relocates the resource. If the group is defined, the resources' leader with the same group would be scattered
 // in a group level instead of cluster level.
-func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*operator.Operator, error) {
-	if !opt.IsResourceReplicated(r.cluster, res) {
-		r.cluster.AddSuspectResources(res.Meta.ID())
+func (r *ShardScatterer) Scatter(res *core.CachedShard, group string) (*operator.Operator, error) {
+	if !opt.IsShardReplicated(r.cluster, res) {
+		r.cluster.AddSuspectShards(res.Meta.ID())
 		scatterCounter.WithLabelValues("skip", "not-replicated").Inc()
 		r.cluster.GetLogger().Warn("resource not replicated during scatter",
 			log.ResourceField(res.Meta.ID()))
@@ -239,23 +239,23 @@ func (r *ResourceScatterer) Scatter(res *core.CachedResource, group string) (*op
 		return nil, fmt.Errorf("resource %d has no leader", res.Meta.ID())
 	}
 
-	if r.cluster.IsResourceHot(res) {
+	if r.cluster.IsShardHot(res) {
 		scatterCounter.WithLabelValues("skip", "hot").Inc()
 		r.cluster.GetLogger().Warn("resource is too hot during scatter",
 			log.ResourceField(res.Meta.ID()))
 		return nil, fmt.Errorf("resource %d is hot", res.Meta.ID())
 	}
 
-	return r.scatterResource(res, group), nil
+	return r.scatterShard(res, group), nil
 }
 
-func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group string) *operator.Operator {
+func (r *ShardScatterer) scatterShard(res *core.CachedShard, group string) *operator.Operator {
 	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
 	ordinaryPeers := make(map[uint64]metapb.Replica)
 	specialPeers := make(map[string]map[uint64]metapb.Replica)
 	// Group peers by the engine of their stores
 	for _, peer := range res.Meta.Peers() {
-		store := r.cluster.GetContainer(peer.GetContainerID())
+		store := r.cluster.GetStore(peer.GetStoreID())
 		if ordinaryFilter.Target(r.cluster.GetOpts(), store) {
 			ordinaryPeers[peer.ID] = peer
 		} else {
@@ -271,10 +271,10 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 	selectedStores := make(map[uint64]struct{})
 	scatterWithSameEngine := func(peers map[uint64]metapb.Replica, context engineContext) {
 		for _, peer := range peers {
-			candidates := r.selectCandidates(res, peer.GetContainerID(), selectedStores, context)
-			newPeer := r.selectContainer(group, &peer, peer.GetContainerID(), candidates, context)
-			targetPeers[newPeer.GetContainerID()] = *newPeer
-			selectedStores[newPeer.GetContainerID()] = struct{}{}
+			candidates := r.selectCandidates(res, peer.GetStoreID(), selectedStores, context)
+			newPeer := r.selectStore(group, &peer, peer.GetStoreID(), candidates, context)
+			targetPeers[newPeer.GetStoreID()] = *newPeer
+			selectedStores[newPeer.GetStoreID()] = struct{}{}
 		}
 	}
 
@@ -282,7 +282,7 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 	// FIXME: target leader only considers the ordinary stores，maybe we need to consider the
 	// special engine stores if the engine supports to become a leader. But now there is only
 	// one engine, tiflash, which does not support the leader, so don't consider it for now.
-	targetLeader := r.selectAvailableLeaderContainers(group, targetPeers, r.ordinaryEngine)
+	targetLeader := r.selectAvailableLeaderStores(group, targetPeers, r.ordinaryEngine)
 
 	for engine, peers := range specialPeers {
 		ctx, ok := r.specialEngines[engine]
@@ -293,13 +293,13 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 		scatterWithSameEngine(peers, ctx)
 	}
 
-	op, err := operator.CreateScatterResourceOperator("scatter-resource", r.cluster, res, targetPeers, targetLeader)
+	op, err := operator.CreateScatterShardOperator("scatter-resource", r.cluster, res, targetPeers, targetLeader)
 	if err != nil {
 		scatterCounter.WithLabelValues("fail", "").Inc()
 		for _, peer := range res.Meta.Peers() {
-			targetPeers[peer.GetContainerID()] = peer
+			targetPeers[peer.GetStoreID()] = peer
 		}
-		r.Put(targetPeers, res.GetLeader().GetContainerID(), group)
+		r.Put(targetPeers, res.GetLeader().GetStoreID(), group)
 		r.cluster.GetLogger().Debug("fail to create scatter resource operator",
 			zap.Error(err))
 		return nil
@@ -312,20 +312,20 @@ func (r *ResourceScatterer) scatterResource(res *core.CachedResource, group stri
 	return op
 }
 
-func (r *ResourceScatterer) selectCandidates(res *core.CachedResource, sourceContainerID uint64, selectedContainers map[uint64]struct{}, context engineContext) []uint64 {
-	sourceStore := r.cluster.GetContainer(sourceContainerID)
+func (r *ShardScatterer) selectCandidates(res *core.CachedShard, sourceStoreID uint64, selectedStores map[uint64]struct{}, context engineContext) []uint64 {
+	sourceStore := r.cluster.GetStore(sourceStoreID)
 	if sourceStore == nil {
 		r.cluster.GetLogger().Error("fail to get the container",
-			log.SourceContainerField(sourceContainerID))
+			log.SourceStoreField(sourceStoreID))
 		return nil
 	}
 	filters := []filter.Filter{
-		filter.NewExcludedFilter(r.name, nil, selectedContainers),
+		filter.NewExcludedFilter(r.name, nil, selectedStores),
 	}
-	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceStore, r.cluster.GetResourceFactory())
+	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceStore, r.cluster.GetShardFactory())
 	filters = append(filters, context.filters...)
 	filters = append(filters, scoreGuard)
-	stores := r.cluster.GetContainers()
+	stores := r.cluster.GetStores()
 	candidates := make([]uint64, 0)
 	for _, store := range stores {
 		if filter.Target(r.cluster.GetOpts(), store, filters) {
@@ -335,7 +335,7 @@ func (r *ResourceScatterer) selectCandidates(res *core.CachedResource, sourceCon
 	return candidates
 }
 
-func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Replica, sourceContainerID uint64, candidates []uint64, context engineContext) *metapb.Replica {
+func (r *ShardScatterer) selectStore(group string, peer *metapb.Replica, sourceStoreID uint64, candidates []uint64, context engineContext) *metapb.Replica {
 	if len(candidates) < 1 {
 		return peer
 	}
@@ -346,14 +346,14 @@ func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Replica, 
 		if count < minCount {
 			minCount = count
 			newPeer = &metapb.Replica{
-				ContainerID: storeID,
-				Role:        peer.GetRole(),
+				StoreID: storeID,
+				Role:    peer.GetRole(),
 			}
 		}
 	}
 	// if the source store have the least count, we don't need to scatter this peer
 	for _, containerID := range candidates {
-		if containerID == sourceContainerID && context.selectedPeer.get(sourceContainerID, group) <= minCount {
+		if containerID == sourceStoreID && context.selectedPeer.get(sourceStoreID, group) <= minCount {
 			return peer
 		}
 	}
@@ -363,18 +363,18 @@ func (r *ResourceScatterer) selectContainer(group string, peer *metapb.Replica, 
 	return newPeer
 }
 
-// selectAvailableLeaderContainers select the target leader container from the candidates. The candidates would be collected by
+// selectAvailableLeaderStores select the target leader container from the candidates. The candidates would be collected by
 // the existed peers container depended on the leader counts in the group level.
-func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers map[uint64]metapb.Replica, context engineContext) uint64 {
-	minContainerGroupLeader := uint64(math.MaxUint64)
+func (r *ShardScatterer) selectAvailableLeaderStores(group string, peers map[uint64]metapb.Replica, context engineContext) uint64 {
+	minStoreGroupLeader := uint64(math.MaxUint64)
 	id := uint64(0)
 	for storeID := range peers {
 		if id == 0 {
 			id = storeID
 		}
 		storeGroupLeaderCount := context.selectedLeader.get(storeID, group)
-		if minContainerGroupLeader > storeGroupLeaderCount {
-			minContainerGroupLeader = storeGroupLeaderCount
+		if minStoreGroupLeader > storeGroupLeaderCount {
+			minStoreGroupLeader = storeGroupLeaderCount
 			id = storeID
 		}
 	}
@@ -382,12 +382,12 @@ func (r *ResourceScatterer) selectAvailableLeaderContainers(group string, peers 
 }
 
 // Put put the final distribution in the context no matter the operator was created
-func (r *ResourceScatterer) Put(peers map[uint64]metapb.Replica, leaderContainerID uint64, group string) {
+func (r *ShardScatterer) Put(peers map[uint64]metapb.Replica, leaderStoreID uint64, group string) {
 	ordinaryFilter := filter.NewOrdinaryEngineFilter(r.name)
 	// Group peers by the engine of their stores
 	for _, peer := range peers {
-		containerID := peer.GetContainerID()
-		container := r.cluster.GetContainer(containerID)
+		containerID := peer.GetStoreID()
+		container := r.cluster.GetStore(containerID)
 		if ordinaryFilter.Target(r.cluster.GetOpts(), container) {
 			r.ordinaryEngine.selectedPeer.put(containerID, group)
 			scatterDistributionCounter.WithLabelValues(
@@ -403,9 +403,9 @@ func (r *ResourceScatterer) Put(peers map[uint64]metapb.Replica, leaderContainer
 				engine).Inc()
 		}
 	}
-	r.ordinaryEngine.selectedLeader.put(leaderContainerID, group)
+	r.ordinaryEngine.selectedLeader.put(leaderStoreID, group)
 	scatterDistributionCounter.WithLabelValues(
-		fmt.Sprintf("%v", leaderContainerID),
+		fmt.Sprintf("%v", leaderStoreID),
 		strconv.FormatBool(true),
 		filter.EngineTiKV).Inc()
 }

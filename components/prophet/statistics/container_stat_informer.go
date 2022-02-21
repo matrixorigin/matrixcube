@@ -14,7 +14,7 @@
 
 package statistics
 
-// ContainerStatInformer provides access to a shared informer of statistics.
-type ContainerStatInformer interface {
-	GetContainersLoads() map[uint64][]float64
+// StoreStatInformer provides access to a shared informer of statistics.
+type StoreStatInformer interface {
+	GetStoresLoads() map[uint64][]float64
 }

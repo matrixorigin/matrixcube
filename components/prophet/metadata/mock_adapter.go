@@ -27,12 +27,12 @@ func NewTestRoleHandler(leaderCB, followerCB func()) RoleChangeHandler {
 	return &testAdapter{leaderCB: leaderCB, followerCB: followerCB}
 }
 
-func (ta *testAdapter) NewResource() Resource {
-	return NewTestResource(0)
+func (ta *testAdapter) NewShard() Shard {
+	return NewTestShard(0)
 }
 
-func (ta *testAdapter) NewContainer() Container {
-	return NewTestContainer(0)
+func (ta *testAdapter) NewStore() Store {
+	return NewTestStore(0)
 }
 
 func (ta *testAdapter) ProphetBecomeLeader() {

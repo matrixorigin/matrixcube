@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // ReplicaRoleType is the expected peer type of the placement rule.

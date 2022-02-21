@@ -18,7 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
@@ -39,18 +39,18 @@ var (
 
 type reqCtx struct {
 	reqType int
-	req     rpc.Request
-	cb      func(rpc.ResponseBatch)
+	req     rpcpb.Request
+	cb      func(rpcpb.ResponseBatch)
 }
 
-func newReqCtx(req rpc.Request, cb func(rpc.ResponseBatch)) reqCtx {
+func newReqCtx(req rpcpb.Request, cb func(rpcpb.ResponseBatch)) reqCtx {
 	ctx := reqCtx{req: req, cb: cb}
 	switch req.Type {
-	case rpc.CmdType_Read:
+	case rpcpb.Read:
 		ctx.reqType = read
-	case rpc.CmdType_Write:
+	case rpcpb.Write:
 		ctx.reqType = write
-	case rpc.CmdType_Admin:
+	case rpcpb.Admin:
 		ctx.reqType = admin
 	default:
 		panic(fmt.Sprintf("request context type %s not support", ctx.req.Type.String()))
@@ -142,7 +142,7 @@ func (b *proposalBatch) push(group uint64, c reqCtx) {
 	}
 
 	if !added {
-		rb := rpc.RequestBatch{}
+		rb := rpcpb.RequestBatch{}
 		rb.Header.ShardID = b.shardID
 		rb.Header.Replica = b.replica
 		rb.Header.ID = uuid.NewV4().Bytes()

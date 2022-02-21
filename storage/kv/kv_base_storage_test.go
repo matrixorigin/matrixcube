@@ -19,7 +19,7 @@ import (
 	"github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/keys"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
@@ -91,10 +91,10 @@ func TestGetAppliedIndex(t *testing.T) {
 	defer view.Close()
 	key, val, err := base.(*BaseStorage).getAppliedIndex(view.Raw().(*pebble.Snapshot), 100)
 	assert.NoError(t, err)
-	var logIndex meta.LogIndex
+	var logIndex metapb.LogIndex
 	protoc.MustUnmarshal(&logIndex, val)
 	assert.Equal(t, keys.GetAppliedIndexKey(100, nil), key[1:])
-	assert.Equal(t, meta.LogIndex{Index: 200}, logIndex)
+	assert.Equal(t, metapb.LogIndex{Index: 200}, logIndex)
 }
 
 func TestGetShardMetadataReturnsErrorOnEmptyDB(t *testing.T) {
@@ -118,18 +118,18 @@ func TestGetShardMetadata(t *testing.T) {
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
 	defer ds.Close()
-	sm1 := meta.ShardMetadata{
+	sm1 := metapb.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 110,
-		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
+		Metadata: metapb.ShardLocalState{Shard: metapb.Shard{ID: 100}},
 	}
-	sm2 := meta.ShardMetadata{
+	sm2 := metapb.ShardMetadata{
 		ShardID:  100,
 		LogIndex: 120,
-		Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: 100}},
+		Metadata: metapb.ShardLocalState{Shard: metapb.Shard{ID: 100}},
 	}
-	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm1}))
-	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm2}))
+	assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{sm1}))
+	assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{sm2}))
 	view := base.GetView()
 	defer view.Close()
 	key, val, err := base.(*BaseStorage).getShardMetadata(view.Raw().(*pebble.Snapshot), 100)
@@ -154,21 +154,21 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		assert.NoError(t, base.Set(EncodeDataKey([]byte("bb"), nil), []byte("v"), false))
 		assert.NoError(t, base.Set(EncodeDataKey([]byte("mmm"), nil), []byte("vv"), false))
 		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("vvv"), false))
-		shard := meta.Shard{
+		shard := metapb.Shard{
 			ID:    shardID,
 			Start: []byte("aa"),
 			End:   []byte("xx"),
 		}
-		sls := meta.ShardLocalState{
+		sls := metapb.ShardLocalState{
 			Shard: shard,
 		}
-		sm := meta.ShardMetadata{
+		sm := metapb.ShardMetadata{
 			ShardID:  shardID,
 			LogIndex: 110,
 			Metadata: sls,
 		}
 		metadata = protoc.MustMarshal(&sm)
-		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{sm}))
+		assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{sm}))
 		err := base.CreateSnapshot(sm.ShardID, dir)
 		assert.NoError(t, err)
 	}()
@@ -197,7 +197,7 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 		defer view.Close()
 		key, val, err := base.(*BaseStorage).getAppliedIndex(view.Raw().(*pebble.Snapshot), shardID)
 		assert.NoError(t, err)
-		var logIndex meta.LogIndex
+		var logIndex metapb.LogIndex
 		protoc.MustUnmarshal(&logIndex, val)
 		assert.Equal(t, keys.GetAppliedIndexKey(shardID, nil), key[1:])
 		assert.Equal(t, uint64(110), logIndex.Index)

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,9 +32,9 @@ const (
 	// after it, the operator will be considered expired.
 	OperatorExpireTime = 3 * time.Second
 	// FastOperatorWaitTime is the duration that when an operator that is not marked
-	// `OpResource` runs longer than it, the operator will be considered timeout.
+	// `OpShard` runs longer than it, the operator will be considered timeout.
 	FastOperatorWaitTime = 10 * time.Second
-	// SlowOperatorWaitTime is the duration that when an operator marked `OpResource`
+	// SlowOperatorWaitTime is the duration that when an operator marked `OpShard`
 	// runs longer than it, the operator will be considered timeout.
 	SlowOperatorWaitTime = 10 * time.Minute
 )
@@ -44,7 +44,7 @@ type Operator struct {
 	desc             string
 	brief            string
 	resID            uint64
-	resEpoch         metapb.ResourceEpoch
+	resEpoch         metapb.ShardEpoch
 	kind             OpKind
 	steps            []OpStep
 	stepsTime        []int64 // step finish time
@@ -57,7 +57,7 @@ type Operator struct {
 }
 
 // NewOperator creates a new operator.
-func NewOperator(desc, brief string, resID uint64, resEpoch metapb.ResourceEpoch, kind OpKind, steps ...OpStep) *Operator {
+func NewOperator(desc, brief string, resID uint64, resEpoch metapb.ShardEpoch, kind OpKind, steps ...OpStep) *Operator {
 	level := core.NormalPriority
 	if kind&OpAdmin != 0 {
 		level = core.HighPriority
@@ -111,13 +111,13 @@ func (o *Operator) AttachKind(kind OpKind) {
 	o.kind |= kind
 }
 
-// ResourceID returns the resource that operator is targeted.
-func (o *Operator) ResourceID() uint64 {
+// ShardID returns the resource that operator is targeted.
+func (o *Operator) ShardID() uint64 {
 	return o.resID
 }
 
-// ResourceEpoch returns the resource's epoch that is attached to the operator.
-func (o *Operator) ResourceEpoch() metapb.ResourceEpoch {
+// ShardEpoch returns the resource's epoch that is attached to the operator.
+func (o *Operator) ShardEpoch() metapb.ShardEpoch {
 	return o.resEpoch
 }
 
@@ -202,7 +202,7 @@ func (o *Operator) CheckTimeout() bool {
 	if o.CheckSuccess() {
 		return false
 	}
-	if o.kind&OpResource != 0 {
+	if o.kind&OpShard != 0 {
 		return o.status.CheckTimeout(SlowOperatorWaitTime)
 	}
 	return o.status.CheckTimeout(FastOperatorWaitTime)
@@ -224,7 +224,7 @@ func (o *Operator) Step(i int) OpStep {
 // Check checks if current step is finished, returns next step to take action.
 // If operator is at an end status, check returns nil.
 // It's safe to be called by multiple goroutine concurrently.
-func (o *Operator) Check(res *core.CachedResource) OpStep {
+func (o *Operator) Check(res *core.CachedShard) OpStep {
 	if o.IsEnd() {
 		return nil
 	}
@@ -251,7 +251,7 @@ func (o *Operator) Check(res *core.CachedResource) OpStep {
 }
 
 // ConfVerChanged returns the number of confver has consumed by steps
-func (o *Operator) ConfVerChanged(res *core.CachedResource) (total uint64) {
+func (o *Operator) ConfVerChanged(res *core.CachedShard) (total uint64) {
 	current := atomic.LoadInt32(&o.currentStep)
 	if current == int32(len(o.steps)) {
 		current--
@@ -274,7 +274,7 @@ func (o *Operator) GetPriorityLevel() core.PriorityLevel {
 }
 
 // UnfinishedInfluence calculates the container difference which unfinished operator steps make.
-func (o *Operator) UnfinishedInfluence(opInfluence OpInfluence, res *core.CachedResource) {
+func (o *Operator) UnfinishedInfluence(opInfluence OpInfluence, res *core.CachedShard) {
 	for step := atomic.LoadInt32(&o.currentStep); int(step) < len(o.steps); step++ {
 		if !o.steps[int(step)].IsFinish(res) {
 			o.steps[int(step)].Influence(opInfluence, res)
@@ -283,7 +283,7 @@ func (o *Operator) UnfinishedInfluence(opInfluence OpInfluence, res *core.Cached
 }
 
 // TotalInfluence calculates the container difference which whole operator steps make.
-func (o *Operator) TotalInfluence(opInfluence OpInfluence, res *core.CachedResource) {
+func (o *Operator) TotalInfluence(opInfluence OpInfluence, res *core.CachedShard) {
 	for step := 0; step < len(o.steps); step++ {
 		o.steps[step].Influence(opInfluence, res)
 	}
@@ -293,42 +293,42 @@ func (o *Operator) TotalInfluence(opInfluence OpInfluence, res *core.CachedResou
 type OpHistory struct {
 	FinishTime time.Time
 	From, To   uint64
-	Kind       metapb.ResourceKind
+	Kind       metapb.ShardKind
 }
 
 // History transfers the operator's steps to operator histories.
 func (o *Operator) History() []OpHistory {
 	now := time.Now()
 	var histories []OpHistory
-	var addPeerContainers, removePeerContainers []uint64
+	var addPeerStores, removePeerStores []uint64
 	for _, step := range o.steps {
 		switch s := step.(type) {
 		case TransferLeader:
 			histories = append(histories, OpHistory{
 				FinishTime: now,
-				From:       s.FromContainer,
-				To:         s.ToContainer,
-				Kind:       metapb.ResourceKind_LeaderKind,
+				From:       s.FromStore,
+				To:         s.ToStore,
+				Kind:       metapb.ShardKind_LeaderKind,
 			})
 		case AddPeer:
-			addPeerContainers = append(addPeerContainers, s.ToContainer)
+			addPeerStores = append(addPeerStores, s.ToStore)
 		case AddLightPeer:
-			addPeerContainers = append(addPeerContainers, s.ToContainer)
+			addPeerStores = append(addPeerStores, s.ToStore)
 		case AddLearner:
-			addPeerContainers = append(addPeerContainers, s.ToContainer)
+			addPeerStores = append(addPeerStores, s.ToStore)
 		case AddLightLearner:
-			addPeerContainers = append(addPeerContainers, s.ToContainer)
+			addPeerStores = append(addPeerStores, s.ToStore)
 		case RemovePeer:
-			removePeerContainers = append(removePeerContainers, s.FromContainer)
+			removePeerStores = append(removePeerStores, s.FromStore)
 		}
 	}
-	for i := range addPeerContainers {
-		if i < len(removePeerContainers) {
+	for i := range addPeerStores {
+		if i < len(removePeerStores) {
 			histories = append(histories, OpHistory{
 				FinishTime: now,
-				From:       removePeerContainers[i],
-				To:         addPeerContainers[i],
-				Kind:       metapb.ResourceKind_ReplicaKind,
+				From:       removePeerStores[i],
+				To:         addPeerStores[i],
+				Kind:       metapb.ShardKind_ReplicaKind,
 			})
 		}
 	}

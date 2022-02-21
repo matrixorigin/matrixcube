@@ -30,34 +30,34 @@ const (
 	defaultMaxReplicas                 = 3
 	defaultMaxSnapshotCount            = 3
 	defaultMaxPendingPeerCount         = 16
-	defaultMaxMergeResourceSize        = 20
-	defaultMaxMergeResourceKeys        = 200000
+	defaultMaxMergeShardSize        = 20
+	defaultMaxMergeShardKeys        = 200000
 	defaultSplitMergeInterval          = 1 * time.Hour
-	defaultPatrolResourceInterval      = 100 * time.Millisecond
-	defaultMaxContainerDownTime        = 30 * time.Minute
+	defaultPatrolShardInterval      = 100 * time.Millisecond
+	defaultMaxStoreDownTime        = 30 * time.Minute
 	defaultLeaderScheduleLimit         = 4
-	defaultResourceScheduleLimit       = 2048
+	defaultShardScheduleLimit       = 2048
 	defaultReplicaScheduleLimit        = 64
 	defaultMergeScheduleLimit          = 8
-	defaultHotResourceScheduleLimit    = 4
+	defaultHotShardScheduleLimit    = 4
 	defaultTolerantSizeRatio           = 0
 	defaultLowSpaceRatio               = 0.8
 	defaultHighSpaceRatio              = 0.7
-	defaultResourceScoreFormulaVersion = "v2"
-	// defaultHotResourceCacheHitsThreshold is the low hit number threshold of the
+	defaultShardScoreFormulaVersion = "v2"
+	// defaultHotShardCacheHitsThreshold is the low hit number threshold of the
 	// hot resource.
-	defaultHotResourceCacheHitsThreshold = 3
+	defaultHotShardCacheHitsThreshold = 3
 	defaultSchedulerMaxWaitingOperator   = 5
 	defaultLeaderSchedulePolicy          = "count"
-	defaultContainerLimitMode            = "manual"
+	defaultStoreLimitMode            = "manual"
 	defaultEnableJointConsensus          = false
 	defaultEnableCrossTableMerge         = true
 )
 
 var (
 	defaultLocationLabels = []string{}
-	// DefaultContainerLimit is the default container limit of add peer and remove peer.
-	DefaultContainerLimit = ContainerLimit{AddPeer: 15, RemovePeer: 15}
+	// DefaultStoreLimit is the default container limit of add peer and remove peer.
+	DefaultStoreLimit = StoreLimit{AddPeer: 15, RemovePeer: 15}
 )
 
 const (

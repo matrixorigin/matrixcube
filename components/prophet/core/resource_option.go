@@ -18,46 +18,46 @@ import (
 	"sort"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// ResourceOption is used to select resource.
-type ResourceOption func(res *CachedResource) bool
+// ShardOption is used to select resource.
+type ShardOption func(res *CachedShard) bool
 
-// ResourceCreateOption used to create resource.
-type ResourceCreateOption func(res *CachedResource)
+// ShardCreateOption used to create resource.
+type ShardCreateOption func(res *CachedShard)
 
 // WithState sets state for the resource.
-func WithState(state metapb.ResourceState) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithState(state metapb.ShardState) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.Meta.SetState(state)
 	}
 }
 
 // WithDownPeers sets the down peers for the resource.
-func WithDownPeers(downReplicas []metapb.ReplicaStats) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithDownPeers(downReplicas []metapb.ReplicaStats) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.downReplicas = append(downReplicas[:0:0], downReplicas...)
 		sort.Sort(peerStatsSlice(res.downReplicas))
 	}
 }
 
 // WithPendingPeers sets the pending peers for the resource.
-func WithPendingPeers(pendingReplicas []metapb.Replica) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithPendingPeers(pendingReplicas []metapb.Replica) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.pendingReplicas = append(pendingReplicas[:0:0], pendingReplicas...)
 		sort.Sort(peerSlice(res.pendingReplicas))
 	}
 }
 
 // WithLearners sets the learners for the resource.
-func WithLearners(learners []metapb.Replica) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithLearners(learners []metapb.Replica) ShardCreateOption {
+	return func(res *CachedShard) {
 		peers := res.Meta.Peers()
 		for i := range peers {
 			for _, l := range learners {
 				if peers[i].ID == l.ID {
-					peers[i] = metapb.Replica{ID: l.ID, ContainerID: l.ContainerID, Role: metapb.ReplicaRole_Learner}
+					peers[i] = metapb.Replica{ID: l.ID, StoreID: l.StoreID, Role: metapb.ReplicaRole_Learner}
 					break
 				}
 			}
@@ -66,36 +66,36 @@ func WithLearners(learners []metapb.Replica) ResourceCreateOption {
 }
 
 // WithLeader sets the leader for the resource.
-func WithLeader(leader *metapb.Replica) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithLeader(leader *metapb.Replica) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.leader = leader
 	}
 }
 
 // WithStartKey sets the start key for the resource.
-func WithStartKey(key []byte) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithStartKey(key []byte) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.Meta.SetStartKey(key)
 	}
 }
 
 // WithEndKey sets the end key for the resource.
-func WithEndKey(key []byte) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithEndKey(key []byte) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.Meta.SetEndKey(key)
 	}
 }
 
-// WithNewResourceID sets new id for the resource.
-func WithNewResourceID(id uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+// WithNewShardID sets new id for the resource.
+func WithNewShardID(id uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.Meta.SetID(id)
 	}
 }
 
 // WithNewPeerIds sets new ids for peers.
-func WithNewPeerIds(peerIDs ...uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithNewPeerIds(peerIDs ...uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		if len(peerIDs) != len(res.Meta.Peers()) {
 			return
 		}
@@ -108,8 +108,8 @@ func WithNewPeerIds(peerIDs ...uint64) ResourceCreateOption {
 }
 
 // WithIncVersion increases the version of the resource.
-func WithIncVersion() ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithIncVersion() ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		e.Version++
 		res.Meta.SetEpoch(e)
@@ -117,8 +117,8 @@ func WithIncVersion() ResourceCreateOption {
 }
 
 // WithDecVersion decreases the version of the resource.
-func WithDecVersion() ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithDecVersion() ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		e.Version--
 		res.Meta.SetEpoch(e)
@@ -126,8 +126,8 @@ func WithDecVersion() ResourceCreateOption {
 }
 
 // WithIncConfVer increases the config version of the resource.
-func WithIncConfVer() ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithIncConfVer() ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		e.ConfVer++
 		res.Meta.SetEpoch(e)
@@ -135,8 +135,8 @@ func WithIncConfVer() ResourceCreateOption {
 }
 
 // WithDecConfVer decreases the config version of the resource.
-func WithDecConfVer() ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithDecConfVer() ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		e.ConfVer--
 		res.Meta.SetEpoch(e)
@@ -144,25 +144,25 @@ func WithDecConfVer() ResourceCreateOption {
 }
 
 // SetWrittenBytes sets the written bytes for the resource.
-func SetWrittenBytes(v uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetWrittenBytes(v uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.WrittenBytes = v
 	}
 }
 
 // SetWrittenKeys sets the written keys for the resource.
-func SetWrittenKeys(v uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetWrittenKeys(v uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.WrittenKeys = v
 	}
 }
 
-// WithRemoveContainerPeer removes the specified peer for the resource.
-func WithRemoveContainerPeer(containerID uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+// WithRemoveStorePeer removes the specified peer for the resource.
+func WithRemoveStorePeer(containerID uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		var peers []metapb.Replica
 		for _, peer := range res.Meta.Peers() {
-			if peer.ContainerID != containerID {
+			if peer.StoreID != containerID {
 				peers = append(peers, peer)
 			}
 		}
@@ -171,46 +171,46 @@ func WithRemoveContainerPeer(containerID uint64) ResourceCreateOption {
 }
 
 // SetReadBytes sets the read bytes for the resource.
-func SetReadBytes(v uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetReadBytes(v uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.ReadBytes = v
 	}
 }
 
 // SetReadKeys sets the read keys for the resource.
-func SetReadKeys(v uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetReadKeys(v uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.ReadKeys = v
 	}
 }
 
 // SetApproximateSize sets the approximate size for the resource.
-func SetApproximateSize(v int64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetApproximateSize(v int64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.ApproximateSize = uint64(v)
 	}
 }
 
 // SetApproximateKeys sets the approximate keys for the resource.
-func SetApproximateKeys(v int64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetApproximateKeys(v int64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.ApproximateKeys = uint64(v)
 	}
 }
 
 // SetReportInterval sets the report interval for the resource.
-func SetReportInterval(v uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetReportInterval(v uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.Interval = &metapb.TimeInterval{Start: 0, End: v}
 	}
 }
 
-// SetResourceConfVer sets the config version for the resource.
-func SetResourceConfVer(confVer uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+// SetShardConfVer sets the config version for the resource.
+func SetShardConfVer(confVer uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		if e.Version == 0 {
-			res.Meta.SetEpoch(metapb.ResourceEpoch{ConfVer: confVer, Version: 1})
+			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: confVer, Version: 1})
 		} else {
 			e.ConfVer = confVer
 			res.Meta.SetEpoch(e)
@@ -218,12 +218,12 @@ func SetResourceConfVer(confVer uint64) ResourceCreateOption {
 	}
 }
 
-// SetResourceVersion sets the version for the resource.
-func SetResourceVersion(version uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+// SetShardVersion sets the version for the resource.
+func SetShardVersion(version uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		e := res.Meta.Epoch()
 		if e.Version == 0 {
-			res.Meta.SetEpoch(metapb.ResourceEpoch{ConfVer: 1, Version: version})
+			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: 1, Version: version})
 		} else {
 			e.Version = version
 			res.Meta.SetEpoch(e)
@@ -232,15 +232,15 @@ func SetResourceVersion(version uint64) ResourceCreateOption {
 }
 
 // SetPeers sets the peers for the resource.
-func SetPeers(peers []metapb.Replica) ResourceCreateOption {
-	return func(res *CachedResource) {
+func SetPeers(peers []metapb.Replica) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.Meta.SetPeers(peers)
 	}
 }
 
 // WithAddPeer adds a peer for the resource.
-func WithAddPeer(peer metapb.Replica) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithAddPeer(peer metapb.Replica) ShardCreateOption {
+	return func(res *CachedShard) {
 		peers := res.Meta.Peers()
 		peers = append(peers, peer)
 		res.Meta.SetPeers(peers)
@@ -254,8 +254,8 @@ func WithAddPeer(peer metapb.Replica) ResourceCreateOption {
 }
 
 // WithPromoteLearner promotes the learner.
-func WithPromoteLearner(peerID uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithPromoteLearner(peerID uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		peers := res.Meta.Peers()
 		for i := range res.Meta.Peers() {
 			if peers[i].ID == peerID {
@@ -265,22 +265,22 @@ func WithPromoteLearner(peerID uint64) ResourceCreateOption {
 	}
 }
 
-// WithReplacePeerContainer replaces a peer's containerID with another ID.
-func WithReplacePeerContainer(oldContainerID, newContainerID uint64) ResourceCreateOption {
-	return func(res *CachedResource) {
+// WithReplacePeerStore replaces a peer's containerID with another ID.
+func WithReplacePeerStore(oldStoreID, newStoreID uint64) ShardCreateOption {
+	return func(res *CachedShard) {
 		peers := res.Meta.Peers()
 
 		for i := range peers {
-			if peers[i].ContainerID == oldContainerID {
-				peers[i].ContainerID = newContainerID
+			if peers[i].StoreID == oldStoreID {
+				peers[i].StoreID = newStoreID
 			}
 		}
 	}
 }
 
 // WithInterval sets the interval
-func WithInterval(interval *metapb.TimeInterval) ResourceCreateOption {
-	return func(res *CachedResource) {
+func WithInterval(interval *metapb.TimeInterval) ShardCreateOption {
+	return func(res *CachedShard) {
 		res.stats.Interval = interval
 	}
 }

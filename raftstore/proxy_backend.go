@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
 )
@@ -69,14 +69,14 @@ func (f *defaultBackendFactory) create(addr string, success SuccessCallback, fai
 }
 
 type localBackend struct {
-	handler func(rpc.Request) error
+	handler func(rpcpb.Request) error
 }
 
-func newLocalBackend(handler func(rpc.Request) error) backend {
+func newLocalBackend(handler func(rpcpb.Request) error) backend {
 	return &localBackend{handler: handler}
 }
 
-func (lb *localBackend) dispatch(req rpc.Request) error {
+func (lb *localBackend) dispatch(req rpcpb.Request) error {
 	req.PID = 0
 	return lb.handler(req)
 }
@@ -110,12 +110,12 @@ func newRemoteBackend(logger *zap.Logger,
 		conn:            conn,
 		reqs:            task.New(32),
 	}
-	bc.stopper = stop.NewStopper(fmt.Sprintf("rpc-backend-%s", addr))
+	bc.stopper = stop.NewStopper(fmt.Sprintf("rpcpb-backend-%s", addr))
 	bc.stopper.RunTask(context.Background(), bc.writeLoop)
 	return bc
 }
 
-func (bc *remoteBackend) dispatch(req rpc.Request) error {
+func (bc *remoteBackend) dispatch(req rpcpb.Request) error {
 	if !bc.checkConnect() {
 		return multierr.Append(errConnect, &ErrTryAgain{
 			Wait: time.Second,
@@ -179,7 +179,7 @@ func (bc *remoteBackend) writeLoop(ctx context.Context) {
 				}
 
 				if ce := bc.logger.Check(zap.DebugLevel, "send request"); ce != nil {
-					ce.Write(log.HexField("id", items[i].(rpc.Request).ID))
+					ce.Write(log.HexField("id", items[i].(rpcpb.Request).ID))
 				}
 				bc.conn.Write(items[i])
 			}
@@ -187,7 +187,7 @@ func (bc *remoteBackend) writeLoop(ctx context.Context) {
 			err = bc.conn.Flush()
 			if err != nil {
 				for i := int64(0); i < n; i++ {
-					req := items[i].(rpc.Request)
+					req := items[i].(rpcpb.Request)
 					bc.failureCallback(req.ID, err)
 				}
 			}
@@ -207,7 +207,7 @@ func (bc *remoteBackend) readLoop(ctx context.Context) {
 				return
 			}
 
-			if rsp, ok := data.(rpc.Response); ok {
+			if rsp, ok := data.(rpcpb.Response); ok {
 				if ce := bc.logger.Check(zap.DebugLevel, "backend received response"); ce != nil {
 					ce.Write(log.HexField("id", rsp.ID),
 						log.RaftResponseField("response", &rsp))

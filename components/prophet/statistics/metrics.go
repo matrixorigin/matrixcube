@@ -32,7 +32,7 @@ var (
 			Namespace: "prophet",
 			Subsystem: "scheduler",
 			Name:      "container_status",
-			Help:      "Container status for schedule",
+			Help:      "Store status for schedule",
 		}, []string{"address", "container", "type"})
 
 	resourceStatusGauge = prometheus.NewGaugeVec(
@@ -43,7 +43,7 @@ var (
 			Help:      "Status of the resources.",
 		}, []string{"type"})
 
-	offlineResourceStatusGauge = prometheus.NewGaugeVec(
+	offlineShardStatusGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "prophet",
 			Subsystem: "resources",
@@ -136,7 +136,7 @@ func init() {
 	prometheus.MustRegister(hotCacheStatusGauge)
 	prometheus.MustRegister(containerStatusGauge)
 	prometheus.MustRegister(resourceStatusGauge)
-	prometheus.MustRegister(offlineResourceStatusGauge)
+	prometheus.MustRegister(offlineShardStatusGauge)
 	prometheus.MustRegister(clusterStatusGauge)
 	prometheus.MustRegister(placementStatusGauge)
 	prometheus.MustRegister(configStatusGauge)

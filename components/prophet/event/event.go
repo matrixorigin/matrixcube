@@ -15,30 +15,30 @@ package event
 
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 var (
 	// EventInit event init
 	EventInit uint32 = 1 << 1
-	// EventResource resource event
-	EventResource uint32 = 1 << 2
-	// EventContainer container create event
-	EventContainer uint32 = 1 << 3
-	// EventResourceStats resource stats
-	EventResourceStats uint32 = 1 << 4
-	// EventContainerStats container stats
-	EventContainerStats uint32 = 1 << 5
+	// EventShard resource event
+	EventShard uint32 = 1 << 2
+	// EventStore container create event
+	EventStore uint32 = 1 << 3
+	// EventShardStats resource stats
+	EventShardStats uint32 = 1 << 4
+	// EventStoreStats container stats
+	EventStoreStats uint32 = 1 << 5
 	// EventFlagAll all event
 	EventFlagAll = 0xffffffff
 
 	names = map[uint32]string{
 		EventInit:           "init",
-		EventResource:       "resource",
-		EventResourceStats:  "resource-stats",
-		EventContainer:      "container",
-		EventContainerStats: "container-stats",
+		EventShard:       "resource",
+		EventShardStats:  "resource-stats",
+		EventStore:      "container",
+		EventStoreStats: "container-stats",
 	}
 )
 
@@ -49,8 +49,8 @@ func EventTypeName(value uint32) string {
 
 // Snapshot cache snapshot
 type Snapshot struct {
-	Resources  []metadata.Resource
-	Containers []metadata.Container
+	Shards  []metadata.Shard
+	Stores []metadata.Store
 	Leaders    map[uint64]uint64
 }
 
@@ -63,38 +63,38 @@ func MatchEvent(event, flag uint32) bool {
 func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 	resp := &rpcpb.InitEventData{}
 
-	for _, v := range snap.Containers {
+	for _, v := range snap.Stores {
 		data, err := v.Marshal()
 		if err != nil {
 			return nil, err
 		}
 
-		resp.Containers = append(resp.Containers, data)
+		resp.Stores = append(resp.Stores, data)
 	}
 
-	for _, v := range snap.Resources {
+	for _, v := range snap.Shards {
 		data, err := v.Marshal()
 		if err != nil {
 			return nil, err
 		}
 
-		resp.Resources = append(resp.Resources, data)
+		resp.Shards = append(resp.Shards, data)
 		resp.Leaders = append(resp.Leaders, snap.Leaders[v.ID()])
 	}
 
 	return resp, nil
 }
 
-// NewResourceEvent create resource event
-func NewResourceEvent(target metadata.Resource, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
+// NewShardEvent create resource event
+func NewShardEvent(target metadata.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
 	}
 
 	return rpcpb.EventNotify{
-		Type: EventResource,
-		ResourceEvent: &rpcpb.ResourceEventData{
+		Type: EventShard,
+		ShardEvent: &rpcpb.ShardEventData{
 			Data:    value,
 			Leader:  leaderID,
 			Removed: removed,
@@ -103,32 +103,32 @@ func NewResourceEvent(target metadata.Resource, leaderID uint64, removed bool, c
 	}
 }
 
-// NewResourceStatsEvent create resource stats event
-func NewResourceStatsEvent(stats *metapb.ResourceStats) rpcpb.EventNotify {
+// NewShardStatsEvent create resource stats event
+func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:               EventResourceStats,
-		ResourceStatsEvent: stats,
+		Type:               EventShardStats,
+		ShardStatsEvent: stats,
 	}
 }
 
-// NewContainerStatsEvent create container stats event
-func NewContainerStatsEvent(stats *metapb.ContainerStats) rpcpb.EventNotify {
+// NewStoreStatsEvent create container stats event
+func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:                EventContainerStats,
-		ContainerStatsEvent: stats,
+		Type:                EventStoreStats,
+		StoreStatsEvent: stats,
 	}
 }
 
-// NewContainerEvent create container event
-func NewContainerEvent(target metadata.Container) rpcpb.EventNotify {
+// NewStoreEvent create container event
+func NewStoreEvent(target metadata.Store) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
 	}
 
 	return rpcpb.EventNotify{
-		Type: EventContainer,
-		ContainerEvent: &rpcpb.ContainerEventData{
+		Type: EventStore,
+		StoreEvent: &rpcpb.StoreEventData{
 			Data: value,
 		},
 	}

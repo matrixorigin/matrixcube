@@ -17,24 +17,24 @@ import (
 	"github.com/fagongzi/goetty"
 	"github.com/fagongzi/goetty/codec/length"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
 )
 
 type proxyRPC interface {
 	start() error
 	stop()
-	onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response)
+	onResponse(header rpcpb.ResponseBatchHeader, rsp rpcpb.Response)
 }
 
 type defaultRPC struct {
 	logger  *zap.Logger
 	app     goetty.NetApplication
-	handler func(rpc.Request) error
+	handler func(rpcpb.Request) error
 }
 
-func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpc.Request) error) proxyRPC {
-	rpc := &defaultRPC{
+func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpcpb.Request) error) proxyRPC {
+	rpcpb := &defaultRPC{
 		logger:  log.Adjust(logger),
 		handler: handler,
 	}
@@ -42,7 +42,7 @@ func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(
 	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, maxBodySize)
 	app, err := goetty.NewTCPApplication(
 		addr,
-		rpc.onMessage,
+		rpcpb.onMessage,
 		goetty.WithAppLogger(logger),
 		goetty.WithAppSessionOptions(
 			goetty.WithCodec(encoder, decoder),
@@ -52,12 +52,12 @@ func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(
 	)
 
 	if err != nil {
-		rpc.logger.Fatal("fail to create rpc",
+		rpcpb.logger.Fatal("fail to create rpcpb",
 			zap.Error(err))
 	}
 
-	rpc.app = app
-	return rpc
+	rpcpb.app = app
+	return rpcpb
 }
 
 func (r *defaultRPC) start() error {
@@ -69,11 +69,11 @@ func (r *defaultRPC) stop() {
 }
 
 func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {
-	req := value.(rpc.Request)
+	req := value.(rpcpb.Request)
 	req.PID = int64(rs.ID())
 	err := r.handler(req)
 	if err != nil {
-		rsp := rpc.Response{}
+		rsp := rpcpb.Response{}
 		rsp.ID = req.ID
 		rsp.Error.Message = err.Error()
 		rs.WriteAndFlush(rsp)
@@ -81,16 +81,16 @@ func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint6
 	return nil
 }
 
-func (r *defaultRPC) onResponse(header rpc.ResponseBatchHeader, rsp rpc.Response) {
+func (r *defaultRPC) onResponse(header rpcpb.ResponseBatchHeader, rsp rpcpb.Response) {
 	if rs, _ := r.app.GetSession(uint64(rsp.PID)); rs != nil {
 		rsp.Error = header.Error
-		if ce := r.logger.Check(zap.DebugLevel, "rpc received response"); ce != nil {
+		if ce := r.logger.Check(zap.DebugLevel, "rpcpb received response"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID),
 				log.RaftResponseField("response", &rsp))
 		}
 		rs.WriteAndFlush(rsp)
 	} else {
-		if ce := r.logger.Check(zap.DebugLevel, "rpc received response skipped"); ce != nil {
+		if ce := r.logger.Check(zap.DebugLevel, "rpcpb received response skipped"); ce != nil {
 			ce.Write(log.HexField("id", rsp.ID),
 				log.RaftResponseField("response", &rsp),
 				log.ReasonField("missing session"))

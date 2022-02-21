@@ -80,7 +80,7 @@ func (s *store) handleShardStateCheckTask() {
 	})
 
 	if bm.GetCardinality() > 0 {
-		rsp, err := s.pd.GetClient().CheckResourceState(bm)
+		rsp, err := s.pd.GetClient().CheckShardState(bm)
 		if err != nil {
 			s.logger.Error("fail to check shards state, retry later",
 				s.storeField(),
@@ -151,7 +151,7 @@ func (s *store) handleStoreHeartbeatTask(last time.Time) {
 		return
 	}
 
-	rsp, err := s.pd.GetClient().ContainerHeartbeat(req)
+	rsp, err := s.pd.GetClient().StoreHeartbeat(req)
 	if err != nil {
 		s.logger.Error("fail to send store heartbeat",
 			s.storeField(),

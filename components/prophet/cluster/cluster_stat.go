@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // Cluster State Statistics
@@ -108,7 +108,7 @@ const NumberOfEntries = 30
 const StaleEntriesTimeout = 300 * time.Second
 
 // StatEntry is an entry of container statistics
-type StatEntry metapb.ContainerStats
+type StatEntry metapb.StoreStats
 
 // CPUEntries saves a history of container statistics
 type CPUEntries struct {
@@ -183,7 +183,7 @@ func (cst *StatEntries) Append(stat *StatEntry) bool {
 	cst.total++
 
 	// append the entry
-	containerID := stat.ContainerID
+	containerID := stat.StoreID
 	entries, ok := cst.stats[containerID]
 	if !ok {
 		entries = NewCPUEntries(cst.size)

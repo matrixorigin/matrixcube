@@ -23,42 +23,42 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // OpStep describes the basic scheduling steps that can not be subdivided.
 type OpStep interface {
 	fmt.Stringer
-	ConfVerChanged(res *core.CachedResource) uint64
-	IsFinish(res *core.CachedResource) bool
-	CheckSafety(res *core.CachedResource) error
-	Influence(opInfluence OpInfluence, res *core.CachedResource)
+	ConfVerChanged(res *core.CachedShard) uint64
+	IsFinish(res *core.CachedShard) bool
+	CheckSafety(res *core.CachedShard) error
+	Influence(opInfluence OpInfluence, res *core.CachedShard)
 }
 
 // TransferLeader is an OpStep that transfers a resource's leader.
 type TransferLeader struct {
-	FromContainer, ToContainer uint64
+	FromStore, ToStore uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (tl TransferLeader) ConfVerChanged(res *core.CachedResource) uint64 {
+func (tl TransferLeader) ConfVerChanged(res *core.CachedShard) uint64 {
 	return 0 // transfer leader never change the conf version
 }
 
 func (tl TransferLeader) String() string {
-	return fmt.Sprintf("transfer leader from container %v to container %v", tl.FromContainer, tl.ToContainer)
+	return fmt.Sprintf("transfer leader from container %v to container %v", tl.FromStore, tl.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (tl TransferLeader) IsFinish(res *core.CachedResource) bool {
-	return res.GetLeader().GetContainerID() == tl.ToContainer
+func (tl TransferLeader) IsFinish(res *core.CachedShard) bool {
+	return res.GetLeader().GetStoreID() == tl.ToStore
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (tl TransferLeader) CheckSafety(res *core.CachedResource) error {
-	peer, ok := res.GetContainerPeer(tl.ToContainer)
+func (tl TransferLeader) CheckSafety(res *core.CachedShard) error {
+	peer, ok := res.GetStorePeer(tl.ToStore)
 	if !ok {
 		return errors.New("peer does not existed")
 	}
@@ -69,9 +69,9 @@ func (tl TransferLeader) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (tl TransferLeader) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	from := opInfluence.GetContainerInfluence(tl.FromContainer)
-	to := opInfluence.GetContainerInfluence(tl.ToContainer)
+func (tl TransferLeader) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	from := opInfluence.GetStoreInfluence(tl.FromStore)
+	to := opInfluence.GetStoreInfluence(tl.ToStore)
 
 	groupKey := res.GetGroupKey()
 
@@ -88,22 +88,22 @@ func (tl TransferLeader) Influence(opInfluence OpInfluence, res *core.CachedReso
 
 // AddPeer is an OpStep that adds a resource peer.
 type AddPeer struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (ap AddPeer) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerVoter(ap.ToContainer)
+func (ap AddPeer) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStoreVoter(ap.ToStore)
 	return typeutil.BoolToUint64(peer.ID == ap.PeerID)
 }
 
 func (ap AddPeer) String() string {
-	return fmt.Sprintf("add peer %v on container %v", ap.PeerID, ap.ToContainer)
+	return fmt.Sprintf("add peer %v on container %v", ap.PeerID, ap.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (ap AddPeer) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerVoter(ap.ToContainer); ok {
+func (ap AddPeer) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreVoter(ap.ToStore); ok {
 		if peer.ID != ap.PeerID {
 			return false
 		}
@@ -114,47 +114,47 @@ func (ap AddPeer) IsFinish(res *core.CachedResource) bool {
 }
 
 // Influence calculates the container difference that current step makes.
-func (ap AddPeer) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	to := opInfluence.GetContainerInfluence(ap.ToContainer)
+func (ap AddPeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	to := opInfluence.GetStoreInfluence(ap.ToStore)
 
 	size := res.GetApproximateSize()
 
 	groupKey := res.GetGroupKey()
 	stats := to.InfluenceStats[groupKey]
-	stats.ResourceSize += size
-	stats.ResourceCount++
+	stats.ShardSize += size
+	stats.ShardCount++
 	to.InfluenceStats[groupKey] = stats
 
 	to.AdjustStepCost(limit.AddPeer, size)
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (ap AddPeer) CheckSafety(res *core.CachedResource) error {
-	peer, ok := res.GetContainerPeer(ap.ToContainer)
+func (ap AddPeer) CheckSafety(res *core.CachedShard) error {
+	peer, ok := res.GetStorePeer(ap.ToStore)
 	if ok && peer.ID != ap.PeerID {
-		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, ap.ToContainer, ap.PeerID)
+		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, ap.ToStore, ap.PeerID)
 	}
 	return nil
 }
 
 // AddLearner is an OpStep that adds a resource learner peer.
 type AddLearner struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (al AddLearner) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerPeer(al.ToContainer)
+func (al AddLearner) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStorePeer(al.ToStore)
 	return typeutil.BoolToUint64(peer.ID == al.PeerID)
 }
 
 func (al AddLearner) String() string {
-	return fmt.Sprintf("add learner peer %v on container %v", al.PeerID, al.ToContainer)
+	return fmt.Sprintf("add learner peer %v on container %v", al.PeerID, al.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (al AddLearner) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerLearner(al.ToContainer); ok {
+func (al AddLearner) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreLearner(al.ToStore); ok {
 		if peer.ID != al.PeerID {
 			return false
 		}
@@ -165,13 +165,13 @@ func (al AddLearner) IsFinish(res *core.CachedResource) bool {
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (al AddLearner) CheckSafety(res *core.CachedResource) error {
-	peer, ok := res.GetContainerPeer(al.ToContainer)
+func (al AddLearner) CheckSafety(res *core.CachedShard) error {
+	peer, ok := res.GetStorePeer(al.ToStore)
 	if !ok {
 		return nil
 	}
 	if peer.ID != al.PeerID {
-		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, al.ToContainer, al.PeerID)
+		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, al.ToStore, al.PeerID)
 	}
 	if !metadata.IsLearner(peer) {
 		return errors.New("peer already is a voter")
@@ -180,14 +180,14 @@ func (al AddLearner) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (al AddLearner) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	to := opInfluence.GetContainerInfluence(al.ToContainer)
+func (al AddLearner) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	to := opInfluence.GetStoreInfluence(al.ToStore)
 
 	size := res.GetApproximateSize()
 	groupKey := res.GetGroupKey()
 	stats := to.InfluenceStats[groupKey]
-	stats.ResourceSize += size
-	stats.ResourceCount++
+	stats.ShardSize += size
+	stats.ShardCount++
 	to.InfluenceStats[groupKey] = stats
 
 	to.AdjustStepCost(limit.AddPeer, size)
@@ -195,30 +195,30 @@ func (al AddLearner) Influence(opInfluence OpInfluence, res *core.CachedResource
 
 // PromoteLearner is an OpStep that promotes a resource learner peer to normal voter.
 type PromoteLearner struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (pl PromoteLearner) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerVoter(pl.ToContainer)
+func (pl PromoteLearner) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStoreVoter(pl.ToStore)
 	return typeutil.BoolToUint64(peer.ID == pl.PeerID)
 }
 
 func (pl PromoteLearner) String() string {
-	return fmt.Sprintf("promote learner peer %v on container %v to voter", pl.PeerID, pl.ToContainer)
+	return fmt.Sprintf("promote learner peer %v on container %v to voter", pl.PeerID, pl.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (pl PromoteLearner) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerVoter(pl.ToContainer); ok {
+func (pl PromoteLearner) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreVoter(pl.ToStore); ok {
 		return peer.ID == pl.PeerID
 	}
 	return false
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (pl PromoteLearner) CheckSafety(res *core.CachedResource) error {
-	peer, _ := res.GetContainerPeer(pl.ToContainer)
+func (pl PromoteLearner) CheckSafety(res *core.CachedShard) error {
+	peer, _ := res.GetStorePeer(pl.ToStore)
 	if peer.ID != pl.PeerID {
 		return errors.New("peer does not exist")
 	}
@@ -226,16 +226,16 @@ func (pl PromoteLearner) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (pl PromoteLearner) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
+func (pl PromoteLearner) Influence(opInfluence OpInfluence, res *core.CachedShard) {}
 
 // RemovePeer is an OpStep that removes a resource peer.
 type RemovePeer struct {
-	FromContainer, PeerID uint64
+	FromStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (rp RemovePeer) ConfVerChanged(res *core.CachedResource) uint64 {
-	p, _ := res.GetContainerPeer(rp.FromContainer)
+func (rp RemovePeer) ConfVerChanged(res *core.CachedShard) uint64 {
+	p, _ := res.GetStorePeer(rp.FromStore)
 	id := p.ID
 	// 1. id == 0 -> The peer does not exist, it needs to return 1.
 	// 2. id != 0 && rp.PeerId == 0 -> No rp.PeerID is specified, and there is a Peer on the container, it needs to return 0.
@@ -249,41 +249,41 @@ func (rp RemovePeer) ConfVerChanged(res *core.CachedResource) uint64 {
 }
 
 func (rp RemovePeer) String() string {
-	return fmt.Sprintf("remove peer on container %v", rp.FromContainer)
+	return fmt.Sprintf("remove peer on container %v", rp.FromStore)
 }
 
 // IsFinish checks if current step is finished.
-func (rp RemovePeer) IsFinish(res *core.CachedResource) bool {
-	_, ok := res.GetContainerPeer(rp.FromContainer)
+func (rp RemovePeer) IsFinish(res *core.CachedShard) bool {
+	_, ok := res.GetStorePeer(rp.FromStore)
 	return !ok
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (rp RemovePeer) CheckSafety(res *core.CachedResource) error {
-	if rp.FromContainer == res.GetLeader().GetContainerID() {
+func (rp RemovePeer) CheckSafety(res *core.CachedShard) error {
+	if rp.FromStore == res.GetLeader().GetStoreID() {
 		return errors.New("cannot remove leader peer")
 	}
 	return nil
 }
 
 // Influence calculates the container difference that current step makes.
-func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	from := opInfluence.GetContainerInfluence(rp.FromContainer)
+func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	from := opInfluence.GetStoreInfluence(rp.FromStore)
 
 	size := res.GetApproximateSize()
 	groupKey := res.GetGroupKey()
 	stats := from.InfluenceStats[groupKey]
-	stats.ResourceSize -= size
-	stats.ResourceCount--
+	stats.ShardSize -= size
+	stats.ShardCount--
 	from.InfluenceStats[groupKey] = stats
 
 	from.AdjustStepCost(limit.RemovePeer, size)
 }
 
-// MergeResource is an OpStep that merge two resources.
-type MergeResource struct {
-	FromResource metadata.Resource
-	ToResource   metadata.Resource
+// MergeShard is an OpStep that merge two resources.
+type MergeShard struct {
+	FromShard metadata.Shard
+	ToShard   metadata.Shard
 	// there are two resources involved in merge process,
 	// so to keep them from other scheduler,
 	// both of them should add Merresource operatorStep.
@@ -294,38 +294,38 @@ type MergeResource struct {
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (mr MergeResource) ConfVerChanged(res *core.CachedResource) uint64 {
+func (mr MergeShard) ConfVerChanged(res *core.CachedShard) uint64 {
 	return 0
 }
 
-func (mr MergeResource) String() string {
-	return fmt.Sprintf("merge resource %v into resource %v", mr.FromResource.ID(), mr.ToResource.ID())
+func (mr MergeShard) String() string {
+	return fmt.Sprintf("merge resource %v into resource %v", mr.FromShard.ID(), mr.ToShard.ID())
 }
 
 // IsFinish checks if current step is finished.
-func (mr MergeResource) IsFinish(res *core.CachedResource) bool {
+func (mr MergeShard) IsFinish(res *core.CachedShard) bool {
 	if mr.IsPassive {
 		start, end := res.Meta.Range()
-		toStart, toEnd := mr.ToResource.Range()
+		toStart, toEnd := mr.ToShard.Range()
 		return !bytes.Equal(start, toStart) || !bytes.Equal(end, toEnd)
 	}
 	return false
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (mr MergeResource) CheckSafety(res *core.CachedResource) error {
+func (mr MergeShard) CheckSafety(res *core.CachedShard) error {
 	return nil
 }
 
 // Influence calculates the container difference that current step makes.
-func (mr MergeResource) Influence(opInfluence OpInfluence, res *core.CachedResource) {
+func (mr MergeShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 	if mr.IsPassive {
 		for _, peer := range res.Meta.Peers() {
-			o := opInfluence.GetContainerInfluence(peer.ContainerID)
+			o := opInfluence.GetStoreInfluence(peer.StoreID)
 
 			groupKey := res.GetGroupKey()
 			stats := o.InfluenceStats[groupKey]
-			stats.ResourceCount--
+			stats.ShardCount--
 			if res.GetLeader().GetID() == peer.ID {
 				stats.LeaderCount--
 			}
@@ -335,36 +335,36 @@ func (mr MergeResource) Influence(opInfluence OpInfluence, res *core.CachedResou
 	}
 }
 
-// SplitResource is an OpStep that splits a resource.
-type SplitResource struct {
+// SplitShard is an OpStep that splits a resource.
+type SplitShard struct {
 	StartKey, EndKey []byte
 	Policy           metapb.CheckPolicy
 	SplitKeys        [][]byte
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (sr SplitResource) ConfVerChanged(res *core.CachedResource) uint64 {
+func (sr SplitShard) ConfVerChanged(res *core.CachedShard) uint64 {
 	return 0
 }
 
-func (sr SplitResource) String() string {
+func (sr SplitShard) String() string {
 	return fmt.Sprintf("split resource with policy %s", sr.Policy.String())
 }
 
 // IsFinish checks if current step is finished.
-func (sr SplitResource) IsFinish(res *core.CachedResource) bool {
+func (sr SplitShard) IsFinish(res *core.CachedShard) bool {
 	start, end := res.Meta.Range()
 	return !bytes.Equal(start, sr.StartKey) || !bytes.Equal(end, sr.EndKey)
 }
 
 // Influence calculates the container difference that current step makes.
-func (sr SplitResource) Influence(opInfluence OpInfluence, res *core.CachedResource) {
+func (sr SplitShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 	for _, peer := range res.Meta.Peers() {
-		inf := opInfluence.GetContainerInfluence(peer.ContainerID)
+		inf := opInfluence.GetStoreInfluence(peer.StoreID)
 
 		groupKey := res.GetGroupKey()
 		stats := inf.InfluenceStats[groupKey]
-		stats.ResourceCount++
+		stats.ShardCount++
 		if res.GetLeader().GetID() == peer.ID {
 			stats.LeaderCount++
 		}
@@ -373,28 +373,28 @@ func (sr SplitResource) Influence(opInfluence OpInfluence, res *core.CachedResou
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (sr SplitResource) CheckSafety(res *core.CachedResource) error {
+func (sr SplitShard) CheckSafety(res *core.CachedShard) error {
 	return nil
 }
 
 // AddLightPeer is an OpStep that adds a resource peer without considering the influence.
 type AddLightPeer struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (ap AddLightPeer) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerVoter(ap.ToContainer)
+func (ap AddLightPeer) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStoreVoter(ap.ToStore)
 	return typeutil.BoolToUint64(peer.ID == ap.PeerID)
 }
 
 func (ap AddLightPeer) String() string {
-	return fmt.Sprintf("add peer %v on container %v", ap.PeerID, ap.ToContainer)
+	return fmt.Sprintf("add peer %v on container %v", ap.PeerID, ap.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (ap AddLightPeer) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerVoter(ap.ToContainer); ok {
+func (ap AddLightPeer) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreVoter(ap.ToStore); ok {
 		if peer.ID != ap.PeerID {
 			return false
 		}
@@ -405,43 +405,43 @@ func (ap AddLightPeer) IsFinish(res *core.CachedResource) bool {
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (ap AddLightPeer) CheckSafety(res *core.CachedResource) error {
-	peer, ok := res.GetContainerPeer(ap.ToContainer)
+func (ap AddLightPeer) CheckSafety(res *core.CachedShard) error {
+	peer, ok := res.GetStorePeer(ap.ToStore)
 	if ok && peer.ID != ap.PeerID {
-		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, ap.ToContainer, ap.PeerID)
+		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, ap.ToStore, ap.PeerID)
 	}
 	return nil
 }
 
 // Influence calculates the container difference that current step makes.
-func (ap AddLightPeer) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	to := opInfluence.GetContainerInfluence(ap.ToContainer)
+func (ap AddLightPeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	to := opInfluence.GetStoreInfluence(ap.ToStore)
 
 	groupKey := res.GetGroupKey()
 	stats := to.InfluenceStats[groupKey]
-	stats.ResourceSize += res.GetApproximateSize()
-	stats.ResourceCount++
+	stats.ShardSize += res.GetApproximateSize()
+	stats.ShardCount++
 	to.InfluenceStats[groupKey] = stats
 }
 
 // AddLightLearner is an OpStep that adds a resource learner peer without considering the influence.
 type AddLightLearner struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (al AddLightLearner) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerPeer(al.ToContainer)
+func (al AddLightLearner) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStorePeer(al.ToStore)
 	return typeutil.BoolToUint64(peer.ID == al.PeerID)
 }
 
 func (al AddLightLearner) String() string {
-	return fmt.Sprintf("add learner peer %v on container %v", al.PeerID, al.ToContainer)
+	return fmt.Sprintf("add learner peer %v on container %v", al.PeerID, al.ToStore)
 }
 
 // IsFinish checks if current step is finished.
-func (al AddLightLearner) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerLearner(al.ToContainer); ok {
+func (al AddLightLearner) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreLearner(al.ToStore); ok {
 		if peer.ID != al.PeerID {
 			return false
 		}
@@ -452,13 +452,13 @@ func (al AddLightLearner) IsFinish(res *core.CachedResource) bool {
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (al AddLightLearner) CheckSafety(res *core.CachedResource) error {
-	peer, ok := res.GetContainerPeer(al.ToContainer)
+func (al AddLightLearner) CheckSafety(res *core.CachedShard) error {
+	peer, ok := res.GetStorePeer(al.ToStore)
 	if !ok {
 		return nil
 	}
 	if peer.ID != al.PeerID {
-		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, al.ToContainer, al.PeerID)
+		return fmt.Errorf("peer %d has already existed in container %d, the operator is trying to add peer %d on the same container", peer.ID, al.ToStore, al.PeerID)
 	}
 	if !metadata.IsLearner(peer) {
 		return errors.New("peer already is a voter")
@@ -467,42 +467,42 @@ func (al AddLightLearner) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (al AddLightLearner) Influence(opInfluence OpInfluence, res *core.CachedResource) {
-	to := opInfluence.GetContainerInfluence(al.ToContainer)
+func (al AddLightLearner) Influence(opInfluence OpInfluence, res *core.CachedShard) {
+	to := opInfluence.GetStoreInfluence(al.ToStore)
 
 	groupKey := res.GetGroupKey()
 	stats := to.InfluenceStats[groupKey]
-	stats.ResourceSize += res.GetApproximateSize()
-	stats.ResourceCount++
+	stats.ShardSize += res.GetApproximateSize()
+	stats.ShardCount++
 	to.InfluenceStats[groupKey] = stats
 }
 
 // DemoteFollower is an OpStep that demotes a resource follower peer to learner.
 type DemoteFollower struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 func (df DemoteFollower) String() string {
-	return fmt.Sprintf("demote follower peer %v on container %v to learner", df.PeerID, df.ToContainer)
+	return fmt.Sprintf("demote follower peer %v on container %v to learner", df.PeerID, df.ToStore)
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (df DemoteFollower) ConfVerChanged(res *core.CachedResource) uint64 {
-	peer, _ := res.GetContainerLearner(df.ToContainer)
+func (df DemoteFollower) ConfVerChanged(res *core.CachedShard) uint64 {
+	peer, _ := res.GetStoreLearner(df.ToStore)
 	return typeutil.BoolToUint64(peer.ID == df.PeerID)
 }
 
 // IsFinish checks if current step is finished.
-func (df DemoteFollower) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerLearner(df.ToContainer); ok {
+func (df DemoteFollower) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreLearner(df.ToStore); ok {
 		return peer.ID == df.PeerID
 	}
 	return false
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (df DemoteFollower) CheckSafety(res *core.CachedResource) error {
-	peer, _ := res.GetContainerPeer(df.ToContainer)
+func (df DemoteFollower) CheckSafety(res *core.CachedShard) error {
+	peer, _ := res.GetStorePeer(df.ToStore)
 	if peer.ID != df.PeerID {
 		return errors.New("peer does not exist")
 	}
@@ -513,27 +513,27 @@ func (df DemoteFollower) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (df DemoteFollower) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
+func (df DemoteFollower) Influence(opInfluence OpInfluence, res *core.CachedShard) {}
 
 // DemoteVoter is very similar to DemoteFollower. But it allows Demote Leader.
 // Note: It is not an OpStep, only a sub step in ChangePeerV2Enter and ChangePeerV2Leave.
 type DemoteVoter struct {
-	ToContainer, PeerID uint64
+	ToStore, PeerID uint64
 }
 
 func (dv DemoteVoter) String() string {
-	return fmt.Sprintf("demote voter peer %v on container %v to learner", dv.PeerID, dv.ToContainer)
+	return fmt.Sprintf("demote voter peer %v on container %v to learner", dv.PeerID, dv.ToStore)
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (dv DemoteVoter) ConfVerChanged(res *core.CachedResource) bool {
-	peer, _ := res.GetContainerLearner(dv.ToContainer)
+func (dv DemoteVoter) ConfVerChanged(res *core.CachedShard) bool {
+	peer, _ := res.GetStoreLearner(dv.ToStore)
 	return peer.ID == dv.PeerID
 }
 
 // IsFinish checks if current step is finished.
-func (dv DemoteVoter) IsFinish(res *core.CachedResource) bool {
-	if peer, ok := res.GetContainerLearner(dv.ToContainer); ok {
+func (dv DemoteVoter) IsFinish(res *core.CachedShard) bool {
+	if peer, ok := res.GetStoreLearner(dv.ToStore); ok {
 		return peer.ID == dv.PeerID
 	}
 	return false
@@ -549,24 +549,24 @@ func (cpe ChangePeerV2Enter) String() string {
 	b := &strings.Builder{}
 	_, _ = b.WriteString("use joint consensus")
 	for _, pl := range cpe.PromoteLearners {
-		_, _ = fmt.Fprintf(b, ", promote learner peer %v on container %v to voter", pl.PeerID, pl.ToContainer)
+		_, _ = fmt.Fprintf(b, ", promote learner peer %v on container %v to voter", pl.PeerID, pl.ToStore)
 	}
 	for _, dv := range cpe.DemoteVoters {
-		_, _ = fmt.Fprintf(b, ", demote voter peer %v on container %v to learner", dv.PeerID, dv.ToContainer)
+		_, _ = fmt.Fprintf(b, ", demote voter peer %v on container %v to learner", dv.PeerID, dv.ToStore)
 	}
 	return b.String()
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (cpe ChangePeerV2Enter) ConfVerChanged(res *core.CachedResource) uint64 {
+func (cpe ChangePeerV2Enter) ConfVerChanged(res *core.CachedShard) uint64 {
 	for _, pl := range cpe.PromoteLearners {
-		peer, ok := res.GetContainerVoter(pl.ToContainer)
+		peer, ok := res.GetStoreVoter(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID || !metadata.IsVoterOrIncomingVoter(peer) {
 			return 0
 		}
 	}
 	for _, dv := range cpe.DemoteVoters {
-		peer, ok := res.GetContainerVoter(dv.ToContainer)
+		peer, ok := res.GetStoreVoter(dv.ToStore)
 		if ok && (peer.ID != dv.PeerID || !metadata.IsLearnerOrDemotingVoter(peer)) {
 			return 0
 		}
@@ -575,15 +575,15 @@ func (cpe ChangePeerV2Enter) ConfVerChanged(res *core.CachedResource) uint64 {
 }
 
 // IsFinish checks if current step is finished.
-func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedResource) bool {
+func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedShard) bool {
 	for _, pl := range cpe.PromoteLearners {
-		peer, ok := res.GetContainerVoter(pl.ToContainer)
+		peer, ok := res.GetStoreVoter(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_IncomingVoter {
 			return false
 		}
 	}
 	for _, dv := range cpe.DemoteVoters {
-		peer, ok := res.GetContainerVoter(dv.ToContainer)
+		peer, ok := res.GetStoreVoter(dv.ToStore)
 		if !ok || peer.ID != dv.PeerID || peer.Role != metapb.ReplicaRole_DemotingVoter {
 			return false
 		}
@@ -592,10 +592,10 @@ func (cpe ChangePeerV2Enter) IsFinish(res *core.CachedResource) bool {
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
+func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedShard) error {
 	inJointState, notInJointState := false, false
 	for _, pl := range cpe.PromoteLearners {
-		peer, ok := res.GetContainerPeer(pl.ToContainer)
+		peer, ok := res.GetStorePeer(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID {
 			return errors.New("peer does not exist")
 		}
@@ -613,7 +613,7 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
 		}
 	}
 	for _, dv := range cpe.DemoteVoters {
-		peer, ok := res.GetContainerPeer(dv.ToContainer)
+		peer, ok := res.GetStorePeer(dv.ToStore)
 		if !ok || peer.ID != dv.PeerID {
 			return errors.New("peer does not exist")
 		}
@@ -644,7 +644,7 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (cpe ChangePeerV2Enter) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
+func (cpe ChangePeerV2Enter) Influence(opInfluence OpInfluence, res *core.CachedShard) {}
 
 // GetRequest get the ChangePeerV2 request
 func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
@@ -654,7 +654,7 @@ func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
 			ChangeType: metapb.ConfigChangeType_AddNode,
 			Replica: metapb.Replica{
 				ID:          pl.PeerID,
-				ContainerID: pl.ToContainer,
+				StoreID: pl.ToStore,
 				Role:        metapb.ReplicaRole_Voter,
 			},
 		})
@@ -664,7 +664,7 @@ func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
 			ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 			Replica: metapb.Replica{
 				ID:          dv.PeerID,
-				ContainerID: dv.ToContainer,
+				StoreID: dv.ToStore,
 				Role:        metapb.ReplicaRole_Learner,
 			},
 		})
@@ -684,24 +684,24 @@ func (cpl ChangePeerV2Leave) String() string {
 	b := &strings.Builder{}
 	_, _ = b.WriteString("leave joint state")
 	for _, pl := range cpl.PromoteLearners {
-		_, _ = fmt.Fprintf(b, ", promote learner peer %v on container %v to voter", pl.PeerID, pl.ToContainer)
+		_, _ = fmt.Fprintf(b, ", promote learner peer %v on container %v to voter", pl.PeerID, pl.ToStore)
 	}
 	for _, dv := range cpl.DemoteVoters {
-		_, _ = fmt.Fprintf(b, ", demote voter peer %v on container %v to learner", dv.PeerID, dv.ToContainer)
+		_, _ = fmt.Fprintf(b, ", demote voter peer %v on container %v to learner", dv.PeerID, dv.ToStore)
 	}
 	return b.String()
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (cpl ChangePeerV2Leave) ConfVerChanged(res *core.CachedResource) uint64 {
+func (cpl ChangePeerV2Leave) ConfVerChanged(res *core.CachedShard) uint64 {
 	for _, pl := range cpl.PromoteLearners {
-		peer, ok := res.GetContainerVoter(pl.ToContainer)
+		peer, ok := res.GetStoreVoter(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_Voter {
 			return 0
 		}
 	}
 	for _, dv := range cpl.DemoteVoters {
-		if _, ok := res.GetContainerPeer(dv.PeerID); ok && !dv.ConfVerChanged(res) {
+		if _, ok := res.GetStorePeer(dv.PeerID); ok && !dv.ConfVerChanged(res) {
 			return 0
 		}
 	}
@@ -709,9 +709,9 @@ func (cpl ChangePeerV2Leave) ConfVerChanged(res *core.CachedResource) uint64 {
 }
 
 // IsFinish checks if current step is finished.
-func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedResource) bool {
+func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedShard) bool {
 	for _, pl := range cpl.PromoteLearners {
-		peer, ok := res.GetContainerVoter(pl.ToContainer)
+		peer, ok := res.GetStoreVoter(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID || peer.Role != metapb.ReplicaRole_Voter {
 			return false
 		}
@@ -728,12 +728,12 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedResource) bool {
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
+func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedShard) error {
 	inJointState, notInJointState, demoteLeader := false, false, false
-	leaderContainerID := res.GetLeader().GetContainerID()
+	leaderStoreID := res.GetLeader().GetStoreID()
 
 	for _, pl := range cpl.PromoteLearners {
-		peer, ok := res.GetContainerPeer(pl.ToContainer)
+		peer, ok := res.GetStorePeer(pl.ToStore)
 		if !ok || peer.ID != pl.PeerID {
 			return errors.New("peer does not exist")
 		}
@@ -751,7 +751,7 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 		}
 	}
 	for _, dv := range cpl.DemoteVoters {
-		peer, ok := res.GetContainerPeer(dv.ToContainer)
+		peer, ok := res.GetStorePeer(dv.ToStore)
 		if !ok || peer.ID != dv.PeerID {
 			return errors.New("peer does not exist")
 		}
@@ -760,7 +760,7 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 			notInJointState = true
 		case metapb.ReplicaRole_DemotingVoter:
 			inJointState = true
-			if peer.ContainerID == leaderContainerID {
+			if peer.StoreID == leaderStoreID {
 				demoteLeader = true
 			}
 		case metapb.ReplicaRole_Voter:
@@ -787,14 +787,14 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedResource) error {
 }
 
 // Influence calculates the container difference that current step makes.
-func (cpl ChangePeerV2Leave) Influence(opInfluence OpInfluence, res *core.CachedResource) {}
+func (cpl ChangePeerV2Leave) Influence(opInfluence OpInfluence, res *core.CachedShard) {}
 
 // DestroyDirectly is an OpStep that destroy current peer directly without raft.
 type DestroyDirectly struct {
 }
 
 // ConfVerChanged returns the delta value for version increased by this step.
-func (tl DestroyDirectly) ConfVerChanged(res *core.CachedResource) uint64 {
+func (tl DestroyDirectly) ConfVerChanged(res *core.CachedShard) uint64 {
 	return 0 // RemoveDirectly never change the conf version
 }
 
@@ -803,15 +803,15 @@ func (tl DestroyDirectly) String() string {
 }
 
 // IsFinish checks if current step is finished.
-func (tl DestroyDirectly) IsFinish(res *core.CachedResource) bool {
+func (tl DestroyDirectly) IsFinish(res *core.CachedShard) bool {
 	return true
 }
 
 // CheckSafety checks if the step meets the safety properties.
-func (tl DestroyDirectly) CheckSafety(res *core.CachedResource) error {
+func (tl DestroyDirectly) CheckSafety(res *core.CachedShard) error {
 	return nil
 }
 
 // Influence calculates the container difference that current step makes.
-func (tl DestroyDirectly) Influence(opInfluence OpInfluence, res *core.CachedResource) {
+func (tl DestroyDirectly) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 }

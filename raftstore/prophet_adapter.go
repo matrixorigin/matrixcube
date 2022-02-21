@@ -21,10 +21,8 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/zap"
@@ -36,12 +34,12 @@ type resourceAdapter struct {
 	meta Shard
 }
 
-func newResourceAdapter() metadata.Resource {
+func newShardAdapter() metadata.Shard {
 	return &resourceAdapter{}
 }
 
-// NewResourceAdapterWithShard create a prophet resource use shard
-func NewResourceAdapterWithShard(meta Shard) metadata.Resource {
+// NewShardAdapterWithShard create a prophet resource use shard
+func NewShardAdapterWithShard(meta Shard) metadata.Shard {
 	return &resourceAdapter{meta: meta}
 }
 
@@ -105,28 +103,28 @@ func (ra *resourceAdapter) SetEndKey(value []byte) {
 	ra.meta.End = value
 }
 
-func (ra *resourceAdapter) Epoch() metapb.ResourceEpoch {
+func (ra *resourceAdapter) Epoch() metapb.ShardEpoch {
 	ra.RLock()
 	defer ra.RUnlock()
 
 	return ra.meta.Epoch
 }
 
-func (ra *resourceAdapter) SetEpoch(value metapb.ResourceEpoch) {
+func (ra *resourceAdapter) SetEpoch(value metapb.ShardEpoch) {
 	ra.Lock()
 	defer ra.Unlock()
 
 	ra.meta.Epoch = value
 }
 
-func (ra *resourceAdapter) State() metapb.ResourceState {
+func (ra *resourceAdapter) State() metapb.ShardState {
 	ra.RLock()
 	defer ra.RUnlock()
 
 	return ra.meta.State
 }
 
-func (ra *resourceAdapter) SetState(state metapb.ResourceState) {
+func (ra *resourceAdapter) SetState(state metapb.ShardState) {
 	ra.Lock()
 	defer ra.Unlock()
 
@@ -204,7 +202,7 @@ func (ra *resourceAdapter) Unmarshal(data []byte) error {
 	return nil
 }
 
-func (ra *resourceAdapter) Clone() metadata.Resource {
+func (ra *resourceAdapter) Clone() metadata.Shard {
 	value := &resourceAdapter{}
 	data, _ := ra.Marshal()
 	value.Unmarshal(data)
@@ -213,10 +211,10 @@ func (ra *resourceAdapter) Clone() metadata.Resource {
 
 type containerAdapter struct {
 	sync.RWMutex
-	meta meta.Store
+	meta metapb.Store
 }
 
-func newContainerAdapter() metadata.Container {
+func newStoreAdapter() metadata.Store {
 	return &containerAdapter{}
 }
 
@@ -313,14 +311,14 @@ func (ca *containerAdapter) SetDeployPath(value string) {
 	ca.meta.DeployPath = value
 }
 
-func (ca *containerAdapter) State() metapb.ContainerState {
+func (ca *containerAdapter) State() metapb.StoreState {
 	ca.RLock()
 	defer ca.RUnlock()
 
 	return ca.meta.State
 }
 
-func (ca *containerAdapter) SetState(value metapb.ContainerState) {
+func (ca *containerAdapter) SetState(value metapb.StoreState) {
 	ca.Lock()
 	defer ca.Unlock()
 
@@ -370,7 +368,7 @@ func (ca *containerAdapter) Unmarshal(data []byte) error {
 	return nil
 }
 
-func (ca *containerAdapter) Clone() metadata.Container {
+func (ca *containerAdapter) Clone() metadata.Store {
 	value := &containerAdapter{}
 	data, _ := ca.Marshal()
 	value.Unmarshal(data)
@@ -384,24 +382,24 @@ func newProphetAdapter() metadata.Adapter {
 	return &prophetAdapter{}
 }
 
-func (pa *prophetAdapter) NewResource() metadata.Resource {
-	return newResourceAdapter()
+func (pa *prophetAdapter) NewShard() metadata.Shard {
+	return newShardAdapter()
 }
 
-func (pa *prophetAdapter) NewContainer() metadata.Container {
-	return newContainerAdapter()
+func (pa *prophetAdapter) NewStore() metadata.Store {
+	return newStoreAdapter()
 }
 
-func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, error) {
-	stats := metapb.ContainerStats{}
-	stats.ContainerID = s.Meta().ID
+func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.StoreHeartbeatReq, error) {
+	stats := metapb.StoreStats{}
+	stats.StoreID = s.Meta().ID
 
 	v, err := s.storageStatsReader.stats()
 	if err != nil {
 		s.logger.Error("fail to get storage capacity status",
 			s.storeField(),
 			zap.Error(err))
-		return rpcpb.ContainerHeartbeatReq{}, err
+		return rpcpb.StoreHeartbeatReq{}, err
 	}
 	stats.Capacity = v.capacity
 	stats.UsedSize = v.usedSize
@@ -419,7 +417,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 		s.logger.Error("fail to get cpu status",
 			s.storeField(),
 			zap.Error(err))
-		return rpcpb.ContainerHeartbeatReq{}, err
+		return rpcpb.StoreHeartbeatReq{}, err
 	}
 	for i, v := range usages {
 		stats.CpuUsages = append(stats.CpuUsages, metapb.RecordPair{
@@ -434,7 +432,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 		s.logger.Error("fail to get io status",
 			s.storeField(),
 			zap.Error(err))
-		return rpcpb.ContainerHeartbeatReq{}, err
+		return rpcpb.StoreHeartbeatReq{}, err
 	}
 	for name, v := range rates {
 		stats.WriteIORates = append(stats.WriteIORates, metapb.RecordPair{
@@ -453,7 +451,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 		//	stats.ApplyingSnapCount++
 		//}
 
-		stats.ResourceCount++
+		stats.ShardCount++
 		return true
 	})
 	// FIXME: provide this count from the new implementation
@@ -480,11 +478,11 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.ContainerHeartbeatReq, 
 	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
 		data = s.cfg.Customize.CustomStoreHeartbeatDataProcessor.CollectData()
 	}
-	return rpcpb.ContainerHeartbeatReq{Stats: stats, Data: data}, nil
+	return rpcpb.StoreHeartbeatReq{Stats: stats, Data: data}, nil
 }
 
-func (s *store) startHandleResourceHeartbeat() {
-	c, err := s.pd.GetClient().GetResourceHeartbeatRspNotifier()
+func (s *store) startHandleShardHeartbeat() {
+	c, err := s.pd.GetClient().GetShardHeartbeatRspNotifier()
 	if err != nil {
 		s.logger.Fatal("tail to start handle resource heartbeat resp task",
 			s.storeField(),
@@ -499,24 +497,24 @@ func (s *store) startHandleResourceHeartbeat() {
 				return
 			case rsp, ok := <-c:
 				if ok {
-					s.doResourceHeartbeatRsp(rsp)
+					s.doShardHeartbeatRsp(rsp)
 				}
 			}
 		}
 	})
 }
 
-func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
+func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 	if rsp.DestroyDirectly {
-		s.destroyReplica(rsp.ResourceID, true, true, "remove by pd")
+		s.destroyReplica(rsp.ShardID, true, true, "remove by pd")
 		return
 	}
 
-	pr := s.getReplica(rsp.ResourceID, true)
+	pr := s.getReplica(rsp.ShardID, true)
 	if pr == nil {
 		s.logger.Info("skip heartbeat resp",
 			s.storeField(),
-			log.ShardIDField(rsp.ResourceID),
+			log.ShardIDField(rsp.ShardID),
 			log.ReasonField("not leader"))
 		return
 	}
@@ -524,43 +522,43 @@ func (s *store) doResourceHeartbeatRsp(rsp rpcpb.ResourceHeartbeatRsp) {
 	if rsp.ConfigChange != nil {
 		s.logger.Info("send conf change request",
 			s.storeField(),
-			log.ShardIDField(rsp.ResourceID),
+			log.ShardIDField(rsp.ShardID),
 			log.ConfigChangeFieldWithHeartbeatResp("change", rsp))
-		pr.addAdminRequest(rpc.AdminCmdType_ConfigChange, &rpc.ConfigChangeRequest{
+		pr.addAdminRequest(rpcpb.AdminConfigChange, &rpcpb.ConfigChangeRequest{
 			ChangeType: rsp.ConfigChange.ChangeType,
 			Replica:    rsp.ConfigChange.Replica,
 		})
 	} else if rsp.ConfigChangeV2 != nil {
 		s.logger.Info("send conf change request",
 			s.storeField(),
-			log.ShardIDField(rsp.ResourceID),
+			log.ShardIDField(rsp.ShardID),
 			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
 		panic("ConfigChangeV2 request from prophet")
 	} else if rsp.TransferLeader != nil {
 		s.logger.Info("send transfer leader request",
 			s.storeField(),
-			log.ShardIDField(rsp.ResourceID))
-		pr.addAdminRequest(rpc.AdminCmdType_TransferLeader, &rpc.TransferLeaderRequest{
+			log.ShardIDField(rsp.ShardID))
+		pr.addAdminRequest(rpcpb.AdminTransferLeader, &rpcpb.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
 		})
-	} else if rsp.SplitResource != nil {
+	} else if rsp.SplitShard != nil {
 		// currently, pd only support use keys to splits
-		switch rsp.SplitResource.Policy {
+		switch rsp.SplitShard.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewResourceAdapterWithShard(pr.getShard()),
-				uint32(len(rsp.SplitResource.Keys)))
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(NewShardAdapterWithShard(pr.getShard()),
+				uint32(len(rsp.SplitShard.Keys)))
 			if err != nil {
 				s.logger.Error("fail to ask batch split",
 					s.storeField(),
-					log.ShardIDField(rsp.ResourceID),
+					log.ShardIDField(rsp.ShardID),
 					zap.Error(err))
 				return
 			}
 			pr.addAction(action{
-				epoch:      rsp.ResourceEpoch,
+				epoch:      rsp.ShardEpoch,
 				actionType: splitAction,
 				splitCheckData: splitCheckData{
-					splitKeys: rsp.SplitResource.Keys,
+					splitKeys: rsp.SplitShard.Keys,
 					splitIDs:  splitIDs,
 				},
 			})

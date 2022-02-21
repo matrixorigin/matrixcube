@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (

@@ -23,9 +23,9 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
@@ -46,32 +46,32 @@ var (
 type Client interface {
 	Close() error
 	AllocID() (uint64, error)
-	CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error)
-	ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error)
+	CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error)
+	ReportDestroyed(id uint64, replicaID uint64) (metapb.ShardState, error)
 	GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
-	PutContainer(container metadata.Container) error
-	GetContainer(containerID uint64) (metadata.Container, error)
-	ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error
-	ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.ContainerHeartbeatRsp, error)
-	AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error)
+	PutStore(container metadata.Store) error
+	GetStore(containerID uint64) (metadata.Store, error)
+	ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error
+	StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error)
+	AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error)
 	NewWatcher(flag uint32) (Watcher, error)
-	GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error)
-	// AsyncAddResources add resources asynchronously. The operation add new resources meta on the
+	GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error)
+	// AsyncAddShards add resources asynchronously. The operation add new resources meta on the
 	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
 	// all related containers to create resource replica peer at local.
-	AsyncAddResources(resources ...metadata.Resource) error
-	// AsyncAddResourcesWithLeastPeers same of `AsyncAddResources`, but if the number of peers successfully
+	AsyncAddShards(resources ...metadata.Shard) error
+	// AsyncAddShardsWithLeastPeers same of `AsyncAddShards`, but if the number of peers successfully
 	// allocated exceed the `leastPeers`, no error will be returned.
-	AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error
-	// AsyncRemoveResources remove resource asynchronously. The operation only update the resource state
+	AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error
+	// AsyncRemoveShards remove resource asynchronously. The operation only update the resource state
 	// on the prophet leader cache and embed etcd. The resource actual destroy triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
 	//    destroyed if encounter removed state.
-	// b) Resource heartbeat received a DestroyDirectly schedule command.
+	// b) Shard heartbeat received a DestroyDirectly schedule command.
 	// c) If received a resource removed event.
-	AsyncRemoveResources(ids ...uint64) error
-	// CheckResourceState returns resources state
-	CheckResourceState(resources *roaring64.Bitmap) (rpcpb.CheckResourceStateRsp, error)
+	AsyncRemoveShards(ids ...uint64) error
+	// CheckShardState returns resources state
+	CheckShardState(resources *roaring64.Bitmap) (rpcpb.CheckShardStateRsp, error)
 
 	// PutPlacementRule put placement rule
 	PutPlacementRule(rule rpcpb.PlacementRule) error
@@ -79,7 +79,7 @@ type Client interface {
 	GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error)
 
 	// AddSchedulingRule Add scheduling rules, scheduling rules are effective for all schedulers.
-	// The scheduling rules are based on the Label of the Resource to group all resources and do
+	// The scheduling rules are based on the Label of the Shard to group all resources and do
 	// scheduling independently for these grouped resources.`ruleName` is unique within the group.
 	AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error
 	// GetSchedulingRules get all schedule group rules
@@ -104,7 +104,7 @@ type asyncClient struct {
 	resetReadC            chan string
 	resetLeaderConnC      chan struct{}
 	writeC                chan *ctx
-	resourceHeartbeatRspC chan rpcpb.ResourceHeartbeatRsp
+	resourceHeartbeatRspC chan rpcpb.ShardHeartbeatRsp
 	stopper               *stop.Stopper
 	closeOnce             sync.Once
 
@@ -127,7 +127,7 @@ func NewClient(adapter metadata.Adapter, opts ...Option) Client {
 		resetReadC:            make(chan string, 1),
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
-		resourceHeartbeatRspC: make(chan rpcpb.ResourceHeartbeatRsp, 128),
+		resourceHeartbeatRspC: make(chan rpcpb.ShardHeartbeatRsp, 128),
 	}
 
 	for _, opt := range opts {
@@ -174,7 +174,7 @@ func (c *asyncClient) AllocID() (uint64, error) {
 		return 0, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeAllocIDReq
 
 	resp, err := c.syncDo(req)
@@ -185,7 +185,7 @@ func (c *asyncClient) AllocID() (uint64, error) {
 	return resp.AllocID.ID, nil
 }
 
-func (c *asyncClient) ResourceHeartbeat(meta metadata.Resource, hb rpcpb.ResourceHeartbeatReq) error {
+func (c *asyncClient) ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error {
 	if !c.running() {
 		return ErrClosed
 	}
@@ -195,41 +195,41 @@ func (c *asyncClient) ResourceHeartbeat(meta metadata.Resource, hb rpcpb.Resourc
 		return err
 	}
 
-	hb.Resource = data
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeResourceHeartbeatReq
-	req.ResourceHeartbeat = hb
+	hb.Shard = data
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeShardHeartbeatReq
+	req.ShardHeartbeat = hb
 
 	c.asyncDo(req, nil)
 	return nil
 }
 
-func (c *asyncClient) ContainerHeartbeat(hb rpcpb.ContainerHeartbeatReq) (rpcpb.ContainerHeartbeatRsp, error) {
+func (c *asyncClient) StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error) {
 	if !c.running() {
-		return rpcpb.ContainerHeartbeatRsp{}, ErrClosed
+		return rpcpb.StoreHeartbeatRsp{}, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeContainerHeartbeatReq
-	req.ContainerHeartbeat = hb
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeStoreHeartbeatReq
+	req.StoreHeartbeat = hb
 
 	resp, err := c.syncDo(req)
 	if err != nil {
 		c.opts.logger.Error("fail to send container heartbeat",
-			zap.Uint64("container", hb.Stats.ContainerID),
+			zap.Uint64("container", hb.Stats.StoreID),
 			zap.Error(err))
-		return rpcpb.ContainerHeartbeatRsp{}, err
+		return rpcpb.StoreHeartbeatRsp{}, err
 	}
 
-	return resp.ContainerHeartbeat, nil
+	return resp.StoreHeartbeat, nil
 }
 
-func (c *asyncClient) CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+func (c *asyncClient) CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error) {
 	if !c.running() {
-		return metapb.ResourceState_Destroying, ErrClosed
+		return metapb.ShardState_Destroying, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeCreateDestroyingReq
 	req.CreateDestroying.ID = id
 	req.CreateDestroying.Index = index
@@ -238,7 +238,7 @@ func (c *asyncClient) CreateDestroying(id uint64, index uint64, removeData bool,
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
-		return metapb.ResourceState_Destroying, err
+		return metapb.ShardState_Destroying, err
 	}
 	return rsp.CreateDestroying.State, nil
 }
@@ -248,7 +248,7 @@ func (c *asyncClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
 		return nil, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeGetDestroyingReq
 	req.GetDestroying.ID = id
 
@@ -260,25 +260,25 @@ func (c *asyncClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
 	return rsp.GetDestroying.Status, nil
 }
 
-func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.ResourceState, error) {
+func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.ShardState, error) {
 	if !c.running() {
-		return metapb.ResourceState_Destroying, ErrClosed
+		return metapb.ShardState_Destroying, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeReportDestroyedReq
 	req.ReportDestroyed.ID = id
 	req.ReportDestroyed.ReplicaID = replicaID
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
-		return metapb.ResourceState_Destroying, err
+		return metapb.ShardState_Destroying, err
 	}
 
 	return rsp.ReportDestroyed.State, nil
 }
 
-func (c *asyncClient) PutContainer(container metadata.Container) error {
+func (c *asyncClient) PutStore(container metadata.Store) error {
 	if !c.running() {
 		return ErrClosed
 	}
@@ -288,12 +288,12 @@ func (c *asyncClient) PutContainer(container metadata.Container) error {
 		return err
 	}
 
-	c.setContainerID(container.ID())
-	defer c.maybeRegisterContainer()
+	c.setStoreID(container.ID())
+	defer c.maybeRegisterStore()
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypePutContainerReq
-	req.PutContainer.Container = data
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypePutStoreReq
+	req.PutStore.Store = data
 	_, err = c.syncDo(req)
 	if err != nil {
 		return err
@@ -302,22 +302,22 @@ func (c *asyncClient) PutContainer(container metadata.Container) error {
 	return nil
 }
 
-func (c *asyncClient) GetContainer(containerID uint64) (metadata.Container, error) {
+func (c *asyncClient) GetStore(containerID uint64) (metadata.Store, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeGetContainerReq
-	req.GetContainer.ID = containerID
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeGetStoreReq
+	req.GetStore.ID = containerID
 
 	resp, err := c.syncDo(req)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := c.adapter.NewContainer()
-	err = meta.Unmarshal(resp.GetContainer.Data)
+	meta := c.adapter.NewStore()
+	err = meta.Unmarshal(resp.GetStore.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +325,7 @@ func (c *asyncClient) GetContainer(containerID uint64) (metadata.Container, erro
 	return meta, nil
 }
 
-func (c *asyncClient) AskBatchSplit(res metadata.Resource, count uint32) ([]rpcpb.SplitID, error) {
+func (c *asyncClient) AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}
@@ -335,7 +335,7 @@ func (c *asyncClient) AskBatchSplit(res metadata.Resource, count uint32) ([]rpcp
 		return nil, err
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeAskBatchSplitReq
 	req.AskBatchSplit.Data = data
 	req.AskBatchSplit.Count = count
@@ -356,7 +356,7 @@ func (c *asyncClient) NewWatcher(flag uint32) (Watcher, error) {
 	return newWatcher(flag, c, c.opts.logger), nil
 }
 
-func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHeartbeatRsp, error) {
+func (c *asyncClient) GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}
@@ -364,24 +364,24 @@ func (c *asyncClient) GetResourceHeartbeatRspNotifier() (chan rpcpb.ResourceHear
 	return c.resourceHeartbeatRspC, nil
 }
 
-func (c *asyncClient) AsyncAddResources(resources ...metadata.Resource) error {
-	return c.AsyncAddResourcesWithLeastPeers(resources, make([]int, len(resources)))
+func (c *asyncClient) AsyncAddShards(resources ...metadata.Shard) error {
+	return c.AsyncAddShardsWithLeastPeers(resources, make([]int, len(resources)))
 }
 
-func (c *asyncClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resource, leastPeers []int) error {
+func (c *asyncClient) AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeCreateResourcesReq
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeCreateShardsReq
 	for idx, res := range resources {
 		data, err := res.Marshal()
 		if err != nil {
 			return err
 		}
-		req.CreateResources.Resources = append(req.CreateResources.Resources, data)
-		req.CreateResources.LeastReplicas = append(req.CreateResources.LeastReplicas, uint64(leastPeers[idx]))
+		req.CreateShards.Shards = append(req.CreateShards.Shards, data)
+		req.CreateShards.LeastReplicas = append(req.CreateShards.LeastReplicas, uint64(leastPeers[idx]))
 	}
 
 	_, err := c.syncDo(req)
@@ -392,14 +392,14 @@ func (c *asyncClient) AsyncAddResourcesWithLeastPeers(resources []metadata.Resou
 	return nil
 }
 
-func (c *asyncClient) AsyncRemoveResources(ids ...uint64) error {
+func (c *asyncClient) AsyncRemoveShards(ids ...uint64) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeRemoveResourcesReq
-	req.RemoveResources.IDs = append(req.RemoveResources.IDs, ids...)
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeRemoveShardsReq
+	req.RemoveShards.IDs = append(req.RemoveShards.IDs, ids...)
 
 	_, err := c.syncDo(req)
 	if err != nil {
@@ -409,21 +409,21 @@ func (c *asyncClient) AsyncRemoveResources(ids ...uint64) error {
 	return nil
 }
 
-func (c *asyncClient) CheckResourceState(resources *roaring64.Bitmap) (rpcpb.CheckResourceStateRsp, error) {
+func (c *asyncClient) CheckShardState(resources *roaring64.Bitmap) (rpcpb.CheckShardStateRsp, error) {
 	if !c.running() {
-		return rpcpb.CheckResourceStateRsp{}, ErrClosed
+		return rpcpb.CheckShardStateRsp{}, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
-	req.Type = rpcpb.TypeCheckResourceStateReq
-	req.CheckResourceState.IDs = util.MustMarshalBM64(resources)
+	req := &rpcpb.ProphetRequest{}
+	req.Type = rpcpb.TypeCheckShardStateReq
+	req.CheckShardState.IDs = util.MustMarshalBM64(resources)
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
-		return rpcpb.CheckResourceStateRsp{}, err
+		return rpcpb.CheckShardStateRsp{}, err
 	}
 
-	return rsp.CheckResourceState, nil
+	return rsp.CheckShardState, nil
 }
 
 func (c *asyncClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
@@ -431,7 +431,7 @@ func (c *asyncClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypePutPlacementRuleReq
 	req.PutPlacementRule.Rule = rule
 
@@ -448,9 +448,9 @@ func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) 
 		return nil, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeGetAppliedRulesReq
-	req.GetAppliedRules.ResourceID = id
+	req.GetAppliedRules.ShardID = id
 
 	rsp, err := c.syncDo(req)
 	if err != nil {
@@ -465,7 +465,7 @@ func (c *asyncClient) AddSchedulingRule(group uint64, ruleName string, groupByLa
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeAddScheduleGroupRuleReq
 	req.AddScheduleGroupRule.Rule.GroupID = group
 	req.AddScheduleGroupRule.Rule.Name = ruleName
@@ -484,7 +484,7 @@ func (c *asyncClient) GetSchedulingRules() ([]metapb.ScheduleGroupRule, error) {
 		return nil, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeGetScheduleGroupRuleReq
 	rsp, err := c.syncDo(req)
 	if err != nil {
@@ -499,7 +499,7 @@ func (c *asyncClient) CreateJob(job metapb.Job) error {
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeCreateJobReq
 	req.CreateJob.Job = job
 
@@ -516,7 +516,7 @@ func (c *asyncClient) RemoveJob(job metapb.Job) error {
 		return ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeRemoveJobReq
 	req.RemoveJob.Job = job
 
@@ -533,7 +533,7 @@ func (c *asyncClient) ExecuteJob(job metapb.Job, data []byte) ([]byte, error) {
 		return nil, ErrClosed
 	}
 
-	req := &rpcpb.Request{}
+	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeExecuteJobReq
 	req.ExecuteJob.Job = job
 	req.ExecuteJob.Data = data
@@ -560,7 +560,7 @@ func (c *asyncClient) running() bool {
 	return c.mu.state == stateRunning
 }
 
-func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
+func (c *asyncClient) syncDo(req *rpcpb.ProphetRequest) (*rpcpb.ProphetResponse, error) {
 	for {
 		ctx := newSyncCtx(req)
 		if err := c.do(ctx); err != nil {
@@ -581,7 +581,7 @@ func (c *asyncClient) syncDo(req *rpcpb.Request) (*rpcpb.Response, error) {
 	}
 }
 
-func (c *asyncClient) asyncDo(req *rpcpb.Request, cb func(*rpcpb.Response, error)) {
+func (c *asyncClient) asyncDo(req *rpcpb.ProphetRequest, cb func(*rpcpb.ProphetResponse, error)) {
 	c.do(newAsyncCtx(req, cb))
 }
 
@@ -699,7 +699,7 @@ OUTER:
 						continue OUTER
 					}
 
-					resp := msg.(*rpcpb.Response)
+					resp := msg.(*rpcpb.ProphetResponse)
 					if resp.Error != "" && util.IsNotLeaderError(resp.Error) {
 						if !c.scheduleResetLeaderConn() {
 							return
@@ -711,7 +711,7 @@ OUTER:
 						continue OUTER
 					}
 
-					if c.maybeAddResourceHeartbeatResp(resp) {
+					if c.maybeAddShardHeartbeatResp(resp) {
 						continue
 					}
 
@@ -722,7 +722,7 @@ OUTER:
 	}
 }
 
-func (c *asyncClient) requestDoneWithRetry(resp *rpcpb.Response) {
+func (c *asyncClient) requestDoneWithRetry(resp *rpcpb.ProphetResponse) {
 	c.contextsMu.Lock()
 	defer c.contextsMu.Unlock()
 
@@ -732,7 +732,7 @@ func (c *asyncClient) requestDoneWithRetry(resp *rpcpb.Response) {
 	}
 }
 
-func (c *asyncClient) requestDone(resp *rpcpb.Response) {
+func (c *asyncClient) requestDone(resp *rpcpb.ProphetResponse) {
 	c.contextsMu.Lock()
 	defer c.contextsMu.Unlock()
 
@@ -746,13 +746,13 @@ func (c *asyncClient) requestDone(resp *rpcpb.Response) {
 	}
 }
 
-func (c *asyncClient) maybeAddResourceHeartbeatResp(resp *rpcpb.Response) bool {
-	if resp.Type == rpcpb.TypeResourceHeartbeatRsp &&
+func (c *asyncClient) maybeAddShardHeartbeatResp(resp *rpcpb.ProphetResponse) bool {
+	if resp.Type == rpcpb.TypeShardHeartbeatRsp &&
 		resp.Error == "" &&
-		resp.ResourceHeartbeat.ResourceID > 0 {
+		resp.ShardHeartbeat.ShardID > 0 {
 		c.opts.logger.Debug("resource heartbeat response added",
-			zap.Uint64("resource", resp.ResourceHeartbeat.ResourceID))
-		c.resourceHeartbeatRspC <- resp.ResourceHeartbeat
+			zap.Uint64("resource", resp.ShardHeartbeat.ShardID))
+		c.resourceHeartbeatRspC <- resp.ShardHeartbeat
 		return true
 	}
 	return false
@@ -773,7 +773,7 @@ func (c *asyncClient) resetLeaderConn() error {
 	return err
 }
 
-func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerContainer bool) (string, error) {
+func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duration, registerStore bool) (string, error) {
 	addr := ""
 	for {
 		if !c.running() {
@@ -795,13 +795,13 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 				conn.Close()
 				ok, err := conn.Connect(addr, c.opts.rpcTimeout)
 				if err == nil && ok {
-					if registerContainer {
-						c.maybeRegisterContainer()
+					if registerStore {
+						c.maybeRegisterStore()
 					}
 
 					c.opts.logger.Info("connect to leader succeed",
 						zap.String("leader", addr))
-					if registerContainer {
+					if registerStore {
 						select {
 						case c.resetReadC <- addr:
 						default:
@@ -820,26 +820,26 @@ func (c *asyncClient) initLeaderConn(conn goetty.IOSession, timeout time.Duratio
 	}
 }
 
-func (c *asyncClient) maybeRegisterContainer() {
-	if c.getContainerID() > 0 {
-		req := &rpcpb.Request{}
-		req.Type = rpcpb.TypeRegisterContainer
-		req.ContainerID = c.getContainerID()
+func (c *asyncClient) maybeRegisterStore() {
+	if c.getStoreID() > 0 {
+		req := &rpcpb.ProphetRequest{}
+		req.Type = rpcpb.TypeRegisterStore
+		req.StoreID = c.getStoreID()
 		c.doWrite(newAsyncCtx(req, nil))
 	}
 }
 
 type ctx struct {
 	state uint64
-	req   *rpcpb.Request
-	resp  *rpcpb.Response
+	req   *rpcpb.ProphetRequest
+	resp  *rpcpb.ProphetResponse
 	err   error
 	c     chan struct{}
-	cb    func(resp *rpcpb.Response, err error)
+	cb    func(resp *rpcpb.ProphetResponse, err error)
 	sync  bool
 }
 
-func newSyncCtx(req *rpcpb.Request) *ctx {
+func newSyncCtx(req *rpcpb.ProphetRequest) *ctx {
 	return &ctx{
 		req:  req,
 		c:    make(chan struct{}),
@@ -847,7 +847,7 @@ func newSyncCtx(req *rpcpb.Request) *ctx {
 	}
 }
 
-func newAsyncCtx(req *rpcpb.Request, cb func(resp *rpcpb.Response, err error)) *ctx {
+func newAsyncCtx(req *rpcpb.ProphetRequest, cb func(resp *rpcpb.ProphetResponse, err error)) *ctx {
 	return &ctx{
 		req:  req,
 		cb:   cb,
@@ -855,7 +855,7 @@ func newAsyncCtx(req *rpcpb.Request, cb func(resp *rpcpb.Response, err error)) *
 	}
 }
 
-func (c *ctx) done(resp *rpcpb.Response, err error) {
+func (c *ctx) done(resp *rpcpb.ProphetResponse, err error) {
 	if atomic.CompareAndSwapUint64(&c.state, 0, 1) {
 		if c.sync {
 			c.resp = resp
@@ -875,10 +875,10 @@ func (c *ctx) wait() {
 	}
 }
 
-func (c *asyncClient) getContainerID() uint64 {
+func (c *asyncClient) getStoreID() uint64 {
 	return atomic.LoadUint64(&c.containerID)
 }
 
-func (c *asyncClient) setContainerID(id uint64) {
+func (c *asyncClient) setStoreID(id uint64) {
 	atomic.StoreUint64(&c.containerID, id)
 }

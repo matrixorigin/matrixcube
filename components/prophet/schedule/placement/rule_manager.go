@@ -47,11 +47,11 @@ type RuleManager struct {
 	logger      *zap.Logger
 
 	// used for rule validation
-	containerSetInformer core.ContainerSetInformer
+	containerSetInformer core.StoreSetInformer
 }
 
 // NewRuleManager creates a RuleManager instance.
-func NewRuleManager(storage storage.Storage, containerSetInformer core.ContainerSetInformer, logger *zap.Logger) *RuleManager {
+func NewRuleManager(storage storage.Storage, containerSetInformer core.StoreSetInformer, logger *zap.Logger) *RuleManager {
 	return &RuleManager{
 		storage:              storage,
 		containerSetInformer: containerSetInformer,
@@ -212,7 +212,7 @@ func (m *RuleManager) adjustRule(r *Rule, groupID string) error {
 	}
 
 	if m.containerSetInformer != nil {
-		containers := m.containerSetInformer.GetContainers()
+		containers := m.containerSetInformer.GetStores()
 		if len(containers) > 0 && !checkRule(r, containers) {
 			return fmt.Errorf("rule '%s' from rule group '%s' can not match any container", r.ID, r.GroupID)
 		}
@@ -301,19 +301,19 @@ func (m *RuleManager) GetRulesByKey(key []byte) []*Rule {
 	return m.ruleList.getRulesByKey(key)
 }
 
-// GetRulesForApplyResource returns the rules list that should be applied to a resource.
-func (m *RuleManager) GetRulesForApplyResource(res *core.CachedResource) []*Rule {
+// GetRulesForApplyShard returns the rules list that should be applied to a resource.
+func (m *RuleManager) GetRulesForApplyShard(res *core.CachedShard) []*Rule {
 	m.RLock()
 	defer m.RUnlock()
 
 	start, end := res.Meta.Range()
-	return filterRules(m.ruleList.getRulesForApplyResource(start, end), res)
+	return filterRules(m.ruleList.getRulesForApplyShard(start, end), res)
 }
 
-// FitResource fits a resource to the rules it matches.
-func (m *RuleManager) FitResource(containers ContainerSet, res *core.CachedResource) *ResourceFit {
-	rules := m.GetRulesForApplyResource(res)
-	return FitResource(containers, res, rules)
+// FitShard fits a resource to the rules it matches.
+func (m *RuleManager) FitShard(containers StoreSet, res *core.CachedShard) *ShardFit {
+	rules := m.GetRulesForApplyShard(res)
+	return FitShard(containers, res, rules)
 }
 
 func (m *RuleManager) beginPatch() *ruleConfigPatch {
@@ -684,9 +684,9 @@ func (m *RuleManager) IsInitialized() bool {
 	return m.initialized
 }
 
-// checkRule check the rule whether will have RuleFit after FitResource
+// checkRule check the rule whether will have RuleFit after FitShard
 // in order to reduce the calculation.
-func checkRule(rule *Rule, containers []*core.CachedContainer) bool {
+func checkRule(rule *Rule, containers []*core.CachedStore) bool {
 	for _, container := range containers {
 		if MatchLabelConstraints(container, rule.LabelConstraints) {
 			return true
@@ -695,7 +695,7 @@ func checkRule(rule *Rule, containers []*core.CachedContainer) bool {
 	return false
 }
 
-func filterRules(src []*Rule, res *core.CachedResource) []*Rule {
+func filterRules(src []*Rule, res *core.CachedShard) []*Rule {
 	targets := res.Meta.RuleGroups()
 	if len(targets) == 0 {
 		return src

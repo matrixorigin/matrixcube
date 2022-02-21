@@ -19,14 +19,13 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 )
 
 // all raft message entrypoint
-func (s *store) handle(batch meta.RaftMessageBatch) {
+func (s *store) handle(batch metapb.RaftMessageBatch) {
 	now := uint64(time.Now().UnixMilli())
 	for _, msg := range batch.Messages {
 		if now > msg.SendTime && now-msg.SendTime > 500 {
@@ -37,11 +36,11 @@ func (s *store) handle(batch meta.RaftMessageBatch) {
 	}
 }
 
-func (s *store) onSnapshotMessage(msg meta.SnapshotMessage) {
+func (s *store) onSnapshotMessage(msg metapb.SnapshotMessage) {
 	panic("snapshot not implemented")
 }
 
-func (s *store) onRaftMessage(msg meta.RaftMessage) {
+func (s *store) onRaftMessage(msg metapb.RaftMessage) {
 	if !s.isRaftMsgValid(msg) {
 		return
 	}
@@ -63,18 +62,18 @@ func (s *store) onRaftMessage(msg meta.RaftMessage) {
 	}
 }
 
-func (s *store) isRaftMsgValid(msg meta.RaftMessage) bool {
-	if msg.To.ContainerID != s.meta.ID() {
+func (s *store) isRaftMsgValid(msg metapb.RaftMessage) bool {
+	if msg.To.StoreID != s.metapb.ID() {
 		s.logger.Warn("raft msg store not match",
 			s.storeField(),
-			zap.Uint64("actual", msg.To.ContainerID))
+			zap.Uint64("actual", msg.To.StoreID))
 		return false
 	}
 
 	return true
 }
 
-func (s *store) handleDestroyReplicaMessage(msg meta.RaftMessage) {
+func (s *store) handleDestroyReplicaMessage(msg metapb.RaftMessage) {
 	shardID := msg.ShardID
 	if pr := s.getReplica(shardID, false); pr != nil {
 		fromEpoch := msg.ShardEpoch
@@ -90,7 +89,7 @@ func (s *store) handleDestroyReplicaMessage(msg meta.RaftMessage) {
 	}
 }
 
-func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
+func (s *store) tryToCreateReplicate(msg metapb.RaftMessage) bool {
 	// If target peer doesn't exist, create it.
 	//
 	// return false to indicate that target peer is in invalid state or
@@ -192,7 +191,7 @@ func (s *store) tryToCreateReplicate(msg meta.RaftMessage) bool {
 		withReason(fmt.Sprintf("raft %s message from %d/%d/%s",
 			msg.Message.Type.String(),
 			msg.From.ID,
-			msg.From.ContainerID,
+			msg.From.StoreID,
 			msg.From.Role.String())).
 		withStartReplica(false, nil, nil).
 		withReplicaRecordGetter(func(s Shard) Replica { return target }).

@@ -24,7 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 var (
@@ -274,7 +274,7 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 			"shardID %d, replicaID: %d", pr.shardID, msg.To)
 	}
 
-	m := meta.RaftMessage{
+	m := metapb.RaftMessage{
 		ShardID:      pr.shardID,
 		From:         pr.replica,
 		To:           to,

@@ -25,18 +25,18 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
-// errResourceIsStale is error info for resource is stale.
-var errResourceIsStale = func(res metadata.Resource, origin metadata.Resource) error {
+// errShardIsStale is error info for resource is stale.
+var errShardIsStale = func(res metadata.Shard, origin metadata.Shard) error {
 	return fmt.Errorf("resource is stale: resource %v, origin %v", res, origin)
 }
 
-// CachedResource resource runtime info cached in the cache
-type CachedResource struct {
-	Meta metadata.Resource
+// CachedShard resource runtime info cached in the cache
+type CachedShard struct {
+	Meta metadata.Shard
 
 	term            uint64
 	groupKey        string
@@ -45,12 +45,12 @@ type CachedResource struct {
 	leader          *metapb.Replica
 	downReplicas    []metapb.ReplicaStats
 	pendingReplicas []metapb.Replica
-	stats           metapb.ResourceStats
+	stats           metapb.ShardStats
 }
 
-// NewCachedResource creates CachedResource with resource's meta and leader peer.
-func NewCachedResource(res metadata.Resource, leader *metapb.Replica, opts ...ResourceCreateOption) *CachedResource {
-	cr := &CachedResource{
+// NewCachedShard creates CachedShard with resource's meta and leader peer.
+func NewCachedShard(res metadata.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
+	cr := &CachedShard{
 		Meta:   res,
 		leader: leader,
 	}
@@ -63,7 +63,7 @@ func NewCachedResource(res metadata.Resource, leader *metapb.Replica, opts ...Re
 }
 
 // classifyVoterAndLearner sorts out voter and learner from peers into different slice.
-func classifyVoterAndLearner(res *CachedResource) {
+func classifyVoterAndLearner(res *CachedShard) {
 	learners := make([]metapb.Replica, 0, 1)
 	voters := make([]metapb.Replica, 0, len(res.Meta.Peers()))
 	for _, p := range res.Meta.Peers() {
@@ -78,9 +78,9 @@ func classifyVoterAndLearner(res *CachedResource) {
 }
 
 const (
-	// EmptyResourceApproximateSize is the resource approximate size of an empty resource
+	// EmptyShardApproximateSize is the resource approximate size of an empty resource
 	// (heartbeat size <= 1MB).
-	EmptyResourceApproximateSize = 1
+	EmptyShardApproximateSize = 1
 
 	// ImpossibleFlowSize is an impossible flow size (such as written_bytes, read_keys, etc.)
 	// It may be caused by overflow, refer to https://github.com/tikv/pd/issues/3379.
@@ -89,16 +89,16 @@ const (
 	ImpossibleFlowSize = 1 << 50
 )
 
-// ResourceFromHeartbeat constructs a Resource from resource heartbeat.
-func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.Resource) *CachedResource {
+// ShardFromHeartbeat constructs a Shard from resource heartbeat.
+func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta metadata.Shard) *CachedShard {
 	// Convert unit to MB.
 	// If resource is empty or less than 1MB, use 1MB instead.
 	resourceSize := heartbeat.Stats.GetApproximateSize() / (1 << 20)
-	if resourceSize < EmptyResourceApproximateSize {
-		resourceSize = EmptyResourceApproximateSize
+	if resourceSize < EmptyShardApproximateSize {
+		resourceSize = EmptyShardApproximateSize
 	}
 
-	res := &CachedResource{
+	res := &CachedShard{
 		Meta:            meta,
 		groupKey:        heartbeat.GroupKey,
 		term:            heartbeat.GetTerm(),
@@ -125,8 +125,8 @@ func ResourceFromHeartbeat(heartbeat rpcpb.ResourceHeartbeatReq, meta metadata.R
 	return res
 }
 
-// Clone returns a copy of current CachedResource.
-func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
+// Clone returns a copy of current CachedShard.
+func (r *CachedShard) Clone(opts ...ShardCreateOption) *CachedShard {
 	downReplicas := make([]metapb.ReplicaStats, 0, len(r.downReplicas))
 	for _, peer := range r.downReplicas {
 		downReplicas = append(downReplicas, *(proto.Clone(&peer).(*metapb.ReplicaStats)))
@@ -136,7 +136,7 @@ func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
 		pendingReplicas = append(pendingReplicas, *(proto.Clone(&peer).(*metapb.Replica)))
 	}
 
-	res := &CachedResource{
+	res := &CachedShard{
 		term:            r.term,
 		Meta:            r.Meta.Clone(),
 		leader:          proto.Clone(r.leader).(*metapb.Replica),
@@ -154,33 +154,33 @@ func (r *CachedResource) Clone(opts ...ResourceCreateOption) *CachedResource {
 }
 
 // GetGroupKey returns group key
-func (r *CachedResource) GetGroupKey() string {
+func (r *CachedShard) GetGroupKey() string {
 	return r.groupKey
 }
 
 // IsDestroyState resource in Destroyed or Destroying state
-func (r *CachedResource) IsDestroyState() bool {
-	return r.Meta.State() == metapb.ResourceState_Destroyed ||
-		r.Meta.State() == metapb.ResourceState_Destroying
+func (r *CachedShard) IsDestroyState() bool {
+	return r.Meta.State() == metapb.ShardState_Destroyed ||
+		r.Meta.State() == metapb.ShardState_Destroying
 }
 
 // GetTerm returns the current term of the resource
-func (r *CachedResource) GetTerm() uint64 {
+func (r *CachedShard) GetTerm() uint64 {
 	return r.term
 }
 
 // GetLearners returns the learners.
-func (r *CachedResource) GetLearners() []metapb.Replica {
+func (r *CachedShard) GetLearners() []metapb.Replica {
 	return r.learners
 }
 
 // GetVoters returns the voters.
-func (r *CachedResource) GetVoters() []metapb.Replica {
+func (r *CachedShard) GetVoters() []metapb.Replica {
 	return r.voters
 }
 
 // GetPeer returns the peer with specified peer id.
-func (r *CachedResource) GetPeer(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetPeer(peerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.Meta.Peers() {
 		if peer.ID == peerID {
 			return peer, true
@@ -190,7 +190,7 @@ func (r *CachedResource) GetPeer(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetDownPeer returns the down peer with specified peer id.
-func (r *CachedResource) GetDownPeer(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetDownPeer(peerID uint64) (metapb.Replica, bool) {
 	for _, down := range r.downReplicas {
 		if down.Replica.ID == peerID {
 			return down.Replica, true
@@ -200,7 +200,7 @@ func (r *CachedResource) GetDownPeer(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetDownVoter returns the down voter with specified peer id.
-func (r *CachedResource) GetDownVoter(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetDownVoter(peerID uint64) (metapb.Replica, bool) {
 	for _, down := range r.downReplicas {
 		if down.Replica.ID == peerID && !metadata.IsLearner(down.Replica) {
 			return down.Replica, true
@@ -210,7 +210,7 @@ func (r *CachedResource) GetDownVoter(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetDownLearner returns the down learner with soecified peer id.
-func (r *CachedResource) GetDownLearner(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetDownLearner(peerID uint64) (metapb.Replica, bool) {
 	for _, down := range r.downReplicas {
 		if down.Replica.ID == peerID && metadata.IsLearner(down.Replica) {
 			return down.Replica, true
@@ -220,7 +220,7 @@ func (r *CachedResource) GetDownLearner(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetPendingPeer returns the pending peer with specified peer id.
-func (r *CachedResource) GetPendingPeer(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetPendingPeer(peerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID {
 			return peer, true
@@ -230,7 +230,7 @@ func (r *CachedResource) GetPendingPeer(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetPendingVoter returns the pending voter with specified peer id.
-func (r *CachedResource) GetPendingVoter(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetPendingVoter(peerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID && !metadata.IsLearner(peer) {
 			return peer, true
@@ -240,7 +240,7 @@ func (r *CachedResource) GetPendingVoter(peerID uint64) (metapb.Replica, bool) {
 }
 
 // GetPendingLearner returns the pending learner peer with specified peer id.
-func (r *CachedResource) GetPendingLearner(peerID uint64) (metapb.Replica, bool) {
+func (r *CachedShard) GetPendingLearner(peerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.pendingReplicas {
 		if peer.ID == peerID && metadata.IsLearner(peer) {
 			return peer, true
@@ -249,60 +249,60 @@ func (r *CachedResource) GetPendingLearner(peerID uint64) (metapb.Replica, bool)
 	return metapb.Replica{}, false
 }
 
-// GetContainerPeer returns the peer in specified container.
-func (r *CachedResource) GetContainerPeer(containerID uint64) (metapb.Replica, bool) {
+// GetStorePeer returns the peer in specified container.
+func (r *CachedShard) GetStorePeer(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.Meta.Peers() {
-		if peer.ContainerID == containerID {
+		if peer.StoreID == containerID {
 			return peer, true
 		}
 	}
 	return metapb.Replica{}, false
 }
 
-// GetContainerVoter returns the voter in specified container.
-func (r *CachedResource) GetContainerVoter(containerID uint64) (metapb.Replica, bool) {
+// GetStoreVoter returns the voter in specified container.
+func (r *CachedShard) GetStoreVoter(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.voters {
-		if peer.ContainerID == containerID {
+		if peer.StoreID == containerID {
 			return peer, true
 		}
 	}
 	return metapb.Replica{}, false
 }
 
-// GetContainerLearner returns the learner peer in specified container.
-func (r *CachedResource) GetContainerLearner(containerID uint64) (metapb.Replica, bool) {
+// GetStoreLearner returns the learner peer in specified container.
+func (r *CachedShard) GetStoreLearner(containerID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.learners {
-		if peer.ContainerID == containerID {
+		if peer.StoreID == containerID {
 			return peer, true
 		}
 	}
 	return metapb.Replica{}, false
 }
 
-// GetContainerIDs returns a map indicate the resource distributed.
-func (r *CachedResource) GetContainerIDs() map[uint64]struct{} {
+// GetStoreIDs returns a map indicate the resource distributed.
+func (r *CachedShard) GetStoreIDs() map[uint64]struct{} {
 	peers := r.Meta.Peers()
 	containerIDs := make(map[uint64]struct{}, len(peers))
 	for _, peer := range peers {
-		containerIDs[peer.ContainerID] = struct{}{}
+		containerIDs[peer.StoreID] = struct{}{}
 	}
 	return containerIDs
 }
 
 // GetFollowers returns a map indicate the follow peers distributed.
-func (r *CachedResource) GetFollowers() map[uint64]metapb.Replica {
+func (r *CachedShard) GetFollowers() map[uint64]metapb.Replica {
 	peers := r.GetVoters()
 	followers := make(map[uint64]metapb.Replica, len(peers))
 	for _, peer := range peers {
 		if r.getLeaderID() != peer.ID {
-			followers[peer.ContainerID] = peer
+			followers[peer.StoreID] = peer
 		}
 	}
 	return followers
 }
 
 // GetFollower randomly returns a follow peer.
-func (r *CachedResource) GetFollower() (metapb.Replica, bool) {
+func (r *CachedShard) GetFollower() (metapb.Replica, bool) {
 	for _, peer := range r.GetVoters() {
 		if r.getLeaderID() != peer.ID {
 			return peer, true
@@ -313,12 +313,12 @@ func (r *CachedResource) GetFollower() (metapb.Replica, bool) {
 
 // GetDiffFollowers returns the followers which is not located in the same
 // container as any other followers of the another specified resource.
-func (r *CachedResource) GetDiffFollowers(other *CachedResource) []metapb.Replica {
+func (r *CachedShard) GetDiffFollowers(other *CachedShard) []metapb.Replica {
 	res := make([]metapb.Replica, 0, len(r.Meta.Peers()))
 	for _, p := range r.GetFollowers() {
 		diff := true
 		for _, o := range other.GetFollowers() {
-			if p.ContainerID == o.ContainerID {
+			if p.StoreID == o.StoreID {
 				diff = false
 				break
 			}
@@ -331,7 +331,7 @@ func (r *CachedResource) GetDiffFollowers(other *CachedResource) []metapb.Replic
 }
 
 // GetStat returns the statistics of the resource.
-func (r *CachedResource) GetStat() *metapb.ResourceStats {
+func (r *CachedShard) GetStat() *metapb.ShardStats {
 	if r == nil {
 		return nil
 	}
@@ -340,68 +340,68 @@ func (r *CachedResource) GetStat() *metapb.ResourceStats {
 }
 
 // GetApproximateSize returns the approximate size of the resource.
-func (r *CachedResource) GetApproximateSize() int64 {
+func (r *CachedShard) GetApproximateSize() int64 {
 	return int64(r.stats.ApproximateSize)
 }
 
 // GetApproximateKeys returns the approximate keys of the resource.
-func (r *CachedResource) GetApproximateKeys() int64 {
+func (r *CachedShard) GetApproximateKeys() int64 {
 	return int64(r.stats.ApproximateKeys)
 }
 
 // GetInterval returns the interval information of the resource.
-func (r *CachedResource) GetInterval() *metapb.TimeInterval {
+func (r *CachedShard) GetInterval() *metapb.TimeInterval {
 	return r.stats.Interval
 }
 
 // GetDownPeers returns the down peers of the resource.
-func (r *CachedResource) GetDownPeers() []metapb.ReplicaStats {
+func (r *CachedShard) GetDownPeers() []metapb.ReplicaStats {
 	return r.downReplicas
 }
 
 // GetPendingPeers returns the pending peers of the resource.
-func (r *CachedResource) GetPendingPeers() []metapb.Replica {
+func (r *CachedShard) GetPendingPeers() []metapb.Replica {
 	return r.pendingReplicas
 }
 
 // GetBytesRead returns the read bytes of the resource.
-func (r *CachedResource) GetBytesRead() uint64 {
+func (r *CachedShard) GetBytesRead() uint64 {
 	return r.stats.ReadBytes
 }
 
 // GetBytesWritten returns the written bytes of the resource.
-func (r *CachedResource) GetBytesWritten() uint64 {
+func (r *CachedShard) GetBytesWritten() uint64 {
 	return r.stats.WrittenBytes
 }
 
 // GetKeysWritten returns the written keys of the resource.
-func (r *CachedResource) GetKeysWritten() uint64 {
+func (r *CachedShard) GetKeysWritten() uint64 {
 	return r.stats.WrittenKeys
 }
 
 // GetKeysRead returns the read keys of the resource.
-func (r *CachedResource) GetKeysRead() uint64 {
+func (r *CachedShard) GetKeysRead() uint64 {
 	return r.stats.ReadKeys
 }
 
 // GetLeader returns the leader of the resource.
-func (r *CachedResource) GetLeader() *metapb.Replica {
+func (r *CachedShard) GetLeader() *metapb.Replica {
 	return r.leader
 }
 
 // GetStartKey returns the start key of the resource.
-func (r *CachedResource) GetStartKey() []byte {
+func (r *CachedShard) GetStartKey() []byte {
 	v, _ := r.Meta.Range()
 	return v
 }
 
 // GetEndKey returns the end key of the resource.
-func (r *CachedResource) GetEndKey() []byte {
+func (r *CachedShard) GetEndKey() []byte {
 	_, v := r.Meta.Range()
 	return v
 }
 
-func (r *CachedResource) getLeaderID() uint64 {
+func (r *CachedShard) getLeaderID() uint64 {
 	if r.leader == nil {
 		return 0
 	}
@@ -409,16 +409,16 @@ func (r *CachedResource) getLeaderID() uint64 {
 	return r.leader.ID
 }
 
-// resourceMap wraps a map[uint64]*CachedResource and supports randomly pick a resource.
+// resourceMap wraps a map[uint64]*CachedShard and supports randomly pick a resource.
 type resourceMap struct {
-	m         map[uint64]*CachedResource
+	m         map[uint64]*CachedShard
 	totalSize int64
 	totalKeys int64
 }
 
-func newResourceMap() *resourceMap {
+func newShardMap() *resourceMap {
 	return &resourceMap{
-		m: make(map[uint64]*CachedResource),
+		m: make(map[uint64]*CachedShard),
 	}
 }
 
@@ -429,7 +429,7 @@ func (rm *resourceMap) Len() int {
 	return len(rm.m)
 }
 
-func (rm *resourceMap) Get(id uint64) *CachedResource {
+func (rm *resourceMap) Get(id uint64) *CachedShard {
 	if rm == nil {
 		return nil
 	}
@@ -439,7 +439,7 @@ func (rm *resourceMap) Get(id uint64) *CachedResource {
 	return nil
 }
 
-func (rm *resourceMap) Put(res *CachedResource) {
+func (rm *resourceMap) Put(res *CachedShard) {
 	if old, ok := rm.m[res.Meta.ID()]; ok {
 		rm.totalSize -= int64(old.stats.ApproximateSize)
 		rm.totalKeys -= int64(old.stats.ApproximateKeys)
@@ -474,9 +474,9 @@ type resourceSubTree struct {
 	totalKeys int64
 }
 
-func newResourceSubTree(factory func() metadata.Resource) *resourceSubTree {
+func newShardSubTree(factory func() metadata.Shard) *resourceSubTree {
 	return &resourceSubTree{
-		resourceTree: newResourceTree(factory),
+		resourceTree: newShardTree(factory),
 		totalSize:    0,
 	}
 }
@@ -488,19 +488,19 @@ func (rst *resourceSubTree) TotalSize() int64 {
 	return rst.totalSize
 }
 
-func (rst *resourceSubTree) scanRanges() []*CachedResource {
+func (rst *resourceSubTree) scanRanges() []*CachedShard {
 	if rst.length() == 0 {
 		return nil
 	}
-	var resources []*CachedResource
-	rst.scanRange([]byte(""), func(resource *CachedResource) bool {
+	var resources []*CachedShard
+	rst.scanRange([]byte(""), func(resource *CachedShard) bool {
 		resources = append(resources, resource)
 		return true
 	})
 	return resources
 }
 
-func (rst *resourceSubTree) update(res *CachedResource) {
+func (rst *resourceSubTree) update(res *CachedShard) {
 	overlaps := rst.resourceTree.update(res)
 	rst.totalSize += int64(res.stats.ApproximateSize)
 	rst.totalKeys += int64(res.stats.ApproximateKeys)
@@ -510,7 +510,7 @@ func (rst *resourceSubTree) update(res *CachedResource) {
 	}
 }
 
-func (rst *resourceSubTree) remove(res *CachedResource) {
+func (rst *resourceSubTree) remove(res *CachedShard) {
 	if rst.length() == 0 {
 		return
 	}
@@ -527,46 +527,46 @@ func (rst *resourceSubTree) length() int {
 	return rst.resourceTree.length()
 }
 
-func (rst *resourceSubTree) RandomResource(ranges []KeyRange) *CachedResource {
+func (rst *resourceSubTree) RandomShard(ranges []KeyRange) *CachedShard {
 	if rst.length() == 0 {
 		return nil
 	}
 
-	return rst.resourceTree.RandomResource(ranges)
+	return rst.resourceTree.RandomShard(ranges)
 }
 
-func (rst *resourceSubTree) RandomResources(n int, ranges []KeyRange) []*CachedResource {
+func (rst *resourceSubTree) RandomShards(n int, ranges []KeyRange) []*CachedShard {
 	if rst.length() == 0 {
 		return nil
 	}
 
-	resources := make([]*CachedResource, 0, n)
+	resources := make([]*CachedShard, 0, n)
 
 	for i := 0; i < n; i++ {
-		if resource := rst.resourceTree.RandomResource(ranges); resource != nil {
+		if resource := rst.resourceTree.RandomShard(ranges); resource != nil {
 			resources = append(resources, resource)
 		}
 	}
 	return resources
 }
 
-// CachedResources for export
-type CachedResources struct {
-	factory         func() metadata.Resource
+// CachedShards for export
+type CachedShards struct {
+	factory         func() metadata.Shard
 	trees           map[uint64]*resourceTree               // group id -> resourceTree
-	resources       *resourceMap                           // resourceID -> CachedResource
+	resources       *resourceMap                           // resourceID -> CachedShard
 	leaders         map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
 	followers       map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
 	learners        map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
 	pendingReplicas map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
 }
 
-// NewCachedResources creates CachedResources with tree, resources, leaders and followers
-func NewCachedResources(factory func() metadata.Resource) *CachedResources {
-	return &CachedResources{
+// NewCachedShards creates CachedShards with tree, resources, leaders and followers
+func NewCachedShards(factory func() metadata.Shard) *CachedShards {
+	return &CachedShards{
 		factory:         factory,
 		trees:           make(map[uint64]*resourceTree),
-		resources:       newResourceMap(),
+		resources:       newShardMap(),
 		leaders:         make(map[string]map[uint64]*resourceSubTree),
 		followers:       make(map[string]map[uint64]*resourceSubTree),
 		learners:        make(map[string]map[uint64]*resourceSubTree),
@@ -574,7 +574,7 @@ func NewCachedResources(factory func() metadata.Resource) *CachedResources {
 	}
 }
 
-func (r *CachedResources) maybeInitWithGroup(groupKey string) {
+func (r *CachedShards) maybeInitWithGroup(groupKey string) {
 	if _, ok := r.leaders[groupKey]; !ok {
 		r.leaders[groupKey] = make(map[uint64]*resourceSubTree)
 	}
@@ -589,8 +589,8 @@ func (r *CachedResources) maybeInitWithGroup(groupKey string) {
 	}
 }
 
-// ForeachResources foreach resource by group
-func (r *CachedResources) ForeachResources(group uint64, fn func(res metadata.Resource)) {
+// ForeachShards foreach resource by group
+func (r *CachedShards) ForeachShards(group uint64, fn func(res metadata.Shard)) {
 	for _, res := range r.resources.m {
 		if res.Meta.Group() == group {
 			fn(res.Meta)
@@ -598,8 +598,8 @@ func (r *CachedResources) ForeachResources(group uint64, fn func(res metadata.Re
 	}
 }
 
-// ForeachCachedResources foreach cached resource by group
-func (r *CachedResources) ForeachCachedResources(group uint64, fn func(res *CachedResource)) {
+// ForeachCachedShards foreach cached resource by group
+func (r *CachedShards) ForeachCachedShards(group uint64, fn func(res *CachedShard)) {
 	for _, res := range r.resources.m {
 		if res.Meta.Group() == group {
 			fn(res)
@@ -607,8 +607,8 @@ func (r *CachedResources) ForeachCachedResources(group uint64, fn func(res *Cach
 	}
 }
 
-// GetResource returns the CachedResource with resourceID
-func (r *CachedResources) GetResource(resourceID uint64) *CachedResource {
+// GetShard returns the CachedShard with resourceID
+func (r *CachedShards) GetShard(resourceID uint64) *CachedShard {
 	res := r.resources.Get(resourceID)
 	if res == nil {
 		return nil
@@ -616,27 +616,27 @@ func (r *CachedResources) GetResource(resourceID uint64) *CachedResource {
 	return res
 }
 
-// SetResource sets the CachedResource with resourceID
-func (r *CachedResources) SetResource(res *CachedResource) []*CachedResource {
+// SetShard sets the CachedShard with resourceID
+func (r *CachedShards) SetShard(res *CachedShard) []*CachedShard {
 	if origin := r.resources.Get(res.Meta.ID()); origin != nil {
 		if !bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
 			!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
-			r.removeResourceFromTreeAndMap(origin)
+			r.removeShardFromTreeAndMap(origin)
 		}
 		if r.shouldRemoveFromSubTree(res, origin) {
-			r.removeResourceFromSubTree(origin)
+			r.removeShardFromSubTree(origin)
 		}
 	}
-	return r.AddResource(res)
+	return r.AddShard(res)
 }
 
 // Length returns the resourcesInfo length
-func (r *CachedResources) Length() int {
+func (r *CachedShards) Length() int {
 	return r.resources.Len()
 }
 
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
-func (r *CachedResources) GetOverlaps(res *CachedResource) []*CachedResource {
+func (r *CachedShards) GetOverlaps(res *CachedShard) []*CachedShard {
 	if tree, ok := r.trees[res.Meta.Group()]; ok {
 		return tree.getOverlaps(res)
 	}
@@ -644,25 +644,25 @@ func (r *CachedResources) GetOverlaps(res *CachedResource) []*CachedResource {
 	return nil
 }
 
-// AddResource adds CachedResource to resourceTree and resourceMap, also update leaders and followers by resource peers
-func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
+// AddShard adds CachedShard to resourceTree and resourceMap, also update leaders and followers by resource peers
+func (r *CachedShards) AddShard(res *CachedShard) []*CachedShard {
 	if _, ok := r.trees[res.Meta.Group()]; !ok {
-		r.trees[res.Meta.Group()] = newResourceTree(r.factory)
+		r.trees[res.Meta.Group()] = newShardTree(r.factory)
 	}
 
 	// Destroying resource cannot add to tree to avoid range overlaps,
 	// and only wait schedule remove down replicas.
 	if res.IsDestroyState() {
-		r.RemoveResource(res)
+		r.RemoveShard(res)
 	}
 
 	tree := r.trees[res.Meta.Group()]
 	// the resources which are overlapped with the specified resource range.
-	var overlaps []*CachedResource
+	var overlaps []*CachedShard
 	// when the value is true, add the resource to the tree.
 	// Otherwise use the resource replace the origin resource in the tree.
 	treeNeedAdd := !res.IsDestroyState()
-	if origin := r.GetResource(res.Meta.ID()); origin != nil {
+	if origin := r.GetShard(res.Meta.ID()); origin != nil {
 		if resOld := tree.find(res); resOld != nil {
 			// Update to tree.
 			if bytes.Equal(resOld.res.GetStartKey(), res.GetStartKey()) &&
@@ -677,7 +677,7 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 		// Add to tree.
 		overlaps = tree.update(res)
 		for _, item := range overlaps {
-			r.RemoveResource(r.GetResource(item.Meta.ID()))
+			r.RemoveShard(r.GetShard(item.Meta.ID()))
 		}
 	}
 	// Add to resources.
@@ -687,12 +687,12 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 
 	// Add to leaders and followers.
 	for _, peer := range res.GetVoters() {
-		containerID := peer.ContainerID
+		containerID := peer.StoreID
 		if peer.ID == res.getLeaderID() {
 			// Add leader peer to leaders.
 			container, ok := r.leaders[res.groupKey][containerID]
 			if !ok {
-				container = newResourceSubTree(r.factory)
+				container = newShardSubTree(r.factory)
 				r.leaders[res.groupKey][containerID] = container
 			}
 			container.update(res)
@@ -700,7 +700,7 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 			// Add follower peer to followers.
 			container, ok := r.followers[res.groupKey][containerID]
 			if !ok {
-				container = newResourceSubTree(r.factory)
+				container = newShardSubTree(r.factory)
 				r.followers[res.groupKey][containerID] = container
 			}
 			container.update(res)
@@ -709,20 +709,20 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 
 	// Add to learners.
 	for _, peer := range res.GetLearners() {
-		containerID := peer.ContainerID
+		containerID := peer.StoreID
 		container, ok := r.learners[res.groupKey][containerID]
 		if !ok {
-			container = newResourceSubTree(r.factory)
+			container = newShardSubTree(r.factory)
 			r.learners[res.groupKey][containerID] = container
 		}
 		container.update(res)
 	}
 
 	for _, peer := range res.pendingReplicas {
-		containerID := peer.ContainerID
+		containerID := peer.StoreID
 		container, ok := r.pendingReplicas[res.groupKey][containerID]
 		if !ok {
-			container = newResourceSubTree(r.factory)
+			container = newShardSubTree(r.factory)
 			r.pendingReplicas[res.groupKey][containerID] = container
 		}
 		container.update(res)
@@ -731,16 +731,16 @@ func (r *CachedResources) AddResource(res *CachedResource) []*CachedResource {
 	return overlaps
 }
 
-// RemoveResource removes CachedResource from resourceTree and resourceMap
-func (r *CachedResources) RemoveResource(res *CachedResource) {
+// RemoveShard removes CachedShard from resourceTree and resourceMap
+func (r *CachedShards) RemoveShard(res *CachedShard) {
 	// Remove from tree and resources.
-	r.removeResourceFromTreeAndMap(res)
+	r.removeShardFromTreeAndMap(res)
 	// Remove from leaders and followers.
-	r.removeResourceFromSubTree(res)
+	r.removeShardFromSubTree(res)
 }
 
-// removeResourceFromTreeAndMap removes CachedResource from resourceTree and resourceMap
-func (r *CachedResources) removeResourceFromTreeAndMap(res *CachedResource) {
+// removeShardFromTreeAndMap removes CachedShard from resourceTree and resourceMap
+func (r *CachedShards) removeShardFromTreeAndMap(res *CachedShard) {
 	// Remove from tree and resources.
 	if tree, ok := r.trees[res.Meta.Group()]; ok {
 		tree.remove(res)
@@ -748,13 +748,13 @@ func (r *CachedResources) removeResourceFromTreeAndMap(res *CachedResource) {
 	r.resources.Delete(res.Meta.ID())
 }
 
-// removeResourceFromSubTree removes CachedResource from resourcesubTrees
-func (r *CachedResources) removeResourceFromSubTree(res *CachedResource) {
+// removeShardFromSubTree removes CachedShard from resourcesubTrees
+func (r *CachedShards) removeShardFromSubTree(res *CachedShard) {
 	r.maybeInitWithGroup(res.groupKey)
 
 	// Remove from leaders and followers.
 	for _, peer := range res.Meta.Peers() {
-		containerID := peer.ContainerID
+		containerID := peer.StoreID
 		r.leaders[res.groupKey][containerID].remove(res)
 		r.followers[res.groupKey][containerID].remove(res)
 		r.learners[res.groupKey][containerID].remove(res)
@@ -815,7 +815,7 @@ func SortedPeersStatsEqual(peersA, peersB []metapb.ReplicaStats) bool {
 
 // shouldRemoveFromSubTree return true when the resource leader changed, peer transferred,
 // new peer was created, learners changed, pendingReplicas changed, and so on.
-func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *CachedResource) bool {
+func (r *CachedShards) shouldRemoveFromSubTree(res *CachedShard, origin *CachedShard) bool {
 	checkPeersChange := func(origin []metapb.Replica, other []metapb.Replica) bool {
 		if len(origin) != len(other) {
 			return true
@@ -823,7 +823,7 @@ func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *C
 		sort.Sort(peerSlice(origin))
 		sort.Sort(peerSlice(other))
 		for index, peer := range origin {
-			if peer.ContainerID == other[index].ContainerID && peer.ID == other[index].ID {
+			if peer.StoreID == other[index].StoreID && peer.ID == other[index].ID {
 				continue
 			}
 			return true
@@ -838,45 +838,45 @@ func (r *CachedResources) shouldRemoveFromSubTree(res *CachedResource, origin *C
 		origin.groupKey != res.groupKey
 }
 
-// SearchResource searches CachedResource from resourceTree
-func (r *CachedResources) SearchResource(group uint64, resKey []byte) *CachedResource {
+// SearchShard searches CachedShard from resourceTree
+func (r *CachedShards) SearchShard(group uint64, resKey []byte) *CachedShard {
 	if tree, ok := r.trees[group]; ok {
 		res := tree.search(resKey)
 		if res == nil {
 			return nil
 		}
-		return r.GetResource(res.Meta.ID())
+		return r.GetShard(res.Meta.ID())
 	}
 
 	return nil
 }
 
-// SearchPrevResource searches previous CachedResource from resourceTree
-func (r *CachedResources) SearchPrevResource(group uint64, resKey []byte) *CachedResource {
+// SearchPrevShard searches previous CachedShard from resourceTree
+func (r *CachedShards) SearchPrevShard(group uint64, resKey []byte) *CachedShard {
 	if tree, ok := r.trees[group]; ok {
 		res := tree.searchPrev(resKey)
 		if res == nil {
 			return nil
 		}
-		return r.GetResource(res.Meta.ID())
+		return r.GetShard(res.Meta.ID())
 	}
 
 	return nil
 }
 
-// GetResources gets all CachedResource from resourceMap
-func (r *CachedResources) GetResources() []*CachedResource {
-	resources := make([]*CachedResource, 0, r.resources.Len())
+// GetShards gets all CachedShard from resourceMap
+func (r *CachedShards) GetShards() []*CachedShard {
+	resources := make([]*CachedShard, 0, r.resources.Len())
 	for _, res := range r.resources.m {
 		resources = append(resources, res)
 	}
 	return resources
 }
 
-// GetContainerResources gets all CachedResource with a given containerID
-func (r *CachedResources) GetContainerResources(groupKey string, containerID uint64) []*CachedResource {
+// GetStoreShards gets all CachedShard with a given containerID
+func (r *CachedShards) GetStoreShards(groupKey string, containerID uint64) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	resources := make([]*CachedResource, 0, r.GetContainerResourceCount(groupKey, containerID))
+	resources := make([]*CachedShard, 0, r.GetStoreShardCount(groupKey, containerID))
 	if leaders, ok := r.leaders[groupKey][containerID]; ok {
 		resources = append(resources, leaders.scanRanges()...)
 	}
@@ -889,128 +889,128 @@ func (r *CachedResources) GetContainerResources(groupKey string, containerID uin
 	return resources
 }
 
-// GetContainerLeaderResourceSize get total size of container's leader resources
-func (r *CachedResources) GetContainerLeaderResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreLeaderShardSize get total size of container's leader resources
+func (r *CachedShards) GetStoreLeaderShardSize(groupKey string, containerID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.leaders[groupKey][containerID].TotalSize()
 }
 
-// GetContainerFollowerResourceSize get total size of container's follower resources
-func (r *CachedResources) GetContainerFollowerResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreFollowerShardSize get total size of container's follower resources
+func (r *CachedShards) GetStoreFollowerShardSize(groupKey string, containerID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.followers[groupKey][containerID].TotalSize()
 }
 
-// GetContainerLearnerResourceSize get total size of container's learner resources
-func (r *CachedResources) GetContainerLearnerResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreLearnerShardSize get total size of container's learner resources
+func (r *CachedShards) GetStoreLearnerShardSize(groupKey string, containerID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.learners[groupKey][containerID].TotalSize()
 }
 
-// GetContainerResourceSize get total size of container's resources
-func (r *CachedResources) GetContainerResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreShardSize get total size of container's resources
+func (r *CachedShards) GetStoreShardSize(groupKey string, containerID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
-	return r.GetContainerLeaderResourceSize(groupKey, containerID) +
-		r.GetContainerFollowerResourceSize(groupKey, containerID) +
-		r.GetContainerLearnerResourceSize(groupKey, containerID)
+	return r.GetStoreLeaderShardSize(groupKey, containerID) +
+		r.GetStoreFollowerShardSize(groupKey, containerID) +
+		r.GetStoreLearnerShardSize(groupKey, containerID)
 }
 
-// GetMetaResources gets a set of metadata.Resource from resourceMap
-func (r *CachedResources) GetMetaResources() []metadata.Resource {
-	resources := make([]metadata.Resource, 0, r.resources.Len())
+// GetMetaShards gets a set of metadata.Shard from resourceMap
+func (r *CachedShards) GetMetaShards() []metadata.Shard {
+	resources := make([]metadata.Shard, 0, r.resources.Len())
 	for _, res := range r.resources.m {
 		resources = append(resources, res.Meta.Clone())
 	}
 	return resources
 }
 
-// GetResourceCount gets the total count of CachedResource of resourceMap
-func (r *CachedResources) GetResourceCount() int {
+// GetShardCount gets the total count of CachedShard of resourceMap
+func (r *CachedShards) GetShardCount() int {
 	return r.resources.Len()
 }
 
-// GetContainerResourceCount gets the total count of a container's leader, follower and learner CachedResource by containerID
-func (r *CachedResources) GetContainerResourceCount(groupKey string, containerID uint64) int {
+// GetStoreShardCount gets the total count of a container's leader, follower and learner CachedShard by containerID
+func (r *CachedShards) GetStoreShardCount(groupKey string, containerID uint64) int {
 	r.maybeInitWithGroup(groupKey)
-	return r.GetContainerLeaderCount(groupKey, containerID) +
-		r.GetContainerFollowerCount(groupKey, containerID) +
-		r.GetContainerLearnerCount(groupKey, containerID)
+	return r.GetStoreLeaderCount(groupKey, containerID) +
+		r.GetStoreFollowerCount(groupKey, containerID) +
+		r.GetStoreLearnerCount(groupKey, containerID)
 }
 
-// GetContainerPendingPeerCount gets the total count of a container's resource that includes pending peer
-func (r *CachedResources) GetContainerPendingPeerCount(groupKey string, containerID uint64) int {
+// GetStorePendingPeerCount gets the total count of a container's resource that includes pending peer
+func (r *CachedShards) GetStorePendingPeerCount(groupKey string, containerID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.pendingReplicas[groupKey][containerID].length()
 }
 
-// GetContainerLeaderCount get the total count of a container's leader CachedResource
-func (r *CachedResources) GetContainerLeaderCount(groupKey string, containerID uint64) int {
+// GetStoreLeaderCount get the total count of a container's leader CachedShard
+func (r *CachedShards) GetStoreLeaderCount(groupKey string, containerID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.leaders[groupKey][containerID].length()
 }
 
-// GetContainerFollowerCount get the total count of a container's follower CachedResource
-func (r *CachedResources) GetContainerFollowerCount(groupKey string, containerID uint64) int {
+// GetStoreFollowerCount get the total count of a container's follower CachedShard
+func (r *CachedShards) GetStoreFollowerCount(groupKey string, containerID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.followers[groupKey][containerID].length()
 }
 
-// GetContainerLearnerCount get the total count of a container's learner CachedResource
-func (r *CachedResources) GetContainerLearnerCount(groupKey string, containerID uint64) int {
+// GetStoreLearnerCount get the total count of a container's learner CachedShard
+func (r *CachedShards) GetStoreLearnerCount(groupKey string, containerID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.learners[groupKey][containerID].length()
 }
 
-// RandPendingResource randomly gets a container's resource with a pending peer.
-func (r *CachedResources) RandPendingResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+// RandPendingShard randomly gets a container's resource with a pending peer.
+func (r *CachedShards) RandPendingShard(groupKey string, containerID uint64, ranges []KeyRange) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.pendingReplicas[groupKey][containerID].RandomResource(ranges)
+	return r.pendingReplicas[groupKey][containerID].RandomShard(ranges)
 }
 
-// RandPendingResources randomly gets a container's n resources with a pending peer.
-func (r *CachedResources) RandPendingResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+// RandPendingShards randomly gets a container's n resources with a pending peer.
+func (r *CachedShards) RandPendingShards(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.pendingReplicas[groupKey][containerID].RandomResources(n, ranges)
+	return r.pendingReplicas[groupKey][containerID].RandomShards(n, ranges)
 }
 
-// RandLeaderResource randomly gets a container's leader resource.
-func (r *CachedResources) RandLeaderResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+// RandLeaderShard randomly gets a container's leader resource.
+func (r *CachedShards) RandLeaderShard(groupKey string, containerID uint64, ranges []KeyRange) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.leaders[groupKey][containerID].RandomResource(ranges)
+	return r.leaders[groupKey][containerID].RandomShard(ranges)
 }
 
-// RandLeaderResources randomly gets a container's n leader resources.
-func (r *CachedResources) RandLeaderResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+// RandLeaderShards randomly gets a container's n leader resources.
+func (r *CachedShards) RandLeaderShards(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.leaders[groupKey][containerID].RandomResources(n, ranges)
+	return r.leaders[groupKey][containerID].RandomShards(n, ranges)
 }
 
-// RandFollowerResource randomly gets a container's follower resource.
-func (r *CachedResources) RandFollowerResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+// RandFollowerShard randomly gets a container's follower resource.
+func (r *CachedShards) RandFollowerShard(groupKey string, containerID uint64, ranges []KeyRange) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.followers[groupKey][containerID].RandomResource(ranges)
+	return r.followers[groupKey][containerID].RandomShard(ranges)
 }
 
-// RandFollowerResources randomly gets a container's n follower resources.
-func (r *CachedResources) RandFollowerResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+// RandFollowerShards randomly gets a container's n follower resources.
+func (r *CachedShards) RandFollowerShards(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.followers[groupKey][containerID].RandomResources(n, ranges)
+	return r.followers[groupKey][containerID].RandomShards(n, ranges)
 }
 
-// RandLearnerResource randomly gets a container's learner resource.
-func (r *CachedResources) RandLearnerResource(groupKey string, containerID uint64, ranges []KeyRange) *CachedResource {
+// RandLearnerShard randomly gets a container's learner resource.
+func (r *CachedShards) RandLearnerShard(groupKey string, containerID uint64, ranges []KeyRange) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.learners[groupKey][containerID].RandomResource(ranges)
+	return r.learners[groupKey][containerID].RandomShard(ranges)
 }
 
-// RandLearnerResources randomly gets a container's n learner resources.
-func (r *CachedResources) RandLearnerResources(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedResource {
+// RandLearnerShards randomly gets a container's n learner resources.
+func (r *CachedShards) RandLearnerShards(groupKey string, containerID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
-	return r.learners[groupKey][containerID].RandomResources(n, ranges)
+	return r.learners[groupKey][containerID].RandomShards(n, ranges)
 }
 
-// GetLeader return leader CachedResource by containerID and resourceID(now only used in test)
-func (r *CachedResources) GetLeader(groupKey string, containerID uint64, res *CachedResource) *CachedResource {
+// GetLeader return leader CachedShard by containerID and resourceID(now only used in test)
+func (r *CachedShards) GetLeader(groupKey string, containerID uint64, res *CachedShard) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
 	if leaders, ok := r.leaders[groupKey][containerID]; ok {
 		return leaders.find(res).res
@@ -1018,8 +1018,8 @@ func (r *CachedResources) GetLeader(groupKey string, containerID uint64, res *Ca
 	return nil
 }
 
-// GetFollower return follower CachedResource by containerID and resourceID(now only used in test)
-func (r *CachedResources) GetFollower(groupKey string, containerID uint64, res *CachedResource) *CachedResource {
+// GetFollower return follower CachedShard by containerID and resourceID(now only used in test)
+func (r *CachedShards) GetFollower(groupKey string, containerID uint64, res *CachedShard) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
 	if followers, ok := r.followers[groupKey][containerID]; ok {
 		return followers.find(res).res
@@ -1029,28 +1029,28 @@ func (r *CachedResources) GetFollower(groupKey string, containerID uint64, res *
 
 // ScanRange scans resources intersecting [start key, end key), returns at most
 // `limit` resources. limit <= 0 means no limit.
-func (r *CachedResources) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedResource {
-	var resources []*CachedResource
+func (r *CachedShards) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedShard {
+	var resources []*CachedShard
 	if tree, ok := r.trees[group]; ok {
-		tree.scanRange(startKey, func(resource *CachedResource) bool {
+		tree.scanRange(startKey, func(resource *CachedShard) bool {
 			if len(endKey) > 0 && bytes.Compare(resource.GetStartKey(), endKey) >= 0 {
 				return false
 			}
 			if limit > 0 && len(resources) >= limit {
 				return false
 			}
-			resources = append(resources, r.GetResource(resource.Meta.ID()))
+			resources = append(resources, r.GetShard(resource.Meta.ID()))
 			return true
 		})
 	}
 	return resources
 }
 
-// GetDestroyingResources returns all resources in destroying state
-func (r *CachedResources) GetDestroyingResources() []*CachedResource {
-	var resources []*CachedResource
+// GetDestroyingShards returns all resources in destroying state
+func (r *CachedShards) GetDestroyingShards() []*CachedShard {
+	var resources []*CachedShard
 	for _, res := range r.resources.m {
-		if res.Meta.State() == metapb.ResourceState_Destroying {
+		if res.Meta.State() == metapb.ShardState_Destroying {
 			resources = append(resources, res)
 		}
 	}
@@ -1059,38 +1059,38 @@ func (r *CachedResources) GetDestroyingResources() []*CachedResource {
 
 // ScanRangeWithIterator scans from the first resource containing or behind start key,
 // until iterator returns false.
-func (r *CachedResources) ScanRangeWithIterator(group uint64, startKey []byte, iterator func(res *CachedResource) bool) {
+func (r *CachedShards) ScanRangeWithIterator(group uint64, startKey []byte, iterator func(res *CachedShard) bool) {
 	if tree, ok := r.trees[group]; ok {
 		tree.scanRange(startKey, iterator)
 	}
 }
 
-// GetAdjacentResources returns resource's info that is adjacent with specific resource
-func (r *CachedResources) GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource) {
-	var prev, next *CachedResource
+// GetAdjacentShards returns resource's info that is adjacent with specific resource
+func (r *CachedShards) GetAdjacentShards(res *CachedShard) (*CachedShard, *CachedShard) {
+	var prev, next *CachedShard
 	if tree, ok := r.trees[res.Meta.Group()]; ok {
-		p, n := tree.getAdjacentResources(res)
+		p, n := tree.getAdjacentShards(res)
 		// check key to avoid key range hole
 		if p != nil && bytes.Equal(p.res.GetEndKey(), res.GetStartKey()) {
-			prev = r.GetResource(p.res.Meta.ID())
+			prev = r.GetShard(p.res.Meta.ID())
 		}
 		if n != nil && bytes.Equal(res.GetEndKey(), n.res.GetStartKey()) {
-			next = r.GetResource(n.res.Meta.ID())
+			next = r.GetShard(n.res.Meta.ID())
 		}
 	}
 	return prev, next
 }
 
-// GetAverageResourceSize returns the average resource approximate size.
-func (r *CachedResources) GetAverageResourceSize() int64 {
+// GetAverageShardSize returns the average resource approximate size.
+func (r *CachedShards) GetAverageShardSize() int64 {
 	if r.resources.Len() == 0 {
 		return 0
 	}
 	return r.resources.TotalSize() / int64(r.resources.Len())
 }
 
-// DiffResourcePeersInfo return the difference of peers info  between two CachedResource
-func DiffResourcePeersInfo(origin *CachedResource, other *CachedResource) string {
+// DiffShardPeersInfo return the difference of peers info  between two CachedShard
+func DiffShardPeersInfo(origin *CachedShard, other *CachedShard) string {
 	var ret []string
 	for _, a := range origin.Meta.Peers() {
 		both := false
@@ -1119,27 +1119,27 @@ func DiffResourcePeersInfo(origin *CachedResource, other *CachedResource) string
 	return strings.Join(ret, ",")
 }
 
-// DiffResourceKeyInfo return the difference of key info between two CachedResource
-func DiffResourceKeyInfo(origin *CachedResource, other *CachedResource) string {
+// DiffShardKeyInfo return the difference of key info between two CachedShard
+func DiffShardKeyInfo(origin *CachedShard, other *CachedShard) string {
 	originStartKey, originEndKey := origin.Meta.Range()
 	otherStartKey, otherEndKey := other.Meta.Range()
 
 	var ret []string
 	if !bytes.Equal(originStartKey, otherStartKey) {
-		ret = append(ret, fmt.Sprintf("StartKey Changed:{%s} -> {%s}", HexResourceKey(originStartKey), HexResourceKey(otherStartKey)))
+		ret = append(ret, fmt.Sprintf("StartKey Changed:{%s} -> {%s}", HexShardKey(originStartKey), HexShardKey(otherStartKey)))
 	} else {
-		ret = append(ret, fmt.Sprintf("StartKey:{%s}", HexResourceKey(originStartKey)))
+		ret = append(ret, fmt.Sprintf("StartKey:{%s}", HexShardKey(originStartKey)))
 	}
 	if !bytes.Equal(originEndKey, otherEndKey) {
-		ret = append(ret, fmt.Sprintf("EndKey Changed:{%s} -> {%s}", HexResourceKey(originEndKey), HexResourceKey(otherEndKey)))
+		ret = append(ret, fmt.Sprintf("EndKey Changed:{%s} -> {%s}", HexShardKey(originEndKey), HexShardKey(otherEndKey)))
 	} else {
-		ret = append(ret, fmt.Sprintf("EndKey:{%s}", HexResourceKey(originEndKey)))
+		ret = append(ret, fmt.Sprintf("EndKey:{%s}", HexShardKey(originEndKey)))
 	}
 
 	return strings.Join(ret, ", ")
 }
 
-func isInvolved(res *CachedResource, startKey, endKey []byte) bool {
+func isInvolved(res *CachedShard, startKey, endKey []byte) bool {
 	return bytes.Compare(res.GetStartKey(), startKey) >= 0 && (len(endKey) == 0 || (len(res.GetEndKey()) > 0 && bytes.Compare(res.GetEndKey(), endKey) <= 0))
 }
 
@@ -1184,59 +1184,59 @@ func EncodeToString(src []byte) []byte {
 	return dst
 }
 
-// HexResourceKey converts resource key to hex format. Used for formating resource in
+// HexShardKey converts resource key to hex format. Used for formating resource in
 // logs.
-func HexResourceKey(key []byte) []byte {
+func HexShardKey(key []byte) []byte {
 	return ToUpperASCIIInplace(EncodeToString(key))
 }
 
-// HexResourceKeyStr converts resource key to hex format. Used for formating resource in
+// HexShardKeyStr converts resource key to hex format. Used for formating resource in
 // logs.
-func HexResourceKeyStr(key []byte) string {
-	return String(HexResourceKey(key))
+func HexShardKeyStr(key []byte) string {
+	return String(HexShardKey(key))
 }
 
-// ResourceToHexMeta converts a resource meta's keys to hex format. Used for formating
+// ShardToHexMeta converts a resource meta's keys to hex format. Used for formating
 // resource in logs.
-func ResourceToHexMeta(meta metadata.Resource) HexResourceMeta {
+func ShardToHexMeta(meta metadata.Shard) HexShardMeta {
 	if meta == nil {
-		return HexResourceMeta{}
+		return HexShardMeta{}
 	}
 	meta = meta.Clone()
 	start, end := meta.Range()
-	meta.SetStartKey(HexResourceKey(start))
-	meta.SetEndKey(HexResourceKey(end))
-	return HexResourceMeta{meta}
+	meta.SetStartKey(HexShardKey(start))
+	meta.SetEndKey(HexShardKey(end))
+	return HexShardMeta{meta}
 }
 
-// HexResourceMeta is a resource meta in the hex format. Used for formating resource in logs.
-type HexResourceMeta struct {
-	meta metadata.Resource
+// HexShardMeta is a resource meta in the hex format. Used for formating resource in logs.
+type HexShardMeta struct {
+	meta metadata.Shard
 }
 
-func (h HexResourceMeta) String() string {
+func (h HexShardMeta) String() string {
 	return fmt.Sprintf("resource %+v", h.meta)
 }
 
-// ResourcesToHexMeta converts resources' meta keys to hex format. Used for formating
+// ShardsToHexMeta converts resources' meta keys to hex format. Used for formating
 // resource in logs.
-func ResourcesToHexMeta(resources []metadata.Resource) HexResourcesMeta {
-	hexResourceMetas := make([]metadata.Resource, len(resources))
+func ShardsToHexMeta(resources []metadata.Shard) HexShardsMeta {
+	hexShardMetas := make([]metadata.Shard, len(resources))
 	for i, res := range resources {
 		meta := res.Clone()
 		start, end := meta.Range()
-		meta.SetStartKey(HexResourceKey(start))
-		meta.SetEndKey(HexResourceKey(end))
-		hexResourceMetas[i] = meta
+		meta.SetStartKey(HexShardKey(start))
+		meta.SetEndKey(HexShardKey(end))
+		hexShardMetas[i] = meta
 	}
-	return hexResourceMetas
+	return hexShardMetas
 }
 
-// HexResourcesMeta is a slice of resources' meta in the hex format. Used for formating
+// HexShardsMeta is a slice of resources' meta in the hex format. Used for formating
 // resource in logs.
-type HexResourcesMeta []metadata.Resource
+type HexShardsMeta []metadata.Shard
 
-func (h HexResourcesMeta) String() string {
+func (h HexShardsMeta) String() string {
 	var b strings.Builder
 	for _, r := range h {
 		b.WriteString(fmt.Sprintf("resource %+v", r))

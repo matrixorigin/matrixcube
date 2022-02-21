@@ -20,10 +20,9 @@ import (
 	"github.com/matrixorigin/matrixcube/aware"
 	"github.com/matrixorigin/matrixcube/components/log"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/metric"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -141,7 +140,7 @@ func (c *Config) Adjust() {
 	(&c.Replication).adjust()
 	(&c.Raft).adjust(uint64(c.Replication.ShardCapacityBytes))
 	c.Prophet.DataDir = path.Join(c.DataPath, defaultProphetDirName)
-	c.Prophet.ContainerHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
+	c.Prophet.StoreHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
 	(&c.Prophet).Adjust(nil, false)
 	(&c.Worker).adjust()
 
@@ -365,14 +364,14 @@ type CustomizeConfig struct {
 	// CustomShardStateAwareFactory is a factory func to create aware.ShardStateAware to handled shard life cycle.
 	CustomShardStateAwareFactory func() aware.ShardStateAware `json:"-" toml:"-"`
 	// CustomInitShardsFactory is a factory func to provide init shards to cube to bootstrap the cluster.
-	CustomInitShardsFactory func() []meta.Shard `json:"-" toml:"-"`
+	CustomInitShardsFactory func() []metapb.Shard `json:"-" toml:"-"`
 	// CustomStoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 	CustomStoreHeartbeatDataProcessor StoreHeartbeatDataProcessor `json:"-" toml:"-"`
 	// CustomShardPoolShardFactory is factory create a shard used by shard pool, `start, end and unique` is created by
 	// `ShardPool` based on `offsetInPool`, these can be modified, provided that the only non-conflict.
-	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) meta.Shard `json:"-" toml:"-"`
+	CustomShardPoolShardFactory func(g uint64, start, end []byte, unique string, offsetInPool uint64) metapb.Shard `json:"-" toml:"-"`
 	// CustomTransportFilter transport filter
-	CustomTransportFilter func(meta.RaftMessage) bool `json:"-" toml:"-"`
+	CustomTransportFilter func(metapb.RaftMessage) bool `json:"-" toml:"-"`
 	// CustomWrapNewTransport wraps new transports
 	CustomWrapNewTransport func(transport.Trans) transport.Trans `json:"-" toml:"-"`
 }
@@ -392,7 +391,7 @@ func (c *Config) GetLabels() []metapb.Pair {
 
 // StoreHeartbeatDataProcessor process store heartbeat data, collect, store and process customize data
 type StoreHeartbeatDataProcessor interface {
-	pconfig.ContainerHeartbeatDataProcessor
+	pconfig.StoreHeartbeatDataProcessor
 
 	// HandleHeartbeatRsp handle the data from store heartbeat at the each worker node
 	HandleHeartbeatRsp(data []byte) error

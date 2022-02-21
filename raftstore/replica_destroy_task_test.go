@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,14 +39,14 @@ func newTestDestroyMetadataStorage(watchPut bool) *testDestroyMetadataStorage {
 	}
 }
 
-func (s *testDestroyMetadataStorage) CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ResourceState, error) {
+func (s *testDestroyMetadataStorage) CreateDestroying(shardID uint64, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	status := &metapb.DestroyingStatus{
 		Index:      index,
 		RemoveData: removeData,
-		State:      metapb.ResourceState_Destroying,
+		State:      metapb.ShardState_Destroying,
 		Replicas:   make(map[uint64]bool),
 	}
 	for _, replicaID := range replicas {
@@ -57,7 +57,7 @@ func (s *testDestroyMetadataStorage) CreateDestroying(shardID uint64, index uint
 	if s.watchPut {
 		s.c <- struct{}{}
 	}
-	return metapb.ResourceState_Destroying, nil
+	return metapb.ShardState_Destroying, nil
 }
 
 func (s *testDestroyMetadataStorage) GetDestroying(shardID uint64) (*metapb.DestroyingStatus, error) {
@@ -67,13 +67,13 @@ func (s *testDestroyMetadataStorage) GetDestroying(shardID uint64) (*metapb.Dest
 	return s.data[shardID], nil
 }
 
-func (s *testDestroyMetadataStorage) ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ResourceState, error) {
+func (s *testDestroyMetadataStorage) ReportDestroyed(shardID uint64, replicaID uint64) (metapb.ShardState, error) {
 	s.Lock()
 	defer s.Unlock()
 
 	status, ok := s.data[shardID]
 	if !ok {
-		return metapb.ResourceState_Destroying, nil
+		return metapb.ShardState_Destroying, nil
 	}
 
 	status.Replicas[replicaID] = true
@@ -85,7 +85,7 @@ func (s *testDestroyMetadataStorage) ReportDestroyed(shardID uint64, replicaID u
 		}
 	}
 	if n == len(status.Replicas) {
-		status.State = metapb.ResourceState_Destroyed
+		status.State = metapb.ShardState_Destroyed
 	}
 
 	return status.State, nil

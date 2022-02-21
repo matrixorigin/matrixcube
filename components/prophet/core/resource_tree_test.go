@@ -20,27 +20,27 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCachedResource(t *testing.T) {
+func TestCachedShard(t *testing.T) {
 	n := uint64(3)
 
 	peers := make([]metapb.Replica, 0, n)
 	for i := uint64(0); i < n; i++ {
 		p := metapb.Replica{
 			ID:          i,
-			ContainerID: i,
+			StoreID: i,
 		}
 		peers = append(peers, p)
 	}
-	res := &metadata.TestResource{
+	res := &metadata.TestShard{
 		ResPeers: peers,
 	}
 	downPeer, pendingPeer := peers[0], peers[1]
 
-	info := NewCachedResource(
+	info := NewCachedShard(
 		res,
 		&peers[0],
 		WithDownPeers([]metapb.ReplicaStats{{Replica: downPeer}}),
@@ -71,36 +71,36 @@ func TestCachedResource(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(p, pendingPeer))
 
 	for i := uint64(0); i < n; i++ {
-		p, _ := r.GetContainerPeer(i)
-		assert.Equal(t, i, p.ContainerID)
+		p, _ := r.GetStorePeer(i)
+		assert.Equal(t, i, p.StoreID)
 	}
 
-	_, ok = r.GetContainerPeer(n)
+	_, ok = r.GetStorePeer(n)
 	assert.False(t, ok)
 
 	removePeer := metapb.Replica{
 		ID:          n,
-		ContainerID: n,
+		StoreID: n,
 	}
 	r = r.Clone(SetPeers(append(r.Meta.Peers(), removePeer)))
 
-	assert.True(t, regexp.MustCompile("Add peer.*").MatchString(DiffResourcePeersInfo(info, r)))
-	assert.True(t, regexp.MustCompile("Remove peer.*").MatchString(DiffResourcePeersInfo(r, info)))
-	p, _ = r.GetContainerPeer(n)
+	assert.True(t, regexp.MustCompile("Add peer.*").MatchString(DiffShardPeersInfo(info, r)))
+	assert.True(t, regexp.MustCompile("Remove peer.*").MatchString(DiffShardPeersInfo(r, info)))
+	p, _ = r.GetStorePeer(n)
 	assert.True(t, reflect.DeepEqual(p, removePeer))
 
-	r = r.Clone(WithRemoveContainerPeer(n))
-	assert.Empty(t, DiffResourcePeersInfo(r, info))
-	_, ok = r.GetContainerPeer(n)
+	r = r.Clone(WithRemoveStorePeer(n))
+	assert.Empty(t, DiffShardPeersInfo(r, info))
+	_, ok = r.GetStorePeer(n)
 	assert.False(t, ok)
 
 	r = r.Clone(WithStartKey([]byte{0}))
-	assert.True(t, regexp.MustCompile("StartKey Changed.*").MatchString(DiffResourceKeyInfo(r, info)))
+	assert.True(t, regexp.MustCompile("StartKey Changed.*").MatchString(DiffShardKeyInfo(r, info)))
 
 	r = r.Clone(WithEndKey([]byte{1}))
-	assert.True(t, regexp.MustCompile("EndKey Changed.*").MatchString(DiffResourceKeyInfo(r, info)))
+	assert.True(t, regexp.MustCompile("EndKey Changed.*").MatchString(DiffShardKeyInfo(r, info)))
 
-	containers := r.GetContainerIDs()
+	containers := r.GetStoreIDs()
 	assert.Equal(t, int(n), len(containers))
 	for i := uint64(0); i < n; i++ {
 		_, ok := containers[i]
@@ -110,74 +110,74 @@ func TestCachedResource(t *testing.T) {
 	followers := r.GetFollowers()
 	assert.Equal(t, int(n-1), len(followers))
 	for i := uint64(1); i < n; i++ {
-		assert.True(t, reflect.DeepEqual(followers[peers[i].ContainerID], peers[i]))
+		assert.True(t, reflect.DeepEqual(followers[peers[i].StoreID], peers[i]))
 	}
 }
 
-func TestResourceItem(t *testing.T) {
-	item := newTestResourceItem([]byte("b"), []byte{})
+func TestShardItem(t *testing.T) {
+	item := newTestShardItem([]byte("b"), []byte{})
 
-	assert.False(t, item.Less(newTestResourceItem([]byte("a"), []byte{})))
-	assert.False(t, item.Less(newTestResourceItem([]byte("b"), []byte{})))
-	assert.True(t, item.Less(newTestResourceItem([]byte("c"), []byte{})))
+	assert.False(t, item.Less(newTestShardItem([]byte("a"), []byte{})))
+	assert.False(t, item.Less(newTestShardItem([]byte("b"), []byte{})))
+	assert.True(t, item.Less(newTestShardItem([]byte("c"), []byte{})))
 
 	assert.False(t, item.Contains([]byte("a")))
 	assert.True(t, item.Contains([]byte("b")))
 	assert.True(t, item.Contains([]byte("c")))
 
-	item = newTestResourceItem([]byte("b"), []byte("d"))
+	item = newTestShardItem([]byte("b"), []byte("d"))
 	assert.False(t, item.Contains([]byte("a")))
 	assert.True(t, item.Contains([]byte("b")))
 	assert.True(t, item.Contains([]byte("c")))
 	assert.False(t, item.Contains([]byte("d")))
 }
 
-func TestResourceSubTree(t *testing.T) {
-	tree := newResourceSubTree(testResourceFactory)
+func TestShardSubTree(t *testing.T) {
+	tree := newShardSubTree(testShardFactory)
 	assert.Equal(t, int64(0), tree.totalSize)
 	assert.Equal(t, int64(0), tree.totalKeys)
 
-	tree.update(newResourceWithStat("a", "b", 1, 2))
+	tree.update(newShardWithStat("a", "b", 1, 2))
 	assert.Equal(t, int64(1), tree.totalSize)
 	assert.Equal(t, int64(2), tree.totalKeys)
 
-	tree.update(newResourceWithStat("b", "c", 3, 4))
+	tree.update(newShardWithStat("b", "c", 3, 4))
 	assert.Equal(t, int64(4), tree.totalSize)
 	assert.Equal(t, int64(6), tree.totalKeys)
 
-	tree.update(newResourceWithStat("b", "e", 5, 6))
+	tree.update(newShardWithStat("b", "e", 5, 6))
 	assert.Equal(t, int64(6), tree.totalSize)
 	assert.Equal(t, int64(8), tree.totalKeys)
 
-	tree.remove(newResourceWithStat("a", "b", 1, 2))
+	tree.remove(newShardWithStat("a", "b", 1, 2))
 	assert.Equal(t, int64(5), tree.totalSize)
 	assert.Equal(t, int64(6), tree.totalKeys)
 
-	tree.remove(newResourceWithStat("f", "g", 1, 2))
+	tree.remove(newShardWithStat("f", "g", 1, 2))
 	assert.Equal(t, int64(5), tree.totalSize)
 	assert.Equal(t, int64(6), tree.totalKeys)
 }
 
-func TestResourceSubTreeMerge(t *testing.T) {
-	tree := newResourceSubTree(testResourceFactory)
-	tree.update(newResourceWithStat("a", "b", 1, 2))
-	tree.update(newResourceWithStat("b", "c", 3, 4))
+func TestShardSubTreeMerge(t *testing.T) {
+	tree := newShardSubTree(testShardFactory)
+	tree.update(newShardWithStat("a", "b", 1, 2))
+	tree.update(newShardWithStat("b", "c", 3, 4))
 	assert.Equal(t, int64(4), tree.totalSize)
 	assert.Equal(t, int64(6), tree.totalKeys)
 
-	tree.update(newResourceWithStat("a", "c", 5, 5))
+	tree.update(newShardWithStat("a", "c", 5, 5))
 	assert.Equal(t, int64(5), tree.totalSize)
 	assert.Equal(t, int64(5), tree.totalKeys)
 }
 
-func TestResourceTree(t *testing.T) {
-	tree := newResourceSubTree(testResourceFactory)
+func TestShardTree(t *testing.T) {
+	tree := newShardSubTree(testShardFactory)
 	assert.Nil(t, tree.search([]byte("a")))
 
-	resA := NewTestCachedResource([]byte("a"), []byte("b"))
-	resB := NewTestCachedResource([]byte("b"), []byte("c"))
-	resC := NewTestCachedResource([]byte("c"), []byte("d"))
-	resD := NewTestCachedResource([]byte("d"), []byte{})
+	resA := NewTestCachedShard([]byte("a"), []byte("b"))
+	resB := NewTestCachedShard([]byte("b"), []byte("c"))
+	resC := NewTestCachedShard([]byte("c"), []byte("d"))
+	resD := NewTestCachedShard([]byte("d"), []byte{})
 
 	tree.update(resA)
 	tree.update(resC)
@@ -206,34 +206,34 @@ func TestResourceTree(t *testing.T) {
 	assert.Equal(t, resD, tree.search([]byte("d")))
 
 	// check get adjacent resources
-	prev, next := tree.getAdjacentResources(resA)
+	prev, next := tree.getAdjacentShards(resA)
 	assert.Nil(t, prev)
 	assert.Equal(t, resB, next.res)
 
-	prev, next = tree.getAdjacentResources(resB)
+	prev, next = tree.getAdjacentShards(resB)
 	assert.Equal(t, resA, prev.res)
 	assert.Equal(t, resD, next.res)
 
-	prev, next = tree.getAdjacentResources(resC)
+	prev, next = tree.getAdjacentShards(resC)
 	assert.Equal(t, resB, prev.res)
 	assert.Equal(t, resD, next.res)
 
-	prev, next = tree.getAdjacentResources(resD)
+	prev, next = tree.getAdjacentShards(resD)
 	assert.Equal(t, resB, prev.res)
 	assert.Nil(t, next)
 
 	// resource with the same range and different resource id will not be delete.
-	res0 := newTestResourceItem([]byte{}, []byte("a")).res
+	res0 := newTestShardItem([]byte{}, []byte("a")).res
 	tree.update(res0)
 	assert.Equal(t, res0, tree.search([]byte{}))
 
-	anotherRes0 := newTestResourceItem([]byte{}, []byte("a")).res
+	anotherRes0 := newTestShardItem([]byte{}, []byte("a")).res
 	anotherRes0.Meta.SetID(123)
 	tree.remove(anotherRes0)
 	assert.Equal(t, res0, tree.search([]byte{}))
 
 	// overlaps with 0, A, B, C.
-	res0D := newTestResourceItem([]byte(""), []byte("d")).res
+	res0D := newTestShardItem([]byte(""), []byte("d")).res
 	tree.update(res0D)
 	assert.Equal(t, res0D, tree.search([]byte{}))
 	assert.Equal(t, res0D, tree.search([]byte("a")))
@@ -242,7 +242,7 @@ func TestResourceTree(t *testing.T) {
 	assert.Equal(t, resD, tree.search([]byte("d")))
 
 	// overlaps with D.
-	resE := newTestResourceItem([]byte("e"), []byte{}).res
+	resE := newTestShardItem([]byte("e"), []byte{}).res
 	tree.update(resE)
 	assert.Equal(t, res0D, tree.search([]byte{}))
 	assert.Equal(t, res0D, tree.search([]byte("a")))
@@ -252,134 +252,134 @@ func TestResourceTree(t *testing.T) {
 	assert.Equal(t, resE, tree.search([]byte("e")))
 }
 
-func TestResourceTreeSplitAndMerge(t *testing.T) {
-	tree := newResourceTree(testResourceFactory)
-	resources := []*CachedResource{newTestResourceItem([]byte{}, []byte{}).res}
+func TestShardTreeSplitAndMerge(t *testing.T) {
+	tree := newShardTree(testShardFactory)
+	resources := []*CachedShard{newTestShardItem([]byte{}, []byte{}).res}
 
 	// Byte will underflow/overflow if n > 7.
 	n := 7
 
 	// Split.
 	for i := 0; i < n; i++ {
-		resources = SplitTestResources(resources)
-		updateTestResources(t, tree, resources)
+		resources = SplitTestShards(resources)
+		updateTestShards(t, tree, resources)
 	}
 
 	// Merge.
 	for i := 0; i < n; i++ {
-		resources = MergeTestResources(resources)
-		updateTestResources(t, tree, resources)
+		resources = MergeTestShards(resources)
+		updateTestShards(t, tree, resources)
 	}
 
 	// Split twice and merge once.
 	for i := 0; i < n*2; i++ {
 		if (i+1)%3 == 0 {
-			resources = MergeTestResources(resources)
+			resources = MergeTestShards(resources)
 		} else {
-			resources = SplitTestResources(resources)
+			resources = SplitTestShards(resources)
 		}
-		updateTestResources(t, tree, resources)
+		updateTestShards(t, tree, resources)
 	}
 }
 
-func TestRandomResource(t *testing.T) {
-	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource(nil)
+func TestRandomShard(t *testing.T) {
+	tree := newShardTree(testShardFactory)
+	r := tree.RandomShard(nil)
 	assert.Nil(t, r)
 
-	resA := NewTestCachedResource([]byte(""), []byte("g"))
+	resA := NewTestCachedShard([]byte(""), []byte("g"))
 	tree.update(resA)
-	ra := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "")})
+	ra := tree.RandomShard([]KeyRange{NewKeyRange(0, "", "")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	resB := NewTestCachedResource([]byte("g"), []byte("n"))
-	resC := NewTestCachedResource([]byte("n"), []byte("t"))
-	resD := NewTestCachedResource([]byte("t"), []byte(""))
+	resB := NewTestCachedShard([]byte("g"), []byte("n"))
+	resC := NewTestCachedShard([]byte("n"), []byte("t"))
+	resD := NewTestCachedShard([]byte("t"), []byte(""))
 	tree.update(resB)
 	tree.update(resC)
 	tree.update(resD)
 
-	rb := tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "n")})
+	rb := tree.RandomShard([]KeyRange{NewKeyRange(0, "g", "n")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rc := tree.RandomResource([]KeyRange{NewKeyRange(0, "n", "t")})
+	rc := tree.RandomShard([]KeyRange{NewKeyRange(0, "n", "t")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
-	rd := tree.RandomResource([]KeyRange{NewKeyRange(0, "t", "")})
+	rd := tree.RandomShard([]KeyRange{NewKeyRange(0, "t", "")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
-	re := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "a")})
+	re := tree.RandomShard([]KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "o", "s")})
+	re = tree.RandomShard([]KeyRange{NewKeyRange(0, "o", "s")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "", "a")})
+	re = tree.RandomShard([]KeyRange{NewKeyRange(0, "", "a")})
 	assert.Nil(t, re)
-	re = tree.RandomResource([]KeyRange{NewKeyRange(0, "z", "")})
+	re = tree.RandomShard([]KeyRange{NewKeyRange(0, "z", "")})
 	assert.Nil(t, re)
 
-	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
-	checkRandomResource(t, tree, []*CachedResource{resA, resB}, []KeyRange{NewKeyRange(0, "", "n")})
-	checkRandomResource(t, tree, []*CachedResource{resC, resD}, []KeyRange{NewKeyRange(0, "n", "")})
-	checkRandomResource(t, tree, []*CachedResource{}, []KeyRange{NewKeyRange(0, "h", "s")})
-	checkRandomResource(t, tree, []*CachedResource{resB, resC}, []KeyRange{NewKeyRange(0, "a", "z")})
+	checkRandomShard(t, tree, []*CachedShard{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
+	checkRandomShard(t, tree, []*CachedShard{resA, resB}, []KeyRange{NewKeyRange(0, "", "n")})
+	checkRandomShard(t, tree, []*CachedShard{resC, resD}, []KeyRange{NewKeyRange(0, "n", "")})
+	checkRandomShard(t, tree, []*CachedShard{}, []KeyRange{NewKeyRange(0, "h", "s")})
+	checkRandomShard(t, tree, []*CachedShard{resB, resC}, []KeyRange{NewKeyRange(0, "a", "z")})
 }
 
-func TestRandomResourceDiscontinuous(t *testing.T) {
-	tree := newResourceTree(testResourceFactory)
-	r := tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "f")})
+func TestRandomShardDiscontinuous(t *testing.T) {
+	tree := newShardTree(testShardFactory)
+	r := tree.RandomShard([]KeyRange{NewKeyRange(0, "c", "f")})
 	assert.Nil(t, r)
 
 	// test for single resource
-	resA := NewTestCachedResource([]byte("c"), []byte("f"))
+	resA := NewTestCachedShard([]byte("c"), []byte("f"))
 	tree.update(resA)
-	ra := tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "e")})
+	ra := tree.RandomShard([]KeyRange{NewKeyRange(0, "c", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "f")})
+	ra = tree.RandomShard([]KeyRange{NewKeyRange(0, "c", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "c", "g")})
+	ra = tree.RandomShard([]KeyRange{NewKeyRange(0, "c", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "e")})
+	ra = tree.RandomShard([]KeyRange{NewKeyRange(0, "a", "e")})
 	assert.Nil(t, ra)
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "f")})
+	ra = tree.RandomShard([]KeyRange{NewKeyRange(0, "a", "f")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	ra = tree.RandomResource([]KeyRange{NewKeyRange(0, "a", "g")})
+	ra = tree.RandomShard([]KeyRange{NewKeyRange(0, "a", "g")})
 	assert.True(t, reflect.DeepEqual(ra, resA))
 
-	resB := NewTestCachedResource([]byte("n"), []byte("x"))
+	resB := NewTestCachedShard([]byte("n"), []byte("x"))
 	tree.update(resB)
-	rb := tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "x")})
+	rb := tree.RandomShard([]KeyRange{NewKeyRange(0, "g", "x")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "g", "y")})
+	rb = tree.RandomShard([]KeyRange{NewKeyRange(0, "g", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "n", "y")})
+	rb = tree.RandomShard([]KeyRange{NewKeyRange(0, "n", "y")})
 	assert.True(t, reflect.DeepEqual(rb, resB))
 
-	rb = tree.RandomResource([]KeyRange{NewKeyRange(0, "o", "y")})
+	rb = tree.RandomShard([]KeyRange{NewKeyRange(0, "o", "y")})
 	assert.Nil(t, rb)
 
-	resC := NewTestCachedResource([]byte("z"), []byte(""))
+	resC := NewTestCachedShard([]byte("z"), []byte(""))
 	tree.update(resC)
 
-	rc := tree.RandomResource([]KeyRange{NewKeyRange(0, "y", "")})
+	rc := tree.RandomShard([]KeyRange{NewKeyRange(0, "y", "")})
 	assert.True(t, reflect.DeepEqual(rc, resC))
 
-	resD := NewTestCachedResource([]byte(""), []byte("a"))
+	resD := NewTestCachedShard([]byte(""), []byte("a"))
 	tree.update(resD)
 
-	rd := tree.RandomResource([]KeyRange{NewKeyRange(0, "", "b")})
+	rd := tree.RandomShard([]KeyRange{NewKeyRange(0, "", "b")})
 	assert.True(t, reflect.DeepEqual(rd, resD))
 
-	checkRandomResource(t, tree, []*CachedResource{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
+	checkRandomShard(t, tree, []*CachedShard{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
 }
 
-func updateTestResources(t *testing.T, tree *resourceTree, resources []*CachedResource) {
+func updateTestShards(t *testing.T, tree *resourceTree, resources []*CachedShard) {
 	for _, res := range resources {
 		startKey, endKey := res.Meta.Range()
 		tree.update(res)
@@ -392,10 +392,10 @@ func updateTestResources(t *testing.T, tree *resourceTree, resources []*CachedRe
 	}
 }
 
-func checkRandomResource(t *testing.T, tree *resourceTree, resources []*CachedResource, ranges []KeyRange) {
+func checkRandomShard(t *testing.T, tree *resourceTree, resources []*CachedShard, ranges []KeyRange) {
 	keys := make(map[string]struct{})
 	for i := 0; i < 10000 && len(keys) < len(resources); i++ {
-		re := tree.RandomResource(ranges)
+		re := tree.RandomShard(ranges)
 		if re == nil {
 			continue
 		}

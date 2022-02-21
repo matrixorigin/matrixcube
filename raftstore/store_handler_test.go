@@ -16,7 +16,7 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -32,32 +32,32 @@ func TestTryToCreateReplicate(t *testing.T) {
 		name       string
 		pr         *replica
 		start, end []byte
-		msg        meta.RaftMessage
+		msg        metapb.RaftMessage
 		ok         bool
 		checkCache bool
 	}{
 		{
 			name: "normal",
 			pr:   &replica{shardID: 1, replica: Replica{ID: 1}},
-			msg:  meta.RaftMessage{To: Replica{ID: 1}, ShardID: 1},
+			msg:  metapb.RaftMessage{To: Replica{ID: 1}, ShardID: 1},
 			ok:   true,
 		},
 
 		{
 			name: "msg stale",
 			pr:   &replica{shardID: 1, replica: Replica{ID: 2}},
-			msg:  meta.RaftMessage{To: Replica{ID: 1}, ShardID: 1},
+			msg:  metapb.RaftMessage{To: Replica{ID: 1}, ShardID: 1},
 			ok:   false,
 		},
 		{
 			name: "current stale",
 			pr:   &replica{shardID: 1, replica: Replica{ID: 1}},
-			msg:  meta.RaftMessage{To: Replica{ID: 2}, ShardID: 1},
+			msg:  metapb.RaftMessage{To: Replica{ID: 2}, ShardID: 1},
 			ok:   false,
 		},
 		{
 			name: "not create raft message type",
-			msg:  meta.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgApp}},
+			msg:  metapb.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgApp}},
 			ok:   false,
 		},
 		{
@@ -65,7 +65,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 			pr:         &replica{shardID: 2, replica: Replica{ID: 1}},
 			start:      []byte("a"),
 			end:        []byte("c"),
-			msg:        meta.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgVote}, Start: []byte("b"), End: []byte("c")},
+			msg:        metapb.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgVote}, Start: []byte("b"), End: []byte("c")},
 			ok:         false,
 			checkCache: true,
 		},
@@ -74,7 +74,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 			pr:    &replica{shardID: 2, replica: Replica{ID: 1}},
 			start: []byte("a"),
 			end:   []byte("b"),
-			msg:   meta.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgVote}, Start: []byte("b"), End: []byte("c")},
+			msg:   metapb.RaftMessage{To: Replica{ID: 2}, ShardID: 1, Message: raftpb.Message{Type: raftpb.MsgVote}, Start: []byte("b"), End: []byte("c")},
 			ok:    true,
 		},
 	}
@@ -96,7 +96,7 @@ func TestTryToCreateReplicate(t *testing.T) {
 				s.updateShardKeyRange(c.pr.getShard().Group, c.pr.getShard())
 			}
 
-			c.msg.From = Replica{ID: 100, ContainerID: 1000}
+			c.msg.From = Replica{ID: 100, StoreID: 1000}
 			assert.Equal(t, c.ok, s.tryToCreateReplicate(c.msg), "index %d", idx)
 			if c.checkCache {
 				msg, ok := s.removeDroppedVoteMsg(c.msg.ShardID)
@@ -140,7 +140,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 	s.addReplica(pr)
 
 	assert.NotNil(t, s.getReplica(1, false))
-	s.handleDestroyReplicaMessage(meta.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Version: 1}})
+	s.handleDestroyReplicaMessage(metapb.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Version: 1}})
 	for {
 		if pr.closed() {
 			break
@@ -155,9 +155,9 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 func TestIsRaftMsgValid(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := &store{meta: &containerAdapter{meta: meta.Store{ID: 1}}, logger: zap.L()}
-	assert.True(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 1}}))
-	assert.False(t, s.isRaftMsgValid(meta.RaftMessage{To: Replica{ContainerID: 2}}))
+	s := &store{metapb: &containerAdapter{meta: metapb.Store{ID: 1}}, logger: zap.L()}
+	assert.True(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 1}}))
+	assert.False(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 2}}))
 }
 
 func TestHasRangeConflict(t *testing.T) {

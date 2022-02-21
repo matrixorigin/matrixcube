@@ -20,7 +20,7 @@ import (
 
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"go.uber.org/zap"
 )
 
@@ -138,7 +138,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 		// in the range of [0, 5) and [5,10) at the point of 5.
 		// Note. After the split is complete, Shard A will no longer be used
 		newShardsCount := len(splitKeys) + 1
-		newIDs, err := pr.prophetClient.AskBatchSplit(NewResourceAdapterWithShard(current), uint32(newShardsCount))
+		newIDs, err := pr.prophetClient.AskBatchSplit(NewShardAdapterWithShard(current), uint32(newShardsCount))
 		if err != nil {
 			pr.logger.Error("fail to ask batch split",
 				zap.Error(err))
@@ -175,8 +175,8 @@ func (sc *splitChecker) add(shard Shard) {
 		return
 	}
 
-	if shard.State == metapb.ResourceState_Destroying ||
-		shard.State == metapb.ResourceState_Destroyed {
+	if shard.State == metapb.ShardState_Destroying ||
+		shard.State == metapb.ShardState_Destroyed {
 		return
 	}
 

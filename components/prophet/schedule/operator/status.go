@@ -15,7 +15,7 @@
 package operator
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // OpStatus represents the status of an Operator.

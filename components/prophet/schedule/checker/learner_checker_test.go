@@ -21,8 +21,8 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,18 +30,18 @@ func TestPromoteLearner(t *testing.T) {
 	cluster := mockcluster.NewCluster(config.NewTestOptions())
 	lc := NewLearnerChecker(cluster)
 	for id := uint64(1); id <= 10; id++ {
-		cluster.PutContainerWithLabels(id)
+		cluster.PutStoreWithLabels(id)
 	}
 
-	resource := core.NewCachedResource(
-		&metadata.TestResource{
+	resource := core.NewCachedShard(
+		&metadata.TestShard{
 			ResID: 1,
 			ResPeers: []metapb.Replica{
-				{ID: 101, ContainerID: 1},
-				{ID: 102, ContainerID: 2},
-				{ID: 103, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 101, StoreID: 1},
+				{ID: 102, StoreID: 2},
+				{ID: 103, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 			},
-		}, &metapb.Replica{ID: 101, ContainerID: 1})
+		}, &metapb.Replica{ID: 101, StoreID: 1})
 
 	op := lc.Check(resource)
 
@@ -49,7 +49,7 @@ func TestPromoteLearner(t *testing.T) {
 	assert.Equal(t, "promote-learner", op.Desc())
 	v, ok := op.Step(0).(operator.PromoteLearner)
 	assert.True(t, ok)
-	assert.Equal(t, uint64(3), v.ToContainer)
+	assert.Equal(t, uint64(3), v.ToStore)
 
 	p, ok := resource.GetPeer(103)
 	assert.True(t, ok)

@@ -25,10 +25,10 @@ import (
 func CheckAddPeer(t *testing.T, op *operator.Operator, kind operator.OpKind, containerID uint64) {
 	assert.NotNil(t, op)
 	assert.Equal(t, 2, op.Len())
-	assert.Equal(t, containerID, op.Step(0).(operator.AddLearner).ToContainer)
+	assert.Equal(t, containerID, op.Step(0).(operator.AddLearner).ToStore)
 	_, ok := op.Step(1).(operator.PromoteLearner)
 	assert.True(t, ok)
-	kind |= operator.OpResource
+	kind |= operator.OpShard
 	assert.Equal(t, kind, op.Kind()&kind)
 }
 
@@ -36,11 +36,11 @@ func CheckAddPeer(t *testing.T, op *operator.Operator, kind operator.OpKind, con
 func CheckRemovePeer(t *testing.T, op *operator.Operator, containerID uint64) {
 	assert.NotNil(t, op)
 	if op.Len() == 1 {
-		assert.Equal(t, containerID, op.Step(0).(operator.RemovePeer).FromContainer)
+		assert.Equal(t, containerID, op.Step(0).(operator.RemovePeer).FromStore)
 	} else {
 		assert.Equal(t, 2, op.Len())
-		assert.Equal(t, containerID, op.Step(0).(operator.TransferLeader).FromContainer)
-		assert.Equal(t, containerID, op.Step(1).(operator.RemovePeer).FromContainer)
+		assert.Equal(t, containerID, op.Step(0).(operator.TransferLeader).FromStore)
+		assert.Equal(t, containerID, op.Step(1).(operator.RemovePeer).FromStore)
 	}
 }
 
@@ -48,7 +48,7 @@ func CheckRemovePeer(t *testing.T, op *operator.Operator, containerID uint64) {
 func CheckTransferLeader(t *testing.T, op *operator.Operator, kind operator.OpKind, sourceID, targetID uint64) {
 	assert.NotNil(t, op)
 	assert.Equal(t, 1, op.Len())
-	assert.Equal(t, operator.TransferLeader{FromContainer: sourceID, ToContainer: targetID}, op.Step(0))
+	assert.Equal(t, operator.TransferLeader{FromStore: sourceID, ToStore: targetID}, op.Step(0))
 	kind |= operator.OpLeader
 	assert.Equal(t, kind, op.Kind()&kind)
 }
@@ -57,7 +57,7 @@ func CheckTransferLeader(t *testing.T, op *operator.Operator, kind operator.OpKi
 func CheckTransferLeaderFrom(t *testing.T, op *operator.Operator, kind operator.OpKind, sourceID uint64) {
 	assert.NotNil(t, op)
 	assert.Equal(t, 1, op.Len())
-	assert.Equal(t, sourceID, op.Step(0).(operator.TransferLeader).FromContainer)
+	assert.Equal(t, sourceID, op.Step(0).(operator.TransferLeader).FromStore)
 	kind |= operator.OpLeader
 	assert.Equal(t, kind, op.Kind()&kind)
 }
@@ -68,11 +68,11 @@ func CheckTransferPeer(t *testing.T, op *operator.Operator, kind operator.OpKind
 
 	steps, _ := trimTransferLeaders(op)
 	assert.Equal(t, 3, len(steps))
-	assert.Equal(t, targetID, steps[0].(operator.AddLearner).ToContainer)
+	assert.Equal(t, targetID, steps[0].(operator.AddLearner).ToStore)
 	_, ok := steps[1].(operator.PromoteLearner)
 	assert.True(t, ok)
-	assert.Equal(t, sourceID, steps[2].(operator.RemovePeer).FromContainer)
-	kind |= operator.OpResource
+	assert.Equal(t, sourceID, steps[2].(operator.RemovePeer).FromStore)
+	kind |= operator.OpShard
 	assert.Equal(t, kind, op.Kind()&kind)
 }
 
@@ -82,9 +82,9 @@ func CheckTransferLearner(t *testing.T, op *operator.Operator, kind operator.OpK
 
 	steps, _ := trimTransferLeaders(op)
 	assert.Equal(t, 2, len(steps))
-	assert.Equal(t, steps[0].(operator.AddLearner).ToContainer, targetID)
-	assert.Equal(t, steps[1].(operator.RemovePeer).FromContainer, sourceID)
-	kind |= operator.OpResource
+	assert.Equal(t, steps[0].(operator.AddLearner).ToStore, targetID)
+	assert.Equal(t, steps[1].(operator.RemovePeer).FromStore, sourceID)
+	kind |= operator.OpShard
 	assert.Equal(t, kind, op.Kind()&kind)
 }
 
@@ -96,13 +96,13 @@ func CheckTransferPeerWithLeaderTransfer(t *testing.T, op *operator.Operator, ki
 
 	steps, lastLeader := trimTransferLeaders(op)
 	assert.Equal(t, 3, len(steps))
-	assert.Equal(t, steps[0].(operator.AddLearner).ToContainer, targetID)
+	assert.Equal(t, steps[0].(operator.AddLearner).ToStore, targetID)
 	_, ok := steps[1].(operator.PromoteLearner)
 	assert.True(t, ok)
-	assert.Equal(t, steps[2].(operator.RemovePeer).FromContainer, sourceID)
+	assert.Equal(t, steps[2].(operator.RemovePeer).FromStore, sourceID)
 	assert.NotEqual(t, lastLeader, uint64(0))
 	assert.NotEqual(t, lastLeader, sourceID)
-	kind |= operator.OpResource
+	kind |= operator.OpShard
 	assert.Equal(t, kind, op.Kind()&kind)
 }
 
@@ -118,10 +118,10 @@ func CheckTransferPeerWithLeaderTransferFrom(t *testing.T, op *operator.Operator
 	_, ok = steps[1].(operator.PromoteLearner)
 	assert.True(t, ok)
 
-	assert.Equal(t, steps[2].(operator.RemovePeer).FromContainer, sourceID)
+	assert.Equal(t, steps[2].(operator.RemovePeer).FromStore, sourceID)
 	assert.NotEqual(t, lastLeader, uint64(0))
 	assert.NotEqual(t, lastLeader, sourceID)
-	kind |= operator.OpResource | operator.OpLeader
+	kind |= operator.OpShard | operator.OpLeader
 	assert.Equal(t, kind, op.Kind()&kind)
 }
 
@@ -129,7 +129,7 @@ func trimTransferLeaders(op *operator.Operator) (steps []operator.OpStep, lastLe
 	for i := 0; i < op.Len(); i++ {
 		step := op.Step(i)
 		if s, ok := step.(operator.TransferLeader); ok {
-			lastLeader = s.ToContainer
+			lastLeader = s.ToStore
 		} else {
 			steps = append(steps, step)
 		}

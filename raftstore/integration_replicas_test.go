@@ -17,7 +17,7 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -53,8 +53,8 @@ func TestScheduleReplicasWithRules(t *testing.T) {
 			},
 		},
 	}))
-	res := NewResourceAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
-	err := c.GetProphet().GetClient().AsyncAddResourcesWithLeastPeers([]metadata.Resource{res}, []int{2})
+	res := NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
+	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]metadata.Shard{res}, []int{2})
 	assert.NoError(t, err)
 	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
 }

@@ -21,11 +21,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPutAndGetResource(t *testing.T) {
+func TestPutAndGetShard(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
 
@@ -33,7 +33,7 @@ func TestPutAndGetResource(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetResource failed")
+	assert.NoError(t, err, "TestPutAndGetShard failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
@@ -42,14 +42,14 @@ func TestPutAndGetResource(t *testing.T) {
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
 	id := uint64(1)
-	assert.NoError(t, storage.PutResource(metadata.NewTestResource(id)), "TestPutAndGetResource failed")
+	assert.NoError(t, storage.PutShard(metadata.NewTestShard(id)), "TestPutAndGetShard failed")
 
-	v, err := storage.GetResource(id)
-	assert.NoError(t, err, "TestPutAndGetResource failed")
-	assert.Equal(t, id, v.ID(), "TestPutAndGetResource failed")
+	v, err := storage.GetShard(id)
+	assert.NoError(t, err, "TestPutAndGetShard failed")
+	assert.Equal(t, id, v.ID(), "TestPutAndGetShard failed")
 }
 
-func TestPutAndGetContainer(t *testing.T) {
+func TestPutAndGetStore(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
 
@@ -57,7 +57,7 @@ func TestPutAndGetContainer(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetContainer failed")
+	assert.NoError(t, err, "TestPutAndGetStore failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
@@ -66,14 +66,14 @@ func TestPutAndGetContainer(t *testing.T) {
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
 	id := uint64(1)
-	assert.NoError(t, storage.PutContainer(metadata.NewTestContainer(id)), "TestPutAndGetContainer failed")
+	assert.NoError(t, storage.PutStore(metadata.NewTestStore(id)), "TestPutAndGetStore failed")
 
-	v, err := storage.GetContainer(id)
-	assert.NoError(t, err, "TestPutAndGetContainer failed")
-	assert.Equal(t, id, v.ID(), "TestPutAndGetContainer failed")
+	v, err := storage.GetStore(id)
+	assert.NoError(t, err, "TestPutAndGetStore failed")
+	assert.Equal(t, id, v.ID(), "TestPutAndGetStore failed")
 }
 
-func TestLoadResources(t *testing.T) {
+func TestLoadShards(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
 
@@ -81,7 +81,7 @@ func TestLoadResources(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestLoadResources failed")
+	assert.NoError(t, err, "TestLoadShards failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
@@ -90,25 +90,25 @@ func TestLoadResources(t *testing.T) {
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
 
-	var values []metadata.Resource
-	cb := func(v metadata.Resource) {
+	var values []metadata.Shard
+	cb := func(v metadata.Shard) {
 		values = append(values, v)
 	}
 
-	err = s.LoadResources(1, cb)
-	assert.NoError(t, err, "TestLoadResources failed")
-	assert.Empty(t, values, "TestLoadResources failed")
+	err = s.LoadShards(1, cb)
+	assert.NoError(t, err, "TestLoadShards failed")
+	assert.Empty(t, values, "TestLoadShards failed")
 
 	n := 10
 	for i := 0; i < n; i++ {
-		assert.NoError(t, s.PutResource(metadata.NewTestResource(uint64(i))), "TestLoadResources failed")
+		assert.NoError(t, s.PutShard(metadata.NewTestShard(uint64(i))), "TestLoadShards failed")
 	}
-	err = s.LoadResources(1, cb)
-	assert.NoError(t, err, "TestLoadResources failed")
-	assert.Equal(t, n, len(values), "TestLoadResources failed")
+	err = s.LoadShards(1, cb)
+	assert.NoError(t, err, "TestLoadShards failed")
+	assert.Equal(t, n, len(values), "TestLoadShards failed")
 }
 
-func TestLoadContainers(t *testing.T) {
+func TestLoadStores(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
 
@@ -116,7 +116,7 @@ func TestLoadContainers(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestLoadContainers failed")
+	assert.NoError(t, err, "TestLoadStores failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
@@ -125,22 +125,22 @@ func TestLoadContainers(t *testing.T) {
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
 
-	var values []metadata.Container
-	cb := func(v metadata.Container, lw, cw float64) {
+	var values []metadata.Store
+	cb := func(v metadata.Store, lw, cw float64) {
 		values = append(values, v)
 	}
 
-	err = s.LoadContainers(1, cb)
-	assert.NoError(t, err, "TestLoadContainers failed")
-	assert.Empty(t, values, "TestLoadContainers failed")
+	err = s.LoadStores(1, cb)
+	assert.NoError(t, err, "TestLoadStores failed")
+	assert.Empty(t, values, "TestLoadStores failed")
 
 	n := 10
 	for i := 0; i < n; i++ {
-		s.PutContainer(metadata.NewTestContainer(uint64(i)))
+		s.PutStore(metadata.NewTestStore(uint64(i)))
 	}
-	err = s.LoadContainers(1, cb)
-	assert.NoError(t, err, "TestLoadContainers failed")
-	assert.Equal(t, n, len(values), "TestLoadContainers failed")
+	err = s.LoadStores(1, cb)
+	assert.NoError(t, err, "TestLoadStores failed")
+	assert.Equal(t, n, len(values), "TestLoadStores failed")
 }
 
 func TestAlreadyBootstrapped(t *testing.T) {
@@ -163,16 +163,16 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
 
-	var reses []metadata.Resource
+	var reses []metadata.Shard
 	for i := 0; i < 10; i++ {
-		res := metadata.NewTestResource(uint64(i + 1))
+		res := metadata.NewTestShard(uint64(i + 1))
 		reses = append(reses, res)
 	}
-	yes, err = s.PutBootstrapped(metadata.NewTestContainer(1), reses...)
+	yes, err = s.PutBootstrapped(metadata.NewTestStore(1), reses...)
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.True(t, yes, "TestAlreadyBootstrapped failed")
 	c := 0
-	err = s.LoadResources(8, func(res metadata.Resource) {
+	err = s.LoadShards(8, func(res metadata.Shard) {
 		c++
 	})
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
@@ -191,7 +191,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetContainer failed")
+	assert.NoError(t, err, "TestPutAndGetStore failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 

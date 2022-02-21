@@ -26,8 +26,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockhbstream"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
@@ -37,10 +35,12 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/testutil"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestOperator(resourceID uint64, resourceEpoch metapb.ResourceEpoch, kind operator.OpKind, steps ...operator.OpStep) *operator.Operator {
+func newTestOperator(resourceID uint64, resourceEpoch metapb.ShardEpoch, kind operator.OpKind, steps ...operator.OpStep) *operator.Operator {
 	return operator.NewOperator("test", "test", resourceID, resourceEpoch, kind, steps...)
 }
 
@@ -49,10 +49,10 @@ func (c *testCluster) AllocPeer(containerID uint64) (metapb.Replica, error) {
 	if err != nil {
 		return metapb.Replica{}, err
 	}
-	return metapb.Replica{ID: id, ContainerID: containerID}, nil
+	return metapb.Replica{ID: id, StoreID: containerID}, nil
 }
 
-func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int, resourceSizes ...uint64) error {
+func (c *testCluster) addShardStore(containerID uint64, resourceCount int, resourceSizes ...uint64) error {
 	var resourceSize uint64
 	if len(resourceSizes) == 0 {
 		resourceSize = uint64(resourceCount) * 10
@@ -60,92 +60,92 @@ func (c *testCluster) addResourceContainer(containerID uint64, resourceCount int
 		resourceSize = resourceSizes[0]
 	}
 
-	stats := &metapb.ContainerStats{}
+	stats := &metapb.StoreStats{}
 	stats.Capacity = 100 * (1 << 30)
 	stats.UsedSize = resourceSize * (1 << 20)
 	stats.Available = stats.Capacity - stats.UsedSize
-	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
-		core.SetContainerStats(stats),
-		core.SetResourceCount("", resourceCount),
-		core.SetResourceSize("", int64(resourceSize)),
+	newStore := core.NewCachedStore(&metadata.TestStore{CID: containerID},
+		core.SetStoreStats(stats),
+		core.SetShardCount("", resourceCount),
+		core.SetShardSize("", int64(resourceSize)),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 
-	c.SetContainerLimit(containerID, limit.AddPeer, 60)
-	c.SetContainerLimit(containerID, limit.RemovePeer, 60)
+	c.SetStoreLimit(containerID, limit.AddPeer, 60)
+	c.SetStoreLimit(containerID, limit.RemovePeer, 60)
 	c.Lock()
 	defer c.Unlock()
-	return c.putContainerLocked(newContainer)
+	return c.putStoreLocked(newStore)
 }
 
-func (c *testCluster) addLeaderResource(resourceID uint64, leaderContainerID uint64, followerContainerIDs ...uint64) error {
-	resource := newTestResourceMeta(resourceID)
-	leader, _ := c.AllocPeer(leaderContainerID)
+func (c *testCluster) addLeaderShard(resourceID uint64, leaderStoreID uint64, followerStoreIDs ...uint64) error {
+	resource := newTestShardMeta(resourceID)
+	leader, _ := c.AllocPeer(leaderStoreID)
 	resource.SetPeers([]metapb.Replica{leader})
-	for _, followerContainerID := range followerContainerIDs {
-		peer, _ := c.AllocPeer(followerContainerID)
+	for _, followerStoreID := range followerStoreIDs {
+		peer, _ := c.AllocPeer(followerStoreID)
 		resource.SetPeers(append(resource.Peers(), peer))
 	}
-	resourceInfo := core.NewCachedResource(resource, &leader, core.SetApproximateSize(10), core.SetApproximateKeys(10))
-	c.core.PutResource(resourceInfo)
+	resourceInfo := core.NewCachedShard(resource, &leader, core.SetApproximateSize(10), core.SetApproximateKeys(10))
+	c.core.PutShard(resourceInfo)
 	return nil
 }
 
 func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) error {
-	container := c.GetContainer(containerID)
-	newContainer := container.Clone(
+	container := c.GetStore(containerID)
+	newStore := container.Clone(
 		core.SetLeaderCount("", leaderCount),
 		core.SetLeaderSize("", int64(leaderCount)*10),
 	)
 	c.Lock()
 	defer c.Unlock()
-	return c.putContainerLocked(newContainer)
+	return c.putStoreLocked(newStore)
 }
 
-func (c *testCluster) addLeaderContainer(containerID uint64, leaderCount int) error {
-	stats := &metapb.ContainerStats{}
-	newContainer := core.NewCachedContainer(&metadata.TestContainer{CID: containerID},
-		core.SetContainerStats(stats),
+func (c *testCluster) addLeaderStore(containerID uint64, leaderCount int) error {
+	stats := &metapb.StoreStats{}
+	newStore := core.NewCachedStore(&metadata.TestStore{CID: containerID},
+		core.SetStoreStats(stats),
 		core.SetLeaderCount("", leaderCount),
 		core.SetLeaderSize("", int64(leaderCount)*10),
 		core.SetLastHeartbeatTS(time.Now()),
 	)
 
-	c.SetContainerLimit(containerID, limit.AddPeer, 60)
-	c.SetContainerLimit(containerID, limit.RemovePeer, 60)
+	c.SetStoreLimit(containerID, limit.AddPeer, 60)
+	c.SetStoreLimit(containerID, limit.RemovePeer, 60)
 	c.Lock()
 	defer c.Unlock()
-	return c.putContainerLocked(newContainer)
+	return c.putStoreLocked(newStore)
 }
 
-func (c *testCluster) setContainerDown(containerID uint64) error {
-	container := c.GetContainer(containerID)
-	newContainer := container.Clone(
-		core.UpContainer(),
+func (c *testCluster) setStoreDown(containerID uint64) error {
+	container := c.GetStore(containerID)
+	newStore := container.Clone(
+		core.UpStore(),
 		core.SetLastHeartbeatTS(time.Time{}),
 	)
 	c.Lock()
 	defer c.Unlock()
-	return c.putContainerLocked(newContainer)
+	return c.putStoreLocked(newStore)
 }
 
-func (c *testCluster) setContainerOffline(containerID uint64) error {
-	container := c.GetContainer(containerID)
-	newContainer := container.Clone(core.OfflineContainer(false))
+func (c *testCluster) setStoreOffline(containerID uint64) error {
+	container := c.GetStore(containerID)
+	newStore := container.Clone(core.OfflineStore(false))
 	c.Lock()
 	defer c.Unlock()
-	return c.putContainerLocked(newContainer)
+	return c.putStoreLocked(newStore)
 }
 
-func (c *testCluster) LoadResource(resourceID uint64, followerContainerIDs ...uint64) error {
+func (c *testCluster) LoadShard(resourceID uint64, followerStoreIDs ...uint64) error {
 	//  resources load from etcd will have no leader
-	resource := newTestResourceMeta(resourceID)
+	resource := newTestShardMeta(resourceID)
 	resource.SetPeers([]metapb.Replica{})
-	for _, id := range followerContainerIDs {
+	for _, id := range followerStoreIDs {
 		peer, _ := c.AllocPeer(id)
 		resource.SetPeers(append(resource.Peers(), peer))
 	}
-	c.core.PutResource(core.NewCachedResource(resource, nil))
+	c.core.PutShard(core.NewCachedShard(resource, nil))
 	return nil
 }
 
@@ -154,24 +154,24 @@ func TestBasic(t *testing.T) {
 	defer cleanup()
 	oc := co.opController
 
-	assert.Nil(t, tc.addLeaderResource(1, 1))
+	assert.Nil(t, tc.addLeaderShard(1, 1))
 
-	op1 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpLeader)
+	op1 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpLeader)
 	oc.AddWaitingOperator(op1)
 	assert.Equal(t, uint64(1), oc.OperatorCount(op1.Kind()))
-	assert.Equal(t, op1.ResourceID(), oc.GetOperator(1).ResourceID())
+	assert.Equal(t, op1.ShardID(), oc.GetOperator(1).ShardID())
 
 	// resource 1 already has an operator, cannot add another one.
-	op2 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpResource)
+	op2 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpShard)
 	oc.AddWaitingOperator(op2)
 	assert.Equal(t, uint64(0), oc.OperatorCount(op2.Kind()))
 
 	// Remove the operator manually, then we can add a new operator.
 	assert.True(t, oc.RemoveOperator(op1, ""))
-	op3 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpResource)
+	op3 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpShard)
 	oc.AddWaitingOperator(op3)
 	assert.Equal(t, uint64(1), oc.OperatorCount(op3.Kind()))
-	assert.Equal(t, op3.ResourceID(), oc.GetOperator(1).ResourceID())
+	assert.Equal(t, op3.ShardID(), oc.GetOperator(1).ShardID())
 }
 
 func TestDispatch(t *testing.T) {
@@ -179,25 +179,25 @@ func TestDispatch(t *testing.T) {
 	defer cleanup()
 	tc.DisableJointConsensus()
 	// Transfer peer from container 4 to container 1.
-	assert.Nil(t, tc.addResourceContainer(4, 40))
-	assert.Nil(t, tc.addResourceContainer(3, 30))
-	assert.Nil(t, tc.addResourceContainer(2, 20))
-	assert.Nil(t, tc.addResourceContainer(1, 10))
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3, 4))
+	assert.Nil(t, tc.addShardStore(4, 40))
+	assert.Nil(t, tc.addShardStore(3, 30))
+	assert.Nil(t, tc.addShardStore(2, 20))
+	assert.Nil(t, tc.addShardStore(1, 10))
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3, 4))
 
 	// Transfer leader from container 4 to container 2.
 	assert.Nil(t, tc.updateLeaderCount(4, 50))
 	assert.Nil(t, tc.updateLeaderCount(3, 50))
 	assert.Nil(t, tc.updateLeaderCount(2, 20))
 	assert.Nil(t, tc.updateLeaderCount(1, 10))
-	assert.Nil(t, tc.addLeaderResource(2, 4, 3, 2))
+	assert.Nil(t, tc.addLeaderShard(2, 4, 3, 2))
 
 	co.run()
 
 	// Wait for schedule and turn off balance.
 	waitOperator(t, co, 1)
 	testutil.CheckTransferPeer(t, co.opController.GetOperator(1), operator.OpKind(0), 4, 1)
-	assert.Nil(t, co.removeScheduler(schedulers.BalanceResourceName))
+	assert.Nil(t, co.removeScheduler(schedulers.BalanceShardName))
 	waitOperator(t, co, 2)
 	testutil.CheckTransferLeader(t, co.opController.GetOperator(2), operator.OpKind(0), 4, 2)
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceLeaderName))
@@ -205,7 +205,7 @@ func TestDispatch(t *testing.T) {
 	stream := mockhbstream.NewHeartbeatStream()
 
 	// Transfer peer.
-	resource := tc.GetResource(1).Clone()
+	resource := tc.GetShard(1).Clone()
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	resource = waitAddLearner(t, stream, resource, 1)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
@@ -217,7 +217,7 @@ func TestDispatch(t *testing.T) {
 	waitNoResponse(t, stream)
 
 	// Transfer leader.
-	resource = tc.GetResource(2).Clone()
+	resource = tc.GetShard(2).Clone()
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitTransferLeader(t, stream, resource, 2)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
@@ -226,7 +226,7 @@ func TestDispatch(t *testing.T) {
 
 func TestCollectMetrics(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, func(tc *testCluster) {
-		tc.resourceStats = statistics.NewResourceStatistics(tc.GetOpts(), nil)
+		tc.resourceStats = statistics.NewShardStatistics(tc.GetOpts(), nil)
 	}, func(co *coordinator) { co.run() })
 	defer cleanup()
 
@@ -238,7 +238,7 @@ func TestCollectMetrics(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1000; j++ {
-				assert.Nil(t, tc.addResourceContainer(uint64(i%5), rand.Intn(200)))
+				assert.Nil(t, tc.addShardStore(uint64(i%5), rand.Intn(200)))
 			}
 		}(i)
 	}
@@ -253,7 +253,7 @@ func TestCollectMetrics(t *testing.T) {
 	wg.Wait()
 }
 
-func TestCheckResource(t *testing.T) {
+func TestCheckShard(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -261,24 +261,24 @@ func TestCheckResource(t *testing.T) {
 	hbStreams, opt := co.hbStreams, tc.opt
 	defer cleanup()
 
-	assert.Nil(t, tc.addResourceContainer(4, 4))
-	assert.Nil(t, tc.addResourceContainer(3, 3))
-	assert.Nil(t, tc.addResourceContainer(2, 2))
-	assert.Nil(t, tc.addResourceContainer(1, 1))
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3))
-	checkCOResource(t, tc, co, 1, false, 1)
+	assert.Nil(t, tc.addShardStore(4, 4))
+	assert.Nil(t, tc.addShardStore(3, 3))
+	assert.Nil(t, tc.addShardStore(2, 2))
+	assert.Nil(t, tc.addShardStore(1, 1))
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3))
+	checkCOShard(t, tc, co, 1, false, 1)
 	waitOperator(t, co, 1)
 	testutil.CheckAddPeer(t, co.opController.GetOperator(1), operator.OpReplica, 1)
-	checkCOResource(t, tc, co, 1, false, 0)
+	checkCOShard(t, tc, co, 1, false, 0)
 
-	r := tc.GetResource(1)
-	p := metapb.Replica{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Learner}
+	r := tc.GetShard(1)
+	p := metapb.Replica{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Learner}
 	r = r.Clone(
 		core.WithAddPeer(p),
 		core.WithPendingPeers(append(r.GetPendingPeers(), p)),
 	)
-	tc.core.PutResource(r)
-	checkCOResource(t, tc, co, 1, false, 0)
+	tc.core.PutShard(r)
+	checkCOShard(t, tc, co, 1, false, 0)
 	co.stop()
 	co.wg.Wait()
 
@@ -286,20 +286,20 @@ func TestCheckResource(t *testing.T) {
 	co = newCoordinator(ctx, tc.RaftCluster, hbStreams)
 	co.run()
 
-	assert.Nil(t, tc.addResourceContainer(4, 4))
-	assert.Nil(t, tc.addResourceContainer(3, 3))
-	assert.Nil(t, tc.addResourceContainer(2, 2))
-	assert.Nil(t, tc.addResourceContainer(1, 1))
-	tc.core.PutResource(r)
-	checkCOResource(t, tc, co, 1, false, 0)
+	assert.Nil(t, tc.addShardStore(4, 4))
+	assert.Nil(t, tc.addShardStore(3, 3))
+	assert.Nil(t, tc.addShardStore(2, 2))
+	assert.Nil(t, tc.addShardStore(1, 1))
+	tc.core.PutShard(r)
+	checkCOShard(t, tc, co, 1, false, 0)
 	r = r.Clone(core.WithPendingPeers(nil))
-	tc.core.PutResource(r)
-	checkCOResource(t, tc, co, 1, false, 1)
+	tc.core.PutShard(r)
+	checkCOShard(t, tc, co, 1, false, 1)
 	waitOperator(t, co, 1)
 	op := co.opController.GetOperator(1)
 	assert.Equal(t, 1, op.Len())
-	assert.Equal(t, uint64(1), op.Step(0).(operator.PromoteLearner).ToContainer)
-	checkCOResource(t, tc, co, 1, false, 0)
+	assert.Equal(t, uint64(1), op.Step(0).(operator.PromoteLearner).ToStore)
+	checkCOShard(t, tc, co, 1, false, 0)
 }
 
 func TestCheckerIsBusy(t *testing.T) {
@@ -309,22 +309,22 @@ func TestCheckerIsBusy(t *testing.T) {
 	}, nil, func(co *coordinator) { co.run() })
 	defer cleanup()
 
-	assert.Nil(t, tc.addResourceContainer(1, 0))
+	assert.Nil(t, tc.addShardStore(1, 0))
 	num := 1 + typeutil.MaxUint64(tc.opt.GetReplicaScheduleLimit(), tc.opt.GetMergeScheduleLimit())
 	var operatorKinds = []operator.OpKind{
-		operator.OpReplica, operator.OpResource | operator.OpMerge,
+		operator.OpReplica, operator.OpShard | operator.OpMerge,
 	}
 	for i, operatorKind := range operatorKinds {
 		for j := uint64(0); j < num; j++ {
 			resourceID := j + uint64(i+1)*num
-			assert.Nil(t, tc.addLeaderResource(resourceID, 1))
+			assert.Nil(t, tc.addLeaderShard(resourceID, 1))
 			switch operatorKind {
 			case operator.OpReplica:
-				op := newTestOperator(resourceID, tc.GetResource(resourceID).Meta.Epoch(), operatorKind)
+				op := newTestOperator(resourceID, tc.GetShard(resourceID).Meta.Epoch(), operatorKind)
 				assert.Equal(t, 1, co.opController.AddWaitingOperator(op))
-			case operator.OpResource | operator.OpMerge:
+			case operator.OpShard | operator.OpMerge:
 				if resourceID%2 == 1 {
-					ops, err := operator.CreateMergeResourceOperator("merge-resource", co.cluster, tc.GetResource(resourceID), tc.GetResource(resourceID-1), operator.OpMerge)
+					ops, err := operator.CreateMergeShardOperator("merge-resource", co.cluster, tc.GetShard(resourceID), tc.GetShard(resourceID-1), operator.OpMerge)
 					assert.NoError(t, err)
 					assert.Equal(t, len(ops), co.opController.AddWaitingOperator(ops...))
 				}
@@ -332,27 +332,27 @@ func TestCheckerIsBusy(t *testing.T) {
 
 		}
 	}
-	checkCOResource(t, tc, co, num, true, 0)
+	checkCOShard(t, tc, co, num, true, 0)
 }
 
 func TestReplica(t *testing.T) {
 	tc, co, cleanup := prepare(t, func(cfg *config.ScheduleConfig) {
 		// Turn off balance.
 		cfg.LeaderScheduleLimit = 0
-		cfg.ResourceScheduleLimit = 0
+		cfg.ShardScheduleLimit = 0
 	}, nil, func(co *coordinator) { co.run() })
 	defer cleanup()
 
-	assert.Nil(t, tc.addResourceContainer(1, 1))
-	assert.Nil(t, tc.addResourceContainer(2, 2))
-	assert.Nil(t, tc.addResourceContainer(3, 3))
-	assert.Nil(t, tc.addResourceContainer(4, 4))
+	assert.Nil(t, tc.addShardStore(1, 1))
+	assert.Nil(t, tc.addShardStore(2, 2))
+	assert.Nil(t, tc.addShardStore(3, 3))
+	assert.Nil(t, tc.addShardStore(4, 4))
 
 	stream := mockhbstream.NewHeartbeatStream()
 
 	// Add peer to container 1.
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3))
-	resource := tc.GetResource(1)
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3))
+	resource := tc.GetShard(1)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	resource = waitAddLearner(t, stream, resource, 1)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
@@ -361,8 +361,8 @@ func TestReplica(t *testing.T) {
 	waitNoResponse(t, stream)
 
 	// Peer in container 3 is down, remove peer in container 3 and add peer to container 4.
-	assert.Nil(t, tc.setContainerDown(3))
-	p, _ := resource.GetContainerPeer(3)
+	assert.Nil(t, tc.setStoreDown(3))
+	p, _ := resource.GetStorePeer(3)
 	downPeer := metapb.ReplicaStats{
 		Replica:     p,
 		DownSeconds: 24 * 60 * 60,
@@ -379,18 +379,18 @@ func TestReplica(t *testing.T) {
 	waitNoResponse(t, stream)
 
 	// Remove peer from container 4.
-	assert.Nil(t, tc.addLeaderResource(2, 1, 2, 3, 4))
-	resource = tc.GetResource(2)
+	assert.Nil(t, tc.addLeaderShard(2, 1, 2, 3, 4))
+	resource = tc.GetShard(2)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	resource = waitRemovePeer(t, stream, resource, 4)
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitNoResponse(t, stream)
 
 	// Remove offline peer directly when it's pending.
-	assert.Nil(t, tc.addLeaderResource(3, 1, 2, 3))
-	assert.Nil(t, tc.setContainerOffline(3))
-	resource = tc.GetResource(3)
-	p, _ = resource.GetContainerPeer(3)
+	assert.Nil(t, tc.addLeaderShard(3, 1, 2, 3))
+	assert.Nil(t, tc.setStoreOffline(3))
+	resource = tc.GetShard(3)
+	p, _ = resource.GetStorePeer(3)
 	resource = resource.Clone(core.WithPendingPeers([]metapb.Replica{p}))
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitNoResponse(t, stream)
@@ -401,11 +401,11 @@ func TestPeerState(t *testing.T) {
 	defer cleanup()
 
 	// Transfer peer from container 4 to container 1.
-	assert.Nil(t, tc.addResourceContainer(1, 10))
-	assert.Nil(t, tc.addResourceContainer(2, 10))
-	assert.Nil(t, tc.addResourceContainer(3, 10))
-	assert.Nil(t, tc.addResourceContainer(4, 40))
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3, 4))
+	assert.Nil(t, tc.addShardStore(1, 10))
+	assert.Nil(t, tc.addShardStore(2, 10))
+	assert.Nil(t, tc.addShardStore(3, 10))
+	assert.Nil(t, tc.addShardStore(4, 40))
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3, 4))
 
 	stream := mockhbstream.NewHeartbeatStream()
 
@@ -413,7 +413,7 @@ func TestPeerState(t *testing.T) {
 	waitOperator(t, co, 1)
 	testutil.CheckTransferPeer(t, co.opController.GetOperator(1), operator.OpKind(0), 4, 1)
 
-	resource := tc.GetResource(1).Clone()
+	resource := tc.GetShard(1).Clone()
 
 	// Add new peer.
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
@@ -422,7 +422,7 @@ func TestPeerState(t *testing.T) {
 	resource = waitPromoteLearner(t, stream, resource, 1)
 
 	// If the new peer is pending, the operator will not finish.
-	p, _ := resource.GetContainerPeer(1)
+	p, _ := resource.GetStorePeer(1)
 	resource = resource.Clone(core.WithPendingPeers(append(resource.GetPendingPeers(), p)))
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitNoResponse(t, stream)
@@ -433,8 +433,8 @@ func TestPeerState(t *testing.T) {
 	resource = resource.Clone(core.WithPendingPeers(nil))
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitRemovePeer(t, stream, resource, 4)
-	assert.Nil(t, tc.addLeaderResource(1, 1, 2, 3))
-	resource = tc.GetResource(1).Clone()
+	assert.Nil(t, tc.addLeaderShard(1, 1, 2, 3))
+	resource = tc.GetShard(1).Clone()
 	assert.Nil(t, dispatchHeartbeat(co, resource, stream))
 	waitNoResponse(t, stream)
 }
@@ -443,19 +443,19 @@ func TestShouldRun(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 
-	assert.Nil(t, tc.addLeaderContainer(1, 5))
-	assert.Nil(t, tc.addLeaderContainer(2, 2))
-	assert.Nil(t, tc.addLeaderContainer(3, 0))
-	assert.Nil(t, tc.addLeaderContainer(4, 0))
-	assert.Nil(t, tc.LoadResource(1, 1, 2, 3))
-	assert.Nil(t, tc.LoadResource(2, 1, 2, 3))
-	assert.Nil(t, tc.LoadResource(3, 1, 2, 3))
-	assert.Nil(t, tc.LoadResource(4, 1, 2, 3))
-	assert.Nil(t, tc.LoadResource(5, 1, 2, 3))
-	assert.Nil(t, tc.LoadResource(6, 2, 1, 4))
-	assert.Nil(t, tc.LoadResource(7, 2, 1, 4))
+	assert.Nil(t, tc.addLeaderStore(1, 5))
+	assert.Nil(t, tc.addLeaderStore(2, 2))
+	assert.Nil(t, tc.addLeaderStore(3, 0))
+	assert.Nil(t, tc.addLeaderStore(4, 0))
+	assert.Nil(t, tc.LoadShard(1, 1, 2, 3))
+	assert.Nil(t, tc.LoadShard(2, 1, 2, 3))
+	assert.Nil(t, tc.LoadShard(3, 1, 2, 3))
+	assert.Nil(t, tc.LoadShard(4, 1, 2, 3))
+	assert.Nil(t, tc.LoadShard(5, 1, 2, 3))
+	assert.Nil(t, tc.LoadShard(6, 2, 1, 4))
+	assert.Nil(t, tc.LoadShard(7, 2, 1, 4))
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 2, tc.core.Resources.GetContainerResourceCount("", 4))
+	assert.Equal(t, 2, tc.core.Shards.GetStoreShardCount("", 4))
 
 	tbl := []struct {
 		resourceID uint64
@@ -472,29 +472,29 @@ func TestShouldRun(t *testing.T) {
 	}
 
 	for _, tb := range tbl {
-		r := tc.GetResource(tb.resourceID)
+		r := tc.GetShard(tb.resourceID)
 		nr := r.Clone(core.WithLeader(&r.Meta.Peers()[0]))
-		assert.Nil(t, tc.processResourceHeartbeat(nr))
+		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestResource{ResID: 6, ResPeers: []metapb.Replica{}}
-	newResource := core.NewCachedResource(nr, nil)
-	assert.NotNil(t, tc.processResourceHeartbeat(newResource))
+	nr := &metadata.TestShard{ResID: 6, ResPeers: []metapb.Replica{}}
+	newShard := core.NewCachedShard(nr, nil)
+	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 7, co.cluster.prepareChecker.sum)
 }
 
-func TestShouldRunWithNonLeaderResources(t *testing.T) {
+func TestShouldRunWithNonLeaderShards(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 
-	assert.Nil(t, tc.addLeaderContainer(1, 10))
-	assert.Nil(t, tc.addLeaderContainer(2, 0))
-	assert.Nil(t, tc.addLeaderContainer(3, 0))
+	assert.Nil(t, tc.addLeaderStore(1, 10))
+	assert.Nil(t, tc.addLeaderStore(2, 0))
+	assert.Nil(t, tc.addLeaderStore(3, 0))
 	for i := 0; i < 10; i++ {
-		assert.Nil(t, tc.LoadResource(uint64(i+1), 1, 2, 3))
+		assert.Nil(t, tc.LoadShard(uint64(i+1), 1, 2, 3))
 	}
 	assert.False(t, co.shouldRun())
-	assert.Equal(t, 10, tc.core.Resources.GetContainerResourceCount("", 1))
+	assert.Equal(t, 10, tc.core.Shards.GetStoreShardCount("", 1))
 
 	tbl := []struct {
 		resourceID uint64
@@ -511,19 +511,19 @@ func TestShouldRunWithNonLeaderResources(t *testing.T) {
 	}
 
 	for _, tb := range tbl {
-		r := tc.GetResource(tb.resourceID)
+		r := tc.GetShard(tb.resourceID)
 		nr := r.Clone(core.WithLeader(&r.Meta.Peers()[0]))
-		assert.Nil(t, tc.processResourceHeartbeat(nr))
+		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestResource{ResID: 8, ResPeers: []metapb.Replica{}}
-	newResource := core.NewCachedResource(nr, nil)
-	assert.NotNil(t, tc.processResourceHeartbeat(newResource))
+	nr := &metadata.TestShard{ResID: 8, ResPeers: []metapb.Replica{}}
+	newShard := core.NewCachedShard(nr, nil)
+	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 8, co.cluster.prepareChecker.sum)
 
 	// Now, after server is prepared, there exist some resources with no leader.
-	assert.Equal(t, uint64(0), tc.GetResource(9).GetLeader().GetContainerID())
-	assert.Equal(t, uint64(0), tc.GetResource(10).GetLeader().GetContainerID())
+	assert.Equal(t, uint64(0), tc.GetShard(9).GetLeader().GetStoreID())
+	assert.Equal(t, uint64(0), tc.GetShard(10).GetLeader().GetStoreID())
 }
 
 func TestAddScheduler(t *testing.T) {
@@ -532,23 +532,23 @@ func TestAddScheduler(t *testing.T) {
 
 	assert.Equal(t, 4, len(co.schedulers))
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceLeaderName))
-	assert.Nil(t, co.removeScheduler(schedulers.BalanceResourceName))
-	assert.Nil(t, co.removeScheduler(schedulers.HotResourceName))
+	assert.Nil(t, co.removeScheduler(schedulers.BalanceShardName))
+	assert.Nil(t, co.removeScheduler(schedulers.HotShardName))
 	assert.Nil(t, co.removeScheduler(schedulers.LabelName))
 	assert.Empty(t, co.schedulers)
 
 	stream := mockhbstream.NewHeartbeatStream()
 
 	// Add containers 1,2,3
-	assert.Nil(t, tc.addLeaderContainer(1, 1))
-	assert.Nil(t, tc.addLeaderContainer(2, 1))
-	assert.Nil(t, tc.addLeaderContainer(3, 1))
+	assert.Nil(t, tc.addLeaderStore(1, 1))
+	assert.Nil(t, tc.addLeaderStore(2, 1))
+	assert.Nil(t, tc.addLeaderStore(3, 1))
 	// Add resources 1 with leader in container 1 and followers in containers 2,3
-	assert.Nil(t, tc.addLeaderResource(1, 1, 2, 3))
+	assert.Nil(t, tc.addLeaderShard(1, 1, 2, 3))
 	// Add resources 2 with leader in container 2 and followers in containers 1,3
-	assert.Nil(t, tc.addLeaderResource(2, 2, 1, 3))
+	assert.Nil(t, tc.addLeaderShard(2, 2, 1, 3))
 	// Add resources 3 with leader in container 3 and followers in containers 1,2
-	assert.Nil(t, tc.addLeaderResource(3, 3, 1, 2))
+	assert.Nil(t, tc.addLeaderShard(3, 3, 1, 2))
 
 	oc := co.opController
 	gls, err := schedule.CreateScheduler(schedulers.GrantLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.GrantLeaderType, []string{"0"}))
@@ -562,14 +562,14 @@ func TestAddScheduler(t *testing.T) {
 
 	// Transfer all leaders to container 1.
 	waitOperator(t, co, 2)
-	resource2 := tc.GetResource(2)
+	resource2 := tc.GetShard(2)
 	assert.Nil(t, dispatchHeartbeat(co, resource2, stream))
 	resource2 = waitTransferLeader(t, stream, resource2, 1)
 	assert.Nil(t, dispatchHeartbeat(co, resource2, stream))
 	waitNoResponse(t, stream)
 
 	waitOperator(t, co, 3)
-	resource3 := tc.GetResource(3)
+	resource3 := tc.GetShard(3)
 	assert.Nil(t, dispatchHeartbeat(co, resource3, stream))
 	resource3 = waitTransferLeader(t, stream, resource3, 1)
 	assert.Nil(t, dispatchHeartbeat(co, resource3, stream))
@@ -583,8 +583,8 @@ func TestRemoveScheduler(t *testing.T) {
 	defer cleanup()
 
 	// Add containers 1,2
-	assert.Nil(t, tc.addLeaderContainer(1, 1))
-	assert.Nil(t, tc.addLeaderContainer(2, 1))
+	assert.Nil(t, tc.addLeaderStore(1, 1))
+	assert.Nil(t, tc.addLeaderStore(2, 1))
 
 	assert.Equal(t, 4, len(co.schedulers))
 	oc := co.opController
@@ -600,8 +600,8 @@ func TestRemoveScheduler(t *testing.T) {
 
 	// remove all schedulers
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceLeaderName))
-	assert.Nil(t, co.removeScheduler(schedulers.BalanceResourceName))
-	assert.Nil(t, co.removeScheduler(schedulers.HotResourceName))
+	assert.Nil(t, co.removeScheduler(schedulers.BalanceShardName))
+	assert.Nil(t, co.removeScheduler(schedulers.HotShardName))
 	assert.Nil(t, co.removeScheduler(schedulers.LabelName))
 	assert.Nil(t, co.removeScheduler(schedulers.GrantLeaderName))
 	// all removed
@@ -621,17 +621,17 @@ func TestRestart(t *testing.T) {
 	tc, co, cleanup := prepare(t, func(cfg *config.ScheduleConfig) {
 		// Turn off balance, we test add replica only.
 		cfg.LeaderScheduleLimit = 0
-		cfg.ResourceScheduleLimit = 0
+		cfg.ShardScheduleLimit = 0
 	}, nil, func(co *coordinator) { co.run() })
 	hbStreams := co.hbStreams
 	defer cleanup()
 
 	// Add 3 containers (1, 2, 3) and a resource with 1 replica on container 1.
-	assert.Nil(t, tc.addResourceContainer(1, 1))
-	assert.Nil(t, tc.addResourceContainer(2, 2))
-	assert.Nil(t, tc.addResourceContainer(3, 3))
-	assert.Nil(t, tc.addLeaderResource(1, 1))
-	resource := tc.GetResource(1)
+	assert.Nil(t, tc.addShardStore(1, 1))
+	assert.Nil(t, tc.addShardStore(2, 2))
+	assert.Nil(t, tc.addShardStore(3, 3))
+	assert.Nil(t, tc.addLeaderShard(1, 1))
+	resource := tc.GetShard(1)
 	tc.prepareChecker.collect(resource)
 
 	// Add 1 replica on container 2.
@@ -654,9 +654,9 @@ func TestRestart(t *testing.T) {
 	waitPromoteLearner(t, stream, resource, 3)
 }
 
-func dispatchHeartbeat(co *coordinator, resource *core.CachedResource, stream opt.HeartbeatStream) error {
-	co.hbStreams.BindStream(resource.GetLeader().GetContainerID(), stream)
-	co.cluster.core.PutResource(resource.Clone())
+func dispatchHeartbeat(co *coordinator, resource *core.CachedShard, stream opt.HeartbeatStream) error {
+	co.hbStreams.BindStream(resource.GetLeader().GetStoreID(), stream)
+	co.cluster.core.PutShard(resource.Clone())
 	co.opController.Dispatch(resource, schedule.DispatchFromHeartBeat)
 	return nil
 }
@@ -685,8 +685,8 @@ func prepare(t *testing.T, setCfg func(*config.ScheduleConfig), setTc func(*test
 	}
 }
 
-func checkCOResource(t *testing.T, tc *testCluster, co *coordinator, resourceID uint64, expectCheckerIsBusy bool, expectAddOperator int) {
-	ops := co.checkers.CheckResource(tc.GetResource(resourceID))
+func checkCOShard(t *testing.T, tc *testCluster, co *coordinator, resourceID uint64, expectCheckerIsBusy bool, expectAddOperator int) {
+	ops := co.checkers.CheckShard(tc.GetShard(resourceID))
 	if ops == nil {
 		assert.Equal(t, 0, expectAddOperator)
 	} else {
@@ -722,15 +722,15 @@ func TestOperatorCount(t *testing.T) {
 	defer cleanup()
 	oc := co.opController
 	assert.Equal(t, uint64(0), oc.OperatorCount(operator.OpLeader))
-	assert.Equal(t, uint64(0), oc.OperatorCount(operator.OpResource))
+	assert.Equal(t, uint64(0), oc.OperatorCount(operator.OpShard))
 
-	assert.Nil(t, tc.addLeaderResource(1, 1))
-	assert.Nil(t, tc.addLeaderResource(2, 2))
+	assert.Nil(t, tc.addLeaderShard(1, 1))
+	assert.Nil(t, tc.addLeaderShard(2, 2))
 	{
-		op1 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpLeader)
+		op1 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpLeader)
 		oc.AddWaitingOperator(op1)
 		assert.Equal(t, oc.OperatorCount(operator.OpLeader), uint64(1)) // 1:leader
-		op2 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpLeader)
+		op2 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpLeader)
 		oc.AddWaitingOperator(op2)
 		assert.Equal(t, oc.OperatorCount(operator.OpLeader), uint64(2)) // 1:leader, 2:leader
 		assert.True(t, oc.RemoveOperator(op1, ""))
@@ -738,19 +738,19 @@ func TestOperatorCount(t *testing.T) {
 	}
 
 	{
-		op1 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpResource)
+		op1 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpShard)
 		oc.AddWaitingOperator(op1)
-		assert.Equal(t, oc.OperatorCount(operator.OpResource), uint64(1)) // 1:resource 2:leader
+		assert.Equal(t, oc.OperatorCount(operator.OpShard), uint64(1)) // 1:resource 2:leader
 		assert.Equal(t, oc.OperatorCount(operator.OpLeader), uint64(1))
-		op2 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpResource)
+		op2 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpShard)
 		op2.SetPriorityLevel(core.HighPriority)
 		oc.AddWaitingOperator(op2)
-		assert.Equal(t, oc.OperatorCount(operator.OpResource), uint64(2)) // 1:resource 2:resource
+		assert.Equal(t, oc.OperatorCount(operator.OpShard), uint64(2)) // 1:resource 2:resource
 		assert.Equal(t, oc.OperatorCount(operator.OpLeader), uint64(0))
 	}
 }
 
-func TestContainerOverloaded(t *testing.T) {
+func TestStoreOverloaded(t *testing.T) {
 	s := &testOperatorController{}
 	s.setup(t)
 	defer s.tearDown()
@@ -758,16 +758,16 @@ func TestContainerOverloaded(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceShardType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt := tc.GetOpts()
-	assert.Nil(t, tc.addResourceContainer(4, 100))
-	assert.Nil(t, tc.addResourceContainer(3, 100))
-	assert.Nil(t, tc.addResourceContainer(2, 100))
-	assert.Nil(t, tc.addResourceContainer(1, 10))
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3, 4))
-	resource := tc.GetResource(1).Clone(core.SetApproximateSize(60))
-	tc.core.PutResource(resource)
+	assert.Nil(t, tc.addShardStore(4, 100))
+	assert.Nil(t, tc.addShardStore(3, 100))
+	assert.Nil(t, tc.addShardStore(2, 100))
+	assert.Nil(t, tc.addShardStore(1, 10))
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3, 4))
+	resource := tc.GetShard(1).Clone(core.SetApproximateSize(60))
+	tc.core.PutShard(resource)
 	start := time.Now()
 	{
 		op1 := lb.Schedule(tc)[0]
@@ -786,8 +786,8 @@ func TestContainerOverloaded(t *testing.T) {
 
 	// reset all containers' limit
 	// scheduling one time needs 1/10 seconds
-	opt.SetAllContainersLimit(limit.AddPeer, 600)
-	opt.SetAllContainersLimit(limit.RemovePeer, 600)
+	opt.SetAllStoresLimit(limit.AddPeer, 600)
+	opt.SetAllStoresLimit(limit.RemovePeer, 600)
 	for i := 0; i < 10; i++ {
 		op1 := lb.Schedule(tc)[0]
 		assert.NotNil(t, op1)
@@ -801,7 +801,7 @@ func TestContainerOverloaded(t *testing.T) {
 	}
 }
 
-func TestContainerOverloadedWithReplace(t *testing.T) {
+func TestStoreOverloadedWithReplace(t *testing.T) {
 	s := &testOperatorController{}
 	s.setup(t)
 	defer s.tearDown()
@@ -809,25 +809,25 @@ func TestContainerOverloadedWithReplace(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, nil)
 	defer cleanup()
 	oc := co.opController
-	lb, err := schedule.CreateScheduler(schedulers.BalanceResourceType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceResourceType, []string{"0", "", ""}))
+	lb, err := schedule.CreateScheduler(schedulers.BalanceShardType, oc, tc.storage, schedule.ConfigSliceDecoder(schedulers.BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
-	assert.Nil(t, tc.addResourceContainer(4, 100))
-	assert.Nil(t, tc.addResourceContainer(3, 100))
-	assert.Nil(t, tc.addResourceContainer(2, 100))
-	assert.Nil(t, tc.addResourceContainer(1, 10))
-	assert.Nil(t, tc.addLeaderResource(1, 2, 3, 4))
-	assert.Nil(t, tc.addLeaderResource(2, 1, 3, 4))
-	resource := tc.GetResource(1).Clone(core.SetApproximateSize(60))
-	tc.core.PutResource(resource)
-	resource = tc.GetResource(2).Clone(core.SetApproximateSize(60))
-	tc.core.PutResource(resource)
-	op1 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpResource, operator.AddPeer{ToContainer: 1, PeerID: 1})
+	assert.Nil(t, tc.addShardStore(4, 100))
+	assert.Nil(t, tc.addShardStore(3, 100))
+	assert.Nil(t, tc.addShardStore(2, 100))
+	assert.Nil(t, tc.addShardStore(1, 10))
+	assert.Nil(t, tc.addLeaderShard(1, 2, 3, 4))
+	assert.Nil(t, tc.addLeaderShard(2, 1, 3, 4))
+	resource := tc.GetShard(1).Clone(core.SetApproximateSize(60))
+	tc.core.PutShard(resource)
+	resource = tc.GetShard(2).Clone(core.SetApproximateSize(60))
+	tc.core.PutShard(resource)
+	op1 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpShard, operator.AddPeer{ToStore: 1, PeerID: 1})
 	assert.True(t, oc.AddOperator(op1))
-	op2 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpResource, operator.AddPeer{ToContainer: 2, PeerID: 2})
+	op2 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpShard, operator.AddPeer{ToStore: 2, PeerID: 2})
 	op2.SetPriorityLevel(core.HighPriority)
 	assert.True(t, oc.AddOperator(op2))
-	op3 := newTestOperator(1, tc.GetResource(2).Meta.Epoch(), operator.OpResource, operator.AddPeer{ToContainer: 1, PeerID: 3})
+	op3 := newTestOperator(1, tc.GetShard(2).Meta.Epoch(), operator.OpShard, operator.AddPeer{ToStore: 1, PeerID: 3})
 	assert.False(t, oc.AddOperator(op3))
 	assert.Nil(t, lb.Schedule(tc))
 	// sleep 2 seconds to make sure that token is filled up
@@ -856,8 +856,8 @@ func TestController(t *testing.T) {
 	defer cleanup()
 	oc := co.opController
 
-	assert.Nil(t, tc.addLeaderResource(1, 1))
-	assert.Nil(t, tc.addLeaderResource(2, 2))
+	assert.Nil(t, tc.addLeaderShard(1, 1))
+	assert.Nil(t, tc.addLeaderShard(2, 2))
 	scheduler, err := schedule.CreateScheduler(schedulers.BalanceLeaderType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(schedulers.BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	lb := &mockLimitScheduler{
@@ -877,11 +877,11 @@ func TestController(t *testing.T) {
 	// count = 0
 	{
 		assert.True(t, sc.AllowSchedule())
-		op1 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpLeader)
+		op1 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpLeader)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op1))
 		// count = 1
 		assert.True(t, sc.AllowSchedule())
-		op2 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpLeader)
+		op2 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpLeader)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op2))
 		// count = 2
 		assert.False(t, sc.AllowSchedule())
@@ -890,10 +890,10 @@ func TestController(t *testing.T) {
 		assert.True(t, sc.AllowSchedule())
 	}
 
-	op11 := newTestOperator(1, tc.GetResource(1).Meta.Epoch(), operator.OpLeader)
+	op11 := newTestOperator(1, tc.GetShard(1).Meta.Epoch(), operator.OpLeader)
 	// add a PriorityKind operator will remove old operator
 	{
-		op3 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpHotResource)
+		op3 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpHotShard)
 		op3.SetPriorityLevel(core.HighPriority)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op11))
 		assert.False(t, sc.AllowSchedule())
@@ -904,10 +904,10 @@ func TestController(t *testing.T) {
 
 	// add a admin operator will remove old operator
 	{
-		op2 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpLeader)
+		op2 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpLeader)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op2))
 		assert.False(t, sc.AllowSchedule())
-		op4 := newTestOperator(2, tc.GetResource(2).Meta.Epoch(), operator.OpAdmin)
+		op4 := newTestOperator(2, tc.GetShard(2).Meta.Epoch(), operator.OpAdmin)
 		op4.SetPriorityLevel(core.HighPriority)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op4))
 		assert.True(t, sc.AllowSchedule())
@@ -916,15 +916,15 @@ func TestController(t *testing.T) {
 
 	// test wrong resource id.
 	{
-		op5 := newTestOperator(3, metapb.ResourceEpoch{}, operator.OpHotResource)
+		op5 := newTestOperator(3, metapb.ShardEpoch{}, operator.OpHotShard)
 		assert.Equal(t, 0, oc.AddWaitingOperator(op5))
 	}
 
 	// test wrong resource epoch.
 	assert.True(t, oc.RemoveOperator(op11, ""))
-	epoch := metapb.ResourceEpoch{
-		Version: tc.GetResource(1).Meta.Epoch().Version + 1,
-		ConfVer: tc.GetResource(1).Meta.Epoch().ConfVer,
+	epoch := metapb.ShardEpoch{
+		Version: tc.GetShard(1).Meta.Epoch().Version + 1,
+		ConfVer: tc.GetShard(1).Meta.Epoch().ConfVer,
 	}
 	{
 		op6 := newTestOperator(1, epoch, operator.OpLeader)
@@ -961,13 +961,13 @@ func TestInterval(t *testing.T) {
 	}
 }
 
-func waitAddLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedResource, containerID uint64) *core.CachedResource {
-	var res *rpcpb.ResourceHeartbeatRsp
+func waitAddLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedShard, containerID uint64) *core.CachedShard {
+	var res *rpcpb.ShardHeartbeatRsp
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
-			return res.GetResourceID() == resource.Meta.ID() &&
+			return res.GetShardID() == resource.Meta.ID() &&
 				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_AddLearnerNode &&
-				res.GetConfigChange().GetReplica().ContainerID == containerID
+				res.GetConfigChange().GetReplica().StoreID == containerID
 		}
 		return false
 	})
@@ -977,44 +977,44 @@ func waitAddLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource 
 	)
 }
 
-func waitPromoteLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedResource, containerID uint64) *core.CachedResource {
-	var res *rpcpb.ResourceHeartbeatRsp
+func waitPromoteLearner(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedShard, containerID uint64) *core.CachedShard {
+	var res *rpcpb.ShardHeartbeatRsp
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
-			return res.GetResourceID() == resource.Meta.ID() &&
+			return res.GetShardID() == resource.Meta.ID() &&
 				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_AddNode &&
-				res.GetConfigChange().GetReplica().ContainerID == containerID
+				res.GetConfigChange().GetReplica().StoreID == containerID
 		}
 		return false
 	})
 	// Remove learner than add voter.
 	return resource.Clone(
-		core.WithRemoveContainerPeer(containerID),
+		core.WithRemoveStorePeer(containerID),
 		core.WithAddPeer(res.GetConfigChange().GetReplica()),
 	)
 }
 
-func waitRemovePeer(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedResource, containerID uint64) *core.CachedResource {
-	var res *rpcpb.ResourceHeartbeatRsp
+func waitRemovePeer(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedShard, containerID uint64) *core.CachedShard {
+	var res *rpcpb.ShardHeartbeatRsp
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
-			return res.GetResourceID() == resource.Meta.ID() &&
+			return res.GetShardID() == resource.Meta.ID() &&
 				res.GetConfigChange().GetChangeType() == metapb.ConfigChangeType_RemoveNode &&
-				res.GetConfigChange().GetReplica().ContainerID == containerID
+				res.GetConfigChange().GetReplica().StoreID == containerID
 		}
 		return false
 	})
 	return resource.Clone(
-		core.WithRemoveContainerPeer(containerID),
+		core.WithRemoveStorePeer(containerID),
 		core.WithIncConfVer(),
 	)
 }
 
-func waitTransferLeader(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedResource, containerID uint64) *core.CachedResource {
-	var res *rpcpb.ResourceHeartbeatRsp
+func waitTransferLeader(t *testing.T, stream mockhbstream.HeartbeatStream, resource *core.CachedShard, containerID uint64) *core.CachedShard {
+	var res *rpcpb.ShardHeartbeatRsp
 	testutil.WaitUntil(t, func(t *testing.T) bool {
 		if res = stream.Recv(); res != nil {
-			return res.GetResourceID() == resource.Meta.ID() && res.GetTransferLeader().GetReplica().ContainerID == containerID
+			return res.GetShardID() == resource.Meta.ID() && res.GetTransferLeader().GetReplica().StoreID == containerID
 		}
 		return false
 	})

@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +40,7 @@ func newTestJobProcessor() *testJobProcessor {
 	}
 }
 
-func (p *testJobProcessor) Start(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+func (p *testJobProcessor) Start(job metapb.Job, s storage.JobStorage, aware config.ShardsAware) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -48,7 +48,7 @@ func (p *testJobProcessor) Start(job metapb.Job, s storage.JobStorage, aware con
 	delete(p.stops, job.Type)
 }
 
-func (p *testJobProcessor) Stop(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+func (p *testJobProcessor) Stop(job metapb.Job, s storage.JobStorage, aware config.ShardsAware) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -56,14 +56,14 @@ func (p *testJobProcessor) Stop(job metapb.Job, s storage.JobStorage, aware conf
 	delete(p.starts, job.Type)
 }
 
-func (p *testJobProcessor) Remove(job metapb.Job, s storage.JobStorage, aware config.ResourcesAware) {
+func (p *testJobProcessor) Remove(job metapb.Job, s storage.JobStorage, aware config.ShardsAware) {
 	p.Lock()
 	defer p.Unlock()
 
 	p.removes[job.Type] = job
 }
 
-func (p *testJobProcessor) Execute([]byte, storage.JobStorage, config.ResourcesAware) ([]byte, error) {
+func (p *testJobProcessor) Execute([]byte, storage.JobStorage, config.ShardsAware) ([]byte, error) {
 	return nil, nil
 }
 
@@ -83,17 +83,17 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 
 	assert.NoError(t, p.handleCreateJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeCreateJobReq,
 			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}}},
-		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeCreateJobRsp}))
 	assert.NoError(t, p.handleCreateJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeCreateJobReq,
 			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}}},
-		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeCreateJobRsp}))
 	assert.NoError(t, p.handleCreateJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeCreateJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeCreateJobReq,
 			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
-		&rpcpb.Response{Type: rpcpb.TypeCreateJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeCreateJobRsp}))
 
 	assert.Equal(t, 3, len(jp.starts))
 	assert.Equal(t, 0, len(jp.stops))
@@ -117,16 +117,16 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(2), jp)
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 	assert.NoError(t, p.handleRemoveJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeRemoveJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeRemoveJobReq,
 			RemoveJob: rpcpb.RemoveJobReq{Job: metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}}},
-		&rpcpb.Response{Type: rpcpb.TypeRemoveJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeRemoveJobRsp}))
 	assert.NoError(t, p.handleRemoveJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeRemoveJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeRemoveJobReq,
 			RemoveJob: rpcpb.RemoveJobReq{Job: metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}}},
-		&rpcpb.Response{Type: rpcpb.TypeRemoveJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeRemoveJobRsp}))
 	assert.NoError(t, p.handleRemoveJob(rc,
-		&rpcpb.Request{Type: rpcpb.TypeRemoveJobReq,
+		&rpcpb.ProphetRequest{Type: rpcpb.TypeRemoveJobReq,
 			RemoveJob: rpcpb.RemoveJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
-		&rpcpb.Response{Type: rpcpb.TypeRemoveJobRsp}))
+		&rpcpb.ProphetResponse{Type: rpcpb.TypeRemoveJobRsp}))
 	assert.Equal(t, 3, len(jp.removes))
 }

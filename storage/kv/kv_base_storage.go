@@ -23,7 +23,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 
 	"github.com/matrixorigin/matrixcube/keys"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
@@ -181,8 +181,8 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64, path string) error {
 		return errors.Wrapf(err, "failed to get shard in CreateSnapshot")
 	}
 
-	var sls meta.ShardMetadata
-	var logIndex meta.LogIndex
+	var sls metapb.ShardMetadata
+	var logIndex metapb.LogIndex
 	protoc.MustUnmarshal(&sls, metadataValue)
 	protoc.MustUnmarshal(&logIndex, appliedIndexValue)
 	shard := sls.Metadata.Shard

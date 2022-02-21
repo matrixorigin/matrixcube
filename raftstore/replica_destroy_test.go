@@ -18,7 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -129,8 +129,8 @@ func testDestroyReplicaWithRemoveShardDataAfterRestart(t *testing.T, removeData 
 	defer leaktest.AfterTest(t)()
 
 	c := NewSingleTestClusterStore(t, DiskTestCluster, WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-		cfg.Customize.CustomInitShardsFactory = func() []meta.Shard {
-			return []meta.Shard{
+		cfg.Customize.CustomInitShardsFactory = func() []metapb.Shard {
+			return []metapb.Shard{
 				{
 					Start: []byte("k1"),
 					End:   []byte("k2"),
@@ -160,9 +160,9 @@ func testDestroyReplicaWithRemoveShardDataAfterRestart(t *testing.T, removeData 
 		assert.NoError(t, err)
 		for _, state := range states {
 			if state.ShardID == sid {
-				state.Metadata.State = meta.ReplicaState_Tombstone
+				state.Metadata.State = metapb.ReplicaState_ReplicaTombstone
 				state.Metadata.RemoveData = removeData
-				assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{state}))
+				assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{state}))
 				assert.NoError(t, ds.Sync([]uint64{sid}))
 				break
 			}

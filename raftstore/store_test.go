@@ -16,8 +16,8 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util"
@@ -142,20 +142,20 @@ func TestValidateShard(t *testing.T) {
 
 	cases := []struct {
 		pr    *replica
-		req   rpc.RequestBatch
+		req   rpcpb.RequestBatch
 		epoch Epoch
 		err   string
 		ok    bool
 	}{
 		{
 			pr:  &replica{shardID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: errShardNotFound.Error(),
 			ok:  true,
 		},
 		{
 			pr:  &replica{replica: Replica{ID: 1}, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: errNotLeader.Error(),
 			ok:  true,
 		},
@@ -166,14 +166,14 @@ func TestValidateShard(t *testing.T) {
 		// to do error comparison
 		{
 			pr:  &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: "mismatch replica id, want 1, but 0",
 			ok:  true,
 		},
 		{
 			pr:    &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
 			epoch: Epoch{Version: 1},
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ID: 1}}, Requests: []rpc.Request{{}}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{ID: 1}}, Requests: []rpcpb.Request{{}}},
 			err:   errStaleEpoch.Error(),
 			ok:    true,
 		},
@@ -223,80 +223,80 @@ func TestCheckEpoch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		req   rpc.RequestBatch
+		req   rpcpb.RequestBatch
 		shard Shard
 		ok    bool
 	}{
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Version: 1, ConfVer: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{Epoch: Epoch{ConfVer: 1}},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{Epoch: Epoch{Version: 1}},
 			ok:    true,
 		},
@@ -312,28 +312,28 @@ func TestValidateStoreID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.meta = &containerAdapter{}
+	s.metapb = &containerAdapter{}
 
-	assert.Nil(t, s.validateStoreID(rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ContainerID: 0}}}))
-	assert.NotNil(t, s.validateStoreID(rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ContainerID: 1}}}))
+	assert.Nil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 0}}}))
+	assert.NotNil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 1}}}))
 }
 
 func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{})
 	v, ok := s.removeDroppedVoteMsg(1)
 	assert.False(t, ok)
-	assert.Equal(t, meta.RaftMessage{}, v)
+	assert.Equal(t, metapb.RaftMessage{}, v)
 
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}}, v)
+	assert.Equal(t, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}}, v)
 
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
+	assert.Equal(t, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
 }

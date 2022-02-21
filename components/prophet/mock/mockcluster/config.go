@@ -21,14 +21,14 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 )
 
-// SetMaxMergeResourceSize updates the MaxMergeResourceSize configuration.
-func (mc *Cluster) SetMaxMergeResourceSize(v int) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.MaxMergeResourceSize = uint64(v) })
+// SetMaxMergeShardSize updates the MaxMergeShardSize configuration.
+func (mc *Cluster) SetMaxMergeShardSize(v int) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.MaxMergeShardSize = uint64(v) })
 }
 
-// SetMaxMergeResourceKeys updates the MaxMergeResourceKeys configuration.
-func (mc *Cluster) SetMaxMergeResourceKeys(v int) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.MaxMergeResourceKeys = uint64(v) })
+// SetMaxMergeShardKeys updates the MaxMergeShardKeys configuration.
+func (mc *Cluster) SetMaxMergeShardKeys(v int) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.MaxMergeShardKeys = uint64(v) })
 }
 
 // SetSplitMergeInterval updates the SplitMergeInterval configuration.
@@ -81,9 +81,9 @@ func (mc *Cluster) SetTolerantSizeRatio(v float64) {
 	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.TolerantSizeRatio = v })
 }
 
-// SetResourceScoreFormulaVersion updates the ResourceScoreFormulaVersion configuration.
-func (mc *Cluster) SetResourceScoreFormulaVersion(v string) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.ResourceScoreFormulaVersion = v })
+// SetShardScoreFormulaVersion updates the ShardScoreFormulaVersion configuration.
+func (mc *Cluster) SetShardScoreFormulaVersion(v string) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.ShardScoreFormulaVersion = v })
 }
 
 // SetLeaderScheduleLimit updates the LeaderScheduleLimit configuration.
@@ -91,9 +91,9 @@ func (mc *Cluster) SetLeaderScheduleLimit(v int) {
 	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.LeaderScheduleLimit = uint64(v) })
 }
 
-// SetResourceScheduleLimit updates the ResourceScheduleLimit configuration.
-func (mc *Cluster) SetResourceScheduleLimit(v int) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.ResourceScheduleLimit = uint64(v) })
+// SetShardScheduleLimit updates the ShardScheduleLimit configuration.
+func (mc *Cluster) SetShardScheduleLimit(v int) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.ShardScheduleLimit = uint64(v) })
 }
 
 // SetMergeScheduleLimit updates the MergeScheduleLimit configuration.
@@ -101,14 +101,14 @@ func (mc *Cluster) SetMergeScheduleLimit(v int) {
 	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.MergeScheduleLimit = uint64(v) })
 }
 
-// SetHotResourceScheduleLimit updates the HotResourceScheduleLimit configuration.
-func (mc *Cluster) SetHotResourceScheduleLimit(v int) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.HotResourceScheduleLimit = uint64(v) })
+// SetHotShardScheduleLimit updates the HotShardScheduleLimit configuration.
+func (mc *Cluster) SetHotShardScheduleLimit(v int) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.HotShardScheduleLimit = uint64(v) })
 }
 
-// SetHotResourceCacheHitsThreshold updates the HotResourceCacheHitsThreshold configuration.
-func (mc *Cluster) SetHotResourceCacheHitsThreshold(v int) {
-	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.HotResourceCacheHitsThreshold = uint64(v) })
+// SetHotShardCacheHitsThreshold updates the HotShardCacheHitsThreshold configuration.
+func (mc *Cluster) SetHotShardCacheHitsThreshold(v int) {
+	mc.updateScheduleConfig(func(s *config.ScheduleConfig) { s.HotShardCacheHitsThreshold = uint64(v) })
 }
 
 // SetEnablePlacementRules updates the EnablePlacementRules configuration.

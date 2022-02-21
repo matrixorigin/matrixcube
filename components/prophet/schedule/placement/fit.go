@@ -20,20 +20,20 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// ResourceFit is the result of fitting a resource's peers to rule list.
+// ShardFit is the result of fitting a resource's peers to rule list.
 // All peers are divided into corresponding rules according to the matching
 // rules, and the remaining Peers are placed in the OrphanPeers list.
-type ResourceFit struct {
+type ShardFit struct {
 	RuleFits    []*RuleFit
 	OrphanPeers []metapb.Replica
 }
 
 // IsSatisfied returns if the rules are properly satisfied.
 // It means all Rules are fulfilled and there is no orphan peers.
-func (f *ResourceFit) IsSatisfied() bool {
+func (f *ShardFit) IsSatisfied() bool {
 	if len(f.RuleFits) == 0 {
 		return false
 	}
@@ -46,7 +46,7 @@ func (f *ResourceFit) IsSatisfied() bool {
 }
 
 // GetRuleFit returns the RuleFit that contains the peer.
-func (f *ResourceFit) GetRuleFit(peerID uint64) *RuleFit {
+func (f *ShardFit) GetRuleFit(peerID uint64) *RuleFit {
 	for _, rf := range f.RuleFits {
 		for _, p := range rf.Peers {
 			if p.ID == peerID {
@@ -57,9 +57,9 @@ func (f *ResourceFit) GetRuleFit(peerID uint64) *RuleFit {
 	return nil
 }
 
-// CompareResourceFit determines the superiority of 2 fits.
+// CompareShardFit determines the superiority of 2 fits.
 // It returns 1 when the first fit result is better.
-func CompareResourceFit(a, b *ResourceFit) int {
+func CompareShardFit(a, b *ShardFit) int {
 	for i := range a.RuleFits {
 		if i >= len(b.RuleFits) {
 			break
@@ -81,7 +81,7 @@ func CompareResourceFit(a, b *ResourceFit) int {
 // RuleFit is the result of fitting status of a Rule.
 type RuleFit struct {
 	Rule *Rule
-	// Peers of the Resource that are divided to this Rule.
+	// Peers of the Shard that are divided to this Rule.
 	Peers []metapb.Replica
 	// PeersWithDifferentRole is subset of `Peers`. It contains all Peers that have
 	// different Role from configuration (the Role can be migrated to target role
@@ -116,32 +116,32 @@ func compareRuleFit(a, b *RuleFit) int {
 	}
 }
 
-// ContainerSet represents the container.
-type ContainerSet interface {
-	GetContainers() []*core.CachedContainer
-	GetContainer(id uint64) *core.CachedContainer
+// StoreSet represents the container.
+type StoreSet interface {
+	GetStores() []*core.CachedStore
+	GetStore(id uint64) *core.CachedStore
 }
 
-// FitResource tries to fit peers of a resource to the rules.
-func FitResource(containers ContainerSet, res *core.CachedResource, rules []*Rule) *ResourceFit {
+// FitShard tries to fit peers of a resource to the rules.
+func FitShard(containers StoreSet, res *core.CachedShard, rules []*Rule) *ShardFit {
 	w := newFitWorker(containers, res, rules)
 	w.run()
 	return &w.bestFit
 }
 
 type fitWorker struct {
-	containers []*core.CachedContainer
-	bestFit    ResourceFit // update during execution
+	containers []*core.CachedStore
+	bestFit    ShardFit // update during execution
 	peers      []*fitPeer  // p.selected is updated during execution.
 	rules      []*Rule
 }
 
-func newFitWorker(containers ContainerSet, res *core.CachedResource, rules []*Rule) *fitWorker {
+func newFitWorker(containers StoreSet, res *core.CachedShard, rules []*Rule) *fitWorker {
 	var peers []*fitPeer
 	for _, p := range res.Meta.Peers() {
 		peers = append(peers, &fitPeer{
 			Replica:   p,
-			container: containers.GetContainer(p.ContainerID),
+			container: containers.GetStore(p.StoreID),
 			isLeader:  res.GetLeader().GetID() == p.ID,
 		})
 	}
@@ -149,8 +149,8 @@ func newFitWorker(containers ContainerSet, res *core.CachedResource, rules []*Ru
 	sort.Slice(peers, func(i, j int) bool { return peers[i].ID < peers[j].ID })
 
 	return &fitWorker{
-		containers: containers.GetContainers(),
-		bestFit:    ResourceFit{RuleFits: make([]*RuleFit, len(rules))},
+		containers: containers.GetStores(),
+		bestFit:    ShardFit{RuleFits: make([]*RuleFit, len(rules))},
 		peers:      peers,
 		rules:      rules,
 	}
@@ -264,7 +264,7 @@ func newRuleFit(rule *Rule, peers []*fitPeer) *RuleFit {
 
 type fitPeer struct {
 	metapb.Replica
-	container *core.CachedContainer
+	container *core.CachedStore
 	isLeader  bool
 	selected  bool
 }
@@ -297,7 +297,7 @@ func isolationScore(peers []*fitPeer, labels []string) float64 {
 	}
 	// NOTE: following loop is partially duplicated with `core.DistinctScore`.
 	// The reason not to call it directly is that core.DistinctScore only
-	// accepts `[]CachedContainer` not `[]*fitPeer` and I don't want alloc slice
+	// accepts `[]CachedStore` not `[]*fitPeer` and I don't want alloc slice
 	// here because it is kind of hot path.
 	// After Go supports generics, we will be enable to do some refactor and
 	// reuse `core.DistinctScore`.

@@ -18,7 +18,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +66,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	p := newPendingProposals()
-	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_ConfigChange), rpc.CmdType_Admin, 0, nil)
+	cmd := newTestBatch("", "", uint64(rpcpb.AdminConfigChange), rpcpb.Admin, 0, nil)
 	p.setConfigChange(cmd)
 	v := p.getConfigChange()
 	assert.Equal(t, cmd, v)
@@ -75,7 +75,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	cmd := newTestBatch("", "", uint64(rpc.AdminCmdType_TransferLeader), rpc.CmdType_Admin, 0, nil)
+	cmd := newTestBatch("", "", uint64(rpcpb.AdminTransferLeader), rpcpb.Admin, 0, nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatalf("failed to trigger panic")
@@ -86,12 +86,12 @@ func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 }
 
 func testPendingProposalClear(t *testing.T,
-	clear bool, cb func(resp rpc.ResponseBatch)) {
+	clear bool, cb func(resp rpcpb.ResponseBatch)) {
 	cmd1 := batch{
 		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
+		requestBatch: rpcpb.RequestBatch{
+			Requests: []rpcpb.Request{{}},
+			Header: rpcpb.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -99,9 +99,9 @@ func testPendingProposalClear(t *testing.T,
 	}
 	cmd2 := batch{
 		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
+		requestBatch: rpcpb.RequestBatch{
+			Requests: []rpcpb.Request{{}},
+			Header: rpcpb.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -110,7 +110,7 @@ func testPendingProposalClear(t *testing.T,
 
 	ConfChangeCmd := batch{
 		logger:       log.Adjust(nil),
-		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpc.AdminCmdType_ConfigChange, nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.AdminConfigChange, nil),
 		cb:           cb,
 	}
 	p := newPendingProposals()
@@ -129,7 +129,7 @@ func testPendingProposalClear(t *testing.T,
 func TestPendingProposalClear(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	check := func(resp rpc.ResponseBatch) {
+	check := func(resp rpcpb.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
@@ -139,7 +139,7 @@ func TestPendingProposalClear(t *testing.T) {
 func TestPendingProposalDestroy(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	check := func(resp rpc.ResponseBatch) {
+	check := func(resp rpcpb.ResponseBatch) {
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Responses[0].Error.Message)
 	}
@@ -150,14 +150,14 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	called := false
-	cb := func(resp rpc.ResponseBatch) {
+	cb := func(resp rpcpb.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
 	ConfChangeCmd := batch{
 		logger:       log.Adjust(nil),
-		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpc.AdminCmdType_ConfigChange, nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.AdminConfigChange, nil),
 		cb:           cb,
 	}
 	p := newPendingProposals()
@@ -173,21 +173,21 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 
 	called := false
 	staleCalled := false
-	staleCB := func(resp rpc.ResponseBatch) {
+	staleCB := func(resp rpcpb.ResponseBatch) {
 		staleCalled = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errStaleCMD.Error(), resp.Header.Error.Message)
 	}
-	cb := func(resp rpc.ResponseBatch) {
+	cb := func(resp rpcpb.ResponseBatch) {
 		called = true
 		assert.Equal(t, 1, len(resp.Responses))
 		assert.Equal(t, errShardNotFound.Error(), resp.Header.Error.Message)
 	}
 	cmd1 := batch{
 		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
+		requestBatch: rpcpb.RequestBatch{
+			Requests: []rpcpb.Request{{}},
+			Header: rpcpb.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},
@@ -195,9 +195,9 @@ func TestPendingProposalCanNotifyRegularCmd(t *testing.T) {
 	}
 	cmd2 := batch{
 		logger: log.Adjust(nil),
-		requestBatch: rpc.RequestBatch{
-			Requests: []rpc.Request{{}},
-			Header: rpc.RequestBatchHeader{
+		requestBatch: rpcpb.RequestBatch{
+			Requests: []rpcpb.Request{{}},
+			Header: rpcpb.RequestBatchHeader{
 				ID: uuid.NewV4().Bytes(),
 			},
 		},

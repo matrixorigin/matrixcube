@@ -24,7 +24,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 	containerPersistInterval = 5 * time.Minute
 	mb                       = 1 << 20 // megabyte
 	gb                       = 1 << 30 // 1GB size
-	initialMaxResourceCounts = 30      // exclude storage Threshold Filter when resource less than 30
+	initialMaxShardCounts    = 30      // exclude storage Threshold Filter when resource less than 30
 	initialMinSpace          = 1 << 33 // 2^3=8GB
 )
 
@@ -41,9 +41,9 @@ type counterAndSize struct {
 	size  int64
 }
 
-// CachedContainer is the container runtime info cached in the cache
-type CachedContainer struct {
-	Meta metadata.Container
+// CachedStore is the container runtime info cached in the cache
+type CachedStore struct {
+	Meta metadata.Store
 	*containerStats
 	pauseLeaderTransfer bool // not allow to be used as source or target of transfer leader
 	resourceInfo        map[string]counterAndSize
@@ -55,11 +55,11 @@ type CachedContainer struct {
 	available           map[limit.Type]func() bool
 }
 
-// NewCachedContainer creates CachedContainer with meta data.
-func NewCachedContainer(meta metadata.Container, opts ...ContainerCreateOption) *CachedContainer {
-	container := &CachedContainer{
+// NewCachedStore creates CachedStore with meta data.
+func NewCachedStore(meta metadata.Store, opts ...StoreCreateOption) *CachedStore {
+	container := &CachedStore{
 		Meta:              meta,
-		containerStats:    newContainerStats(),
+		containerStats:    newStoreStats(),
 		resourceInfo:      make(map[string]counterAndSize),
 		leaderInfo:        make(map[string]counterAndSize),
 		pendingPeerCounts: make(map[string]int),
@@ -72,9 +72,9 @@ func NewCachedContainer(meta metadata.Container, opts ...ContainerCreateOption) 
 	return container
 }
 
-// Clone creates a copy of current CachedContainer.
-func (cr *CachedContainer) Clone(opts ...ContainerCreateOption) *CachedContainer {
-	container := &CachedContainer{
+// Clone creates a copy of current CachedStore.
+func (cr *CachedStore) Clone(opts ...StoreCreateOption) *CachedStore {
+	container := &CachedStore{
 		Meta:                cr.Meta.Clone(),
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
@@ -103,9 +103,9 @@ func (cr *CachedContainer) Clone(opts ...ContainerCreateOption) *CachedContainer
 	return container
 }
 
-// ShallowClone creates a copy of current CachedContainer, but not clone 'Meta'.
-func (cr *CachedContainer) ShallowClone(opts ...ContainerCreateOption) *CachedContainer {
-	container := &CachedContainer{
+// ShallowClone creates a copy of current CachedStore, but not clone 'Meta'.
+func (cr *CachedStore) ShallowClone(opts ...StoreCreateOption) *CachedStore {
+	container := &CachedStore{
 		Meta:                cr.Meta,
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
@@ -136,12 +136,12 @@ func (cr *CachedContainer) ShallowClone(opts ...ContainerCreateOption) *CachedCo
 
 // AllowLeaderTransfer returns if the container is allowed to be selected
 // as source or target of transfer leader.
-func (cr *CachedContainer) AllowLeaderTransfer() bool {
+func (cr *CachedStore) AllowLeaderTransfer() bool {
 	return !cr.pauseLeaderTransfer
 }
 
 // IsAvailable returns if the container bucket of limitation is available
-func (cr *CachedContainer) IsAvailable(limitType limit.Type) bool {
+func (cr *CachedStore) IsAvailable(limitType limit.Type) bool {
 	if cr.available != nil && cr.available[limitType] != nil {
 		return cr.available[limitType]()
 	}
@@ -149,42 +149,42 @@ func (cr *CachedContainer) IsAvailable(limitType limit.Type) bool {
 }
 
 // IsUp checks if the container's state is Up.
-func (cr *CachedContainer) IsUp() bool {
-	return cr.GetState() == metapb.ContainerState_UP
+func (cr *CachedStore) IsUp() bool {
+	return cr.GetState() == metapb.StoreState_UP
 }
 
 // IsOffline checks if the container's state is Offline.
-func (cr *CachedContainer) IsOffline() bool {
-	return cr.GetState() == metapb.ContainerState_Offline
+func (cr *CachedStore) IsOffline() bool {
+	return cr.GetState() == metapb.StoreState_Offline
 }
 
 // IsTombstone checks if the container's state is Tombstone.
-func (cr *CachedContainer) IsTombstone() bool {
-	return cr.GetState() == metapb.ContainerState_Tombstone
+func (cr *CachedStore) IsTombstone() bool {
+	return cr.GetState() == metapb.StoreState_StoreTombstone
 }
 
 // IsPhysicallyDestroyed checks if the store's physically destroyed.
-func (cr *CachedContainer) IsPhysicallyDestroyed() bool {
+func (cr *CachedStore) IsPhysicallyDestroyed() bool {
 	return cr.Meta.PhysicallyDestroyed()
 }
 
 // DownTime returns the time elapsed since last heartbeat.
-func (cr *CachedContainer) DownTime() time.Duration {
+func (cr *CachedStore) DownTime() time.Duration {
 	return time.Since(cr.GetLastHeartbeatTS())
 }
 
 // GetState returns the state of the container.
-func (cr *CachedContainer) GetState() metapb.ContainerState {
+func (cr *CachedStore) GetState() metapb.StoreState {
 	return cr.Meta.State()
 }
 
 // GetLeaderCount returns the leader count of the container.
-func (cr *CachedContainer) GetLeaderCount(groupKey string) int {
+func (cr *CachedStore) GetLeaderCount(groupKey string) int {
 	return cr.leaderInfo[groupKey].count
 }
 
 // GetTotalLeaderCount returns the leader count of the container.
-func (cr *CachedContainer) GetTotalLeaderCount() int {
+func (cr *CachedStore) GetTotalLeaderCount() int {
 	n := 0
 	for _, v := range cr.leaderInfo {
 		n += v.count
@@ -192,13 +192,13 @@ func (cr *CachedContainer) GetTotalLeaderCount() int {
 	return n
 }
 
-// GetResourceCount returns the Resource count of the container.
-func (cr *CachedContainer) GetResourceCount(groupKey string) int {
+// GetShardCount returns the Shard count of the container.
+func (cr *CachedStore) GetShardCount(groupKey string) int {
 	return cr.resourceInfo[groupKey].count
 }
 
-// GetTotalResourceCount returns the Resource count of the container.
-func (cr *CachedContainer) GetTotalResourceCount() int {
+// GetTotalShardCount returns the Shard count of the container.
+func (cr *CachedStore) GetTotalShardCount() int {
 	n := 0
 	for _, v := range cr.resourceInfo {
 		n += v.count
@@ -206,8 +206,8 @@ func (cr *CachedContainer) GetTotalResourceCount() int {
 	return n
 }
 
-// GetTotalResourceCount returns the Resource count of the container.
-func (cr *CachedContainer) GetGroupKeys() string {
+// GetTotalShardCount returns the Shard count of the container.
+func (cr *CachedStore) GetGroupKeys() string {
 	var v bytes.Buffer
 	for k, vs := range cr.resourceInfo {
 		v.WriteString(hex.EncodeToString([]byte(k)))
@@ -218,12 +218,12 @@ func (cr *CachedContainer) GetGroupKeys() string {
 }
 
 // GetLeaderSize returns the leader size of the container.
-func (cr *CachedContainer) GetLeaderSize(groupKey string) int64 {
+func (cr *CachedStore) GetLeaderSize(groupKey string) int64 {
 	return cr.leaderInfo[groupKey].size
 }
 
 // GetTotalLeaderSize returns the leader size of the container.
-func (cr *CachedContainer) GetTotalLeaderSize() int64 {
+func (cr *CachedStore) GetTotalLeaderSize() int64 {
 	n := int64(0)
 	for _, v := range cr.leaderInfo {
 		n += v.size
@@ -231,13 +231,13 @@ func (cr *CachedContainer) GetTotalLeaderSize() int64 {
 	return n
 }
 
-// GetResourceSize returns the Resource size of the container.
-func (cr *CachedContainer) GetResourceSize(groupKey string) int64 {
+// GetShardSize returns the Shard size of the container.
+func (cr *CachedStore) GetShardSize(groupKey string) int64 {
 	return cr.resourceInfo[groupKey].size
 }
 
-// GetTotalResourceSize returns the Resource size of the container.
-func (cr *CachedContainer) GetTotalResourceSize() int64 {
+// GetTotalShardSize returns the Shard size of the container.
+func (cr *CachedStore) GetTotalShardSize() int64 {
 	n := int64(0)
 	for _, v := range cr.resourceInfo {
 		n += v.size
@@ -246,7 +246,7 @@ func (cr *CachedContainer) GetTotalResourceSize() int64 {
 }
 
 // GetPendingPeerCount returns the pending peer count of the container.
-func (cr *CachedContainer) GetPendingPeerCount() int {
+func (cr *CachedStore) GetPendingPeerCount() int {
 	cnt := 0
 	for _, v := range cr.pendingPeerCounts {
 		cnt += v
@@ -255,22 +255,22 @@ func (cr *CachedContainer) GetPendingPeerCount() int {
 }
 
 // GetLeaderWeight returns the leader weight of the container.
-func (cr *CachedContainer) GetLeaderWeight() float64 {
+func (cr *CachedStore) GetLeaderWeight() float64 {
 	return cr.leaderWeight
 }
 
-// GetResourceWeight returns the Resource weight of the container.
-func (cr *CachedContainer) GetResourceWeight() float64 {
+// GetShardWeight returns the Shard weight of the container.
+func (cr *CachedStore) GetShardWeight() float64 {
 	return cr.resourceWeight
 }
 
 // GetLastHeartbeatTS returns the last heartbeat timestamp of the container.
-func (cr *CachedContainer) GetLastHeartbeatTS() time.Time {
+func (cr *CachedStore) GetLastHeartbeatTS() time.Time {
 	return time.Unix(0, cr.Meta.LastHeartbeat())
 }
 
 // NeedPersist returns if it needs to save to etcd.
-func (cr *CachedContainer) NeedPersist() bool {
+func (cr *CachedStore) NeedPersist() bool {
 	return cr.GetLastHeartbeatTS().Sub(cr.lastPersistTime) > containerPersistInterval
 }
 
@@ -278,7 +278,7 @@ const minWeight = 1e-6
 const maxScore = 1024 * 1024 * 1024
 
 // LeaderScore returns the container's leader score.
-func (cr *CachedContainer) LeaderScore(groupKey string, policy SchedulePolicy, delta int64) float64 {
+func (cr *CachedStore) LeaderScore(groupKey string, policy SchedulePolicy, delta int64) float64 {
 	switch policy {
 	case BySize:
 		return float64(cr.GetLeaderSize(groupKey)+delta) / math.Max(cr.GetLeaderWeight(), minWeight)
@@ -289,11 +289,11 @@ func (cr *CachedContainer) LeaderScore(groupKey string, policy SchedulePolicy, d
 	}
 }
 
-// ResourceScore returns the container's resource score.
+// ShardScore returns the container's resource score.
 // Deviation It is used to control the direction of the deviation considered
 // when calculating the resource score. It is set to -1 when it is the source
 // container of balance, 1 when it is the target, and 0 in the rest of cases.
-func (cr *CachedContainer) ResourceScore(groupKey string, version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
+func (cr *CachedStore) ShardScore(groupKey string, version string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
 	switch version {
 	case "v2":
 		return cr.resourceScoreV2(groupKey, delta, deviation, highSpaceRatio, lowSpaceRatio)
@@ -304,18 +304,18 @@ func (cr *CachedContainer) ResourceScore(groupKey string, version string, highSp
 	}
 }
 
-func (cr *CachedContainer) resourceScoreV1(groupKey string, highSpaceRatio, lowSpaceRatio float64, delta int64) float64 {
+func (cr *CachedStore) resourceScoreV1(groupKey string, highSpaceRatio, lowSpaceRatio float64, delta int64) float64 {
 	var score float64
 	var amplification float64
 	available := float64(cr.GetAvailable()) / mb
 	used := float64(cr.GetUsedSize()) / mb
 	capacity := float64(cr.GetCapacity()) / mb
 
-	if cr.GetResourceSize(groupKey) == 0 || used == 0 {
+	if cr.GetShardSize(groupKey) == 0 || used == 0 {
 		amplification = 1
 	} else {
 		// because of db compression, resource size is larger than actual used size
-		amplification = float64(cr.GetResourceSize(groupKey)) / used
+		amplification = float64(cr.GetShardSize(groupKey)) / used
 	}
 
 	// highSpaceBound is the lower bound of the high space stage.
@@ -323,7 +323,7 @@ func (cr *CachedContainer) resourceScoreV1(groupKey string, highSpaceRatio, lowS
 	// lowSpaceBound is the upper bound of the low space stage.
 	lowSpaceBound := (1 - lowSpaceRatio) * capacity
 	if available-float64(delta)/amplification >= highSpaceBound {
-		score = float64(cr.GetResourceSize(groupKey) + delta)
+		score = float64(cr.GetShardSize(groupKey) + delta)
 	} else if available-float64(delta)/amplification <= lowSpaceBound {
 		score = maxScore - (available - float64(delta)/amplification)
 	} else {
@@ -343,16 +343,16 @@ func (cr *CachedContainer) resourceScoreV1(groupKey string, highSpaceRatio, lowS
 
 		k := (y2 - y1) / (x2 - x1)
 		b := y1 - k*x1
-		score = k*float64(cr.GetResourceSize(groupKey)+delta) + b
+		score = k*float64(cr.GetShardSize(groupKey)+delta) + b
 	}
 
-	return score / math.Max(cr.GetResourceWeight(), minWeight)
+	return score / math.Max(cr.GetShardWeight(), minWeight)
 }
 
-func (cr *CachedContainer) resourceScoreV2(groupKey string, delta int64, deviation int, highSpaceRatio, lowSpaceRatio float64) float64 {
+func (cr *CachedStore) resourceScoreV2(groupKey string, delta int64, deviation int, highSpaceRatio, lowSpaceRatio float64) float64 {
 	A := float64(float64(cr.GetAvgAvailable())-float64(deviation)*float64(cr.GetAvailableDeviation())) / gb
 	C := float64(cr.GetCapacity()) / gb
-	R := float64(cr.GetResourceSize(groupKey) + delta)
+	R := float64(cr.GetShardSize(groupKey) + delta)
 	var (
 		K, M float64 = 1, 256 // Experience value to control the weight of the available influence on score
 		F    float64 = 50     // Experience value to prevent some nodes from running out of disk space prematurely.
@@ -372,16 +372,16 @@ func (cr *CachedContainer) resourceScoreV2(groupKey string, delta int64, deviati
 		// store's score will increase rapidly after it has few space. and it will reach similar score when they has no space
 		score = (K+M*math.Log(C)/C)*R + B*(F-A)/F
 	}
-	return score / math.Max(cr.GetResourceWeight(), minWeight)
+	return score / math.Max(cr.GetShardWeight(), minWeight)
 }
 
 // StorageSize returns container's used storage size reported from your storage.
-func (cr *CachedContainer) StorageSize() uint64 {
+func (cr *CachedStore) StorageSize() uint64 {
 	return cr.GetUsedSize()
 }
 
 // AvailableRatio is container's freeSpace/capacity.
-func (cr *CachedContainer) AvailableRatio() float64 {
+func (cr *CachedStore) AvailableRatio() float64 {
 	if cr.GetCapacity() == 0 {
 		return 0
 	}
@@ -389,52 +389,52 @@ func (cr *CachedContainer) AvailableRatio() float64 {
 }
 
 // IsLowSpace checks if the container is lack of space.
-func (cr *CachedContainer) IsLowSpace(lowSpaceRatio float64) bool {
-	if cr.GetContainerStats() == nil {
+func (cr *CachedStore) IsLowSpace(lowSpaceRatio float64) bool {
+	if cr.GetStoreStats() == nil {
 		return false
 	}
 	// issue #3444
-	if cr.GetTotalResourceCount() < initialMaxResourceCounts && cr.GetAvailable() > initialMinSpace {
+	if cr.GetTotalShardCount() < initialMaxShardCounts && cr.GetAvailable() > initialMinSpace {
 		return false
 	}
 	return cr.AvailableRatio() < 1-lowSpaceRatio
 }
 
-// ResourceCount returns count of leader/resource-replica in the container.
-func (cr *CachedContainer) ResourceCount(groupKey string, kind metapb.ResourceKind) uint64 {
+// ShardCount returns count of leader/resource-replica in the container.
+func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardKind) uint64 {
 	switch kind {
-	case metapb.ResourceKind_LeaderKind:
+	case metapb.ShardKind_LeaderKind:
 		return uint64(cr.GetLeaderCount(groupKey))
-	case metapb.ResourceKind_ReplicaKind:
-		return uint64(cr.GetResourceCount(groupKey))
+	case metapb.ShardKind_ReplicaKind:
+		return uint64(cr.GetShardCount(groupKey))
 	default:
 		return 0
 	}
 }
 
-// ResourceSize returns size of leader/resource-replica in the container
-func (cr *CachedContainer) ResourceSize(groupKey string, kind metapb.ResourceKind) int64 {
+// ShardSize returns size of leader/resource-replica in the container
+func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardKind) int64 {
 	switch kind {
-	case metapb.ResourceKind_LeaderKind:
+	case metapb.ShardKind_LeaderKind:
 		return cr.GetLeaderSize(groupKey)
-	case metapb.ResourceKind_ReplicaKind:
-		return cr.GetResourceSize(groupKey)
+	case metapb.ShardKind_ReplicaKind:
+		return cr.GetShardSize(groupKey)
 	default:
 		return 0
 	}
 }
 
-// ResourceWeight returns weight of leader/resource-replica in the score
-func (cr *CachedContainer) ResourceWeight(kind metapb.ResourceKind) float64 {
+// ShardWeight returns weight of leader/resource-replica in the score
+func (cr *CachedStore) ShardWeight(kind metapb.ShardKind) float64 {
 	switch kind {
-	case metapb.ResourceKind_LeaderKind:
+	case metapb.ShardKind_LeaderKind:
 		leaderWeight := cr.GetLeaderWeight()
 		if leaderWeight <= 0 {
 			return minWeight
 		}
 		return leaderWeight
-	case metapb.ResourceKind_ReplicaKind:
-		resourceWeight := cr.GetResourceWeight()
+	case metapb.ShardKind_ReplicaKind:
+		resourceWeight := cr.GetShardWeight()
 		if resourceWeight <= 0 {
 			return minWeight
 		}
@@ -445,12 +445,12 @@ func (cr *CachedContainer) ResourceWeight(kind metapb.ResourceKind) float64 {
 }
 
 // GetStartTime returns the start timestamp.
-func (cr *CachedContainer) GetStartTime() time.Time {
+func (cr *CachedStore) GetStartTime() time.Time {
 	return time.Unix(cr.Meta.StartTimestamp(), 0)
 }
 
 // GetUptime returns the uptime.
-func (cr *CachedContainer) GetUptime() time.Duration {
+func (cr *CachedStore) GetUptime() time.Duration {
 	uptime := cr.GetLastHeartbeatTS().Sub(cr.GetStartTime())
 	if uptime > 0 {
 		return uptime
@@ -469,17 +469,17 @@ var (
 // IsDisconnected checks if a container is disconnected, which means Prophet misses
 // storage application's container heartbeat for a short time, maybe caused by process restart or
 // temporary network failure.
-func (cr *CachedContainer) IsDisconnected() bool {
+func (cr *CachedStore) IsDisconnected() bool {
 	return cr.DownTime() > containerDisconnectDuration
 }
 
 // IsUnhealthy checks if a container is unhealthy.
-func (cr *CachedContainer) IsUnhealthy() bool {
+func (cr *CachedStore) IsUnhealthy() bool {
 	return cr.DownTime() > containerUnhealthyDuration
 }
 
 // GetLabelValue returns a label's value (if exists).
-func (cr *CachedContainer) GetLabelValue(key string) string {
+func (cr *CachedStore) GetLabelValue(key string) string {
 	for _, label := range cr.Meta.Labels() {
 		if strings.EqualFold(label.GetKey(), key) {
 			return label.GetValue()
@@ -490,7 +490,7 @@ func (cr *CachedContainer) GetLabelValue(key string) string {
 
 // CompareLocation compares 2 containers' labels and returns at which level their
 // locations are different. It returns -1 if they are at the same location.
-func (cr *CachedContainer) CompareLocation(other *CachedContainer, labels []string) int {
+func (cr *CachedStore) CompareLocation(other *CachedStore, labels []string) int {
 	for i, key := range labels {
 		v1, v2 := cr.GetLabelValue(key), other.GetLabelValue(key)
 		// If label is not set, the container is considered at the same location
@@ -506,7 +506,7 @@ const replicaBaseScore = 100
 
 // DistinctScore returns the score that the other is distinct from the containers.
 // A higher score means the other container is more different from the existed containers.
-func DistinctScore(labels []string, containers []*CachedContainer, other *CachedContainer) float64 {
+func DistinctScore(labels []string, containers []*CachedStore, other *CachedStore) float64 {
 	var score float64
 	for _, s := range containers {
 		if s.Meta.ID() == other.Meta.ID() {
@@ -521,7 +521,7 @@ func DistinctScore(labels []string, containers []*CachedContainer, other *Cached
 
 // MergeLabels merges the passed in labels with origins, overriding duplicated
 // ones.
-func (cr *CachedContainer) MergeLabels(labels []metapb.Pair) []metapb.Pair {
+func (cr *CachedStore) MergeLabels(labels []metapb.Pair) []metapb.Pair {
 	containerLabels := cr.Meta.Clone().Labels()
 L:
 	for _, newLabel := range labels {
@@ -542,20 +542,20 @@ L:
 	return res
 }
 
-// CachedContainers contains information about all container.
-type CachedContainers struct {
-	containers map[uint64]*CachedContainer
+// CachedStores contains information about all container.
+type CachedStores struct {
+	containers map[uint64]*CachedStore
 }
 
-// NewCachedContainers create a CachedContainer with map of containerID to CachedContainer
-func NewCachedContainers() *CachedContainers {
-	return &CachedContainers{
-		containers: make(map[uint64]*CachedContainer),
+// NewCachedStores create a CachedStore with map of containerID to CachedStore
+func NewCachedStores() *CachedStores {
+	return &CachedStores{
+		containers: make(map[uint64]*CachedStore),
 	}
 }
 
-// GetContainer returns a copy of the CachedContainer with the specified containerID.
-func (s *CachedContainers) GetContainer(containerID uint64) *CachedContainer {
+// GetStore returns a copy of the CachedStore with the specified containerID.
+func (s *CachedStores) GetStore(containerID uint64) *CachedStore {
 	container, ok := s.containers[containerID]
 	if !ok {
 		return nil
@@ -563,8 +563,8 @@ func (s *CachedContainers) GetContainer(containerID uint64) *CachedContainer {
 	return container
 }
 
-// TakeContainer returns the point of the origin CachedContainer with the specified containerID.
-func (s *CachedContainers) TakeContainer(containerID uint64) *CachedContainer {
+// TakeStore returns the point of the origin CachedStore with the specified containerID.
+func (s *CachedStores) TakeStore(containerID uint64) *CachedStore {
 	container, ok := s.containers[containerID]
 	if !ok {
 		return nil
@@ -572,13 +572,13 @@ func (s *CachedContainers) TakeContainer(containerID uint64) *CachedContainer {
 	return container
 }
 
-// SetContainer sets a CachedContainer with containerID.
-func (s *CachedContainers) SetContainer(container *CachedContainer) {
+// SetStore sets a CachedStore with containerID.
+func (s *CachedStores) SetStore(container *CachedStore) {
 	s.containers[container.Meta.ID()] = container
 }
 
-// PauseLeaderTransfer pauses a CachedContainer with containerID.
-func (s *CachedContainers) PauseLeaderTransfer(containerID uint64) error {
+// PauseLeaderTransfer pauses a CachedStore with containerID.
+func (s *CachedStores) PauseLeaderTransfer(containerID uint64) error {
 	container, ok := s.containers[containerID]
 	if !ok {
 		return fmt.Errorf("container %d not found", containerID)
@@ -592,7 +592,7 @@ func (s *CachedContainers) PauseLeaderTransfer(containerID uint64) error {
 
 // ResumeLeaderTransfer cleans a container's pause state. The container can be selected
 // as source or target of TransferLeader again.
-func (s *CachedContainers) ResumeLeaderTransfer(containerID uint64) {
+func (s *CachedStores) ResumeLeaderTransfer(containerID uint64) {
 	container, ok := s.containers[containerID]
 	if !ok {
 		panic(fmt.Sprintf("try to clean a container %d pause state, but it is not found",
@@ -602,83 +602,83 @@ func (s *CachedContainers) ResumeLeaderTransfer(containerID uint64) {
 }
 
 // AttachAvailableFunc attaches f to a specific container.
-func (s *CachedContainers) AttachAvailableFunc(containerID uint64, limitType limit.Type, f func() bool) {
+func (s *CachedStores) AttachAvailableFunc(containerID uint64, limitType limit.Type, f func() bool) {
 	if container, ok := s.containers[containerID]; ok {
 		s.containers[containerID] = container.Clone(AttachAvailableFunc(limitType, f))
 	}
 }
 
-// GetContainers gets a complete set of CachedContainer.
-func (s *CachedContainers) GetContainers() []*CachedContainer {
-	containers := make([]*CachedContainer, 0, len(s.containers))
+// GetStores gets a complete set of CachedStore.
+func (s *CachedStores) GetStores() []*CachedStore {
+	containers := make([]*CachedStore, 0, len(s.containers))
 	for _, container := range s.containers {
 		containers = append(containers, container)
 	}
 	return containers
 }
 
-// GetMetaContainers gets a complete set of metadata.Container
-func (s *CachedContainers) GetMetaContainers() []metadata.Container {
-	metas := make([]metadata.Container, 0, len(s.containers))
+// GetMetaStores gets a complete set of metadata.Store
+func (s *CachedStores) GetMetaStores() []metadata.Store {
+	metas := make([]metadata.Store, 0, len(s.containers))
 	for _, container := range s.containers {
 		metas = append(metas, container.Meta)
 	}
 	return metas
 }
 
-// DeleteContainer deletes tombstone record form container
-func (s *CachedContainers) DeleteContainer(container *CachedContainer) {
+// DeleteStore deletes tombstone record form container
+func (s *CachedStores) DeleteStore(container *CachedStore) {
 	delete(s.containers, container.Meta.ID())
 }
 
-// GetContainerCount returns the total count of CachedContainer.
-func (s *CachedContainers) GetContainerCount() int {
+// GetStoreCount returns the total count of CachedStore.
+func (s *CachedStores) GetStoreCount() int {
 	return len(s.containers)
 }
 
-// SetLeaderCount sets the leader count to a CachedContainer.
-func (s *CachedContainers) SetLeaderCount(groupKey string, containerID uint64, leaderCount int) {
+// SetLeaderCount sets the leader count to a CachedStore.
+func (s *CachedStores) SetLeaderCount(groupKey string, containerID uint64, leaderCount int) {
 	if container, ok := s.containers[containerID]; ok {
 		s.containers[containerID] = container.Clone(SetLeaderCount(groupKey, leaderCount))
 	}
 }
 
-// SetResourceCount sets the resource count to a CachedContainer.
-func (s *CachedContainers) SetResourceCount(groupKey string, containerID uint64, resourceCount int) {
+// SetShardCount sets the resource count to a CachedStore.
+func (s *CachedStores) SetShardCount(groupKey string, containerID uint64, resourceCount int) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetResourceCount(groupKey, resourceCount))
+		s.containers[containerID] = container.Clone(SetShardCount(groupKey, resourceCount))
 	}
 }
 
-// SetPendingPeerCount sets the pending count to a CachedContainer.
-func (s *CachedContainers) SetPendingPeerCount(groupKey string, containerID uint64, pendingPeerCount int) {
+// SetPendingPeerCount sets the pending count to a CachedStore.
+func (s *CachedStores) SetPendingPeerCount(groupKey string, containerID uint64, pendingPeerCount int) {
 	if container, ok := s.containers[containerID]; ok {
 		s.containers[containerID] = container.Clone(SetPendingPeerCount(groupKey, pendingPeerCount))
 	}
 }
 
-// SetLeaderSize sets the leader size to a CachedContainer.
-func (s *CachedContainers) SetLeaderSize(groupKey string, containerID uint64, leaderSize int64) {
+// SetLeaderSize sets the leader size to a CachedStore.
+func (s *CachedStores) SetLeaderSize(groupKey string, containerID uint64, leaderSize int64) {
 	if container, ok := s.containers[containerID]; ok {
 		s.containers[containerID] = container.Clone(SetLeaderSize(groupKey, leaderSize))
 	}
 }
 
-// SetResourceSize sets the resource size to a CachedContainer.
-func (s *CachedContainers) SetResourceSize(groupKey string, containerID uint64, resourceSize int64) {
+// SetShardSize sets the resource size to a CachedStore.
+func (s *CachedStores) SetShardSize(groupKey string, containerID uint64, resourceSize int64) {
 	if container, ok := s.containers[containerID]; ok {
-		s.containers[containerID] = container.Clone(SetResourceSize(groupKey, resourceSize))
+		s.containers[containerID] = container.Clone(SetShardSize(groupKey, resourceSize))
 	}
 }
 
-// UpdateContainerStatus updates the information of the container.
-func (s *CachedContainers) UpdateContainerStatus(groupKey string, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
+// UpdateStoreStatus updates the information of the container.
+func (s *CachedStores) UpdateStoreStatus(groupKey string, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
 	if container, ok := s.containers[containerID]; ok {
-		newContainer := container.ShallowClone(SetLeaderCount(groupKey, leaderCount),
-			SetResourceCount(groupKey, resourceCount),
+		newStore := container.ShallowClone(SetLeaderCount(groupKey, leaderCount),
+			SetShardCount(groupKey, resourceCount),
 			SetPendingPeerCount(groupKey, pendingPeerCount),
 			SetLeaderSize(groupKey, leaderSize),
-			SetResourceSize(groupKey, resourceSize))
-		s.SetContainer(newContainer)
+			SetShardSize(groupKey, resourceSize))
+		s.SetStore(newStore)
 	}
 }

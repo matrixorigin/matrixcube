@@ -22,11 +22,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/testutil"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,67 +44,67 @@ func (s *testReplicaChecker) setup() {
 	cfg := config.NewTestOptions()
 	s.cluster = mockcluster.NewCluster(cfg)
 	s.rc = NewReplicaChecker(s.cluster, cache.NewDefaultCache(10))
-	stats := &metapb.ContainerStats{
+	stats := &metapb.StoreStats{
 		Capacity:  100,
 		Available: 100,
 	}
-	containers := []*core.CachedContainer{
-		core.NewCachedContainer(
-			&metadata.TestContainer{
+	containers := []*core.CachedStore{
+		core.NewCachedStore(
+			&metadata.TestStore{
 				CID:    1,
-				CState: metapb.ContainerState_Offline,
+				CState: metapb.StoreState_Offline,
 			},
-			core.SetContainerStats(stats),
+			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
-		core.NewCachedContainer(
-			&metadata.TestContainer{
+		core.NewCachedStore(
+			&metadata.TestStore{
 				CID:    3,
-				CState: metapb.ContainerState_UP,
+				CState: metapb.StoreState_UP,
 			},
-			core.SetContainerStats(stats),
+			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
-		core.NewCachedContainer(
-			&metadata.TestContainer{
+		core.NewCachedStore(
+			&metadata.TestStore{
 				CID:    4,
-				CState: metapb.ContainerState_UP,
-			}, core.SetContainerStats(stats),
+				CState: metapb.StoreState_UP,
+			}, core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 	}
 	for _, container := range containers {
-		s.cluster.PutContainer(container)
+		s.cluster.PutStore(container)
 	}
-	s.cluster.AddLabelsContainer(2, 1, map[string]string{"noleader": "true"})
+	s.cluster.AddLabelsStore(2, 1, map[string]string{"noleader": "true"})
 }
 
 func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.ReplicaRole) *operator.Operator {
 	s.cluster.SetMaxReplicas(2)
-	s.cluster.SetContainerUP(1)
-	downContainerID := uint64(3)
+	s.cluster.SetStoreUP(1)
+	downStoreID := uint64(3)
 	peers := []metapb.Replica{
 		{
 			ID:          4,
-			ContainerID: 1,
+			StoreID: 1,
 			Role:        aliveRole,
 		},
 		{
 			ID:          14,
-			ContainerID: downContainerID,
+			StoreID: downStoreID,
 		},
 		{
 			ID:          15,
-			ContainerID: 4,
+			StoreID: 4,
 		},
 	}
-	r := core.NewCachedResource(&metadata.TestResource{ResID: 2, ResPeers: peers}, &peers[0])
-	s.cluster.PutResource(r)
-	s.cluster.SetContainerDown(downContainerID)
+	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	s.cluster.PutShard(r)
+	s.cluster.SetStoreDown(downStoreID)
 	downPeer := metapb.ReplicaStats{
 		Replica: metapb.Replica{
 			ID:          14,
-			ContainerID: downContainerID,
+			StoreID: downStoreID,
 		},
 		DownSeconds: 24 * 60 * 60,
 	}
@@ -120,24 +120,24 @@ func TestReplacePendingPeer(t *testing.T) {
 	peers := []metapb.Replica{
 		{
 			ID:          2,
-			ContainerID: 1,
+			StoreID: 1,
 		},
 		{
 			ID:          3,
-			ContainerID: 2,
+			StoreID: 2,
 		},
 		{
 			ID:          4,
-			ContainerID: 3,
+			StoreID: 3,
 		},
 	}
-	r := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: peers}, &peers[1], core.WithPendingPeers(peers[0:1]))
-	s.cluster.PutResource(r)
+	r := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: peers}, &peers[1], core.WithPendingPeers(peers[0:1]))
+	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
-	assert.Equal(t, uint64(4), op.Step(0).(operator.AddLearner).ToContainer)
-	assert.Equal(t, uint64(4), op.Step(1).(operator.PromoteLearner).ToContainer)
-	assert.Equal(t, uint64(1), op.Step(2).(operator.RemovePeer).FromContainer)
+	assert.Equal(t, uint64(4), op.Step(0).(operator.AddLearner).ToStore)
+	assert.Equal(t, uint64(4), op.Step(1).(operator.PromoteLearner).ToStore)
+	assert.Equal(t, uint64(1), op.Step(2).(operator.RemovePeer).FromStore)
 }
 
 func TestReplaceOfflinePeer(t *testing.T) {
@@ -150,25 +150,25 @@ func TestReplaceOfflinePeer(t *testing.T) {
 	peers := []metapb.Replica{
 		{
 			ID:          4,
-			ContainerID: 1,
+			StoreID: 1,
 		},
 		{
 			ID:          5,
-			ContainerID: 2,
+			StoreID: 2,
 		},
 		{
 			ID:          6,
-			ContainerID: 3,
+			StoreID: 3,
 		},
 	}
-	r := core.NewCachedResource(&metadata.TestResource{ResID: 2, ResPeers: peers}, &peers[0])
-	s.cluster.PutResource(r)
+	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
-	assert.Equal(t, uint64(3), op.Step(0).(operator.TransferLeader).ToContainer)
-	assert.Equal(t, uint64(4), op.Step(1).(operator.AddLearner).ToContainer)
-	assert.Equal(t, uint64(4), op.Step(2).(operator.PromoteLearner).ToContainer)
-	assert.Equal(t, uint64(1), op.Step(3).(operator.RemovePeer).FromContainer)
+	assert.Equal(t, uint64(3), op.Step(0).(operator.TransferLeader).ToStore)
+	assert.Equal(t, uint64(4), op.Step(1).(operator.AddLearner).ToStore)
+	assert.Equal(t, uint64(4), op.Step(2).(operator.PromoteLearner).ToStore)
+	assert.Equal(t, uint64(1), op.Step(3).(operator.RemovePeer).FromStore)
 }
 
 func TestOfflineWithOneReplica(t *testing.T) {
@@ -179,11 +179,11 @@ func TestOfflineWithOneReplica(t *testing.T) {
 	peers := []metapb.Replica{
 		{
 			ID:          4,
-			ContainerID: 1,
+			StoreID: 1,
 		},
 	}
-	r := core.NewCachedResource(&metadata.TestResource{ResID: 2, ResPeers: peers}, &peers[0])
-	s.cluster.PutResource(r)
+	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
 	assert.Equal(t, "replace-offline-replica", op.Desc())
@@ -199,12 +199,12 @@ func TestFillReplicas(t *testing.T) {
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
 	// Add containers 1,2,3
-	tc.AddResourceContainer(1, 1)
-	tc.AddResourceContainer(2, 1)
-	tc.AddResourceContainer(3, 1)
+	tc.AddShardStore(1, 1)
+	tc.AddShardStore(2, 1)
+	tc.AddShardStore(3, 1)
 
-	res := core.NewTestCachedResource(nil, nil)
-	res.Meta.SetPeers([]metapb.Replica{{ID: 1, ContainerID: 1}})
+	res := core.NewTestCachedShard(nil, nil)
+	res.Meta.SetPeers([]metapb.Replica{{ID: 1, StoreID: 1}})
 	err := rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
@@ -239,15 +239,15 @@ func TestReplicaCheckerBasic(t *testing.T) {
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
 	// Add containers 1,2,3,4.
-	tc.AddResourceContainer(1, 4)
-	tc.AddResourceContainer(2, 3)
-	tc.AddResourceContainer(3, 2)
-	tc.AddResourceContainer(4, 1)
+	tc.AddShardStore(1, 4)
+	tc.AddShardStore(2, 3)
+	tc.AddShardStore(3, 2)
+	tc.AddShardStore(4, 1)
 	// Add resource 1 with leader in container 1 and follower in container 2.
-	tc.AddLeaderResource(1, 1, 2)
+	tc.AddLeaderShard(1, 1, 2)
 
 	// resource has 2 peers, we need to add a new peer.
-	resource := tc.GetResource(1)
+	resource := tc.GetShard(1)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 4)
 
 	// Disable make up replica feature.
@@ -257,9 +257,9 @@ func TestReplicaCheckerBasic(t *testing.T) {
 
 	// Test healthFilter.
 	// If container 4 is down, we add to container 3.
-	tc.SetContainerDown(4)
+	tc.SetStoreDown(4)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 3)
-	tc.SetContainerUP(4)
+	tc.SetStoreUP(4)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 4)
 
 	// Test snapshotCountFilter.
@@ -285,13 +285,13 @@ func TestReplicaCheckerBasic(t *testing.T) {
 	assert.Nil(t, rc.Check(resource))
 	tc.SetEnableRemoveExtraReplica(true)
 
-	p, ok := resource.GetContainerPeer(3)
+	p, ok := resource.GetStorePeer(3)
 	assert.True(t, ok)
-	resource = resource.Clone(core.WithRemoveContainerPeer(1), core.WithLeader(&p))
+	resource = resource.Clone(core.WithRemoveStorePeer(1), core.WithLeader(&p))
 
 	// Peer in container 2 is down, remove it.
-	tc.SetContainerDown(2)
-	p, ok = resource.GetContainerPeer(2)
+	tc.SetStoreDown(2)
+	p, ok = resource.GetStorePeer(2)
 	assert.True(t, ok)
 	downPeer := metapb.ReplicaStats{
 		Replica:     p,
@@ -304,26 +304,26 @@ func TestReplicaCheckerBasic(t *testing.T) {
 	assert.Nil(t, rc.Check(resource))
 
 	// Peer in container 3 is offline, transfer peer to container 1.
-	tc.SetContainerOffline(3)
+	tc.SetStoreOffline(3)
 	testutil.CheckTransferPeer(t, rc.Check(resource), operator.OpReplica, 3, 1)
 }
 
-func TestLostContainers(t *testing.T) {
+func TestLostStores(t *testing.T) {
 	s := &testReplicaChecker{}
 	s.setup()
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	tc.AddResourceContainer(1, 1)
-	tc.AddResourceContainer(2, 1)
+	tc.AddShardStore(1, 1)
+	tc.AddShardStore(2, 1)
 
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
 	// now resource peer in container 1,2,3.but we just have container 1,2
 	// This happens only in recovering the PD tc
 	// should not panic
-	tc.AddLeaderResource(1, 1, 2, 3)
-	resource := tc.GetResource(1)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	resource := tc.GetShard(1)
 	op := rc.Check(resource)
 	assert.Nil(t, op)
 }
@@ -339,13 +339,13 @@ func TestOffline(t *testing.T) {
 
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
-	tc.AddLabelsContainer(1, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(2, 2, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(3, 3, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(4, 4, map[string]string{"zone": "z3", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(1, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(2, 2, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(3, 3, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(4, 4, map[string]string{"zone": "z3", "rack": "r2", "host": "h1"})
 
-	tc.AddLeaderResource(1, 1)
-	resource := tc.GetResource(1)
+	tc.AddLeaderShard(1, 1)
+	resource := tc.GetShard(1)
 
 	// container 2 has different zone and smallest resource score.
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 2)
@@ -365,15 +365,15 @@ func TestOffline(t *testing.T) {
 	// Test offline
 	// the number of resource peers more than the maxReplicas
 	// remove the peer
-	tc.SetContainerOffline(3)
+	tc.SetStoreOffline(3)
 	testutil.CheckRemovePeer(t, rc.Check(resource), 3)
-	resource = resource.Clone(core.WithRemoveContainerPeer(4))
+	resource = resource.Clone(core.WithRemoveStorePeer(4))
 	// the number of resource peers equals the maxReplicas
 	// Transfer peer to container 4.
 	testutil.CheckTransferPeer(t, rc.Check(resource), operator.OpReplica, 3, 4)
 
 	// container 5 has a same label score with container 4,but the resource score smaller than container 4, we will choose container 5.
-	tc.AddLabelsContainer(5, 3, map[string]string{"zone": "z4", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(5, 3, map[string]string{"zone": "z4", "rack": "r1", "host": "h1"})
 	testutil.CheckTransferPeer(t, rc.Check(resource), operator.OpReplica, 3, 5)
 	// container 5 has too many snapshots, choose container 4
 	tc.UpdateSnapshotCount(5, 10)
@@ -393,40 +393,40 @@ func TestDistinctScore(t *testing.T) {
 
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
-	tc.AddLabelsContainer(1, 9, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(2, 8, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(1, 9, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(2, 8, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 
 	// We need 3 replicas.
-	tc.AddLeaderResource(1, 1)
-	resource := tc.GetResource(1)
+	tc.AddLeaderShard(1, 1)
+	resource := tc.GetShard(1)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 2)
 	peer2, _ := tc.AllocPeer(2)
 	resource = resource.Clone(core.WithAddPeer(peer2))
 
 	// container 1,2,3 have the same zone, rack, and host.
-	tc.AddLabelsContainer(3, 5, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(3, 5, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 3)
 
 	// container 4 has smaller resource score.
-	tc.AddLabelsContainer(4, 4, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(4, 4, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 4)
 
 	// container 5 has a different host.
-	tc.AddLabelsContainer(5, 5, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"})
+	tc.AddLabelsStore(5, 5, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"})
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 5)
 
 	// container 6 has a different rack.
-	tc.AddLabelsContainer(6, 6, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(6, 6, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 6)
 
 	// container 7 has a different zone.
-	tc.AddLabelsContainer(7, 7, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(7, 7, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 7)
 
 	// Test stateFilter.
-	tc.SetContainerOffline(7)
+	tc.SetStoreOffline(7)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 6)
-	tc.SetContainerUP(7)
+	tc.SetStoreUP(7)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 7)
 
 	// Add peer to container 7.
@@ -442,26 +442,26 @@ func TestDistinctScore(t *testing.T) {
 	peer6, _ := tc.AllocPeer(6)
 	resource = resource.Clone(core.WithAddPeer(peer6))
 	testutil.CheckRemovePeer(t, rc.Check(resource), 1)
-	p, ok := resource.GetContainerPeer(2)
+	p, ok := resource.GetStorePeer(2)
 	assert.True(t, ok)
-	resource = resource.Clone(core.WithRemoveContainerPeer(1), core.WithLeader(&p))
+	resource = resource.Clone(core.WithRemoveStorePeer(1), core.WithLeader(&p))
 	assert.Nil(t, rc.Check(resource))
 
 	// container 8 has the same zone and different rack with container 7.
 	// container 1 has the same zone and different rack with container 6.
 	// So container 8 and container 1 are equivalent.
-	tc.AddLabelsContainer(8, 1, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(8, 1, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"})
 	assert.Nil(t, rc.Check(resource))
 
 	// container 10 has a different zone.
 	// container 2 and 6 have the same distinct score, but container 2 has larger resource score.
 	// So replace peer in container 2 with container 10.
-	tc.AddLabelsContainer(10, 1, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(10, 1, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
 	testutil.CheckTransferPeer(t, rc.Check(resource), operator.OpReplica, 2, 10)
 	peer10, _ := tc.AllocPeer(10)
 	resource = resource.Clone(core.WithAddPeer(peer10))
 	testutil.CheckRemovePeer(t, rc.Check(resource), 2)
-	resource = resource.Clone(core.WithRemoveContainerPeer(2))
+	resource = resource.Clone(core.WithRemoveStorePeer(2))
 	assert.Nil(t, rc.Check(resource))
 }
 
@@ -476,15 +476,15 @@ func TestDistinctScore2(t *testing.T) {
 
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
-	tc.AddLabelsContainer(1, 1, map[string]string{"zone": "z1", "host": "h1"})
-	tc.AddLabelsContainer(2, 1, map[string]string{"zone": "z1", "host": "h2"})
-	tc.AddLabelsContainer(3, 1, map[string]string{"zone": "z1", "host": "h3"})
-	tc.AddLabelsContainer(4, 1, map[string]string{"zone": "z2", "host": "h1"})
-	tc.AddLabelsContainer(5, 1, map[string]string{"zone": "z2", "host": "h2"})
-	tc.AddLabelsContainer(6, 1, map[string]string{"zone": "z3", "host": "h1"})
+	tc.AddLabelsStore(1, 1, map[string]string{"zone": "z1", "host": "h1"})
+	tc.AddLabelsStore(2, 1, map[string]string{"zone": "z1", "host": "h2"})
+	tc.AddLabelsStore(3, 1, map[string]string{"zone": "z1", "host": "h3"})
+	tc.AddLabelsStore(4, 1, map[string]string{"zone": "z2", "host": "h1"})
+	tc.AddLabelsStore(5, 1, map[string]string{"zone": "z2", "host": "h2"})
+	tc.AddLabelsStore(6, 1, map[string]string{"zone": "z3", "host": "h1"})
 
-	tc.AddLeaderResource(1, 1, 2, 4)
-	resource := tc.GetResource(1)
+	tc.AddLeaderShard(1, 1, 2, 4)
+	resource := tc.GetShard(1)
 
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 6)
 	peer6, _ := tc.AllocPeer(6)
@@ -506,17 +506,17 @@ func TestStorageThreshold(t *testing.T) {
 	tc.SetLocationLabels([]string{"zone"})
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
-	tc.AddLabelsContainer(1, 1, map[string]string{"zone": "z1"})
+	tc.AddLabelsStore(1, 1, map[string]string{"zone": "z1"})
 	tc.UpdateStorageRatio(1, 0.5, 0.5)
-	tc.UpdateContainerResourceSize(1, 500*MB)
-	tc.AddLabelsContainer(2, 1, map[string]string{"zone": "z1"})
+	tc.UpdateStoreShardSize(1, 500*MB)
+	tc.AddLabelsStore(2, 1, map[string]string{"zone": "z1"})
 	tc.UpdateStorageRatio(2, 0.1, 0.9)
-	tc.UpdateContainerResourceSize(2, 100*MB)
-	tc.AddLabelsContainer(3, 1, map[string]string{"zone": "z2"})
-	tc.AddLabelsContainer(4, 31, map[string]string{"zone": "z3"})
+	tc.UpdateStoreShardSize(2, 100*MB)
+	tc.AddLabelsStore(3, 1, map[string]string{"zone": "z2"})
+	tc.AddLabelsStore(4, 31, map[string]string{"zone": "z3"})
 
-	tc.AddLeaderResource(1, 1, 2, 3)
-	resource := tc.GetResource(1)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	resource := tc.GetShard(1)
 
 	// Move peer to better location.
 	tc.UpdateStorageRatio(4, 0, 1)
@@ -525,8 +525,8 @@ func TestStorageThreshold(t *testing.T) {
 	tc.UpdateStorageRatio(4, 0.9, 0.1)
 	assert.Nil(t, rc.Check(resource))
 
-	tc.AddLeaderResource(2, 1, 3)
-	resource = tc.GetResource(2)
+	tc.AddLeaderShard(2, 1, 3)
+	resource = tc.GetShard(2)
 	// Add peer on container4.
 	tc.UpdateStorageRatio(4, 0, 1)
 	testutil.CheckAddPeer(t, rc.Check(resource), operator.OpReplica, 4)
@@ -542,16 +542,16 @@ func TestOpts(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	rc := NewReplicaChecker(tc, cache.NewDefaultCache(10))
 
-	tc.AddResourceContainer(1, 100)
-	tc.AddResourceContainer(2, 100)
-	tc.AddResourceContainer(3, 100)
-	tc.AddResourceContainer(4, 100)
-	tc.AddLeaderResource(1, 1, 2, 3)
+	tc.AddShardStore(1, 100)
+	tc.AddShardStore(2, 100)
+	tc.AddShardStore(3, 100)
+	tc.AddShardStore(4, 100)
+	tc.AddLeaderShard(1, 1, 2, 3)
 
-	resource := tc.GetResource(1)
+	resource := tc.GetShard(1)
 	// Test remove down replica and replace offline replica.
-	tc.SetContainerDown(1)
-	p, ok := resource.GetContainerPeer(1)
+	tc.SetStoreDown(1)
+	p, ok := resource.GetStorePeer(1)
 	assert.True(t, ok)
 	resource = resource.Clone(core.WithDownPeers([]metapb.ReplicaStats{
 		{
@@ -559,7 +559,7 @@ func TestOpts(t *testing.T) {
 			DownSeconds: 24 * 60 * 60,
 		},
 	}))
-	tc.SetContainerOffline(2)
+	tc.SetStoreOffline(2)
 	// RemoveDownReplica has higher priority than replaceOfflineReplica.
 	testutil.CheckTransferPeer(t, rc.Check(resource), operator.OpReplica, 1, 4)
 	tc.SetEnableRemoveDownReplica(false)

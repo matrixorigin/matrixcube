@@ -11,69 +11,69 @@ import (
 	config "github.com/matrixorigin/matrixcube/components/prophet/config"
 	core "github.com/matrixorigin/matrixcube/components/prophet/core"
 	metadata "github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	metapb "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	metapb "github.com/matrixorigin/matrixcube/pb/metapb"
 	storage "github.com/matrixorigin/matrixcube/components/prophet/storage"
 )
 
-// MockResourcesAware is a mock of ResourcesAware interface.
-type MockResourcesAware struct {
+// MockShardsAware is a mock of ShardsAware interface.
+type MockShardsAware struct {
 	ctrl     *gomock.Controller
-	recorder *MockResourcesAwareMockRecorder
+	recorder *MockShardsAwareMockRecorder
 }
 
-// MockResourcesAwareMockRecorder is the mock recorder for MockResourcesAware.
-type MockResourcesAwareMockRecorder struct {
-	mock *MockResourcesAware
+// MockShardsAwareMockRecorder is the mock recorder for MockShardsAware.
+type MockShardsAwareMockRecorder struct {
+	mock *MockShardsAware
 }
 
-// NewMockResourcesAware creates a new mock instance.
-func NewMockResourcesAware(ctrl *gomock.Controller) *MockResourcesAware {
-	mock := &MockResourcesAware{ctrl: ctrl}
-	mock.recorder = &MockResourcesAwareMockRecorder{mock}
+// NewMockShardsAware creates a new mock instance.
+func NewMockShardsAware(ctrl *gomock.Controller) *MockShardsAware {
+	mock := &MockShardsAware{ctrl: ctrl}
+	mock.recorder = &MockShardsAwareMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockResourcesAware) EXPECT() *MockResourcesAwareMockRecorder {
+func (m *MockShardsAware) EXPECT() *MockShardsAwareMockRecorder {
 	return m.recorder
 }
 
-// ForeachResources mocks base method.
-func (m *MockResourcesAware) ForeachResources(group uint64, fn func(metadata.Resource)) {
+// ForeachShards mocks base method.
+func (m *MockShardsAware) ForeachShards(group uint64, fn func(metadata.Shard)) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ForeachResources", group, fn)
+	m.ctrl.Call(m, "ForeachShards", group, fn)
 }
 
-// ForeachResources indicates an expected call of ForeachResources.
-func (mr *MockResourcesAwareMockRecorder) ForeachResources(group, fn interface{}) *gomock.Call {
+// ForeachShards indicates an expected call of ForeachShards.
+func (mr *MockShardsAwareMockRecorder) ForeachShards(group, fn interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachResources", reflect.TypeOf((*MockResourcesAware)(nil).ForeachResources), group, fn)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachShards", reflect.TypeOf((*MockShardsAware)(nil).ForeachShards), group, fn)
 }
 
-// ForeachWaittingCreateResources mocks base method.
-func (m *MockResourcesAware) ForeachWaittingCreateResources(do func(metadata.Resource)) {
+// ForeachWaittingCreateShards mocks base method.
+func (m *MockShardsAware) ForeachWaittingCreateShards(do func(metadata.Shard)) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ForeachWaittingCreateResources", do)
+	m.ctrl.Call(m, "ForeachWaittingCreateShards", do)
 }
 
-// ForeachWaittingCreateResources indicates an expected call of ForeachWaittingCreateResources.
-func (mr *MockResourcesAwareMockRecorder) ForeachWaittingCreateResources(do interface{}) *gomock.Call {
+// ForeachWaittingCreateShards indicates an expected call of ForeachWaittingCreateShards.
+func (mr *MockShardsAwareMockRecorder) ForeachWaittingCreateShards(do interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachWaittingCreateResources", reflect.TypeOf((*MockResourcesAware)(nil).ForeachWaittingCreateResources), do)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachWaittingCreateShards", reflect.TypeOf((*MockShardsAware)(nil).ForeachWaittingCreateShards), do)
 }
 
-// GetResource mocks base method.
-func (m *MockResourcesAware) GetResource(resourceID uint64) *core.CachedResource {
+// GetShard mocks base method.
+func (m *MockShardsAware) GetShard(resourceID uint64) *core.CachedShard {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetResource", resourceID)
-	ret0, _ := ret[0].(*core.CachedResource)
+	ret := m.ctrl.Call(m, "GetShard", resourceID)
+	ret0, _ := ret[0].(*core.CachedShard)
 	return ret0
 }
 
-// GetResource indicates an expected call of GetResource.
-func (mr *MockResourcesAwareMockRecorder) GetResource(resourceID interface{}) *gomock.Call {
+// GetShard indicates an expected call of GetShard.
+func (mr *MockShardsAwareMockRecorder) GetShard(resourceID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetResource", reflect.TypeOf((*MockResourcesAware)(nil).GetResource), resourceID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShard", reflect.TypeOf((*MockShardsAware)(nil).GetShard), resourceID)
 }
 
 // MockJobProcessor is a mock of JobProcessor interface.
@@ -100,7 +100,7 @@ func (m *MockJobProcessor) EXPECT() *MockJobProcessorMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockJobProcessor) Execute(arg0 []byte, arg1 storage.JobStorage, arg2 config.ResourcesAware) ([]byte, error) {
+func (m *MockJobProcessor) Execute(arg0 []byte, arg1 storage.JobStorage, arg2 config.ShardsAware) ([]byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]byte)
@@ -115,7 +115,7 @@ func (mr *MockJobProcessorMockRecorder) Execute(arg0, arg1, arg2 interface{}) *g
 }
 
 // Remove mocks base method.
-func (m *MockJobProcessor) Remove(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ResourcesAware) {
+func (m *MockJobProcessor) Remove(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ShardsAware) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Remove", arg0, arg1, arg2)
 }
@@ -127,7 +127,7 @@ func (mr *MockJobProcessorMockRecorder) Remove(arg0, arg1, arg2 interface{}) *go
 }
 
 // Start mocks base method.
-func (m *MockJobProcessor) Start(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ResourcesAware) {
+func (m *MockJobProcessor) Start(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ShardsAware) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Start", arg0, arg1, arg2)
 }
@@ -139,7 +139,7 @@ func (mr *MockJobProcessorMockRecorder) Start(arg0, arg1, arg2 interface{}) *gom
 }
 
 // Stop mocks base method.
-func (m *MockJobProcessor) Stop(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ResourcesAware) {
+func (m *MockJobProcessor) Stop(arg0 metapb.Job, arg1 storage.JobStorage, arg2 config.ShardsAware) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Stop", arg0, arg1, arg2)
 }

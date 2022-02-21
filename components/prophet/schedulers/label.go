@@ -105,35 +105,35 @@ func (s *labelScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 
 func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
-	containers := cluster.GetContainers()
-	rejectLeaderContainers := make(map[uint64]struct{})
+	containers := cluster.GetStores()
+	rejectLeaderStores := make(map[uint64]struct{})
 	for _, s := range containers {
 		if cluster.GetOpts().CheckLabelProperty(opt.RejectLeader, s.Meta.Labels()) {
-			rejectLeaderContainers[s.Meta.ID()] = struct{}{}
+			rejectLeaderStores[s.Meta.ID()] = struct{}{}
 		}
 	}
-	if len(rejectLeaderContainers) == 0 {
+	if len(rejectLeaderStores) == 0 {
 		schedulerCounter.WithLabelValues(s.GetName(), "skip").Inc()
 		return nil
 	}
 	cluster.GetLogger().Debug("label scheduler reject leader container list",
-		zap.Any("reject-containers", rejectLeaderContainers))
-	for id := range rejectLeaderContainers {
+		zap.Any("reject-containers", rejectLeaderStores))
+	for id := range rejectLeaderStores {
 		for _, groupKey := range cluster.GetScheduleGroupKeys() {
-			if res := cluster.RandLeaderResource(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
+			if res := cluster.RandLeaderShard(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
 				cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
 					resourceField(res.Meta.ID()))
-				excludeContainers := make(map[uint64]struct{})
+				excludeStores := make(map[uint64]struct{})
 				for _, p := range res.GetDownPeers() {
-					excludeContainers[p.GetReplica().ContainerID] = struct{}{}
+					excludeStores[p.GetReplica().StoreID] = struct{}{}
 				}
 				for _, p := range res.GetPendingPeers() {
-					excludeContainers[p.GetContainerID()] = struct{}{}
+					excludeStores[p.GetStoreID()] = struct{}{}
 				}
-				f := filter.NewExcludedFilter(s.GetName(), nil, excludeContainers)
+				f := filter.NewExcludedFilter(s.GetName(), nil, excludeStores)
 
-				target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
-					FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: LabelName, TransferLeader: true}, f).
+				target := filter.NewCandidates(cluster.GetFollowerStores(res)).
+					FilterTarget(cluster.GetOpts(), &filter.StoreStateFilter{ActionScope: LabelName, TransferLeader: true}, f).
 					RandomPick()
 				if target == nil {
 					cluster.GetLogger().Debug("label scheduler no target found for resource",
