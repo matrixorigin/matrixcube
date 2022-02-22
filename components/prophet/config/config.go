@@ -54,10 +54,10 @@ type Config struct {
 	Replication   ReplicationConfig   `toml:"replication" json:"replication"`
 	LabelProperty LabelPropertyConfig `toml:"label-property" json:"label-property"`
 
-	Handler                         metadata.RoleChangeHandler                                                      `toml:"-" json:"-"`
-	Adapter                         metadata.Adapter                                                                `toml:"-" json:"-"`
-	ShardStateChangedHandler     func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState) `toml:"-" json:"-"`
-	StoreHeartbeatDataProcessor StoreHeartbeatDataProcessor                                                 `toml:"-" json:"-"`
+	Handler                     metadata.RoleChangeHandler                                             `toml:"-" json:"-"`
+	Adapter                     metadata.Adapter                                                       `toml:"-" json:"-"`
+	ShardStateChangedHandler    func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState) `toml:"-" json:"-"`
+	StoreHeartbeatDataProcessor StoreHeartbeatDataProcessor                                            `toml:"-" json:"-"`
 
 	// TODO(fagongzi): the following test-related configurations are moved to a separate struct
 	// Only test can change them.
