@@ -25,7 +25,7 @@ import (
 
 // ShardFit is the result of fitting a resource's peers to rule list.
 // All peers are divided into corresponding rules according to the matching
-// rules, and the remaining Peers are placed in the OrphanPeers list.
+// rules, and the remaining Replicas are placed in the OrphanPeers list.
 type ShardFit struct {
 	RuleFits    []*RuleFit
 	OrphanPeers []metapb.Replica
@@ -83,7 +83,7 @@ type RuleFit struct {
 	Rule *Rule
 	// Peers of the Shard that are divided to this Rule.
 	Peers []metapb.Replica
-	// PeersWithDifferentRole is subset of `Peers`. It contains all Peers that have
+	// PeersWithDifferentRole is subset of `Replicas`. It contains all Peers that have
 	// different Role from configuration (the Role can be migrated to target role
 	// by scheduling).
 	PeersWithDifferentRole []metapb.Replica
@@ -131,14 +131,14 @@ func FitShard(containers StoreSet, res *core.CachedShard, rules []*Rule) *ShardF
 
 type fitWorker struct {
 	containers []*core.CachedStore
-	bestFit    ShardFit // update during execution
-	peers      []*fitPeer  // p.selected is updated during execution.
+	bestFit    ShardFit   // update during execution
+	peers      []*fitPeer // p.selected is updated during execution.
 	rules      []*Rule
 }
 
 func newFitWorker(containers StoreSet, res *core.CachedShard, rules []*Rule) *fitWorker {
 	var peers []*fitPeer
-	for _, p := range res.Meta.Peers() {
+	for _, p := range res.Meta.Replicas() {
 		peers = append(peers, &fitPeer{
 			Replica:   p,
 			container: containers.GetStore(p.StoreID),

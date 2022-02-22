@@ -76,8 +76,8 @@ type Server interface {
 // cluster 1 -> /1/raft, value is metapb.Cluster
 // cluster 2 -> /2/raft
 // For cluster 1
-// container 1 -> /1/raft/s/1, value is metadata.Store
-// resource 1 -> /1/raft/r/1, value is metadata.Shard
+// container 1 -> /1/raft/s/1, value is *metadata.StoreWithRWLock
+// resource 1 -> /1/raft/r/1, value is *metadata.ShardWithRWLock
 type RaftCluster struct {
 	sync.RWMutex
 	ctx context.Context
@@ -110,8 +110,7 @@ type RaftCluster struct {
 
 	ruleManager                 *placement.RuleManager
 	etcdClient                  *clientv3.Client
-	adapter                     metadata.Adapter
-	resourceStateChangedHandler func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState)
+	resourceStateChangedHandler func(res *metadata.ShardWithRWLock, from metapb.ShardState, to metapb.ShardState)
 
 	logger *zap.Logger
 }
@@ -122,8 +121,7 @@ func NewRaftCluster(
 	root string,
 	clusterID uint64,
 	etcdClient *clientv3.Client,
-	adapter metadata.Adapter,
-	resourceStateChangedHandler func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState),
+	resourceStateChangedHandler func(res *metadata.ShardWithRWLock, from metapb.ShardState, to metapb.ShardState),
 	logger *zap.Logger,
 ) *RaftCluster {
 	return &RaftCluster{
@@ -132,7 +130,6 @@ func NewRaftCluster(
 		clusterID:                   clusterID,
 		clusterRoot:                 root,
 		etcdClient:                  etcdClient,
-		adapter:                     adapter,
 		resourceStateChangedHandler: resourceStateChangedHandler,
 		logger:                      log.Adjust(logger).Named("raft-cluster"),
 	}
@@ -204,7 +201,7 @@ func (c *RaftCluster) Start(s Server) error {
 // LoadClusterInfo loads cluster related info.
 func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	start := time.Now()
-	if err := c.storage.LoadStores(batch, func(meta metadata.Store, leaderWeight, resourceWeight float64) {
+	if err := c.storage.LoadStores(batch, func(meta *metadata.StoreWithRWLock, leaderWeight, resourceWeight float64) {
 		c.core.PutStore(core.NewCachedStore(meta,
 			core.SetLeaderWeight(leaderWeight),
 			core.SetShardWeight(resourceWeight)))
@@ -217,7 +214,7 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 
 	// used to load resource from kv storage to cache storage.
 	start = time.Now()
-	if err := c.storage.LoadShards(batch, func(meta metadata.Shard) {
+	if err := c.storage.LoadShards(batch, func(meta *metadata.ShardWithRWLock) {
 		c.core.CheckAndPutShard(core.NewCachedShard(meta, nil))
 	}); err != nil {
 		return nil, err
@@ -495,7 +492,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeDestroyed metadata.Shard
+	var checkMaybeDestroyed *metadata.ShardWithRWLock
 	if origin != nil {
 		checkMaybeDestroyed = origin.Meta
 	}
@@ -530,7 +527,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 		if r.GetConfVer() > o.GetConfVer() {
 			c.logger.Info("resource ConfVer changed",
 				zap.Uint64("resource", res.Meta.ID()),
-				log.ReplicasField("peers", res.Meta.Peers()),
+				log.ReplicasField("peers", res.Meta.Replicas()),
 				zap.Uint64("from", o.GetConfVer()),
 				zap.Uint64("to", r.GetConfVer()))
 			saveKV, saveCache = true, true
@@ -552,7 +549,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 		if !core.SortedPeersEqual(res.GetPendingPeers(), origin.GetPendingPeers()) {
 			saveCache = true
 		}
-		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
+		if len(res.Meta.Replicas()) != len(origin.Meta.Replicas()) {
 			saveKV, saveCache = true, true
 		}
 		if res.Meta.State() != origin.Meta.State() {
@@ -615,11 +612,11 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 
 		// Update related containers.
 		containerMap := make(map[uint64]struct{})
-		for _, p := range res.Meta.Peers() {
+		for _, p := range res.Meta.Replicas() {
 			containerMap[p.GetStoreID()] = struct{}{}
 		}
 		if origin != nil {
-			for _, p := range origin.Meta.Peers() {
+			for _, p := range origin.Meta.Replicas() {
 				containerMap[p.GetStoreID()] = struct{}{}
 			}
 		}
@@ -727,7 +724,7 @@ func (c *RaftCluster) GetShard(resourceID uint64) *core.CachedShard {
 }
 
 // GetMetaShards gets resources from cluster.
-func (c *RaftCluster) GetMetaShards() []metadata.Shard {
+func (c *RaftCluster) GetMetaShards() []*metadata.ShardWithRWLock {
 	return c.core.GetMetaShards()
 }
 
@@ -839,7 +836,7 @@ func (c *RaftCluster) GetCacheCluster() *core.BasicCluster {
 }
 
 // GetMetaStores gets containers from cluster.
-func (c *RaftCluster) GetMetaStores() []metadata.Store {
+func (c *RaftCluster) GetMetaStores() []*metadata.StoreWithRWLock {
 	return c.core.GetMetaStores()
 }
 
@@ -879,7 +876,7 @@ func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Pair
 }
 
 // PutStore puts a container.
-func (c *RaftCluster) PutStore(container metadata.Store) error {
+func (c *RaftCluster) PutStore(container *metadata.StoreWithRWLock) error {
 	if err := c.putStoreImpl(container, false); err != nil {
 		return err
 	}
@@ -889,7 +886,7 @@ func (c *RaftCluster) PutStore(container metadata.Store) error {
 
 // putStoreImpl puts a container.
 // If 'force' is true, then overwrite the container's labels.
-func (c *RaftCluster) putStoreImpl(container metadata.Store, force bool) error {
+func (c *RaftCluster) putStoreImpl(container *metadata.StoreWithRWLock, force bool) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -1116,7 +1113,7 @@ func (c *RaftCluster) putStoreLocked(container *core.CachedStore) error {
 }
 
 func (c *RaftCluster) checkStores() {
-	var offlineStores []metadata.Store
+	var offlineStores []*metadata.StoreWithRWLock
 	var upStoreCount int
 	containers := c.GetStores()
 	groupKeys := c.core.GetScheduleGroupKeys()
@@ -1286,8 +1283,8 @@ func (c *RaftCluster) updateShardsLabelLevelStats(resources []*core.CachedShard)
 }
 
 func (c *RaftCluster) takeShardStoresLocked(res *core.CachedShard) []*core.CachedStore {
-	containers := make([]*core.CachedStore, 0, len(res.Meta.Peers()))
-	for _, p := range res.Meta.Peers() {
+	containers := make([]*core.CachedStore, 0, len(res.Meta.Replicas()))
+	for _, p := range res.Meta.Replicas() {
 		if container := c.core.TakeStore(p.StoreID); container != nil {
 			containers = append(containers, container)
 		}
@@ -1407,7 +1404,7 @@ func (checker *prepareChecker) checkLocked(c *RaftCluster) bool {
 }
 
 func (checker *prepareChecker) collect(res *core.CachedShard) {
-	for _, p := range res.Meta.Peers() {
+	for _, p := range res.Meta.Replicas() {
 		checker.reactiveShards[p.GetStoreID()]++
 	}
 	checker.sum++
@@ -1494,7 +1491,7 @@ func (c *RaftCluster) GetAllStoresLimit() map[uint64]config.StoreLimitConfig {
 }
 
 // AddStoreLimit add a container limit for a given container ID.
-func (c *RaftCluster) AddStoreLimit(container metadata.Store) {
+func (c *RaftCluster) AddStoreLimit(container *metadata.StoreWithRWLock) {
 	containerID := container.ID()
 	cfg := c.opt.GetScheduleConfig().Clone()
 	if _, ok := cfg.StoreLimit[containerID]; ok {
@@ -1604,11 +1601,6 @@ func (c *RaftCluster) DisableJointConsensus() {
 // JointConsensusEnabled always returns true
 func (c *RaftCluster) JointConsensusEnabled() bool {
 	return true
-}
-
-// GetShardFactory resource factory
-func (c *RaftCluster) GetShardFactory() func() metadata.Shard {
-	return c.adapter.NewShard
 }
 
 func (c *RaftCluster) addNotifyLocked(event rpcpb.EventNotify) {

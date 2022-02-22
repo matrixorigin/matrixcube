@@ -922,13 +922,13 @@ type ShardHeartbeatRsp struct {
 	// to prophet regularly, prophet will determine whether this shard
 	// should do ChangePeer or not.
 	// E,g, max peer number is 3, shard A, first only peer 1 in A.
-	// 1. prophet shard state -> Peers (1), ConfVer (1).
+	// 1. prophet shard state -> Replicas (1), ConfVer (1).
 	// 2. Leader peer 1 reports shard state to prophet, prophet finds the
 	// peer number is < 3, so first changes its current shard
-	// state -> Peers (1, 2), ConfVer (1), and returns ChangePeer Adding 2.
-	// 3. Leader does ChangePeer, then reports Peers (1, 2), ConfVer (2),
-	// prophet updates its state -> Peers (1, 2), ConfVer (2).
-	// 4. Leader may report old Peers (1), ConfVer (1) to pd before ConfChange
+	// state -> Replicas (1, 2), ConfVer (1), and returns ChangePeer Adding 2.
+	// 3. Leader does ChangePeer, then reports Replicas (1, 2), ConfVer (2),
+	// prophet updates its state -> Replicas (1, 2), ConfVer (2).
+	// 4. Leader may report old Replicas (1), ConfVer (1) to pd before ConfChange
 	// finished, pd stills responses ChangePeer Adding 2, of course, we must
 	// guarantee the second ChangePeer can't be applied in your application.
 	ConfigChange   *ConfigChange   `protobuf:"bytes,4,opt,name=configChange,proto3" json:"configChange,omitempty"`

@@ -49,7 +49,7 @@ func makeTestStores() StoreSet {
 
 // example: "1111_leader,1234,2111_learner"
 func makeTestShard(def string) *core.CachedShard {
-	var resourceMeta metadata.TestShard
+	var resourceMeta metadata.ShardWithRWLock
 	var leader *metapb.Replica
 	for _, peerDef := range strings.Split(def, ",") {
 		role, idStr := Follower, peerDef
@@ -59,7 +59,7 @@ func makeTestShard(def string) *core.CachedShard {
 		}
 		id, _ := strconv.Atoi(idStr)
 		peer := metapb.Replica{ID: uint64(id), StoreID: uint64(id), Role: role.MetaPeerRole()}
-		resourceMeta.ResPeers = append(resourceMeta.ResPeers, peer)
+		resourceMeta.AppendReplica(peer)
 		if role == Leader {
 			leader = &peer
 		}

@@ -55,16 +55,16 @@ func (s *testOperator) setup() {
 
 func (s *testOperator) newTestShard(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedShard {
 	var (
-		resource = &metadata.TestShard{}
+		resource = &metadata.ShardWithRWLock{}
 		leader   *metapb.Replica
 	)
 	resource.SetID(resourceID)
 	for i := range peers {
 		peer := metapb.Replica{
-			ID:          peers[i][1],
+			ID:      peers[i][1],
 			StoreID: peers[i][0],
 		}
-		resource.ResPeers = append(resource.ResPeers, peer)
+		resource.AppendReplica(peer)
 		if peer.ID == leaderPeer {
 			leader = &peer
 		}
@@ -162,10 +162,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    0,
-				LeaderCount:   0,
-				ShardSize:  50,
-				ShardCount: 1,
+				LeaderSize:  0,
+				LeaderCount: 0,
+				ShardSize:   50,
+				ShardCount:  1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
@@ -175,10 +175,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    -50,
-				LeaderCount:   -1,
-				ShardSize:  0,
-				ShardCount: 0,
+				LeaderSize:  -50,
+				LeaderCount: -1,
+				ShardSize:   0,
+				ShardCount:  0,
 			},
 		},
 		StepCost: nil,
@@ -186,10 +186,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    50,
-				LeaderCount:   1,
-				ShardSize:  50,
-				ShardCount: 1,
+				LeaderSize:  50,
+				LeaderCount: 1,
+				ShardSize:   50,
+				ShardCount:  1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.AddPeer: 1000},
@@ -199,10 +199,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    -50,
-				LeaderCount:   -1,
-				ShardSize:  -50,
-				ShardCount: -1,
+				LeaderSize:  -50,
+				LeaderCount: -1,
+				ShardSize:   -50,
+				ShardCount:  -1,
 			},
 		},
 		StepCost: map[limit.Type]int64{limit.RemovePeer: 1000},
@@ -210,10 +210,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    50,
-				LeaderCount:   1,
-				ShardSize:  50,
-				ShardCount: 1,
+				LeaderSize:  50,
+				LeaderCount: 1,
+				ShardSize:   50,
+				ShardCount:  1,
 			},
 		},
 
@@ -224,10 +224,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    -50,
-				LeaderCount:   -1,
-				ShardSize:  -50,
-				ShardCount: -1,
+				LeaderSize:  -50,
+				LeaderCount: -1,
+				ShardSize:   -50,
+				ShardCount:  -1,
 			},
 		},
 
@@ -236,10 +236,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    50,
-				LeaderCount:   1,
-				ShardSize:  50,
-				ShardCount: 1,
+				LeaderSize:  50,
+				LeaderCount: 1,
+				ShardSize:   50,
+				ShardCount:  1,
 			},
 		},
 
@@ -250,10 +250,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[1], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    -50,
-				LeaderCount:   -2,
-				ShardSize:  -50,
-				ShardCount: -2,
+				LeaderSize:  -50,
+				LeaderCount: -2,
+				ShardSize:   -50,
+				ShardCount:  -2,
 			},
 		},
 
@@ -262,10 +262,10 @@ func TestInfluence(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(*containerOpInfluence[2], StoreInfluence{
 		InfluenceStats: map[string]InfluenceStats{
 			"": {
-				LeaderSize:    50,
-				LeaderCount:   1,
-				ShardSize:  50,
-				ShardCount: 0,
+				LeaderSize:  50,
+				LeaderCount: 1,
+				ShardSize:   50,
+				ShardCount:  0,
 			},
 		},
 

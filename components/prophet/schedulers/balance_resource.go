@@ -257,7 +257,7 @@ func (s *balanceShardScheduler) transferPeer(group string, cluster opt.Cluster, 
 
 	filters := []filter.Filter{
 		filter.NewExcludedFilter(s.GetName(), nil, res.GetStoreIDs()),
-		filter.NewPlacementSafeguard(s.GetName(), cluster, res, source, s.opController.GetCluster().GetShardFactory()),
+		filter.NewPlacementSafeguard(s.GetName(), cluster, res, source),
 		filter.NewSpecialUseFilter(s.GetName()),
 		&filter.StoreStateFilter{ActionScope: s.GetName(), MoveShard: true},
 	}

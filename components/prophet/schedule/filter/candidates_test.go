@@ -15,6 +15,7 @@
 package filter
 
 import (
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -92,7 +93,11 @@ func TestCandidates(t *testing.T) {
 func newCandidates(ids ...uint64) *StoreCandidates {
 	var containers []*core.CachedStore
 	for _, id := range ids {
-		containers = append(containers, core.NewCachedStore(metadata.NewTestStore(id)))
+		containers = append(containers, core.NewCachedStore(&metadata.StoreWithRWLock{
+			Store: metapb.Store{
+				ID: id,
+			},
+		}))
 	}
 	return NewCandidates(containers)
 }

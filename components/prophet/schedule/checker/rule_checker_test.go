@@ -89,14 +89,14 @@ func TestFillReplicasWithRule(t *testing.T) {
 	s.cluster.AddLeaderStore(3, 1)
 
 	res := core.NewTestCachedShard(nil, nil)
-	res.Meta.SetPeers([]metapb.Replica{{ID: 1, StoreID: 1}})
+	res.Meta.SetReplicas([]metapb.Replica{{ID: 1, StoreID: 1}})
 	err := s.rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
-	res.Meta.SetPeers(nil)
+	res.Meta.SetReplicas(nil)
 	err = s.rc.FillReplicas(res, 0)
 	assert.NoError(t, err)
-	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
+	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Replicas()))
 }
 
 func TestAddRulePeerWithIsolationLevel(t *testing.T) {
@@ -418,9 +418,9 @@ func TestIssue3521_PriorityFixOrphanPeer(t *testing.T) {
 	assert.Equal(t, "replace-rule-offline-peer", op.Desc())
 	r := s.cluster.GetShard(1).Clone(core.WithAddPeer(
 		metapb.Replica{
-			ID:          5,
+			ID:      5,
 			StoreID: 4,
-			Role:        metapb.ReplicaRole_Learner,
+			Role:    metapb.ReplicaRole_Learner,
 		}))
 	s.cluster.PutShard(r)
 	op = s.rc.Check(s.cluster.GetShard(1))

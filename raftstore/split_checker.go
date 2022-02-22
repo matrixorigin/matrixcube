@@ -16,6 +16,7 @@ package raftstore
 import (
 	"bytes"
 	"fmt"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"sync"
 
 	"github.com/lni/goutils/syncutil"
@@ -138,7 +139,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 		// in the range of [0, 5) and [5,10) at the point of 5.
 		// Note. After the split is complete, Shard A will no longer be used
 		newShardsCount := len(splitKeys) + 1
-		newIDs, err := pr.prophetClient.AskBatchSplit(NewShardAdapterWithShard(current), uint32(newShardsCount))
+		newIDs, err := pr.prophetClient.AskBatchSplit(metadata.NewShardWithRWLockFromShard(current), uint32(newShardsCount))
 		if err != nil {
 			pr.logger.Error("fail to ask batch split",
 				zap.Error(err))

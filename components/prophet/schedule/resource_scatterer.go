@@ -254,7 +254,7 @@ func (r *ShardScatterer) scatterShard(res *core.CachedShard, group string) *oper
 	ordinaryPeers := make(map[uint64]metapb.Replica)
 	specialPeers := make(map[string]map[uint64]metapb.Replica)
 	// Group peers by the engine of their stores
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		store := r.cluster.GetStore(peer.GetStoreID())
 		if ordinaryFilter.Target(r.cluster.GetOpts(), store) {
 			ordinaryPeers[peer.ID] = peer
@@ -296,7 +296,7 @@ func (r *ShardScatterer) scatterShard(res *core.CachedShard, group string) *oper
 	op, err := operator.CreateScatterShardOperator("scatter-resource", r.cluster, res, targetPeers, targetLeader)
 	if err != nil {
 		scatterCounter.WithLabelValues("fail", "").Inc()
-		for _, peer := range res.Meta.Peers() {
+		for _, peer := range res.Meta.Replicas() {
 			targetPeers[peer.GetStoreID()] = peer
 		}
 		r.Put(targetPeers, res.GetLeader().GetStoreID(), group)
@@ -322,7 +322,7 @@ func (r *ShardScatterer) selectCandidates(res *core.CachedShard, sourceStoreID u
 	filters := []filter.Filter{
 		filter.NewExcludedFilter(r.name, nil, selectedStores),
 	}
-	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceStore, r.cluster.GetShardFactory())
+	scoreGuard := filter.NewPlacementSafeguard(r.name, r.cluster, res, sourceStore)
 	filters = append(filters, context.filters...)
 	filters = append(filters, scoreGuard)
 	stores := r.cluster.GetStores()

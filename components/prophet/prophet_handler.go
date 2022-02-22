@@ -16,6 +16,7 @@ package prophet
 import (
 	"errors"
 	"fmt"
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
@@ -211,7 +212,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 }
 
 func (p *defaultProphet) handlePutStore(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
-	meta := p.cfg.Prophet.Adapter.NewStore()
+	meta := metadata.NewStoreWithRWLock()
 	err := meta.Unmarshal(req.PutStore.Store)
 	if err != nil {
 		return err
@@ -229,7 +230,7 @@ func (p *defaultProphet) handlePutStore(rc *cluster.RaftCluster, req *rpcpb.Prop
 }
 
 func (p *defaultProphet) handleShardHeartbeat(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
-	meta := p.cfg.Prophet.Adapter.NewShard()
+	meta := metadata.NewShardWithRWLock()
 	err := meta.Unmarshal(req.ShardHeartbeat.Shard)
 	if err != nil {
 		return err
@@ -252,7 +253,7 @@ func (p *defaultProphet) handleShardHeartbeat(rc *cluster.RaftCluster, req *rpcp
 	}
 
 	// If the resource peer count is 0, then we should not handle this.
-	if len(res.Meta.Peers()) == 0 {
+	if len(res.Meta.Replicas()) == 0 {
 		err := errors.New("invalid resource, zero resource peer count")
 		p.logger.Warn("invalid resource, zero resource peer count",
 			zap.Uint64("resource", res.Meta.ID()))

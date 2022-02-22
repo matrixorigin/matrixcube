@@ -36,11 +36,11 @@ import (
 func TestStoreHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	n, np := uint64(3), uint64(3)
 	containers := newTestStores(n, "2.0.0")
-	containerMetasAfterHeartbeat := make([]metadata.Store, 0, n)
+	containerMetasAfterHeartbeat := make([]*metadata.StoreWithRWLock, 0, n)
 	resources := newTestShards(n, np)
 
 	for _, res := range resources {
@@ -50,9 +50,9 @@ func TestStoreHeartbeat(t *testing.T) {
 
 	for i, container := range containers {
 		containerStats := &metapb.StoreStats{
-			StoreID:   container.Meta.ID(),
-			Capacity:      100,
-			Available:     50,
+			StoreID:    container.Meta.ID(),
+			Capacity:   100,
+			Available:  50,
 			ShardCount: 1,
 		}
 		assert.Error(t, cluster.HandleStoreHeartbeat(containerStats))
@@ -80,14 +80,14 @@ func TestStoreHeartbeat(t *testing.T) {
 func TestFilterUnhealthyStore(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	containers := newTestStores(3, "2.0.0")
 	for _, container := range containers {
 		containerStats := &metapb.StoreStats{
-			StoreID:   container.Meta.ID(),
-			Capacity:      100,
-			Available:     50,
+			StoreID:    container.Meta.ID(),
+			Capacity:   100,
+			Available:  50,
 			ShardCount: 1,
 		}
 		assert.NoError(t, cluster.putStoreLocked(container))
@@ -97,9 +97,9 @@ func TestFilterUnhealthyStore(t *testing.T) {
 
 	for _, container := range containers {
 		containerStats := &metapb.StoreStats{
-			StoreID:   container.Meta.ID(),
-			Capacity:      100,
-			Available:     50,
+			StoreID:    container.Meta.ID(),
+			Capacity:   100,
+			Available:  50,
 			ShardCount: 1,
 		}
 		newStore := container.Clone(core.TombstoneStore())
@@ -112,7 +112,7 @@ func TestFilterUnhealthyStore(t *testing.T) {
 func TestSetOfflineStore(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	// Put 4 containers.
 	for _, container := range newTestStores(4, "2.0.0") {
@@ -160,7 +160,7 @@ func TestSetOfflineStore(t *testing.T) {
 func TestReuseAddress(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	// Put 4 containers.
 	for _, container := range newTestStores(4, "2.0.0") {
@@ -179,12 +179,14 @@ func TestReuseAddress(t *testing.T) {
 		container := cluster.GetStore(id)
 		containerID := container.Meta.ID() + 1000
 		v, _ := container.Meta.Version()
-		newStore := &metadata.TestStore{
-			CID:         containerID,
-			CAddr:       container.Meta.Addr(),
-			CState:      metapb.StoreState_UP,
-			CVerion:     v,
-			CDeployPath: fmt.Sprintf("test/container%d", containerID),
+		newStore := &metadata.StoreWithRWLock{
+			Store: metapb.Store{
+				ID:         containerID,
+				ClientAddr: container.Meta.Addr(),
+				State:      metapb.StoreState_UP,
+				Version:    v,
+				DeployPath: fmt.Sprintf("test/container%d", containerID),
+			},
 		}
 
 		if container.IsPhysicallyDestroyed() || container.IsTombstone() {
@@ -199,7 +201,7 @@ func TestReuseAddress(t *testing.T) {
 func TestUpStore(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 	// Put 3 stores.
 	for _, container := range newTestStores(3, "2.0.0") {
 		assert.NoError(t, cluster.PutStore(container.Meta))
@@ -231,7 +233,7 @@ func TestUpStore(t *testing.T) {
 func TestShardHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	n, np := uint64(3), uint64(3)
 
@@ -285,7 +287,7 @@ func TestShardHeartbeat(t *testing.T) {
 		// Add a down peer.
 		res = res.Clone(core.WithDownPeers([]metapb.ReplicaStats{
 			{
-				Replica:     res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))],
+				Replica:     res.Meta.Replicas()[rand.Intn(len(res.Meta.Replicas()))],
 				DownSeconds: 42,
 			},
 		}))
@@ -294,7 +296,7 @@ func TestShardHeartbeat(t *testing.T) {
 		checkShards(t, cluster.core.Shards, resources[:i+1])
 
 		// Add a pending peer.
-		res = res.Clone(core.WithPendingPeers([]metapb.Replica{res.Meta.Peers()[rand.Intn(len(res.Meta.Peers()))]}))
+		res = res.Clone(core.WithPendingPeers([]metapb.Replica{res.Meta.Replicas()[rand.Intn(len(res.Meta.Replicas()))]}))
 		resources[i] = res
 		assert.NoError(t, cluster.processShardHeartbeat(res))
 		checkShards(t, cluster.core.Shards, resources[:i+1])
@@ -313,7 +315,7 @@ func TestShardHeartbeat(t *testing.T) {
 
 		// Remove peers.
 		origin = res
-		res = origin.Clone(core.SetPeers(res.Meta.Peers()[:1]))
+		res = origin.Clone(core.SetPeers(res.Meta.Replicas()[:1]))
 		resources[i] = res
 		assert.NoError(t, cluster.processShardHeartbeat(res))
 		checkShards(t, cluster.core.Shards, resources[:i+1])
@@ -326,7 +328,7 @@ func TestShardHeartbeat(t *testing.T) {
 		checkShardsKV(t, cluster.storage, resources[:i+1])
 
 		// Change leader.
-		res = res.Clone(core.WithLeader(&res.Meta.Peers()[1]))
+		res = res.Clone(core.WithLeader(&res.Meta.Replicas()[1]))
 		resources[i] = res
 		assert.NoError(t, cluster.processShardHeartbeat(res))
 		checkShards(t, cluster.core.Shards, resources[:i+1])
@@ -370,7 +372,7 @@ func TestShardHeartbeat(t *testing.T) {
 
 	resourceCounts := make(map[uint64]int)
 	for _, res := range resources {
-		for _, peer := range res.Meta.Peers() {
+		for _, peer := range res.Meta.Replicas() {
 			resourceCounts[peer.StoreID]++
 		}
 	}
@@ -457,7 +459,7 @@ func TestShardHeartbeat(t *testing.T) {
 func TestShardFlowChanged(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 	resources := []*core.CachedShard{core.NewTestCachedShard([]byte{}, []byte{})}
 	processShards := func(resources []*core.CachedShard) {
 		for _, r := range resources {
@@ -483,7 +485,7 @@ func TestShardFlowChanged(t *testing.T) {
 func TestConcurrentShardHeartbeat(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	resources := []*core.CachedShard{core.NewTestCachedShard([]byte{}, []byte{})}
 	resources = core.SplitTestShards(resources)
@@ -509,10 +511,14 @@ func TestConcurrentShardHeartbeat(t *testing.T) {
 func TestHeartbeatSplit(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	// 1: [nil, nil)
-	resource1 := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResEpoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
+	resource1 := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:    1,
+			Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		}}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource1))
 	checkShard(t, cluster.GetShardByKey(0, []byte("foo")), resource1)
 
@@ -521,7 +527,12 @@ func TestHeartbeatSplit(t *testing.T) {
 		core.WithStartKey([]byte("m")),
 		core.WithIncVersion(),
 	)
-	resource2 := core.NewCachedShard(&metadata.TestShard{ResID: 2, End: []byte("m"), ResEpoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
+	resource2 := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:    2,
+			End:   []byte("m"),
+			Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		}}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource2))
 	checkShard(t, cluster.GetShardByKey(0, []byte("a")), resource2)
 	// [m, nil) is missing before r1's heartbeat.
@@ -535,7 +546,13 @@ func TestHeartbeatSplit(t *testing.T) {
 		core.WithStartKey([]byte("q")),
 		core.WithIncVersion(),
 	)
-	resource3 := core.NewCachedShard(&metadata.TestShard{ResID: 3, Start: []byte("m"), End: []byte("q"), ResEpoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
+	resource3 := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:    3,
+			Start: []byte("m"),
+			End:   []byte("q"),
+			Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		}}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource1))
 	checkShard(t, cluster.GetShardByKey(0, []byte("z")), resource1)
 	checkShard(t, cluster.GetShardByKey(0, []byte("a")), resource2)
@@ -548,7 +565,7 @@ func TestHeartbeatSplit(t *testing.T) {
 func TestShardSplitAndMerge(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	resources := []*core.CachedShard{core.NewTestCachedShard([]byte{}, []byte{})}
 
@@ -588,26 +605,34 @@ func TestUpdateStorePendingPeerCount(t *testing.T) {
 	}
 	peers := []metapb.Replica{
 		{
-			ID:          2,
+			ID:      2,
 			StoreID: 1,
 		},
 		{
-			ID:          3,
+			ID:      3,
 			StoreID: 2,
 		},
 		{
-			ID:          3,
+			ID:      3,
 			StoreID: 3,
 		},
 		{
-			ID:          4,
+			ID:      4,
 			StoreID: 4,
 		},
 	}
-	origin := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: peers[:3]}, &peers[0], core.WithPendingPeers(peers[1:3]))
+	origin := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:       1,
+			Replicas: peers[:3],
+		}}, &peers[0], core.WithPendingPeers(peers[1:3]))
 	assert.NoError(t, tc.processShardHeartbeat(origin))
 	checkPendingPeerCount(t, []int{0, 1, 1, 0}, tc.RaftCluster)
-	newShard := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: peers[1:]}, &peers[1], core.WithPendingPeers(peers[3:4]))
+	newShard := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:       1,
+			Replicas: peers[1:],
+		}}, &peers[1], core.WithPendingPeers(peers[3:4]))
 	assert.NoError(t, tc.processShardHeartbeat(newShard))
 	checkPendingPeerCount(t, []int{0, 0, 0, 1}, tc.RaftCluster)
 }
@@ -647,7 +672,7 @@ func TestShards(t *testing.T) {
 	resources := newTestShards(n, np)
 	_, opts, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	tc := newTestRaftCluster(opts, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	tc := newTestRaftCluster(opts, storage.NewTestStorage(), core.NewBasicCluster(nil))
 	cache := tc.core.Shards
 
 	for i := uint64(0); i < n; i++ {
@@ -669,7 +694,7 @@ func TestShards(t *testing.T) {
 			checkShard(t, cache.SearchPrevShard(0, resKey), resources[i-1])
 		}
 		// Update leader to peer np-1.
-		newShard := res.Clone(core.WithLeader(&res.Meta.Peers()[np-1]))
+		newShard := res.Clone(core.WithLeader(&res.Meta.Replicas()[np-1]))
 		resources[i] = newShard
 		cache.SetShard(newShard)
 		checkShard(t, cache.GetShard(i), newShard)
@@ -682,7 +707,7 @@ func TestShards(t *testing.T) {
 		checkShards(t, cache, resources[0:i])
 
 		// Reset leader to peer 0.
-		newShard = res.Clone(core.WithLeader(&res.Meta.Peers()[0]))
+		newShard = res.Clone(core.WithLeader(&res.Meta.Replicas()[0]))
 		resources[i] = newShard
 		cache.AddShard(newShard)
 		checkShard(t, cache.GetShard(i), newShard)
@@ -711,7 +736,7 @@ func TestShards(t *testing.T) {
 	for i := uint64(0); i < n; i++ {
 		for j := 0; j < cache.GetStoreLeaderCount("", i); j++ {
 			res := tc.RandLeaderShard("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthShard(tc))
-			newRes := res.Clone(core.WithPendingPeers(res.Meta.Peers()))
+			newRes := res.Clone(core.WithPendingPeers(res.Meta.Replicas()))
 			cache.SetShard(newRes)
 		}
 		assert.Nil(t, tc.RandLeaderShard("", i, []core.KeyRange{core.NewKeyRange(0, "", "")}, opt.HealthShard(tc)))
@@ -729,17 +754,17 @@ func TestCheckStaleShard(t *testing.T) {
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 
 	// (1, 0) v.s. (0, 0)
-	resource.Meta.(*metadata.TestShard).ResEpoch.Version++
+	resource.Meta.Shard.Epoch.Version++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 
 	// (1, 1) v.s. (0, 0)
-	resource.Meta.(*metadata.TestShard).ResEpoch.Version++
+	resource.Meta.Shard.Epoch.Version++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 
 	// (0, 1) v.s. (0, 0)
-	resource.Meta.(*metadata.TestShard).ResEpoch.Version++
+	resource.Meta.Shard.Epoch.Version++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 }
@@ -760,7 +785,7 @@ func newTestScheduleConfig() (*config.ScheduleConfig, *config.PersistOptions, er
 
 func newTestCluster(opt *config.PersistOptions) *testCluster {
 	storage := storage.NewTestStorage()
-	rc := newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestShardFactory, nil))
+	rc := newTestRaftCluster(opt, storage, core.NewBasicCluster(nil))
 	rc.ruleManager = placement.NewRuleManager(storage, rc, nil)
 	if opt.IsPlacementRulesEnabled() {
 		err := rc.ruleManager.Initialize(opt.GetMaxReplicas(), opt.GetLocationLabels())
@@ -773,18 +798,20 @@ func newTestCluster(opt *config.PersistOptions) *testCluster {
 }
 
 func newTestRaftCluster(opt *config.PersistOptions, storage storage.Storage, basicCluster *core.BasicCluster) *RaftCluster {
-	rc := &RaftCluster{ctx: context.TODO(), adapter: metadata.NewTestAdapter(), logger: log.Adjust(nil)}
+	rc := &RaftCluster{ctx: context.TODO(), logger: log.Adjust(nil)}
 	rc.InitCluster(opt, storage, basicCluster)
 	basicCluster.ScheduleGroupKeys[""] = struct{}{}
 	return rc
 }
 
-func newTestShardMeta(resourceID uint64) metadata.Shard {
-	return &metadata.TestShard{
-		ResID:    resourceID,
-		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
-		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
-		ResEpoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+func newTestShardMeta(resourceID uint64) *metadata.ShardWithRWLock {
+	return &metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID:    resourceID,
+			Start: []byte(fmt.Sprintf("%20d", resourceID)),
+			End:   []byte(fmt.Sprintf("%20d", resourceID+1)),
+			Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		},
 	}
 }
 
@@ -792,12 +819,14 @@ func newTestShardMeta(resourceID uint64) metadata.Shard {
 func newTestStores(n uint64, version string) []*core.CachedStore {
 	containers := make([]*core.CachedStore, 0, n)
 	for i := uint64(1); i <= n; i++ {
-		container := &metadata.TestStore{
-			CID:         i,
-			CAddr:       fmt.Sprintf("127.0.0.1:%d", i),
-			CState:      metapb.StoreState_UP,
-			CVerion:     version,
-			CDeployPath: fmt.Sprintf("test/container%d", i),
+		container := &metadata.StoreWithRWLock{
+			Store: metapb.Store{
+				ID:         i,
+				ClientAddr: fmt.Sprintf("127.0.0.1:%d", i),
+				State:      metapb.StoreState_UP,
+				Version:    version,
+				DeployPath: fmt.Sprintf("test/container%d", i),
+			},
 		}
 		containers = append(containers, core.NewCachedStore(container))
 	}
@@ -817,12 +846,14 @@ func newTestShards(n, np uint64) []*core.CachedShard {
 			peer.StoreID = (i + j) % n
 			peers = append(peers, peer)
 		}
-		res := &metadata.TestShard{
-			ResID:    i,
-			ResPeers: peers,
-			Start:    []byte{byte(i)},
-			End:      []byte{byte(i + 1)},
-			ResEpoch: metapb.ShardEpoch{ConfVer: 2, Version: 2},
+		res := &metadata.ShardWithRWLock{
+			Shard: metapb.Shard{
+				ID:       i,
+				Replicas: peers,
+				Start:    []byte{byte(i)},
+				End:      []byte{byte(i + 1)},
+				Epoch:    metapb.ShardEpoch{ConfVer: 2, Version: 2},
+			},
 		}
 		resources = append(resources, core.NewCachedShard(res, &peers[0]))
 	}
@@ -861,7 +892,7 @@ func checkShard(t *testing.T, a *core.CachedShard, b *core.CachedShard) {
 	assert.True(t, reflect.DeepEqual(a, b))
 	assert.True(t, reflect.DeepEqual(a.Meta, b.Meta))
 	assert.True(t, reflect.DeepEqual(a.GetLeader(), b.GetLeader()))
-	assert.True(t, reflect.DeepEqual(a.Meta.Peers(), b.Meta.Peers()))
+	assert.True(t, reflect.DeepEqual(a.Meta.Replicas(), b.Meta.Replicas()))
 	if len(a.GetDownPeers()) > 0 || len(b.GetDownPeers()) > 0 {
 		assert.True(t, reflect.DeepEqual(a.GetDownPeers(), b.GetDownPeers()))
 	}
@@ -886,7 +917,7 @@ func checkShards(t *testing.T, cache *core.CachedShards, resources []*core.Cache
 	leaderCount := make(map[uint64]int)
 	followerCount := make(map[uint64]int)
 	for _, res := range resources {
-		for _, peer := range res.Meta.Peers() {
+		for _, peer := range res.Meta.Replicas() {
 			resourceCount[peer.StoreID]++
 			if peer.ID == res.GetLeader().ID {
 				leaderCount[peer.StoreID]++
@@ -924,7 +955,7 @@ func checkPendingPeerCount(t *testing.T, expect []int, cluster *RaftCluster) {
 	}
 }
 
-func checkStaleShard(origin, res metadata.Shard) error {
+func checkStaleShard(origin, res *metadata.ShardWithRWLock) error {
 	o := origin.Epoch()
 	e := res.Epoch()
 

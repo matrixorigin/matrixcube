@@ -60,7 +60,11 @@ func TestDistinctScore(t *testing.T) {
 }
 
 func TestCloneStore(t *testing.T) {
-	meta := &metadata.TestStore{CID: 1, CAddr: "mock://s-1", CLabels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}}
+	meta := &metadata.StoreWithRWLock{
+		Store: metapb.Store{
+			ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
+		},
+	}
 	container := NewCachedStore(meta)
 	start := time.Now()
 	wg := sync.WaitGroup{}
@@ -96,7 +100,7 @@ func TestShardScore(t *testing.T) {
 	stats.UsedSize = 0
 
 	container := NewCachedStore(
-		&metadata.TestStore{CID: 1},
+		metadata.NewTestStore(1),
 		SetStoreStats(stats),
 		SetShardSize("", 1),
 	)

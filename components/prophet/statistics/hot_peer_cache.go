@@ -53,15 +53,15 @@ var (
 
 // hotPeerCache saves the hot peer's statistics.
 type hotPeerCache struct {
-	kind                 FlowKind
-	peersOfStore     map[uint64]*TopN               // containerID -> hot peers
+	kind              FlowKind
+	peersOfStore      map[uint64]*TopN               // containerID -> hot peers
 	containersOfShard map[uint64]map[uint64]struct{} // resourceID -> containerIDs
 }
 
 func newHotStoresStats(kind FlowKind) *hotPeerCache {
 	return &hotPeerCache{
-		kind:                 kind,
-		peersOfStore:     make(map[uint64]*TopN),
+		kind:              kind,
+		peersOfStore:      make(map[uint64]*TopN),
 		containersOfShard: make(map[uint64]map[uint64]struct{}),
 	}
 }
@@ -141,7 +141,7 @@ func (f *hotPeerCache) CheckShardFlow(res *core.CachedShard) (ret []*HotPeerStat
 	// which ensures it will hit the cache if moving peer or transfer leader occurs with the same replica number
 
 	var peers []uint64
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		peers = append(peers, peer.StoreID)
 	}
 
@@ -163,8 +163,8 @@ func (f *hotPeerCache) CheckShardFlow(res *core.CachedShard) (ret []*HotPeerStat
 		thresholds := f.calcHotThresholds(containerID)
 
 		newItem := &HotPeerStat{
-			StoreID:        containerID,
-			ShardID:         res.Meta.ID(),
+			StoreID:            containerID,
+			ShardID:            res.Meta.ID(),
 			Kind:               f.kind,
 			ByteRate:           byteRate,
 			KeyRate:            keyRate,
@@ -280,7 +280,7 @@ func (f *hotPeerCache) calcHotThresholds(containerID uint64) [dimLen]float64 {
 // gets the containerIDs, including old resource and new resource
 func (f *hotPeerCache) getAllStoreIDs(res *core.CachedShard) []uint64 {
 	containerIDs := make(map[uint64]struct{})
-	ret := make([]uint64, 0, len(res.Meta.Peers()))
+	ret := make([]uint64, 0, len(res.Meta.Replicas()))
 	// old containers
 	ids, ok := f.containersOfShard[res.Meta.ID()]
 	if ok {
@@ -291,7 +291,7 @@ func (f *hotPeerCache) getAllStoreIDs(res *core.CachedShard) []uint64 {
 	}
 
 	// new containers
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		// ReadFlow no need consider the followers.
 		if f.kind == ReadFlow && peer.StoreID != res.GetLeader().GetStoreID() {
 			continue
@@ -345,7 +345,7 @@ func (f *hotPeerCache) justTransferLeader(res *core.CachedShard) bool {
 }
 
 func (f *hotPeerCache) isShardHotWithAnyPeers(res *core.CachedShard, hotDegree int) bool {
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		if f.isShardHotWithPeer(res, &peer, hotDegree) {
 			return true
 		}

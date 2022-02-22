@@ -480,7 +480,7 @@ func TestWithPendingInfluence(t *testing.T) {
 		tc.AddShardStore(4, 20)
 
 		updateStore := tc.UpdateStorageWrittenBytes // byte rate
-		if i == 1 {                                     // key rate
+		if i == 1 {                                 // key rate
 			updateStore = tc.UpdateStorageWrittenKeys
 		}
 		updateStore(1, 8*MB*statistics.StoreHeartBeatReportInterval)
@@ -1070,7 +1070,8 @@ func addCachedShard(tc *mockcluster.Cluster, rwTy rwType, resources []testCached
 
 func newTestresource(id uint64) *core.CachedShard {
 	peers := []metapb.Replica{{ID: id*100 + 1, StoreID: 1}, {ID: id*100 + 2, StoreID: 2}, {ID: id*100 + 3, StoreID: 3}}
-	return core.NewCachedShard(&metadata.TestShard{ResID: id, ResPeers: peers}, &peers[0])
+	return core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{ID: id, Replicas: peers}}, &peers[0])
 }
 
 func TestCheckShardFlow(t *testing.T) {

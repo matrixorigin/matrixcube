@@ -30,7 +30,7 @@ func TestIsShardHealthy(t *testing.T) {
 		var peers []metapb.Replica
 		for _, id := range ids {
 			p := metapb.Replica{
-				ID:          id,
+				ID:      id,
 				StoreID: id,
 			}
 			peers = append(peers, p)
@@ -39,7 +39,7 @@ func TestIsShardHealthy(t *testing.T) {
 	}
 
 	resource := func(peers []metapb.Replica, opts ...core.ShardCreateOption) *core.CachedShard {
-		return core.NewCachedShard(&metadata.TestShard{ResPeers: peers}, &peers[0], opts...)
+		return core.NewCachedShard(&metadata.ShardWithRWLock{Shard: metapb.Shard{Replicas: peers}}, &peers[0], opts...)
 	}
 
 	type testCase struct {

@@ -231,8 +231,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 	}
 	targets := cluster.GetFollowerStores(resource)
 	finalFilters := l.filters
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source,
-		l.opController.GetCluster().GetShardFactory()); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
 	targets = filter.SelectTargetStores(targets, finalFilters, cluster.GetOpts())
@@ -287,8 +286,7 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 		target,
 	}
 	finalFilters := l.filters
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source,
-		l.opController.GetCluster().GetShardFactory()); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
 	targets = filter.SelectTargetStores(targets, finalFilters, cluster.GetOpts())

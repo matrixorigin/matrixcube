@@ -21,12 +21,6 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-var (
-	testShardFactory = func() metadata.Shard {
-		return &metadata.TestShard{}
-	}
-)
-
 // SplitTestShards split a set of CachedShard by the middle of resourceKey
 func SplitTestShards(resources []*CachedShard) []*CachedShard {
 	results := make([]*CachedShard, 0, len(resources)*2)
@@ -71,11 +65,15 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 
 		leftStart, _ := left.Meta.Range()
 		_, rightEnd := right.Meta.Range()
-		res := &CachedShard{Meta: &metadata.TestShard{
-			ResID: left.Meta.ID() + uint64(len(resources)),
-			Start: leftStart,
-			End:   rightEnd,
-		}}
+		res := &CachedShard{
+			Meta: &metadata.ShardWithRWLock{
+				Shard: metapb.Shard{
+					ID:    left.Meta.ID() + uint64(len(resources)),
+					Start: leftStart,
+					End:   rightEnd,
+				},
+			},
+		}
 		if left.Meta.Epoch().Version > right.Meta.Epoch().Version {
 			res.Meta.SetEpoch(left.Meta.Epoch())
 		} else {
@@ -92,11 +90,15 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 
 // NewTestCachedShard creates a CachedShard for test.
 func NewTestCachedShard(start, end []byte) *CachedShard {
-	return &CachedShard{Meta: &metadata.TestShard{
-		Start:    start,
-		End:      end,
-		ResEpoch: metapb.ShardEpoch{},
-	}}
+	return &CachedShard{
+		Meta: &metadata.ShardWithRWLock{
+			Shard: metapb.Shard{
+				Start: start,
+				End:   end,
+				Epoch: metapb.ShardEpoch{},
+			},
+		},
+	}
 }
 
 // NewTestStoreInfoWithLabel is create a container with specified labels.
@@ -112,9 +114,11 @@ func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]s
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metadata.TestStore{
-			CID:     id,
-			CLabels: containerLabels,
+		&metadata.StoreWithRWLock{
+			Store: metapb.Store{
+				ID:     id,
+				Labels: containerLabels,
+			},
 		},
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
@@ -129,9 +133,7 @@ func NewTestCachedStoreWithSizeCount(id uint64, resourceCount, leaderCount int, 
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metadata.TestStore{
-			CID: id,
-		},
+		metadata.NewTestStore(id),
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
 		SetShardSize("", resourceSize),
