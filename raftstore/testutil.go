@@ -1040,7 +1040,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 	cfg.Prophet.AdvertiseRPCAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsRPCAddr[node])
 	cfg.Prophet.Schedule.EnableJointConsensus = true
 	if node < 3 {
-		cfg.Prophet.StorageNode = true
+		cfg.Prophet.ProphetNode = true
 		if node != 0 {
 			cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0])
 		}
@@ -1059,7 +1059,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 			cfg.Prophet.EmbedEtcd.InitialCluster = cfg.Prophet.EmbedEtcd.InitialCluster[:len(cfg.Prophet.EmbedEtcd.InitialCluster)-1]
 		}
 	} else {
-		cfg.Prophet.StorageNode = false
+		cfg.Prophet.ProphetNode = false
 		cfg.Prophet.ExternalEtcd = []string{
 			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0]),
 			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[1]),

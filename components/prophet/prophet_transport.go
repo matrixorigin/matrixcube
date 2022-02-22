@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// startListen launch RPC service
 func (p *defaultProphet) startListen() {
 	encoder, decoder := codec.NewServerCodec(10 * buf.MB)
 	app, err := goetty.NewTCPApplication(

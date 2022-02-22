@@ -17,13 +17,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func (p *defaultProphet) startLeaderLoop() {
+// startLeaderLoop start election loop
+func (p *defaultProphet) startElectionLoop() {
 	p.member.ElectionLoop()
-	p.logger.Info("lead loop started")
+	p.logger.Info("election loop started")
 	<-p.completeC
 }
 
-func (p *defaultProphet) enableLeader() error {
+func (p *defaultProphet) becomeLeader() error {
 	p.logger.Info("********become leader now********")
 
 	if err := p.createRaftCluster(); err != nil {
@@ -40,7 +41,7 @@ func (p *defaultProphet) enableLeader() error {
 	return nil
 }
 
-func (p *defaultProphet) disableLeader() error {
+func (p *defaultProphet) becomeFollower() error {
 	p.logger.Info("********become follower now********")
 
 	p.initClient()

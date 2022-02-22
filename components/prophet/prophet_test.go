@@ -62,7 +62,7 @@ func TestClusterStart(t *testing.T) {
 
 func newTestSingleProphet(t *testing.T, adjustFunc func(*pconfig.Config)) Prophet {
 	c := pconfig.NewConfig()
-	c.StorageNode = true
+	c.ProphetNode = true
 	if adjustFunc != nil {
 		adjustFunc(c)
 	}
@@ -85,7 +85,7 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)
 		c.DataDir = fmt.Sprintf("/tmp/prophet/%s", c.Name)
 		c.RPCAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
 		if i < 3 {
-			c.StorageNode = true
+			c.ProphetNode = true
 			c.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:2000%d", i)
 			c.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:3000%d", i)
 			c.EmbedEtcd.TickInterval.Duration = time.Millisecond * 50

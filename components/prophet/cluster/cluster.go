@@ -93,16 +93,16 @@ type RaftCluster struct {
 	storage storage.Storage
 	limiter *StoreLimiter
 
-	prepareChecker  *prepareChecker
-	changedEvents   chan rpcpb.EventNotify
-	createShardC chan struct{}
+	prepareChecker *prepareChecker
+	changedEvents  chan rpcpb.EventNotify
+	createShardC   chan struct{}
 
 	labelLevelStats *statistics.LabelStatistics
 	resourceStats   *statistics.ShardStatistics
 	hotStat         *statistics.HotStat
 
 	coordinator      *coordinator
-	suspectShards *cache.TTLUint64 // suspectShards are resources that may need fix
+	suspectShards    *cache.TTLUint64 // suspectShards are resources that may need fix
 	suspectKeyRanges *cache.TTLString // suspect key-range resources that may need fix
 
 	wg   sync.WaitGroup
@@ -117,13 +117,15 @@ type RaftCluster struct {
 }
 
 // NewRaftCluster create a new cluster.
-func NewRaftCluster(ctx context.Context,
+func NewRaftCluster(
+	ctx context.Context,
 	root string,
 	clusterID uint64,
 	etcdClient *clientv3.Client,
 	adapter metadata.Adapter,
 	resourceStateChangedHandler func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState),
-	logger *zap.Logger) *RaftCluster {
+	logger *zap.Logger,
+) *RaftCluster {
 	return &RaftCluster{
 		ctx:                         ctx,
 		running:                     false,
@@ -1364,14 +1366,14 @@ func (c *RaftCluster) FitShard(res *core.CachedShard) *placement.ShardFit {
 
 type prepareChecker struct {
 	reactiveShards map[uint64]int
-	start             time.Time
-	sum               int
-	isPrepared        bool
+	start          time.Time
+	sum            int
+	isPrepared     bool
 }
 
 func newPrepareChecker() *prepareChecker {
 	return &prepareChecker{
-		start:             time.Now(),
+		start:          time.Now(),
 		reactiveShards: make(map[uint64]int),
 	}
 }
