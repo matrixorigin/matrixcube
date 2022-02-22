@@ -178,14 +178,13 @@ func (p *defaultProphet) Start() {
 	p.logger.Info("member init completed")
 
 	p.storage = storage.NewStorage(rootPath,
-		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
-		p.cfg.Prophet.Adapter)
+		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()))
 	p.logger.Info("storage created")
 
-	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewShard, p.logger)
+	p.basicCluster = core.NewBasicCluster(p.logger)
 	p.logger.Info("basic cluster created")
 
-	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
+	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(),
 		p.cfg.Prophet.ShardStateChangedHandler, p.logger)
 	p.logger.Info("raft cluster created")
 

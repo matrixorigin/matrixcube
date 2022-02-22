@@ -68,7 +68,7 @@ func (mr *MockClientMockRecorder) AllocID() *gomock.Call {
 }
 
 // AskBatchSplit mocks base method.
-func (m *MockClient) AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error) {
+func (m *MockClient) AskBatchSplit(res *metadata.ShardWithRWLock, count uint32) ([]rpcpb.SplitID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AskBatchSplit", res, count)
 	ret0, _ := ret[0].([]rpcpb.SplitID)
@@ -83,7 +83,7 @@ func (mr *MockClientMockRecorder) AskBatchSplit(res, count interface{}) *gomock.
 }
 
 // AsyncAddShards mocks base method.
-func (m *MockClient) AsyncAddShards(resources ...metadata.Shard) error {
+func (m *MockClient) AsyncAddShards(resources ...*metadata.ShardWithRWLock) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range resources {
@@ -101,7 +101,7 @@ func (mr *MockClientMockRecorder) AsyncAddShards(resources ...interface{}) *gomo
 }
 
 // AsyncAddShardsWithLeastPeers mocks base method.
-func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error {
+func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []*metadata.ShardWithRWLock, leastPeers []int) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncAddShardsWithLeastPeers", resources, leastPeers)
 	ret0, _ := ret[0].(error)
@@ -236,10 +236,10 @@ func (mr *MockClientMockRecorder) GetAppliedRules(id interface{}) *gomock.Call {
 }
 
 // GetStore mocks base method.
-func (m *MockClient) GetStore(containerID uint64) (metadata.Store, error) {
+func (m *MockClient) GetStore(containerID uint64) (*metadata.StoreWithRWLock, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStore", containerID)
-	ret0, _ := ret[0].(metadata.Store)
+	ret0, _ := ret[0].(*metadata.StoreWithRWLock)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -311,7 +311,7 @@ func (mr *MockClientMockRecorder) NewWatcher(flag interface{}) *gomock.Call {
 }
 
 // PutStore mocks base method.
-func (m *MockClient) PutStore(container metadata.Store) error {
+func (m *MockClient) PutStore(container *metadata.StoreWithRWLock) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PutStore", container)
 	ret0, _ := ret[0].(error)
@@ -368,7 +368,7 @@ func (mr *MockClientMockRecorder) ReportDestroyed(id, replicaID interface{}) *go
 }
 
 // ShardHeartbeat mocks base method.
-func (m *MockClient) ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error {
+func (m *MockClient) ShardHeartbeat(meta *metadata.ShardWithRWLock, hb rpcpb.ShardHeartbeatReq) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardHeartbeat", meta, hb)
 	ret0, _ := ret[0].(error)

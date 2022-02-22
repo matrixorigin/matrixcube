@@ -36,10 +36,10 @@ func TestCreateShards(t *testing.T) {
 
 	cluster.coordinator = co
 
-	var changedRes metadata.Shard
+	var changedRes *metadata.ShardWithRWLock
 	var changedResFrom metapb.ShardState
 	var changedResTo metapb.ShardState
-	cluster.resourceStateChangedHandler = func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState) {
+	cluster.resourceStateChangedHandler = func(res *metadata.ShardWithRWLock, from metapb.ShardState, to metapb.ShardState) {
 		changedRes = res
 		changedResFrom = from
 		changedResTo = to
@@ -85,7 +85,7 @@ func TestCreateShards(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, metapb.ShardState_Creating, v.State())
 
-		assert.NoError(t, cluster.HandleShardHeartbeat(core.NewCachedShard(res, &res.Peers()[0])))
+		assert.NoError(t, cluster.HandleShardHeartbeat(core.NewCachedShard(res, &res.Replicas()[0])))
 		assert.Equal(t, 1, cluster.GetShardCount())
 		assert.Equal(t, 0, len(cluster.core.WaittingCreateShards))
 		assert.NotNil(t, changedRes)
@@ -117,7 +117,7 @@ func TestCreateShardsRestart(t *testing.T) {
 	assert.NoError(t, err)
 
 	// restart
-	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(metadata.TestShardFactory, nil))
+	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(nil))
 	tc.LoadClusterInfo()
 	assert.Equal(t, 1, len(tc.core.WaittingCreateShards))
 	tc.doNotifyCreateShards()
@@ -129,7 +129,7 @@ func TestCreateShardsRestart(t *testing.T) {
 func TestRemoveShards(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 	cache := cluster.core.Shards
 	storage := cluster.storage
 	nc := cluster.ChangedEventNotifier()
@@ -170,7 +170,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.Equal(t, metapb.ShardState_Running, cache.GetShard(n-1).Meta.State())
 
 	cnt := uint64(0)
-	storage.LoadShards(10, func(r metadata.Shard) {
+	storage.LoadShards(10, func(r *metadata.ShardWithRWLock) {
 		if r.ID() < n-1 {
 			assert.Equal(t, metapb.ShardState_Destroyed, r.State())
 		} else {
@@ -181,7 +181,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.Equal(t, n-1, cnt)
 
 	// restart
-	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster = newTestRaftCluster(opt, storage, core.NewBasicCluster(nil))
 	cluster.LoadClusterInfo()
 	cache = cluster.core.Shards
 	assert.Equal(t, uint64(len(removed)), cluster.core.DestroyedShards.GetCardinality())
@@ -211,7 +211,7 @@ func TestShardHeartbeatAtRemovedState(t *testing.T) {
 	})
 
 	stream := mockhbstream.NewHeartbeatStream()
-	co.hbStreams.BindStream(resources[1].Meta.Peers()[0].StoreID, stream)
+	co.hbStreams.BindStream(resources[1].Meta.Replicas()[0].StoreID, stream)
 	assert.NoError(t, cluster.HandleShardHeartbeat(resources[1]))
 	rsp := stream.Recv()
 	assert.NotNil(t, rsp)
@@ -221,7 +221,7 @@ func TestShardHeartbeatAtRemovedState(t *testing.T) {
 func TestHandleCheckShardState(t *testing.T) {
 	_, opt, err := newTestScheduleConfig()
 	assert.NoError(t, err)
-	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	n, np := uint64(7), uint64(3)
 	resources := newTestShards(n, np)
@@ -254,7 +254,7 @@ func TestHandleCheckShardState(t *testing.T) {
 	assert.Equal(t, 3, len(destroyed))
 
 	// restart
-	cluster = newTestRaftCluster(opt, cluster.storage, core.NewBasicCluster(metadata.TestShardFactory, nil))
+	cluster = newTestRaftCluster(opt, cluster.storage, core.NewBasicCluster(nil))
 	cluster.LoadClusterInfo()
 	rsp, err = cluster.HandleCheckShardState(&rpcpb.ProphetRequest{
 		CheckShardState: rpcpb.CheckShardStateReq{

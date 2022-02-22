@@ -282,8 +282,8 @@ func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 
 // MergeShard is an OpStep that merge two resources.
 type MergeShard struct {
-	FromShard metadata.Shard
-	ToShard   metadata.Shard
+	FromShard *metadata.ShardWithRWLock
+	ToShard   *metadata.ShardWithRWLock
 	// there are two resources involved in merge process,
 	// so to keep them from other scheduler,
 	// both of them should add Merresource operatorStep.
@@ -320,7 +320,7 @@ func (mr MergeShard) CheckSafety(res *core.CachedShard) error {
 // Influence calculates the container difference that current step makes.
 func (mr MergeShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 	if mr.IsPassive {
-		for _, peer := range res.Meta.Peers() {
+		for _, peer := range res.Meta.Replicas() {
 			o := opInfluence.GetStoreInfluence(peer.StoreID)
 
 			groupKey := res.GetGroupKey()
@@ -359,7 +359,7 @@ func (sr SplitShard) IsFinish(res *core.CachedShard) bool {
 
 // Influence calculates the container difference that current step makes.
 func (sr SplitShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		inf := opInfluence.GetStoreInfluence(peer.StoreID)
 
 		groupKey := res.GetGroupKey()
@@ -631,7 +631,7 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedShard) error {
 		}
 	}
 
-	switch count := metadata.CountInJointState(res.Meta.Peers()...); {
+	switch count := metadata.CountInJointState(res.Meta.Replicas()...); {
 	case notInJointState && inJointState:
 		return errors.New("non-atomic joint consensus")
 	case notInJointState && count != 0:
@@ -653,9 +653,9 @@ func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
 		changes = append(changes, rpcpb.ConfigChange{
 			ChangeType: metapb.ConfigChangeType_AddNode,
 			Replica: metapb.Replica{
-				ID:          pl.PeerID,
+				ID:      pl.PeerID,
 				StoreID: pl.ToStore,
-				Role:        metapb.ReplicaRole_Voter,
+				Role:    metapb.ReplicaRole_Voter,
 			},
 		})
 	}
@@ -663,9 +663,9 @@ func (cpe ChangePeerV2Enter) GetRequest() *rpcpb.ConfigChangeV2 {
 		changes = append(changes, rpcpb.ConfigChange{
 			ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 			Replica: metapb.Replica{
-				ID:          dv.PeerID,
+				ID:      dv.PeerID,
 				StoreID: dv.ToStore,
-				Role:        metapb.ReplicaRole_Learner,
+				Role:    metapb.ReplicaRole_Learner,
 			},
 		})
 	}
@@ -721,7 +721,7 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedShard) bool {
 			return false
 		}
 	}
-	if metadata.IsInJointState(res.Meta.Peers()...) {
+	if metadata.IsInJointState(res.Meta.Replicas()...) {
 		return false
 	}
 	return true
@@ -772,7 +772,7 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedShard) error {
 		}
 	}
 
-	switch count := metadata.CountInJointState(res.Meta.Peers()...); {
+	switch count := metadata.CountInJointState(res.Meta.Replicas()...); {
 	case notInJointState && inJointState:
 		return errors.New("non-atomic joint consensus")
 	case notInJointState && count != 0:

@@ -107,7 +107,7 @@ func TestRejectLeader(t *testing.T) {
 	// If the peer on container3 is pending, not transfer to container3 neither.
 	tc.SetStoreUP(3)
 	resource := tc.Shards.GetShard(1)
-	for _, p := range resource.Meta.Peers() {
+	for _, p := range resource.Meta.Replicas() {
 		if p.GetStoreID() == 3 {
 			resource = resource.Clone(core.WithPendingPeers(append(resource.GetPendingPeers(), p)))
 			break
@@ -245,10 +245,8 @@ func TestRole(t *testing.T) {
 		{ID: 2, StoreID: 2},
 		{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 	}
-	resource := core.NewCachedShard(&metadata.TestShard{
-		ResID:    1,
-		ResEpoch: metapb.ShardEpoch{ConfVer: 1, Version: 1},
-		ResPeers: peers,
+	resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{ConfVer: 1, Version: 1}, Replicas: peers},
 	}, &peers[0])
 	tc.PutShard(resource)
 

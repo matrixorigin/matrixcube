@@ -50,25 +50,31 @@ func (s *testReplicaChecker) setup() {
 	}
 	containers := []*core.CachedStore{
 		core.NewCachedStore(
-			&metadata.TestStore{
-				CID:    1,
-				CState: metapb.StoreState_Offline,
+			&metadata.StoreWithRWLock{
+				Store: metapb.Store{
+					ID:    1,
+					State: metapb.StoreState_Offline,
+				},
 			},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.TestStore{
-				CID:    3,
-				CState: metapb.StoreState_UP,
+			&metadata.StoreWithRWLock{
+				Store: metapb.Store{
+					ID:    2,
+					State: metapb.StoreState_UP,
+				},
 			},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.TestStore{
-				CID:    4,
-				CState: metapb.StoreState_UP,
+			&metadata.StoreWithRWLock{
+				Store: metapb.Store{
+					ID:    4,
+					State: metapb.StoreState_UP,
+				},
 			}, core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
@@ -85,25 +91,29 @@ func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.Rep
 	downStoreID := uint64(3)
 	peers := []metapb.Replica{
 		{
-			ID:          4,
+			ID:      4,
 			StoreID: 1,
-			Role:        aliveRole,
+			Role:    aliveRole,
 		},
 		{
-			ID:          14,
+			ID:      14,
 			StoreID: downStoreID,
 		},
 		{
-			ID:          15,
+			ID:      15,
 			StoreID: 4,
 		},
 	}
-	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID: 2, Replicas: peers,
+		},
+	}, &peers[0])
 	s.cluster.PutShard(r)
 	s.cluster.SetStoreDown(downStoreID)
 	downPeer := metapb.ReplicaStats{
 		Replica: metapb.Replica{
-			ID:          14,
+			ID:      14,
 			StoreID: downStoreID,
 		},
 		DownSeconds: 24 * 60 * 60,
@@ -119,19 +129,23 @@ func TestReplacePendingPeer(t *testing.T) {
 
 	peers := []metapb.Replica{
 		{
-			ID:          2,
+			ID:      2,
 			StoreID: 1,
 		},
 		{
-			ID:          3,
+			ID:      3,
 			StoreID: 2,
 		},
 		{
-			ID:          4,
+			ID:      4,
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: peers}, &peers[1], core.WithPendingPeers(peers[0:1]))
+	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID: 1, Replicas: peers,
+		},
+	}, &peers[1], core.WithPendingPeers(peers[0:1]))
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -149,19 +163,23 @@ func TestReplaceOfflinePeer(t *testing.T) {
 	})
 	peers := []metapb.Replica{
 		{
-			ID:          4,
+			ID:      4,
 			StoreID: 1,
 		},
 		{
-			ID:          5,
+			ID:      5,
 			StoreID: 2,
 		},
 		{
-			ID:          6,
+			ID:      6,
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID: 2, Replicas: peers,
+		},
+	}, &peers[0])
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -178,11 +196,15 @@ func TestOfflineWithOneReplica(t *testing.T) {
 	s.cluster.SetMaxReplicas(1)
 	peers := []metapb.Replica{
 		{
-			ID:          4,
+			ID:      4,
 			StoreID: 1,
 		},
 	}
-	r := core.NewCachedShard(&metadata.TestShard{ResID: 2, ResPeers: peers}, &peers[0])
+	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+		Shard: metapb.Shard{
+			ID: 2, Replicas: peers,
+		},
+	}, &peers[0])
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -204,14 +226,14 @@ func TestFillReplicas(t *testing.T) {
 	tc.AddShardStore(3, 1)
 
 	res := core.NewTestCachedShard(nil, nil)
-	res.Meta.SetPeers([]metapb.Replica{{ID: 1, StoreID: 1}})
+	res.Meta.SetReplicas([]metapb.Replica{{ID: 1, StoreID: 1}})
 	err := rc.FillReplicas(res, 0)
 	assert.Error(t, err)
 
-	res.Meta.SetPeers(nil)
+	res.Meta.SetReplicas(nil)
 	err = rc.FillReplicas(res, 0)
 	assert.NoError(t, err)
-	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Peers()))
+	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Replicas()))
 }
 
 func TestDownPeer(t *testing.T) {

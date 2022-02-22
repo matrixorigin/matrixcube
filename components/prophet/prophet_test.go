@@ -114,7 +114,6 @@ func newTestProphet(t *testing.T, c *pconfig.Config, fs vfs.FS) Prophet {
 	}
 	assert.NoError(t, c.Adjust(nil, false))
 	assert.NoError(t, os.RemoveAll(c.DataDir))
-	c.Adapter = metadata.NewTestAdapter()
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)
 
 	p := NewProphet(&config.Config{

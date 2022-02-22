@@ -65,32 +65,44 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 		desc := descs[j%3]
 		op := operator.NewOperator(desc, "test", uint64(1), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.TestShard{
-					ResID:    1,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ShardEpoch{}},
-				ToShard: &metadata.TestShard{
-					ResID:    2,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ShardEpoch{}},
+				FromShard: &metadata.ShardWithRWLock{
+					Shard: metapb.Shard{
+						ID:    1,
+						Start: []byte{},
+						End:   []byte{},
+						Epoch: metapb.ShardEpoch{},
+					},
+				},
+				ToShard: &metadata.ShardWithRWLock{
+					Shard: metapb.Shard{
+						ID:    2,
+						Start: []byte{},
+						End:   []byte{},
+						Epoch: metapb.ShardEpoch{},
+					},
+				},
 				IsPassive: false,
 			},
 		}...)
 		rb.PutOperator(op)
 		op = operator.NewOperator(desc, "test", uint64(2), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.TestShard{
-					ResID:    1,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ShardEpoch{}},
-				ToShard: &metadata.TestShard{
-					ResID:    2,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ShardEpoch{}},
+				FromShard: &metadata.ShardWithRWLock{
+					Shard: metapb.Shard{
+						ID:    1,
+						Start: []byte{},
+						End:   []byte{},
+						Epoch: metapb.ShardEpoch{},
+					},
+				},
+				ToShard: &metadata.ShardWithRWLock{
+					Shard: metapb.Shard{
+						ID:    2,
+						Start: []byte{},
+						End:   []byte{},
+						Epoch: metapb.ShardEpoch{},
+					},
+				},
 				IsPassive: true,
 			},
 		}...)

@@ -12,7 +12,7 @@ import (
 func TestIssue85(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Adjust(nil, false)
-	cfg.ShardStateChangedHandler = func(res metadata.Shard, from, to metapb.ShardState) {}
+	cfg.ShardStateChangedHandler = func(res *metadata.ShardWithRWLock, from, to metapb.ShardState) {}
 
 	pc := NewPersistOptions(cfg, nil)
 	s := storage.NewTestStorage()

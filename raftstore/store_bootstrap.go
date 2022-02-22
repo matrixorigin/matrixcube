@@ -46,11 +46,11 @@ func (s *store) ProphetBecomeFollower() {
 }
 
 func (s *store) initMeta() {
-	s.metapb.SetLabels(s.cfg.GetLabels())
-	s.metapb.SetStartTimestamp(time.Now().Unix())
-	s.metapb.SetDeployPath(s.cfg.DeployPath)
-	s.metapb.SetVersion(s.cfg.Version, s.cfg.GitHash)
-	s.metapb.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
+	s.meta.SetLabels(s.cfg.GetLabels())
+	s.meta.SetStartTimestamp(time.Now().Unix())
+	s.meta.SetDeployPath(s.cfg.DeployPath)
+	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
+	s.meta.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
 
 	s.logger.Info("store metadata init",
 		s.storeField(),
@@ -72,7 +72,7 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 
 	s.logger.Info("begin to create local store metadata",
 		s.storeField())
-	s.metapb.SetID(s.MustAllocID())
+	s.meta.SetID(s.MustAllocID())
 	s.mustSaveStoreMetadata()
 	s.logger.Info("create local store",
 		s.storeField())
@@ -92,19 +92,19 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 			s.logger.Info("begin to bootstrap the cluster with init shards",
 				s.storeField())
 			var initShards []Shard
-			var resources []metadata.Shard
+			var resources []*metadata.ShardWithRWLock
 			if s.cfg.Customize.CustomInitShardsFactory != nil {
 				shards := s.cfg.Customize.CustomInitShardsFactory()
 				for _, shard := range shards {
 					s.doCreateInitShard(&shard)
 					initShards = append(initShards, shard)
-					resources = append(resources, NewShardAdapterWithShard(shard))
+					resources = append(resources, metadata.NewShardWithRWLockFromShard(shard))
 				}
 			} else {
 				shard := Shard{}
 				s.doCreateInitShard(&shard)
 				initShards = append(initShards, shard)
-				resources = append(resources, NewShardAdapterWithShard(shard))
+				resources = append(resources, metadata.NewShardWithRWLockFromShard(shard))
 			}
 
 			newReplicaCreator(s).
@@ -112,7 +112,7 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 				withSaveMetadata(true).
 				create(initShards)
 
-			ok, err := s.pd.GetStorage().PutBootstrapped(s.metapb, resources...)
+			ok, err := s.pd.GetStorage().PutBootstrapped(s.meta, resources...)
 			if err != nil {
 				s.removeInitShards(initShards...)
 				s.logger.Fatal("failed to bootstrap cluster",
@@ -136,7 +136,7 @@ func (s *store) postBootstrapped() {
 
 func (s *store) mustPutStore() {
 	for {
-		if err := s.pd.GetClient().PutStore(s.metapb); err != nil {
+		if err := s.pd.GetClient().PutStore(s.meta); err != nil {
 			s.logger.Info("failed to put container to prophet",
 				s.storeField(),
 				zap.Error(err),
@@ -165,7 +165,7 @@ func (s *store) mustSaveStoreMetadata() {
 	}
 
 	v := &metapb.StoreIdent{
-		StoreID:   s.metapb.ID(),
+		StoreID:   s.meta.ID(),
 		ClusterID: s.pd.GetClusterID(),
 	}
 	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
@@ -195,7 +195,7 @@ func (s *store) mustLoadStoreMetadata() bool {
 				zap.Uint64("prophet", s.pd.GetClusterID()))
 		}
 
-		s.metapb.SetID(v.StoreID)
+		s.meta.SetID(v.StoreID)
 		s.logger.Info("load local store metadata",
 			s.storeField())
 		return true
@@ -212,7 +212,7 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.Epoch.ConfVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
-		StoreID:       s.metapb.ID(),
+		StoreID:       s.meta.ID(),
 		InitialMember: true,
 	})
 }

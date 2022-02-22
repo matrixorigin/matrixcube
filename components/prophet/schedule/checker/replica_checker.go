@@ -63,11 +63,11 @@ func (r *ReplicaChecker) GetType() string {
 
 // FillReplicas make up all replica for a empty resource
 func (r *ReplicaChecker) FillReplicas(res *core.CachedShard, leastPeers int) error {
-	if len(res.Meta.Peers()) > 0 {
+	if len(res.Meta.Replicas()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
-	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
+	if len(res.Meta.Replicas()) >= r.opts.GetMaxReplicas() {
 		return nil
 	}
 
@@ -79,13 +79,13 @@ func (r *ReplicaChecker) FillReplicas(res *core.CachedShard, leastPeers int) err
 			break
 		}
 
-		peers := res.Meta.Peers()
+		peers := res.Meta.Replicas()
 		peers = append(peers, metapb.Replica{StoreID: container})
-		res.Meta.SetPeers(peers)
+		res.Meta.SetReplicas(peers)
 	}
 
-	if (leastPeers == 0 && len(res.Meta.Peers()) == r.opts.GetMaxReplicas()) || // all peers matches
-		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
+	if (leastPeers == 0 && len(res.Meta.Replicas()) == r.opts.GetMaxReplicas()) || // all peers matches
+		(leastPeers > 0 && len(res.Meta.Replicas()) == leastPeers) { // least peers matches
 		return nil
 	}
 
@@ -160,7 +160,7 @@ func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedShard) *operator.Opera
 		return nil
 	}
 
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.Replicas() {
 		containerID := peer.StoreID
 		container := r.cluster.GetStore(containerID)
 		if container == nil {
@@ -182,7 +182,7 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedShard) *operator.Ope
 	if !r.opts.IsMakeUpReplicaEnabled() {
 		return nil
 	}
-	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
+	if len(res.Meta.Replicas()) >= r.opts.GetMaxReplicas() {
 		return nil
 	}
 	if res.IsDestroyState() {
@@ -191,7 +191,7 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedShard) *operator.Ope
 
 	r.cluster.GetLogger().Debug("resource's peers fewer than max replicas",
 		log.ResourceField(res.Meta.ID()),
-		zap.Int("peers", len(res.Meta.Peers())))
+		zap.Int("peers", len(res.Meta.Replicas())))
 	resourceStores := r.cluster.GetShardStores(res)
 	target := r.strategy(res).SelectStoreToAdd(resourceStores)
 	if target == 0 {
@@ -222,7 +222,7 @@ func (r *ReplicaChecker) checkRemoveExtraReplica(res *core.CachedShard) *operato
 	}
 	r.cluster.GetLogger().Debug("resource's peers more than max replicas",
 		log.ResourceField(res.Meta.ID()),
-		zap.Int("peers", len(res.Meta.Peers())))
+		zap.Int("peers", len(res.Meta.Replicas())))
 	resourceStores := r.cluster.GetShardStores(res)
 	old := r.strategy(res).SelectStoreToRemove(resourceStores)
 	if old == 0 {

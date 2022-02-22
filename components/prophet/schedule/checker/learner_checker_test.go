@@ -34,12 +34,14 @@ func TestPromoteLearner(t *testing.T) {
 	}
 
 	resource := core.NewCachedShard(
-		&metadata.TestShard{
-			ResID: 1,
-			ResPeers: []metapb.Replica{
-				{ID: 101, StoreID: 1},
-				{ID: 102, StoreID: 2},
-				{ID: 103, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+		&metadata.ShardWithRWLock{
+			Shard: metapb.Shard{
+				ID: 1,
+				Replicas: []metapb.Replica{
+					{ID: 101, StoreID: 1},
+					{ID: 102, StoreID: 2},
+					{ID: 103, StoreID: 3, Role: metapb.ReplicaRole_Learner},
+				},
 			},
 		}, &metapb.Replica{ID: 101, StoreID: 1})
 

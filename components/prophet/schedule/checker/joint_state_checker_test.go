@@ -110,7 +110,8 @@ func TestLeaveJointState(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		res := core.NewCachedShard(&metadata.TestShard{ResID: 1, ResPeers: tc.Peers}, &tc.Peers[0])
+		res := core.NewCachedShard(&metadata.ShardWithRWLock{
+			Shard: metapb.Shard{ID: 1, Replicas: tc.Peers}}, &tc.Peers[0])
 		op := jsc.Check(res)
 		checkSteps(t, op, tc.OpSteps)
 	}

@@ -17,7 +17,6 @@ package opt
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
@@ -45,7 +44,6 @@ type Cluster interface {
 	FitShard(*core.CachedShard) *placement.ShardFit
 	RemoveScheduler(name string) error
 	AddSuspectShards(ids ...uint64)
-	GetShardFactory() func() metadata.Shard
 
 	// just for test
 	DisableJointConsensus()

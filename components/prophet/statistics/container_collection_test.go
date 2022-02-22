@@ -31,22 +31,58 @@ func TestStoreStatistics(t *testing.T) {
 	rep.LocationLabels = []string{"zone", "host"}
 	opt.SetReplicationConfig(rep)
 
-	metaStores := []*metadata.TestStore{
-		{CID: 1, CAddr: "mock://server-1", CLabels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}},
-		{CID: 2, CAddr: "mock://server-2", CLabels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}}},
-		{CID: 3, CAddr: "mock://server-3", CLabels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}}},
-		{CID: 4, CAddr: "mock://server-4", CLabels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}}},
-		{CID: 5, CAddr: "mock://server-5", CLabels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}}},
-		{CID: 6, CAddr: "mock://server-6", CLabels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}}},
-		{CID: 7, CAddr: "mock://server-7", CLabels: []metapb.Pair{{Key: "host", Value: "h1"}}},
-		{CID: 8, CAddr: "mock://server-8", CLabels: []metapb.Pair{{Key: "host", Value: "h2"}}},
-		{CID: 8, CAddr: "mock://server-9", CLabels: []metapb.Pair{{Key: "host", Value: "h3"}}, CState: metapb.StoreState_StoreTombstone},
+	metaStores := []*metadata.StoreWithRWLock{
+		{
+			Store: metapb.Store{
+				ID: 1, ClientAddr: "mock://server-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 2, ClientAddr: "mock://server-2", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 3, ClientAddr: "mock://server-3", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 4, ClientAddr: "mock://server-4", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 5, ClientAddr: "mock://server-5", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 6, ClientAddr: "mock://server-6", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 7, ClientAddr: "mock://server-7", Labels: []metapb.Pair{{Key: "host", Value: "h1"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 8, ClientAddr: "mock://server-8", Labels: []metapb.Pair{{Key: "host", Value: "h2"}},
+			},
+		},
+		{
+			Store: metapb.Store{
+				ID: 8, ClientAddr: "mock://server-9", Labels: []metapb.Pair{{Key: "host", Value: "h3"}}, State: metapb.StoreState_StoreTombstone,
+			},
+		},
 	}
 	containersStats := NewStoresStats()
 	containers := make([]*core.CachedStore, 0, len(metaStores))
 	for _, m := range metaStores {
 		s := core.NewCachedStore(m, core.SetLastHeartbeatTS(time.Now()))
-		containersStats.GetOrCreateRollingStoreStats(m.CID)
+		containersStats.GetOrCreateRollingStoreStats(m.ID())
 		containers = append(containers, s)
 	}
 

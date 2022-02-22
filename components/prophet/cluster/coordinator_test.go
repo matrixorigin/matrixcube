@@ -64,7 +64,7 @@ func (c *testCluster) addShardStore(containerID uint64, resourceCount int, resou
 	stats.Capacity = 100 * (1 << 30)
 	stats.UsedSize = resourceSize * (1 << 20)
 	stats.Available = stats.Capacity - stats.UsedSize
-	newStore := core.NewCachedStore(&metadata.TestStore{CID: containerID},
+	newStore := core.NewCachedStore(&metadata.StoreWithRWLock{Store: metapb.Store{ID: containerID}},
 		core.SetStoreStats(stats),
 		core.SetShardCount("", resourceCount),
 		core.SetShardSize("", int64(resourceSize)),
@@ -81,10 +81,10 @@ func (c *testCluster) addShardStore(containerID uint64, resourceCount int, resou
 func (c *testCluster) addLeaderShard(resourceID uint64, leaderStoreID uint64, followerStoreIDs ...uint64) error {
 	resource := newTestShardMeta(resourceID)
 	leader, _ := c.AllocPeer(leaderStoreID)
-	resource.SetPeers([]metapb.Replica{leader})
+	resource.SetReplicas([]metapb.Replica{leader})
 	for _, followerStoreID := range followerStoreIDs {
 		peer, _ := c.AllocPeer(followerStoreID)
-		resource.SetPeers(append(resource.Peers(), peer))
+		resource.SetReplicas(append(resource.Replicas(), peer))
 	}
 	resourceInfo := core.NewCachedShard(resource, &leader, core.SetApproximateSize(10), core.SetApproximateKeys(10))
 	c.core.PutShard(resourceInfo)
@@ -104,7 +104,7 @@ func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) err
 
 func (c *testCluster) addLeaderStore(containerID uint64, leaderCount int) error {
 	stats := &metapb.StoreStats{}
-	newStore := core.NewCachedStore(&metadata.TestStore{CID: containerID},
+	newStore := core.NewCachedStore(&metadata.StoreWithRWLock{Store: metapb.Store{ID: containerID}},
 		core.SetStoreStats(stats),
 		core.SetLeaderCount("", leaderCount),
 		core.SetLeaderSize("", int64(leaderCount)*10),
@@ -140,10 +140,10 @@ func (c *testCluster) setStoreOffline(containerID uint64) error {
 func (c *testCluster) LoadShard(resourceID uint64, followerStoreIDs ...uint64) error {
 	//  resources load from etcd will have no leader
 	resource := newTestShardMeta(resourceID)
-	resource.SetPeers([]metapb.Replica{})
+	resource.SetReplicas([]metapb.Replica{})
 	for _, id := range followerStoreIDs {
 		peer, _ := c.AllocPeer(id)
-		resource.SetPeers(append(resource.Peers(), peer))
+		resource.SetReplicas(append(resource.Replicas(), peer))
 	}
 	c.core.PutShard(core.NewCachedShard(resource, nil))
 	return nil
@@ -473,11 +473,11 @@ func TestShouldRun(t *testing.T) {
 
 	for _, tb := range tbl {
 		r := tc.GetShard(tb.resourceID)
-		nr := r.Clone(core.WithLeader(&r.Meta.Peers()[0]))
+		nr := r.Clone(core.WithLeader(&r.Meta.Replicas()[0]))
 		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestShard{ResID: 6, ResPeers: []metapb.Replica{}}
+	nr := &metadata.ShardWithRWLock{Shard: metapb.Shard{ID: 6, Replicas: []metapb.Replica{}}}
 	newShard := core.NewCachedShard(nr, nil)
 	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 7, co.cluster.prepareChecker.sum)
@@ -512,11 +512,11 @@ func TestShouldRunWithNonLeaderShards(t *testing.T) {
 
 	for _, tb := range tbl {
 		r := tc.GetShard(tb.resourceID)
-		nr := r.Clone(core.WithLeader(&r.Meta.Peers()[0]))
+		nr := r.Clone(core.WithLeader(&r.Meta.Replicas()[0]))
 		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.TestShard{ResID: 8, ResPeers: []metapb.Replica{}}
+	nr := &metadata.ShardWithRWLock{Shard: metapb.Shard{ID: 8, Replicas: []metapb.Replica{}}}
 	newShard := core.NewCachedShard(nr, nil)
 	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 8, co.cluster.prepareChecker.sum)

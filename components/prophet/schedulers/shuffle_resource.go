@@ -159,7 +159,7 @@ func (s *shuffleShardScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.C
 }
 
 func (s *shuffleShardScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedShard, oldPeer metapb.Replica) (metapb.Replica, bool) {
-	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetStore(oldPeer.StoreID), s.OpController.GetCluster().GetShardFactory())
+	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetStore(oldPeer.StoreID))
 	excludedFilter := filter.NewExcludedFilter(s.GetName(), nil, res.GetStoreIDs())
 
 	target := filter.NewCandidates(cluster.GetStores()).

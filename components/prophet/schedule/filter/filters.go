@@ -219,12 +219,12 @@ func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *c
 
 // distinctScoreFilter ensures that distinct score will not decrease.
 type distinctScoreFilter struct {
-	scope        string
-	labels       []string
-	containers   []*core.CachedStore
-	policy       string
-	safeScore    float64
-	srcStore uint64
+	scope      string
+	labels     []string
+	containers []*core.CachedStore
+	policy     string
+	safeScore  float64
+	srcStore   uint64
 }
 
 const (
@@ -257,12 +257,12 @@ func newDistinctScoreFilter(scope string, labels []string, containers []*core.Ca
 	}
 
 	return &distinctScoreFilter{
-		scope:        scope,
-		labels:       labels,
-		containers:   newStores,
-		safeScore:    core.DistinctScore(labels, newStores, source),
-		policy:       policy,
-		srcStore: source.Meta.ID(),
+		scope:      scope,
+		labels:     labels,
+		containers: newStores,
+		safeScore:  core.DistinctScore(labels, newStores, source),
+		policy:     policy,
+		srcStore:   source.Meta.ID(),
 	}
 }
 
@@ -494,24 +494,22 @@ type ShardFitter interface {
 }
 
 type ruleFitFilter struct {
-	factory      func() metadata.Shard
-	scope        string
-	fitter       ShardFitter
-	resource     *core.CachedShard
-	oldFit       *placement.ShardFit
+	scope    string
+	fitter   ShardFitter
+	resource *core.CachedShard
+	oldFit   *placement.ShardFit
 	srcStore uint64
 }
 
 // newRuleFitFilter creates a filter that ensures after replace a peer with new
 // one, the isolation level will not decrease. Its function is the same as
 // distinctScoreFilter but used when placement rules is enabled.
-func newRuleFitFilter(scope string, fitter ShardFitter, resource *core.CachedShard, oldStoreID uint64, factory func() metadata.Shard) Filter {
+func newRuleFitFilter(scope string, fitter ShardFitter, resource *core.CachedShard, oldStoreID uint64) Filter {
 	return &ruleFitFilter{
-		factory:      factory,
-		scope:        scope,
-		fitter:       fitter,
-		resource:     resource,
-		oldFit:       fitter.FitShard(resource),
+		scope:    scope,
+		fitter:   fitter,
+		resource: resource,
+		oldFit:   fitter.FitShard(resource),
 		srcStore: oldStoreID,
 	}
 }
@@ -532,8 +530,7 @@ func (f *ruleFitFilter) Target(opt *config.PersistOptions, container *core.Cache
 	start, end := f.resource.Meta.Range()
 
 	resource := createShardForRuleFit(start, end,
-		f.resource.Meta.Peers(), f.resource.GetLeader(),
-		f.factory,
+		f.resource.Meta.Replicas(), f.resource.GetLeader(),
 		core.WithReplacePeerStore(f.srcStore, container.Meta.ID()))
 	newFit := f.fitter.FitShard(resource)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
@@ -545,23 +542,21 @@ func (f *ruleFitFilter) GetSourceStoreID() uint64 {
 }
 
 type ruleLeaderFitFilter struct {
-	factory              func() metadata.Shard
-	scope                string
-	fitter               ShardFitter
-	resource             *core.CachedShard
-	oldFit               *placement.ShardFit
+	scope            string
+	fitter           ShardFitter
+	resource         *core.CachedShard
+	oldFit           *placement.ShardFit
 	srcLeaderStoreID uint64
 }
 
 // newRuleLeaderFitFilter creates a filter that ensures after transfer leader with new container,
 // the isolation level will not decrease.
-func newRuleLeaderFitFilter(scope string, fitter ShardFitter, res *core.CachedShard, oldLeaderStoreID uint64, factory func() metadata.Shard) Filter {
+func newRuleLeaderFitFilter(scope string, fitter ShardFitter, res *core.CachedShard, oldLeaderStoreID uint64) Filter {
 	return &ruleLeaderFitFilter{
-		factory:              factory,
-		scope:                scope,
-		fitter:               fitter,
-		resource:             res,
-		oldFit:               fitter.FitShard(res),
+		scope:            scope,
+		fitter:           fitter,
+		resource:         res,
+		oldFit:           fitter.FitShard(res),
 		srcLeaderStoreID: oldLeaderStoreID,
 	}
 }
@@ -584,8 +579,7 @@ func (f *ruleLeaderFitFilter) Target(opt *config.PersistOptions, container *core
 		return false
 	}
 	copyShard := createShardForRuleFit(f.resource.GetStartKey(), f.resource.GetEndKey(),
-		f.resource.Meta.Peers(), f.resource.GetLeader(),
-		f.factory,
+		f.resource.Meta.Replicas(), f.resource.GetLeader(),
 		core.WithLeader(&targetPeer))
 	newFit := f.fitter.FitShard(copyShard)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
@@ -597,9 +591,9 @@ func (f *ruleLeaderFitFilter) GetSourceStoreID() uint64 {
 
 // NewPlacementSafeguard creates a filter that ensures after replace a peer with new
 // peer, the placement restriction will not become worse.
-func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore, factory func() metadata.Shard) Filter {
+func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.ID(), factory)
+		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.ID())
 	}
 	return NewLocationSafeguard(scope, cluster.GetOpts().GetLocationLabels(), cluster.GetShardStores(res), sourceStore)
 }
@@ -607,9 +601,9 @@ func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedSh
 // NewPlacementLeaderSafeguard creates a filter that ensures after transfer a leader with
 // existed peer, the placement restriction will not become worse.
 // Note that it only worked when PlacementRules enabled otherwise it will always permit the sourceStore.
-func NewPlacementLeaderSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore, factory func() metadata.Shard) Filter {
+func NewPlacementLeaderSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.ID(), factory)
+		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.ID())
 	}
 	return nil
 }
@@ -801,23 +795,22 @@ func (f *isolationFilter) Target(opt *config.PersistOptions, container *core.Cac
 // FitShard in filter
 func createShardForRuleFit(startKey, endKey []byte,
 	peers []metapb.Replica, leader *metapb.Replica,
-	factory func() metadata.Shard,
 	opts ...core.ShardCreateOption) *core.CachedShard {
 	copyLeader := proto.Clone(leader).(*metapb.Replica)
 	copyPeers := make([]metapb.Replica, 0, len(peers))
 	for _, p := range peers {
 		peer := metapb.Replica{
-			ID:          p.ID,
+			ID:      p.ID,
 			StoreID: p.StoreID,
-			Role:        p.Role,
+			Role:    p.Role,
 		}
 		copyPeers = append(copyPeers, peer)
 	}
 
-	meta := factory()
+	meta := metadata.NewShardWithRWLock()
 	meta.SetStartKey(startKey)
 	meta.SetEndKey(endKey)
-	meta.SetPeers(copyPeers)
+	meta.SetReplicas(copyPeers)
 
 	cloneShard := core.NewCachedShard(meta, copyLeader, opts...)
 	return cloneShard

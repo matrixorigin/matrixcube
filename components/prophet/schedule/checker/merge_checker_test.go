@@ -57,58 +57,54 @@ func (s *testMergeChecker) setup() {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 1,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    1,
 				Start: []byte(""),
 				End:   []byte("a"),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 101, StoreID: 1},
 					{ID: 102, StoreID: 2},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 101, StoreID: 1},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 2,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 103, StoreID: 1},
 					{ID: 104, StoreID: 4},
 					{ID: 105, StoreID: 5},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 104, StoreID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 3,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 106, StoreID: 2},
 					{ID: 107, StoreID: 5},
 					{ID: 108, StoreID: 6},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 108, StoreID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 4,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    4,
 				Start: []byte("x"),
 				End:   []byte(""),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 109, StoreID: 4},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 109, StoreID: 4},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
@@ -250,14 +246,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 
@@ -280,14 +276,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 
@@ -303,14 +299,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 
@@ -336,14 +332,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 
@@ -375,14 +371,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 
@@ -416,14 +412,14 @@ func TestMatchPeers(t *testing.T) {
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    false,
+			IsPassive: false,
 		},
 	})
 	s.checkSteps(t, ops[1], []operator.OpStep{
 		operator.MergeShard{
 			FromShard: s.resources[2].Meta,
 			ToShard:   s.resources[1].Meta,
-			IsPassive:    true,
+			IsPassive: true,
 		},
 	})
 }
@@ -446,31 +442,29 @@ func TestCache(t *testing.T) {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 2,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 103, StoreID: 1},
 					{ID: 104, StoreID: 4},
 					{ID: 105, StoreID: 5},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 104, StoreID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metadata.TestShard{
-				ResID: 3,
+			&metadata.ShardWithRWLock{Shard: metapb.Shard{
+				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),
-				ResPeers: []metapb.Replica{
+				Replicas: []metapb.Replica{
 					{ID: 106, StoreID: 2},
 					{ID: 107, StoreID: 5},
 					{ID: 108, StoreID: 6},
-				},
-			},
+				}}},
 			&metapb.Replica{ID: 108, StoreID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),

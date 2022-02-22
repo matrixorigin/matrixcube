@@ -97,7 +97,7 @@ func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.Cached
 
 // CreateSplitShardOperator creates an operator that splits a resource.
 func CreateSplitShardOperator(desc string, res *core.CachedShard, kind OpKind, policy metapb.CheckPolicy, keys [][]byte) (*Operator, error) {
-	if metadata.IsInJointState(res.Meta.Peers()...) {
+	if metadata.IsInJointState(res.Meta.Replicas()...) {
 		return nil, fmt.Errorf("cannot split resource which is in joint state")
 	}
 
@@ -121,14 +121,14 @@ func CreateSplitShardOperator(desc string, res *core.CachedShard, kind OpKind, p
 
 // CreateMergeShardOperator creates an operator that merge two resource into one.
 func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.CachedShard, target *core.CachedShard, kind OpKind) ([]*Operator, error) {
-	if metadata.IsInJointState(source.Meta.Peers()...) || metadata.IsInJointState(target.Meta.Peers()...) {
+	if metadata.IsInJointState(source.Meta.Replicas()...) || metadata.IsInJointState(target.Meta.Replicas()...) {
 		return nil, errors.New("cannot merge resources which are in joint state")
 	}
 
 	var steps []OpStep
 	if !isShardMatch(source, target) {
 		peers := make(map[uint64]metapb.Replica)
-		for _, p := range target.Meta.Peers() {
+		for _, p := range target.Meta.Replicas() {
 			peers[p.StoreID] = metapb.Replica{
 				StoreID: p.StoreID,
 				Role:    p.Role,
@@ -163,10 +163,10 @@ func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.Cac
 }
 
 func isShardMatch(a, b *core.CachedShard) bool {
-	if len(a.Meta.Peers()) != len(b.Meta.Peers()) {
+	if len(a.Meta.Replicas()) != len(b.Meta.Replicas()) {
 		return false
 	}
-	for _, pa := range a.Meta.Peers() {
+	for _, pa := range a.Meta.Replicas() {
 		pb, ok := b.GetStorePeer(pa.StoreID)
 		if !ok || metadata.IsLearner(pb) != metadata.IsLearner(pa) {
 			return false
@@ -202,7 +202,7 @@ func CreateScatterShardOperator(desc string, cluster opt.Cluster, origin *core.C
 func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *core.CachedShard) (*Operator, error) {
 	b := NewBuilder(desc, cluster, origin, SkipOriginJointStateCheck)
 
-	if b.err == nil && !metadata.IsInJointState(origin.Meta.Peers()...) {
+	if b.err == nil && !metadata.IsInJointState(origin.Meta.Replicas()...) {
 		b.err = fmt.Errorf("cannot build leave joint state operator for resource which is not in joint state")
 	}
 

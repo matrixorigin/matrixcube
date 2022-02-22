@@ -40,7 +40,7 @@ func TestPutAndGetShard(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	id := uint64(1)
 	assert.NoError(t, storage.PutShard(metadata.NewTestShard(id)), "TestPutAndGetShard failed")
 
@@ -64,7 +64,7 @@ func TestPutAndGetStore(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	id := uint64(1)
 	assert.NoError(t, storage.PutStore(metadata.NewTestStore(id)), "TestPutAndGetStore failed")
 
@@ -88,10 +88,10 @@ func TestLoadShards(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []metadata.Shard
-	cb := func(v metadata.Shard) {
+	var values []*metadata.ShardWithRWLock
+	cb := func(v *metadata.ShardWithRWLock) {
 		values = append(values, v)
 	}
 
@@ -123,10 +123,10 @@ func TestLoadStores(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []metadata.Store
-	cb := func(v metadata.Store, lw, cw float64) {
+	var values []*metadata.StoreWithRWLock
+	cb := func(v *metadata.StoreWithRWLock, lw, cw float64) {
 		values = append(values, v)
 	}
 
@@ -158,12 +158,12 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	yes, err := s.AlreadyBootstrapped()
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
 
-	var reses []metadata.Shard
+	var reses []*metadata.ShardWithRWLock
 	for i := 0; i < 10; i++ {
 		res := metadata.NewTestShard(uint64(i + 1))
 		reses = append(reses, res)
@@ -172,7 +172,7 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.True(t, yes, "TestAlreadyBootstrapped failed")
 	c := 0
-	err = s.LoadShards(8, func(res metadata.Shard) {
+	err = s.LoadShards(8, func(res *metadata.ShardWithRWLock) {
 		c++
 	})
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
@@ -198,7 +198,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}))
@@ -236,7 +236,7 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
 	assert.NoError(t, storage.PutCustomData([]byte("k2"), []byte("v2")))
 	assert.NoError(t, storage.PutCustomData([]byte("k3"), []byte("v3")))
@@ -279,7 +279,7 @@ func TestBatchPutCustomData(t *testing.T) {
 
 	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
 	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.BatchPutCustomData(keys, data))
 
 	var loadedValues [][]byte

@@ -33,21 +33,19 @@ import (
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	logger                  *zap.Logger
-	factory                 func() metadata.Shard
-	Stores              *CachedStores
+	logger               *zap.Logger
+	Stores               *CachedStores
 	Shards               *CachedShards
 	DestroyedShards      *roaring64.Bitmap
-	WaittingCreateShards map[uint64]metadata.Shard
-	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules      []metapb.ScheduleGroupRule
-	ScheduleGroupKeys       map[string]struct{}
+	WaittingCreateShards map[uint64]*metadata.ShardWithRWLock
+	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
+	ScheduleGroupRules   []metapb.ScheduleGroupRule
+	ScheduleGroupKeys    map[string]struct{}
 }
 
 // NewBasicCluster creates a BasicCluster.
-func NewBasicCluster(factory func() metadata.Shard, logger *zap.Logger) *BasicCluster {
+func NewBasicCluster(logger *zap.Logger) *BasicCluster {
 	bc := &BasicCluster{
-		factory:            factory,
 		logger:             log.Adjust(logger),
 		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
 		ScheduleGroupKeys:  make(map[string]struct{}),
@@ -62,9 +60,9 @@ func (bc *BasicCluster) Reset() {
 	defer bc.Unlock()
 
 	bc.Stores = NewCachedStores()
-	bc.Shards = NewCachedShards(bc.factory)
+	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
-	bc.WaittingCreateShards = make(map[uint64]metadata.Shard)
+	bc.WaittingCreateShards = make(map[uint64]*metadata.ShardWithRWLock)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
@@ -82,7 +80,7 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 }
 
 // AddWaittingCreateShards add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateShards(resources ...metadata.Shard) {
+func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metadata.ShardWithRWLock) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
@@ -91,7 +89,7 @@ func (bc *BasicCluster) AddWaittingCreateShards(resources ...metadata.Shard) {
 }
 
 // ForeachWaittingCreateShards do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metadata.Shard)) {
+func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metadata.ShardWithRWLock)) {
 	bc.RLock()
 	defer bc.RUnlock()
 	for _, res := range bc.WaittingCreateShards {
@@ -100,7 +98,7 @@ func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metadata.Shard))
 }
 
 // ForeachShards foreach resources by group
-func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metadata.Shard)) {
+func (bc *BasicCluster) ForeachShards(group uint64, fn func(res *metadata.ShardWithRWLock)) {
 	bc.RLock()
 	defer bc.RUnlock()
 
@@ -150,8 +148,8 @@ func (bc *BasicCluster) GetStores() []*CachedStore {
 	return bc.Stores.GetStores()
 }
 
-// GetMetaStores gets a complete set of metadata.Store.
-func (bc *BasicCluster) GetMetaStores() []metadata.Store {
+// GetMetaStores gets a complete set of *metadata.StoreWithRWLock.
+func (bc *BasicCluster) GetMetaStores() []*metadata.StoreWithRWLock {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Stores.GetMetaStores()
@@ -178,8 +176,8 @@ func (bc *BasicCluster) GetShards() []*CachedShard {
 	return bc.Shards.GetShards()
 }
 
-// GetMetaShards gets a set of metadata.Shard from resourceMap.
-func (bc *BasicCluster) GetMetaShards() []metadata.Shard {
+// GetMetaShards gets a set of *metadata.ShardWithRWLock from resourceMap.
+func (bc *BasicCluster) GetMetaShards() []*metadata.ShardWithRWLock {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetMetaShards()

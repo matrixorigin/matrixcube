@@ -55,7 +55,7 @@ func (c *RuleChecker) GetType() string {
 
 // FillReplicas make up all replica for a empty resource
 func (c *RuleChecker) FillReplicas(res *core.CachedShard, leastPeers int) error {
-	if len(res.Meta.Peers()) > 0 {
+	if len(res.Meta.Replicas()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
@@ -84,14 +84,14 @@ func (c *RuleChecker) FillReplicas(res *core.CachedShard, leastPeers int) error 
 				p.Role = metapb.ReplicaRole_Learner
 			}
 
-			peers := res.Meta.Peers()
+			peers := res.Meta.Replicas()
 			peers = append(peers, p)
-			res.Meta.SetPeers(peers)
+			res.Meta.SetReplicas(peers)
 		}
 	}
 
-	if (leastPeers == 0 && len(res.Meta.Peers()) == cnt) || // all rule peers matches
-		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
+	if (leastPeers == 0 && len(res.Meta.Replicas()) == cnt) || // all rule peers matches
+		(leastPeers > 0 && len(res.Meta.Replicas()) == leastPeers) { // least peers matches
 		return nil
 	}
 
@@ -241,7 +241,7 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedShard, fit *placement.Sh
 	}
 	if res.GetLeader().GetID() == peer.GetID() && rf.Rule.Role == placement.Follower {
 		checkerCounter.WithLabelValues("rule_checker", "fix-follower-role").Inc()
-		for _, p := range res.Meta.Peers() {
+		for _, p := range res.Meta.Replicas() {
 			if c.allowLeader(fit, p) {
 				return operator.CreateTransferLeaderOperator("fix-follower-role",
 					c.cluster, res, peer.StoreID, p.StoreID, 0)

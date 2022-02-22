@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -155,7 +156,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 func TestIsRaftMsgValid(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := &store{metapb: &containerAdapter{meta: metapb.Store{ID: 1}}, logger: zap.L()}
+	s := &store{meta: &metadata.StoreWithRWLock{Store: metapb.Store{ID: 1}}, logger: zap.L()}
 	assert.True(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 1}}))
 	assert.False(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 2}}))
 }

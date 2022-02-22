@@ -133,7 +133,7 @@ func (c *RaftCluster) HandleGetDestroying(req rpcpb.GetDestroyingReq) (*metapb.D
 }
 
 // ValidRequestShard is used to decide if the resource is valid.
-func (c *RaftCluster) ValidRequestShard(reqShard metadata.Shard) error {
+func (c *RaftCluster) ValidRequestShard(reqShard *metadata.ShardWithRWLock) error {
 	startKey, _ := reqShard.Range()
 	res := c.GetShardByKey(reqShard.Group(), startKey)
 	if res == nil {
@@ -151,7 +151,7 @@ func (c *RaftCluster) ValidRequestShard(reqShard metadata.Shard) error {
 
 // HandleAskBatchSplit handles the batch split request.
 func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb.AskBatchSplitRsp, error) {
-	reqShard := c.adapter.NewShard()
+	reqShard := metadata.NewShardWithRWLock()
 	err := reqShard.Unmarshal(request.AskBatchSplit.Data)
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb
 			return nil, err
 		}
 
-		peerIDs := make([]uint64, len(reqShard.Peers()))
+		peerIDs := make([]uint64, len(reqShard.Replicas()))
 		for i := 0; i < len(peerIDs); i++ {
 			if peerIDs[i], err = c.AllocID(); err != nil {
 				return nil, err
@@ -215,15 +215,15 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var createShards []metadata.Shard
+	var createShards []*metadata.ShardWithRWLock
 	var leastPeers []int
 	for idx, data := range request.CreateShards.Shards {
-		res := c.adapter.NewShard()
+		res := metadata.NewShardWithRWLock()
 		err := res.Unmarshal(data)
 		if err != nil {
 			return nil, err
 		}
-		if len(res.Peers()) > 0 {
+		if len(res.Replicas()) > 0 {
 			return nil, fmt.Errorf("cann't assign peers in create resources")
 		}
 
@@ -238,7 +238,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres metadata.Shard) {
+			c.core.ForeachWaittingCreateShards(func(wres *metadata.ShardWithRWLock) {
 				if wres.Unique() == res.Unique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
@@ -272,20 +272,20 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			return nil, err
 		}
 
-		res.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(res.Peers()))})
-		for idx := range res.Peers() {
+		res.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(res.Replicas()))})
+		for idx := range res.Replicas() {
 			id, err := c.storage.KV().AllocID()
 			if err != nil {
 				return nil, err
 			}
 
-			res.Peers()[idx].ID = id
-			res.Peers()[idx].InitialMember = true
+			res.Replicas()[idx].ID = id
+			res.Replicas()[idx].InitialMember = true
 		}
 
 		c.logger.Info("resource created",
 			zap.Uint64("resource", res.ID()),
-			zap.Any("peers", res.Peers()))
+			zap.Any("peers", res.Replicas()))
 	}
 
 	err := c.storage.PutShards(createShards...)
@@ -308,8 +308,8 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var targets []metadata.Shard
-	var origin []metadata.Shard
+	var targets []*metadata.ShardWithRWLock
+	var origin []*metadata.ShardWithRWLock
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -400,7 +400,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res metadata.Shard) {
+	c.core.ForeachWaittingCreateShards(func(res *metadata.ShardWithRWLock) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }
