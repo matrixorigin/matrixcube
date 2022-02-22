@@ -36,8 +36,8 @@ const (
 	EvictLeaderType = "evict-leader"
 	// EvictLeaderBatchSize is the number of operators to to transfer
 	// leaders by one scheduling
-	EvictLeaderBatchSize    = 3
-	lastStoreDeleteInfo = "The last container has been deleted"
+	EvictLeaderBatchSize = 3
+	lastStoreDeleteInfo  = "The last container has been deleted"
 )
 
 func init() {
@@ -76,10 +76,10 @@ func init() {
 }
 
 type evictLeaderSchedulerConfig struct {
-	mu                         sync.RWMutex
-	storage                    storage.Storage
+	mu                     sync.RWMutex
+	storage                storage.Storage
 	StoreIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
-	cluster                    opt.Cluster
+	cluster                opt.Cluster
 	groupStoreIDWithRanges map[uint64]map[uint64][]core.KeyRange
 }
 

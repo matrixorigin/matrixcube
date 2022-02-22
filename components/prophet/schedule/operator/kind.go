@@ -44,14 +44,14 @@ const (
 )
 
 var flagToName = map[OpKind]string{
-	OpLeader:      "leader",
+	OpLeader:   "leader",
 	OpShard:    "resource",
-	OpSplit:       "split",
-	OpAdmin:       "admin",
+	OpSplit:    "split",
+	OpAdmin:    "admin",
 	OpHotShard: "hot-resource",
-	OpReplica:     "replica",
-	OpMerge:       "merge",
-	OpRange:       "range",
+	OpReplica:  "replica",
+	OpMerge:    "merge",
+	OpRange:    "range",
 }
 
 var nameToFlag = map[string]OpKind{

@@ -34,9 +34,9 @@ var (
 	EventFlagAll = 0xffffffff
 
 	names = map[uint32]string{
-		EventInit:           "init",
-		EventShard:       "resource",
-		EventShardStats:  "resource-stats",
+		EventInit:       "init",
+		EventShard:      "resource",
+		EventShardStats: "resource-stats",
 		EventStore:      "container",
 		EventStoreStats: "container-stats",
 	}
@@ -50,8 +50,8 @@ func EventTypeName(value uint32) string {
 // Snapshot cache snapshot
 type Snapshot struct {
 	Shards  []*metadata.ShardWithRWLock
-	Stores []*metadata.StoreWithRWLock
-	Leaders    map[uint64]uint64
+	Stores  []*metadata.StoreWithRWLock
+	Leaders map[uint64]uint64
 }
 
 // MatchEvent returns the flag has the target event
@@ -106,7 +106,7 @@ func NewShardEvent(target *metadata.ShardWithRWLock, leaderID uint64, removed bo
 // NewShardStatsEvent create resource stats event
 func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:               EventShardStats,
+		Type:            EventShardStats,
 		ShardStatsEvent: stats,
 	}
 }
@@ -114,7 +114,7 @@ func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 // NewStoreStatsEvent create container stats event
 func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:                EventStoreStats,
+		Type:            EventStoreStats,
 		StoreStatsEvent: stats,
 	}
 }

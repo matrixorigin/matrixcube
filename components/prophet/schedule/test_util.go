@@ -37,7 +37,7 @@ func ApplyOperatorStep(resource *core.CachedShard, op *operator.Operator) *core.
 				panic("Add peer that exists")
 			}
 			peer := metapb.Replica{
-				ID:          s.PeerID,
+				ID:      s.PeerID,
 				StoreID: s.ToStore,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
@@ -46,7 +46,7 @@ func ApplyOperatorStep(resource *core.CachedShard, op *operator.Operator) *core.
 				panic("Add peer that exists")
 			}
 			peer := metapb.Replica{
-				ID:          s.PeerID,
+				ID:      s.PeerID,
 				StoreID: s.ToStore,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
@@ -63,9 +63,9 @@ func ApplyOperatorStep(resource *core.CachedShard, op *operator.Operator) *core.
 				panic("Add learner that exists")
 			}
 			peer := metapb.Replica{
-				ID:          s.PeerID,
+				ID:      s.PeerID,
 				StoreID: s.ToStore,
-				Role:        metapb.ReplicaRole_Learner,
+				Role:    metapb.ReplicaRole_Learner,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
 		case operator.AddLightLearner:
@@ -73,9 +73,9 @@ func ApplyOperatorStep(resource *core.CachedShard, op *operator.Operator) *core.
 				panic("Add learner that exists")
 			}
 			peer := metapb.Replica{
-				ID:          s.PeerID,
+				ID:      s.PeerID,
 				StoreID: s.ToStore,
-				Role:        metapb.ReplicaRole_Learner,
+				Role:    metapb.ReplicaRole_Learner,
 			}
 			resource = resource.Clone(core.WithAddPeer(peer))
 		case operator.PromoteLearner:
@@ -83,7 +83,7 @@ func ApplyOperatorStep(resource *core.CachedShard, op *operator.Operator) *core.
 				panic("Promote peer that doesn't exist")
 			}
 			peer := metapb.Replica{
-				ID:          s.PeerID,
+				ID:      s.PeerID,
 				StoreID: s.ToStore,
 			}
 			resource = resource.Clone(core.WithRemoveStorePeer(s.ToStore), core.WithAddPeer(peer))

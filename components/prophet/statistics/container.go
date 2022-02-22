@@ -27,14 +27,14 @@ import (
 type StoresStats struct {
 	sync.RWMutex
 	rollingStoresStats map[uint64]*RollingStoreStats
-	totalLoads             []float64
+	totalLoads         []float64
 }
 
 // NewStoresStats creates a new hot spot cache.
 func NewStoresStats() *StoresStats {
 	return &StoresStats{
 		rollingStoresStats: make(map[uint64]*RollingStoreStats),
-		totalLoads:             make([]float64, StoreStatCount),
+		totalLoads:         make([]float64, StoreStatCount),
 	}
 }
 

@@ -138,10 +138,10 @@ func (conf *scatterRangeSchedulerConfig) getSchedulerName() string {
 
 type scatterRangeScheduler struct {
 	*BaseScheduler
-	name            string
-	config          *scatterRangeSchedulerConfig
-	balanceLeader   schedule.Scheduler
-	balanceShard schedule.Scheduler
+	name          string
+	config        *scatterRangeSchedulerConfig
+	balanceLeader schedule.Scheduler
+	balanceShard  schedule.Scheduler
 }
 
 // newScatterRangeScheduler creates a scheduler that balances the distribution of leaders and resources that in the specified key range.
