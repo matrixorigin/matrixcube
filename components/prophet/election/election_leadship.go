@@ -51,7 +51,7 @@ type Leadership struct {
 	nodeValue string
 
 	ctx                                  context.Context
-	isProphet                            bool
+	allowBecomeLeader                    bool
 	becomeLeaderFunc, becomeFollowerFunc func(string) bool
 	stopper                              *stop.Stopper
 	logger                               *zap.Logger
@@ -60,7 +60,7 @@ type Leadership struct {
 func newLeadership(
 	elector *elector,
 	purpose, nodeName, nodeValue string,
-	isProphet bool,
+	allowBecomeLeader bool,
 	becomeLeaderFunc, becomeFollowerFunc func(string) bool,
 	logger *zap.Logger,
 ) *Leadership {
@@ -71,7 +71,7 @@ func newLeadership(
 		leaderKey:          getPurposePath(elector.options.leaderPath, purpose),
 		nodeValue:          nodeValue,
 		nodeName:           nodeName,
-		isProphet:          isProphet,
+		allowBecomeLeader:  allowBecomeLeader,
 		becomeLeaderFunc:   becomeLeaderFunc,
 		becomeFollowerFunc: becomeFollowerFunc,
 		tag:                tag,
@@ -217,7 +217,7 @@ func (ls *Leadership) doElectionLoop(ctx context.Context) {
 			}
 		}
 
-		if ls.isProphet {
+		if ls.allowBecomeLeader {
 			ls.logger.Info("start checkExpectLeader", mainLoopFiled)
 			if err := ls.checkExpectLeader(); err != nil {
 				ls.logger.Error("fail to check expect leader", mainLoopFiled,

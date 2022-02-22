@@ -29,7 +29,7 @@ var (
 // Elector a leader elector
 type Elector interface {
 	// CreateLeadship create a leadership
-	CreateLeadship(purpose string, nodeName, nodeValue string, isProphet bool, becomeLeaderFunc, becomeFollowerFunc func(string) bool) *Leadership
+	CreateLeadship(purpose string, nodeName, nodeValue string, allowBecomeLeader bool, becomeLeaderFunc, becomeFollowerFunc func(string) bool) *Leadership
 	// Client etcd clientv3
 	Client() *clientv3.Client
 }
@@ -57,8 +57,8 @@ func NewElector(client *clientv3.Client, options ...ElectorOption) (Elector, err
 	return e, nil
 }
 
-func (e *elector) CreateLeadship(purpose string, nodeName, nodeValue string, isProphet bool, becomeLeaderFunc, becomeFollowerFunc func(string) bool) *Leadership {
-	return newLeadership(e, purpose, nodeName, nodeValue, isProphet, becomeLeaderFunc, becomeFollowerFunc, e.options.logger)
+func (e *elector) CreateLeadship(purpose string, nodeName, nodeValue string, allowBecomeLeader bool, becomeLeaderFunc, becomeFollowerFunc func(string) bool) *Leadership {
+	return newLeadership(e, purpose, nodeName, nodeValue, allowBecomeLeader, becomeLeaderFunc, becomeFollowerFunc, e.options.logger)
 }
 
 func (e *elector) Client() *clientv3.Client {

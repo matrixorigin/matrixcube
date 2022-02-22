@@ -143,7 +143,7 @@ func NewProphet(cfg *config.Config) Prophet {
 		etcdClient,
 		election.WithLeaderLeaseSeconds(cfg.Prophet.LeaderLease),
 		election.WithEmbedEtcd(etcd),
-		election.WithLogger(log.Adjust(cfg.Logger).Named("elector")),
+		election.WithLogger(logger.Named("elector")),
 	)
 	if err != nil {
 		logger.Fatal("fail to create elector", zap.Error(err))
