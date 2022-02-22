@@ -40,7 +40,7 @@ type Config struct {
 	RPCTimeout       typeutil.Duration `toml:"rpc-timeout"`
 
 	// etcd configuration
-	StorageNode  bool            `toml:"storage-node"`
+	ProphetNode  bool            `toml:"prophet-node"`
 	ExternalEtcd []string        `toml:"external-etcd"`
 	EmbedEtcd    EmbedEtcdConfig `toml:"embed-etcd"`
 

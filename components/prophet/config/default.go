@@ -113,7 +113,7 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 		return err
 	}
 
-	if c.StorageNode {
+	if c.ProphetNode {
 		adjustString(&c.EmbedEtcd.ClientUrls, defaultClientUrls)
 		adjustString(&c.EmbedEtcd.AdvertiseClientUrls, c.EmbedEtcd.ClientUrls)
 		adjustString(&c.EmbedEtcd.PeerUrls, defaultPeerUrls)

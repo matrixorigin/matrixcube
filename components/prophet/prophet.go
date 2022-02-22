@@ -119,12 +119,14 @@ func NewProphet(cfg *config.Config) Prophet {
 	var err error
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if cfg.Prophet.StorageNode {
+	if cfg.Prophet.ProphetNode {
+		// start embedded-etcd for prophet node
 		etcdClient, etcd, err = join.PrepareJoinCluster(ctx, cfg, logger)
 		if err != nil {
 			logger.Fatal("fail to start embed etcd", zap.Error(err))
 		}
 	} else {
+		// non-prophet node would watch current prophet leader via etcd client
 		etcdClient, err = clientv3.New(clientv3.Config{
 			Endpoints:        cfg.Prophet.ExternalEtcd,
 			AutoSyncInterval: time.Second * 30,
@@ -132,36 +134,45 @@ func NewProphet(cfg *config.Config) Prophet {
 			Logger:           logger,
 		})
 		if err != nil {
-			logger.Fatal("fail to create external etcd client",
-				zap.Error(err))
+			logger.Fatal("fail to create external etcd client", zap.Error(err))
 		}
 	}
 
-	elector, err = election.NewElector(etcdClient,
+	// elector is mainly a wrapper of etcd client
+	elector, err = election.NewElector(
+		etcdClient,
 		election.WithLeaderLeaseSeconds(cfg.Prophet.LeaderLease),
 		election.WithEmbedEtcd(etcd),
-		election.WithLogger(log.Adjust(cfg.Logger).Named("elector")))
+		election.WithLogger(log.Adjust(cfg.Logger).Named("elector")),
+	)
 	if err != nil {
 		logger.Fatal("fail to create elector", zap.Error(err))
 	}
 
-	p := &defaultProphet{}
-	p.logger = logger
-	p.cfg = cfg
-	p.persistOptions = pconfig.NewPersistOptions(&cfg.Prophet, logger)
-	p.ctx = ctx
-	p.cancel = cancel
-	p.elector = elector
-	p.etcd = etcd
-	p.member = member.NewMember(etcdClient, etcd, elector, cfg.Prophet.StorageNode, p.enableLeader, p.disableLeader, logger)
-	p.completeC = make(chan struct{})
+	p := &defaultProphet{
+		logger:         logger,
+		ctx:            ctx,
+		cancel:         cancel,
+		cfg:            cfg,
+		persistOptions: pconfig.NewPersistOptions(&cfg.Prophet, logger),
+		etcd:           etcd,
+		elector:        elector,
+		completeC:      make(chan struct{}),
+		stopper:        stop.NewStopper("prophet", stop.WithLogger(logger)),
+	}
+
+	p.member = member.NewMember(
+		etcdClient, etcd, elector,
+		cfg.Prophet.ProphetNode, p.becomeLeader, p.becomeFollower, logger,
+	)
 	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
-	p.stopper = stop.NewStopper("prophet", stop.WithLogger(p.logger))
+
 	return p
 }
 
 func (p *defaultProphet) Start() {
 	p.logger.Info("begin to start prophet")
+
 	var err error
 	for i := 0; i < initClusterMaxRetryTimes; i++ {
 		if err = p.initClusterID(); err == nil {
@@ -169,24 +180,28 @@ func (p *defaultProphet) Start() {
 		}
 	}
 	if err != nil {
-		p.logger.Fatal("fail to init cluster",
-			zap.Error(err))
+		p.logger.Fatal("fail to init cluster", zap.Error(err))
 	}
 	p.logger.Info("init cluster id completed")
 
 	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
 	p.logger.Info("member init completed")
 
-	p.storage = storage.NewStorage(rootPath,
+	p.storage = storage.NewStorage(
+		rootPath,
 		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
-		p.cfg.Prophet.Adapter)
+		p.cfg.Prophet.Adapter,
+	)
 	p.logger.Info("storage created")
 
 	p.basicCluster = core.NewBasicCluster(p.cfg.Prophet.Adapter.NewShard, p.logger)
 	p.logger.Info("basic cluster created")
 
-	p.cluster = cluster.NewRaftCluster(p.ctx, rootPath, p.clusterID, p.elector.Client(), p.cfg.Prophet.Adapter,
-		p.cfg.Prophet.ShardStateChangedHandler, p.logger)
+	p.cluster = cluster.NewRaftCluster(
+		p.ctx, rootPath, p.clusterID, p.elector.Client(),
+		p.cfg.Prophet.Adapter,
+		p.cfg.Prophet.ShardStateChangedHandler, p.logger,
+	)
 	p.logger.Info("raft cluster created")
 
 	p.hbStreams = hbstream.NewHeartbeatStreams(p.ctx, p.clusterID, p.cluster, p.logger)
@@ -197,7 +212,7 @@ func (p *defaultProphet) Start() {
 	p.startListen()
 	p.logger.Info("rpc started")
 
-	p.startLeaderLoop()
+	p.startElectionLoop()
 	p.logger.Info("lead loop completed")
 }
 
@@ -209,7 +224,7 @@ func (p *defaultProphet) Stop() {
 		p.logger.Info("client stopped")
 
 		p.trans.Stop()
-		p.logger.Info("transport stopped")
+		p.logger.Info("RPC stopped")
 
 		p.cancel()
 		p.elector.Client().Close()
@@ -251,6 +266,7 @@ func (p *defaultProphet) GetClusterID() uint64 {
 	return p.clusterID
 }
 
+// initClusterID initialize prophet cluster ID
 func (p *defaultProphet) initClusterID() error {
 	// Get any cluster key to parse the cluster ID.
 	resp, err := util.GetEtcdResp(p.elector.Client(), clusterIDPath)
@@ -331,8 +347,11 @@ func (p *defaultProphet) GetBasicCluster() *core.BasicCluster {
 	return p.basicCluster
 }
 
+// startSystemMonitor start a goroutine in order to monitor system time
 func (p *defaultProphet) startSystemMonitor() {
-	go StartMonitor(p.ctx, time.Now, func() {
-		p.logger.Error("system time jumps backward")
-	}, p.logger)
+	systimeErrHandler := func() { p.logger.Error("system time jumps backward") }
+	task := func(ctx context.Context) {
+		StartMonitor(ctx, time.Now, systimeErrHandler, p.logger)
+	}
+	p.stopper.RunNamedTask(p.ctx, "system time monitor", task)
 }
