@@ -50,7 +50,7 @@ func (s *testReplicaChecker) setup() {
 	}
 	containers := []*core.CachedStore{
 		core.NewCachedStore(
-			&metadata.StoreWithRWLock{
+			&metadata.Store{
 				Store: metapb.Store{
 					ID:    1,
 					State: metapb.StoreState_Offline,
@@ -60,7 +60,7 @@ func (s *testReplicaChecker) setup() {
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.StoreWithRWLock{
+			&metadata.Store{
 				Store: metapb.Store{
 					ID:    2,
 					State: metapb.StoreState_UP,
@@ -70,7 +70,7 @@ func (s *testReplicaChecker) setup() {
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.StoreWithRWLock{
+			&metadata.Store{
 				Store: metapb.Store{
 					ID:    4,
 					State: metapb.StoreState_UP,
@@ -104,7 +104,7 @@ func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.Rep
 			StoreID: 4,
 		},
 	}
-	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+	r := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID: 2, Replicas: peers,
 		},
@@ -141,7 +141,7 @@ func TestReplacePendingPeer(t *testing.T) {
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+	r := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID: 1, Replicas: peers,
 		},
@@ -175,7 +175,7 @@ func TestReplaceOfflinePeer(t *testing.T) {
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+	r := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID: 2, Replicas: peers,
 		},
@@ -200,7 +200,7 @@ func TestOfflineWithOneReplica(t *testing.T) {
 			StoreID: 1,
 		},
 	}
-	r := core.NewCachedShard(&metadata.ShardWithRWLock{
+	r := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID: 2, Replicas: peers,
 		},

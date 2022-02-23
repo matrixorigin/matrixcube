@@ -35,7 +35,7 @@ func TestCachedShard(t *testing.T) {
 		}
 		peers = append(peers, p)
 	}
-	res := &metadata.ShardWithRWLock{
+	res := &metadata.Shard{
 		Shard: metapb.Shard{
 			Replicas: peers,
 		},

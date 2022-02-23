@@ -17,9 +17,9 @@ type jobRegister struct {
 // ShardsAware resources aware
 type ShardsAware interface {
 	// ForeachWaittingCreateShards do every waitting resources
-	ForeachWaittingCreateShards(do func(res *metadata.ShardWithRWLock))
+	ForeachWaittingCreateShards(do func(res *metadata.Shard))
 	// ForeachShards foreach resource by group
-	ForeachShards(group uint64, fn func(res *metadata.ShardWithRWLock))
+	ForeachShards(group uint64, fn func(res *metadata.Shard))
 	// GetShard returns resource runtime info
 	GetShard(resourceID uint64) *core.CachedShard
 }

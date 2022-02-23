@@ -85,7 +85,7 @@ type store struct {
 	cfg    *config.Config
 	logger *zap.Logger
 
-	meta       *metadata.StoreWithRWLock
+	meta       *metadata.Store
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
@@ -125,7 +125,7 @@ func NewStore(cfg *config.Config) Store {
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		kvStorage:             kv,
-		meta:                  metadata.NewStoreWithRWLock(),
+		meta:                  metadata.NewStore(),
 		cfg:                   cfg,
 		logger:                logger,
 		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
@@ -989,7 +989,7 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitShard.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(metadata.NewShardWithRWLockFromShard(pr.getShard()),
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(metadata.NewShardFromShard(pr.getShard()),
 				uint32(len(rsp.SplitShard.Keys)))
 			if err != nil {
 				s.logger.Error("fail to ask batch split",

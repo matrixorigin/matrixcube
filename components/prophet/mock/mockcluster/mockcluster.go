@@ -257,7 +257,7 @@ func (mc *Cluster) AddShardStore(containerID uint64, resourceCount int) {
 	stats.UsedSize = uint64(resourceCount) * defaultShardSize
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultShardSize
 	container := core.NewCachedStore(
-		&metadata.StoreWithRWLock{
+		&metadata.Store{
 			Store: metapb.Store{
 				ID: containerID,
 				Labels: []metapb.Pair{
@@ -301,7 +301,7 @@ func (mc *Cluster) AddLabelsStore(containerID uint64, resourceCount int, labels 
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultShardSize
 	stats.UsedSize = uint64(resourceCount) * defaultShardSize
 	container := core.NewCachedStore(
-		&metadata.StoreWithRWLock{
+		&metadata.Store{
 			Store: metapb.Store{
 				ID:     containerID,
 				Labels: newLabels,
@@ -607,7 +607,7 @@ func (mc *Cluster) CheckLabelProperty(typ string, labels []metapb.Pair) bool {
 
 // PutShardStores mocks method.
 func (mc *Cluster) PutShardStores(id uint64, containerIDs ...uint64) {
-	meta := &metadata.ShardWithRWLock{
+	meta := &metadata.Shard{
 		Shard: metapb.Shard{
 			ID:    id,
 			Start: []byte(strconv.FormatUint(id, 10)),
@@ -639,7 +639,7 @@ func (mc *Cluster) RemoveScheduler(name string) error {
 func (mc *Cluster) MockCachedShard(resID uint64, leaderStoreID uint64,
 	followerStoreIDs, learnerStoreIDs []uint64, epoch metapb.ShardEpoch) *core.CachedShard {
 
-	res := &metadata.ShardWithRWLock{
+	res := &metadata.Shard{
 		Shard: metapb.Shard{
 			ID:    resID,
 			Start: []byte(fmt.Sprintf("%20d", resID)),

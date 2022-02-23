@@ -304,7 +304,7 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 }
 
 func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, removed bool, create bool) {
-	res := metadata.NewShardWithRWLock()
+	res := metadata.NewShard()
 	err := res.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal shard",
@@ -346,7 +346,7 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 }
 
 func (r *defaultRouter) updateStoreLocked(data []byte) {
-	s := metadata.NewStoreWithRWLock()
+	s := metadata.NewStore()
 	err := s.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal store",

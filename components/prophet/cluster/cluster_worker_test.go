@@ -36,10 +36,10 @@ func TestCreateShards(t *testing.T) {
 
 	cluster.coordinator = co
 
-	var changedRes *metadata.ShardWithRWLock
+	var changedRes *metadata.Shard
 	var changedResFrom metapb.ShardState
 	var changedResTo metapb.ShardState
-	cluster.resourceStateChangedHandler = func(res *metadata.ShardWithRWLock, from metapb.ShardState, to metapb.ShardState) {
+	cluster.resourceStateChangedHandler = func(res *metadata.Shard, from metapb.ShardState, to metapb.ShardState) {
 		changedRes = res
 		changedResFrom = from
 		changedResTo = to
@@ -170,7 +170,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.Equal(t, metapb.ShardState_Running, cache.GetShard(n-1).Meta.State())
 
 	cnt := uint64(0)
-	storage.LoadShards(10, func(r *metadata.ShardWithRWLock) {
+	storage.LoadShards(10, func(r *metadata.Shard) {
 		if r.ID() < n-1 {
 			assert.Equal(t, metapb.ShardState_Destroyed, r.State())
 		} else {

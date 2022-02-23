@@ -60,7 +60,7 @@ func TestDistinctScore(t *testing.T) {
 }
 
 func TestCloneStore(t *testing.T) {
-	meta := &metadata.StoreWithRWLock{
+	meta := &metadata.Store{
 		Store: metapb.Store{
 			ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
 		},

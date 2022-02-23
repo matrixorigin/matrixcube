@@ -30,13 +30,13 @@ import (
 )
 
 // errShardIsStale is error info for resource is stale.
-var errShardIsStale = func(res *metadata.ShardWithRWLock, origin *metadata.ShardWithRWLock) error {
+var errShardIsStale = func(res *metadata.Shard, origin *metadata.Shard) error {
 	return fmt.Errorf("resource is stale: resource %v, origin %v", res, origin)
 }
 
 // CachedShard resource runtime info cached in the cache
 type CachedShard struct {
-	Meta *metadata.ShardWithRWLock
+	Meta *metadata.Shard
 
 	term            uint64
 	groupKey        string
@@ -49,7 +49,7 @@ type CachedShard struct {
 }
 
 // NewCachedShard creates CachedShard with resource's meta and leader peer.
-func NewCachedShard(res *metadata.ShardWithRWLock, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
+func NewCachedShard(res *metadata.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
 	cr := &CachedShard{
 		Meta:   res,
 		leader: leader,
@@ -90,7 +90,7 @@ const (
 )
 
 // ShardFromHeartbeat constructs a Shard from resource heartbeat.
-func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta *metadata.ShardWithRWLock) *CachedShard {
+func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta *metadata.Shard) *CachedShard {
 	// Convert unit to MB.
 	// If resource is empty or less than 1MB, use 1MB instead.
 	resourceSize := heartbeat.Stats.GetApproximateSize() / (1 << 20)
@@ -160,8 +160,8 @@ func (r *CachedShard) GetGroupKey() string {
 
 // IsDestroyState resource in Destroyed or Destroying state
 func (r *CachedShard) IsDestroyState() bool {
-	return r.Meta.State() == metapb.ShardState_Destroyed ||
-		r.Meta.State() == metapb.ShardState_Destroying
+	return r.Meta.StateLocked() == metapb.ShardState_Destroyed ||
+		r.Meta.StateLocked() == metapb.ShardState_Destroying
 }
 
 // GetTerm returns the current term of the resource
@@ -588,7 +588,7 @@ func (r *CachedShards) maybeInitWithGroup(groupKey string) {
 }
 
 // ForeachShards foreach resource by group
-func (r *CachedShards) ForeachShards(group uint64, fn func(res *metadata.ShardWithRWLock)) {
+func (r *CachedShards) ForeachShards(group uint64, fn func(res *metadata.Shard)) {
 	for _, res := range r.resources.m {
 		if res.Meta.Group() == group {
 			fn(res.Meta)
@@ -913,9 +913,9 @@ func (r *CachedShards) GetStoreShardSize(groupKey string, containerID uint64) in
 		r.GetStoreLearnerShardSize(groupKey, containerID)
 }
 
-// GetMetaShards gets a set of *metadata.ShardWithRWLock from resourceMap
-func (r *CachedShards) GetMetaShards() []*metadata.ShardWithRWLock {
-	resources := make([]*metadata.ShardWithRWLock, 0, r.resources.Len())
+// GetMetaShards gets a set of *metadata.Shard from resourceMap
+func (r *CachedShards) GetMetaShards() []*metadata.Shard {
+	resources := make([]*metadata.Shard, 0, r.resources.Len())
 	for _, res := range r.resources.m {
 		resources = append(resources, res.Meta.Clone())
 	}
@@ -1196,7 +1196,7 @@ func HexShardKeyStr(key []byte) string {
 
 // ShardToHexMeta converts a resource meta's keys to hex format. Used for formating
 // resource in logs.
-func ShardToHexMeta(meta *metadata.ShardWithRWLock) HexShardMeta {
+func ShardToHexMeta(meta *metadata.Shard) HexShardMeta {
 	if meta == nil {
 		return HexShardMeta{}
 	}
@@ -1209,7 +1209,7 @@ func ShardToHexMeta(meta *metadata.ShardWithRWLock) HexShardMeta {
 
 // HexShardMeta is a resource meta in the hex format. Used for formating resource in logs.
 type HexShardMeta struct {
-	meta *metadata.ShardWithRWLock
+	meta *metadata.Shard
 }
 
 func (h HexShardMeta) String() string {
@@ -1218,8 +1218,8 @@ func (h HexShardMeta) String() string {
 
 // ShardsToHexMeta converts resources' meta keys to hex format. Used for formating
 // resource in logs.
-func ShardsToHexMeta(resources []*metadata.ShardWithRWLock) HexShardsMeta {
-	hexShardMetas := make([]*metadata.ShardWithRWLock, len(resources))
+func ShardsToHexMeta(resources []*metadata.Shard) HexShardsMeta {
+	hexShardMetas := make([]*metadata.Shard, len(resources))
 	for i, res := range resources {
 		meta := res.Clone()
 		start, end := meta.Range()
@@ -1232,7 +1232,7 @@ func ShardsToHexMeta(resources []*metadata.ShardWithRWLock) HexShardsMeta {
 
 // HexShardsMeta is a slice of resources' meta in the hex format. Used for formating
 // resource in logs.
-type HexShardsMeta []*metadata.ShardWithRWLock
+type HexShardsMeta []*metadata.Shard
 
 func (h HexShardsMeta) String() string {
 	var b strings.Builder

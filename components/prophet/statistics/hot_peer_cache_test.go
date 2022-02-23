@@ -30,7 +30,7 @@ func TestStoreTimeUnsync(t *testing.T) {
 	peers := newPeers(3,
 		func(i int) uint64 { return uint64(10000 + i) },
 		func(i int) uint64 { return uint64(i) })
-	meta := &metadata.ShardWithRWLock{
+	meta := &metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       1000,
 			Replicas: peers,
@@ -171,14 +171,14 @@ func pickFollower(resource *core.CachedShard) (index int, peer metapb.Replica) {
 	return dst, meta.Replicas()[dst]
 }
 
-func buildresource(meta *metadata.ShardWithRWLock, leader *metapb.Replica, kind FlowKind) *core.CachedShard {
+func buildresource(meta *metadata.Shard, leader *metapb.Replica, kind FlowKind) *core.CachedShard {
 	const interval = uint64(60)
 	if meta == nil {
 		peer1 := metapb.Replica{ID: 1, StoreID: 1}
 		peer2 := metapb.Replica{ID: 2, StoreID: 2}
 		peer3 := metapb.Replica{ID: 3, StoreID: 3}
 
-		meta = &metadata.ShardWithRWLock{
+		meta = &metadata.Shard{
 			Shard: metapb.Shard{
 				ID:       1000,
 				Replicas: []metapb.Replica{peer1, peer2, peer3},

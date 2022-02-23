@@ -126,7 +126,7 @@ func TestCreateSplitShardOperator(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+		resource := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{
 				ID:       1,
 				Start:    tc.startKey,
@@ -235,9 +235,9 @@ func TestCreateMergeShardOperator(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		source := core.NewCachedShard(&metadata.ShardWithRWLock{
+		source := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 68, Replicas: tc.sourcePeers}}, &tc.sourcePeers[0])
-		target := core.NewCachedShard(&metadata.ShardWithRWLock{
+		target := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 86, Replicas: tc.targetPeers}}, &tc.targetPeers[0])
 		ops, err := CreateMergeShardOperator("test", s.cluster, source, target, 0)
 		if tc.expectedError {
@@ -365,7 +365,7 @@ func TestCreateTransferLeaderOperator(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		region := core.NewCachedShard(&metadata.ShardWithRWLock{
+		region := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 1, Replicas: tc.originPeers}}, &tc.originPeers[0])
 		op, err := CreateTransferLeaderOperator("test", s.cluster, region, tc.originPeers[0].StoreID, tc.targetLeaderStoreID, 0)
 
@@ -540,7 +540,7 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 			}
 		}
 
-		resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+		resource := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 1, Replicas: tc.originPeers}}, &tc.originPeers[0])
 		op, err := CreateLeaveJointStateOperator("test", s.cluster, resource)
 		if len(tc.steps) == 0 {
@@ -882,7 +882,7 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Log(tc.name)
-		resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+		resource := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 10, Replicas: tc.originPeers}}, &tc.originPeers[0])
 		op, err := CreateMoveShardOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
 
@@ -1060,7 +1060,7 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 	s.cluster.DisableJointConsensus()
 	for _, tc := range tt {
 		t.Log(tc.name)
-		resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+		resource := core.NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{ID: 10, Replicas: tc.originPeers}}, &tc.originPeers[0])
 		op, err := CreateMoveShardOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
 

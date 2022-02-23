@@ -229,7 +229,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 	id := uint64(0)
 	p.AllocatedOffset++
 	unique := dsp.unique(group, p.AllocatedOffset)
-	fn := func(res *metadata.ShardWithRWLock) {
+	fn := func(res *metadata.Shard) {
 		shard := res.Shard
 		if shard.Unique == unique {
 			id = shard.ID
@@ -320,14 +320,14 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 
 	// we don't modify directly
 	modified := dsp.cloneDataLocked()
-	var creates []*metadata.ShardWithRWLock
+	var creates []*metadata.Shard
 	for {
 		changed := false
 		for g, p := range modified.Pools {
 			if p.Seq == 0 ||
 				(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < batchCreateCount) {
 				p.Seq++
-				creates = append(creates, metadata.NewShardWithRWLockFromShard(dsp.factory(g,
+				creates = append(creates, metadata.NewShardFromShard(dsp.factory(g,
 					addPrefix(p.RangePrefix, p.Seq),
 					addPrefix(p.RangePrefix, p.Seq+1),
 					dsp.unique(g, p.Seq),

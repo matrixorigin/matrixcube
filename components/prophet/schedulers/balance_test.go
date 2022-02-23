@@ -828,7 +828,7 @@ func TestBalance1(t *testing.T) {
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
 	source := core.NewCachedShard(
-		&metadata.ShardWithRWLock{
+		&metadata.Shard{
 			Shard: metapb.Shard{
 				ID:    1,
 				Start: []byte(""),
@@ -844,7 +844,7 @@ func TestBalance1(t *testing.T) {
 		core.SetApproximateKeys(1),
 	)
 	target := core.NewCachedShard(
-		&metadata.ShardWithRWLock{
+		&metadata.Shard{
 			Shard: metapb.Shard{
 				ID:    2,
 				Start: []byte("a"),
@@ -1022,7 +1022,7 @@ func TestEmptyShard(t *testing.T) {
 	tc.AddShardStore(3, 10)
 	tc.AddShardStore(4, 10)
 	res := core.NewCachedShard(
-		&metadata.ShardWithRWLock{
+		&metadata.Shard{
 			Shard: metapb.Shard{
 				ID:    5,
 				Start: []byte("a"),
@@ -1115,7 +1115,7 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 	tc.AddShardStore(5, 0)
 	var (
 		id        uint64
-		resources []*metadata.ShardWithRWLock
+		resources []*metadata.Shard
 	)
 	for i := 0; i < 50; i++ {
 		peers := []metapb.Replica{
@@ -1123,7 +1123,7 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 			{ID: id + 2, StoreID: 2},
 			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.ShardWithRWLock{
+		resources = append(resources, &metadata.Shard{
 			Shard: metapb.Shard{
 				ID:       id + 4,
 				Replicas: peers,
@@ -1220,7 +1220,7 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 	tc.AddShardStore(3, 0)
 	var (
 		id        uint64
-		resources []*metadata.ShardWithRWLock
+		resources []*metadata.Shard
 	)
 	for i := 0; i < 10; i++ {
 		peers := []metapb.Replica{
@@ -1228,7 +1228,7 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 			{ID: id + 2, StoreID: 2},
 			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.ShardWithRWLock{
+		resources = append(resources, &metadata.Shard{
 			Shard: metapb.Shard{
 				ID:       id + 4,
 				Replicas: peers,

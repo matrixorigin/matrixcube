@@ -23,7 +23,7 @@ import (
 func TestShardAdapter(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	ma := NewShardWithRWLockFromShard(metapb.Shard{})
+	ma := NewShardFromShard(metapb.Shard{})
 
 	data := []byte("data")
 	ma.SetData(data)
@@ -82,7 +82,7 @@ func TestShardAdapter(t *testing.T) {
 func TestStoreAdapter(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	ca := NewStoreWithRWLock()
+	ca := NewStore()
 
 	ca.SetAddrs("a1", "a2")
 	assert.Equal(t, "a1", ca.Store.ClientAddr)

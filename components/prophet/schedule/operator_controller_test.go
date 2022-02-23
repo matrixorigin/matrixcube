@@ -726,7 +726,7 @@ func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leade
 		prs = append(prs, metapb.Replica{ID: peer[0], StoreID: peer[1]})
 	}
 	return core.NewCachedShard(
-		&metadata.ShardWithRWLock{Shard: metapb.Shard{ID: id, Start: []byte(startKey), End: []byte(endKey), Replicas: prs}},
+		&metadata.Shard{Shard: metapb.Shard{ID: id, Start: []byte(startKey), End: []byte(endKey), Replicas: prs}},
 		&metapb.Replica{ID: leader[0], StoreID: leader[1]},
 		core.SetApproximateSize(size),
 		core.SetApproximateKeys(keys),

@@ -1070,7 +1070,7 @@ func addCachedShard(tc *mockcluster.Cluster, rwTy rwType, resources []testCached
 
 func newTestresource(id uint64) *core.CachedShard {
 	peers := []metapb.Replica{{ID: id*100 + 1, StoreID: 1}, {ID: id*100 + 2, StoreID: 2}, {ID: id*100 + 3, StoreID: 3}}
-	return core.NewCachedShard(&metadata.ShardWithRWLock{
+	return core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{ID: id, Replicas: peers}}, &peers[0])
 }
 

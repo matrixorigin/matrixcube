@@ -807,7 +807,7 @@ func createShardForRuleFit(startKey, endKey []byte,
 		copyPeers = append(copyPeers, peer)
 	}
 
-	meta := metadata.NewShardWithRWLock()
+	meta := metadata.NewShard()
 	meta.SetStartKey(startKey)
 	meta.SetEndKey(endKey)
 	meta.SetReplicas(copyPeers)

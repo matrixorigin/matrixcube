@@ -92,19 +92,19 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 			s.logger.Info("begin to bootstrap the cluster with init shards",
 				s.storeField())
 			var initShards []Shard
-			var resources []*metadata.ShardWithRWLock
+			var resources []*metadata.Shard
 			if s.cfg.Customize.CustomInitShardsFactory != nil {
 				shards := s.cfg.Customize.CustomInitShardsFactory()
 				for _, shard := range shards {
 					s.doCreateInitShard(&shard)
 					initShards = append(initShards, shard)
-					resources = append(resources, metadata.NewShardWithRWLockFromShard(shard))
+					resources = append(resources, metadata.NewShardFromShard(shard))
 				}
 			} else {
 				shard := Shard{}
 				s.doCreateInitShard(&shard)
 				initShards = append(initShards, shard)
-				resources = append(resources, metadata.NewShardWithRWLockFromShard(shard))
+				resources = append(resources, metadata.NewShardFromShard(shard))
 			}
 
 			newReplicaCreator(s).

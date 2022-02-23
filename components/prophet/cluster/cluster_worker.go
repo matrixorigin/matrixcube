@@ -133,7 +133,7 @@ func (c *RaftCluster) HandleGetDestroying(req rpcpb.GetDestroyingReq) (*metapb.D
 }
 
 // ValidRequestShard is used to decide if the resource is valid.
-func (c *RaftCluster) ValidRequestShard(reqShard *metadata.ShardWithRWLock) error {
+func (c *RaftCluster) ValidRequestShard(reqShard *metadata.Shard) error {
 	startKey, _ := reqShard.Range()
 	res := c.GetShardByKey(reqShard.Group(), startKey)
 	if res == nil {
@@ -151,7 +151,7 @@ func (c *RaftCluster) ValidRequestShard(reqShard *metadata.ShardWithRWLock) erro
 
 // HandleAskBatchSplit handles the batch split request.
 func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb.AskBatchSplitRsp, error) {
-	reqShard := metadata.NewShardWithRWLock()
+	reqShard := metadata.NewShard()
 	err := reqShard.Unmarshal(request.AskBatchSplit.Data)
 	if err != nil {
 		return nil, err
@@ -215,10 +215,10 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var createShards []*metadata.ShardWithRWLock
+	var createShards []*metadata.Shard
 	var leastPeers []int
 	for idx, data := range request.CreateShards.Shards {
-		res := metadata.NewShardWithRWLock()
+		res := metadata.NewShard()
 		err := res.Unmarshal(data)
 		if err != nil {
 			return nil, err
@@ -238,7 +238,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres *metadata.ShardWithRWLock) {
+			c.core.ForeachWaittingCreateShards(func(wres *metadata.Shard) {
 				if wres.Unique() == res.Unique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
@@ -308,8 +308,8 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var targets []*metadata.ShardWithRWLock
-	var origin []*metadata.ShardWithRWLock
+	var targets []*metadata.Shard
+	var origin []*metadata.Shard
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -400,7 +400,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res *metadata.ShardWithRWLock) {
+	c.core.ForeachWaittingCreateShards(func(res *metadata.Shard) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }
@@ -439,7 +439,7 @@ func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.Destr
 			return err
 		}
 		c.core.AddRemovedShards(id)
-		res.Meta.SetState(metapb.ShardState_Destroyed)
+		res.Meta.SetStateLocked(metapb.ShardState_Destroyed)
 	} else {
 		err := c.storage.PutShardExtra(id, protoc.MustMarshal(status))
 		if err != nil {

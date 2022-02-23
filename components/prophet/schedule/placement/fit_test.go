@@ -49,7 +49,7 @@ func makeTestStores() StoreSet {
 
 // example: "1111_leader,1234,2111_learner"
 func makeTestShard(def string) *core.CachedShard {
-	var resourceMeta metadata.ShardWithRWLock
+	var resourceMeta metadata.Shard
 	var leader *metapb.Replica
 	for _, peerDef := range strings.Split(def, ",") {
 		role, idStr := Follower, peerDef

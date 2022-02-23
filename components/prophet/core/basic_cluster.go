@@ -37,7 +37,7 @@ type BasicCluster struct {
 	Stores               *CachedStores
 	Shards               *CachedShards
 	DestroyedShards      *roaring64.Bitmap
-	WaittingCreateShards map[uint64]*metadata.ShardWithRWLock
+	WaittingCreateShards map[uint64]*metadata.Shard
 	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
 	ScheduleGroupRules   []metapb.ScheduleGroupRule
 	ScheduleGroupKeys    map[string]struct{}
@@ -62,7 +62,7 @@ func (bc *BasicCluster) Reset() {
 	bc.Stores = NewCachedStores()
 	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
-	bc.WaittingCreateShards = make(map[uint64]*metadata.ShardWithRWLock)
+	bc.WaittingCreateShards = make(map[uint64]*metadata.Shard)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
@@ -80,7 +80,7 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 }
 
 // AddWaittingCreateShards add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metadata.ShardWithRWLock) {
+func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metadata.Shard) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
@@ -89,7 +89,7 @@ func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metadata.ShardWith
 }
 
 // ForeachWaittingCreateShards do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metadata.ShardWithRWLock)) {
+func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metadata.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 	for _, res := range bc.WaittingCreateShards {
@@ -98,7 +98,7 @@ func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metadata.ShardW
 }
 
 // ForeachShards foreach resources by group
-func (bc *BasicCluster) ForeachShards(group uint64, fn func(res *metadata.ShardWithRWLock)) {
+func (bc *BasicCluster) ForeachShards(group uint64, fn func(res *metadata.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 
@@ -148,8 +148,8 @@ func (bc *BasicCluster) GetStores() []*CachedStore {
 	return bc.Stores.GetStores()
 }
 
-// GetMetaStores gets a complete set of *metadata.StoreWithRWLock.
-func (bc *BasicCluster) GetMetaStores() []*metadata.StoreWithRWLock {
+// GetMetaStores gets a complete set of *metadata.Store.
+func (bc *BasicCluster) GetMetaStores() []*metadata.Store {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Stores.GetMetaStores()
@@ -176,8 +176,8 @@ func (bc *BasicCluster) GetShards() []*CachedShard {
 	return bc.Shards.GetShards()
 }
 
-// GetMetaShards gets a set of *metadata.ShardWithRWLock from resourceMap.
-func (bc *BasicCluster) GetMetaShards() []*metadata.ShardWithRWLock {
+// GetMetaShards gets a set of *metadata.Shard from resourceMap.
+func (bc *BasicCluster) GetMetaShards() []*metadata.Shard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetMetaShards()

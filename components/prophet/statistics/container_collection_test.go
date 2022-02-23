@@ -31,7 +31,7 @@ func TestStoreStatistics(t *testing.T) {
 	rep.LocationLabels = []string{"zone", "host"}
 	opt.SetReplicationConfig(rep)
 
-	metaStores := []*metadata.StoreWithRWLock{
+	metaStores := []*metadata.Store{
 		{
 			Store: metapb.Store{
 				ID: 1, ClientAddr: "mock://server-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},

@@ -55,7 +55,7 @@ func (s *testOperator) setup() {
 
 func (s *testOperator) newTestShard(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedShard {
 	var (
-		resource = &metadata.ShardWithRWLock{}
+		resource = &metadata.Shard{}
 		leader   *metapb.Replica
 	)
 	resource.SetID(resourceID)

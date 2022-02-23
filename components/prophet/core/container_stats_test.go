@@ -24,7 +24,7 @@ import (
 
 func TestStoreStats(t *testing.T) {
 	G := uint64(1024 * 1024 * 1024)
-	meta := &metadata.StoreWithRWLock{
+	meta := &metadata.Store{
 		Store: metapb.Store{ID: 1, State: metapb.StoreState_UP},
 	}
 	container := NewCachedStore(meta, SetStoreStats(&metapb.StoreStats{

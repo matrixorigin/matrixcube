@@ -464,7 +464,7 @@ func (pr *replica) prophetHeartbeat() {
 		GroupKey:        pr.groupController.getShardGroupKey(shard),
 	}
 	pr.logger.Debug("start send shard heartbeat")
-	resource := metadata.NewShardWithRWLockFromShard(shard)
+	resource := metadata.NewShardFromShard(shard)
 	if err := pr.prophetClient.ShardHeartbeat(resource, req); err != nil {
 		pr.logger.Error("fail to send heartbeat to prophet",
 			zap.Error(err))

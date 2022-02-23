@@ -64,7 +64,7 @@ func (c *testCluster) addShardStore(containerID uint64, resourceCount int, resou
 	stats.Capacity = 100 * (1 << 30)
 	stats.UsedSize = resourceSize * (1 << 20)
 	stats.Available = stats.Capacity - stats.UsedSize
-	newStore := core.NewCachedStore(&metadata.StoreWithRWLock{Store: metapb.Store{ID: containerID}},
+	newStore := core.NewCachedStore(&metadata.Store{Store: metapb.Store{ID: containerID}},
 		core.SetStoreStats(stats),
 		core.SetShardCount("", resourceCount),
 		core.SetShardSize("", int64(resourceSize)),
@@ -104,7 +104,7 @@ func (c *testCluster) updateLeaderCount(containerID uint64, leaderCount int) err
 
 func (c *testCluster) addLeaderStore(containerID uint64, leaderCount int) error {
 	stats := &metapb.StoreStats{}
-	newStore := core.NewCachedStore(&metadata.StoreWithRWLock{Store: metapb.Store{ID: containerID}},
+	newStore := core.NewCachedStore(&metadata.Store{Store: metapb.Store{ID: containerID}},
 		core.SetStoreStats(stats),
 		core.SetLeaderCount("", leaderCount),
 		core.SetLeaderSize("", int64(leaderCount)*10),
@@ -477,7 +477,7 @@ func TestShouldRun(t *testing.T) {
 		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.ShardWithRWLock{Shard: metapb.Shard{ID: 6, Replicas: []metapb.Replica{}}}
+	nr := &metadata.Shard{Shard: metapb.Shard{ID: 6, Replicas: []metapb.Replica{}}}
 	newShard := core.NewCachedShard(nr, nil)
 	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 7, co.cluster.prepareChecker.sum)
@@ -516,7 +516,7 @@ func TestShouldRunWithNonLeaderShards(t *testing.T) {
 		assert.Nil(t, tc.processShardHeartbeat(nr))
 		assert.Equal(t, tb.shouldRun, co.shouldRun())
 	}
-	nr := &metadata.ShardWithRWLock{Shard: metapb.Shard{ID: 8, Replicas: []metapb.Replica{}}}
+	nr := &metadata.Shard{Shard: metapb.Shard{ID: 8, Replicas: []metapb.Replica{}}}
 	newShard := core.NewCachedShard(nr, nil)
 	assert.NotNil(t, tc.processShardHeartbeat(newShard))
 	assert.Equal(t, 8, co.cluster.prepareChecker.sum)

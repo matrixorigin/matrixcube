@@ -66,7 +66,7 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 		leftStart, _ := left.Meta.Range()
 		_, rightEnd := right.Meta.Range()
 		res := &CachedShard{
-			Meta: &metadata.ShardWithRWLock{
+			Meta: &metadata.Shard{
 				Shard: metapb.Shard{
 					ID:    left.Meta.ID() + uint64(len(resources)),
 					Start: leftStart,
@@ -91,7 +91,7 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 // NewTestCachedShard creates a CachedShard for test.
 func NewTestCachedShard(start, end []byte) *CachedShard {
 	return &CachedShard{
-		Meta: &metadata.ShardWithRWLock{
+		Meta: &metadata.Shard{
 			Shard: metapb.Shard{
 				Start: start,
 				End:   end,
@@ -114,7 +114,7 @@ func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]s
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metadata.StoreWithRWLock{
+		&metadata.Store{
 			Store: metapb.Store{
 				ID:     id,
 				Labels: containerLabels,

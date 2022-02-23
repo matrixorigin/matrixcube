@@ -95,7 +95,7 @@ func TestRuleFitFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
 	testCluster.SetEnablePlacementRules(true)
-	resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+	resource := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{Replicas: []metapb.Replica{
 			{StoreID: 1, ID: 1},
 			{StoreID: 3, ID: 3},
@@ -206,7 +206,7 @@ func TestIsolationFilter(t *testing.T) {
 		targetRes      []bool
 	}{
 		{
-			core.NewCachedShard(&metadata.ShardWithRWLock{
+			core.NewCachedShard(&metadata.Shard{
 				Shard: metapb.Shard{Replicas: []metapb.Replica{
 					{ID: 1, StoreID: 1},
 					{ID: 2, StoreID: 6},
@@ -216,7 +216,7 @@ func TestIsolationFilter(t *testing.T) {
 			[]bool{false, false, false, false, false, false, true},
 		},
 		{
-			core.NewCachedShard(&metadata.ShardWithRWLock{
+			core.NewCachedShard(&metadata.Shard{
 				Shard: metapb.Shard{Replicas: []metapb.Replica{
 					{ID: 1, StoreID: 1},
 					{ID: 2, StoreID: 4},
@@ -227,7 +227,7 @@ func TestIsolationFilter(t *testing.T) {
 			[]bool{false, false, false, false, true, true, false},
 		},
 		{
-			core.NewCachedShard(&metadata.ShardWithRWLock{
+			core.NewCachedShard(&metadata.Shard{
 				Shard: metapb.Shard{Replicas: []metapb.Replica{
 					{ID: 1, StoreID: 1},
 					{ID: 2, StoreID: 4},
@@ -258,7 +258,7 @@ func TestPlacementGuard(t *testing.T) {
 	testCluster.AddLabelsStore(3, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(4, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(5, 1, map[string]string{"zone": "z3"})
-	resource := core.NewCachedShard(&metadata.ShardWithRWLock{
+	resource := core.NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			Replicas: []metapb.Replica{
 				{StoreID: 1, ID: 1},

@@ -78,7 +78,7 @@ func TestSortedEqual(t *testing.T) {
 		},
 	}
 
-	meta := &metadata.ShardWithRWLock{
+	meta := &metadata.Shard{
 		Shard: metapb.Shard{
 			ID: 100,
 			Replicas: []metapb.Replica{
@@ -166,16 +166,16 @@ func TestShardKey(t *testing.T) {
 		assert.NoError(t, err, "TestShardKey failed")
 
 		// start key changed
-		origin := NewCachedShard(&metadata.ShardWithRWLock{Shard: metapb.Shard{End: []byte(got)}}, nil)
-		res := NewCachedShard(&metadata.ShardWithRWLock{Shard: metapb.Shard{Start: []byte(got), End: []byte(got)}}, nil)
+		origin := NewCachedShard(&metadata.Shard{Shard: metapb.Shard{End: []byte(got)}}, nil)
+		res := NewCachedShard(&metadata.Shard{Shard: metapb.Shard{Start: []byte(got), End: []byte(got)}}, nil)
 
 		s := DiffShardKeyInfo(origin, res)
 		assert.True(t, regexp.MustCompile("^.*StartKey Changed.*$").MatchString(s), "TestShardKey failed")
 		assert.True(t, strings.Contains(s, c.expect), "TestShardKey failed")
 
 		// end key changed
-		origin = NewCachedShard(&metadata.ShardWithRWLock{Shard: metapb.Shard{Start: []byte(got)}}, nil)
-		res = NewCachedShard(&metadata.ShardWithRWLock{Shard: metapb.Shard{Start: []byte(got), End: []byte(got)}}, nil)
+		origin = NewCachedShard(&metadata.Shard{Shard: metapb.Shard{Start: []byte(got)}}, nil)
+		res = NewCachedShard(&metadata.Shard{Shard: metapb.Shard{Start: []byte(got), End: []byte(got)}}, nil)
 		s = DiffShardKeyInfo(origin, res)
 		assert.True(t, regexp.MustCompile(".*EndKey Changed.*").MatchString(s), "TestShardKey failed")
 		assert.True(t, strings.Contains(s, c.expect), "TestShardKey failed")
@@ -188,7 +188,7 @@ func TestSetShard(t *testing.T) {
 		peer1 := metapb.Replica{StoreID: uint64(i%5 + 1), ID: uint64(i*5 + 1)}
 		peer2 := metapb.Replica{StoreID: uint64((i+1)%5 + 1), ID: uint64(i*5 + 2)}
 		peer3 := metapb.Replica{StoreID: uint64((i+2)%5 + 1), ID: uint64(i*5 + 3)}
-		res := NewCachedShard(&metadata.ShardWithRWLock{
+		res := NewCachedShard(&metadata.Shard{
 			Shard: metapb.Shard{
 				ID:       uint64(i + 1),
 				Replicas: []metapb.Replica{peer1, peer2, peer3},
@@ -202,7 +202,7 @@ func TestSetShard(t *testing.T) {
 	peer1 := metapb.Replica{StoreID: uint64(4), ID: uint64(101)}
 	peer2 := metapb.Replica{StoreID: uint64(5), ID: uint64(102)}
 	peer3 := metapb.Replica{StoreID: uint64(1), ID: uint64(103)}
-	res := NewCachedShard(&metadata.ShardWithRWLock{
+	res := NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       uint64(21),
 			Replicas: []metapb.Replica{peer1, peer2, peer3},
@@ -222,7 +222,7 @@ func TestSetShard(t *testing.T) {
 	peer1 = metapb.Replica{StoreID: uint64(2), ID: uint64(101)}
 	peer2 = metapb.Replica{StoreID: uint64(3), ID: uint64(102)}
 	peer3 = metapb.Replica{StoreID: uint64(1), ID: uint64(103)}
-	res = NewCachedShard(&metadata.ShardWithRWLock{
+	res = NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       uint64(21),
 			Replicas: []metapb.Replica{peer1, peer2, peer3},
@@ -269,7 +269,7 @@ func TestShouldRemoveFromSubTree(t *testing.T) {
 	peer2 := metapb.Replica{StoreID: uint64(2), ID: uint64(2)}
 	peer3 := metapb.Replica{StoreID: uint64(3), ID: uint64(3)}
 	peer4 := metapb.Replica{StoreID: uint64(3), ID: uint64(3)}
-	res := NewCachedShard(&metadata.ShardWithRWLock{
+	res := NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       uint64(1),
 			Replicas: []metapb.Replica{peer1, peer2, peer4},
@@ -278,7 +278,7 @@ func TestShouldRemoveFromSubTree(t *testing.T) {
 		},
 	}, &peer1)
 
-	origin := NewCachedShard(&metadata.ShardWithRWLock{
+	origin := NewCachedShard(&metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       uint64(2),
 			Replicas: []metapb.Replica{peer1, peer2, peer3},

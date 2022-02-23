@@ -226,8 +226,8 @@ func TestIssue112(t *testing.T) {
 	}
 }
 
-func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) *metadata.ShardWithRWLock {
-	return &metadata.ShardWithRWLock{
+func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) *metadata.Shard {
+	return &metadata.Shard{
 		Shard: metapb.Shard{
 			ID:       resourceID,
 			Start:    []byte(fmt.Sprintf("%20d", resourceID)),
@@ -238,8 +238,8 @@ func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) *metadata.Shar
 	}
 }
 
-func newTestStoreMeta(containerID uint64) *metadata.StoreWithRWLock {
-	return &metadata.StoreWithRWLock{
+func newTestStoreMeta(containerID uint64) *metadata.Store {
+	return &metadata.Store{
 		Store: metapb.Store{
 			ID:         containerID,
 			ClientAddr: fmt.Sprintf("127.0.0.1:%d", containerID),

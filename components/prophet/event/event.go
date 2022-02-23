@@ -49,8 +49,8 @@ func EventTypeName(value uint32) string {
 
 // Snapshot cache snapshot
 type Snapshot struct {
-	Shards  []*metadata.ShardWithRWLock
-	Stores  []*metadata.StoreWithRWLock
+	Shards  []*metadata.Shard
+	Stores  []*metadata.Store
 	Leaders map[uint64]uint64
 }
 
@@ -86,7 +86,7 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 }
 
 // NewShardEvent create resource event
-func NewShardEvent(target *metadata.ShardWithRWLock, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
+func NewShardEvent(target *metadata.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
@@ -120,7 +120,7 @@ func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 }
 
 // NewStoreEvent create container event
-func NewStoreEvent(target *metadata.StoreWithRWLock) rpcpb.EventNotify {
+func NewStoreEvent(target *metadata.Store) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}

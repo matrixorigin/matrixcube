@@ -212,7 +212,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 }
 
 func (p *defaultProphet) handlePutStore(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
-	meta := metadata.NewStoreWithRWLock()
+	meta := metadata.NewStore()
 	err := meta.Unmarshal(req.PutStore.Store)
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (p *defaultProphet) handlePutStore(rc *cluster.RaftCluster, req *rpcpb.Prop
 }
 
 func (p *defaultProphet) handleShardHeartbeat(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
-	meta := metadata.NewShardWithRWLock()
+	meta := metadata.NewShard()
 	err := meta.Unmarshal(req.ShardHeartbeat.Shard)
 	if err != nil {
 		return err

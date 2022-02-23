@@ -20,371 +20,385 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-type ShardWithRWLock struct {
+type Shard struct {
 	sync.RWMutex
 
 	Shard metapb.Shard
 }
 
-func NewShardWithRWLock() *ShardWithRWLock {
-	return &ShardWithRWLock{}
+func NewShard() *Shard {
+	return &Shard{}
 }
 
-// NewShardWithRWLockFromShard create a prophet Shard from an existed Shard
-func NewShardWithRWLockFromShard(meta metapb.Shard) *ShardWithRWLock {
-	return &ShardWithRWLock{Shard: meta}
+// NewShardFromShard create a prophet Shard from an existed Shard
+func NewShardFromShard(meta metapb.Shard) *Shard {
+	return &Shard{Shard: meta}
 }
 
-func (shardWithRWLock *ShardWithRWLock) ID() uint64 {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) ID() uint64 {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.ID
+	return shard.Shard.ID
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetID(id uint64) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetID(id uint64) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.ID = id
+	shard.Shard.ID = id
 }
 
-func (shardWithRWLock *ShardWithRWLock) Group() uint64 {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Group() uint64 {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Group
+	return shard.Shard.Group
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetGroup(group uint64) {
-	shardWithRWLock.Shard.Group = group
+func (shard *Shard) SetGroup(group uint64) {
+	shard.Shard.Group = group
 }
 
-func (shardWithRWLock *ShardWithRWLock) Replicas() []metapb.Replica {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Replicas() []metapb.Replica {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Replicas
+	return shard.Shard.Replicas
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetReplicas(replicas []metapb.Replica) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetReplicas(replicas []metapb.Replica) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Replicas = replicas
+	shard.Shard.Replicas = replicas
 }
 
-func (shardWithRWLock *ShardWithRWLock) AppendReplica(replica metapb.Replica) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) AppendReplica(replica metapb.Replica) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Replicas = append(shardWithRWLock.Shard.Replicas, replica)
+	shard.Shard.Replicas = append(shard.Shard.Replicas, replica)
 }
 
-func (shardWithRWLock *ShardWithRWLock) Range() ([]byte, []byte) {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Range() ([]byte, []byte) {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Start, shardWithRWLock.Shard.End
+	return shard.Shard.Start, shard.Shard.End
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetStartKey(value []byte) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetStartKey(value []byte) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Start = value
+	shard.Shard.Start = value
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetEndKey(value []byte) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetEndKey(value []byte) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.End = value
+	shard.Shard.End = value
 }
 
-func (shardWithRWLock *ShardWithRWLock) Epoch() metapb.ShardEpoch {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Epoch() metapb.ShardEpoch {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Epoch
+	return shard.Shard.Epoch
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetEpoch(value metapb.ShardEpoch) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetEpoch(value metapb.ShardEpoch) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Epoch = value
+	shard.Shard.Epoch = value
 }
 
-func (shardWithRWLock *ShardWithRWLock) State() metapb.ShardState {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) State() metapb.ShardState {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.State
+	return shard.Shard.State
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetState(state metapb.ShardState) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) StateLocked() metapb.ShardState {
+	shard.RLock()
+	defer shard.RUnlock()
 
-	shardWithRWLock.Shard.State = state
+	return shard.Shard.State
 }
 
-func (shardWithRWLock *ShardWithRWLock) Unique() string {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) SetState(state metapb.ShardState) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	return shardWithRWLock.Shard.Unique
+	shard.Shard.State = state
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetUnique(value string) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetStateLocked(state metapb.ShardState) {
+	shard.Lock()
+	defer shard.Unlock()
 
-	shardWithRWLock.Shard.Unique = value
+	shard.Shard.State = state
 }
 
-func (shardWithRWLock *ShardWithRWLock) Data() []byte {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Unique() string {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Data
+	return shard.Shard.Unique
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetData(value []byte) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetUnique(value string) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Data = value
+	shard.Shard.Unique = value
 }
 
-func (shardWithRWLock *ShardWithRWLock) RuleGroups() []string {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Data() []byte {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.RuleGroups
+	return shard.Shard.Data
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetRuleGroups(values ...string) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetData(value []byte) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.RuleGroups = values
+	shard.Shard.Data = value
 }
 
-func (shardWithRWLock *ShardWithRWLock) Labels() []metapb.Pair {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) RuleGroups() []string {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return shardWithRWLock.Shard.Labels
+	return shard.Shard.RuleGroups
 }
 
-func (shardWithRWLock *ShardWithRWLock) SetLabels(labels []metapb.Pair) {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetRuleGroups(values ...string) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	shardWithRWLock.Shard.Labels = labels
+	shard.Shard.RuleGroups = values
 }
 
-func (shardWithRWLock *ShardWithRWLock) Marshal() ([]byte, error) {
-	shardWithRWLock.RLock()
-	defer shardWithRWLock.RUnlock()
+func (shard *Shard) Labels() []metapb.Pair {
+	// shard.RLock()
+	// defer shard.RUnlock()
 
-	return protoc.MustMarshal(&shardWithRWLock.Shard), nil
+	return shard.Shard.Labels
 }
 
-func (shardWithRWLock *ShardWithRWLock) Unmarshal(data []byte) error {
-	shardWithRWLock.Lock()
-	defer shardWithRWLock.Unlock()
+func (shard *Shard) SetLabels(labels []metapb.Pair) {
+	// shard.Lock()
+	// defer shard.Unlock()
 
-	protoc.MustUnmarshal(&shardWithRWLock.Shard, data)
+	shard.Shard.Labels = labels
+}
+
+func (shard *Shard) Marshal() ([]byte, error) {
+	// shard.RLock()
+	// defer shard.RUnlock()
+
+	return protoc.MustMarshal(&shard.Shard), nil
+}
+
+func (shard *Shard) Unmarshal(data []byte) error {
+	// shard.Lock()
+	// defer shard.Unlock()
+
+	protoc.MustUnmarshal(&shard.Shard, data)
 	return nil
 }
 
-func (shardWithRWLock *ShardWithRWLock) Clone() *ShardWithRWLock {
-	value := &ShardWithRWLock{}
-	data, _ := shardWithRWLock.Marshal()
+func (shard *Shard) Clone() *Shard {
+	value := &Shard{}
+	data, _ := shard.Marshal()
 	value.Unmarshal(data)
 	return value
 }
 
-type StoreWithRWLock struct {
-	sync.RWMutex
+type Store struct {
+	// sync.RWMutex
 
 	Store metapb.Store
 }
 
-func NewStoreWithRWLock() *StoreWithRWLock {
-	return &StoreWithRWLock{}
+func NewStore() *Store {
+	return &Store{}
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetAddrs(addr, shardAddr string) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetAddrs(addr, shardAddr string) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.ClientAddr = addr
-	storeWithRWLock.Store.RaftAddr = shardAddr
+	store.Store.ClientAddr = addr
+	store.Store.RaftAddr = shardAddr
 }
 
-func (storeWithRWLock *StoreWithRWLock) Addr() string {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) Addr() string {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.ClientAddr
+	return store.Store.ClientAddr
 }
 
-func (storeWithRWLock *StoreWithRWLock) ShardAddr() string {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) ShardAddr() string {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.RaftAddr
+	return store.Store.RaftAddr
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetID(id uint64) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetID(id uint64) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.ID = id
+	store.Store.ID = id
 }
 
-func (storeWithRWLock *StoreWithRWLock) ID() uint64 {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) ID() uint64 {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.ID
+	return store.Store.ID
 }
 
-func (storeWithRWLock *StoreWithRWLock) Labels() []metapb.Pair {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) Labels() []metapb.Pair {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.Labels
+	return store.Store.Labels
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetLabels(labels []metapb.Pair) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetLabels(labels []metapb.Pair) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.Labels = labels
+	store.Store.Labels = labels
 }
 
-func (storeWithRWLock *StoreWithRWLock) StartTimestamp() int64 {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) StartTimestamp() int64 {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.StartTime
+	return store.Store.StartTime
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetStartTimestamp(value int64) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetStartTimestamp(value int64) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.StartTime = value
+	store.Store.StartTime = value
 }
 
-func (storeWithRWLock *StoreWithRWLock) Version() (string, string) {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) Version() (string, string) {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.Version, storeWithRWLock.Store.GitHash
+	return store.Store.Version, store.Store.GitHash
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetVersion(version string, githash string) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetVersion(version string, githash string) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.Version = version
-	storeWithRWLock.Store.GitHash = githash
+	store.Store.Version = version
+	store.Store.GitHash = githash
 }
 
-func (storeWithRWLock *StoreWithRWLock) DeployPath() string {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) DeployPath() string {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.DeployPath
+	return store.Store.DeployPath
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetDeployPath(value string) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetDeployPath(value string) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.DeployPath = value
+	store.Store.DeployPath = value
 }
 
-func (storeWithRWLock *StoreWithRWLock) State() metapb.StoreState {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) State() metapb.StoreState {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.State
+	return store.Store.State
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetState(value metapb.StoreState) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetState(value metapb.StoreState) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.State = value
+	store.Store.State = value
 }
 
-func (storeWithRWLock *StoreWithRWLock) LastHeartbeat() int64 {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) LastHeartbeat() int64 {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.LastHeartbeatTime
+	return store.Store.LastHeartbeatTime
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetLastHeartbeat(value int64) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetLastHeartbeat(value int64) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.LastHeartbeatTime = value
+	store.Store.LastHeartbeatTime = value
 }
 
-func (storeWithRWLock *StoreWithRWLock) PhysicallyDestroyed() bool {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) PhysicallyDestroyed() bool {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return storeWithRWLock.Store.PhysicallyDestroyed
+	return store.Store.PhysicallyDestroyed
 }
 
-func (storeWithRWLock *StoreWithRWLock) SetPhysicallyDestroyed(v bool) {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) SetPhysicallyDestroyed(v bool) {
+	// store.Lock()
+	// defer store.Unlock()
 
-	storeWithRWLock.Store.PhysicallyDestroyed = v
+	store.Store.PhysicallyDestroyed = v
 }
 
-func (storeWithRWLock *StoreWithRWLock) Marshal() ([]byte, error) {
-	storeWithRWLock.RLock()
-	defer storeWithRWLock.RUnlock()
+func (store *Store) Marshal() ([]byte, error) {
+	// store.RLock()
+	// defer store.RUnlock()
 
-	return protoc.MustMarshal(&storeWithRWLock.Store), nil
+	return protoc.MustMarshal(&store.Store), nil
 }
 
-func (storeWithRWLock *StoreWithRWLock) Unmarshal(data []byte) error {
-	storeWithRWLock.Lock()
-	defer storeWithRWLock.Unlock()
+func (store *Store) Unmarshal(data []byte) error {
+	// store.Lock()
+	// defer store.Unlock()
 
-	protoc.MustUnmarshal(&storeWithRWLock.Store, data)
+	protoc.MustUnmarshal(&store.Store, data)
 	return nil
 }
 
-func (storeWithRWLock *StoreWithRWLock) Clone() *StoreWithRWLock {
-	value := &StoreWithRWLock{}
-	data, _ := storeWithRWLock.Marshal()
+func (store *Store) Clone() *Store {
+	value := &Store{}
+	data, _ := store.Marshal()
 	value.Unmarshal(data)
 	return value
 }
 
-func NewTestStore(storeID uint64) *StoreWithRWLock {
-	return &StoreWithRWLock{
+func NewTestStore(storeID uint64) *Store {
+	return &Store{
 		Store: metapb.Store{
 			ID: storeID,
 		},
 	}
 }
 
-func NewTestShard(shardID uint64) *ShardWithRWLock {
-	return &ShardWithRWLock{
+func NewTestShard(shardID uint64) *Shard {
+	return &Shard{
 		Shard: metapb.Shard{
 			ID: shardID,
 		},

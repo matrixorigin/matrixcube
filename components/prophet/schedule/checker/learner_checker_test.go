@@ -34,7 +34,7 @@ func TestPromoteLearner(t *testing.T) {
 	}
 
 	resource := core.NewCachedShard(
-		&metadata.ShardWithRWLock{
+		&metadata.Shard{
 			Shard: metapb.Shard{
 				ID: 1,
 				Replicas: []metapb.Replica{

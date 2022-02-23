@@ -65,7 +65,7 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 		desc := descs[j%3]
 		op := operator.NewOperator(desc, "test", uint64(1), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.ShardWithRWLock{
+				FromShard: &metadata.Shard{
 					Shard: metapb.Shard{
 						ID:    1,
 						Start: []byte{},
@@ -73,7 +73,7 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 						Epoch: metapb.ShardEpoch{},
 					},
 				},
-				ToShard: &metadata.ShardWithRWLock{
+				ToShard: &metadata.Shard{
 					Shard: metapb.Shard{
 						ID:    2,
 						Start: []byte{},
@@ -87,7 +87,7 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 		rb.PutOperator(op)
 		op = operator.NewOperator(desc, "test", uint64(2), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.ShardWithRWLock{
+				FromShard: &metadata.Shard{
 					Shard: metapb.Shard{
 						ID:    1,
 						Start: []byte{},
@@ -95,7 +95,7 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 						Epoch: metapb.ShardEpoch{},
 					},
 				},
-				ToShard: &metadata.ShardWithRWLock{
+				ToShard: &metadata.Shard{
 					Shard: metapb.Shard{
 						ID:    2,
 						Start: []byte{},

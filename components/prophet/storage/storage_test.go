@@ -90,8 +90,8 @@ func TestLoadShards(t *testing.T) {
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []*metadata.ShardWithRWLock
-	cb := func(v *metadata.ShardWithRWLock) {
+	var values []*metadata.Shard
+	cb := func(v *metadata.Shard) {
 		values = append(values, v)
 	}
 
@@ -125,8 +125,8 @@ func TestLoadStores(t *testing.T) {
 
 	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []*metadata.StoreWithRWLock
-	cb := func(v *metadata.StoreWithRWLock, lw, cw float64) {
+	var values []*metadata.Store
+	cb := func(v *metadata.Store, lw, cw float64) {
 		values = append(values, v)
 	}
 
@@ -163,7 +163,7 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
 
-	var reses []*metadata.ShardWithRWLock
+	var reses []*metadata.Shard
 	for i := 0; i < 10; i++ {
 		res := metadata.NewTestShard(uint64(i + 1))
 		reses = append(reses, res)
@@ -172,7 +172,7 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.True(t, yes, "TestAlreadyBootstrapped failed")
 	c := 0
-	err = s.LoadShards(8, func(res *metadata.ShardWithRWLock) {
+	err = s.LoadShards(8, func(res *metadata.Shard) {
 		c++
 	})
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
