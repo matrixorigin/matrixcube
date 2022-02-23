@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,10 +59,8 @@ func TestDistinctScore(t *testing.T) {
 }
 
 func TestCloneStore(t *testing.T) {
-	meta := &metadata.Store{
-		Store: metapb.Store{
-			ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
-		},
+	meta := &metapb.Store{
+		ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
 	}
 	container := NewCachedStore(meta)
 	start := time.Now()
@@ -75,7 +72,7 @@ func TestCloneStore(t *testing.T) {
 			if time.Since(start) > time.Second {
 				break
 			}
-			container.Meta.State()
+			container.Meta.GetState()
 		}
 	}()
 	go func() {
@@ -100,7 +97,7 @@ func TestShardScore(t *testing.T) {
 	stats.UsedSize = 0
 
 	container := NewCachedStore(
-		metadata.NewTestStore(1),
+		&metapb.Store{ID: 1},
 		SetStoreStats(stats),
 		SetShardSize("", 1),
 	)

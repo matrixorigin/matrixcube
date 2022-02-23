@@ -19,7 +19,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,11 +34,7 @@ func TestCachedShard(t *testing.T) {
 		}
 		peers = append(peers, p)
 	}
-	res := &metadata.Shard{
-		Shard: metapb.Shard{
-			Replicas: peers,
-		},
-	}
+	res := &metapb.Shard{Replicas: peers}
 	downPeer, pendingPeer := peers[0], peers[1]
 
 	info := NewCachedShard(
@@ -54,7 +49,7 @@ func TestCachedShard(t *testing.T) {
 	for i := uint64(0); i < n; i++ {
 		p, ok := r.GetPeer(i)
 		assert.True(t, ok)
-		assert.True(t, reflect.DeepEqual(p, r.Meta.Replicas()[i]))
+		assert.True(t, reflect.DeepEqual(p, r.Meta.GetReplicas()[i]))
 	}
 
 	_, ok := r.GetPeer(n)
@@ -84,7 +79,7 @@ func TestCachedShard(t *testing.T) {
 		ID:      n,
 		StoreID: n,
 	}
-	r = r.Clone(SetPeers(append(r.Meta.Replicas(), removePeer)))
+	r = r.Clone(SetPeers(append(r.Meta.GetReplicas(), removePeer)))
 
 	assert.True(t, regexp.MustCompile("Add peer.*").MatchString(DiffShardPeersInfo(info, r)))
 	assert.True(t, regexp.MustCompile("Remove peer.*").MatchString(DiffShardPeersInfo(r, info)))
@@ -383,7 +378,7 @@ func TestRandomShardDiscontinuous(t *testing.T) {
 
 func updateTestShards(t *testing.T, tree *resourceTree, resources []*CachedShard) {
 	for _, res := range resources {
-		startKey, endKey := res.Meta.Range()
+		startKey, endKey := res.Meta.GetRange()
 		tree.update(res)
 		assert.Equal(t, res, tree.search(startKey))
 		if len(endKey) > 0 {

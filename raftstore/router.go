@@ -14,7 +14,6 @@
 package raftstore
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"sync"
 	"sync/atomic"
 
@@ -304,7 +303,7 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 }
 
 func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, removed bool, create bool) {
-	res := metadata.NewShard()
+	res := metapb.NewShard()
 	err := res.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal shard",
@@ -314,39 +313,39 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 
 	if removed {
 		r.logger.Info("need to delete shard",
-			log.ShardField("shard", res.Shard))
+			log.ShardField("shard", *res))
 
-		r.options.removeShardHandler(res.ID())
-		if tree, ok := r.mu.keyRanges[res.Group()]; ok {
-			tree.Remove(res.Shard)
+		r.options.removeShardHandler(res.GetID())
+		if tree, ok := r.mu.keyRanges[res.GetGroup()]; ok {
+			tree.Remove(*res)
 		}
-		delete(r.mu.shards, res.ID())
-		delete(r.mu.missingLeaderStoreShards, res.ID())
-		delete(r.mu.leaders, res.ID())
+		delete(r.mu.shards, res.GetID())
+		delete(r.mu.missingLeaderStoreShards, res.GetID())
+		delete(r.mu.leaders, res.GetID())
 		return
 	}
 
 	if create {
 		r.logger.Info("need to create shard",
-			log.ShardField("shard", res.Shard))
-		r.options.createShardHandler(res.Shard)
+			log.ShardField("shard", *res))
+		r.options.createShardHandler(*res)
 		return
 	}
 
-	r.mu.shards[res.ID()] = res.Shard
-	r.updateShardKeyRangeLocked(res.Shard)
+	r.mu.shards[res.GetID()] = *res
+	r.updateShardKeyRangeLocked(*res)
 
 	r.logger.Debug("shard route updated",
-		log.ShardField("shard", res.Shard),
+		log.ShardField("shard", *res),
 		zap.Uint64("leader", leaderReplicaID))
 
 	if leaderReplicaID > 0 {
-		r.updateLeaderLocked(res.ID(), leaderReplicaID)
+		r.updateLeaderLocked(res.GetID(), leaderReplicaID)
 	}
 }
 
 func (r *defaultRouter) updateStoreLocked(data []byte) {
-	s := metadata.NewStore()
+	s := metapb.NewStore()
 	err := s.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal store",
@@ -354,9 +353,9 @@ func (r *defaultRouter) updateStoreLocked(data []byte) {
 			log.HexField("data", data))
 	}
 
-	r.mu.stores[s.ID()] = s.Store
+	r.mu.stores[s.GetID()] = *s
 	for k, v := range r.mu.missingLeaderStoreShards {
-		if v.StoreID == s.ID() {
+		if v.StoreID == s.GetID() {
 			if _, ok := r.mu.shards[k]; ok {
 				r.updateLeaderLocked(k, v.ID)
 			}

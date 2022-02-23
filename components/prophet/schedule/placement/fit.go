@@ -138,7 +138,7 @@ type fitWorker struct {
 
 func newFitWorker(containers StoreSet, res *core.CachedShard, rules []*Rule) *fitWorker {
 	var peers []*fitPeer
-	for _, p := range res.Meta.Replicas() {
+	for _, p := range res.Meta.GetReplicas() {
 		peers = append(peers, &fitPeer{
 			Replica:   p,
 			container: containers.GetStore(p.StoreID),

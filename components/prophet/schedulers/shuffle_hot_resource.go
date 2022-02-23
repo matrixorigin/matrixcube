@@ -183,7 +183,7 @@ func (s *shuffleHotShardScheduler) randomSchedule(cluster opt.Cluster, loadDetai
 			if !filter.Target(cluster.GetOpts(), container, filters) {
 				continue
 			}
-			destStoreIDs = append(destStoreIDs, container.Meta.ID())
+			destStoreIDs = append(destStoreIDs, container.Meta.GetID())
 		}
 		if len(destStoreIDs) == 0 {
 			return nil

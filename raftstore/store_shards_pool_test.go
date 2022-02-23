@@ -21,7 +21,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/golang/mock/gomock"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockjob"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
@@ -149,8 +148,8 @@ func TestGCAllocating(t *testing.T) {
 	assert.Empty(t, v)
 
 	aware := mockjob.NewMockShardsAware(ctrl)
-	aware.EXPECT().GetShard(gomock.Eq(uint64(1))).Return(core.NewCachedShard(metadata.NewShard(), nil))
-	aware.EXPECT().GetShard(gomock.Eq(uint64(2))).Return(core.NewCachedShard(metadata.NewShard(), nil, core.SetWrittenKeys(1)))
+	aware.EXPECT().GetShard(gomock.Eq(uint64(1))).Return(core.NewCachedShard(metapb.NewShard(), nil))
+	aware.EXPECT().GetShard(gomock.Eq(uint64(2))).Return(core.NewCachedShard(metapb.NewShard(), nil, core.SetWrittenKeys(1)))
 	p.mu.state = 1
 	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
 	p.mu.pools.Pools[1] = &metapb.ShardPool{Capacity: 2, Seq: 2, AllocatedOffset: 2, AllocatedShards: []*metapb.AllocatedShard{
@@ -267,8 +266,8 @@ func TestDoAllocLocked(t *testing.T) {
 
 	// pd has no corresponding data
 	aware = mockjob.NewMockShardsAware(ctrl)
-	aware.EXPECT().ForeachShards(gomock.Any(), gomock.Any()).DoAndReturn(func(group uint64, fn func(res *metadata.Shard)) {})
-	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res *metadata.Shard)) {})
+	aware.EXPECT().ForeachShards(gomock.Any(), gomock.Any()).DoAndReturn(func(group uint64, fn func(res *metapb.Shard)) {})
+	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res *metapb.Shard)) {})
 	p.mu.createC = make(chan struct{}, 10)
 	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
 	p.mu.pools.Pools[0] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
@@ -280,8 +279,8 @@ func TestDoAllocLocked(t *testing.T) {
 
 	// allocate from created
 	aware = mockjob.NewMockShardsAware(ctrl)
-	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res *metadata.Shard)) {
-		fn(metadata.NewShardFromShard(Shard{ID: 1, Unique: p.unique(0, 1)}))
+	aware.EXPECT().ForeachWaittingCreateShards(gomock.Any()).DoAndReturn(func(fn func(res *metapb.Shard)) {
+		fn(&metapb.Shard{ID: 1, Unique: p.unique(0, 1)})
 	})
 	p.mu.createC = make(chan struct{}, 10)
 	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}

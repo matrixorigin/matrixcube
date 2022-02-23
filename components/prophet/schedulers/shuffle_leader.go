@@ -132,12 +132,12 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 }
 
 func (s *shuffleLeaderScheduler) scheduleByGroup(groupKey string, targetStore *core.CachedStore, cluster opt.Cluster) []*operator.Operator {
-	res := cluster.RandFollowerShard(groupKey, targetStore.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
+	res := cluster.RandFollowerShard(groupKey, targetStore.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-follower").Inc()
 		return nil
 	}
-	op, err := operator.CreateTransferLeaderOperator(ShuffleLeaderType, cluster, res, res.GetLeader().GetStoreID(), targetStore.Meta.ID(), operator.OpAdmin)
+	op, err := operator.CreateTransferLeaderOperator(ShuffleLeaderType, cluster, res, res.GetLeader().GetStoreID(), targetStore.Meta.GetID(), operator.OpAdmin)
 	if err != nil {
 		cluster.GetLogger().Error("fail to create shuffle leader operator",
 			shuffleLeaderField,

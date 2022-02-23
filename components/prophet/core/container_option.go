@@ -46,7 +46,7 @@ func SetStoreLabels(labels []metapb.Pair) StoreCreateOption {
 func SetStoreStartTime(startTS int64) StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.Clone()
-		meta.SetStartTimestamp(startTS)
+		meta.SetStartTime(startTS)
 		container.Meta = meta
 	}
 }
@@ -55,7 +55,7 @@ func SetStoreStartTime(startTS int64) StoreCreateOption {
 func SetStoreVersion(githash, version string) StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.Clone()
-		meta.SetVersion(version, githash)
+		meta.SetVersionAndGitHash(version, githash)
 		container.Meta = meta
 	}
 }

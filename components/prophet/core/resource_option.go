@@ -53,7 +53,7 @@ func WithPendingPeers(pendingReplicas []metapb.Replica) ShardCreateOption {
 // WithLearners sets the learners for the resource.
 func WithLearners(learners []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
-		peers := res.Meta.Replicas()
+		peers := res.Meta.GetReplicas()
 		for i := range peers {
 			for _, l := range learners {
 				if peers[i].ID == l.ID {
@@ -96,11 +96,11 @@ func WithNewShardID(id uint64) ShardCreateOption {
 // WithNewPeerIds sets new ids for peers.
 func WithNewPeerIds(peerIDs ...uint64) ShardCreateOption {
 	return func(res *CachedShard) {
-		if len(peerIDs) != len(res.Meta.Replicas()) {
+		if len(peerIDs) != len(res.Meta.GetReplicas()) {
 			return
 		}
 
-		peers := res.Meta.Replicas()
+		peers := res.Meta.GetReplicas()
 		for i := range peers {
 			peers[i].ID = peerIDs[i]
 		}
@@ -110,7 +110,7 @@ func WithNewPeerIds(peerIDs ...uint64) ShardCreateOption {
 // WithIncVersion increases the version of the resource.
 func WithIncVersion() ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		e.Version++
 		res.Meta.SetEpoch(e)
 	}
@@ -119,7 +119,7 @@ func WithIncVersion() ShardCreateOption {
 // WithDecVersion decreases the version of the resource.
 func WithDecVersion() ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		e.Version--
 		res.Meta.SetEpoch(e)
 	}
@@ -128,7 +128,7 @@ func WithDecVersion() ShardCreateOption {
 // WithIncConfVer increases the config version of the resource.
 func WithIncConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		e.ConfVer++
 		res.Meta.SetEpoch(e)
 	}
@@ -137,7 +137,7 @@ func WithIncConfVer() ShardCreateOption {
 // WithDecConfVer decreases the config version of the resource.
 func WithDecConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		e.ConfVer--
 		res.Meta.SetEpoch(e)
 	}
@@ -161,7 +161,7 @@ func SetWrittenKeys(v uint64) ShardCreateOption {
 func WithRemoveStorePeer(containerID uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		var peers []metapb.Replica
-		for _, peer := range res.Meta.Replicas() {
+		for _, peer := range res.Meta.GetReplicas() {
 			if peer.StoreID != containerID {
 				peers = append(peers, peer)
 			}
@@ -208,7 +208,7 @@ func SetReportInterval(v uint64) ShardCreateOption {
 // SetShardConfVer sets the config version for the resource.
 func SetShardConfVer(confVer uint64) ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		if e.Version == 0 {
 			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: confVer, Version: 1})
 		} else {
@@ -221,7 +221,7 @@ func SetShardConfVer(confVer uint64) ShardCreateOption {
 // SetShardVersion sets the version for the resource.
 func SetShardVersion(version uint64) ShardCreateOption {
 	return func(res *CachedShard) {
-		e := res.Meta.Epoch()
+		e := res.Meta.GetEpoch()
 		if e.Version == 0 {
 			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: 1, Version: version})
 		} else {
@@ -241,7 +241,7 @@ func SetPeers(peers []metapb.Replica) ShardCreateOption {
 // WithAddPeer adds a peer for the resource.
 func WithAddPeer(peer metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
-		peers := res.Meta.Replicas()
+		peers := res.Meta.GetReplicas()
 		peers = append(peers, peer)
 		res.Meta.SetReplicas(peers)
 
@@ -256,8 +256,8 @@ func WithAddPeer(peer metapb.Replica) ShardCreateOption {
 // WithPromoteLearner promotes the learner.
 func WithPromoteLearner(peerID uint64) ShardCreateOption {
 	return func(res *CachedShard) {
-		peers := res.Meta.Replicas()
-		for i := range res.Meta.Replicas() {
+		peers := res.Meta.GetReplicas()
+		for i := range res.Meta.GetReplicas() {
 			if peers[i].ID == peerID {
 				peers[i].Role = metapb.ReplicaRole_Voter
 			}
@@ -268,7 +268,7 @@ func WithPromoteLearner(peerID uint64) ShardCreateOption {
 // WithReplacePeerStore replaces a peer's containerID with another ID.
 func WithReplacePeerStore(oldStoreID, newStoreID uint64) ShardCreateOption {
 	return func(res *CachedShard) {
-		peers := res.Meta.Replicas()
+		peers := res.Meta.GetReplicas()
 
 		for i := range peers {
 			if peers[i].StoreID == oldStoreID {

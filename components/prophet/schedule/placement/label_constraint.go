@@ -124,7 +124,7 @@ func MatchLabelConstraints(container *core.CachedStore, constraints []LabelConst
 		return false
 	}
 
-	for _, l := range container.Meta.Labels() {
+	for _, l := range container.Meta.GetLabels() {
 		if isExclusiveLabel(l.GetKey()) &&
 			slice.NoneOf(constraints, func(i int) bool { return constraints[i].Key == l.GetKey() }) {
 			return false

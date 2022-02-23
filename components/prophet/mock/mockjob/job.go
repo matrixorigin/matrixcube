@@ -10,7 +10,6 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	config "github.com/matrixorigin/matrixcube/components/prophet/config"
 	core "github.com/matrixorigin/matrixcube/components/prophet/core"
-	metadata "github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	storage "github.com/matrixorigin/matrixcube/components/prophet/storage"
 	metapb "github.com/matrixorigin/matrixcube/pb/metapb"
 )
@@ -39,7 +38,7 @@ func (m *MockShardsAware) EXPECT() *MockShardsAwareMockRecorder {
 }
 
 // ForeachShards mocks base method.
-func (m *MockShardsAware) ForeachShards(group uint64, fn func(*metadata.Shard)) {
+func (m *MockShardsAware) ForeachShards(group uint64, fn func(*metapb.Shard)) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ForeachShards", group, fn)
 }
@@ -51,7 +50,7 @@ func (mr *MockShardsAwareMockRecorder) ForeachShards(group, fn interface{}) *gom
 }
 
 // ForeachWaittingCreateShards mocks base method.
-func (m *MockShardsAware) ForeachWaittingCreateShards(do func(*metadata.Shard)) {
+func (m *MockShardsAware) ForeachWaittingCreateShards(do func(*metapb.Shard)) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ForeachWaittingCreateShards", do)
 }

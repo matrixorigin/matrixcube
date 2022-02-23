@@ -107,7 +107,7 @@ func (oc *OperatorController) DispatchDestroyDirectly(res *core.CachedShard, sou
 // Dispatch is used to dispatch the operator of a resource.
 func (oc *OperatorController) Dispatch(res *core.CachedShard, source string) {
 	// Check existed operator.
-	if op := oc.GetOperator(res.Meta.ID()); op != nil {
+	if op := oc.GetOperator(res.Meta.GetID()); op != nil {
 		// Update operator status:
 		// The operator status should be STARTED.
 		// Check will call CheckSuccess and CheckTimeout.
@@ -165,7 +165,7 @@ func (oc *OperatorController) checkStaleOperator(op *operator.Operator, step ope
 	// the operator is stale, and will not be executed even we would
 	// have sent it to your storage applications. Here, we just cancel it.
 	origin := op.ShardEpoch()
-	latest := res.Meta.Epoch()
+	latest := res.Meta.GetEpoch()
 	changes := latest.GetConfVer() - origin.GetConfVer()
 	if changes > op.ConfVerChanged(res) {
 		if oc.RemoveOperator(
@@ -374,7 +374,7 @@ func (oc *OperatorController) checkAddOperator(ops ...*operator.Operator) bool {
 			operatorWaitCounter.WithLabelValues(op.Desc(), "not-found").Inc()
 			return false
 		}
-		epoch := res.Meta.Epoch()
+		epoch := res.Meta.GetEpoch()
 		if epoch.GetVersion() != op.ShardEpoch().Version ||
 			epoch.GetConfVer() != op.ShardEpoch().ConfVer {
 			oc.cluster.GetLogger().Debug("resource epoch not match, cancel add operator",
@@ -612,7 +612,7 @@ func (oc *OperatorController) GetWaitingOperators() []*operator.Operator {
 // SendScheduleCommand sends a command to the resource.
 func (oc *OperatorController) SendScheduleCommand(res *core.CachedShard, step operator.OpStep, source string) {
 	oc.cluster.GetLogger().Info("resource send schedule command",
-		log.ResourceField(res.Meta.ID()),
+		log.ResourceField(res.Meta.GetID()),
 		zap.Stringer("step", step),
 		zap.String("source", source))
 
@@ -980,7 +980,7 @@ func (oc *OperatorController) CollectStoreLimitMetrics() {
 	containers := oc.cluster.GetStores()
 	for _, container := range containers {
 		if container != nil {
-			containerID := container.Meta.ID()
+			containerID := container.Meta.GetID()
 			containerIDStr := strconv.FormatUint(containerID, 10)
 			for n, v := range limit.TypeNameValue {
 				var containerLimit *limit.StoreLimit

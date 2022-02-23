@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -55,7 +54,7 @@ func (s *testOperator) setup() {
 
 func (s *testOperator) newTestShard(resourceID uint64, leaderPeer uint64, peers ...[2]uint64) *core.CachedShard {
 	var (
-		resource = &metadata.Shard{}
+		resource = &metapb.Shard{}
 		leader   *metapb.Replica
 	)
 	resource.SetID(resourceID)
@@ -64,7 +63,7 @@ func (s *testOperator) newTestShard(resourceID uint64, leaderPeer uint64, peers 
 			ID:      peers[i][1],
 			StoreID: peers[i][0],
 		}
-		resource.AppendReplica(peer)
+		resource.SetReplicas(append(resource.GetReplicas(), peer))
 		if peer.ID == leaderPeer {
 			leader = &peer
 		}

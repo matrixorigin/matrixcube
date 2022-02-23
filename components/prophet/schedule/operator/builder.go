@@ -86,8 +86,8 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	b := &Builder{
 		desc:          desc,
 		cluster:       cluster,
-		resourceID:    res.Meta.ID(),
-		resourceEpoch: res.Meta.Epoch(),
+		resourceID:    res.Meta.GetID(),
+		resourceEpoch: res.Meta.GetEpoch(),
 	}
 
 	// options
@@ -100,7 +100,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	originPeers := newPeersMap()
 	unhealthyPeers := newPeersMap()
 
-	for _, p := range res.Meta.Replicas() {
+	for _, p := range res.Meta.GetReplicas() {
 		if p.StoreID == 0 {
 			err = errors.New("cannot build operator for resource with nil peer")
 			break
@@ -140,7 +140,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	}
 
 	// joint state check
-	if err == nil && !b.skipOriginJointStateCheck && metadata.IsInJointState(res.Meta.Replicas()...) {
+	if err == nil && !b.skipOriginJointStateCheck && metadata.IsInJointState(res.Meta.GetReplicas()...) {
 		err = errors.New("cannot build operator for resource which is in joint state")
 	}
 

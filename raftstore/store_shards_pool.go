@@ -13,7 +13,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -229,8 +228,8 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 	id := uint64(0)
 	p.AllocatedOffset++
 	unique := dsp.unique(group, p.AllocatedOffset)
-	fn := func(res *metadata.Shard) {
-		shard := res.Shard
+	fn := func(res *metapb.Shard) {
+		shard := res
 		if shard.Unique == unique {
 			id = shard.ID
 		}
@@ -320,18 +319,19 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 
 	// we don't modify directly
 	modified := dsp.cloneDataLocked()
-	var creates []*metadata.Shard
+	var creates []*metapb.Shard
 	for {
 		changed := false
 		for g, p := range modified.Pools {
 			if p.Seq == 0 ||
 				(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < batchCreateCount) {
 				p.Seq++
-				creates = append(creates, metadata.NewShardFromShard(dsp.factory(g,
+				tmp := dsp.factory(g,
 					addPrefix(p.RangePrefix, p.Seq),
 					addPrefix(p.RangePrefix, p.Seq+1),
 					dsp.unique(g, p.Seq),
-					p.Seq)))
+					p.Seq)
+				creates = append(creates, &tmp)
 				changed = true
 			}
 		}

@@ -14,9 +14,9 @@
 package raftstore
 
 import (
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -53,8 +53,8 @@ func TestScheduleReplicasWithRules(t *testing.T) {
 			},
 		},
 	}))
-	res := metadata.NewShardFromShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}})
-	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]*metadata.Shard{res}, []int{2})
+	res := &metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}}
+	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]*metapb.Shard{res}, []int{2})
 	assert.NoError(t, err)
 	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
 }

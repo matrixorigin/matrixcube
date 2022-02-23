@@ -20,7 +20,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -56,11 +55,7 @@ func (s *testBuilder) newBuilder() *Builder {
 		{ID: 12, StoreID: 2},
 		{ID: 13, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 	}
-	resource := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: peers,
-		},
-	}, &peers[0])
+	resource := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: peers}, &peers[0])
 	return NewBuilder("test", s.cluster, resource)
 }
 
@@ -100,11 +95,7 @@ func TestNewBuilder(t *testing.T) {
 	s.setup()
 
 	peers := []metapb.Replica{{ID: 11, StoreID: 1}, {ID: 12, StoreID: 2, Role: metapb.ReplicaRole_Learner}}
-	resource := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 42, Replicas: peers,
-		},
-	}, &peers[0])
+	resource := core.NewCachedShard(&metapb.Shard{ID: 42, Replicas: peers}, &peers[0])
 	builder := NewBuilder("test", s.cluster, resource)
 	assert.NoError(t, builder.err)
 	assert.Equal(t, 2, len(builder.originPeers))
@@ -427,10 +418,7 @@ func TestBuild(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		resource := core.NewCachedShard(&metadata.Shard{
-			Shard: metapb.Shard{
-				ID: 1, Replicas: tc.originPeers,
-			}}, &tc.originPeers[0])
+		resource := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: tc.originPeers}, &tc.originPeers[0])
 		builder := NewBuilder("test", s.cluster, resource)
 		builder.allowDemote = tc.allowDemote
 		builder.useJointConsensus = tc.useJointConsensus
@@ -495,34 +483,30 @@ func TestTargetUnhealthyPeer(t *testing.T) {
 	s.setup()
 
 	p := metapb.Replica{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Learner}
-	resource := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
-		}},
+	resource := core.NewCachedShard(&metapb.Shard{
+		ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
+	},
 		&metapb.Replica{ID: 1, StoreID: 1}, core.WithPendingPeers([]metapb.Replica{p}))
 	builder := NewBuilder("test", s.cluster, resource)
 	builder.PromoteLearner(2)
 	assert.Error(t, builder.err)
-	resource = core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
-		}}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
+	resource = core.NewCachedShard(&metapb.Shard{
+		ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
+	}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.PromoteLearner(2)
 	assert.Error(t, builder.err)
 
 	p = metapb.Replica{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter}
-	resource = core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
-		}}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithPendingPeers([]metapb.Replica{p}))
+	resource = core.NewCachedShard(&metapb.Shard{
+		ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
+	}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithPendingPeers([]metapb.Replica{p}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.SetLeader(2)
 	assert.Error(t, builder.err)
-	resource = core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
-		}}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
+	resource = core.NewCachedShard(&metapb.Shard{
+		ID: 1, Replicas: []metapb.Replica{{ID: 1, StoreID: 1}, p},
+	}, &metapb.Replica{ID: 1, StoreID: 1}, core.WithDownPeers([]metapb.ReplicaStats{{Replica: p}}))
 	builder = NewBuilder("test", s.cluster, resource)
 	builder.SetLeader(2)
 	assert.Error(t, builder.err)

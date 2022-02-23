@@ -10,7 +10,6 @@ import (
 	roaring64 "github.com/RoaringBitmap/roaring/roaring64"
 	gomock "github.com/golang/mock/gomock"
 	prophet "github.com/matrixorigin/matrixcube/components/prophet"
-	metadata "github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	metapb "github.com/matrixorigin/matrixcube/pb/metapb"
 	rpcpb "github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
@@ -68,7 +67,7 @@ func (mr *MockClientMockRecorder) AllocID() *gomock.Call {
 }
 
 // AskBatchSplit mocks base method.
-func (m *MockClient) AskBatchSplit(res *metadata.Shard, count uint32) ([]rpcpb.SplitID, error) {
+func (m *MockClient) AskBatchSplit(res *metapb.Shard, count uint32) ([]rpcpb.SplitID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AskBatchSplit", res, count)
 	ret0, _ := ret[0].([]rpcpb.SplitID)
@@ -83,7 +82,7 @@ func (mr *MockClientMockRecorder) AskBatchSplit(res, count interface{}) *gomock.
 }
 
 // AsyncAddShards mocks base method.
-func (m *MockClient) AsyncAddShards(resources ...*metadata.Shard) error {
+func (m *MockClient) AsyncAddShards(resources ...*metapb.Shard) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range resources {
@@ -101,7 +100,7 @@ func (mr *MockClientMockRecorder) AsyncAddShards(resources ...interface{}) *gomo
 }
 
 // AsyncAddShardsWithLeastPeers mocks base method.
-func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []*metadata.Shard, leastPeers []int) error {
+func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []*metapb.Shard, leastPeers []int) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncAddShardsWithLeastPeers", resources, leastPeers)
 	ret0, _ := ret[0].(error)
@@ -236,10 +235,10 @@ func (mr *MockClientMockRecorder) GetAppliedRules(id interface{}) *gomock.Call {
 }
 
 // GetStore mocks base method.
-func (m *MockClient) GetStore(containerID uint64) (*metadata.Store, error) {
+func (m *MockClient) GetStore(containerID uint64) (*metapb.Store, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetStore", containerID)
-	ret0, _ := ret[0].(*metadata.Store)
+	ret0, _ := ret[0].(*metapb.Store)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -311,7 +310,7 @@ func (mr *MockClientMockRecorder) NewWatcher(flag interface{}) *gomock.Call {
 }
 
 // PutStore mocks base method.
-func (m *MockClient) PutStore(container *metadata.Store) error {
+func (m *MockClient) PutStore(container *metapb.Store) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PutStore", container)
 	ret0, _ := ret[0].(error)
@@ -368,7 +367,7 @@ func (mr *MockClientMockRecorder) ReportDestroyed(id, replicaID interface{}) *go
 }
 
 // ShardHeartbeat mocks base method.
-func (m *MockClient) ShardHeartbeat(meta *metadata.Shard, hb rpcpb.ShardHeartbeatReq) error {
+func (m *MockClient) ShardHeartbeat(meta *metapb.Shard, hb rpcpb.ShardHeartbeatReq) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardHeartbeat", meta, hb)
 	ret0, _ := ret[0].(error)

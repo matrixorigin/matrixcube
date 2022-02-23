@@ -17,16 +17,13 @@ package core
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStoreStats(t *testing.T) {
 	G := uint64(1024 * 1024 * 1024)
-	meta := &metadata.Store{
-		Store: metapb.Store{ID: 1, State: metapb.StoreState_UP},
-	}
+	meta := &metapb.Store{ID: 1, State: metapb.StoreState_UP}
 	container := NewCachedStore(meta, SetStoreStats(&metapb.StoreStats{
 		Capacity:  200 * G,
 		UsedSize:  50 * G,

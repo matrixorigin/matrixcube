@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -65,21 +64,17 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 		desc := descs[j%3]
 		op := operator.NewOperator(desc, "test", uint64(1), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.Shard{
-					Shard: metapb.Shard{
-						ID:    1,
-						Start: []byte{},
-						End:   []byte{},
-						Epoch: metapb.ShardEpoch{},
-					},
+				FromShard: &metapb.Shard{
+					ID:    1,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
 				},
-				ToShard: &metadata.Shard{
-					Shard: metapb.Shard{
-						ID:    2,
-						Start: []byte{},
-						End:   []byte{},
-						Epoch: metapb.ShardEpoch{},
-					},
+				ToShard: &metapb.Shard{
+					ID:    2,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
 				},
 				IsPassive: false,
 			},
@@ -87,21 +82,17 @@ func TestRandomBucketsWithMergeShard(t *testing.T) {
 		rb.PutOperator(op)
 		op = operator.NewOperator(desc, "test", uint64(2), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
 			operator.MergeShard{
-				FromShard: &metadata.Shard{
-					Shard: metapb.Shard{
-						ID:    1,
-						Start: []byte{},
-						End:   []byte{},
-						Epoch: metapb.ShardEpoch{},
-					},
+				FromShard: &metapb.Shard{
+					ID:    1,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
 				},
-				ToShard: &metadata.Shard{
-					Shard: metapb.Shard{
-						ID:    2,
-						Start: []byte{},
-						End:   []byte{},
-						Epoch: metapb.ShardEpoch{},
-					},
+				ToShard: &metapb.Shard{
+					ID:    2,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
 				},
 				IsPassive: true,
 			},

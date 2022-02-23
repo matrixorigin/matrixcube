@@ -282,8 +282,8 @@ func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 
 // MergeShard is an OpStep that merge two resources.
 type MergeShard struct {
-	FromShard *metadata.Shard
-	ToShard   *metadata.Shard
+	FromShard *metapb.Shard
+	ToShard   *metapb.Shard
 	// there are two resources involved in merge process,
 	// so to keep them from other scheduler,
 	// both of them should add Merresource operatorStep.
@@ -299,14 +299,14 @@ func (mr MergeShard) ConfVerChanged(res *core.CachedShard) uint64 {
 }
 
 func (mr MergeShard) String() string {
-	return fmt.Sprintf("merge resource %v into resource %v", mr.FromShard.ID(), mr.ToShard.ID())
+	return fmt.Sprintf("merge resource %v into resource %v", mr.FromShard.GetID(), mr.ToShard.GetID())
 }
 
 // IsFinish checks if current step is finished.
 func (mr MergeShard) IsFinish(res *core.CachedShard) bool {
 	if mr.IsPassive {
-		start, end := res.Meta.Range()
-		toStart, toEnd := mr.ToShard.Range()
+		start, end := res.Meta.GetRange()
+		toStart, toEnd := mr.ToShard.GetRange()
 		return !bytes.Equal(start, toStart) || !bytes.Equal(end, toEnd)
 	}
 	return false
@@ -320,7 +320,7 @@ func (mr MergeShard) CheckSafety(res *core.CachedShard) error {
 // Influence calculates the container difference that current step makes.
 func (mr MergeShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 	if mr.IsPassive {
-		for _, peer := range res.Meta.Replicas() {
+		for _, peer := range res.Meta.GetReplicas() {
 			o := opInfluence.GetStoreInfluence(peer.StoreID)
 
 			groupKey := res.GetGroupKey()
@@ -353,13 +353,13 @@ func (sr SplitShard) String() string {
 
 // IsFinish checks if current step is finished.
 func (sr SplitShard) IsFinish(res *core.CachedShard) bool {
-	start, end := res.Meta.Range()
+	start, end := res.Meta.GetRange()
 	return !bytes.Equal(start, sr.StartKey) || !bytes.Equal(end, sr.EndKey)
 }
 
 // Influence calculates the container difference that current step makes.
 func (sr SplitShard) Influence(opInfluence OpInfluence, res *core.CachedShard) {
-	for _, peer := range res.Meta.Replicas() {
+	for _, peer := range res.Meta.GetReplicas() {
 		inf := opInfluence.GetStoreInfluence(peer.StoreID)
 
 		groupKey := res.GetGroupKey()
@@ -631,7 +631,7 @@ func (cpe ChangePeerV2Enter) CheckSafety(res *core.CachedShard) error {
 		}
 	}
 
-	switch count := metadata.CountInJointState(res.Meta.Replicas()...); {
+	switch count := metadata.CountInJointState(res.Meta.GetReplicas()...); {
 	case notInJointState && inJointState:
 		return errors.New("non-atomic joint consensus")
 	case notInJointState && count != 0:
@@ -721,7 +721,7 @@ func (cpl ChangePeerV2Leave) IsFinish(res *core.CachedShard) bool {
 			return false
 		}
 	}
-	if metadata.IsInJointState(res.Meta.Replicas()...) {
+	if metadata.IsInJointState(res.Meta.GetReplicas()...) {
 		return false
 	}
 	return true
@@ -772,7 +772,7 @@ func (cpl ChangePeerV2Leave) CheckSafety(res *core.CachedShard) error {
 		}
 	}
 
-	switch count := metadata.CountInJointState(res.Meta.Replicas()...); {
+	switch count := metadata.CountInJointState(res.Meta.GetReplicas()...); {
 	case notInJointState && inJointState:
 		return errors.New("non-atomic joint consensus")
 	case notInJointState && count != 0:

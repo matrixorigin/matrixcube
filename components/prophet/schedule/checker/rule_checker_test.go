@@ -96,7 +96,7 @@ func TestFillReplicasWithRule(t *testing.T) {
 	res.Meta.SetReplicas(nil)
 	err = s.rc.FillReplicas(res, 0)
 	assert.NoError(t, err)
-	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Replicas()))
+	assert.Equal(t, s.rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.GetReplicas()))
 }
 
 func TestAddRulePeerWithIsolationLevel(t *testing.T) {

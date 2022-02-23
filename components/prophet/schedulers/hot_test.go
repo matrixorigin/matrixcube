@@ -22,7 +22,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
@@ -61,7 +60,8 @@ func TestGCPendingOpInfos(t *testing.T) {
 		var err error
 		switch ty {
 		case movePeer:
-			op, err = operator.CreateMovePeerOperator("move-peer-test", tc, resource, operator.OpAdmin, 2, metapb.Replica{ID: resource.Meta.ID()*10000 + 1, StoreID: 4})
+			op, err = operator.CreateMovePeerOperator("move-peer-test", tc, resource, operator.OpAdmin, 2,
+				metapb.Replica{ID: resource.Meta.GetID()*10000 + 1, StoreID: 4})
 		case transferLeader:
 			op, err = operator.CreateTransferLeaderOperator("transfer-leader-test", tc, resource, 1, 2, operator.OpAdmin)
 		}
@@ -1070,8 +1070,7 @@ func addCachedShard(tc *mockcluster.Cluster, rwTy rwType, resources []testCached
 
 func newTestresource(id uint64) *core.CachedShard {
 	peers := []metapb.Replica{{ID: id*100 + 1, StoreID: 1}, {ID: id*100 + 2, StoreID: 2}, {ID: id*100 + 3, StoreID: 3}}
-	return core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{ID: id, Replicas: peers}}, &peers[0])
+	return core.NewCachedShard(&metapb.Shard{ID: id, Replicas: peers}, &peers[0])
 }
 
 func TestCheckShardFlow(t *testing.T) {

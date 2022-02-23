@@ -20,7 +20,6 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockhbstream"
 	_ "github.com/matrixorigin/matrixcube/components/prophet/schedulers"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
@@ -36,10 +35,10 @@ func TestCreateShards(t *testing.T) {
 
 	cluster.coordinator = co
 
-	var changedRes *metadata.Shard
+	var changedRes *metapb.Shard
 	var changedResFrom metapb.ShardState
 	var changedResTo metapb.ShardState
-	cluster.resourceStateChangedHandler = func(res *metadata.Shard, from metapb.ShardState, to metapb.ShardState) {
+	cluster.resourceStateChangedHandler = func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState) {
 		changedRes = res
 		changedResFrom = from
 		changedResTo = to
@@ -81,20 +80,20 @@ func TestCreateShards(t *testing.T) {
 	assert.True(t, e.ShardEvent.Create)
 
 	for _, res := range cluster.core.WaittingCreateShards {
-		v, err := cluster.storage.GetShard(res.ID())
+		v, err := cluster.storage.GetShard(res.GetID())
 		assert.NoError(t, err)
-		assert.Equal(t, metapb.ShardState_Creating, v.State())
+		assert.Equal(t, metapb.ShardState_Creating, v.GetState())
 
-		assert.NoError(t, cluster.HandleShardHeartbeat(core.NewCachedShard(res, &res.Replicas()[0])))
+		assert.NoError(t, cluster.HandleShardHeartbeat(core.NewCachedShard(res, &res.GetReplicas()[0])))
 		assert.Equal(t, 1, cluster.GetShardCount())
 		assert.Equal(t, 0, len(cluster.core.WaittingCreateShards))
 		assert.NotNil(t, changedRes)
 		assert.Equal(t, changedResFrom, metapb.ShardState_Creating)
 		assert.Equal(t, changedResTo, metapb.ShardState_Running)
 
-		v, err = cluster.storage.GetShard(res.ID())
+		v, err = cluster.storage.GetShard(res.GetID())
 		assert.NoError(t, err)
-		assert.Equal(t, metapb.ShardState_Running, v.State())
+		assert.Equal(t, metapb.ShardState_Running, v.GetState())
 	}
 }
 
@@ -167,14 +166,14 @@ func TestRemoveShards(t *testing.T) {
 		assert.True(t, cluster.core.DestroyedShards.Contains(id))
 	}
 	assert.Equal(t, 1, cache.GetShardCount())
-	assert.Equal(t, metapb.ShardState_Running, cache.GetShard(n-1).Meta.State())
+	assert.Equal(t, metapb.ShardState_Running, cache.GetShard(n-1).Meta.GetState())
 
 	cnt := uint64(0)
-	storage.LoadShards(10, func(r *metadata.Shard) {
-		if r.ID() < n-1 {
-			assert.Equal(t, metapb.ShardState_Destroyed, r.State())
+	storage.LoadShards(10, func(r *metapb.Shard) {
+		if r.GetID() < n-1 {
+			assert.Equal(t, metapb.ShardState_Destroyed, r.GetState())
 		} else {
-			assert.Equal(t, metapb.ShardState_Running, r.State())
+			assert.Equal(t, metapb.ShardState_Running, r.GetState())
 		}
 		cnt++
 	})
@@ -211,7 +210,7 @@ func TestShardHeartbeatAtRemovedState(t *testing.T) {
 	})
 
 	stream := mockhbstream.NewHeartbeatStream()
-	co.hbStreams.BindStream(resources[1].Meta.Replicas()[0].StoreID, stream)
+	co.hbStreams.BindStream(resources[1].Meta.GetReplicas()[0].StoreID, stream)
 	assert.NoError(t, cluster.HandleShardHeartbeat(resources[1]))
 	rsp := stream.Recv()
 	assert.NotNil(t, rsp)

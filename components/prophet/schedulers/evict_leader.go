@@ -209,7 +209,7 @@ func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Ope
 					schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
 					continue
 				}
-				op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetStoreID(), target.Meta.ID(), operator.OpLeader)
+				op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetStoreID(), target.Meta.GetID(), operator.OpLeader)
 				if err != nil {
 					cluster.GetLogger().Debug("fail to create evict leader operator",
 						zap.Error(err))

@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/gogo/protobuf/proto"
@@ -30,13 +31,14 @@ import (
 )
 
 // errShardIsStale is error info for resource is stale.
-var errShardIsStale = func(res *metadata.Shard, origin *metadata.Shard) error {
+var errShardIsStale = func(res *metapb.Shard, origin *metapb.Shard) error {
 	return fmt.Errorf("resource is stale: resource %v, origin %v", res, origin)
 }
 
 // CachedShard resource runtime info cached in the cache
 type CachedShard struct {
-	Meta *metadata.Shard
+	sync.RWMutex
+	Meta *metapb.Shard
 
 	term            uint64
 	groupKey        string
@@ -49,7 +51,7 @@ type CachedShard struct {
 }
 
 // NewCachedShard creates CachedShard with resource's meta and leader peer.
-func NewCachedShard(res *metadata.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
+func NewCachedShard(res *metapb.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
 	cr := &CachedShard{
 		Meta:   res,
 		leader: leader,
@@ -65,8 +67,8 @@ func NewCachedShard(res *metadata.Shard, leader *metapb.Replica, opts ...ShardCr
 // classifyVoterAndLearner sorts out voter and learner from peers into different slice.
 func classifyVoterAndLearner(res *CachedShard) {
 	learners := make([]metapb.Replica, 0, 1)
-	voters := make([]metapb.Replica, 0, len(res.Meta.Replicas()))
-	for _, p := range res.Meta.Replicas() {
+	voters := make([]metapb.Replica, 0, len(res.Meta.GetReplicas()))
+	for _, p := range res.Meta.GetReplicas() {
 		if metadata.IsLearner(p) {
 			learners = append(learners, p)
 		} else {
@@ -90,7 +92,7 @@ const (
 )
 
 // ShardFromHeartbeat constructs a Shard from resource heartbeat.
-func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta *metadata.Shard) *CachedShard {
+func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta *metapb.Shard) *CachedShard {
 	// Convert unit to MB.
 	// If resource is empty or less than 1MB, use 1MB instead.
 	resourceSize := heartbeat.Stats.GetApproximateSize() / (1 << 20)
@@ -160,8 +162,10 @@ func (r *CachedShard) GetGroupKey() string {
 
 // IsDestroyState resource in Destroyed or Destroying state
 func (r *CachedShard) IsDestroyState() bool {
-	return r.Meta.StateLocked() == metapb.ShardState_Destroyed ||
-		r.Meta.StateLocked() == metapb.ShardState_Destroying
+	r.RLock()
+	defer r.RUnlock()
+	return r.Meta.GetState() == metapb.ShardState_Destroyed ||
+		r.Meta.GetState() == metapb.ShardState_Destroying
 }
 
 // GetTerm returns the current term of the resource
@@ -181,7 +185,7 @@ func (r *CachedShard) GetVoters() []metapb.Replica {
 
 // GetPeer returns the peer with specified peer id.
 func (r *CachedShard) GetPeer(peerID uint64) (metapb.Replica, bool) {
-	for _, peer := range r.Meta.Replicas() {
+	for _, peer := range r.Meta.GetReplicas() {
 		if peer.ID == peerID {
 			return peer, true
 		}
@@ -251,7 +255,7 @@ func (r *CachedShard) GetPendingLearner(peerID uint64) (metapb.Replica, bool) {
 
 // GetStorePeer returns the peer in specified container.
 func (r *CachedShard) GetStorePeer(containerID uint64) (metapb.Replica, bool) {
-	for _, peer := range r.Meta.Replicas() {
+	for _, peer := range r.Meta.GetReplicas() {
 		if peer.StoreID == containerID {
 			return peer, true
 		}
@@ -281,7 +285,7 @@ func (r *CachedShard) GetStoreLearner(containerID uint64) (metapb.Replica, bool)
 
 // GetStoreIDs returns a map indicate the resource distributed.
 func (r *CachedShard) GetStoreIDs() map[uint64]struct{} {
-	peers := r.Meta.Replicas()
+	peers := r.Meta.GetReplicas()
 	containerIDs := make(map[uint64]struct{}, len(peers))
 	for _, peer := range peers {
 		containerIDs[peer.StoreID] = struct{}{}
@@ -314,7 +318,7 @@ func (r *CachedShard) GetFollower() (metapb.Replica, bool) {
 // GetDiffFollowers returns the followers which is not located in the same
 // container as any other followers of the another specified resource.
 func (r *CachedShard) GetDiffFollowers(other *CachedShard) []metapb.Replica {
-	res := make([]metapb.Replica, 0, len(r.Meta.Replicas()))
+	res := make([]metapb.Replica, 0, len(r.Meta.GetReplicas()))
 	for _, p := range r.GetFollowers() {
 		diff := true
 		for _, o := range other.GetFollowers() {
@@ -391,13 +395,13 @@ func (r *CachedShard) GetLeader() *metapb.Replica {
 
 // GetStartKey returns the start key of the resource.
 func (r *CachedShard) GetStartKey() []byte {
-	v, _ := r.Meta.Range()
+	v, _ := r.Meta.GetRange()
 	return v
 }
 
 // GetEndKey returns the end key of the resource.
 func (r *CachedShard) GetEndKey() []byte {
-	_, v := r.Meta.Range()
+	_, v := r.Meta.GetRange()
 	return v
 }
 
@@ -440,11 +444,11 @@ func (rm *resourceMap) Get(id uint64) *CachedShard {
 }
 
 func (rm *resourceMap) Put(res *CachedShard) {
-	if old, ok := rm.m[res.Meta.ID()]; ok {
+	if old, ok := rm.m[res.Meta.GetID()]; ok {
 		rm.totalSize -= int64(old.stats.ApproximateSize)
 		rm.totalKeys -= int64(old.stats.ApproximateKeys)
 	}
-	rm.m[res.Meta.ID()] = res
+	rm.m[res.Meta.GetID()] = res
 	rm.totalSize += int64(res.stats.ApproximateSize)
 	rm.totalKeys += int64(res.stats.ApproximateKeys)
 }
@@ -588,9 +592,9 @@ func (r *CachedShards) maybeInitWithGroup(groupKey string) {
 }
 
 // ForeachShards foreach resource by group
-func (r *CachedShards) ForeachShards(group uint64, fn func(res *metadata.Shard)) {
+func (r *CachedShards) ForeachShards(group uint64, fn func(res *metapb.Shard)) {
 	for _, res := range r.resources.m {
-		if res.Meta.Group() == group {
+		if res.Meta.GetGroup() == group {
 			fn(res.Meta)
 		}
 	}
@@ -599,7 +603,7 @@ func (r *CachedShards) ForeachShards(group uint64, fn func(res *metadata.Shard))
 // ForeachCachedShards foreach cached resource by group
 func (r *CachedShards) ForeachCachedShards(group uint64, fn func(res *CachedShard)) {
 	for _, res := range r.resources.m {
-		if res.Meta.Group() == group {
+		if res.Meta.GetGroup() == group {
 			fn(res)
 		}
 	}
@@ -616,7 +620,7 @@ func (r *CachedShards) GetShard(resourceID uint64) *CachedShard {
 
 // SetShard sets the CachedShard with resourceID
 func (r *CachedShards) SetShard(res *CachedShard) []*CachedShard {
-	if origin := r.resources.Get(res.Meta.ID()); origin != nil {
+	if origin := r.resources.Get(res.Meta.GetID()); origin != nil {
 		if !bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
 			!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
 			r.removeShardFromTreeAndMap(origin)
@@ -635,7 +639,7 @@ func (r *CachedShards) Length() int {
 
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
 func (r *CachedShards) GetOverlaps(res *CachedShard) []*CachedShard {
-	if tree, ok := r.trees[res.Meta.Group()]; ok {
+	if tree, ok := r.trees[res.Meta.GetGroup()]; ok {
 		return tree.getOverlaps(res)
 	}
 
@@ -644,8 +648,8 @@ func (r *CachedShards) GetOverlaps(res *CachedShard) []*CachedShard {
 
 // AddShard adds CachedShard to resourceTree and resourceMap, also update leaders and followers by resource peers
 func (r *CachedShards) AddShard(res *CachedShard) []*CachedShard {
-	if _, ok := r.trees[res.Meta.Group()]; !ok {
-		r.trees[res.Meta.Group()] = newShardTree()
+	if _, ok := r.trees[res.Meta.GetGroup()]; !ok {
+		r.trees[res.Meta.GetGroup()] = newShardTree()
 	}
 
 	// Destroying resource cannot add to tree to avoid range overlaps,
@@ -654,18 +658,18 @@ func (r *CachedShards) AddShard(res *CachedShard) []*CachedShard {
 		r.RemoveShard(res)
 	}
 
-	tree := r.trees[res.Meta.Group()]
+	tree := r.trees[res.Meta.GetGroup()]
 	// the resources which are overlapped with the specified resource range.
 	var overlaps []*CachedShard
 	// when the value is true, add the resource to the tree.
 	// Otherwise use the resource replace the origin resource in the tree.
 	treeNeedAdd := !res.IsDestroyState()
-	if origin := r.GetShard(res.Meta.ID()); origin != nil {
+	if origin := r.GetShard(res.Meta.GetID()); origin != nil {
 		if resOld := tree.find(res); resOld != nil {
 			// Update to tree.
 			if bytes.Equal(resOld.res.GetStartKey(), res.GetStartKey()) &&
 				bytes.Equal(resOld.res.GetEndKey(), res.GetEndKey()) &&
-				resOld.res.Meta.ID() == res.Meta.ID() {
+				resOld.res.Meta.GetID() == res.Meta.GetID() {
 				resOld.res = res
 				treeNeedAdd = false
 			}
@@ -675,7 +679,7 @@ func (r *CachedShards) AddShard(res *CachedShard) []*CachedShard {
 		// Add to tree.
 		overlaps = tree.update(res)
 		for _, item := range overlaps {
-			r.RemoveShard(r.GetShard(item.Meta.ID()))
+			r.RemoveShard(r.GetShard(item.Meta.GetID()))
 		}
 	}
 	// Add to resources.
@@ -740,10 +744,10 @@ func (r *CachedShards) RemoveShard(res *CachedShard) {
 // removeShardFromTreeAndMap removes CachedShard from resourceTree and resourceMap
 func (r *CachedShards) removeShardFromTreeAndMap(res *CachedShard) {
 	// Remove from tree and resources.
-	if tree, ok := r.trees[res.Meta.Group()]; ok {
+	if tree, ok := r.trees[res.Meta.GetGroup()]; ok {
 		tree.remove(res)
 	}
-	r.resources.Delete(res.Meta.ID())
+	r.resources.Delete(res.Meta.GetID())
 }
 
 // removeShardFromSubTree removes CachedShard from resourcesubTrees
@@ -751,7 +755,7 @@ func (r *CachedShards) removeShardFromSubTree(res *CachedShard) {
 	r.maybeInitWithGroup(res.groupKey)
 
 	// Remove from leaders and followers.
-	for _, peer := range res.Meta.Replicas() {
+	for _, peer := range res.Meta.GetReplicas() {
 		containerID := peer.StoreID
 		r.leaders[res.groupKey][containerID].remove(res)
 		r.followers[res.groupKey][containerID].remove(res)
@@ -843,7 +847,7 @@ func (r *CachedShards) SearchShard(group uint64, resKey []byte) *CachedShard {
 		if res == nil {
 			return nil
 		}
-		return r.GetShard(res.Meta.ID())
+		return r.GetShard(res.Meta.GetID())
 	}
 
 	return nil
@@ -856,7 +860,7 @@ func (r *CachedShards) SearchPrevShard(group uint64, resKey []byte) *CachedShard
 		if res == nil {
 			return nil
 		}
-		return r.GetShard(res.Meta.ID())
+		return r.GetShard(res.Meta.GetID())
 	}
 
 	return nil
@@ -913,9 +917,9 @@ func (r *CachedShards) GetStoreShardSize(groupKey string, containerID uint64) in
 		r.GetStoreLearnerShardSize(groupKey, containerID)
 }
 
-// GetMetaShards gets a set of *metadata.Shard from resourceMap
-func (r *CachedShards) GetMetaShards() []*metadata.Shard {
-	resources := make([]*metadata.Shard, 0, r.resources.Len())
+// GetMetaShards gets a set of *metapb.Shard from resourceMap
+func (r *CachedShards) GetMetaShards() []*metapb.Shard {
+	resources := make([]*metapb.Shard, 0, r.resources.Len())
 	for _, res := range r.resources.m {
 		resources = append(resources, res.Meta.Clone())
 	}
@@ -1037,7 +1041,7 @@ func (r *CachedShards) ScanRange(group uint64, startKey, endKey []byte, limit in
 			if limit > 0 && len(resources) >= limit {
 				return false
 			}
-			resources = append(resources, r.GetShard(resource.Meta.ID()))
+			resources = append(resources, r.GetShard(resource.Meta.GetID()))
 			return true
 		})
 	}
@@ -1048,7 +1052,7 @@ func (r *CachedShards) ScanRange(group uint64, startKey, endKey []byte, limit in
 func (r *CachedShards) GetDestroyingShards() []*CachedShard {
 	var resources []*CachedShard
 	for _, res := range r.resources.m {
-		if res.Meta.State() == metapb.ShardState_Destroying {
+		if res.Meta.GetState() == metapb.ShardState_Destroying {
 			resources = append(resources, res)
 		}
 	}
@@ -1066,14 +1070,14 @@ func (r *CachedShards) ScanRangeWithIterator(group uint64, startKey []byte, iter
 // GetAdjacentShards returns resource's info that is adjacent with specific resource
 func (r *CachedShards) GetAdjacentShards(res *CachedShard) (*CachedShard, *CachedShard) {
 	var prev, next *CachedShard
-	if tree, ok := r.trees[res.Meta.Group()]; ok {
+	if tree, ok := r.trees[res.Meta.GetGroup()]; ok {
 		p, n := tree.getAdjacentShards(res)
 		// check key to avoid key range hole
 		if p != nil && bytes.Equal(p.res.GetEndKey(), res.GetStartKey()) {
-			prev = r.GetShard(p.res.Meta.ID())
+			prev = r.GetShard(p.res.Meta.GetID())
 		}
 		if n != nil && bytes.Equal(res.GetEndKey(), n.res.GetStartKey()) {
-			next = r.GetShard(n.res.Meta.ID())
+			next = r.GetShard(n.res.Meta.GetID())
 		}
 	}
 	return prev, next
@@ -1090,9 +1094,9 @@ func (r *CachedShards) GetAverageShardSize() int64 {
 // DiffShardPeersInfo return the difference of peers info  between two CachedShard
 func DiffShardPeersInfo(origin *CachedShard, other *CachedShard) string {
 	var ret []string
-	for _, a := range origin.Meta.Replicas() {
+	for _, a := range origin.Meta.GetReplicas() {
 		both := false
-		for _, b := range other.Meta.Replicas() {
+		for _, b := range other.Meta.GetReplicas() {
 			if reflect.DeepEqual(a, b) {
 				both = true
 				break
@@ -1102,9 +1106,9 @@ func DiffShardPeersInfo(origin *CachedShard, other *CachedShard) string {
 			ret = append(ret, fmt.Sprintf("Remove peer:{%v}", a))
 		}
 	}
-	for _, b := range other.Meta.Replicas() {
+	for _, b := range other.Meta.GetReplicas() {
 		both := false
-		for _, a := range origin.Meta.Replicas() {
+		for _, a := range origin.Meta.GetReplicas() {
 			if reflect.DeepEqual(a, b) {
 				both = true
 				break
@@ -1119,8 +1123,8 @@ func DiffShardPeersInfo(origin *CachedShard, other *CachedShard) string {
 
 // DiffShardKeyInfo return the difference of key info between two CachedShard
 func DiffShardKeyInfo(origin *CachedShard, other *CachedShard) string {
-	originStartKey, originEndKey := origin.Meta.Range()
-	otherStartKey, otherEndKey := other.Meta.Range()
+	originStartKey, originEndKey := origin.Meta.GetRange()
+	otherStartKey, otherEndKey := other.Meta.GetRange()
 
 	var ret []string
 	if !bytes.Equal(originStartKey, otherStartKey) {
@@ -1196,12 +1200,12 @@ func HexShardKeyStr(key []byte) string {
 
 // ShardToHexMeta converts a resource meta's keys to hex format. Used for formating
 // resource in logs.
-func ShardToHexMeta(meta *metadata.Shard) HexShardMeta {
+func ShardToHexMeta(meta *metapb.Shard) HexShardMeta {
 	if meta == nil {
 		return HexShardMeta{}
 	}
 	meta = meta.Clone()
-	start, end := meta.Range()
+	start, end := meta.GetRange()
 	meta.SetStartKey(HexShardKey(start))
 	meta.SetEndKey(HexShardKey(end))
 	return HexShardMeta{meta}
@@ -1209,7 +1213,7 @@ func ShardToHexMeta(meta *metadata.Shard) HexShardMeta {
 
 // HexShardMeta is a resource meta in the hex format. Used for formating resource in logs.
 type HexShardMeta struct {
-	meta *metadata.Shard
+	meta *metapb.Shard
 }
 
 func (h HexShardMeta) String() string {
@@ -1218,11 +1222,11 @@ func (h HexShardMeta) String() string {
 
 // ShardsToHexMeta converts resources' meta keys to hex format. Used for formating
 // resource in logs.
-func ShardsToHexMeta(resources []*metadata.Shard) HexShardsMeta {
-	hexShardMetas := make([]*metadata.Shard, len(resources))
+func ShardsToHexMeta(resources []*metapb.Shard) HexShardsMeta {
+	hexShardMetas := make([]*metapb.Shard, len(resources))
 	for i, res := range resources {
 		meta := res.Clone()
-		start, end := meta.Range()
+		start, end := meta.GetRange()
 		meta.SetStartKey(HexShardKey(start))
 		meta.SetEndKey(HexShardKey(end))
 		hexShardMetas[i] = meta
@@ -1232,7 +1236,7 @@ func ShardsToHexMeta(resources []*metadata.Shard) HexShardsMeta {
 
 // HexShardsMeta is a slice of resources' meta in the hex format. Used for formating
 // resource in logs.
-type HexShardsMeta []*metadata.Shard
+type HexShardsMeta []*metapb.Shard
 
 func (h HexShardsMeta) String() string {
 	var b strings.Builder

@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"fmt"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"sync"
 	"sync/atomic"
@@ -85,7 +84,7 @@ type store struct {
 	cfg    *config.Config
 	logger *zap.Logger
 
-	meta       *metadata.Store
+	meta       *metapb.Store
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
@@ -125,7 +124,7 @@ func NewStore(cfg *config.Config) Store {
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		kvStorage:             kv,
-		meta:                  metadata.NewStore(),
+		meta:                  metapb.NewStore(),
 		cfg:                   cfg,
 		logger:                logger,
 		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
@@ -317,7 +316,7 @@ func (s *store) startRouter() {
 }
 
 func (s *store) Meta() metapb.Store {
-	return s.meta.Clone().Store
+	return *s.meta.Clone()
 }
 
 func (s *store) OnRequest(req rpcpb.Request) error {
@@ -607,10 +606,10 @@ func (s *store) removeDroppedVoteMsg(id uint64) (metapb.RaftMessage, bool) {
 }
 
 func (s *store) validateStoreID(req rpcpb.RequestBatch) error {
-	if req.Header.Replica.StoreID != s.meta.ID() {
+	if req.Header.Replica.StoreID != s.meta.GetID() {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
 			req.Header.Replica.StoreID,
-			s.meta.ID())
+			s.meta.GetID())
 	}
 
 	return nil
@@ -770,7 +769,7 @@ func (s *store) nextShard(shard Shard) *Shard {
 }
 
 func (s *store) storeField() zap.Field {
-	return log.StoreIDField(s.meta.ID())
+	return log.StoreIDField(s.meta.GetID())
 }
 
 func (s *store) containerResolver(storeID uint64) (string, error) {
@@ -781,7 +780,7 @@ func (s *store) containerResolver(storeID uint64) (string, error) {
 	if container == nil {
 		return "", nil
 	}
-	return container.ShardAddr(), nil
+	return container.GetRaftAddr(), nil
 }
 
 func (s *store) unreachable(shardID uint64, replicaID uint64) {
@@ -989,8 +988,8 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 		// currently, pd only support use keys to splits
 		switch rsp.SplitShard.Policy {
 		case metapb.CheckPolicy_USEKEY:
-			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(metadata.NewShardFromShard(pr.getShard()),
-				uint32(len(rsp.SplitShard.Keys)))
+			shard := pr.getShard()
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(&shard, uint32(len(rsp.SplitShard.Keys)))
 			if err != nil {
 				s.logger.Error("fail to ask batch split",
 					s.storeField(),

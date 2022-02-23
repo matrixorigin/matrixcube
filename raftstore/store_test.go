@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -316,7 +315,7 @@ func TestValidateStoreID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.meta = metadata.NewStore()
+	s.meta = metapb.NewStore()
 
 	assert.Nil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 0}}}))
 	assert.NotNil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 1}}}))

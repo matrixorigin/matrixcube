@@ -39,7 +39,7 @@ func newMockSplitShardsHandler() *mockSplitShardsHandler {
 
 // SplitShardByKeys mock SplitresourcesHandler
 func (m *mockSplitShardsHandler) SplitShardByKeys(resource *core.CachedShard, splitKeys [][]byte) error {
-	m.resources[resource.Meta.ID()] = [2][]byte{
+	m.resources[resource.Meta.GetID()] = [2][]byte{
 		resource.GetStartKey(),
 		resource.GetEndKey(),
 	}

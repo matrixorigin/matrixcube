@@ -63,8 +63,8 @@ func (s *containerStatistics) Observe(container *core.CachedStore, stats *Stores
 			s.LabelCounter[key]++
 		}
 	}
-	containerAddress := container.Meta.Addr()
-	id := strconv.FormatUint(container.Meta.ID(), 10)
+	containerAddress := container.Meta.GetClientAddr()
+	id := strconv.FormatUint(container.Meta.GetID(), 10)
 	// Store state.
 	switch container.GetState() {
 	case metapb.StoreState_UP:
@@ -111,7 +111,7 @@ func (s *containerStatistics) Observe(container *core.CachedStore, stats *Stores
 	containerStatusGauge.WithLabelValues(containerAddress, id, "leader_count").Set(leaderCount)
 
 	// Store flows.
-	containerFlowStats := stats.GetRollingStoreStats(container.Meta.ID())
+	containerFlowStats := stats.GetRollingStoreStats(container.Meta.GetID())
 	if containerFlowStats == nil {
 		return
 	}

@@ -84,7 +84,7 @@ func (c *CheckerController) CheckShard(res *core.CachedShard) []*operator.Operat
 				return []*operator.Operator{op}
 			}
 			operator.OperatorLimitCounter.WithLabelValues(c.ruleChecker.GetType(), operator.OpReplica.String()).Inc()
-			c.resourceWaitingList.Put(res.Meta.ID(), nil)
+			c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		}
 	} else {
 		if op := c.learnerChecker.Check(res); op != nil {
@@ -95,7 +95,7 @@ func (c *CheckerController) CheckShard(res *core.CachedShard) []*operator.Operat
 				return []*operator.Operator{op}
 			}
 			operator.OperatorLimitCounter.WithLabelValues(c.replicaChecker.GetType(), operator.OpReplica.String()).Inc()
-			c.resourceWaitingList.Put(res.Meta.ID(), nil)
+			c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		}
 	}
 
@@ -125,7 +125,7 @@ func (c *CheckerController) GetWaitingShards() []*cache.Item {
 
 // AddWaitingShard returns the resources in the waiting list.
 func (c *CheckerController) AddWaitingShard(res *core.CachedShard) {
-	c.resourceWaitingList.Put(res.Meta.ID(), nil)
+	c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 }
 
 // RemoveWaitingShard removes the resource from the waiting list.

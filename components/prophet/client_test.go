@@ -21,7 +21,6 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
@@ -226,25 +225,21 @@ func TestIssue112(t *testing.T) {
 	}
 }
 
-func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) *metadata.Shard {
-	return &metadata.Shard{
-		Shard: metapb.Shard{
-			ID:       resourceID,
-			Start:    []byte(fmt.Sprintf("%20d", resourceID)),
-			End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
-			Epoch:    metapb.ShardEpoch{Version: 1, ConfVer: 1},
-			Replicas: peers,
-		},
+func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) *metapb.Shard {
+	return &metapb.Shard{
+		ID:       resourceID,
+		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
+		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
+		Epoch:    metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		Replicas: peers,
 	}
 }
 
-func newTestStoreMeta(containerID uint64) *metadata.Store {
-	return &metadata.Store{
-		Store: metapb.Store{
-			ID:         containerID,
-			ClientAddr: fmt.Sprintf("127.0.0.1:%d", containerID),
-			RaftAddr:   fmt.Sprintf("127.0.0.2:%d", containerID),
-		},
+func newTestStoreMeta(containerID uint64) *metapb.Store {
+	return &metapb.Store{
+		ID:         containerID,
+		ClientAddr: fmt.Sprintf("127.0.0.1:%d", containerID),
+		RaftAddr:   fmt.Sprintf("127.0.0.2:%d", containerID),
 	}
 }
 

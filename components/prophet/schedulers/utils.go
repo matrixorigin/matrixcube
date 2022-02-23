@@ -53,8 +53,8 @@ func shouldBalance(cluster opt.Cluster,
 	// The reason we use max(resourceSize, averageShardSize) to check is:
 	// 1. prevent moving small resources between containers with close scores, leading to unnecessary balance.
 	// 2. prevent moving huge resources, leading to over balance.
-	sourceID := source.Meta.ID()
-	targetID := target.Meta.ID()
+	sourceID := source.Meta.GetID()
+	targetID := target.Meta.GetID()
 	tolerantShard := getTolerantShard(cluster, res, kind)
 	sourceInfluence := opInfluence.GetStoreInfluence(sourceID).ShardProperty(kind, res.GetGroupKey())
 	targetInfluence := opInfluence.GetStoreInfluence(targetID).ShardProperty(kind, res.GetGroupKey())
@@ -83,7 +83,7 @@ func shouldBalance(cluster opt.Cluster,
 	if !shouldBalance {
 		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
 			ce.Write(log.HexField("group-key", []byte(res.GetGroupKey())),
-				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.GetID()),
 				zap.String("resource-kind", kind.ShardKind.String()),
 				zap.String("schedule", scheduleName),
 				sourceField(sourceID),
@@ -125,7 +125,7 @@ func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 		var maxShardCount float64
 		containers := cluster.GetStores()
 		for _, container := range containers {
-			resourceCount := float64(cluster.GetStoreShardCount(groupKey, container.Meta.ID()))
+			resourceCount := float64(cluster.GetStoreShardCount(groupKey, container.Meta.GetID()))
 			if maxShardCount < resourceCount {
 				maxShardCount = resourceCount
 			}

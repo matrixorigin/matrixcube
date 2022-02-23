@@ -138,7 +138,7 @@ func (c *coordinator) checkDestroyingShards() {
 	resources := c.cluster.GetDestroyingShards()
 	for _, res := range resources {
 		// Skips the resource if there is already a pending operator.
-		if c.opController.GetOperator(res.Meta.ID()) != nil {
+		if c.opController.GetOperator(res.Meta.GetID()) != nil {
 			continue
 		}
 
@@ -150,10 +150,10 @@ func (c *coordinator) checkDestroyingShards() {
 		if !c.opController.ExceedStoreLimit(ops...) {
 			n := c.opController.AddWaitingOperator(ops...)
 			c.cluster.logger.Info("added operators",
-				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.GetID()),
 				zap.Int("count", n))
-			c.checkers.RemoveWaitingShard(res.Meta.ID())
-			c.cluster.RemoveSuspectShard(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.GetID())
+			c.cluster.RemoveSuspectShard(res.Meta.GetID())
 		} else {
 			c.checkers.AddWaitingShard(res)
 		}
@@ -171,7 +171,7 @@ func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
 
 	for _, res := range resources {
 		// Skips the resource if there is already a pending operator.
-		if c.opController.GetOperator(res.Meta.ID()) != nil {
+		if c.opController.GetOperator(res.Meta.GetID()) != nil {
 			continue
 		}
 
@@ -184,8 +184,8 @@ func (c *coordinator) doScan(group uint64, keys map[uint64][]byte) {
 
 		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.checkers.RemoveWaitingShard(res.Meta.ID())
-			c.cluster.RemoveSuspectShard(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.GetID())
+			c.cluster.RemoveSuspectShard(res.Meta.GetID())
 		} else {
 			c.checkers.AddWaitingShard(res)
 		}
@@ -212,7 +212,7 @@ func (c *coordinator) checkSuspectShards() {
 
 		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.cluster.RemoveSuspectShard(res.Meta.ID())
+			c.cluster.RemoveSuspectShard(res.Meta.GetID())
 		}
 	}
 }
@@ -232,7 +232,7 @@ func (c *coordinator) checkSuspectKeyRanges() {
 	}
 	resourceIDList := make([]uint64, 0, len(resources))
 	for _, res := range resources {
-		resourceIDList = append(resourceIDList, res.Meta.ID())
+		resourceIDList = append(resourceIDList, res.Meta.GetID())
 	}
 
 	// if the last resource's end key is smaller the keyRange[1] which means there existed the remaining resources between
@@ -265,7 +265,7 @@ func (c *coordinator) checkWaitingShards() {
 
 		if !c.opController.ExceedStoreLimit(ops...) {
 			c.opController.AddWaitingOperator(ops...)
-			c.checkers.RemoveWaitingShard(res.Meta.ID())
+			c.checkers.RemoveWaitingShard(res.Meta.GetID())
 		}
 	}
 }
@@ -519,8 +519,8 @@ func (c *coordinator) collectHotSpotMetrics() {
 	status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
 	pendings := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
 	for _, s := range containers {
-		containerAddress := s.Meta.Addr()
-		containerID := s.Meta.ID()
+		containerAddress := s.Meta.GetClientAddr()
+		containerID := s.Meta.GetID()
 		containerLabel := fmt.Sprintf("%d", containerID)
 		stat, ok := status.AsPeer[containerID]
 		if ok {
@@ -555,8 +555,8 @@ func (c *coordinator) collectHotSpotMetrics() {
 	status = s.Scheduler.(hasHotStatus).GetHotReadStatus()
 	pendings = s.Scheduler.(hasHotStatus).GetReadPendingInfluence()
 	for _, s := range containers {
-		containerAddress := s.Meta.Addr()
-		containerID := s.Meta.ID()
+		containerAddress := s.Meta.GetClientAddr()
+		containerID := s.Meta.GetID()
 		containerLabel := fmt.Sprintf("%d", containerID)
 		stat, ok := status.AsLeader[containerID]
 		if ok {

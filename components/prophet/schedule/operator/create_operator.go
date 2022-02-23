@@ -97,18 +97,18 @@ func CreateMoveLeaderOperator(desc string, cluster opt.Cluster, res *core.Cached
 
 // CreateSplitShardOperator creates an operator that splits a resource.
 func CreateSplitShardOperator(desc string, res *core.CachedShard, kind OpKind, policy metapb.CheckPolicy, keys [][]byte) (*Operator, error) {
-	if metadata.IsInJointState(res.Meta.Replicas()...) {
+	if metadata.IsInJointState(res.Meta.GetReplicas()...) {
 		return nil, fmt.Errorf("cannot split resource which is in joint state")
 	}
 
-	start, end := res.Meta.Range()
+	start, end := res.Meta.GetRange()
 	step := SplitShard{
 		StartKey:  start,
 		EndKey:    end,
 		Policy:    policy,
 		SplitKeys: keys,
 	}
-	brief := fmt.Sprintf("split: resource %v use policy %s", res.Meta.ID(), policy)
+	brief := fmt.Sprintf("split: resource %v use policy %s", res.Meta.GetID(), policy)
 	if len(keys) > 0 {
 		hexKeys := make([]string, len(keys))
 		for i := range keys {
@@ -116,19 +116,19 @@ func CreateSplitShardOperator(desc string, res *core.CachedShard, kind OpKind, p
 		}
 		brief += fmt.Sprintf(" and keys %v", hexKeys)
 	}
-	return NewOperator(desc, brief, res.Meta.ID(), res.Meta.Epoch(), kind|OpSplit, step), nil
+	return NewOperator(desc, brief, res.Meta.GetID(), res.Meta.GetEpoch(), kind|OpSplit, step), nil
 }
 
 // CreateMergeShardOperator creates an operator that merge two resource into one.
 func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.CachedShard, target *core.CachedShard, kind OpKind) ([]*Operator, error) {
-	if metadata.IsInJointState(source.Meta.Replicas()...) || metadata.IsInJointState(target.Meta.Replicas()...) {
+	if metadata.IsInJointState(source.Meta.GetReplicas()...) || metadata.IsInJointState(target.Meta.GetReplicas()...) {
 		return nil, errors.New("cannot merge resources which are in joint state")
 	}
 
 	var steps []OpStep
 	if !isShardMatch(source, target) {
 		peers := make(map[uint64]metapb.Replica)
-		for _, p := range target.Meta.Replicas() {
+		for _, p := range target.Meta.GetReplicas() {
 			peers[p.StoreID] = metapb.Replica{
 				StoreID: p.StoreID,
 				Role:    p.Role,
@@ -151,9 +151,9 @@ func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.Cac
 		IsPassive: false,
 	})
 
-	brief := fmt.Sprintf("merge: resource %v to %v", source.Meta.ID(), target.Meta.ID())
-	op1 := NewOperator(desc, brief, source.Meta.ID(), source.Meta.Epoch(), kind|OpMerge, steps...)
-	op2 := NewOperator(desc, brief, target.Meta.ID(), target.Meta.Epoch(), kind|OpMerge, MergeShard{
+	brief := fmt.Sprintf("merge: resource %v to %v", source.Meta.GetID(), target.Meta.GetID())
+	op1 := NewOperator(desc, brief, source.Meta.GetID(), source.Meta.GetEpoch(), kind|OpMerge, steps...)
+	op2 := NewOperator(desc, brief, target.Meta.GetID(), target.Meta.GetEpoch(), kind|OpMerge, MergeShard{
 		FromShard: source.Meta,
 		ToShard:   target.Meta,
 		IsPassive: true,
@@ -163,10 +163,10 @@ func CreateMergeShardOperator(desc string, cluster opt.Cluster, source *core.Cac
 }
 
 func isShardMatch(a, b *core.CachedShard) bool {
-	if len(a.Meta.Replicas()) != len(b.Meta.Replicas()) {
+	if len(a.Meta.GetReplicas()) != len(b.Meta.GetReplicas()) {
 		return false
 	}
-	for _, pa := range a.Meta.Replicas() {
+	for _, pa := range a.Meta.GetReplicas() {
 		pb, ok := b.GetStorePeer(pa.StoreID)
 		if !ok || metadata.IsLearner(pb) != metadata.IsLearner(pa) {
 			return false
@@ -202,7 +202,7 @@ func CreateScatterShardOperator(desc string, cluster opt.Cluster, origin *core.C
 func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *core.CachedShard) (*Operator, error) {
 	b := NewBuilder(desc, cluster, origin, SkipOriginJointStateCheck)
 
-	if b.err == nil && !metadata.IsInJointState(origin.Meta.Replicas()...) {
+	if b.err == nil && !metadata.IsInJointState(origin.Meta.GetReplicas()...) {
 		b.err = fmt.Errorf("cannot build leave joint state operator for resource which is not in joint state")
 	}
 
@@ -247,7 +247,7 @@ func CreateLeaveJointStateOperator(desc string, cluster opt.Cluster, origin *cor
 	if b.targetLeaderStoreID == 0 {
 		cluster.GetLogger().Error(
 			"resource unable to find target leader",
-			log.ResourceField(origin.Meta.ID()))
+			log.ResourceField(origin.Meta.GetID()))
 		b.originLeaderStoreID = 0
 	} else if b.originLeaderStoreID != b.targetLeaderStoreID {
 		kind |= OpLeader

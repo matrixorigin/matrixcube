@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -341,8 +340,7 @@ func TestChangePeerV2Leave(t *testing.T) {
 func checkStep(t *testing.T, step OpStep, desc string, cases []testCase) {
 	assert.Equal(t, desc, step.String())
 	for _, tc := range cases {
-		resource := core.NewCachedShard(&metadata.Shard{
-			Shard: metapb.Shard{ID: 1, Replicas: tc.Peers}}, &tc.Peers[0])
+		resource := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: tc.Peers}, &tc.Peers[0])
 		assert.Equal(t, tc.ConfVerChanged, step.ConfVerChanged(resource))
 		assert.Equal(t, tc.IsFinish, step.IsFinish(resource))
 		switch tc.CheckSafety {

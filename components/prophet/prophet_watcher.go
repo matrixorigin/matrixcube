@@ -82,7 +82,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *
 				snap.Shards = append(snap.Shards, res.Meta.Clone())
 				leader := res.GetLeader()
 				if leader != nil {
-					snap.Leaders[res.Meta.ID()] = leader.ID
+					snap.Leaders[res.Meta.GetID()] = leader.ID
 				}
 			}
 

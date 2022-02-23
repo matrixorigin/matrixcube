@@ -69,7 +69,7 @@ func (s *ShardStats) Observe(r *core.CachedShard) {
 		s.StoreLeaderSize[containerID] += approximateSize
 		s.StoreLeaderKeys[containerID] += approximateKeys
 	}
-	peers := r.Meta.Replicas()
+	peers := r.Meta.GetReplicas()
 	for _, p := range peers {
 		containerID := p.GetStoreID()
 		s.StorePeerCount[containerID]++

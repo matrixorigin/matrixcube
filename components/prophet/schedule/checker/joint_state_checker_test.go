@@ -19,7 +19,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -110,8 +109,7 @@ func TestLeaveJointState(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		res := core.NewCachedShard(&metadata.Shard{
-			Shard: metapb.Shard{ID: 1, Replicas: tc.Peers}}, &tc.Peers[0])
+		res := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: tc.Peers}, &tc.Peers[0])
 		op := jsc.Check(res)
 		checkSteps(t, op, tc.OpSteps)
 	}

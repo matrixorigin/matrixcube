@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,14 +29,12 @@ func TestStoreTimeUnsync(t *testing.T) {
 	peers := newPeers(3,
 		func(i int) uint64 { return uint64(10000 + i) },
 		func(i int) uint64 { return uint64(i) })
-	meta := &metadata.Shard{
-		Shard: metapb.Shard{
-			ID:       1000,
-			Replicas: peers,
-			Start:    []byte(""),
-			End:      []byte(""),
-			Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
-		},
+	meta := &metapb.Shard{
+		ID:       1000,
+		Replicas: peers,
+		Start:    []byte(""),
+		End:      []byte(""),
+		Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
 	}
 	intervals := []uint64{120, 60}
 	for _, interval := range intervals {
@@ -117,10 +114,10 @@ func checkHit(t *testing.T, cache *hotPeerCache, resource *core.CachedShard, kin
 	if kind == ReadFlow {
 		peers = []metapb.Replica{*resource.GetLeader()}
 	} else {
-		peers = resource.Meta.Replicas()
+		peers = resource.Meta.GetReplicas()
 	}
 	for _, peer := range peers {
-		item := cache.getOldHotPeerStat(resource.Meta.ID(), peer.StoreID)
+		item := cache.getOldHotPeerStat(resource.Meta.GetID(), peer.StoreID)
 		assert.NotNil(t, item)
 		assert.Equal(t, !isHit, item.isNew)
 	}
@@ -143,12 +140,12 @@ func schedule(operator operator, resource *core.CachedShard, kind FlowKind) (src
 	case movePeer:
 		index, _ := pickFollower(resource)
 		meta := resource.Meta
-		srcStore := meta.Replicas()[index].StoreID
-		meta.Replicas()[index] = metapb.Replica{ID: 4, StoreID: 4}
+		srcStore := meta.GetReplicas()[index].StoreID
+		meta.GetReplicas()[index] = metapb.Replica{ID: 4, StoreID: 4}
 		return srcStore, buildresource(meta, resource.GetLeader(), kind)
 	case addReplica:
 		meta := resource.Meta
-		meta.AppendReplica(metapb.Replica{ID: 4, StoreID: 4})
+		meta.SetReplicas(append(meta.GetReplicas(), metapb.Replica{ID: 4, StoreID: 4}))
 		return 0, buildresource(meta, resource.GetLeader(), kind)
 	default:
 		return 0, nil
@@ -159,7 +156,7 @@ func pickFollower(resource *core.CachedShard) (index int, peer metapb.Replica) {
 	var dst int
 	meta := resource.Meta
 
-	for index, peer := range meta.Replicas() {
+	for index, peer := range meta.GetReplicas() {
 		if peer.StoreID == resource.GetLeader().StoreID {
 			continue
 		}
@@ -168,26 +165,24 @@ func pickFollower(resource *core.CachedShard) (index int, peer metapb.Replica) {
 			break
 		}
 	}
-	return dst, meta.Replicas()[dst]
+	return dst, meta.GetReplicas()[dst]
 }
 
-func buildresource(meta *metadata.Shard, leader *metapb.Replica, kind FlowKind) *core.CachedShard {
+func buildresource(meta *metapb.Shard, leader *metapb.Replica, kind FlowKind) *core.CachedShard {
 	const interval = uint64(60)
 	if meta == nil {
 		peer1 := metapb.Replica{ID: 1, StoreID: 1}
 		peer2 := metapb.Replica{ID: 2, StoreID: 2}
 		peer3 := metapb.Replica{ID: 3, StoreID: 3}
 
-		meta = &metadata.Shard{
-			Shard: metapb.Shard{
-				ID:       1000,
-				Replicas: []metapb.Replica{peer1, peer2, peer3},
-				Start:    []byte(""),
-				End:      []byte(""),
-				Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
-			},
+		meta = &metapb.Shard{
+			ID:       1000,
+			Replicas: []metapb.Replica{peer1, peer2, peer3},
+			Start:    []byte(""),
+			End:      []byte(""),
+			Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
 		}
-		leader = &meta.Replicas()[rand.Intn(3)]
+		leader = &meta.GetReplicas()[rand.Intn(3)]
 	}
 
 	switch kind {

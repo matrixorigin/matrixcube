@@ -20,7 +20,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,58 +30,22 @@ func TestStoreStatistics(t *testing.T) {
 	rep.LocationLabels = []string{"zone", "host"}
 	opt.SetReplicationConfig(rep)
 
-	metaStores := []*metadata.Store{
-		{
-			Store: metapb.Store{
-				ID: 1, ClientAddr: "mock://server-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 2, ClientAddr: "mock://server-2", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 3, ClientAddr: "mock://server-3", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 4, ClientAddr: "mock://server-4", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 5, ClientAddr: "mock://server-5", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 6, ClientAddr: "mock://server-6", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 7, ClientAddr: "mock://server-7", Labels: []metapb.Pair{{Key: "host", Value: "h1"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 8, ClientAddr: "mock://server-8", Labels: []metapb.Pair{{Key: "host", Value: "h2"}},
-			},
-		},
-		{
-			Store: metapb.Store{
-				ID: 8, ClientAddr: "mock://server-9", Labels: []metapb.Pair{{Key: "host", Value: "h3"}}, State: metapb.StoreState_StoreTombstone,
-			},
-		},
+	metaStores := []*metapb.Store{
+		{ID: 1, ClientAddr: "mock://server-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}},
+		{ID: 2, ClientAddr: "mock://server-2", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}}},
+		{ID: 3, ClientAddr: "mock://server-3", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}}},
+		{ID: 4, ClientAddr: "mock://server-4", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}}},
+		{ID: 5, ClientAddr: "mock://server-5", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}}},
+		{ID: 6, ClientAddr: "mock://server-6", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}}},
+		{ID: 7, ClientAddr: "mock://server-7", Labels: []metapb.Pair{{Key: "host", Value: "h1"}}},
+		{ID: 8, ClientAddr: "mock://server-8", Labels: []metapb.Pair{{Key: "host", Value: "h2"}}},
+		{ID: 8, ClientAddr: "mock://server-9", Labels: []metapb.Pair{{Key: "host", Value: "h3"}}, State: metapb.StoreState_StoreTombstone},
 	}
 	containersStats := NewStoresStats()
 	containers := make([]*core.CachedStore, 0, len(metaStores))
 	for _, m := range metaStores {
 		s := core.NewCachedStore(m, core.SetLastHeartbeatTS(time.Now()))
-		containersStats.GetOrCreateRollingStoreStats(m.ID())
+		containersStats.GetOrCreateRollingStoreStats(m.GetID())
 		containers = append(containers, s)
 	}
 

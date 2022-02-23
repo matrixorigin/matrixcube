@@ -71,7 +71,7 @@ func IsShardReplicated(cluster Cluster, res *core.CachedShard) bool {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
 		return cluster.FitShard(res).IsSatisfied()
 	}
-	return len(res.GetLearners()) == 0 && len(res.Meta.Replicas()) == cluster.GetOpts().GetMaxReplicas()
+	return len(res.GetLearners()) == 0 && len(res.Meta.GetReplicas()) == cluster.GetOpts().GetMaxReplicas()
 }
 
 // ReplicatedShard returns a function that checks if a resource is fully replicated.

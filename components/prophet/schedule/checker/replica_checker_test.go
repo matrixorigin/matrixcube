@@ -20,7 +20,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
@@ -50,32 +49,18 @@ func (s *testReplicaChecker) setup() {
 	}
 	containers := []*core.CachedStore{
 		core.NewCachedStore(
-			&metadata.Store{
-				Store: metapb.Store{
-					ID:    1,
-					State: metapb.StoreState_Offline,
-				},
-			},
+			&metapb.Store{ID: 1, State: metapb.StoreState_Offline},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.Store{
-				Store: metapb.Store{
-					ID:    2,
-					State: metapb.StoreState_UP,
-				},
-			},
+			&metapb.Store{ID: 2, State: metapb.StoreState_UP},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			&metadata.Store{
-				Store: metapb.Store{
-					ID:    4,
-					State: metapb.StoreState_UP,
-				},
-			}, core.SetStoreStats(stats),
+			&metapb.Store{ID: 4, State: metapb.StoreState_UP},
+			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 	}
@@ -104,11 +89,7 @@ func (s *testReplicaChecker) downPeerAndCheck(t *testing.T, aliveRole metapb.Rep
 			StoreID: 4,
 		},
 	}
-	r := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 2, Replicas: peers,
-		},
-	}, &peers[0])
+	r := core.NewCachedShard(&metapb.Shard{ID: 2, Replicas: peers}, &peers[0])
 	s.cluster.PutShard(r)
 	s.cluster.SetStoreDown(downStoreID)
 	downPeer := metapb.ReplicaStats{
@@ -141,11 +122,7 @@ func TestReplacePendingPeer(t *testing.T) {
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 1, Replicas: peers,
-		},
-	}, &peers[1], core.WithPendingPeers(peers[0:1]))
+	r := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: peers}, &peers[1], core.WithPendingPeers(peers[0:1]))
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -175,11 +152,7 @@ func TestReplaceOfflinePeer(t *testing.T) {
 			StoreID: 3,
 		},
 	}
-	r := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 2, Replicas: peers,
-		},
-	}, &peers[0])
+	r := core.NewCachedShard(&metapb.Shard{ID: 2, Replicas: peers}, &peers[0])
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -200,11 +173,7 @@ func TestOfflineWithOneReplica(t *testing.T) {
 			StoreID: 1,
 		},
 	}
-	r := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			ID: 2, Replicas: peers,
-		},
-	}, &peers[0])
+	r := core.NewCachedShard(&metapb.Shard{ID: 2, Replicas: peers}, &peers[0])
 	s.cluster.PutShard(r)
 	op := s.rc.Check(r)
 	assert.NotNil(t, op)
@@ -233,7 +202,7 @@ func TestFillReplicas(t *testing.T) {
 	res.Meta.SetReplicas(nil)
 	err = rc.FillReplicas(res, 0)
 	assert.NoError(t, err)
-	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.Replicas()))
+	assert.Equal(t, rc.cluster.GetOpts().GetMaxReplicas(), len(res.Meta.GetReplicas()))
 }
 
 func TestDownPeer(t *testing.T) {

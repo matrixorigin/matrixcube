@@ -45,7 +45,7 @@ func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte)
 }
 
 func (r *RangeCluster) updateCachedStore(s *core.CachedStore) *core.CachedStore {
-	id := s.Meta.ID()
+	id := s.Meta.GetID()
 
 	used := float64(s.GetUsedSize()) / (1 << 20)
 	if used == 0 {

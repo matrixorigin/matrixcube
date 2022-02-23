@@ -21,7 +21,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -95,12 +94,12 @@ func TestRuleFitFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
 	testCluster.SetEnablePlacementRules(true)
-	resource := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{Replicas: []metapb.Replica{
+	resource := core.NewCachedShard(&metapb.Shard{
+		Replicas: []metapb.Replica{
 			{StoreID: 1, ID: 1},
 			{StoreID: 3, ID: 3},
 			{StoreID: 5, ID: 5},
-		}}}, &metapb.Replica{StoreID: 1, ID: 1})
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
 
 	testCases := []struct {
 		StoreID       uint64
@@ -206,33 +205,30 @@ func TestIsolationFilter(t *testing.T) {
 		targetRes      []bool
 	}{
 		{
-			core.NewCachedShard(&metadata.Shard{
-				Shard: metapb.Shard{Replicas: []metapb.Replica{
-					{ID: 1, StoreID: 1},
-					{ID: 2, StoreID: 6},
-				}}}, &metapb.Replica{StoreID: 1, ID: 1}),
+			core.NewCachedShard(&metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 6},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"zone",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, false, false, true},
 		},
 		{
-			core.NewCachedShard(&metadata.Shard{
-				Shard: metapb.Shard{Replicas: []metapb.Replica{
-					{ID: 1, StoreID: 1},
-					{ID: 2, StoreID: 4},
-					{ID: 3, StoreID: 7},
-				}}}, &metapb.Replica{StoreID: 1, ID: 1}),
+			core.NewCachedShard(&metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 4},
+				{ID: 3, StoreID: 7},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"rack",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, true, true, false},
 		},
 		{
-			core.NewCachedShard(&metadata.Shard{
-				Shard: metapb.Shard{Replicas: []metapb.Replica{
-					{ID: 1, StoreID: 1},
-					{ID: 2, StoreID: 4},
-					{ID: 3, StoreID: 6},
-				}}}, &metapb.Replica{StoreID: 1, ID: 1}),
+			core.NewCachedShard(&metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 4},
+				{ID: 3, StoreID: 6},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"host",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, true, false, true, false, true},
@@ -258,13 +254,12 @@ func TestPlacementGuard(t *testing.T) {
 	testCluster.AddLabelsStore(3, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(4, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(5, 1, map[string]string{"zone": "z3"})
-	resource := core.NewCachedShard(&metadata.Shard{
-		Shard: metapb.Shard{
-			Replicas: []metapb.Replica{
-				{StoreID: 1, ID: 1},
-				{StoreID: 3, ID: 3},
-				{StoreID: 5, ID: 5},
-			}}}, &metapb.Replica{StoreID: 1, ID: 1})
+	resource := core.NewCachedShard(&metapb.Shard{
+		Replicas: []metapb.Replica{
+			{StoreID: 1, ID: 1},
+			{StoreID: 3, ID: 3},
+			{StoreID: 5, ID: 5},
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
 	container := testCluster.GetStore(1)
 
 	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container))

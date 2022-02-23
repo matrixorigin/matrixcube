@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,7 +48,7 @@ func makeTestStores() StoreSet {
 
 // example: "1111_leader,1234,2111_learner"
 func makeTestShard(def string) *core.CachedShard {
-	var resourceMeta metadata.Shard
+	var resourceMeta metapb.Shard
 	var leader *metapb.Replica
 	for _, peerDef := range strings.Split(def, ",") {
 		role, idStr := Follower, peerDef
@@ -59,7 +58,7 @@ func makeTestShard(def string) *core.CachedShard {
 		}
 		id, _ := strconv.Atoi(idStr)
 		peer := metapb.Replica{ID: uint64(id), StoreID: uint64(id), Role: role.MetaPeerRole()}
-		resourceMeta.AppendReplica(peer)
+		resourceMeta.SetReplicas(append(resourceMeta.GetReplicas(), peer))
 		if role == Leader {
 			leader = &peer
 		}

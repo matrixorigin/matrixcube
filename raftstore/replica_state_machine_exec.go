@@ -208,7 +208,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 		d.logger.Fatal("missing splits request")
 	}
 
-	current := d.getShard().Clone()
+	current := d.getShard().CloneValue()
 	if !bytes.Equal(splitReqs.Requests[0].Start, current.Start) ||
 		!bytes.Equal(splitReqs.Requests[len(splitReqs.Requests)-1].End, current.End) {
 		d.logger.Fatal("invalid splits keys",

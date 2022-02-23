@@ -142,7 +142,7 @@ func (r *ShardScatterer) ScatterShardsByRange(resGroup uint64, startKey, endKey 
 	failures := make(map[uint64]error, len(resources))
 	resourceMap := make(map[uint64]*core.CachedShard, len(resources))
 	for _, res := range resources {
-		resourceMap[res.Meta.ID()] = res
+		resourceMap[res.Meta.GetID()] = res
 	}
 	// If there existed any resource failed to relocated after retry, add it into unProcessedShards
 	ops, err := r.ScatterShards(resourceMap, failures, group, retryLimit)
@@ -173,7 +173,7 @@ func (r *ShardScatterer) ScatterShardsByID(resourceIDs []uint64, group string, r
 	}
 	resourceMap := make(map[uint64]*core.CachedShard, len(resources))
 	for _, res := range resources {
-		resourceMap[res.Meta.ID()] = res
+		resourceMap[res.Meta.GetID()] = res
 	}
 	// If there existed any resource failed to relocated after retry, add it into unProcessedShards
 	ops, err := r.ScatterShards(resourceMap, failures, group, retryLimit)
@@ -202,14 +202,14 @@ func (r *ShardScatterer) ScatterShards(resources map[uint64]*core.CachedShard, f
 		for _, res := range resources {
 			op, err := r.Scatter(res, group)
 			if err != nil {
-				failures[res.Meta.ID()] = err
+				failures[res.Meta.GetID()] = err
 				continue
 			}
 			if op != nil {
 				ops = append(ops, op)
 			}
-			delete(resources, res.Meta.ID())
-			delete(failures, res.Meta.ID())
+			delete(resources, res.Meta.GetID())
+			delete(failures, res.Meta.GetID())
 		}
 		// all resources have been relocated, break the loop.
 		if len(resources) < 1 {
@@ -225,25 +225,25 @@ func (r *ShardScatterer) ScatterShards(resources map[uint64]*core.CachedShard, f
 // in a group level instead of cluster level.
 func (r *ShardScatterer) Scatter(res *core.CachedShard, group string) (*operator.Operator, error) {
 	if !opt.IsShardReplicated(r.cluster, res) {
-		r.cluster.AddSuspectShards(res.Meta.ID())
+		r.cluster.AddSuspectShards(res.Meta.GetID())
 		scatterCounter.WithLabelValues("skip", "not-replicated").Inc()
 		r.cluster.GetLogger().Warn("resource not replicated during scatter",
-			log.ResourceField(res.Meta.ID()))
-		return nil, fmt.Errorf("resource %d is not fully replicated", res.Meta.ID())
+			log.ResourceField(res.Meta.GetID()))
+		return nil, fmt.Errorf("resource %d is not fully replicated", res.Meta.GetID())
 	}
 
 	if res.GetLeader() == nil {
 		scatterCounter.WithLabelValues("skip", "no-leader").Inc()
 		r.cluster.GetLogger().Warn("resource has no leader during scatter",
-			log.ResourceField(res.Meta.ID()))
-		return nil, fmt.Errorf("resource %d has no leader", res.Meta.ID())
+			log.ResourceField(res.Meta.GetID()))
+		return nil, fmt.Errorf("resource %d has no leader", res.Meta.GetID())
 	}
 
 	if r.cluster.IsShardHot(res) {
 		scatterCounter.WithLabelValues("skip", "hot").Inc()
 		r.cluster.GetLogger().Warn("resource is too hot during scatter",
-			log.ResourceField(res.Meta.ID()))
-		return nil, fmt.Errorf("resource %d is hot", res.Meta.ID())
+			log.ResourceField(res.Meta.GetID()))
+		return nil, fmt.Errorf("resource %d is hot", res.Meta.GetID())
 	}
 
 	return r.scatterShard(res, group), nil
@@ -254,7 +254,7 @@ func (r *ShardScatterer) scatterShard(res *core.CachedShard, group string) *oper
 	ordinaryPeers := make(map[uint64]metapb.Replica)
 	specialPeers := make(map[string]map[uint64]metapb.Replica)
 	// Group peers by the engine of their stores
-	for _, peer := range res.Meta.Replicas() {
+	for _, peer := range res.Meta.GetReplicas() {
 		store := r.cluster.GetStore(peer.GetStoreID())
 		if ordinaryFilter.Target(r.cluster.GetOpts(), store) {
 			ordinaryPeers[peer.ID] = peer
@@ -296,7 +296,7 @@ func (r *ShardScatterer) scatterShard(res *core.CachedShard, group string) *oper
 	op, err := operator.CreateScatterShardOperator("scatter-resource", r.cluster, res, targetPeers, targetLeader)
 	if err != nil {
 		scatterCounter.WithLabelValues("fail", "").Inc()
-		for _, peer := range res.Meta.Replicas() {
+		for _, peer := range res.Meta.GetReplicas() {
 			targetPeers[peer.GetStoreID()] = peer
 		}
 		r.Put(targetPeers, res.GetLeader().GetStoreID(), group)
@@ -329,7 +329,7 @@ func (r *ShardScatterer) selectCandidates(res *core.CachedShard, sourceStoreID u
 	candidates := make([]uint64, 0)
 	for _, store := range stores {
 		if filter.Target(r.cluster.GetOpts(), store, filters) {
-			candidates = append(candidates, store.Meta.ID())
+			candidates = append(candidates, store.Meta.GetID())
 		}
 	}
 	return candidates

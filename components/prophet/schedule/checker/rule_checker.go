@@ -55,7 +55,7 @@ func (c *RuleChecker) GetType() string {
 
 // FillReplicas make up all replica for a empty resource
 func (c *RuleChecker) FillReplicas(res *core.CachedShard, leastPeers int) error {
-	if len(res.Meta.Replicas()) > 0 {
+	if len(res.Meta.GetReplicas()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
@@ -84,14 +84,14 @@ func (c *RuleChecker) FillReplicas(res *core.CachedShard, leastPeers int) error 
 				p.Role = metapb.ReplicaRole_Learner
 			}
 
-			peers := res.Meta.Replicas()
+			peers := res.Meta.GetReplicas()
 			peers = append(peers, p)
 			res.Meta.SetReplicas(peers)
 		}
 	}
 
-	if (leastPeers == 0 && len(res.Meta.Replicas()) == cnt) || // all rule peers matches
-		(leastPeers > 0 && len(res.Meta.Replicas()) == leastPeers) { // least peers matches
+	if (leastPeers == 0 && len(res.Meta.GetReplicas()) == cnt) || // all rule peers matches
+		(leastPeers > 0 && len(res.Meta.GetReplicas()) == leastPeers) { // least peers matches
 		return nil
 	}
 
@@ -124,7 +124,7 @@ func (c *RuleChecker) Check(res *core.CachedShard) *operator.Operator {
 		op, err := c.fixRulePeer(res, fit, rf)
 		if err != nil {
 			c.cluster.GetLogger().Debug("fail to fix resource by rule",
-				log.ResourceField(res.Meta.ID()),
+				log.ResourceField(res.Meta.GetID()),
 				zap.String("rule-group", rf.Rule.GroupID),
 				zap.String("rule-id", rf.Rule.ID),
 				zap.Error(err))
@@ -194,7 +194,7 @@ func (c *RuleChecker) addRulePeer(res *core.CachedShard, rf *placement.RuleFit) 
 	container := c.strategy(res, rf.Rule).SelectStoreToAdd(ruleStores)
 	if container == 0 {
 		checkerCounter.WithLabelValues("rule_checker", "no-container-add").Inc()
-		c.resourceWaitingList.Put(res.Meta.ID(), nil)
+		c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		return nil, errors.New("no container to add peer")
 	}
 	peer := metapb.Replica{StoreID: container, Role: rf.Rule.Role.MetaPeerRole()}
@@ -213,7 +213,7 @@ func (c *RuleChecker) replaceRulePeer(res *core.CachedShard, rf *placement.RuleF
 	container := c.strategy(res, rf.Rule).SelectStoreToReplace(ruleStores, peer.StoreID)
 	if container == 0 {
 		checkerCounter.WithLabelValues("rule_checker", "no-container-replace").Inc()
-		c.resourceWaitingList.Put(res.Meta.ID(), nil)
+		c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		return nil, errors.New("no container to replace peer")
 	}
 	newPeer := metapb.Replica{StoreID: container, Role: rf.Rule.Role.MetaPeerRole()}
@@ -241,7 +241,7 @@ func (c *RuleChecker) fixLooseMatchPeer(res *core.CachedShard, fit *placement.Sh
 	}
 	if res.GetLeader().GetID() == peer.GetID() && rf.Rule.Role == placement.Follower {
 		checkerCounter.WithLabelValues("rule_checker", "fix-follower-role").Inc()
-		for _, p := range res.Meta.Replicas() {
+		for _, p := range res.Meta.GetReplicas() {
 			if c.allowLeader(fit, p) {
 				return operator.CreateTransferLeaderOperator("fix-follower-role",
 					c.cluster, res, peer.StoreID, p.StoreID, 0)
@@ -292,7 +292,7 @@ func (c *RuleChecker) fixBetterLocation(res *core.CachedShard, rf *placement.Rul
 	newStore := strategy.SelectStoreToImprove(ruleStores, oldStore)
 	if newStore == 0 {
 		c.cluster.GetLogger().Debug("resource no replacement container",
-			log.ResourceField(res.Meta.ID()))
+			log.ResourceField(res.Meta.GetID()))
 		return nil, nil
 	}
 	checkerCounter.WithLabelValues("rule_checker", "move-to-better-location").Inc()

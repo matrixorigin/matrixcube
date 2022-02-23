@@ -19,7 +19,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +38,7 @@ func TestIsShardHealthy(t *testing.T) {
 	}
 
 	resource := func(peers []metapb.Replica, opts ...core.ShardCreateOption) *core.CachedShard {
-		return core.NewCachedShard(&metadata.Shard{Shard: metapb.Shard{Replicas: peers}}, &peers[0], opts...)
+		return core.NewCachedShard(&metapb.Shard{Replicas: peers}, &peers[0], opts...)
 	}
 
 	type testCase struct {

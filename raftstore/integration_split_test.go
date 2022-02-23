@@ -434,8 +434,8 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 		v, err := pd.GetStorage().GetShard(sid)
 		assert.NoError(t, err)
 		if v != nil {
-			assert.Equal(t, metapb.ShardState_Destroyed, v.State())
-			assert.True(t, len(v.Replicas()) <= replicaCount) // maybe some replica removed by conf change
+			assert.Equal(t, metapb.ShardState_Destroyed, v.GetState())
+			assert.True(t, len(v.GetReplicas()) <= replicaCount) // maybe some replica removed by conf change
 		}
 
 		bc := pd.GetBasicCluster()
@@ -445,11 +445,11 @@ func checkSplitWithProphet(t *testing.T, c TestRaftCluster, sid uint64, replicaC
 
 		res = bc.Shards.SearchShard(0, []byte("k1"))
 		assert.NotNil(t, res)
-		assert.NotEqual(t, sid, res.Meta.ID())
+		assert.NotEqual(t, sid, res.Meta.GetID())
 
 		res = bc.Shards.SearchShard(0, []byte("k3"))
 		assert.NotNil(t, res)
-		assert.NotEqual(t, sid, res.Meta.ID())
+		assert.NotEqual(t, sid, res.Meta.GetID())
 		bc.RUnlock()
 	}
 }

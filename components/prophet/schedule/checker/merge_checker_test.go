@@ -22,7 +22,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
@@ -57,20 +56,20 @@ func (s *testMergeChecker) setup() {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    1,
 				Start: []byte(""),
 				End:   []byte("a"),
 				Replicas: []metapb.Replica{
 					{ID: 101, StoreID: 1},
 					{ID: 102, StoreID: 2},
-				}}},
+				}},
 			&metapb.Replica{ID: 101, StoreID: 1},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
@@ -78,13 +77,13 @@ func (s *testMergeChecker) setup() {
 					{ID: 103, StoreID: 1},
 					{ID: 104, StoreID: 4},
 					{ID: 105, StoreID: 5},
-				}}},
+				}},
 			&metapb.Replica{ID: 104, StoreID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),
@@ -92,19 +91,19 @@ func (s *testMergeChecker) setup() {
 					{ID: 106, StoreID: 2},
 					{ID: 107, StoreID: 5},
 					{ID: 108, StoreID: 6},
-				}}},
+				}},
 			&metapb.Replica{ID: 108, StoreID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    4,
 				Start: []byte("x"),
 				End:   []byte(""),
 				Replicas: []metapb.Replica{
 					{ID: 109, StoreID: 4},
-				}}},
+				}},
 			&metapb.Replica{ID: 109, StoreID: 4},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),
@@ -170,8 +169,8 @@ func TestBasic(t *testing.T) {
 	ops = s.mc.Check(s.resources[2])
 	assert.NotNil(t, ops)
 	// Check merge with previous resource.
-	assert.Equal(t, s.resources[2].Meta.ID(), ops[0].ShardID())
-	assert.Equal(t, s.resources[1].Meta.ID(), ops[1].ShardID())
+	assert.Equal(t, s.resources[2].Meta.GetID(), ops[0].ShardID())
+	assert.Equal(t, s.resources[1].Meta.GetID(), ops[1].ShardID())
 
 	// Enable one way merge
 	s.cluster.SetEnableOneWayMerge(true)
@@ -186,8 +185,8 @@ func TestBasic(t *testing.T) {
 	ops = s.mc.Check(s.resources[2])
 	assert.NotNil(t, ops)
 	// Now it merges to next resource.
-	assert.Equal(t, ops[0].ShardID(), s.resources[2].Meta.ID())
-	assert.Equal(t, ops[1].ShardID(), s.resources[3].Meta.ID())
+	assert.Equal(t, ops[0].ShardID(), s.resources[2].Meta.GetID())
+	assert.Equal(t, ops[1].ShardID(), s.resources[3].Meta.GetID())
 
 	// merge cannot across rule key.
 	s.cluster.SetEnablePlacementRules(true)
@@ -204,8 +203,8 @@ func TestBasic(t *testing.T) {
 	// resource 2 can only merge with previous resource now.
 	ops = s.mc.Check(s.resources[2])
 	assert.NotNil(t, ops)
-	assert.Equal(t, ops[0].ShardID(), s.resources[2].Meta.ID())
-	assert.Equal(t, ops[1].ShardID(), s.resources[1].Meta.ID())
+	assert.Equal(t, ops[0].ShardID(), s.resources[2].Meta.GetID())
+	assert.Equal(t, ops[1].ShardID(), s.resources[1].Meta.GetID())
 	s.cluster.RuleManager.DeleteRule("prophet", "test")
 
 	// Skip recently split resources.
@@ -219,7 +218,7 @@ func TestBasic(t *testing.T) {
 	ops = s.mc.Check(s.resources[3])
 	assert.NotEmpty(t, ops)
 
-	s.mc.RecordShardSplit([]uint64{s.resources[2].Meta.ID()})
+	s.mc.RecordShardSplit([]uint64{s.resources[2].Meta.GetID()})
 	ops = s.mc.Check(s.resources[2])
 	assert.Nil(t, ops)
 	ops = s.mc.Check(s.resources[3])
@@ -442,7 +441,7 @@ func TestCache(t *testing.T) {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
@@ -450,13 +449,13 @@ func TestCache(t *testing.T) {
 					{ID: 103, StoreID: 1},
 					{ID: 104, StoreID: 4},
 					{ID: 105, StoreID: 5},
-				}}},
+				}},
 			&metapb.Replica{ID: 104, StoreID: 4},
 			core.SetApproximateSize(200),
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metadata.Shard{Shard: metapb.Shard{
+			&metapb.Shard{
 				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),
@@ -464,7 +463,7 @@ func TestCache(t *testing.T) {
 					{ID: 106, StoreID: 2},
 					{ID: 107, StoreID: 5},
 					{ID: 108, StoreID: 6},
-				}}},
+				}},
 			&metapb.Replica{ID: 108, StoreID: 6},
 			core.SetApproximateSize(1),
 			core.SetApproximateKeys(1),

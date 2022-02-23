@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -47,9 +46,9 @@ func (s *store) ProphetBecomeFollower() {
 
 func (s *store) initMeta() {
 	s.meta.SetLabels(s.cfg.GetLabels())
-	s.meta.SetStartTimestamp(time.Now().Unix())
+	s.meta.SetStartTime(time.Now().Unix())
 	s.meta.SetDeployPath(s.cfg.DeployPath)
-	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
+	s.meta.SetVersionAndGitHash(s.cfg.Version, s.cfg.GitHash)
 	s.meta.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
 
 	s.logger.Info("store metadata init",
@@ -92,19 +91,19 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 			s.logger.Info("begin to bootstrap the cluster with init shards",
 				s.storeField())
 			var initShards []Shard
-			var resources []*metadata.Shard
+			var resources []*Shard
 			if s.cfg.Customize.CustomInitShardsFactory != nil {
 				shards := s.cfg.Customize.CustomInitShardsFactory()
 				for _, shard := range shards {
 					s.doCreateInitShard(&shard)
 					initShards = append(initShards, shard)
-					resources = append(resources, metadata.NewShardFromShard(shard))
+					resources = append(resources, shard.Clone())
 				}
 			} else {
-				shard := Shard{}
-				s.doCreateInitShard(&shard)
-				initShards = append(initShards, shard)
-				resources = append(resources, metadata.NewShardFromShard(shard))
+				shard := metapb.NewShard()
+				s.doCreateInitShard(shard)
+				initShards = append(initShards, *shard)
+				resources = append(resources, shard)
 			}
 
 			newReplicaCreator(s).
@@ -165,7 +164,7 @@ func (s *store) mustSaveStoreMetadata() {
 	}
 
 	v := &metapb.StoreIdent{
-		StoreID:   s.meta.ID(),
+		StoreID:   s.meta.GetID(),
 		ClusterID: s.pd.GetClusterID(),
 	}
 	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
@@ -212,7 +211,7 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shard.Epoch.ConfVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
-		StoreID:       s.meta.ID(),
+		StoreID:       s.meta.GetID(),
 		InitialMember: true,
 	})
 }

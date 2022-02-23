@@ -306,7 +306,7 @@ func (m *RuleManager) GetRulesForApplyShard(res *core.CachedShard) []*Rule {
 	m.RLock()
 	defer m.RUnlock()
 
-	start, end := res.Meta.Range()
+	start, end := res.Meta.GetRange()
 	return filterRules(m.ruleList.getRulesForApplyShard(start, end), res)
 }
 
@@ -696,7 +696,7 @@ func checkRule(rule *Rule, containers []*core.CachedStore) bool {
 }
 
 func filterRules(src []*Rule, res *core.CachedShard) []*Rule {
-	targets := res.Meta.RuleGroups()
+	targets := res.Meta.GetRuleGroups()
 	if len(targets) == 0 {
 		return src
 	}

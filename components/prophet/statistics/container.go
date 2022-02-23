@@ -87,7 +87,7 @@ func (s *StoresStats) UpdateTotalLoad(containers []*core.CachedStore) {
 		if !container.IsUp() {
 			continue
 		}
-		stats, ok := s.rollingStoresStats[container.Meta.ID()]
+		stats, ok := s.rollingStoresStats[container.Meta.GetID()]
 		if !ok {
 			continue
 		}

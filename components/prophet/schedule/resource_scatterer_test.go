@@ -104,7 +104,7 @@ func (s *testScatterShard) scatter(t *testing.T, numStores, numShards uint64, us
 	for i := uint64(1); i <= numShards; i++ {
 		resource := tc.GetShard(i)
 		leaderStoreID := resource.GetLeader().GetStoreID()
-		for _, peer := range resource.Meta.Replicas() {
+		for _, peer := range resource.Meta.GetReplicas() {
 			countPeers[peer.GetStoreID()]++
 			if peer.GetStoreID() == leaderStoreID {
 				countLeader[peer.GetStoreID()]++
@@ -174,7 +174,7 @@ func (s *testScatterShard) scatterSpecial(t *testing.T, numOrdinaryStores, numSp
 	for i := uint64(1); i <= numresources; i++ {
 		resource := tc.GetShard(i)
 		leaderStoreID := resource.GetLeader().GetStoreID()
-		for _, peer := range resource.Meta.Replicas() {
+		for _, peer := range resource.Meta.GetReplicas() {
 			containerID := peer.GetStoreID()
 			container := tc.Stores.GetStore(containerID)
 			if container.GetLabelValue("engine") == "tiflash" {

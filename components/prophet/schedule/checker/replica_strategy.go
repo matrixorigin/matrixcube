@@ -77,7 +77,7 @@ func (s *ReplicaStrategy) SelectStoreToAdd(coLocationStores []*core.CachedStore,
 	if target == nil {
 		return 0
 	}
-	return target.Meta.ID()
+	return target.Meta.GetID()
 }
 
 // SelectStoreToReplace returns a container to replace oldStore. The location
@@ -106,7 +106,7 @@ func (s *ReplicaStrategy) SelectStoreToImprove(coLocationStores []*core.CachedSt
 
 func (s *ReplicaStrategy) swapStoreToFirst(containers []*core.CachedStore, id uint64) {
 	for i, s := range containers {
-		if s.Meta.ID() == id {
+		if s.Meta.GetID() == id {
 			containers[0], containers[i] = containers[i], containers[0]
 			return
 		}
@@ -123,8 +123,8 @@ func (s *ReplicaStrategy) SelectStoreToRemove(coLocationStores []*core.CachedSto
 		PickFirst()
 	if source == nil {
 		s.cluster.GetLogger().Debug("resource no removable container",
-			log.ResourceField(s.resource.Meta.ID()))
+			log.ResourceField(s.resource.Meta.GetID()))
 		return 0
 	}
-	return source.Meta.ID()
+	return source.Meta.GetID()
 }

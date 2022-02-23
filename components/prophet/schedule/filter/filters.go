@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
@@ -41,9 +40,9 @@ func SelectSourceStores(containers []*core.CachedStore, filters []Filter, opt *c
 	return filterStoresBy(containers, func(s *core.CachedStore) bool {
 		return slice.AllOf(filters, func(i int) bool {
 			if !filters[i].Source(opt, s) {
-				sourceID := fmt.Sprintf("%d", s.Meta.ID())
+				sourceID := fmt.Sprintf("%d", s.Meta.GetID())
 				targetID := ""
-				filterCounter.WithLabelValues("filter-source", s.Meta.Addr(),
+				filterCounter.WithLabelValues("filter-source", s.Meta.GetClientAddr(),
 					sourceID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -59,12 +58,12 @@ func SelectTargetStores(containers []*core.CachedStore, filters []Filter, opt *c
 			filter := filters[i]
 			if !filter.Target(opt, s) {
 				cfilter, ok := filter.(comparingFilter)
-				targetID := fmt.Sprintf("%d", s.Meta.ID())
+				targetID := fmt.Sprintf("%d", s.Meta.GetID())
 				sourceID := ""
 				if ok {
 					sourceID = fmt.Sprintf("%d", cfilter.GetSourceStoreID())
 				}
-				filterCounter.WithLabelValues("filter-target", s.Meta.Addr(),
+				filterCounter.WithLabelValues("filter-target", s.Meta.GetClientAddr(),
 					targetID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -102,8 +101,8 @@ type comparingFilter interface {
 
 // Source checks if container can pass all Filters as source container.
 func Source(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.Addr()
-	containerID := fmt.Sprintf("%d", container.Meta.ID())
+	containerAddress := container.Meta.GetClientAddr()
+	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Source(opt, container) {
 			sourceID := containerID
@@ -118,8 +117,8 @@ func Source(opt *config.PersistOptions, container *core.CachedStore, filters []F
 
 // Target checks if container can pass all Filters as target container.
 func Target(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.Addr()
-	containerID := fmt.Sprintf("%d", container.Meta.ID())
+	containerAddress := container.Meta.GetClientAddr()
+	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Target(opt, container) {
 			cfilter, ok := filter.(comparingFilter)
@@ -160,7 +159,7 @@ func (f *excludedFilter) Type() string {
 }
 
 func (f *excludedFilter) Source(opt *config.PersistOptions, container *core.CachedStore) bool {
-	_, ok := f.sources[container.Meta.ID()]
+	_, ok := f.sources[container.Meta.GetID()]
 	if ok && LogWhySkipped {
 		f.maybeLogWhy(container)
 	}
@@ -168,7 +167,7 @@ func (f *excludedFilter) Source(opt *config.PersistOptions, container *core.Cach
 }
 
 func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	_, ok := f.targets[container.Meta.ID()]
+	_, ok := f.targets[container.Meta.GetID()]
 	if ok && LogWhySkipped {
 		f.maybeLogWhy(container)
 	}
@@ -178,7 +177,7 @@ func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.Cach
 func (f *excludedFilter) maybeLogWhy(container *core.CachedStore) {
 	if LogWhySkipped {
 		log.Printf("excludedFilter skip container %d, excluded: %+v",
-			container.Meta.ID(),
+			container.Meta.GetID(),
 			f.sources)
 	}
 }
@@ -209,7 +208,7 @@ func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *c
 	v := !container.IsLowSpace(opt.GetLowSpaceRatio())
 	if !v && LogWhySkipped {
 		log.Printf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
-			container.Meta.ID(),
+			container.Meta.GetID(),
 			opt.GetLowSpaceRatio(),
 			container.GetStoreStats(),
 			container.AvailableRatio())
@@ -250,7 +249,7 @@ func NewLocationImprover(scope string, labels []string, containers []*core.Cache
 func newDistinctScoreFilter(scope string, labels []string, containers []*core.CachedStore, source *core.CachedStore, policy string) Filter {
 	newStores := make([]*core.CachedStore, 0, len(containers)-1)
 	for _, s := range containers {
-		if s.Meta.ID() == source.Meta.ID() {
+		if s.Meta.GetID() == source.Meta.GetID() {
 			continue
 		}
 		newStores = append(newStores, s)
@@ -262,7 +261,7 @@ func newDistinctScoreFilter(scope string, labels []string, containers []*core.Ca
 		containers: newStores,
 		safeScore:  core.DistinctScore(labels, newStores, source),
 		policy:     policy,
-		srcStore:   source.Meta.ID(),
+		srcStore:   source.Meta.GetID(),
 	}
 }
 
@@ -381,7 +380,7 @@ func (f *StoreStateFilter) tooManyPendingPeers(opt *config.PersistOptions, conta
 
 func (f *StoreStateFilter) hasRejectLeaderProperty(opts *config.PersistOptions, container *core.CachedStore) bool {
 	f.Reason = "reject-leader"
-	return opts.CheckLabelProperty(opt.RejectLeader, container.Meta.Labels())
+	return opts.CheckLabelProperty(opt.RejectLeader, container.Meta.GetLabels())
 }
 
 // The condition table.
@@ -527,11 +526,11 @@ func (f *ruleFitFilter) Source(opt *config.PersistOptions, container *core.Cache
 }
 
 func (f *ruleFitFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	start, end := f.resource.Meta.Range()
+	start, end := f.resource.Meta.GetRange()
 
 	resource := createShardForRuleFit(start, end,
-		f.resource.Meta.Replicas(), f.resource.GetLeader(),
-		core.WithReplacePeerStore(f.srcStore, container.Meta.ID()))
+		f.resource.Meta.GetReplicas(), f.resource.GetLeader(),
+		core.WithReplacePeerStore(f.srcStore, container.Meta.GetID()))
 	newFit := f.fitter.FitShard(resource)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
 }
@@ -574,12 +573,12 @@ func (f *ruleLeaderFitFilter) Source(opt *config.PersistOptions, container *core
 }
 
 func (f *ruleLeaderFitFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	targetPeer, ok := f.resource.GetStorePeer(container.Meta.ID())
+	targetPeer, ok := f.resource.GetStorePeer(container.Meta.GetID())
 	if !ok {
 		return false
 	}
 	copyShard := createShardForRuleFit(f.resource.GetStartKey(), f.resource.GetEndKey(),
-		f.resource.Meta.Replicas(), f.resource.GetLeader(),
+		f.resource.Meta.GetReplicas(), f.resource.GetLeader(),
 		core.WithLeader(&targetPeer))
 	newFit := f.fitter.FitShard(copyShard)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
@@ -593,7 +592,7 @@ func (f *ruleLeaderFitFilter) GetSourceStoreID() uint64 {
 // peer, the placement restriction will not become worse.
 func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.ID())
+		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.GetID())
 	}
 	return NewLocationSafeguard(scope, cluster.GetOpts().GetLocationLabels(), cluster.GetShardStores(res), sourceStore)
 }
@@ -603,7 +602,7 @@ func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedSh
 // Note that it only worked when PlacementRules enabled otherwise it will always permit the sourceStore.
 func NewPlacementLeaderSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.ID())
+		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.GetID())
 	}
 	return nil
 }
@@ -807,7 +806,7 @@ func createShardForRuleFit(startKey, endKey []byte,
 		copyPeers = append(copyPeers, peer)
 	}
 
-	meta := metadata.NewShard()
+	meta := metapb.NewShard()
 	meta.SetStartKey(startKey)
 	meta.SetEndKey(endKey)
 	meta.SetReplicas(copyPeers)
