@@ -1,5 +1,4 @@
-// Copyright 2020 PingCAP, Inc.
-// Modifications copyright (C) 2021 MatrixOrigin.
+// Copyright 2020 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +19,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/server/v3/embed"
 	"go.uber.org/zap"
 )
@@ -29,20 +27,18 @@ import (
 type Member struct {
 	isProphet                            bool
 	etcd                                 *embed.Etcd
-	client                               *clientv3.Client
 	elector                              election.Elector
 	leadership                           *election.Leadership
 	leader                               atomic.Value   // stored as *metapb.Member
 	member                               *metapb.Member // current prophet's info.
 	memberValue                          string
-	id                                   uint64 //etcd server id
+	id                                   uint64 // etcd server id for prophet node
 	becomeLeaderFunc, becomeFollowerFunc func() error
 	logger                               *zap.Logger
 }
 
 // NewMember create a new Member.
 func NewMember(
-	client *clientv3.Client,
 	etcd *embed.Etcd,
 	elector election.Elector,
 	isProphet bool,
@@ -55,7 +51,6 @@ func NewMember(
 	}
 
 	return &Member{
-		client:             client,
 		elector:            elector,
 		isProphet:          isProphet,
 		becomeLeaderFunc:   becomeLeaderFunc,
@@ -124,7 +119,7 @@ func (m *Member) GetLeadership() *election.Leadership {
 	return m.leadership
 }
 
-// GetLeader returns current PD leader of PD cluster.
+// GetLeader returns current leader of prophet cluster.
 func (m *Member) GetLeader() *metapb.Member {
 	leader := m.leader.Load()
 	if leader == nil {
@@ -132,6 +127,7 @@ func (m *Member) GetLeader() *metapb.Member {
 	}
 	member := leader.(*metapb.Member)
 	if member.GetID() == 0 {
+		// For prophet node, ID would be etcd server ID;
 		return nil
 	}
 	return member
@@ -143,7 +139,7 @@ func (m *Member) ElectionLoop() {
 }
 
 // MemberInfo initializes the member info.
-func (m *Member) MemberInfo(nodeName, addr string) {
+func (m *Member) InitMemberInfo(nodeName, addr string) {
 	member := &metapb.Member{
 		ID:   m.id,
 		Name: nodeName,
@@ -167,14 +163,4 @@ func (m *Member) MemberInfo(nodeName, addr string) {
 // IsLeader returns whether the server is prophet leader or not by checking its leadership's lease and leader info.
 func (m *Member) IsLeader() bool {
 	return m.leadership.Check() && m.GetLeader().GetName() == m.member.Name
-}
-
-// Client etcd client
-func (m *Member) Client() *clientv3.Client {
-	return m.client
-}
-
-// GetEtcdLeader returns the etcd leader ID.
-func (m *Member) GetEtcdLeader() uint64 {
-	return m.etcd.Server.Lead()
 }
