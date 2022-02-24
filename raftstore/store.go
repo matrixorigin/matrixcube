@@ -116,6 +116,11 @@ type store struct {
 	groupController *replicaGroupController
 
 	storageStatsReader storageStatsReader
+
+	mu struct {
+		sync.RWMutex
+		unavailableShards *roaring64.Bitmap
+	}
 }
 
 // NewStore returns a raft store
@@ -152,6 +157,8 @@ func NewStore(cfg *config.Config) Store {
 	} else {
 		s.storageStatsReader = newDiskStorageStatsReader(s.cfg.DataPath)
 	}
+
+	s.mu.unavailableShards = roaring64.New()
 	return s
 }
 
@@ -341,6 +348,12 @@ func (s *store) OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)
 					log.ShardIDField(req.ToShard),
 					log.ReasonField("shard not found"))
 			}
+
+			if s.isShardUnavailable(req.ToShard) {
+				respShardUnavailable(req.ToShard, req, cb)
+				return nil
+			}
+
 			respStoreNotMatch(errStoreNotMatch, req, cb)
 			return nil
 		}
@@ -822,6 +835,29 @@ func (s *store) getReplicaCount() uint64 {
 		return true
 	})
 	return n
+}
+
+func (s *store) isShardUnavailable(id uint64) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.mu.unavailableShards.Contains(id)
+}
+
+func (s *store) addUnavailableShard(id uint64) {
+	s.mu.Lock()
+	s.mu.unavailableShards.Add(id)
+	s.mu.Unlock()
+}
+
+func (s *store) addUnavailableShardWithIds(shards *roaring64.Bitmap) {
+	if shards.GetCardinality() == 0 {
+		return
+	}
+
+	s.mu.Lock()
+	s.mu.unavailableShards.Or(shards)
+	s.mu.Unlock()
 }
 
 type storeReplicaGetter struct {

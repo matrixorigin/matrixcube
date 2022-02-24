@@ -426,20 +426,23 @@ func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingSt
 
 func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.DestroyingStatus) error {
 	if status.State == metapb.ResourceState_Destroyed {
+		c.core.AddRemovedResources(id)
+
+		var savedRes metadata.Resource
 		res := c.core.GetResource(id)
 		if res == nil {
-			c.logger.Fatal("missing resource to set destroyed",
-				zap.Uint64("resource", id))
-			return nil
+			// maybe removed due to overlap resource, usie id and state constructs
+			savedRes = c.adapter.NewResource()
+			savedRes.SetID(id)
+		} else {
+			res.Meta.SetState(metapb.ResourceState_Destroyed)
+			savedRes = res.Meta.Clone()
 		}
 
-		v := res.Meta.Clone()
-		v.SetState(metapb.ResourceState_Destroyed)
-		if err := c.storage.PutResourceAndExtra(v, protoc.MustMarshal(status)); err != nil {
+		savedRes.SetState(metapb.ResourceState_Destroyed)
+		if err := c.storage.PutResourceAndExtra(savedRes, protoc.MustMarshal(status)); err != nil {
 			return err
 		}
-		c.core.AddRemovedResources(id)
-		res.Meta.SetState(metapb.ResourceState_Destroyed)
 	} else {
 		err := c.storage.PutResourceExtra(id, protoc.MustMarshal(status))
 		if err != nil {

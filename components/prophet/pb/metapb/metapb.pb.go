@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -22,7 +21,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // Action the action while a new node join the cluster
 type Action int32
@@ -370,7 +369,7 @@ func (m *ResourceEpoch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ResourceEpoch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -428,7 +427,7 @@ func (m *Replica) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Replica.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -498,7 +497,7 @@ func (m *ReplicaStats) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ReplicaStats.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -554,7 +553,7 @@ func (m *Pair) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Pair.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -624,7 +623,7 @@ func (m *ResourceStats) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ResourceStats.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -758,7 +757,7 @@ func (m *ContainerStats) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_ContainerStats.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -933,7 +932,7 @@ func (m *RecordPair) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_RecordPair.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -990,7 +989,7 @@ func (m *Member) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Member.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1053,7 +1052,7 @@ func (m *Cluster) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Cluster.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1111,7 +1110,7 @@ func (m *TimeInterval) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_TimeInterval.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1168,7 +1167,7 @@ func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Job.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1231,7 +1230,7 @@ func (m *RemoveResourceJob) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_RemoveResourceJob.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1286,7 +1285,7 @@ func (m *ResourcePoolJob) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return xxx_messageInfo_ResourcePoolJob.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1336,7 +1335,7 @@ func (m *ResourcePool) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ResourcePool.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1401,7 +1400,7 @@ func (m *DestroyingStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_DestroyingStatus.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1471,7 +1470,7 @@ func (m *ResourceExtra) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ResourceExtra.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1529,7 +1528,7 @@ func (m *ScheduleGroupRule) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_ScheduleGroupRule.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -1710,7 +1709,7 @@ var fileDescriptor_77b4d575d5a68dda = []byte{
 func (m *ResourceEpoch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1718,36 +1717,30 @@ func (m *ResourceEpoch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceEpoch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceEpoch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ConfVer != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ConfVer))
 	}
 	if m.Version != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Version))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Version))
 	}
-	if m.ConfVer != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ConfVer))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Replica) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1755,51 +1748,45 @@ func (m *Replica) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Replica) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Replica) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
+	}
+	if m.ContainerID != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ContainerID))
+	}
+	if m.Role != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Role))
 	}
 	if m.InitialMember {
-		i--
+		dAtA[i] = 0x20
+		i++
 		if m.InitialMember {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x20
+		i++
 	}
-	if m.Role != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Role))
-		i--
-		dAtA[i] = 0x18
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.ContainerID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ContainerID))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.ID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ReplicaStats) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1807,41 +1794,33 @@ func (m *ReplicaStats) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ReplicaStats) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ReplicaStats) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.DownSeconds != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.DownSeconds))
-		i--
-		dAtA[i] = 0x10
-	}
-	{
-		size, err := m.Replica.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintMetapb(dAtA, i, uint64(size))
-	}
-	i--
 	dAtA[i] = 0xa
-	return len(dAtA) - i, nil
+	i++
+	i = encodeVarintMetapb(dAtA, i, uint64(m.Replica.Size()))
+	n1, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n1
+	if m.DownSeconds != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.DownSeconds))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Pair) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1849,40 +1828,32 @@ func (m *Pair) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Pair) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Pair) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Value)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Value)))
+		i += copy(dAtA[i:], m.Value)
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ResourceStats) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1890,73 +1861,65 @@ func (m *ResourceStats) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceStats) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceStats) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Interval != nil {
-		{
-			size, err := m.Interval.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintMetapb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.ApproximateKeys != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ApproximateKeys))
-		i--
-		dAtA[i] = 0x38
-	}
-	if m.ApproximateSize != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ApproximateSize))
-		i--
-		dAtA[i] = 0x30
-	}
-	if m.ReadKeys != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadKeys))
-		i--
-		dAtA[i] = 0x28
-	}
-	if m.ReadBytes != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadBytes))
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.WrittenKeys != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenKeys))
-		i--
-		dAtA[i] = 0x18
+	if m.ResourceID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ResourceID))
 	}
 	if m.WrittenBytes != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenBytes))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenBytes))
 	}
-	if m.ResourceID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ResourceID))
-		i--
-		dAtA[i] = 0x8
+	if m.WrittenKeys != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenKeys))
 	}
-	return len(dAtA) - i, nil
+	if m.ReadBytes != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadBytes))
+	}
+	if m.ReadKeys != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadKeys))
+	}
+	if m.ApproximateSize != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ApproximateSize))
+	}
+	if m.ApproximateKeys != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ApproximateKeys))
+	}
+	if m.Interval != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Interval.Size()))
+		n2, err := m.Interval.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ContainerStats) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -1964,177 +1927,161 @@ func (m *ContainerStats) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ContainerStats) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ContainerStats) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ContainerID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ContainerID))
 	}
-	if len(m.OpLatencies) > 0 {
-		for iNdEx := len(m.OpLatencies) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.OpLatencies[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1
-			i--
-			dAtA[i] = 0x9a
+	if m.StartTime != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.StartTime))
+	}
+	if m.Interval != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Interval.Size()))
+		n3, err := m.Interval.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
+		i += n3
 	}
-	if len(m.WriteIORates) > 0 {
-		for iNdEx := len(m.WriteIORates) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.WriteIORates[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1
-			i--
-			dAtA[i] = 0x92
-		}
+	if m.Capacity != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Capacity))
 	}
-	if len(m.ReadIORates) > 0 {
-		for iNdEx := len(m.ReadIORates) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.ReadIORates[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1
-			i--
-			dAtA[i] = 0x8a
-		}
+	if m.Available != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Available))
 	}
-	if len(m.CpuUsages) > 0 {
-		for iNdEx := len(m.CpuUsages) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.CpuUsages[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1
-			i--
-			dAtA[i] = 0x82
-		}
-	}
-	if m.ReadKeys != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadKeys))
-		i--
-		dAtA[i] = 0x78
-	}
-	if m.WrittenKeys != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenKeys))
-		i--
-		dAtA[i] = 0x70
-	}
-	if m.ReadBytes != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadBytes))
-		i--
-		dAtA[i] = 0x68
-	}
-	if m.WrittenBytes != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenBytes))
-		i--
-		dAtA[i] = 0x60
-	}
-	if m.ApplyingSnapCount != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ApplyingSnapCount))
-		i--
-		dAtA[i] = 0x58
-	}
-	if m.ReceivingSnapCount != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ReceivingSnapCount))
-		i--
-		dAtA[i] = 0x50
-	}
-	if m.SendingSnapCount != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.SendingSnapCount))
-		i--
-		dAtA[i] = 0x48
-	}
-	if m.ResourceCount != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ResourceCount))
-		i--
-		dAtA[i] = 0x40
+	if m.UsedSize != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.UsedSize))
 	}
 	if m.IsBusy {
-		i--
+		dAtA[i] = 0x38
+		i++
 		if m.IsBusy {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
 		}
-		i--
-		dAtA[i] = 0x38
+		i++
 	}
-	if m.UsedSize != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.UsedSize))
-		i--
-		dAtA[i] = 0x30
+	if m.ResourceCount != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ResourceCount))
 	}
-	if m.Available != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Available))
-		i--
-		dAtA[i] = 0x28
+	if m.SendingSnapCount != 0 {
+		dAtA[i] = 0x48
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.SendingSnapCount))
 	}
-	if m.Capacity != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Capacity))
-		i--
-		dAtA[i] = 0x20
+	if m.ReceivingSnapCount != 0 {
+		dAtA[i] = 0x50
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ReceivingSnapCount))
 	}
-	if m.Interval != nil {
-		{
-			size, err := m.Interval.MarshalToSizedBuffer(dAtA[:i])
+	if m.ApplyingSnapCount != 0 {
+		dAtA[i] = 0x58
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ApplyingSnapCount))
+	}
+	if m.WrittenBytes != 0 {
+		dAtA[i] = 0x60
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenBytes))
+	}
+	if m.ReadBytes != 0 {
+		dAtA[i] = 0x68
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadBytes))
+	}
+	if m.WrittenKeys != 0 {
+		dAtA[i] = 0x70
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.WrittenKeys))
+	}
+	if m.ReadKeys != 0 {
+		dAtA[i] = 0x78
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ReadKeys))
+	}
+	if len(m.CpuUsages) > 0 {
+		for _, msg := range m.CpuUsages {
+			dAtA[i] = 0x82
+			i++
+			dAtA[i] = 0x1
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
 			if err != nil {
 				return 0, err
 			}
-			i -= size
-			i = encodeVarintMetapb(dAtA, i, uint64(size))
+			i += n
 		}
-		i--
-		dAtA[i] = 0x1a
 	}
-	if m.StartTime != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.StartTime))
-		i--
-		dAtA[i] = 0x10
+	if len(m.ReadIORates) > 0 {
+		for _, msg := range m.ReadIORates {
+			dAtA[i] = 0x8a
+			i++
+			dAtA[i] = 0x1
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
-	if m.ContainerID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ContainerID))
-		i--
-		dAtA[i] = 0x8
+	if len(m.WriteIORates) > 0 {
+		for _, msg := range m.WriteIORates {
+			dAtA[i] = 0x92
+			i++
+			dAtA[i] = 0x1
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
-	return len(dAtA) - i, nil
+	if len(m.OpLatencies) > 0 {
+		for _, msg := range m.OpLatencies {
+			dAtA[i] = 0x9a
+			i++
+			dAtA[i] = 0x1
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RecordPair) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2142,38 +2089,31 @@ func (m *RecordPair) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RecordPair) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RecordPair) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if m.Value != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Value))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Value))
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Member) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2181,45 +2121,37 @@ func (m *Member) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Member) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Member) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Addr) > 0 {
-		i -= len(m.Addr)
-		copy(dAtA[i:], m.Addr)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Addr)))
-		i--
-		dAtA[i] = 0x1a
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
 	}
 	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Name)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
 	}
-	if m.ID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if len(m.Addr) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Addr)))
+		i += copy(dAtA[i:], m.Addr)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *Cluster) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2227,36 +2159,30 @@ func (m *Cluster) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Cluster) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Cluster) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
 	}
 	if m.MaxReplicaCount != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.MaxReplicaCount))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.MaxReplicaCount))
 	}
-	if m.ID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *TimeInterval) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2264,36 +2190,30 @@ func (m *TimeInterval) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *TimeInterval) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TimeInterval) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.Start != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Start))
 	}
 	if m.End != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.End))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.End))
 	}
-	if m.Start != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Start))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Job) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2301,43 +2221,36 @@ func (m *Job) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Job) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Job) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.State != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.State))
-		i--
-		dAtA[i] = 0x18
+	if m.Type != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Type))
 	}
 	if len(m.Content) > 0 {
-		i -= len(m.Content)
-		copy(dAtA[i:], m.Content)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Content)))
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Content)))
+		i += copy(dAtA[i:], m.Content)
 	}
-	if m.Type != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Type))
-		i--
-		dAtA[i] = 0x8
+	if m.State != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.State))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *RemoveResourceJob) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2345,45 +2258,37 @@ func (m *RemoveResourceJob) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveResourceJob) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RemoveResourceJob) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
 	}
 	if len(m.Replicass) > 0 {
-		for iNdEx := len(m.Replicass) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Replicass[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Replicass {
 			dAtA[i] = 0x12
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	if m.ID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *ResourcePoolJob) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2391,40 +2296,32 @@ func (m *ResourcePoolJob) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourcePoolJob) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourcePoolJob) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.Pools) > 0 {
-		for iNdEx := len(m.Pools) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Pools[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintMetapb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.Pools {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResourcePool) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2432,43 +2329,36 @@ func (m *ResourcePool) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourcePool) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourcePool) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.RangePrefix) > 0 {
-		i -= len(m.RangePrefix)
-		copy(dAtA[i:], m.RangePrefix)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.RangePrefix)))
-		i--
-		dAtA[i] = 0x1a
+	if m.Group != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Group))
 	}
 	if m.Capacity != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Capacity))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Capacity))
 	}
-	if m.Group != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Group))
-		i--
-		dAtA[i] = 0x8
+	if len(m.RangePrefix) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.RangePrefix)))
+		i += copy(dAtA[i:], m.RangePrefix)
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *DestroyingStatus) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2476,66 +2366,60 @@ func (m *DestroyingStatus) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *DestroyingStatus) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DestroyingStatus) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.RemoveData {
-		i--
-		if m.RemoveData {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x20
-	}
-	if m.State != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.State))
-		i--
-		dAtA[i] = 0x18
+	if m.Index != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.Index))
 	}
 	if len(m.Replicas) > 0 {
-		for k := range m.Replicas {
+		for k, _ := range m.Replicas {
+			dAtA[i] = 0x12
+			i++
 			v := m.Replicas[k]
-			baseI := i
-			i--
+			mapSize := 1 + sovMetapb(uint64(k)) + 1 + 1
+			i = encodeVarintMetapb(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0x8
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(k))
+			dAtA[i] = 0x10
+			i++
 			if v {
 				dAtA[i] = 1
 			} else {
 				dAtA[i] = 0
 			}
-			i--
-			dAtA[i] = 0x10
-			i = encodeVarintMetapb(dAtA, i, uint64(k))
-			i--
-			dAtA[i] = 0x8
-			i = encodeVarintMetapb(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0x12
+			i++
 		}
 	}
-	if m.Index != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.Index))
-		i--
-		dAtA[i] = 0x8
+	if m.State != 0 {
+		dAtA[i] = 0x18
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.State))
 	}
-	return len(dAtA) - i, nil
+	if m.RemoveData {
+		dAtA[i] = 0x20
+		i++
+		if m.RemoveData {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ResourceExtra) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2543,57 +2427,47 @@ func (m *ResourceExtra) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ResourceExtra) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResourceExtra) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Labels) > 0 {
+		for k, _ := range m.Labels {
+			dAtA[i] = 0xa
+			i++
+			v := m.Labels[k]
+			mapSize := 1 + len(k) + sovMetapb(uint64(len(k))) + 1 + len(v) + sovMetapb(uint64(len(v)))
+			i = encodeVarintMetapb(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintMetapb(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
+		}
 	}
 	if m.DestroyingStatus != nil {
-		{
-			size, err := m.DestroyingStatus.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintMetapb(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
-	}
-	if len(m.Labels) > 0 {
-		for k := range m.Labels {
-			v := m.Labels[k]
-			baseI := i
-			i -= len(v)
-			copy(dAtA[i:], v)
-			i = encodeVarintMetapb(dAtA, i, uint64(len(v)))
-			i--
-			dAtA[i] = 0x12
-			i -= len(k)
-			copy(dAtA[i:], k)
-			i = encodeVarintMetapb(dAtA, i, uint64(len(k)))
-			i--
-			dAtA[i] = 0xa
-			i = encodeVarintMetapb(dAtA, i, uint64(baseI-i))
-			i--
-			dAtA[i] = 0xa
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.DestroyingStatus.Size()))
+		n4, err := m.DestroyingStatus.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
+		i += n4
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ScheduleGroupRule) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -2601,56 +2475,46 @@ func (m *ScheduleGroupRule) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ScheduleGroupRule) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ScheduleGroupRule) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.GroupByLabel) > 0 {
-		i -= len(m.GroupByLabel)
-		copy(dAtA[i:], m.GroupByLabel)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.GroupByLabel)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Name)))
-		i--
-		dAtA[i] = 0x1a
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
 	}
 	if m.GroupID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.GroupID))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(m.GroupID))
 	}
-	if m.ID != 0 {
-		i = encodeVarintMetapb(dAtA, i, uint64(m.ID))
-		i--
-		dAtA[i] = 0x8
+	if len(m.Name) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
 	}
-	return len(dAtA) - i, nil
+	if len(m.GroupByLabel) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintMetapb(dAtA, i, uint64(len(m.GroupByLabel)))
+		i += copy(dAtA[i:], m.GroupByLabel)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintMetapb(dAtA []byte, offset int, v uint64) int {
-	offset -= sovMetapb(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *ResourceEpoch) Size() (n int) {
 	if m == nil {
@@ -3091,7 +2955,14 @@ func (m *ScheduleGroupRule) Size() (n int) {
 }
 
 func sovMetapb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozMetapb(x uint64) (n int) {
 	return sovMetapb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -3169,7 +3040,10 @@ func (m *ResourceEpoch) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -3297,7 +3171,10 @@ func (m *Replica) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -3400,7 +3277,10 @@ func (m *ReplicaStats) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -3515,7 +3395,10 @@ func (m *Pair) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -3735,7 +3618,10 @@ func (m *ResourceStats) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4225,7 +4111,10 @@ func (m *ContainerStats) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4327,7 +4216,10 @@ func (m *RecordPair) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4461,7 +4353,10 @@ func (m *Member) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4550,7 +4445,10 @@ func (m *Cluster) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4639,7 +4537,10 @@ func (m *TimeInterval) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4762,7 +4663,10 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4866,7 +4770,10 @@ func (m *RemoveResourceJob) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -4951,7 +4858,10 @@ func (m *ResourcePoolJob) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -5074,7 +4984,10 @@ func (m *ResourcePool) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -5228,7 +5141,7 @@ func (m *DestroyingStatus) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
+					if skippy < 0 {
 						return ErrInvalidLengthMetapb
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5284,7 +5197,10 @@ func (m *DestroyingStatus) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -5445,7 +5361,7 @@ func (m *ResourceExtra) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
+					if skippy < 0 {
 						return ErrInvalidLengthMetapb
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -5498,7 +5414,10 @@ func (m *ResourceExtra) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -5651,7 +5570,10 @@ func (m *ScheduleGroupRule) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthMetapb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthMetapb
 			}
 			if (iNdEx + skippy) > l {
@@ -5670,7 +5592,6 @@ func (m *ScheduleGroupRule) Unmarshal(dAtA []byte) error {
 func skipMetapb(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -5702,8 +5623,10 @@ func skipMetapb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -5724,30 +5647,55 @@ func skipMetapb(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthMetapb
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupMetapb
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthMetapb
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowMetapb
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipMetapb(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthMetapb
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthMetapb
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthMetapb        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowMetapb          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupMetapb = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthMetapb = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowMetapb   = fmt.Errorf("proto: integer overflow")
 )

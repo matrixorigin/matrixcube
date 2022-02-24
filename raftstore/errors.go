@@ -37,6 +37,27 @@ var (
 	storeNotMatch = new(errorpb.StoreNotMatch)
 )
 
+// ShardUnavailableErr is a error that the shard is unavailable
+type ShardUnavailableErr struct {
+	err string
+}
+
+// NewShardUnavailableErr returns a wrapped error that the shard is unavailable
+func NewNewShardUnavailableErr(id uint64) error {
+	return ShardUnavailableErr{err: fmt.Sprintf("shard %d is unavailable", id)}
+}
+
+// String implement error interface
+func (err ShardUnavailableErr) Error() string {
+	return err.err
+}
+
+// IsShardUnavailableErr is ShardUnavailableErr error
+func IsShardUnavailableErr(err error) bool {
+	_, ok := err.(ShardUnavailableErr)
+	return ok
+}
+
 func buildID(id []byte, resp *rpc.ResponseBatch) {
 	if resp.Header.IsEmpty() {
 		return
