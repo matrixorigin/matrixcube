@@ -81,6 +81,42 @@ func TestSplitWithMultiNodesCluster(t *testing.T) {
 	checkSplitWithProphet(t, c, sid, 3)
 }
 
+func TestSplitWithSingleClusterAndWriteToOldShard(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode.")
+		return
+	}
+
+	defer leaktest.AfterTest(t)()
+	c := NewSingleTestClusterStore(t,
+		DiskTestCluster,
+		OldTestCluster,
+		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
+			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
+		}))
+
+	c.Start()
+	defer c.Stop()
+
+	sid := prepareSplit(t, c, []int{0}, []int{2})
+	n := 0
+	kv := c.CreateTestKVClient(0)
+	defer kv.Close()
+	assert.True(t, IsShardUnavailableErr(kv.SetWithShard("k1", "v1", sid, testWaitTimeout)))
+
+	kv2 := c.CreateTestKVClientWithAdjust(0, func(req *rpc.Request) {
+		if n == 0 {
+			req.ToShard = sid
+		} else {
+			req.ToShard = 0
+		}
+		n++
+	})
+	defer kv2.Close()
+	assert.NoError(t, kv2.Set("k1", "v1", testWaitTimeout))
+}
+
 func TestSplitWithCase1(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")

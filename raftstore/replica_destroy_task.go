@@ -50,6 +50,8 @@ func (pr *replica) startDestroyReplicaTaskAfterSplitted(splitRequestLogIndex uin
 
 // startDestroyReplicaTask starts a task to destroy all replicas of the shard after the specified Log applied.
 func (pr *replica) startDestroyReplicaTask(targetIndex uint64, removeData bool, reason string) {
+	pr.store.addUnavailableShard(pr.shardID)
+
 	pr.destroyTaskMu.Lock()
 	defer pr.destroyTaskMu.Unlock()
 

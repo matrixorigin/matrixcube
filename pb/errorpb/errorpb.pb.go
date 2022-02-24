@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -24,7 +23,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 // NotLeader the current shard peer is not leader
 type NotLeader struct {
@@ -49,7 +48,7 @@ func (m *NotLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_NotLeader.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +102,7 @@ func (m *StoreNotMatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_StoreNotMatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -122,6 +121,54 @@ func (m *StoreNotMatch) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_StoreNotMatch proto.InternalMessageInfo
 
+// ShardUnavailable the shard is unavailable, maybe destoryed
+type ShardUnavailable struct {
+	ShardID              uint64   `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ShardUnavailable) Reset()         { *m = ShardUnavailable{} }
+func (m *ShardUnavailable) String() string { return proto.CompactTextString(m) }
+func (*ShardUnavailable) ProtoMessage()    {}
+func (*ShardUnavailable) Descriptor() ([]byte, []int) {
+	return fileDescriptor_390aa86757fd1154, []int{2}
+}
+func (m *ShardUnavailable) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ShardUnavailable) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ShardUnavailable.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ShardUnavailable) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ShardUnavailable.Merge(m, src)
+}
+func (m *ShardUnavailable) XXX_Size() int {
+	return m.Size()
+}
+func (m *ShardUnavailable) XXX_DiscardUnknown() {
+	xxx_messageInfo_ShardUnavailable.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ShardUnavailable proto.InternalMessageInfo
+
+func (m *ShardUnavailable) GetShardID() uint64 {
+	if m != nil {
+		return m.ShardID
+	}
+	return 0
+}
+
 // ShardNotFound the shard replica is not found on the store
 type ShardNotFound struct {
 	ShardID              uint64   `protobuf:"varint,1,opt,name=shardID,proto3" json:"shardID,omitempty"`
@@ -134,7 +181,7 @@ func (m *ShardNotFound) Reset()         { *m = ShardNotFound{} }
 func (m *ShardNotFound) String() string { return proto.CompactTextString(m) }
 func (*ShardNotFound) ProtoMessage()    {}
 func (*ShardNotFound) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{2}
+	return fileDescriptor_390aa86757fd1154, []int{3}
 }
 func (m *ShardNotFound) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -144,7 +191,7 @@ func (m *ShardNotFound) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_ShardNotFound.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +232,7 @@ func (m *KeyNotInShard) Reset()         { *m = KeyNotInShard{} }
 func (m *KeyNotInShard) String() string { return proto.CompactTextString(m) }
 func (*KeyNotInShard) ProtoMessage()    {}
 func (*KeyNotInShard) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{3}
+	return fileDescriptor_390aa86757fd1154, []int{4}
 }
 func (m *KeyNotInShard) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -195,7 +242,7 @@ func (m *KeyNotInShard) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return xxx_messageInfo_KeyNotInShard.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +301,7 @@ func (m *StaleEpoch) Reset()         { *m = StaleEpoch{} }
 func (m *StaleEpoch) String() string { return proto.CompactTextString(m) }
 func (*StaleEpoch) ProtoMessage()    {}
 func (*StaleEpoch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{4}
+	return fileDescriptor_390aa86757fd1154, []int{5}
 }
 func (m *StaleEpoch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -264,7 +311,7 @@ func (m *StaleEpoch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_StaleEpoch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +348,7 @@ func (m *ServerIsBusy) Reset()         { *m = ServerIsBusy{} }
 func (m *ServerIsBusy) String() string { return proto.CompactTextString(m) }
 func (*ServerIsBusy) ProtoMessage()    {}
 func (*ServerIsBusy) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{5}
+	return fileDescriptor_390aa86757fd1154, []int{6}
 }
 func (m *ServerIsBusy) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -311,7 +358,7 @@ func (m *ServerIsBusy) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_ServerIsBusy.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -341,7 +388,7 @@ func (m *StaleCommand) Reset()         { *m = StaleCommand{} }
 func (m *StaleCommand) String() string { return proto.CompactTextString(m) }
 func (*StaleCommand) ProtoMessage()    {}
 func (*StaleCommand) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{6}
+	return fileDescriptor_390aa86757fd1154, []int{7}
 }
 func (m *StaleCommand) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -351,7 +398,7 @@ func (m *StaleCommand) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_StaleCommand.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -383,7 +430,7 @@ func (m *RaftEntryTooLarge) Reset()         { *m = RaftEntryTooLarge{} }
 func (m *RaftEntryTooLarge) String() string { return proto.CompactTextString(m) }
 func (*RaftEntryTooLarge) ProtoMessage()    {}
 func (*RaftEntryTooLarge) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{7}
+	return fileDescriptor_390aa86757fd1154, []int{8}
 }
 func (m *RaftEntryTooLarge) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -393,7 +440,7 @@ func (m *RaftEntryTooLarge) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return xxx_messageInfo_RaftEntryTooLarge.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -437,6 +484,7 @@ type Error struct {
 	StaleCommand         *StaleCommand      `protobuf:"bytes,7,opt,name=staleCommand,proto3" json:"staleCommand,omitempty"`
 	StoreNotMatch        *StoreNotMatch     `protobuf:"bytes,8,opt,name=storeNotMatch,proto3" json:"storeNotMatch,omitempty"`
 	RaftEntryTooLarge    *RaftEntryTooLarge `protobuf:"bytes,9,opt,name=raftEntryTooLarge,proto3" json:"raftEntryTooLarge,omitempty"`
+	ShardUnavailable     *ShardUnavailable  `protobuf:"bytes,10,opt,name=shardUnavailable,proto3" json:"shardUnavailable,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
 	XXX_unrecognized     []byte             `json:"-"`
 	XXX_sizecache        int32              `json:"-"`
@@ -446,7 +494,7 @@ func (m *Error) Reset()         { *m = Error{} }
 func (m *Error) String() string { return proto.CompactTextString(m) }
 func (*Error) ProtoMessage()    {}
 func (*Error) Descriptor() ([]byte, []int) {
-	return fileDescriptor_390aa86757fd1154, []int{8}
+	return fileDescriptor_390aa86757fd1154, []int{9}
 }
 func (m *Error) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -456,7 +504,7 @@ func (m *Error) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_Error.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
+		n, err := m.MarshalTo(b)
 		if err != nil {
 			return nil, err
 		}
@@ -538,9 +586,17 @@ func (m *Error) GetRaftEntryTooLarge() *RaftEntryTooLarge {
 	return nil
 }
 
+func (m *Error) GetShardUnavailable() *ShardUnavailable {
+	if m != nil {
+		return m.ShardUnavailable
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*NotLeader)(nil), "errorpb.NotLeader")
 	proto.RegisterType((*StoreNotMatch)(nil), "errorpb.StoreNotMatch")
+	proto.RegisterType((*ShardUnavailable)(nil), "errorpb.ShardUnavailable")
 	proto.RegisterType((*ShardNotFound)(nil), "errorpb.ShardNotFound")
 	proto.RegisterType((*KeyNotInShard)(nil), "errorpb.KeyNotInShard")
 	proto.RegisterType((*StaleEpoch)(nil), "errorpb.StaleEpoch")
@@ -553,47 +609,50 @@ func init() {
 func init() { proto.RegisterFile("errorpb.proto", fileDescriptor_390aa86757fd1154) }
 
 var fileDescriptor_390aa86757fd1154 = []byte{
-	// 543 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0x4d, 0x6f, 0xda, 0x40,
-	0x10, 0x8d, 0x13, 0x12, 0xea, 0x01, 0x9a, 0xc4, 0xfd, 0x90, 0x85, 0x2a, 0x8a, 0x7c, 0xa2, 0x87,
-	0xe0, 0x8a, 0xa8, 0x87, 0x4a, 0xed, 0x85, 0x96, 0xaa, 0x28, 0x94, 0xc3, 0x92, 0x3f, 0xb0, 0xb6,
-	0x27, 0xc6, 0x2a, 0xf6, 0x5a, 0xeb, 0xa5, 0x2d, 0x3d, 0xf6, 0xd7, 0xe5, 0x98, 0x5f, 0x50, 0xb5,
-	0xfc, 0x92, 0xca, 0x83, 0x31, 0x6b, 0xa2, 0x56, 0xbd, 0xc0, 0xbe, 0x9d, 0xf7, 0xde, 0xb0, 0xf3,
-	0x06, 0x68, 0xa1, 0x94, 0x42, 0xa6, 0x5e, 0x3f, 0x95, 0x42, 0x09, 0xab, 0x5e, 0xc0, 0xf6, 0xab,
-	0x30, 0x52, 0xf3, 0xa5, 0xd7, 0xf7, 0x45, 0xec, 0xc6, 0x5c, 0xc9, 0xe8, 0x9b, 0x90, 0x51, 0x18,
-	0x25, 0x05, 0xf0, 0x97, 0x1e, 0xba, 0xa9, 0xe7, 0xc6, 0xa8, 0x38, 0x7d, 0x6c, 0xf4, 0xed, 0xc9,
-	0x7f, 0xc8, 0x7c, 0x11, 0xa7, 0x22, 0xc1, 0x44, 0x65, 0x6e, 0x2a, 0x45, 0x3a, 0x47, 0xb5, 0x75,
-	0x2a, 0xbf, 0x0a, 0xb7, 0x0b, 0xcd, 0x2d, 0x14, 0xa1, 0x70, 0xe9, 0xda, 0x5b, 0xde, 0x10, 0x22,
-	0x40, 0xa7, 0x0d, 0xdd, 0xb9, 0x06, 0x73, 0x2a, 0xd4, 0x04, 0x79, 0x80, 0xd2, 0xb2, 0xa1, 0x9e,
-	0xcd, 0xb9, 0x0c, 0xc6, 0xef, 0x6d, 0xa3, 0x6b, 0xf4, 0x6a, 0x6c, 0x0b, 0xad, 0x0b, 0x38, 0x59,
-	0x10, 0xc7, 0x3e, 0xec, 0x1a, 0xbd, 0xc6, 0xe0, 0xb4, 0x5f, 0x34, 0x65, 0x98, 0x2e, 0x22, 0x9f,
-	0x0f, 0x6b, 0xb7, 0x3f, 0x9f, 0x1f, 0xb0, 0x82, 0xe4, 0x9c, 0x42, 0x6b, 0xa6, 0x84, 0xc4, 0xa9,
-	0x50, 0x9f, 0xb8, 0xf2, 0xe7, 0xce, 0x0b, 0x68, 0xcd, 0x72, 0xab, 0xa9, 0x50, 0x1f, 0xc4, 0x32,
-	0x09, 0xfe, 0xde, 0xca, 0xf1, 0xa1, 0x75, 0x85, 0xab, 0xa9, 0x50, 0xe3, 0x84, 0x24, 0xd6, 0x19,
-	0x1c, 0x7d, 0xc6, 0x15, 0xd1, 0x9a, 0x2c, 0x3f, 0xea, 0xe2, 0xc3, 0xea, 0xef, 0x7c, 0x0c, 0xc7,
-	0x99, 0xe2, 0x52, 0xd9, 0x47, 0xc4, 0xde, 0x80, 0xdc, 0x01, 0x93, 0xc0, 0xae, 0x6d, 0x1c, 0x30,
-	0x09, 0x9c, 0xb7, 0x00, 0x33, 0xc5, 0x17, 0x38, 0x4a, 0x85, 0x3f, 0xb7, 0x5c, 0x30, 0x13, 0xfc,
-	0x4a, 0xdd, 0x32, 0xdb, 0xe8, 0x1e, 0xf5, 0x1a, 0x83, 0x06, 0x3d, 0xb0, 0x4f, 0x77, 0xc5, 0xe3,
-	0x76, 0x1c, 0xe7, 0x21, 0x34, 0x67, 0x28, 0xbf, 0xa0, 0x1c, 0x67, 0xc3, 0x65, 0xb6, 0x22, 0x9c,
-	0xdb, 0xbd, 0x13, 0x71, 0xcc, 0x93, 0xc0, 0xb9, 0x82, 0x73, 0xc6, 0x6f, 0xd4, 0x28, 0x51, 0x72,
-	0x75, 0x2d, 0xc4, 0x84, 0xcb, 0x10, 0xff, 0x31, 0xdd, 0x67, 0x60, 0x62, 0x4e, 0x9d, 0x45, 0xdf,
-	0xb1, 0x78, 0xd1, 0xee, 0xc2, 0xf9, 0x51, 0x83, 0xe3, 0x51, 0xbe, 0x62, 0xb9, 0x43, 0x8c, 0x59,
-	0xc6, 0x43, 0x24, 0x07, 0x93, 0x6d, 0xa1, 0xf5, 0x12, 0xcc, 0x64, 0x1b, 0x63, 0x11, 0x91, 0xd5,
-	0xdf, 0xae, 0x69, 0x19, 0x30, 0xdb, 0x91, 0xac, 0x37, 0xd0, 0xca, 0xf4, 0x44, 0x68, 0x62, 0x8d,
-	0xc1, 0xd3, 0x52, 0x55, 0xc9, 0x8b, 0x55, 0xc9, 0xb9, 0xba, 0x12, 0x12, 0xcd, 0x56, 0x57, 0x57,
-	0xaa, 0x6c, 0x2f, 0xd1, 0x4b, 0x80, 0xac, 0x9c, 0xbe, 0x7d, 0x4c, 0xd2, 0x47, 0xbb, 0xc6, 0x65,
-	0x89, 0x69, 0x34, 0xeb, 0x35, 0x34, 0x33, 0x6d, 0xe6, 0xf6, 0x09, 0xc9, 0x9e, 0xec, 0x64, 0x5a,
-	0x91, 0x55, 0xa8, 0x24, 0xd5, 0xe2, 0xb1, 0xeb, 0xfb, 0x52, 0xad, 0xc8, 0x2a, 0x54, 0x1a, 0x93,
-	0xbe, 0xc9, 0xf6, 0x83, 0xfd, 0x31, 0xe9, 0x55, 0x56, 0x25, 0x5b, 0x1f, 0xe1, 0x5c, 0xee, 0xef,
-	0x81, 0x6d, 0x92, 0x43, 0xbb, 0x74, 0xb8, 0xb7, 0x29, 0xec, 0xbe, 0x68, 0x78, 0x76, 0xf7, 0xbb,
-	0x73, 0x70, 0xbb, 0xee, 0x18, 0x77, 0xeb, 0x8e, 0xf1, 0x6b, 0xdd, 0x31, 0xbc, 0x13, 0xfa, 0x03,
-	0x5f, 0xfe, 0x09, 0x00, 0x00, 0xff, 0xff, 0xdd, 0x4f, 0xe9, 0x5c, 0x8e, 0x04, 0x00, 0x00,
+	// 578 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x94, 0x5f, 0x6f, 0xd3, 0x3c,
+	0x14, 0xc6, 0x97, 0xad, 0xdb, 0xde, 0x9e, 0xae, 0xef, 0x3a, 0xf3, 0x47, 0x66, 0x42, 0x65, 0xca,
+	0xd5, 0x90, 0x58, 0x83, 0x36, 0x71, 0x81, 0x04, 0x37, 0x83, 0x22, 0xa6, 0x8d, 0x5e, 0xb8, 0xe3,
+	0x03, 0x38, 0x89, 0x97, 0x46, 0x34, 0x76, 0x64, 0xbb, 0x83, 0xf2, 0x09, 0xc7, 0xdd, 0x3e, 0x01,
+	0x82, 0x7d, 0x12, 0x94, 0xd3, 0x34, 0x75, 0x5a, 0x31, 0x71, 0xd3, 0xe6, 0xf8, 0xfc, 0x9e, 0xc7,
+	0xca, 0x73, 0x4e, 0x0b, 0x6d, 0xa1, 0xb5, 0xd2, 0x79, 0xd8, 0xcb, 0xb5, 0xb2, 0x8a, 0x6c, 0x97,
+	0xe5, 0xfe, 0xab, 0x24, 0xb5, 0xa3, 0x49, 0xd8, 0x8b, 0x54, 0x16, 0x64, 0xdc, 0xea, 0xf4, 0x9b,
+	0xd2, 0x69, 0x92, 0xca, 0xb2, 0x88, 0x26, 0xa1, 0x08, 0xf2, 0x30, 0xc8, 0x84, 0xe5, 0xf8, 0x31,
+	0xd3, 0xef, 0x5f, 0xfc, 0x83, 0x2c, 0x52, 0x59, 0xae, 0xa4, 0x90, 0xd6, 0x04, 0xb9, 0x56, 0xf9,
+	0x48, 0xd8, 0xb9, 0x53, 0xf5, 0x55, 0xba, 0x1d, 0x39, 0x6e, 0x89, 0x4a, 0x54, 0x80, 0xc7, 0xe1,
+	0xe4, 0x0a, 0x2b, 0x2c, 0xf0, 0x69, 0x86, 0xfb, 0x97, 0xd0, 0x1c, 0x28, 0x7b, 0x21, 0x78, 0x2c,
+	0x34, 0xa1, 0xb0, 0x6d, 0x46, 0x5c, 0xc7, 0x67, 0xef, 0xa9, 0x77, 0xe0, 0x1d, 0x36, 0xd8, 0xbc,
+	0x24, 0x47, 0xb0, 0x35, 0x46, 0x86, 0xae, 0x1f, 0x78, 0x87, 0xad, 0xe3, 0xdd, 0x5e, 0x79, 0x29,
+	0x13, 0xf9, 0x38, 0x8d, 0xf8, 0x69, 0xe3, 0xe6, 0xe7, 0xb3, 0x35, 0x56, 0x42, 0xfe, 0x2e, 0xb4,
+	0x87, 0x56, 0x69, 0x31, 0x50, 0xf6, 0x13, 0xb7, 0xd1, 0xc8, 0x7f, 0x01, 0x9d, 0x61, 0x61, 0xf5,
+	0x59, 0xf2, 0x6b, 0x9e, 0x8e, 0x79, 0x38, 0x16, 0x7f, 0xbf, 0xcd, 0x7f, 0x0e, 0x6d, 0xa4, 0x07,
+	0xca, 0x7e, 0x50, 0x13, 0x19, 0xdf, 0x83, 0x46, 0xd0, 0x3e, 0x17, 0xd3, 0x81, 0xb2, 0x67, 0x12,
+	0x25, 0xa4, 0x03, 0x1b, 0x5f, 0xc4, 0x14, 0xb1, 0x1d, 0x56, 0x3c, 0xba, 0xe2, 0xf5, 0xfa, 0x5b,
+	0x3d, 0x84, 0x4d, 0x63, 0xb9, 0xb6, 0x74, 0x03, 0xe9, 0x59, 0x51, 0x38, 0x08, 0x19, 0xd3, 0xc6,
+	0xcc, 0x41, 0xc8, 0xd8, 0x7f, 0x0b, 0x30, 0xb4, 0x7c, 0x2c, 0xfa, 0xb9, 0x8a, 0x46, 0x24, 0x80,
+	0xa6, 0x14, 0x5f, 0xf1, 0x36, 0x43, 0xbd, 0x83, 0x8d, 0xc3, 0xd6, 0x71, 0x0b, 0xe3, 0xe8, 0xe1,
+	0x59, 0x19, 0xc5, 0x82, 0xf1, 0xff, 0x87, 0x9d, 0xa1, 0xd0, 0xd7, 0x42, 0x9f, 0x99, 0xd3, 0x89,
+	0x99, 0x62, 0x5d, 0xd8, 0xbd, 0x53, 0x59, 0xc6, 0x65, 0xec, 0x9f, 0xc3, 0x1e, 0xe3, 0x57, 0xb6,
+	0x2f, 0xad, 0x9e, 0x5e, 0x2a, 0x75, 0xc1, 0x75, 0x72, 0x4f, 0x3a, 0xe4, 0x29, 0x34, 0x45, 0x81,
+	0x0e, 0xd3, 0xef, 0xa2, 0x7c, 0xa3, 0xc5, 0x81, 0xff, 0xa3, 0x01, 0x9b, 0xfd, 0x62, 0x21, 0x0b,
+	0x87, 0x4c, 0x18, 0xc3, 0x13, 0x81, 0x0e, 0x4d, 0x36, 0x2f, 0xc9, 0x4b, 0x68, 0xca, 0xf9, 0xd0,
+	0xcb, 0x81, 0x92, 0xde, 0x7c, 0xa9, 0xab, 0x75, 0x60, 0x0b, 0x88, 0xbc, 0x81, 0xb6, 0x71, 0x27,
+	0x82, 0x89, 0xb5, 0x8e, 0x1f, 0x57, 0xaa, 0xda, 0xbc, 0x58, 0x1d, 0x2e, 0xd4, 0xb5, 0x21, 0x61,
+	0xb6, 0xae, 0xba, 0xd6, 0x65, 0x4b, 0x13, 0x3d, 0x01, 0x30, 0x55, 0xfa, 0x74, 0x13, 0xa5, 0x0f,
+	0x16, 0x17, 0x57, 0x2d, 0xe6, 0x60, 0xe4, 0x35, 0xec, 0x18, 0x27, 0x73, 0xba, 0x85, 0xb2, 0x47,
+	0x0b, 0x99, 0xd3, 0x64, 0x35, 0x14, 0xa5, 0xce, 0x78, 0xe8, 0xf6, 0xb2, 0xd4, 0x69, 0xb2, 0x1a,
+	0x8a, 0x31, 0xb9, 0x7b, 0x4f, 0xff, 0x5b, 0x8e, 0xc9, 0xed, 0xb2, 0x3a, 0x4c, 0x3e, 0xc2, 0x9e,
+	0x5e, 0xde, 0x03, 0xda, 0x44, 0x87, 0xfd, 0xca, 0x61, 0x65, 0x53, 0xd8, 0xaa, 0x88, 0xf4, 0xa1,
+	0x63, 0x96, 0x7e, 0x6e, 0x14, 0xd0, 0xe8, 0x49, 0x7d, 0x62, 0x0e, 0xc0, 0x56, 0x24, 0xa7, 0x9d,
+	0xdb, 0xdf, 0xdd, 0xb5, 0x9b, 0xbb, 0xae, 0x77, 0x7b, 0xd7, 0xf5, 0x7e, 0xdd, 0x75, 0xbd, 0x70,
+	0x0b, 0xff, 0x35, 0x4e, 0xfe, 0x04, 0x00, 0x00, 0xff, 0xff, 0x50, 0x8e, 0xc0, 0xd6, 0x03, 0x05,
+	0x00, 0x00,
 }
 
 func (m *NotLeader) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -601,41 +660,33 @@ func (m *NotLeader) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *NotLeader) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *NotLeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	{
-		size, err := m.Leader.MarshalToSizedBuffer(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarintErrorpb(dAtA, i, uint64(size))
-	}
-	i--
-	dAtA[i] = 0x12
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	return len(dAtA) - i, nil
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintErrorpb(dAtA, i, uint64(m.Leader.Size()))
+	n1, err := m.Leader.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n1
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -643,26 +694,46 @@ func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StoreNotMatch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StoreNotMatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
+}
+
+func (m *ShardUnavailable) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ShardUnavailable) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ShardNotFound) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -670,31 +741,25 @@ func (m *ShardNotFound) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ShardNotFound) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ShardNotFound) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *KeyNotInShard) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -702,52 +767,43 @@ func (m *KeyNotInShard) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *KeyNotInShard) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *KeyNotInShard) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.End) > 0 {
-		i -= len(m.End)
-		copy(dAtA[i:], m.End)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.End)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.Start) > 0 {
-		i -= len(m.Start)
-		copy(dAtA[i:], m.Start)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Start)))
-		i--
-		dAtA[i] = 0x1a
+	if len(m.Key) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Key)))
+		i += copy(dAtA[i:], m.Key)
 	}
 	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
-	if len(m.Key) > 0 {
-		i -= len(m.Key)
-		copy(dAtA[i:], m.Key)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Key)))
-		i--
-		dAtA[i] = 0xa
+	if len(m.Start) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Start)))
+		i += copy(dAtA[i:], m.Start)
 	}
-	return len(dAtA) - i, nil
+	if len(m.End) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.End)))
+		i += copy(dAtA[i:], m.End)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *StaleEpoch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -755,40 +811,32 @@ func (m *StaleEpoch) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StaleEpoch) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StaleEpoch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
 	if len(m.NewShards) > 0 {
-		for iNdEx := len(m.NewShards) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.NewShards[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintErrorpb(dAtA, i, uint64(size))
-			}
-			i--
+		for _, msg := range m.NewShards {
 			dAtA[i] = 0xa
+			i++
+			i = encodeVarintErrorpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
-	return len(dAtA) - i, nil
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func (m *ServerIsBusy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -796,26 +844,20 @@ func (m *ServerIsBusy) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ServerIsBusy) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ServerIsBusy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *StaleCommand) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -823,26 +865,20 @@ func (m *StaleCommand) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *StaleCommand) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *StaleCommand) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
 	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *RaftEntryTooLarge) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -850,36 +886,30 @@ func (m *RaftEntryTooLarge) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RaftEntryTooLarge) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *RaftEntryTooLarge) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
+	if m.ShardID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
 	}
 	if m.EntrySize != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.EntrySize))
-		i--
 		dAtA[i] = 0x10
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.EntrySize))
 	}
-	if m.ShardID != 0 {
-		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardID))
-		i--
-		dAtA[i] = 0x8
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return len(dAtA) - i, nil
+	return i, nil
 }
 
 func (m *Error) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	n, err := m.MarshalTo(dAtA)
 	if err != nil {
 		return nil, err
 	}
@@ -887,135 +917,120 @@ func (m *Error) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *Error) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
+	var i int
 	_ = i
 	var l int
 	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.RaftEntryTooLarge != nil {
-		{
-			size, err := m.RaftEntryTooLarge.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x4a
-	}
-	if m.StoreNotMatch != nil {
-		{
-			size, err := m.StoreNotMatch.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.StaleCommand != nil {
-		{
-			size, err := m.StaleCommand.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x3a
-	}
-	if m.ServerIsBusy != nil {
-		{
-			size, err := m.ServerIsBusy.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x32
-	}
-	if m.StaleEpoch != nil {
-		{
-			size, err := m.StaleEpoch.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x2a
-	}
-	if m.KeyNotInShard != nil {
-		{
-			size, err := m.KeyNotInShard.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.ShardNotFound != nil {
-		{
-			size, err := m.ShardNotFound.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
+	if len(m.Message) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Message)))
+		i += copy(dAtA[i:], m.Message)
 	}
 	if m.NotLeader != nil {
-		{
-			size, err := m.NotLeader.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintErrorpb(dAtA, i, uint64(size))
-		}
-		i--
 		dAtA[i] = 0x12
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.NotLeader.Size()))
+		n2, err := m.NotLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n2
 	}
-	if len(m.Message) > 0 {
-		i -= len(m.Message)
-		copy(dAtA[i:], m.Message)
-		i = encodeVarintErrorpb(dAtA, i, uint64(len(m.Message)))
-		i--
-		dAtA[i] = 0xa
+	if m.ShardNotFound != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardNotFound.Size()))
+		n3, err := m.ShardNotFound.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
 	}
-	return len(dAtA) - i, nil
+	if m.KeyNotInShard != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.KeyNotInShard.Size()))
+		n4, err := m.KeyNotInShard.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n4
+	}
+	if m.StaleEpoch != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleEpoch.Size()))
+		n5, err := m.StaleEpoch.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n5
+	}
+	if m.ServerIsBusy != nil {
+		dAtA[i] = 0x32
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ServerIsBusy.Size()))
+		n6, err := m.ServerIsBusy.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n6
+	}
+	if m.StaleCommand != nil {
+		dAtA[i] = 0x3a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StaleCommand.Size()))
+		n7, err := m.StaleCommand.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n7
+	}
+	if m.StoreNotMatch != nil {
+		dAtA[i] = 0x42
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.StoreNotMatch.Size()))
+		n8, err := m.StoreNotMatch.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n8
+	}
+	if m.RaftEntryTooLarge != nil {
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.RaftEntryTooLarge.Size()))
+		n9, err := m.RaftEntryTooLarge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n9
+	}
+	if m.ShardUnavailable != nil {
+		dAtA[i] = 0x52
+		i++
+		i = encodeVarintErrorpb(dAtA, i, uint64(m.ShardUnavailable.Size()))
+		n10, err := m.ShardUnavailable.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n10
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
 }
 
 func encodeVarintErrorpb(dAtA []byte, offset int, v uint64) int {
-	offset -= sovErrorpb(v)
-	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return base
+	return offset + 1
 }
 func (m *NotLeader) Size() (n int) {
 	if m == nil {
@@ -1040,6 +1055,21 @@ func (m *StoreNotMatch) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ShardUnavailable) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ShardID != 0 {
+		n += 1 + sovErrorpb(uint64(m.ShardID))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1190,6 +1220,10 @@ func (m *Error) Size() (n int) {
 		l = m.RaftEntryTooLarge.Size()
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
+	if m.ShardUnavailable != nil {
+		l = m.ShardUnavailable.Size()
+		n += 1 + l + sovErrorpb(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1197,7 +1231,14 @@ func (m *Error) Size() (n int) {
 }
 
 func sovErrorpb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozErrorpb(x uint64) (n int) {
 	return sovErrorpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1289,7 +1330,10 @@ func (m *NotLeader) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1340,7 +1384,83 @@ func (m *StoreNotMatch) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ShardUnavailable) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowErrorpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ShardUnavailable: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ShardUnavailable: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ShardID", wireType)
+			}
+			m.ShardID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ShardID |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipErrorpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1410,7 +1530,10 @@ func (m *ShardNotFound) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1582,7 +1705,10 @@ func (m *KeyNotInShard) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1667,7 +1793,10 @@ func (m *StaleEpoch) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1718,7 +1847,10 @@ func (m *ServerIsBusy) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1769,7 +1901,10 @@ func (m *StaleCommand) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -1858,7 +1993,10 @@ func (m *RaftEntryTooLarge) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -2223,13 +2361,52 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ShardUnavailable", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowErrorpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ShardUnavailable == nil {
+				m.ShardUnavailable = &ShardUnavailable{}
+			}
+			if err := m.ShardUnavailable.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipErrorpb(dAtA[iNdEx:])
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthErrorpb
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthErrorpb
 			}
 			if (iNdEx + skippy) > l {
@@ -2248,7 +2425,6 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 func skipErrorpb(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
-	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -2280,8 +2456,10 @@ func skipErrorpb(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
+			return iNdEx, nil
 		case 1:
 			iNdEx += 8
+			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -2302,30 +2480,55 @@ func skipErrorpb(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthErrorpb
 			}
 			iNdEx += length
-		case 3:
-			depth++
-		case 4:
-			if depth == 0 {
-				return 0, ErrUnexpectedEndOfGroupErrorpb
+			if iNdEx < 0 {
+				return 0, ErrInvalidLengthErrorpb
 			}
-			depth--
+			return iNdEx, nil
+		case 3:
+			for {
+				var innerWire uint64
+				var start int = iNdEx
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return 0, ErrIntOverflowErrorpb
+					}
+					if iNdEx >= l {
+						return 0, io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					innerWire |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				innerWireType := int(innerWire & 0x7)
+				if innerWireType == 4 {
+					break
+				}
+				next, err := skipErrorpb(dAtA[start:])
+				if err != nil {
+					return 0, err
+				}
+				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthErrorpb
+				}
+			}
+			return iNdEx, nil
+		case 4:
+			return iNdEx, nil
 		case 5:
 			iNdEx += 4
+			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
-		if iNdEx < 0 {
-			return 0, ErrInvalidLengthErrorpb
-		}
-		if depth == 0 {
-			return iNdEx, nil
-		}
 	}
-	return 0, io.ErrUnexpectedEOF
+	panic("unreachable")
 }
 
 var (
-	ErrInvalidLengthErrorpb        = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowErrorpb          = fmt.Errorf("proto: integer overflow")
-	ErrUnexpectedEndOfGroupErrorpb = fmt.Errorf("proto: unexpected end of group")
+	ErrInvalidLengthErrorpb = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowErrorpb   = fmt.Errorf("proto: integer overflow")
 )

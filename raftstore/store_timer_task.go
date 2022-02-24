@@ -89,12 +89,16 @@ func (s *store) handleShardStateCheckTask() {
 		}
 
 		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
+		s.addUnavailableShardWithIds(bm)
+
 		for _, id := range bm.ToArray() {
 			// FIXME: we don't known whether to remove data or not. Conservative retention data.
 			s.destroyReplica(id, true, false, "shard state check")
 		}
 
 		bm = putil.MustUnmarshalBM64(rsp.Destroying)
+		s.addUnavailableShardWithIds(bm)
+
 		for _, id := range bm.ToArray() {
 			if pr := s.getReplica(id, false); pr != nil {
 				// There are a scenario that can trigger this process:
