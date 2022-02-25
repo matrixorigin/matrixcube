@@ -84,6 +84,7 @@ type store struct {
 	cfg    *config.Config
 	logger *zap.Logger
 
+	sync.RWMutex
 	meta       *metapb.Store
 	pd         prophet.Prophet
 	bootOnce   sync.Once
@@ -769,6 +770,9 @@ func (s *store) nextShard(shard Shard) *Shard {
 }
 
 func (s *store) storeField() zap.Field {
+	s.RLock()
+	defer s.RUnlock()
+
 	return log.StoreIDField(s.meta.GetID())
 }
 

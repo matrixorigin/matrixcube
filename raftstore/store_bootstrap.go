@@ -71,7 +71,9 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 
 	s.logger.Info("begin to create local store metadata",
 		s.storeField())
+	s.Lock()
 	s.meta.SetID(s.MustAllocID())
+	s.Unlock()
 	s.mustSaveStoreMetadata()
 	s.logger.Info("create local store",
 		s.storeField())
