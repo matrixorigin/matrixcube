@@ -39,7 +39,7 @@ func TestStoreHeartbeat(t *testing.T) {
 
 	n, np := uint64(3), uint64(3)
 	containers := newTestStores(n, "2.0.0")
-	containerMetasAfterHeartbeat := make([]*metapb.Store, 0, n)
+	containerMetasAfterHeartbeat := make([]metapb.Store, 0, n)
 	resources := newTestShards(n, np)
 
 	for _, res := range resources {
@@ -178,7 +178,7 @@ func TestReuseAddress(t *testing.T) {
 		container := cluster.GetStore(id)
 		containerID := container.Meta.GetID() + 1000
 		v, _ := container.Meta.GetVersionAndGitHash()
-		newStore := &metapb.Store{
+		newStore := metapb.Store{
 			ID:         containerID,
 			ClientAddr: container.Meta.GetClientAddr(),
 			State:      metapb.StoreState_UP,
@@ -511,7 +511,7 @@ func TestHeartbeatSplit(t *testing.T) {
 	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	// 1: [nil, nil)
-	resource1 := core.NewCachedShard(&metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
+	resource1 := core.NewCachedShard(metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource1))
 	checkShard(t, cluster.GetShardByKey(0, []byte("foo")), resource1)
 
@@ -520,7 +520,7 @@ func TestHeartbeatSplit(t *testing.T) {
 		core.WithStartKey([]byte("m")),
 		core.WithIncVersion(),
 	)
-	resource2 := core.NewCachedShard(&metapb.Shard{
+	resource2 := core.NewCachedShard(metapb.Shard{
 		ID:    2,
 		End:   []byte("m"),
 		Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
@@ -538,7 +538,7 @@ func TestHeartbeatSplit(t *testing.T) {
 		core.WithStartKey([]byte("q")),
 		core.WithIncVersion(),
 	)
-	resource3 := core.NewCachedShard(&metapb.Shard{
+	resource3 := core.NewCachedShard(metapb.Shard{
 		ID:    3,
 		Start: []byte("m"),
 		End:   []byte("q"),
@@ -612,10 +612,10 @@ func TestUpdateStorePendingPeerCount(t *testing.T) {
 			StoreID: 4,
 		},
 	}
-	origin := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: peers[:3]}, &peers[0], core.WithPendingPeers(peers[1:3]))
+	origin := core.NewCachedShard(metapb.Shard{ID: 1, Replicas: peers[:3]}, &peers[0], core.WithPendingPeers(peers[1:3]))
 	assert.NoError(t, tc.processShardHeartbeat(origin))
 	checkPendingPeerCount(t, []int{0, 1, 1, 0}, tc.RaftCluster)
-	newShard := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: peers[1:]}, &peers[1], core.WithPendingPeers(peers[3:4]))
+	newShard := core.NewCachedShard(metapb.Shard{ID: 1, Replicas: peers[1:]}, &peers[1], core.WithPendingPeers(peers[3:4]))
 	assert.NoError(t, tc.processShardHeartbeat(newShard))
 	checkPendingPeerCount(t, []int{0, 0, 0, 1}, tc.RaftCluster)
 }
@@ -800,7 +800,7 @@ func newTestShardMeta(resourceID uint64) *metapb.Shard {
 func newTestStores(n uint64, version string) []*core.CachedStore {
 	containers := make([]*core.CachedStore, 0, n)
 	for i := uint64(1); i <= n; i++ {
-		container := &metapb.Store{
+		container := metapb.Store{
 			ID:         i,
 			ClientAddr: fmt.Sprintf("127.0.0.1:%d", i),
 			State:      metapb.StoreState_UP,
@@ -825,7 +825,7 @@ func newTestShards(n, np uint64) []*core.CachedShard {
 			peer.StoreID = (i + j) % n
 			peers = append(peers, peer)
 		}
-		res := &metapb.Shard{
+		res := metapb.Shard{
 			ID:       i,
 			Replicas: peers,
 			Start:    []byte{byte(i)},
@@ -932,7 +932,7 @@ func checkPendingPeerCount(t *testing.T, expect []int, cluster *RaftCluster) {
 	}
 }
 
-func checkStaleShard(origin, res *metapb.Shard) error {
+func checkStaleShard(origin, res metapb.Shard) error {
 	o := origin.GetEpoch()
 	e := res.GetEpoch()
 

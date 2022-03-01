@@ -134,3 +134,10 @@ func (m *Store) Clone() *Store {
 	protoc.MustUnmarshal(value, protoc.MustMarshal(m))
 	return value
 }
+
+// CloneValue clones the shard and returns the value
+func (m Store) CloneValue() Store {
+	var value Store
+	protoc.MustUnmarshal(&value, protoc.MustMarshal(&m))
+	return value
+}

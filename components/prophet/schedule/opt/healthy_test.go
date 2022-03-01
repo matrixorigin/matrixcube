@@ -38,7 +38,7 @@ func TestIsShardHealthy(t *testing.T) {
 	}
 
 	resource := func(peers []metapb.Replica, opts ...core.ShardCreateOption) *core.CachedShard {
-		return core.NewCachedShard(&metapb.Shard{Replicas: peers}, &peers[0], opts...)
+		return core.NewCachedShard(metapb.Shard{Replicas: peers}, &peers[0], opts...)
 	}
 
 	type testCase struct {

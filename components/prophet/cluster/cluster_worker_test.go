@@ -169,7 +169,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.Equal(t, metapb.ShardState_Running, cache.GetShard(n-1).Meta.GetState())
 
 	cnt := uint64(0)
-	storage.LoadShards(10, func(r *metapb.Shard) {
+	storage.LoadShards(10, func(r metapb.Shard) {
 		if r.GetID() < n-1 {
 			assert.Equal(t, metapb.ShardState_Destroyed, r.GetState())
 		} else {

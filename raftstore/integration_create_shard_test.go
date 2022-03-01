@@ -33,10 +33,10 @@ type testShardsAware struct {
 	adjust func(*core.CachedShard) *core.CachedShard
 }
 
-func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res *metapb.Shard)) {
+func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res metapb.Shard)) {
 	tra.aware.ForeachWaittingCreateShards(do)
 }
-func (tra *testShardsAware) ForeachShards(group uint64, fn func(res *metapb.Shard)) {
+func (tra *testShardsAware) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	tra.aware.ForeachShards(group, fn)
 }
 
@@ -74,7 +74,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 		c.WaitShardByCountPerNode(2, testWaitTimeout)
 		c.WaitLeadersByCount(2, testWaitTimeout)
 
-		err := c.GetProphet().GetClient().AsyncAddShards(&metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1})
+		err := c.GetProphet().GetClient().AsyncAddShards(metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1})
 		assert.NoError(t, err)
 		c.WaitShardByCountPerNode(3, testWaitTimeout)
 		c.WaitLeadersByCount(3, testWaitTimeout)
@@ -103,7 +103,7 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	err := c.GetProphet().GetClient().AsyncAddShards(&metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"})
+	err := c.GetProphet().GetClient().AsyncAddShards(metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"})
 	assert.NoError(t, err)
 
 	c.WaitShardByCountPerNode(2, testWaitTimeout)

@@ -200,7 +200,7 @@ func (c *RaftCluster) Start(s Server) error {
 // LoadClusterInfo loads cluster related info.
 func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	start := time.Now()
-	if err := c.storage.LoadStores(batch, func(meta *metapb.Store, leaderWeight, resourceWeight float64) {
+	if err := c.storage.LoadStores(batch, func(meta metapb.Store, leaderWeight, resourceWeight float64) {
 		c.core.PutStore(core.NewCachedStore(meta,
 			core.SetLeaderWeight(leaderWeight),
 			core.SetShardWeight(resourceWeight)))
@@ -213,7 +213,7 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 
 	// used to load resource from kv storage to cache storage.
 	start = time.Now()
-	if err := c.storage.LoadShards(batch, func(meta *metapb.Shard) {
+	if err := c.storage.LoadShards(batch, func(meta metapb.Shard) {
 		c.core.CheckAndPutShard(core.NewCachedShard(meta, nil))
 	}); err != nil {
 		return nil, err
@@ -491,17 +491,11 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeDestroyed *metapb.Shard
+	var checkMaybeDestroyed metapb.Shard
 	if origin != nil {
 		checkMaybeDestroyed = origin.Meta
 	}
-	if checkMaybeDestroyed == nil {
-		checkMaybeDestroyed, err = c.storage.GetShard(res.Meta.GetID())
-		if err != nil {
-			return err
-		}
-	}
-	if checkMaybeDestroyed != nil && checkMaybeDestroyed.GetState() == metapb.ShardState_Destroyed {
+	if checkMaybeDestroyed.GetState() == metapb.ShardState_Destroyed {
 		return errShardDestroyed
 	}
 
@@ -577,7 +571,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	inCreating := c.core.IsWaittingCreateShard(res.Meta.GetID())
 	if isNew && inCreating {
 		if c.resourceStateChangedHandler != nil {
-			c.resourceStateChangedHandler(res.Meta, metapb.ShardState_Creating,
+			c.resourceStateChangedHandler(&res.Meta, metapb.ShardState_Creating,
 				metapb.ShardState_Running)
 		}
 	}
@@ -835,7 +829,7 @@ func (c *RaftCluster) GetCacheCluster() *core.BasicCluster {
 }
 
 // GetMetaStores gets containers from cluster.
-func (c *RaftCluster) GetMetaStores() []*metapb.Store {
+func (c *RaftCluster) GetMetaStores() []metapb.Store {
 	return c.core.GetMetaStores()
 }
 
@@ -868,14 +862,14 @@ func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Pair
 	if container == nil {
 		return fmt.Errorf("invalid container ID %d, not found", containerID)
 	}
-	newStore := container.Meta.Clone()
+	newStore := container.Meta.CloneValue()
 	newStore.SetLabels(labels)
 	// PutStore will perform label merge.
 	return c.putStoreImpl(newStore, force)
 }
 
 // PutStore puts a container.
-func (c *RaftCluster) PutStore(container *metapb.Store) error {
+func (c *RaftCluster) PutStore(container metapb.Store) error {
 	if err := c.putStoreImpl(container, false); err != nil {
 		return err
 	}
@@ -885,7 +879,7 @@ func (c *RaftCluster) PutStore(container *metapb.Store) error {
 
 // putStoreImpl puts a container.
 // If 'force' is true, then overwrite the container's labels.
-func (c *RaftCluster) putStoreImpl(container *metapb.Store, force bool) error {
+func (c *RaftCluster) putStoreImpl(container metapb.Store, force bool) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -1112,7 +1106,7 @@ func (c *RaftCluster) putStoreLocked(container *core.CachedStore) error {
 }
 
 func (c *RaftCluster) checkStores() {
-	var offlineStores []*metapb.Store
+	var offlineStores []metapb.Store
 	var upStoreCount int
 	containers := c.GetStores()
 	groupKeys := c.core.GetScheduleGroupKeys()
@@ -1490,7 +1484,7 @@ func (c *RaftCluster) GetAllStoresLimit() map[uint64]config.StoreLimitConfig {
 }
 
 // AddStoreLimit add a container limit for a given container ID.
-func (c *RaftCluster) AddStoreLimit(container *metapb.Store) {
+func (c *RaftCluster) AddStoreLimit(container metapb.Store) {
 	containerID := container.GetID()
 	cfg := c.opt.GetScheduleConfig().Clone()
 	if _, ok := cfg.StoreLimit[containerID]; ok {

@@ -29,7 +29,7 @@ func TestStoreTimeUnsync(t *testing.T) {
 	peers := newPeers(3,
 		func(i int) uint64 { return uint64(10000 + i) },
 		func(i int) uint64 { return uint64(i) })
-	meta := &metapb.Shard{
+	meta := metapb.Shard{
 		ID:       1000,
 		Replicas: peers,
 		Start:    []byte(""),
@@ -136,17 +136,17 @@ func schedule(operator operator, resource *core.CachedShard, kind FlowKind) (src
 	switch operator {
 	case transferLeader:
 		_, newLeader := pickFollower(resource)
-		return resource.GetLeader().StoreID, buildresource(resource.Meta, &newLeader, kind)
+		return resource.GetLeader().StoreID, buildresource(&resource.Meta, &newLeader, kind)
 	case movePeer:
 		index, _ := pickFollower(resource)
 		meta := resource.Meta
 		srcStore := meta.GetReplicas()[index].StoreID
 		meta.GetReplicas()[index] = metapb.Replica{ID: 4, StoreID: 4}
-		return srcStore, buildresource(meta, resource.GetLeader(), kind)
+		return srcStore, buildresource(&meta, resource.GetLeader(), kind)
 	case addReplica:
 		meta := resource.Meta
 		meta.SetReplicas(append(meta.GetReplicas(), metapb.Replica{ID: 4, StoreID: 4}))
-		return 0, buildresource(meta, resource.GetLeader(), kind)
+		return 0, buildresource(&meta, resource.GetLeader(), kind)
 	default:
 		return 0, nil
 	}
@@ -187,10 +187,10 @@ func buildresource(meta *metapb.Shard, leader *metapb.Replica, kind FlowKind) *c
 
 	switch kind {
 	case ReadFlow:
-		return core.NewCachedShard(meta, leader, core.SetReportInterval(interval),
+		return core.NewCachedShard(*meta, leader, core.SetReportInterval(interval),
 			core.SetReadBytes(interval*100*1024))
 	case WriteFlow:
-		return core.NewCachedShard(meta, leader, core.SetReportInterval(interval),
+		return core.NewCachedShard(*meta, leader, core.SetReportInterval(interval),
 			core.SetWrittenBytes(interval*100*1024))
 	default:
 		return nil

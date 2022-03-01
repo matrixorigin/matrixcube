@@ -340,7 +340,7 @@ func TestChangePeerV2Leave(t *testing.T) {
 func checkStep(t *testing.T, step OpStep, desc string, cases []testCase) {
 	assert.Equal(t, desc, step.String())
 	for _, tc := range cases {
-		resource := core.NewCachedShard(&metapb.Shard{ID: 1, Replicas: tc.Peers}, &tc.Peers[0])
+		resource := core.NewCachedShard(metapb.Shard{ID: 1, Replicas: tc.Peers}, &tc.Peers[0])
 		assert.Equal(t, tc.ConfVerChanged, step.ConfVerChanged(resource))
 		assert.Equal(t, tc.IsFinish, step.IsFinish(resource))
 		switch tc.CheckSafety {

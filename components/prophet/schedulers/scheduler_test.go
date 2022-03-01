@@ -244,7 +244,7 @@ func TestRole(t *testing.T) {
 		{ID: 2, StoreID: 2},
 		{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 	}
-	resource := core.NewCachedShard(&metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{ConfVer: 1, Version: 1}, Replicas: peers}, &peers[0])
+	resource := core.NewCachedShard(metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{ConfVer: 1, Version: 1}, Replicas: peers}, &peers[0])
 	tc.PutShard(resource)
 
 	sl, err := schedule.CreateScheduler(ShuffleShardType, schedule.NewOperatorController(ctx, tc, nil), storage.NewTestStorage(), schedule.ConfigSliceDecoder(ShuffleShardType, []string{"", ""}))

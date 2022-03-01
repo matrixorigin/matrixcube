@@ -67,7 +67,7 @@ func (mr *MockClientMockRecorder) AllocID() *gomock.Call {
 }
 
 // AskBatchSplit mocks base method.
-func (m *MockClient) AskBatchSplit(res *metapb.Shard, count uint32) ([]rpcpb.SplitID, error) {
+func (m *MockClient) AskBatchSplit(res metapb.Shard, count uint32) ([]rpcpb.SplitID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AskBatchSplit", res, count)
 	ret0, _ := ret[0].([]rpcpb.SplitID)
@@ -82,7 +82,7 @@ func (mr *MockClientMockRecorder) AskBatchSplit(res, count interface{}) *gomock.
 }
 
 // AsyncAddShards mocks base method.
-func (m *MockClient) AsyncAddShards(resources ...*metapb.Shard) error {
+func (m *MockClient) AsyncAddShards(resources ...metapb.Shard) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{}
 	for _, a := range resources {
@@ -100,7 +100,7 @@ func (mr *MockClientMockRecorder) AsyncAddShards(resources ...interface{}) *gomo
 }
 
 // AsyncAddShardsWithLeastPeers mocks base method.
-func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []*metapb.Shard, leastPeers []int) error {
+func (m *MockClient) AsyncAddShardsWithLeastPeers(resources []metapb.Shard, leastPeers []int) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AsyncAddShardsWithLeastPeers", resources, leastPeers)
 	ret0, _ := ret[0].(error)
@@ -158,21 +158,6 @@ func (m *MockClient) Close() error {
 func (mr *MockClientMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockClient)(nil).Close))
-}
-
-// StoreHeartbeat mocks base method.
-func (m *MockClient) StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StoreHeartbeat", hb)
-	ret0, _ := ret[0].(rpcpb.StoreHeartbeatRsp)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// StoreHeartbeat indicates an expected call of StoreHeartbeat.
-func (mr *MockClientMockRecorder) StoreHeartbeat(hb interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHeartbeat", reflect.TypeOf((*MockClient)(nil).StoreHeartbeat), hb)
 }
 
 // CreateDestroying mocks base method.
@@ -234,21 +219,6 @@ func (mr *MockClientMockRecorder) GetAppliedRules(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppliedRules", reflect.TypeOf((*MockClient)(nil).GetAppliedRules), id)
 }
 
-// GetStore mocks base method.
-func (m *MockClient) GetStore(containerID uint64) (*metapb.Store, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStore", containerID)
-	ret0, _ := ret[0].(*metapb.Store)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetStore indicates an expected call of GetStore.
-func (mr *MockClientMockRecorder) GetStore(containerID interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStore", reflect.TypeOf((*MockClient)(nil).GetStore), containerID)
-}
-
 // GetDestroying mocks base method.
 func (m *MockClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) {
 	m.ctrl.T.Helper()
@@ -262,21 +232,6 @@ func (m *MockClient) GetDestroying(id uint64) (*metapb.DestroyingStatus, error) 
 func (mr *MockClientMockRecorder) GetDestroying(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDestroying", reflect.TypeOf((*MockClient)(nil).GetDestroying), id)
-}
-
-// GetShardHeartbeatRspNotifier mocks base method.
-func (m *MockClient) GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetShardHeartbeatRspNotifier")
-	ret0, _ := ret[0].(chan rpcpb.ShardHeartbeatRsp)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetShardHeartbeatRspNotifier indicates an expected call of GetShardHeartbeatRspNotifier.
-func (mr *MockClientMockRecorder) GetShardHeartbeatRspNotifier() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardHeartbeatRspNotifier", reflect.TypeOf((*MockClient)(nil).GetShardHeartbeatRspNotifier))
 }
 
 // GetSchedulingRules mocks base method.
@@ -294,6 +249,36 @@ func (mr *MockClientMockRecorder) GetSchedulingRules() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchedulingRules", reflect.TypeOf((*MockClient)(nil).GetSchedulingRules))
 }
 
+// GetShardHeartbeatRspNotifier mocks base method.
+func (m *MockClient) GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetShardHeartbeatRspNotifier")
+	ret0, _ := ret[0].(chan rpcpb.ShardHeartbeatRsp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetShardHeartbeatRspNotifier indicates an expected call of GetShardHeartbeatRspNotifier.
+func (mr *MockClientMockRecorder) GetShardHeartbeatRspNotifier() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardHeartbeatRspNotifier", reflect.TypeOf((*MockClient)(nil).GetShardHeartbeatRspNotifier))
+}
+
+// GetStore mocks base method.
+func (m *MockClient) GetStore(containerID uint64) (*metapb.Store, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStore", containerID)
+	ret0, _ := ret[0].(*metapb.Store)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStore indicates an expected call of GetStore.
+func (mr *MockClientMockRecorder) GetStore(containerID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStore", reflect.TypeOf((*MockClient)(nil).GetStore), containerID)
+}
+
 // NewWatcher mocks base method.
 func (m *MockClient) NewWatcher(flag uint32) (prophet.Watcher, error) {
 	m.ctrl.T.Helper()
@@ -309,20 +294,6 @@ func (mr *MockClientMockRecorder) NewWatcher(flag interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewWatcher", reflect.TypeOf((*MockClient)(nil).NewWatcher), flag)
 }
 
-// PutStore mocks base method.
-func (m *MockClient) PutStore(container *metapb.Store) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PutStore", container)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// PutStore indicates an expected call of PutStore.
-func (mr *MockClientMockRecorder) PutStore(container interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutStore", reflect.TypeOf((*MockClient)(nil).PutStore), container)
-}
-
 // PutPlacementRule mocks base method.
 func (m *MockClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
 	m.ctrl.T.Helper()
@@ -335,6 +306,20 @@ func (m *MockClient) PutPlacementRule(rule rpcpb.PlacementRule) error {
 func (mr *MockClientMockRecorder) PutPlacementRule(rule interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutPlacementRule", reflect.TypeOf((*MockClient)(nil).PutPlacementRule), rule)
+}
+
+// PutStore mocks base method.
+func (m *MockClient) PutStore(container metapb.Store) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PutStore", container)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PutStore indicates an expected call of PutStore.
+func (mr *MockClientMockRecorder) PutStore(container interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutStore", reflect.TypeOf((*MockClient)(nil).PutStore), container)
 }
 
 // RemoveJob mocks base method.
@@ -367,7 +352,7 @@ func (mr *MockClientMockRecorder) ReportDestroyed(id, replicaID interface{}) *go
 }
 
 // ShardHeartbeat mocks base method.
-func (m *MockClient) ShardHeartbeat(meta *metapb.Shard, hb rpcpb.ShardHeartbeatReq) error {
+func (m *MockClient) ShardHeartbeat(meta metapb.Shard, hb rpcpb.ShardHeartbeatReq) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ShardHeartbeat", meta, hb)
 	ret0, _ := ret[0].(error)
@@ -378,4 +363,19 @@ func (m *MockClient) ShardHeartbeat(meta *metapb.Shard, hb rpcpb.ShardHeartbeatR
 func (mr *MockClientMockRecorder) ShardHeartbeat(meta, hb interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardHeartbeat", reflect.TypeOf((*MockClient)(nil).ShardHeartbeat), meta, hb)
+}
+
+// StoreHeartbeat mocks base method.
+func (m *MockClient) StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StoreHeartbeat", hb)
+	ret0, _ := ret[0].(rpcpb.StoreHeartbeatRsp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StoreHeartbeat indicates an expected call of StoreHeartbeat.
+func (mr *MockClientMockRecorder) StoreHeartbeat(hb interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreHeartbeat", reflect.TypeOf((*MockClient)(nil).StoreHeartbeat), hb)
 }

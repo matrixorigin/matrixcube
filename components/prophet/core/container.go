@@ -42,7 +42,7 @@ type counterAndSize struct {
 
 // CachedStore is the container runtime info cached in the cache
 type CachedStore struct {
-	Meta *metapb.Store
+	Meta metapb.Store
 	*containerStats
 	pauseLeaderTransfer bool // not allow to be used as source or target of transfer leader
 	resourceInfo        map[string]counterAndSize
@@ -55,7 +55,7 @@ type CachedStore struct {
 }
 
 // NewCachedStore creates CachedStore with meta data.
-func NewCachedStore(meta *metapb.Store, opts ...StoreCreateOption) *CachedStore {
+func NewCachedStore(meta metapb.Store, opts ...StoreCreateOption) *CachedStore {
 	container := &CachedStore{
 		Meta:              meta,
 		containerStats:    newStoreStats(),
@@ -74,7 +74,7 @@ func NewCachedStore(meta *metapb.Store, opts ...StoreCreateOption) *CachedStore 
 // Clone creates a copy of current CachedStore.
 func (cr *CachedStore) Clone(opts ...StoreCreateOption) *CachedStore {
 	container := &CachedStore{
-		Meta:                cr.Meta.Clone(),
+		Meta:                cr.Meta.CloneValue(),
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
 		resourceInfo:        make(map[string]counterAndSize),
@@ -617,8 +617,8 @@ func (s *CachedStores) GetStores() []*CachedStore {
 }
 
 // GetMetaStores gets a complete set of *metapb.Store
-func (s *CachedStores) GetMetaStores() []*metapb.Store {
-	metas := make([]*metapb.Store, 0, len(s.containers))
+func (s *CachedStores) GetMetaStores() []metapb.Store {
+	metas := make([]metapb.Store, 0, len(s.containers))
 	for _, container := range s.containers {
 		metas = append(metas, container.Meta)
 	}

@@ -315,7 +315,7 @@ func TestValidateStoreID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.meta = metapb.NewStore()
+	s.meta = metapb.Store{}
 
 	assert.Nil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 0}}}))
 	assert.NotNil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 1}}}))

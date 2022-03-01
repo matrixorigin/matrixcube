@@ -36,7 +36,7 @@ type BasicCluster struct {
 	Stores               *CachedStores
 	Shards               *CachedShards
 	DestroyedShards      *roaring64.Bitmap
-	WaittingCreateShards map[uint64]*metapb.Shard
+	WaittingCreateShards map[uint64]metapb.Shard
 	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
 	ScheduleGroupRules   []metapb.ScheduleGroupRule
 	ScheduleGroupKeys    map[string]struct{}
@@ -61,7 +61,7 @@ func (bc *BasicCluster) Reset() {
 	bc.Stores = NewCachedStores()
 	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
-	bc.WaittingCreateShards = make(map[uint64]*metapb.Shard)
+	bc.WaittingCreateShards = make(map[uint64]metapb.Shard)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
@@ -79,7 +79,7 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 }
 
 // AddWaittingCreateShards add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metapb.Shard) {
+func (bc *BasicCluster) AddWaittingCreateShards(resources ...metapb.Shard) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
@@ -88,7 +88,7 @@ func (bc *BasicCluster) AddWaittingCreateShards(resources ...*metapb.Shard) {
 }
 
 // ForeachWaittingCreateShards do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metapb.Shard)) {
+func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 	for _, res := range bc.WaittingCreateShards {
@@ -97,7 +97,7 @@ func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res *metapb.Shard)) 
 }
 
 // ForeachShards foreach resources by group
-func (bc *BasicCluster) ForeachShards(group uint64, fn func(res *metapb.Shard)) {
+func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 
@@ -148,7 +148,7 @@ func (bc *BasicCluster) GetStores() []*CachedStore {
 }
 
 // GetMetaStores gets a complete set of *metapb.Store.
-func (bc *BasicCluster) GetMetaStores() []*metapb.Store {
+func (bc *BasicCluster) GetMetaStores() []metapb.Store {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Stores.GetMetaStores()

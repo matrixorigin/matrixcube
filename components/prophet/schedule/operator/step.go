@@ -282,8 +282,8 @@ func (rp RemovePeer) Influence(opInfluence OpInfluence, res *core.CachedShard) {
 
 // MergeShard is an OpStep that merge two resources.
 type MergeShard struct {
-	FromShard *metapb.Shard
-	ToShard   *metapb.Shard
+	FromShard metapb.Shard
+	ToShard   metapb.Shard
 	// there are two resources involved in merge process,
 	// so to keep them from other scheduler,
 	// both of them should add Merresource operatorStep.

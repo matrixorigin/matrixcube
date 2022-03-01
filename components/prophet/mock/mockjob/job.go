@@ -38,7 +38,7 @@ func (m *MockShardsAware) EXPECT() *MockShardsAwareMockRecorder {
 }
 
 // ForeachShards mocks base method.
-func (m *MockShardsAware) ForeachShards(group uint64, fn func(*metapb.Shard)) {
+func (m *MockShardsAware) ForeachShards(group uint64, fn func(metapb.Shard)) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ForeachShards", group, fn)
 }
@@ -50,7 +50,7 @@ func (mr *MockShardsAwareMockRecorder) ForeachShards(group, fn interface{}) *gom
 }
 
 // ForeachWaittingCreateShards mocks base method.
-func (m *MockShardsAware) ForeachWaittingCreateShards(do func(*metapb.Shard)) {
+func (m *MockShardsAware) ForeachWaittingCreateShards(do func(metapb.Shard)) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "ForeachWaittingCreateShards", do)
 }

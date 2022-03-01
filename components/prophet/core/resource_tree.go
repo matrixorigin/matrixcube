@@ -56,7 +56,7 @@ func newShardTree() *resourceTree {
 }
 
 func (t *resourceTree) newSearchRes(key []byte) *CachedShard {
-	meta := metapb.NewShard()
+	meta := metapb.Shard{}
 	meta.SetStartKey(key)
 	return &CachedShard{Meta: meta}
 }

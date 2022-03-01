@@ -228,7 +228,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 	id := uint64(0)
 	p.AllocatedOffset++
 	unique := dsp.unique(group, p.AllocatedOffset)
-	fn := func(res *metapb.Shard) {
+	fn := func(res metapb.Shard) {
 		shard := res
 		if shard.Unique == unique {
 			id = shard.ID
@@ -314,12 +314,13 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 	dsp.mu.Lock()
 	if !dsp.isStartedLocked() {
 		dsp.mu.Unlock()
+		fmt.Println("DSP is not started")
 		return
 	}
 
 	// we don't modify directly
 	modified := dsp.cloneDataLocked()
-	var creates []*metapb.Shard
+	var creates []metapb.Shard
 	for {
 		changed := false
 		for g, p := range modified.Pools {
@@ -331,7 +332,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 					addPrefix(p.RangePrefix, p.Seq+1),
 					dsp.unique(g, p.Seq),
 					p.Seq)
-				creates = append(creates, &tmp)
+				creates = append(creates, tmp)
 				changed = true
 			}
 		}
@@ -348,6 +349,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		}
 		err := dsp.pd.AsyncAddShards(creates...)
 		if err != nil {
+			fmt.Println("fail to create shard")
 			dsp.logger.Error("fail to create shard",
 				zap.Error(err))
 			return

@@ -92,7 +92,7 @@ func TestCandidates(t *testing.T) {
 func newCandidates(ids ...uint64) *StoreCandidates {
 	var containers []*core.CachedStore
 	for _, id := range ids {
-		containers = append(containers, core.NewCachedStore(&metapb.Store{ID: id}))
+		containers = append(containers, core.NewCachedStore(metapb.Store{ID: id}))
 	}
 	return NewCandidates(containers)
 }

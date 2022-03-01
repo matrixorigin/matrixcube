@@ -155,7 +155,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 func TestIsRaftMsgValid(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	s := &store{meta: &metapb.Store{ID: 1}, logger: zap.L()}
+	s := &store{meta: metapb.Store{ID: 1}, logger: zap.L()}
 	assert.True(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 1}}))
 	assert.False(t, s.isRaftMsgValid(metapb.RaftMessage{To: Replica{StoreID: 2}}))
 }

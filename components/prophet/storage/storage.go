@@ -77,15 +77,15 @@ type CustomDataStorage interface {
 // ShardStorage resource storage
 type ShardStorage interface {
 	// PutShard puts the meta to the storage
-	PutShard(meta *metapb.Shard) error
+	PutShard(meta metapb.Shard) error
 	// PutShards put resource in batch
-	PutShards(resources ...*metapb.Shard) error
+	PutShards(resources ...metapb.Shard) error
 	// RemoveShard remove resource from storage
-	RemoveShard(meta *metapb.Shard) error
+	RemoveShard(meta metapb.Shard) error
 	// GetShard returns the spec resource
 	GetShard(id uint64) (*metapb.Shard, error)
 	// LoadShards load all resources
-	LoadShards(limit int64, do func(*metapb.Shard)) error
+	LoadShards(limit int64, do func(metapb.Shard)) error
 
 	// PutShardAndExtra puts the meta and the extra data to the storage
 	PutShardAndExtra(meta *metapb.Shard, extra []byte) error
@@ -118,13 +118,13 @@ type ConfigStorage interface {
 // StoreStorage container storage
 type StoreStorage interface {
 	// PutStore returns nil if container is add or update succ
-	PutStore(meta *metapb.Store) error
+	PutStore(meta metapb.Store) error
 	// RemoveStore remove container from storage
-	RemoveStore(meta *metapb.Store) error
+	RemoveStore(meta metapb.Store) error
 	// GetStore returns the spec container
 	GetStore(id uint64) (*metapb.Store, error)
 	// LoadStores load all containers
-	LoadStores(limit int64, do func(meta *metapb.Store, leaderWeight float64, resourceWeight float64)) error
+	LoadStores(limit int64, do func(meta metapb.Store, leaderWeight float64, resourceWeight float64)) error
 	//PutStoreWeight saves a container's leader and resource weight to storage.
 	PutStoreWeight(id uint64, leaderWeight, resourceWeight float64) error
 }
@@ -134,7 +134,7 @@ type ClusterStorage interface {
 	// AlreadyBootstrapped returns the cluster was already bootstrapped
 	AlreadyBootstrapped() (bool, error)
 	// PutBootstrapped put cluster is bootstrapped
-	PutBootstrapped(container *metapb.Store, resources ...*metapb.Shard) (bool, error)
+	PutBootstrapped(container metapb.Store, resources ...*metapb.Shard) (bool, error)
 }
 
 // Storage meta storage
@@ -303,7 +303,7 @@ func (s *storage) SaveJSON(prefix, key string, data interface{}) error {
 	return s.kv.Save(path.Join(prefix, key), string(value))
 }
 
-func (s *storage) PutShard(meta *metapb.Shard) error {
+func (s *storage) PutShard(meta metapb.Shard) error {
 	key := s.getKey(meta.GetID(), s.resourcePath)
 	data, err := meta.Marshal()
 	if err != nil {
@@ -353,7 +353,7 @@ func (s *storage) PutShardExtra(id uint64, extra []byte) error {
 	return s.kv.Save(s.getKey(id, s.resourceExtraPath), string(extra))
 }
 
-func (s *storage) PutShards(resources ...*metapb.Shard) error {
+func (s *storage) PutShards(resources ...metapb.Shard) error {
 	batch := &Batch{}
 	for _, res := range resources {
 		data, err := res.Marshal()
@@ -366,7 +366,7 @@ func (s *storage) PutShards(resources ...*metapb.Shard) error {
 	return s.kv.Batch(batch)
 }
 
-func (s *storage) RemoveShard(meta *metapb.Shard) error {
+func (s *storage) RemoveShard(meta metapb.Shard) error {
 	return s.kv.Remove(s.getKey(meta.GetID(), s.resourcePath))
 }
 
@@ -390,9 +390,9 @@ func (s *storage) GetShard(id uint64) (*metapb.Shard, error) {
 	return res, nil
 }
 
-func (s *storage) LoadShards(limit int64, do func(*metapb.Shard)) error {
+func (s *storage) LoadShards(limit int64, do func(metapb.Shard)) error {
 	return s.LoadRangeByPrefix(limit, s.resourcePath+"/", func(k, v string) error {
-		data := metapb.NewShard()
+		data := metapb.Shard{}
 		err := data.Unmarshal([]byte(v))
 		if err != nil {
 			return err
@@ -402,7 +402,7 @@ func (s *storage) LoadShards(limit int64, do func(*metapb.Shard)) error {
 	})
 }
 
-func (s *storage) PutStore(meta *metapb.Store) error {
+func (s *storage) PutStore(meta metapb.Store) error {
 	key := s.getKey(meta.GetID(), s.containerPath)
 	data, err := meta.Marshal()
 	if err != nil {
@@ -412,7 +412,7 @@ func (s *storage) PutStore(meta *metapb.Store) error {
 	return s.kv.Save(key, string(data))
 }
 
-func (s *storage) RemoveStore(meta *metapb.Store) error {
+func (s *storage) RemoveStore(meta metapb.Store) error {
 	return s.kv.Remove(s.getKey(meta.GetID(), s.containerPath))
 }
 
@@ -436,9 +436,9 @@ func (s *storage) GetStore(id uint64) (*metapb.Store, error) {
 	return c, nil
 }
 
-func (s *storage) LoadStores(limit int64, do func(*metapb.Store, float64, float64)) error {
+func (s *storage) LoadStores(limit int64, do func(metapb.Store, float64, float64)) error {
 	return s.LoadRangeByPrefix(limit, s.containerPath+"/", func(k, v string) error {
-		data := metapb.NewStore()
+		data := metapb.Store{}
 		err := data.Unmarshal([]byte(v))
 		if err != nil {
 			return err
@@ -537,7 +537,7 @@ func (s *storage) RemoveCustomData(key []byte) error {
 	return s.kv.Remove(path.Join(s.customDataPath, string(key)))
 }
 
-func (s *storage) PutBootstrapped(container *metapb.Store, resources ...*metapb.Shard) (bool, error) {
+func (s *storage) PutBootstrapped(container metapb.Store, resources ...*metapb.Shard) (bool, error) {
 	clusterID, err := s.kv.AllocID()
 	if err != nil {
 		return false, err

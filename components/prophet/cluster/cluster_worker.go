@@ -214,10 +214,11 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var createShards []*metapb.Shard
+	var shardsMeta []metapb.Shard
+	var createdShards []metapb.Shard
 	var leastPeers []int
 	for idx, data := range request.CreateShards.Shards {
-		res := metapb.NewShard()
+		res := metapb.Shard{}
 		err := res.Unmarshal(data)
 		if err != nil {
 			return nil, err
@@ -237,7 +238,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres *metapb.Shard) {
+			c.core.ForeachWaittingCreateShards(func(wres metapb.Shard) {
 				if wres.GetUnique() == res.GetUnique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
@@ -261,38 +262,41 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		if err != nil {
 			return nil, err
 		}
-		createShards = append(createShards, res)
+		shardsMeta = append(shardsMeta, res)
 		leastPeers = append(leastPeers, int(request.CreateShards.LeastReplicas[idx]))
 	}
 
-	for idx, res := range createShards {
-		err := c.coordinator.checkers.FillReplicas(core.NewCachedShard(res, nil), leastPeers[idx])
+	for idx, res := range shardsMeta {
+		cachedShard := core.NewCachedShard(res, nil)
+		err := c.coordinator.checkers.FillReplicas(cachedShard, leastPeers[idx])
 		if err != nil {
 			return nil, err
 		}
 
-		res.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(res.GetReplicas()))})
-		for idx := range res.GetReplicas() {
+		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(cachedShard.Meta.GetReplicas()))})
+		for idx := range cachedShard.Meta.GetReplicas() {
 			id, err := c.storage.KV().AllocID()
 			if err != nil {
 				return nil, err
 			}
 
-			res.GetReplicas()[idx].ID = id
-			res.GetReplicas()[idx].InitialMember = true
+			cachedShard.Meta.GetReplicas()[idx].ID = id
+			cachedShard.Meta.GetReplicas()[idx].InitialMember = true
 		}
 
 		c.logger.Info("resource created",
-			zap.Uint64("resource", res.GetID()),
-			zap.Any("peers", res.GetReplicas()))
+			zap.Uint64("resource", cachedShard.Meta.GetID()),
+			zap.Any("peers", cachedShard.Meta.GetReplicas()))
+
+		createdShards = append(createdShards, cachedShard.Meta)
 	}
 
-	err := c.storage.PutShards(createShards...)
+	err := c.storage.PutShards(createdShards...)
 	if err != nil {
 		return nil, err
 	}
 
-	c.core.AddWaittingCreateShards(createShards...)
+	c.core.AddWaittingCreateShards(createdShards...)
 	c.triggerNotifyCreateShards()
 	return &rpcpb.CreateShardsRsp{}, nil
 }
@@ -307,8 +311,8 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var targets []*metapb.Shard
-	var origin []*metapb.Shard
+	var targets []metapb.Shard
+	var origin []metapb.Shard
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -320,7 +324,7 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		}
 		origin = append(origin, v.Meta)
 
-		res := v.Meta.Clone() // use cloned value
+		res := v.Meta.CloneValue() // use cloned value
 		res.SetState(metapb.ShardState_Destroyed)
 		targets = append(targets, res)
 	}
@@ -399,7 +403,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res *metapb.Shard) {
+	c.core.ForeachWaittingCreateShards(func(res metapb.Shard) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }

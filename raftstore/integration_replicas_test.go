@@ -53,8 +53,8 @@ func TestScheduleReplicasWithRules(t *testing.T) {
 			},
 		},
 	}))
-	res := &metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}}
-	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]*metapb.Shard{res}, []int{2})
+	res := metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", RuleGroups: []string{"g1"}}
+	err := c.GetProphet().GetClient().AsyncAddShardsWithLeastPeers([]metapb.Shard{res}, []int{2})
 	assert.NoError(t, err)
 	c.WaitShardByCounts([]int{2, 2, 1}, testWaitTimeout)
 }

@@ -85,7 +85,7 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 }
 
 // NewShardEvent create resource event
-func NewShardEvent(target *metapb.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
+func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
@@ -119,7 +119,7 @@ func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 }
 
 // NewStoreEvent create container event
-func NewStoreEvent(target *metapb.Store) rpcpb.EventNotify {
+func NewStoreEvent(target metapb.Store) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}

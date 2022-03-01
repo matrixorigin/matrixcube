@@ -31,14 +31,14 @@ import (
 )
 
 // errShardIsStale is error info for resource is stale.
-var errShardIsStale = func(res *metapb.Shard, origin *metapb.Shard) error {
+var errShardIsStale = func(res metapb.Shard, origin metapb.Shard) error {
 	return fmt.Errorf("resource is stale: resource %v, origin %v", res, origin)
 }
 
 // CachedShard resource runtime info cached in the cache
 type CachedShard struct {
 	sync.RWMutex
-	Meta *metapb.Shard
+	Meta metapb.Shard
 
 	term            uint64
 	groupKey        string
@@ -51,7 +51,7 @@ type CachedShard struct {
 }
 
 // NewCachedShard creates CachedShard with resource's meta and leader peer.
-func NewCachedShard(res *metapb.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
+func NewCachedShard(res metapb.Shard, leader *metapb.Replica, opts ...ShardCreateOption) *CachedShard {
 	cr := &CachedShard{
 		Meta:   res,
 		leader: leader,
@@ -92,7 +92,7 @@ const (
 )
 
 // ShardFromHeartbeat constructs a Shard from resource heartbeat.
-func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta *metapb.Shard) *CachedShard {
+func ShardFromHeartbeat(heartbeat rpcpb.ShardHeartbeatReq, meta metapb.Shard) *CachedShard {
 	// Convert unit to MB.
 	// If resource is empty or less than 1MB, use 1MB instead.
 	resourceSize := heartbeat.Stats.GetApproximateSize() / (1 << 20)
@@ -140,7 +140,7 @@ func (r *CachedShard) Clone(opts ...ShardCreateOption) *CachedShard {
 
 	res := &CachedShard{
 		term:            r.term,
-		Meta:            r.Meta.Clone(),
+		Meta:            r.Meta.CloneValue(),
 		leader:          proto.Clone(r.leader).(*metapb.Replica),
 		downReplicas:    downReplicas,
 		pendingReplicas: pendingReplicas,
@@ -592,7 +592,7 @@ func (r *CachedShards) maybeInitWithGroup(groupKey string) {
 }
 
 // ForeachShards foreach resource by group
-func (r *CachedShards) ForeachShards(group uint64, fn func(res *metapb.Shard)) {
+func (r *CachedShards) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	for _, res := range r.resources.m {
 		if res.Meta.GetGroup() == group {
 			fn(res.Meta)
@@ -1200,11 +1200,8 @@ func HexShardKeyStr(key []byte) string {
 
 // ShardToHexMeta converts a resource meta's keys to hex format. Used for formating
 // resource in logs.
-func ShardToHexMeta(meta *metapb.Shard) HexShardMeta {
-	if meta == nil {
-		return HexShardMeta{}
-	}
-	meta = meta.Clone()
+func ShardToHexMeta(meta metapb.Shard) HexShardMeta {
+	meta = meta.CloneValue()
 	start, end := meta.GetRange()
 	meta.SetStartKey(HexShardKey(start))
 	meta.SetEndKey(HexShardKey(end))
@@ -1213,7 +1210,7 @@ func ShardToHexMeta(meta *metapb.Shard) HexShardMeta {
 
 // HexShardMeta is a resource meta in the hex format. Used for formating resource in logs.
 type HexShardMeta struct {
-	meta *metapb.Shard
+	meta metapb.Shard
 }
 
 func (h HexShardMeta) String() string {

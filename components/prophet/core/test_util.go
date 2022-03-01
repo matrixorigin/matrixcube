@@ -65,7 +65,7 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 		leftStart, _ := left.Meta.GetRange()
 		_, rightEnd := right.Meta.GetRange()
 		res := &CachedShard{
-			Meta: &metapb.Shard{
+			Meta: metapb.Shard{
 				ID:    left.Meta.GetID() + uint64(len(resources)),
 				Start: leftStart,
 				End:   rightEnd,
@@ -88,7 +88,7 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 // NewTestCachedShard creates a CachedShard for test.
 func NewTestCachedShard(start, end []byte) *CachedShard {
 	return &CachedShard{
-		Meta: &metapb.Shard{
+		Meta: metapb.Shard{
 			Start: start,
 			End:   end,
 			Epoch: metapb.ShardEpoch{},
@@ -109,10 +109,7 @@ func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]s
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metapb.Store{
-			ID:     id,
-			Labels: containerLabels,
-		},
+		metapb.Store{ID: id, Labels: containerLabels},
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
 		SetShardSize("", int64(resourceCount)*10),
@@ -126,7 +123,7 @@ func NewTestCachedStoreWithSizeCount(id uint64, resourceCount, leaderCount int, 
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metapb.Store{ID: id},
+		metapb.Store{ID: id},
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
 		SetShardSize("", resourceSize),

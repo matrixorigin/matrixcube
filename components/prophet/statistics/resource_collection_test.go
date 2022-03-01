@@ -50,7 +50,7 @@ func TestShardStatistics(t *testing.T) {
 		{ID: 4, StoreID: 3},
 		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
 	}
-	metaStores := []*metapb.Store{
+	metaStores := []metapb.Store{
 		{ID: 1, ClientAddr: "mock://server-1"},
 		{ID: 2, ClientAddr: "mock://server-2"},
 		{ID: 3, ClientAddr: "mock://server-3"},
@@ -70,8 +70,8 @@ func TestShardStatistics(t *testing.T) {
 
 	container3 := containers[3].Clone(core.OfflineStore(false))
 	containers[3] = container3
-	r1 := &metapb.Shard{ID: 1, Replicas: peers, Start: []byte("aa"), End: []byte("bb")}
-	r2 := &metapb.Shard{ID: 2, Replicas: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
+	r1 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("aa"), End: []byte("bb")}
+	r2 := metapb.Shard{ID: 2, Replicas: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
 	resource1 := core.NewCachedShard(r1, &peers[0])
 	resource2 := core.NewCachedShard(r2, &peers[0])
 	resourceStats := NewShardStatistics(opt, s.manager)
@@ -153,7 +153,7 @@ func TestShardStatisticsWithPlacementRule(t *testing.T) {
 		{ID: 4, StoreID: 3},
 		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
 	}
-	metaStores := []*metapb.Store{
+	metaStores := []metapb.Store{
 		{ID: 1, ClientAddr: "mock://server-1"},
 		{ID: 2, ClientAddr: "mock://server-2"},
 		{ID: 3, ClientAddr: "mock://server-3"},
@@ -165,9 +165,9 @@ func TestShardStatisticsWithPlacementRule(t *testing.T) {
 		s := core.NewCachedStore(m)
 		containers = append(containers, s)
 	}
-	r2 := &metapb.Shard{ID: 0, Replicas: peers[0:1], Start: []byte("aa"), End: []byte("bb")}
-	r3 := &metapb.Shard{ID: 1, Replicas: peers, Start: []byte("ee"), End: []byte("ff")}
-	r4 := &metapb.Shard{ID: 2, Replicas: peers[0:3], Start: []byte("gg"), End: []byte("hh")}
+	r2 := metapb.Shard{ID: 0, Replicas: peers[0:1], Start: []byte("aa"), End: []byte("bb")}
+	r3 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("ee"), End: []byte("ff")}
+	r4 := metapb.Shard{ID: 2, Replicas: peers[0:3], Start: []byte("gg"), End: []byte("hh")}
 
 	resource2 := core.NewCachedShard(r2, &peers[0])
 	resource3 := core.NewCachedShard(r3, &peers[0])
@@ -240,7 +240,7 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	counter := map[string]int{"none": 1, "host": 2, "rack": 3, "zone": 1}
 	resourceID := 1
 	f := func(labels []map[string]string, res string, locationLabels []string) {
-		metaStores := []*metapb.Store{
+		metaStores := []metapb.Store{
 			{ID: 1, ClientAddr: "mock://server-1"},
 			{ID: 2, ClientAddr: "mock://server-2"},
 			{ID: 3, ClientAddr: "mock://server-3"},
@@ -255,7 +255,7 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 
 			containers = append(containers, s)
 		}
-		resource := core.NewCachedShard(&metapb.Shard{ID: uint64(resourceID)}, nil)
+		resource := core.NewCachedShard(metapb.Shard{ID: uint64(resourceID)}, nil)
 		label := getShardLabelIsolation(containers, locationLabels)
 		labelLevelStats.Observe(resource, containers, locationLabels)
 		assert.Equal(t, res, label)
@@ -273,7 +273,7 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	assert.Equal(t, nonIsolation, label)
 	label = getShardLabelIsolation(nil, nil)
 	assert.Equal(t, nonIsolation, label)
-	store := core.NewCachedStore(&metapb.Store{ID: 1, ClientAddr: "mock://server-1"}, core.SetStoreLabels([]metapb.Pair{{Key: "foo", Value: "bar"}}))
+	store := core.NewCachedStore(metapb.Store{ID: 1, ClientAddr: "mock://server-1"}, core.SetStoreLabels([]metapb.Pair{{Key: "foo", Value: "bar"}}))
 	label = getShardLabelIsolation([]*core.CachedStore{store}, locationLabels)
 	assert.Equal(t, "zone", label)
 

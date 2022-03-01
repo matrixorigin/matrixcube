@@ -33,7 +33,7 @@ func TestPromoteLearner(t *testing.T) {
 	}
 
 	resource := core.NewCachedShard(
-		&metapb.Shard{
+		metapb.Shard{
 			ID: 1,
 			Replicas: []metapb.Replica{
 				{ID: 101, StoreID: 1},

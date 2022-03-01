@@ -63,7 +63,7 @@ func makeTestShard(def string) *core.CachedShard {
 			leader = &peer
 		}
 	}
-	return core.NewCachedShard(&resourceMeta, leader)
+	return core.NewCachedShard(resourceMeta, leader)
 }
 
 // example: "3/voter/zone=zone1+zone2,rack=rack2/zone,rack,host"

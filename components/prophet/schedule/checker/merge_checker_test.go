@@ -56,7 +56,7 @@ func (s *testMergeChecker) setup() {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    1,
 				Start: []byte(""),
 				End:   []byte("a"),
@@ -69,7 +69,7 @@ func (s *testMergeChecker) setup() {
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
@@ -83,7 +83,7 @@ func (s *testMergeChecker) setup() {
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),
@@ -97,7 +97,7 @@ func (s *testMergeChecker) setup() {
 			core.SetApproximateKeys(1),
 		),
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    4,
 				Start: []byte("x"),
 				End:   []byte(""),
@@ -441,7 +441,7 @@ func TestCache(t *testing.T) {
 	}
 	s.resources = []*core.CachedShard{
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    2,
 				Start: []byte("a"),
 				End:   []byte("t"),
@@ -455,7 +455,7 @@ func TestCache(t *testing.T) {
 			core.SetApproximateKeys(200),
 		),
 		core.NewCachedShard(
-			&metapb.Shard{
+			metapb.Shard{
 				ID:    3,
 				Start: []byte("t"),
 				End:   []byte("x"),

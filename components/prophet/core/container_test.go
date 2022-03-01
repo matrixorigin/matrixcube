@@ -59,7 +59,7 @@ func TestDistinctScore(t *testing.T) {
 }
 
 func TestCloneStore(t *testing.T) {
-	meta := &metapb.Store{
+	meta := metapb.Store{
 		ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
 	}
 	container := NewCachedStore(meta)
@@ -97,7 +97,7 @@ func TestShardScore(t *testing.T) {
 	stats.UsedSize = 0
 
 	container := NewCachedStore(
-		&metapb.Store{ID: 1},
+		metapb.Store{ID: 1},
 		SetStoreStats(stats),
 		SetShardSize("", 1),
 	)

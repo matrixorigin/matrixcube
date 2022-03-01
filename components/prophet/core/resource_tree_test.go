@@ -34,7 +34,7 @@ func TestCachedShard(t *testing.T) {
 		}
 		peers = append(peers, p)
 	}
-	res := &metapb.Shard{Replicas: peers}
+	res := metapb.Shard{Replicas: peers}
 	downPeer, pendingPeer := peers[0], peers[1]
 
 	info := NewCachedShard(
