@@ -54,6 +54,7 @@ type Config struct {
 	Replication   ReplicationConfig   `toml:"replication" json:"replication"`
 	LabelProperty LabelPropertyConfig `toml:"label-property" json:"label-property"`
 
+
 	Handler                     metadata.RoleChangeHandler                                            `toml:"-" json:"-"`
 	ShardStateChangedHandler    func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState) `toml:"-" json:"-"`
 	StoreHeartbeatDataProcessor StoreHeartbeatDataProcessor                                           `toml:"-" json:"-"`

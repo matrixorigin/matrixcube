@@ -121,7 +121,7 @@ func NewProphet(cfg *config.Config) Prophet {
 
 	if cfg.Prophet.ProphetNode {
 		// start embedded-etcd for prophet node
-		etcdClient, etcd, err = join.PrepareJoinCluster(ctx, cfg, logger)
+		etcdClient, etcd, err = join.StartEmbedEtcd(ctx, cfg, logger)
 		if err != nil {
 			logger.Fatal("fail to start embed etcd", zap.Error(err))
 		}
@@ -161,8 +161,7 @@ func NewProphet(cfg *config.Config) Prophet {
 		stopper:        stop.NewStopper("prophet", stop.WithLogger(logger)),
 	}
 
-	p.member = member.NewMember(
-		etcdClient, etcd, elector,
+	p.member = member.NewMember(etcd, elector,
 		cfg.Prophet.ProphetNode, p.becomeLeader, p.becomeFollower, logger,
 	)
 	p.jobMu.jobs = make(map[metapb.JobType]metapb.Job)
@@ -184,7 +183,7 @@ func (p *defaultProphet) Start() {
 	}
 	p.logger.Info("init cluster id completed")
 
-	p.member.MemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
+	p.member.InitMemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
 	p.logger.Info("member init completed")
 
 	p.storage = storage.NewStorage(
@@ -347,7 +346,7 @@ func (p *defaultProphet) GetBasicCluster() *core.BasicCluster {
 
 // startSystemMonitor start a goroutine in order to monitor system time
 func (p *defaultProphet) startSystemMonitor() {
-	systimeErrHandler := func() { p.logger.Error("system time jumps backward") }
+	systimeErrHandler := func() { p.logger.Fatal("system time jumps backward") }
 	task := func(ctx context.Context) {
 		StartMonitor(ctx, time.Now, systimeErrHandler, p.logger)
 	}
