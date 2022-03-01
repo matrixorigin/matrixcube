@@ -20,7 +20,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
@@ -133,15 +132,15 @@ func (c *RaftCluster) HandleGetDestroying(req rpcpb.GetDestroyingReq) (*metapb.D
 }
 
 // ValidRequestShard is used to decide if the resource is valid.
-func (c *RaftCluster) ValidRequestShard(reqShard metadata.Shard) error {
-	startKey, _ := reqShard.Range()
-	res := c.GetShardByKey(reqShard.Group(), startKey)
+func (c *RaftCluster) ValidRequestShard(reqShard *metapb.Shard) error {
+	startKey, _ := reqShard.GetRange()
+	res := c.GetShardByKey(reqShard.GetGroup(), startKey)
 	if res == nil {
 		return fmt.Errorf("resource not found, request resource: %v", reqShard)
 	}
 	// If the request epoch is less than current resource epoch, then returns an error.
-	reqShardEpoch := reqShard.Epoch()
-	resourceEpoch := res.Meta.Epoch()
+	reqShardEpoch := reqShard.GetEpoch()
+	resourceEpoch := res.Meta.GetEpoch()
 	if reqShardEpoch.GetVersion() < resourceEpoch.GetVersion() ||
 		reqShardEpoch.GetConfVer() < resourceEpoch.GetConfVer() {
 		return fmt.Errorf("invalid resource epoch, request: %v, current: %v", reqShardEpoch, resourceEpoch)
@@ -151,7 +150,7 @@ func (c *RaftCluster) ValidRequestShard(reqShard metadata.Shard) error {
 
 // HandleAskBatchSplit handles the batch split request.
 func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb.AskBatchSplitRsp, error) {
-	reqShard := c.adapter.NewShard()
+	reqShard := metapb.NewShard()
 	err := reqShard.Unmarshal(request.AskBatchSplit.Data)
 	if err != nil {
 		return nil, err
@@ -171,7 +170,7 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb
 			return nil, err
 		}
 
-		peerIDs := make([]uint64, len(reqShard.Peers()))
+		peerIDs := make([]uint64, len(reqShard.GetReplicas()))
 		for i := 0; i < len(peerIDs); i++ {
 			if peerIDs[i], err = c.AllocID(); err != nil {
 				return nil, err
@@ -189,7 +188,7 @@ func (c *RaftCluster) HandleAskBatchSplit(request *rpcpb.ProphetRequest) (*rpcpb
 			zap.Any("peer-ids", peerIDs))
 	}
 
-	recordShards = append(recordShards, reqShard.ID())
+	recordShards = append(recordShards, reqShard.GetID())
 	// Disable merge the resources in a period of time.
 	c.GetMergeChecker().RecordShardSplit(recordShards)
 
@@ -215,34 +214,35 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var createShards []metadata.Shard
+	var shardsMeta []metapb.Shard
+	var createdShards []metapb.Shard
 	var leastPeers []int
 	for idx, data := range request.CreateShards.Shards {
-		res := c.adapter.NewShard()
+		res := metapb.Shard{}
 		err := res.Unmarshal(data)
 		if err != nil {
 			return nil, err
 		}
-		if len(res.Peers()) > 0 {
+		if len(res.GetReplicas()) > 0 {
 			return nil, fmt.Errorf("cann't assign peers in create resources")
 		}
 
 		// check recreate
 		create := true
 		for _, cr := range c.core.GetShards() {
-			if cr.Meta.Unique() == res.Unique() {
+			if cr.Meta.GetUnique() == res.GetUnique() {
 				create = false
 				c.logger.Info("resource already created",
-					zap.String("unique", res.Unique()))
+					zap.String("unique", res.GetUnique()))
 				break
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres metadata.Shard) {
-				if wres.Unique() == res.Unique() {
+			c.core.ForeachWaittingCreateShards(func(wres metapb.Shard) {
+				if wres.GetUnique() == res.GetUnique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
-						zap.String("unique", res.Unique()))
+						zap.String("unique", res.GetUnique()))
 				}
 			})
 		}
@@ -262,38 +262,41 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		if err != nil {
 			return nil, err
 		}
-		createShards = append(createShards, res)
+		shardsMeta = append(shardsMeta, res)
 		leastPeers = append(leastPeers, int(request.CreateShards.LeastReplicas[idx]))
 	}
 
-	for idx, res := range createShards {
-		err := c.coordinator.checkers.FillReplicas(core.NewCachedShard(res, nil), leastPeers[idx])
+	for idx, res := range shardsMeta {
+		cachedShard := core.NewCachedShard(res, nil)
+		err := c.coordinator.checkers.FillReplicas(cachedShard, leastPeers[idx])
 		if err != nil {
 			return nil, err
 		}
 
-		res.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(res.Peers()))})
-		for idx := range res.Peers() {
+		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(cachedShard.Meta.GetReplicas()))})
+		for idx := range cachedShard.Meta.GetReplicas() {
 			id, err := c.storage.KV().AllocID()
 			if err != nil {
 				return nil, err
 			}
 
-			res.Peers()[idx].ID = id
-			res.Peers()[idx].InitialMember = true
+			cachedShard.Meta.GetReplicas()[idx].ID = id
+			cachedShard.Meta.GetReplicas()[idx].InitialMember = true
 		}
 
 		c.logger.Info("resource created",
-			zap.Uint64("resource", res.ID()),
-			zap.Any("peers", res.Peers()))
+			zap.Uint64("resource", cachedShard.Meta.GetID()),
+			zap.Any("peers", cachedShard.Meta.GetReplicas()))
+
+		createdShards = append(createdShards, cachedShard.Meta)
 	}
 
-	err := c.storage.PutShards(createShards...)
+	err := c.storage.PutShards(createdShards...)
 	if err != nil {
 		return nil, err
 	}
 
-	c.core.AddWaittingCreateShards(createShards...)
+	c.core.AddWaittingCreateShards(createdShards...)
 	c.triggerNotifyCreateShards()
 	return &rpcpb.CreateShardsRsp{}, nil
 }
@@ -308,8 +311,8 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	c.RLock()
 	defer c.RUnlock()
 
-	var targets []metadata.Shard
-	var origin []metadata.Shard
+	var targets []metapb.Shard
+	var origin []metapb.Shard
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -321,7 +324,7 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		}
 		origin = append(origin, v.Meta)
 
-		res := v.Meta.Clone() // use cloned value
+		res := v.Meta.CloneValue() // use cloned value
 		res.SetState(metapb.ShardState_Destroyed)
 		targets = append(targets, res)
 	}
@@ -400,7 +403,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res metadata.Shard) {
+	c.core.ForeachWaittingCreateShards(func(res metapb.Shard) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }
@@ -439,6 +442,8 @@ func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.Destr
 			return err
 		}
 		c.core.AddRemovedShards(id)
+		res.Lock()
+		defer res.Unlock()
 		res.Meta.SetState(metapb.ShardState_Destroyed)
 	} else {
 		err := c.storage.PutShardExtra(id, protoc.MustMarshal(status))

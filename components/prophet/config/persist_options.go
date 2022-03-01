@@ -142,14 +142,14 @@ func (o *PersistOptions) SetMaxReplicas(replicas int) {
 
 const (
 	maxSnapshotCountKey            = "schedule.max-snapshot-count"
-	maxMergeShardSizeKey        = "schedule.max-merge-resource-size"
+	maxMergeShardSizeKey           = "schedule.max-merge-resource-size"
 	maxPendingPeerCountKey         = "schedule.max-pending-peer-count"
-	maxMergeShardKeysKey        = "schedule.max-merge-resource-keys"
+	maxMergeShardKeysKey           = "schedule.max-merge-resource-keys"
 	leaderScheduleLimitKey         = "schedule.leader-schedule-limit"
 	resourceScheduleLimitKey       = "schedule.resource-schedule-limit"
 	replicaRescheduleLimitKey      = "schedule.replica-schedule-limit"
 	mergeScheduleLimitKey          = "schedule.merge-schedule-limit"
-	hotShardScheduleLimitKey    = "schedule.hot-resource-schedule-limit"
+	hotShardScheduleLimitKey       = "schedule.hot-resource-schedule-limit"
 	schedulerMaxWaitingOperatorKey = "schedule.scheduler-max-waiting-operator"
 	enableLocationReplacement      = "schedule.enable-location-replacement"
 )

@@ -1556,7 +1556,7 @@ func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.Shar
 			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
 			res, err := c.GetProphet().GetStorage().GetShard(shardID)
-			if err == nil && res != nil && res.State() == to {
+			if err == nil && res != nil && res.GetState() == to {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)

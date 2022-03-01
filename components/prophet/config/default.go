@@ -27,31 +27,31 @@ import (
 )
 
 const (
-	defaultMaxReplicas                 = 3
-	defaultMaxSnapshotCount            = 3
-	defaultMaxPendingPeerCount         = 16
+	defaultMaxReplicas              = 3
+	defaultMaxSnapshotCount         = 3
+	defaultMaxPendingPeerCount      = 16
 	defaultMaxMergeShardSize        = 20
 	defaultMaxMergeShardKeys        = 200000
-	defaultSplitMergeInterval          = 1 * time.Hour
+	defaultSplitMergeInterval       = 1 * time.Hour
 	defaultPatrolShardInterval      = 100 * time.Millisecond
-	defaultMaxStoreDownTime        = 30 * time.Minute
-	defaultLeaderScheduleLimit         = 4
+	defaultMaxStoreDownTime         = 30 * time.Minute
+	defaultLeaderScheduleLimit      = 4
 	defaultShardScheduleLimit       = 2048
-	defaultReplicaScheduleLimit        = 64
-	defaultMergeScheduleLimit          = 8
+	defaultReplicaScheduleLimit     = 64
+	defaultMergeScheduleLimit       = 8
 	defaultHotShardScheduleLimit    = 4
-	defaultTolerantSizeRatio           = 0
-	defaultLowSpaceRatio               = 0.8
-	defaultHighSpaceRatio              = 0.7
+	defaultTolerantSizeRatio        = 0
+	defaultLowSpaceRatio            = 0.8
+	defaultHighSpaceRatio           = 0.7
 	defaultShardScoreFormulaVersion = "v2"
 	// defaultHotShardCacheHitsThreshold is the low hit number threshold of the
 	// hot resource.
-	defaultHotShardCacheHitsThreshold = 3
-	defaultSchedulerMaxWaitingOperator   = 5
-	defaultLeaderSchedulePolicy          = "count"
-	defaultStoreLimitMode            = "manual"
-	defaultEnableJointConsensus          = false
-	defaultEnableCrossTableMerge         = true
+	defaultHotShardCacheHitsThreshold  = 3
+	defaultSchedulerMaxWaitingOperator = 5
+	defaultLeaderSchedulePolicy        = "count"
+	defaultStoreLimitMode              = "manual"
+	defaultEnableJointConsensus        = false
+	defaultEnableCrossTableMerge       = true
 )
 
 var (

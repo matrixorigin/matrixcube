@@ -17,21 +17,14 @@ package core
 import (
 	"math"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-)
-
-var (
-	testShardFactory = func() metadata.Shard {
-		return &metadata.TestShard{}
-	}
 )
 
 // SplitTestShards split a set of CachedShard by the middle of resourceKey
 func SplitTestShards(resources []*CachedShard) []*CachedShard {
 	results := make([]*CachedShard, 0, len(resources)*2)
 	for _, res := range resources {
-		resStart, resEnd := res.Meta.Range()
+		resStart, resEnd := res.Meta.GetRange()
 		start, end := byte(0), byte(math.MaxUint8)
 		if len(resStart) > 0 {
 			start = resStart[0]
@@ -42,16 +35,16 @@ func SplitTestShards(resources []*CachedShard) []*CachedShard {
 		middle := []byte{start/2 + end/2}
 
 		left := res.Clone()
-		left.Meta.SetID(res.Meta.ID() + uint64(len(resources)))
+		left.Meta.SetID(res.Meta.GetID() + uint64(len(resources)))
 		left.Meta.SetEndKey(middle)
-		epoch := left.Meta.Epoch()
+		epoch := left.Meta.GetEpoch()
 		epoch.Version++
 		left.Meta.SetEpoch(epoch)
 
 		right := res.Clone()
-		right.Meta.SetID(res.Meta.ID() + uint64(len(resources)*2))
+		right.Meta.SetID(res.Meta.GetID() + uint64(len(resources)*2))
 		right.Meta.SetStartKey(middle)
-		epoch = right.Meta.Epoch()
+		epoch = right.Meta.GetEpoch()
 		epoch.Version++
 		right.Meta.SetEpoch(epoch)
 		results = append(results, left, right)
@@ -69,20 +62,22 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 			right = resources[i+1]
 		}
 
-		leftStart, _ := left.Meta.Range()
-		_, rightEnd := right.Meta.Range()
-		res := &CachedShard{Meta: &metadata.TestShard{
-			ResID: left.Meta.ID() + uint64(len(resources)),
-			Start: leftStart,
-			End:   rightEnd,
-		}}
-		if left.Meta.Epoch().Version > right.Meta.Epoch().Version {
-			res.Meta.SetEpoch(left.Meta.Epoch())
+		leftStart, _ := left.Meta.GetRange()
+		_, rightEnd := right.Meta.GetRange()
+		res := &CachedShard{
+			Meta: metapb.Shard{
+				ID:    left.Meta.GetID() + uint64(len(resources)),
+				Start: leftStart,
+				End:   rightEnd,
+			},
+		}
+		if left.Meta.GetEpoch().Version > right.Meta.GetEpoch().Version {
+			res.Meta.SetEpoch(left.Meta.GetEpoch())
 		} else {
-			res.Meta.SetEpoch(right.Meta.Epoch())
+			res.Meta.SetEpoch(right.Meta.GetEpoch())
 		}
 
-		epoch := res.Meta.Epoch()
+		epoch := res.Meta.GetEpoch()
 		epoch.Version++
 		res.Meta.SetEpoch(epoch)
 		results = append(results, res)
@@ -92,11 +87,13 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 
 // NewTestCachedShard creates a CachedShard for test.
 func NewTestCachedShard(start, end []byte) *CachedShard {
-	return &CachedShard{Meta: &metadata.TestShard{
-		Start:    start,
-		End:      end,
-		ResEpoch: metapb.ShardEpoch{},
-	}}
+	return &CachedShard{
+		Meta: metapb.Shard{
+			Start: start,
+			End:   end,
+			Epoch: metapb.ShardEpoch{},
+		},
+	}
 }
 
 // NewTestStoreInfoWithLabel is create a container with specified labels.
@@ -112,10 +109,7 @@ func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]s
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metadata.TestStore{
-			CID:     id,
-			CLabels: containerLabels,
-		},
+		metapb.Store{ID: id, Labels: containerLabels},
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
 		SetShardSize("", int64(resourceCount)*10),
@@ -129,9 +123,7 @@ func NewTestCachedStoreWithSizeCount(id uint64, resourceCount, leaderCount int, 
 	stats.Capacity = uint64(1024)
 	stats.Available = uint64(1024)
 	container := NewCachedStore(
-		&metadata.TestStore{
-			CID: id,
-		},
+		metapb.Store{ID: id},
 		SetStoreStats(stats),
 		SetShardCount("", resourceCount),
 		SetShardSize("", resourceSize),

@@ -70,7 +70,7 @@ func (d *dimStat) Get() float64 {
 // HotPeerStat records each hot peer's statistics
 type HotPeerStat struct {
 	StoreID uint64 `json:"container_id"`
-	ShardID  uint64 `json:"resource_id"`
+	ShardID uint64 `json:"resource_id"`
 
 	// HotDegree records the times for the resource considered as hot spot during each HandleShardHeartbeat
 	HotDegree int `json:"hot_degree"`

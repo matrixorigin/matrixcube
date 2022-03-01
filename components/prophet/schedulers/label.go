@@ -108,8 +108,8 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	containers := cluster.GetStores()
 	rejectLeaderStores := make(map[uint64]struct{})
 	for _, s := range containers {
-		if cluster.GetOpts().CheckLabelProperty(opt.RejectLeader, s.Meta.Labels()) {
-			rejectLeaderStores[s.Meta.ID()] = struct{}{}
+		if cluster.GetOpts().CheckLabelProperty(opt.RejectLeader, s.Meta.GetLabels()) {
+			rejectLeaderStores[s.Meta.GetID()] = struct{}{}
 		}
 	}
 	if len(rejectLeaderStores) == 0 {
@@ -122,7 +122,7 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 		for _, groupKey := range cluster.GetScheduleGroupKeys() {
 			if res := cluster.RandLeaderShard(groupKey, id, s.conf.groupRanges[util.DecodeGroupKey(groupKey)]); res != nil {
 				cluster.GetLogger().Debug("label scheduler selects resource to transfer leader",
-					resourceField(res.Meta.ID()))
+					resourceField(res.Meta.GetID()))
 				excludeStores := make(map[uint64]struct{})
 				for _, p := range res.GetDownPeers() {
 					excludeStores[p.GetReplica().StoreID] = struct{}{}
@@ -137,12 +137,12 @@ func (s *labelScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 					RandomPick()
 				if target == nil {
 					cluster.GetLogger().Debug("label scheduler no target found for resource",
-						resourceField(res.Meta.ID()))
+						resourceField(res.Meta.GetID()))
 					schedulerCounter.WithLabelValues(s.GetName(), "no-target").Inc()
 					continue
 				}
 
-				op, err := operator.CreateTransferLeaderOperator("label-reject-leader", cluster, res, id, target.Meta.ID(), operator.OpLeader)
+				op, err := operator.CreateTransferLeaderOperator("label-reject-leader", cluster, res, id, target.Meta.GetID(), operator.OpLeader)
 				if err != nil {
 					cluster.GetLogger().Debug("fail to create transfer label reject leader operator",
 						zap.Error(err))

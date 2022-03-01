@@ -3,7 +3,6 @@ package config
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,7 @@ import (
 func TestIssue85(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Adjust(nil, false)
-	cfg.ShardStateChangedHandler = func(res metadata.Shard, from, to metapb.ShardState) {}
+	cfg.ShardStateChangedHandler = func(res *metapb.Shard, from, to metapb.ShardState) {}
 
 	pc := NewPersistOptions(cfg, nil)
 	s := storage.NewTestStorage()

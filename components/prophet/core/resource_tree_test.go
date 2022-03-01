@@ -19,7 +19,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,14 +29,12 @@ func TestCachedShard(t *testing.T) {
 	peers := make([]metapb.Replica, 0, n)
 	for i := uint64(0); i < n; i++ {
 		p := metapb.Replica{
-			ID:          i,
+			ID:      i,
 			StoreID: i,
 		}
 		peers = append(peers, p)
 	}
-	res := &metadata.TestShard{
-		ResPeers: peers,
-	}
+	res := metapb.Shard{Replicas: peers}
 	downPeer, pendingPeer := peers[0], peers[1]
 
 	info := NewCachedShard(
@@ -52,7 +49,7 @@ func TestCachedShard(t *testing.T) {
 	for i := uint64(0); i < n; i++ {
 		p, ok := r.GetPeer(i)
 		assert.True(t, ok)
-		assert.True(t, reflect.DeepEqual(p, r.Meta.Peers()[i]))
+		assert.True(t, reflect.DeepEqual(p, r.Meta.GetReplicas()[i]))
 	}
 
 	_, ok := r.GetPeer(n)
@@ -79,10 +76,10 @@ func TestCachedShard(t *testing.T) {
 	assert.False(t, ok)
 
 	removePeer := metapb.Replica{
-		ID:          n,
+		ID:      n,
 		StoreID: n,
 	}
-	r = r.Clone(SetPeers(append(r.Meta.Peers(), removePeer)))
+	r = r.Clone(SetPeers(append(r.Meta.GetReplicas(), removePeer)))
 
 	assert.True(t, regexp.MustCompile("Add peer.*").MatchString(DiffShardPeersInfo(info, r)))
 	assert.True(t, regexp.MustCompile("Remove peer.*").MatchString(DiffShardPeersInfo(r, info)))
@@ -133,7 +130,7 @@ func TestShardItem(t *testing.T) {
 }
 
 func TestShardSubTree(t *testing.T) {
-	tree := newShardSubTree(testShardFactory)
+	tree := newShardSubTree()
 	assert.Equal(t, int64(0), tree.totalSize)
 	assert.Equal(t, int64(0), tree.totalKeys)
 
@@ -159,7 +156,7 @@ func TestShardSubTree(t *testing.T) {
 }
 
 func TestShardSubTreeMerge(t *testing.T) {
-	tree := newShardSubTree(testShardFactory)
+	tree := newShardSubTree()
 	tree.update(newShardWithStat("a", "b", 1, 2))
 	tree.update(newShardWithStat("b", "c", 3, 4))
 	assert.Equal(t, int64(4), tree.totalSize)
@@ -171,7 +168,7 @@ func TestShardSubTreeMerge(t *testing.T) {
 }
 
 func TestShardTree(t *testing.T) {
-	tree := newShardSubTree(testShardFactory)
+	tree := newShardSubTree()
 	assert.Nil(t, tree.search([]byte("a")))
 
 	resA := NewTestCachedShard([]byte("a"), []byte("b"))
@@ -253,7 +250,7 @@ func TestShardTree(t *testing.T) {
 }
 
 func TestShardTreeSplitAndMerge(t *testing.T) {
-	tree := newShardTree(testShardFactory)
+	tree := newShardTree()
 	resources := []*CachedShard{newTestShardItem([]byte{}, []byte{}).res}
 
 	// Byte will underflow/overflow if n > 7.
@@ -283,7 +280,7 @@ func TestShardTreeSplitAndMerge(t *testing.T) {
 }
 
 func TestRandomShard(t *testing.T) {
-	tree := newShardTree(testShardFactory)
+	tree := newShardTree()
 	r := tree.RandomShard(nil)
 	assert.Nil(t, r)
 
@@ -325,7 +322,7 @@ func TestRandomShard(t *testing.T) {
 }
 
 func TestRandomShardDiscontinuous(t *testing.T) {
-	tree := newShardTree(testShardFactory)
+	tree := newShardTree()
 	r := tree.RandomShard([]KeyRange{NewKeyRange(0, "c", "f")})
 	assert.Nil(t, r)
 
@@ -381,7 +378,7 @@ func TestRandomShardDiscontinuous(t *testing.T) {
 
 func updateTestShards(t *testing.T, tree *resourceTree, resources []*CachedShard) {
 	for _, res := range resources {
-		startKey, endKey := res.Meta.Range()
+		startKey, endKey := res.Meta.GetRange()
 		tree.update(res)
 		assert.Equal(t, res, tree.search(startKey))
 		if len(endKey) > 0 {

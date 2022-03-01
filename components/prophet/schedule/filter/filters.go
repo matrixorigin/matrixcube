@@ -22,7 +22,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
@@ -41,9 +40,9 @@ func SelectSourceStores(containers []*core.CachedStore, filters []Filter, opt *c
 	return filterStoresBy(containers, func(s *core.CachedStore) bool {
 		return slice.AllOf(filters, func(i int) bool {
 			if !filters[i].Source(opt, s) {
-				sourceID := fmt.Sprintf("%d", s.Meta.ID())
+				sourceID := fmt.Sprintf("%d", s.Meta.GetID())
 				targetID := ""
-				filterCounter.WithLabelValues("filter-source", s.Meta.Addr(),
+				filterCounter.WithLabelValues("filter-source", s.Meta.GetClientAddr(),
 					sourceID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -59,12 +58,12 @@ func SelectTargetStores(containers []*core.CachedStore, filters []Filter, opt *c
 			filter := filters[i]
 			if !filter.Target(opt, s) {
 				cfilter, ok := filter.(comparingFilter)
-				targetID := fmt.Sprintf("%d", s.Meta.ID())
+				targetID := fmt.Sprintf("%d", s.Meta.GetID())
 				sourceID := ""
 				if ok {
 					sourceID = fmt.Sprintf("%d", cfilter.GetSourceStoreID())
 				}
-				filterCounter.WithLabelValues("filter-target", s.Meta.Addr(),
+				filterCounter.WithLabelValues("filter-target", s.Meta.GetClientAddr(),
 					targetID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -102,8 +101,8 @@ type comparingFilter interface {
 
 // Source checks if container can pass all Filters as source container.
 func Source(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.Addr()
-	containerID := fmt.Sprintf("%d", container.Meta.ID())
+	containerAddress := container.Meta.GetClientAddr()
+	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Source(opt, container) {
 			sourceID := containerID
@@ -118,8 +117,8 @@ func Source(opt *config.PersistOptions, container *core.CachedStore, filters []F
 
 // Target checks if container can pass all Filters as target container.
 func Target(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.Addr()
-	containerID := fmt.Sprintf("%d", container.Meta.ID())
+	containerAddress := container.Meta.GetClientAddr()
+	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Target(opt, container) {
 			cfilter, ok := filter.(comparingFilter)
@@ -160,7 +159,7 @@ func (f *excludedFilter) Type() string {
 }
 
 func (f *excludedFilter) Source(opt *config.PersistOptions, container *core.CachedStore) bool {
-	_, ok := f.sources[container.Meta.ID()]
+	_, ok := f.sources[container.Meta.GetID()]
 	if ok && LogWhySkipped {
 		f.maybeLogWhy(container)
 	}
@@ -168,7 +167,7 @@ func (f *excludedFilter) Source(opt *config.PersistOptions, container *core.Cach
 }
 
 func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	_, ok := f.targets[container.Meta.ID()]
+	_, ok := f.targets[container.Meta.GetID()]
 	if ok && LogWhySkipped {
 		f.maybeLogWhy(container)
 	}
@@ -178,7 +177,7 @@ func (f *excludedFilter) Target(opt *config.PersistOptions, container *core.Cach
 func (f *excludedFilter) maybeLogWhy(container *core.CachedStore) {
 	if LogWhySkipped {
 		log.Printf("excludedFilter skip container %d, excluded: %+v",
-			container.Meta.ID(),
+			container.Meta.GetID(),
 			f.sources)
 	}
 }
@@ -209,7 +208,7 @@ func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *c
 	v := !container.IsLowSpace(opt.GetLowSpaceRatio())
 	if !v && LogWhySkipped {
 		log.Printf("storageThresholdFilter skip container %d, LowSpaceRatio %+v, Stats %+v, AvailableRatio %+v",
-			container.Meta.ID(),
+			container.Meta.GetID(),
 			opt.GetLowSpaceRatio(),
 			container.GetStoreStats(),
 			container.AvailableRatio())
@@ -219,12 +218,12 @@ func (f *storageThresholdFilter) Target(opt *config.PersistOptions, container *c
 
 // distinctScoreFilter ensures that distinct score will not decrease.
 type distinctScoreFilter struct {
-	scope        string
-	labels       []string
-	containers   []*core.CachedStore
-	policy       string
-	safeScore    float64
-	srcStore uint64
+	scope      string
+	labels     []string
+	containers []*core.CachedStore
+	policy     string
+	safeScore  float64
+	srcStore   uint64
 }
 
 const (
@@ -250,19 +249,19 @@ func NewLocationImprover(scope string, labels []string, containers []*core.Cache
 func newDistinctScoreFilter(scope string, labels []string, containers []*core.CachedStore, source *core.CachedStore, policy string) Filter {
 	newStores := make([]*core.CachedStore, 0, len(containers)-1)
 	for _, s := range containers {
-		if s.Meta.ID() == source.Meta.ID() {
+		if s.Meta.GetID() == source.Meta.GetID() {
 			continue
 		}
 		newStores = append(newStores, s)
 	}
 
 	return &distinctScoreFilter{
-		scope:        scope,
-		labels:       labels,
-		containers:   newStores,
-		safeScore:    core.DistinctScore(labels, newStores, source),
-		policy:       policy,
-		srcStore: source.Meta.ID(),
+		scope:      scope,
+		labels:     labels,
+		containers: newStores,
+		safeScore:  core.DistinctScore(labels, newStores, source),
+		policy:     policy,
+		srcStore:   source.Meta.GetID(),
 	}
 }
 
@@ -381,7 +380,7 @@ func (f *StoreStateFilter) tooManyPendingPeers(opt *config.PersistOptions, conta
 
 func (f *StoreStateFilter) hasRejectLeaderProperty(opts *config.PersistOptions, container *core.CachedStore) bool {
 	f.Reason = "reject-leader"
-	return opts.CheckLabelProperty(opt.RejectLeader, container.Meta.Labels())
+	return opts.CheckLabelProperty(opt.RejectLeader, container.Meta.GetLabels())
 }
 
 // The condition table.
@@ -494,24 +493,22 @@ type ShardFitter interface {
 }
 
 type ruleFitFilter struct {
-	factory      func() metadata.Shard
-	scope        string
-	fitter       ShardFitter
-	resource     *core.CachedShard
-	oldFit       *placement.ShardFit
+	scope    string
+	fitter   ShardFitter
+	resource *core.CachedShard
+	oldFit   *placement.ShardFit
 	srcStore uint64
 }
 
 // newRuleFitFilter creates a filter that ensures after replace a peer with new
 // one, the isolation level will not decrease. Its function is the same as
 // distinctScoreFilter but used when placement rules is enabled.
-func newRuleFitFilter(scope string, fitter ShardFitter, resource *core.CachedShard, oldStoreID uint64, factory func() metadata.Shard) Filter {
+func newRuleFitFilter(scope string, fitter ShardFitter, resource *core.CachedShard, oldStoreID uint64) Filter {
 	return &ruleFitFilter{
-		factory:      factory,
-		scope:        scope,
-		fitter:       fitter,
-		resource:     resource,
-		oldFit:       fitter.FitShard(resource),
+		scope:    scope,
+		fitter:   fitter,
+		resource: resource,
+		oldFit:   fitter.FitShard(resource),
 		srcStore: oldStoreID,
 	}
 }
@@ -529,12 +526,11 @@ func (f *ruleFitFilter) Source(opt *config.PersistOptions, container *core.Cache
 }
 
 func (f *ruleFitFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	start, end := f.resource.Meta.Range()
+	start, end := f.resource.Meta.GetRange()
 
 	resource := createShardForRuleFit(start, end,
-		f.resource.Meta.Peers(), f.resource.GetLeader(),
-		f.factory,
-		core.WithReplacePeerStore(f.srcStore, container.Meta.ID()))
+		f.resource.Meta.GetReplicas(), f.resource.GetLeader(),
+		core.WithReplacePeerStore(f.srcStore, container.Meta.GetID()))
 	newFit := f.fitter.FitShard(resource)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
 }
@@ -545,23 +541,21 @@ func (f *ruleFitFilter) GetSourceStoreID() uint64 {
 }
 
 type ruleLeaderFitFilter struct {
-	factory              func() metadata.Shard
-	scope                string
-	fitter               ShardFitter
-	resource             *core.CachedShard
-	oldFit               *placement.ShardFit
+	scope            string
+	fitter           ShardFitter
+	resource         *core.CachedShard
+	oldFit           *placement.ShardFit
 	srcLeaderStoreID uint64
 }
 
 // newRuleLeaderFitFilter creates a filter that ensures after transfer leader with new container,
 // the isolation level will not decrease.
-func newRuleLeaderFitFilter(scope string, fitter ShardFitter, res *core.CachedShard, oldLeaderStoreID uint64, factory func() metadata.Shard) Filter {
+func newRuleLeaderFitFilter(scope string, fitter ShardFitter, res *core.CachedShard, oldLeaderStoreID uint64) Filter {
 	return &ruleLeaderFitFilter{
-		factory:              factory,
-		scope:                scope,
-		fitter:               fitter,
-		resource:             res,
-		oldFit:               fitter.FitShard(res),
+		scope:            scope,
+		fitter:           fitter,
+		resource:         res,
+		oldFit:           fitter.FitShard(res),
 		srcLeaderStoreID: oldLeaderStoreID,
 	}
 }
@@ -579,13 +573,12 @@ func (f *ruleLeaderFitFilter) Source(opt *config.PersistOptions, container *core
 }
 
 func (f *ruleLeaderFitFilter) Target(opt *config.PersistOptions, container *core.CachedStore) bool {
-	targetPeer, ok := f.resource.GetStorePeer(container.Meta.ID())
+	targetPeer, ok := f.resource.GetStorePeer(container.Meta.GetID())
 	if !ok {
 		return false
 	}
 	copyShard := createShardForRuleFit(f.resource.GetStartKey(), f.resource.GetEndKey(),
-		f.resource.Meta.Peers(), f.resource.GetLeader(),
-		f.factory,
+		f.resource.Meta.GetReplicas(), f.resource.GetLeader(),
 		core.WithLeader(&targetPeer))
 	newFit := f.fitter.FitShard(copyShard)
 	return placement.CompareShardFit(f.oldFit, newFit) <= 0
@@ -597,9 +590,9 @@ func (f *ruleLeaderFitFilter) GetSourceStoreID() uint64 {
 
 // NewPlacementSafeguard creates a filter that ensures after replace a peer with new
 // peer, the placement restriction will not become worse.
-func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore, factory func() metadata.Shard) Filter {
+func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.ID(), factory)
+		return newRuleFitFilter(scope, cluster, res, sourceStore.Meta.GetID())
 	}
 	return NewLocationSafeguard(scope, cluster.GetOpts().GetLocationLabels(), cluster.GetShardStores(res), sourceStore)
 }
@@ -607,9 +600,9 @@ func NewPlacementSafeguard(scope string, cluster opt.Cluster, res *core.CachedSh
 // NewPlacementLeaderSafeguard creates a filter that ensures after transfer a leader with
 // existed peer, the placement restriction will not become worse.
 // Note that it only worked when PlacementRules enabled otherwise it will always permit the sourceStore.
-func NewPlacementLeaderSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore, factory func() metadata.Shard) Filter {
+func NewPlacementLeaderSafeguard(scope string, cluster opt.Cluster, res *core.CachedShard, sourceStore *core.CachedStore) Filter {
 	if cluster.GetOpts().IsPlacementRulesEnabled() {
-		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.ID(), factory)
+		return newRuleLeaderFitFilter(scope, cluster, res, sourceStore.Meta.GetID())
 	}
 	return nil
 }
@@ -801,23 +794,22 @@ func (f *isolationFilter) Target(opt *config.PersistOptions, container *core.Cac
 // FitShard in filter
 func createShardForRuleFit(startKey, endKey []byte,
 	peers []metapb.Replica, leader *metapb.Replica,
-	factory func() metadata.Shard,
 	opts ...core.ShardCreateOption) *core.CachedShard {
 	copyLeader := proto.Clone(leader).(*metapb.Replica)
 	copyPeers := make([]metapb.Replica, 0, len(peers))
 	for _, p := range peers {
 		peer := metapb.Replica{
-			ID:          p.ID,
+			ID:      p.ID,
 			StoreID: p.StoreID,
-			Role:        p.Role,
+			Role:    p.Role,
 		}
 		copyPeers = append(copyPeers, peer)
 	}
 
-	meta := factory()
+	meta := metapb.Shard{}
 	meta.SetStartKey(startKey)
 	meta.SetEndKey(endKey)
-	meta.SetPeers(copyPeers)
+	meta.SetReplicas(copyPeers)
 
 	cloneShard := core.NewCachedShard(meta, copyLeader, opts...)
 	return cloneShard

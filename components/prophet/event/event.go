@@ -14,7 +14,6 @@
 package event
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
@@ -34,9 +33,9 @@ var (
 	EventFlagAll = 0xffffffff
 
 	names = map[uint32]string{
-		EventInit:           "init",
-		EventShard:       "resource",
-		EventShardStats:  "resource-stats",
+		EventInit:       "init",
+		EventShard:      "resource",
+		EventShardStats: "resource-stats",
 		EventStore:      "container",
 		EventStoreStats: "container-stats",
 	}
@@ -49,9 +48,9 @@ func EventTypeName(value uint32) string {
 
 // Snapshot cache snapshot
 type Snapshot struct {
-	Shards  []metadata.Shard
-	Stores []metadata.Store
-	Leaders    map[uint64]uint64
+	Shards  []*metapb.Shard
+	Stores  []*metapb.Store
+	Leaders map[uint64]uint64
 }
 
 // MatchEvent returns the flag has the target event
@@ -79,14 +78,14 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 		}
 
 		resp.Shards = append(resp.Shards, data)
-		resp.Leaders = append(resp.Leaders, snap.Leaders[v.ID()])
+		resp.Leaders = append(resp.Leaders, snap.Leaders[v.GetID()])
 	}
 
 	return resp, nil
 }
 
 // NewShardEvent create resource event
-func NewShardEvent(target metadata.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
+func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}
@@ -106,7 +105,7 @@ func NewShardEvent(target metadata.Shard, leaderID uint64, removed bool, create 
 // NewShardStatsEvent create resource stats event
 func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:               EventShardStats,
+		Type:            EventShardStats,
 		ShardStatsEvent: stats,
 	}
 }
@@ -114,13 +113,13 @@ func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 // NewStoreStatsEvent create container stats event
 func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:                EventStoreStats,
+		Type:            EventStoreStats,
 		StoreStatsEvent: stats,
 	}
 }
 
 // NewStoreEvent create container event
-func NewStoreEvent(target metadata.Store) rpcpb.EventNotify {
+func NewStoreEvent(target metapb.Store) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
 		return rpcpb.EventNotify{}

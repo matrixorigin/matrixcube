@@ -13,7 +13,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -229,8 +228,8 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 	id := uint64(0)
 	p.AllocatedOffset++
 	unique := dsp.unique(group, p.AllocatedOffset)
-	fn := func(res metadata.Shard) {
-		shard := res.(*resourceAdapter).meta
+	fn := func(res metapb.Shard) {
+		shard := res
 		if shard.Unique == unique {
 			id = shard.ID
 		}
@@ -315,23 +314,25 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 	dsp.mu.Lock()
 	if !dsp.isStartedLocked() {
 		dsp.mu.Unlock()
+		fmt.Println("DSP is not started")
 		return
 	}
 
 	// we don't modify directly
 	modified := dsp.cloneDataLocked()
-	var creates []metadata.Shard
+	var creates []metapb.Shard
 	for {
 		changed := false
 		for g, p := range modified.Pools {
 			if p.Seq == 0 ||
 				(int(p.Seq-p.AllocatedOffset) < int(p.Capacity) && len(creates) < batchCreateCount) {
 				p.Seq++
-				creates = append(creates, NewShardAdapterWithShard(dsp.factory(g,
+				tmp := dsp.factory(g,
 					addPrefix(p.RangePrefix, p.Seq),
 					addPrefix(p.RangePrefix, p.Seq+1),
 					dsp.unique(g, p.Seq),
-					p.Seq)))
+					p.Seq)
+				creates = append(creates, tmp)
 				changed = true
 			}
 		}
@@ -348,6 +349,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		}
 		err := dsp.pd.AsyncAddShards(creates...)
 		if err != nil {
+			fmt.Println("fail to create shard")
 			dsp.logger.Error("fail to create shard",
 				zap.Error(err))
 			return

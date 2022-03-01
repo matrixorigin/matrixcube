@@ -21,7 +21,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -95,14 +94,15 @@ func TestRuleFitFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
 	testCluster.SetEnablePlacementRules(true)
-	resource := core.NewCachedShard(&metadata.TestShard{ResPeers: []metapb.Replica{
-		{StoreID: 1, ID: 1},
-		{StoreID: 3, ID: 3},
-		{StoreID: 5, ID: 5},
-	}}, &metapb.Replica{StoreID: 1, ID: 1})
+	resource := core.NewCachedShard(metapb.Shard{
+		Replicas: []metapb.Replica{
+			{StoreID: 1, ID: 1},
+			{StoreID: 3, ID: 3},
+			{StoreID: 5, ID: 5},
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
 
 	testCases := []struct {
-		StoreID   uint64
+		StoreID       uint64
 		resourceCount int
 		labels        map[string]string
 		sourceRes     bool
@@ -120,7 +120,7 @@ func TestRuleFitFilter(t *testing.T) {
 		testCluster.AddLabelsStore(tc.StoreID, tc.resourceCount, tc.labels)
 	}
 	for _, tc := range testCases {
-		filter := newRuleFitFilter("", testCluster, resource, 1, metadata.TestShardFactory)
+		filter := newRuleFitFilter("", testCluster, resource, 1)
 		assert.Equal(t, tc.sourceRes, filter.Source(testCluster.GetOpts(), testCluster.GetStore(tc.StoreID)))
 		assert.Equal(t, tc.targetRes, filter.Target(testCluster.GetOpts(), testCluster.GetStore(tc.StoreID)))
 	}
@@ -182,7 +182,7 @@ func TestIsolationFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone", "rack", "host"})
 	allStores := []struct {
-		StoreID   uint64
+		StoreID       uint64
 		resourceCount int
 		labels        map[string]string
 	}{
@@ -205,7 +205,7 @@ func TestIsolationFilter(t *testing.T) {
 		targetRes      []bool
 	}{
 		{
-			core.NewCachedShard(&metadata.TestShard{ResPeers: []metapb.Replica{
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
 				{ID: 1, StoreID: 1},
 				{ID: 2, StoreID: 6},
 			}}, &metapb.Replica{StoreID: 1, ID: 1}),
@@ -214,7 +214,7 @@ func TestIsolationFilter(t *testing.T) {
 			[]bool{false, false, false, false, false, false, true},
 		},
 		{
-			core.NewCachedShard(&metadata.TestShard{ResPeers: []metapb.Replica{
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
 				{ID: 1, StoreID: 1},
 				{ID: 2, StoreID: 4},
 				{ID: 3, StoreID: 7},
@@ -224,7 +224,7 @@ func TestIsolationFilter(t *testing.T) {
 			[]bool{false, false, false, false, true, true, false},
 		},
 		{
-			core.NewCachedShard(&metadata.TestShard{ResPeers: []metapb.Replica{
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
 				{ID: 1, StoreID: 1},
 				{ID: 2, StoreID: 4},
 				{ID: 3, StoreID: 6},
@@ -254,19 +254,20 @@ func TestPlacementGuard(t *testing.T) {
 	testCluster.AddLabelsStore(3, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(4, 1, map[string]string{"zone": "z2"})
 	testCluster.AddLabelsStore(5, 1, map[string]string{"zone": "z3"})
-	resource := core.NewCachedShard(&metadata.TestShard{ResPeers: []metapb.Replica{
-		{StoreID: 1, ID: 1},
-		{StoreID: 3, ID: 3},
-		{StoreID: 5, ID: 5},
-	}}, &metapb.Replica{StoreID: 1, ID: 1})
+	resource := core.NewCachedShard(metapb.Shard{
+		Replicas: []metapb.Replica{
+			{StoreID: 1, ID: 1},
+			{StoreID: 3, ID: 3},
+			{StoreID: 5, ID: 5},
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
 	container := testCluster.GetStore(1)
 
-	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container, metadata.TestShardFactory))
+	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container))
 	expected := reflect.ValueOf(NewLocationSafeguard("", []string{"zone"}, testCluster.GetShardStores(resource), container))
 	assert.True(t, obtained.Type().AssignableTo(expected.Type()))
 
 	testCluster.SetEnablePlacementRules(true)
-	obtained = reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container, metadata.TestShardFactory))
-	expected = reflect.ValueOf(newRuleFitFilter("", testCluster, resource, 1, metadata.TestShardFactory))
+	obtained = reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container))
+	expected = reflect.ValueOf(newRuleFitFilter("", testCluster, resource, 1))
 	assert.True(t, obtained.Type().AssignableTo(expected.Type()))
 }

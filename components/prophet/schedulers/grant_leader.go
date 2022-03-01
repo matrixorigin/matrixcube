@@ -71,10 +71,10 @@ func init() {
 }
 
 type grantLeaderSchedulerConfig struct {
-	mu                         sync.RWMutex
-	storage                    storage.Storage
+	mu                     sync.RWMutex
+	storage                storage.Storage
 	StoreIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
-	cluster                    opt.Cluster
+	cluster                opt.Cluster
 	groupStoreIDWithRanges map[uint64]map[uint64][]core.KeyRange
 }
 

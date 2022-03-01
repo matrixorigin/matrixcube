@@ -16,10 +16,10 @@ package core
 
 import (
 	"bytes"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"math/rand"
 	"time"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/btree"
 )
 
@@ -46,19 +46,17 @@ const (
 )
 
 type resourceTree struct {
-	tree    *btree.BTree
-	factory func() metadata.Shard
+	tree *btree.BTree
 }
 
-func newShardTree(factory func() metadata.Shard) *resourceTree {
+func newShardTree() *resourceTree {
 	return &resourceTree{
-		factory: factory,
-		tree:    btree.New(defaultBTreeDegree),
+		tree: btree.New(defaultBTreeDegree),
 	}
 }
 
 func (t *resourceTree) newSearchRes(key []byte) *CachedShard {
-	meta := t.factory()
+	meta := metapb.Shard{}
 	meta.SetStartKey(key)
 	return &CachedShard{Meta: meta}
 }
@@ -116,7 +114,7 @@ func (t *resourceTree) remove(res *CachedShard) btree.Item {
 		return nil
 	}
 	result := t.find(res)
-	if result == nil || result.res.Meta.ID() != res.Meta.ID() {
+	if result == nil || result.res.Meta.GetID() != res.Meta.GetID() {
 		return nil
 	}
 

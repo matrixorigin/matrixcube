@@ -135,16 +135,16 @@ func (s *shuffleShardScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.C
 		for _, groupKey := range cluster.GetScheduleGroupKeys() {
 			var res *core.CachedShard
 			if s.conf.IsRoleAllow(roleFollower) {
-				res = cluster.RandFollowerShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
+				res = cluster.RandFollowerShard(groupKey, source.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLeader) {
-				res = cluster.RandLeaderShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
+				res = cluster.RandLeaderShard(groupKey, source.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res == nil && s.conf.IsRoleAllow(roleLearner) {
-				res = cluster.RandLearnerShard(groupKey, source.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
+				res = cluster.RandLearnerShard(groupKey, source.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster), opt.ReplicatedShard(cluster))
 			}
 			if res != nil {
-				if p, ok := res.GetStorePeer(source.Meta.ID()); ok {
+				if p, ok := res.GetStorePeer(source.Meta.GetID()); ok {
 					return res, p
 				}
 
@@ -159,7 +159,7 @@ func (s *shuffleShardScheduler) scheduleRemovePeer(cluster opt.Cluster) (*core.C
 }
 
 func (s *shuffleShardScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.CachedShard, oldPeer metapb.Replica) (metapb.Replica, bool) {
-	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetStore(oldPeer.StoreID), s.OpController.GetCluster().GetShardFactory())
+	scoreGuard := filter.NewPlacementSafeguard(s.GetName(), cluster, res, cluster.GetStore(oldPeer.StoreID))
 	excludedFilter := filter.NewExcludedFilter(s.GetName(), nil, res.GetStoreIDs())
 
 	target := filter.NewCandidates(cluster.GetStores()).
@@ -169,5 +169,5 @@ func (s *shuffleShardScheduler) scheduleAddPeer(cluster opt.Cluster, res *core.C
 	if target == nil {
 		return metapb.Replica{}, false
 	}
-	return metapb.Replica{StoreID: target.Meta.ID(), Role: oldPeer.GetRole()}, true
+	return metapb.Replica{StoreID: target.Meta.GetID(), Role: oldPeer.GetRole()}, true
 }

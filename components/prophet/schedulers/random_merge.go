@@ -125,7 +125,7 @@ func (s *randomMergeScheduler) Schedule(cluster opt.Cluster) []*operator.Operato
 }
 
 func (s *randomMergeScheduler) scheduleByGroup(groupKey string, container *core.CachedStore, cluster opt.Cluster) []*operator.Operator {
-	res := cluster.RandLeaderShard(groupKey, container.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
+	res := cluster.RandLeaderShard(groupKey, container.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-resource").Inc()
 		return nil

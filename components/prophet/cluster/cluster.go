@@ -27,7 +27,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/checker"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
@@ -76,8 +75,8 @@ type Server interface {
 // cluster 1 -> /1/raft, value is metapb.Cluster
 // cluster 2 -> /2/raft
 // For cluster 1
-// container 1 -> /1/raft/s/1, value is metadata.Store
-// resource 1 -> /1/raft/r/1, value is metadata.Shard
+// container 1 -> /1/raft/s/1, value is *metapb.Store
+// resource 1 -> /1/raft/r/1, value is *metapb.Shard
 type RaftCluster struct {
 	sync.RWMutex
 	ctx context.Context
@@ -110,8 +109,7 @@ type RaftCluster struct {
 
 	ruleManager                 *placement.RuleManager
 	etcdClient                  *clientv3.Client
-	adapter                     metadata.Adapter
-	resourceStateChangedHandler func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState)
+	resourceStateChangedHandler func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState)
 
 	logger *zap.Logger
 }
@@ -122,8 +120,7 @@ func NewRaftCluster(
 	root string,
 	clusterID uint64,
 	etcdClient *clientv3.Client,
-	adapter metadata.Adapter,
-	resourceStateChangedHandler func(res metadata.Shard, from metapb.ShardState, to metapb.ShardState),
+	resourceStateChangedHandler func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState),
 	logger *zap.Logger,
 ) *RaftCluster {
 	return &RaftCluster{
@@ -132,7 +129,6 @@ func NewRaftCluster(
 		clusterID:                   clusterID,
 		clusterRoot:                 root,
 		etcdClient:                  etcdClient,
-		adapter:                     adapter,
 		resourceStateChangedHandler: resourceStateChangedHandler,
 		logger:                      log.Adjust(logger).Named("raft-cluster"),
 	}
@@ -204,7 +200,7 @@ func (c *RaftCluster) Start(s Server) error {
 // LoadClusterInfo loads cluster related info.
 func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 	start := time.Now()
-	if err := c.storage.LoadStores(batch, func(meta metadata.Store, leaderWeight, resourceWeight float64) {
+	if err := c.storage.LoadStores(batch, func(meta metapb.Store, leaderWeight, resourceWeight float64) {
 		c.core.PutStore(core.NewCachedStore(meta,
 			core.SetLeaderWeight(leaderWeight),
 			core.SetShardWeight(resourceWeight)))
@@ -217,7 +213,7 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 
 	// used to load resource from kv storage to cache storage.
 	start = time.Now()
-	if err := c.storage.LoadShards(batch, func(meta metadata.Shard) {
+	if err := c.storage.LoadShards(batch, func(meta metapb.Shard) {
 		c.core.CheckAndPutShard(core.NewCachedShard(meta, nil))
 	}); err != nil {
 		return nil, err
@@ -227,7 +223,7 @@ func (c *RaftCluster) LoadClusterInfo() (*RaftCluster, error) {
 		zap.Duration("cost", time.Since(start)))
 
 	for _, container := range c.GetStores() {
-		c.hotStat.GetOrCreateRollingStoreStats(container.Meta.ID())
+		c.hotStat.GetOrCreateRollingStoreStats(container.Meta.GetID())
 	}
 
 	// load resource group rules
@@ -445,14 +441,14 @@ func (c *RaftCluster) HandleStoreHeartbeat(stats *metapb.StoreStats) error {
 	newStore := container.Clone(core.SetStoreStats(stats), core.SetLastHeartbeatTS(time.Now()))
 	if newStore.IsLowSpace(c.opt.GetLowSpaceRatio()) {
 		c.logger.Warn("container does not have enough disk space, capacity %d, available %d",
-			zap.Uint64("container", newStore.Meta.ID()),
+			zap.Uint64("container", newStore.Meta.GetID()),
 			zap.Uint64("capacity", newStore.GetCapacity()),
 			zap.Uint64("available", newStore.GetAvailable()))
 	}
 	if newStore.NeedPersist() && c.storage != nil {
 		if err := c.storage.PutStore(newStore.Meta); err != nil {
 			c.logger.Error("fail to persist container",
-				zap.Uint64("contianer", newStore.Meta.ID()),
+				zap.Uint64("contianer", newStore.Meta.GetID()),
 				zap.Error(err))
 		} else {
 			newStore = newStore.Clone(core.SetLastPersistTime(time.Now()))
@@ -460,14 +456,14 @@ func (c *RaftCluster) HandleStoreHeartbeat(stats *metapb.StoreStats) error {
 
 		c.addNotifyLocked(event.NewStoreEvent(newStore.Meta))
 	}
-	if container := c.core.GetStore(newStore.Meta.ID()); container != nil {
+	if container := c.core.GetStore(newStore.Meta.GetID()); container != nil {
 		c.hotStat.UpdateStoreHeartbeatMetrics(container)
 	}
 
 	c.core.PutStore(newStore)
 	c.addNotifyLocked(event.NewStoreStatsEvent(newStore.GetStoreStats()))
 
-	c.hotStat.Observe(newStore.Meta.ID(), newStore.GetStoreStats())
+	c.hotStat.Observe(newStore.Meta.GetID(), newStore.GetStoreStats())
 	c.hotStat.UpdateTotalLoad(c.core.GetStores())
 	c.hotStat.FilterUnhealthyStore(c)
 
@@ -495,17 +491,11 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeDestroyed metadata.Shard
+	var checkMaybeDestroyed metapb.Shard
 	if origin != nil {
 		checkMaybeDestroyed = origin.Meta
 	}
-	if checkMaybeDestroyed == nil {
-		checkMaybeDestroyed, err = c.storage.GetShard(res.Meta.ID())
-		if err != nil {
-			return err
-		}
-	}
-	if checkMaybeDestroyed != nil && checkMaybeDestroyed.State() == metapb.ShardState_Destroyed {
+	if checkMaybeDestroyed.GetState() == metapb.ShardState_Destroyed {
 		return errShardDestroyed
 	}
 
@@ -515,22 +505,22 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	var saveKV, saveCache, isNew bool
 	if origin == nil {
 		c.logger.Debug("insert new resource",
-			zap.Uint64("resource", res.Meta.ID()))
+			zap.Uint64("resource", res.Meta.GetID()))
 		saveKV, saveCache, isNew = true, true, true
 	} else {
-		r := res.Meta.Epoch()
-		o := origin.Meta.Epoch()
+		r := res.Meta.GetEpoch()
+		o := origin.Meta.GetEpoch()
 		if r.GetVersion() > o.GetVersion() {
 			c.logger.Info("resource version changed",
-				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.GetID()),
 				zap.Uint64("from", o.GetVersion()),
 				zap.Uint64("to", r.GetVersion()))
 			saveKV, saveCache = true, true
 		}
 		if r.GetConfVer() > o.GetConfVer() {
 			c.logger.Info("resource ConfVer changed",
-				zap.Uint64("resource", res.Meta.ID()),
-				log.ReplicasField("peers", res.Meta.Peers()),
+				zap.Uint64("resource", res.Meta.GetID()),
+				log.ReplicasField("peers", res.Meta.GetReplicas()),
 				zap.Uint64("from", o.GetConfVer()),
 				zap.Uint64("to", r.GetConfVer()))
 			saveKV, saveCache = true, true
@@ -540,7 +530,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 				isNew = true
 			} else {
 				c.logger.Info("resource leader changed",
-					zap.Uint64("resource", res.Meta.ID()),
+					zap.Uint64("resource", res.Meta.GetID()),
 					zap.Uint64("from", origin.GetLeader().GetStoreID()),
 					zap.Uint64("to", res.GetLeader().GetStoreID()))
 			}
@@ -552,10 +542,10 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 		if !core.SortedPeersEqual(res.GetPendingPeers(), origin.GetPendingPeers()) {
 			saveCache = true
 		}
-		if len(res.Meta.Peers()) != len(origin.Meta.Peers()) {
+		if len(res.Meta.GetReplicas()) != len(origin.Meta.GetReplicas()) {
 			saveKV, saveCache = true, true
 		}
-		if res.Meta.State() != origin.Meta.State() {
+		if res.Meta.GetState() != origin.Meta.GetState() {
 			saveKV, saveCache = true, true
 		}
 		if res.GetGroupKey() != origin.GetGroupKey() {
@@ -578,10 +568,10 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	}
 
 	c.Lock()
-	inCreating := c.core.IsWaittingCreateShard(res.Meta.ID())
+	inCreating := c.core.IsWaittingCreateShard(res.Meta.GetID())
 	if isNew && inCreating {
 		if c.resourceStateChangedHandler != nil {
-			c.resourceStateChangedHandler(res.Meta, metapb.ShardState_Creating,
+			c.resourceStateChangedHandler(&res.Meta, metapb.ShardState_Creating,
 				metapb.ShardState_Running)
 		}
 	}
@@ -601,25 +591,25 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 			for _, item := range overlaps {
 				if err := c.storage.RemoveShard(item.Meta); err != nil {
 					c.logger.Error("fail to delete resource from storage",
-						zap.Uint64("resource", item.Meta.ID()),
+						zap.Uint64("resource", item.Meta.GetID()),
 						zap.Error(err))
 				}
 			}
 		}
 		for _, item := range overlaps {
 			if c.resourceStats != nil {
-				c.resourceStats.ClearDefunctShard(item.Meta.ID())
+				c.resourceStats.ClearDefunctShard(item.Meta.GetID())
 			}
-			c.labelLevelStats.ClearDefunctShard(item.Meta.ID())
+			c.labelLevelStats.ClearDefunctShard(item.Meta.GetID())
 		}
 
 		// Update related containers.
 		containerMap := make(map[uint64]struct{})
-		for _, p := range res.Meta.Peers() {
+		for _, p := range res.Meta.GetReplicas() {
 			containerMap[p.GetStoreID()] = struct{}{}
 		}
 		if origin != nil {
-			for _, p := range origin.Meta.Peers() {
+			for _, p := range origin.Meta.GetReplicas() {
 				containerMap[p.GetStoreID()] = struct{}{}
 			}
 		}
@@ -627,7 +617,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 			c.updateStoreStatusLocked(res.GetGroupKey(), key)
 			if origin != nil && origin.GetGroupKey() != res.GetGroupKey() {
 				c.logger.Debug("update container status",
-					zap.Uint64("resource", res.Meta.ID()),
+					zap.Uint64("resource", res.Meta.GetID()),
 					zap.Uint64("size", uint64(res.GetApproximateSize())),
 					log.HexField("origin-group-key", []byte(origin.GetGroupKey())),
 					log.HexField("current-group-key", []byte(res.GetGroupKey())))
@@ -656,7 +646,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// If there are concurrent heartbeats from the same resource, the last write will win even if
 	// writes to storage in the critical area. So don't use mutex to protect it.
 	if saveKV && c.storage != nil {
-		if !inCreating && res.Meta.State() == metapb.ShardState_Creating {
+		if !inCreating && res.Meta.GetState() == metapb.ShardState_Creating {
 			res = res.Clone(core.WithState(metapb.ShardState_Running))
 		}
 
@@ -664,7 +654,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 			// Not successfully saved to storage is not fatal, it only leads to longer warm-up
 			// after restart. Here we only log the error then go on updating cache.
 			c.logger.Error("fail to save resource to storage",
-				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.GetID()),
 				zap.Error(err))
 		}
 		resourceEventCounter.WithLabelValues("update_kv").Inc()
@@ -677,7 +667,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 				from = origin.GetLeader().GetStoreID()
 			}
 			c.logger.Debug("notify resource leader changed",
-				zap.Uint64("resource", res.Meta.ID()),
+				zap.Uint64("resource", res.Meta.GetID()),
 				zap.Uint64("from", from),
 				zap.Uint64("to", res.GetLeader().GetStoreID()))
 		}
@@ -727,7 +717,7 @@ func (c *RaftCluster) GetShard(resourceID uint64) *core.CachedShard {
 }
 
 // GetMetaShards gets resources from cluster.
-func (c *RaftCluster) GetMetaShards() []metadata.Shard {
+func (c *RaftCluster) GetMetaShards() []*metapb.Shard {
 	return c.core.GetMetaShards()
 }
 
@@ -839,7 +829,7 @@ func (c *RaftCluster) GetCacheCluster() *core.BasicCluster {
 }
 
 // GetMetaStores gets containers from cluster.
-func (c *RaftCluster) GetMetaStores() []metadata.Store {
+func (c *RaftCluster) GetMetaStores() []metapb.Store {
 	return c.core.GetMetaStores()
 }
 
@@ -872,14 +862,14 @@ func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Pair
 	if container == nil {
 		return fmt.Errorf("invalid container ID %d, not found", containerID)
 	}
-	newStore := container.Meta.Clone()
+	newStore := container.Meta.CloneValue()
 	newStore.SetLabels(labels)
 	// PutStore will perform label merge.
 	return c.putStoreImpl(newStore, force)
 }
 
 // PutStore puts a container.
-func (c *RaftCluster) PutStore(container metadata.Store) error {
+func (c *RaftCluster) PutStore(container metapb.Store) error {
 	if err := c.putStoreImpl(container, false); err != nil {
 		return err
 	}
@@ -889,11 +879,11 @@ func (c *RaftCluster) PutStore(container metadata.Store) error {
 
 // putStoreImpl puts a container.
 // If 'force' is true, then overwrite the container's labels.
-func (c *RaftCluster) putStoreImpl(container metadata.Store, force bool) error {
+func (c *RaftCluster) putStoreImpl(container metapb.Store, force bool) error {
 	c.Lock()
 	defer c.Unlock()
 
-	if container.ID() == 0 {
+	if container.GetID() == 0 {
 		return fmt.Errorf("invalid put container %v", container)
 	}
 
@@ -904,30 +894,30 @@ func (c *RaftCluster) putStoreImpl(container metadata.Store, force bool) error {
 
 			continue
 		}
-		if s.Meta.ID() != container.ID() && s.Meta.Addr() == container.Addr() {
+		if s.Meta.GetID() != container.GetID() && s.Meta.GetClientAddr() == container.GetClientAddr() {
 			return fmt.Errorf("duplicated container address: %v, already registered by %v", container, s.Meta)
 		}
 	}
 
-	s := c.GetStore(container.ID())
+	s := c.GetStore(container.GetID())
 	if s == nil {
 		// Add a new container.
 		s = core.NewCachedStore(container)
 	} else {
 		// Use the given labels to update the container.
-		labels := container.Labels()
+		labels := container.GetLabels()
 		if !force {
 			// If 'force' isn't set, the given labels will merge into those labels which already existed in the container.
 			labels = s.MergeLabels(labels)
 		}
 		// Update an existed container.
-		v, githash := container.Version()
+		v, githash := container.GetVersionAndGitHash()
 		s = s.Clone(
-			core.SetStoreAddress(container.Addr(), container.ShardAddr()),
+			core.SetStoreAddress(container.GetClientAddr(), container.GetRaftAddr()),
 			core.SetStoreVersion(githash, v),
 			core.SetStoreLabels(labels),
-			core.SetStoreStartTime(container.StartTimestamp()),
-			core.SetStoreDeployPath(container.DeployPath()),
+			core.SetStoreStartTime(container.GetStartTime()),
+			core.SetStoreDeployPath(container.GetDeployPath()),
 		)
 	}
 	if err := c.checkStoreLabels(s); err != nil {
@@ -945,18 +935,18 @@ func (c *RaftCluster) checkStoreLabels(s *core.CachedStore) error {
 		keysSet[k] = struct{}{}
 		if v := s.GetLabelValue(k); len(v) == 0 {
 			c.logger.Warn("container label configuration is incorrect",
-				zap.Uint64("container", s.Meta.ID()),
+				zap.Uint64("container", s.Meta.GetID()),
 				zap.String("label", k))
 			if c.opt.GetStrictlyMatchLabel() {
 				return fmt.Errorf("label configuration is incorrect, need to specify the key: %s ", k)
 			}
 		}
 	}
-	for _, label := range s.Meta.Labels() {
+	for _, label := range s.Meta.GetLabels() {
 		key := label.GetKey()
 		if _, ok := keysSet[key]; !ok {
 			c.logger.Warn("container not found the key match with the label",
-				zap.Uint64("container", s.Meta.ID()),
+				zap.Uint64("container", s.Meta.GetID()),
 				zap.String("label", key))
 			if c.opt.GetStrictlyMatchLabel() {
 				return fmt.Errorf("key matching the label was not found in the Prophet, container label key: %s ", key)
@@ -992,8 +982,8 @@ func (c *RaftCluster) RemoveStore(containerID uint64, physicallyDestroyed bool) 
 
 	newStore := container.Clone(core.OfflineStore(physicallyDestroyed))
 	c.logger.Warn("container has been offline",
-		zap.Uint64("container", newStore.Meta.ID()),
-		zap.String("container-address", newStore.Meta.Addr()),
+		zap.Uint64("container", newStore.Meta.GetID()),
+		zap.String("container-address", newStore.Meta.GetClientAddr()),
 		zap.Bool("physically-destroyed", physicallyDestroyed))
 	err := c.putStoreLocked(newStore)
 	if err == nil {
@@ -1027,8 +1017,8 @@ func (c *RaftCluster) buryStore(containerID uint64) error {
 
 	newStore := container.Clone(core.TombstoneStore())
 	c.logger.Warn("container has been tombstone",
-		zap.Uint64("container", newStore.Meta.ID()),
-		zap.String("container-address", newStore.Meta.Addr()),
+		zap.Uint64("container", newStore.Meta.GetID()),
+		zap.String("container-address", newStore.Meta.GetClientAddr()),
 		zap.Bool("physically-destroyed", newStore.IsPhysicallyDestroyed()))
 	err := c.putStoreLocked(newStore)
 	if err == nil {
@@ -1077,8 +1067,8 @@ func (c *RaftCluster) UpStore(containerID uint64) error {
 
 	newStore := container.Clone(core.UpStore())
 	c.logger.Warn("container has been up",
-		zap.Uint64("container", newStore.Meta.ID()),
-		zap.String("container-address", newStore.Meta.Addr()))
+		zap.Uint64("container", newStore.Meta.GetID()),
+		zap.String("container-address", newStore.Meta.GetClientAddr()))
 	return c.putStoreLocked(newStore)
 }
 
@@ -1111,12 +1101,12 @@ func (c *RaftCluster) putStoreLocked(container *core.CachedStore) error {
 		}
 	}
 	c.core.PutStore(container)
-	c.hotStat.GetOrCreateRollingStoreStats(container.Meta.ID())
+	c.hotStat.GetOrCreateRollingStoreStats(container.Meta.GetID())
 	return nil
 }
 
 func (c *RaftCluster) checkStores() {
-	var offlineStores []metadata.Store
+	var offlineStores []metapb.Store
 	var upStoreCount int
 	containers := c.GetStores()
 	groupKeys := c.core.GetScheduleGroupKeys()
@@ -1136,15 +1126,15 @@ func (c *RaftCluster) checkStores() {
 		offlineStore := container.Meta
 		resourceCount := 0
 		for _, group := range groupKeys {
-			resourceCount += c.core.GetStoreShardCount(group, offlineStore.ID())
+			resourceCount += c.core.GetStoreShardCount(group, offlineStore.GetID())
 		}
 
 		// If the container is empty, it can be buried.
 		if resourceCount == 0 {
-			if err := c.buryStore(offlineStore.ID()); err != nil {
+			if err := c.buryStore(offlineStore.GetID()); err != nil {
 				c.logger.Error("fail to bury container",
-					zap.Uint64("container", offlineStore.ID()),
-					zap.String("container-address", offlineStore.Addr()),
+					zap.Uint64("container", offlineStore.GetID()),
+					zap.String("container-address", offlineStore.GetClientAddr()),
 					zap.Error(err))
 			}
 		} else {
@@ -1160,8 +1150,8 @@ func (c *RaftCluster) checkStores() {
 	if !c.opt.IsPlacementRulesEnabled() && upStoreCount < c.opt.GetMaxReplicas() {
 		for _, container := range offlineStores {
 			c.logger.Warn("container may not turn into Tombstone, there are no extra up container has enough space to accommodate the extra replica",
-				zap.Uint64("container", container.ID()),
-				zap.String("container-address", container.Addr()))
+				zap.Uint64("container", container.GetID()),
+				zap.String("container-address", container.GetClientAddr()))
 		}
 	}
 }
@@ -1175,8 +1165,8 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 			if container.IsTombstone() {
 				if container.GetShardCount(groupKey) > 0 {
 					c.logger.Warn("skip removing tombstone container",
-						zap.Uint64("container", container.Meta.ID()),
-						zap.String("container-address", container.Meta.Addr()))
+						zap.Uint64("container", container.Meta.GetID()),
+						zap.String("container-address", container.Meta.GetClientAddr()))
 					continue
 				}
 
@@ -1184,15 +1174,15 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 				err := c.deleteStoreLocked(container)
 				if err != nil {
 					c.logger.Error("fail to delete container",
-						zap.Uint64("container", container.Meta.ID()),
-						zap.String("container-address", container.Meta.Addr()))
+						zap.Uint64("container", container.Meta.GetID()),
+						zap.String("container-address", container.Meta.GetClientAddr()))
 					return err
 				}
-				c.RemoveStoreLimit(container.Meta.ID())
+				c.RemoveStoreLimit(container.Meta.GetID())
 
 				c.logger.Info("container deleted",
-					zap.Uint64("container", container.Meta.ID()),
-					zap.String("container-address", container.Meta.Addr()))
+					zap.Uint64("container", container.Meta.GetID()),
+					zap.String("container-address", container.Meta.GetClientAddr()))
 			}
 		}
 	}
@@ -1206,7 +1196,7 @@ func (c *RaftCluster) deleteStoreLocked(container *core.CachedStore) error {
 		}
 	}
 	c.core.DeleteStore(container)
-	c.hotStat.RemoveRollingStoreStats(container.Meta.ID())
+	c.hotStat.RemoveRollingStoreStats(container.Meta.GetID())
 	return nil
 }
 
@@ -1286,8 +1276,8 @@ func (c *RaftCluster) updateShardsLabelLevelStats(resources []*core.CachedShard)
 }
 
 func (c *RaftCluster) takeShardStoresLocked(res *core.CachedShard) []*core.CachedStore {
-	containers := make([]*core.CachedStore, 0, len(res.Meta.Peers()))
-	for _, p := range res.Meta.Peers() {
+	containers := make([]*core.CachedStore, 0, len(res.Meta.GetReplicas()))
+	for _, p := range res.Meta.GetReplicas() {
 		if container := c.core.TakeStore(p.StoreID); container != nil {
 			containers = append(containers, container)
 		}
@@ -1391,7 +1381,7 @@ func (checker *prepareChecker) checkLocked(c *RaftCluster) bool {
 		if !container.IsUp() {
 			continue
 		}
-		containerID := container.Meta.ID()
+		containerID := container.Meta.GetID()
 		n := 0
 		for _, group := range c.core.GetScheduleGroupKeys() {
 			n += c.core.GetStoreShardCount(group, containerID)
@@ -1407,7 +1397,7 @@ func (checker *prepareChecker) checkLocked(c *RaftCluster) bool {
 }
 
 func (checker *prepareChecker) collect(res *core.CachedShard) {
-	for _, p := range res.Meta.Peers() {
+	for _, p := range res.Meta.GetReplicas() {
 		checker.reactiveShards[p.GetStoreID()]++
 	}
 	checker.sum++
@@ -1494,8 +1484,8 @@ func (c *RaftCluster) GetAllStoresLimit() map[uint64]config.StoreLimitConfig {
 }
 
 // AddStoreLimit add a container limit for a given container ID.
-func (c *RaftCluster) AddStoreLimit(container metadata.Store) {
-	containerID := container.ID()
+func (c *RaftCluster) AddStoreLimit(container metapb.Store) {
+	containerID := container.GetID()
 	cfg := c.opt.GetScheduleConfig().Clone()
 	if _, ok := cfg.StoreLimit[containerID]; ok {
 		return
@@ -1604,11 +1594,6 @@ func (c *RaftCluster) DisableJointConsensus() {
 // JointConsensusEnabled always returns true
 func (c *RaftCluster) JointConsensusEnabled() bool {
 	return true
-}
-
-// GetShardFactory resource factory
-func (c *RaftCluster) GetShardFactory() func() metadata.Shard {
-	return c.adapter.NewShard
 }
 
 func (c *RaftCluster) addNotifyLocked(event rpcpb.EventNotify) {

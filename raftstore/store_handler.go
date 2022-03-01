@@ -63,7 +63,7 @@ func (s *store) onRaftMessage(msg metapb.RaftMessage) {
 }
 
 func (s *store) isRaftMsgValid(msg metapb.RaftMessage) bool {
-	if msg.To.StoreID != s.metapb.ID() {
+	if msg.To.StoreID != s.meta.GetID() {
 		s.logger.Warn("raft msg store not match",
 			s.storeField(),
 			zap.Uint64("actual", msg.To.StoreID))

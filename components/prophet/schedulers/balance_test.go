@@ -23,7 +23,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
@@ -828,11 +827,11 @@ func TestBalance1(t *testing.T) {
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
 	source := core.NewCachedShard(
-		&metadata.TestShard{
-			ResID: 1,
+		metapb.Shard{
+			ID:    1,
 			Start: []byte(""),
 			End:   []byte("a"),
-			ResPeers: []metapb.Replica{
+			Replicas: []metapb.Replica{
 				{ID: 101, StoreID: 1},
 				{ID: 102, StoreID: 2},
 			},
@@ -842,11 +841,11 @@ func TestBalance1(t *testing.T) {
 		core.SetApproximateKeys(1),
 	)
 	target := core.NewCachedShard(
-		&metadata.TestShard{
-			ResID: 2,
+		metapb.Shard{
+			ID:    2,
 			Start: []byte("a"),
 			End:   []byte("t"),
-			ResPeers: []metapb.Replica{
+			Replicas: []metapb.Replica{
 				{ID: 103, StoreID: 1},
 				{ID: 104, StoreID: 4},
 				{ID: 105, StoreID: 5},
@@ -1018,11 +1017,11 @@ func TestEmptyShard(t *testing.T) {
 	tc.AddShardStore(3, 10)
 	tc.AddShardStore(4, 10)
 	res := core.NewCachedShard(
-		&metadata.TestShard{
-			ResID: 5,
+		metapb.Shard{
+			ID:    5,
 			Start: []byte("a"),
 			End:   []byte("b"),
-			ResPeers: []metapb.Replica{
+			Replicas: []metapb.Replica{
 				{ID: 6, StoreID: 1},
 				{ID: 7, StoreID: 3},
 				{ID: 8, StoreID: 4},
@@ -1109,7 +1108,7 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 	tc.AddShardStore(5, 0)
 	var (
 		id        uint64
-		resources []*metadata.TestShard
+		resources []metapb.Shard
 	)
 	for i := 0; i < 50; i++ {
 		peers := []metapb.Replica{
@@ -1117,21 +1116,21 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 			{ID: id + 2, StoreID: 2},
 			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.TestShard{
-			ResID:    id + 4,
-			ResPeers: peers,
+		resources = append(resources, metapb.Shard{
+			ID:       id + 4,
+			Replicas: peers,
 			Start:    []byte(fmt.Sprintf("s_%02d", i)),
 			End:      []byte(fmt.Sprintf("s_%02d", i+1)),
 		})
 		id += 4
 	}
 	// empty case
-	resources[49].End = []byte("")
+	resources[49].SetEndKey([]byte(""))
 	for _, meta := range resources {
 		leader := rand.Intn(4) % 3
 		resourceInfo := core.NewCachedShard(
 			meta,
-			&meta.Peers()[leader],
+			&meta.GetReplicas()[leader],
 			core.SetApproximateKeys(96),
 			core.SetApproximateSize(96),
 		)
@@ -1212,7 +1211,7 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 	tc.AddShardStore(3, 0)
 	var (
 		id        uint64
-		resources []*metadata.TestShard
+		resources []metapb.Shard
 	)
 	for i := 0; i < 10; i++ {
 		peers := []metapb.Replica{
@@ -1220,23 +1219,23 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 			{ID: id + 2, StoreID: 2},
 			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.TestShard{
-			ResID:    id + 4,
-			ResPeers: peers,
+		resources = append(resources, metapb.Shard{
+			ID:       id + 4,
+			Replicas: peers,
 			Start:    []byte(fmt.Sprintf("s_%02d", i)),
 			End:      []byte(fmt.Sprintf("s_%02d", i+1)),
 		})
 		id += 4
 	}
 	// empty case
-	resources[9].End = []byte("")
+	resources[9].SetEndKey([]byte(""))
 
 	// To simulate server prepared,
 	// container 1 contains 8 leader resource peers and leaders of 2 resources are unknown yet.
 	for _, meta := range resources {
 		var leader *metapb.Replica
-		if meta.ID() < 8 {
-			leader = &meta.Peers()[0]
+		if meta.GetID() < 8 {
+			leader = &meta.GetReplicas()[0]
 		}
 		resourceInfo := core.NewCachedShard(
 			meta,

@@ -296,7 +296,7 @@ func summaryStoresLoad(
 				hotPeers = append(hotPeers, peer.Clone())
 			}
 			// Use sum of hot peers to estimate leader-only byte rate.
-			// For write requests, Write{Bytes, Keys} is applied to all Peers at the same time, while the Leader and Follower are under different loads (usually the Leader consumes more CPU).
+			// For write requests, Write{Bytes, Keys} is applied to all Replicas at the same time, while the Leader and Follower are under different loads (usually the Leader consumes more CPU).
 			// But none of the current dimension reflect this difference, so we create a new dimension to reflect it.
 			if kind == metapb.ShardKind_LeaderKind && rwTy == write {
 				byteRate = byteSum
@@ -451,10 +451,10 @@ type balanceSolver struct {
 }
 
 type solution struct {
-	srcStoreID uint64
-	srcPeerStat    *statistics.HotPeerStat
-	resource       *core.CachedShard
-	dstStoreID uint64
+	srcStoreID  uint64
+	srcPeerStat *statistics.HotPeerStat
+	resource    *core.CachedShard
+	dstStoreID  uint64
 
 	// progressiveRank measures the contribution for balance.
 	// The smaller the rank, the better this solution is.
@@ -672,7 +672,7 @@ func (bs *balanceSolver) isShardAvailable(res *core.CachedShard) bool {
 		return false
 	}
 
-	if pendings, ok := bs.sche.resourcePendings[res.Meta.ID()]; ok {
+	if pendings, ok := bs.sche.resourcePendings[res.Meta.GetID()]; ok {
 		if bs.opTy == transferLeader {
 			return false
 		}
@@ -690,7 +690,7 @@ func (bs *balanceSolver) isShardAvailable(res *core.CachedShard) bool {
 	if !opt.IsShardReplicated(bs.cluster, res) {
 		bs.cluster.GetLogger().Debug("resource has abnormal replica count",
 			rebalanceHotField,
-			resourceField(res.Meta.ID()),
+			resourceField(res.Meta.GetID()),
 			zap.String("scheduler", bs.sche.name))
 		schedulerCounter.WithLabelValues(bs.sche.GetName(), "abnormal-replica").Inc()
 		return false
@@ -745,7 +745,7 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*containerLoadDetail {
 			&filter.StoreStateFilter{ActionScope: bs.sche.GetName(), MoveShard: true},
 			filter.NewExcludedFilter(bs.sche.GetName(), bs.cur.resource.GetStoreIDs(), bs.cur.resource.GetStoreIDs()),
 			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotShard),
-			filter.NewPlacementSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore, bs.cluster.GetShardFactory()),
+			filter.NewPlacementSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore),
 		}
 
 		for containerID := range bs.stLoadDetail {
@@ -757,12 +757,12 @@ func (bs *balanceSolver) filterDstStores() map[uint64]*containerLoadDetail {
 			&filter.StoreStateFilter{ActionScope: bs.sche.GetName(), TransferLeader: true},
 			filter.NewSpecialUseFilter(bs.sche.GetName(), filter.SpecialUseHotShard),
 		}
-		if leaderFilter := filter.NewPlacementLeaderSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore, bs.cluster.GetShardFactory()); leaderFilter != nil {
+		if leaderFilter := filter.NewPlacementLeaderSafeguard(bs.sche.GetName(), bs.cluster, bs.cur.resource, srcStore); leaderFilter != nil {
 			filters = append(filters, leaderFilter)
 		}
 
 		for _, container := range bs.cluster.GetFollowerStores(bs.cur.resource) {
-			if _, ok := bs.stLoadDetail[container.Meta.ID()]; ok {
+			if _, ok := bs.stLoadDetail[container.Meta.GetID()]; ok {
 				candidates = append(candidates, container)
 			}
 		}
@@ -778,13 +778,13 @@ func (bs *balanceSolver) pickDstStores(filters []filter.Filter, candidates []*co
 	dstToleranceRatio := bs.sche.conf.GetDstToleranceRatio()
 	for _, container := range candidates {
 		if filter.Target(bs.cluster.GetOpts(), container, filters) {
-			detail := bs.stLoadDetail[container.Meta.ID()]
+			detail := bs.stLoadDetail[container.Meta.GetID()]
 			if detail.LoadPred.max().ByteRate*dstToleranceRatio < detail.LoadPred.Expect.ByteRate &&
 				detail.LoadPred.max().KeyRate*dstToleranceRatio < detail.LoadPred.Expect.KeyRate {
-				ret[container.Meta.ID()] = bs.stLoadDetail[container.Meta.ID()]
-				hotSchedulerResultCounter.WithLabelValues("dst-container-succ", strconv.FormatUint(container.Meta.ID(), 10)).Inc()
+				ret[container.Meta.GetID()] = bs.stLoadDetail[container.Meta.GetID()]
+				hotSchedulerResultCounter.WithLabelValues("dst-container-succ", strconv.FormatUint(container.Meta.GetID(), 10)).Inc()
 			}
-			hotSchedulerResultCounter.WithLabelValues("dst-container-fail", strconv.FormatUint(container.Meta.ID(), 10)).Inc()
+			hotSchedulerResultCounter.WithLabelValues("dst-container-fail", strconv.FormatUint(container.Meta.GetID(), 10)).Inc()
 		}
 	}
 	return ret
@@ -980,7 +980,7 @@ func (bs *balanceSolver) isReadyToBuild() bool {
 		return false
 	}
 	if bs.cur.srcStoreID != bs.cur.srcPeerStat.StoreID ||
-		bs.cur.resource.Meta.ID() != bs.cur.srcPeerStat.ID() {
+		bs.cur.resource.Meta.GetID() != bs.cur.srcPeerStat.ID() {
 		return false
 	}
 	return true

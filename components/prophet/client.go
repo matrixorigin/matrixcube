@@ -22,7 +22,6 @@ import (
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/fagongzi/goetty"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
@@ -49,20 +48,20 @@ type Client interface {
 	CreateDestroying(id uint64, index uint64, removeData bool, replicas []uint64) (metapb.ShardState, error)
 	ReportDestroyed(id uint64, replicaID uint64) (metapb.ShardState, error)
 	GetDestroying(id uint64) (*metapb.DestroyingStatus, error)
-	PutStore(container metadata.Store) error
-	GetStore(containerID uint64) (metadata.Store, error)
-	ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error
+	PutStore(container metapb.Store) error
+	GetStore(containerID uint64) (*metapb.Store, error)
+	ShardHeartbeat(meta metapb.Shard, hb rpcpb.ShardHeartbeatReq) error
 	StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error)
-	AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error)
+	AskBatchSplit(res metapb.Shard, count uint32) ([]rpcpb.SplitID, error)
 	NewWatcher(flag uint32) (Watcher, error)
 	GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error)
 	// AsyncAddShards add resources asynchronously. The operation add new resources meta on the
 	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
 	// all related containers to create resource replica peer at local.
-	AsyncAddShards(resources ...metadata.Shard) error
+	AsyncAddShards(resources ...metapb.Shard) error
 	// AsyncAddShardsWithLeastPeers same of `AsyncAddShards`, but if the number of peers successfully
 	// allocated exceed the `leastPeers`, no error will be returned.
-	AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error
+	AsyncAddShardsWithLeastPeers(resources []metapb.Shard, leastPeers []int) error
 	// AsyncRemoveShards remove resource asynchronously. The operation only update the resource state
 	// on the prophet leader cache and embed etcd. The resource actual destroy triggered in three ways as below:
 	// a) Each cube node starts a backgroud goroutine to check all the resources state, and resource will
@@ -97,7 +96,6 @@ type asyncClient struct {
 	opts *options
 
 	containerID uint64
-	adapter     metadata.Adapter
 	id          uint64
 	leaderConn  goetty.IOSession
 
@@ -120,10 +118,9 @@ type asyncClient struct {
 }
 
 // NewClient create a prophet client
-func NewClient(adapter metadata.Adapter, opts ...Option) Client {
+func NewClient(opts ...Option) Client {
 	c := &asyncClient{
 		opts:                  &options{},
-		adapter:               adapter,
 		resetReadC:            make(chan string, 1),
 		resetLeaderConnC:      make(chan struct{}),
 		writeC:                make(chan *ctx, 128),
@@ -185,7 +182,7 @@ func (c *asyncClient) AllocID() (uint64, error) {
 	return resp.AllocID.ID, nil
 }
 
-func (c *asyncClient) ShardHeartbeat(meta metadata.Shard, hb rpcpb.ShardHeartbeatReq) error {
+func (c *asyncClient) ShardHeartbeat(meta metapb.Shard, hb rpcpb.ShardHeartbeatReq) error {
 	if !c.running() {
 		return ErrClosed
 	}
@@ -278,17 +275,17 @@ func (c *asyncClient) ReportDestroyed(id uint64, replicaID uint64) (metapb.Shard
 	return rsp.ReportDestroyed.State, nil
 }
 
-func (c *asyncClient) PutStore(container metadata.Store) error {
+func (c *asyncClient) PutStore(store metapb.Store) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
-	data, err := container.Marshal()
+	data, err := store.Marshal()
 	if err != nil {
 		return err
 	}
 
-	c.setStoreID(container.ID())
+	c.setStoreID(store.GetID())
 	defer c.maybeRegisterStore()
 
 	req := &rpcpb.ProphetRequest{}
@@ -302,21 +299,21 @@ func (c *asyncClient) PutStore(container metadata.Store) error {
 	return nil
 }
 
-func (c *asyncClient) GetStore(containerID uint64) (metadata.Store, error) {
+func (c *asyncClient) GetStore(storeID uint64) (*metapb.Store, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}
 
 	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeGetStoreReq
-	req.GetStore.ID = containerID
+	req.GetStore.ID = storeID
 
 	resp, err := c.syncDo(req)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := c.adapter.NewStore()
+	meta := metapb.NewStore()
 	err = meta.Unmarshal(resp.GetStore.Data)
 	if err != nil {
 		return nil, err
@@ -325,7 +322,7 @@ func (c *asyncClient) GetStore(containerID uint64) (metadata.Store, error) {
 	return meta, nil
 }
 
-func (c *asyncClient) AskBatchSplit(res metadata.Shard, count uint32) ([]rpcpb.SplitID, error) {
+func (c *asyncClient) AskBatchSplit(res metapb.Shard, count uint32) ([]rpcpb.SplitID, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}
@@ -364,18 +361,18 @@ func (c *asyncClient) GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatR
 	return c.resourceHeartbeatRspC, nil
 }
 
-func (c *asyncClient) AsyncAddShards(resources ...metadata.Shard) error {
-	return c.AsyncAddShardsWithLeastPeers(resources, make([]int, len(resources)))
+func (c *asyncClient) AsyncAddShards(shards ...metapb.Shard) error {
+	return c.AsyncAddShardsWithLeastPeers(shards, make([]int, len(shards)))
 }
 
-func (c *asyncClient) AsyncAddShardsWithLeastPeers(resources []metadata.Shard, leastPeers []int) error {
+func (c *asyncClient) AsyncAddShardsWithLeastPeers(shards []metapb.Shard, leastPeers []int) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
 	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeCreateShardsReq
-	for idx, res := range resources {
+	for idx, res := range shards {
 		data, err := res.Marshal()
 		if err != nil {
 			return err

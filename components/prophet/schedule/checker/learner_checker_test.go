@@ -19,7 +19,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -34,9 +33,9 @@ func TestPromoteLearner(t *testing.T) {
 	}
 
 	resource := core.NewCachedShard(
-		&metadata.TestShard{
-			ResID: 1,
-			ResPeers: []metapb.Replica{
+		metapb.Shard{
+			ID: 1,
+			Replicas: []metapb.Replica{
 				{ID: 101, StoreID: 1},
 				{ID: 102, StoreID: 2},
 				{ID: 103, StoreID: 3, Role: metapb.ReplicaRole_Learner},

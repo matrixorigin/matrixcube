@@ -24,7 +24,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
@@ -34,8 +33,8 @@ import (
 
 const (
 	defaultStoreCapacity = 100 * (1 << 30) // 100GiB
-	defaultShardSize      = 96 * (1 << 20)  // 96MiB
-	mb                       = (1 << 20)       // 1MiB
+	defaultShardSize     = 96 * (1 << 20)  // 96MiB
+	mb                   = (1 << 20)       // 1MiB
 )
 
 // Cluster is used to mock clusterInfo for test use.
@@ -44,8 +43,8 @@ type Cluster struct {
 	*placement.RuleManager
 	*statistics.HotStat
 	*config.PersistOptions
-	storage          storage.Storage
-	ID               uint64
+	storage       storage.Storage
+	ID            uint64
 	suspectShards map[uint64]struct{}
 
 	supportJointConsensus bool
@@ -55,10 +54,10 @@ type Cluster struct {
 func NewCluster(opts *config.PersistOptions) *Cluster {
 	clus := &Cluster{
 		storage:               storage.NewTestStorage(),
-		BasicCluster:          core.NewBasicCluster(func() metadata.Shard { return &metadata.TestShard{} }, nil),
+		BasicCluster:          core.NewBasicCluster(nil),
 		HotStat:               statistics.NewHotStat(),
 		PersistOptions:        opts,
-		suspectShards:      map[uint64]struct{}{},
+		suspectShards:         map[uint64]struct{}{},
 		supportJointConsensus: true,
 	}
 	if clus.PersistOptions.GetReplicationConfig().EnablePlacementRules {
@@ -81,13 +80,6 @@ func (mc *Cluster) GetLogger() *zap.Logger {
 // JointConsensusEnabled mock
 func (mc *Cluster) JointConsensusEnabled() bool {
 	return mc.supportJointConsensus
-}
-
-// GetShardFactory returns a metdata resource create factory
-func (mc *Cluster) GetShardFactory() func() metadata.Shard {
-	return func() metadata.Shard {
-		return &metadata.TestShard{}
-	}
 }
 
 // GetOpts returns the cluster configuration.
@@ -161,7 +153,7 @@ func (mc *Cluster) AllocPeer(containerID uint64) (metapb.Replica, error) {
 	}
 
 	return metapb.Replica{
-		ID:          peerID,
+		ID:      peerID,
 		StoreID: containerID,
 	}, nil
 }
@@ -246,7 +238,7 @@ func (mc *Cluster) AddLeaderStore(containerID uint64, leaderCount int, leaderSiz
 	}
 
 	container := core.NewCachedStore(
-		metadata.NewTestStore(containerID),
+		metapb.Store{ID: containerID},
 		core.SetStoreStats(stats),
 		core.SetLeaderCount("", leaderCount),
 		core.SetLeaderSize("", leaderSize),
@@ -264,12 +256,10 @@ func (mc *Cluster) AddShardStore(containerID uint64, resourceCount int) {
 	stats.UsedSize = uint64(resourceCount) * defaultShardSize
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultShardSize
 	container := core.NewCachedStore(
-		&metadata.TestStore{CID: containerID, CLabels: []metapb.Pair{
-			{
-				Key:   "ID",
-				Value: fmt.Sprintf("%v", containerID),
-			},
-		}},
+		metapb.Store{
+			ID:     containerID,
+			Labels: []metapb.Pair{{Key: "ID", Value: fmt.Sprintf("%v", containerID)}},
+		},
 		core.SetStoreStats(stats),
 		core.SetShardCount("", resourceCount),
 		core.SetShardSize("", int64(resourceCount)*defaultShardSize/mb),
@@ -304,9 +294,9 @@ func (mc *Cluster) AddLabelsStore(containerID uint64, resourceCount int, labels 
 	stats.Available = stats.Capacity - uint64(resourceCount)*defaultShardSize
 	stats.UsedSize = uint64(resourceCount) * defaultShardSize
 	container := core.NewCachedStore(
-		&metadata.TestStore{
-			CID:     containerID,
-			CLabels: newLabels,
+		metapb.Store{
+			ID:     containerID,
+			Labels: newLabels,
 		},
 		core.SetStoreStats(stats),
 		core.SetShardCount("", resourceCount),
@@ -608,13 +598,13 @@ func (mc *Cluster) CheckLabelProperty(typ string, labels []metapb.Pair) bool {
 
 // PutShardStores mocks method.
 func (mc *Cluster) PutShardStores(id uint64, containerIDs ...uint64) {
-	meta := &metadata.TestShard{
-		ResID: id,
+	meta := metapb.Shard{
+		ID:    id,
 		Start: []byte(strconv.FormatUint(id, 10)),
 		End:   []byte(strconv.FormatUint(id+1, 10)),
 	}
 	for _, id := range containerIDs {
-		meta.ResPeers = append(meta.ResPeers, metapb.Replica{StoreID: id})
+		meta.SetReplicas(append(meta.GetReplicas(), metapb.Replica{StoreID: id}))
 	}
 	mc.PutShard(core.NewCachedShard(meta, &metapb.Replica{StoreID: containerIDs[0]}))
 }
@@ -638,26 +628,27 @@ func (mc *Cluster) RemoveScheduler(name string) error {
 func (mc *Cluster) MockCachedShard(resID uint64, leaderStoreID uint64,
 	followerStoreIDs, learnerStoreIDs []uint64, epoch metapb.ShardEpoch) *core.CachedShard {
 
-	res := &metadata.TestShard{
-		ResID:    resID,
-		Start:    []byte(fmt.Sprintf("%20d", resID)),
-		End:      []byte(fmt.Sprintf("%20d", resID+1)),
-		ResEpoch: epoch,
+	res := metapb.Shard{
+		ID:    resID,
+		Start: []byte(fmt.Sprintf("%20d", resID)),
+		End:   []byte(fmt.Sprintf("%20d", resID+1)),
+		Epoch: epoch,
 	}
+
 	var leader *metapb.Replica
 	if leaderStoreID != 0 {
 		peer, _ := mc.AllocPeer(leaderStoreID)
 		leader = &peer
-		res.ResPeers = append(res.ResPeers, peer)
+		res.SetReplicas(append(res.GetReplicas(), peer))
 	}
 	for _, containerID := range followerStoreIDs {
 		peer, _ := mc.AllocPeer(containerID)
-		res.ResPeers = append(res.ResPeers, peer)
+		res.SetReplicas(append(res.GetReplicas(), peer))
 	}
 	for _, containerID := range learnerStoreIDs {
 		peer, _ := mc.AllocPeer(containerID)
 		peer.Role = metapb.ReplicaRole_Learner
-		res.ResPeers = append(res.ResPeers, peer)
+		res.SetReplicas(append(res.GetReplicas(), peer))
 	}
 	return core.NewCachedShard(res, leader)
 }

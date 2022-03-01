@@ -31,14 +31,14 @@ const (
 // ScheduleKind distinguishes resources and schedule policy.
 type ScheduleKind struct {
 	ShardKind metapb.ShardKind
-	Policy       SchedulePolicy
+	Policy    SchedulePolicy
 }
 
 // NewScheduleKind creates a schedule kind with resource kind and schedule policy.
 func NewScheduleKind(kind metapb.ShardKind, Policy SchedulePolicy) ScheduleKind {
 	return ScheduleKind{
 		ShardKind: kind,
-		Policy:       Policy,
+		Policy:    Policy,
 	}
 }
 

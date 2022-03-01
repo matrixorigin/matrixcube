@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
@@ -43,7 +42,7 @@ type counterAndSize struct {
 
 // CachedStore is the container runtime info cached in the cache
 type CachedStore struct {
-	Meta metadata.Store
+	Meta metapb.Store
 	*containerStats
 	pauseLeaderTransfer bool // not allow to be used as source or target of transfer leader
 	resourceInfo        map[string]counterAndSize
@@ -56,7 +55,7 @@ type CachedStore struct {
 }
 
 // NewCachedStore creates CachedStore with meta data.
-func NewCachedStore(meta metadata.Store, opts ...StoreCreateOption) *CachedStore {
+func NewCachedStore(meta metapb.Store, opts ...StoreCreateOption) *CachedStore {
 	container := &CachedStore{
 		Meta:              meta,
 		containerStats:    newStoreStats(),
@@ -75,7 +74,7 @@ func NewCachedStore(meta metadata.Store, opts ...StoreCreateOption) *CachedStore
 // Clone creates a copy of current CachedStore.
 func (cr *CachedStore) Clone(opts ...StoreCreateOption) *CachedStore {
 	container := &CachedStore{
-		Meta:                cr.Meta.Clone(),
+		Meta:                cr.Meta.CloneValue(),
 		containerStats:      cr.containerStats,
 		pauseLeaderTransfer: cr.pauseLeaderTransfer,
 		resourceInfo:        make(map[string]counterAndSize),
@@ -165,7 +164,7 @@ func (cr *CachedStore) IsTombstone() bool {
 
 // IsPhysicallyDestroyed checks if the store's physically destroyed.
 func (cr *CachedStore) IsPhysicallyDestroyed() bool {
-	return cr.Meta.PhysicallyDestroyed()
+	return cr.Meta.GetPhysicallyDestroyed()
 }
 
 // DownTime returns the time elapsed since last heartbeat.
@@ -175,7 +174,7 @@ func (cr *CachedStore) DownTime() time.Duration {
 
 // GetState returns the state of the container.
 func (cr *CachedStore) GetState() metapb.StoreState {
-	return cr.Meta.State()
+	return cr.Meta.GetState()
 }
 
 // GetLeaderCount returns the leader count of the container.
@@ -266,7 +265,7 @@ func (cr *CachedStore) GetShardWeight() float64 {
 
 // GetLastHeartbeatTS returns the last heartbeat timestamp of the container.
 func (cr *CachedStore) GetLastHeartbeatTS() time.Time {
-	return time.Unix(0, cr.Meta.LastHeartbeat())
+	return time.Unix(0, cr.Meta.GetLastHeartbeatTime())
 }
 
 // NeedPersist returns if it needs to save to etcd.
@@ -446,7 +445,7 @@ func (cr *CachedStore) ShardWeight(kind metapb.ShardKind) float64 {
 
 // GetStartTime returns the start timestamp.
 func (cr *CachedStore) GetStartTime() time.Time {
-	return time.Unix(cr.Meta.StartTimestamp(), 0)
+	return time.Unix(cr.Meta.GetStartTime(), 0)
 }
 
 // GetUptime returns the uptime.
@@ -480,7 +479,7 @@ func (cr *CachedStore) IsUnhealthy() bool {
 
 // GetLabelValue returns a label's value (if exists).
 func (cr *CachedStore) GetLabelValue(key string) string {
-	for _, label := range cr.Meta.Labels() {
+	for _, label := range cr.Meta.GetLabels() {
 		if strings.EqualFold(label.GetKey(), key) {
 			return label.GetValue()
 		}
@@ -509,7 +508,7 @@ const replicaBaseScore = 100
 func DistinctScore(labels []string, containers []*CachedStore, other *CachedStore) float64 {
 	var score float64
 	for _, s := range containers {
-		if s.Meta.ID() == other.Meta.ID() {
+		if s.Meta.GetID() == other.Meta.GetID() {
 			continue
 		}
 		if index := s.CompareLocation(other, labels); index != -1 {
@@ -522,7 +521,7 @@ func DistinctScore(labels []string, containers []*CachedStore, other *CachedStor
 // MergeLabels merges the passed in labels with origins, overriding duplicated
 // ones.
 func (cr *CachedStore) MergeLabels(labels []metapb.Pair) []metapb.Pair {
-	containerLabels := cr.Meta.Clone().Labels()
+	containerLabels := cr.Meta.Clone().GetLabels()
 L:
 	for _, newLabel := range labels {
 		for idx := range containerLabels {
@@ -574,7 +573,7 @@ func (s *CachedStores) TakeStore(containerID uint64) *CachedStore {
 
 // SetStore sets a CachedStore with containerID.
 func (s *CachedStores) SetStore(container *CachedStore) {
-	s.containers[container.Meta.ID()] = container
+	s.containers[container.Meta.GetID()] = container
 }
 
 // PauseLeaderTransfer pauses a CachedStore with containerID.
@@ -617,9 +616,9 @@ func (s *CachedStores) GetStores() []*CachedStore {
 	return containers
 }
 
-// GetMetaStores gets a complete set of metadata.Store
-func (s *CachedStores) GetMetaStores() []metadata.Store {
-	metas := make([]metadata.Store, 0, len(s.containers))
+// GetMetaStores gets a complete set of *metapb.Store
+func (s *CachedStores) GetMetaStores() []metapb.Store {
+	metas := make([]metapb.Store, 0, len(s.containers))
 	for _, container := range s.containers {
 		metas = append(metas, container.Meta)
 	}
@@ -628,7 +627,7 @@ func (s *CachedStores) GetMetaStores() []metadata.Store {
 
 // DeleteStore deletes tombstone record form container
 func (s *CachedStores) DeleteStore(container *CachedStore) {
-	delete(s.containers, container.Meta.ID())
+	delete(s.containers, container.Meta.GetID())
 }
 
 // GetStoreCount returns the total count of CachedStore.

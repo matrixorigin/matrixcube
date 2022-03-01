@@ -71,7 +71,7 @@ func (m *MergeChecker) Check(res *core.CachedShard) []*operator.Operator {
 		return nil
 	}
 
-	if m.splitCache.Exists(res.Meta.ID()) {
+	if m.splitCache.Exists(res.Meta.GetID()) {
 		checkerCounter.WithLabelValues("merge_checker", "recently-split").Inc()
 		return nil
 	}
@@ -152,7 +152,7 @@ func (m *MergeChecker) Check(res *core.CachedShard) []*operator.Operator {
 }
 
 func (m *MergeChecker) checkTarget(region, adjacent *core.CachedShard) bool {
-	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.ID()) && !m.cluster.IsShardHot(adjacent) &&
+	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.GetID()) && !m.cluster.IsShardHot(adjacent) &&
 		AllowMerge(m.cluster, region, adjacent) && opt.IsShardHealthy(m.cluster, adjacent) &&
 		opt.IsShardReplicated(m.cluster, adjacent)
 }

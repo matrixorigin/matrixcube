@@ -20,10 +20,10 @@ import (
 
 // ShardStats records a list of resources' statistics and distribution status.
 type ShardStats struct {
-	Count                int              `json:"count"`
-	EmptyCount           int              `json:"empty_count"`
-	StorageSize          int64            `json:"storage_size"`
-	StorageKeys          int64            `json:"storage_keys"`
+	Count            int              `json:"count"`
+	EmptyCount       int              `json:"empty_count"`
+	StorageSize      int64            `json:"storage_size"`
+	StorageKeys      int64            `json:"storage_keys"`
 	StoreLeaderCount map[uint64]int   `json:"container_leader_count"`
 	StorePeerCount   map[uint64]int   `json:"container_peer_count"`
 	StoreLeaderSize  map[uint64]int64 `json:"container_leader_size"`
@@ -69,7 +69,7 @@ func (s *ShardStats) Observe(r *core.CachedShard) {
 		s.StoreLeaderSize[containerID] += approximateSize
 		s.StoreLeaderKeys[containerID] += approximateKeys
 	}
-	peers := r.Meta.Peers()
+	peers := r.Meta.GetReplicas()
 	for _, p := range peers {
 		containerID := p.GetStoreID()
 		s.StorePeerCount[containerID]++

@@ -15,11 +15,14 @@ package raftstore
 
 import (
 	"testing"
+	"time"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -312,7 +315,7 @@ func TestValidateStoreID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.metapb = &containerAdapter{}
+	s.meta = metapb.Store{}
 
 	assert.Nil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 0}}}))
 	assert.NotNil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 1}}}))
@@ -336,4 +339,81 @@ func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
 	assert.Equal(t, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
+}
+
+func TestGetStoreHeartbeat(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
+	s.addReplica(&replica{shardID: 1})
+	s.addReplica(&replica{shardID: 2})
+	s.trans = transport.NewTransport(nil, "", 0, nil, nil, nil, nil, nil, s.cfg.FS)
+	defer s.trans.Close()
+	req, err := s.getStoreHeartbeat(time.Now())
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(2), req.Stats.ShardCount)
+}
+
+func TestDoShardHeartbeatRsp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	cases := []struct {
+		rsp            rpcpb.ShardHeartbeatRsp
+		fn             func(*store) *replica
+		adminReq       protoc.PB
+		adminTargetReq protoc.PB
+	}{
+		{
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, ConfigChange: &rpcpb.ConfigChange{
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+			}},
+			fn: func(s *store) *replica {
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
+				pr.store = s
+				close(pr.startedC)
+				s.addReplica(pr)
+				return pr
+			},
+			adminReq: &rpcpb.ConfigChangeRequest{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
+			},
+			adminTargetReq: &rpcpb.ConfigChangeRequest{},
+		},
+		{
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, TransferLeader: &rpcpb.TransferLeader{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
+			}},
+			fn: func(s *store) *replica {
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
+				pr.store = s
+				close(pr.startedC)
+				s.addReplica(pr)
+				return pr
+			},
+			adminReq: &rpcpb.TransferLeaderRequest{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
+			},
+			adminTargetReq: &rpcpb.TransferLeaderRequest{},
+		},
+	}
+
+	for _, c := range cases {
+		s, cancel := newTestStore(t)
+		defer cancel()
+		s.workerPool.close() // avoid admin request real handled by event worker
+		pr := c.fn(s)
+		pr.sm = &stateMachine{}
+		pr.sm.metadataMu.shard = Shard{}
+		s.doShardHeartbeatRsp(c.rsp)
+
+		v, err := pr.requests.Peek()
+		assert.NoError(t, err)
+
+		protoc.MustUnmarshal(c.adminTargetReq, v.(reqCtx).req.Cmd)
+		assert.Equal(t, c.adminReq, c.adminTargetReq)
+	}
 }

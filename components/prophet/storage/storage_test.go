@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -40,13 +39,13 @@ func TestPutAndGetShard(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	id := uint64(1)
-	assert.NoError(t, storage.PutShard(metadata.NewTestShard(id)), "TestPutAndGetShard failed")
+	assert.NoError(t, storage.PutShard(metapb.Shard{ID: id}), "TestPutAndGetShard failed")
 
 	v, err := storage.GetShard(id)
 	assert.NoError(t, err, "TestPutAndGetShard failed")
-	assert.Equal(t, id, v.ID(), "TestPutAndGetShard failed")
+	assert.Equal(t, id, v.GetID(), "TestPutAndGetShard failed")
 }
 
 func TestPutAndGetStore(t *testing.T) {
@@ -64,13 +63,13 @@ func TestPutAndGetStore(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	id := uint64(1)
-	assert.NoError(t, storage.PutStore(metadata.NewTestStore(id)), "TestPutAndGetStore failed")
+	assert.NoError(t, storage.PutStore(metapb.Store{ID: id}), "TestPutAndGetStore failed")
 
 	v, err := storage.GetStore(id)
 	assert.NoError(t, err, "TestPutAndGetStore failed")
-	assert.Equal(t, id, v.ID(), "TestPutAndGetStore failed")
+	assert.Equal(t, id, v.GetID(), "TestPutAndGetStore failed")
 }
 
 func TestLoadShards(t *testing.T) {
@@ -88,10 +87,10 @@ func TestLoadShards(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []metadata.Shard
-	cb := func(v metadata.Shard) {
+	var values []metapb.Shard
+	cb := func(v metapb.Shard) {
 		values = append(values, v)
 	}
 
@@ -101,7 +100,7 @@ func TestLoadShards(t *testing.T) {
 
 	n := 10
 	for i := 0; i < n; i++ {
-		assert.NoError(t, s.PutShard(metadata.NewTestShard(uint64(i))), "TestLoadShards failed")
+		assert.NoError(t, s.PutShard(metapb.Shard{ID: uint64(i)}), "TestLoadShards failed")
 	}
 	err = s.LoadShards(1, cb)
 	assert.NoError(t, err, "TestLoadShards failed")
@@ -123,10 +122,10 @@ func TestLoadStores(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 
-	var values []metadata.Store
-	cb := func(v metadata.Store, lw, cw float64) {
+	var values []metapb.Store
+	cb := func(v metapb.Store, lw, cw float64) {
 		values = append(values, v)
 	}
 
@@ -136,7 +135,7 @@ func TestLoadStores(t *testing.T) {
 
 	n := 10
 	for i := 0; i < n; i++ {
-		s.PutStore(metadata.NewTestStore(uint64(i)))
+		s.PutStore(metapb.Store{ID: uint64(i)})
 	}
 	err = s.LoadStores(1, cb)
 	assert.NoError(t, err, "TestLoadStores failed")
@@ -158,21 +157,21 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	yes, err := s.AlreadyBootstrapped()
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
 
-	var reses []metadata.Shard
+	var reses []*metapb.Shard
 	for i := 0; i < 10; i++ {
-		res := metadata.NewTestShard(uint64(i + 1))
+		res := &metapb.Shard{ID: uint64(i + 1)}
 		reses = append(reses, res)
 	}
-	yes, err = s.PutBootstrapped(metadata.NewTestStore(1), reses...)
+	yes, err = s.PutBootstrapped(metapb.Store{ID: 1}, reses...)
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.True(t, yes, "TestAlreadyBootstrapped failed")
 	c := 0
-	err = s.LoadShards(8, func(res metadata.Shard) {
+	err = s.LoadShards(8, func(res metapb.Shard) {
 		c++
 	})
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
@@ -198,7 +197,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}))
@@ -236,7 +235,7 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
 	assert.NoError(t, storage.PutCustomData([]byte("k2"), []byte("v2")))
 	assert.NoError(t, storage.PutCustomData([]byte("k3"), []byte("v3")))
@@ -279,7 +278,7 @@ func TestBatchPutCustomData(t *testing.T) {
 
 	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
 	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), metadata.NewTestAdapter())
+	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
 	assert.NoError(t, storage.BatchPutCustomData(keys, data))
 
 	var loadedValues [][]byte

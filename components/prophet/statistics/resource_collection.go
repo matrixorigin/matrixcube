@@ -111,7 +111,7 @@ func (r *ShardStatistics) deleteOfflineEntry(deleteIndex ShardStatisticType, res
 // Observe records the current resources' status.
 func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.CachedStore) {
 	// Shard state.
-	resID := res.Meta.ID()
+	resID := res.Meta.GetID()
 	var (
 		peerTypeIndex        ShardStatisticType
 		offlinePeerTypeIndex ShardStatisticType
@@ -133,7 +133,7 @@ func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.Cach
 
 	for _, store := range containers {
 		if store.IsOffline() {
-			_, ok := res.GetStorePeer(store.Meta.ID())
+			_, ok := res.GetStorePeer(store.Meta.GetID())
 			if ok {
 				isOffline = true
 				break
@@ -142,12 +142,12 @@ func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.Cach
 	}
 
 	conditions := map[ShardStatisticType]bool{
-		MissPeer:      len(res.Meta.Peers()) < desiredReplicas,
-		ExtraPeer:     len(res.Meta.Peers()) > desiredReplicas,
-		DownPeer:      len(res.GetDownPeers()) > 0,
-		PendingPeer:   len(res.GetPendingPeers()) > 0,
-		LearnerPeer:   len(res.GetLearners()) > 0,
-		EmptyShard: res.GetApproximateSize() <= core.EmptyShardApproximateSize,
+		MissPeer:    len(res.Meta.GetReplicas()) < desiredReplicas,
+		ExtraPeer:   len(res.Meta.GetReplicas()) > desiredReplicas,
+		DownPeer:    len(res.GetDownPeers()) > 0,
+		PendingPeer: len(res.GetPendingPeers()) > 0,
+		LearnerPeer: len(res.GetLearners()) > 0,
+		EmptyShard:  res.GetApproximateSize() <= core.EmptyShardApproximateSize,
 	}
 
 	for typ, c := range conditions {
@@ -226,7 +226,7 @@ func NewLabelStatistics() *LabelStatistics {
 
 // Observe records the current label status.
 func (l *LabelStatistics) Observe(res *core.CachedShard, containers []*core.CachedStore, labels []string) {
-	resID := res.Meta.ID()
+	resID := res.Meta.GetID()
 	resourceIsolation := getShardLabelIsolation(containers, labels)
 	if label, ok := l.resourceLabelStats[resID]; ok {
 		if label == resourceIsolation {

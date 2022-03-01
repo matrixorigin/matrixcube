@@ -23,7 +23,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -33,21 +32,19 @@ import (
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	logger                  *zap.Logger
-	factory                 func() metadata.Shard
-	Stores              *CachedStores
+	logger               *zap.Logger
+	Stores               *CachedStores
 	Shards               *CachedShards
 	DestroyedShards      *roaring64.Bitmap
-	WaittingCreateShards map[uint64]metadata.Shard
-	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules      []metapb.ScheduleGroupRule
-	ScheduleGroupKeys       map[string]struct{}
+	WaittingCreateShards map[uint64]metapb.Shard
+	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
+	ScheduleGroupRules   []metapb.ScheduleGroupRule
+	ScheduleGroupKeys    map[string]struct{}
 }
 
 // NewBasicCluster creates a BasicCluster.
-func NewBasicCluster(factory func() metadata.Shard, logger *zap.Logger) *BasicCluster {
+func NewBasicCluster(logger *zap.Logger) *BasicCluster {
 	bc := &BasicCluster{
-		factory:            factory,
 		logger:             log.Adjust(logger),
 		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
 		ScheduleGroupKeys:  make(map[string]struct{}),
@@ -62,9 +59,9 @@ func (bc *BasicCluster) Reset() {
 	defer bc.Unlock()
 
 	bc.Stores = NewCachedStores()
-	bc.Shards = NewCachedShards(bc.factory)
+	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
-	bc.WaittingCreateShards = make(map[uint64]metadata.Shard)
+	bc.WaittingCreateShards = make(map[uint64]metapb.Shard)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
@@ -82,16 +79,16 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 }
 
 // AddWaittingCreateShards add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateShards(resources ...metadata.Shard) {
+func (bc *BasicCluster) AddWaittingCreateShards(resources ...metapb.Shard) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
-		bc.WaittingCreateShards[res.ID()] = res
+		bc.WaittingCreateShards[res.GetID()] = res
 	}
 }
 
 // ForeachWaittingCreateShards do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metadata.Shard)) {
+func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 	for _, res := range bc.WaittingCreateShards {
@@ -100,7 +97,7 @@ func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metadata.Shard))
 }
 
 // ForeachShards foreach resources by group
-func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metadata.Shard)) {
+func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 
@@ -136,7 +133,7 @@ func (bc *BasicCluster) GetDestroyShards(bm *roaring64.Bitmap) (*roaring64.Bitma
 	// read destroying resources
 	destroying := roaring64.New()
 	for id, res := range bc.Shards.resources.m {
-		if res.Meta.State() == metapb.ShardState_Destroying && bm.Contains(id) {
+		if res.Meta.GetState() == metapb.ShardState_Destroying && bm.Contains(id) {
 			destroying.Add(id)
 		}
 	}
@@ -150,8 +147,8 @@ func (bc *BasicCluster) GetStores() []*CachedStore {
 	return bc.Stores.GetStores()
 }
 
-// GetMetaStores gets a complete set of metadata.Store.
-func (bc *BasicCluster) GetMetaStores() []metadata.Store {
+// GetMetaStores gets a complete set of *metapb.Store.
+func (bc *BasicCluster) GetMetaStores() []metapb.Store {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Stores.GetMetaStores()
@@ -178,8 +175,8 @@ func (bc *BasicCluster) GetShards() []*CachedShard {
 	return bc.Shards.GetShards()
 }
 
-// GetMetaShards gets a set of metadata.Shard from resourceMap.
-func (bc *BasicCluster) GetMetaShards() []metadata.Shard {
+// GetMetaShards gets a set of *metapb.Shard from resourceMap.
+func (bc *BasicCluster) GetMetaShards() []*metapb.Shard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetMetaShards()
@@ -424,12 +421,12 @@ func (bc *BasicCluster) TakeStore(containerID uint64) *CachedStore {
 // PreCheckPutShard checks if the resource is valid to put.
 func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error) {
 	bc.RLock()
-	origin := bc.Shards.GetShard(res.Meta.ID())
+	origin := bc.Shards.GetShard(res.Meta.GetID())
 	if origin == nil ||
 		!bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
 		!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
 		for _, item := range bc.Shards.GetOverlaps(res) {
-			if res.Meta.Epoch().Version < item.Meta.Epoch().Version {
+			if res.Meta.GetEpoch().Version < item.Meta.GetEpoch().Version {
 				bc.RUnlock()
 				return nil, errShardIsStale(res.Meta, item.Meta)
 			}
@@ -439,8 +436,8 @@ func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error)
 	if origin == nil {
 		return nil, nil
 	}
-	r := res.Meta.Epoch()
-	o := origin.Meta.Epoch()
+	r := res.Meta.GetEpoch()
+	o := origin.Meta.GetEpoch()
 
 	isTermBehind := res.GetTerm() < origin.GetTerm()
 
@@ -457,9 +454,9 @@ func (bc *BasicCluster) PutShard(res *CachedShard) []*CachedShard {
 	bc.Lock()
 	defer bc.Unlock()
 
-	if _, ok := bc.WaittingCreateShards[res.Meta.ID()]; ok {
-		delete(bc.WaittingCreateShards, res.Meta.ID())
-		if res.Meta.State() == metapb.ShardState_Creating {
+	if _, ok := bc.WaittingCreateShards[res.Meta.GetID()]; ok {
+		delete(bc.WaittingCreateShards, res.Meta.GetID())
+		if res.Meta.GetState() == metapb.ShardState_Creating {
 			res.Meta.SetState(metapb.ShardState_Running)
 		}
 	}
@@ -468,9 +465,9 @@ func (bc *BasicCluster) PutShard(res *CachedShard) []*CachedShard {
 
 // CheckAndPutShard checks if the resource is valid to put,if valid then put.
 func (bc *BasicCluster) CheckAndPutShard(res *CachedShard) []*CachedShard {
-	switch res.Meta.State() {
+	switch res.Meta.GetState() {
 	case metapb.ShardState_Destroyed:
-		bc.AddRemovedShards(res.Meta.ID())
+		bc.AddRemovedShards(res.Meta.GetID())
 		return nil
 	case metapb.ShardState_Creating:
 		bc.AddWaittingCreateShards(res.Meta)
@@ -480,7 +477,7 @@ func (bc *BasicCluster) CheckAndPutShard(res *CachedShard) []*CachedShard {
 	origin, err := bc.PreCheckPutShard(res)
 	if err != nil {
 		bc.logger.Debug("resource is stale, need to delete",
-			zap.Uint64("resource", origin.Meta.ID()))
+			zap.Uint64("resource", origin.Meta.GetID()))
 		// return the state resource to delete.
 		return []*CachedShard{res}
 	}

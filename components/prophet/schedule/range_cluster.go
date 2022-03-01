@@ -33,7 +33,7 @@ type RangeCluster struct {
 // GenRangeCluster gets a range cluster by specifying start key and end key.
 // The cluster can only know the resources within [startKey, endKey].
 func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte) *RangeCluster {
-	subCluster := core.NewBasicCluster(cluster.GetShardFactory(), cluster.GetLogger())
+	subCluster := core.NewBasicCluster(cluster.GetLogger())
 	for _, r := range cluster.ScanShards(group, startKey, endKey, -1) {
 		subCluster.Shards.AddShard(r)
 	}
@@ -45,7 +45,7 @@ func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte)
 }
 
 func (r *RangeCluster) updateCachedStore(s *core.CachedStore) *core.CachedStore {
-	id := s.Meta.ID()
+	id := s.Meta.GetID()
 
 	used := float64(s.GetUsedSize()) / (1 << 20)
 	if used == 0 {

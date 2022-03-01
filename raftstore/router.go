@@ -303,7 +303,7 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 }
 
 func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, removed bool, create bool) {
-	res := &resourceAdapter{}
+	res := metapb.NewShard()
 	err := res.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal shard",
@@ -313,39 +313,39 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 
 	if removed {
 		r.logger.Info("need to delete shard",
-			log.ShardField("shard", res.meta))
+			log.ShardField("shard", *res))
 
-		r.options.removeShardHandler(res.meta.ID)
-		if tree, ok := r.mu.keyRanges[res.meta.Group]; ok {
-			tree.Remove(res.meta)
+		r.options.removeShardHandler(res.GetID())
+		if tree, ok := r.mu.keyRanges[res.GetGroup()]; ok {
+			tree.Remove(*res)
 		}
-		delete(r.mu.shards, res.meta.ID)
-		delete(r.mu.missingLeaderStoreShards, res.meta.ID)
-		delete(r.mu.leaders, res.meta.ID)
+		delete(r.mu.shards, res.GetID())
+		delete(r.mu.missingLeaderStoreShards, res.GetID())
+		delete(r.mu.leaders, res.GetID())
 		return
 	}
 
 	if create {
 		r.logger.Info("need to create shard",
-			log.ShardField("shard", res.meta))
-		r.options.createShardHandler(res.meta)
+			log.ShardField("shard", *res))
+		r.options.createShardHandler(*res)
 		return
 	}
 
-	r.mu.shards[res.meta.ID] = res.meta
-	r.updateShardKeyRangeLocked(res.meta)
+	r.mu.shards[res.GetID()] = *res
+	r.updateShardKeyRangeLocked(*res)
 
 	r.logger.Debug("shard route updated",
-		log.ShardField("shard", res.meta),
+		log.ShardField("shard", *res),
 		zap.Uint64("leader", leaderReplicaID))
 
 	if leaderReplicaID > 0 {
-		r.updateLeaderLocked(res.meta.ID, leaderReplicaID)
+		r.updateLeaderLocked(res.GetID(), leaderReplicaID)
 	}
 }
 
 func (r *defaultRouter) updateStoreLocked(data []byte) {
-	s := &containerAdapter{}
+	s := metapb.NewStore()
 	err := s.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal store",
@@ -353,9 +353,9 @@ func (r *defaultRouter) updateStoreLocked(data []byte) {
 			log.HexField("data", data))
 	}
 
-	r.mu.stores[s.meta.ID] = s.meta
+	r.mu.stores[s.GetID()] = *s
 	for k, v := range r.mu.missingLeaderStoreShards {
-		if v.StoreID == s.meta.ID {
+		if v.StoreID == s.GetID() {
 			if _, ok := r.mu.shards[k]; ok {
 				r.updateLeaderLocked(k, v.ID)
 			}

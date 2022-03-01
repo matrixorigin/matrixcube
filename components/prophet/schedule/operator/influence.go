@@ -38,10 +38,10 @@ func (m OpInfluence) GetStoreInfluence(id uint64) *StoreInfluence {
 }
 
 type InfluenceStats struct {
-	ShardSize  int64
-	ShardCount int64
-	LeaderSize    int64
-	LeaderCount   int64
+	ShardSize   int64
+	ShardCount  int64
+	LeaderSize  int64
+	LeaderCount int64
 }
 
 // StoreInfluence records influences that pending operators will make.

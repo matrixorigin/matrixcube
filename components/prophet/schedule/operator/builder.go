@@ -46,12 +46,12 @@ type Builder struct {
 	expectedRoles map[uint64]placement.ReplicaRoleType
 
 	// operation record
-	originPeers             peersMap
-	unhealthyPeers          peersMap
+	originPeers         peersMap
+	unhealthyPeers      peersMap
 	originLeaderStoreID uint64
-	targetPeers             peersMap
+	targetPeers         peersMap
 	targetLeaderStoreID uint64
-	err                     error
+	err                 error
 
 	// skip origin check flags
 	skipOriginJointStateCheck bool
@@ -64,7 +64,7 @@ type Builder struct {
 
 	// intermediate states
 	currentPeers                         peersMap
-	currentLeaderStoreID             uint64
+	currentLeaderStoreID                 uint64
 	toAdd, toRemove, toPromote, toDemote peersMap       // pending tasks.
 	steps                                []OpStep       // generated steps.
 	peerAddStep                          map[uint64]int // record at which step a peer is created.
@@ -86,8 +86,8 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	b := &Builder{
 		desc:          desc,
 		cluster:       cluster,
-		resourceID:    res.Meta.ID(),
-		resourceEpoch: res.Meta.Epoch(),
+		resourceID:    res.Meta.GetID(),
+		resourceEpoch: res.Meta.GetEpoch(),
 	}
 
 	// options
@@ -100,7 +100,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	originPeers := newPeersMap()
 	unhealthyPeers := newPeersMap()
 
-	for _, p := range res.Meta.Peers() {
+	for _, p := range res.Meta.GetReplicas() {
 		if p.StoreID == 0 {
 			err = errors.New("cannot build operator for resource with nil peer")
 			break
@@ -140,7 +140,7 @@ func NewBuilder(desc string, cluster opt.Cluster, res *core.CachedShard, opts ..
 	}
 
 	// joint state check
-	if err == nil && !b.skipOriginJointStateCheck && metadata.IsInJointState(res.Meta.Peers()...) {
+	if err == nil && !b.skipOriginJointStateCheck && metadata.IsInJointState(res.Meta.GetReplicas()...) {
 		err = errors.New("cannot build operator for resource which is in joint state")
 	}
 
@@ -201,9 +201,9 @@ func (b *Builder) PromoteLearner(containerID uint64) *Builder {
 		b.err = fmt.Errorf("cannot promote peer %d: unhealthy", containerID)
 	} else {
 		b.targetPeers.Set(metapb.Replica{
-			ID:          peer.ID,
+			ID:      peer.ID,
 			StoreID: peer.StoreID,
-			Role:        metapb.ReplicaRole_Voter,
+			Role:    metapb.ReplicaRole_Voter,
 		})
 	}
 	return b
@@ -220,9 +220,9 @@ func (b *Builder) DemoteVoter(containerID uint64) *Builder {
 		b.err = fmt.Errorf("cannot demote voter %d: is already learner", containerID)
 	} else {
 		b.targetPeers.Set(metapb.Replica{
-			ID:          peer.ID,
+			ID:      peer.ID,
 			StoreID: peer.StoreID,
-			Role:        metapb.ReplicaRole_Learner,
+			Role:    metapb.ReplicaRole_Learner,
 		})
 	}
 	return b
@@ -368,9 +368,9 @@ func (b *Builder) prepareBuild() (string, error) {
 		// modify it to the peer id of the origin.
 		if o.ID != n.ID {
 			n = metapb.Replica{
-				ID:          o.ID,
+				ID:      o.ID,
 				StoreID: o.StoreID,
-				Role:        n.Role,
+				Role:    n.Role,
 			}
 		}
 
@@ -402,9 +402,9 @@ func (b *Builder) prepareBuild() (string, error) {
 					return "", err
 				}
 				n = metapb.Replica{
-					ID:          id,
+					ID:      id,
 					StoreID: n.StoreID,
-					Role:        n.Role,
+					Role:    n.Role,
 				}
 			}
 			// It is a pair with `b.toRemove.Set(o)` when `o != nil`.
@@ -467,9 +467,9 @@ func (b *Builder) buildStepsWithJointConsensus(kind OpKind) (OpKind, error) {
 		peer := b.toAdd[add]
 		if !metadata.IsLearner(peer) {
 			b.execAddPeer(metapb.Replica{
-				ID:          peer.ID,
+				ID:      peer.ID,
 				StoreID: peer.StoreID,
-				Role:        metapb.ReplicaRole_Learner,
+				Role:    metapb.ReplicaRole_Learner,
 			})
 			b.toPromote.Set(peer)
 		} else {
@@ -488,9 +488,9 @@ func (b *Builder) buildStepsWithJointConsensus(kind OpKind) (OpKind, error) {
 		peer := b.toRemove[remove]
 		if !metadata.IsLearner(peer) {
 			b.toDemote.Set(metapb.Replica{
-				ID:          peer.ID,
+				ID:      peer.ID,
 				StoreID: peer.StoreID,
-				Role:        metapb.ReplicaRole_Learner,
+				Role:    metapb.ReplicaRole_Learner,
 			})
 		}
 	}
@@ -931,7 +931,7 @@ func (b *Builder) initStepPlanPreferFuncs() {
 		b.planPreferReplaceByNearest, // 1. violate it affects replica safety.
 		// 2-3 affects operator execution speed.
 		b.planPreferUPStoreAsLeader, // 2. compare to 3, it is more likely to affect execution speed.
-		b.planPreferOldPeerAsLeader,     // 3. violate it may or may not affect execution speed.
+		b.planPreferOldPeerAsLeader, // 3. violate it may or may not affect execution speed.
 		// 4-6 are less important as they are only trying to build the
 		// operator with less leader transfer steps.
 		b.planPreferAddOrPromoteTargetLeader, // 4. it is precondition of 5 so goes first.
@@ -1038,7 +1038,7 @@ func (b *Builder) planPreferAddOrPromoteTargetLeader(p stepPlan) int {
 	return typeutil.BoolToInt(addTarget || promoteTarget)
 }
 
-// Peers indexed by containerID.
+// Replicas indexed by containerID.
 type peersMap map[uint64]metapb.Replica
 
 func newPeersMap() peersMap {

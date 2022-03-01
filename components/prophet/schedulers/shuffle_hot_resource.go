@@ -175,7 +175,7 @@ func (s *shuffleHotShardScheduler) randomSchedule(cluster opt.Cluster, loadDetai
 		filters := []filter.Filter{
 			&filter.StoreStateFilter{ActionScope: s.GetName(), MoveShard: true},
 			filter.NewExcludedFilter(s.GetName(), srcShard.GetStoreIDs(), srcShard.GetStoreIDs()),
-			filter.NewPlacementSafeguard(s.GetName(), cluster, srcShard, srcStore, s.OpController.GetCluster().GetShardFactory()),
+			filter.NewPlacementSafeguard(s.GetName(), cluster, srcShard, srcStore),
 		}
 		containers := cluster.GetStores()
 		destStoreIDs := make([]uint64, 0, len(containers))
@@ -183,7 +183,7 @@ func (s *shuffleHotShardScheduler) randomSchedule(cluster opt.Cluster, loadDetai
 			if !filter.Target(cluster.GetOpts(), container, filters) {
 				continue
 			}
-			destStoreIDs = append(destStoreIDs, container.Meta.ID())
+			destStoreIDs = append(destStoreIDs, container.Meta.GetID())
 		}
 		if len(destStoreIDs) == 0 {
 			return nil

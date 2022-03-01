@@ -27,7 +27,7 @@ type StoreCreateOption func(container *CachedStore)
 // SetStoreAddress sets the address for the container.
 func SetStoreAddress(address, shardAddress string) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetAddrs(address, shardAddress)
 		container.Meta = meta
 	}
@@ -36,7 +36,7 @@ func SetStoreAddress(address, shardAddress string) StoreCreateOption {
 // SetStoreLabels sets the labels for the container.
 func SetStoreLabels(labels []metapb.Pair) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetLabels(labels)
 		container.Meta = meta
 	}
@@ -45,8 +45,8 @@ func SetStoreLabels(labels []metapb.Pair) StoreCreateOption {
 // SetStoreStartTime sets the start timestamp for the container.
 func SetStoreStartTime(startTS int64) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
-		meta.SetStartTimestamp(startTS)
+		meta := container.Meta.CloneValue()
+		meta.SetStartTime(startTS)
 		container.Meta = meta
 	}
 }
@@ -54,8 +54,8 @@ func SetStoreStartTime(startTS int64) StoreCreateOption {
 // SetStoreVersion sets the version for the container.
 func SetStoreVersion(githash, version string) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
-		meta.SetVersion(version, githash)
+		meta := container.Meta.CloneValue()
+		meta.SetVersionAndGitHash(version, githash)
 		container.Meta = meta
 	}
 }
@@ -63,7 +63,7 @@ func SetStoreVersion(githash, version string) StoreCreateOption {
 // SetStoreDeployPath sets the deploy path for the container.
 func SetStoreDeployPath(deployPath string) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetDeployPath(deployPath)
 		container.Meta = meta
 	}
@@ -72,7 +72,7 @@ func SetStoreDeployPath(deployPath string) StoreCreateOption {
 // OfflineStore offline a container
 func OfflineStore(physicallyDestroyed bool) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetPhysicallyDestroyed(physicallyDestroyed)
 		meta.SetState(metapb.StoreState_Offline)
 		container.Meta = meta
@@ -82,7 +82,7 @@ func OfflineStore(physicallyDestroyed bool) StoreCreateOption {
 // UpStore up a container
 func UpStore() StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetState(metapb.StoreState_UP)
 		container.Meta = meta
 	}
@@ -91,7 +91,7 @@ func UpStore() StoreCreateOption {
 // TombstoneStore set a container to tombstone.
 func TombstoneStore() StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetState(metapb.StoreState_StoreTombstone)
 		container.Meta = meta
 	}
@@ -100,7 +100,7 @@ func TombstoneStore() StoreCreateOption {
 // SetStoreState sets the state for the container.
 func SetStoreState(state metapb.StoreState) StoreCreateOption {
 	return func(container *CachedStore) {
-		meta := container.Meta.Clone()
+		meta := container.Meta.CloneValue()
 		meta.SetState(state)
 		container.Meta = meta
 	}

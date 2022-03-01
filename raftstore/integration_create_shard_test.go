@@ -21,7 +21,6 @@ import (
 	"github.com/fagongzi/util/protoc"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -34,10 +33,10 @@ type testShardsAware struct {
 	adjust func(*core.CachedShard) *core.CachedShard
 }
 
-func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res metadata.Shard)) {
+func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res metapb.Shard)) {
 	tra.aware.ForeachWaittingCreateShards(do)
 }
-func (tra *testShardsAware) ForeachShards(group uint64, fn func(res metadata.Shard)) {
+func (tra *testShardsAware) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	tra.aware.ForeachShards(group, fn)
 }
 
@@ -75,7 +74,7 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 		c.WaitShardByCountPerNode(2, testWaitTimeout)
 		c.WaitLeadersByCount(2, testWaitTimeout)
 
-		err := c.GetProphet().GetClient().AsyncAddShards(NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1}))
+		err := c.GetProphet().GetClient().AsyncAddShards(metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc", Group: 1})
 		assert.NoError(t, err)
 		c.WaitShardByCountPerNode(3, testWaitTimeout)
 		c.WaitLeadersByCount(3, testWaitTimeout)
@@ -104,7 +103,7 @@ func TestSpeedupAddShard(t *testing.T) {
 	defer c.Stop()
 	c.WaitShardByCountPerNode(1, testWaitTimeout)
 
-	err := c.GetProphet().GetClient().AsyncAddShards(NewShardAdapterWithShard(Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"}))
+	err := c.GetProphet().GetClient().AsyncAddShards(metapb.Shard{Start: []byte("b"), End: []byte("c"), Unique: "abc"})
 	assert.NoError(t, err)
 
 	c.WaitShardByCountPerNode(2, testWaitTimeout)

@@ -142,18 +142,18 @@ func (r *ShardSplitter) groupKeysByShard(group uint64, keys [][]byte) map[uint64
 			continue
 		}
 		r.cluster.GetLogger().Info("found resource",
-			log.ResourceField(res.Meta.ID()),
+			log.ResourceField(res.Meta.GetID()),
 			log.HexField("key", key))
-		_, ok := groups[res.Meta.ID()]
+		_, ok := groups[res.Meta.GetID()]
 		if !ok {
-			groups[res.Meta.ID()] = &resourceGroupKeys{
+			groups[res.Meta.GetID()] = &resourceGroupKeys{
 				resource: res,
 				keys: [][]byte{
 					key,
 				},
 			}
 		} else {
-			groups[res.Meta.ID()].keys = append(groups[res.Meta.ID()].keys, key)
+			groups[res.Meta.GetID()].keys = append(groups[res.Meta.GetID()].keys, key)
 		}
 	}
 	return groups
@@ -164,7 +164,7 @@ func (r *ShardSplitter) checkShardValid(res *core.CachedShard) bool {
 		return false
 	}
 	if !opt.IsShardReplicated(r.cluster, res) {
-		r.cluster.AddSuspectShards(res.Meta.ID())
+		r.cluster.AddSuspectShards(res.Meta.GetID())
 		return false
 	}
 	if res.GetLeader() == nil {
@@ -186,7 +186,7 @@ func (h *splitShardsHandler) SplitShardByKeys(res *core.CachedShard, splitKeys [
 
 	if ok := h.oc.AddOperator(op); !ok {
 		h.cluster.GetLogger().Warn("add resource split operator failed",
-			log.ResourceField(res.Meta.ID()))
+			log.ResourceField(res.Meta.GetID()))
 		return errors.New("add resource split operator failed")
 	}
 	return nil
@@ -204,9 +204,9 @@ func (h *splitShardsHandler) ScanShardsByKeyRange(group uint64, groupKeys *resou
 		for _, splitKey := range splitKeys {
 			if bytes.Equal(splitKey, res.GetStartKey()) {
 				h.cluster.GetLogger().Info("resource found split key",
-					log.ResourceField(res.Meta.ID()),
+					log.ResourceField(res.Meta.GetID()),
 					log.HexField("split-key", splitKey))
-				createdShards[res.Meta.ID()] = splitKey
+				createdShards[res.Meta.GetID()] = splitKey
 			}
 		}
 	}

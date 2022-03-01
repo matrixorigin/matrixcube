@@ -26,7 +26,6 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/checker"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
@@ -161,14 +160,14 @@ func TestFastFailOperator(t *testing.T) {
 	res = res.Clone(core.WithLeader(&p))
 	oc.Dispatch(res, DispatchFromHeartBeat)
 	assert.Equal(t, operator.CANCELED, op.Status())
-	assert.Nil(t, oc.GetOperator(res.Meta.ID()))
+	assert.Nil(t, oc.GetOperator(res.Meta.GetID()))
 
 	// transfer leader to an illegal container.
 	op = operator.NewOperator("test", "test", 1, metapb.ShardEpoch{}, operator.OpShard, operator.TransferLeader{ToStore: 5})
 	oc.SetOperator(op)
 	oc.Dispatch(res, DispatchFromHeartBeat)
 	assert.Equal(t, operator.CANCELED, op.Status())
-	assert.Nil(t, oc.GetOperator(res.Meta.ID()))
+	assert.Nil(t, oc.GetOperator(res.Meta.GetID()))
 }
 
 func TestCheckAddUnexpectedStatus(t *testing.T) {
@@ -332,7 +331,7 @@ func TestPollDispatchShard(t *testing.T) {
 	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
-	assert.Equal(t, res1.Meta.ID(), r.Meta.ID())
+	assert.Equal(t, res1.Meta.GetID(), r.Meta.GetID())
 
 	// find op3 with nil resource, remove it
 	assert.NotNil(t, oc.GetOperator(3))
@@ -345,14 +344,14 @@ func TestPollDispatchShard(t *testing.T) {
 	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
-	assert.Equal(t, res4.Meta.ID(), r.Meta.ID())
+	assert.Equal(t, res4.Meta.GetID(), r.Meta.GetID())
 
 	// after waiting 500 milliseconds, the resource2 need to dispatch
 	time.Sleep(400 * time.Millisecond)
 	r, next = oc.pollNeedDispatchShard()
 	assert.NotNil(t, r)
 	assert.True(t, next)
-	assert.Equal(t, res2.Meta.ID(), r.Meta.ID())
+	assert.Equal(t, res2.Meta.GetID(), r.Meta.GetID())
 	r, next = oc.pollNeedDispatchShard()
 	assert.Nil(t, r)
 	assert.False(t, next)
@@ -726,12 +725,7 @@ func newresourceInfo(id uint64, startKey, endKey string, size, keys int64, leade
 		prs = append(prs, metapb.Replica{ID: peer[0], StoreID: peer[1]})
 	}
 	return core.NewCachedShard(
-		&metadata.TestShard{
-			ResID:    id,
-			Start:    []byte(startKey),
-			End:      []byte(endKey),
-			ResPeers: prs,
-		},
+		metapb.Shard{ID: id, Start: []byte(startKey), End: []byte(endKey), Replicas: prs},
 		&metapb.Replica{ID: leader[0], StoreID: leader[1]},
 		core.SetApproximateSize(size),
 		core.SetApproximateKeys(keys),
