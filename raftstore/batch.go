@@ -14,6 +14,8 @@
 package raftstore
 
 import (
+	"fmt"
+
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -159,6 +161,19 @@ func respStoreNotMatch(err error, req rpcpb.Request, cb func(rpcpb.ResponseBatch
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:       err.Error(),
 		StoreNotMatch: storeNotMatch,
+	})
+	resp := rpcpb.Response{
+		ID:  req.ID,
+		PID: req.PID,
+	}
+	rsp.Responses = append(rsp.Responses, resp)
+	cb(rsp)
+}
+
+func respShardUnavailable(id uint64, req rpcpb.Request, cb func(responseBatch rpcpb.ResponseBatch)) {
+	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
+		Message:          fmt.Sprintf("shard %d is unavailable", id),
+		ShardUnavailable: &errorpb.ShardUnavailable{ShardID: id},
 	})
 	resp := rpcpb.Response{
 		ID:  req.ID,

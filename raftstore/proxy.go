@@ -305,6 +305,10 @@ func (p *shardsProxy) done(rsp rpcpb.Response) {
 	}
 
 	if !errorpb.Retryable(rsp.Error) {
+		if rsp.Error.ShardUnavailable != nil {
+			p.cfg.failureCallback(rsp.ID, NewShardUnavailableErr(rsp.Error.ShardUnavailable.ShardID))
+			return
+		}
 		p.cfg.failureCallback(rsp.ID, errors.New(rsp.Error.String()))
 		return
 	}

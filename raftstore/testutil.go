@@ -645,6 +645,8 @@ type TestRaftCluster interface {
 	GetProphet() prophet.Prophet
 	// CreateTestKVClient create and returns a kv client
 	CreateTestKVClient(node int) TestKVClient
+	// CreateTestKVClientWithAdjust create and returns a kv client with adjust func to modify request
+	CreateTestKVClientWithAdjust(node int, adjust func(req *rpcpb.Request)) TestKVClient
 }
 
 // TestKVClient is a kv client that uses `TestRaftCluster` as Backend's KV storage engine
@@ -653,18 +655,23 @@ type TestKVClient interface {
 	Set(key, value string, timeout time.Duration) error
 	// Get returns the value of the specific key from backend kv storage
 	Get(key string, timeout time.Duration) (string, error)
+	// SetWithShard set key-value to the backend kv storage
+	SetWithShard(key, value string, id uint64, timeout time.Duration) error
+	// GetWithShard returns the value of the specific key from backend kv storage
+	GetWithShard(key string, id uint64, timeout time.Duration) (string, error)
 	// UpdateLabel update the shard label
 	UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error
 	// Close close the test client
 	Close()
 }
 
-func newTestKVClient(t *testing.T, store Store) TestKVClient {
+func newTestKVClient(t *testing.T, store Store, adjust func(req *rpcpb.Request)) TestKVClient {
 	kv := &testKVClient{
 		errCtx:   make(map[string]chan error),
 		doneCtx:  make(map[string]chan string),
 		stopper:  stop.NewStopper("test-kv-client"),
 		requests: make(map[string]rpcpb.Request),
+		adjust:   adjust,
 	}
 	kv.proxy = store.GetShardsProxy()
 	kv.proxy.SetCallback(kv.done, kv.errorDone)
@@ -680,9 +687,14 @@ type testKVClient struct {
 	doneCtx  map[string]chan string
 	errCtx   map[string]chan error
 	requests map[string]rpcpb.Request
+	adjust   func(req *rpcpb.Request)
 }
 
 func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
+	return kv.SetWithShard(key, value, 0, timeout)
+}
+
+func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout time.Duration) error {
 	doneC := make(chan string, 1)
 	defer close(doneC)
 
@@ -695,6 +707,7 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 
 	req := createTestWriteReq(id, key, value)
 	req.StopAt = time.Now().Add(timeout).Unix()
+	req.ToShard = shardID
 
 	kv.Lock()
 	kv.requests[id] = req
@@ -706,6 +719,9 @@ func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
 		kv.Unlock()
 	}()
 
+	if kv.adjust != nil {
+		kv.adjust(&req)
+	}
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return err
@@ -755,6 +771,9 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 		kv.Unlock()
 	}()
 
+	if kv.adjust != nil {
+		kv.adjust(&req)
+	}
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return err
@@ -770,7 +789,7 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 	}
 }
 
-func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
+func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Duration) (string, error) {
 	doneC := make(chan string, 1)
 	defer close(doneC)
 
@@ -783,6 +802,7 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 
 	req := createTestReadReq(id, key)
 	req.StopAt = time.Now().Add(timeout).Unix()
+	req.ToShard = shardID
 
 	kv.Lock()
 	kv.requests[id] = req
@@ -794,6 +814,9 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 		kv.Unlock()
 	}()
 
+	if kv.adjust != nil {
+		kv.adjust(&req)
+	}
 	err := kv.proxy.Dispatch(req)
 	if err != nil {
 		return "", err
@@ -807,6 +830,10 @@ func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
 	case <-time.After(timeout):
 		return "", ErrTimeout
 	}
+}
+
+func (kv *testKVClient) Get(key string, timeout time.Duration) (string, error) {
+	return kv.GetWithShard(key, 0, timeout)
 }
 
 func (kv *testKVClient) Close() {
@@ -842,6 +869,13 @@ func (kv *testKVClient) errorDone(requestID []byte, err error) {
 	kv.Lock()
 	defer kv.Unlock()
 
+	if IsShardUnavailableErr(err) && kv.adjust != nil {
+		if req, ok := kv.retryLocked(requestID); ok {
+			kv.proxy.Dispatch(req)
+			return
+		}
+	}
+
 	if c, ok := kv.errCtx[string(requestID)]; ok {
 		c <- err
 	}
@@ -851,7 +885,14 @@ func (kv *testKVClient) Retry(requestID []byte) (rpcpb.Request, bool) {
 	kv.Lock()
 	defer kv.Unlock()
 
+	return kv.retryLocked(requestID)
+}
+
+func (kv *testKVClient) retryLocked(requestID []byte) (rpcpb.Request, bool) {
 	v, ok := kv.requests[string(requestID)]
+	if ok && kv.adjust != nil {
+		kv.adjust(&v)
+	}
 	return v, ok
 }
 
@@ -1578,7 +1619,11 @@ func (c *testRaftCluster) GetProphet() prophet.Prophet {
 }
 
 func (c *testRaftCluster) CreateTestKVClient(node int) TestKVClient {
-	return newTestKVClient(c.t, c.GetStore(node))
+	return c.CreateTestKVClientWithAdjust(node, nil)
+}
+
+func (c *testRaftCluster) CreateTestKVClientWithAdjust(node int, adjust func(req *rpcpb.Request)) TestKVClient {
+	return newTestKVClient(c.t, c.GetStore(node), adjust)
 }
 
 var rttMillisecond uint64
