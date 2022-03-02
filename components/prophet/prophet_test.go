@@ -16,6 +16,7 @@ package prophet
 import (
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,9 +110,13 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)
 
 func newTestProphet(t *testing.T, c *pconfig.Config, fs vfs.FS) Prophet {
 	completedC := make(chan struct{})
+	var completeOnce sync.Once
 	cb := func() {
-		completedC <- struct{}{}
+		completeOnce.Do(func() {
+			completedC <- struct{}{}
+		})
 	}
+
 	assert.NoError(t, c.Adjust(nil, false))
 	assert.NoError(t, os.RemoveAll(c.DataDir))
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)

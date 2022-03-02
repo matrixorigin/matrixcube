@@ -65,7 +65,7 @@ type Config struct {
 	// DisableResponse skip all client request
 	DisableResponse bool `toml:"-" json:"-"`
 	// EnableResponseNotLeader return not leader error for all client request
-	EnableResponseNotLeader bool      `toml:"-" json:"-"`
+	EnableResponseNotLeader int32     `toml:"-" json:"-"` // 1 = enable, 0 = disable
 	TestCtx                 *sync.Map `toml:"-" json:"-"`
 
 	jobRegister *jobRegister `toml:"-" json:"-"`

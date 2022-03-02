@@ -16,6 +16,8 @@ package prophet
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
+
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
@@ -60,7 +62,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	resp := &rpcpb.ProphetResponse{}
 	resp.ID = req.ID
 	rc := p.GetRaftCluster()
-	if p.cfg.Prophet.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
+	if atomic.LoadInt32(&p.cfg.Prophet.EnableResponseNotLeader) != 0 || rc == nil || (p.member != nil && !p.member.IsLeader()) {
 		resp.Error = util.ErrNotLeader.Error()
 		resp.Leader = p.member.GetLeader().GetAddr()
 		return rs.WriteAndFlush(resp)
