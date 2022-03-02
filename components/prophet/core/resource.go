@@ -611,11 +611,7 @@ func (r *CachedShards) ForeachCachedShards(group uint64, fn func(res *CachedShar
 
 // GetShard returns the CachedShard with resourceID
 func (r *CachedShards) GetShard(resourceID uint64) *CachedShard {
-	res := r.resources.Get(resourceID)
-	if res == nil {
-		return nil
-	}
-	return res
+	return r.resources.Get(resourceID)
 }
 
 // SetShard sets the CachedShard with resourceID

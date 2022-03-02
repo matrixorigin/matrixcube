@@ -19,6 +19,11 @@ message NotLeader {
 message StoreNotMatch {
 }
 
+// ShardUnavailable the shard is unavailable, maybe destroyed
+message ShardUnavailable {
+    uint64 shardID = 1;
+}
+
 // ShardNotFound the shard replica is not found on the store
 message ShardNotFound {
     uint64 shardID = 1;
@@ -62,4 +67,5 @@ message Error {
     StaleCommand      staleCommand      = 7;
     StoreNotMatch     storeNotMatch     = 8;
     RaftEntryTooLarge raftEntryTooLarge = 9;
+    ShardUnavailable  shardUnavailable  = 10;
 }

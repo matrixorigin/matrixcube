@@ -421,7 +421,7 @@ func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingSt
 
 	if len(v) > 0 {
 		status = &metapb.DestroyingStatus{}
-		protoc.MustUnmarshal(status, []byte(v))
+		protoc.MustUnmarshal(status, v)
 		return status, nil
 	}
 	return nil, nil
@@ -429,22 +429,23 @@ func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingSt
 
 func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.DestroyingStatus) error {
 	if status.State == metapb.ShardState_Destroyed {
+		c.core.AddRemovedShards(id)
+
+		var savedShard metapb.Shard
 		res := c.core.GetShard(id)
 		if res == nil {
-			c.logger.Fatal("missing resource to set destroyed",
-				zap.Uint64("resource", id))
-			return nil
+			// maybe removed due to overlap shard, use id and state constructs
+			savedShard = metapb.Shard{}
+			savedShard.SetID(id)
+			savedShard.SetState(metapb.ShardState_Destroyed)
+		} else {
+			res.Meta.SetState(metapb.ShardState_Destroyed)
+			savedShard = res.Meta.CloneValue()
 		}
 
-		v := res.Meta.Clone()
-		v.SetState(metapb.ShardState_Destroyed)
-		if err := c.storage.PutShardAndExtra(v, protoc.MustMarshal(status)); err != nil {
+		if err := c.storage.PutShardAndExtra(savedShard, protoc.MustMarshal(status)); err != nil {
 			return err
 		}
-		c.core.AddRemovedShards(id)
-		res.Lock()
-		defer res.Unlock()
-		res.Meta.SetState(metapb.ShardState_Destroyed)
 	} else {
 		err := c.storage.PutShardExtra(id, protoc.MustMarshal(status))
 		if err != nil {

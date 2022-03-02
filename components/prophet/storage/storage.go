@@ -88,8 +88,8 @@ type ShardStorage interface {
 	LoadShards(limit int64, do func(metapb.Shard)) error
 
 	// PutShardAndExtra puts the meta and the extra data to the storage
-	PutShardAndExtra(meta *metapb.Shard, extra []byte) error
-	// GetShardExtra returns the resource extra data
+	PutShardAndExtra(meta metapb.Shard, extra []byte) error
+	// PutShardExtra returns the resource extra data
 	PutShardExtra(id uint64, extra []byte) error
 	// GetShardExtra returns the resource extra data
 	GetShardExtra(id uint64) ([]byte, error)
@@ -326,7 +326,7 @@ func (s *storage) LoadScheduleGroupRules(limit int64, do func(metapb.ScheduleGro
 	})
 }
 
-func (s *storage) PutShardAndExtra(res *metapb.Shard, extra []byte) error {
+func (s *storage) PutShardAndExtra(res metapb.Shard, extra []byte) error {
 	data, err := res.Marshal()
 	if err != nil {
 		return err
