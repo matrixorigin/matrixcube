@@ -54,7 +54,6 @@ type Config struct {
 	Replication   ReplicationConfig   `toml:"replication" json:"replication"`
 	LabelProperty LabelPropertyConfig `toml:"label-property" json:"label-property"`
 
-
 	Handler                     metadata.RoleChangeHandler                                            `toml:"-" json:"-"`
 	ShardStateChangedHandler    func(res *metapb.Shard, from metapb.ShardState, to metapb.ShardState) `toml:"-" json:"-"`
 	StoreHeartbeatDataProcessor StoreHeartbeatDataProcessor                                           `toml:"-" json:"-"`
@@ -62,11 +61,9 @@ type Config struct {
 	// TODO(fagongzi): the following test-related configurations are moved to a separate struct
 	// Only test can change them.
 	DisableStrictReconfigCheck bool `toml:"-" json:"-"`
-	// DisableResponse skip all client request
-	DisableResponse bool `toml:"-" json:"-"`
-	// EnableResponseNotLeader return not leader error for all client request
-	EnableResponseNotLeader bool      `toml:"-" json:"-"`
-	TestCtx                 *sync.Map `toml:"-" json:"-"`
+
+	// TestContext contains configuration for test only
+	TestContext *TestContext `toml:"-" json:"-"`
 
 	jobRegister *jobRegister `toml:"-" json:"-"`
 }
@@ -547,4 +544,64 @@ type StoreHeartbeatDataProcessor interface {
 	Stop(storage.Storage) error
 	// HandleHeartbeatReq handle the data from store heartbeat at the prophet leader node
 	HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) (responseData []byte, err error)
+}
+
+type TestContext struct {
+	sync.RWMutex
+
+	// skipResponse skip response for all client request
+	skipResponse bool `toml:"-" json:"-"`
+	// responseNotLeader return not leader error for all client request
+	responseNotLeader bool `toml:"-" json:"-"`
+}
+
+func NewTestContext() *TestContext {
+	return &TestContext{
+		skipResponse:      false,
+		responseNotLeader: false,
+	}
+}
+
+func (tc *TestContext) EnableSkipResponse() {
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.skipResponse = true
+}
+
+func (tc *TestContext) DisableSkipResponse() {
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.skipResponse = false
+}
+
+func (tc *TestContext) SkipResponse() bool {
+	tc.RLock()
+	skipResponse := tc.skipResponse
+	tc.RUnlock()
+
+	return skipResponse
+}
+
+func (tc *TestContext) EnableResponseNotLeader() {
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.responseNotLeader = true
+}
+
+func (tc *TestContext) DisableResponseNotLeader() {
+	tc.Lock()
+	defer tc.Unlock()
+
+	tc.responseNotLeader = false
+}
+
+func (tc *TestContext) ResponseNotLeader() bool {
+	tc.RLock()
+	responseNotLeader := tc.responseNotLeader
+	tc.RUnlock()
+
+	return responseNotLeader
 }

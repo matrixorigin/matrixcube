@@ -16,6 +16,7 @@ package prophet
 import (
 	"errors"
 	"fmt"
+
 	"github.com/fagongzi/goetty"
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
@@ -51,8 +52,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 		zap.String("from", rs.RemoteAddr()),
 		zap.String("type", req.Type.String()))
 
-	if p.cfg.Prophet.DisableResponse {
-		p.logger.Debug("skip response")
+	if p.cfg.Prophet.TestContext.SkipResponse() {
 		return nil
 	}
 
@@ -60,7 +60,7 @@ func (p *defaultProphet) handleRPCRequest(rs goetty.IOSession, data interface{},
 	resp := &rpcpb.ProphetResponse{}
 	resp.ID = req.ID
 	rc := p.GetRaftCluster()
-	if p.cfg.Prophet.EnableResponseNotLeader || rc == nil || (p.member != nil && !p.member.IsLeader()) {
+	if p.cfg.Prophet.TestContext.ResponseNotLeader() || rc == nil || (p.member != nil && !p.member.IsLeader()) {
 		resp.Error = util.ErrNotLeader.Error()
 		resp.Leader = p.member.GetLeader().GetAddr()
 		return rs.WriteAndFlush(resp)

@@ -14,7 +14,6 @@
 package prophet
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -43,7 +42,7 @@ func TestCustomStartAndStop(t *testing.T) {
 	h := &testStoreHeartbeatDataProcessor{}
 	p := newTestSingleProphet(t, func(c *config.Config) {
 		c.StoreHeartbeatDataProcessor = h
-		c.TestCtx = &sync.Map{}
+		c.TestContext = config.NewTestContext()
 	})
 	defer p.Stop()
 

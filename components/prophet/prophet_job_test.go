@@ -26,10 +26,28 @@ import (
 )
 
 type testJobProcessor struct {
-	sync.Mutex
+	sync.RWMutex
 	starts  map[metapb.JobType]metapb.Job
 	stops   map[metapb.JobType]metapb.Job
 	removes map[metapb.JobType]metapb.Job
+}
+
+func (p *testJobProcessor) startNum() int {
+	p.RLock()
+	defer p.RUnlock()
+	return len(p.starts)
+}
+
+func (p *testJobProcessor) stopNum() int {
+	p.RLock()
+	defer p.RUnlock()
+	return len(p.stops)
+}
+
+func (p *testJobProcessor) removeNum() int {
+	p.RLock()
+	defer p.RUnlock()
+	return len(p.removes)
 }
 
 func newTestJobProcessor() *testJobProcessor {
@@ -95,13 +113,13 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 			CreateJob: rpcpb.CreateJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
 		&rpcpb.ProphetResponse{Type: rpcpb.TypeCreateJobRsp}))
 
-	assert.Equal(t, 3, len(jp.starts))
-	assert.Equal(t, 0, len(jp.stops))
+	assert.Equal(t, 3, jp.startNum())
+	assert.Equal(t, 0, jp.stopNum())
 
 	p.stopJobs()
 	time.Sleep(time.Second)
-	assert.Equal(t, 3, len(jp.stops))
-	assert.Equal(t, 0, len(jp.starts))
+	assert.Equal(t, 3, jp.stopNum())
+	assert.Equal(t, 0, jp.startNum())
 
 	jp = newTestJobProcessor()
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
@@ -109,8 +127,8 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(3), jp)
 	p.startJobs()
 	time.Sleep(time.Second)
-	assert.Equal(t, 3, len(jp.starts))
-	assert.Equal(t, 0, len(jp.stops))
+	assert.Equal(t, 3, jp.startNum())
+	assert.Equal(t, 0, jp.stopNum())
 
 	jp = newTestJobProcessor()
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
@@ -128,5 +146,5 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 		&rpcpb.ProphetRequest{Type: rpcpb.TypeRemoveJobReq,
 			RemoveJob: rpcpb.RemoveJobReq{Job: metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}}},
 		&rpcpb.ProphetResponse{Type: rpcpb.TypeRemoveJobRsp}))
-	assert.Equal(t, 3, len(jp.removes))
+	assert.Equal(t, 3, jp.removeNum())
 }
