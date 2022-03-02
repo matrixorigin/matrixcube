@@ -15,7 +15,6 @@ package prophet
 
 import (
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -53,7 +52,7 @@ func TestClientLeaderChange(t *testing.T) {
 	}
 
 	for _, c := range cluster {
-		c.GetConfig().DisableResponse = true
+		c.GetConfig().TestContext.EnableSkipResponse()
 	}
 
 	// rpc timeout error
@@ -61,7 +60,7 @@ func TestClientLeaderChange(t *testing.T) {
 	assert.Error(t, err)
 
 	for _, c := range cluster {
-		c.GetConfig().DisableResponse = false
+		c.GetConfig().TestContext.DisableSkipResponse()
 	}
 
 	id, err = cluster[useIdx].GetClient().AllocID()
@@ -176,10 +175,10 @@ func TestIssue106(t *testing.T) {
 	cfg := cluster[0].GetConfig()
 	cli := cluster[0].GetClient()
 	assert.Equal(t, cluster[0].GetMember().ID(), cluster[0].GetLeader().ID)
-	atomic.StoreInt32(&cfg.EnableResponseNotLeader, 1)
+	cfg.TestContext.EnableResponseNotLeader()
 	go func() {
 		time.Sleep(time.Millisecond * 50)
-		atomic.StoreInt32(&cfg.EnableResponseNotLeader, 0)
+		cfg.TestContext.DisableResponseNotLeader()
 	}()
 	id, err := cli.AllocID()
 	assert.NoError(t, err)
@@ -203,7 +202,7 @@ func TestIssue112(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, id > 0)
 
-	atomic.StoreInt32(&p.GetConfig().EnableResponseNotLeader, 1)
+	p.GetConfig().TestContext.EnableResponseNotLeader()
 	leader.Addr = "127.0.0.1:60000"
 
 	ch := make(chan error)
