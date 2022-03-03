@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
@@ -101,6 +102,8 @@ type destroyReplicaTask interface {
 }
 
 type defaultDestroyReplicaTask struct {
+	sync.RWMutex
+
 	pr            *replica
 	targetIndex   uint64
 	actionHandler actionHandleFunc
@@ -115,6 +118,7 @@ type defaultDestroyReplicaTask struct {
 	checkTimer           *time.Timer
 	doSaveDestroyC       chan []uint64
 	doRealDestroyC       chan struct{}
+	closed               bool
 }
 
 func newDestroyReplicaTask(pr *replica, targetIndex uint64,
@@ -183,9 +187,13 @@ func (t *defaultDestroyReplicaTask) run(ctx context.Context) {
 }
 
 func (t *defaultDestroyReplicaTask) close() {
+	t.Lock()
+	defer t.Unlock()
+
 	t.checkTimer.Stop()
 	close(t.doSaveDestroyC)
 	close(t.doRealDestroyC)
+	t.closed = true
 }
 
 func (t *defaultDestroyReplicaTask) maybeCheckDestroyExists() {
@@ -226,9 +234,13 @@ func (t *defaultDestroyReplicaTask) maybeCheckLog() {
 			actionType:  checkLogCommittedAction,
 			targetIndex: t.targetIndex,
 			actionCallback: func(replicas interface{}) {
-				t.doSaveDestroyC <- replicas.([]uint64)
-				t.pr.logger.Debug("log committed on all replicas",
-					destroyShardTaskField)
+				t.RLock()
+				if !t.closed {
+					t.doSaveDestroyC <- replicas.([]uint64)
+					t.pr.logger.Debug("log committed on all replicas",
+						destroyShardTaskField)
+				}
+				t.RUnlock()
 			},
 		})
 	}
@@ -281,9 +293,13 @@ func (t *defaultDestroyReplicaTask) maybeCheckTargetLogApplied() {
 			actionType:  checkLogAppliedAction,
 			targetIndex: t.targetIndex,
 			actionCallback: func(i interface{}) {
-				t.doRealDestroyC <- struct{}{}
-				t.pr.logger.Debug("log applied",
-					destroyShardTaskField)
+				t.RLock()
+				if !t.closed {
+					t.doRealDestroyC <- struct{}{}
+					t.pr.logger.Debug("log applied",
+						destroyShardTaskField)
+				}
+				t.RUnlock()
 			},
 		})
 	}
