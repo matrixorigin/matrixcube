@@ -262,7 +262,7 @@ func (pr *replica) handleInitializedState() (bool, error) {
 		return false, err
 	}
 	pr.logger.Info("initial snapshot available",
-		zap.Uint64("persistent-log-index", index),
+		zap.Uint64("persistent-index", index),
 		log.SnapshotField(ss))
 	if ss.Metadata.Index > index {
 		pr.logger.Info("applying initial snapshot",
