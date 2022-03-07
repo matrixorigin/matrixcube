@@ -34,7 +34,7 @@ func TestStoreTimeUnsync(t *testing.T) {
 		Replicas: peers,
 		Start:    []byte(""),
 		End:      []byte(""),
-		Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
+		Epoch:    metapb.ShardEpoch{ConfigVer: 6, Generation: 6},
 	}
 	intervals := []uint64{120, 60}
 	for _, interval := range intervals {
@@ -180,7 +180,7 @@ func buildresource(meta *metapb.Shard, leader *metapb.Replica, kind FlowKind) *c
 			Replicas: []metapb.Replica{peer1, peer2, peer3},
 			Start:    []byte(""),
 			End:      []byte(""),
-			Epoch:    metapb.ShardEpoch{ConfVer: 6, Version: 6},
+			Epoch:    metapb.ShardEpoch{ConfigVer: 6, Generation: 6},
 		}
 		leader = &meta.GetReplicas()[rand.Intn(3)]
 	}

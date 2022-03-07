@@ -71,7 +71,7 @@ func (pr *replica) doSplit(act action) {
 
 	epoch := act.epoch
 	current := pr.getShard()
-	if current.Epoch.Version != epoch.Version {
+	if current.Epoch.Generation != epoch.Generation {
 		pr.logger.Info("epoch changed, need re-check later",
 			log.EpochField("current-epoch", current.Epoch),
 			log.EpochField("check-epoch", epoch))

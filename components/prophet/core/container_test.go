@@ -60,7 +60,7 @@ func TestDistinctScore(t *testing.T) {
 
 func TestCloneStore(t *testing.T) {
 	meta := metapb.Store{
-		ID: 1, ClientAddr: "mock://s-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
+		ID: 1, ClientAddress: "mock://s-1", Labels: []metapb.Label{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}},
 	}
 	container := NewCachedStore(meta)
 	start := time.Now()

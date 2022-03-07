@@ -377,10 +377,10 @@ type CustomizeConfig struct {
 }
 
 // GetLabels returns lables
-func (c *Config) GetLabels() []metapb.Pair {
-	var labels []metapb.Pair
+func (c *Config) GetLabels() []metapb.Label {
+	var labels []metapb.Label
 	for _, kv := range c.Labels {
-		labels = append(labels, metapb.Pair{
+		labels = append(labels, metapb.Label{
 			Key:   kv[0],
 			Value: kv[1],
 		})

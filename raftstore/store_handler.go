@@ -36,10 +36,6 @@ func (s *store) handle(batch metapb.RaftMessageBatch) {
 	}
 }
 
-func (s *store) onSnapshotMessage(msg metapb.SnapshotMessage) {
-	panic("snapshot not implemented")
-}
-
 func (s *store) onRaftMessage(msg metapb.RaftMessage) {
 	if !s.isRaftMsgValid(msg) {
 		return

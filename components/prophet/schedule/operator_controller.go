@@ -166,7 +166,7 @@ func (oc *OperatorController) checkStaleOperator(op *operator.Operator, step ope
 	// have sent it to your storage applications. Here, we just cancel it.
 	origin := op.ShardEpoch()
 	latest := res.Meta.GetEpoch()
-	changes := latest.GetConfVer() - origin.GetConfVer()
+	changes := latest.GetConfigVer() - origin.GetConfigVer()
 	if changes > op.ConfVerChanged(res) {
 		if oc.RemoveOperator(
 			op,
@@ -375,8 +375,8 @@ func (oc *OperatorController) checkAddOperator(ops ...*operator.Operator) bool {
 			return false
 		}
 		epoch := res.Meta.GetEpoch()
-		if epoch.GetVersion() != op.ShardEpoch().Version ||
-			epoch.GetConfVer() != op.ShardEpoch().ConfVer {
+		if epoch.GetGeneration() != op.ShardEpoch().Generation ||
+			epoch.GetConfigVer() != op.ShardEpoch().ConfigVer {
 			oc.cluster.GetLogger().Debug("resource epoch not match, cancel add operator",
 				log.ResourceField(op.ShardID()),
 				log.EpochField("old", epoch),

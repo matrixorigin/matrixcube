@@ -209,7 +209,7 @@ func (p *shardsProxy) Dispatch(req rpcpb.Request) error {
 
 	return p.DispatchTo(req,
 		p.cfg.router.GetShard(req.ToShard),
-		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
+		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
 }
 
 func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) error {
@@ -370,5 +370,5 @@ func (p *shardsProxy) doRetry(arg interface{}) {
 		return
 	}
 
-	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
+	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
 }

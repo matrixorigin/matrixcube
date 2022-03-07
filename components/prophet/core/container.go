@@ -149,12 +149,12 @@ func (cr *CachedStore) IsAvailable(limitType limit.Type) bool {
 
 // IsUp checks if the container's state is Up.
 func (cr *CachedStore) IsUp() bool {
-	return cr.GetState() == metapb.StoreState_UP
+	return cr.GetState() == metapb.StoreState_Up
 }
 
 // IsOffline checks if the container's state is Offline.
 func (cr *CachedStore) IsOffline() bool {
-	return cr.GetState() == metapb.StoreState_Offline
+	return cr.GetState() == metapb.StoreState_Down
 }
 
 // IsTombstone checks if the container's state is Tombstone.
@@ -164,7 +164,7 @@ func (cr *CachedStore) IsTombstone() bool {
 
 // IsPhysicallyDestroyed checks if the store's physically destroyed.
 func (cr *CachedStore) IsPhysicallyDestroyed() bool {
-	return cr.Meta.GetPhysicallyDestroyed()
+	return cr.Meta.GetDestroyed()
 }
 
 // DownTime returns the time elapsed since last heartbeat.
@@ -400,11 +400,11 @@ func (cr *CachedStore) IsLowSpace(lowSpaceRatio float64) bool {
 }
 
 // ShardCount returns count of leader/resource-replica in the container.
-func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardKind) uint64 {
+func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardType) uint64 {
 	switch kind {
-	case metapb.ShardKind_LeaderKind:
+	case metapb.ShardType_LeaderOnly:
 		return uint64(cr.GetLeaderCount(groupKey))
-	case metapb.ShardKind_ReplicaKind:
+	case metapb.ShardType_AllShards:
 		return uint64(cr.GetShardCount(groupKey))
 	default:
 		return 0
@@ -412,11 +412,11 @@ func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardKind) uint64
 }
 
 // ShardSize returns size of leader/resource-replica in the container
-func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardKind) int64 {
+func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardType) int64 {
 	switch kind {
-	case metapb.ShardKind_LeaderKind:
+	case metapb.ShardType_LeaderOnly:
 		return cr.GetLeaderSize(groupKey)
-	case metapb.ShardKind_ReplicaKind:
+	case metapb.ShardType_AllShards:
 		return cr.GetShardSize(groupKey)
 	default:
 		return 0
@@ -424,15 +424,15 @@ func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardKind) int64 {
 }
 
 // ShardWeight returns weight of leader/resource-replica in the score
-func (cr *CachedStore) ShardWeight(kind metapb.ShardKind) float64 {
+func (cr *CachedStore) ShardWeight(kind metapb.ShardType) float64 {
 	switch kind {
-	case metapb.ShardKind_LeaderKind:
+	case metapb.ShardType_LeaderOnly:
 		leaderWeight := cr.GetLeaderWeight()
 		if leaderWeight <= 0 {
 			return minWeight
 		}
 		return leaderWeight
-	case metapb.ShardKind_ReplicaKind:
+	case metapb.ShardType_AllShards:
 		resourceWeight := cr.GetShardWeight()
 		if resourceWeight <= 0 {
 			return minWeight
@@ -520,7 +520,7 @@ func DistinctScore(labels []string, containers []*CachedStore, other *CachedStor
 
 // MergeLabels merges the passed in labels with origins, overriding duplicated
 // ones.
-func (cr *CachedStore) MergeLabels(labels []metapb.Pair) []metapb.Pair {
+func (cr *CachedStore) MergeLabels(labels []metapb.Label) []metapb.Label {
 	containerLabels := cr.Meta.Clone().GetLabels()
 L:
 	for _, newLabel := range labels {

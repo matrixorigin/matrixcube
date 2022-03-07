@@ -141,8 +141,8 @@ func (c *RaftCluster) ValidRequestShard(reqShard *metapb.Shard) error {
 	// If the request epoch is less than current resource epoch, then returns an error.
 	reqShardEpoch := reqShard.GetEpoch()
 	resourceEpoch := res.Meta.GetEpoch()
-	if reqShardEpoch.GetVersion() < resourceEpoch.GetVersion() ||
-		reqShardEpoch.GetConfVer() < resourceEpoch.GetConfVer() {
+	if reqShardEpoch.GetGeneration() < resourceEpoch.GetGeneration() ||
+		reqShardEpoch.GetConfigVer() < resourceEpoch.GetConfigVer() {
 		return fmt.Errorf("invalid resource epoch, request: %v, current: %v", reqShardEpoch, resourceEpoch)
 	}
 	return nil
@@ -273,7 +273,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			return nil, err
 		}
 
-		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: uint64(len(cachedShard.Meta.GetReplicas()))})
+		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: uint64(len(cachedShard.Meta.GetReplicas()))})
 		for idx := range cachedShard.Meta.GetReplicas() {
 			id, err := c.storage.KV().AllocID()
 			if err != nil {
@@ -312,7 +312,7 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	defer c.RUnlock()
 
 	var targets []metapb.Shard
-	var origin []metapb.Shard
+	var originID []uint64
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -322,21 +322,21 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		if v == nil {
 			return nil, fmt.Errorf("resource %d not found in prophet", id)
 		}
-		origin = append(origin, v.Meta)
+		originID = append(originID, id)
 
-		res := v.Meta.CloneValue() // use cloned value
+		res := v.Meta // use cloned value
 		res.SetState(metapb.ShardState_Destroyed)
 		targets = append(targets, res)
 	}
-	err := c.storage.PutShards(targets...)
-	if err != nil {
+	if err := c.storage.PutShards(targets...); err != nil {
 		return nil, err
 	}
 
 	c.core.AddRemovedShards(request.RemoveShards.IDs...)
-	for _, res := range origin {
-		res.SetState(metapb.ShardState_Destroyed)
-		c.addNotifyLocked(event.NewShardEvent(res, 0, true, false))
+	for _, id := range originID {
+		v := c.core.GetShard(id)
+		v.Meta.SetState(metapb.ShardState_Destroyed)
+		c.addNotifyLocked(event.NewShardEvent(v.Meta, 0, true, false))
 	}
 
 	return &rpcpb.RemoveShardsRsp{}, nil
@@ -428,11 +428,13 @@ func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingSt
 }
 
 func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.DestroyingStatus) error {
+	fmt.Println("status: ", status)
 	if status.State == metapb.ShardState_Destroyed {
 		c.core.AddRemovedShards(id)
 
 		var savedShard metapb.Shard
 		res := c.core.GetShard(id)
+		fmt.Println("GetShard: ", res)
 		if res == nil {
 			// maybe removed due to overlap shard, use id and state constructs
 			savedShard = metapb.Shard{}
@@ -440,8 +442,9 @@ func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.Destr
 			savedShard.SetState(metapb.ShardState_Destroyed)
 		} else {
 			res.Meta.SetState(metapb.ShardState_Destroyed)
-			savedShard = res.Meta.CloneValue()
+			savedShard = res.Meta
 		}
+		fmt.Println("savedShard: ", savedShard)
 
 		if err := c.storage.PutShardAndExtra(savedShard, protoc.MustMarshal(status)); err != nil {
 			return err

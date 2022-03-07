@@ -107,7 +107,7 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 
 	res := Shard{}
 	protoc.MustUnmarshal(&res, protoc.MustMarshal(&current))
-	res.Epoch.ConfVer++
+	res.Epoch.ConfigVer++
 	p := findReplica(res, replica.StoreID)
 	switch req.ChangeType {
 	case metapb.ConfigChangeType_AddNode:
@@ -208,7 +208,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 		d.logger.Fatal("missing splits request")
 	}
 
-	current := d.getShard().CloneValue()
+	current := d.getShard()
 	if !bytes.Equal(splitReqs.Requests[0].Start, current.Start) ||
 		!bytes.Equal(splitReqs.Requests[len(splitReqs.Requests)-1].End, current.End) {
 		d.logger.Fatal("invalid splits keys",
@@ -220,7 +220,7 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 
 	newShardsCount := len(splitReqs.Requests)
 	var newShards []Shard
-	current.Epoch.Version += uint64(newShardsCount)
+	current.Epoch.Generation += uint64(newShardsCount)
 	expectStart := current.Start
 	last := len(splitReqs.Requests) - 1
 	for idx, req := range splitReqs.Requests {
@@ -305,7 +305,7 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, e
 
 	switch updateReq.Policy {
 	case rpcpb.Add:
-		var newLabels []metapb.Pair
+		var newLabels []metapb.Label
 		for _, oldLabel := range current.Labels {
 			remove := false
 			for _, label := range updateReq.Labels {
@@ -320,7 +320,7 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, e
 		}
 		current.Labels = append(newLabels, updateReq.Labels...)
 	case rpcpb.Remove:
-		var newLabels []metapb.Pair
+		var newLabels []metapb.Label
 		for _, oldLabel := range current.Labels {
 			remove := false
 			for _, label := range updateReq.Labels {

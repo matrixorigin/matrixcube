@@ -81,7 +81,8 @@ func (o *Operator) String() string {
 	for i := range o.steps {
 		stepStrs[i] = o.steps[i].String()
 	}
-	s := fmt.Sprintf("%s {%s} (kind:%s, resource:%v(%v,%v), createAt:%s, startAt:%s, currentStep:%v, steps:[%s])", o.desc, o.brief, o.kind, o.resID, o.resEpoch.GetVersion(), o.resEpoch.GetConfVer(), o.GetCreateTime(), o.GetStartTime(), atomic.LoadInt32(&o.currentStep), strings.Join(stepStrs, ", "))
+	s := fmt.Sprintf("%s {%s} (kind:%s, resource:%v(%v,%v), createAt:%s, startAt:%s, currentStep:%v, steps:[%s])",
+		o.desc, o.brief, o.kind, o.resID, o.resEpoch.GetGeneration(), o.resEpoch.GetConfigVer(), o.GetCreateTime(), o.GetStartTime(), atomic.LoadInt32(&o.currentStep), strings.Join(stepStrs, ", "))
 	if o.CheckSuccess() {
 		s = s + " finished"
 	}
@@ -293,7 +294,7 @@ func (o *Operator) TotalInfluence(opInfluence OpInfluence, res *core.CachedShard
 type OpHistory struct {
 	FinishTime time.Time
 	From, To   uint64
-	Kind       metapb.ShardKind
+	Kind       metapb.ShardType
 }
 
 // History transfers the operator's steps to operator histories.
@@ -308,7 +309,7 @@ func (o *Operator) History() []OpHistory {
 				FinishTime: now,
 				From:       s.FromStore,
 				To:         s.ToStore,
-				Kind:       metapb.ShardKind_LeaderKind,
+				Kind:       metapb.ShardType_LeaderOnly,
 			})
 		case AddPeer:
 			addPeerStores = append(addPeerStores, s.ToStore)
@@ -328,7 +329,7 @@ func (o *Operator) History() []OpHistory {
 				FinishTime: now,
 				From:       removePeerStores[i],
 				To:         addPeerStores[i],
-				Kind:       metapb.ShardKind_ReplicaKind,
+				Kind:       metapb.ShardType_AllShards,
 			})
 		}
 	}

@@ -174,11 +174,11 @@ func TestSplitWithCase2(t *testing.T) {
 	}
 
 	// A -> B+C
-	// A has 3 replcias A1, A2, A3
+	// A has 3 replicas A1, A2 and A3.
 	// A3 cannot send and received raft message
 	// pd will remove A3
 	// split completed
-	// A3 back and removed by pd check, cannot split
+	// A3 comes back and is removed by pd check, cannot split
 
 	defer leaktest.AfterTest(t)()
 	c := NewTestClusterStore(t,
@@ -225,11 +225,11 @@ func TestSplitWithCase3(t *testing.T) {
 	}
 
 	// A -> B+C
-	// A has 3 replcias A1, A2, A3
+	// A has 3 replicas A1, A2 and A3.
 	// A3 cannot send and received raft message
 	// pd will remove A3
 	// split completed
-	// restart A1, A2, A3
+	// restart A1, A2, A3.
 	// A3 back and removed by pd check, cannot split
 
 	defer leaktest.AfterTest(t)()

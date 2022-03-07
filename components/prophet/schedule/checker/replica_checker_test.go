@@ -49,17 +49,17 @@ func (s *testReplicaChecker) setup() {
 	}
 	containers := []*core.CachedStore{
 		core.NewCachedStore(
-			metapb.Store{ID: 1, State: metapb.StoreState_Offline},
+			metapb.Store{ID: 1, State: metapb.StoreState_Down},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			metapb.Store{ID: 2, State: metapb.StoreState_UP},
+			metapb.Store{ID: 2, State: metapb.StoreState_Up},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),
 		core.NewCachedStore(
-			metapb.Store{ID: 4, State: metapb.StoreState_UP},
+			metapb.Store{ID: 4, State: metapb.StoreState_Up},
 			core.SetStoreStats(stats),
 			core.SetLastHeartbeatTS(time.Now()),
 		),

@@ -9,26 +9,20 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
-// Action the action while a new node join the cluster
-enum Action {
-    None     = 0;
-    ScaleOut = 1;
-}
-
 // ShardKind the shard kind
-enum ShardKind {
-    LeaderKind     = 0;
-    ReplicaKind    = 1;
+enum ShardType {
+    LeaderOnly = 0;
+    AllShards  = 1;
 }
 
-// State the store state
+// StoreState the store state
 enum StoreState {
-    // UP is normal state
-    UP        = 0;
-    // Offline is the unavailable state
-    Offline   = 1;
+    // Up is normal state
+    Up              = 0;
+    // Down is the unavailable state
+    Down            = 1;
     // Tombstone is the destroy state
-    StoreTombstone = 2;
+    StoreTombstone  = 2;
 }
 
 // ShardState the shard state
@@ -55,7 +49,6 @@ enum ConfigChangeType {
     RemoveNode     = 1;
     UpdateNode     = 2;
     AddLearnerNode = 3;
-    ScalePeer      = 4;
 }
 
 // ReplicaRole role of current replica
@@ -76,10 +69,10 @@ enum CheckPolicy {
 // OperatorStatus Operator Status
 enum OperatorStatus {
     SUCCESS = 0;
-	TIMEOUT = 1;
-	CANCEL  = 2;
-	REPLACE = 3;
-	RUNNING = 4;
+    TIMEOUT = 1;
+    CANCEL  = 2;
+    REPLACE = 3;
+    RUNNING = 4;
 }
 
 // JobType job type
@@ -89,7 +82,7 @@ enum JobType {
     // CreateShardPool create shard pool
     CreateShardPool = 1;
     // CustomStartAt custom job
-	CustomStartAt = 100;
+    CustomStartAt = 100;
 }
 
 // JobState job state
@@ -99,33 +92,33 @@ enum JobState {
     // Working job is working
     Working = 1;
     // Completed job completed, need to gc
-	Completed = 2;
+    Completed = 2;
 }
 
 // ShardEpoch shard epoch
 message ShardEpoch {
     // Conf change version, auto increment when add or remove replica
-    uint64 confVer = 1;
-    // Shard version, auto increment when split or merge
-    uint64 version = 2;
+    uint64 configVer  = 1;
+    // Shard generation, auto increment when split or merge
+    uint64 generation = 2;
 }
 
 // Replica of the shard
 message Replica {
-    uint64   id            = 1 [(gogoproto.customname) = "ID"];
-    uint64   storeID     = 2;
-    ReplicaRole role          = 3;
-    bool     initialMember = 4;
+    uint64      id              = 1 [(gogoproto.customname) = "ID"];
+    uint64      storeID         = 2;
+    ReplicaRole role            = 3;
+    bool        initialMember   = 4;
 }
 
 // ReplicaStats replica stats
 message ReplicaStats {
-  Replica   replica        = 1 [(gogoproto.nullable) = false];
-	uint64 downSeconds = 2;
+  Replica   replica         = 1 [(gogoproto.nullable) = false];
+	uint64    downSeconds     = 2;
 }
 
-// Pair key value pair
-message Pair {
+// Label key value label
+message Label {
     string key   = 1;
     string value = 2;
 }
@@ -135,61 +128,61 @@ message ShardStats {
     // shard ID
     uint64       shardID      = 1;
     // bytes written during this period
-	uint64       writtenBytes    = 2;
-	// keys written during this period
-	uint64       writtenKeys     = 3;
+    uint64       writtenBytes    = 2;
+    // keys written during this period
+    uint64       writtenKeys     = 3;
     // bytes read during this period
-	uint64       readBytes       = 4;     
-	// keys read during this period
-	uint64       readKeys        = 5;
-	// approximate data size in bytes of the shard
-	uint64       approximateSize = 6;
-	// approximate count of keys in the shard
-	uint64       approximateKeys = 7;
+    uint64       readBytes       = 4;
+    // keys read during this period
+    uint64       readKeys        = 5;
+    // approximate data size in bytes of the shard
+    uint64       approximateSize = 6;
+    // approximate count of keys in the shard
+    uint64       approximateKeys = 7;
     // Actually reported time interval
     TimeInterval interval        = 8;
 }
 
 // StoreStats store stats
 message StoreStats {
-             // Store id
-             uint64       storeID        = 1;
-             // When the store is started (unix timestamp in seconds).
-             uint64       startTime          = 2;
-             // Actually reported time interval
-             TimeInterval interval           = 3;
-             // Capacity for the store.
-             uint64       capacity           = 4;
-             // Available size for the store.
-             uint64       available          = 5;
-             // Actually used space by db
-             uint64       usedSize           = 6;
-             // If the store is busy
-             bool         isBusy             = 7;
-             // Total shard count in this store.
-             uint64       shardCount      = 8;
-             // Current sending snapshot count.
-             uint64       sendingSnapCount   = 9;
-             // Current receiving snapshot count.
-             uint64       receivingSnapCount = 10;
-             // How many shard is applying snapshot.
-             uint64       applyingSnapCount  = 11;
-             // Bytes written for the store during this period.
-             uint64       writtenBytes       = 12;
-             // Bytes read for the store during this period.
-             uint64       readBytes          = 13;
-             // Bytes written for the store during this period.
-             uint64       writtenKeys        = 14;
-             // Bytes read for the store during this period.
-             uint64       readKeys           = 15;
+     // Store id
+     uint64       storeID               = 1;
+     // When the store is started (unix timestamp in seconds).
+     uint64       startTime             = 2;
+     // Actually reported time interval
+     TimeInterval interval              = 3;
+     // Capacity for the store.
+     uint64       capacity              = 4;
+     // Available size for the store.
+     uint64       available             = 5;
+     // Actually used space by db
+     uint64       usedSize              = 6;
+     // If the store is busy
+     bool         isBusy                = 7;
+     // Total shard count in this store.
+     uint64       shardCount            = 8;
+     // Current sending snapshot count.
+     uint64       sendingSnapCount      = 9;
+     // Current receiving snapshot count.
+     uint64       receivingSnapCount    = 10;
+     // How many shard is applying snapshot.
+     uint64       applyingSnapCount     = 11;
+     // Bytes written for the store during this period.
+     uint64       writtenBytes          = 12;
+     // Bytes read for the store during this period.
+     uint64       readBytes             = 13;
+     // Bytes written for the store during this period.
+     uint64       writtenKeys           = 14;
+     // Bytes read for the store during this period.
+     uint64       readKeys              = 15;
     // Threads' CPU usages in the store
-    repeated RecordPair   cpuUsages          = 16 [(gogoproto.nullable) = false];
+    repeated RecordPair   cpuUsages     = 16 [(gogoproto.nullable) = false];
     // Threads' read disk I/O rates in the store
-    repeated RecordPair   readIORates        = 17 [(gogoproto.nullable) = false];
+    repeated RecordPair   readIORates   = 17 [(gogoproto.nullable) = false];
     // Threads' write disk I/O rates in the store
-    repeated RecordPair   writeIORates       = 18 [(gogoproto.nullable) = false];
+    repeated RecordPair   writeIORates  = 18 [(gogoproto.nullable) = false];
     // Operations' latencies in the store
-    repeated RecordPair   opLatencies        = 19 [(gogoproto.nullable) = false];
+    repeated RecordPair   opLatencies   = 19 [(gogoproto.nullable) = false];
 }
 
 // RecordPair record pair
@@ -207,7 +200,7 @@ message Member {
 
 // ProphetCluster prophet cluster
 message ProphetCluster {
-    uint64 id           = 1 [(gogoproto.customname) = "ID"];
+    uint64 id              = 1 [(gogoproto.customname) = "ID"];
     uint32 maxReplicaCount = 2;
 }
 
@@ -221,15 +214,15 @@ message TimeInterval {
 
 // Job job 
 message Job {
-    JobType type    = 1;
-    bytes   content = 2;
-    JobState state  = 3;
+    JobType  type    = 1;
+    bytes    content = 2;
+    JobState state   = 3;
 }
 
 // RemoveShardJob remove shards job
 message RemoveShardJob {
-    uint64        shardID = 1 [(gogoproto.customname) = "ID"];
-    repeated Replica replicass      = 2 [(gogoproto.nullable) = false];
+    uint64           shardID  = 1 [(gogoproto.customname) = "ID"];
+    repeated Replica replicas = 2 [(gogoproto.nullable) = false];
 }
 
 // ShardPoolJob shard pool job
@@ -246,10 +239,10 @@ message ShardPoolJobMeta {
 
 // DestroyingStatus destroying status
 message DestroyingStatus {
-    uint64 index = 1;
-    map<uint64, bool> replicas  = 2;
-    ShardState state = 3;
-    bool             removeData = 4;
+    uint64            index      = 1;
+    map<uint64, bool> replicas   = 2;
+    ShardState        state      = 3;
+    bool              removeData = 4;
 }
 
 // ShardExtra shard extra
@@ -290,7 +283,7 @@ message RaftMessage  {
 }
 
 message SnapshotChunk {
-    uint64 storeID   = 1;
+    uint64 storeID       = 1;
     uint64 shardID       = 2;
     uint64 replicaID     = 3;
     uint64 from          = 4;
@@ -308,35 +301,10 @@ message SnapshotChunk {
     raftpb.ConfState confState = 16 [(gogoproto.nullable) = false];
 }
 
-// SnapshotMessageHeader snapshot message header
-message SnapshotMessageHeader {
-    Shard            shard = 1 [(gogoproto.nullable) = false];
-    metapb.Replica   from  = 2 [(gogoproto.nullable) = false];
-    metapb.Replica   to    = 3 [(gogoproto.nullable) = false];
-    uint64           term  = 4;
-    uint64           index = 5;
-}
-
-// SnapshotMessage snapshot message
-message SnapshotMessage {
-    SnapshotMessageHeader header    = 1 [(gogoproto.nullable) = false];
-    bytes                 data      = 2;
-    bool                  first     = 3;
-    bool                  last      = 4;
-    uint64                fileSize  = 5;
-    uint64                checkSum  = 6;
-}
-
 // StoreIdent store ident
 message StoreIdent {
     uint64 clusterID = 1;
     uint64 storeID   = 2;
-}
-
-// Cluster the cluster info
-message Cluster {
-    uint64 id          = 1 [(gogoproto.customname) = "ID"];
-    uint32 maxReplicas = 2;
 }
 
 // Shard a shard [start,end) of the data
@@ -344,15 +312,15 @@ message Shard {
     uint64                   id              = 1 [(gogoproto.customname) = "ID"];
     bytes                    start           = 2;
     bytes                    end             = 3;
-    metapb.ShardEpoch     epoch           = 4 [(gogoproto.nullable) = false];
-    metapb.ShardState     state           = 5;
+    metapb.ShardEpoch        epoch           = 4 [(gogoproto.nullable) = false];
+    metapb.ShardState        state           = 5;
     repeated metapb.Replica  replicas        = 6 [(gogoproto.nullable) = false];
     bool                     disableSplit    = 7;
     uint64                   group           = 8;
     string                   unique          = 10;
     repeated string          ruleGroups      = 11;
     bytes                    data            = 12;
-    repeated metapb.Pair     labels          = 13 [(gogoproto.nullable) = false];
+    repeated metapb.Label    labels          = 13 [(gogoproto.nullable) = false];
 }
 
 // ReplicaState the state of the shard peer
@@ -388,16 +356,16 @@ message ShardLocalState {
 // Store the host store metadata
 message Store {
     uint64                id                  = 1 [(gogoproto.customname) = "ID"];
-    string                raftAddr            = 2;
-    string                clientAddr          = 3;
-    repeated metapb.Pair  labels              = 4 [(gogoproto.nullable) = false];
-    metapb.StoreState state                   = 5;
+    string                raftAddress         = 2;
+    string                clientAddress       = 3;
+    repeated metapb.Label labels              = 4 [(gogoproto.nullable) = false];
+    metapb.StoreState     state               = 5;
     int64                 startTime           = 6;
     int64                 lastHeartbeatTime   = 7;
     string                version             = 8;
-    string                gitHash             = 9;
+    string                commitID            = 9;
     string                deployPath          = 10;
-    bool                  physicallyDestroyed = 11;
+    bool                  destroyed           = 11;
 }
 
 // ShardsPool shards pool
@@ -447,5 +415,5 @@ message ShardsPoolAllocCmd {
 // SnapshotInfo contains additional information associated with a snapshot.
 message SnapshotInfo {
     uint64 extra = 1;
-    bool dummy = 2;
+    bool   dummy = 2;
 }

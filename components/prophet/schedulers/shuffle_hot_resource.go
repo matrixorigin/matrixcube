@@ -139,14 +139,14 @@ func (s *shuffleHotShardScheduler) dispatch(typ rwType, cluster opt.Cluster) []*
 			storesLoads,
 			map[uint64]Influence{},
 			cluster.ShardReadStats(),
-			read, metapb.ShardKind_LeaderKind)
+			read, metapb.ShardType_LeaderOnly)
 		return s.randomSchedule(cluster, s.stLoadInfos[readLeader])
 	case write:
 		s.stLoadInfos[writeLeader] = summaryStoresLoad(
 			storesLoads,
 			map[uint64]Influence{},
 			cluster.ShardWriteStats(),
-			write, metapb.ShardKind_LeaderKind)
+			write, metapb.ShardType_LeaderOnly)
 		return s.randomSchedule(cluster, s.stLoadInfos[writeLeader])
 	}
 	return nil

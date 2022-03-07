@@ -56,7 +56,7 @@ func TestDoSplit(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}}, Replica{ID: 2}, s)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 2}}, Replica{ID: 2}, s)
 	pr.leaderID = 1
 
 	act := action{actionType: splitAction}

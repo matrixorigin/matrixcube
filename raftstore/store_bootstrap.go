@@ -48,13 +48,13 @@ func (s *store) initMeta() {
 	s.meta.SetLabels(s.cfg.GetLabels())
 	s.meta.SetStartTime(time.Now().Unix())
 	s.meta.SetDeployPath(s.cfg.DeployPath)
-	s.meta.SetVersionAndGitHash(s.cfg.Version, s.cfg.GitHash)
+	s.meta.SetVersionAndCommitID(s.cfg.Version, s.cfg.GitHash)
 	s.meta.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
 
 	s.logger.Info("store metadata init",
 		s.storeField(),
-		zap.String("raft-addr", s.Meta().RaftAddr),
-		zap.String("client-addr", s.Meta().ClientAddr),
+		zap.String("raft-addr", s.Meta().RaftAddress),
+		zap.String("client-addr", s.Meta().ClientAddress),
 		zap.Any("labels", s.Meta().Labels))
 }
 
@@ -209,8 +209,8 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shardID := s.MustAllocID()
 	peerID := s.MustAllocID()
 	shard.ID = shardID
-	shard.Epoch.Version = 1
-	shard.Epoch.ConfVer = 1
+	shard.Epoch.Generation = 1
+	shard.Epoch.ConfigVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
 		StoreID:       s.meta.GetID(),

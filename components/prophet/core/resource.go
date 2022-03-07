@@ -140,7 +140,7 @@ func (r *CachedShard) Clone(opts ...ShardCreateOption) *CachedShard {
 
 	res := &CachedShard{
 		term:            r.term,
-		Meta:            r.Meta.CloneValue(),
+		Meta:            r.Meta,
 		leader:          proto.Clone(r.leader).(*metapb.Replica),
 		downReplicas:    downReplicas,
 		pendingReplicas: pendingReplicas,
@@ -1197,7 +1197,6 @@ func HexShardKeyStr(key []byte) string {
 // ShardToHexMeta converts a resource meta's keys to hex format. Used for formating
 // resource in logs.
 func ShardToHexMeta(meta metapb.Shard) HexShardMeta {
-	meta = meta.CloneValue()
 	start, end := meta.GetRange()
 	meta.SetStartKey(HexShardKey(start))
 	meta.SetEndKey(HexShardKey(end))

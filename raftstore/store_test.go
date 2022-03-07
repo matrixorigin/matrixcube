@@ -175,7 +175,7 @@ func TestValidateShard(t *testing.T) {
 		},
 		{
 			pr:    &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			epoch: Epoch{Version: 1},
+			epoch: Epoch{Generation: 1},
 			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{ID: 1}}, Requests: []rpcpb.Request{{}}},
 			err:   errStaleEpoch.Error(),
 			ok:    true,
@@ -237,7 +237,7 @@ func TestCheckEpoch(t *testing.T) {
 		},
 		{
 			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 
@@ -248,7 +248,7 @@ func TestCheckEpoch(t *testing.T) {
 		},
 		{
 			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
@@ -258,17 +258,17 @@ func TestCheckEpoch(t *testing.T) {
 		},
 		{
 			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
 			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 		{
 			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
-			shard: Shard{Epoch: Epoch{Version: 1, ConfVer: 1}},
+			shard: Shard{Epoch: Epoch{Generation: 1, ConfigVer: 1}},
 			ok:    false,
 		},
 
@@ -279,12 +279,12 @@ func TestCheckEpoch(t *testing.T) {
 		},
 		{
 			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    true,
 		},
 		{
 			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 
@@ -295,12 +295,12 @@ func TestCheckEpoch(t *testing.T) {
 		},
 		{
 			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    true,
 		},
 		{
 			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    true,
 		},
 	}

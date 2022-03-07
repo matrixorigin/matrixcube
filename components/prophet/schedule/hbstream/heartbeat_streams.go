@@ -108,7 +108,7 @@ func (s *HeartbeatStreams) run() {
 				delete(s.streams, containerID)
 				continue
 			}
-			containerAddress := container.Meta.GetClientAddr()
+			containerAddress := container.Meta.GetClientAddress()
 			if stream, ok := s.streams[containerID]; ok {
 				if err := stream.Send(msg); err != nil {
 					s.logger.Error("fail to send heartbeat message",

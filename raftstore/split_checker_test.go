@@ -85,7 +85,7 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 1}}, Replica{ID: 1}, s)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 1}}, Replica{ID: 1}, s)
 	trg.replicas[1] = pr
 
 	// epoch not match

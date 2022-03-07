@@ -82,24 +82,24 @@ func (m *NotLeader) GetLeader() metapb.Replica {
 }
 
 // StoreNotMatch current store is not match
-type StoreNotMatch struct {
+type StoreMismatch struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *StoreNotMatch) Reset()         { *m = StoreNotMatch{} }
-func (m *StoreNotMatch) String() string { return proto.CompactTextString(m) }
-func (*StoreNotMatch) ProtoMessage()    {}
-func (*StoreNotMatch) Descriptor() ([]byte, []int) {
+func (m *StoreMismatch) Reset()         { *m = StoreMismatch{} }
+func (m *StoreMismatch) String() string { return proto.CompactTextString(m) }
+func (*StoreMismatch) ProtoMessage()    {}
+func (*StoreMismatch) Descriptor() ([]byte, []int) {
 	return fileDescriptor_390aa86757fd1154, []int{1}
 }
-func (m *StoreNotMatch) XXX_Unmarshal(b []byte) error {
+func (m *StoreMismatch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *StoreNotMatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *StoreMismatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_StoreNotMatch.Marshal(b, m, deterministic)
+		return xxx_messageInfo_StoreMismatch.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -109,17 +109,17 @@ func (m *StoreNotMatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return b[:n], nil
 	}
 }
-func (m *StoreNotMatch) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StoreNotMatch.Merge(m, src)
+func (m *StoreMismatch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StoreMismatch.Merge(m, src)
 }
-func (m *StoreNotMatch) XXX_Size() int {
+func (m *StoreMismatch) XXX_Size() int {
 	return m.Size()
 }
-func (m *StoreNotMatch) XXX_DiscardUnknown() {
-	xxx_messageInfo_StoreNotMatch.DiscardUnknown(m)
+func (m *StoreMismatch) XXX_DiscardUnknown() {
+	xxx_messageInfo_StoreMismatch.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_StoreNotMatch proto.InternalMessageInfo
+var xxx_messageInfo_StoreMismatch proto.InternalMessageInfo
 
 // ShardUnavailable the shard is unavailable, maybe destroyed
 type ShardUnavailable struct {
@@ -482,7 +482,7 @@ type Error struct {
 	StaleEpoch           *StaleEpoch        `protobuf:"bytes,5,opt,name=staleEpoch,proto3" json:"staleEpoch,omitempty"`
 	ServerIsBusy         *ServerIsBusy      `protobuf:"bytes,6,opt,name=serverIsBusy,proto3" json:"serverIsBusy,omitempty"`
 	StaleCommand         *StaleCommand      `protobuf:"bytes,7,opt,name=staleCommand,proto3" json:"staleCommand,omitempty"`
-	StoreNotMatch        *StoreNotMatch     `protobuf:"bytes,8,opt,name=storeNotMatch,proto3" json:"storeNotMatch,omitempty"`
+	StoreMismatch        *StoreMismatch     `protobuf:"bytes,8,opt,name=storeMismatch,proto3" json:"storeMismatch,omitempty"`
 	RaftEntryTooLarge    *RaftEntryTooLarge `protobuf:"bytes,9,opt,name=raftEntryTooLarge,proto3" json:"raftEntryTooLarge,omitempty"`
 	ShardUnavailable     *ShardUnavailable  `protobuf:"bytes,10,opt,name=shardUnavailable,proto3" json:"shardUnavailable,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
@@ -572,9 +572,9 @@ func (m *Error) GetStaleCommand() *StaleCommand {
 	return nil
 }
 
-func (m *Error) GetStoreNotMatch() *StoreNotMatch {
+func (m *Error) GetStoreMismatch() *StoreMismatch {
 	if m != nil {
-		return m.StoreNotMatch
+		return m.StoreMismatch
 	}
 	return nil
 }
@@ -595,7 +595,7 @@ func (m *Error) GetShardUnavailable() *ShardUnavailable {
 
 func init() {
 	proto.RegisterType((*NotLeader)(nil), "errorpb.NotLeader")
-	proto.RegisterType((*StoreNotMatch)(nil), "errorpb.StoreNotMatch")
+	proto.RegisterType((*StoreMismatch)(nil), "errorpb.StoreMismatch")
 	proto.RegisterType((*ShardUnavailable)(nil), "errorpb.ShardUnavailable")
 	proto.RegisterType((*ShardNotFound)(nil), "errorpb.ShardNotFound")
 	proto.RegisterType((*KeyNotInShard)(nil), "errorpb.KeyNotInShard")
@@ -622,7 +622,7 @@ var fileDescriptor_390aa86757fd1154 = []byte{
 	0x83, 0xbb, 0xd7, 0x60, 0x4f, 0xb8, 0xba, 0x62, 0x34, 0x60, 0x02, 0x61, 0xa8, 0xc9, 0x19, 0x15,
 	0xc1, 0xf8, 0x03, 0xb6, 0x3a, 0x56, 0xb7, 0x4c, 0xb6, 0x25, 0x3a, 0x83, 0xea, 0x5c, 0x33, 0xf8,
 	0xb8, 0x63, 0x75, 0xeb, 0x83, 0x93, 0x5e, 0x76, 0x29, 0x61, 0x8b, 0x79, 0xe4, 0xd3, 0x61, 0xf9,
-	0xee, 0xd7, 0x8b, 0x23, 0x92, 0x41, 0xee, 0x09, 0x38, 0x53, 0xc5, 0x05, 0x9b, 0x70, 0xf5, 0x99,
+	0xee, 0xd7, 0x8b, 0x23, 0x92, 0x41, 0xee, 0x09, 0x38, 0x53, 0xc5, 0x05, 0xfb, 0x1c, 0xc9, 0x98,
 	0x2a, 0x7f, 0xe6, 0xbe, 0x82, 0xe6, 0x34, 0xb5, 0xfa, 0x92, 0xd0, 0x5b, 0x1a, 0xcd, 0xa9, 0x37,
 	0x67, 0xff, 0xbe, 0xcd, 0x7d, 0x09, 0x8e, 0xa6, 0x27, 0x5c, 0x7d, 0xe4, 0xcb, 0x24, 0x78, 0x00,
 	0xf5, 0xc1, 0xb9, 0x64, 0xab, 0x09, 0x57, 0xe3, 0x44, 0x4b, 0x50, 0x13, 0x4a, 0x5f, 0xd9, 0x4a,
@@ -644,7 +644,7 @@ var fileDescriptor_390aa86757fd1154 = []byte{
 	0x87, 0x83, 0x4d, 0x21, 0x87, 0x22, 0x34, 0x82, 0xa6, 0xdc, 0xfb, 0xc3, 0x61, 0xd0, 0x46, 0xcf,
 	0x8a, 0x13, 0x33, 0x00, 0x72, 0x20, 0x19, 0x36, 0xef, 0xff, 0xb4, 0x8f, 0xee, 0xd6, 0x6d, 0xeb,
 	0x7e, 0xdd, 0xb6, 0x7e, 0xaf, 0xdb, 0x96, 0x57, 0xd5, 0xdf, 0x8d, 0xf3, 0xbf, 0x01, 0x00, 0x00,
-	0xff, 0xff, 0xb8, 0xdf, 0xf0, 0xc5, 0xbb, 0x04, 0x00, 0x00,
+	0xff, 0xff, 0xfa, 0x38, 0xbc, 0x30, 0xbb, 0x04, 0x00, 0x00,
 }
 
 func (m *NotLeader) Marshal() (dAtA []byte, err error) {
@@ -689,7 +689,7 @@ func (m *NotLeader) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
+func (m *StoreMismatch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -699,12 +699,12 @@ func (m *StoreNotMatch) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *StoreNotMatch) MarshalTo(dAtA []byte) (int, error) {
+func (m *StoreMismatch) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *StoreNotMatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *StoreMismatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -1013,9 +1013,9 @@ func (m *Error) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x4a
 	}
-	if m.StoreNotMatch != nil {
+	if m.StoreMismatch != nil {
 		{
-			size, err := m.StoreNotMatch.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.StoreMismatch.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -1135,7 +1135,7 @@ func (m *NotLeader) Size() (n int) {
 	return n
 }
 
-func (m *StoreNotMatch) Size() (n int) {
+func (m *StoreMismatch) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -1298,8 +1298,8 @@ func (m *Error) Size() (n int) {
 		l = m.StaleCommand.Size()
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
-	if m.StoreNotMatch != nil {
-		l = m.StoreNotMatch.Size()
+	if m.StoreMismatch != nil {
+		l = m.StoreMismatch.Size()
 		n += 1 + l + sovErrorpb(uint64(l))
 	}
 	if m.RaftEntryTooLarge != nil {
@@ -1425,7 +1425,7 @@ func (m *NotLeader) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *StoreNotMatch) Unmarshal(dAtA []byte) error {
+func (m *StoreMismatch) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1448,10 +1448,10 @@ func (m *StoreNotMatch) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: StoreNotMatch: wiretype end group for non-group")
+			return fmt.Errorf("proto: StoreMismatch: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: StoreNotMatch: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: StoreMismatch: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -2343,7 +2343,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 8:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field StoreNotMatch", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field StoreMismatch", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -2370,10 +2370,10 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.StoreNotMatch == nil {
-				m.StoreNotMatch = &StoreNotMatch{}
+			if m.StoreMismatch == nil {
+				m.StoreMismatch = &StoreMismatch{}
 			}
-			if err := m.StoreNotMatch.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.StoreMismatch.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

@@ -519,7 +519,7 @@ func (c *coordinator) collectHotSpotMetrics() {
 	status := s.Scheduler.(hasHotStatus).GetHotWriteStatus()
 	pendings := s.Scheduler.(hasHotStatus).GetWritePendingInfluence()
 	for _, s := range containers {
-		containerAddress := s.Meta.GetClientAddr()
+		containerAddress := s.Meta.GetClientAddress()
 		containerID := s.Meta.GetID()
 		containerLabel := fmt.Sprintf("%d", containerID)
 		stat, ok := status.AsPeer[containerID]
@@ -555,7 +555,7 @@ func (c *coordinator) collectHotSpotMetrics() {
 	status = s.Scheduler.(hasHotStatus).GetHotReadStatus()
 	pendings = s.Scheduler.(hasHotStatus).GetReadPendingInfluence()
 	for _, s := range containers {
-		containerAddress := s.Meta.GetClientAddr()
+		containerAddress := s.Meta.GetClientAddress()
 		containerID := s.Meta.GetID()
 		containerLabel := fmt.Sprintf("%d", containerID)
 		stat, ok := status.AsLeader[containerID]

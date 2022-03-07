@@ -113,7 +113,7 @@ func TestShouldBalance(t *testing.T) {
 		resource := tc.GetShard(1).Clone(core.SetApproximateSize(c.resourceSize))
 		tc.PutShard(resource)
 		tc.SetLeaderSchedulePolicy(c.kind.String())
-		kind := core.NewScheduleKind(metapb.ShardKind_LeaderKind, c.kind)
+		kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, c.kind)
 		shouldBalance, _, _ := shouldBalance(tc, source, target, resource, kind, oc.GetOpInfluence(tc), "")
 		assert.Equal(t, c.expectedResult, shouldBalance)
 	}
@@ -126,7 +126,7 @@ func TestShouldBalance(t *testing.T) {
 			target := tc.GetStore(2)
 			resource := tc.GetShard(1).Clone(core.SetApproximateSize(c.resourceSize))
 			tc.PutShard(resource)
-			kind := core.NewScheduleKind(metapb.ShardKind_ReplicaKind, c.kind)
+			kind := core.NewScheduleKind(metapb.ShardType_AllShards, c.kind)
 			shouldBalance, _, _ := shouldBalance(tc, source, target, resource, kind, oc.GetOpInfluence(tc), "")
 			assert.Equal(t, c.expectedResult, shouldBalance)
 		}
@@ -141,11 +141,11 @@ func TestBalanceLimit(t *testing.T) {
 	tc.AddLeaderStore(3, 30)
 
 	// StandDeviation is sqrt((10^2+0+10^2)/3).
-	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit("", tc, metapb.ShardKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit("", tc, metapb.ShardType_LeaderOnly))
 
 	tc.SetStoreOffline(1)
 	// StandDeviation is sqrt((5^2+5^2)/2).
-	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit("", tc, metapb.ShardKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit("", tc, metapb.ShardType_LeaderOnly))
 }
 
 func TestTolerantRatio(t *testing.T) {
@@ -157,16 +157,16 @@ func TestTolerantRatio(t *testing.T) {
 	resource := tc.GetShard(1).Clone(core.SetApproximateSize(resourceSize))
 
 	tc.SetTolerantSizeRatio(0)
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_LeaderKind, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 
 	tc.SetTolerantSizeRatio(10)
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_LeaderKind, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 }
 
 type testBalanceLeaderScheduler struct {

@@ -136,7 +136,7 @@ func (s *Application) AddLabelToShard(group, shardID uint64, name, value string,
 		Group:      group,
 		ToShard:    shardID,
 		Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
-			Labels: []metapb.Pair{{Key: name, Value: value}},
+			Labels: []metapb.Label{{Key: name, Value: value}},
 			Policy: rpcpb.Add,
 		}),
 	}, timeout)

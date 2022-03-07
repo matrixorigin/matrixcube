@@ -34,7 +34,7 @@ func SetStoreAddress(address, shardAddress string) StoreCreateOption {
 }
 
 // SetStoreLabels sets the labels for the container.
-func SetStoreLabels(labels []metapb.Pair) StoreCreateOption {
+func SetStoreLabels(labels []metapb.Label) StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.CloneValue()
 		meta.SetLabels(labels)
@@ -52,11 +52,11 @@ func SetStoreStartTime(startTS int64) StoreCreateOption {
 }
 
 // SetStoreVersion sets the version for the container.
-func SetStoreVersion(githash, version string) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetVersionAndGitHash(version, githash)
-		container.Meta = meta
+func SetStoreVersion(commitID, version string) StoreCreateOption {
+	return func(cachedStore *CachedStore) {
+		meta := cachedStore.Meta.CloneValue()
+		meta.SetVersionAndCommitID(version, commitID)
+		cachedStore.Meta = meta
 	}
 }
 
@@ -73,8 +73,8 @@ func SetStoreDeployPath(deployPath string) StoreCreateOption {
 func OfflineStore(physicallyDestroyed bool) StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.CloneValue()
-		meta.SetPhysicallyDestroyed(physicallyDestroyed)
-		meta.SetState(metapb.StoreState_Offline)
+		meta.SetDestroyed(physicallyDestroyed)
+		meta.SetState(metapb.StoreState_Down)
 		container.Meta = meta
 	}
 }
@@ -83,7 +83,7 @@ func OfflineStore(physicallyDestroyed bool) StoreCreateOption {
 func UpStore() StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.CloneValue()
-		meta.SetState(metapb.StoreState_UP)
+		meta.SetState(metapb.StoreState_Up)
 		container.Meta = meta
 	}
 }

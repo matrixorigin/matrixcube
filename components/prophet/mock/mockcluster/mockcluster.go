@@ -258,7 +258,7 @@ func (mc *Cluster) AddShardStore(containerID uint64, resourceCount int) {
 	container := core.NewCachedStore(
 		metapb.Store{
 			ID:     containerID,
-			Labels: []metapb.Pair{{Key: "ID", Value: fmt.Sprintf("%v", containerID)}},
+			Labels: []metapb.Label{{Key: "ID", Value: fmt.Sprintf("%v", containerID)}},
 		},
 		core.SetStoreStats(stats),
 		core.SetShardCount("", resourceCount),
@@ -285,9 +285,9 @@ func (mc *Cluster) AddShardStoreWithLeader(containerID uint64, resourceCount int
 
 // AddLabelsStore adds container with specified count of resource and labels.
 func (mc *Cluster) AddLabelsStore(containerID uint64, resourceCount int, labels map[string]string) {
-	newLabels := make([]metapb.Pair, 0, len(labels))
+	newLabels := make([]metapb.Label, 0, len(labels))
 	for k, v := range labels {
-		newLabels = append(newLabels, metapb.Pair{Key: k, Value: v})
+		newLabels = append(newLabels, metapb.Label{Key: k, Value: v})
 	}
 	stats := &metapb.StoreStats{}
 	stats.Capacity = defaultStoreCapacity
@@ -585,7 +585,7 @@ func (mc *Cluster) newMockCachedShard(resID uint64, leaderStoreID uint64, follow
 }
 
 // CheckLabelProperty checks label property.
-func (mc *Cluster) CheckLabelProperty(typ string, labels []metapb.Pair) bool {
+func (mc *Cluster) CheckLabelProperty(typ string, labels []metapb.Label) bool {
 	for _, cfg := range mc.GetLabelPropertyConfig()[typ] {
 		for _, l := range labels {
 			if l.Key == cfg.Key && l.Value == cfg.Value {
@@ -656,9 +656,9 @@ func (mc *Cluster) MockCachedShard(resID uint64, leaderStoreID uint64,
 // SetStoreLabel set the labels to the target container
 func (mc *Cluster) SetStoreLabel(containerID uint64, labels map[string]string) {
 	container := mc.GetStore(containerID)
-	newLabels := make([]metapb.Pair, 0, len(labels))
+	newLabels := make([]metapb.Label, 0, len(labels))
 	for k, v := range labels {
-		newLabels = append(newLabels, metapb.Pair{Key: k, Value: v})
+		newLabels = append(newLabels, metapb.Label{Key: k, Value: v})
 	}
 	newStore := container.Clone(core.SetStoreLabels(newLabels))
 	mc.PutStore(newStore)

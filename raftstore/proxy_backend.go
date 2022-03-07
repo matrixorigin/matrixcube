@@ -60,7 +60,7 @@ func newBackendFactory(logger *zap.Logger, s *store) backendFactory {
 }
 
 func (f *defaultBackendFactory) create(addr string, success SuccessCallback, failure FailureCallback) (backend, error) {
-	if addr == f.s.Meta().ClientAddr {
+	if addr == f.s.Meta().ClientAddress {
 		return f.local, nil
 	}
 

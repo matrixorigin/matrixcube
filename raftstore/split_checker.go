@@ -85,7 +85,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 
 	epoch := shard.Epoch
 	current := pr.getShard()
-	if current.Epoch.Version != epoch.Version {
+	if current.Epoch.Generation != epoch.Generation {
 		pr.logger.Info("epoch changed, need re-check later",
 			log.EpochField("current-epoch", current.Epoch),
 			log.EpochField("check-epoch", epoch))
