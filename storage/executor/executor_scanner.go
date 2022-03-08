@@ -113,8 +113,6 @@ var (
 	UseShardEnd = ScanStartKeyPolicy(2)
 )
 
-// ScanResult scan result
-
 // DataStorageScanner
 type DataStorageScanner interface {
 	// Scan Scan the data in the specified shard to satisfy the conditions,
