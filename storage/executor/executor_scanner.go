@@ -124,7 +124,7 @@ type DataStorageScanner interface {
 	//
 	// completed to true means that the scan is completed in all shards, otherwise the
 	// client needs nextKeyPolicy to create the startKey for the next scan.
-	Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (completed bool, nextKeyPolicy ScanStartKeyPolicy, err error)
+	Scan(shard meta.Shard, handler func(key, value []byte) error, options ...ScanOption) (completed bool, nextKeyPolicy ScanStartKeyPolicy, err error)
 }
 
 type kvBasedDataStorageScanner struct {
@@ -138,7 +138,7 @@ func NewKVBasedDataStorageScanner(kv storage.KVStorage) DataStorageScanner {
 	}
 }
 
-func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (bool, ScanStartKeyPolicy, error) {
+func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, value []byte) error, options ...ScanOption) (bool, ScanStartKeyPolicy, error) {
 	var opts scanOptions
 	for _, opt := range options {
 		opt(&opts)
@@ -162,7 +162,10 @@ func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, val
 	err := s.kv.ScanInView(view, start, end, func(key, value []byte) (bool, error) {
 		originKey := kv.DecodeDataKey(key)
 		if opts.filterFunc(originKey) {
-			handler(originKey, value)
+			err := handler(originKey, value)
+			if err != nil {
+				return false, err
+			}
 
 			n++
 			bytes += uint64(len(originKey))

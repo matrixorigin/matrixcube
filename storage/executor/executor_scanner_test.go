@@ -82,8 +82,9 @@ func TestScanner(t *testing.T) {
 
 	for i, c := range cases {
 		var keys [][]byte
-		completed, policy, err := scanner.Scan(c.shard, func(key, value []byte) {
+		completed, policy, err := scanner.Scan(c.shard, func(key, value []byte) error {
 			keys = append(keys, copyBytes(key))
+			return nil
 		}, c.options...)
 		assert.NoError(t, err, "index %d", i)
 		assert.Equal(t, c.expectCompleted, completed, "index %d", i)
