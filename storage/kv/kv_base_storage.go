@@ -51,8 +51,8 @@ func (s *BaseStorage) GetView() storage.View {
 }
 
 func (s *BaseStorage) ScanInView(view storage.View,
-	start, end []byte, handler func(key, value []byte) (bool, error)) error {
-	return s.kv.ScanInView(view, start, end, handler)
+	start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
+	return s.kv.ScanInView(view, start, end, handler, copy)
 }
 
 func (s *BaseStorage) Close() error {
