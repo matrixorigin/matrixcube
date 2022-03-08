@@ -16,7 +16,6 @@ package core
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"sync"
 
@@ -73,7 +72,6 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 	bc.DestroyedShards.AddMany(ids)
 	for _, id := range ids {
 		res := bc.Shards.GetShard(id)
-		fmt.Println("RES removed: ", id, res)
 		if res != nil {
 			bc.Shards.RemoveShard(res)
 		}

@@ -428,13 +428,11 @@ func (c *RaftCluster) getDestroyingStatusLocked(id uint64) (*metapb.DestroyingSt
 }
 
 func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.DestroyingStatus) error {
-	fmt.Println("status: ", status)
 	if status.State == metapb.ShardState_Destroyed {
 		c.core.AddRemovedShards(id)
 
 		var savedShard metapb.Shard
 		res := c.core.GetShard(id)
-		fmt.Println("GetShard: ", res)
 		if res == nil {
 			// maybe removed due to overlap shard, use id and state constructs
 			savedShard = metapb.Shard{}
@@ -444,7 +442,6 @@ func (c *RaftCluster) saveDestroyingStatusLocked(id uint64, status *metapb.Destr
 			res.Meta.SetState(metapb.ShardState_Destroyed)
 			savedShard = res.Meta
 		}
-		fmt.Println("savedShard: ", savedShard)
 
 		if err := c.storage.PutShardAndExtra(savedShard, protoc.MustMarshal(status)); err != nil {
 			return err

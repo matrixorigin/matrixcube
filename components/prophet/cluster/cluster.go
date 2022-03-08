@@ -491,9 +491,14 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeDestroyed metapb.Shard
+	var checkMaybeDestroyed *metapb.Shard
 	if origin != nil {
-		checkMaybeDestroyed = origin.Meta
+		checkMaybeDestroyed = &origin.Meta
+	} else {
+		checkMaybeDestroyed, err = c.storage.GetShard(res.Meta.GetID())
+		if err != nil {
+			return err
+		}
 	}
 	if checkMaybeDestroyed.GetState() == metapb.ShardState_Destroyed {
 		return errShardDestroyed
