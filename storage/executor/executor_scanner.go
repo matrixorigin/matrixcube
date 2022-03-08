@@ -2,6 +2,7 @@ package executor
 
 import (
 	"bytes"
+	"math"
 
 	"github.com/matrixorigin/matrixcube/pb/meta"
 	"github.com/matrixorigin/matrixcube/storage"
@@ -21,6 +22,7 @@ type scanOptions struct {
 	endKey     []byte
 	countLimit uint64
 	bytesLimit uint64
+	withValue  bool
 	buffer     *buf.ByteBuf
 	filterFunc func([]byte) bool
 }
@@ -38,44 +40,59 @@ func (opts *scanOptions) adjust(shard meta.Shard) {
 	if opts.filterFunc == nil {
 		opts.filterFunc = emptyFilterFunc
 	}
+
+	if opts.countLimit == 0 {
+		opts.countLimit = math.MaxUint64
+	}
+
+	if opts.bytesLimit == 0 {
+		opts.bytesLimit = math.MaxUint64
+	}
 }
 
-// WithScanBuffer 设置scan的buffer，避免内存开销
+// WithValue set whether the return result of scan contains value
+func WithValue() ScanOption {
+	return func(opts *scanOptions) {
+		opts.withValue = true
+	}
+}
+
+// WithScanBuffer set the buffer of scan to avoid memory overhead
 func WithScanBuffer(buffer *buf.ByteBuf) ScanOption {
 	return func(opts *scanOptions) {
 		opts.buffer = buffer
 	}
 }
 
-// WithScanEndKey 设置scan的endKey
+// WithScanEndKey set the endKey of scan
 func WithScanEndKey(endKey []byte) ScanOption {
 	return func(opts *scanOptions) {
 		opts.endKey = endKey
 	}
 }
 
-// WithScanStartKey 设置scan的startKey
+// WithScanStartKey set the startKey of scan
 func WithScanStartKey(startKey []byte) ScanOption {
 	return func(opts *scanOptions) {
 		opts.startKey = startKey
 	}
 }
 
-// WithScanCountLimit 最多scan多少条数据
+// WithScanCountLimit set the maximum number of data to be included in the result
 func WithScanCountLimit(value uint64) ScanOption {
 	return func(opts *scanOptions) {
 		opts.countLimit = value
 	}
 }
 
-// WithScanBytesLimit 最多scan多少字节的数据
+// WithScanBytesLimit set the maximum number of bytes of data to be included in the result
 func WithScanBytesLimit(value uint64) ScanOption {
 	return func(opts *scanOptions) {
 		opts.bytesLimit = value
 	}
 }
 
-// WithScanFilterFunc scan过滤器
+// WithScanFilterFunc set the key filter and return true to indicate that the record meets the condition
 func WithScanFilterFunc(filterFunc func([]byte) bool) ScanOption {
 	return func(opts *scanOptions) {
 		opts.filterFunc = filterFunc
@@ -84,12 +101,32 @@ func WithScanFilterFunc(filterFunc func([]byte) bool) ScanOption {
 
 var _ DataStorageScanner = (*kvBasedDataStorageScanner)(nil)
 
+// ScanStartKeyPolicy calculation strategy for the startKey of next scan
+type ScanStartKeyPolicy int
+
+var (
+	// None no need to next scan
+	None = ScanStartKeyPolicy(0)
+	// GenWithResultLastKey use `kv.NextKey(last result key)` as startKey for next scan
+	GenWithResultLastKey = ScanStartKeyPolicy(1)
+	// UseShardEnd use the endKey of the shard as startKey for next scan
+	UseShardEnd = ScanStartKeyPolicy(2)
+)
+
+// ScanResult scan result
+
 // DataStorageScanner
 type DataStorageScanner interface {
-	// Scan 在指定的shard里scan满足条件数据，限定条件可以使用options来指定。当一个key满足条件时，handler会被调用.
-	// needScanNext为false是，表示数据已经完全scan结束，不需要继续尝试了。
-	// 当needScanNext是true的时候，nextScanKey是下一次scan的起始key
-	Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (needScanNext bool, nextScanKey []byte, err error)
+	// Scan Scan the data in the specified shard to satisfy the conditions,
+	// the qualifying conditions can be specified using options.
+	//
+	// When a key satisfies the condition, the handler will be called.
+	// The key and value passed to the handler are not safe and will be reused
+	// between multiple handler calls, and need to be copied if they need to be saved.
+	//
+	// completed to true means that the scan is completed in all shards, otherwise the
+	// client needs nextKeyPolicy to create the startKey for the next scan.
+	Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (completed bool, nextKeyPolicy ScanStartKeyPolicy, err error)
 }
 
 type kvBasedDataStorageScanner struct {
@@ -103,26 +140,69 @@ func NewKVBasedDataStorageScanner(kv storage.KVStorage) DataStorageScanner {
 	}
 }
 
-func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (bool, []byte, error) {
+func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, value []byte), options ...ScanOption) (bool, ScanStartKeyPolicy, error) {
 	var opts scanOptions
 	for _, opt := range options {
 		opt(&opts)
 	}
 	opts.adjust(shard)
 
-	start := kv.EncodeShardStart(opts.startKey, opts.buffer)
-	end := kv.EncodeShardEnd(opts.endKey, opts.buffer)
+	view := s.kv.GetView()
+	defer view.Close()
 
-	err := s.kv.Scan(start, end, func(key, value []byte) (bool, error) {
-		if opts.filterFunc(kv.DecodeDataKey(key)) {
+	buffer := opts.buffer
+	if buffer == nil {
+		buffer = buf.NewByteBuf(32)
+		defer buffer.Release()
+	}
 
+	start := kv.EncodeShardStart(opts.startKey, buffer)
+	end := kv.EncodeShardEnd(opts.endKey, buffer)
+	n := uint64(0)
+	bytes := uint64(0)
+	skipByLimit := false
+	err := s.kv.ScanInView(view, start, end, func(key, value []byte) (bool, error) {
+		originKey := kv.DecodeDataKey(key)
+		if opts.filterFunc(originKey) {
+			handler(originKey, value)
+
+			n++
+			bytes += uint64(len(originKey))
+			if opts.withValue {
+				bytes += uint64(len(value))
+			}
+			if n >= opts.countLimit ||
+				bytes >= opts.bytesLimit {
+				skipByLimit = true
+				return false, nil
+			}
 		}
-
-		return false, nil
+		return true, nil
 	}, false)
 
 	if err != nil {
-		return false, nil, err
+		return false, None, err
 	}
-	return false, nil, nil
+
+	if n == 0 {
+		// last shard scan completed
+		if len(shard.End) == 0 {
+			return true, None, nil
+		}
+		// current shard scan completed, using shard.end as next scan key
+		return false, UseShardEnd, nil
+	}
+
+	// use kv.NextKey(keys[len(keys-1)]) as next scan startKey
+	if skipByLimit {
+		return false, GenWithResultLastKey, nil
+	}
+
+	// current shard is last, all data scan completed
+	if len(shard.End) == 0 {
+		return true, None, nil
+	}
+
+	// current shard scan completed, using shard.end as next scan key
+	return false, UseShardEnd, nil
 }

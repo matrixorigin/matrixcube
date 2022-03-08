@@ -47,7 +47,7 @@ type KVStore interface {
 	// ScanInView is similar to Scan, it performs the Scan operation on the
 	// specified view.
 	ScanInView(view View, start, end []byte,
-		handler func(key, value []byte) (bool, error)) error
+		handler func(key, value []byte) (bool, error), copy bool) error
 	// PrefixScan scans all key-value pairs that share the specified prefix, the
 	// specified handler function will be invoked on each such key-value pairs
 	// until false is returned by the handler function. Depending on the copy
