@@ -216,7 +216,7 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 }
 
 func (s *Storage) ScanInView(view storage.View,
-	start, end []byte, handler func(key, value []byte) (bool, error)) error {
+	start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
 	ios := &pebble.IterOptions{}
 	if len(start) > 0 {
 		ios.LowerBound = start
@@ -234,7 +234,12 @@ func (s *Storage) ScanInView(view storage.View,
 		if err != nil {
 			return err
 		}
-		ok, err := handler(clone(iter.Key()), clone(iter.Value()))
+		var ok bool
+		if copy {
+			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+		} else {
+			ok, err = handler(iter.Key(), iter.Value())
+		}
 		if err != nil {
 			return err
 		}
