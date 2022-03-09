@@ -86,6 +86,7 @@ type testClusterOptions struct {
 
 func newTestClusterOptions() *testClusterOptions {
 	return &testClusterOptions{
+		logLevel: zap.DebugLevel,
 		recreate: true,
 		dataOpts: &cpebble.Options{},
 	}
@@ -97,9 +98,6 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3
-	}
-	if opts.logLevel == 0 {
-		opts.logLevel = zap.DebugLevel
 	}
 	if opts.storageStatsReaderFunc == nil {
 		opts.storageStatsReaderFunc = func(s *store) storageStatsReader {
