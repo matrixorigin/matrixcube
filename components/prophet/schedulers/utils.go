@@ -61,14 +61,14 @@ func shouldBalance(cluster opt.Cluster,
 	sourceDelta, targetDelta := sourceInfluence-tolerantShard, targetInfluence+tolerantShard
 	opts := cluster.GetOpts()
 	switch kind.ShardKind {
-	case metapb.ShardKind_LeaderKind:
+	case metapb.ShardType_LeaderOnly:
 		if kind.Policy == core.ByCount {
 			sourceDelta = -1
 			targetDelta = 1
 		}
 		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
 		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
-	case metapb.ShardKind_ReplicaKind:
+	case metapb.ShardType_AllShards:
 		sourceScore = source.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
 		targetScore = target.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
@@ -102,7 +102,7 @@ func shouldBalance(cluster opt.Cluster,
 }
 
 func getTolerantShard(cluster opt.Cluster, res *core.CachedShard, kind core.ScheduleKind) int64 {
-	if kind.ShardKind == metapb.ShardKind_LeaderKind && kind.Policy == core.ByCount {
+	if kind.ShardKind == metapb.ShardType_LeaderOnly && kind.Policy == core.ByCount {
 		tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 		if tolerantSizeRatio == 0 {
 			tolerantSizeRatio = leaderTolerantSizeRatio
@@ -138,7 +138,7 @@ func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 	return tolerantSizeRatio
 }
 
-func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ShardKind) uint64 {
+func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ShardType) uint64 {
 	containers := cluster.GetStores()
 	counts := make([]float64, 0, len(containers))
 	for _, s := range containers {

@@ -23,8 +23,8 @@ const (
 // check whether checkEpoch is more recent than epoch. returns true means
 // epoch < checkEpoch
 func isEpochStale(epoch metapb.ShardEpoch, checkEpoch metapb.ShardEpoch) bool {
-	return epoch.Version < checkEpoch.Version ||
-		epoch.ConfVer < checkEpoch.ConfVer
+	return epoch.Generation < checkEpoch.Generation ||
+		epoch.ConfigVer < checkEpoch.ConfigVer
 }
 
 func findReplica(shard Shard, storeID uint64) *Replica {

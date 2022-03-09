@@ -169,7 +169,7 @@ func (r *defaultRouter) Stop() {
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
 	shard := r.searchShard(group, key)
-	return shard, r.LeaderReplicaStore(shard.ID).ClientAddr
+	return shard, r.LeaderReplicaStore(shard.ID).ClientAddress
 }
 
 func (r *defaultRouter) GetShard(id uint64) Shard {
@@ -374,7 +374,7 @@ func (r *defaultRouter) updateLeaderLocked(shardID, leaderReplicaID uint64) {
 				r.logger.Info("shard leader updated",
 					log.ShardIDField(shardID),
 					log.ReplicaField("leader-replica", p),
-					zap.String("address", s.ClientAddr))
+					zap.String("address", s.ClientAddress))
 				return
 			}
 

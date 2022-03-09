@@ -710,8 +710,8 @@ func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 
 	lastestEpoch := shard.Epoch
 	isStale := func(fromEpoch Epoch) bool {
-		return (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
-			(checkVer && fromEpoch.Version < lastestEpoch.Version)
+		return (checkConfVer && fromEpoch.ConfigVer < lastestEpoch.ConfigVer) ||
+			(checkVer && fromEpoch.Generation < lastestEpoch.Generation)
 	}
 
 	// only check first request, because requests inside a batch have the same epoch
@@ -797,7 +797,7 @@ func (s *store) containerResolver(storeID uint64) (string, error) {
 	if container == nil {
 		return "", nil
 	}
-	return container.GetRaftAddr(), nil
+	return container.GetRaftAddress(), nil
 }
 
 func (s *store) unreachable(shardID uint64, replicaID uint64) {

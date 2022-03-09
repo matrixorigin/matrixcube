@@ -180,7 +180,7 @@ func TestDoExecSplit(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}, Start: []byte{1}, End: []byte{10}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 2}, Start: []byte{1}, End: []byte{10}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
 	ctx := newApplyContext()
 
 	ch := make(chan bool)
@@ -299,7 +299,7 @@ func TestDoExecCompactLog(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 2}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 2}, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
 	ctx := newApplyContext()
 
 	err := pr.sm.logdb.SaveRaftState(pr.shardID, pr.replicaID, raft.Ready{

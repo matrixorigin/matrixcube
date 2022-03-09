@@ -111,7 +111,7 @@ func WithNewPeerIds(peerIDs ...uint64) ShardCreateOption {
 func WithIncVersion() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		e.Version++
+		e.Generation++
 		res.Meta.SetEpoch(e)
 	}
 }
@@ -120,7 +120,7 @@ func WithIncVersion() ShardCreateOption {
 func WithDecVersion() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		e.Version--
+		e.Generation--
 		res.Meta.SetEpoch(e)
 	}
 }
@@ -129,7 +129,7 @@ func WithDecVersion() ShardCreateOption {
 func WithIncConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		e.ConfVer++
+		e.ConfigVer++
 		res.Meta.SetEpoch(e)
 	}
 }
@@ -138,7 +138,7 @@ func WithIncConfVer() ShardCreateOption {
 func WithDecConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		e.ConfVer--
+		e.ConfigVer--
 		res.Meta.SetEpoch(e)
 	}
 }
@@ -209,10 +209,10 @@ func SetReportInterval(v uint64) ShardCreateOption {
 func SetShardConfVer(confVer uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		if e.Version == 0 {
-			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: confVer, Version: 1})
+		if e.Generation == 0 {
+			res.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: confVer, Generation: 1})
 		} else {
-			e.ConfVer = confVer
+			e.ConfigVer = confVer
 			res.Meta.SetEpoch(e)
 		}
 	}
@@ -222,10 +222,10 @@ func SetShardConfVer(confVer uint64) ShardCreateOption {
 func SetShardVersion(version uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
-		if e.Version == 0 {
-			res.Meta.SetEpoch(metapb.ShardEpoch{ConfVer: 1, Version: version})
+		if e.Generation == 0 {
+			res.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: 1, Generation: version})
 		} else {
-			e.Version = version
+			e.Generation = version
 			res.Meta.SetEpoch(e)
 		}
 	}

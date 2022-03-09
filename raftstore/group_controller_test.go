@@ -44,6 +44,6 @@ func TestGetShardGroupKey(t *testing.T) {
 	gc := newReplicaGroupController()
 	gc.setRules(rules)
 
-	shard := Shard{Labels: []metapb.Pair{{Key: "l1", Value: "v1"}}}
+	shard := Shard{Labels: []metapb.Label{{Key: "l1", Value: "v1"}}}
 	assert.Equal(t, util.EncodeGroupKey(0, rules, shard.Labels), gc.getShardGroupKey(shard))
 }

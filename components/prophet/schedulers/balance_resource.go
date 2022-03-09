@@ -162,7 +162,7 @@ func (s *balanceShardScheduler) Schedule(cluster opt.Cluster) []*operator.Operat
 func (s *balanceShardScheduler) scheduleByGroup(groupKey string, cluster opt.Cluster, containers []*core.CachedStore) []*operator.Operator {
 	opts := cluster.GetOpts()
 	opInfluence := s.opController.GetOpInfluence(cluster)
-	kind := core.NewScheduleKind(metapb.ShardKind_ReplicaKind, core.BySize)
+	kind := core.NewScheduleKind(metapb.ShardType_AllShards, core.BySize)
 
 	sort.Slice(containers, func(i, j int) bool {
 		iOp := opInfluence.GetStoreInfluence(containers[i].Meta.GetID()).ShardProperty(kind, groupKey)
@@ -278,7 +278,7 @@ func (s *balanceShardScheduler) transferPeer(group string, cluster opt.Cluster, 
 			targetField(targetID))
 
 		opInfluence := s.opController.GetOpInfluence(cluster)
-		kind := core.NewScheduleKind(metapb.ShardKind_ReplicaKind, core.BySize)
+		kind := core.NewScheduleKind(metapb.ShardType_AllShards, core.BySize)
 		shouldBalance, sourceScore, targetScore := shouldBalance(cluster, source, target, res, kind, opInfluence, s.GetName())
 		if !shouldBalance {
 			schedulerCounter.WithLabelValues(s.GetName(), "skip").Inc()

@@ -179,11 +179,11 @@ func TestReuseAddress(t *testing.T) {
 		containerID := container.Meta.GetID() + 1000
 		v, _ := container.Meta.GetVersionAndGitHash()
 		newStore := metapb.Store{
-			ID:         containerID,
-			ClientAddr: container.Meta.GetClientAddr(),
-			State:      metapb.StoreState_UP,
-			Version:    v,
-			DeployPath: fmt.Sprintf("test/container%d", containerID),
+			ID:            containerID,
+			ClientAddress: container.Meta.GetClientAddress(),
+			State:         metapb.StoreState_Up,
+			Version:       v,
+			DeployPath:    fmt.Sprintf("test/container%d", containerID),
 		}
 
 		if container.IsPhysicallyDestroyed() || container.IsTombstone() {
@@ -493,15 +493,15 @@ func TestConcurrentShardHeartbeat(t *testing.T) {
 	target.Meta.SetStartKey([]byte{})
 	target.Meta.SetEndKey([]byte{})
 	epoch := source.Meta.GetEpoch()
-	epoch.Version++
+	epoch.Generation++
 	source.Meta.SetEpoch(epoch)
-	if source.Meta.GetEpoch().Version > target.Meta.GetEpoch().Version {
+	if source.Meta.GetEpoch().Generation > target.Meta.GetEpoch().Generation {
 		epoch = target.Meta.GetEpoch()
-		epoch.Version = source.Meta.GetEpoch().Version
+		epoch.Generation = source.Meta.GetEpoch().Generation
 		target.Meta.SetEpoch(epoch)
 	}
 	epoch = target.Meta.GetEpoch()
-	epoch.Version++
+	epoch.Generation++
 	target.Meta.SetEpoch(epoch)
 }
 
@@ -511,7 +511,7 @@ func TestHeartbeatSplit(t *testing.T) {
 	cluster := newTestRaftCluster(opt, storage.NewTestStorage(), core.NewBasicCluster(nil))
 
 	// 1: [nil, nil)
-	resource1 := core.NewCachedShard(metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1}}, nil)
+	resource1 := core.NewCachedShard(metapb.Shard{ID: 1, Epoch: metapb.ShardEpoch{Generation: 1, ConfigVer: 1}}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource1))
 	checkShard(t, cluster.GetShardByKey(0, []byte("foo")), resource1)
 
@@ -523,7 +523,7 @@ func TestHeartbeatSplit(t *testing.T) {
 	resource2 := core.NewCachedShard(metapb.Shard{
 		ID:    2,
 		End:   []byte("m"),
-		Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		Epoch: metapb.ShardEpoch{Generation: 1, ConfigVer: 1},
 	}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource2))
 	checkShard(t, cluster.GetShardByKey(0, []byte("a")), resource2)
@@ -542,7 +542,7 @@ func TestHeartbeatSplit(t *testing.T) {
 		ID:    3,
 		Start: []byte("m"),
 		End:   []byte("q"),
-		Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		Epoch: metapb.ShardEpoch{Generation: 1, ConfigVer: 1},
 	}, nil)
 	assert.NoError(t, cluster.processShardHeartbeat(resource1))
 	checkShard(t, cluster.GetShardByKey(0, []byte("z")), resource1)
@@ -737,17 +737,17 @@ func TestCheckStaleShard(t *testing.T) {
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 
 	// (1, 0) v.s. (0, 0)
-	resource.Meta.Epoch.Version++
+	resource.Meta.Epoch.Generation++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 
 	// (1, 1) v.s. (0, 0)
-	resource.Meta.Epoch.Version++
+	resource.Meta.Epoch.Generation++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 
 	// (0, 1) v.s. (0, 0)
-	resource.Meta.Epoch.Version++
+	resource.Meta.Epoch.Generation++
 	assert.Nil(t, checkStaleShard(origin.Meta, resource.Meta))
 	assert.NotNil(t, checkStaleShard(resource.Meta, origin.Meta))
 }
@@ -792,7 +792,7 @@ func newTestShardMeta(resourceID uint64) *metapb.Shard {
 		ID:    resourceID,
 		Start: []byte(fmt.Sprintf("%20d", resourceID)),
 		End:   []byte(fmt.Sprintf("%20d", resourceID+1)),
-		Epoch: metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		Epoch: metapb.ShardEpoch{Generation: 1, ConfigVer: 1},
 	}
 }
 
@@ -801,11 +801,11 @@ func newTestStores(n uint64, version string) []*core.CachedStore {
 	containers := make([]*core.CachedStore, 0, n)
 	for i := uint64(1); i <= n; i++ {
 		container := metapb.Store{
-			ID:         i,
-			ClientAddr: fmt.Sprintf("127.0.0.1:%d", i),
-			State:      metapb.StoreState_UP,
-			Version:    version,
-			DeployPath: fmt.Sprintf("test/container%d", i),
+			ID:            i,
+			ClientAddress: fmt.Sprintf("127.0.0.1:%d", i),
+			State:         metapb.StoreState_Up,
+			Version:       version,
+			DeployPath:    fmt.Sprintf("test/container%d", i),
 		}
 		containers = append(containers, core.NewCachedStore(container))
 	}
@@ -830,7 +830,7 @@ func newTestShards(n, np uint64) []*core.CachedShard {
 			Replicas: peers,
 			Start:    []byte{byte(i)},
 			End:      []byte{byte(i + 1)},
-			Epoch:    metapb.ShardEpoch{ConfVer: 2, Version: 2},
+			Epoch:    metapb.ShardEpoch{ConfigVer: 2, Generation: 2},
 		}
 		resources = append(resources, core.NewCachedShard(res, &peers[0]))
 	}
@@ -936,7 +936,7 @@ func checkStaleShard(origin, res metapb.Shard) error {
 	o := origin.GetEpoch()
 	e := res.GetEpoch()
 
-	if e.GetVersion() < o.GetVersion() || e.GetConfVer() < o.GetConfVer() {
+	if e.GetGeneration() < o.GetGeneration() || e.GetConfigVer() < o.GetConfigVer() {
 		return fmt.Errorf("resource is stale: resource %v origin %v", res, origin)
 	}
 

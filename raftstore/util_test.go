@@ -24,11 +24,11 @@ import (
 func TestIsEpochStale(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	assert.True(t, isEpochStale(metapb.ShardEpoch{ConfVer: 1}, metapb.ShardEpoch{ConfVer: 2}))
-	assert.True(t, isEpochStale(metapb.ShardEpoch{Version: 1}, metapb.ShardEpoch{Version: 2}))
+	assert.True(t, isEpochStale(metapb.ShardEpoch{ConfigVer: 1}, metapb.ShardEpoch{ConfigVer: 2}))
+	assert.True(t, isEpochStale(metapb.ShardEpoch{Generation: 1}, metapb.ShardEpoch{Generation: 2}))
 
-	assert.False(t, isEpochStale(metapb.ShardEpoch{ConfVer: 2}, metapb.ShardEpoch{ConfVer: 1}))
-	assert.False(t, isEpochStale(metapb.ShardEpoch{Version: 2}, metapb.ShardEpoch{Version: 1}))
+	assert.False(t, isEpochStale(metapb.ShardEpoch{ConfigVer: 2}, metapb.ShardEpoch{ConfigVer: 1}))
+	assert.False(t, isEpochStale(metapb.ShardEpoch{Generation: 2}, metapb.ShardEpoch{Generation: 1}))
 }
 
 func TestFindReplica(t *testing.T) {

@@ -109,7 +109,7 @@ func (s *store) vacuum(t vacuumTask) error {
 
 	if t.replica != nil {
 		if t.replica.closed() {
-			// this can happen when PD request to remove a splitting shard. two vaccum
+			// this can happen when PD request to remove a splitting shard. two vacuum
 			// tasks will be created, one for splitting and one for removal.
 			t.replica.logger.Info("skip vacuuming already closed replica")
 			return nil
@@ -124,7 +124,7 @@ func (s *store) vacuum(t vacuumTask) error {
 		}
 		t.replica.close()
 		// wait for the replica to be fully unloaded before removing it from the
-		// store. otherwise the raft worker might not be able to get the replica
+		// store. Otherwise, the raft worker might not be able to get the replica
 		// from the store and mark it as unloaded.
 		t.replica.logger.Info("waiting for the replica to be unloaded",
 			log.ReplicaIDField(t.shard.ID))

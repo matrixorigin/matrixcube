@@ -230,16 +230,16 @@ func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) metapb.Shard {
 		ID:       resourceID,
 		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
 		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
-		Epoch:    metapb.ShardEpoch{Version: 1, ConfVer: 1},
+		Epoch:    metapb.ShardEpoch{Generation: 1, ConfigVer: 1},
 		Replicas: peers,
 	}
 }
 
 func newTestStoreMeta(containerID uint64) metapb.Store {
 	return metapb.Store{
-		ID:         containerID,
-		ClientAddr: fmt.Sprintf("127.0.0.1:%d", containerID),
-		RaftAddr:   fmt.Sprintf("127.0.0.2:%d", containerID),
+		ID:            containerID,
+		ClientAddress: fmt.Sprintf("127.0.0.1:%d", containerID),
+		RaftAddress:   fmt.Sprintf("127.0.0.2:%d", containerID),
 	}
 }
 

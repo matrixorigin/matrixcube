@@ -42,7 +42,7 @@ func SelectSourceStores(containers []*core.CachedStore, filters []Filter, opt *c
 			if !filters[i].Source(opt, s) {
 				sourceID := fmt.Sprintf("%d", s.Meta.GetID())
 				targetID := ""
-				filterCounter.WithLabelValues("filter-source", s.Meta.GetClientAddr(),
+				filterCounter.WithLabelValues("filter-source", s.Meta.GetClientAddress(),
 					sourceID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -63,7 +63,7 @@ func SelectTargetStores(containers []*core.CachedStore, filters []Filter, opt *c
 				if ok {
 					sourceID = fmt.Sprintf("%d", cfilter.GetSourceStoreID())
 				}
-				filterCounter.WithLabelValues("filter-target", s.Meta.GetClientAddr(),
+				filterCounter.WithLabelValues("filter-target", s.Meta.GetClientAddress(),
 					targetID, filters[i].Scope(), filters[i].Type(), sourceID, targetID).Inc()
 				return false
 			}
@@ -101,7 +101,7 @@ type comparingFilter interface {
 
 // Source checks if container can pass all Filters as source container.
 func Source(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.GetClientAddr()
+	containerAddress := container.Meta.GetClientAddress()
 	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Source(opt, container) {
@@ -117,7 +117,7 @@ func Source(opt *config.PersistOptions, container *core.CachedStore, filters []F
 
 // Target checks if container can pass all Filters as target container.
 func Target(opt *config.PersistOptions, container *core.CachedStore, filters []Filter) bool {
-	containerAddress := container.Meta.GetClientAddr()
+	containerAddress := container.Meta.GetClientAddress()
 	containerID := fmt.Sprintf("%d", container.Meta.GetID())
 	for _, filter := range filters {
 		if !filter.Target(opt, container) {

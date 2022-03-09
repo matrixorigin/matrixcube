@@ -63,11 +63,11 @@ func (s *containerStatistics) Observe(container *core.CachedStore, stats *Stores
 			s.LabelCounter[key]++
 		}
 	}
-	containerAddress := container.Meta.GetClientAddr()
+	containerAddress := container.Meta.GetClientAddress()
 	id := strconv.FormatUint(container.Meta.GetID(), 10)
 	// Store state.
 	switch container.GetState() {
-	case metapb.StoreState_UP:
+	case metapb.StoreState_Up:
 		if container.DownTime() >= s.opt.GetMaxStoreDownTime() {
 			s.Down++
 		} else if container.IsUnhealthy() {
@@ -77,7 +77,7 @@ func (s *containerStatistics) Observe(container *core.CachedStore, stats *Stores
 		} else {
 			s.Up++
 		}
-	case metapb.StoreState_Offline:
+	case metapb.StoreState_Down:
 		s.Offline++
 	case metapb.StoreState_StoreTombstone:
 		s.Tombstone++

@@ -77,18 +77,18 @@ func TestProposalBatchNeverBatchesRequestsFromDifferentEpoch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	r1 := newReqCtx(rpcpb.Request{
 		Type:  rpcpb.Write,
-		Epoch: metapb.ShardEpoch{ConfVer: 1, Version: 1},
+		Epoch: metapb.ShardEpoch{ConfigVer: 1, Generation: 1},
 	}, nil)
 	r2 := newReqCtx(rpcpb.Request{
 		Type:  rpcpb.Write,
-		Epoch: metapb.ShardEpoch{ConfVer: 2, Version: 2},
+		Epoch: metapb.ShardEpoch{ConfigVer: 2, Generation: 2},
 	}, nil)
 	b := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b.push(1, r1)
 	b.push(1, r2)
 	assert.Equal(t, 2, b.size())
 
-	r2.req.Epoch = metapb.ShardEpoch{ConfVer: 1, Version: 1}
+	r2.req.Epoch = metapb.ShardEpoch{ConfigVer: 1, Generation: 1}
 	b2 := newProposalBatch(nil, testMaxBatchSize, 10, Replica{})
 	b2.push(1, r1)
 	b2.push(1, r2)

@@ -38,14 +38,14 @@ func SplitTestShards(resources []*CachedShard) []*CachedShard {
 		left.Meta.SetID(res.Meta.GetID() + uint64(len(resources)))
 		left.Meta.SetEndKey(middle)
 		epoch := left.Meta.GetEpoch()
-		epoch.Version++
+		epoch.Generation++
 		left.Meta.SetEpoch(epoch)
 
 		right := res.Clone()
 		right.Meta.SetID(res.Meta.GetID() + uint64(len(resources)*2))
 		right.Meta.SetStartKey(middle)
 		epoch = right.Meta.GetEpoch()
-		epoch.Version++
+		epoch.Generation++
 		right.Meta.SetEpoch(epoch)
 		results = append(results, left, right)
 	}
@@ -71,14 +71,14 @@ func MergeTestShards(resources []*CachedShard) []*CachedShard {
 				End:   rightEnd,
 			},
 		}
-		if left.Meta.GetEpoch().Version > right.Meta.GetEpoch().Version {
+		if left.Meta.GetEpoch().Generation > right.Meta.GetEpoch().Generation {
 			res.Meta.SetEpoch(left.Meta.GetEpoch())
 		} else {
 			res.Meta.SetEpoch(right.Meta.GetEpoch())
 		}
 
 		epoch := res.Meta.GetEpoch()
-		epoch.Version++
+		epoch.Generation++
 		res.Meta.SetEpoch(epoch)
 		results = append(results, res)
 	}
@@ -98,9 +98,9 @@ func NewTestCachedShard(start, end []byte) *CachedShard {
 
 // NewTestStoreInfoWithLabel is create a container with specified labels.
 func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]string) *CachedStore {
-	containerLabels := make([]metapb.Pair, 0, len(labels))
+	containerLabels := make([]metapb.Label, 0, len(labels))
 	for k, v := range labels {
-		containerLabels = append(containerLabels, metapb.Pair{
+		containerLabels = append(containerLabels, metapb.Label{
 			Key:   k,
 			Value: v,
 		})

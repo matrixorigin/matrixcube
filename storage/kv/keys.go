@@ -58,6 +58,24 @@ func EncodeShardMetadataKey(key []byte, buffer *buf.ByteBuf) []byte {
 	return doAppendPrefix(key, metaPrefix, buffer)
 }
 
+// NextKey returns the next key of current key
+func NextKey(key []byte, buffer *buf.ByteBuf) []byte {
+	if len(key) == 0 {
+		return []byte{0}
+	}
+
+	if buffer == nil {
+		v := make([]byte, 1+len(key))
+		copy(v[0:], key)
+		return v
+	}
+
+	buffer.MarkWrite()
+	buffer.Write(key)
+	buffer.WriteByte(0)
+	return buffer.WrittenDataAfterMark().Data()
+}
+
 func doAppendPrefix(key []byte, prefix byte, buffer *buf.ByteBuf) []byte {
 	if buffer == nil {
 		v := make([]byte, 1+len(key))

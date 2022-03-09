@@ -160,7 +160,7 @@ func (c *batch) getRequestID() []byte {
 func respStoreNotMatch(err error, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:       err.Error(),
-		StoreNotMatch: storeNotMatch,
+		StoreMismatch: storeMismatch,
 	})
 	resp := rpcpb.Response{
 		ID:  req.ID,
@@ -184,5 +184,5 @@ func respShardUnavailable(id uint64, req rpcpb.Request, cb func(responseBatch rp
 }
 
 func epochMatch(e1, e2 metapb.ShardEpoch) bool {
-	return e1.ConfVer == e2.ConfVer && e1.Version == e2.Version
+	return e1.ConfigVer == e2.ConfigVer && e1.Generation == e2.Generation
 }

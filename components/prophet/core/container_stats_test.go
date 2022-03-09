@@ -23,7 +23,7 @@ import (
 
 func TestStoreStats(t *testing.T) {
 	G := uint64(1024 * 1024 * 1024)
-	meta := metapb.Store{ID: 1, State: metapb.StoreState_UP}
+	meta := metapb.Store{ID: 1, State: metapb.StoreState_Up}
 	container := NewCachedStore(meta, SetStoreStats(&metapb.StoreStats{
 		Capacity:  200 * G,
 		UsedSize:  50 * G,

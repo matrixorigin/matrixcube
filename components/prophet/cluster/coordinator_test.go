@@ -922,14 +922,14 @@ func TestController(t *testing.T) {
 	// test wrong resource epoch.
 	assert.True(t, oc.RemoveOperator(op11, ""))
 	epoch := metapb.ShardEpoch{
-		Version: tc.GetShard(1).Meta.GetEpoch().Version + 1,
-		ConfVer: tc.GetShard(1).Meta.GetEpoch().ConfVer,
+		Generation: tc.GetShard(1).Meta.GetEpoch().Generation + 1,
+		ConfigVer:  tc.GetShard(1).Meta.GetEpoch().ConfigVer,
 	}
 	{
 		op6 := newTestOperator(1, epoch, operator.OpLeader)
 		assert.Equal(t, 0, oc.AddWaitingOperator(op6))
 	}
-	epoch.Version--
+	epoch.Generation--
 	{
 		op6 := newTestOperator(1, epoch, operator.OpLeader)
 		assert.Equal(t, 1, oc.AddWaitingOperator(op6))

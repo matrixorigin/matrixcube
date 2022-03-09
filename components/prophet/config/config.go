@@ -445,7 +445,7 @@ func (c *ReplicationConfig) Clone() *ReplicationConfig {
 func (c *ReplicationConfig) Validate() error {
 	foundIsolationLevel := false
 	for _, label := range c.LocationLabels {
-		err := ValidateLabels([]metapb.Pair{{Key: label}})
+		err := ValidateLabels([]metapb.Label{{Key: label}})
 		if err != nil {
 			return err
 		}

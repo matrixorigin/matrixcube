@@ -53,7 +53,7 @@ type StoreInfluence struct {
 // ShardProperty returns delta size of leader/resource by influence.
 func (s StoreInfluence) ShardProperty(kind core.ScheduleKind, groupKey string) int64 {
 	switch kind.ShardKind {
-	case metapb.ShardKind_LeaderKind:
+	case metapb.ShardType_LeaderOnly:
 		switch kind.Policy {
 		case core.ByCount:
 			return s.InfluenceStats[groupKey].LeaderCount
@@ -62,7 +62,7 @@ func (s StoreInfluence) ShardProperty(kind core.ScheduleKind, groupKey string) i
 		default:
 			return 0
 		}
-	case metapb.ShardKind_ReplicaKind:
+	case metapb.ShardType_AllShards:
 		return s.InfluenceStats[groupKey].ShardSize
 	default:
 		return 0

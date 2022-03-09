@@ -46,12 +46,12 @@ func TestRebalanceWithLabel(t *testing.T) {
 			cfg.Prophet.Replication.MaxReplicas = 1
 			cfg.Customize.CustomInitShardsFactory = func() []metapb.Shard {
 				return []Shard{
-					{Start: []byte("a"), End: []byte("b"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("b"), End: []byte("c"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("c"), End: []byte("d"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("d"), End: []byte("e"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
-					{Start: []byte("e"), End: []byte("f"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
-					{Start: []byte("f"), End: []byte("g"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
+					{Start: []byte("a"), End: []byte("b"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("b"), End: []byte("c"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("c"), End: []byte("d"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("d"), End: []byte("e"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
+					{Start: []byte("e"), End: []byte("f"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
+					{Start: []byte("f"), End: []byte("g"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
 				}
 			}
 		}))

@@ -42,12 +42,12 @@ func TestEpochMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		e1 := metapb.ShardEpoch{
-			ConfVer: tt.confVer1,
-			Version: tt.version1,
+			ConfigVer:  tt.confVer1,
+			Generation: tt.version1,
 		}
 		e2 := metapb.ShardEpoch{
-			ConfVer: tt.confVer2,
-			Version: tt.version2,
+			ConfigVer:  tt.confVer2,
+			Generation: tt.version2,
 		}
 		assert.Equal(t, tt.match, epochMatch(e1, e2))
 	}
@@ -81,8 +81,8 @@ func TestCanAppendCmd(t *testing.T) {
 				Requests: []rpcpb.Request{
 					{
 						Epoch: metapb.ShardEpoch{
-							ConfVer: tt.confVer1,
-							Version: tt.version1,
+							ConfigVer:  tt.confVer1,
+							Generation: tt.version1,
 						},
 						IgnoreEpochCheck: tt.ignored1,
 					},
@@ -91,8 +91,8 @@ func TestCanAppendCmd(t *testing.T) {
 		}
 		req := rpcpb.Request{
 			Epoch: metapb.ShardEpoch{
-				ConfVer: tt.confVer2,
-				Version: tt.version2,
+				ConfigVer:  tt.confVer2,
+				Generation: tt.version2,
 			},
 			IgnoreEpochCheck: tt.ignored2,
 		}

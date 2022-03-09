@@ -16,7 +16,7 @@ message NotLeader {
 }
 
 // StoreNotMatch current store is not match
-message StoreNotMatch {
+message StoreMismatch {
 }
 
 // ShardUnavailable the shard is unavailable, maybe destroyed
@@ -65,7 +65,7 @@ message Error {
     StaleEpoch        staleEpoch        = 5;
     ServerIsBusy      serverIsBusy      = 6;
     StaleCommand      staleCommand      = 7;
-    StoreNotMatch     storeNotMatch     = 8;
+    StoreMismatch     storeMismatch     = 8;
     RaftEntryTooLarge raftEntryTooLarge = 9;
     ShardUnavailable  shardUnavailable  = 10;
 }

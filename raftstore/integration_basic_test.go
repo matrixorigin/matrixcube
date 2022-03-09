@@ -211,7 +211,7 @@ func TestAddShardLabel(t *testing.T) {
 			ToShard:    sid,
 			Epoch:      c.GetShardByIndex(0, 0).Epoch,
 			Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
-				Labels: []metapb.Pair{{Key: "label1", Value: "value1"}},
+				Labels: []metapb.Label{{Key: "label1", Value: "value1"}},
 				Policy: rpcpb.Add,
 			}),
 		}, func(resp rpcpb.ResponseBatch) {

@@ -140,7 +140,7 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 	s.addReplica(pr)
 
 	assert.NotNil(t, s.getReplica(1, false))
-	s.handleDestroyReplicaMessage(metapb.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Version: 1}})
+	s.handleDestroyReplicaMessage(metapb.RaftMessage{IsTombstone: true, ShardID: 1, ShardEpoch: Epoch{Generation: 1}})
 	for {
 		if pr.closed() {
 			break

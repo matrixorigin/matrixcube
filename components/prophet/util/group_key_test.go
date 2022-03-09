@@ -26,10 +26,10 @@ func TestEncodeGroupKey(t *testing.T) {
 		[]metapb.ScheduleGroupRule{{ID: 1, GroupByLabel: "l1"}, {ID: 2, GroupByLabel: "l2"}}, nil))
 	assert.Equal(t, string([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0}),
 		EncodeGroupKey(0, []metapb.ScheduleGroupRule{{ID: 2, GroupByLabel: "l2"}, {ID: 1, GroupByLabel: "l1"}},
-			[]metapb.Pair{{Key: "l1", Value: string([]byte{1})}}))
+			[]metapb.Label{{Key: "l1", Value: string([]byte{1})}}))
 	assert.Equal(t, string([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2}),
 		EncodeGroupKey(0, []metapb.ScheduleGroupRule{{ID: 2, GroupByLabel: "l2"}, {ID: 1, GroupByLabel: "l1"}},
-			[]metapb.Pair{{Key: "l1", Value: string([]byte{1})}, {Key: "l2", Value: string([]byte{2})}}))
+			[]metapb.Label{{Key: "l1", Value: string([]byte{1})}, {Key: "l2", Value: string([]byte{2})}}))
 }
 
 func TestDecodeGroupKey(t *testing.T) {

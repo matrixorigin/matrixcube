@@ -152,7 +152,7 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	opInfluence := l.opController.GetOpInfluence(cluster)
 	sources := filter.SelectSourceStores(containers, l.filters, cluster.GetOpts())
 	targets := filter.SelectTargetStores(containers, l.filters, cluster.GetOpts())
-	kind := core.NewScheduleKind(metapb.ShardKind_LeaderKind, leaderSchedulePolicy)
+	kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, leaderSchedulePolicy)
 	for _, groupKey := range cluster.GetScheduleGroupKeys() {
 		sort.Slice(sources, func(i, j int) bool {
 			iOp := opInfluence.GetStoreInfluence(sources[i].Meta.GetID()).ShardProperty(kind, groupKey)
@@ -237,7 +237,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 	targets = filter.SelectTargetStores(targets, finalFilters, cluster.GetOpts())
 	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	sort.Slice(targets, func(i, j int) bool {
-		kind := core.NewScheduleKind(metapb.ShardKind_LeaderKind, leaderSchedulePolicy)
+		kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, leaderSchedulePolicy)
 		iOp := opInfluence.GetStoreInfluence(targets[i].Meta.GetID()).ShardProperty(kind, groupKey)
 		jOp := opInfluence.GetStoreInfluence(targets[j].Meta.GetID()).ShardProperty(kind, groupKey)
 		return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) < targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
@@ -319,7 +319,7 @@ func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.C
 	targetID := target.Meta.GetID()
 
 	opInfluence := l.opController.GetOpInfluence(cluster)
-	kind := core.NewScheduleKind(metapb.ShardKind_LeaderKind, cluster.GetOpts().GetLeaderSchedulePolicy())
+	kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, cluster.GetOpts().GetLeaderSchedulePolicy())
 	shouldBalance, sourceScore, targetScore := shouldBalance(cluster, source, target, res, kind, opInfluence, l.GetName())
 	if !shouldBalance {
 		schedulerCounter.WithLabelValues(l.GetName(), "skip").Inc()

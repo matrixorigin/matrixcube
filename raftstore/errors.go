@@ -34,7 +34,7 @@ var (
 	errStoreNotMatch      = errors.New("store not match")
 
 	infoStaleCMD  = new(errorpb.StaleCommand)
-	storeNotMatch = new(errorpb.StoreNotMatch)
+	storeMismatch = new(errorpb.StoreMismatch)
 )
 
 // ShardUnavailableErr is an error indicates the shard is unavailable

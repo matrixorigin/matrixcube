@@ -524,7 +524,7 @@ func (o *PersistOptions) Persist(storage storage.Storage) error {
 }
 
 // CheckLabelProperty checks the label property.
-func (o *PersistOptions) CheckLabelProperty(typ string, labels []metapb.Pair) bool {
+func (o *PersistOptions) CheckLabelProperty(typ string, labels []metapb.Label) bool {
 	pc := o.labelProperty.Load().(LabelPropertyConfig)
 	for _, cfg := range pc[typ] {
 		for _, l := range labels {

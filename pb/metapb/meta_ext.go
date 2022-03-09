@@ -76,49 +76,42 @@ func (m *Shard) Clone() *Shard {
 	return value
 }
 
-// CloneValue clones the shard and returns the value
-func (m Shard) CloneValue() Shard {
-	var value Shard
-	protoc.MustUnmarshal(&value, protoc.MustMarshal(&m))
-	return value
-}
-
 func NewStore() *Store {
 	return &Store{}
 }
 
 func (m *Store) GetVersionAndGitHash() (string, string) {
-	return m.Version, m.GitHash
+	return m.Version, m.CommitID
 }
 
 func (m *Store) SetID(storeID uint64) {
 	m.ID = storeID
 }
 
-func (m *Store) SetLabels(labels []Pair) {
+func (m *Store) SetLabels(labels []Label) {
 	m.Labels = labels
 }
 
 func (m *Store) SetAddrs(clientAddr, raftAddr string) {
-	m.ClientAddr = clientAddr
-	m.RaftAddr = raftAddr
+	m.ClientAddress = clientAddr
+	m.RaftAddress = raftAddr
 }
 
 func (m *Store) SetStartTime(value int64) {
 	m.StartTime = value
 }
 
-func (m *Store) SetVersionAndGitHash(version, githash string) {
+func (m *Store) SetVersionAndCommitID(version, commitID string) {
 	m.Version = version
-	m.GitHash = githash
+	m.CommitID = commitID
 }
 
 func (m *Store) SetDeployPath(value string) {
 	m.DeployPath = value
 }
 
-func (m *Store) SetPhysicallyDestroyed(value bool) {
-	m.PhysicallyDestroyed = value
+func (m *Store) SetDestroyed(value bool) {
+	m.Destroyed = value
 }
 
 func (m *Store) SetState(value StoreState) {

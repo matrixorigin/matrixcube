@@ -51,10 +51,10 @@ func TestShardStatistics(t *testing.T) {
 		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
 	}
 	metaStores := []metapb.Store{
-		{ID: 1, ClientAddr: "mock://server-1"},
-		{ID: 2, ClientAddr: "mock://server-2"},
-		{ID: 3, ClientAddr: "mock://server-3"},
-		{ID: 7, ClientAddr: "mock://server-7"},
+		{ID: 1, ClientAddress: "mock://server-1"},
+		{ID: 2, ClientAddress: "mock://server-2"},
+		{ID: 3, ClientAddress: "mock://server-3"},
+		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
 	containers := make([]*core.CachedStore, 0, len(metaStores))
@@ -154,10 +154,10 @@ func TestShardStatisticsWithPlacementRule(t *testing.T) {
 		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
 	}
 	metaStores := []metapb.Store{
-		{ID: 1, ClientAddr: "mock://server-1"},
-		{ID: 2, ClientAddr: "mock://server-2"},
-		{ID: 3, ClientAddr: "mock://server-3"},
-		{ID: 7, ClientAddr: "mock://server-7"},
+		{ID: 1, ClientAddress: "mock://server-1"},
+		{ID: 2, ClientAddress: "mock://server-2"},
+		{ID: 3, ClientAddress: "mock://server-3"},
+		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
 	containers := make([]*core.CachedStore, 0, len(metaStores))
@@ -241,15 +241,15 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	resourceID := 1
 	f := func(labels []map[string]string, res string, locationLabels []string) {
 		metaStores := []metapb.Store{
-			{ID: 1, ClientAddr: "mock://server-1"},
-			{ID: 2, ClientAddr: "mock://server-2"},
-			{ID: 3, ClientAddr: "mock://server-3"},
+			{ID: 1, ClientAddress: "mock://server-1"},
+			{ID: 2, ClientAddress: "mock://server-2"},
+			{ID: 3, ClientAddress: "mock://server-3"},
 		}
 		containers := make([]*core.CachedStore, 0, len(labels))
 		for i, m := range metaStores {
-			var newLabels []metapb.Pair
+			var newLabels []metapb.Label
 			for k, v := range labels[i] {
-				newLabels = append(newLabels, metapb.Pair{Key: k, Value: v})
+				newLabels = append(newLabels, metapb.Label{Key: k, Value: v})
 			}
 			s := core.NewCachedStore(m, core.SetStoreLabels(newLabels))
 
@@ -273,7 +273,7 @@ func TestShardLabelIsolationLevel(t *testing.T) {
 	assert.Equal(t, nonIsolation, label)
 	label = getShardLabelIsolation(nil, nil)
 	assert.Equal(t, nonIsolation, label)
-	store := core.NewCachedStore(metapb.Store{ID: 1, ClientAddr: "mock://server-1"}, core.SetStoreLabels([]metapb.Pair{{Key: "foo", Value: "bar"}}))
+	store := core.NewCachedStore(metapb.Store{ID: 1, ClientAddress: "mock://server-1"}, core.SetStoreLabels([]metapb.Label{{Key: "foo", Value: "bar"}}))
 	label = getShardLabelIsolation([]*core.CachedStore{store}, locationLabels)
 	assert.Equal(t, "zone", label)
 

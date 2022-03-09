@@ -314,7 +314,6 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 	dsp.mu.Lock()
 	if !dsp.isStartedLocked() {
 		dsp.mu.Unlock()
-		fmt.Println("DSP is not started")
 		return
 	}
 
@@ -349,7 +348,6 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		}
 		err := dsp.pd.AsyncAddShards(creates...)
 		if err != nil {
-			fmt.Println("fail to create shard")
 			dsp.logger.Error("fail to create shard",
 				zap.Error(err))
 			return

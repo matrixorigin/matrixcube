@@ -31,15 +31,15 @@ func TestStoreStatistics(t *testing.T) {
 	opt.SetReplicationConfig(rep)
 
 	metaStores := []metapb.Store{
-		{ID: 1, ClientAddr: "mock://server-1", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}},
-		{ID: 2, ClientAddr: "mock://server-2", Labels: []metapb.Pair{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}}},
-		{ID: 3, ClientAddr: "mock://server-3", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}}},
-		{ID: 4, ClientAddr: "mock://server-4", Labels: []metapb.Pair{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}}},
-		{ID: 5, ClientAddr: "mock://server-5", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}}},
-		{ID: 6, ClientAddr: "mock://server-6", Labels: []metapb.Pair{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}}},
-		{ID: 7, ClientAddr: "mock://server-7", Labels: []metapb.Pair{{Key: "host", Value: "h1"}}},
-		{ID: 8, ClientAddr: "mock://server-8", Labels: []metapb.Pair{{Key: "host", Value: "h2"}}},
-		{ID: 8, ClientAddr: "mock://server-9", Labels: []metapb.Pair{{Key: "host", Value: "h3"}}, State: metapb.StoreState_StoreTombstone},
+		{ID: 1, ClientAddress: "mock://server-1", Labels: []metapb.Label{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h1"}}},
+		{ID: 2, ClientAddress: "mock://server-2", Labels: []metapb.Label{{Key: "zone", Value: "z1"}, {Key: "host", Value: "h2"}}},
+		{ID: 3, ClientAddress: "mock://server-3", Labels: []metapb.Label{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h1"}}},
+		{ID: 4, ClientAddress: "mock://server-4", Labels: []metapb.Label{{Key: "zone", Value: "z2"}, {Key: "host", Value: "h2"}}},
+		{ID: 5, ClientAddress: "mock://server-5", Labels: []metapb.Label{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h1"}}},
+		{ID: 6, ClientAddress: "mock://server-6", Labels: []metapb.Label{{Key: "zone", Value: "z3"}, {Key: "host", Value: "h2"}}},
+		{ID: 7, ClientAddress: "mock://server-7", Labels: []metapb.Label{{Key: "host", Value: "h1"}}},
+		{ID: 8, ClientAddress: "mock://server-8", Labels: []metapb.Label{{Key: "host", Value: "h2"}}},
+		{ID: 8, ClientAddress: "mock://server-9", Labels: []metapb.Label{{Key: "host", Value: "h3"}}, State: metapb.StoreState_StoreTombstone},
 	}
 	containersStats := NewStoresStats()
 	containers := make([]*core.CachedStore, 0, len(metaStores))

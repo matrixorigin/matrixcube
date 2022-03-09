@@ -426,7 +426,7 @@ func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error)
 		!bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
 		!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
 		for _, item := range bc.Shards.GetOverlaps(res) {
-			if res.Meta.GetEpoch().Version < item.Meta.GetEpoch().Version {
+			if res.Meta.GetEpoch().Generation < item.Meta.GetEpoch().Generation {
 				bc.RUnlock()
 				return nil, errShardIsStale(res.Meta, item.Meta)
 			}
@@ -442,7 +442,7 @@ func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error)
 	isTermBehind := res.GetTerm() < origin.GetTerm()
 
 	// Shard meta is stale, return an error.
-	if r.GetVersion() < o.GetVersion() || r.GetConfVer() < o.GetConfVer() || isTermBehind {
+	if r.GetGeneration() < o.GetGeneration() || r.GetConfigVer() < o.GetConfigVer() || isTermBehind {
 		return origin, errShardIsStale(res.Meta, origin.Meta)
 	}
 
@@ -572,7 +572,7 @@ func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule) bool
 	return true
 }
 
-// GetShardCount gets the total count of group rules
+// GetShardGroupRuleCount gets the total count of group rules
 func (bc *BasicCluster) GetShardGroupRuleCount() int {
 	bc.RLock()
 	defer bc.RUnlock()

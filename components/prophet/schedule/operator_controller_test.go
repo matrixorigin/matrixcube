@@ -448,14 +448,14 @@ func TestDispatchOutdatedresource(t *testing.T) {
 	}
 
 	op := operator.NewOperator("test", "test", 1,
-		metapb.ShardEpoch{ConfVer: 0, Version: 0},
+		metapb.ShardEpoch{ConfigVer: 0, Generation: 0},
 		operator.OpShard, steps...)
 	assert.True(t, controller.AddOperator(op))
 	assert.Equal(t, 1, stream.MsgLength())
 
 	// report the result of transferring leader
 	resource := cluster.MockCachedShard(1, 2, []uint64{1, 2}, []uint64{},
-		metapb.ShardEpoch{ConfVer: 0, Version: 0})
+		metapb.ShardEpoch{ConfigVer: 0, Generation: 0})
 
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
@@ -463,7 +463,7 @@ func TestDispatchOutdatedresource(t *testing.T) {
 
 	// report the result of removing peer
 	resource = cluster.MockCachedShard(1, 2, []uint64{2}, []uint64{},
-		metapb.ShardEpoch{ConfVer: 0, Version: 0})
+		metapb.ShardEpoch{ConfigVer: 0, Generation: 0})
 
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(1), op.ConfVerChanged(resource))
@@ -471,7 +471,7 @@ func TestDispatchOutdatedresource(t *testing.T) {
 
 	// add and dispatch op again, the op should be stale
 	op = operator.NewOperator("test", "test", 1,
-		metapb.ShardEpoch{ConfVer: 0, Version: 0},
+		metapb.ShardEpoch{ConfigVer: 0, Generation: 0},
 		operator.OpShard, steps...)
 	assert.True(t, controller.AddOperator(op))
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
@@ -479,7 +479,7 @@ func TestDispatchOutdatedresource(t *testing.T) {
 
 	// report resource with an abnormal confver
 	resource = cluster.MockCachedShard(1, 1, []uint64{1, 2}, []uint64{},
-		metapb.ShardEpoch{ConfVer: 1, Version: 0})
+		metapb.ShardEpoch{ConfigVer: 1, Generation: 0})
 	controller.Dispatch(resource, DispatchFromHeartBeat)
 	assert.Equal(t, uint64(0), op.ConfVerChanged(resource))
 	// no new step
@@ -499,7 +499,7 @@ func TestDispatchUnfinishedStep(t *testing.T) {
 	// the resource has two peers with its peer id allocated incrementally.
 	// so the two peers are {peerID: 1, StoreID:  1}, {peerID: 2, StoreID:  2}
 	// The peer on container 1 is the leader
-	epoch := metapb.ShardEpoch{ConfVer: 0, Version: 0}
+	epoch := metapb.ShardEpoch{ConfigVer: 0, Generation: 0}
 	resource := cluster.MockCachedShard(1, 1, []uint64{2}, []uint64{}, epoch)
 	// Put resource into cluster, otherwise, AddOperator will fail because of
 	// missing resource

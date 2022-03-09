@@ -209,7 +209,7 @@ func (h *hotScheduler) prepareForBalance(cluster opt.Cluster) {
 			containersLoads,
 			h.pendingSums[readLeader],
 			resourceRead,
-			read, metapb.ShardKind_LeaderKind)
+			read, metapb.ShardType_LeaderOnly)
 	}
 
 	{ // update write statistics
@@ -218,13 +218,13 @@ func (h *hotScheduler) prepareForBalance(cluster opt.Cluster) {
 			containersLoads,
 			h.pendingSums[writeLeader],
 			resourceWrite,
-			write, metapb.ShardKind_LeaderKind)
+			write, metapb.ShardType_LeaderOnly)
 
 		h.stLoadInfos[writePeer] = summaryStoresLoad(
 			containersLoads,
 			h.pendingSums[writePeer],
 			resourceWrite,
-			write, metapb.ShardKind_ReplicaKind)
+			write, metapb.ShardType_AllShards)
 	}
 }
 
@@ -268,7 +268,7 @@ func summaryStoresLoad(
 	containerPendings map[uint64]Influence,
 	containerHotPeers map[uint64][]*statistics.HotPeerStat,
 	rwTy rwType,
-	kind metapb.ShardKind,
+	kind metapb.ShardType,
 ) map[uint64]*containerLoadDetail {
 	// loadDetail stores the storeID -> hotPeers stat and its current and future stat(key/byte rate,count)
 	loadDetail := make(map[uint64]*containerLoadDetail, len(containersLoads))
@@ -298,7 +298,7 @@ func summaryStoresLoad(
 			// Use sum of hot peers to estimate leader-only byte rate.
 			// For write requests, Write{Bytes, Keys} is applied to all Replicas at the same time, while the Leader and Follower are under different loads (usually the Leader consumes more CPU).
 			// But none of the current dimension reflect this difference, so we create a new dimension to reflect it.
-			if kind == metapb.ShardKind_LeaderKind && rwTy == write {
+			if kind == metapb.ShardType_LeaderOnly && rwTy == write {
 				byteRate = byteSum
 				keyRate = keySum
 			}
@@ -359,12 +359,12 @@ func summaryStoresLoad(
 
 // filterHotPeers filter the peer whose hot degree is less than minHotDegress
 func filterHotPeers(
-	kind metapb.ShardKind,
+	kind metapb.ShardType,
 	peers []*statistics.HotPeerStat,
 ) []*statistics.HotPeerStat {
 	var ret []*statistics.HotPeerStat
 	for _, peer := range peers {
-		if kind == metapb.ShardKind_LeaderKind && !peer.IsLeader() {
+		if kind == metapb.ShardType_LeaderOnly && !peer.IsLeader() {
 			continue
 		}
 		ret = append(ret, peer)

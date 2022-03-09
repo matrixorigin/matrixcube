@@ -468,7 +468,7 @@ func appendShardEpoch(key string, epoch metapb.ShardEpoch, info *bytes.Buffer, f
 }
 
 func doAppendShardEpoch(epoch metapb.ShardEpoch, info *bytes.Buffer) {
-	info.WriteString(format.Uint64ToString(epoch.Version))
+	info.WriteString(format.Uint64ToString(epoch.Generation))
 	info.WriteString("/")
-	info.WriteString(format.Uint64ToString(epoch.ConfVer))
+	info.WriteString(format.Uint64ToString(epoch.ConfigVer))
 }

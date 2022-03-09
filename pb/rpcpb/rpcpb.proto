@@ -12,33 +12,33 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 
 // Type rpc type
 enum Type {
-    TypeRegisterStore     = 0;
+    TypeRegisterStore      = 0;
     TypeShardHeartbeatReq  = 1;
-	TypeShardHeartbeatRsp  = 2;
-	TypeStoreHeartbeatReq = 3;
-	TypeStoreHeartbeatRsp = 4;
-    TypePutStoreReq       = 5;
-	TypePutStoreRsp       = 6;
-	TypeGetStoreReq       = 7;
-	TypeGetStoreRsp       = 8;
-	TypeAllocIDReq            = 9;
-	TypeAllocIDRsp            = 10;
+    TypeShardHeartbeatRsp  = 2;
+    TypeStoreHeartbeatReq  = 3;
+    TypeStoreHeartbeatRsp  = 4;
+    TypePutStoreReq        = 5;
+    TypePutStoreRsp        = 6;
+    TypeGetStoreReq        = 7;
+    TypeGetStoreRsp        = 8;
+    TypeAllocIDReq            = 9;
+    TypeAllocIDRsp            = 10;
     TypeAskBatchSplitReq      = 11;
-	TypeAskBatchSplitRsp      = 12;
+    TypeAskBatchSplitRsp      = 12;
     TypeCreateDestroyingReq   = 13;
     TypeCreateDestroyingRsp   = 14;
-    TypeReportDestroyedReq   = 15;
-    TypeReportDestroyedRsp   = 16;
+    TypeReportDestroyedReq    = 15;
+    TypeReportDestroyedRsp    = 16;
     TypeGetDestroyingReq      = 17;
-	TypeGetDestroyingRsp      = 18;
+    TypeGetDestroyingRsp      = 18;
     TypeCreateWatcherReq      = 19;
     TypeEventNotify           = 20;
-    TypeCreateShardsReq    = 21;
-    TypeCreateShardsRsp    = 22;
-    TypeRemoveShardsReq    = 23;
-    TypeRemoveShardsRsp    = 24;
-    TypeCheckShardStateReq = 25;
-    TypeCheckShardStateRsp = 26;
+    TypeCreateShardsReq       = 21;
+    TypeCreateShardsRsp       = 22;
+    TypeRemoveShardsReq       = 23;
+    TypeRemoveShardsRsp       = 24;
+    TypeCheckShardStateReq    = 25;
+    TypeCheckShardStateRsp    = 26;
     TypePutPlacementRuleReq   = 27;
     TypePutPlacementRuleRsp   = 28;
     TypeGetAppliedRulesReq    = 29;
@@ -58,21 +58,21 @@ enum Type {
 // ProphetRequest the prophet rpc request
 message ProphetRequest {
     uint64                id                 = 1  [(gogoproto.customname) = "ID"];
-    uint64                storeID        = 2;
+    uint64                storeID            = 2;
     Type                  type               = 3;
-    ShardHeartbeatReq  shardHeartbeat  = 4  [(gogoproto.nullable) = false];
-    StoreHeartbeatReq storeHeartbeat = 5  [(gogoproto.nullable) = false];
-    PutStoreReq       putStore       = 6  [(gogoproto.nullable) = false];
-    GetStoreReq       getStore       = 7  [(gogoproto.nullable) = false];
+    ShardHeartbeatReq     shardHeartbeat     = 4  [(gogoproto.nullable) = false];
+    StoreHeartbeatReq     storeHeartbeat     = 5  [(gogoproto.nullable) = false];
+    PutStoreReq           putStore           = 6  [(gogoproto.nullable) = false];
+    GetStoreReq           getStore           = 7  [(gogoproto.nullable) = false];
     AllocIDReq            allocID            = 8  [(gogoproto.nullable) = false];
     AskBatchSplitReq      askBatchSplit      = 9  [(gogoproto.nullable) = false];
     CreateDestroyingReq   createDestroying   = 10 [(gogoproto.nullable) = false];
-    ReportDestroyedReq   ReportDestroyed   = 11 [(gogoproto.nullable) = false];
+    ReportDestroyedReq    ReportDestroyed    = 11 [(gogoproto.nullable) = false];
     GetDestroyingReq      getDestroying      = 12 [(gogoproto.nullable) = false];
     CreateWatcherReq      createWatcher      = 13 [(gogoproto.nullable) = false];
-    CreateShardsReq    createShards    = 14 [(gogoproto.nullable) = false];
-    RemoveShardsReq    removeShards    = 15 [(gogoproto.nullable) = false];
-    CheckShardStateReq checkShardState = 16 [(gogoproto.nullable) = false];
+    CreateShardsReq       createShards       = 14 [(gogoproto.nullable) = false];
+    RemoveShardsReq       removeShards       = 15 [(gogoproto.nullable) = false];
+    CheckShardStateReq    checkShardState    = 16 [(gogoproto.nullable) = false];
     PutPlacementRuleReq   putPlacementRule   = 17 [(gogoproto.nullable) = false];
     GetAppliedRulesReq    getAppliedRules    = 18 [(gogoproto.nullable) = false];
     CreateJobReq          createJob          = 19 [(gogoproto.nullable) = false];
@@ -88,19 +88,19 @@ message ProphetResponse {
     Type                  type               = 2;
     string                error              = 3;
     string                leader             = 4;
-    ShardHeartbeatRsp  shardHeartbeat  = 5  [(gogoproto.nullable) = false];
-    StoreHeartbeatRsp storeHeartbeat = 6  [(gogoproto.nullable) = false];
-    PutStoreRsp       putStore       = 7  [(gogoproto.nullable) = false];
-    GetStoreRsp       getStore       = 8  [(gogoproto.nullable) = false];
+    ShardHeartbeatRsp     shardHeartbeat     = 5  [(gogoproto.nullable) = false];
+    StoreHeartbeatRsp     storeHeartbeat     = 6  [(gogoproto.nullable) = false];
+    PutStoreRsp           putStore           = 7  [(gogoproto.nullable) = false];
+    GetStoreRsp           getStore           = 8  [(gogoproto.nullable) = false];
     AllocIDRsp            allocID            = 9  [(gogoproto.nullable) = false];
     AskBatchSplitRsp      askBatchSplit      = 10 [(gogoproto.nullable) = false];
     CreateDestroyingRsp   createDestroying   = 11 [(gogoproto.nullable) = false];
-    ReportDestroyedRsp   ReportDestroyed   = 12 [(gogoproto.nullable) = false];
+    ReportDestroyedRsp    ReportDestroyed    = 12 [(gogoproto.nullable) = false];
     GetDestroyingRsp      getDestroying      = 13 [(gogoproto.nullable) = false];
     EventNotify           event              = 14 [(gogoproto.nullable) = false];
-    CreateShardsRsp    createShards    = 15 [(gogoproto.nullable) = false];
-    RemoveShardsRsp    removeShards    = 16 [(gogoproto.nullable) = false];
-    CheckShardStateRsp checkShardState = 17 [(gogoproto.nullable) = false];
+    CreateShardsRsp       createShards       = 15 [(gogoproto.nullable) = false];
+    RemoveShardsRsp       removeShards       = 16 [(gogoproto.nullable) = false];
+    CheckShardStateRsp    checkShardState    = 17 [(gogoproto.nullable) = false];
     PutPlacementRuleRsp   putPlacementRule   = 18 [(gogoproto.nullable) = false];
     GetAppliedRulesRsp    getAppliedRules    = 19 [(gogoproto.nullable) = false];
     CreateJobRsp          createJob          = 20 [(gogoproto.nullable) = false];
@@ -112,15 +112,15 @@ message ProphetResponse {
 
 // ShardHeartbeatReq shard heartbeat request
 message ShardHeartbeatReq {
-             uint64               storeID     = 1;
-             bytes                shard        = 2;
-             // Term is the term of raft group.
-             uint64               term            = 3;
-             metapb.Replica          leader          = 4;
-    repeated metapb.ReplicaStats     downReplicas       = 5 [(gogoproto.nullable) = false];
-    repeated metapb.Replica          pendingReplicas    = 6 [(gogoproto.nullable) = false];
-             metapb.ShardStats stats           = 7 [(gogoproto.nullable) = false];
-             string               groupKey        = 8;
+     uint64          storeID     = 1;
+     bytes           shard       = 2;
+     // Term is the term of raft group.
+     uint64          term        = 3;
+     metapb.Replica  leader      = 4;
+     repeated metapb.ReplicaStats downReplicas    = 5 [(gogoproto.nullable) = false];
+     repeated metapb.Replica      pendingReplicas = 6 [(gogoproto.nullable) = false];
+     metapb.ShardStats            stats            = 7 [(gogoproto.nullable) = false];
+     string                       groupKey         = 8;
 }
    
 // ShardHeartbeatRsp shard heartbeat response.
@@ -473,8 +473,6 @@ enum AdminCmdType {
     AdminConfigChange   = 0;
     AdminCompactLog     = 1;
     AdminTransferLeader = 2;
-    AdminComputeHash    = 3;
-    AdminVerifyHash     = 4;
     AdminBatchSplit     = 5;
     AdminUpdateMetadata = 6;
     AdminUpdateLabels   = 7;
@@ -580,7 +578,7 @@ message SplitRequest {
     bytes end   = 2;
     // The new shard id
     uint64 newShardID = 3;
-    // The new replcias of the new shard
+    // The new replicas of the new shard
     repeated metapb.Replica newReplicas = 4 [(gogoproto.nullable) = false];
 }
 
@@ -609,7 +607,7 @@ enum UpdatePolicy {
 }
 
 message UpdateLabelsRequest {
-    repeated metapb.Pair labels = 1 [(gogoproto.nullable) = false];
+    repeated metapb.Label labels = 1 [(gogoproto.nullable) = false];
     UpdatePolicy policy = 2;
 }
 

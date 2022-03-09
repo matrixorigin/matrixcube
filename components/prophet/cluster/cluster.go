@@ -491,9 +491,14 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	// Cube support remove running resources asynchronously, it will add remove job into embed etcd, and
 	// each node execute these job on local to remove resource. So we need check whether the resource removed
 	// or not.
-	var checkMaybeDestroyed metapb.Shard
+	var checkMaybeDestroyed *metapb.Shard
 	if origin != nil {
-		checkMaybeDestroyed = origin.Meta
+		checkMaybeDestroyed = &origin.Meta
+	} else {
+		checkMaybeDestroyed, err = c.storage.GetShard(res.Meta.GetID())
+		if err != nil {
+			return err
+		}
 	}
 	if checkMaybeDestroyed.GetState() == metapb.ShardState_Destroyed {
 		return errShardDestroyed
@@ -510,19 +515,19 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	} else {
 		r := res.Meta.GetEpoch()
 		o := origin.Meta.GetEpoch()
-		if r.GetVersion() > o.GetVersion() {
+		if r.GetGeneration() > o.GetGeneration() {
 			c.logger.Info("resource version changed",
 				zap.Uint64("resource", res.Meta.GetID()),
-				zap.Uint64("from", o.GetVersion()),
-				zap.Uint64("to", r.GetVersion()))
+				zap.Uint64("from", o.GetGeneration()),
+				zap.Uint64("to", r.GetGeneration()))
 			saveKV, saveCache = true, true
 		}
-		if r.GetConfVer() > o.GetConfVer() {
+		if r.GetConfigVer() > o.GetConfigVer() {
 			c.logger.Info("resource ConfVer changed",
 				zap.Uint64("resource", res.Meta.GetID()),
 				log.ReplicasField("peers", res.Meta.GetReplicas()),
-				zap.Uint64("from", o.GetConfVer()),
-				zap.Uint64("to", r.GetConfVer()))
+				zap.Uint64("from", o.GetConfigVer()),
+				zap.Uint64("to", r.GetConfigVer()))
 			saveKV, saveCache = true, true
 		}
 		if res.GetLeader().GetID() != origin.GetLeader().GetID() {
@@ -857,7 +862,7 @@ func (c *RaftCluster) GetAdjacentShards(res *core.CachedShard) (*core.CachedShar
 
 // UpdateStoreLabels updates a container's location labels
 // If 'force' is true, then update the container's labels forcibly.
-func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Pair, force bool) error {
+func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Label, force bool) error {
 	container := c.GetStore(containerID)
 	if container == nil {
 		return fmt.Errorf("invalid container ID %d, not found", containerID)
@@ -894,7 +899,7 @@ func (c *RaftCluster) putStoreImpl(container metapb.Store, force bool) error {
 
 			continue
 		}
-		if s.Meta.GetID() != container.GetID() && s.Meta.GetClientAddr() == container.GetClientAddr() {
+		if s.Meta.GetID() != container.GetID() && s.Meta.GetClientAddress() == container.GetClientAddress() {
 			return fmt.Errorf("duplicated container address: %v, already registered by %v", container, s.Meta)
 		}
 	}
@@ -913,7 +918,7 @@ func (c *RaftCluster) putStoreImpl(container metapb.Store, force bool) error {
 		// Update an existed container.
 		v, githash := container.GetVersionAndGitHash()
 		s = s.Clone(
-			core.SetStoreAddress(container.GetClientAddr(), container.GetRaftAddr()),
+			core.SetStoreAddress(container.GetClientAddress(), container.GetRaftAddress()),
 			core.SetStoreVersion(githash, v),
 			core.SetStoreLabels(labels),
 			core.SetStoreStartTime(container.GetStartTime()),
@@ -983,7 +988,7 @@ func (c *RaftCluster) RemoveStore(containerID uint64, physicallyDestroyed bool) 
 	newStore := container.Clone(core.OfflineStore(physicallyDestroyed))
 	c.logger.Warn("container has been offline",
 		zap.Uint64("container", newStore.Meta.GetID()),
-		zap.String("container-address", newStore.Meta.GetClientAddr()),
+		zap.String("container-address", newStore.Meta.GetClientAddress()),
 		zap.Bool("physically-destroyed", physicallyDestroyed))
 	err := c.putStoreLocked(newStore)
 	if err == nil {
@@ -1018,7 +1023,7 @@ func (c *RaftCluster) buryStore(containerID uint64) error {
 	newStore := container.Clone(core.TombstoneStore())
 	c.logger.Warn("container has been tombstone",
 		zap.Uint64("container", newStore.Meta.GetID()),
-		zap.String("container-address", newStore.Meta.GetClientAddr()),
+		zap.String("container-address", newStore.Meta.GetClientAddress()),
 		zap.Bool("physically-destroyed", newStore.IsPhysicallyDestroyed()))
 	err := c.putStoreLocked(newStore)
 	if err == nil {
@@ -1068,7 +1073,7 @@ func (c *RaftCluster) UpStore(containerID uint64) error {
 	newStore := container.Clone(core.UpStore())
 	c.logger.Warn("container has been up",
 		zap.Uint64("container", newStore.Meta.GetID()),
-		zap.String("container-address", newStore.Meta.GetClientAddr()))
+		zap.String("container-address", newStore.Meta.GetClientAddress()))
 	return c.putStoreLocked(newStore)
 }
 
@@ -1134,7 +1139,7 @@ func (c *RaftCluster) checkStores() {
 			if err := c.buryStore(offlineStore.GetID()); err != nil {
 				c.logger.Error("fail to bury container",
 					zap.Uint64("container", offlineStore.GetID()),
-					zap.String("container-address", offlineStore.GetClientAddr()),
+					zap.String("container-address", offlineStore.GetClientAddress()),
 					zap.Error(err))
 			}
 		} else {
@@ -1151,7 +1156,7 @@ func (c *RaftCluster) checkStores() {
 		for _, container := range offlineStores {
 			c.logger.Warn("container may not turn into Tombstone, there are no extra up container has enough space to accommodate the extra replica",
 				zap.Uint64("container", container.GetID()),
-				zap.String("container-address", container.GetClientAddr()))
+				zap.String("container-address", container.GetClientAddress()))
 		}
 	}
 }
@@ -1166,7 +1171,7 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 				if container.GetShardCount(groupKey) > 0 {
 					c.logger.Warn("skip removing tombstone container",
 						zap.Uint64("container", container.Meta.GetID()),
-						zap.String("container-address", container.Meta.GetClientAddr()))
+						zap.String("container-address", container.Meta.GetClientAddress()))
 					continue
 				}
 
@@ -1175,14 +1180,14 @@ func (c *RaftCluster) RemoveTombStoneRecords() error {
 				if err != nil {
 					c.logger.Error("fail to delete container",
 						zap.Uint64("container", container.Meta.GetID()),
-						zap.String("container-address", container.Meta.GetClientAddr()))
+						zap.String("container-address", container.Meta.GetClientAddress()))
 					return err
 				}
 				c.RemoveStoreLimit(container.Meta.GetID())
 
 				c.logger.Info("container deleted",
 					zap.Uint64("container", container.Meta.GetID()),
-					zap.String("container-address", container.Meta.GetClientAddr()))
+					zap.String("container-address", container.Meta.GetClientAddress()))
 			}
 		}
 	}
