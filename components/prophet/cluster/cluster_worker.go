@@ -312,7 +312,7 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 	defer c.RUnlock()
 
 	var targets []metapb.Shard
-	var originID []uint64
+	var origin []metapb.Shard
 	for _, id := range request.RemoveShards.IDs {
 		if c.core.AlreadyRemoved(id) {
 			continue
@@ -322,21 +322,19 @@ func (c *RaftCluster) HandleRemoveShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		if v == nil {
 			return nil, fmt.Errorf("resource %d not found in prophet", id)
 		}
-		originID = append(originID, id)
 
 		res := v.Meta // use cloned value
 		res.SetState(metapb.ShardState_Destroyed)
 		targets = append(targets, res)
+		origin = append(origin, res)
 	}
 	if err := c.storage.PutShards(targets...); err != nil {
 		return nil, err
 	}
 
 	c.core.AddRemovedShards(request.RemoveShards.IDs...)
-	for _, id := range originID {
-		v := c.core.GetShard(id)
-		v.Meta.SetState(metapb.ShardState_Destroyed)
-		c.addNotifyLocked(event.NewShardEvent(v.Meta, 0, true, false))
+	for _, shard := range origin {
+		c.addNotifyLocked(event.NewShardEvent(shard, 0, true, false))
 	}
 
 	return &rpcpb.RemoveShardsRsp{}, nil

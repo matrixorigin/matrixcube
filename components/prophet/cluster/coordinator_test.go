@@ -529,11 +529,9 @@ func TestAddScheduler(t *testing.T) {
 	tc, co, cleanup := prepare(t, nil, nil, func(co *coordinator) { co.run() })
 	defer cleanup()
 
-	assert.Equal(t, 4, len(co.schedulers))
+	assert.Equal(t, 2, len(co.schedulers))
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceLeaderName))
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceShardName))
-	assert.Nil(t, co.removeScheduler(schedulers.HotShardName))
-	assert.Nil(t, co.removeScheduler(schedulers.LabelName))
 	assert.Empty(t, co.schedulers)
 
 	stream := mockhbstream.NewHeartbeatStream()
@@ -585,23 +583,21 @@ func TestRemoveScheduler(t *testing.T) {
 	assert.Nil(t, tc.addLeaderStore(1, 1))
 	assert.Nil(t, tc.addLeaderStore(2, 1))
 
-	assert.Equal(t, 4, len(co.schedulers))
+	assert.Equal(t, 2, len(co.schedulers))
 	oc := co.opController
 	storage := tc.RaftCluster.storage
 
 	gls1, err := schedule.CreateScheduler(schedulers.GrantLeaderType, oc, storage, schedule.ConfigSliceDecoder(schedulers.GrantLeaderType, []string{"1"}))
 	assert.Nil(t, err)
 	assert.Nil(t, co.addScheduler(gls1, "1"))
-	assert.Equal(t, 5, len(co.schedulers))
+	assert.Equal(t, 3, len(co.schedulers))
 	sches, _, err := storage.LoadAllScheduleConfig()
 	assert.Nil(t, err)
-	assert.Equal(t, 5, len(sches))
+	assert.Equal(t, 3, len(sches))
 
 	// remove all schedulers
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceLeaderName))
 	assert.Nil(t, co.removeScheduler(schedulers.BalanceShardName))
-	assert.Nil(t, co.removeScheduler(schedulers.HotShardName))
-	assert.Nil(t, co.removeScheduler(schedulers.LabelName))
 	assert.Nil(t, co.removeScheduler(schedulers.GrantLeaderName))
 	// all removed
 	sches, _, err = storage.LoadAllScheduleConfig()
