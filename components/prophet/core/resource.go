@@ -556,6 +556,8 @@ func (rst *resourceSubTree) RandomShards(n int, ranges []KeyRange) []*CachedShar
 
 // CachedShards for export
 type CachedShards struct {
+	sync.RWMutex
+
 	trees           map[uint64]*resourceTree               // group id -> resourceTree
 	resources       *resourceMap                           // resourceID -> CachedShard
 	leaders         map[string]map[uint64]*resourceSubTree // groupKey -> containerID -> resourceSubTree
@@ -577,6 +579,9 @@ func NewCachedShards() *CachedShards {
 }
 
 func (r *CachedShards) maybeInitWithGroup(groupKey string) {
+	r.Lock()
+	defer r.Unlock()
+
 	if _, ok := r.leaders[groupKey]; !ok {
 		r.leaders[groupKey] = make(map[uint64]*resourceSubTree)
 	}

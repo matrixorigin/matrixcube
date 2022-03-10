@@ -72,7 +72,7 @@ func TestStoreHeartbeat(t *testing.T) {
 		tmp, err := cluster.storage.GetStore(container.Meta.GetID())
 		assert.NoError(t, err)
 		assert.NotNil(t, tmp)
-		assert.True(t, reflect.DeepEqual(tmp, containerMetasAfterHeartbeat[i]))
+		assert.True(t, reflect.DeepEqual(*tmp, containerMetasAfterHeartbeat[i]))
 	}
 }
 
@@ -381,7 +381,7 @@ func TestShardHeartbeat(t *testing.T) {
 		checkShard(t, res, resources[res.Meta.GetID()])
 	}
 	for _, res := range cluster.GetMetaShards() {
-		assert.True(t, reflect.DeepEqual(res, resources[res.GetID()].Meta))
+		assert.True(t, reflect.DeepEqual(*res, resources[res.GetID()].Meta))
 	}
 
 	for _, res := range resources {
@@ -408,7 +408,7 @@ func TestShardHeartbeat(t *testing.T) {
 			tmp, err := storage.GetShard(res.Meta.GetID())
 			assert.NoError(t, err)
 			assert.NotNil(t, tmp)
-			assert.True(t, reflect.DeepEqual(tmp, res.Meta))
+			assert.True(t, reflect.DeepEqual(*tmp, res.Meta))
 		}
 
 		// Check overlap with stale version
@@ -422,11 +422,11 @@ func TestShardHeartbeat(t *testing.T) {
 
 		res, err := storage.GetShard(resources[n-1].Meta.GetID())
 		assert.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(res, resources[n-1].Meta))
+		assert.True(t, reflect.DeepEqual(*res, resources[n-1].Meta))
 
 		res, err = storage.GetShard(resources[n-2].Meta.GetID())
 		assert.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(res, resources[n-2].Meta))
+		assert.True(t, reflect.DeepEqual(*res, resources[n-2].Meta))
 
 		res, err = storage.GetShard(overlapShard.Meta.GetID())
 		assert.NoError(t, err)
@@ -449,7 +449,7 @@ func TestShardHeartbeat(t *testing.T) {
 
 		res, err = storage.GetShard(overlapShard.Meta.GetID())
 		assert.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(res, overlapShard.Meta))
+		assert.True(t, reflect.DeepEqual(*res, overlapShard.Meta))
 	}
 }
 
@@ -884,7 +884,7 @@ func checkShardsKV(t *testing.T, s storage.Storage, resources []*core.CachedShar
 			meta, err := s.GetShard(res.Meta.GetID())
 			assert.NoError(t, err)
 			assert.NotNil(t, meta)
-			assert.True(t, reflect.DeepEqual(meta, res.Meta))
+			assert.True(t, reflect.DeepEqual(*meta, res.Meta))
 		}
 	}
 }
@@ -921,7 +921,7 @@ func checkShards(t *testing.T, cache *core.CachedShards, resources []*core.Cache
 		checkShard(t, res, resources[res.Meta.GetID()])
 	}
 	for _, res := range cache.GetMetaShards() {
-		assert.True(t, reflect.DeepEqual(res, resources[res.GetID()].Meta))
+		assert.True(t, reflect.DeepEqual(*res, resources[res.GetID()].Meta))
 	}
 }
 
