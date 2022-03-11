@@ -32,7 +32,6 @@ func (s memoryKVItem) Less(than btree.Item) bool {
 type memStorage struct {
 	sync.RWMutex
 
-	id   uint64
 	tree *btree.BTree
 }
 
@@ -157,14 +156,6 @@ func (s *memStorage) RemoveIfValueMatched(key string, expect string) (bool, erro
 	}
 
 	return true, nil
-}
-
-func (s *memStorage) AllocID() (uint64, error) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.id++
-	return s.id, nil
 }
 
 func (s *memStorage) SaveWithoutLeader(key, value string) error {
