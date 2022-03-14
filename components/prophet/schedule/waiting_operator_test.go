@@ -18,9 +18,8 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,17 +34,17 @@ func TestRandBuckets(t *testing.T) {
 }
 
 func addOperators(wop WaitingOperator) {
-	op := operator.NewOperator("testOperatorNormal", "test", uint64(1), metapb.ResourceEpoch{}, operator.OpResource, []operator.OpStep{
-		operator.RemovePeer{FromContainer: uint64(1)},
+	op := operator.NewOperator("testOperatorNormal", "test", uint64(1), metapb.ShardEpoch{}, operator.OpShard, []operator.OpStep{
+		operator.RemovePeer{FromStore: uint64(1)},
 	}...)
 	wop.PutOperator(op)
-	op = operator.NewOperator("testOperatorHigh", "test", uint64(2), metapb.ResourceEpoch{}, operator.OpResource, []operator.OpStep{
-		operator.RemovePeer{FromContainer: uint64(2)},
+	op = operator.NewOperator("testOperatorHigh", "test", uint64(2), metapb.ShardEpoch{}, operator.OpShard, []operator.OpStep{
+		operator.RemovePeer{FromStore: uint64(2)},
 	}...)
 	op.SetPriorityLevel(core.HighPriority)
 	wop.PutOperator(op)
-	op = operator.NewOperator("testOperatorLow", "test", uint64(3), metapb.ResourceEpoch{}, operator.OpResource, []operator.OpStep{
-		operator.RemovePeer{FromContainer: uint64(3)},
+	op = operator.NewOperator("testOperatorLow", "test", uint64(3), metapb.ShardEpoch{}, operator.OpShard, []operator.OpStep{
+		operator.RemovePeer{FromStore: uint64(3)},
 	}...)
 	op.SetPriorityLevel(core.LowPriority)
 	wop.PutOperator(op)
@@ -57,46 +56,50 @@ func TestListOperator(t *testing.T) {
 	assert.Equal(t, 3, len(rb.ListOperator()))
 }
 
-func TestRandomBucketsWithMergeResource(t *testing.T) {
+func TestRandomBucketsWithMergeShard(t *testing.T) {
 	rb := NewRandBuckets()
 	descs := []string{"merge-resource", "admin-merge-resource", "random-merge"}
 	for j := 0; j < 100; j++ {
 		// adds operators
 		desc := descs[j%3]
-		op := operator.NewOperator(desc, "test", uint64(1), metapb.ResourceEpoch{}, operator.OpResource|operator.OpMerge, []operator.OpStep{
-			operator.MergeResource{
-				FromResource: &metadata.TestResource{
-					ResID:    1,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ResourceEpoch{}},
-				ToResource: &metadata.TestResource{
-					ResID:    2,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ResourceEpoch{}},
+		op := operator.NewOperator(desc, "test", uint64(1), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
+			operator.MergeShard{
+				FromShard: metapb.Shard{
+					ID:    1,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
+				},
+				ToShard: metapb.Shard{
+					ID:    2,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
+				},
 				IsPassive: false,
 			},
 		}...)
 		rb.PutOperator(op)
-		op = operator.NewOperator(desc, "test", uint64(2), metapb.ResourceEpoch{}, operator.OpResource|operator.OpMerge, []operator.OpStep{
-			operator.MergeResource{
-				FromResource: &metadata.TestResource{
-					ResID:    1,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ResourceEpoch{}},
-				ToResource: &metadata.TestResource{
-					ResID:    2,
-					Start:    []byte{},
-					End:      []byte{},
-					ResEpoch: metapb.ResourceEpoch{}},
+		op = operator.NewOperator(desc, "test", uint64(2), metapb.ShardEpoch{}, operator.OpShard|operator.OpMerge, []operator.OpStep{
+			operator.MergeShard{
+				FromShard: metapb.Shard{
+					ID:    1,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
+				},
+				ToShard: metapb.Shard{
+					ID:    2,
+					Start: []byte{},
+					End:   []byte{},
+					Epoch: metapb.ShardEpoch{},
+				},
 				IsPassive: true,
 			},
 		}...)
 		rb.PutOperator(op)
-		op = operator.NewOperator("testOperatorHigh", "test", uint64(3), metapb.ResourceEpoch{}, operator.OpResource, []operator.OpStep{
-			operator.RemovePeer{FromContainer: uint64(3)},
+		op = operator.NewOperator("testOperatorHigh", "test", uint64(3), metapb.ShardEpoch{}, operator.OpShard, []operator.OpStep{
+			operator.RemovePeer{FromStore: uint64(3)},
 		}...)
 		op.SetPriorityLevel(core.HighPriority)
 		rb.PutOperator(op)

@@ -14,37 +14,37 @@
 
 package statistics
 
-// ContainerStatKind represents the statistics type of Container.
-type ContainerStatKind int
+// StoreStatKind represents the statistics type of Store.
+type StoreStatKind int
 
-// Different Container statistics kinds.
+// Different Store statistics kinds.
 const (
-	ContainerReadBytes ContainerStatKind = iota
-	ContainerReadKeys
-	ContainerWriteBytes
-	ContainerWriteKeys
-	ContainerCPUUsage
-	ContainerDiskReadRate
-	ContainerDiskWriteRate
+	StoreReadBytes StoreStatKind = iota
+	StoreReadKeys
+	StoreWriteBytes
+	StoreWriteKeys
+	StoreCPUUsage
+	StoreDiskReadRate
+	StoreDiskWriteRate
 
-	ContainerStatCount
+	StoreStatCount
 )
 
-func (k ContainerStatKind) String() string {
+func (k StoreStatKind) String() string {
 	switch k {
-	case ContainerReadBytes:
+	case StoreReadBytes:
 		return "container_read_bytes"
-	case ContainerReadKeys:
+	case StoreReadKeys:
 		return "container_read_keys"
-	case ContainerWriteBytes:
+	case StoreWriteBytes:
 		return "container_write_bytes"
-	case ContainerWriteKeys:
+	case StoreWriteKeys:
 		return "container_write_keys"
-	case ContainerCPUUsage:
+	case StoreCPUUsage:
 		return "container_cpu_usage"
-	case ContainerDiskReadRate:
+	case StoreDiskReadRate:
 		return "container_disk_read_rate"
-	case ContainerDiskWriteRate:
+	case StoreDiskWriteRate:
 		return "container_disk_write_rate"
 	}
 

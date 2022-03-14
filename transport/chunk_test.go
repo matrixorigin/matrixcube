@@ -42,7 +42,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -74,7 +74,7 @@ func runChunkTest(t *testing.T,
 	fn(t, chunks, handler)
 }
 
-func hasSnapshotTempDir(cs *Chunk, c meta.SnapshotChunk) bool {
+func hasSnapshotTempDir(cs *Chunk, c metapb.SnapshotChunk) bool {
 	env := cs.getEnv(c)
 	fp := env.GetTempDir()
 	if _, err := cs.fs.Stat(fp); vfs.IsNotExist(err) {
@@ -83,13 +83,13 @@ func hasSnapshotTempDir(cs *Chunk, c meta.SnapshotChunk) bool {
 	return true
 }
 
-func getTestChunks() []meta.SnapshotChunk {
-	si := &meta.SnapshotInfo{
+func getTestChunks() []metapb.SnapshotChunk {
+	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
-	result := make([]meta.SnapshotChunk, 0)
+	result := make([]metapb.SnapshotChunk, 0)
 	for chunkID := uint64(0); chunkID < 10; chunkID++ {
-		c := meta.SnapshotChunk{
+		c := metapb.SnapshotChunk{
 			ShardID:        100,
 			ReplicaID:      2,
 			From:           12,
@@ -307,7 +307,7 @@ func TestChunkAreIgnoredWhenReplicaIsRemoved(t *testing.T) {
 			t.Fatalf("failed to add chunk")
 		}
 		snapshotDir := env.GetRootDir()
-		if err := fileutil.MarkDirAsDeleted(snapshotDir, &meta.RaftMessage{}, chunks.fs); err != nil {
+		if err := fileutil.MarkDirAsDeleted(snapshotDir, &metapb.RaftMessage{}, chunks.fs); err != nil {
 			t.Fatalf("failed to create the delete flag %v", err)
 		}
 		for idx, c := range inputs {
@@ -392,7 +392,7 @@ func TestSignificantlyDelayedNonFirstChunkAreIgnored(t *testing.T) {
 }
 
 func checkTestSnapshotFile(t *testing.T,
-	chunks *Chunk, chunk meta.SnapshotChunk, size uint64) {
+	chunks *Chunk, chunk metapb.SnapshotChunk, size uint64) {
 	env := chunks.getEnv(chunk)
 	dir := env.GetFinalDir()
 	fp := chunks.fs.PathJoin(dir, chunk.FilePath)
@@ -437,10 +437,10 @@ func TestAddingFirstChunkAgainResetsTempDir(t *testing.T) {
 }
 
 func TestToMessageFromChunk(t *testing.T) {
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
-	chunk := meta.SnapshotChunk{
+	chunk := metapb.SnapshotChunk{
 		ShardID:   123,
 		ReplicaID: 45,
 		From:      23,
@@ -448,7 +448,7 @@ func TestToMessageFromChunk(t *testing.T) {
 		Term:      200,
 		Extra:     protoc.MustMarshal(si),
 	}
-	rsi := &meta.SnapshotInfo{
+	rsi := &metapb.SnapshotInfo{
 		Extra: chunk.From,
 	}
 	chunks := &Chunk{}

@@ -23,14 +23,13 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/hbstream"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/testutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -99,35 +98,35 @@ func TestShouldBalance(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	tc.SetTolerantSizeRatio(2.5)
-	tc.SetResourceScoreFormulaVersion("v1")
+	tc.SetShardScoreFormulaVersion("v1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	oc := schedule.NewOperatorController(ctx, nil, nil)
 	// create a resource to control average resource size.
-	tc.AddLeaderResource(1, 1, 2)
+	tc.AddLeaderShard(1, 1, 2)
 
 	for _, c := range tests {
-		tc.AddLeaderContainer(1, int(c.sourceCount))
-		tc.AddLeaderContainer(2, int(c.targetCount))
-		source := tc.GetContainer(1)
-		target := tc.GetContainer(2)
-		resource := tc.GetResource(1).Clone(core.SetApproximateSize(c.resourceSize))
-		tc.PutResource(resource)
+		tc.AddLeaderStore(1, int(c.sourceCount))
+		tc.AddLeaderStore(2, int(c.targetCount))
+		source := tc.GetStore(1)
+		target := tc.GetStore(2)
+		resource := tc.GetShard(1).Clone(core.SetApproximateSize(c.resourceSize))
+		tc.PutShard(resource)
 		tc.SetLeaderSchedulePolicy(c.kind.String())
-		kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, c.kind)
+		kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, c.kind)
 		shouldBalance, _, _ := shouldBalance(tc, source, target, resource, kind, oc.GetOpInfluence(tc), "")
 		assert.Equal(t, c.expectedResult, shouldBalance)
 	}
 
 	for _, c := range tests {
 		if c.kind.String() == core.BySize.String() {
-			tc.AddResourceContainer(1, int(c.sourceCount))
-			tc.AddResourceContainer(2, int(c.targetCount))
-			source := tc.GetContainer(1)
-			target := tc.GetContainer(2)
-			resource := tc.GetResource(1).Clone(core.SetApproximateSize(c.resourceSize))
-			tc.PutResource(resource)
-			kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, c.kind)
+			tc.AddShardStore(1, int(c.sourceCount))
+			tc.AddShardStore(2, int(c.targetCount))
+			source := tc.GetStore(1)
+			target := tc.GetStore(2)
+			resource := tc.GetShard(1).Clone(core.SetApproximateSize(c.resourceSize))
+			tc.PutShard(resource)
+			kind := core.NewScheduleKind(metapb.ShardType_AllShards, c.kind)
 			shouldBalance, _, _ := shouldBalance(tc, source, target, resource, kind, oc.GetOpInfluence(tc), "")
 			assert.Equal(t, c.expectedResult, shouldBalance)
 		}
@@ -137,37 +136,37 @@ func TestShouldBalance(t *testing.T) {
 func TestBalanceLimit(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	tc.AddLeaderContainer(1, 10)
-	tc.AddLeaderContainer(2, 20)
-	tc.AddLeaderContainer(3, 30)
+	tc.AddLeaderStore(1, 10)
+	tc.AddLeaderStore(2, 20)
+	tc.AddLeaderStore(3, 30)
 
 	// StandDeviation is sqrt((10^2+0+10^2)/3).
-	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit("", tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(200.0/3.0)), adjustBalanceLimit("", tc, metapb.ShardType_LeaderOnly))
 
-	tc.SetContainerOffline(1)
+	tc.SetStoreOffline(1)
 	// StandDeviation is sqrt((5^2+5^2)/2).
-	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit("", tc, metapb.ResourceKind_LeaderKind))
+	assert.Equal(t, uint64(math.Sqrt(50.0/2.0)), adjustBalanceLimit("", tc, metapb.ShardType_LeaderOnly))
 }
 
 func TestTolerantRatio(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	// create a resource to control average resource size.
-	assert.NotNil(t, tc.AddLeaderResource(1, 1, 2))
+	assert.NotNil(t, tc.AddLeaderShard(1, 1, 2))
 	resourceSize := int64(96 * KB)
-	resource := tc.GetResource(1).Clone(core.SetApproximateSize(resourceSize))
+	resource := tc.GetShard(1).Clone(core.SetApproximateSize(resourceSize))
 
 	tc.SetTolerantSizeRatio(0)
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.ByCount}), int64(leaderTolerantSizeRatio))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 
 	tc.SetTolerantSizeRatio(10)
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_LeaderKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
-	assert.Equal(t, getTolerantResource(tc, resource, core.ScheduleKind{ResourceKind: metapb.ResourceKind_ReplicaKind, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.ByCount}), int64(tc.GetScheduleConfig().TolerantSizeRatio))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_LeaderOnly, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.ByCount}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
+	assert.Equal(t, getTolerantShard(tc, resource, core.ScheduleKind{ShardKind: metapb.ShardType_AllShards, Policy: core.BySize}), int64(adjustTolerantRatio("", tc)*float64(resourceSize)))
 }
 
 type testBalanceLeaderScheduler struct {
@@ -206,11 +205,11 @@ func TestLeaderBalanceLimit(t *testing.T) {
 	// containers:     1    2    3    4
 	// Leaders:        1    0    0    0
 	// resources:      L    F    F    F
-	s.tc.AddLeaderContainer(1, 1)
-	s.tc.AddLeaderContainer(2, 0)
-	s.tc.AddLeaderContainer(3, 0)
-	s.tc.AddLeaderContainer(4, 0)
-	s.tc.AddLeaderResource(1, 1, 2, 3, 4)
+	s.tc.AddLeaderStore(1, 1)
+	s.tc.AddLeaderStore(2, 0)
+	s.tc.AddLeaderStore(3, 0)
+	s.tc.AddLeaderStore(4, 0)
+	s.tc.AddLeaderShard(1, 1, 2, 3, 4)
 	assert.Nil(t, s.schedule())
 
 	// containers:     1    2    3    4
@@ -226,7 +225,7 @@ func TestLeaderBalanceLimit(t *testing.T) {
 	s.tc.UpdateLeaderCount(2, 8)
 	s.tc.UpdateLeaderCount(3, 9)
 	s.tc.UpdateLeaderCount(4, 10)
-	s.tc.AddLeaderResource(1, 4, 1, 2, 3)
+	s.tc.AddLeaderShard(1, 4, 1, 2, 3)
 	assert.Nil(t, s.schedule())
 
 	// containers:     1    2    3    4
@@ -245,11 +244,11 @@ func TestBalanceLeaderSchedulePolicy(t *testing.T) {
 	// Leader Count:    10      10      10      10
 	// Leader Size :    10000   100    	100    	100
 	// resource1:         L       F       F       F
-	s.tc.AddLeaderContainer(1, 10, 10000*MB)
-	s.tc.AddLeaderContainer(2, 10, 100*MB)
-	s.tc.AddLeaderContainer(3, 10, 100*MB)
-	s.tc.AddLeaderContainer(4, 10, 100*MB)
-	s.tc.AddLeaderResource(1, 1, 2, 3, 4)
+	s.tc.AddLeaderStore(1, 10, 10000*MB)
+	s.tc.AddLeaderStore(2, 10, 100*MB)
+	s.tc.AddLeaderStore(3, 10, 100*MB)
+	s.tc.AddLeaderStore(4, 10, 100*MB)
+	s.tc.AddLeaderShard(1, 1, 2, 3, 4)
 	assert.Equal(t, core.ByCount.String(), s.tc.GetScheduleConfig().LeaderSchedulePolicy)
 	assert.Nil(t, s.schedule())
 	s.tc.SetLeaderSchedulePolicy(core.BySize.String())
@@ -267,17 +266,17 @@ func TestBalanceLeaderTolerantRatio(t *testing.T) {
 	// Leader Count:    14->15  10      10      10
 	// Leader Size :    100     100     100     100
 	// resource1:         L       F       F       F
-	s.tc.AddLeaderContainer(1, 14, 100)
-	s.tc.AddLeaderContainer(2, 10, 100)
-	s.tc.AddLeaderContainer(3, 10, 100)
-	s.tc.AddLeaderContainer(4, 10, 100)
-	s.tc.AddLeaderResource(1, 1, 2, 3, 4)
+	s.tc.AddLeaderStore(1, 14, 100)
+	s.tc.AddLeaderStore(2, 10, 100)
+	s.tc.AddLeaderStore(3, 10, 100)
+	s.tc.AddLeaderStore(4, 10, 100)
+	s.tc.AddLeaderShard(1, 1, 2, 3, 4)
 
 	assert.Equal(t, core.ByCount.String(), s.tc.GetScheduleConfig().LeaderSchedulePolicy) // default by count
 	assert.Nil(t, s.schedule())
-	assert.Equal(t, 14, s.tc.GetContainer(1).GetLeaderCount(""))
-	s.tc.AddLeaderContainer(1, 15, 100)
-	assert.Equal(t, 15, s.tc.GetContainer(1).GetLeaderCount(""))
+	assert.Equal(t, 14, s.tc.GetStore(1).GetLeaderCount(""))
+	s.tc.AddLeaderStore(1, 15, 100)
+	assert.Equal(t, 15, s.tc.GetStore(1).GetLeaderCount(""))
 	assert.NotNil(t, s.schedule())
 	s.tc.SetTolerantSizeRatio(6) // (15-10)<6
 	assert.Nil(t, s.schedule())
@@ -292,11 +291,11 @@ func TestScheduleWithOpInfluence(t *testing.T) {
 	// containers:     1    2    3    4
 	// Leaders:    7    8    9   14
 	// resource1:    F    F    F    L
-	s.tc.AddLeaderContainer(1, 7)
-	s.tc.AddLeaderContainer(2, 8)
-	s.tc.AddLeaderContainer(3, 9)
-	s.tc.AddLeaderContainer(4, 14)
-	s.tc.AddLeaderResource(1, 4, 1, 2, 3)
+	s.tc.AddLeaderStore(1, 7)
+	s.tc.AddLeaderStore(2, 8)
+	s.tc.AddLeaderStore(3, 9)
+	s.tc.AddLeaderStore(4, 14)
+	s.tc.AddLeaderShard(1, 4, 1, 2, 3)
 	op := s.schedule()[0]
 	assert.NotNil(t, op)
 	s.oc.SetOperator(op)
@@ -315,7 +314,7 @@ func TestScheduleWithOpInfluence(t *testing.T) {
 	s.tc.UpdateLeaderCount(2, 8)
 	s.tc.UpdateLeaderCount(3, 9)
 	s.tc.UpdateLeaderCount(4, 13)
-	s.tc.AddLeaderResource(1, 4, 1, 2, 3)
+	s.tc.AddLeaderShard(1, 4, 1, 2, 3)
 	assert.Nil(t, s.schedule())
 }
 
@@ -326,13 +325,13 @@ func TestTransferLeaderOut(t *testing.T) {
 
 	// containers:     1    2    3    4
 	// Leaders:    7    8    9   12
-	s.tc.AddLeaderContainer(1, 7)
-	s.tc.AddLeaderContainer(2, 8)
-	s.tc.AddLeaderContainer(3, 9)
-	s.tc.AddLeaderContainer(4, 12)
+	s.tc.AddLeaderStore(1, 7)
+	s.tc.AddLeaderStore(2, 8)
+	s.tc.AddLeaderStore(3, 9)
+	s.tc.AddLeaderStore(4, 12)
 	s.tc.SetTolerantSizeRatio(0.1)
 	for i := uint64(1); i <= 7; i++ {
-		s.tc.AddLeaderResource(i, 4, 1, 2, 3)
+		s.tc.AddLeaderShard(i, 4, 1, 2, 3)
 	}
 
 	// balance leader: 4->1, 4->1, 4->2
@@ -346,12 +345,12 @@ func TestTransferLeaderOut(t *testing.T) {
 			continue
 		}
 		if op := s.schedule()[0]; op != nil {
-			if _, ok := resources[op.ResourceID()]; !ok {
+			if _, ok := resources[op.ShardID()]; !ok {
 				s.oc.SetOperator(op)
-				resources[op.ResourceID()] = struct{}{}
+				resources[op.ShardID()] = struct{}{}
 				tr := op.Step(0).(operator.TransferLeader)
-				assert.Equal(t, uint64(4), tr.FromContainer)
-				targets[tr.ToContainer]--
+				assert.Equal(t, uint64(4), tr.FromStore)
+				targets[tr.ToStore]--
 			}
 		}
 	}
@@ -369,32 +368,32 @@ func TestBalanceFilter(t *testing.T) {
 	// containers:     1    2    3    4
 	// Leaders:    1    2    3   16
 	// resource1:    F    F    F    L
-	s.tc.AddLeaderContainer(1, 1)
-	s.tc.AddLeaderContainer(2, 2)
-	s.tc.AddLeaderContainer(3, 3)
-	s.tc.AddLeaderContainer(4, 16)
-	s.tc.AddLeaderResource(1, 4, 1, 2, 3)
+	s.tc.AddLeaderStore(1, 1)
+	s.tc.AddLeaderStore(2, 2)
+	s.tc.AddLeaderStore(3, 3)
+	s.tc.AddLeaderStore(4, 16)
+	s.tc.AddLeaderShard(1, 4, 1, 2, 3)
 
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 1)
 	// Test stateFilter.
 	// if container 4 is offline, we should consider it
 	// because it still provides services
-	s.tc.SetContainerOffline(4)
+	s.tc.SetStoreOffline(4)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 1)
 	// If container 1 is down, it will be filtered,
 	// container 2 becomes the container with least leaders.
-	s.tc.SetContainerDown(1)
+	s.tc.SetStoreDown(1)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 2)
 
 	// Test healthFilter.
 	// If container 2 is busy, it will be filtered,
 	// container 3 becomes the container with least leaders.
-	s.tc.SetContainerBusy(2, true)
+	s.tc.SetStoreBusy(2, true)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 3)
 
 	// Test disconnectFilter.
 	// If container 3 is disconnected, no operator can be created.
-	s.tc.SetContainerDisconnect(3)
+	s.tc.SetStoreDisconnect(3)
 	assert.Empty(t, s.schedule())
 }
 
@@ -409,13 +408,13 @@ func TestLeaderWeight(t *testing.T) {
 	// resource1:    L       F       F       F
 	s.tc.SetTolerantSizeRatio(2.5)
 	for i := uint64(1); i <= 4; i++ {
-		s.tc.AddLeaderContainer(i, 10)
+		s.tc.AddLeaderStore(i, 10)
 	}
-	s.tc.UpdateContainerLeaderWeight(1, 0.5)
-	s.tc.UpdateContainerLeaderWeight(2, 0.9)
-	s.tc.UpdateContainerLeaderWeight(3, 1)
-	s.tc.UpdateContainerLeaderWeight(4, 2)
-	s.tc.AddLeaderResource(1, 1, 2, 3, 4)
+	s.tc.UpdateStoreLeaderWeight(1, 0.5)
+	s.tc.UpdateStoreLeaderWeight(2, 0.9)
+	s.tc.UpdateStoreLeaderWeight(3, 1)
+	s.tc.UpdateStoreLeaderWeight(4, 2)
+	s.tc.AddLeaderShard(1, 1, 2, 3, 4)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 1, 4)
 	s.tc.UpdateLeaderCount(4, 30)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 1, 3)
@@ -429,12 +428,12 @@ func TestBalancePolicy(t *testing.T) {
 	// containers:       1    2     3    4
 	// LeaderCount: 20   66     6   20
 	// LeaderSize:  66   20    20    6
-	s.tc.AddLeaderContainer(1, 20, 600*MB)
-	s.tc.AddLeaderContainer(2, 66, 200*MB)
-	s.tc.AddLeaderContainer(3, 6, 20*MB)
-	s.tc.AddLeaderContainer(4, 20, 1*MB)
-	s.tc.AddLeaderResource(1, 2, 1, 3, 4)
-	s.tc.AddLeaderResource(2, 1, 2, 3, 4)
+	s.tc.AddLeaderStore(1, 20, 600*MB)
+	s.tc.AddLeaderStore(2, 66, 200*MB)
+	s.tc.AddLeaderStore(3, 6, 20*MB)
+	s.tc.AddLeaderStore(4, 20, 1*MB)
+	s.tc.AddLeaderShard(1, 2, 1, 3, 4)
+	s.tc.AddLeaderShard(2, 1, 2, 3, 4)
 	s.tc.SetLeaderSchedulePolicy("count")
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 2, 3)
 	s.tc.SetLeaderSchedulePolicy("size")
@@ -450,12 +449,12 @@ func TestBalanceSelector(t *testing.T) {
 	// Leaders:    1    2    3   16
 	// resource1:    -    F    F    L
 	// resource2:    F    F    L    -
-	s.tc.AddLeaderContainer(1, 1)
-	s.tc.AddLeaderContainer(2, 2)
-	s.tc.AddLeaderContainer(3, 3)
-	s.tc.AddLeaderContainer(4, 16)
-	s.tc.AddLeaderResource(1, 4, 2, 3)
-	s.tc.AddLeaderResource(2, 3, 1, 2)
+	s.tc.AddLeaderStore(1, 1)
+	s.tc.AddLeaderStore(2, 2)
+	s.tc.AddLeaderStore(3, 3)
+	s.tc.AddLeaderStore(4, 16)
+	s.tc.AddLeaderShard(1, 4, 2, 3)
+	s.tc.AddLeaderShard(2, 3, 1, 2)
 	// container4 has max leader score, container1 has min leader score.
 	// The scheduler try to move a leader out of 16 first.
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 2)
@@ -473,9 +472,9 @@ func TestBalanceSelector(t *testing.T) {
 	// Leaders:    1    2    15   16
 	// resource1:    -    F    L    F
 	// resource2:    L    F    F    -
-	s.tc.AddLeaderContainer(2, 2)
-	s.tc.AddLeaderResource(1, 3, 2, 4)
-	s.tc.AddLeaderResource(2, 1, 2, 3)
+	s.tc.AddLeaderStore(2, 2)
+	s.tc.AddLeaderShard(1, 3, 2, 4)
+	s.tc.AddLeaderShard(2, 1, 2, 3)
 	// No leader in container16, no follower in container1. Now source and target are container3 and container2.
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 3, 2)
 
@@ -484,10 +483,10 @@ func TestBalanceSelector(t *testing.T) {
 	// resource1:    -    F    F    L
 	// resource2:    L    F    F    -
 	for i := uint64(1); i <= 4; i++ {
-		s.tc.AddLeaderContainer(i, 10)
+		s.tc.AddLeaderStore(i, 10)
 	}
-	s.tc.AddLeaderResource(1, 4, 2, 3)
-	s.tc.AddLeaderResource(2, 1, 2, 3)
+	s.tc.AddLeaderShard(1, 4, 2, 3)
+	s.tc.AddLeaderShard(2, 1, 2, 3)
 	// The cluster is balanced.
 	assert.Empty(t, s.schedule())
 	assert.Empty(t, s.schedule())
@@ -497,10 +496,10 @@ func TestBalanceSelector(t *testing.T) {
 	// Leaders:    11   13   0    16
 	// resource1:    -    F    F    L
 	// resource2:    L    F    F    -
-	s.tc.AddLeaderContainer(1, 11)
-	s.tc.AddLeaderContainer(2, 13)
-	s.tc.AddLeaderContainer(3, 0)
-	s.tc.AddLeaderContainer(4, 16)
+	s.tc.AddLeaderStore(1, 11)
+	s.tc.AddLeaderStore(2, 13)
+	s.tc.AddLeaderStore(3, 0)
+	s.tc.AddLeaderStore(4, 16)
 	testutil.CheckTransferLeader(t, s.schedule()[0], operator.OpKind(0), 4, 3)
 }
 
@@ -533,13 +532,13 @@ func TestSingleRangeBalance(t *testing.T) {
 	// resource1:    L       F       F       F
 
 	for i := uint64(1); i <= 4; i++ {
-		s.tc.AddLeaderContainer(i, 10)
+		s.tc.AddLeaderStore(i, 10)
 	}
-	s.tc.UpdateContainerLeaderWeight(1, 0.5)
-	s.tc.UpdateContainerLeaderWeight(2, 0.9)
-	s.tc.UpdateContainerLeaderWeight(3, 1)
-	s.tc.UpdateContainerLeaderWeight(4, 2)
-	s.tc.AddLeaderResourceWithRange(1, "a", "g", 1, 2, 3, 4)
+	s.tc.UpdateStoreLeaderWeight(1, 0.5)
+	s.tc.UpdateStoreLeaderWeight(2, 0.9)
+	s.tc.UpdateStoreLeaderWeight(3, 1)
+	s.tc.UpdateStoreLeaderWeight(4, 2)
+	s.tc.AddLeaderShardWithRange(1, "a", "g", 1, 2, 3, 4)
 	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	ops := lb.Schedule(s.tc)
@@ -572,32 +571,32 @@ func TestMultiRangeBalance(t *testing.T) {
 	s.setup()
 	defer s.tearDown()
 
-	// Containers:     1       2       3       4
+	// Stores:     1       2       3       4
 	// Leaders:    10      10      10      10
 	// Weight:     0.5     0.9     1       2
 	// resource1:    L       F       F       F
 
 	for i := uint64(1); i <= 4; i++ {
-		s.tc.AddLeaderContainer(i, 10)
+		s.tc.AddLeaderStore(i, 10)
 	}
-	s.tc.UpdateContainerLeaderWeight(1, 0.5)
-	s.tc.UpdateContainerLeaderWeight(2, 0.9)
-	s.tc.UpdateContainerLeaderWeight(3, 1)
-	s.tc.UpdateContainerLeaderWeight(4, 2)
-	s.tc.AddLeaderResourceWithRange(1, "a", "g", 1, 2, 3, 4)
+	s.tc.UpdateStoreLeaderWeight(1, 0.5)
+	s.tc.UpdateStoreLeaderWeight(2, 0.9)
+	s.tc.UpdateStoreLeaderWeight(3, 1)
+	s.tc.UpdateStoreLeaderWeight(4, 2)
+	s.tc.AddLeaderShardWithRange(1, "a", "g", 1, 2, 3, 4)
 	lb, err := schedule.CreateScheduler(BalanceLeaderType, s.oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceLeaderType, []string{"0", "", "g", "0", "o", "t"}))
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(1), lb.Schedule(s.tc)[0].ResourceID())
-	s.tc.RemoveResource(s.tc.GetResource(1))
-	s.tc.AddLeaderResourceWithRange(2, "p", "r", 1, 2, 3, 4)
+	assert.Equal(t, uint64(1), lb.Schedule(s.tc)[0].ShardID())
+	s.tc.RemoveShard(s.tc.GetShard(1))
+	s.tc.AddLeaderShardWithRange(2, "p", "r", 1, 2, 3, 4)
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(2), lb.Schedule(s.tc)[0].ResourceID())
-	s.tc.RemoveResource(s.tc.GetResource(2))
-	s.tc.AddLeaderResourceWithRange(3, "u", "w", 1, 2, 3, 4)
+	assert.Equal(t, uint64(2), lb.Schedule(s.tc)[0].ShardID())
+	s.tc.RemoveShard(s.tc.GetShard(2))
+	s.tc.AddLeaderShardWithRange(3, "u", "w", 1, 2, 3, 4)
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
-	s.tc.RemoveResource(s.tc.GetResource(3))
-	s.tc.AddLeaderResourceWithRange(4, "", "", 1, 2, 3, 4)
+	s.tc.RemoveShard(s.tc.GetShard(3))
+	s.tc.AddLeaderShardWithRange(4, "", "", 1, 2, 3, 4)
 	assert.NoError(t, err)
 	assert.Empty(t, lb.Schedule(s.tc))
 }
@@ -617,97 +616,97 @@ func (s *testBalanceresourceScheduler) tearDown() {
 
 func (s *testBalanceresourceScheduler) checkReplica3(t *testing.T, tc *mockcluster.Cluster, opt *config.PersistOptions, sb schedule.Scheduler) {
 	// container 1 has the largest resource score, so the balance scheduler tries to replace peer in container 1.
-	tc.AddLabelsContainer(1, 16, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(2, 15, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
-	tc.AddLabelsContainer(3, 14, map[string]string{"zone": "z1", "rack": "r2", "host": "h2"})
+	tc.AddLabelsStore(1, 16, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(2, 15, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(3, 14, map[string]string{"zone": "z1", "rack": "r2", "host": "h2"})
 
-	tc.AddLeaderResource(1, 1, 2, 3)
+	tc.AddLeaderShard(1, 1, 2, 3)
 	// This schedule try to replace peer in container 1, but we have no other containers.
 	assert.Empty(t, sb.Schedule(tc))
 
 	// container 4 has smaller resource score than container 2.
-	tc.AddLabelsContainer(4, 2, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(4, 2, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 2, 4)
 
 	// container 5 has smaller resource score than container 1.
-	tc.AddLabelsContainer(5, 2, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(5, 2, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 5)
 
 	// container 6 has smaller resource score than container 5.
-	tc.AddLabelsContainer(6, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(6, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 6)
 
 	// container 7 has smaller resource score with container 6.
-	tc.AddLabelsContainer(7, 0, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"})
+	tc.AddLabelsStore(7, 0, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 7)
 
 	// If container 7 is not available, will choose container 6.
-	tc.SetContainerDown(7)
+	tc.SetStoreDown(7)
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 6)
 
 	// container 8 has smaller resource score than container 7, but the distinct score decrease.
-	tc.AddLabelsContainer(8, 1, map[string]string{"zone": "z1", "rack": "r2", "host": "h3"})
+	tc.AddLabelsStore(8, 1, map[string]string{"zone": "z1", "rack": "r2", "host": "h3"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 6)
 
 	// Take down 4,5,6,7
-	tc.SetContainerDown(4)
-	tc.SetContainerDown(5)
-	tc.SetContainerDown(6)
-	tc.SetContainerDown(7)
-	tc.SetContainerDown(8)
+	tc.SetStoreDown(4)
+	tc.SetStoreDown(5)
+	tc.SetStoreDown(6)
+	tc.SetStoreDown(7)
+	tc.SetStoreDown(8)
 
 	// container 9 has different zone with other containers but larger resource score than container 1.
-	tc.AddLabelsContainer(9, 20, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(9, 20, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
 	assert.Empty(t, sb.Schedule(tc))
 }
 
 func (s *testBalanceresourceScheduler) checkReplica5(t *testing.T, tc *mockcluster.Cluster, opt *config.PersistOptions, sb schedule.Scheduler) {
-	tc.AddLabelsContainer(1, 4, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(2, 5, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(3, 6, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(4, 7, map[string]string{"zone": "z4", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(5, 28, map[string]string{"zone": "z5", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(1, 4, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(2, 5, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(3, 6, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(4, 7, map[string]string{"zone": "z4", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(5, 28, map[string]string{"zone": "z5", "rack": "r1", "host": "h1"})
 
-	tc.AddLeaderResource(1, 1, 2, 3, 4, 5)
+	tc.AddLeaderShard(1, 1, 2, 3, 4, 5)
 
 	// container 6 has smaller resource score.
-	tc.AddLabelsContainer(6, 1, map[string]string{"zone": "z5", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(6, 1, map[string]string{"zone": "z5", "rack": "r2", "host": "h1"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 5, 6)
 
 	// container 7 has larger resource score and same distinct score with container 6.
-	tc.AddLabelsContainer(7, 5, map[string]string{"zone": "z6", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(7, 5, map[string]string{"zone": "z6", "rack": "r1", "host": "h1"})
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 5, 6)
 
 	// container 1 has smaller resource score and higher distinct score.
-	tc.AddLeaderResource(1, 2, 3, 4, 5, 6)
+	tc.AddLeaderShard(1, 2, 3, 4, 5, 6)
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 5, 1)
 
 	// container 6 has smaller resource score and higher distinct score.
-	tc.AddLabelsContainer(11, 29, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
-	tc.AddLabelsContainer(12, 8, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"})
-	tc.AddLabelsContainer(13, 7, map[string]string{"zone": "z3", "rack": "r2", "host": "h1"})
-	tc.AddLeaderResource(1, 2, 3, 11, 12, 13)
+	tc.AddLabelsStore(11, 29, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(12, 8, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(13, 7, map[string]string{"zone": "z3", "rack": "r2", "host": "h1"})
+	tc.AddLeaderShard(1, 2, 3, 11, 12, 13)
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 11, 6)
 }
 
-func (s *testBalanceresourceScheduler) checkReplacePendingResource(t *testing.T, tc *mockcluster.Cluster, sb schedule.Scheduler) {
+func (s *testBalanceresourceScheduler) checkReplacePendingShard(t *testing.T, tc *mockcluster.Cluster, sb schedule.Scheduler) {
 	// container 1 has the largest resource score, so the balance scheduler try to replace peer in container 1.
-	tc.AddLabelsContainer(1, 16, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
-	tc.AddLabelsContainer(2, 7, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
-	tc.AddLabelsContainer(3, 15, map[string]string{"zone": "z1", "rack": "r2", "host": "h2"})
+	tc.AddLabelsStore(1, 16, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(2, 7, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"})
+	tc.AddLabelsStore(3, 15, map[string]string{"zone": "z1", "rack": "r2", "host": "h2"})
 	// container 4 has smaller resource score than container 1 and more better place than container 2.
-	tc.AddLabelsContainer(4, 10, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
+	tc.AddLabelsStore(4, 10, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"})
 
 	// set pending peer
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 1, 2, 3)
-	tc.AddLeaderResource(3, 2, 1, 3)
-	resource := tc.GetResource(3)
-	p, _ := resource.GetContainerPeer(1)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 1, 2, 3)
+	tc.AddLeaderShard(3, 2, 1, 3)
+	resource := tc.GetShard(3)
+	p, _ := resource.GetStorePeer(1)
 	resource = resource.Clone(core.WithPendingPeers([]metapb.Replica{p}))
-	tc.PutResource(resource)
+	tc.PutShard(resource)
 
-	assert.Equal(t, uint64(3), sb.Schedule(tc)[0].ResourceID())
+	assert.Equal(t, uint64(3), sb.Schedule(tc)[0].ShardID())
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 4)
 }
 
@@ -723,23 +722,23 @@ func TestBalance(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	opt.SetMaxReplicas(1)
 
 	// Add containers 1,2,3,4.
-	tc.AddResourceContainer(1, 6)
-	tc.AddResourceContainer(2, 8)
-	tc.AddResourceContainer(3, 8)
-	tc.AddResourceContainer(4, 16)
+	tc.AddShardStore(1, 6)
+	tc.AddShardStore(2, 8)
+	tc.AddShardStore(3, 8)
+	tc.AddShardStore(4, 16)
 	// Add resource 1 with leader in container 4.
-	tc.AddLeaderResource(1, 4)
+	tc.AddLeaderShard(1, 4)
 	testutil.CheckTransferPeerWithLeaderTransfer(t, sb.Schedule(tc)[0], operator.OpKind(0), 4, 1)
 
 	// Test stateFilter.
-	tc.SetContainerOffline(1)
-	tc.UpdateResourceCount(2, 6)
+	tc.SetStoreOffline(1)
+	tc.UpdateShardCount(2, 6)
 
 	// When container 1 is offline, it will be filtered,
 	// container 2 becomes the container with least resources.
@@ -765,7 +764,7 @@ func TestReplicas3(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	s.checkReplica3(t, tc, opt, sb)
@@ -788,7 +787,7 @@ func TestReplicas5(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
 	s.checkReplica5(t, tc, opt, sb)
@@ -823,53 +822,53 @@ func TestBalance1(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 	tc.SetTolerantSizeRatio(1)
-	tc.SetResourceScheduleLimit(1)
-	tc.SetResourceScoreFormulaVersion("v1")
+	tc.SetShardScheduleLimit(1)
+	tc.SetShardScoreFormulaVersion("v1")
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	source := core.NewCachedResource(
-		&metadata.TestResource{
-			ResID: 1,
+	source := core.NewCachedShard(
+		metapb.Shard{
+			ID:    1,
 			Start: []byte(""),
 			End:   []byte("a"),
-			ResPeers: []metapb.Replica{
-				{ID: 101, ContainerID: 1},
-				{ID: 102, ContainerID: 2},
+			Replicas: []metapb.Replica{
+				{ID: 101, StoreID: 1},
+				{ID: 102, StoreID: 2},
 			},
 		},
-		&metapb.Replica{ID: 101, ContainerID: 1},
+		&metapb.Replica{ID: 101, StoreID: 1},
 		core.SetApproximateSize(1),
 		core.SetApproximateKeys(1),
 	)
-	target := core.NewCachedResource(
-		&metadata.TestResource{
-			ResID: 2,
+	target := core.NewCachedShard(
+		metapb.Shard{
+			ID:    2,
 			Start: []byte("a"),
 			End:   []byte("t"),
-			ResPeers: []metapb.Replica{
-				{ID: 103, ContainerID: 1},
-				{ID: 104, ContainerID: 4},
-				{ID: 105, ContainerID: 5},
+			Replicas: []metapb.Replica{
+				{ID: 103, StoreID: 1},
+				{ID: 104, StoreID: 4},
+				{ID: 105, StoreID: 5},
 			},
 		},
-		&metapb.Replica{ID: 104, ContainerID: 4},
+		&metapb.Replica{ID: 104, StoreID: 4},
 		core.SetApproximateSize(200),
 		core.SetApproximateKeys(200),
 	)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
-	tc.AddResourceContainer(1, 11)
-	tc.AddResourceContainer(2, 9)
-	tc.AddResourceContainer(3, 6)
-	tc.AddResourceContainer(4, 5)
-	tc.AddResourceContainer(5, 2)
-	tc.AddLeaderResource(1, 1, 2, 3)
-	tc.AddLeaderResource(2, 1, 2, 3)
+	tc.AddShardStore(1, 11)
+	tc.AddShardStore(2, 9)
+	tc.AddShardStore(3, 6)
+	tc.AddShardStore(4, 5)
+	tc.AddShardStore(5, 2)
+	tc.AddLeaderShard(1, 1, 2, 3)
+	tc.AddLeaderShard(2, 1, 2, 3)
 
 	// add two merge operator to let the count of opresource to 2.
-	ops, err := operator.CreateMergeResourceOperator("merge-resource", tc, source, target, operator.OpMerge)
+	ops, err := operator.CreateMergeShardOperator("merge-resource", tc, source, target, operator.OpMerge)
 	assert.NoError(t, err)
 	oc.SetOperator(ops[0])
 	oc.SetOperator(ops[1])
@@ -880,13 +879,13 @@ func TestBalance1(t *testing.T) {
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 5)
 
 	// the used size of container 5 reach (highSpace, lowSpace)
-	origin := tc.GetContainer(5)
-	stats := origin.GetContainerStats()
+	origin := tc.GetStore(5)
+	stats := origin.GetStoreStats()
 	stats.Capacity = 50
 	stats.Available = 28
 	stats.UsedSize = 20
-	container5 := origin.Clone(core.SetContainerStats(stats))
-	tc.PutContainer(container5)
+	container5 := origin.Clone(core.SetStoreStats(stats))
+	tc.PutStore(container5)
 
 	// the scheduler first picks container 1 as source container,
 	// and container 5 as target container, but cannot pass `shouldBalance`.
@@ -894,7 +893,7 @@ func TestBalance1(t *testing.T) {
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 4)
 }
 
-func TestContainerWeight(t *testing.T) {
+func TestStoreWeight(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
 	defer s.tearDown()
@@ -906,23 +905,23 @@ func TestContainerWeight(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt.SetMaxReplicas(1)
 
-	tc.AddResourceContainer(1, 10)
-	tc.AddResourceContainer(2, 10)
-	tc.AddResourceContainer(3, 10)
-	tc.AddResourceContainer(4, 10)
-	tc.UpdateContainerResourceWeight(1, 0.5)
-	tc.UpdateContainerResourceWeight(2, 0.9)
-	tc.UpdateContainerResourceWeight(3, 1.0)
-	tc.UpdateContainerResourceWeight(4, 2.0)
+	tc.AddShardStore(1, 10)
+	tc.AddShardStore(2, 10)
+	tc.AddShardStore(3, 10)
+	tc.AddShardStore(4, 10)
+	tc.UpdateStoreShardWeight(1, 0.5)
+	tc.UpdateStoreShardWeight(2, 0.9)
+	tc.UpdateStoreShardWeight(3, 1.0)
+	tc.UpdateStoreShardWeight(4, 2.0)
 
-	tc.AddLeaderResource(1, 1)
+	tc.AddLeaderShard(1, 1)
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 4)
 
-	tc.UpdateResourceCount(4, 30)
+	tc.UpdateShardCount(4, 30)
 	testutil.CheckTransferPeer(t, sb.Schedule(tc)[0], operator.OpKind(0), 1, 3)
 }
 
@@ -938,12 +937,12 @@ func TestReplacePendingresource(t *testing.T) {
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
-	s.checkReplacePendingResource(t, tc, sb)
+	s.checkReplacePendingShard(t, tc, sb)
 	tc.SetEnablePlacementRules(true)
-	s.checkReplacePendingResource(t, tc, sb)
+	s.checkReplacePendingShard(t, tc, sb)
 }
 
 func TestOpInfluence(t *testing.T) {
@@ -958,22 +957,22 @@ func TestOpInfluence(t *testing.T) {
 	tc.DisableJointConsensus()
 	stream := hbstream.NewTestHeartbeatStreams(s.ctx, tc.ID, tc, false /* no need to run */, nil)
 	oc := schedule.NewOperatorController(s.ctx, tc, stream)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 	opt.SetMaxReplicas(1)
 	// Add containers 1,2,3,4.
-	tc.AddResourceContainerWithLeader(1, 2)
-	tc.AddResourceContainerWithLeader(2, 8)
-	tc.AddResourceContainerWithLeader(3, 8)
-	tc.AddResourceContainerWithLeader(4, 16, 8)
+	tc.AddShardStoreWithLeader(1, 2)
+	tc.AddShardStoreWithLeader(2, 8)
+	tc.AddShardStoreWithLeader(3, 8)
+	tc.AddShardStoreWithLeader(4, 16, 8)
 
 	// add 8 leader resources to container 4 and move them to container 3
 	// ensure container score without operator influence : container 4 > container 3
 	// and container score with operator influence : container 3 > container 4
 	for i := 1; i <= 8; i++ {
 		id, _ := tc.AllocID()
-		origin := tc.AddLeaderResource(id, 4)
-		newPeer := metapb.Replica{ContainerID: 3, Role: metapb.ReplicaRole_Voter}
+		origin := tc.AddLeaderShard(id, 4)
+		newPeer := metapb.Replica{StoreID: 3, Role: metapb.ReplicaRole_Voter}
 		op, _ := operator.CreateMovePeerOperator("balance-resource", tc, origin, operator.OpKind(0), 4, newPeer)
 		assert.NotNil(t, op)
 		oc.AddOperator(op)
@@ -990,10 +989,10 @@ func TestShouldNotBalance(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
-	resource := tc.MockCachedResource(1, 0, []uint64{2, 3, 4}, nil, metapb.ResourceEpoch{})
-	tc.PutResource(resource)
+	resource := tc.MockCachedShard(1, 0, []uint64{2, 3, 4}, nil, metapb.ShardEpoch{})
+	tc.PutShard(resource)
 	operators := sb.Schedule(tc)
 	if operators != nil {
 		assert.Empty(t, operators)
@@ -1002,7 +1001,7 @@ func TestShouldNotBalance(t *testing.T) {
 	}
 }
 
-func TestEmptyResource(t *testing.T) {
+func TestEmptyShard(t *testing.T) {
 	s := &testBalanceresourceScheduler{}
 	s.setup()
 	defer s.tearDown()
@@ -1011,33 +1010,33 @@ func TestEmptyResource(t *testing.T) {
 	tc := mockcluster.NewCluster(opt)
 	tc.DisableJointConsensus()
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
-	sb, err := schedule.CreateScheduler(BalanceResourceType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceResourceType, []string{"0", "", ""}))
+	sb, err := schedule.CreateScheduler(BalanceShardType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(BalanceShardType, []string{"0", "", ""}))
 	assert.NoError(t, err)
-	tc.AddResourceContainer(1, 10)
-	tc.AddResourceContainer(2, 9)
-	tc.AddResourceContainer(3, 10)
-	tc.AddResourceContainer(4, 10)
-	res := core.NewCachedResource(
-		&metadata.TestResource{
-			ResID: 5,
+	tc.AddShardStore(1, 10)
+	tc.AddShardStore(2, 9)
+	tc.AddShardStore(3, 10)
+	tc.AddShardStore(4, 10)
+	res := core.NewCachedShard(
+		metapb.Shard{
+			ID:    5,
 			Start: []byte("a"),
 			End:   []byte("b"),
-			ResPeers: []metapb.Replica{
-				{ID: 6, ContainerID: 1},
-				{ID: 7, ContainerID: 3},
-				{ID: 8, ContainerID: 4},
+			Replicas: []metapb.Replica{
+				{ID: 6, StoreID: 1},
+				{ID: 7, StoreID: 3},
+				{ID: 8, StoreID: 4},
 			},
 		},
-		&metapb.Replica{ID: 7, ContainerID: 3},
+		&metapb.Replica{ID: 7, StoreID: 3},
 		core.SetApproximateSize(1),
 		core.SetApproximateKeys(1),
 	)
-	tc.PutResource(res)
+	tc.PutShard(res)
 	operators := sb.Schedule(tc)
 	assert.NotNil(t, operators)
 
 	for i := uint64(10); i < 60; i++ {
-		tc.PutResourceContainers(i, 1, 3, 4)
+		tc.PutShardStores(i, 1, 3, 4)
 	}
 	operators = sb.Schedule(tc)
 	assert.Nil(t, operators)
@@ -1057,11 +1056,11 @@ func TestMerge(t *testing.T) {
 	mb, err := schedule.CreateScheduler(RandomMergeType, oc, storage.NewTestStorage(), schedule.ConfigSliceDecoder(RandomMergeType, []string{"0", "", ""}))
 	assert.NoError(t, err)
 
-	tc.AddResourceContainer(1, 4)
-	tc.AddLeaderResource(1, 1)
-	tc.AddLeaderResource(2, 1)
-	tc.AddLeaderResource(3, 1)
-	tc.AddLeaderResource(4, 1)
+	tc.AddShardStore(1, 4)
+	tc.AddLeaderShard(1, 1)
+	tc.AddLeaderShard(2, 1)
+	tc.AddLeaderShard(3, 1)
+	tc.AddLeaderShard(4, 1)
 
 	assert.True(t, mb.IsScheduleAllowed(tc))
 	ops := mb.Schedule(tc)
@@ -1102,48 +1101,48 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 	tc.DisableJointConsensus()
 	tc.SetTolerantSizeRatio(2.5)
 	// Add containers 1,2,3,4,5.
-	tc.AddResourceContainer(1, 0)
-	tc.AddResourceContainer(2, 0)
-	tc.AddResourceContainer(3, 0)
-	tc.AddResourceContainer(4, 0)
-	tc.AddResourceContainer(5, 0)
+	tc.AddShardStore(1, 0)
+	tc.AddShardStore(2, 0)
+	tc.AddShardStore(3, 0)
+	tc.AddShardStore(4, 0)
+	tc.AddShardStore(5, 0)
 	var (
 		id        uint64
-		resources []*metadata.TestResource
+		resources []metapb.Shard
 	)
 	for i := 0; i < 50; i++ {
 		peers := []metapb.Replica{
-			{ID: id + 1, ContainerID: 1},
-			{ID: id + 2, ContainerID: 2},
-			{ID: id + 3, ContainerID: 3},
+			{ID: id + 1, StoreID: 1},
+			{ID: id + 2, StoreID: 2},
+			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.TestResource{
-			ResID:    id + 4,
-			ResPeers: peers,
+		resources = append(resources, metapb.Shard{
+			ID:       id + 4,
+			Replicas: peers,
 			Start:    []byte(fmt.Sprintf("s_%02d", i)),
 			End:      []byte(fmt.Sprintf("s_%02d", i+1)),
 		})
 		id += 4
 	}
 	// empty case
-	resources[49].End = []byte("")
+	resources[49].SetEndKey([]byte(""))
 	for _, meta := range resources {
 		leader := rand.Intn(4) % 3
-		resourceInfo := core.NewCachedResource(
+		resourceInfo := core.NewCachedShard(
 			meta,
-			&meta.Peers()[leader],
+			&meta.GetReplicas()[leader],
 			core.SetApproximateKeys(96),
 			core.SetApproximateSize(96),
 		)
 
-		tc.Resources.SetResource(resourceInfo)
+		tc.Shards.SetShard(resourceInfo)
 	}
 	for i := 0; i < 100; i++ {
 		_, err := tc.AllocPeer(1)
 		assert.NoError(t, err)
 	}
 	for i := 1; i <= 5; i++ {
-		tc.UpdateContainerStatus(uint64(i))
+		tc.UpdateStoreStatus(uint64(i))
 	}
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)
 
@@ -1162,9 +1161,9 @@ func TestScatterRangeLeaderBalance(t *testing.T) {
 		schedule.ApplyOperator(tc, ops[0])
 	}
 	for i := 1; i <= 5; i++ {
-		leaderCount := tc.Resources.GetContainerLeaderCount("", uint64(i))
+		leaderCount := tc.Shards.GetStoreLeaderCount("", uint64(i))
 		assert.True(t, leaderCount <= 12)
-		resourceCount := tc.Resources.GetContainerResourceCount("", uint64(i))
+		resourceCount := tc.Shards.GetStoreShardCount("", uint64(i))
 		assert.True(t, resourceCount <= 32)
 	}
 }
@@ -1207,49 +1206,49 @@ func TestBalanceWhenresourceNotHeartbeat(t *testing.T) {
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
 	// Add containers 1,2,3.
-	tc.AddResourceContainer(1, 0)
-	tc.AddResourceContainer(2, 0)
-	tc.AddResourceContainer(3, 0)
+	tc.AddShardStore(1, 0)
+	tc.AddShardStore(2, 0)
+	tc.AddShardStore(3, 0)
 	var (
 		id        uint64
-		resources []*metadata.TestResource
+		resources []metapb.Shard
 	)
 	for i := 0; i < 10; i++ {
 		peers := []metapb.Replica{
-			{ID: id + 1, ContainerID: 1},
-			{ID: id + 2, ContainerID: 2},
-			{ID: id + 3, ContainerID: 3},
+			{ID: id + 1, StoreID: 1},
+			{ID: id + 2, StoreID: 2},
+			{ID: id + 3, StoreID: 3},
 		}
-		resources = append(resources, &metadata.TestResource{
-			ResID:    id + 4,
-			ResPeers: peers,
+		resources = append(resources, metapb.Shard{
+			ID:       id + 4,
+			Replicas: peers,
 			Start:    []byte(fmt.Sprintf("s_%02d", i)),
 			End:      []byte(fmt.Sprintf("s_%02d", i+1)),
 		})
 		id += 4
 	}
 	// empty case
-	resources[9].End = []byte("")
+	resources[9].SetEndKey([]byte(""))
 
 	// To simulate server prepared,
 	// container 1 contains 8 leader resource peers and leaders of 2 resources are unknown yet.
 	for _, meta := range resources {
 		var leader *metapb.Replica
-		if meta.ID() < 8 {
-			leader = &meta.Peers()[0]
+		if meta.GetID() < 8 {
+			leader = &meta.GetReplicas()[0]
 		}
-		resourceInfo := core.NewCachedResource(
+		resourceInfo := core.NewCachedShard(
 			meta,
 			leader,
 			core.SetApproximateKeys(96),
 			core.SetApproximateSize(96),
 		)
 
-		tc.Resources.SetResource(resourceInfo)
+		tc.Shards.SetShard(resourceInfo)
 	}
 
 	for i := 1; i <= 3; i++ {
-		tc.UpdateContainerStatus(uint64(i))
+		tc.UpdateStoreStatus(uint64(i))
 	}
 
 	oc := schedule.NewOperatorController(s.ctx, tc, nil)

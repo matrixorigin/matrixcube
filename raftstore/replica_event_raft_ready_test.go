@@ -23,7 +23,7 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
@@ -92,15 +92,15 @@ func TestSendRaftMesasgeReturnsErrUnknownReplicaWhenReplicaIsUnknown(t *testing.
 }
 
 type replicaTestTransport struct {
-	messages []meta.RaftMessage
+	messages []metapb.RaftMessage
 }
 
-func (t *replicaTestTransport) Send(m meta.RaftMessage) bool {
+func (t *replicaTestTransport) Send(m metapb.RaftMessage) bool {
 	t.messages = append(t.messages, m)
 	return true
 }
 
-func (t *replicaTestTransport) SendSnapshot(m meta.RaftMessage) bool {
+func (t *replicaTestTransport) SendSnapshot(m metapb.RaftMessage) bool {
 	t.messages = append(t.messages, m)
 	return true
 }
@@ -113,7 +113,7 @@ func (t *replicaTestTransport) Close() error {
 	return nil
 }
 
-func (t *replicaTestTransport) SetFilter(func(meta.RaftMessage) bool) {
+func (t *replicaTestTransport) SetFilter(func(metapb.RaftMessage) bool) {
 	panic("not implemented")
 }
 
@@ -248,7 +248,7 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		base := kv.NewBaseStorage(dsMem, fs)
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
-		replicaRec := Replica{ID: 1, ContainerID: 100}
+		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 

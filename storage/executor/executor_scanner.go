@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"math"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/buf"
@@ -27,7 +27,7 @@ type scanOptions struct {
 	filterFunc func([]byte) bool
 }
 
-func (opts *scanOptions) adjust(shard meta.Shard) {
+func (opts *scanOptions) adjust(shard metapb.Shard) {
 	if len(opts.startKey) == 0 ||
 		bytes.Compare(opts.startKey, shard.Start) < 0 { // opts.startKey < shard.Start
 		opts.startKey = shard.Start
@@ -124,7 +124,7 @@ type DataStorageScanner interface {
 	//
 	// completed to true means that the scan is completed in all shards, otherwise the
 	// client needs nextKeyPolicy to create the startKey for the next scan.
-	Scan(shard meta.Shard, handler func(key, value []byte) error, options ...ScanOption) (completed bool, nextKeyPolicy ScanStartKeyPolicy, err error)
+	Scan(shard metapb.Shard, handler func(key, value []byte) error, options ...ScanOption) (completed bool, nextKeyPolicy ScanStartKeyPolicy, err error)
 }
 
 type kvBasedDataStorageScanner struct {
@@ -138,7 +138,7 @@ func NewKVBasedDataStorageScanner(kv storage.KVStorage) DataStorageScanner {
 	}
 }
 
-func (s *kvBasedDataStorageScanner) Scan(shard meta.Shard, handler func(key, value []byte) error, options ...ScanOption) (bool, ScanStartKeyPolicy, error) {
+func (s *kvBasedDataStorageScanner) Scan(shard metapb.Shard, handler func(key, value []byte) error, options ...ScanOption) (bool, ScanStartKeyPolicy, error) {
 	var opts scanOptions
 	for _, opt := range options {
 		opt(&opts)

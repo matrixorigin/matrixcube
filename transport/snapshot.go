@@ -38,7 +38,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -49,7 +49,7 @@ var (
 )
 
 // SendSnapshot asynchronously sends raft snapshot message to its target.
-func (t *Transport) SendSnapshot(m meta.RaftMessage) bool {
+func (t *Transport) SendSnapshot(m metapb.RaftMessage) bool {
 	if !t.sendSnapshot(m) {
 		t.logger.Error("failed to send snapshot",
 			log.RaftMessageField("message", m))
@@ -59,7 +59,7 @@ func (t *Transport) SendSnapshot(m meta.RaftMessage) bool {
 	return true
 }
 
-func (t *Transport) sendSnapshot(m meta.RaftMessage) bool {
+func (t *Transport) sendSnapshot(m metapb.RaftMessage) bool {
 	if m.Message.Type != raftpb.MsgSnap {
 		panic("not a snapshot message")
 	}
@@ -72,7 +72,7 @@ func (t *Transport) sendSnapshot(m meta.RaftMessage) bool {
 		return false
 	}
 
-	storeID := m.To.ContainerID
+	storeID := m.To.StoreID
 	targetInfo, resolved := t.resolve(storeID, m.ShardID)
 	if !resolved {
 		return false
@@ -98,9 +98,9 @@ func (t *Transport) sendSnapshot(m meta.RaftMessage) bool {
 	return true
 }
 
-func (t *Transport) getEnv(m meta.RaftMessage) snapshot.SSEnv {
+func (t *Transport) getEnv(m metapb.RaftMessage) snapshot.SSEnv {
 	ss := m.Message.Snapshot
-	si := meta.SnapshotInfo{}
+	si := metapb.SnapshotInfo{}
 	protoc.MustUnmarshal(&si, ss.Data)
 	env := snapshot.NewSSEnv(t.dir, m.ShardID, m.From.ID,
 		ss.Metadata.Index, si.Extra, snapshot.CreatingMode, t.fs)
@@ -159,20 +159,20 @@ func (t *Transport) sendSnapshotNotification(shardID uint64,
 	t.snapshotStatus(shardID, replicaID, ss, rejected)
 }
 
-func splitSnapshotMessage(m meta.RaftMessage,
+func splitSnapshotMessage(m metapb.RaftMessage,
 	snapshotDir string, chunkSize uint64,
-	fs vfs.FS) ([]meta.SnapshotChunk, error) {
+	fs vfs.FS) ([]metapb.SnapshotChunk, error) {
 	if m.Message.Type != raftpb.MsgSnap {
 		panic("not a snapshot message")
 	}
 	return getChunks(m, snapshotDir, "", chunkSize, fs)
 }
 
-func getChunks(m meta.RaftMessage,
+func getChunks(m metapb.RaftMessage,
 	snapshotDir string, checkDir string, chunkSize uint64,
-	fs vfs.FS) ([]meta.SnapshotChunk, error) {
+	fs vfs.FS) ([]metapb.SnapshotChunk, error) {
 	startChunkID := uint64(0)
-	results := make([]meta.SnapshotChunk, 0)
+	results := make([]metapb.SnapshotChunk, 0)
 
 	dir := snapshotDir
 	if len(checkDir) > 0 {
@@ -190,7 +190,7 @@ func getChunks(m meta.RaftMessage,
 		if err != nil {
 			return nil, err
 		}
-		var chunks []meta.SnapshotChunk
+		var chunks []metapb.SnapshotChunk
 		if fileInfo.IsDir() {
 			chunks, err = getChunks(m,
 				snapshotDir, fs.PathJoin(checkDir, fp), chunkSize, fs)
@@ -213,13 +213,13 @@ func getChunks(m meta.RaftMessage,
 }
 
 // filepath is the relative path from the snapshot dir
-func splitBySnapshotFile(msg meta.RaftMessage,
+func splitBySnapshotFile(msg metapb.RaftMessage,
 	filepath string, filesize uint64,
-	startChunkID uint64, chunkSize uint64) []meta.SnapshotChunk {
+	startChunkID uint64, chunkSize uint64) []metapb.SnapshotChunk {
 	if filesize == 0 {
 		panic("empty file")
 	}
-	results := make([]meta.SnapshotChunk, 0)
+	results := make([]metapb.SnapshotChunk, 0)
 	chunkCount := (filesize-1)/chunkSize + 1
 	for i := uint64(0); i < chunkCount; i++ {
 		var csz uint64
@@ -228,8 +228,8 @@ func splitBySnapshotFile(msg meta.RaftMessage,
 		} else {
 			csz = chunkSize
 		}
-		c := meta.SnapshotChunk{
-			ContainerID:    msg.To.ContainerID,
+		c := metapb.SnapshotChunk{
+			StoreID:        msg.To.StoreID,
 			ShardID:        msg.ShardID,
 			ReplicaID:      msg.To.ID,
 			From:           msg.From.ID,
@@ -249,7 +249,7 @@ func splitBySnapshotFile(msg meta.RaftMessage,
 	return results
 }
 
-func loadChunkData(chunk meta.SnapshotChunk,
+func loadChunkData(chunk metapb.SnapshotChunk,
 	snapshotDir string, data []byte, chunkSize uint64,
 	fs vfs.FS) (result []byte, err error) {
 	fp := fs.PathJoin(snapshotDir, chunk.FilePath)

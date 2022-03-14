@@ -51,7 +51,7 @@ var (
 			Help:      "Status of the hotspot.",
 		}, []string{"address", "container", "type"})
 
-	patrolCheckResourcesGauge = prometheus.NewGauge(
+	patrolCheckShardsGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "prophet",
 			Subsystem: "checker",
@@ -88,7 +88,7 @@ func init() {
 	prometheus.MustRegister(healthStatusGauge)
 	prometheus.MustRegister(schedulerStatusGauge)
 	prometheus.MustRegister(hotSpotStatusGauge)
-	prometheus.MustRegister(patrolCheckResourcesGauge)
+	prometheus.MustRegister(patrolCheckShardsGauge)
 	prometheus.MustRegister(clusterStateCPUGauge)
 	prometheus.MustRegister(clusterStateCurrent)
 	prometheus.MustRegister(resourceWaitingListGauge)

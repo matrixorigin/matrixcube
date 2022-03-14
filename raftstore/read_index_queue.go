@@ -17,12 +17,12 @@ import (
 	"bytes"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.etcd.io/etcd/raft/v3"
 	"go.uber.org/zap"
 )
 
-type requestExecutor func(req rpc.Request)
+type requestExecutor func(req rpcpb.Request)
 
 type readyRead struct {
 	batch batch

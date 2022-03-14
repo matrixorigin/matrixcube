@@ -20,13 +20,13 @@ import (
 	"strconv"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/filter"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -96,7 +96,7 @@ func newBalanceLeaderScheduler(opController *schedule.OperatorController, conf *
 		option(s)
 	}
 	s.filters = []filter.Filter{
-		&filter.ContainerStateFilter{ActionScope: s.GetName(), TransferLeader: true},
+		&filter.StoreStateFilter{ActionScope: s.GetName(), TransferLeader: true},
 		filter.NewSpecialUseFilter(s.GetName()),
 	}
 	s.scheduleField = zap.String("scheduler", s.GetName())
@@ -143,26 +143,26 @@ func (l *balanceLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(l.GetName(), "schedule").Inc()
 
-	containers := cluster.GetContainers()
+	containers := cluster.GetStores()
 	if len(containers) <= 1 {
 		return nil
 	}
 
 	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	opInfluence := l.opController.GetOpInfluence(cluster)
-	sources := filter.SelectSourceContainers(containers, l.filters, cluster.GetOpts())
-	targets := filter.SelectTargetContainers(containers, l.filters, cluster.GetOpts())
-	kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
+	sources := filter.SelectSourceStores(containers, l.filters, cluster.GetOpts())
+	targets := filter.SelectTargetStores(containers, l.filters, cluster.GetOpts())
+	kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, leaderSchedulePolicy)
 	for _, groupKey := range cluster.GetScheduleGroupKeys() {
 		sort.Slice(sources, func(i, j int) bool {
-			iOp := opInfluence.GetContainerInfluence(sources[i].Meta.ID()).ResourceProperty(kind, groupKey)
-			jOp := opInfluence.GetContainerInfluence(sources[j].Meta.ID()).ResourceProperty(kind, groupKey)
+			iOp := opInfluence.GetStoreInfluence(sources[i].Meta.GetID()).ShardProperty(kind, groupKey)
+			jOp := opInfluence.GetStoreInfluence(sources[j].Meta.GetID()).ShardProperty(kind, groupKey)
 			return sources[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) >
 				sources[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 		})
 		sort.Slice(targets, func(i, j int) bool {
-			iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind, groupKey)
-			jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind, groupKey)
+			iOp := opInfluence.GetStoreInfluence(targets[i].Meta.GetID()).ShardProperty(kind, groupKey)
+			jOp := opInfluence.GetStoreInfluence(targets[j].Meta.GetID()).ShardProperty(kind, groupKey)
 			return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) <
 				targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 		})
@@ -170,16 +170,16 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 		for i := 0; i < len(sources) || i < len(targets); i++ {
 			if i < len(sources) {
 				source := sources[i]
-				sourceID := source.Meta.ID()
+				sourceID := source.Meta.GetID()
 				cluster.GetLogger().Debug("check resource leader out",
 					rebalanceLeaderField,
 					l.scheduleField,
 					sourceField(sourceID))
-				sourceContainerLabel := strconv.FormatUint(sourceID, 10)
-				l.counter.WithLabelValues("high-score", sourceContainerLabel).Inc()
+				sourceStoreLabel := strconv.FormatUint(sourceID, 10)
+				l.counter.WithLabelValues("high-score", sourceStoreLabel).Inc()
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
 					if ops := l.transferLeaderOut(groupKey, cluster, source, opInfluence); len(ops) > 0 {
-						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-out", sourceContainerLabel))
+						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-out", sourceStoreLabel))
 						return ops
 					}
 				}
@@ -190,17 +190,17 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 			}
 			if i < len(targets) {
 				target := targets[i]
-				targetID := target.Meta.ID()
+				targetID := target.Meta.GetID()
 				cluster.GetLogger().Debug("check resource leader in",
 					rebalanceLeaderField,
 					l.scheduleField,
 					targetField(targetID))
-				targetContainerLabel := strconv.FormatUint(targetID, 10)
-				l.counter.WithLabelValues("low-score", targetContainerLabel).Inc()
+				targetStoreLabel := strconv.FormatUint(targetID, 10)
+				l.counter.WithLabelValues("low-score", targetStoreLabel).Inc()
 
 				for j := 0; j < balanceLeaderRetryLimit; j++ {
 					if ops := l.transferLeaderIn(groupKey, cluster, target); len(ops) > 0 {
-						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-in", targetContainerLabel))
+						ops[0].Counters = append(ops[0].Counters, l.counter.WithLabelValues("transfer-in", targetStoreLabel))
 						return ops
 					}
 				}
@@ -218,9 +218,9 @@ func (l *balanceLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 // transferLeaderOut transfers leader from the source container.
 // It randomly selects a health resource from the source container, then picks
 // the best follower peer and transfers the leader.
-func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.Cluster, source *core.CachedContainer, opInfluence operator.OpInfluence) []*operator.Operator {
-	sourceID := source.Meta.ID()
-	resource := cluster.RandLeaderResource(groupKey, sourceID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
+func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.Cluster, source *core.CachedStore, opInfluence operator.OpInfluence) []*operator.Operator {
+	sourceID := source.Meta.GetID()
+	resource := cluster.RandLeaderShard(groupKey, sourceID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no leader, nothing to do",
 			rebalanceLeaderField,
@@ -229,18 +229,17 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader-resource").Inc()
 		return nil
 	}
-	targets := cluster.GetFollowerContainers(resource)
+	targets := cluster.GetFollowerStores(resource)
 	finalFilters := l.filters
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source,
-		l.opController.GetCluster().GetResourceFactory()); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
-	targets = filter.SelectTargetContainers(targets, finalFilters, cluster.GetOpts())
+	targets = filter.SelectTargetStores(targets, finalFilters, cluster.GetOpts())
 	leaderSchedulePolicy := l.opController.GetLeaderSchedulePolicy()
 	sort.Slice(targets, func(i, j int) bool {
-		kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, leaderSchedulePolicy)
-		iOp := opInfluence.GetContainerInfluence(targets[i].Meta.ID()).ResourceProperty(kind, groupKey)
-		jOp := opInfluence.GetContainerInfluence(targets[j].Meta.ID()).ResourceProperty(kind, groupKey)
+		kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, leaderSchedulePolicy)
+		iOp := opInfluence.GetStoreInfluence(targets[i].Meta.GetID()).ShardProperty(kind, groupKey)
+		jOp := opInfluence.GetStoreInfluence(targets[j].Meta.GetID()).ShardProperty(kind, groupKey)
 		return targets[i].LeaderScore(groupKey, leaderSchedulePolicy, iOp) < targets[j].LeaderScore(groupKey, leaderSchedulePolicy, jOp)
 	})
 	for _, target := range targets {
@@ -253,7 +252,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 		rebalanceLeaderField,
 		l.scheduleField,
 		sourceField(sourceID),
-		resourceField(resource.Meta.ID()))
+		resourceField(resource.Meta.GetID()))
 	schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 	return nil
 }
@@ -261,9 +260,9 @@ func (l *balanceLeaderScheduler) transferLeaderOut(groupKey string, cluster opt.
 // transferLeaderIn transfers leader to the target container.
 // It randomly selects a health resource from the target container, then picks
 // the worst follower peer and transfers the leader.
-func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.Cluster, target *core.CachedContainer) []*operator.Operator {
-	targetID := target.Meta.ID()
-	resource := cluster.RandFollowerResource(groupKey, targetID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
+func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.Cluster, target *core.CachedStore) []*operator.Operator {
+	targetID := target.Meta.GetID()
+	resource := cluster.RandFollowerShard(groupKey, targetID, l.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if resource == nil {
 		cluster.GetLogger().Debug("selected container has no folower, nothing to do",
 			rebalanceLeaderField,
@@ -272,31 +271,30 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 		schedulerCounter.WithLabelValues(l.GetName(), "no-follower-resource").Inc()
 		return nil
 	}
-	leaderContainerID := resource.GetLeader().GetContainerID()
-	source := cluster.GetContainer(leaderContainerID)
+	leaderStoreID := resource.GetLeader().GetStoreID()
+	source := cluster.GetStore(leaderStoreID)
 	if source == nil {
 		cluster.GetLogger().Debug("selected random follower resource has no leader, nothing to do",
 			rebalanceLeaderField,
 			l.scheduleField,
-			targetField(leaderContainerID),
-			resourceField(resource.Meta.ID()))
+			targetField(leaderStoreID),
+			resourceField(resource.Meta.GetID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-leader").Inc()
 		return nil
 	}
-	targets := []*core.CachedContainer{
+	targets := []*core.CachedStore{
 		target,
 	}
 	finalFilters := l.filters
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source,
-		l.opController.GetCluster().GetResourceFactory()); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), cluster, resource, source); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
-	targets = filter.SelectTargetContainers(targets, finalFilters, cluster.GetOpts())
+	targets = filter.SelectTargetStores(targets, finalFilters, cluster.GetOpts())
 	if len(targets) < 1 {
 		cluster.GetLogger().Debug("selected random follower resource has no target container",
 			rebalanceLeaderField,
 			l.scheduleField,
-			resourceField(resource.Meta.ID()))
+			resourceField(resource.Meta.GetID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "no-target-container").Inc()
 		return nil
 	}
@@ -307,28 +305,28 @@ func (l *balanceLeaderScheduler) transferLeaderIn(groupKey string, cluster opt.C
 // If the resource is hot or the difference between the two containers is tolerable, then
 // no new operator need to be created, otherwise create an operator that transfers
 // the leader from the source container to the target container for the resource.
-func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.CachedResource, source, target *core.CachedContainer) []*operator.Operator {
-	if cluster.IsResourceHot(res) {
+func (l *balanceLeaderScheduler) createOperator(cluster opt.Cluster, res *core.CachedShard, source, target *core.CachedStore) []*operator.Operator {
+	if cluster.IsShardHot(res) {
 		cluster.GetLogger().Debug("ignore hot resource",
 			rebalanceLeaderField,
 			l.scheduleField,
-			resourceField(res.Meta.ID()))
+			resourceField(res.Meta.GetID()))
 		schedulerCounter.WithLabelValues(l.GetName(), "resource-hot").Inc()
 		return nil
 	}
 
-	sourceID := source.Meta.ID()
-	targetID := target.Meta.ID()
+	sourceID := source.Meta.GetID()
+	targetID := target.Meta.GetID()
 
 	opInfluence := l.opController.GetOpInfluence(cluster)
-	kind := core.NewScheduleKind(metapb.ResourceKind_LeaderKind, cluster.GetOpts().GetLeaderSchedulePolicy())
+	kind := core.NewScheduleKind(metapb.ShardType_LeaderOnly, cluster.GetOpts().GetLeaderSchedulePolicy())
 	shouldBalance, sourceScore, targetScore := shouldBalance(cluster, source, target, res, kind, opInfluence, l.GetName())
 	if !shouldBalance {
 		schedulerCounter.WithLabelValues(l.GetName(), "skip").Inc()
 		return nil
 	}
 
-	op, err := operator.CreateTransferLeaderOperator(BalanceLeaderType, cluster, res, res.GetLeader().GetContainerID(), targetID, operator.OpLeader)
+	op, err := operator.CreateTransferLeaderOperator(BalanceLeaderType, cluster, res, res.GetLeader().GetStoreID(), targetID, operator.OpLeader)
 	if err != nil {
 		cluster.GetLogger().Debug("fail to create balance leader operator",
 			rebalanceLeaderField,

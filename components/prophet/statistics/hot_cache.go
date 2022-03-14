@@ -33,19 +33,19 @@ type HotCache struct {
 // NewHotCache creates a new hot spot cache.
 func NewHotCache() *HotCache {
 	return &HotCache{
-		writeFlow: newHotContainersStats(WriteFlow),
-		readFlow:  newHotContainersStats(ReadFlow),
+		writeFlow: newHotStoresStats(WriteFlow),
+		readFlow:  newHotStoresStats(ReadFlow),
 	}
 }
 
 // CheckWrite checks the write status, returns update items.
-func (w *HotCache) CheckWrite(res *core.CachedResource) []*HotPeerStat {
-	return w.writeFlow.CheckResourceFlow(res)
+func (w *HotCache) CheckWrite(res *core.CachedShard) []*HotPeerStat {
+	return w.writeFlow.CheckShardFlow(res)
 }
 
 // CheckRead checks the read status, returns update items.
-func (w *HotCache) CheckRead(res *core.CachedResource) []*HotPeerStat {
-	return w.readFlow.CheckResourceFlow(res)
+func (w *HotCache) CheckRead(res *core.CachedShard) []*HotPeerStat {
+	return w.readFlow.CheckShardFlow(res)
 }
 
 // Update updates the cache.
@@ -58,37 +58,37 @@ func (w *HotCache) Update(item *HotPeerStat) {
 	}
 
 	if item.IsNeedDelete() {
-		w.incMetrics("remove_item", item.ContainerID, item.Kind)
+		w.incMetrics("remove_item", item.StoreID, item.Kind)
 	} else if item.IsNew() {
-		w.incMetrics("add_item", item.ContainerID, item.Kind)
+		w.incMetrics("add_item", item.StoreID, item.Kind)
 	} else {
-		w.incMetrics("update_item", item.ContainerID, item.Kind)
+		w.incMetrics("update_item", item.StoreID, item.Kind)
 	}
 }
 
-// ResourceStats returns hot items according to kind
-func (w *HotCache) ResourceStats(kind FlowKind, minHotDegree int) map[uint64][]*HotPeerStat {
+// ShardStats returns hot items according to kind
+func (w *HotCache) ShardStats(kind FlowKind, minHotDegree int) map[uint64][]*HotPeerStat {
 	switch kind {
 	case WriteFlow:
-		return w.writeFlow.ResourceStats(minHotDegree)
+		return w.writeFlow.ShardStats(minHotDegree)
 	case ReadFlow:
-		return w.readFlow.ResourceStats(minHotDegree)
+		return w.readFlow.ShardStats(minHotDegree)
 	}
 	return nil
 }
 
-// RandHotResourceFromContainer random picks a hot resource in specify store.
-func (w *HotCache) RandHotResourceFromContainer(storeID uint64, kind FlowKind, minHotDegree int) *HotPeerStat {
-	if stats, ok := w.ResourceStats(kind, minHotDegree)[storeID]; ok && len(stats) > 0 {
+// RandHotShardFromStore random picks a hot resource in specify store.
+func (w *HotCache) RandHotShardFromStore(storeID uint64, kind FlowKind, minHotDegree int) *HotPeerStat {
+	if stats, ok := w.ShardStats(kind, minHotDegree)[storeID]; ok && len(stats) > 0 {
 		return stats[rand.Intn(len(stats))]
 	}
 	return nil
 }
 
-// IsResourceHot checks if the resource is hot.
-func (w *HotCache) IsResourceHot(res *core.CachedResource, minHotDegree int) bool {
-	return w.writeFlow.IsResourceHot(res, minHotDegree) ||
-		w.readFlow.IsResourceHot(res, minHotDegree)
+// IsShardHot checks if the resource is hot.
+func (w *HotCache) IsShardHot(res *core.CachedShard, minHotDegree int) bool {
+	return w.writeFlow.IsShardHot(res, minHotDegree) ||
+		w.readFlow.IsShardHot(res, minHotDegree)
 }
 
 // CollectMetrics collects the hot cache metrics.

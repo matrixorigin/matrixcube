@@ -23,7 +23,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
@@ -52,15 +52,15 @@ func runReplicaSnapshotTest(t *testing.T,
 		return fp
 	}
 	snapshotter := newSnapshotter(1, 1, logger, replicaSnapshotDir, ldb, fs)
-	replicaRec := Replica{ID: 1, ContainerID: 100}
+	replicaRec := Replica{ID: 1, StoreID: 100}
 	shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 	dsMem := mem.NewStorage()
 	base := kv.NewBaseStorage(dsMem, fs)
 	ds := kv.NewKVDataStorage(base, nil)
 	defer ds.Close()
 
-	assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{
-		{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
+	assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{
+		{ShardID: 1, LogIndex: 100, Metadata: metapb.ShardLocalState{Shard: shard}},
 	}))
 	assert.NoError(t, ds.Sync([]uint64{1}))
 
@@ -94,7 +94,7 @@ func TestReplicaSnapshotCanBeCreated(t *testing.T) {
 		assert.Equal(t, uint64(100), ss.Metadata.Index)
 		assert.True(t, created)
 
-		var si meta.SnapshotInfo
+		var si metapb.SnapshotInfo
 		protoc.MustUnmarshal(&si, ss.Data)
 		env := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
 			1, 1, ss.Metadata.Index, si.Extra, snapshot.CreatingMode, r.snapshotter.fs)
@@ -125,10 +125,10 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 		r.aware.Created(r.getShard())
 
 		// update shard
-		replicaRec := Replica{ID: 1, ContainerID: 100}
+		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}, Start: []byte{1}, End: []byte{2}}
-		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
-			{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
+			{ShardID: 1, LogIndex: 100, Metadata: metapb.ShardLocalState{Shard: shard}},
 		}))
 
 		ss, created, err := r.createSnapshot()
@@ -188,7 +188,7 @@ func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, created)
 
-		var si1 meta.SnapshotInfo
+		var si1 metapb.SnapshotInfo
 		protoc.MustUnmarshal(&si1, ss1.Data)
 		env1 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
 			1, 1, ss1.Metadata.Index, si1.Extra, snapshot.CreatingMode, r.snapshotter.fs)
@@ -203,7 +203,7 @@ func TestCreatingTheSameSnapshotAgainIsTolerated(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, created)
 
-		var si2 meta.SnapshotInfo
+		var si2 metapb.SnapshotInfo
 		protoc.MustUnmarshal(&si2, ss2.Data)
 		env2 := snapshot.NewSSEnv(r.snapshotter.rootDirFunc,
 			1, 1, ss2.Metadata.Index, si2.Extra, snapshot.CreatingMode, r.snapshotter.fs)
@@ -255,10 +255,10 @@ func testSnapshotCompaction(t *testing.T, index uint64, matched bool) {
 		r.aware.Created(r.getShard())
 
 		// update shard
-		replicaRec := Replica{ID: 1, ContainerID: 100}
+		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}, Start: []byte{1}, End: []byte{2}}
-		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
-			{ShardID: 1, LogIndex: 100, Metadata: meta.ShardLocalState{Shard: shard}},
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
+			{ShardID: 1, LogIndex: 100, Metadata: metapb.ShardLocalState{Shard: shard}},
 		}))
 		ss1, created, err := r.createSnapshot()
 		if err != nil {
@@ -267,8 +267,8 @@ func testSnapshotCompaction(t *testing.T, index uint64, matched bool) {
 		assert.Equal(t, uint64(100), ss1.Metadata.Index)
 		assert.True(t, created)
 
-		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]meta.ShardMetadata{
-			{ShardID: 1, LogIndex: 200, Metadata: meta.ShardLocalState{Shard: shard}},
+		assert.NoError(t, r.sm.dataStorage.SaveShardMetadata([]metapb.ShardMetadata{
+			{ShardID: 1, LogIndex: 200, Metadata: metapb.ShardLocalState{Shard: shard}},
 		}))
 		r.sm.updateAppliedIndexTerm(200, 2)
 		ss2, created, err := r.createSnapshot()

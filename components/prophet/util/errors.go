@@ -25,10 +25,10 @@ var (
 
 	// ErrReq invalid request
 	ErrReq = errors.New("invalid req")
-	// ErrStaleResource  stale resource
-	ErrStaleResource = errors.New("stale resource")
-	// ErrTombstoneContainer t ombstone container
-	ErrTombstoneContainer = errors.New("container is tombstone")
+	// ErrStaleShard  stale resource
+	ErrStaleShard = errors.New("stale resource")
+	// ErrTombstoneStore t ombstone container
+	ErrTombstoneStore = errors.New("container is tombstone")
 
 	// ErrSchedulerExisted error with scheduler is existed
 	ErrSchedulerExisted = errors.New("scheduler is existed")

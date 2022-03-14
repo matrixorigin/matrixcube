@@ -36,8 +36,8 @@ const (
 	EvictLeaderType = "evict-leader"
 	// EvictLeaderBatchSize is the number of operators to to transfer
 	// leaders by one scheduling
-	EvictLeaderBatchSize    = 3
-	lastContainerDeleteInfo = "The last container has been deleted"
+	EvictLeaderBatchSize = 3
+	lastStoreDeleteInfo  = "The last container has been deleted"
 )
 
 func init() {
@@ -59,14 +59,14 @@ func init() {
 			if err != nil {
 				return err
 			}
-			conf.ContainerIDWithRanges[id] = ranges
+			conf.StoreIDWithRanges[id] = ranges
 			return nil
 
 		}
 	})
 
 	schedule.RegisterScheduler(EvictLeaderType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := &evictLeaderSchedulerConfig{ContainerIDWithRanges: make(map[uint64][]core.KeyRange), storage: storage}
+		conf := &evictLeaderSchedulerConfig{StoreIDWithRanges: make(map[uint64][]core.KeyRange), storage: storage}
 		if err := decoder(conf); err != nil {
 			return nil, err
 		}
@@ -76,11 +76,11 @@ func init() {
 }
 
 type evictLeaderSchedulerConfig struct {
-	mu                         sync.RWMutex
-	storage                    storage.Storage
-	ContainerIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
-	cluster                    opt.Cluster
-	groupContainerIDWithRanges map[uint64]map[uint64][]core.KeyRange
+	mu                     sync.RWMutex
+	storage                storage.Storage
+	StoreIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
+	cluster                opt.Cluster
+	groupStoreIDWithRanges map[uint64]map[uint64][]core.KeyRange
 }
 
 func (conf *evictLeaderSchedulerConfig) BuildWithArgs(args []string) error {
@@ -98,7 +98,7 @@ func (conf *evictLeaderSchedulerConfig) BuildWithArgs(args []string) error {
 	}
 	conf.mu.Lock()
 	defer conf.mu.Unlock()
-	conf.ContainerIDWithRanges[id] = ranges
+	conf.StoreIDWithRanges[id] = ranges
 	return nil
 }
 
@@ -106,7 +106,7 @@ func (conf *evictLeaderSchedulerConfig) Clone() *evictLeaderSchedulerConfig {
 	conf.mu.RLock()
 	defer conf.mu.RUnlock()
 	return &evictLeaderSchedulerConfig{
-		ContainerIDWithRanges: conf.ContainerIDWithRanges,
+		StoreIDWithRanges: conf.StoreIDWithRanges,
 	}
 }
 
@@ -134,13 +134,13 @@ type evictLeaderScheduler struct {
 // out of a container.
 func newEvictLeaderScheduler(opController *schedule.OperatorController, conf *evictLeaderSchedulerConfig) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
-	conf.groupContainerIDWithRanges = make(map[uint64]map[uint64][]core.KeyRange)
+	conf.groupStoreIDWithRanges = make(map[uint64]map[uint64][]core.KeyRange)
 	for _, group := range conf.cluster.GetOpts().GetReplicationConfig().Groups {
 		ms := make(map[uint64][]core.KeyRange)
-		for cid, rs := range conf.ContainerIDWithRanges {
+		for cid, rs := range conf.StoreIDWithRanges {
 			ms[cid] = groupKeyRanges(rs, []uint64{group})[group]
 		}
-		conf.groupContainerIDWithRanges[group] = ms
+		conf.groupStoreIDWithRanges[group] = ms
 	}
 	return &evictLeaderScheduler{
 		BaseScheduler: base,
@@ -166,7 +166,7 @@ func (s *evictLeaderScheduler) Prepare(cluster opt.Cluster) error {
 	s.conf.mu.RLock()
 	defer s.conf.mu.RUnlock()
 	var res error
-	for id := range s.conf.ContainerIDWithRanges {
+	for id := range s.conf.StoreIDWithRanges {
 		if err := cluster.PauseLeaderTransfer(id); err != nil {
 			res = err
 		}
@@ -177,7 +177,7 @@ func (s *evictLeaderScheduler) Prepare(cluster opt.Cluster) error {
 func (s *evictLeaderScheduler) Cleanup(cluster opt.Cluster) {
 	s.conf.mu.RLock()
 	defer s.conf.mu.RUnlock()
-	for id := range s.conf.ContainerIDWithRanges {
+	for id := range s.conf.StoreIDWithRanges {
 		cluster.ResumeLeaderTransfer(id)
 	}
 }
@@ -192,24 +192,24 @@ func (s *evictLeaderScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 
 func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Operator {
 	var ops []*operator.Operator
-	for group, ms := range s.conf.groupContainerIDWithRanges {
+	for group, ms := range s.conf.groupStoreIDWithRanges {
 		prefix := util.EncodeGroupKey(group, nil, nil)
 		for containerID, ranges := range ms {
 			groupKeys := cluster.GetScheduleGroupKeysWithPrefix(prefix)
 			for _, groupKey := range groupKeys {
-				res := cluster.RandLeaderResource(groupKey, containerID, ranges, opt.HealthResource(cluster))
+				res := cluster.RandLeaderShard(groupKey, containerID, ranges, opt.HealthShard(cluster))
 				if res == nil {
 					schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
 					continue
 				}
-				target := filter.NewCandidates(cluster.GetFollowerContainers(res)).
-					FilterTarget(cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
+				target := filter.NewCandidates(cluster.GetFollowerStores(res)).
+					FilterTarget(cluster.GetOpts(), &filter.StoreStateFilter{ActionScope: EvictLeaderName, TransferLeader: true}).
 					RandomPick()
 				if target == nil {
 					schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
 					continue
 				}
-				op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetContainerID(), target.Meta.ID(), operator.OpLeader)
+				op, err := operator.CreateTransferLeaderOperator(EvictLeaderType, cluster, res, res.GetLeader().GetStoreID(), target.Meta.GetID(), operator.OpLeader)
 				if err != nil {
 					cluster.GetLogger().Debug("fail to create evict leader operator",
 						zap.Error(err))
@@ -227,13 +227,13 @@ func (s *evictLeaderScheduler) scheduleOnce(cluster opt.Cluster) []*operator.Ope
 func (s *evictLeaderScheduler) uniqueAppend(dst []*operator.Operator, src ...*operator.Operator) []*operator.Operator {
 	resIDs := make(map[uint64]struct{})
 	for i := range dst {
-		resIDs[dst[i].ResourceID()] = struct{}{}
+		resIDs[dst[i].ShardID()] = struct{}{}
 	}
 	for i := range src {
-		if _, ok := resIDs[src[i].ResourceID()]; ok {
+		if _, ok := resIDs[src[i].ShardID()]; ok {
 			continue
 		}
-		resIDs[src[i].ResourceID()] = struct{}{}
+		resIDs[src[i].ShardID()] = struct{}{}
 		dst = append(dst, src[i])
 	}
 	return dst

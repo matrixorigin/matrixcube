@@ -24,8 +24,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
@@ -120,7 +120,7 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		defer ds.Close()
 		_, err = ds.GetInitialStates()
 		assert.NoError(t, err)
-		replicaRec := Replica{ID: 1, ContainerID: 100}
+		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 
@@ -173,11 +173,11 @@ func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
 		ds := kv.NewKVDataStorage(base, nil)
 		defer ds.Close()
 
-		assert.NoError(t, ds.SaveShardMetadata([]meta.ShardMetadata{
+		assert.NoError(t, ds.SaveShardMetadata([]metapb.ShardMetadata{
 			{
 				ShardID:  1,
 				LogIndex: 101,
-				Metadata: meta.ShardLocalState{
+				Metadata: metapb.ShardLocalState{
 					Shard: Shard{ID: 1},
 				},
 			},
@@ -186,7 +186,7 @@ func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
 		_, err = ds.GetInitialStates()
 		assert.NoError(t, err)
 
-		replicaRec := Replica{ID: 1, ContainerID: 100}
+		replicaRec := Replica{ID: 1, StoreID: 100}
 		shard := Shard{ID: 1, Replicas: []Replica{replicaRec}}
 		r.sm = newStateMachine(r.logger, ds, r.logdb, shard, replicaRec, nil, nil)
 		assert.False(t, r.initialized)
@@ -260,7 +260,7 @@ func TestDoCheckCompactLog(t *testing.T) {
 		1: {Match: 101},
 	}, 101)
 	v, _ := pr.requests.Peek()
-	req := &rpc.CompactLogRequest{}
+	req := &rpcpb.CompactLogRequest{}
 	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
 	assert.Equal(t, uint64(101), req.CompactIndex)
 
@@ -275,7 +275,7 @@ func TestDoCheckCompactLog(t *testing.T) {
 		1: {Match: 101},
 	}, 101)
 	v, _ = pr.requests.Peek()
-	req = &rpc.CompactLogRequest{}
+	req = &rpcpb.CompactLogRequest{}
 	protoc.MustUnmarshal(req, v.(reqCtx).req.Cmd)
 	assert.Equal(t, uint64(101), req.CompactIndex)
 

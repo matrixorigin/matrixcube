@@ -22,8 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -90,7 +89,7 @@ func (s *store) destroyReplica(shardID uint64,
 
 // cleanupTombstones is invoked during restart to cleanup data belongs to those
 // shards that have been tombstoned.
-func (s *store) cleanupTombstones(shards []meta.ShardLocalState) {
+func (s *store) cleanupTombstones(shards []metapb.ShardLocalState) {
 	for _, sls := range shards {
 		s.vacuumCleaner.addTask(vacuumTask{
 			shard:      sls.Shard,
@@ -110,7 +109,7 @@ func (s *store) vacuum(t vacuumTask) error {
 
 	if t.replica != nil {
 		if t.replica.closed() {
-			// this can happen when PD request to remove a splitting shard. two vaccum
+			// this can happen when PD request to remove a splitting shard. two vacuum
 			// tasks will be created, one for splitting and one for removal.
 			t.replica.logger.Info("skip vacuuming already closed replica")
 			return nil
@@ -125,7 +124,7 @@ func (s *store) vacuum(t vacuumTask) error {
 		}
 		t.replica.close()
 		// wait for the replica to be fully unloaded before removing it from the
-		// store. otherwise the raft worker might not be able to get the replica
+		// store. Otherwise, the raft worker might not be able to get the replica
 		// from the store and mark it as unloaded.
 		t.replica.logger.Info("waiting for the replica to be unloaded",
 			log.ReplicaIDField(t.shard.ID))
@@ -169,7 +168,7 @@ func (pr *replica) destroy(shardRemoved bool, reason string) error {
 		log.ReasonField(reason))
 
 	if shardRemoved {
-		pr.sm.setShardState(metapb.ResourceState_Destroyed)
+		pr.sm.setShardState(metapb.ShardState_Destroyed)
 	}
 	shard := pr.getShard()
 
@@ -178,7 +177,7 @@ func (pr *replica) destroy(shardRemoved bool, reason string) error {
 	// be overrided.
 	index, term := pr.sm.getAppliedIndexTerm()
 	return pr.sm.saveShardMetedata(index+1,
-		term, shard, meta.ReplicaState_Tombstone)
+		term, shard, metapb.ReplicaState_ReplicaTombstone)
 }
 
 func (pr *replica) confirmDestroyed() {

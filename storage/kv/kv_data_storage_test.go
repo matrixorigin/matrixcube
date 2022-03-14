@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/matrixorigin/matrixcube/keys"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
@@ -48,7 +48,7 @@ func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
 func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	tests := []struct {
-		inputs []meta.ShardMetadata
+		inputs []metapb.ShardMetadata
 	}{
 		{
 			inputs: newTestShardMetadata(2),
@@ -76,7 +76,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 				assert.Equal(t, m.LogIndex, index)
 				v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil))
 				assert.NoError(t, err)
-				var logIndex meta.LogIndex
+				var logIndex metapb.LogIndex
 				protoc.MustUnmarshal(&logIndex, v)
 				assert.Equal(t, m.LogIndex, logIndex.Index)
 			}
@@ -87,7 +87,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	cases := []struct {
-		inputs []meta.ShardMetadata
+		inputs []metapb.ShardMetadata
 	}{
 		{
 			inputs: newTestShardMetadata(2),
@@ -234,7 +234,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			kvd := s.(*kvDataStorage)
 			v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil))
 			assert.NoError(t, err)
-			var logIndex meta.LogIndex
+			var logIndex metapb.LogIndex
 			protoc.MustUnmarshal(&logIndex, v)
 			assert.Equal(t, uint64(c.requests), logIndex.Index)
 		}()
@@ -276,12 +276,12 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 			}
 
 			save := func(index uint64) {
-				metadata := meta.ShardMetadata{
+				metadata := metapb.ShardMetadata{
 					ShardID:  shardID,
 					LogIndex: index,
-					Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: shardID}},
+					Metadata: metapb.ShardLocalState{Shard: metapb.Shard{ID: shardID}},
 				}
-				assert.NoError(t, s.SaveShardMetadata([]meta.ShardMetadata{metadata}))
+				assert.NoError(t, s.SaveShardMetadata([]metapb.ShardMetadata{metadata}))
 			}
 
 			persistent := uint64(0)
@@ -351,7 +351,7 @@ func TestRemoveShard(t *testing.T) {
 	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false)
 	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)
 
-	assert.NoError(t, ds.RemoveShard(meta.Shard{ID: 1, End: []byte{2}}, false))
+	assert.NoError(t, ds.RemoveShard(metapb.Shard{ID: 1, End: []byte{2}}, false))
 	v, err := kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil))
 	assert.NoError(t, err)
 	assert.Empty(t, v)
@@ -377,7 +377,7 @@ func TestRemoveShard(t *testing.T) {
 	ds.(*kvDataStorage).mu.persistentAppliedIndexes[2] = 100
 	ds.(*kvDataStorage).mu.Unlock()
 
-	assert.NoError(t, ds.RemoveShard(meta.Shard{ID: 2, Start: []byte{2}}, true))
+	assert.NoError(t, ds.RemoveShard(metapb.Shard{ID: 2, Start: []byte{2}}, true))
 	ds.(*kvDataStorage).mu.RLock()
 	assert.Equal(t, uint64(0), ds.(*kvDataStorage).mu.lastAppliedIndexes[2])
 	assert.Equal(t, uint64(0), ds.(*kvDataStorage).mu.persistentAppliedIndexes[2])
@@ -414,21 +414,21 @@ func TestSplitCheck(t *testing.T) {
 	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
 	kv.Set(EncodeDataKey([]byte{3}, nil), []byte{3}, false)
 
-	size, keys, splitKeys, ctx, err := ds.SplitCheck(meta.Shard{}, 100)
+	size, keys, splitKeys, ctx, err := ds.SplitCheck(metapb.Shard{}, 100)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(6), size)
 	assert.Equal(t, uint64(3), keys)
 	assert.Empty(t, splitKeys)
 	assert.Empty(t, ctx)
 
-	size, keys, splitKeys, ctx, err = ds.SplitCheck(meta.Shard{}, 2)
+	size, keys, splitKeys, ctx, err = ds.SplitCheck(metapb.Shard{}, 2)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(6), size)
 	assert.Equal(t, uint64(3), keys)
 	assert.Equal(t, [][]byte{{2}, {3}}, splitKeys)
 	assert.Empty(t, ctx)
 
-	size, keys, splitKeys, ctx, err = ds.SplitCheck(meta.Shard{}, 4)
+	size, keys, splitKeys, ctx, err = ds.SplitCheck(metapb.Shard{}, 4)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(6), size)
 	assert.Equal(t, uint64(3), keys)
@@ -436,13 +436,13 @@ func TestSplitCheck(t *testing.T) {
 	assert.Empty(t, ctx)
 }
 
-func newTestShardMetadata(n uint64) []meta.ShardMetadata {
-	var values []meta.ShardMetadata
+func newTestShardMetadata(n uint64) []metapb.ShardMetadata {
+	var values []metapb.ShardMetadata
 	for i := uint64(1); i < n; i++ {
-		values = append(values, meta.ShardMetadata{
+		values = append(values, metapb.ShardMetadata{
 			ShardID:  i,
 			LogIndex: i,
-			Metadata: meta.ShardLocalState{Shard: meta.Shard{ID: i}},
+			Metadata: metapb.ShardLocalState{Shard: metapb.Shard{ID: i}},
 		})
 	}
 	return values

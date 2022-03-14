@@ -1,5 +1,4 @@
-// Copyright 2020 PingCAP, Inc.
-// Modifications copyright (C) 2021 MatrixOrigin.
+// Copyright 2020 MatrixOrigin.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,12 +44,7 @@ const (
 	privateDirMode = 0700
 )
 
-// PrepareJoinCluster sends MemberAdd command to Prophet cluster,
-// and returns the initial configuration of the Prophet cluster.
-//
-// TL;TR: The join functionality is safe. With data, join does nothing, w/o data
-//        and it is not a member of cluster, join does MemberAdd, it returns an
-//        error if Prophet tries to join itself, missing data or join a duplicated Prophet.
+// StartEmbedEtcd starts the embedded etcd cluster.
 //
 // Etcd automatically re-joins the cluster if there is a data directory. So
 // first it checks if there is a data directory or not. If there is, it returns
@@ -82,7 +76,7 @@ const (
 //      What join does: return "" (as etcd will read data directory and find
 //                      that the Prophet itself has been removed, so an empty string
 //                      is fine.)
-func PrepareJoinCluster(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*clientv3.Client, *embed.Etcd, error) {
+func StartEmbedEtcd(ctx context.Context, cfg *config.Config, logger *zap.Logger) (*clientv3.Client, *embed.Etcd, error) {
 	logger = log.Adjust(logger)
 
 	// - A Prophet tries to join itself.

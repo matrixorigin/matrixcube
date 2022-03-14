@@ -25,8 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/testutil"
 )
@@ -65,9 +64,9 @@ func (f *testBackendFactory) create(addr string, success SuccessCallback, failur
 func TestLocalDispatch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sc := make(chan rpc.Response, 1)
+	sc := make(chan rpcpb.Response, 1)
 	fc := make(chan []byte, 1)
-	success := func(r rpc.Response) { sc <- r }
+	success := func(r rpcpb.Response) { sc <- r }
 	failure := func(id []byte, e error) {
 		select {
 		case fc <- id:
@@ -85,7 +84,7 @@ func TestLocalDispatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	// no shard
-	req := rpc.Request{}
+	req := rpcpb.Request{}
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
 	req.StopAt = time.Now().Add(time.Millisecond * 50).Unix()
@@ -104,7 +103,7 @@ func TestLocalDispatch(t *testing.T) {
 	assert.Error(t, sp.DispatchTo(req, Shard{}, "1"))
 
 	// no resp
-	factory.backends["b1"] = newLocalBackend(func(r rpc.Request) error { return nil })
+	factory.backends["b1"] = newLocalBackend(func(r rpcpb.Request) error { return nil })
 	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b1"))
 	select {
 	case <-sc:
@@ -115,14 +114,14 @@ func TestLocalDispatch(t *testing.T) {
 	}
 
 	// success
-	factory.backends["b2"] = newLocalBackend(func(r rpc.Request) error {
-		sp.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: req.ID}}})
+	factory.backends["b2"] = newLocalBackend(func(r rpcpb.Request) error {
+		sp.OnResponse(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: req.ID}}})
 		return nil
 	})
 	assert.NoError(t, sp.DispatchTo(req, Shard{}, "b2"))
 	select {
 	case rsp := <-sc:
-		assert.Equal(t, rpc.Response{ID: req.ID}, rsp)
+		assert.Equal(t, rpcpb.Response{ID: req.ID}, rsp)
 	case <-fc:
 		assert.Fail(t, "need succ")
 	case <-time.After(time.Millisecond * 50):
@@ -141,14 +140,14 @@ func TestRPCDispatch(t *testing.T) {
 
 	var sp1, sp2 ShardsProxy
 	addr1 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
-	rpc1 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")), addr1, 1024*1024, func(r rpc.Request) error {
-		sp1.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID}}})
+	rpc1 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")), addr1, 1024*1024, func(r rpcpb.Request) error {
+		sp1.OnResponse(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, PID: r.PID}}})
 		return nil
 	})
 	factory1 := newTestBackendFactory()
-	sc1 := make(chan rpc.Response, 1)
+	sc1 := make(chan rpcpb.Response, 1)
 	fc1 := make(chan []byte, 1)
-	success1 := func(r rpc.Response) { sc1 <- r }
+	success1 := func(r rpcpb.Response) { sc1 <- r }
 	failure1 := func(id []byte, e error) {
 		select {
 		case fc1 <- id:
@@ -166,15 +165,15 @@ func TestRPCDispatch(t *testing.T) {
 	defer sp1.Stop()
 
 	addr2 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
-	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpc.Request) error {
+	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpcpb.Request) error {
 		t.Logf("sp2 received")
-		sp2.OnResponse(rpc.ResponseBatch{Responses: []rpc.Response{{ID: r.ID, PID: r.PID}}})
+		sp2.OnResponse(rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, PID: r.PID}}})
 		return nil
 	})
 	factory2 := newTestBackendFactory()
-	sc2 := make(chan rpc.Response, 1)
+	sc2 := make(chan rpcpb.Response, 1)
 	fc2 := make(chan []byte, 1)
-	success2 := func(r rpc.Response) { sc2 <- r }
+	success2 := func(r rpcpb.Response) { sc2 <- r }
 	failure2 := func(id []byte, e error) {
 		select {
 		case fc2 <- id:
@@ -194,7 +193,7 @@ func TestRPCDispatch(t *testing.T) {
 	factory1.backends[addr2] = newRemoteBackend(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")),
 		success1, failure1, addr2, goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
 
-	req := rpc.Request{}
+	req := rpcpb.Request{}
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
 	req.StopAt = time.Now().Add(time.Millisecond * 100).Unix()

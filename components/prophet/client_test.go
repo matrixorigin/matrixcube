@@ -21,10 +21,9 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,7 +52,7 @@ func TestClientLeaderChange(t *testing.T) {
 	}
 
 	for _, c := range cluster {
-		c.GetConfig().DisableResponse = true
+		c.GetConfig().TestContext.EnableSkipResponse()
 	}
 
 	// rpc timeout error
@@ -61,7 +60,7 @@ func TestClientLeaderChange(t *testing.T) {
 	assert.Error(t, err)
 
 	for _, c := range cluster {
-		c.GetConfig().DisableResponse = false
+		c.GetConfig().TestContext.DisableSkipResponse()
 	}
 
 	id, err = cluster[useIdx].GetClient().AllocID()
@@ -69,38 +68,38 @@ func TestClientLeaderChange(t *testing.T) {
 	assert.True(t, id > 0)
 }
 
-func TestClientGetContainer(t *testing.T) {
+func TestClientGetStore(t *testing.T) {
 	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
-	value, err := c.GetContainer(0)
+	value, err := c.GetStore(0)
 	assert.Error(t, err)
 	assert.Nil(t, value)
 }
 
-func TestAsyncCreateResources(t *testing.T) {
+func TestAsyncCreateShards(t *testing.T) {
 	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
 
-	assert.NoError(t, c.PutContainer(newTestContainerMeta(1)))
-	_, err := c.ContainerHeartbeat(newTestContainerHeartbeat(1, 1))
+	assert.NoError(t, c.PutStore(newTestStoreMeta(1)))
+	_, err := c.StoreHeartbeat(newTestStoreHeartbeat(1, 1))
 	assert.NoError(t, err)
-	assert.Error(t, c.AsyncAddResources(newTestResourceMeta(1)))
+	assert.Error(t, c.AsyncAddShards(newTestShardMeta(1)))
 
-	assert.NoError(t, c.PutContainer(newTestContainerMeta(2)))
-	_, err = c.ContainerHeartbeat(newTestContainerHeartbeat(2, 1))
+	assert.NoError(t, c.PutStore(newTestStoreMeta(2)))
+	_, err = c.StoreHeartbeat(newTestStoreHeartbeat(2, 1))
 	assert.NoError(t, err)
-	assert.Error(t, c.AsyncAddResources(newTestResourceMeta(1)))
+	assert.Error(t, c.AsyncAddShards(newTestShardMeta(1)))
 
-	assert.NoError(t, c.PutContainer(newTestContainerMeta(3)))
-	_, err = c.ContainerHeartbeat(newTestContainerHeartbeat(3, 1))
+	assert.NoError(t, c.PutStore(newTestStoreMeta(3)))
+	_, err = c.StoreHeartbeat(newTestStoreHeartbeat(3, 1))
 	assert.NoError(t, err)
 	w, err := c.NewWatcher(uint32(event.EventFlagAll))
 	assert.NoError(t, err)
-	assert.NoError(t, c.AsyncAddResources(newTestResourceMeta(1)))
+	assert.NoError(t, c.AsyncAddShards(newTestShardMeta(1)))
 
 	select {
 	case e := <-w.GetNotify():
@@ -112,19 +111,19 @@ func TestAsyncCreateResources(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case e := <-w.GetNotify():
-			assert.True(t, e.ResourceEvent.Create)
+			assert.True(t, e.ShardEvent.Create)
 		case <-time.After(time.Second * 11):
 			assert.FailNow(t, "timeout")
 		}
 	}
 }
 
-func TestCheckResourceState(t *testing.T) {
+func TestCheckShardState(t *testing.T) {
 	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
 
 	c := p.GetClient()
-	rsp, err := c.CheckResourceState(roaring64.BitmapOf(2))
+	rsp, err := c.CheckShardState(roaring64.BitmapOf(2))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), util.MustUnmarshalBM64(rsp.Destroyed).GetCardinality())
 }
@@ -140,24 +139,24 @@ func TestPutPlacementRule(t *testing.T) {
 		Count:   3,
 	}))
 
-	assert.NoError(t, c.PutContainer(newTestContainerMeta(1)))
-	_, err := c.ContainerHeartbeat(newTestContainerHeartbeat(1, 1))
+	assert.NoError(t, c.PutStore(newTestStoreMeta(1)))
+	_, err := c.StoreHeartbeat(newTestStoreHeartbeat(1, 1))
 	assert.NoError(t, err)
 
-	peer := metapb.Replica{ID: 1, ContainerID: 1}
-	assert.NoError(t, c.ResourceHeartbeat(newTestResourceMeta(2, peer), rpcpb.ResourceHeartbeatReq{
-		ContainerID: 1,
-		Leader:      &peer}))
+	peer := metapb.Replica{ID: 1, StoreID: 1}
+	assert.NoError(t, c.ShardHeartbeat(newTestShardMeta(2, peer), rpcpb.ShardHeartbeatReq{
+		StoreID: 1,
+		Leader:  &peer}))
 	rules, err := c.GetAppliedRules(2)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(rules))
 
-	peer = metapb.Replica{ID: 2, ContainerID: 1}
-	res := newTestResourceMeta(3, peer)
+	peer = metapb.Replica{ID: 2, StoreID: 1}
+	res := newTestShardMeta(3, peer)
 	res.SetRuleGroups("group01")
-	assert.NoError(t, c.ResourceHeartbeat(res, rpcpb.ResourceHeartbeatReq{
-		ContainerID: 1,
-		Leader:      &peer}))
+	assert.NoError(t, c.ShardHeartbeat(res, rpcpb.ShardHeartbeatReq{
+		StoreID: 1,
+		Leader:  &peer}))
 	rules, err = c.GetAppliedRules(3)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(rules))
@@ -176,10 +175,10 @@ func TestIssue106(t *testing.T) {
 	cfg := cluster[0].GetConfig()
 	cli := cluster[0].GetClient()
 	assert.Equal(t, cluster[0].GetMember().ID(), cluster[0].GetLeader().ID)
-	cfg.EnableResponseNotLeader = true
+	cfg.TestContext.EnableResponseNotLeader()
 	go func() {
 		time.Sleep(time.Millisecond * 50)
-		cfg.EnableResponseNotLeader = false
+		cfg.TestContext.DisableResponseNotLeader()
 	}()
 	id, err := cli.AllocID()
 	assert.NoError(t, err)
@@ -196,14 +195,14 @@ func TestIssue112(t *testing.T) {
 		Addr: m.Addr,
 		Name: m.Name,
 	}
-	c := NewClient(metadata.NewTestAdapter(), WithLeaderGetter(func() *metapb.Member {
+	c := NewClient(WithLeaderGetter(func() *metapb.Member {
 		return leader
 	}))
 	id, err := c.AllocID()
 	assert.NoError(t, err)
 	assert.True(t, id > 0)
 
-	p.GetConfig().EnableResponseNotLeader = true
+	p.GetConfig().TestContext.EnableResponseNotLeader()
 	leader.Addr = "127.0.0.1:60000"
 
 	ch := make(chan error)
@@ -226,25 +225,25 @@ func TestIssue112(t *testing.T) {
 	}
 }
 
-func newTestResourceMeta(resourceID uint64, peers ...metapb.Replica) metadata.Resource {
-	return &metadata.TestResource{
-		ResID:    resourceID,
+func newTestShardMeta(resourceID uint64, peers ...metapb.Replica) metapb.Shard {
+	return metapb.Shard{
+		ID:       resourceID,
 		Start:    []byte(fmt.Sprintf("%20d", resourceID)),
 		End:      []byte(fmt.Sprintf("%20d", resourceID+1)),
-		ResEpoch: metapb.ResourceEpoch{Version: 1, ConfVer: 1},
-		ResPeers: peers,
+		Epoch:    metapb.ShardEpoch{Generation: 1, ConfigVer: 1},
+		Replicas: peers,
 	}
 }
 
-func newTestContainerMeta(containerID uint64) metadata.Container {
-	return &metadata.TestContainer{
-		CID:        containerID,
-		CAddr:      fmt.Sprintf("127.0.0.1:%d", containerID),
-		CShardAddr: fmt.Sprintf("127.0.0.2:%d", containerID),
+func newTestStoreMeta(containerID uint64) metapb.Store {
+	return metapb.Store{
+		ID:            containerID,
+		ClientAddress: fmt.Sprintf("127.0.0.1:%d", containerID),
+		RaftAddress:   fmt.Sprintf("127.0.0.2:%d", containerID),
 	}
 }
 
-func newTestContainerHeartbeat(containerID uint64, resourceCount int, resourceSizes ...uint64) rpcpb.ContainerHeartbeatReq {
+func newTestStoreHeartbeat(containerID uint64, resourceCount int, resourceSizes ...uint64) rpcpb.StoreHeartbeatReq {
 	var resourceSize uint64
 	if len(resourceSizes) == 0 {
 		resourceSize = uint64(resourceCount) * 10
@@ -252,12 +251,12 @@ func newTestContainerHeartbeat(containerID uint64, resourceCount int, resourceSi
 		resourceSize = resourceSizes[0]
 	}
 
-	stats := metapb.ContainerStats{}
+	stats := metapb.StoreStats{}
 	stats.Capacity = 100 * (1 << 30)
 	stats.UsedSize = resourceSize * (1 << 20)
 	stats.Available = stats.Capacity - stats.UsedSize
-	stats.ContainerID = containerID
-	stats.ResourceCount = uint64(resourceCount)
+	stats.StoreID = containerID
+	stats.ShardCount = uint64(resourceCount)
 	stats.StartTime = uint64(time.Now().Add(-time.Minute).Unix())
 	stats.IsBusy = false
 	stats.Interval = &metapb.TimeInterval{
@@ -265,7 +264,7 @@ func newTestContainerHeartbeat(containerID uint64, resourceCount int, resourceSi
 		End:   uint64(time.Now().Unix()),
 	}
 
-	return rpcpb.ContainerHeartbeatReq{
+	return rpcpb.StoreHeartbeatReq{
 		Stats: stats,
 	}
 }

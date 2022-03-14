@@ -17,43 +17,43 @@ package operator
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // OpInfluence records the influence of the cluster.
 type OpInfluence struct {
-	ContainersInfluence map[uint64]*ContainerInfluence
+	StoresInfluence map[uint64]*StoreInfluence
 }
 
-// GetContainerInfluence get containerInfluence of specific container.
-func (m OpInfluence) GetContainerInfluence(id uint64) *ContainerInfluence {
-	containerInfluence, ok := m.ContainersInfluence[id]
+// GetStoreInfluence get containerInfluence of specific container.
+func (m OpInfluence) GetStoreInfluence(id uint64) *StoreInfluence {
+	containerInfluence, ok := m.StoresInfluence[id]
 	if !ok {
-		containerInfluence = &ContainerInfluence{
+		containerInfluence = &StoreInfluence{
 			InfluenceStats: map[string]InfluenceStats{},
 		}
-		m.ContainersInfluence[id] = containerInfluence
+		m.StoresInfluence[id] = containerInfluence
 	}
 	return containerInfluence
 }
 
 type InfluenceStats struct {
-	ResourceSize  int64
-	ResourceCount int64
-	LeaderSize    int64
-	LeaderCount   int64
+	ShardSize   int64
+	ShardCount  int64
+	LeaderSize  int64
+	LeaderCount int64
 }
 
-// ContainerInfluence records influences that pending operators will make.
-type ContainerInfluence struct {
+// StoreInfluence records influences that pending operators will make.
+type StoreInfluence struct {
 	InfluenceStats map[string]InfluenceStats
 	StepCost       map[limit.Type]int64
 }
 
-// ResourceProperty returns delta size of leader/resource by influence.
-func (s ContainerInfluence) ResourceProperty(kind core.ScheduleKind, groupKey string) int64 {
-	switch kind.ResourceKind {
-	case metapb.ResourceKind_LeaderKind:
+// ShardProperty returns delta size of leader/resource by influence.
+func (s StoreInfluence) ShardProperty(kind core.ScheduleKind, groupKey string) int64 {
+	switch kind.ShardKind {
+	case metapb.ShardType_LeaderOnly:
 		switch kind.Policy {
 		case core.ByCount:
 			return s.InfluenceStats[groupKey].LeaderCount
@@ -62,22 +62,22 @@ func (s ContainerInfluence) ResourceProperty(kind core.ScheduleKind, groupKey st
 		default:
 			return 0
 		}
-	case metapb.ResourceKind_ReplicaKind:
-		return s.InfluenceStats[groupKey].ResourceSize
+	case metapb.ShardType_AllShards:
+		return s.InfluenceStats[groupKey].ShardSize
 	default:
 		return 0
 	}
 }
 
 // GetStepCost returns the specific type step cost
-func (s ContainerInfluence) GetStepCost(limitType limit.Type) int64 {
+func (s StoreInfluence) GetStepCost(limitType limit.Type) int64 {
 	if s.StepCost == nil {
 		return 0
 	}
 	return s.StepCost[limitType]
 }
 
-func (s *ContainerInfluence) addStepCost(limitType limit.Type, cost int64) {
+func (s *StoreInfluence) addStepCost(limitType limit.Type, cost int64) {
 	if s.StepCost == nil {
 		s.StepCost = make(map[limit.Type]int64)
 	}
@@ -85,10 +85,10 @@ func (s *ContainerInfluence) addStepCost(limitType limit.Type, cost int64) {
 }
 
 // AdjustStepCost adjusts the step cost of specific type container limit according to resource size
-func (s *ContainerInfluence) AdjustStepCost(limitType limit.Type, resourceSize int64) {
-	if resourceSize > limit.SmallResourceThreshold {
-		s.addStepCost(limitType, limit.ResourceInfluence[limitType])
-	} else if resourceSize <= limit.SmallResourceThreshold && resourceSize > limit.EmptyResourceApproximateSize {
-		s.addStepCost(limitType, limit.SmallResourceInfluence[limitType])
+func (s *StoreInfluence) AdjustStepCost(limitType limit.Type, resourceSize int64) {
+	if resourceSize > limit.SmallShardThreshold {
+		s.addStepCost(limitType, limit.ShardInfluence[limitType])
+	} else if resourceSize <= limit.SmallShardThreshold && resourceSize > limit.EmptyShardApproximateSize {
+		s.addStepCost(limitType, limit.SmallShardInfluence[limitType])
 	}
 }

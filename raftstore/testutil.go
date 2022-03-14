@@ -29,11 +29,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv"
@@ -86,6 +85,7 @@ type testClusterOptions struct {
 
 func newTestClusterOptions() *testClusterOptions {
 	return &testClusterOptions{
+		logLevel: zap.DebugLevel,
 		recreate: true,
 		dataOpts: &cpebble.Options{},
 	}
@@ -97,9 +97,6 @@ func (opts *testClusterOptions) adjust() {
 	}
 	if opts.nodes == 0 {
 		opts.nodes = 3
-	}
-	if opts.logLevel == 0 {
-		opts.logLevel = zap.DebugLevel
 	}
 	if opts.storageStatsReaderFunc == nil {
 		opts.storageStatsReaderFunc = func(s *store) storageStatsReader {
@@ -639,7 +636,7 @@ type TestRaftCluster interface {
 	// WaitShardByCounts check whether the number of shards reaches a specific value until timeout
 	WaitShardByCounts(counts []int, timeout time.Duration)
 	// WaitShardStateChangedTo check whether the state of shard changes to the specific value until timeout
-	WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration)
+	WaitShardStateChangedTo(shardID uint64, to metapb.ShardState, timeout time.Duration)
 	// GetShardLeaderStore return the leader node of the shard
 	GetShardLeaderStore(shardID uint64) Store
 	// GetProphet returns the prophet instance
@@ -647,7 +644,7 @@ type TestRaftCluster interface {
 	// CreateTestKVClient create and returns a kv client
 	CreateTestKVClient(node int) TestKVClient
 	// CreateTestKVClientWithAdjust create and returns a kv client with adjust func to modify request
-	CreateTestKVClientWithAdjust(node int, adjust func(req *rpc.Request)) TestKVClient
+	CreateTestKVClientWithAdjust(node int, adjust func(req *rpcpb.Request)) TestKVClient
 }
 
 // TestKVClient is a kv client that uses `TestRaftCluster` as Backend's KV storage engine
@@ -656,9 +653,9 @@ type TestKVClient interface {
 	Set(key, value string, timeout time.Duration) error
 	// Get returns the value of the specific key from backend kv storage
 	Get(key string, timeout time.Duration) (string, error)
-	// Set set key-value to the backend kv storage
+	// SetWithShard set key-value to the backend kv storage
 	SetWithShard(key, value string, id uint64, timeout time.Duration) error
-	// Get returns the value of the specific key from backend kv storage
+	// GetWithShard returns the value of the specific key from backend kv storage
 	GetWithShard(key string, id uint64, timeout time.Duration) (string, error)
 	// UpdateLabel update the shard label
 	UpdateLabel(shard, group uint64, key, value string, timeout time.Duration) error
@@ -666,12 +663,12 @@ type TestKVClient interface {
 	Close()
 }
 
-func newTestKVClient(t *testing.T, store Store, adjust func(req *rpc.Request)) TestKVClient {
+func newTestKVClient(t *testing.T, store Store, adjust func(req *rpcpb.Request)) TestKVClient {
 	kv := &testKVClient{
 		errCtx:   make(map[string]chan error),
 		doneCtx:  make(map[string]chan string),
 		stopper:  stop.NewStopper("test-kv-client"),
-		requests: make(map[string]rpc.Request),
+		requests: make(map[string]rpcpb.Request),
 		adjust:   adjust,
 	}
 	kv.proxy = store.GetShardsProxy()
@@ -687,8 +684,8 @@ type testKVClient struct {
 	proxy    ShardsProxy
 	doneCtx  map[string]chan string
 	errCtx   map[string]chan error
-	requests map[string]rpc.Request
-	adjust   func(req *rpc.Request)
+	requests map[string]rpcpb.Request
+	adjust   func(req *rpcpb.Request)
 }
 
 func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
@@ -749,15 +746,15 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 	kv.addContext(id, doneC, errorC)
 	defer kv.clearContext(id)
 
-	req := rpc.Request{
+	req := rpcpb.Request{
 		ID:         []byte(id),
-		Type:       rpc.CmdType_Admin,
-		CustomType: uint64(rpc.AdminCmdType_UpdateLabels),
+		Type:       rpcpb.Admin,
+		CustomType: uint64(rpcpb.AdminUpdateLabels),
 		Group:      group,
 		ToShard:    shard,
-		Cmd: protoc.MustMarshal(&rpc.UpdateLabelsRequest{
-			Labels: []metapb.Pair{{Key: key, Value: value}},
-			Policy: rpc.UpdatePolicy_Add,
+		Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
+			Labels: []metapb.Label{{Key: key, Value: value}},
+			Policy: rpcpb.Add,
 		}),
 	}
 	req.StopAt = time.Now().Add(timeout).Unix()
@@ -857,7 +854,7 @@ func (kv *testKVClient) clearContext(id string) {
 	delete(kv.doneCtx, id)
 }
 
-func (kv *testKVClient) done(resp rpc.Response) {
+func (kv *testKVClient) done(resp rpcpb.Response) {
 	kv.Lock()
 	defer kv.Unlock()
 
@@ -882,14 +879,14 @@ func (kv *testKVClient) errorDone(requestID []byte, err error) {
 	}
 }
 
-func (kv *testKVClient) Retry(requestID []byte) (rpc.Request, bool) {
+func (kv *testKVClient) Retry(requestID []byte) (rpcpb.Request, bool) {
 	kv.Lock()
 	defer kv.Unlock()
 
 	return kv.retryLocked(requestID)
 }
 
-func (kv *testKVClient) retryLocked(requestID []byte) (rpc.Request, bool) {
+func (kv *testKVClient) retryLocked(requestID []byte) (rpcpb.Request, bool) {
 	v, ok := kv.requests[string(requestID)]
 	if ok && kv.adjust != nil {
 		kv.adjust(&v)
@@ -901,25 +898,25 @@ func (kv *testKVClient) nextID() string {
 	return string(uuid.NewV4().Bytes())
 }
 
-func createTestWriteReq(id, k, v string) rpc.Request {
+func createTestWriteReq(id, k, v string) rpcpb.Request {
 	wr := simple.NewWriteRequest([]byte(k), []byte(v))
 
-	req := rpc.Request{}
+	req := rpcpb.Request{}
 	req.ID = []byte(id)
 	req.CustomType = wr.CmdType
-	req.Type = rpc.CmdType_Write
+	req.Type = rpcpb.Write
 	req.Key = wr.Key
 	req.Cmd = wr.Cmd
 	return req
 }
 
-func createTestReadReq(id, k string) rpc.Request {
+func createTestReadReq(id, k string) rpcpb.Request {
 	rr := simple.NewReadRequest([]byte(k))
 
-	req := rpc.Request{}
+	req := rpcpb.Request{}
 	req.ID = []byte(id)
 	req.CustomType = rr.CmdType
-	req.Type = rpc.CmdType_Read
+	req.Type = rpcpb.Read
 	req.Key = rr.Key
 	return req
 }
@@ -981,7 +978,7 @@ func (c *testRaftCluster) StopNetworkPartition() {
 	c.networkPartitions = c.networkPartitions[:0]
 }
 
-func (c *testRaftCluster) transportFilter(msg meta.RaftMessage) bool {
+func (c *testRaftCluster) transportFilter(msg metapb.RaftMessage) bool {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -989,7 +986,7 @@ func (c *testRaftCluster) transportFilter(msg meta.RaftMessage) bool {
 		return false
 	}
 
-	from, to := msg.From.ContainerID, msg.To.ContainerID
+	from, to := msg.From.StoreID, msg.To.StoreID
 	for _, partition := range c.networkPartitions {
 		n := 0
 		for _, id := range partition {
@@ -1082,7 +1079,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 	cfg.Prophet.AdvertiseRPCAddr = fmt.Sprintf("%s:%d", advertiseIP, c.portsRPCAddr[node])
 	cfg.Prophet.Schedule.EnableJointConsensus = true
 	if node < 3 {
-		cfg.Prophet.StorageNode = true
+		cfg.Prophet.ProphetNode = true
 		if node != 0 {
 			cfg.Prophet.EmbedEtcd.Join = fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0])
 		}
@@ -1101,7 +1098,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 			cfg.Prophet.EmbedEtcd.InitialCluster = cfg.Prophet.EmbedEtcd.InitialCluster[:len(cfg.Prophet.EmbedEtcd.InitialCluster)-1]
 		}
 	} else {
-		cfg.Prophet.StorageNode = false
+		cfg.Prophet.ProphetNode = false
 		cfg.Prophet.ExternalEtcd = []string{
 			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[0]),
 			fmt.Sprintf("http://%s:%d", advertiseIP, c.portsEtcdClient[1]),
@@ -1590,15 +1587,15 @@ func (c *testRaftCluster) WaitShardByCounts(counts []int, timeout time.Duration)
 	}
 }
 
-func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.ResourceState, timeout time.Duration) {
+func (c *testRaftCluster) WaitShardStateChangedTo(shardID uint64, to metapb.ShardState, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	for {
 		select {
 		case <-timeoutC:
 			assert.FailNowf(c.t, "", "wait shard state changed to %+v timeout", to)
 		default:
-			res, err := c.GetProphet().GetStorage().GetResource(shardID)
-			if err == nil && res != nil && res.State() == to {
+			res, err := c.GetProphet().GetStorage().GetShard(shardID)
+			if err == nil && res != nil && res.GetState() == to {
 				return
 			}
 			time.Sleep(time.Millisecond * 100)
@@ -1623,7 +1620,7 @@ func (c *testRaftCluster) CreateTestKVClient(node int) TestKVClient {
 	return c.CreateTestKVClientWithAdjust(node, nil)
 }
 
-func (c *testRaftCluster) CreateTestKVClientWithAdjust(node int, adjust func(req *rpc.Request)) TestKVClient {
+func (c *testRaftCluster) CreateTestKVClientWithAdjust(node int, adjust func(req *rpcpb.Request)) TestKVClient {
 	return newTestKVClient(c.t, c.GetStore(node), adjust)
 }
 
@@ -1706,7 +1703,7 @@ func (b *TestDataBuilder) CreateShard(id uint64, replicasFormater string) Shard 
 				case 0:
 					r.ID = format.MustParseStringUint64(field)
 				case 1:
-					r.ContainerID = format.MustParseStringUint64(field)
+					r.StoreID = format.MustParseStringUint64(field)
 				case 2:
 					if field == "l" {
 						r.Role = metapb.ReplicaRole_Learner

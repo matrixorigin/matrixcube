@@ -3,7 +3,7 @@ package executor
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -24,56 +24,56 @@ func TestScanner(t *testing.T) {
 	s.Set(kv.EncodeDataKey([]byte("d"), nil), []byte("d"), false)
 
 	cases := []struct {
-		shard           meta.Shard
+		shard           metapb.Shard
 		options         []ScanOption
 		expectCompleted bool
 		expectKeyPolicy ScanStartKeyPolicy
 		expectKeys      [][]byte
 	}{
 		{
-			shard:           meta.Shard{},
+			shard:           metapb.Shard{},
 			options:         []ScanOption{WithScanStartKey(nil), WithScanEndKey(nil)},
 			expectCompleted: true,
 			expectKeyPolicy: None,
 			expectKeys:      [][]byte{[]byte("a"), []byte("b"), []byte("c"), []byte("d")},
 		},
 		{
-			shard:           meta.Shard{},
+			shard:           metapb.Shard{},
 			options:         []ScanOption{WithScanStartKey(nil), WithScanEndKey(nil), WithScanFilterFunc(func(b []byte) bool { return string(b) == "c" })},
 			expectCompleted: true,
 			expectKeyPolicy: None,
 			expectKeys:      [][]byte{[]byte("c")},
 		},
 		{
-			shard:           meta.Shard{},
+			shard:           metapb.Shard{},
 			options:         []ScanOption{WithScanStartKey(nil), WithScanEndKey(nil), WithScanCountLimit(1)},
 			expectCompleted: false,
 			expectKeyPolicy: GenWithResultLastKey,
 			expectKeys:      [][]byte{[]byte("a")},
 		},
 		{
-			shard:           meta.Shard{},
+			shard:           metapb.Shard{},
 			options:         []ScanOption{WithScanStartKey(nil), WithScanEndKey(nil), WithScanBytesLimit(2)},
 			expectCompleted: false,
 			expectKeyPolicy: GenWithResultLastKey,
 			expectKeys:      [][]byte{[]byte("a"), []byte("b")},
 		},
 		{
-			shard:           meta.Shard{},
+			shard:           metapb.Shard{},
 			options:         []ScanOption{WithScanStartKey([]byte("a")), WithScanEndKey([]byte("c"))},
 			expectCompleted: true,
 			expectKeyPolicy: None,
 			expectKeys:      [][]byte{[]byte("a"), []byte("b")},
 		},
 		{
-			shard:           meta.Shard{Start: []byte("a"), End: []byte("c")},
+			shard:           metapb.Shard{Start: []byte("a"), End: []byte("c")},
 			options:         []ScanOption{WithScanStartKey(nil), WithScanEndKey(nil)},
 			expectCompleted: false,
 			expectKeyPolicy: UseShardEnd,
 			expectKeys:      [][]byte{[]byte("a"), []byte("b")},
 		},
 		{
-			shard:           meta.Shard{Start: []byte("a"), End: []byte("c")},
+			shard:           metapb.Shard{Start: []byte("a"), End: []byte("c")},
 			options:         []ScanOption{WithScanStartKey([]byte("c")), WithScanEndKey(nil)},
 			expectCompleted: false,
 			expectKeyPolicy: UseShardEnd,

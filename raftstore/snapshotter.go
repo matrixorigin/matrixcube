@@ -41,7 +41,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/fileutil"
@@ -60,7 +60,7 @@ var _ saveable = (storage.DataStorage)(nil)
 
 type recoverable interface {
 	ApplySnapshot(shardID uint64, path string) error
-	GetInitialStates() ([]meta.ShardMetadata, error)
+	GetInitialStates() ([]metapb.ShardMetadata, error)
 }
 
 var _ recoverable = (storage.DataStorage)(nil)
@@ -190,7 +190,7 @@ func (s *snapshotter) save(de saveable,
 	}
 	env.FinalizeIndex(index)
 	return raftpb.Snapshot{
-		Data: protoc.MustMarshal(&meta.SnapshotInfo{Extra: extra}),
+		Data: protoc.MustMarshal(&metapb.SnapshotInfo{Extra: extra}),
 		Metadata: raftpb.SnapshotMetadata{
 			Index:     index,
 			Term:      term,
@@ -200,7 +200,7 @@ func (s *snapshotter) save(de saveable,
 }
 
 func (s *snapshotter) recover(rc recoverable,
-	ss raftpb.Snapshot) (meta.ShardMetadata, error) {
+	ss raftpb.Snapshot) (metapb.ShardMetadata, error) {
 	env := s.getRecoverSnapshotEnv(ss)
 	s.logger.Info("recovering from snapshot",
 		zap.String("dir", env.GetFinalDir()))
@@ -208,13 +208,13 @@ func (s *snapshotter) recover(rc recoverable,
 	if err := rc.ApplySnapshot(s.shardID, env.GetFinalDir()); err != nil {
 		s.logger.Error("data storage failed to apply snapshot",
 			zap.Error(err))
-		return meta.ShardMetadata{}, err
+		return metapb.ShardMetadata{}, err
 	}
 	sms, err := rc.GetInitialStates()
 	if err != nil {
 		s.logger.Error("failed to get initial states from data storage",
 			zap.Error(err))
-		return meta.ShardMetadata{}, err
+		return metapb.ShardMetadata{}, err
 	}
 	for _, sm := range sms {
 		if sm.ShardID == s.shardID {
@@ -243,7 +243,7 @@ func (s *snapshotter) commit(ss raftpb.Snapshot, env snapshot.SSEnv) error {
 }
 
 func (s *snapshotter) getRecoverSnapshotEnv(ss raftpb.Snapshot) snapshot.SSEnv {
-	var si meta.SnapshotInfo
+	var si metapb.SnapshotInfo
 	protoc.MustUnmarshal(&si, ss.Data)
 	env := s.getCreatingSnapshotEnv(si.Extra)
 	env.FinalizeIndex(ss.Metadata.Index)

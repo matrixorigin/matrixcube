@@ -16,8 +16,8 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -44,6 +44,6 @@ func TestGetShardGroupKey(t *testing.T) {
 	gc := newReplicaGroupController()
 	gc.setRules(rules)
 
-	shard := Shard{Labels: []metapb.Pair{{Key: "l1", Value: "v1"}}}
+	shard := Shard{Labels: []metapb.Label{{Key: "l1", Value: "v1"}}}
 	assert.Equal(t, util.EncodeGroupKey(0, rules, shard.Labels), gc.getShardGroupKey(shard))
 }

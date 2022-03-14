@@ -20,33 +20,32 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestContainerTimeUnsync(t *testing.T) {
-	cache := newHotContainersStats(WriteFlow)
+func TestStoreTimeUnsync(t *testing.T) {
+	cache := newHotStoresStats(WriteFlow)
 	peers := newPeers(3,
 		func(i int) uint64 { return uint64(10000 + i) },
 		func(i int) uint64 { return uint64(i) })
-	meta := &metadata.TestResource{
-		ResID:    1000,
-		ResPeers: peers,
+	meta := metapb.Shard{
+		ID:       1000,
+		Replicas: peers,
 		Start:    []byte(""),
 		End:      []byte(""),
-		ResEpoch: metapb.ResourceEpoch{ConfVer: 6, Version: 6},
+		Epoch:    metapb.ShardEpoch{ConfigVer: 6, Generation: 6},
 	}
 	intervals := []uint64{120, 60}
 	for _, interval := range intervals {
-		resource := core.NewCachedResource(meta, &peers[0],
+		resource := core.NewCachedShard(meta, &peers[0],
 			// interval is [0, interval]
 			core.SetReportInterval(interval),
 			core.SetWrittenBytes(interval*100*1024))
 
 		checkAndUpdate(t, cache, resource, 3)
 		{
-			stats := cache.ResourceStats(0)
+			stats := cache.ShardStats(0)
 			assert.Equal(t, 3, len(stats))
 			for _, s := range stats {
 				assert.Equal(t, 1, len(s))
@@ -88,21 +87,21 @@ func testCache(t *testing.T, c *testCacheCase) {
 		ReadFlow:  1, // only leader
 		WriteFlow: 3, // all peers
 	}
-	cache := newHotContainersStats(c.kind)
+	cache := newHotStoresStats(c.kind)
 	resource := buildresource(nil, nil, c.kind)
 	checkAndUpdate(t, cache, resource, defaultSize[c.kind])
 	checkHit(t, cache, resource, c.kind, false) // all peers are new
 
-	srcContainer, resource := schedule(c.operator, resource, c.kind)
+	srcStore, resource := schedule(c.operator, resource, c.kind)
 	res := checkAndUpdate(t, cache, resource, c.expect)
 	checkHit(t, cache, resource, c.kind, true) // hit cache
 	if c.expect != defaultSize[c.kind] {
-		checkNeedDelete(t, res, srcContainer)
+		checkNeedDelete(t, res, srcStore)
 	}
 }
 
-func checkAndUpdate(t *testing.T, cache *hotPeerCache, resource *core.CachedResource, expect int) []*HotPeerStat {
-	res := cache.CheckResourceFlow(resource)
+func checkAndUpdate(t *testing.T, cache *hotPeerCache, resource *core.CachedShard, expect int) []*HotPeerStat {
+	res := cache.CheckShardFlow(resource)
 	assert.Equal(t, expect, len(res))
 	for _, p := range res {
 		cache.Update(p)
@@ -110,55 +109,55 @@ func checkAndUpdate(t *testing.T, cache *hotPeerCache, resource *core.CachedReso
 	return res
 }
 
-func checkHit(t *testing.T, cache *hotPeerCache, resource *core.CachedResource, kind FlowKind, isHit bool) {
+func checkHit(t *testing.T, cache *hotPeerCache, resource *core.CachedShard, kind FlowKind, isHit bool) {
 	var peers []metapb.Replica
 	if kind == ReadFlow {
 		peers = []metapb.Replica{*resource.GetLeader()}
 	} else {
-		peers = resource.Meta.Peers()
+		peers = resource.Meta.GetReplicas()
 	}
 	for _, peer := range peers {
-		item := cache.getOldHotPeerStat(resource.Meta.ID(), peer.ContainerID)
+		item := cache.getOldHotPeerStat(resource.Meta.GetID(), peer.StoreID)
 		assert.NotNil(t, item)
 		assert.Equal(t, !isHit, item.isNew)
 	}
 }
 
-func checkNeedDelete(t *testing.T, ret []*HotPeerStat, ContainerID uint64) {
+func checkNeedDelete(t *testing.T, ret []*HotPeerStat, StoreID uint64) {
 	for _, item := range ret {
-		if item.ContainerID == ContainerID {
+		if item.StoreID == StoreID {
 			assert.True(t, item.needDelete)
 			return
 		}
 	}
 }
 
-func schedule(operator operator, resource *core.CachedResource, kind FlowKind) (srcContainer uint64, _ *core.CachedResource) {
+func schedule(operator operator, resource *core.CachedShard, kind FlowKind) (srcStore uint64, _ *core.CachedShard) {
 	switch operator {
 	case transferLeader:
 		_, newLeader := pickFollower(resource)
-		return resource.GetLeader().ContainerID, buildresource(resource.Meta, &newLeader, kind)
+		return resource.GetLeader().StoreID, buildresource(&resource.Meta, &newLeader, kind)
 	case movePeer:
 		index, _ := pickFollower(resource)
-		meta := resource.Meta.(*metadata.TestResource)
-		srcContainer := meta.ResPeers[index].ContainerID
-		meta.ResPeers[index] = metapb.Replica{ID: 4, ContainerID: 4}
-		return srcContainer, buildresource(meta, resource.GetLeader(), kind)
+		meta := resource.Meta
+		srcStore := meta.GetReplicas()[index].StoreID
+		meta.GetReplicas()[index] = metapb.Replica{ID: 4, StoreID: 4}
+		return srcStore, buildresource(&meta, resource.GetLeader(), kind)
 	case addReplica:
-		meta := resource.Meta.(*metadata.TestResource)
-		meta.ResPeers = append(meta.ResPeers, metapb.Replica{ID: 4, ContainerID: 4})
-		return 0, buildresource(meta, resource.GetLeader(), kind)
+		meta := resource.Meta
+		meta.SetReplicas(append(meta.GetReplicas(), metapb.Replica{ID: 4, StoreID: 4}))
+		return 0, buildresource(&meta, resource.GetLeader(), kind)
 	default:
 		return 0, nil
 	}
 }
 
-func pickFollower(resource *core.CachedResource) (index int, peer metapb.Replica) {
+func pickFollower(resource *core.CachedShard) (index int, peer metapb.Replica) {
 	var dst int
-	meta := resource.Meta.(*metadata.TestResource)
+	meta := resource.Meta
 
-	for index, peer := range meta.ResPeers {
-		if peer.ContainerID == resource.GetLeader().ContainerID {
+	for index, peer := range meta.GetReplicas() {
+		if peer.StoreID == resource.GetLeader().StoreID {
 			continue
 		}
 		dst = index
@@ -166,32 +165,32 @@ func pickFollower(resource *core.CachedResource) (index int, peer metapb.Replica
 			break
 		}
 	}
-	return dst, meta.ResPeers[dst]
+	return dst, meta.GetReplicas()[dst]
 }
 
-func buildresource(meta metadata.Resource, leader *metapb.Replica, kind FlowKind) *core.CachedResource {
+func buildresource(meta *metapb.Shard, leader *metapb.Replica, kind FlowKind) *core.CachedShard {
 	const interval = uint64(60)
 	if meta == nil {
-		peer1 := metapb.Replica{ID: 1, ContainerID: 1}
-		peer2 := metapb.Replica{ID: 2, ContainerID: 2}
-		peer3 := metapb.Replica{ID: 3, ContainerID: 3}
+		peer1 := metapb.Replica{ID: 1, StoreID: 1}
+		peer2 := metapb.Replica{ID: 2, StoreID: 2}
+		peer3 := metapb.Replica{ID: 3, StoreID: 3}
 
-		meta = &metadata.TestResource{
-			ResID:    1000,
-			ResPeers: []metapb.Replica{peer1, peer2, peer3},
+		meta = &metapb.Shard{
+			ID:       1000,
+			Replicas: []metapb.Replica{peer1, peer2, peer3},
 			Start:    []byte(""),
 			End:      []byte(""),
-			ResEpoch: metapb.ResourceEpoch{ConfVer: 6, Version: 6},
+			Epoch:    metapb.ShardEpoch{ConfigVer: 6, Generation: 6},
 		}
-		leader = &meta.Peers()[rand.Intn(3)]
+		leader = &meta.GetReplicas()[rand.Intn(3)]
 	}
 
 	switch kind {
 	case ReadFlow:
-		return core.NewCachedResource(meta, leader, core.SetReportInterval(interval),
+		return core.NewCachedShard(*meta, leader, core.SetReportInterval(interval),
 			core.SetReadBytes(interval*100*1024))
 	case WriteFlow:
-		return core.NewCachedResource(meta, leader, core.SetReportInterval(interval),
+		return core.NewCachedShard(*meta, leader, core.SetReportInterval(interval),
 			core.SetWrittenBytes(interval*100*1024))
 	default:
 		return nil
@@ -206,14 +205,14 @@ func newPeers(n int, pid genID, sid genID) []metapb.Replica {
 		peer := metapb.Replica{
 			ID: pid(i),
 		}
-		peer.ContainerID = sid(i)
+		peer.StoreID = sid(i)
 		peers = append(peers, peer)
 	}
 	return peers
 }
 
 func TestUpdateHotPeerStat(t *testing.T) {
-	cache := newHotContainersStats(ReadFlow)
+	cache := newHotStoresStats(ReadFlow)
 
 	// skip interval=0
 	newItem := &HotPeerStat{needDelete: false, thresholds: [2]float64{0.0, 0.0}}
@@ -275,7 +274,7 @@ func TestThresholdWithUpdateHotPeerStat(t *testing.T) {
 	testMetrics(t, 1., byteRate, expectThreshold)
 }
 func testMetrics(t *testing.T, interval, byteRate, expectThreshold float64) {
-	cache := newHotContainersStats(ReadFlow)
+	cache := newHotStoresStats(ReadFlow)
 	minThresholds := minHotThresholds[cache.kind]
 	containerID := uint64(1)
 	assert.True(t, byteRate >= minThresholds[byteDim])
@@ -284,12 +283,12 @@ func testMetrics(t *testing.T, interval, byteRate, expectThreshold float64) {
 		for {
 			thresholds := cache.calcHotThresholds(containerID)
 			newItem := &HotPeerStat{
-				ContainerID: containerID,
-				ResourceID:  i,
-				needDelete:  false,
-				thresholds:  thresholds,
-				ByteRate:    byteRate,
-				KeyRate:     0,
+				StoreID:    containerID,
+				ShardID:    i,
+				needDelete: false,
+				thresholds: thresholds,
+				ByteRate:   byteRate,
+				KeyRate:    0,
 			}
 			oldItem = cache.getOldHotPeerStat(i, containerID)
 			if oldItem != nil && oldItem.rollingByteRate.isHot(thresholds) == true {

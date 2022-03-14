@@ -138,10 +138,10 @@ func (conf *scatterRangeSchedulerConfig) getSchedulerName() string {
 
 type scatterRangeScheduler struct {
 	*BaseScheduler
-	name            string
-	config          *scatterRangeSchedulerConfig
-	balanceLeader   schedule.Scheduler
-	balanceResource schedule.Scheduler
+	name          string
+	config        *scatterRangeSchedulerConfig
+	balanceLeader schedule.Scheduler
+	balanceShard  schedule.Scheduler
 }
 
 // newScatterRangeScheduler creates a scheduler that balances the distribution of leaders and resources that in the specified key range.
@@ -159,11 +159,11 @@ func newScatterRangeScheduler(opController *schedule.OperatorController, config 
 			WithBalanceLeaderName("scatter-range-leader"),
 			WithBalanceLeaderCounter(scatterRangeLeaderCounter),
 		),
-		balanceResource: newBalanceResourceScheduler(
+		balanceShard: newBalanceShardScheduler(
 			opController,
-			&balanceResourceSchedulerConfig{Ranges: []core.KeyRange{core.NewKeyRange(config.Group, "", "")}},
-			WithBalanceResourceName("scatter-range-resource"),
-			WithBalanceResourceCounter(scatterRangeResourceCounter),
+			&balanceShardSchedulerConfig{Ranges: []core.KeyRange{core.NewKeyRange(config.Group, "", "")}},
+			WithBalanceShardName("scatter-range-resource"),
+			WithBalanceShardCounter(scatterRangeShardCounter),
 		),
 	}
 	return scheduler
@@ -184,7 +184,7 @@ func (l *scatterRangeScheduler) EncodeConfig() ([]byte, error) {
 }
 
 func (l *scatterRangeScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	return l.allowBalanceLeader(cluster) || l.allowBalanceResource(cluster)
+	return l.allowBalanceLeader(cluster) || l.allowBalanceShard(cluster)
 }
 
 func (l *scatterRangeScheduler) allowBalanceLeader(cluster opt.Cluster) bool {
@@ -195,10 +195,10 @@ func (l *scatterRangeScheduler) allowBalanceLeader(cluster opt.Cluster) bool {
 	return allowed
 }
 
-func (l *scatterRangeScheduler) allowBalanceResource(cluster opt.Cluster) bool {
-	allowed := l.OpController.OperatorCount(operator.OpRange) < cluster.GetOpts().GetResourceScheduleLimit()
+func (l *scatterRangeScheduler) allowBalanceShard(cluster opt.Cluster) bool {
+	allowed := l.OpController.OperatorCount(operator.OpRange) < cluster.GetOpts().GetShardScheduleLimit()
 	if !allowed {
-		operator.OperatorLimitCounter.WithLabelValues(l.GetType(), operator.OpResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(l.GetType(), operator.OpShard.String()).Inc()
 	}
 	return allowed
 }
@@ -221,8 +221,8 @@ func (l *scatterRangeScheduler) Schedule(cluster opt.Cluster) []*operator.Operat
 		}
 		schedulerCounter.WithLabelValues(l.GetName(), "no-need-balance-leader").Inc()
 	}
-	if l.allowBalanceResource(cluster) {
-		ops := l.balanceResource.Schedule(c)
+	if l.allowBalanceShard(cluster) {
+		ops := l.balanceShard.Schedule(c)
 		if len(ops) > 0 {
 			ops[0].SetDesc(fmt.Sprintf("scatter-range-resource-%s", l.config.RangeName))
 			ops[0].AttachKind(operator.OpRange)

@@ -14,7 +14,6 @@
 package prophet
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
@@ -22,28 +21,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type testContainerHeartbeatDataProcessor struct {
+type testStoreHeartbeatDataProcessor struct {
 	started bool
 }
 
-func (p *testContainerHeartbeatDataProcessor) Start(storage.Storage) error {
+func (p *testStoreHeartbeatDataProcessor) Start(storage.Storage) error {
 	p.started = true
 	return nil
 }
-func (p *testContainerHeartbeatDataProcessor) Stop(storage.Storage) error {
+func (p *testStoreHeartbeatDataProcessor) Stop(storage.Storage) error {
 	p.started = false
 	return nil
 }
 
-func (p *testContainerHeartbeatDataProcessor) HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) ([]byte, error) {
+func (p *testStoreHeartbeatDataProcessor) HandleHeartbeatReq(id uint64, data []byte, store storage.Storage) ([]byte, error) {
 	return nil, nil
 }
 
 func TestCustomStartAndStop(t *testing.T) {
-	h := &testContainerHeartbeatDataProcessor{}
+	h := &testStoreHeartbeatDataProcessor{}
 	p := newTestSingleProphet(t, func(c *config.Config) {
-		c.ContainerHeartbeatDataProcessor = h
-		c.TestCtx = &sync.Map{}
+		c.StoreHeartbeatDataProcessor = h
+		c.TestContext = config.NewTestContext()
 	})
 	defer p.Stop()
 

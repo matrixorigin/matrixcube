@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (
@@ -45,7 +45,7 @@ func validateFormat(s, format string) error {
 }
 
 // ValidateLabels checks the legality of the labels.
-func ValidateLabels(labels []metapb.Pair) error {
+func ValidateLabels(labels []metapb.Label) error {
 	for _, label := range labels {
 		if err := validateFormat(label.Key, keyFormat); err != nil {
 			return err

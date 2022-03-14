@@ -16,6 +16,7 @@ package prophet
 import (
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,7 +63,8 @@ func TestClusterStart(t *testing.T) {
 
 func newTestSingleProphet(t *testing.T, adjustFunc func(*pconfig.Config)) Prophet {
 	c := pconfig.NewConfig()
-	c.StorageNode = true
+	c.ProphetNode = true
+	c.TestContext = pconfig.NewTestContext()
 	if adjustFunc != nil {
 		adjustFunc(c)
 	}
@@ -84,8 +86,9 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)
 		c.Name = fmt.Sprintf("n-%d", i)
 		c.DataDir = fmt.Sprintf("/tmp/prophet/%s", c.Name)
 		c.RPCAddr = fmt.Sprintf("127.0.0.1:1000%d", i)
+		c.TestContext = pconfig.NewTestContext()
 		if i < 3 {
-			c.StorageNode = true
+			c.ProphetNode = true
 			c.EmbedEtcd.ClientUrls = fmt.Sprintf("http://127.0.0.1:2000%d", i)
 			c.EmbedEtcd.PeerUrls = fmt.Sprintf("http://127.0.0.1:3000%d", i)
 			c.EmbedEtcd.TickInterval.Duration = time.Millisecond * 50
@@ -109,14 +112,16 @@ func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)
 
 func newTestProphet(t *testing.T, c *pconfig.Config, fs vfs.FS) Prophet {
 	completedC := make(chan struct{})
+	var completeOnce sync.Once
 	cb := func() {
-		completedC <- struct{}{}
+		completeOnce.Do(func() {
+			completedC <- struct{}{}
+		})
 	}
+
 	assert.NoError(t, c.Adjust(nil, false))
 	assert.NoError(t, os.RemoveAll(c.DataDir))
-	c.Adapter = metadata.NewTestAdapter()
 	c.Handler = metadata.NewTestRoleHandler(cb, cb)
-
 	p := NewProphet(&config.Config{
 		Prophet: *c,
 		Logger:  log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("testcase", t.Name()), zap.String("node", c.Name)),

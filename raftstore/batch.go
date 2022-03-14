@@ -17,9 +17,9 @@ import (
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
 )
@@ -30,13 +30,13 @@ import (
 // which requests can be batches together.
 type batch struct {
 	logger       *zap.Logger
-	requestBatch rpc.RequestBatch
-	cb           func(rpc.ResponseBatch)
+	requestBatch rpcpb.RequestBatch
+	cb           func(rpcpb.ResponseBatch)
 	tp           int // request type of this batch
 	byteSize     int // bytes of this batch
 }
 
-func newBatch(logger *zap.Logger, requestBatch rpc.RequestBatch, cb func(rpc.ResponseBatch), tp int, byteSize int) batch {
+func newBatch(logger *zap.Logger, requestBatch rpcpb.RequestBatch, cb func(rpcpb.ResponseBatch), tp int, byteSize int) batch {
 	return batch{
 		logger:       log.Adjust(logger),
 		requestBatch: requestBatch,
@@ -61,13 +61,13 @@ func (c *batch) isFull(n, max int) bool {
 		(testMaxProposalRequestCount > 0 && len(c.requestBatch.Requests) >= testMaxProposalRequestCount)
 }
 
-func (c *batch) canBatches(req rpc.Request) bool {
+func (c *batch) canBatches(req rpcpb.Request) bool {
 	return (c.requestBatch.Requests[0].IgnoreEpochCheck && req.IgnoreEpochCheck) || // batch IgnoreEpochCheck requests
 		(epochMatch(c.requestBatch.Requests[0].Epoch, req.Epoch) && // batch epoch match requests
 			!c.requestBatch.Requests[0].IgnoreEpochCheck && !req.IgnoreEpochCheck)
 }
 
-func (c *batch) resp(resp rpc.ResponseBatch) {
+func (c *batch) resp(resp rpcpb.ResponseBatch) {
 	if c.cb != nil {
 		if len(c.requestBatch.Requests) > 0 {
 			if len(c.requestBatch.Requests) != len(resp.Responses) {
@@ -80,7 +80,7 @@ func (c *batch) resp(resp rpc.ResponseBatch) {
 				}
 
 				for _, req := range c.requestBatch.Requests {
-					rsp := rpc.Response{
+					rsp := rpcpb.Response{
 						Type:       req.Type,
 						CustomType: req.CustomType,
 						ID:         req.ID,
@@ -157,12 +157,12 @@ func (c *batch) getRequestID() []byte {
 	return c.requestBatch.Header.ID
 }
 
-func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
+func respStoreNotMatch(err error, req rpcpb.Request, cb func(rpcpb.ResponseBatch)) {
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:       err.Error(),
-		StoreNotMatch: storeNotMatch,
+		StoreMismatch: storeMismatch,
 	})
-	resp := rpc.Response{
+	resp := rpcpb.Response{
 		ID:  req.ID,
 		PID: req.PID,
 	}
@@ -170,12 +170,12 @@ func respStoreNotMatch(err error, req rpc.Request, cb func(rpc.ResponseBatch)) {
 	cb(rsp)
 }
 
-func respShardUnavailable(id uint64, req rpc.Request, cb func(rpc.ResponseBatch)) {
+func respShardUnavailable(id uint64, req rpcpb.Request, cb func(responseBatch rpcpb.ResponseBatch)) {
 	rsp := errorPbResp(uuid.NewV4().Bytes(), errorpb.Error{
 		Message:          fmt.Sprintf("shard %d is unavailable", id),
 		ShardUnavailable: &errorpb.ShardUnavailable{ShardID: id},
 	})
-	resp := rpc.Response{
+	resp := rpcpb.Response{
 		ID:  req.ID,
 		PID: req.PID,
 	}
@@ -183,6 +183,6 @@ func respShardUnavailable(id uint64, req rpc.Request, cb func(rpc.ResponseBatch)
 	cb(rsp)
 }
 
-func epochMatch(e1, e2 metapb.ResourceEpoch) bool {
-	return e1.ConfVer == e2.ConfVer && e1.Version == e2.Version
+func epochMatch(e1, e2 metapb.ShardEpoch) bool {
+	return e1.ConfigVer == e2.ConfigVer && e1.Generation == e2.Generation
 }
