@@ -97,13 +97,13 @@ type ruleList struct {
 	ranges []rangeRules // ranges[i] contains rules apply to [ranges[i].startKey, ranges[i+1].startKey).
 }
 
-type ruleContainer interface {
+type ruleStore interface {
 	iterateRules(func(*Rule))
 }
 
 // buildRuleList builds the applied ruleList for the give rules
 // rules indicates the map (rule's GroupID, ID) => rule
-func buildRuleList(rules ruleContainer) (ruleList, error) {
+func buildRuleList(rules ruleStore) (ruleList, error) {
 	// collect and sort split points.
 	var points []splitPoint
 	rules.iterateRules(func(r *Rule) {
@@ -195,7 +195,7 @@ func (rl ruleList) getRulesByKey(key []byte) []*Rule {
 	return rl.ranges[i-1].rules
 }
 
-func (rl ruleList) getRulesForApplyResource(start, end []byte) []*Rule {
+func (rl ruleList) getRulesForApplyShard(start, end []byte) []*Rule {
 	i := sort.Search(len(rl.ranges), func(i int) bool {
 		return bytes.Compare(rl.ranges[i].startKey, start) > 0
 	})

@@ -19,31 +19,30 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsResourceHealthy(t *testing.T) {
+func TestIsShardHealthy(t *testing.T) {
 	peers := func(ids ...uint64) []metapb.Replica {
 		var peers []metapb.Replica
 		for _, id := range ids {
 			p := metapb.Replica{
-				ID:          id,
-				ContainerID: id,
+				ID:      id,
+				StoreID: id,
 			}
 			peers = append(peers, p)
 		}
 		return peers
 	}
 
-	resource := func(peers []metapb.Replica, opts ...core.ResourceCreateOption) *core.CachedResource {
-		return core.NewCachedResource(&metadata.TestResource{ResPeers: peers}, &peers[0], opts...)
+	resource := func(peers []metapb.Replica, opts ...core.ShardCreateOption) *core.CachedShard {
+		return core.NewCachedShard(metapb.Shard{Replicas: peers}, &peers[0], opts...)
 	}
 
 	type testCase struct {
-		resource *core.CachedResource
+		resource *core.CachedShard
 		// disable placement rules
 		healthy1             bool
 		healthyAllowPending1 bool
@@ -65,18 +64,18 @@ func TestIsResourceHealthy(t *testing.T) {
 
 	opt := config.NewTestOptions()
 	tc := mockcluster.NewCluster(opt)
-	tc.AddResourceContainer(1, 1)
-	tc.AddResourceContainer(2, 1)
-	tc.AddResourceContainer(3, 1)
-	tc.AddResourceContainer(4, 1)
+	tc.AddShardStore(1, 1)
+	tc.AddShardStore(2, 1)
+	tc.AddShardStore(3, 1)
+	tc.AddShardStore(4, 1)
 	for _, c := range cases {
 		tc.SetEnablePlacementRules(false)
-		assert.Equal(t, c.healthy1, IsResourceHealthy(tc, c.resource))
+		assert.Equal(t, c.healthy1, IsShardHealthy(tc, c.resource))
 		assert.Equal(t, c.healthyAllowPending1, IsHealthyAllowPending(tc, c.resource))
-		assert.Equal(t, c.replicated1, IsResourceReplicated(tc, c.resource))
+		assert.Equal(t, c.replicated1, IsShardReplicated(tc, c.resource))
 		tc.SetEnablePlacementRules(true)
-		assert.Equal(t, c.healthy2, IsResourceHealthy(tc, c.resource))
+		assert.Equal(t, c.healthy2, IsShardHealthy(tc, c.resource))
 		assert.Equal(t, c.healthyAllowPending2, IsHealthyAllowPending(tc, c.resource))
-		assert.Equal(t, c.replicated2, IsResourceReplicated(tc, c.resource))
+		assert.Equal(t, c.replicated2, IsShardReplicated(tc, c.resource))
 	}
 }

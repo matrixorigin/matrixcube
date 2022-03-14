@@ -18,7 +18,7 @@ import (
 
 	"github.com/fagongzi/goetty/buf"
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,16 +27,16 @@ func TestDecodeResponse(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		resp rpc.Response
+		resp rpcpb.Response
 	}{
 		{
-			resp: rpc.Response{ID: []byte("1"), Value: []byte("v1")},
+			resp: rpcpb.Response{ID: []byte("1"), Value: []byte("v1")},
 		},
 		{
-			resp: rpc.Response{ID: []byte("2"), Value: []byte("v2")},
+			resp: rpcpb.Response{ID: []byte("2"), Value: []byte("v2")},
 		},
 		{
-			resp: rpc.Response{ID: []byte("3"), Value: []byte("v3")},
+			resp: rpcpb.Response{ID: []byte("3"), Value: []byte("v3")},
 		},
 	}
 
@@ -60,16 +60,16 @@ func TestDecodeRequest(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		resp rpc.Request
+		resp rpcpb.Request
 	}{
 		{
-			resp: rpc.Request{ID: []byte("1"), Cmd: []byte("v1")},
+			resp: rpcpb.Request{ID: []byte("1"), Cmd: []byte("v1")},
 		},
 		{
-			resp: rpc.Request{ID: []byte("2"), Cmd: []byte("v2")},
+			resp: rpcpb.Request{ID: []byte("2"), Cmd: []byte("v2")},
 		},
 		{
-			resp: rpc.Request{ID: []byte("3"), Cmd: []byte("v3")},
+			resp: rpcpb.Request{ID: []byte("3"), Cmd: []byte("v3")},
 		},
 	}
 

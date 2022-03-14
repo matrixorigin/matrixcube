@@ -15,7 +15,7 @@
 package core
 
 import (
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // PriorityLevel lower level means higher priority
@@ -30,15 +30,15 @@ const (
 
 // ScheduleKind distinguishes resources and schedule policy.
 type ScheduleKind struct {
-	ResourceKind metapb.ResourceKind
-	Policy       SchedulePolicy
+	ShardKind metapb.ShardType
+	Policy    SchedulePolicy
 }
 
 // NewScheduleKind creates a schedule kind with resource kind and schedule policy.
-func NewScheduleKind(kind metapb.ResourceKind, Policy SchedulePolicy) ScheduleKind {
+func NewScheduleKind(kind metapb.ShardType, Policy SchedulePolicy) ScheduleKind {
 	return ScheduleKind{
-		ResourceKind: kind,
-		Policy:       Policy,
+		ShardKind: kind,
+		Policy:    Policy,
 	}
 }
 

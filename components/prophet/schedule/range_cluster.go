@@ -17,9 +17,9 @@ package schedule
 import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // RangeCluster isolates the cluster by range.
@@ -33,9 +33,9 @@ type RangeCluster struct {
 // GenRangeCluster gets a range cluster by specifying start key and end key.
 // The cluster can only know the resources within [startKey, endKey].
 func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte) *RangeCluster {
-	subCluster := core.NewBasicCluster(cluster.GetResourceFactory(), cluster.GetLogger())
-	for _, r := range cluster.ScanResources(group, startKey, endKey, -1) {
-		subCluster.Resources.AddResource(r)
+	subCluster := core.NewBasicCluster(cluster.GetLogger())
+	for _, r := range cluster.ScanShards(group, startKey, endKey, -1) {
+		subCluster.Shards.AddShard(r)
 	}
 	return &RangeCluster{
 		Cluster:    cluster,
@@ -44,8 +44,8 @@ func GenRangeCluster(group uint64, cluster opt.Cluster, startKey, endKey []byte)
 	}
 }
 
-func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.CachedContainer {
-	id := s.Meta.ID()
+func (r *RangeCluster) updateCachedStore(s *core.CachedStore) *core.CachedStore {
+	id := s.Meta.GetID()
 
 	used := float64(s.GetUsedSize()) / (1 << 20)
 	if used == 0 {
@@ -54,53 +54,53 @@ func (r *RangeCluster) updateCachedContainer(s *core.CachedContainer) *core.Cach
 
 	groupKeys := r.Cluster.GetScheduleGroupKeysWithPrefix(util.EncodeGroupKey(r.group, nil, nil))
 	var amplification float64
-	var opts []core.ContainerCreateOption
-	var totalResourceSize int64
+	var opts []core.StoreCreateOption
+	var totalShardSize int64
 	for _, groupKey := range groupKeys {
-		amplification += float64(s.GetResourceSize(groupKey))
-		leaderCount := r.subCluster.GetContainerLeaderCount(groupKey, id)
+		amplification += float64(s.GetShardSize(groupKey))
+		leaderCount := r.subCluster.GetStoreLeaderCount(groupKey, id)
 		opts = append(opts, core.SetLeaderCount(groupKey, leaderCount))
 
-		leaderSize := r.subCluster.GetContainerLeaderResourceSize(groupKey, id)
+		leaderSize := r.subCluster.GetStoreLeaderShardSize(groupKey, id)
 		opts = append(opts, core.SetLeaderSize(groupKey, leaderSize))
 
-		resourceCount := r.subCluster.GetContainerResourceCount(groupKey, id)
-		opts = append(opts, core.SetResourceCount(groupKey, resourceCount))
+		resourceCount := r.subCluster.GetStoreShardCount(groupKey, id)
+		opts = append(opts, core.SetShardCount(groupKey, resourceCount))
 
-		resourceSize := r.subCluster.GetContainerResourceSize(groupKey, id)
-		totalResourceSize += resourceSize
-		opts = append(opts, core.SetResourceSize(groupKey, resourceSize))
+		resourceSize := r.subCluster.GetStoreShardSize(groupKey, id)
+		totalShardSize += resourceSize
+		opts = append(opts, core.SetShardSize(groupKey, resourceSize))
 
-		pendingPeerCount := r.subCluster.GetContainerPendingPeerCount(groupKey, id)
+		pendingPeerCount := r.subCluster.GetStorePendingPeerCount(groupKey, id)
 		opts = append(opts, core.SetPendingPeerCount(groupKey, pendingPeerCount))
 	}
 
 	amplification = amplification / used
-	newStats := proto.Clone(s.GetContainerStats()).(*metapb.ContainerStats)
-	newStats.UsedSize = uint64(float64(totalResourceSize)/amplification) * (1 << 20)
+	newStats := proto.Clone(s.GetStoreStats()).(*metapb.StoreStats)
+	newStats.UsedSize = uint64(float64(totalShardSize)/amplification) * (1 << 20)
 	newStats.Available = s.GetCapacity() - newStats.UsedSize
-	opts = append(opts, core.SetNewContainerStats(newStats))
-	newContainer := s.Clone(opts...)
-	return newContainer
+	opts = append(opts, core.SetNewStoreStats(newStats))
+	newStore := s.Clone(opts...)
+	return newStore
 }
 
-// GetContainer searches for a container by ID.
-func (r *RangeCluster) GetContainer(id uint64) *core.CachedContainer {
-	s := r.Cluster.GetContainer(id)
+// GetStore searches for a container by ID.
+func (r *RangeCluster) GetStore(id uint64) *core.CachedStore {
+	s := r.Cluster.GetStore(id)
 	if s == nil {
 		return nil
 	}
-	return r.updateCachedContainer(s)
+	return r.updateCachedStore(s)
 }
 
-// GetContainers returns all Containers in the cluster.
-func (r *RangeCluster) GetContainers() []*core.CachedContainer {
-	containers := r.Cluster.GetContainers()
-	newContainers := make([]*core.CachedContainer, 0, len(containers))
+// GetStores returns all Stores in the cluster.
+func (r *RangeCluster) GetStores() []*core.CachedStore {
+	containers := r.Cluster.GetStores()
+	newStores := make([]*core.CachedStore, 0, len(containers))
 	for _, s := range containers {
-		newContainers = append(newContainers, r.updateCachedContainer(s))
+		newStores = append(newStores, r.updateCachedStore(s))
 	}
-	return newContainers
+	return newStores
 }
 
 // SetTolerantSizeRatio sets the tolerant size ratio.
@@ -116,46 +116,46 @@ func (r *RangeCluster) GetTolerantSizeRatio() float64 {
 	return r.Cluster.GetOpts().GetTolerantSizeRatio()
 }
 
-// RandFollowerResource returns a random resource that has a follower on the Container.
-func (r *RangeCluster) RandFollowerResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandFollowerResource(groupKey, containerID, ranges, opts...)
+// RandFollowerShard returns a random resource that has a follower on the Store.
+func (r *RangeCluster) RandFollowerShard(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ShardOption) *core.CachedShard {
+	return r.subCluster.RandFollowerShard(groupKey, containerID, ranges, opts...)
 }
 
-// RandLeaderResource returns a random resource that has leader on the container.
-func (r *RangeCluster) RandLeaderResource(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ResourceOption) *core.CachedResource {
-	return r.subCluster.RandLeaderResource(groupKey, containerID, ranges, opts...)
+// RandLeaderShard returns a random resource that has leader on the container.
+func (r *RangeCluster) RandLeaderShard(groupKey string, containerID uint64, ranges []core.KeyRange, opts ...core.ShardOption) *core.CachedShard {
+	return r.subCluster.RandLeaderShard(groupKey, containerID, ranges, opts...)
 }
 
-// GetAverageResourceSize returns the average resource approximate size.
-func (r *RangeCluster) GetAverageResourceSize() int64 {
-	return r.subCluster.GetAverageResourceSize()
+// GetAverageShardSize returns the average resource approximate size.
+func (r *RangeCluster) GetAverageShardSize() int64 {
+	return r.subCluster.GetAverageShardSize()
 }
 
-// GetResourceContainers returns all containers that contains the resource's peer.
-func (r *RangeCluster) GetResourceContainers(res *core.CachedResource) []*core.CachedContainer {
-	containers := r.Cluster.GetResourceContainers(res)
-	newContainers := make([]*core.CachedContainer, 0, len(containers))
+// GetShardStores returns all containers that contains the resource's peer.
+func (r *RangeCluster) GetShardStores(res *core.CachedShard) []*core.CachedStore {
+	containers := r.Cluster.GetShardStores(res)
+	newStores := make([]*core.CachedStore, 0, len(containers))
 	for _, s := range containers {
-		newContainers = append(newContainers, r.updateCachedContainer(s))
+		newStores = append(newStores, r.updateCachedStore(s))
 	}
-	return newContainers
+	return newStores
 }
 
-// GetFollowerContainers returns all containers that contains the resource's follower peer.
-func (r *RangeCluster) GetFollowerContainers(res *core.CachedResource) []*core.CachedContainer {
-	containers := r.Cluster.GetFollowerContainers(res)
-	newContainers := make([]*core.CachedContainer, 0, len(containers))
+// GetFollowerStores returns all containers that contains the resource's follower peer.
+func (r *RangeCluster) GetFollowerStores(res *core.CachedShard) []*core.CachedStore {
+	containers := r.Cluster.GetFollowerStores(res)
+	newStores := make([]*core.CachedStore, 0, len(containers))
 	for _, s := range containers {
-		newContainers = append(newContainers, r.updateCachedContainer(s))
+		newStores = append(newStores, r.updateCachedStore(s))
 	}
-	return newContainers
+	return newStores
 }
 
-// GetLeaderContainer returns all containers that contains the resource's leader peer.
-func (r *RangeCluster) GetLeaderContainer(res *core.CachedResource) *core.CachedContainer {
-	s := r.Cluster.GetLeaderContainer(res)
+// GetLeaderStore returns all containers that contains the resource's leader peer.
+func (r *RangeCluster) GetLeaderStore(res *core.CachedShard) *core.CachedStore {
+	s := r.Cluster.GetLeaderStore(res)
 	if s != nil {
-		return r.updateCachedContainer(s)
+		return r.updateCachedStore(s)
 	}
 	return s
 }

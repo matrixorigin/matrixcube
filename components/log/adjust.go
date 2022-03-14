@@ -5,7 +5,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Adjust reutrns zap.L if logger is nil
+// Adjust returns zap.L if logger is nil
 func Adjust(logger *zap.Logger, options ...zap.Option) *zap.Logger {
 	if logger != nil {
 		return logger

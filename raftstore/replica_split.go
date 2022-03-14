@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 func (pr *replica) tryCheckSplit(act action) bool {
@@ -71,7 +71,7 @@ func (pr *replica) doSplit(act action) {
 
 	epoch := act.epoch
 	current := pr.getShard()
-	if current.Epoch.Version != epoch.Version {
+	if current.Epoch.Generation != epoch.Generation {
 		pr.logger.Info("epoch changed, need re-check later",
 			log.EpochField("current-epoch", current.Epoch),
 			log.EpochField("check-epoch", epoch))
@@ -98,7 +98,7 @@ func (pr *replica) doSplit(act action) {
 			zap.Int("but", len(act.splitCheckData.splitIDs)))
 	}
 
-	req := rpc.BatchSplitRequest{
+	req := rpcpb.BatchSplitRequest{
 		Context: act.splitCheckData.ctx,
 	}
 
@@ -116,12 +116,12 @@ func (pr *replica) doSplit(act action) {
 		for idIdx, r := range current.Replicas {
 			replicas = append(replicas, Replica{
 				ID:            act.splitCheckData.splitIDs[idx].NewReplicaIDs[idIdx],
-				ContainerID:   r.ContainerID,
+				StoreID:       r.StoreID,
 				InitialMember: true,
 			})
 		}
 
-		req.Requests = append(req.Requests, rpc.SplitRequest{
+		req.Requests = append(req.Requests, rpcpb.SplitRequest{
 			Start:       start,
 			End:         end,
 			NewShardID:  act.splitCheckData.splitIDs[idx].NewID,
@@ -130,5 +130,5 @@ func (pr *replica) doSplit(act action) {
 		start = end
 	}
 
-	pr.addAdminRequest(rpc.AdminCmdType_BatchSplit, &req)
+	pr.addAdminRequest(rpcpb.AdminBatchSplit, &req)
 }

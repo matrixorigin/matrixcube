@@ -17,9 +17,8 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -45,14 +44,14 @@ func TestRebalanceWithLabel(t *testing.T) {
 	}),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
 			cfg.Prophet.Replication.MaxReplicas = 1
-			cfg.Customize.CustomInitShardsFactory = func() []meta.Shard {
+			cfg.Customize.CustomInitShardsFactory = func() []metapb.Shard {
 				return []Shard{
-					{Start: []byte("a"), End: []byte("b"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("b"), End: []byte("c"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("c"), End: []byte("d"), Labels: []metapb.Pair{{Key: "table", Value: "t1"}}},
-					{Start: []byte("d"), End: []byte("e"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
-					{Start: []byte("e"), End: []byte("f"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
-					{Start: []byte("f"), End: []byte("g"), Labels: []metapb.Pair{{Key: "table", Value: "t2"}}},
+					{Start: []byte("a"), End: []byte("b"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("b"), End: []byte("c"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("c"), End: []byte("d"), Labels: []metapb.Label{{Key: "table", Value: "t1"}}},
+					{Start: []byte("d"), End: []byte("e"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
+					{Start: []byte("e"), End: []byte("f"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
+					{Start: []byte("f"), End: []byte("g"), Labels: []metapb.Label{{Key: "table", Value: "t2"}}},
 				}
 			}
 		}))
@@ -113,7 +112,7 @@ func TestRebalanceOnBalancedClusterWithLabel(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 1, Capacity: 9, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{Group: 1, Capacity: 9, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 
@@ -161,7 +160,7 @@ func TestRebalanceLeaderOnBalancedClusterWithLabel(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	p, err := c.GetStore(0).CreateResourcePool(metapb.ResourcePool{Group: 1, Capacity: 9, RangePrefix: []byte("b")})
+	p, err := c.GetStore(0).CreateShardPool(metapb.ShardPoolJobMeta{Group: 1, Capacity: 9, RangePrefix: []byte("b")})
 	assert.NoError(t, err)
 	assert.NotNil(t, p)
 

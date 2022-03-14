@@ -25,7 +25,7 @@ func TestDoDynamicallyCreate(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 	s.DataStorageByGroup(1).GetInitialStates()
-	assert.True(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}}))
+	assert.True(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, StoreID: s.Meta().ID, InitialMember: true}}}))
 	assert.NotNil(t, s.getReplica(100, false))
 }
 
@@ -33,7 +33,7 @@ func TestDoDynamicallyCreateWithNoReplicaOnCurrentStore(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	s, cancel := newTestStore(t)
 	defer cancel()
-	assert.False(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID + 1, InitialMember: true}}}))
+	assert.False(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, StoreID: s.Meta().ID + 1, InitialMember: true}}}))
 }
 
 func TestDoDynamicallyCreateWithExists(t *testing.T) {
@@ -41,5 +41,5 @@ func TestDoDynamicallyCreateWithExists(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 	s.addReplica(newTestReplica(Shard{ID: 1}, Replica{ID: 100}, s))
-	assert.False(t, s.doDynamicallyCreate(Shard{ID: 1, Group: 1, Replicas: []Replica{{ID: 200, ContainerID: s.Meta().ID, InitialMember: true}}}))
+	assert.False(t, s.doDynamicallyCreate(Shard{ID: 1, Group: 1, Replicas: []Replica{{ID: 200, StoreID: s.Meta().ID, InitialMember: true}}}))
 }

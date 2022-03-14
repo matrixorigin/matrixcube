@@ -17,10 +17,9 @@ package opt
 import (
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
 )
 
@@ -33,19 +32,18 @@ const (
 // Cluster provides an overview of a cluster's resources distribution.
 // TODO: This interface should be moved to a better place.
 type Cluster interface {
-	core.ResourceSetInformer
-	core.ContainerSetInformer
-	core.ContainerSetController
-	statistics.ResourceStatInformer
-	statistics.ContainerStatInformer
+	core.ShardSetInformer
+	core.StoreSetInformer
+	core.StoreSetController
+	statistics.ShardStatInformer
+	statistics.StoreStatInformer
 
 	GetLogger() *zap.Logger
 	GetOpts() *config.PersistOptions
 	AllocID() (uint64, error)
-	FitResource(*core.CachedResource) *placement.ResourceFit
+	FitShard(*core.CachedShard) *placement.ShardFit
 	RemoveScheduler(name string) error
-	AddSuspectResources(ids ...uint64)
-	GetResourceFactory() func() metadata.Resource
+	AddSuspectShards(ids ...uint64)
 
 	// just for test
 	DisableJointConsensus()
@@ -54,5 +52,5 @@ type Cluster interface {
 
 // HeartbeatStream is an interface.
 type HeartbeatStream interface {
-	Send(*rpcpb.ResourceHeartbeatRsp) error
+	Send(*rpcpb.ShardHeartbeatRsp) error
 }

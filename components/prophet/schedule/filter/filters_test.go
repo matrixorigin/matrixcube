@@ -21,22 +21,21 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDistinctScoreFilter(t *testing.T) {
 	labels := []string{"zone", "rack", "host"}
-	allContainers := []*core.CachedContainer{
-		core.NewTestContainerInfoWithLabel(1, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"}),
-		core.NewTestContainerInfoWithLabel(2, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"}),
-		core.NewTestContainerInfoWithLabel(3, 1, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"}),
-		core.NewTestContainerInfoWithLabel(4, 1, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"}),
-		core.NewTestContainerInfoWithLabel(5, 1, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"}),
-		core.NewTestContainerInfoWithLabel(6, 1, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"}),
+	allStores := []*core.CachedStore{
+		core.NewTestStoreInfoWithLabel(1, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h1"}),
+		core.NewTestStoreInfoWithLabel(2, 1, map[string]string{"zone": "z1", "rack": "r1", "host": "h2"}),
+		core.NewTestStoreInfoWithLabel(3, 1, map[string]string{"zone": "z1", "rack": "r2", "host": "h1"}),
+		core.NewTestStoreInfoWithLabel(4, 1, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"}),
+		core.NewTestStoreInfoWithLabel(5, 1, map[string]string{"zone": "z2", "rack": "r2", "host": "h1"}),
+		core.NewTestStoreInfoWithLabel(6, 1, map[string]string{"zone": "z3", "rack": "r1", "host": "h1"}),
 	}
 
 	testCases := []struct {
@@ -51,21 +50,21 @@ func TestDistinctScoreFilter(t *testing.T) {
 		{[]uint64{1, 4, 6}, 4, 2, false, false},
 	}
 	for _, tc := range testCases {
-		var containers []*core.CachedContainer
+		var containers []*core.CachedStore
 		for _, id := range tc.containers {
-			containers = append(containers, allContainers[id-1])
+			containers = append(containers, allStores[id-1])
 		}
-		ls := NewLocationSafeguard("", labels, containers, allContainers[tc.source-1])
-		li := NewLocationImprover("", labels, containers, allContainers[tc.source-1])
-		assert.Equal(t, tc.safeGuardRes, ls.Target(config.NewTestOptions(), allContainers[tc.target-1]))
-		assert.Equal(t, tc.improverRes, li.Target(config.NewTestOptions(), allContainers[tc.target-1]))
+		ls := NewLocationSafeguard("", labels, containers, allStores[tc.source-1])
+		li := NewLocationImprover("", labels, containers, allStores[tc.source-1])
+		assert.Equal(t, tc.safeGuardRes, ls.Target(config.NewTestOptions(), allStores[tc.target-1]))
+		assert.Equal(t, tc.improverRes, li.Target(config.NewTestOptions(), allStores[tc.target-1]))
 	}
 }
 
 func TestLabelConstraintsFilter(t *testing.T) {
 	opt := config.NewTestOptions()
 	testCluster := mockcluster.NewCluster(opt)
-	container := core.NewTestContainerInfoWithLabel(1, 1, map[string]string{"id": "1"})
+	container := core.NewTestStoreInfoWithLabel(1, 1, map[string]string{"id": "1"})
 
 	testCases := []struct {
 		key    string
@@ -95,14 +94,15 @@ func TestRuleFitFilter(t *testing.T) {
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
 	testCluster.SetEnablePlacementRules(true)
-	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
-		{ContainerID: 1, ID: 1},
-		{ContainerID: 3, ID: 3},
-		{ContainerID: 5, ID: 5},
-	}}, &metapb.Replica{ContainerID: 1, ID: 1})
+	resource := core.NewCachedShard(metapb.Shard{
+		Replicas: []metapb.Replica{
+			{StoreID: 1, ID: 1},
+			{StoreID: 3, ID: 3},
+			{StoreID: 5, ID: 5},
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
 
 	testCases := []struct {
-		ContainerID   uint64
+		StoreID       uint64
 		resourceCount int
 		labels        map[string]string
 		sourceRes     bool
@@ -117,24 +117,24 @@ func TestRuleFitFilter(t *testing.T) {
 	}
 	// Init cluster
 	for _, tc := range testCases {
-		testCluster.AddLabelsContainer(tc.ContainerID, tc.resourceCount, tc.labels)
+		testCluster.AddLabelsStore(tc.StoreID, tc.resourceCount, tc.labels)
 	}
 	for _, tc := range testCases {
-		filter := newRuleFitFilter("", testCluster, resource, 1, metadata.TestResourceFactory)
-		assert.Equal(t, tc.sourceRes, filter.Source(testCluster.GetOpts(), testCluster.GetContainer(tc.ContainerID)))
-		assert.Equal(t, tc.targetRes, filter.Target(testCluster.GetOpts(), testCluster.GetContainer(tc.ContainerID)))
+		filter := newRuleFitFilter("", testCluster, resource, 1)
+		assert.Equal(t, tc.sourceRes, filter.Source(testCluster.GetOpts(), testCluster.GetStore(tc.StoreID)))
+		assert.Equal(t, tc.targetRes, filter.Target(testCluster.GetOpts(), testCluster.GetStore(tc.StoreID)))
 	}
 }
 
-func TestContainerStateFilter(t *testing.T) {
+func TestStoreStateFilter(t *testing.T) {
 	filters := []Filter{
-		&ContainerStateFilter{TransferLeader: true},
-		&ContainerStateFilter{MoveResource: true},
-		&ContainerStateFilter{TransferLeader: true, MoveResource: true},
-		&ContainerStateFilter{MoveResource: true, AllowTemporaryStates: true},
+		&StoreStateFilter{TransferLeader: true},
+		&StoreStateFilter{MoveShard: true},
+		&StoreStateFilter{TransferLeader: true, MoveShard: true},
+		&StoreStateFilter{MoveShard: true, AllowTemporaryStates: true},
 	}
 	opt := config.NewTestOptions()
-	container := core.NewTestContainerInfoWithLabel(1, 0, map[string]string{})
+	container := core.NewTestStoreInfoWithLabel(1, 0, map[string]string{})
 
 	type testCase struct {
 		filterIdx int
@@ -142,7 +142,7 @@ func TestContainerStateFilter(t *testing.T) {
 		targetRes bool
 	}
 
-	check := func(container *core.CachedContainer, testCases []testCase) {
+	check := func(container *core.CachedStore, testCases []testCase) {
 		for _, tc := range testCases {
 			assert.Equal(t, tc.sourceRes, filters[tc.filterIdx].Source(opt, container))
 			assert.Equal(t, tc.targetRes, filters[tc.filterIdx].Target(opt, container))
@@ -167,7 +167,7 @@ func TestContainerStateFilter(t *testing.T) {
 
 	// Busy
 	container = container.Clone(core.SetLastHeartbeatTS(time.Now())).
-		Clone(core.SetContainerStats(&metapb.ContainerStats{IsBusy: true}))
+		Clone(core.SetStoreStats(&metapb.StoreStats{IsBusy: true}))
 	testCases = []testCase{
 		{0, true, false},
 		{1, false, false},
@@ -181,8 +181,8 @@ func TestIsolationFilter(t *testing.T) {
 	opt := config.NewTestOptions()
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone", "rack", "host"})
-	allContainers := []struct {
-		ContainerID   uint64
+	allStores := []struct {
+		StoreID       uint64
 		resourceCount int
 		labels        map[string]string
 	}{
@@ -194,41 +194,41 @@ func TestIsolationFilter(t *testing.T) {
 		{6, 1, map[string]string{"zone": "z2", "rack": "r1", "host": "h1"}},
 		{7, 1, map[string]string{"zone": "z3", "rack": "r3", "host": "h1"}},
 	}
-	for _, container := range allContainers {
-		testCluster.AddLabelsContainer(container.ContainerID, container.resourceCount, container.labels)
+	for _, container := range allStores {
+		testCluster.AddLabelsStore(container.StoreID, container.resourceCount, container.labels)
 	}
 
 	testCases := []struct {
-		resource       *core.CachedResource
+		resource       *core.CachedShard
 		isolationLevel string
 		sourceRes      []bool
 		targetRes      []bool
 	}{
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1},
-				{ID: 2, ContainerID: 6},
-			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 6},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"zone",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, false, false, true},
 		},
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1},
-				{ID: 2, ContainerID: 4},
-				{ID: 3, ContainerID: 7},
-			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 4},
+				{ID: 3, StoreID: 7},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"rack",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, false, false, true, true, false},
 		},
 		{
-			core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1},
-				{ID: 2, ContainerID: 4},
-				{ID: 3, ContainerID: 6},
-			}}, &metapb.Replica{ContainerID: 1, ID: 1}),
+			core.NewCachedShard(metapb.Shard{Replicas: []metapb.Replica{
+				{ID: 1, StoreID: 1},
+				{ID: 2, StoreID: 4},
+				{ID: 3, StoreID: 6},
+			}}, &metapb.Replica{StoreID: 1, ID: 1}),
 			"host",
 			[]bool{true, true, true, true, true, true, true},
 			[]bool{false, false, true, false, true, false, true},
@@ -236,10 +236,10 @@ func TestIsolationFilter(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		filter := NewIsolationFilter("", tc.isolationLevel, testCluster.GetLocationLabels(), testCluster.GetResourceContainers(tc.resource))
-		for idx, container := range allContainers {
-			assert.Equal(t, tc.sourceRes[idx], filter.Source(testCluster.GetOpts(), testCluster.GetContainer(container.ContainerID)))
-			assert.Equal(t, tc.targetRes[idx], filter.Target(testCluster.GetOpts(), testCluster.GetContainer(container.ContainerID)))
+		filter := NewIsolationFilter("", tc.isolationLevel, testCluster.GetLocationLabels(), testCluster.GetShardStores(tc.resource))
+		for idx, container := range allStores {
+			assert.Equal(t, tc.sourceRes[idx], filter.Source(testCluster.GetOpts(), testCluster.GetStore(container.StoreID)))
+			assert.Equal(t, tc.targetRes[idx], filter.Target(testCluster.GetOpts(), testCluster.GetStore(container.StoreID)))
 		}
 	}
 }
@@ -249,24 +249,25 @@ func TestPlacementGuard(t *testing.T) {
 	opt.SetPlacementRuleEnabled(false)
 	testCluster := mockcluster.NewCluster(opt)
 	testCluster.SetLocationLabels([]string{"zone"})
-	testCluster.AddLabelsContainer(1, 1, map[string]string{"zone": "z1"})
-	testCluster.AddLabelsContainer(2, 1, map[string]string{"zone": "z1"})
-	testCluster.AddLabelsContainer(3, 1, map[string]string{"zone": "z2"})
-	testCluster.AddLabelsContainer(4, 1, map[string]string{"zone": "z2"})
-	testCluster.AddLabelsContainer(5, 1, map[string]string{"zone": "z3"})
-	resource := core.NewCachedResource(&metadata.TestResource{ResPeers: []metapb.Replica{
-		{ContainerID: 1, ID: 1},
-		{ContainerID: 3, ID: 3},
-		{ContainerID: 5, ID: 5},
-	}}, &metapb.Replica{ContainerID: 1, ID: 1})
-	container := testCluster.GetContainer(1)
+	testCluster.AddLabelsStore(1, 1, map[string]string{"zone": "z1"})
+	testCluster.AddLabelsStore(2, 1, map[string]string{"zone": "z1"})
+	testCluster.AddLabelsStore(3, 1, map[string]string{"zone": "z2"})
+	testCluster.AddLabelsStore(4, 1, map[string]string{"zone": "z2"})
+	testCluster.AddLabelsStore(5, 1, map[string]string{"zone": "z3"})
+	resource := core.NewCachedShard(metapb.Shard{
+		Replicas: []metapb.Replica{
+			{StoreID: 1, ID: 1},
+			{StoreID: 3, ID: 3},
+			{StoreID: 5, ID: 5},
+		}}, &metapb.Replica{StoreID: 1, ID: 1})
+	container := testCluster.GetStore(1)
 
-	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container, metadata.TestResourceFactory))
-	expected := reflect.ValueOf(NewLocationSafeguard("", []string{"zone"}, testCluster.GetResourceContainers(resource), container))
+	obtained := reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container))
+	expected := reflect.ValueOf(NewLocationSafeguard("", []string{"zone"}, testCluster.GetShardStores(resource), container))
 	assert.True(t, obtained.Type().AssignableTo(expected.Type()))
 
 	testCluster.SetEnablePlacementRules(true)
-	obtained = reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container, metadata.TestResourceFactory))
-	expected = reflect.ValueOf(newRuleFitFilter("", testCluster, resource, 1, metadata.TestResourceFactory))
+	obtained = reflect.ValueOf(NewPlacementSafeguard("", testCluster, resource, container))
+	expected = reflect.ValueOf(newRuleFitFilter("", testCluster, resource, 1))
 	assert.True(t, obtained.Type().AssignableTo(expected.Type()))
 }

@@ -76,7 +76,7 @@ type shuffleLeaderScheduler struct {
 // between containers.
 func newShuffleLeaderScheduler(opController *schedule.OperatorController, conf *shuffleLeaderSchedulerConfig) schedule.Scheduler {
 	filters := []filter.Filter{
-		&filter.ContainerStateFilter{ActionScope: conf.Name, TransferLeader: true},
+		&filter.StoreStateFilter{ActionScope: conf.Name, TransferLeader: true},
 		filter.NewSpecialUseFilter(conf.Name),
 	}
 	base := NewBaseScheduler(opController)
@@ -114,16 +114,16 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	// 1. random select a valid container.
 	// 2. transfer a leader to the container.
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
-	targetContainer := filter.NewCandidates(cluster.GetContainers()).
+	targetStore := filter.NewCandidates(cluster.GetStores()).
 		FilterTarget(cluster.GetOpts(), s.filters...).
 		RandomPick()
-	if targetContainer == nil {
+	if targetStore == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-target-container").Inc()
 		return nil
 	}
 
 	for _, groupKey := range cluster.GetScheduleGroupKeys() {
-		ops := s.scheduleByGroup(groupKey, targetContainer, cluster)
+		ops := s.scheduleByGroup(groupKey, targetStore, cluster)
 		if len(ops) > 0 {
 			return ops
 		}
@@ -131,13 +131,13 @@ func (s *shuffleLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	return nil
 }
 
-func (s *shuffleLeaderScheduler) scheduleByGroup(groupKey string, targetContainer *core.CachedContainer, cluster opt.Cluster) []*operator.Operator {
-	res := cluster.RandFollowerResource(groupKey, targetContainer.Meta.ID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthResource(cluster))
+func (s *shuffleLeaderScheduler) scheduleByGroup(groupKey string, targetStore *core.CachedStore, cluster opt.Cluster) []*operator.Operator {
+	res := cluster.RandFollowerShard(groupKey, targetStore.Meta.GetID(), s.conf.groupRanges[util.DecodeGroupKey(groupKey)], opt.HealthShard(cluster))
 	if res == nil {
 		schedulerCounter.WithLabelValues(s.GetName(), "no-follower").Inc()
 		return nil
 	}
-	op, err := operator.CreateTransferLeaderOperator(ShuffleLeaderType, cluster, res, res.GetLeader().GetContainerID(), targetContainer.Meta.ID(), operator.OpAdmin)
+	op, err := operator.CreateTransferLeaderOperator(ShuffleLeaderType, cluster, res, res.GetLeader().GetStoreID(), targetStore.Meta.GetID(), operator.OpAdmin)
 	if err != nil {
 		cluster.GetLogger().Error("fail to create shuffle leader operator",
 			shuffleLeaderField,

@@ -43,12 +43,12 @@ const (
 )
 
 var (
-	rebalanceResourceField = zap.String("schedule-type", "rebalance resource")
-	rebalanceLeaderField   = zap.String("schedule-type", "rebalance leader")
-	rebalanceHotField      = zap.String("schedule-type", "rebalance hot resource")
-	shuffleLeaderField     = zap.String("schedule-type", "shuffle leader")
-	shuffleHotField        = zap.String("schedule-type", "shuffle hot resource")
-	randomMergeField       = zap.String("schedule-type", "random merge")
+	rebalanceShardField  = zap.String("schedule-type", "rebalance resource")
+	rebalanceLeaderField = zap.String("schedule-type", "rebalance leader")
+	rebalanceHotField    = zap.String("schedule-type", "rebalance hot resource")
+	shuffleLeaderField   = zap.String("schedule-type", "shuffle leader")
+	shuffleHotField      = zap.String("schedule-type", "shuffle hot resource")
+	randomMergeField     = zap.String("schedule-type", "random merge")
 )
 
 // intervalGrow calculates the next interval of balance.

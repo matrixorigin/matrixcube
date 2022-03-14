@@ -22,73 +22,73 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 )
 
-// ContainerCandidates wraps container list and provide utilities to select source or
+// StoreCandidates wraps container list and provide utilities to select source or
 // target container to schedule.
-type ContainerCandidates struct {
-	Containers []*core.CachedContainer
+type StoreCandidates struct {
+	Stores []*core.CachedStore
 }
 
-// NewCandidates creates ContainerCandidates with container list.
-func NewCandidates(containers []*core.CachedContainer) *ContainerCandidates {
-	return &ContainerCandidates{Containers: containers}
+// NewCandidates creates StoreCandidates with container list.
+func NewCandidates(containers []*core.CachedStore) *StoreCandidates {
+	return &StoreCandidates{Stores: containers}
 }
 
 // FilterSource keeps containers that can pass all source filters.
-func (c *ContainerCandidates) FilterSource(opt *config.PersistOptions, filters ...Filter) *ContainerCandidates {
-	c.Containers = SelectSourceContainers(c.Containers, filters, opt)
+func (c *StoreCandidates) FilterSource(opt *config.PersistOptions, filters ...Filter) *StoreCandidates {
+	c.Stores = SelectSourceStores(c.Stores, filters, opt)
 	return c
 }
 
 // FilterTarget keeps containers that can pass all target filters.
-func (c *ContainerCandidates) FilterTarget(opt *config.PersistOptions, filters ...Filter) *ContainerCandidates {
-	c.Containers = SelectTargetContainers(c.Containers, filters, opt)
+func (c *StoreCandidates) FilterTarget(opt *config.PersistOptions, filters ...Filter) *StoreCandidates {
+	c.Stores = SelectTargetStores(c.Stores, filters, opt)
 	return c
 }
 
 // Sort sorts container list by given comparer in ascending order.
-func (c *ContainerCandidates) Sort(less ContainerComparer) *ContainerCandidates {
-	sort.Slice(c.Containers, func(i, j int) bool { return less(c.Containers[i], c.Containers[j]) < 0 })
+func (c *StoreCandidates) Sort(less StoreComparer) *StoreCandidates {
+	sort.Slice(c.Stores, func(i, j int) bool { return less(c.Stores[i], c.Stores[j]) < 0 })
 	return c
 }
 
 // Reverse reverses the candidate container list.
-func (c *ContainerCandidates) Reverse() *ContainerCandidates {
-	for i := len(c.Containers)/2 - 1; i >= 0; i-- {
-		opp := len(c.Containers) - 1 - i
-		c.Containers[i], c.Containers[opp] = c.Containers[opp], c.Containers[i]
+func (c *StoreCandidates) Reverse() *StoreCandidates {
+	for i := len(c.Stores)/2 - 1; i >= 0; i-- {
+		opp := len(c.Stores) - 1 - i
+		c.Stores[i], c.Stores[opp] = c.Stores[opp], c.Stores[i]
 	}
 	return c
 }
 
 // Shuffle reorders all candidates randomly.
-func (c *ContainerCandidates) Shuffle() *ContainerCandidates {
-	rand.Shuffle(len(c.Containers), func(i, j int) { c.Containers[i], c.Containers[j] = c.Containers[j], c.Containers[i] })
+func (c *StoreCandidates) Shuffle() *StoreCandidates {
+	rand.Shuffle(len(c.Stores), func(i, j int) { c.Stores[i], c.Stores[j] = c.Stores[j], c.Stores[i] })
 	return c
 }
 
 // Top keeps all containers that have the same priority with the first container.
 // The container list should be sorted before calling Top.
-func (c *ContainerCandidates) Top(less ContainerComparer) *ContainerCandidates {
+func (c *StoreCandidates) Top(less StoreComparer) *StoreCandidates {
 	var i int
-	for i < len(c.Containers) && less(c.Containers[0], c.Containers[i]) == 0 {
+	for i < len(c.Stores) && less(c.Stores[0], c.Stores[i]) == 0 {
 		i++
 	}
-	c.Containers = c.Containers[:i]
+	c.Stores = c.Stores[:i]
 	return c
 }
 
 // PickFirst returns the first container in candidate list.
-func (c *ContainerCandidates) PickFirst() *core.CachedContainer {
-	if len(c.Containers) == 0 {
+func (c *StoreCandidates) PickFirst() *core.CachedStore {
+	if len(c.Stores) == 0 {
 		return nil
 	}
-	return c.Containers[0]
+	return c.Stores[0]
 }
 
 // RandomPick returns a random container from the list.
-func (c *ContainerCandidates) RandomPick() *core.CachedContainer {
-	if len(c.Containers) == 0 {
+func (c *StoreCandidates) RandomPick() *core.CachedStore {
+	if len(c.Stores) == 0 {
 		return nil
 	}
-	return c.Containers[rand.Intn(len(c.Containers))]
+	return c.Stores[rand.Intn(len(c.Stores))]
 }

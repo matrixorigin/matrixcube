@@ -1,8 +1,7 @@
 syntax = "proto3";
 package errorpb;
 
-import "github.com/matrixorigin/matrixcube/pb/meta/meta.proto";
-import "github.com/matrixorigin/matrixcube/components/prophet/pb/metapb/metapb.proto";
+import "github.com/matrixorigin/matrixcube/pb/metapb/metapb.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -17,10 +16,10 @@ message NotLeader {
 }
 
 // StoreNotMatch current store is not match
-message StoreNotMatch {
+message StoreMismatch {
 }
 
-// ShardUnavailable the shard is unavailable, maybe destoryed
+// ShardUnavailable the shard is unavailable, maybe destroyed
 message ShardUnavailable {
     uint64 shardID = 1;
 }
@@ -40,7 +39,7 @@ message KeyNotInShard {
 
 // StaleEpoch the current shard peer is stale
 message StaleEpoch {
-    repeated meta.Shard newShards = 1 [(gogoproto.nullable) = false];
+    repeated metapb.Shard newShards = 1 [(gogoproto.nullable) = false];
 }
 
 // ServerIsBusy the server is busy
@@ -66,7 +65,7 @@ message Error {
     StaleEpoch        staleEpoch        = 5;
     ServerIsBusy      serverIsBusy      = 6;
     StaleCommand      staleCommand      = 7;
-    StoreNotMatch     storeNotMatch     = 8;
+    StoreMismatch     storeMismatch     = 8;
     RaftEntryTooLarge raftEntryTooLarge = 9;
     ShardUnavailable  shardUnavailable  = 10;
 }

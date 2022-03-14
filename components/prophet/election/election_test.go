@@ -63,6 +63,9 @@ func (t *electorTester) start() {
 }
 
 func (t *electorTester) stop(blockTime time.Duration) {
+	t.Lock()
+	defer t.Unlock()
+
 	t.blockTime = blockTime
 	t.cancel()
 }
@@ -105,6 +108,7 @@ func (t *electorTester) becomeFollower(newLeader string) bool {
 func (t *electorTester) notifyStarted() {
 	t.once.Do(func() {
 		if t.startedC != nil {
+			t.startedC <- struct{}{}
 			close(t.startedC)
 			t.startedC = nil
 		}

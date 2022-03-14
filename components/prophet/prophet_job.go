@@ -18,8 +18,8 @@ import (
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
 )
 
@@ -105,7 +105,7 @@ func (p *defaultProphet) stopJobs() {
 	})
 }
 
-func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	p.jobMu.Lock()
 	defer p.jobMu.Unlock()
 
@@ -129,7 +129,7 @@ func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	return nil
 }
 
-func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	p.jobMu.Lock()
 	defer p.jobMu.Unlock()
 
@@ -152,7 +152,7 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Req
 	return nil
 }
 
-func (p *defaultProphet) handleExecuteJob(rc *cluster.RaftCluster, req *rpcpb.Request, resp *rpcpb.Response) error {
+func (p *defaultProphet) handleExecuteJob(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
 	job := req.ExecuteJob.Job
 	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {

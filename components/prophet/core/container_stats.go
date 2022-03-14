@@ -18,13 +18,13 @@ import (
 	"math"
 	"sync"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 type containerStats struct {
 	mu       sync.RWMutex
-	rawStats *metapb.ContainerStats
+	rawStats *metapb.StoreStats
 
 	// avgAvailable is used to make available smooth, aka no sudden changes.
 	avgAvailable *movingaverage.HMA
@@ -36,16 +36,16 @@ type containerStats struct {
 	avgMaxAvailableDeviation *movingaverage.HMA
 }
 
-func newContainerStats() *containerStats {
+func newStoreStats() *containerStats {
 	return &containerStats{
-		rawStats:                 &metapb.ContainerStats{},
+		rawStats:                 &metapb.StoreStats{},
 		avgAvailable:             movingaverage.NewHMA(240),       // take 40 minutes sample under 10s heartbeat rate
 		maxAvailableDeviation:    movingaverage.NewMaxFilter(120), // take 20 minutes sample under 10s heartbeat rate
 		avgMaxAvailableDeviation: movingaverage.NewHMA(60),        // take 10 minutes sample under 10s heartbeat rate
 	}
 }
 
-func (ss *containerStats) updateRawStats(rawStats *metapb.ContainerStats) {
+func (ss *containerStats) updateRawStats(rawStats *metapb.StoreStats) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	ss.rawStats = rawStats
@@ -60,8 +60,8 @@ func (ss *containerStats) updateRawStats(rawStats *metapb.ContainerStats) {
 	ss.avgMaxAvailableDeviation.Add(ss.maxAvailableDeviation.Get())
 }
 
-// GetContainerStats returns the statistics information of the container.
-func (ss *containerStats) GetContainerStats() *metapb.ContainerStats {
+// GetStoreStats returns the statistics information of the container.
+func (ss *containerStats) GetStoreStats() *metapb.StoreStats {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats

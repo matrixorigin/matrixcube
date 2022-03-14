@@ -32,7 +32,7 @@ const (
 
 var allRoles = []string{roleLeader, roleFollower, roleLearner}
 
-type shuffleResourceSchedulerConfig struct {
+type shuffleShardSchedulerConfig struct {
 	sync.RWMutex
 	storage storage.Storage
 
@@ -41,25 +41,25 @@ type shuffleResourceSchedulerConfig struct {
 	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
-func (conf *shuffleResourceSchedulerConfig) EncodeConfig() ([]byte, error) {
+func (conf *shuffleShardSchedulerConfig) EncodeConfig() ([]byte, error) {
 	conf.RLock()
 	defer conf.RUnlock()
 	return schedule.EncodeConfig(conf)
 }
 
-func (conf *shuffleResourceSchedulerConfig) GetRoles() []string {
+func (conf *shuffleShardSchedulerConfig) GetRoles() []string {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.Roles
 }
 
-func (conf *shuffleResourceSchedulerConfig) GetRanges() []core.KeyRange {
+func (conf *shuffleShardSchedulerConfig) GetRanges() []core.KeyRange {
 	conf.RLock()
 	defer conf.RUnlock()
 	return conf.Ranges
 }
 
-func (conf *shuffleResourceSchedulerConfig) IsRoleAllow(role string) bool {
+func (conf *shuffleShardSchedulerConfig) IsRoleAllow(role string) bool {
 	conf.RLock()
 	defer conf.RUnlock()
 	return slice.AnyOf(conf.Roles, func(i int) bool { return conf.Roles[i] == role })

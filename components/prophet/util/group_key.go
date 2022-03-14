@@ -19,11 +19,11 @@ import (
 	"sort"
 
 	"github.com/fagongzi/util/format"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 // EncodeGroupKey encode group key
-func EncodeGroupKey(group uint64, rules []metapb.ScheduleGroupRule, labels []metapb.Pair) string {
+func EncodeGroupKey(group uint64, rules []metapb.ScheduleGroupRule, labels []metapb.Label) string {
 	var buf bytes.Buffer
 	buf.Write(format.Uint64ToBytes(group))
 	if len(rules) == 0 {

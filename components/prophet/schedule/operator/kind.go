@@ -27,13 +27,13 @@ const (
 	// Include leader transfer.
 	OpLeader OpKind = 1 << iota
 	// Include peer addition or removal. This means that this operator may take a long time.
-	OpResource
+	OpShard
 	// Include resource split. Initiated by rule checker if `kind & OpAdmin == 0`.
 	OpSplit
 	// Initiated by admin.
 	OpAdmin
 	// Initiated by hot resource scheduler.
-	OpHotResource
+	OpHotShard
 	// Initiated by replica checker.
 	OpReplica
 	// Initiated by merge checker or merge scheduler. Note that it may not include resource merge.
@@ -44,22 +44,22 @@ const (
 )
 
 var flagToName = map[OpKind]string{
-	OpLeader:      "leader",
-	OpResource:    "resource",
-	OpSplit:       "split",
-	OpAdmin:       "admin",
-	OpHotResource: "hot-resource",
-	OpReplica:     "replica",
-	OpMerge:       "merge",
-	OpRange:       "range",
+	OpLeader:   "leader",
+	OpShard:    "resource",
+	OpSplit:    "split",
+	OpAdmin:    "admin",
+	OpHotShard: "hot-resource",
+	OpReplica:  "replica",
+	OpMerge:    "merge",
+	OpRange:    "range",
 }
 
 var nameToFlag = map[string]OpKind{
 	"leader":       OpLeader,
-	"resource":     OpResource,
+	"resource":     OpShard,
 	"split":        OpSplit,
 	"admin":        OpAdmin,
-	"hot-resource": OpHotResource,
+	"hot-resource": OpHotShard,
 	"replica":      OpReplica,
 	"merge":        OpMerge,
 	"range":        OpRange,

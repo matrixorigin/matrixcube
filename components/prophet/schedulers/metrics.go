@@ -47,15 +47,15 @@ var opInfluenceStatus = prometheus.NewGaugeVec(
 		Namespace: "prophet",
 		Subsystem: "scheduler",
 		Name:      "op_influence",
-		Help:      "Container status for schedule",
+		Help:      "Store status for schedule",
 	}, []string{"scheduler", "container", "type"})
 
-var tolerantResourceStatus = prometheus.NewGaugeVec(
+var tolerantShardStatus = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Namespace: "prophet",
 		Subsystem: "scheduler",
 		Name:      "tolerant_resource",
-		Help:      "Container status for schedule",
+		Help:      "Store status for schedule",
 	}, []string{"scheduler", "source", "target"})
 
 var balanceLeaderCounter = prometheus.NewCounterVec(
@@ -66,7 +66,7 @@ var balanceLeaderCounter = prometheus.NewCounterVec(
 		Help:      "Counter of balance leader scheduler.",
 	}, []string{"type", "container"})
 
-var balanceResourceCounter = prometheus.NewCounterVec(
+var balanceShardCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Namespace: "prophet",
 		Subsystem: "scheduler",
@@ -106,7 +106,7 @@ var scatterRangeLeaderCounter = prometheus.NewCounterVec(
 		Help:      "Counter of scatter range leader scheduler.",
 	}, []string{"type", "container"})
 
-var scatterRangeResourceCounter = prometheus.NewCounterVec(
+var scatterRangeShardCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Namespace: "prophet",
 		Subsystem: "scheduler",
@@ -119,12 +119,12 @@ func init() {
 	prometheus.MustRegister(schedulerStatus)
 	prometheus.MustRegister(hotPeerSummary)
 	prometheus.MustRegister(balanceLeaderCounter)
-	prometheus.MustRegister(balanceResourceCounter)
+	prometheus.MustRegister(balanceShardCounter)
 	prometheus.MustRegister(hotSchedulerResultCounter)
 	prometheus.MustRegister(hotDirectionCounter)
 	prometheus.MustRegister(balanceDirectionCounter)
 	prometheus.MustRegister(scatterRangeLeaderCounter)
-	prometheus.MustRegister(scatterRangeResourceCounter)
+	prometheus.MustRegister(scatterRangeShardCounter)
 	prometheus.MustRegister(opInfluenceStatus)
-	prometheus.MustRegister(tolerantResourceStatus)
+	prometheus.MustRegister(tolerantShardStatus)
 }

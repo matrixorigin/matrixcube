@@ -28,21 +28,21 @@ type ReplicaStrategy struct {
 	cluster        opt.Cluster
 	locationLabels []string
 	isolationLevel string
-	resource       *core.CachedResource
+	resource       *core.CachedShard
 	extraFilters   []filter.Filter
 }
 
-// SelectContainerToAdd returns the container to add a replica to a resource.
-// `coLocationContainers` are the containers used to compare location with target
+// SelectStoreToAdd returns the container to add a replica to a resource.
+// `coLocationStores` are the containers used to compare location with target
 // container.
 // `extraFilters` is used to set up more filters based on the context that
 // calling this method.
 //
 // For example, to select a target container to replace a resource's peer, we can use
-// the peer list with the peer removed as `coLocationContainers`.
+// the peer list with the peer removed as `coLocationStores`.
 // Meanwhile, we need to provide more constraints to ensure that the isolation
 // level cannot be reduced after replacement.
-func (s *ReplicaStrategy) SelectContainerToAdd(coLocationContainers []*core.CachedContainer, extraFilters ...filter.Filter) uint64 {
+func (s *ReplicaStrategy) SelectStoreToAdd(coLocationStores []*core.CachedStore, extraFilters ...filter.Filter) uint64 {
 	// The selection process uses a two-stage fashion. The first stage
 	// ignores the temporary state of the containers and selects the containers
 	// with the highest score according to the location label. The second
@@ -52,13 +52,13 @@ func (s *ReplicaStrategy) SelectContainerToAdd(coLocationContainers []*core.Cach
 	// The reason for it is to prevent the non-optimal replica placement due
 	// to the short-term state, resulting in redundant scheduling.
 	filters := []filter.Filter{
-		filter.NewExcludedFilter(s.checkerName, nil, s.resource.GetContainerIDs()),
+		filter.NewExcludedFilter(s.checkerName, nil, s.resource.GetStoreIDs()),
 		filter.NewStorageThresholdFilter(s.checkerName),
 		filter.NewSpecialUseFilter(s.checkerName),
-		&filter.ContainerStateFilter{ActionScope: s.checkerName, MoveResource: true, AllowTemporaryStates: true},
+		&filter.StoreStateFilter{ActionScope: s.checkerName, MoveShard: true, AllowTemporaryStates: true},
 	}
 	if len(s.locationLabels) > 0 && s.isolationLevel != "" {
-		filters = append(filters, filter.NewIsolationFilter(s.checkerName, s.isolationLevel, s.locationLabels, coLocationContainers))
+		filters = append(filters, filter.NewIsolationFilter(s.checkerName, s.isolationLevel, s.locationLabels, coLocationStores))
 	}
 	if len(extraFilters) > 0 {
 		filters = append(filters, extraFilters...)
@@ -67,64 +67,64 @@ func (s *ReplicaStrategy) SelectContainerToAdd(coLocationContainers []*core.Cach
 		filters = append(filters, s.extraFilters...)
 	}
 
-	isolationComparer := filter.IsolationComparer(s.locationLabels, coLocationContainers)
-	strictStateFilter := &filter.ContainerStateFilter{ActionScope: s.checkerName, MoveResource: true}
-	target := filter.NewCandidates(s.cluster.GetContainers()).
+	isolationComparer := filter.IsolationComparer(s.locationLabels, coLocationStores)
+	strictStateFilter := &filter.StoreStateFilter{ActionScope: s.checkerName, MoveShard: true}
+	target := filter.NewCandidates(s.cluster.GetStores()).
 		FilterTarget(s.cluster.GetOpts(), filters...).
-		Sort(isolationComparer).Reverse().Top(isolationComparer).                          // greater isolation score is better
-		Sort(filter.ResourceScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())). // less resource score is better
-		FilterTarget(s.cluster.GetOpts(), strictStateFilter).PickFirst()                   // the filter does not ignore temp states
+		Sort(isolationComparer).Reverse().Top(isolationComparer).                       // greater isolation score is better
+		Sort(filter.ShardScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())). // less resource score is better
+		FilterTarget(s.cluster.GetOpts(), strictStateFilter).PickFirst()                // the filter does not ignore temp states
 	if target == nil {
 		return 0
 	}
-	return target.Meta.ID()
+	return target.Meta.GetID()
 }
 
-// SelectContainerToReplace returns a container to replace oldContainer. The location
+// SelectStoreToReplace returns a container to replace oldStore. The location
 // placement after scheduling should be not worse than original.
-func (s *ReplicaStrategy) SelectContainerToReplace(coLocationContainers []*core.CachedContainer, old uint64) uint64 {
+func (s *ReplicaStrategy) SelectStoreToReplace(coLocationStores []*core.CachedStore, old uint64) uint64 {
 	// trick to avoid creating a slice with `old` removed.
-	s.swapContainerToFirst(coLocationContainers, old)
-	safeGuard := filter.NewLocationSafeguard(s.checkerName, s.locationLabels, coLocationContainers,
-		s.cluster.GetContainer(old))
-	return s.SelectContainerToAdd(coLocationContainers[1:], safeGuard)
+	s.swapStoreToFirst(coLocationStores, old)
+	safeGuard := filter.NewLocationSafeguard(s.checkerName, s.locationLabels, coLocationStores,
+		s.cluster.GetStore(old))
+	return s.SelectStoreToAdd(coLocationStores[1:], safeGuard)
 }
 
-// SelectContainerToImprove returns a container to replace oldContainer. The location
+// SelectStoreToImprove returns a container to replace oldStore. The location
 // placement after scheduling should be better than original.
-func (s *ReplicaStrategy) SelectContainerToImprove(coLocationContainers []*core.CachedContainer, old uint64) uint64 {
+func (s *ReplicaStrategy) SelectStoreToImprove(coLocationStores []*core.CachedStore, old uint64) uint64 {
 	// trick to avoid creating a slice with `old` removed.
-	s.swapContainerToFirst(coLocationContainers, old)
+	s.swapStoreToFirst(coLocationStores, old)
 	filters := []filter.Filter{
-		filter.NewLocationImprover(s.checkerName, s.locationLabels, coLocationContainers, s.cluster.GetContainer(old)),
+		filter.NewLocationImprover(s.checkerName, s.locationLabels, coLocationStores, s.cluster.GetStore(old)),
 	}
 	if len(s.locationLabels) > 0 && s.isolationLevel != "" {
-		filters = append(filters, filter.NewIsolationFilter(s.checkerName, s.isolationLevel, s.locationLabels, coLocationContainers[1:]))
+		filters = append(filters, filter.NewIsolationFilter(s.checkerName, s.isolationLevel, s.locationLabels, coLocationStores[1:]))
 	}
-	return s.SelectContainerToAdd(coLocationContainers[1:], filters...)
+	return s.SelectStoreToAdd(coLocationStores[1:], filters...)
 }
 
-func (s *ReplicaStrategy) swapContainerToFirst(containers []*core.CachedContainer, id uint64) {
+func (s *ReplicaStrategy) swapStoreToFirst(containers []*core.CachedStore, id uint64) {
 	for i, s := range containers {
-		if s.Meta.ID() == id {
+		if s.Meta.GetID() == id {
 			containers[0], containers[i] = containers[i], containers[0]
 			return
 		}
 	}
 }
 
-// SelectContainerToRemove returns the best option to remove from the resource.
-func (s *ReplicaStrategy) SelectContainerToRemove(coLocationContainers []*core.CachedContainer) uint64 {
-	isolationComparer := filter.IsolationComparer(s.locationLabels, coLocationContainers)
-	source := filter.NewCandidates(coLocationContainers).
-		FilterSource(s.cluster.GetOpts(), &filter.ContainerStateFilter{ActionScope: replicaCheckerName, MoveResource: true}).
+// SelectStoreToRemove returns the best option to remove from the resource.
+func (s *ReplicaStrategy) SelectStoreToRemove(coLocationStores []*core.CachedStore) uint64 {
+	isolationComparer := filter.IsolationComparer(s.locationLabels, coLocationStores)
+	source := filter.NewCandidates(coLocationStores).
+		FilterSource(s.cluster.GetOpts(), &filter.StoreStateFilter{ActionScope: replicaCheckerName, MoveShard: true}).
 		Sort(isolationComparer).Top(isolationComparer).
-		Sort(filter.ResourceScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())).Reverse().
+		Sort(filter.ShardScoreComparer(s.resource.GetGroupKey(), s.cluster.GetOpts())).Reverse().
 		PickFirst()
 	if source == nil {
 		s.cluster.GetLogger().Debug("resource no removable container",
-			log.ResourceField(s.resource.Meta.ID()))
+			log.ResourceField(s.resource.Meta.GetID()))
 		return 0
 	}
-	return source.Meta.ID()
+	return source.Meta.GetID()
 }

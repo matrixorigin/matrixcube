@@ -19,13 +19,13 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // HeartbeatStream is used to mock HeartbeatStream for test use.
 type HeartbeatStream struct {
-	ch      chan *rpcpb.ResourceHeartbeatRsp
+	ch      chan *rpcpb.ShardHeartbeatRsp
 	timeout time.Duration
 }
 
@@ -37,13 +37,13 @@ func NewHeartbeatStream() HeartbeatStream {
 // NewHeartbeatStreamWithTimeout creates a new HeartbeatStream.
 func NewHeartbeatStreamWithTimeout(timeout time.Duration) HeartbeatStream {
 	return HeartbeatStream{
-		ch:      make(chan *rpcpb.ResourceHeartbeatRsp),
+		ch:      make(chan *rpcpb.ShardHeartbeatRsp),
 		timeout: timeout,
 	}
 }
 
 // Send mocks method.
-func (s HeartbeatStream) Send(m *rpcpb.ResourceHeartbeatRsp) error {
+func (s HeartbeatStream) Send(m *rpcpb.ShardHeartbeatRsp) error {
 	select {
 	case <-time.After(time.Second):
 		return errors.New("timeout")
@@ -53,13 +53,13 @@ func (s HeartbeatStream) Send(m *rpcpb.ResourceHeartbeatRsp) error {
 }
 
 // SendMsg is used to send the message.
-func (s HeartbeatStream) SendMsg(res *core.CachedResource, msg *rpcpb.ResourceHeartbeatRsp) {}
+func (s HeartbeatStream) SendMsg(res *core.CachedShard, msg *rpcpb.ShardHeartbeatRsp) {}
 
 // BindStream mock method.
 func (s HeartbeatStream) BindStream(containerID uint64, stream opt.HeartbeatStream) {}
 
 // Recv mocks method.
-func (s HeartbeatStream) Recv() *rpcpb.ResourceHeartbeatRsp {
+func (s HeartbeatStream) Recv() *rpcpb.ShardHeartbeatRsp {
 	select {
 	case <-time.After(s.timeout):
 		return nil

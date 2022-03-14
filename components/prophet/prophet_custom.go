@@ -14,13 +14,13 @@
 package prophet
 
 func (p *defaultProphet) startCustom() {
-	if p.cfg.Prophet.ContainerHeartbeatDataProcessor != nil {
-		p.cfg.Prophet.ContainerHeartbeatDataProcessor.Start(p.storage)
+	if p.cfg.Prophet.StoreHeartbeatDataProcessor != nil {
+		p.cfg.Prophet.StoreHeartbeatDataProcessor.Start(p.storage)
 	}
 }
 
 func (p *defaultProphet) stopCustom() {
-	if p.cfg.Prophet.ContainerHeartbeatDataProcessor != nil {
-		p.cfg.Prophet.ContainerHeartbeatDataProcessor.Stop(p.storage)
+	if p.cfg.Prophet.StoreHeartbeatDataProcessor != nil {
+		p.cfg.Prophet.StoreHeartbeatDataProcessor.Stop(p.storage)
 	}
 }

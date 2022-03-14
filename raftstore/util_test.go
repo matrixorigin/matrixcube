@@ -16,7 +16,7 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,11 +24,11 @@ import (
 func TestIsEpochStale(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	assert.True(t, isEpochStale(metapb.ResourceEpoch{ConfVer: 1}, metapb.ResourceEpoch{ConfVer: 2}))
-	assert.True(t, isEpochStale(metapb.ResourceEpoch{Version: 1}, metapb.ResourceEpoch{Version: 2}))
+	assert.True(t, isEpochStale(metapb.ShardEpoch{ConfigVer: 1}, metapb.ShardEpoch{ConfigVer: 2}))
+	assert.True(t, isEpochStale(metapb.ShardEpoch{Generation: 1}, metapb.ShardEpoch{Generation: 2}))
 
-	assert.False(t, isEpochStale(metapb.ResourceEpoch{ConfVer: 2}, metapb.ResourceEpoch{ConfVer: 1}))
-	assert.False(t, isEpochStale(metapb.ResourceEpoch{Version: 2}, metapb.ResourceEpoch{Version: 1}))
+	assert.False(t, isEpochStale(metapb.ShardEpoch{ConfigVer: 2}, metapb.ShardEpoch{ConfigVer: 1}))
+	assert.False(t, isEpochStale(metapb.ShardEpoch{Generation: 2}, metapb.ShardEpoch{Generation: 1}))
 }
 
 func TestFindReplica(t *testing.T) {
@@ -36,9 +36,9 @@ func TestFindReplica(t *testing.T) {
 
 	shard := Shard{
 		Replicas: []Replica{
-			{ID: 1, ContainerID: 10000},
-			{ID: 2, ContainerID: 20000},
-			{ID: 3, ContainerID: 30000},
+			{ID: 1, StoreID: 10000},
+			{ID: 2, StoreID: 20000},
+			{ID: 3, StoreID: 30000},
 		},
 	}
 
@@ -53,15 +53,15 @@ func TestRemoveReplica(t *testing.T) {
 
 	shard := &Shard{
 		Replicas: []Replica{
-			{ID: 1, ContainerID: 10000},
-			{ID: 2, ContainerID: 20000},
-			{ID: 3, ContainerID: 30000},
+			{ID: 1, StoreID: 10000},
+			{ID: 2, StoreID: 20000},
+			{ID: 3, StoreID: 30000},
 		},
 	}
 
 	v := removeReplica(shard, 10000)
 	assert.NotNil(t, v)
-	assert.Equal(t, Replica{ID: 1, ContainerID: 10000}, *v)
+	assert.Equal(t, Replica{ID: 1, StoreID: 10000}, *v)
 	assert.Equal(t, 2, len(shard.Replicas))
 
 	assert.Nil(t, removeReplica(shard, 10000))
@@ -73,17 +73,17 @@ func TestRemovedReplicas(t *testing.T) {
 
 	old := Shard{
 		Replicas: []Replica{
-			{ID: 1, ContainerID: 10000},
-			{ID: 2, ContainerID: 20000},
-			{ID: 3, ContainerID: 30000},
+			{ID: 1, StoreID: 10000},
+			{ID: 2, StoreID: 20000},
+			{ID: 3, StoreID: 30000},
 		},
 	}
 
 	new := Shard{
 		Replicas: []Replica{
-			{ID: 1, ContainerID: 10000},
-			{ID: 5, ContainerID: 50000},
-			{ID: 4, ContainerID: 40000},
+			{ID: 1, StoreID: 10000},
+			{ID: 5, StoreID: 50000},
+			{ID: 4, StoreID: 40000},
 		},
 	}
 
@@ -94,16 +94,16 @@ func TestRemovedReplicas(t *testing.T) {
 
 	old = Shard{
 		Replicas: []Replica{
-			{ID: 1, ContainerID: 10000},
-			{ID: 2, ContainerID: 20000},
-			{ID: 3, ContainerID: 30000},
+			{ID: 1, StoreID: 10000},
+			{ID: 2, StoreID: 20000},
+			{ID: 3, StoreID: 30000},
 		},
 	}
 	new = Shard{
 		Replicas: []Replica{
-			{ID: 6, ContainerID: 60000},
-			{ID: 5, ContainerID: 50000},
-			{ID: 4, ContainerID: 40000},
+			{ID: 6, StoreID: 60000},
+			{ID: 5, StoreID: 50000},
+			{ID: 4, StoreID: 40000},
 		},
 	}
 

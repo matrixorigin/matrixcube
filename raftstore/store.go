@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"fmt"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,13 +27,11 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -55,15 +54,15 @@ type Store interface {
 	// GetConfig returns the config of the store
 	GetConfig() *config.Config
 	// Meta returns store meta
-	Meta() meta.Store
+	Meta() metapb.Store
 	// GetRouter returns a router
 	GetRouter() Router
 	// GetShardsProxy get shards proxy to dispatch requests
 	GetShardsProxy() ShardsProxy
 	// OnRequest receive a request, and call cb while the request is completed
-	OnRequest(rpc.Request) error
+	OnRequest(rpcpb.Request) error
 	// OnRequestWithCB receive a request, and call cb while the request is completed
-	OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error
+	OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error
 	// DataStorage returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
@@ -73,19 +72,20 @@ type Store interface {
 	// Prophet return current prophet instance
 	Prophet() prophet.Prophet
 
-	// CreateResourcePool create resource pools, the resource pool will create shards,
+	// CreateShardPool create resource pools, the resource pool will create shards,
 	// and try to maintain the number of shards in the pool not less than the `capacity`
 	// parameter. This is an idempotent operation.
-	CreateResourcePool(...metapb.ResourcePool) (ShardsPool, error)
-	// GetResourcePool returns `ShardsPool`, nil if `CreateResourcePool` not completed
-	GetResourcePool() ShardsPool
+	CreateShardPool(...metapb.ShardPoolJobMeta) (ShardsPool, error)
+	// GetShardPool returns `ShardsPool`, nil if `CreateShardPool` not completed
+	GetShardPool() ShardsPool
 }
 
 type store struct {
 	cfg    *config.Config
 	logger *zap.Logger
 
-	meta       *containerAdapter
+	sync.RWMutex
+	meta       metapb.Store
 	pd         prophet.Prophet
 	bootOnce   sync.Once
 	pdStartedC chan struct{}
@@ -130,7 +130,7 @@ func NewStore(cfg *config.Config) Store {
 	logger := cfg.Logger.Named("store").With(zap.String("store", cfg.Prophet.Name))
 	s := &store{
 		kvStorage:             kv,
-		meta:                  &containerAdapter{},
+		meta:                  metapb.Store{},
 		cfg:                   cfg,
 		logger:                logger,
 		logdb:                 logdb.NewKVLogDB(kv, logger.Named("logdb")),
@@ -323,15 +323,15 @@ func (s *store) startRouter() {
 	s.watcher = watcher
 }
 
-func (s *store) Meta() meta.Store {
-	return s.meta.Clone().(*containerAdapter).meta
+func (s *store) Meta() metapb.Store {
+	return *s.meta.Clone()
 }
 
-func (s *store) OnRequest(req rpc.Request) error {
+func (s *store) OnRequest(req rpcpb.Request) error {
 	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
-func (s *store) OnRequestWithCB(req rpc.Request, cb func(resp rpc.ResponseBatch)) error {
+func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error {
 	if ce := s.logger.Check(zap.DebugLevel, "receive request"); ce != nil {
 		ce.Write(log.RequestIDField(req.ID),
 			s.storeField())
@@ -406,7 +406,6 @@ func (s *store) Prophet() prophet.Prophet {
 }
 
 func (s *store) startProphet() {
-	s.cfg.Prophet.Adapter = newProphetAdapter()
 	s.cfg.Prophet.Handler = s
 	s.cfg.Prophet.Adjust(nil, false)
 
@@ -435,11 +434,11 @@ func (s *store) startTransport() {
 
 func (s *store) startShards() {
 	totalCount := 0
-	tomebstoneCount := 0
+	tombstoneCount := 0
 
-	var tomebstones []meta.ShardLocalState
-	shards := make(map[uint64]meta.ShardLocalState)
-	localDestroyings := make(map[uint64]meta.ShardMetadata)
+	var tombstones []metapb.ShardLocalState
+	shards := make(map[uint64]metapb.ShardLocalState)
+	localDestroyings := make(map[uint64]metapb.ShardMetadata)
 	confirmShards := roaring64.New()
 	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
@@ -459,11 +458,11 @@ func (s *store) startShards() {
 					zap.Uint64("actual", metadata.ShardID))
 			}
 
-			if sls.State == meta.ReplicaState_Tombstone {
-				tomebstones = append(tomebstones, sls)
-				tomebstoneCount++
+			if sls.State == metapb.ReplicaState_ReplicaTombstone {
+				tombstones = append(tombstones, sls)
+				tombstoneCount++
 
-				if sls.Shard.State == metapb.ResourceState_Destroyed {
+				if sls.Shard.State == metapb.ShardState_Destroyed {
 					s.createShardsProtector.addDestroyed(sls.Shard.ID)
 				}
 
@@ -473,7 +472,7 @@ func (s *store) startShards() {
 				continue
 			}
 
-			if metadata.Metadata.Shard.State == metapb.ResourceState_Destroying {
+			if metadata.Metadata.Shard.State == metapb.ShardState_Destroying {
 				s.createShardsProtector.addDestroyed(sls.Shard.ID)
 				localDestroyings[metadata.ShardID] = metadata
 			} else {
@@ -485,7 +484,7 @@ func (s *store) startShards() {
 	})
 
 	for {
-		rsp, err := s.pd.GetClient().CheckResourceState(confirmShards)
+		rsp, err := s.pd.GetClient().CheckShardState(confirmShards)
 		if err != nil {
 			s.logger.Error("failed to check init shards, retry later",
 				zap.Error(err))
@@ -497,7 +496,7 @@ func (s *store) startShards() {
 		if bm.GetCardinality() > 0 {
 			for _, id := range bm.ToArray() {
 				s.createShardsProtector.addDestroyed(id)
-				tomebstones = append(tomebstones, shards[id])
+				tombstones = append(tombstones, shards[id])
 				delete(shards, id)
 			}
 		}
@@ -518,13 +517,13 @@ func (s *store) startShards() {
 		}).
 		create(readyBootstrapShards)
 
-	s.cleanupTombstones(tomebstones)
+	s.cleanupTombstones(tombstones)
 
 	s.logger.Info("shards started",
 		s.storeField(),
 		zap.Int("total", totalCount),
 		zap.Int("bootstrap", len(readyBootstrapShards)),
-		zap.Int("tomebstone", tomebstoneCount))
+		zap.Int("tombstone", tombstoneCount))
 }
 
 func (s *store) addReplica(pr *replica) bool {
@@ -542,7 +541,7 @@ func (s *store) removeReplica(shard Shard) {
 func (s *store) startShardsProxy() {
 	maxBodySize := int(s.cfg.Raft.MaxEntryBytes) * 2
 
-	rpc := newProxyRPC(s.logger.Named("proxy.rpc").With(s.storeField()),
+	rpcpb := newProxyRPC(s.logger.Named("proxy.rpcpb").With(s.storeField()),
 		s.cfg.ClientAddr,
 		maxBodySize,
 		s.OnRequest)
@@ -552,7 +551,7 @@ func (s *store) startShardsProxy() {
 		withLogger(l).
 		withBackendFactory(newBackendFactory(l, s)).
 		withMaxBodySize(maxBodySize).
-		withRPC(rpc).
+		withRPC(rpcpb).
 		build(s.router)
 	if err != nil {
 		s.logger.Fatal("fail to create shards proxy", zap.Error(err))
@@ -604,33 +603,33 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 //         and this vote will dropped by p2 and p3 node,
 //         because shard a and shard b has overlapped range at p2 and p3 node
 // case 2: p2 or p3 apply split log is before p1, we can't mock shard b's vote msg
-func (s *store) cacheDroppedVoteMsg(id uint64, msg meta.RaftMessage) {
+func (s *store) cacheDroppedVoteMsg(id uint64, msg metapb.RaftMessage) {
 	if msg.Message.Type == raftpb.MsgVote ||
 		msg.Message.Type == raftpb.MsgPreVote {
 		s.droppedVoteMsgs.Store(id, msg)
 	}
 }
 
-func (s *store) removeDroppedVoteMsg(id uint64) (meta.RaftMessage, bool) {
+func (s *store) removeDroppedVoteMsg(id uint64) (metapb.RaftMessage, bool) {
 	if value, ok := s.droppedVoteMsgs.Load(id); ok {
 		s.droppedVoteMsgs.Delete(id)
-		return value.(meta.RaftMessage), true
+		return value.(metapb.RaftMessage), true
 	}
 
-	return meta.RaftMessage{}, false
+	return metapb.RaftMessage{}, false
 }
 
-func (s *store) validateStoreID(req rpc.RequestBatch) error {
-	if req.Header.Replica.ContainerID != s.meta.ID() {
+func (s *store) validateStoreID(req rpcpb.RequestBatch) error {
+	if req.Header.Replica.StoreID != s.meta.GetID() {
 		return fmt.Errorf("store not match, give=<%d> want=<%d>",
-			req.Header.Replica.ContainerID,
-			s.meta.ID())
+			req.Header.Replica.StoreID,
+			s.meta.GetID())
 	}
 
 	return nil
 }
 
-func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
+func (s *store) validateShard(req rpcpb.RequestBatch) (errorpb.Error, bool) {
 	shardID := req.Header.ShardID
 	replicaID := req.Header.Replica.ID
 
@@ -682,17 +681,17 @@ func (s *store) validateShard(req rpc.RequestBatch) (errorpb.Error, bool) {
 	return errorpb.Error{}, false
 }
 
-func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
+func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 	checkVer := false
 	checkConfVer := false
 
 	if req.IsAdmin() {
 		switch req.GetAdminCmdType() {
-		case rpc.AdminCmdType_BatchSplit:
+		case rpcpb.AdminBatchSplit:
 			checkVer = true
-		case rpc.AdminCmdType_ConfigChange:
+		case rpcpb.AdminConfigChange:
 			checkConfVer = true
-		case rpc.AdminCmdType_TransferLeader:
+		case rpcpb.AdminTransferLeader:
 			checkVer = true
 			checkConfVer = true
 		}
@@ -711,18 +710,18 @@ func checkEpoch(shard Shard, req rpc.RequestBatch) bool {
 
 	lastestEpoch := shard.Epoch
 	isStale := func(fromEpoch Epoch) bool {
-		return (checkConfVer && fromEpoch.ConfVer < lastestEpoch.ConfVer) ||
-			(checkVer && fromEpoch.Version < lastestEpoch.Version)
+		return (checkConfVer && fromEpoch.ConfigVer < lastestEpoch.ConfigVer) ||
+			(checkVer && fromEpoch.Generation < lastestEpoch.Generation)
 	}
 
-	// only check first request, becase requests inside a batch have the same epoch
+	// only check first request, because requests inside a batch have the same epoch
 	return req.Requests[0].IgnoreEpochCheck ||
 		!isStale(req.Requests[0].Epoch)
 }
 
-func newAdminResponseBatch(adminType rpc.AdminCmdType, rsp protoc.PB) rpc.ResponseBatch {
-	return rpc.ResponseBatch{
-		Responses: []rpc.Response{
+func newAdminResponseBatch(adminType rpcpb.AdminCmdType, rsp protoc.PB) rpcpb.ResponseBatch {
+	return rpcpb.ResponseBatch{
+		Responses: []rpcpb.Response{
 			{
 				Value: protoc.MustMarshal(rsp),
 			},
@@ -784,18 +783,21 @@ func (s *store) nextShard(shard Shard) *Shard {
 }
 
 func (s *store) storeField() zap.Field {
-	return log.StoreIDField(s.meta.ID())
+	s.RLock()
+	defer s.RUnlock()
+
+	return log.StoreIDField(s.meta.GetID())
 }
 
 func (s *store) containerResolver(storeID uint64) (string, error) {
-	container, err := s.pd.GetStorage().GetContainer(storeID)
+	container, err := s.pd.GetStorage().GetStore(storeID)
 	if err != nil {
 		return "", err
 	}
 	if container == nil {
 		return "", nil
 	}
-	return container.ShardAddr(), nil
+	return container.GetRaftAddress(), nil
 }
 
 func (s *store) unreachable(shardID uint64, replicaID uint64) {
@@ -869,4 +871,231 @@ func (s *storeReplicaGetter) getReplica(shardID uint64) (*replica, bool) {
 		return r, true
 	}
 	return nil, false
+}
+
+func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.StoreHeartbeatReq, error) {
+	stats := metapb.StoreStats{}
+	stats.StoreID = s.Meta().ID
+
+	v, err := s.storageStatsReader.stats()
+	if err != nil {
+		s.logger.Error("fail to get storage capacity status",
+			s.storeField(),
+			zap.Error(err))
+		return rpcpb.StoreHeartbeatReq{}, err
+	}
+	stats.Capacity = v.capacity
+	stats.UsedSize = v.usedSize
+	stats.Available = v.available
+
+	if s.cfg.Capacity > 0 {
+		stats.Capacity = uint64(s.cfg.Capacity)
+		// If `Capacity` set, calculate `Available` using `Capacity`
+		stats.Available = stats.Capacity - stats.UsedSize
+	}
+
+	// cpu usages
+	usages, err := util.CpuUsages()
+	if err != nil {
+		s.logger.Error("fail to get cpu status",
+			s.storeField(),
+			zap.Error(err))
+		return rpcpb.StoreHeartbeatReq{}, err
+	}
+	for i, v := range usages {
+		stats.CpuUsages = append(stats.CpuUsages, metapb.RecordPair{
+			Key:   fmt.Sprintf("cpu:%d", i),
+			Value: uint64(v * 100),
+		})
+	}
+
+	// io rates
+	rates, err := util.IORates(s.cfg.DataPath)
+	if err != nil {
+		s.logger.Error("fail to get io status",
+			s.storeField(),
+			zap.Error(err))
+		return rpcpb.StoreHeartbeatReq{}, err
+	}
+	for name, v := range rates {
+		stats.WriteIORates = append(stats.WriteIORates, metapb.RecordPair{
+			Key:   name,
+			Value: v.WriteBytes,
+		})
+		stats.ReadIORates = append(stats.ReadIORates, metapb.RecordPair{
+			Key:   name,
+			Value: v.ReadBytes,
+		})
+	}
+
+	s.forEachReplica(func(pr *replica) bool {
+		// TODO: re-enable this
+		//if pr.ps.isApplyingSnapshot() {
+		//	stats.ApplyingSnapCount++
+		//}
+
+		stats.ShardCount++
+		return true
+	})
+	// FIXME: provide this count from the new implementation
+	// stats.ReceivingSnapCount = s.snapshotManager.ReceiveSnapCount()
+	stats.SendingSnapCount = s.trans.SendingSnapshotCount()
+	stats.StartTime = uint64(s.Meta().StartTime)
+
+	s.cfg.Storage.ForeachDataStorageFunc(func(db storage.DataStorage) {
+		st := db.Stats()
+		stats.WrittenBytes += st.WrittenBytes
+		stats.WrittenKeys += st.WrittenKeys
+		stats.ReadKeys += st.ReadKeys
+		stats.ReadBytes += st.ReadBytes
+	})
+
+	// TODO: is busy
+	stats.IsBusy = false
+	stats.Interval = &metapb.TimeInterval{
+		Start: uint64(last.Unix()),
+		End:   uint64(time.Now().Unix()),
+	}
+
+	var data []byte
+	if s.cfg.Customize.CustomStoreHeartbeatDataProcessor != nil {
+		data = s.cfg.Customize.CustomStoreHeartbeatDataProcessor.CollectData()
+	}
+	return rpcpb.StoreHeartbeatReq{Stats: stats, Data: data}, nil
+}
+
+func (s *store) startHandleShardHeartbeat() {
+	c, err := s.pd.GetClient().GetShardHeartbeatRspNotifier()
+	if err != nil {
+		s.logger.Fatal("tail to start handle resource heartbeat resp task",
+			s.storeField(),
+			zap.Error(err))
+	}
+	s.stopper.RunWorker(func() {
+		for {
+			select {
+			case <-s.stopper.ShouldStop():
+				s.logger.Info("handle resource heartbeat resp task stopped",
+					s.storeField())
+				return
+			case rsp, ok := <-c:
+				if ok {
+					s.doShardHeartbeatRsp(rsp)
+				}
+			}
+		}
+	})
+}
+
+func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
+	if rsp.DestroyDirectly {
+		s.destroyReplica(rsp.ShardID, true, true, "remove by pd")
+		return
+	}
+
+	pr := s.getReplica(rsp.ShardID, true)
+	if pr == nil {
+		s.logger.Info("skip heartbeat resp",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID),
+			log.ReasonField("not leader"))
+		return
+	}
+
+	if rsp.ConfigChange != nil {
+		s.logger.Info("send conf change request",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID),
+			log.ConfigChangeFieldWithHeartbeatResp("change", rsp))
+		pr.addAdminRequest(rpcpb.AdminConfigChange, &rpcpb.ConfigChangeRequest{
+			ChangeType: rsp.ConfigChange.ChangeType,
+			Replica:    rsp.ConfigChange.Replica,
+		})
+	} else if rsp.ConfigChangeV2 != nil {
+		s.logger.Info("send conf change request",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID),
+			log.ConfigChangesFieldWithHeartbeatResp("changes", rsp))
+		panic("ConfigChangeV2 request from prophet")
+	} else if rsp.TransferLeader != nil {
+		s.logger.Info("send transfer leader request",
+			s.storeField(),
+			log.ShardIDField(rsp.ShardID))
+		pr.addAdminRequest(rpcpb.AdminTransferLeader, &rpcpb.TransferLeaderRequest{
+			Replica: rsp.TransferLeader.Replica,
+		})
+	} else if rsp.SplitShard != nil {
+		// currently, pd only support use keys to splits
+		switch rsp.SplitShard.Policy {
+		case metapb.CheckPolicy_USEKEY:
+			shard := pr.getShard()
+			splitIDs, err := pr.store.pd.GetClient().AskBatchSplit(shard, uint32(len(rsp.SplitShard.Keys)))
+			if err != nil {
+				s.logger.Error("fail to ask batch split",
+					s.storeField(),
+					log.ShardIDField(rsp.ShardID),
+					zap.Error(err))
+				return
+			}
+			pr.addAction(action{
+				epoch:      rsp.ShardEpoch,
+				actionType: splitAction,
+				splitCheckData: splitCheckData{
+					splitKeys: rsp.SplitShard.Keys,
+					splitIDs:  splitIDs,
+				},
+			})
+		}
+	}
+}
+
+type storageStatsReader interface {
+	stats() (storageStats, error)
+}
+
+type storageStats struct {
+	capacity  uint64
+	available uint64
+	usedSize  uint64
+}
+
+type memoryStorageStatsReader struct {
+}
+
+func newMemoryStorageStatsReader() storageStatsReader {
+	return &memoryStorageStatsReader{}
+}
+
+func (s *memoryStorageStatsReader) stats() (storageStats, error) {
+	ms, err := util.MemStats()
+	if err != nil {
+		return storageStats{}, err
+	}
+
+	return storageStats{
+		capacity:  ms.Total,
+		usedSize:  ms.Total - ms.Available,
+		available: ms.Available,
+	}, nil
+}
+
+type diskStorageStatsReader struct {
+	dir string
+}
+
+func newDiskStorageStatsReader(dir string) storageStatsReader {
+	return &diskStorageStatsReader{dir: dir}
+}
+
+func (s *diskStorageStatsReader) stats() (storageStats, error) {
+	ms, err := util.DiskStats(s.dir)
+	if err != nil {
+		return storageStats{}, err
+	}
+
+	return storageStats{
+		capacity:  ms.Total,
+		usedSize:  ms.Total - ms.Free,
+		available: ms.Free,
+	}, nil
 }

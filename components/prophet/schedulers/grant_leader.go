@@ -55,13 +55,13 @@ func init() {
 			if err != nil {
 				return err
 			}
-			conf.ContainerIDWithRanges[id] = ranges
+			conf.StoreIDWithRanges[id] = ranges
 			return nil
 		}
 	})
 
 	schedule.RegisterScheduler(GrantLeaderType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := &grantLeaderSchedulerConfig{ContainerIDWithRanges: make(map[uint64][]core.KeyRange), storage: storage}
+		conf := &grantLeaderSchedulerConfig{StoreIDWithRanges: make(map[uint64][]core.KeyRange), storage: storage}
 		conf.cluster = opController.GetCluster()
 		if err := decoder(conf); err != nil {
 			return nil, err
@@ -71,11 +71,11 @@ func init() {
 }
 
 type grantLeaderSchedulerConfig struct {
-	mu                         sync.RWMutex
-	storage                    storage.Storage
-	ContainerIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
-	cluster                    opt.Cluster
-	groupContainerIDWithRanges map[uint64]map[uint64][]core.KeyRange
+	mu                     sync.RWMutex
+	storage                storage.Storage
+	StoreIDWithRanges      map[uint64][]core.KeyRange `json:"container-id-ranges"`
+	cluster                opt.Cluster
+	groupStoreIDWithRanges map[uint64]map[uint64][]core.KeyRange
 }
 
 func (conf *grantLeaderSchedulerConfig) BuildWithArgs(args []string) error {
@@ -93,7 +93,7 @@ func (conf *grantLeaderSchedulerConfig) BuildWithArgs(args []string) error {
 	}
 	conf.mu.Lock()
 	defer conf.mu.Unlock()
-	conf.ContainerIDWithRanges[id] = ranges
+	conf.StoreIDWithRanges[id] = ranges
 	return nil
 }
 
@@ -101,7 +101,7 @@ func (conf *grantLeaderSchedulerConfig) Clone() *grantLeaderSchedulerConfig {
 	conf.mu.RLock()
 	defer conf.mu.RUnlock()
 	return &grantLeaderSchedulerConfig{
-		ContainerIDWithRanges: conf.ContainerIDWithRanges,
+		StoreIDWithRanges: conf.StoreIDWithRanges,
 	}
 }
 
@@ -130,13 +130,13 @@ type grantLeaderScheduler struct {
 // to a container.
 func newGrantLeaderScheduler(opController *schedule.OperatorController, conf *grantLeaderSchedulerConfig) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
-	conf.groupContainerIDWithRanges = make(map[uint64]map[uint64][]core.KeyRange)
+	conf.groupStoreIDWithRanges = make(map[uint64]map[uint64][]core.KeyRange)
 	for _, group := range conf.cluster.GetOpts().GetReplicationConfig().Groups {
 		ms := make(map[uint64][]core.KeyRange)
-		for cid, rs := range conf.ContainerIDWithRanges {
+		for cid, rs := range conf.StoreIDWithRanges {
 			ms[cid] = groupKeyRanges(rs, []uint64{group})[group]
 		}
-		conf.groupContainerIDWithRanges[group] = ms
+		conf.groupStoreIDWithRanges[group] = ms
 	}
 	return &grantLeaderScheduler{
 		BaseScheduler: base,
@@ -160,7 +160,7 @@ func (s *grantLeaderScheduler) Prepare(cluster opt.Cluster) error {
 	s.conf.mu.RLock()
 	defer s.conf.mu.RUnlock()
 	var res error
-	for id := range s.conf.ContainerIDWithRanges {
+	for id := range s.conf.StoreIDWithRanges {
 		if err := cluster.PauseLeaderTransfer(id); err != nil {
 			res = err
 		}
@@ -171,7 +171,7 @@ func (s *grantLeaderScheduler) Prepare(cluster opt.Cluster) error {
 func (s *grantLeaderScheduler) Cleanup(cluster opt.Cluster) {
 	s.conf.mu.RLock()
 	defer s.conf.mu.RUnlock()
-	for id := range s.conf.ContainerIDWithRanges {
+	for id := range s.conf.StoreIDWithRanges {
 		cluster.ResumeLeaderTransfer(id)
 	}
 }
@@ -190,18 +190,18 @@ func (s *grantLeaderScheduler) Schedule(cluster opt.Cluster) []*operator.Operato
 	defer s.conf.mu.RUnlock()
 
 	var ops []*operator.Operator
-	for group, ms := range s.conf.groupContainerIDWithRanges {
+	for group, ms := range s.conf.groupStoreIDWithRanges {
 		prefix := util.EncodeGroupKey(group, nil, nil)
 		groupKeys := cluster.GetScheduleGroupKeysWithPrefix(prefix)
 		for containerID, ranges := range ms {
 			for _, groupKey := range groupKeys {
-				res := cluster.RandFollowerResource(groupKey, containerID, ranges, opt.HealthResource(cluster))
+				res := cluster.RandFollowerShard(groupKey, containerID, ranges, opt.HealthShard(cluster))
 				if res == nil {
 					schedulerCounter.WithLabelValues(s.GetName(), "no-follower").Inc()
 					continue
 				}
 
-				op, err := operator.CreateForceTransferLeaderOperator(GrantLeaderType, cluster, res, res.GetLeader().GetContainerID(), containerID, operator.OpLeader)
+				op, err := operator.CreateForceTransferLeaderOperator(GrantLeaderType, cluster, res, res.GetLeader().GetStoreID(), containerID, operator.OpLeader)
 				if err != nil {
 					cluster.GetLogger().Debug("fail to create grant leader operator",
 						zap.Error(err))

@@ -21,21 +21,21 @@ import (
 )
 
 const (
-	// SmallResourceThreshold is used to represent a resource which can be regarded as a small resource once the size is small than it.
-	SmallResourceThreshold int64 = 20
+	// SmallShardThreshold is used to represent a resource which can be regarded as a small resource once the size is small than it.
+	SmallShardThreshold int64 = 20
 	// Unlimited is used to control the container limit. Here uses a big enough number to represent unlimited.
 	Unlimited = float64(100000000)
 )
 
-// ResourceInfluence represents the influence of a operator step, which is used by container limit.
-var ResourceInfluence = map[Type]int64{
+// ShardInfluence represents the influence of a operator step, which is used by container limit.
+var ShardInfluence = map[Type]int64{
 	AddPeer:    1000,
 	RemovePeer: 1000,
 }
 
-// SmallResourceInfluence represents the influence of a operator step
-// when the resource size is smaller than smallResourceThreshold, which is used by container limit.
-var SmallResourceInfluence = map[Type]int64{
+// SmallShardInfluence represents the influence of a operator step
+// when the resource size is smaller than smallShardThreshold, which is used by container limit.
+var SmallShardInfluence = map[Type]int64{
 	AddPeer:    200,
 	RemovePeer: 200,
 }
@@ -66,15 +66,15 @@ func (t Type) String() string {
 	return ""
 }
 
-// ContainerLimit limits the operators of a container
-type ContainerLimit struct {
+// StoreLimit limits the operators of a container
+type StoreLimit struct {
 	bucket            *ratelimit.Bucket
 	resourceInfluence int64
 	ratePerSec        float64
 }
 
-// NewContainerLimit returns a ContainerLimit object
-func NewContainerLimit(ratePerSec float64, resourceInfluence int64) *ContainerLimit {
+// NewStoreLimit returns a StoreLimit object
+func NewStoreLimit(ratePerSec float64, resourceInfluence int64) *StoreLimit {
 	capacity := resourceInfluence
 	rate := ratePerSec
 	// unlimited
@@ -86,7 +86,7 @@ func NewContainerLimit(ratePerSec float64, resourceInfluence int64) *ContainerLi
 	} else {
 		ratePerSec *= float64(resourceInfluence)
 	}
-	return &ContainerLimit{
+	return &StoreLimit{
 		bucket:            ratelimit.NewBucketWithRate(ratePerSec, capacity),
 		resourceInfluence: resourceInfluence,
 		ratePerSec:        rate,
@@ -94,16 +94,16 @@ func NewContainerLimit(ratePerSec float64, resourceInfluence int64) *ContainerLi
 }
 
 // Available returns the number of available tokens
-func (l *ContainerLimit) Available() int64 {
+func (l *StoreLimit) Available() int64 {
 	return l.bucket.Available()
 }
 
 // Rate returns the fill rate of the bucket, in tokens per second.
-func (l *ContainerLimit) Rate() float64 {
+func (l *StoreLimit) Rate() float64 {
 	return l.ratePerSec
 }
 
 // Take takes count tokens from the bucket without blocking.
-func (l *ContainerLimit) Take(count int64) time.Duration {
+func (l *StoreLimit) Take(count int64) time.Duration {
 	return l.bucket.Take(count)
 }

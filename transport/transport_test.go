@@ -36,7 +36,7 @@ import (
 
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
@@ -70,7 +70,7 @@ func newTestMessageHandler() *testMessageHandler {
 	}
 }
 
-func (h *testMessageHandler) HandleMessageBatch(reqs meta.RaftMessageBatch) {
+func (h *testMessageHandler) HandleMessageBatch(reqs metapb.RaftMessageBatch) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, req := range reqs.Messages {
@@ -186,7 +186,7 @@ func (h *testMessageHandler) getMessageCount(m map[nodeInfo]uint64,
 	return 0
 }
 
-func TestContainerResolverReturnEmptyAddr(t *testing.T) {
+func TestStoreResolverReturnEmptyAddr(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
@@ -197,10 +197,10 @@ func TestContainerResolverReturnEmptyAddr(t *testing.T) {
 	require.NoError(t, trans.Start())
 	defer trans.Close()
 
-	assert.False(t, trans.Send(meta.RaftMessage{}))
+	assert.False(t, trans.Send(metapb.RaftMessage{}))
 }
 
-func TestContainerResolverReturnError(t *testing.T) {
+func TestStoreResolverReturnError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
@@ -211,7 +211,7 @@ func TestContainerResolverReturnError(t *testing.T) {
 	require.NoError(t, trans.Start())
 	defer trans.Close()
 
-	assert.False(t, trans.Send(meta.RaftMessage{}))
+	assert.False(t, trans.Send(metapb.RaftMessage{}))
 }
 
 func TestSetNilFilter(t *testing.T) {

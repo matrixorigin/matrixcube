@@ -50,7 +50,7 @@ func TestLabelConstraint(t *testing.T) {
 	for i, constraint := range constraints {
 		var matched []int
 		for j, container := range containers {
-			if constraint.MatchContainer(core.NewTestContainerInfoWithLabel(uint64(j), 0, container)) {
+			if constraint.MatchStore(core.NewTestStoreInfoWithLabel(uint64(j), 0, container)) {
 				matched = append(matched, j+1)
 			}
 		}
@@ -89,7 +89,7 @@ func TestLabelConstraints(t *testing.T) {
 	for i, cs := range constraints {
 		var matched []int
 		for j, container := range containers {
-			if MatchLabelConstraints(core.NewTestContainerInfoWithLabel(uint64(j), 0, container), cs) {
+			if MatchLabelConstraints(core.NewTestStoreInfoWithLabel(uint64(j), 0, container), cs) {
 				matched = append(matched, j+1)
 			}
 		}
