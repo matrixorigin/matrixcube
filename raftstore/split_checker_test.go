@@ -18,8 +18,8 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -45,10 +45,10 @@ func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
 	sc := newSplitChecker(1, 100, nil, nil)
 	sc.mu.running = true
 
-	sc.add(Shard{State: metapb.ResourceState_Destroying})
+	sc.add(Shard{State: metapb.ShardState_Destroying})
 	assert.Equal(t, 0, len(sc.shardsC))
 
-	sc.add(Shard{State: metapb.ResourceState_Destroyed})
+	sc.add(Shard{State: metapb.ShardState_Destroyed})
 	assert.Equal(t, 0, len(sc.shardsC))
 }
 
@@ -85,7 +85,7 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 
-	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Version: 1}}, Replica{ID: 1}, s)
+	pr := newTestReplica(Shard{ID: 1, Epoch: Epoch{Generation: 1}}, Replica{ID: 1}, s)
 	trg.replicas[1] = pr
 
 	// epoch not match

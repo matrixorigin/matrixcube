@@ -13,16 +13,29 @@
 
 package metadata
 
-// Adapter metadata adapter
-type Adapter interface {
-	// NewResource return a new resource
-	NewResource() Resource
-	// NewContainer return a new container
-	NewContainer() Container
-}
-
 // RoleChangeHandler prophet role change handler
 type RoleChangeHandler interface {
 	ProphetBecomeLeader()
 	ProphetBecomeFollower()
+}
+
+type testRoleChangeHandler struct {
+	leaderCB, followerCB func()
+}
+
+// NewTestRoleHandler create test adapter
+func NewTestRoleHandler(leaderCB, followerCB func()) RoleChangeHandler {
+	return &testRoleChangeHandler{leaderCB: leaderCB, followerCB: followerCB}
+}
+
+func (ta *testRoleChangeHandler) ProphetBecomeLeader() {
+	if ta.leaderCB != nil {
+		ta.leaderCB()
+	}
+}
+
+func (ta *testRoleChangeHandler) ProphetBecomeFollower() {
+	if ta.followerCB != nil {
+		ta.followerCB()
+	}
 }

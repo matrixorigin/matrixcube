@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/movingaverage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (
@@ -28,14 +28,14 @@ const (
 	TopNN = 60
 	// HotThresholdRatio is used to calculate hot thresholds
 	HotThresholdRatio = 0.8
-	topNTTL           = 3 * ResourceHeartBeatReportInterval * time.Second
+	topNTTL           = 3 * ShardHeartBeatReportInterval * time.Second
 
 	rollingWindowsSize = 5
 
-	// HotResourceReportMinInterval is used for the simulator and test
-	HotResourceReportMinInterval = 3
+	// HotShardReportMinInterval is used for the simulator and test
+	HotShardReportMinInterval = 3
 
-	hotResourceAntiCount = 2
+	hotShardAntiCount = 2
 )
 
 var (
@@ -53,23 +53,23 @@ var (
 
 // hotPeerCache saves the hot peer's statistics.
 type hotPeerCache struct {
-	kind                 FlowKind
-	peersOfContainer     map[uint64]*TopN               // containerID -> hot peers
-	containersOfResource map[uint64]map[uint64]struct{} // resourceID -> containerIDs
+	kind              FlowKind
+	peersOfStore      map[uint64]*TopN               // containerID -> hot peers
+	containersOfShard map[uint64]map[uint64]struct{} // resourceID -> containerIDs
 }
 
-func newHotContainersStats(kind FlowKind) *hotPeerCache {
+func newHotStoresStats(kind FlowKind) *hotPeerCache {
 	return &hotPeerCache{
-		kind:                 kind,
-		peersOfContainer:     make(map[uint64]*TopN),
-		containersOfResource: make(map[uint64]map[uint64]struct{}),
+		kind:              kind,
+		peersOfStore:      make(map[uint64]*TopN),
+		containersOfShard: make(map[uint64]map[uint64]struct{}),
 	}
 }
 
-// ResourceStats returns hot items
-func (f *hotPeerCache) ResourceStats(minHotDegree int) map[uint64][]*HotPeerStat {
+// ShardStats returns hot items
+func (f *hotPeerCache) ShardStats(minHotDegree int) map[uint64][]*HotPeerStat {
 	res := make(map[uint64][]*HotPeerStat)
-	for storeID, peers := range f.peersOfContainer {
+	for storeID, peers := range f.peersOfStore {
 		values := peers.GetAll()
 		stat := make([]*HotPeerStat, 0, len(values))
 		for _, v := range values {
@@ -85,31 +85,31 @@ func (f *hotPeerCache) ResourceStats(minHotDegree int) map[uint64][]*HotPeerStat
 // Update updates the items in statistics.
 func (f *hotPeerCache) Update(item *HotPeerStat) {
 	if item.IsNeedDelete() {
-		if peers, ok := f.peersOfContainer[item.ContainerID]; ok {
-			peers.Remove(item.ResourceID)
+		if peers, ok := f.peersOfStore[item.StoreID]; ok {
+			peers.Remove(item.ShardID)
 		}
 
-		if containers, ok := f.containersOfResource[item.ResourceID]; ok {
-			delete(containers, item.ContainerID)
+		if containers, ok := f.containersOfShard[item.ShardID]; ok {
+			delete(containers, item.StoreID)
 		}
 	} else {
-		peers, ok := f.peersOfContainer[item.ContainerID]
+		peers, ok := f.peersOfStore[item.StoreID]
 		if !ok {
 			peers = NewTopN(dimLen, TopNN, topNTTL)
-			f.peersOfContainer[item.ContainerID] = peers
+			f.peersOfStore[item.StoreID] = peers
 		}
 		peers.Put(item)
 
-		containers, ok := f.containersOfResource[item.ResourceID]
+		containers, ok := f.containersOfShard[item.ShardID]
 		if !ok {
 			containers = make(map[uint64]struct{})
-			f.containersOfResource[item.ResourceID] = containers
+			f.containersOfShard[item.ShardID] = containers
 		}
-		containers[item.ContainerID] = struct{}{}
+		containers[item.StoreID] = struct{}{}
 	}
 }
 
-func (f *hotPeerCache) collectResourceMetrics(byteRate, keyRate float64, interval uint64) {
+func (f *hotPeerCache) collectShardMetrics(byteRate, keyRate float64, interval uint64) {
 	resourceHeartbeatIntervalHist.Observe(float64(interval))
 	if interval == 0 {
 		return
@@ -124,10 +124,10 @@ func (f *hotPeerCache) collectResourceMetrics(byteRate, keyRate float64, interva
 	}
 }
 
-// CheckResourceFlow checks the flow information of resource.
-func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPeerStat) {
-	bytes := float64(f.getResourceBytes(res))
-	keys := float64(f.getResourceKeys(res))
+// CheckShardFlow checks the flow information of resource.
+func (f *hotPeerCache) CheckShardFlow(res *core.CachedShard) (ret []*HotPeerStat) {
+	bytes := float64(f.getShardBytes(res))
+	keys := float64(f.getShardKeys(res))
 
 	reportInterval := res.GetInterval()
 	interval := reportInterval.GetEnd() - reportInterval.GetStart()
@@ -135,42 +135,42 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 	byteRate := bytes / float64(interval)
 	keyRate := keys / float64(interval)
 
-	f.collectResourceMetrics(byteRate, keyRate, interval)
+	f.collectShardMetrics(byteRate, keyRate, interval)
 
 	// old resource is in the front and new resource is in the back
 	// which ensures it will hit the cache if moving peer or transfer leader occurs with the same replica number
 
 	var peers []uint64
-	for _, peer := range res.Meta.Peers() {
-		peers = append(peers, peer.ContainerID)
+	for _, peer := range res.Meta.GetReplicas() {
+		peers = append(peers, peer.StoreID)
 	}
 
 	var tmpItem *HotPeerStat
-	containerIDs := f.getAllContainerIDs(res)
+	containerIDs := f.getAllStoreIDs(res)
 	justTransferLeader := f.justTransferLeader(res)
 	for _, containerID := range containerIDs {
-		isExpired := f.isResourceExpired(res, containerID) // transfer read leader or remove write peer
-		oldItem := f.getOldHotPeerStat(res.Meta.ID(), containerID)
+		isExpired := f.isShardExpired(res, containerID) // transfer read leader or remove write peer
+		oldItem := f.getOldHotPeerStat(res.Meta.GetID(), containerID)
 		if isExpired && oldItem != nil { // it may has been moved to other container, we save it to tmpItem
 			tmpItem = oldItem
 		}
 
 		// This is used for the simulator and test. Ignore if report too fast.
-		if !isExpired && Denoising && interval < HotResourceReportMinInterval {
+		if !isExpired && Denoising && interval < HotShardReportMinInterval {
 			continue
 		}
 
 		thresholds := f.calcHotThresholds(containerID)
 
 		newItem := &HotPeerStat{
-			ContainerID:        containerID,
-			ResourceID:         res.Meta.ID(),
+			StoreID:            containerID,
+			ShardID:            res.Meta.GetID(),
 			Kind:               f.kind,
 			ByteRate:           byteRate,
 			KeyRate:            keyRate,
 			LastUpdateTime:     time.Now(),
 			needDelete:         isExpired,
-			isLeader:           res.GetLeader().GetContainerID() == containerID,
+			isLeader:           res.GetLeader().GetStoreID() == containerID,
 			justTransferLeader: justTransferLeader,
 			interval:           interval,
 			peers:              peers,
@@ -182,7 +182,7 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 				oldItem = tmpItem
 			} else { // new item is new peer after adding replica
 				for _, containerID := range containerIDs {
-					oldItem = f.getOldHotPeerStat(res.Meta.ID(), containerID)
+					oldItem = f.getOldHotPeerStat(res.Meta.GetID(), containerID)
 					if oldItem != nil {
 						break
 					}
@@ -199,18 +199,18 @@ func (f *hotPeerCache) CheckResourceFlow(res *core.CachedResource) (ret []*HotPe
 	return ret
 }
 
-func (f *hotPeerCache) IsResourceHot(res *core.CachedResource, hotDegree int) bool {
+func (f *hotPeerCache) IsShardHot(res *core.CachedShard, hotDegree int) bool {
 	switch f.kind {
 	case WriteFlow:
-		return f.isResourceHotWithAnyPeers(res, hotDegree)
+		return f.isShardHotWithAnyPeers(res, hotDegree)
 	case ReadFlow:
-		return f.isResourceHotWithPeer(res, res.GetLeader(), hotDegree)
+		return f.isShardHotWithPeer(res, res.GetLeader(), hotDegree)
 	}
 	return false
 }
 
 func (f *hotPeerCache) CollectMetrics(typ string) {
-	for containerID, peers := range f.peersOfContainer {
+	for containerID, peers := range f.peersOfStore {
 		container := containerTag(containerID)
 		thresholds := f.calcHotThresholds(containerID)
 		hotCacheStatusGauge.WithLabelValues("total_length", container, typ).Set(float64(peers.Len()))
@@ -221,7 +221,7 @@ func (f *hotPeerCache) CollectMetrics(typ string) {
 	}
 }
 
-func (f *hotPeerCache) getResourceBytes(res *core.CachedResource) uint64 {
+func (f *hotPeerCache) getShardBytes(res *core.CachedShard) uint64 {
 	switch f.kind {
 	case WriteFlow:
 		return res.GetBytesWritten()
@@ -231,7 +231,7 @@ func (f *hotPeerCache) getResourceBytes(res *core.CachedResource) uint64 {
 	return 0
 }
 
-func (f *hotPeerCache) getResourceKeys(res *core.CachedResource) uint64 {
+func (f *hotPeerCache) getShardKeys(res *core.CachedShard) uint64 {
 	switch f.kind {
 	case WriteFlow:
 		return res.GetKeysWritten()
@@ -242,7 +242,7 @@ func (f *hotPeerCache) getResourceKeys(res *core.CachedResource) uint64 {
 }
 
 func (f *hotPeerCache) getOldHotPeerStat(resID, containerID uint64) *HotPeerStat {
-	if hotPeers, ok := f.peersOfContainer[containerID]; ok {
+	if hotPeers, ok := f.peersOfStore[containerID]; ok {
 		if v := hotPeers.Get(resID); v != nil {
 			return v.(*HotPeerStat)
 		}
@@ -250,20 +250,20 @@ func (f *hotPeerCache) getOldHotPeerStat(resID, containerID uint64) *HotPeerStat
 	return nil
 }
 
-func (f *hotPeerCache) isResourceExpired(res *core.CachedResource, containerID uint64) bool {
+func (f *hotPeerCache) isShardExpired(res *core.CachedShard, containerID uint64) bool {
 	switch f.kind {
 	case WriteFlow:
-		_, ok := res.GetContainerPeer(containerID)
+		_, ok := res.GetStorePeer(containerID)
 		return !ok
 	case ReadFlow:
-		return res.GetLeader().GetContainerID() != containerID
+		return res.GetLeader().GetStoreID() != containerID
 	}
 	return false
 }
 
 func (f *hotPeerCache) calcHotThresholds(containerID uint64) [dimLen]float64 {
 	minThresholds := minHotThresholds[f.kind]
-	tn, ok := f.peersOfContainer[containerID]
+	tn, ok := f.peersOfStore[containerID]
 	if !ok || tn.Len() < TopNN {
 		return minThresholds
 	}
@@ -278,11 +278,11 @@ func (f *hotPeerCache) calcHotThresholds(containerID uint64) [dimLen]float64 {
 }
 
 // gets the containerIDs, including old resource and new resource
-func (f *hotPeerCache) getAllContainerIDs(res *core.CachedResource) []uint64 {
+func (f *hotPeerCache) getAllStoreIDs(res *core.CachedShard) []uint64 {
 	containerIDs := make(map[uint64]struct{})
-	ret := make([]uint64, 0, len(res.Meta.Peers()))
+	ret := make([]uint64, 0, len(res.Meta.GetReplicas()))
 	// old containers
-	ids, ok := f.containersOfResource[res.Meta.ID()]
+	ids, ok := f.containersOfShard[res.Meta.GetID()]
 	if ok {
 		for containerID := range ids {
 			containerIDs[containerID] = struct{}{}
@@ -291,14 +291,14 @@ func (f *hotPeerCache) getAllContainerIDs(res *core.CachedResource) []uint64 {
 	}
 
 	// new containers
-	for _, peer := range res.Meta.Peers() {
+	for _, peer := range res.Meta.GetReplicas() {
 		// ReadFlow no need consider the followers.
-		if f.kind == ReadFlow && peer.ContainerID != res.GetLeader().GetContainerID() {
+		if f.kind == ReadFlow && peer.StoreID != res.GetLeader().GetStoreID() {
 			continue
 		}
-		if _, ok := containerIDs[peer.ContainerID]; !ok {
-			containerIDs[peer.ContainerID] = struct{}{}
-			ret = append(ret, peer.ContainerID)
+		if _, ok := containerIDs[peer.StoreID]; !ok {
+			containerIDs[peer.StoreID] = struct{}{}
+			ret = append(ret, peer.StoreID)
 		}
 	}
 
@@ -315,7 +315,7 @@ func (f *hotPeerCache) isOldColdPeer(oldItem *HotPeerStat, storeID uint64) bool 
 		return false
 	}
 	noInCache := func() bool {
-		ids, ok := f.containersOfResource[oldItem.ResourceID]
+		ids, ok := f.containersOfShard[oldItem.ShardID]
 		if ok {
 			for id := range ids {
 				if id == storeID {
@@ -328,38 +328,38 @@ func (f *hotPeerCache) isOldColdPeer(oldItem *HotPeerStat, storeID uint64) bool 
 	return isOldPeer() && noInCache()
 }
 
-func (f *hotPeerCache) justTransferLeader(res *core.CachedResource) bool {
-	ids, ok := f.containersOfResource[res.Meta.ID()]
+func (f *hotPeerCache) justTransferLeader(res *core.CachedShard) bool {
+	ids, ok := f.containersOfShard[res.Meta.GetID()]
 	if ok {
 		for containerID := range ids {
-			oldItem := f.getOldHotPeerStat(res.Meta.ID(), containerID)
+			oldItem := f.getOldHotPeerStat(res.Meta.GetID(), containerID)
 			if oldItem == nil {
 				continue
 			}
 			if oldItem.isLeader {
-				return oldItem.ContainerID != res.GetLeader().GetContainerID()
+				return oldItem.StoreID != res.GetLeader().GetStoreID()
 			}
 		}
 	}
 	return false
 }
 
-func (f *hotPeerCache) isResourceHotWithAnyPeers(res *core.CachedResource, hotDegree int) bool {
-	for _, peer := range res.Meta.Peers() {
-		if f.isResourceHotWithPeer(res, &peer, hotDegree) {
+func (f *hotPeerCache) isShardHotWithAnyPeers(res *core.CachedShard, hotDegree int) bool {
+	for _, peer := range res.Meta.GetReplicas() {
+		if f.isShardHotWithPeer(res, &peer, hotDegree) {
 			return true
 		}
 	}
 	return false
 }
 
-func (f *hotPeerCache) isResourceHotWithPeer(res *core.CachedResource, peer *metapb.Replica, hotDegree int) bool {
+func (f *hotPeerCache) isShardHotWithPeer(res *core.CachedShard, peer *metapb.Replica, hotDegree int) bool {
 	if peer == nil {
 		return false
 	}
-	containerID := peer.GetContainerID()
-	if peers, ok := f.peersOfContainer[containerID]; ok {
-		if stat := peers.Get(res.Meta.ID()); stat != nil {
+	containerID := peer.GetStoreID()
+	if peers, ok := f.peersOfStore[containerID]; ok {
+		if stat := peers.Get(res.Meta.GetID()); stat != nil {
 			return stat.(*HotPeerStat).HotDegree >= hotDegree
 		}
 	}
@@ -367,7 +367,7 @@ func (f *hotPeerCache) isResourceHotWithPeer(res *core.CachedResource, peer *met
 }
 
 func (f *hotPeerCache) getDefaultTimeMedian() *movingaverage.TimeMedian {
-	return movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, ResourceHeartBeatReportInterval*time.Second)
+	return movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, ShardHeartBeatReportInterval*time.Second)
 }
 
 func (f *hotPeerCache) updateHotPeerStat(newItem, oldItem *HotPeerStat, bytes, keys float64, interval time.Duration) *HotPeerStat {
@@ -383,9 +383,9 @@ func (f *hotPeerCache) updateHotPeerStat(newItem, oldItem *HotPeerStat, bytes, k
 		if !isHot {
 			return nil
 		}
-		if interval.Seconds() >= ResourceHeartBeatReportInterval {
+		if interval.Seconds() >= ShardHeartBeatReportInterval {
 			newItem.HotDegree = 1
-			newItem.AntiCount = hotResourceAntiCount
+			newItem.AntiCount = hotShardAntiCount
 		}
 		newItem.isNew = true
 		newItem.rollingByteRate = newDimStat(byteDim)
@@ -419,17 +419,17 @@ func (f *hotPeerCache) updateHotPeerStat(newItem, oldItem *HotPeerStat, bytes, k
 		newItem.HotDegree = oldItem.HotDegree
 		newItem.AntiCount = oldItem.AntiCount
 	} else {
-		if f.isOldColdPeer(oldItem, newItem.ContainerID) {
+		if f.isOldColdPeer(oldItem, newItem.StoreID) {
 			if newItem.isFullAndHot() {
 				newItem.HotDegree = 1
-				newItem.AntiCount = hotResourceAntiCount
+				newItem.AntiCount = hotShardAntiCount
 			} else {
 				newItem.needDelete = true
 			}
 		} else {
 			if newItem.isFullAndHot() {
 				newItem.HotDegree = oldItem.HotDegree + 1
-				newItem.AntiCount = hotResourceAntiCount
+				newItem.AntiCount = hotShardAntiCount
 			} else {
 				newItem.HotDegree = oldItem.HotDegree - 1
 				newItem.AntiCount = oldItem.AntiCount - 1

@@ -2,20 +2,20 @@ package raftstore
 
 import (
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // TODO: move all reponse method to here
 
-func requestDone(req rpc.Request, cb func(rpc.ResponseBatch), data []byte) {
+func requestDone(req rpcpb.Request, cb func(rpcpb.ResponseBatch), data []byte) {
 	r := getResponse(req)
 	r.Value = data
-	cb(rpc.ResponseBatch{Responses: []rpc.Response{r}})
+	cb(rpcpb.ResponseBatch{Responses: []rpcpb.Response{r}})
 }
 
-func requestDoneWithReplicaRemoved(req rpc.Request, cb func(rpc.ResponseBatch), id uint64) {
+func requestDoneWithReplicaRemoved(req rpcpb.Request, cb func(rpcpb.ResponseBatch), id uint64) {
 	r := getResponse(req)
-	cb(rpc.ResponseBatch{Responses: []rpc.Response{r}, Header: rpc.ResponseBatchHeader{Error: errorpb.Error{
+	cb(rpcpb.ResponseBatch{Responses: []rpcpb.Response{r}, Header: rpcpb.ResponseBatchHeader{Error: errorpb.Error{
 		Message: errShardNotFound.Error(),
 		ShardNotFound: &errorpb.ShardNotFound{
 			ShardID: id,
@@ -23,8 +23,8 @@ func requestDoneWithReplicaRemoved(req rpc.Request, cb func(rpc.ResponseBatch), 
 	}}})
 }
 
-func getResponse(req rpc.Request) rpc.Response {
-	return rpc.Response{
+func getResponse(req rpcpb.Request) rpcpb.Response {
+	return rpcpb.Response{
 		Type: req.Type,
 		ID:   req.ID,
 		PID:  req.PID,

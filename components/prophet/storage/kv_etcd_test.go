@@ -32,7 +32,7 @@ func TestEtcdKV(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestLoadResources failed")
+	assert.NoError(t, err, "TestLoadShards failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 

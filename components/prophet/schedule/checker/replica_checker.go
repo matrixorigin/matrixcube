@@ -20,10 +20,10 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/cache"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"go.uber.org/zap"
 )
 
@@ -62,30 +62,30 @@ func (r *ReplicaChecker) GetType() string {
 }
 
 // FillReplicas make up all replica for a empty resource
-func (r *ReplicaChecker) FillReplicas(res *core.CachedResource, leastPeers int) error {
-	if len(res.Meta.Peers()) > 0 {
+func (r *ReplicaChecker) FillReplicas(res *core.CachedShard, leastPeers int) error {
+	if len(res.Meta.GetReplicas()) > 0 {
 		return fmt.Errorf("fill resource replicas only support empty resources")
 	}
 
-	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
+	if len(res.Meta.GetReplicas()) >= r.opts.GetMaxReplicas() {
 		return nil
 	}
 
 	rs := r.strategy(res)
-	resourceContainers := r.cluster.GetResourceContainers(res)
+	resourceStores := r.cluster.GetShardStores(res)
 	for i := 0; i < r.opts.GetMaxReplicas(); i++ {
-		container := rs.SelectContainerToAdd(resourceContainers)
+		container := rs.SelectStoreToAdd(resourceStores)
 		if container == 0 {
 			break
 		}
 
-		peers := res.Meta.Peers()
-		peers = append(peers, metapb.Replica{ContainerID: container})
-		res.Meta.SetPeers(peers)
+		peers := res.Meta.GetReplicas()
+		peers = append(peers, metapb.Replica{StoreID: container})
+		res.Meta.SetReplicas(peers)
 	}
 
-	if (leastPeers == 0 && len(res.Meta.Peers()) == r.opts.GetMaxReplicas()) || // all peers matches
-		(leastPeers > 0 && len(res.Meta.Peers()) == leastPeers) { // least peers matches
+	if (leastPeers == 0 && len(res.Meta.GetReplicas()) == r.opts.GetMaxReplicas()) || // all peers matches
+		(leastPeers > 0 && len(res.Meta.GetReplicas()) == leastPeers) { // least peers matches
 		return nil
 	}
 
@@ -93,7 +93,7 @@ func (r *ReplicaChecker) FillReplicas(res *core.CachedResource, leastPeers int) 
 }
 
 // Check verifies a resource's replicas, creating an operator.Operator if need.
-func (r *ReplicaChecker) Check(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) Check(res *core.CachedShard) *operator.Operator {
 	checkerCounter.WithLabelValues("replica_checker", "check").Inc()
 	if op := r.checkDownPeer(res); op != nil {
 		checkerCounter.WithLabelValues("replica_checker", "new-operator").Inc()
@@ -121,7 +121,7 @@ func (r *ReplicaChecker) Check(res *core.CachedResource) *operator.Operator {
 	return nil
 }
 
-func (r *ReplicaChecker) checkDownPeer(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkDownPeer(res *core.CachedShard) *operator.Operator {
 	if !r.opts.IsRemoveDownReplicaEnabled() {
 		return nil
 	}
@@ -131,17 +131,17 @@ func (r *ReplicaChecker) checkDownPeer(res *core.CachedResource) *operator.Opera
 		if peer.ID == 0 {
 			continue
 		}
-		containerID := peer.ContainerID
-		container := r.cluster.GetContainer(containerID)
+		containerID := peer.StoreID
+		container := r.cluster.GetStore(containerID)
 		if container == nil {
 			r.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
 				zap.Uint64("container", containerID))
 			return nil
 		}
-		if container.DownTime() < r.opts.GetMaxContainerDownTime() {
+		if container.DownTime() < r.opts.GetMaxStoreDownTime() {
 			continue
 		}
-		if stats.GetDownSeconds() < uint64(r.opts.GetMaxContainerDownTime().Seconds()) {
+		if stats.GetDownSeconds() < uint64(r.opts.GetMaxStoreDownTime().Seconds()) {
 			continue
 		}
 
@@ -150,7 +150,7 @@ func (r *ReplicaChecker) checkDownPeer(res *core.CachedResource) *operator.Opera
 	return nil
 }
 
-func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedShard) *operator.Operator {
 	if !r.opts.IsReplaceOfflineReplicaEnabled() {
 		return nil
 	}
@@ -160,9 +160,9 @@ func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedResource) *operator.Op
 		return nil
 	}
 
-	for _, peer := range res.Meta.Peers() {
-		containerID := peer.ContainerID
-		container := r.cluster.GetContainer(containerID)
+	for _, peer := range res.Meta.GetReplicas() {
+		containerID := peer.StoreID
+		container := r.cluster.GetStore(containerID)
 		if container == nil {
 			r.cluster.GetLogger().Warn("lost the container, maybe you are recovering the Prophet cluster",
 				zap.Uint64("container", containerID))
@@ -178,11 +178,11 @@ func (r *ReplicaChecker) checkOfflinePeer(res *core.CachedResource) *operator.Op
 	return nil
 }
 
-func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedShard) *operator.Operator {
 	if !r.opts.IsMakeUpReplicaEnabled() {
 		return nil
 	}
-	if len(res.Meta.Peers()) >= r.opts.GetMaxReplicas() {
+	if len(res.Meta.GetReplicas()) >= r.opts.GetMaxReplicas() {
 		return nil
 	}
 	if res.IsDestroyState() {
@@ -190,18 +190,18 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.
 	}
 
 	r.cluster.GetLogger().Debug("resource's peers fewer than max replicas",
-		log.ResourceField(res.Meta.ID()),
-		zap.Int("peers", len(res.Meta.Peers())))
-	resourceContainers := r.cluster.GetResourceContainers(res)
-	target := r.strategy(res).SelectContainerToAdd(resourceContainers)
+		log.ResourceField(res.Meta.GetID()),
+		zap.Int("peers", len(res.Meta.GetReplicas())))
+	resourceStores := r.cluster.GetShardStores(res)
+	target := r.strategy(res).SelectStoreToAdd(resourceStores)
 	if target == 0 {
 		r.cluster.GetLogger().Debug("no container to add replica for resource",
-			log.ResourceField(res.Meta.ID()))
+			log.ResourceField(res.Meta.GetID()))
 		checkerCounter.WithLabelValues("replica_checker", "no-target-container").Inc()
-		r.resourceWaitingList.Put(res.Meta.ID(), nil)
+		r.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		return nil
 	}
-	newPeer := metapb.Replica{ContainerID: target}
+	newPeer := metapb.Replica{StoreID: target}
 	op, err := operator.CreateAddPeerOperator("make-up-replica", r.cluster, res, newPeer, operator.OpReplica)
 	if err != nil {
 		r.cluster.GetLogger().Debug("fail to create make-up-replica operator",
@@ -211,7 +211,7 @@ func (r *ReplicaChecker) checkMakeUpReplica(res *core.CachedResource) *operator.
 	return op
 }
 
-func (r *ReplicaChecker) checkRemoveExtraReplica(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkRemoveExtraReplica(res *core.CachedShard) *operator.Operator {
 	if !r.opts.IsRemoveExtraReplicaEnabled() {
 		return nil
 	}
@@ -221,13 +221,13 @@ func (r *ReplicaChecker) checkRemoveExtraReplica(res *core.CachedResource) *oper
 		return nil
 	}
 	r.cluster.GetLogger().Debug("resource's peers more than max replicas",
-		log.ResourceField(res.Meta.ID()),
-		zap.Int("peers", len(res.Meta.Peers())))
-	resourceContainers := r.cluster.GetResourceContainers(res)
-	old := r.strategy(res).SelectContainerToRemove(resourceContainers)
+		log.ResourceField(res.Meta.GetID()),
+		zap.Int("peers", len(res.Meta.GetReplicas())))
+	resourceStores := r.cluster.GetShardStores(res)
+	old := r.strategy(res).SelectStoreToRemove(resourceStores)
 	if old == 0 {
 		checkerCounter.WithLabelValues("replica_checker", "no-worst-peer").Inc()
-		r.resourceWaitingList.Put(res.Meta.ID(), nil)
+		r.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		return nil
 	}
 	op, err := operator.CreateRemovePeerOperator("remove-extra-replica", r.cluster, operator.OpReplica, res, old)
@@ -238,7 +238,7 @@ func (r *ReplicaChecker) checkRemoveExtraReplica(res *core.CachedResource) *oper
 	return op
 }
 
-func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *operator.Operator {
+func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedShard) *operator.Operator {
 	if !r.opts.IsLocationReplacementEnabled() {
 		return nil
 	}
@@ -248,22 +248,22 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 	}
 
 	strategy := r.strategy(res)
-	resourceContainers := r.cluster.GetResourceContainers(res)
-	oldContainer := strategy.SelectContainerToRemove(resourceContainers)
-	if oldContainer == 0 {
+	resourceStores := r.cluster.GetShardStores(res)
+	oldStore := strategy.SelectStoreToRemove(resourceStores)
+	if oldStore == 0 {
 		checkerCounter.WithLabelValues("replica_checker", "all-right").Inc()
 		return nil
 	}
-	newContainer := strategy.SelectContainerToImprove(resourceContainers, oldContainer)
-	if newContainer == 0 {
+	newStore := strategy.SelectStoreToImprove(resourceStores, oldStore)
+	if newStore == 0 {
 		r.cluster.GetLogger().Debug("resource no better peer",
-			log.ResourceField(res.Meta.ID()))
+			log.ResourceField(res.Meta.GetID()))
 		checkerCounter.WithLabelValues("replica_checker", "not-better").Inc()
 		return nil
 	}
 
-	newPeer := metapb.Replica{ContainerID: newContainer}
-	op, err := operator.CreateMovePeerOperator("move-to-better-location", r.cluster, res, operator.OpReplica, oldContainer, newPeer)
+	newPeer := metapb.Replica{StoreID: newStore}
+	op, err := operator.CreateMovePeerOperator("move-to-better-location", r.cluster, res, operator.OpReplica, oldStore, newPeer)
 	if err != nil {
 		checkerCounter.WithLabelValues("replica_checker", "create-operator-fail").Inc()
 		return nil
@@ -271,7 +271,7 @@ func (r *ReplicaChecker) checkLocationReplacement(res *core.CachedResource) *ope
 	return op
 }
 
-func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, status string) *operator.Operator {
+func (r *ReplicaChecker) fixPeer(res *core.CachedShard, containerID uint64, status string) *operator.Operator {
 	// Check the number of replicas first.
 	if len(res.GetVoters()) > r.opts.GetMaxReplicas() ||
 		res.IsDestroyState() {
@@ -285,17 +285,17 @@ func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, s
 		return op
 	}
 
-	resourceContainers := r.cluster.GetResourceContainers(res)
-	target := r.strategy(res).SelectContainerToReplace(resourceContainers, containerID)
+	resourceStores := r.cluster.GetShardStores(res)
+	target := r.strategy(res).SelectStoreToReplace(resourceStores, containerID)
 	if target == 0 {
 		reason := fmt.Sprintf("no-container-%s", status)
 		checkerCounter.WithLabelValues("replica_checker", reason).Inc()
-		r.resourceWaitingList.Put(res.Meta.ID(), nil)
+		r.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		r.cluster.GetLogger().Debug("resource no best container to add replica",
-			log.ResourceField(res.Meta.ID()))
+			log.ResourceField(res.Meta.GetID()))
 		return nil
 	}
-	newPeer := metapb.Replica{ContainerID: target}
+	newPeer := metapb.Replica{StoreID: target}
 	replace := fmt.Sprintf("replace-%s-replica", status)
 	op, err := operator.CreateMovePeerOperator(replace, r.cluster, res, operator.OpReplica, containerID, newPeer)
 	if err != nil {
@@ -306,7 +306,7 @@ func (r *ReplicaChecker) fixPeer(res *core.CachedResource, containerID uint64, s
 	return op
 }
 
-func (r *ReplicaChecker) strategy(res *core.CachedResource) *ReplicaStrategy {
+func (r *ReplicaChecker) strategy(res *core.CachedShard) *ReplicaStrategy {
 	return &ReplicaStrategy{
 		checkerName:    replicaCheckerName,
 		cluster:        r.cluster,

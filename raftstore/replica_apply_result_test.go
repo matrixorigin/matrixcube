@@ -16,8 +16,8 @@ package raftstore
 import (
 	"testing"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -46,8 +46,8 @@ func TestApplySplit(t *testing.T) {
 			{ID: 3, Start: []byte{5}, End: []byte{10}, Replicas: []Replica{{ID: 300}}},
 		},
 	}
-	s.droppedVoteMsgs.Store(uint64(2), meta.RaftMessage{})
-	s.droppedVoteMsgs.Store(uint64(3), meta.RaftMessage{})
+	s.droppedVoteMsgs.Store(uint64(2), metapb.RaftMessage{})
+	s.droppedVoteMsgs.Store(uint64(3), metapb.RaftMessage{})
 
 	pr.destroyTaskFactory = newTestDestroyReplicaTaskFactory(true)
 	pr.applySplit(result)
@@ -133,7 +133,7 @@ func TestUpdateMetricsHints(t *testing.T) {
 
 	pr.updateMetricsHints(applyResult{
 		adminResult: &adminResult{
-			adminType:   rpc.AdminCmdType_BatchSplit,
+			adminType:   rpcpb.AdminBatchSplit,
 			splitResult: splitResult{},
 		},
 	})

@@ -21,7 +21,7 @@ import (
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 )
@@ -59,12 +59,12 @@ func TestInitAppliedIndex(t *testing.T) {
 	assert.NoError(t, pr.initAppliedIndex())
 	assert.Equal(t, uint64(0), pr.appliedIndex)
 
-	err = ds.SaveShardMetadata([]meta.ShardMetadata{
+	err = ds.SaveShardMetadata([]metapb.ShardMetadata{
 		{
 			ShardID:  2,
 			LogIndex: 2,
-			Metadata: meta.ShardLocalState{
-				Shard: meta.Shard{
+			Metadata: metapb.ShardLocalState{
+				Shard: metapb.Shard{
 					ID: 2,
 				},
 			},

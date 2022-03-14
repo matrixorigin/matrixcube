@@ -23,10 +23,10 @@ import (
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/logdb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 )
 
@@ -87,7 +87,7 @@ func TestIsValidConfigChangeRequest(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		ccr := rpc.ConfigChangeRequest{
+		ccr := rpcpb.ConfigChangeRequest{
 			ChangeType: tt.ct,
 			Replica:    tt.replica,
 		}
@@ -113,7 +113,7 @@ func TestIsRemovingOrDemotingLeader(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		ccr := rpc.ConfigChangeRequest{
+		ccr := rpcpb.ConfigChangeRequest{
 			ChangeType: tt.ct,
 			Replica: metapb.Replica{
 				ID: tt.replicaID,
@@ -160,7 +160,7 @@ func TestRemovingVoterDirectlyInJointConsensusCC(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		ccr := rpc.ConfigChangeRequest{
+		ccr := rpcpb.ConfigChangeRequest{
 			ChangeType: tt.ct,
 			Replica: metapb.Replica{
 				Role: tt.role,
@@ -175,13 +175,13 @@ func TestRemovingVoterDirectlyInJointConsensusCC(t *testing.T) {
 func TestGetRequestTypeWillPanicWhenBatchHasBothReadWrite(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	batch := rpc.RequestBatch{
-		Requests: []rpc.Request{
+	batch := rpcpb.RequestBatch{
+		Requests: []rpcpb.Request{
 			{
-				Type: rpc.CmdType_Write,
+				Type: rpcpb.Write,
 			},
 			{
-				Type: rpc.CmdType_Read,
+				Type: rpcpb.Read,
 			},
 		},
 	}
@@ -199,39 +199,39 @@ func TestGetRequestType(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	tests := []struct {
-		req rpc.RequestBatch
+		req rpcpb.RequestBatch
 		rt  requestType
 	}{
 		{
-			rpc.RequestBatch{
-				Requests: []rpc.Request{
+			rpcpb.RequestBatch{
+				Requests: []rpcpb.Request{
 					{
-						Type: rpc.CmdType_Write,
+						Type: rpcpb.Write,
 					},
 				},
 			},
 			proposalNormal,
 		},
 		{
-			rpc.RequestBatch{
-				Requests: []rpc.Request{
+			rpcpb.RequestBatch{
+				Requests: []rpcpb.Request{
 					{
-						Type: rpc.CmdType_Read,
+						Type: rpcpb.Read,
 					},
 				},
 			},
 			readIndex,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
 			proposalConfigChange,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			requestTransferLeader,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
 			proposalNormal,
 		},
 	}
@@ -245,7 +245,7 @@ func TestGetRequestType(t *testing.T) {
 func TestToConfigChangeIV1(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	req := rpc.ConfigChangeRequest{
+	req := rpcpb.ConfigChangeRequest{
 		ChangeType: metapb.ConfigChangeType_RemoveNode,
 		Replica: metapb.Replica{
 			ID: 123,
@@ -267,11 +267,11 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	tests := []struct {
-		req rpc.ConfigChangeRequest
+		req rpcpb.ConfigChangeRequest
 		err error
 	}{
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
 				Replica: metapb.Replica{
 					ID: 100,
@@ -280,7 +280,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			nil,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
 					Role: metapb.ReplicaRole_Voter,
@@ -290,7 +290,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			nil,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
 					Role: metapb.ReplicaRole_Learner,
@@ -300,7 +300,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			nil,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
 					Role: metapb.ReplicaRole_Learner,
@@ -310,7 +310,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			ErrInvalidConfigChangeRequest,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
 					Role: metapb.ReplicaRole_Voter,
@@ -320,7 +320,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			ErrInvalidConfigChangeRequest,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
 				Replica: metapb.Replica{
 					ID: 1,
@@ -329,7 +329,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 			ErrRemoveLeader,
 		},
 		{
-			rpc.ConfigChangeRequest{
+			rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
 					Role: metapb.ReplicaRole_Learner,
@@ -377,7 +377,7 @@ func TestInvalidConfigChangeRequestIsRejected(t *testing.T) {
 		})
 
 		cci := r.toConfChangeI(tt.req, data)
-		result := r.checkConfChange([]rpc.ConfigChangeRequest{tt.req}, cci)
+		result := r.checkConfChange([]rpcpb.ConfigChangeRequest{tt.req}, cci)
 		assert.Equal(t, tt.err, result, "idx: %d", idx)
 	}
 }

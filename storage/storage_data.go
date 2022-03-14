@@ -16,7 +16,7 @@ package storage
 import (
 	"github.com/cockroachdb/errors"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util/buf"
 )
@@ -121,7 +121,7 @@ type DataStorage interface {
 	// to the DataStorage instance that are consistent with their related table
 	// shards data. The shard metadata is last changed by the raft log identified
 	// by the LogIndex value.
-	GetInitialStates() ([]meta.ShardMetadata, error)
+	GetInitialStates() ([]metapb.ShardMetadata, error)
 	// GetPersistentLogIndex returns the most recent raft log index that is known
 	// to have its update persistently stored. This means all updates made by Raft
 	// logs no greater than the returned index value have been persistently stored,
@@ -132,12 +132,12 @@ type DataStorage interface {
 	// saved content to persistent storage or not. It is also the responsibility
 	// of the data storage to ensure that a consistent view of shard data and
 	// metadata is always available on restart.
-	SaveShardMetadata([]meta.ShardMetadata) error
+	SaveShardMetadata([]metapb.ShardMetadata) error
 	// RemoveShard is used for notifying the data storage that a shard has been
 	// removed by MatrixCube. The removeData parameter indicates whether shard
 	// data should be removed by the data storage. When removeData is set to true,
 	// the data storage is required do the cleaning asynchronously.
-	RemoveShard(shard meta.Shard, removeData bool) error
+	RemoveShard(shard metapb.Shard, removeData bool) error
 	// Sync persistently saves table shards data and shards metadata of the
 	// specified shards to the underlying persistent storage.
 	Sync([]uint64) error
@@ -146,12 +146,12 @@ type DataStorage interface {
 	// current bytes(approximate) and the total number of keys(approximate) in [start,end),
 	// the founded split keys. The ctx is context information of this check will be passed
 	// to the engine by cube in the subsequent split operation.
-	SplitCheck(shard meta.Shard, size uint64) (currentApproximateSize uint64,
+	SplitCheck(shard metapb.Shard, size uint64) (currentApproximateSize uint64,
 		currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error)
 	// Split After the split request completes raft consensus, it is used to save the
 	// metadata after the Shard has executed the split, metadata needs atomically saved
 	// into the underlying storage.
-	Split(old meta.ShardMetadata, news []meta.ShardMetadata, ctx []byte) error
+	Split(old metapb.ShardMetadata, news []metapb.ShardMetadata, ctx []byte) error
 }
 
 // WriteContext contains the details of write requests to be handled by the
@@ -169,7 +169,7 @@ type WriteContext interface {
 	// storage.
 	WriteBatch() Resetable
 	// Shard returns the current shard details.
-	Shard() meta.Shard
+	Shard() metapb.Shard
 	// Batch returns the Batch instance transformed from a single Raft log.
 	Batch() Batch
 	// AppendResponse is used for appending responses once each request is handled.
@@ -190,7 +190,7 @@ type ReadContext interface {
 	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
 	// Shard returns the current shard details.
-	Shard() meta.Shard
+	Shard() metapb.Shard
 	// Requeset returns the read request to be processed on the storage engine.
 	Request() Request
 	// SetReadBytes set the number of bytes read from storage for all requests in
@@ -223,7 +223,7 @@ type Request struct {
 // SimpleWriteContext is a simple WriteContext implementation used for testing.
 type SimpleWriteContext struct {
 	buf          *buf.ByteBuf
-	shard        meta.Shard
+	shard        metapb.Shard
 	wb           Resetable
 	batch        Batch
 	responses    [][]byte
@@ -247,7 +247,7 @@ func NewSimpleWriteContext(shardID uint64,
 
 func (ctx *SimpleWriteContext) ByteBuf() *buf.ByteBuf { return ctx.buf }
 func (ctx *SimpleWriteContext) WriteBatch() Resetable { return ctx.wb }
-func (ctx *SimpleWriteContext) Shard() meta.Shard     { return ctx.shard }
+func (ctx *SimpleWriteContext) Shard() metapb.Shard   { return ctx.shard }
 func (ctx *SimpleWriteContext) Batch() Batch          { return ctx.batch }
 func (ctx *SimpleWriteContext) AppendResponse(value []byte) {
 	ctx.responses = append(ctx.responses, value)
@@ -260,7 +260,7 @@ func (ctx *SimpleWriteContext) Responses() [][]byte          { return ctx.respon
 
 type SimpleReadContext struct {
 	buf       *buf.ByteBuf
-	shard     meta.Shard
+	shard     metapb.Shard
 	request   Request
 	readBytes uint64
 }
@@ -276,7 +276,7 @@ func NewSimpleReadContext(shardID uint64, req Request) *SimpleReadContext {
 }
 
 func (c *SimpleReadContext) ByteBuf() *buf.ByteBuf         { return c.buf }
-func (c *SimpleReadContext) Shard() meta.Shard             { return c.shard }
+func (c *SimpleReadContext) Shard() metapb.Shard           { return c.shard }
 func (c *SimpleReadContext) Request() Request              { return c.request }
 func (c *SimpleReadContext) SetReadBytes(readBytes uint64) { c.readBytes = readBytes }
 func (c *SimpleReadContext) GetReadBytes() uint64          { return c.readBytes }

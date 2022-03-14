@@ -80,7 +80,7 @@ func (s *store) handleShardStateCheckTask() {
 	})
 
 	if bm.GetCardinality() > 0 {
-		rsp, err := s.pd.GetClient().CheckResourceState(bm)
+		rsp, err := s.pd.GetClient().CheckShardState(bm)
 		if err != nil {
 			s.logger.Error("fail to check shards state, retry later",
 				s.storeField(),
@@ -90,7 +90,7 @@ func (s *store) handleShardStateCheckTask() {
 
 		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
 		s.addUnavailableShardWithIds(bm)
-
+		
 		for _, id := range bm.ToArray() {
 			// FIXME: we don't known whether to remove data or not. Conservative retention data.
 			s.destroyReplica(id, true, false, "shard state check")
@@ -155,7 +155,7 @@ func (s *store) handleStoreHeartbeatTask(last time.Time) {
 		return
 	}
 
-	rsp, err := s.pd.GetClient().ContainerHeartbeat(req)
+	rsp, err := s.pd.GetClient().StoreHeartbeat(req)
 	if err != nil {
 		s.logger.Error("fail to send store heartbeat",
 			s.storeField(),

@@ -20,7 +20,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -38,7 +38,7 @@ var (
 )
 
 // SuccessCallback request success callback
-type SuccessCallback func(resp rpc.Response)
+type SuccessCallback func(resp rpcpb.Response)
 
 // FailureCallback request failure callback
 type FailureCallback func(requestID []byte, err error)
@@ -46,7 +46,7 @@ type FailureCallback func(requestID []byte, err error)
 // RetryController retry controller
 type RetryController interface {
 	// Retry used to control retry if retryable error encountered. returns false means stop retry.
-	Retry(requestID []byte) (rpc.Request, bool)
+	Retry(requestID []byte) (rpcpb.Request, bool)
 }
 
 // ShardsProxy Shards proxy, distribute the appropriate request to the corresponding backend,
@@ -54,11 +54,11 @@ type RetryController interface {
 type ShardsProxy interface {
 	Start() error
 	Stop() error
-	Dispatch(req rpc.Request) error
-	DispatchTo(req rpc.Request, shard Shard, store string) error
+	Dispatch(req rpcpb.Request) error
+	DispatchTo(req rpcpb.Request, shard Shard, store string) error
 	SetCallback(SuccessCallback, FailureCallback)
 	SetRetryController(retryController RetryController)
-	OnResponse(rpc.ResponseBatch)
+	OnResponse(rpcpb.ResponseBatch)
 	Router() Router
 }
 
@@ -67,7 +67,7 @@ type backendFactory interface {
 }
 
 type backend interface {
-	dispatch(rpc.Request) error
+	dispatch(rpcpb.Request) error
 	close()
 }
 
@@ -78,7 +78,7 @@ type shardsProxyConfig struct {
 	retryController RetryController
 	logger          *zap.Logger
 	router          Router
-	rpc             proxyRPC
+	rpcpb           proxyRPC
 	maxBodySize     int
 	retryInterval   time.Duration
 }
@@ -106,8 +106,8 @@ func (sb *shardsProxyBuilder) withBackendFactory(factory backendFactory) *shards
 	return sb
 }
 
-func (sb *shardsProxyBuilder) withRPC(rpc proxyRPC) *shardsProxyBuilder {
-	sb.cfg.rpc = rpc
+func (sb *shardsProxyBuilder) withRPC(rpcpb proxyRPC) *shardsProxyBuilder {
+	sb.cfg.rpcpb = rpcpb
 	return sb
 }
 
@@ -126,7 +126,7 @@ func (sb *shardsProxyBuilder) build(router Router) (ShardsProxy, error) {
 	sb.cfg.logger = log.Adjust(sb.cfg.logger)
 
 	if sb.cfg.successCallback == nil {
-		sb.cfg.successCallback = func(r rpc.Response) {}
+		sb.cfg.successCallback = func(r rpcpb.Response) {}
 	}
 
 	if sb.cfg.failureCallback == nil {
@@ -166,8 +166,8 @@ func (p *shardsProxy) Start() error {
 		return errStopped
 	}
 
-	if p.cfg.rpc != nil {
-		return p.cfg.rpc.start()
+	if p.cfg.rpcpb != nil {
+		return p.cfg.rpcpb.start()
 	}
 	return nil
 }
@@ -180,8 +180,8 @@ func (p *shardsProxy) Stop() error {
 		return nil
 	}
 
-	if p.cfg.rpc != nil {
-		p.cfg.rpc.stop()
+	if p.cfg.rpcpb != nil {
+		p.cfg.rpcpb.stop()
 	}
 
 	for k, b := range p.backends {
@@ -201,7 +201,7 @@ func (p *shardsProxy) SetRetryController(retryController RetryController) {
 	p.cfg.retryController = retryController
 }
 
-func (p *shardsProxy) Dispatch(req rpc.Request) error {
+func (p *shardsProxy) Dispatch(req rpcpb.Request) error {
 	if req.ToShard == 0 {
 		shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
 		return p.DispatchTo(req, shard, to)
@@ -209,10 +209,10 @@ func (p *shardsProxy) Dispatch(req rpc.Request) error {
 
 	return p.DispatchTo(req,
 		p.cfg.router.GetShard(req.ToShard),
-		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
+		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
 }
 
-func (p *shardsProxy) DispatchTo(req rpc.Request, shard Shard, to string) error {
+func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) error {
 	if ce := p.logger.Check(zap.DebugLevel, "dispatch request"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
 			zap.Uint64("to-shard", shard.ID),
@@ -234,7 +234,7 @@ func (p *shardsProxy) Router() Router {
 	return p.cfg.router
 }
 
-func (p *shardsProxy) forwardToBackend(req rpc.Request, leader string) error {
+func (p *shardsProxy) forwardToBackend(req rpcpb.Request, leader string) error {
 	var err error
 	bc := p.getBackend(leader)
 	if bc == nil {
@@ -254,10 +254,10 @@ func (p *shardsProxy) forwardToBackend(req rpc.Request, leader string) error {
 	return bc.dispatch(req)
 }
 
-func (p *shardsProxy) OnResponse(resp rpc.ResponseBatch) {
+func (p *shardsProxy) OnResponse(resp rpcpb.ResponseBatch) {
 	for _, rsp := range resp.Responses {
-		if rsp.PID != 0 && p.cfg.rpc != nil {
-			p.cfg.rpc.onResponse(resp.Header, rsp)
+		if rsp.PID != 0 && p.cfg.rpcpb != nil {
+			p.cfg.rpcpb.onResponse(resp.Header, rsp)
 		} else {
 			p.onLocalResp(resp.Header, rsp)
 		}
@@ -285,7 +285,7 @@ func (p *shardsProxy) addBackendLocked(addr string, bc backend) {
 	p.backends[addr] = bc
 }
 
-func (p *shardsProxy) onLocalResp(header rpc.ResponseBatchHeader, rsp rpc.Response) {
+func (p *shardsProxy) onLocalResp(header rpcpb.ResponseBatchHeader, rsp rpcpb.Response) {
 	rsp.Error = header.Error
 	p.done(rsp)
 }
@@ -294,7 +294,7 @@ func (p *shardsProxy) doneWithError(requestID []byte, err error) {
 	p.retryDispatch(requestID, err.Error())
 }
 
-func (p *shardsProxy) done(rsp rpc.Response) {
+func (p *shardsProxy) done(rsp rpcpb.Response) {
 	if ce := p.logger.Check(zap.DebugLevel, "requests done"); ce != nil {
 		ce.Write(log.RaftResponseField("resp", &rsp))
 	}
@@ -306,7 +306,7 @@ func (p *shardsProxy) done(rsp rpc.Response) {
 
 	if !errorpb.Retryable(rsp.Error) {
 		if rsp.Error.ShardUnavailable != nil {
-			p.cfg.failureCallback(rsp.ID, NewNewShardUnavailableErr(rsp.Error.ShardUnavailable.ShardID))
+			p.cfg.failureCallback(rsp.ID, NewShardUnavailableErr(rsp.Error.ShardUnavailable.ShardID))
 			return
 		}
 		p.cfg.failureCallback(rsp.ID, errors.New(rsp.Error.String()))
@@ -364,11 +364,11 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 }
 
 func (p *shardsProxy) doRetry(arg interface{}) {
-	req := arg.(rpc.Request)
+	req := arg.(rpcpb.Request)
 	if req.ToShard == 0 {
 		p.Dispatch(req)
 		return
 	}
 
-	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddr)
+	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
 }

@@ -20,21 +20,21 @@ import (
 	"strconv"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/filter"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 func init() {
-	schedule.RegisterSliceDecoderBuilder(BalanceResourceType, func(args []string) schedule.ConfigDecoder {
+	schedule.RegisterSliceDecoderBuilder(BalanceShardType, func(args []string) schedule.ConfigDecoder {
 		return func(v interface{}) error {
-			conf, ok := v.(*balanceResourceSchedulerConfig)
+			conf, ok := v.(*balanceShardSchedulerConfig)
 			if !ok {
 				return errors.New("scheduler not found")
 			}
@@ -43,37 +43,37 @@ func init() {
 				return err
 			}
 			conf.Ranges = ranges
-			conf.Name = BalanceResourceName
+			conf.Name = BalanceShardName
 			return nil
 		}
 	})
-	schedule.RegisterScheduler(BalanceResourceType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
-		conf := &balanceResourceSchedulerConfig{}
+	schedule.RegisterScheduler(BalanceShardType, func(opController *schedule.OperatorController, storage storage.Storage, decoder schedule.ConfigDecoder) (schedule.Scheduler, error) {
+		conf := &balanceShardSchedulerConfig{}
 		if err := decoder(conf); err != nil {
 			return nil, err
 		}
-		return newBalanceResourceScheduler(opController, conf), nil
+		return newBalanceShardScheduler(opController, conf), nil
 	})
 }
 
 const (
-	// balanceResourceRetryLimit is the limit to retry schedule for selected container.
-	balanceResourceRetryLimit = 10
-	// BalanceResourceName is balance resource scheduler name.
-	BalanceResourceName = "balance-resource-scheduler"
-	// BalanceResourceType is balance resource scheduler type.
-	BalanceResourceType = "balance-resource"
+	// balanceShardRetryLimit is the limit to retry schedule for selected container.
+	balanceShardRetryLimit = 10
+	// BalanceShardName is balance resource scheduler name.
+	BalanceShardName = "balance-resource-scheduler"
+	// BalanceShardType is balance resource scheduler type.
+	BalanceShardType = "balance-resource"
 )
 
-type balanceResourceSchedulerConfig struct {
+type balanceShardSchedulerConfig struct {
 	Name        string                     `json:"name"`
 	Ranges      []core.KeyRange            `json:"ranges"`
 	groupRanges map[uint64][]core.KeyRange `json:"-"`
 }
 
-type balanceResourceScheduler struct {
+type balanceShardScheduler struct {
 	*BaseScheduler
-	conf         *balanceResourceSchedulerConfig
+	conf         *balanceShardSchedulerConfig
 	opController *schedule.OperatorController
 	filters      []filter.Filter
 	counter      *prometheus.CounterVec
@@ -81,75 +81,75 @@ type balanceResourceScheduler struct {
 	scheduleField zap.Field
 }
 
-// newBalanceResourceScheduler creates a scheduler that tends to keep resources on
+// newBalanceShardScheduler creates a scheduler that tends to keep resources on
 // each container balanced.
-func newBalanceResourceScheduler(opController *schedule.OperatorController, conf *balanceResourceSchedulerConfig, opts ...BalanceResourceCreateOption) schedule.Scheduler {
+func newBalanceShardScheduler(opController *schedule.OperatorController, conf *balanceShardSchedulerConfig, opts ...BalanceShardCreateOption) schedule.Scheduler {
 	base := NewBaseScheduler(opController)
 	conf.groupRanges = groupKeyRanges(conf.Ranges,
 		opController.GetCluster().GetOpts().GetReplicationConfig().Groups)
-	scheduler := &balanceResourceScheduler{
+	scheduler := &balanceShardScheduler{
 		BaseScheduler: base,
 		conf:          conf,
 		opController:  opController,
-		counter:       balanceResourceCounter,
+		counter:       balanceShardCounter,
 	}
 	for _, setOption := range opts {
 		setOption(scheduler)
 	}
 	scheduler.filters = []filter.Filter{
-		&filter.ContainerStateFilter{ActionScope: scheduler.GetName(), MoveResource: true},
+		&filter.StoreStateFilter{ActionScope: scheduler.GetName(), MoveShard: true},
 		filter.NewSpecialUseFilter(scheduler.GetName()),
 	}
 	scheduler.scheduleField = zap.String("scheduler", scheduler.GetName())
 	return scheduler
 }
 
-// BalanceResourceCreateOption is used to create a scheduler with an option.
-type BalanceResourceCreateOption func(s *balanceResourceScheduler)
+// BalanceShardCreateOption is used to create a scheduler with an option.
+type BalanceShardCreateOption func(s *balanceShardScheduler)
 
-// WithBalanceResourceCounter sets the counter for the scheduler.
-func WithBalanceResourceCounter(counter *prometheus.CounterVec) BalanceResourceCreateOption {
-	return func(s *balanceResourceScheduler) {
+// WithBalanceShardCounter sets the counter for the scheduler.
+func WithBalanceShardCounter(counter *prometheus.CounterVec) BalanceShardCreateOption {
+	return func(s *balanceShardScheduler) {
 		s.counter = counter
 	}
 }
 
-// WithBalanceResourceName sets the name for the scheduler.
-func WithBalanceResourceName(name string) BalanceResourceCreateOption {
-	return func(s *balanceResourceScheduler) {
+// WithBalanceShardName sets the name for the scheduler.
+func WithBalanceShardName(name string) BalanceShardCreateOption {
+	return func(s *balanceShardScheduler) {
 		s.conf.Name = name
 	}
 }
 
-func (s *balanceResourceScheduler) GetName() string {
+func (s *balanceShardScheduler) GetName() string {
 	return s.conf.Name
 }
 
-func (s *balanceResourceScheduler) GetType() string {
-	return BalanceResourceType
+func (s *balanceShardScheduler) GetType() string {
+	return BalanceShardType
 }
 
-func (s *balanceResourceScheduler) EncodeConfig() ([]byte, error) {
+func (s *balanceShardScheduler) EncodeConfig() ([]byte, error) {
 	return schedule.EncodeConfig(s.conf)
 }
 
-func (s *balanceResourceScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
-	allowed := s.opController.OperatorCount(operator.OpResource)-s.opController.OperatorCount(operator.OpMerge) < cluster.GetOpts().GetResourceScheduleLimit()
+func (s *balanceShardScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
+	allowed := s.opController.OperatorCount(operator.OpShard)-s.opController.OperatorCount(operator.OpMerge) < cluster.GetOpts().GetShardScheduleLimit()
 	if !allowed {
-		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpResource.String()).Inc()
+		operator.OperatorLimitCounter.WithLabelValues(s.GetType(), operator.OpShard.String()).Inc()
 	}
 	return allowed
 }
 
-func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
+func (s *balanceShardScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
-	containers := cluster.GetContainers()
+	containers := cluster.GetStores()
 	if len(containers) <= cluster.GetOpts().GetMaxReplicas() {
 		return nil
 	}
 
 	opts := cluster.GetOpts()
-	containers = filter.SelectSourceContainers(containers, s.filters, opts)
+	containers = filter.SelectSourceStores(containers, s.filters, opts)
 	for _, group := range cluster.GetScheduleGroupKeys() {
 		ops := s.scheduleByGroup(group, cluster, containers)
 		if len(ops) > 0 {
@@ -159,79 +159,79 @@ func (s *balanceResourceScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 	return nil
 }
 
-func (s *balanceResourceScheduler) scheduleByGroup(groupKey string, cluster opt.Cluster, containers []*core.CachedContainer) []*operator.Operator {
+func (s *balanceShardScheduler) scheduleByGroup(groupKey string, cluster opt.Cluster, containers []*core.CachedStore) []*operator.Operator {
 	opts := cluster.GetOpts()
 	opInfluence := s.opController.GetOpInfluence(cluster)
-	kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
+	kind := core.NewScheduleKind(metapb.ShardType_AllShards, core.BySize)
 
 	sort.Slice(containers, func(i, j int) bool {
-		iOp := opInfluence.GetContainerInfluence(containers[i].Meta.ID()).ResourceProperty(kind, groupKey)
-		jOp := opInfluence.GetContainerInfluence(containers[j].Meta.ID()).ResourceProperty(kind, groupKey)
-		return containers[i].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
-			containers[j].ResourceScore(groupKey, opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
+		iOp := opInfluence.GetStoreInfluence(containers[i].Meta.GetID()).ShardProperty(kind, groupKey)
+		jOp := opInfluence.GetStoreInfluence(containers[j].Meta.GetID()).ShardProperty(kind, groupKey)
+		return containers[i].ShardScore(groupKey, opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
+			containers[j].ShardScore(groupKey, opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
 	})
 
 	groupID := util.DecodeGroupKey(groupKey)
 	for _, source := range containers {
-		sourceID := source.Meta.ID()
+		sourceID := source.Meta.GetID()
 
-		for i := 0; i < balanceResourceRetryLimit; i++ {
-			// Priority pick the Resource that has a pending peer.
-			// Pending Resource may means the disk is overload, remove the pending Resource firstly.
-			res := cluster.RandPendingResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthAllowPending(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+		for i := 0; i < balanceShardRetryLimit; i++ {
+			// Priority pick the Shard that has a pending peer.
+			// Pending Shard may means the disk is overload, remove the pending Shard firstly.
+			res := cluster.RandPendingShard(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthAllowPending(cluster), opt.ReplicatedShard(cluster), opt.AllowBalanceEmptyShard(cluster))
 			if res == nil {
-				// Then pick the Resource that has a follower in the source container.
-				res = cluster.RandFollowerResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				// Then pick the Shard that has a follower in the source container.
+				res = cluster.RandFollowerShard(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthShard(cluster), opt.ReplicatedShard(cluster), opt.AllowBalanceEmptyShard(cluster))
 			}
 			if res == nil {
-				// Then pick the Resource has the leader in the source container.
-				res = cluster.RandLeaderResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				// Then pick the Shard has the leader in the source container.
+				res = cluster.RandLeaderShard(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthShard(cluster), opt.ReplicatedShard(cluster), opt.AllowBalanceEmptyShard(cluster))
 			}
 			if res == nil {
 				// Finally pick learner.
-				res = cluster.RandLearnerResource(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthResource(cluster), opt.ReplicatedResource(cluster), opt.AllowBalanceEmptyResource(cluster))
+				res = cluster.RandLearnerShard(groupKey, sourceID, s.conf.groupRanges[groupID], opt.HealthShard(cluster), opt.ReplicatedShard(cluster), opt.AllowBalanceEmptyShard(cluster))
 			}
 			if res == nil {
-				schedulerCounter.WithLabelValues(s.GetName(), "no-Resource").Inc()
+				schedulerCounter.WithLabelValues(s.GetName(), "no-Shard").Inc()
 				continue
 			}
 
 			if len(containers) > 1 {
 				cluster.GetLogger().Debug("scheduler select resource",
-					rebalanceResourceField,
+					rebalanceShardField,
 					s.scheduleField,
-					resourceField(res.Meta.ID()))
+					resourceField(res.Meta.GetID()))
 			}
 
 			// Skip hot resources.
-			if cluster.IsResourceHot(res) {
+			if cluster.IsShardHot(res) {
 				cluster.GetLogger().Debug("skip hot resource",
-					rebalanceResourceField,
+					rebalanceShardField,
 					s.scheduleField,
-					resourceField(res.Meta.ID()))
+					resourceField(res.Meta.GetID()))
 				schedulerCounter.WithLabelValues(s.GetName(), "resource-hot").Inc()
 				continue
 			}
 			// Check resource whether have leader
 			if res.GetLeader() == nil {
 				cluster.GetLogger().Debug("resource missing leader",
-					rebalanceResourceField,
+					rebalanceShardField,
 					s.scheduleField,
-					resourceField(res.Meta.ID()))
+					resourceField(res.Meta.GetID()))
 				schedulerCounter.WithLabelValues(s.GetName(), "no-leader").Inc()
 				continue
 			}
 			// Skip destroyed res
 			if res.IsDestroyState() {
 				cluster.GetLogger().Debug("resource in destroy state",
-					rebalanceResourceField,
+					rebalanceShardField,
 					s.scheduleField,
-					resourceField(res.Meta.ID()))
+					resourceField(res.Meta.GetID()))
 				schedulerCounter.WithLabelValues(s.GetName(), "destroy").Inc()
 				continue
 			}
 
-			oldPeer, _ := res.GetContainerPeer(sourceID)
+			oldPeer, _ := res.GetStorePeer(sourceID)
 			if op := s.transferPeer(groupKey, cluster, res, oldPeer); op != nil {
 				op.Counters = append(op.Counters, schedulerCounter.WithLabelValues(s.GetName(), "new-operator"))
 				return []*operator.Operator{op}
@@ -242,54 +242,54 @@ func (s *balanceResourceScheduler) scheduleByGroup(groupKey string, cluster opt.
 }
 
 // transferPeer selects the best container to create a new peer to replace the old peer.
-func (s *balanceResourceScheduler) transferPeer(group string, cluster opt.Cluster, res *core.CachedResource, oldPeer metapb.Replica) *operator.Operator {
+func (s *balanceShardScheduler) transferPeer(group string, cluster opt.Cluster, res *core.CachedShard, oldPeer metapb.Replica) *operator.Operator {
 	// scoreGuard guarantees that the distinct score will not decrease.
-	sourceContainerID := oldPeer.GetContainerID()
-	source := cluster.GetContainer(sourceContainerID)
+	sourceStoreID := oldPeer.GetStoreID()
+	source := cluster.GetStore(sourceStoreID)
 	if source == nil {
 		cluster.GetLogger().Debug("source container not found",
-			rebalanceResourceField,
+			rebalanceShardField,
 			s.scheduleField,
-			zap.Uint64("container", sourceContainerID))
+			zap.Uint64("container", sourceStoreID))
 
 		return nil
 	}
 
 	filters := []filter.Filter{
-		filter.NewExcludedFilter(s.GetName(), nil, res.GetContainerIDs()),
-		filter.NewPlacementSafeguard(s.GetName(), cluster, res, source, s.opController.GetCluster().GetResourceFactory()),
+		filter.NewExcludedFilter(s.GetName(), nil, res.GetStoreIDs()),
+		filter.NewPlacementSafeguard(s.GetName(), cluster, res, source),
 		filter.NewSpecialUseFilter(s.GetName()),
-		&filter.ContainerStateFilter{ActionScope: s.GetName(), MoveResource: true},
+		&filter.StoreStateFilter{ActionScope: s.GetName(), MoveShard: true},
 	}
 
-	candidates := filter.NewCandidates(cluster.GetContainers()).
+	candidates := filter.NewCandidates(cluster.GetStores()).
 		FilterTarget(cluster.GetOpts(), filters...).
-		Sort(filter.ResourceScoreComparer(group, cluster.GetOpts()))
+		Sort(filter.ShardScoreComparer(group, cluster.GetOpts()))
 
-	for _, target := range candidates.Containers {
-		resID := res.Meta.ID()
-		sourceID := source.Meta.ID()
-		targetID := target.Meta.ID()
+	for _, target := range candidates.Stores {
+		resID := res.Meta.GetID()
+		sourceID := source.Meta.GetID()
+		targetID := target.Meta.GetID()
 		cluster.GetLogger().Debug("check resource should balance",
-			rebalanceResourceField,
+			rebalanceShardField,
 			s.scheduleField,
 			resourceField(resID),
 			sourceField(sourceID),
 			targetField(targetID))
 
 		opInfluence := s.opController.GetOpInfluence(cluster)
-		kind := core.NewScheduleKind(metapb.ResourceKind_ReplicaKind, core.BySize)
+		kind := core.NewScheduleKind(metapb.ShardType_AllShards, core.BySize)
 		shouldBalance, sourceScore, targetScore := shouldBalance(cluster, source, target, res, kind, opInfluence, s.GetName())
 		if !shouldBalance {
 			schedulerCounter.WithLabelValues(s.GetName(), "skip").Inc()
 			continue
 		}
 
-		newPeer := metapb.Replica{ContainerID: target.Meta.ID(), Role: oldPeer.Role}
-		op, err := operator.CreateMovePeerOperator(BalanceResourceType, cluster, res, operator.OpResource, oldPeer.GetContainerID(), newPeer)
+		newPeer := metapb.Replica{StoreID: target.Meta.GetID(), Role: oldPeer.Role}
+		op, err := operator.CreateMovePeerOperator(BalanceShardType, cluster, res, operator.OpShard, oldPeer.GetStoreID(), newPeer)
 		if err != nil {
 			cluster.GetLogger().Error("fail to create move peer operator",
-				rebalanceResourceField,
+				rebalanceShardField,
 				s.scheduleField,
 				resourceField(resID),
 				sourceField(sourceID),

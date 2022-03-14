@@ -1,4 +1,4 @@
-package rpc
+package rpcpb
 
 import (
 	"github.com/fagongzi/util/protoc"
@@ -6,7 +6,7 @@ import (
 
 // IsAdmin returns true if has a admin request
 func (m *RequestBatch) IsAdmin() bool {
-	return len(m.Requests) == 1 && m.Requests[0].Type == CmdType_Admin
+	return len(m.Requests) == 1 && m.Requests[0].Type == Admin
 }
 
 // GetAdminCmdType returns the admin cmd type
@@ -78,7 +78,7 @@ func (m *RequestBatchHeader) IsEmpty() bool {
 
 // IsAdmin returns true if has a admin request
 func (m *ResponseBatch) IsAdmin() bool {
-	return len(m.Responses) == 1 && m.Responses[0].Type == CmdType_Admin
+	return len(m.Responses) == 1 && m.Responses[0].Type == Admin
 }
 
 // GetAdminCmdType returns the admin cmd type

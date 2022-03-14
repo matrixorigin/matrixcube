@@ -19,19 +19,18 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
-type testResourceStatistics struct {
+type testShardStatistics struct {
 	storage storage.Storage
 	manager *placement.RuleManager
 }
 
-func (s *testResourceStatistics) setup(t *testing.T) {
+func (s *testShardStatistics) setup(t *testing.T) {
 	s.storage = storage.NewTestStorage()
 	var err error
 	s.manager = placement.NewRuleManager(s.storage, nil, nil)
@@ -39,29 +38,28 @@ func (s *testResourceStatistics) setup(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestResourceStatistics(t *testing.T) {
-	s := &testResourceStatistics{}
+func TestShardStatistics(t *testing.T) {
+	s := &testShardStatistics{}
 	s.setup(t)
 
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(false)
 	peers := []metapb.Replica{
-		{ID: 5, ContainerID: 1},
-		{ID: 6, ContainerID: 2},
-		{ID: 4, ContainerID: 3},
-		{ID: 8, ContainerID: 7, Role: metapb.ReplicaRole_Learner},
+		{ID: 5, StoreID: 1},
+		{ID: 6, StoreID: 2},
+		{ID: 4, StoreID: 3},
+		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
+	}
+	metaStores := []metapb.Store{
+		{ID: 1, ClientAddress: "mock://server-1"},
+		{ID: 2, ClientAddress: "mock://server-2"},
+		{ID: 3, ClientAddress: "mock://server-3"},
+		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
-	metaContainers := []*metadata.TestContainer{
-		{CID: 1, CAddr: "mock://server-1"},
-		{CID: 2, CAddr: "mock://server-2"},
-		{CID: 3, CAddr: "mock://server-3"},
-		{CID: 7, CAddr: "mock://server-7"},
-	}
-
-	containers := make([]*core.CachedContainer, 0, len(metaContainers))
-	for _, m := range metaContainers {
-		s := core.NewCachedContainer(m)
+	containers := make([]*core.CachedStore, 0, len(metaStores))
+	for _, m := range metaStores {
+		s := core.NewCachedStore(m)
 		containers = append(containers, s)
 	}
 
@@ -70,20 +68,20 @@ func TestResourceStatistics(t *testing.T) {
 		{Replica: peers[1], DownSeconds: 3608},
 	}
 
-	container3 := containers[3].Clone(core.OfflineContainer(false))
+	container3 := containers[3].Clone(core.OfflineStore(false))
 	containers[3] = container3
-	r1 := &metadata.TestResource{ResID: 1, ResPeers: peers, Start: []byte("aa"), End: []byte("bb")}
-	r2 := &metadata.TestResource{ResID: 2, ResPeers: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
-	resource1 := core.NewCachedResource(r1, &peers[0])
-	resource2 := core.NewCachedResource(r2, &peers[0])
-	resourceStats := NewResourceStatistics(opt, s.manager)
+	r1 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("aa"), End: []byte("bb")}
+	r2 := metapb.Shard{ID: 2, Replicas: peers[0:2], Start: []byte("cc"), End: []byte("dd")}
+	resource1 := core.NewCachedShard(r1, &peers[0])
+	resource2 := core.NewCachedShard(r2, &peers[0])
+	resourceStats := NewShardStatistics(opt, s.manager)
 	resourceStats.Observe(resource1, containers)
 	assert.Equal(t, 1, len(resourceStats.stats[ExtraPeer]))
 	assert.Equal(t, 1, len(resourceStats.stats[LearnerPeer]))
-	assert.Equal(t, 1, len(resourceStats.stats[EmptyResource]))
+	assert.Equal(t, 1, len(resourceStats.stats[EmptyShard]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 1, len(resourceStats.offlineStats[EmptyResource]))
+	assert.Equal(t, 1, len(resourceStats.offlineStats[EmptyShard]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
 
 	resource1 = resource1.Clone(
@@ -98,14 +96,14 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, len(resourceStats.stats[DownPeer]), 1)
 	assert.Equal(t, len(resourceStats.stats[PendingPeer]), 1)
 	assert.Equal(t, len(resourceStats.stats[LearnerPeer]), 1)
-	assert.Equal(t, len(resourceStats.stats[EmptyResource]), 0)
+	assert.Equal(t, len(resourceStats.stats[EmptyShard]), 0)
 
 	assert.Equal(t, 1, len(resourceStats.offlineStats[ExtraPeer]))
 	assert.Equal(t, 0, len(resourceStats.offlineStats[MissPeer]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[DownPeer]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[PendingPeer]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
-	assert.Equal(t, 0, len(resourceStats.offlineStats[EmptyResource]))
+	assert.Equal(t, 0, len(resourceStats.offlineStats[EmptyShard]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
 
 	resource2 = resource2.Clone(core.WithDownPeers(downPeers[0:1]))
@@ -122,7 +120,7 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, 1, len(resourceStats.offlineStats[LearnerPeer]))
 	assert.Equal(t, 1, len(resourceStats.offlineStats[OfflinePeer]))
 
-	resource1 = resource1.Clone(core.WithRemoveContainerPeer(7))
+	resource1 = resource1.Clone(core.WithRemoveStorePeer(7))
 	resourceStats.Observe(resource1, containers[0:3])
 	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 0)
 	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
@@ -137,43 +135,44 @@ func TestResourceStatistics(t *testing.T) {
 	assert.Equal(t, 0, len(resourceStats.offlineStats[LearnerPeer]))
 	assert.Equal(t, 0, len(resourceStats.offlineStats[OfflinePeer]))
 
-	container3 = containers[3].Clone(core.UpContainer())
+	container3 = containers[3].Clone(core.UpStore())
 	containers[3] = container3
 	resourceStats.Observe(resource1, containers)
 	assert.Equal(t, len(resourceStats.stats[OfflinePeer]), 0)
 }
 
-func TestResourceStatisticsWithPlacementRule(t *testing.T) {
-	s := &testResourceStatistics{}
+func TestShardStatisticsWithPlacementRule(t *testing.T) {
+	s := &testShardStatistics{}
 	s.setup(t)
 
 	opt := config.NewTestOptions()
 	opt.SetPlacementRuleEnabled(true)
 	peers := []metapb.Replica{
-		{ID: 5, ContainerID: 1},
-		{ID: 6, ContainerID: 2},
-		{ID: 4, ContainerID: 3},
-		{ID: 8, ContainerID: 7, Role: metapb.ReplicaRole_Learner},
+		{ID: 5, StoreID: 1},
+		{ID: 6, StoreID: 2},
+		{ID: 4, StoreID: 3},
+		{ID: 8, StoreID: 7, Role: metapb.ReplicaRole_Learner},
 	}
-	metaContainers := []*metadata.TestContainer{
-		{CID: 1, CAddr: "mock://server-1"},
-		{CID: 2, CAddr: "mock://server-2"},
-		{CID: 3, CAddr: "mock://server-3"},
-		{CID: 7, CAddr: "mock://server-7"},
+	metaStores := []metapb.Store{
+		{ID: 1, ClientAddress: "mock://server-1"},
+		{ID: 2, ClientAddress: "mock://server-2"},
+		{ID: 3, ClientAddress: "mock://server-3"},
+		{ID: 7, ClientAddress: "mock://server-7"},
 	}
 
-	containers := make([]*core.CachedContainer, 0, len(metaContainers))
-	for _, m := range metaContainers {
-		s := core.NewCachedContainer(m)
+	containers := make([]*core.CachedStore, 0, len(metaStores))
+	for _, m := range metaStores {
+		s := core.NewCachedStore(m)
 		containers = append(containers, s)
 	}
-	r2 := &metadata.TestResource{ResID: 0, ResPeers: peers[0:1], Start: []byte("aa"), End: []byte("bb")}
-	r3 := &metadata.TestResource{ResID: 1, ResPeers: peers, Start: []byte("ee"), End: []byte("ff")}
-	r4 := &metadata.TestResource{ResID: 2, ResPeers: peers[0:3], Start: []byte("gg"), End: []byte("hh")}
-	resource2 := core.NewCachedResource(r2, &peers[0])
-	resource3 := core.NewCachedResource(r3, &peers[0])
-	resource4 := core.NewCachedResource(r4, &peers[0])
-	resourceStats := NewResourceStatistics(opt, s.manager)
+	r2 := metapb.Shard{ID: 0, Replicas: peers[0:1], Start: []byte("aa"), End: []byte("bb")}
+	r3 := metapb.Shard{ID: 1, Replicas: peers, Start: []byte("ee"), End: []byte("ff")}
+	r4 := metapb.Shard{ID: 2, Replicas: peers[0:3], Start: []byte("gg"), End: []byte("hh")}
+
+	resource2 := core.NewCachedShard(r2, &peers[0])
+	resource3 := core.NewCachedShard(r3, &peers[0])
+	resource4 := core.NewCachedShard(r4, &peers[0])
+	resourceStats := NewShardStatistics(opt, s.manager)
 	// r2 didn't match the rules
 	resourceStats.Observe(resource2, containers)
 	assert.Equal(t, len(resourceStats.stats[MissPeer]), 1)
@@ -186,8 +185,8 @@ func TestResourceStatisticsWithPlacementRule(t *testing.T) {
 	assert.Equal(t, len(resourceStats.stats[ExtraPeer]), 1)
 }
 
-func TestResourceLabelIsolationLevel(t *testing.T) {
-	s := &testResourceStatistics{}
+func TestShardLabelIsolationLevel(t *testing.T) {
+	s := &testShardStatistics{}
 	s.setup(t)
 
 	locationLabels := []string{"zone", "rack", "host"}
@@ -241,23 +240,23 @@ func TestResourceLabelIsolationLevel(t *testing.T) {
 	counter := map[string]int{"none": 1, "host": 2, "rack": 3, "zone": 1}
 	resourceID := 1
 	f := func(labels []map[string]string, res string, locationLabels []string) {
-		metaContainers := []*metadata.TestContainer{
-			{CID: 1, CAddr: "mock://server-1"},
-			{CID: 2, CAddr: "mock://server-2"},
-			{CID: 3, CAddr: "mock://server-3"},
+		metaStores := []metapb.Store{
+			{ID: 1, ClientAddress: "mock://server-1"},
+			{ID: 2, ClientAddress: "mock://server-2"},
+			{ID: 3, ClientAddress: "mock://server-3"},
 		}
-		containers := make([]*core.CachedContainer, 0, len(labels))
-		for i, m := range metaContainers {
-			var newLabels []metapb.Pair
+		containers := make([]*core.CachedStore, 0, len(labels))
+		for i, m := range metaStores {
+			var newLabels []metapb.Label
 			for k, v := range labels[i] {
-				newLabels = append(newLabels, metapb.Pair{Key: k, Value: v})
+				newLabels = append(newLabels, metapb.Label{Key: k, Value: v})
 			}
-			s := core.NewCachedContainer(m, core.SetContainerLabels(newLabels))
+			s := core.NewCachedStore(m, core.SetStoreLabels(newLabels))
 
 			containers = append(containers, s)
 		}
-		resource := core.NewCachedResource(&metadata.TestResource{ResID: uint64(resourceID)}, nil)
-		label := getResourceLabelIsolation(containers, locationLabels)
+		resource := core.NewCachedShard(metapb.Shard{ID: uint64(resourceID)}, nil)
+		label := getShardLabelIsolation(containers, locationLabels)
 		labelLevelStats.Observe(resource, containers, locationLabels)
 		assert.Equal(t, res, label)
 		resourceID++
@@ -270,12 +269,12 @@ func TestResourceLabelIsolationLevel(t *testing.T) {
 		assert.Equal(t, res, labelLevelStats.labelCounter[i])
 	}
 
-	label := getResourceLabelIsolation(nil, locationLabels)
+	label := getShardLabelIsolation(nil, locationLabels)
 	assert.Equal(t, nonIsolation, label)
-	label = getResourceLabelIsolation(nil, nil)
+	label = getShardLabelIsolation(nil, nil)
 	assert.Equal(t, nonIsolation, label)
-	store := core.NewCachedContainer(&metadata.TestContainer{CID: 1, CAddr: "mock://server-1"}, core.SetContainerLabels([]metapb.Pair{{Key: "foo", Value: "bar"}}))
-	label = getResourceLabelIsolation([]*core.CachedContainer{store}, locationLabels)
+	store := core.NewCachedStore(metapb.Store{ID: 1, ClientAddress: "mock://server-1"}, core.SetStoreLabels([]metapb.Label{{Key: "foo", Value: "bar"}}))
+	label = getShardLabelIsolation([]*core.CachedStore{store}, locationLabels)
 	assert.Equal(t, "zone", label)
 
 	resourceID = 1

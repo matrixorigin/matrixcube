@@ -34,7 +34,7 @@ type dimStat struct {
 }
 
 func newDimStat(typ int) *dimStat {
-	reportInterval := ResourceHeartBeatReportInterval * time.Second
+	reportInterval := ShardHeartBeatReportInterval * time.Second
 	return &dimStat{
 		typ:         typ,
 		Rolling:     movingaverage.NewTimeMedian(DefaultAotSize, rollingWindowsSize, reportInterval),
@@ -69,10 +69,10 @@ func (d *dimStat) Get() float64 {
 
 // HotPeerStat records each hot peer's statistics
 type HotPeerStat struct {
-	ContainerID uint64 `json:"container_id"`
-	ResourceID  uint64 `json:"resource_id"`
+	StoreID uint64 `json:"container_id"`
+	ShardID uint64 `json:"resource_id"`
 
-	// HotDegree records the times for the resource considered as hot spot during each HandleResourceHeartbeat
+	// HotDegree records the times for the resource considered as hot spot during each HandleShardHeartbeat
 	HotDegree int `json:"hot_degree"`
 	// AntiCount used to eliminate some noise when remove resource in cache
 	AntiCount int `json:"anti_count"`
@@ -100,7 +100,7 @@ type HotPeerStat struct {
 
 // ID returns resource ID. Implementing TopNItem.
 func (stat *HotPeerStat) ID() uint64 {
-	return stat.ResourceID
+	return stat.ShardID
 }
 
 // Less compares two HotPeerStat.Implementing TopNItem.
@@ -118,7 +118,7 @@ func (stat *HotPeerStat) Less(k int, than TopNItem) bool {
 
 // IsNeedCoolDownTransferLeader use cooldown time after transfer leader to avoid unnecessary schedule
 func (stat *HotPeerStat) IsNeedCoolDownTransferLeader(minHotDegree int) bool {
-	return time.Since(stat.lastTransferLeaderTime).Seconds() < float64(minHotDegree*ResourceHeartBeatReportInterval)
+	return time.Since(stat.lastTransferLeaderTime).Seconds() < float64(minHotDegree*ShardHeartBeatReportInterval)
 }
 
 // IsNeedDelete to delete the item in cache.

@@ -47,8 +47,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/snapshot"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -116,7 +115,7 @@ func TestSplitSnapshotMessage(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
 	defer fs.RemoveAll(testSnapshotDir)
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
 	shardID := uint64(100)
@@ -125,7 +124,7 @@ func TestSplitSnapshotMessage(t *testing.T) {
 	index := uint64(300)
 	term := uint64(200)
 
-	m := meta.RaftMessage{
+	m := metapb.RaftMessage{
 		ShardID: shardID,
 		From:    metapb.Replica{ID: from},
 		To:      metapb.Replica{ID: to},
@@ -214,7 +213,7 @@ func TestLoadChunkData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
 	defer fs.RemoveAll(testSnapshotDir)
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
 	shardID := uint64(100)
@@ -223,7 +222,7 @@ func TestLoadChunkData(t *testing.T) {
 	index := uint64(300)
 	term := uint64(200)
 
-	m := meta.RaftMessage{
+	m := metapb.RaftMessage{
 		ShardID: shardID,
 		From:    metapb.Replica{ID: from},
 		To:      metapb.Replica{ID: to},
@@ -341,19 +340,19 @@ func getTestSnapshotDir(shardID uint64, replicaID uint64) string {
 		fmt.Sprintf("shard-%d-replica-%d", shardID, replicaID))
 }
 
-func testContainerResolver(storeID uint64) (string, error) {
+func testStoreResolver(storeID uint64) (string, error) {
 	return testTransportAddr, nil
 }
 
 type testTransportStatus struct {
-	msg                     meta.RaftMessageBatch
+	msg                     metapb.RaftMessageBatch
 	rejected                bool
 	messageHandlerCount     uint64
 	unreachableHandlerCount uint64
 	statusCount             uint64
 }
 
-func (t *testTransportStatus) MessageHandler(m meta.RaftMessageBatch) {
+func (t *testTransportStatus) MessageHandler(m metapb.RaftMessageBatch) {
 	t.msg = m
 	atomic.AddUint64(&t.messageHandlerCount, 1)
 }
@@ -406,7 +405,7 @@ func TestSnapshotCanBeTransported(t *testing.T) {
 	defer fs.RemoveAll(testSnapshotDir)
 	extra := uint64(12345)
 	index := uint64(100)
-	si := &meta.SnapshotInfo{
+	si := &metapb.SnapshotInfo{
 		Extra: extra,
 	}
 	ss := raftpb.Snapshot{
@@ -423,7 +422,7 @@ func TestSnapshotCanBeTransported(t *testing.T) {
 		Term:     1,
 		Snapshot: ss,
 	}
-	raftMsg := meta.RaftMessage{
+	raftMsg := metapb.RaftMessage{
 		ShardID: 1,
 		From:    metapb.Replica{ID: 1},
 		To:      metapb.Replica{ID: 2},
@@ -441,7 +440,7 @@ func TestSnapshotCanBeTransported(t *testing.T) {
 	status := &testTransportStatus{}
 	trans := NewTransport(logger, testTransportAddr, 2,
 		status.MessageHandler, status.UnreachableHandler, status.SnapshotStatusHandler,
-		getTestSnapshotDir, testContainerResolver, fs)
+		getTestSnapshotDir, testStoreResolver, fs)
 	require.NoError(t, trans.Start())
 	defer trans.Close()
 	assert.True(t, trans.SendSnapshot(raftMsg))

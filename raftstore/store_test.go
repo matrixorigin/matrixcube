@@ -15,11 +15,14 @@ package raftstore
 
 import (
 	"testing"
+	"time"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -142,20 +145,20 @@ func TestValidateShard(t *testing.T) {
 
 	cases := []struct {
 		pr    *replica
-		req   rpc.RequestBatch
+		req   rpcpb.RequestBatch
 		epoch Epoch
 		err   string
 		ok    bool
 	}{
 		{
 			pr:  &replica{shardID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: errShardNotFound.Error(),
 			ok:  true,
 		},
 		{
 			pr:  &replica{replica: Replica{ID: 1}, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: errNotLeader.Error(),
 			ok:  true,
 		},
@@ -166,14 +169,14 @@ func TestValidateShard(t *testing.T) {
 		// to do error comparison
 		{
 			pr:  &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			req: rpc.RequestBatch{},
+			req: rpcpb.RequestBatch{},
 			err: "mismatch replica id, want 1, but 0",
 			ok:  true,
 		},
 		{
 			pr:    &replica{replica: Replica{ID: 1}, leaderID: 1, startedC: make(chan struct{}), actions: task.New(32)},
-			epoch: Epoch{Version: 1},
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ID: 1}}, Requests: []rpc.Request{{}}},
+			epoch: Epoch{Generation: 1},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{ID: 1}}, Requests: []rpcpb.Request{{}}},
 			err:   errStaleEpoch.Error(),
 			ok:    true,
 		},
@@ -223,81 +226,81 @@ func TestCheckEpoch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	cases := []struct {
-		req   rpc.RequestBatch
+		req   rpcpb.RequestBatch
 		shard Shard
 		ok    bool
 	}{
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_BatchSplit, nil),
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_ConfigChange, nil),
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpc.AdminCmdType_TransferLeader, nil),
-			shard: Shard{Epoch: Epoch{Version: 1, ConfVer: 1}},
+			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			shard: Shard{Epoch: Epoch{Generation: 1, ConfigVer: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Requests: []rpc.Request{{}}},
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			req:   rpcpb.RequestBatch{Requests: []rpcpb.Request{{}}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
-			shard: Shard{Epoch: Epoch{ConfVer: 1}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
+			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    true,
 		},
 		{
-			req:   rpc.RequestBatch{Header: rpc.RequestBatchHeader{}, Requests: []rpc.Request{{IgnoreEpochCheck: true}}},
-			shard: Shard{Epoch: Epoch{Version: 1}},
+			req:   rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{}, Requests: []rpcpb.Request{{IgnoreEpochCheck: true}}},
+			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    true,
 		},
 	}
@@ -312,28 +315,105 @@ func TestValidateStoreID(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.meta = &containerAdapter{}
+	s.meta = metapb.Store{}
 
-	assert.Nil(t, s.validateStoreID(rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ContainerID: 0}}}))
-	assert.NotNil(t, s.validateStoreID(rpc.RequestBatch{Header: rpc.RequestBatchHeader{Replica: Replica{ContainerID: 1}}}))
+	assert.Nil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 0}}}))
+	assert.NotNil(t, s.validateStoreID(rpcpb.RequestBatch{Header: rpcpb.RequestBatchHeader{Replica: Replica{StoreID: 1}}}))
 }
 
 func TestCacheAndRemoveDroppedVoteMsg(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	s := &store{}
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{})
 	v, ok := s.removeDroppedVoteMsg(1)
 	assert.False(t, ok)
-	assert.Equal(t, meta.RaftMessage{}, v)
+	assert.Equal(t, metapb.RaftMessage{}, v)
 
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}}, v)
+	assert.Equal(t, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgVote}}, v)
 
-	s.cacheDroppedVoteMsg(1, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}})
+	s.cacheDroppedVoteMsg(1, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}})
 	v, ok = s.removeDroppedVoteMsg(1)
 	assert.True(t, ok)
-	assert.Equal(t, meta.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
+	assert.Equal(t, metapb.RaftMessage{Message: raftpb.Message{Type: raftpb.MsgPreVote}}, v)
+}
+
+func TestGetStoreHeartbeat(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	s, cancel := newTestStore(t)
+	defer cancel()
+
+	s.addReplica(&replica{shardID: 1})
+	s.addReplica(&replica{shardID: 2})
+	s.trans = transport.NewTransport(nil, "", 0, nil, nil, nil, nil, nil, s.cfg.FS)
+	defer s.trans.Close()
+	req, err := s.getStoreHeartbeat(time.Now())
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(2), req.Stats.ShardCount)
+}
+
+func TestDoShardHeartbeatRsp(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	cases := []struct {
+		rsp            rpcpb.ShardHeartbeatRsp
+		fn             func(*store) *replica
+		adminReq       protoc.PB
+		adminTargetReq protoc.PB
+	}{
+		{
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, ConfigChange: &rpcpb.ConfigChange{
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+			}},
+			fn: func(s *store) *replica {
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
+				pr.store = s
+				close(pr.startedC)
+				s.addReplica(pr)
+				return pr
+			},
+			adminReq: &rpcpb.ConfigChangeRequest{
+				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
+				Replica:    metapb.Replica{ID: 1, StoreID: 1},
+			},
+			adminTargetReq: &rpcpb.ConfigChangeRequest{},
+		},
+		{
+			rsp: rpcpb.ShardHeartbeatRsp{ShardID: 1, TransferLeader: &rpcpb.TransferLeader{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
+			}},
+			fn: func(s *store) *replica {
+				pr := &replica{shardID: 1, startedC: make(chan struct{}), requests: task.New(32), actions: task.New(32)}
+				pr.store = s
+				close(pr.startedC)
+				s.addReplica(pr)
+				return pr
+			},
+			adminReq: &rpcpb.TransferLeaderRequest{
+				Replica: metapb.Replica{ID: 1, StoreID: 1},
+			},
+			adminTargetReq: &rpcpb.TransferLeaderRequest{},
+		},
+	}
+
+	for _, c := range cases {
+		s, cancel := newTestStore(t)
+		defer cancel()
+		s.workerPool.close() // avoid admin request real handled by event worker
+		pr := c.fn(s)
+		pr.sm = &stateMachine{}
+		pr.sm.metadataMu.shard = Shard{}
+		s.doShardHeartbeatRsp(c.rsp)
+
+		v, err := pr.requests.Peek()
+		assert.NoError(t, err)
+
+		protoc.MustUnmarshal(c.adminTargetReq, v.(reqCtx).req.Cmd)
+		assert.Equal(t, c.adminReq, c.adminTargetReq)
+	}
 }

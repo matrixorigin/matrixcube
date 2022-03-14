@@ -22,11 +22,10 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockcluster"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,19 +41,19 @@ func (s *testCreateOperator) setup() {
 		opt.RejectLeader: {{Key: "noleader", Value: "true"}},
 	})
 	s.cluster.SetLocationLabels([]string{"zone", "host"})
-	s.cluster.AddLabelsContainer(1, 0, map[string]string{"zone": "z1", "host": "h1"})
-	s.cluster.AddLabelsContainer(2, 0, map[string]string{"zone": "z1", "host": "h1"})
-	s.cluster.AddLabelsContainer(3, 0, map[string]string{"zone": "z1", "host": "h1"})
-	s.cluster.AddLabelsContainer(4, 0, map[string]string{"zone": "z1", "host": "h1"})
-	s.cluster.AddLabelsContainer(5, 0, map[string]string{"zone": "z1", "host": "h1"})
-	s.cluster.AddLabelsContainer(6, 0, map[string]string{"zone": "z1", "host": "h2"})
-	s.cluster.AddLabelsContainer(7, 0, map[string]string{"zone": "z1", "host": "h2"})
-	s.cluster.AddLabelsContainer(8, 0, map[string]string{"zone": "z2", "host": "h1"})
-	s.cluster.AddLabelsContainer(9, 0, map[string]string{"zone": "z2", "host": "h2"})
-	s.cluster.AddLabelsContainer(10, 0, map[string]string{"zone": "z3", "host": "h1", "noleader": "true"})
+	s.cluster.AddLabelsStore(1, 0, map[string]string{"zone": "z1", "host": "h1"})
+	s.cluster.AddLabelsStore(2, 0, map[string]string{"zone": "z1", "host": "h1"})
+	s.cluster.AddLabelsStore(3, 0, map[string]string{"zone": "z1", "host": "h1"})
+	s.cluster.AddLabelsStore(4, 0, map[string]string{"zone": "z1", "host": "h1"})
+	s.cluster.AddLabelsStore(5, 0, map[string]string{"zone": "z1", "host": "h1"})
+	s.cluster.AddLabelsStore(6, 0, map[string]string{"zone": "z1", "host": "h2"})
+	s.cluster.AddLabelsStore(7, 0, map[string]string{"zone": "z1", "host": "h2"})
+	s.cluster.AddLabelsStore(8, 0, map[string]string{"zone": "z2", "host": "h1"})
+	s.cluster.AddLabelsStore(9, 0, map[string]string{"zone": "z2", "host": "h2"})
+	s.cluster.AddLabelsStore(10, 0, map[string]string{"zone": "z3", "host": "h1", "noleader": "true"})
 }
 
-func TestCreateSplitResourceOperator(t *testing.T) {
+func TestCreateSplitShardOperator(t *testing.T) {
 	s := &testCreateOperator{}
 	s.setup()
 
@@ -71,9 +70,9 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 			startKey: []byte("a"),
 			endKey:   []byte("b"),
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: false,
@@ -82,9 +81,9 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 			startKey: []byte("c"),
 			endKey:   []byte("d"),
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_SCAN,
 			expectedError: false,
@@ -93,9 +92,9 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 			startKey: []byte("e"),
 			endKey:   []byte("h"),
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			policy:        metapb.CheckPolicy_USEKEY,
 			keys:          [][]byte{[]byte("f"), []byte("g")},
@@ -105,9 +104,9 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 			startKey: []byte("i"),
 			endKey:   []byte("j"),
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: true,
@@ -116,9 +115,9 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 			startKey: []byte("k"),
 			endKey:   []byte("l"),
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			policy:        metapb.CheckPolicy_APPROXIMATE,
 			expectedError: true,
@@ -126,13 +125,13 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		resource := core.NewCachedResource(&metadata.TestResource{
-			ResID:    1,
+		resource := core.NewCachedShard(metapb.Shard{
+			ID:       1,
 			Start:    tc.startKey,
 			End:      tc.endKey,
-			ResPeers: tc.originPeers,
+			Replicas: tc.originPeers,
 		}, &tc.originPeers[0])
-		op, err := CreateSplitResourceOperator("test", resource, 0, tc.policy, tc.keys)
+		op, err := CreateSplitShardOperator("test", resource, 0, tc.policy, tc.keys)
 		if tc.expectedError {
 			assert.Error(t, err)
 			continue
@@ -142,7 +141,7 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 		assert.Equal(t, 1, len(op.steps))
 		for i := 0; i < op.Len(); i++ {
 			switch step := op.Step(i).(type) {
-			case SplitResource:
+			case SplitShard:
 				assert.True(t, reflect.DeepEqual(tc.startKey, step.StartKey))
 				assert.True(t, reflect.DeepEqual(tc.endKey, step.EndKey))
 				assert.Equal(t, tc.policy, step.Policy)
@@ -154,7 +153,7 @@ func TestCreateSplitResourceOperator(t *testing.T) {
 	}
 }
 
-func TestCreateMergeResourceOperator(t *testing.T) {
+func TestCreateMergeShardOperator(t *testing.T) {
 	s := &testCreateOperator{}
 	s.setup()
 
@@ -168,12 +167,12 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 	cases := []testCase{
 		{
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			OpMerge,
 			false,
@@ -181,37 +180,37 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 		},
 		{
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			[]metapb.Replica{
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			OpMerge | OpLeader | OpResource,
+			OpMerge | OpLeader | OpShard,
 			false,
 			[]OpStep{
-				AddLearner{ToContainer: 3},
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				AddLearner{ToStore: 3},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Enter{
-					PromoteLearners: []PromoteLearner{{ToContainer: 3}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 3}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 3}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 3}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
-				RemovePeer{FromContainer: 1},
+				RemovePeer{FromStore: 1},
 			},
 		},
 		{
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_DemotingVoter},
 			},
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			0,
 			true,
@@ -219,12 +218,12 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 		},
 		{
 			[]metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
 			},
 			[]metapb.Replica{
-				{ID: 3, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 2, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 3, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 2, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			0,
 			true,
@@ -233,9 +232,9 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		source := core.NewCachedResource(&metadata.TestResource{ResID: 68, ResPeers: tc.sourcePeers}, &tc.sourcePeers[0])
-		target := core.NewCachedResource(&metadata.TestResource{ResID: 86, ResPeers: tc.targetPeers}, &tc.targetPeers[0])
-		ops, err := CreateMergeResourceOperator("test", s.cluster, source, target, 0)
+		source := core.NewCachedShard(metapb.Shard{ID: 68, Replicas: tc.sourcePeers}, &tc.sourcePeers[0])
+		target := core.NewCachedShard(metapb.Shard{ID: 86, Replicas: tc.targetPeers}, &tc.targetPeers[0])
+		ops, err := CreateMergeShardOperator("test", s.cluster, source, target, 0)
 		if tc.expectedError {
 			assert.Error(t, err)
 			continue
@@ -246,38 +245,38 @@ func TestCreateMergeResourceOperator(t *testing.T) {
 		assert.Equal(t, ops[0].Len(), len(tc.prepareSteps)+1)
 		assert.Equal(t, ops[1].kind, tc.kind)
 		assert.Equal(t, ops[1].Len(), 1)
-		assert.True(t, reflect.DeepEqual(ops[1].Step(0).(MergeResource), MergeResource{source.Meta, target.Meta, true}))
+		assert.True(t, reflect.DeepEqual(ops[1].Step(0).(MergeShard), MergeShard{source.Meta, target.Meta, true}))
 
-		expectedSteps := append(tc.prepareSteps, MergeResource{source.Meta, target.Meta, false})
+		expectedSteps := append(tc.prepareSteps, MergeShard{source.Meta, target.Meta, false})
 		for i := 0; i < ops[0].Len(); i++ {
 			switch step := ops[0].Step(i).(type) {
 			case TransferLeader:
-				assert.Equal(t, step.FromContainer, expectedSteps[i].(TransferLeader).FromContainer)
-				assert.Equal(t, step.ToContainer, expectedSteps[i].(TransferLeader).ToContainer)
+				assert.Equal(t, step.FromStore, expectedSteps[i].(TransferLeader).FromStore)
+				assert.Equal(t, step.ToStore, expectedSteps[i].(TransferLeader).ToStore)
 			case AddLearner:
-				assert.Equal(t, step.ToContainer, expectedSteps[i].(AddLearner).ToContainer)
+				assert.Equal(t, step.ToStore, expectedSteps[i].(AddLearner).ToStore)
 			case RemovePeer:
-				assert.Equal(t, step.FromContainer, expectedSteps[i].(RemovePeer).FromContainer)
+				assert.Equal(t, step.FromStore, expectedSteps[i].(RemovePeer).FromStore)
 			case ChangePeerV2Enter:
 				assert.Equal(t, len(step.PromoteLearners), len(expectedSteps[i].(ChangePeerV2Enter).PromoteLearners))
 				assert.Equal(t, len(step.DemoteVoters), len(expectedSteps[i].(ChangePeerV2Enter).DemoteVoters))
 				for j, p := range expectedSteps[i].(ChangePeerV2Enter).PromoteLearners {
-					assert.Equal(t, step.PromoteLearners[j].ToContainer, p.ToContainer)
+					assert.Equal(t, step.PromoteLearners[j].ToStore, p.ToStore)
 				}
 				for j, d := range expectedSteps[i].(ChangePeerV2Enter).DemoteVoters {
-					assert.Equal(t, step.DemoteVoters[j].ToContainer, d.ToContainer)
+					assert.Equal(t, step.DemoteVoters[j].ToStore, d.ToStore)
 				}
 			case ChangePeerV2Leave:
 				assert.Equal(t, len(step.PromoteLearners), len(expectedSteps[i].(ChangePeerV2Leave).PromoteLearners))
 				assert.Equal(t, len(step.DemoteVoters), len(expectedSteps[i].(ChangePeerV2Leave).DemoteVoters))
 				for j, p := range expectedSteps[i].(ChangePeerV2Leave).PromoteLearners {
-					assert.Equal(t, step.PromoteLearners[j].ToContainer, p.ToContainer)
+					assert.Equal(t, step.PromoteLearners[j].ToStore, p.ToStore)
 				}
 				for j, d := range expectedSteps[i].(ChangePeerV2Leave).DemoteVoters {
-					assert.Equal(t, step.DemoteVoters[j].ToContainer, d.ToContainer)
+					assert.Equal(t, step.DemoteVoters[j].ToStore, d.ToStore)
 				}
-			case MergeResource:
-				assert.True(t, reflect.DeepEqual(expectedSteps[i].(MergeResource), step))
+			case MergeShard:
+				assert.True(t, reflect.DeepEqual(expectedSteps[i].(MergeShard), step))
 			}
 		}
 	}
@@ -288,81 +287,81 @@ func TestCreateTransferLeaderOperator(t *testing.T) {
 	s.setup()
 
 	type testCase struct {
-		originPeers             []metapb.Replica // first is leader
-		targetLeaderContainerID uint64
-		isErr                   bool
+		originPeers         []metapb.Replica // first is leader
+		targetLeaderStoreID uint64
+		isErr               bool
 	}
 	cases := []testCase{
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetLeaderContainerID: 3,
-			isErr:                   false,
+			targetLeaderStoreID: 3,
+			isErr:               false,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetLeaderContainerID: 1,
-			isErr:                   true,
+			targetLeaderStoreID: 1,
+			isErr:               true,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
-			targetLeaderContainerID: 4,
-			isErr:                   true,
+			targetLeaderStoreID: 4,
+			isErr:               true,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Learner},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Learner},
 			},
-			targetLeaderContainerID: 3,
-			isErr:                   true,
+			targetLeaderStoreID: 3,
+			isErr:               true,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			targetLeaderContainerID: 3,
-			isErr:                   true,
+			targetLeaderStoreID: 3,
+			isErr:               true,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			targetLeaderContainerID: 4,
-			isErr:                   false,
+			targetLeaderStoreID: 4,
+			isErr:               false,
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			targetLeaderContainerID: 3,
-			isErr:                   false,
+			targetLeaderStoreID: 3,
+			isErr:               false,
 		},
 	}
 	for _, tc := range cases {
-		region := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: tc.originPeers}, &tc.originPeers[0])
-		op, err := CreateTransferLeaderOperator("test", s.cluster, region, tc.originPeers[0].ContainerID, tc.targetLeaderContainerID, 0)
+		region := core.NewCachedShard(metapb.Shard{ID: 1, Replicas: tc.originPeers}, &tc.originPeers[0])
+		op, err := CreateTransferLeaderOperator("test", s.cluster, region, tc.originPeers[0].StoreID, tc.targetLeaderStoreID, 0)
 
 		if tc.isErr {
 			assert.Error(t, err)
@@ -374,8 +373,8 @@ func TestCreateTransferLeaderOperator(t *testing.T) {
 		assert.Equal(t, 1, len(op.steps))
 		switch step := op.Step(0).(type) {
 		case TransferLeader:
-			assert.Equal(t, tc.originPeers[0].ContainerID, step.FromContainer)
-			assert.Equal(t, tc.targetLeaderContainerID, step.ToContainer)
+			assert.Equal(t, tc.originPeers[0].StoreID, step.FromStore)
+			assert.Equal(t, tc.targetLeaderStoreID, step.ToStore)
 		default:
 			assert.Failf(t, "unexpected type: %s", step.String())
 		}
@@ -387,155 +386,155 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 	s.setup()
 
 	type testCase struct {
-		originPeers       []metapb.Replica // first is leader
-		offlineContainers []uint64
-		kind              OpKind
-		steps             []OpStep // empty means error
+		originPeers   []metapb.Replica // first is leader
+		offlineStores []uint64
+		kind          OpKind
+		steps         []OpStep // empty means error
 	}
 	cases := []testCase{
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: 0,
 			steps: []OpStep{
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 3}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 3}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			offlineContainers: []uint64{2},
-			kind:              OpLeader,
+			offlineStores: []uint64{2},
+			kind:          OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 3},
+				TransferLeader{FromStore: 1, ToStore: 3},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			offlineContainers: []uint64{2, 3},
-			kind:              OpLeader,
+			offlineStores: []uint64{2, 3},
+			kind:          OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 4},
+				TransferLeader{FromStore: 1, ToStore: 4},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
-			offlineContainers: []uint64{1, 2, 3, 4},
-			kind:              OpLeader,
+			offlineStores: []uint64{1, 2, 3, 4},
+			kind:          OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_IncomingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: 0,
 			steps: []OpStep{
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 1}, {ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 3}},
+					PromoteLearners: []PromoteLearner{{ToStore: 1}, {ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 3}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}, {ToContainer: 3}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}, {ToStore: 3}},
 				},
 			},
 		},
 		{
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 10, ContainerID: 10, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_DemotingVoter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_IncomingVoter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 10, StoreID: 10, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_DemotingVoter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_IncomingVoter},
 			},
 			kind: OpLeader,
 			steps: []OpStep{
-				TransferLeader{FromContainer: 1, ToContainer: 4},
+				TransferLeader{FromStore: 1, ToStore: 4},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1}, {ToContainer: 3}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1}, {ToStore: 3}},
 				},
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		for _, containerID := range tc.offlineContainers {
-			s.cluster.SetContainerOffline(containerID)
+		for _, containerID := range tc.offlineStores {
+			s.cluster.SetStoreOffline(containerID)
 		}
 
 		revertOffline := func() {
-			for _, storeID := range tc.offlineContainers {
-				s.cluster.SetContainerUP(storeID)
+			for _, storeID := range tc.offlineStores {
+				s.cluster.SetStoreUP(storeID)
 			}
 		}
 
-		resource := core.NewCachedResource(&metadata.TestResource{ResID: 1, ResPeers: tc.originPeers}, &tc.originPeers[0])
+		resource := core.NewCachedShard(metapb.Shard{ID: 1, Replicas: tc.originPeers}, &tc.originPeers[0])
 		op, err := CreateLeaveJointStateOperator("test", s.cluster, resource)
 		if len(tc.steps) == 0 {
 			assert.Error(t, err)
@@ -548,16 +547,16 @@ func TestCreateLeaveJointStateOperator(t *testing.T) {
 		for i := 0; i < op.Len(); i++ {
 			switch step := op.Step(i).(type) {
 			case TransferLeader:
-				assert.Equal(t, step.FromContainer, tc.steps[i].(TransferLeader).FromContainer)
-				assert.Equal(t, step.ToContainer, tc.steps[i].(TransferLeader).ToContainer)
+				assert.Equal(t, step.FromStore, tc.steps[i].(TransferLeader).FromStore)
+				assert.Equal(t, step.ToStore, tc.steps[i].(TransferLeader).ToStore)
 			case ChangePeerV2Leave:
 				assert.Equal(t, len(step.PromoteLearners), len(tc.steps[i].(ChangePeerV2Leave).PromoteLearners))
 				assert.Equal(t, len(step.DemoteVoters), len(tc.steps[i].(ChangePeerV2Leave).DemoteVoters))
 				for j, p := range tc.steps[i].(ChangePeerV2Leave).PromoteLearners {
-					assert.Equal(t, step.PromoteLearners[j].ToContainer, p.ToContainer)
+					assert.Equal(t, step.PromoteLearners[j].ToStore, p.ToStore)
 				}
 				for j, d := range tc.steps[i].(ChangePeerV2Leave).DemoteVoters {
-					assert.Equal(t, step.DemoteVoters[j].ToContainer, d.ToContainer)
+					assert.Equal(t, step.DemoteVoters[j].ToStore, d.ToStore)
 				}
 			default:
 				t.Fatalf("unexpected type: %s", step.String())
@@ -583,9 +582,9 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		{
 			name: "move resource partially with incoming voter, demote existed voter",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Leader,
@@ -593,32 +592,32 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Voter,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4, PeerID: 4},
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				AddLearner{ToStore: 4, PeerID: 4},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Enter{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 3, PeerID: 3},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 3, PeerID: 3},
 					},
 				},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 3, PeerID: 3},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 3, PeerID: 3},
 					},
 				},
-				RemovePeer{FromContainer: 1, PeerID: 1},
+				RemovePeer{FromStore: 1, PeerID: 1},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with incoming leader",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
@@ -626,26 +625,26 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Leader,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4, PeerID: 4},
+				AddLearner{ToStore: 4, PeerID: 4},
 				ChangePeerV2Enter{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1, PeerID: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1, PeerID: 1}},
 				},
-				TransferLeader{FromContainer: 1, ToContainer: 4},
+				TransferLeader{FromStore: 1, ToStore: 4},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1, PeerID: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1, PeerID: 1}},
 				},
-				RemovePeer{FromContainer: 1, PeerID: 1},
+				RemovePeer{FromStore: 1, PeerID: 1},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with incoming voter",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
@@ -653,26 +652,26 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Voter,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4, PeerID: 4},
-				TransferLeader{FromContainer: 1, ToContainer: 2},
+				AddLearner{ToStore: 4, PeerID: 4},
+				TransferLeader{FromStore: 1, ToStore: 2},
 				ChangePeerV2Enter{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1, PeerID: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1, PeerID: 1}},
 				},
 				ChangePeerV2Leave{
-					PromoteLearners: []PromoteLearner{{ToContainer: 4, PeerID: 4}},
-					DemoteVoters:    []DemoteVoter{{ToContainer: 1, PeerID: 1}},
+					PromoteLearners: []PromoteLearner{{ToStore: 4, PeerID: 4}},
+					DemoteVoters:    []DemoteVoter{{ToStore: 1, PeerID: 1}},
 				},
-				RemovePeer{FromContainer: 1, PeerID: 1},
+				RemovePeer{FromStore: 1, PeerID: 1},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with incoming learner, demote leader",
 			originPeers: []metapb.Replica{
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Learner,
@@ -680,32 +679,32 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Learner,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4, PeerID: 4},
-				TransferLeader{FromContainer: 2, ToContainer: 3},
+				AddLearner{ToStore: 4, PeerID: 4},
+				TransferLeader{FromStore: 2, ToStore: 3},
 				ChangePeerV2Enter{
 					PromoteLearners: []PromoteLearner{},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 2, PeerID: 2},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 2, PeerID: 2},
 					},
 				},
 				ChangePeerV2Leave{
 					PromoteLearners: []PromoteLearner{},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 2, PeerID: 2},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 2, PeerID: 2},
 					},
 				},
-				RemovePeer{FromContainer: 1, PeerID: 1},
+				RemovePeer{FromStore: 1, PeerID: 1},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move entirely with incoming voter",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				4: placement.Leader,
@@ -713,46 +712,46 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				6: placement.Voter,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4, PeerID: 4},
-				AddLearner{ToContainer: 5, PeerID: 5},
-				AddLearner{ToContainer: 6, PeerID: 6},
+				AddLearner{ToStore: 4, PeerID: 4},
+				AddLearner{ToStore: 5, PeerID: 5},
+				AddLearner{ToStore: 6, PeerID: 6},
 				ChangePeerV2Enter{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 4, PeerID: 4},
-						{ToContainer: 5, PeerID: 5},
-						{ToContainer: 6, PeerID: 6},
+						{ToStore: 4, PeerID: 4},
+						{ToStore: 5, PeerID: 5},
+						{ToStore: 6, PeerID: 6},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 2, PeerID: 2},
-						{ToContainer: 3, PeerID: 3},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 2, PeerID: 2},
+						{ToStore: 3, PeerID: 3},
 					},
 				},
-				TransferLeader{FromContainer: 1, ToContainer: 4},
+				TransferLeader{FromStore: 1, ToStore: 4},
 				ChangePeerV2Leave{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 4, PeerID: 4},
-						{ToContainer: 5, PeerID: 5},
-						{ToContainer: 6, PeerID: 6},
+						{ToStore: 4, PeerID: 4},
+						{ToStore: 5, PeerID: 5},
+						{ToStore: 6, PeerID: 6},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 1, PeerID: 1},
-						{ToContainer: 2, PeerID: 2},
-						{ToContainer: 3, PeerID: 3},
+						{ToStore: 1, PeerID: 1},
+						{ToStore: 2, PeerID: 2},
+						{ToStore: 3, PeerID: 3},
 					},
 				},
-				RemovePeer{FromContainer: 1, PeerID: 1},
-				RemovePeer{FromContainer: 2, PeerID: 2},
-				RemovePeer{FromContainer: 3, PeerID: 3},
+				RemovePeer{FromStore: 1, PeerID: 1},
+				RemovePeer{FromStore: 2, PeerID: 2},
+				RemovePeer{FromStore: 3, PeerID: 3},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with incoming and old voter, leader step down",
 			originPeers: []metapb.Replica{
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
@@ -760,34 +759,34 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Follower,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 2, PeerID: 8},
-				TransferLeader{FromContainer: 4, ToContainer: 3},
+				AddLearner{ToStore: 2, PeerID: 8},
+				TransferLeader{FromStore: 4, ToStore: 3},
 				ChangePeerV2Enter{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 2, PeerID: 8},
+						{ToStore: 2, PeerID: 8},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 5, PeerID: 5},
+						{ToStore: 5, PeerID: 5},
 					},
 				},
 				ChangePeerV2Leave{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 2, PeerID: 8},
+						{ToStore: 2, PeerID: 8},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 5, PeerID: 5},
+						{ToStore: 5, PeerID: 5},
 					},
 				},
-				RemovePeer{FromContainer: 5, PeerID: 5},
+				RemovePeer{FromStore: 5, PeerID: 5},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with incoming voter and follower, leader step down",
 			originPeers: []metapb.Replica{
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
@@ -795,40 +794,40 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				4: placement.Follower,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 1, PeerID: 9},
-				AddLearner{ToContainer: 2, PeerID: 10},
+				AddLearner{ToStore: 1, PeerID: 9},
+				AddLearner{ToStore: 2, PeerID: 10},
 				ChangePeerV2Enter{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 1, PeerID: 9},
-						{ToContainer: 2, PeerID: 10},
+						{ToStore: 1, PeerID: 9},
+						{ToStore: 2, PeerID: 10},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 3, PeerID: 3},
-						{ToContainer: 5, PeerID: 5},
+						{ToStore: 3, PeerID: 3},
+						{ToStore: 5, PeerID: 5},
 					},
 				},
 				ChangePeerV2Leave{
 					PromoteLearners: []PromoteLearner{
-						{ToContainer: 1, PeerID: 9},
-						{ToContainer: 2, PeerID: 10},
+						{ToStore: 1, PeerID: 9},
+						{ToStore: 2, PeerID: 10},
 					},
 					DemoteVoters: []DemoteVoter{
-						{ToContainer: 3, PeerID: 3},
-						{ToContainer: 5, PeerID: 5},
+						{ToStore: 3, PeerID: 3},
+						{ToStore: 5, PeerID: 5},
 					},
 				},
-				TransferLeader{FromContainer: 4, ToContainer: 2},
-				RemovePeer{FromContainer: 3, PeerID: 3},
-				RemovePeer{FromContainer: 5, PeerID: 5},
+				TransferLeader{FromStore: 4, ToStore: 2},
+				RemovePeer{FromStore: 3, PeerID: 3},
+				RemovePeer{FromStore: 5, PeerID: 5},
 			},
 			expectedError: nil,
 		},
 		{
 			name: "move resource partially with all incoming follower, leader step down",
 			originPeers: []metapb.Replica{
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
@@ -841,9 +840,9 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		{
 			name: "only leader transfer",
 			originPeers: []metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
@@ -851,15 +850,15 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				5: placement.Follower,
 			},
 			steps: []OpStep{
-				TransferLeader{FromContainer: 3, ToContainer: 4},
+				TransferLeader{FromStore: 3, ToStore: 4},
 			},
 		},
 		{
 			name: "add peer and transfer leader",
 			originPeers: []metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
@@ -868,16 +867,16 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 				6: placement.Follower,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 6},
-				PromoteLearner{ToContainer: 6},
-				TransferLeader{FromContainer: 3, ToContainer: 4},
+				AddLearner{ToStore: 6},
+				PromoteLearner{ToStore: 6},
+				TransferLeader{FromStore: 3, ToStore: 4},
 			},
 		},
 	}
 	for _, tc := range tt {
 		t.Log(tc.name)
-		resource := core.NewCachedResource(&metadata.TestResource{ResID: 10, ResPeers: tc.originPeers}, &tc.originPeers[0])
-		op, err := CreateMoveResourceOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
+		resource := core.NewCachedShard(metapb.Shard{ID: 10, Replicas: tc.originPeers}, &tc.originPeers[0])
+		op, err := CreateMoveShardOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
 
 		if tc.expectedError == nil {
 			assert.NoError(t, err)
@@ -892,32 +891,32 @@ func TestCreateMoveresourceOperator(t *testing.T) {
 		for i := 0; i < op.Len(); i++ {
 			switch step := op.Step(i).(type) {
 			case TransferLeader:
-				assert.Equal(t, step.FromContainer, tc.steps[i].(TransferLeader).FromContainer)
-				assert.Equal(t, step.ToContainer, tc.steps[i].(TransferLeader).ToContainer)
+				assert.Equal(t, step.FromStore, tc.steps[i].(TransferLeader).FromStore)
+				assert.Equal(t, step.ToStore, tc.steps[i].(TransferLeader).ToStore)
 			case ChangePeerV2Leave:
 				assert.Equal(t, len(step.PromoteLearners), len(tc.steps[i].(ChangePeerV2Leave).PromoteLearners))
 				assert.Equal(t, len(step.DemoteVoters), len(tc.steps[i].(ChangePeerV2Leave).DemoteVoters))
 				for j, p := range tc.steps[i].(ChangePeerV2Leave).PromoteLearners {
-					assert.Equal(t, step.PromoteLearners[j].ToContainer, p.ToContainer)
+					assert.Equal(t, step.PromoteLearners[j].ToStore, p.ToStore)
 				}
 				for j, d := range tc.steps[i].(ChangePeerV2Leave).DemoteVoters {
-					assert.Equal(t, step.DemoteVoters[j].ToContainer, d.ToContainer)
+					assert.Equal(t, step.DemoteVoters[j].ToStore, d.ToStore)
 				}
 			case ChangePeerV2Enter:
 				assert.Equal(t, len(step.PromoteLearners), len(tc.steps[i].(ChangePeerV2Enter).PromoteLearners))
 				assert.Equal(t, len(step.DemoteVoters), len(tc.steps[i].(ChangePeerV2Enter).DemoteVoters))
 				for j, p := range tc.steps[i].(ChangePeerV2Enter).PromoteLearners {
-					assert.Equal(t, step.PromoteLearners[j].ToContainer, p.ToContainer)
+					assert.Equal(t, step.PromoteLearners[j].ToStore, p.ToStore)
 				}
 				for j, d := range tc.steps[i].(ChangePeerV2Enter).DemoteVoters {
-					assert.Equal(t, step.DemoteVoters[j].ToContainer, d.ToContainer)
+					assert.Equal(t, step.DemoteVoters[j].ToStore, d.ToStore)
 				}
 			case AddLearner:
-				assert.Equal(t, step.ToContainer, tc.steps[i].(AddLearner).ToContainer)
+				assert.Equal(t, step.ToStore, tc.steps[i].(AddLearner).ToStore)
 			case PromoteLearner:
-				assert.Equal(t, step.ToContainer, tc.steps[i].(PromoteLearner).ToContainer)
+				assert.Equal(t, step.ToStore, tc.steps[i].(PromoteLearner).ToStore)
 			case RemovePeer:
-				assert.Equal(t, step.FromContainer, tc.steps[i].(RemovePeer).FromContainer)
+				assert.Equal(t, step.FromStore, tc.steps[i].(RemovePeer).FromStore)
 			default:
 				t.Fatalf("unexpected type: %s", step.String())
 			}
@@ -940,9 +939,9 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		{
 			name: "move resource partially with incoming voter, demote existed voter",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Leader,
@@ -950,20 +949,20 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				4: placement.Voter,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4},
-				PromoteLearner{ToContainer: 4},
-				TransferLeader{FromContainer: 1, ToContainer: 2},
-				RemovePeer{FromContainer: 1},
-				RemovePeer{FromContainer: 3},
-				AddLearner{ToContainer: 3},
+				AddLearner{ToStore: 4},
+				PromoteLearner{ToStore: 4},
+				TransferLeader{FromStore: 1, ToStore: 2},
+				RemovePeer{FromStore: 1},
+				RemovePeer{FromStore: 3},
+				AddLearner{ToStore: 3},
 			},
 		},
 		{
 			name: "move resource partially with incoming leader",
 			originPeers: []metapb.Replica{
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Voter,
@@ -971,19 +970,19 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				4: placement.Leader,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 4},
-				PromoteLearner{ToContainer: 4},
-				TransferLeader{FromContainer: 1, ToContainer: 2},
-				RemovePeer{FromContainer: 1},
-				TransferLeader{FromContainer: 2, ToContainer: 4},
+				AddLearner{ToStore: 4},
+				PromoteLearner{ToStore: 4},
+				TransferLeader{FromStore: 1, ToStore: 2},
+				RemovePeer{FromStore: 1},
+				TransferLeader{FromStore: 2, ToStore: 4},
 			},
 		},
 		{
 			name: "move resource partially with incoming learner, demote leader",
 			originPeers: []metapb.Replica{
-				{ID: 2, ContainerID: 2, Role: metapb.ReplicaRole_Voter},
-				{ID: 1, ContainerID: 1, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 2, StoreID: 2, Role: metapb.ReplicaRole_Voter},
+				{ID: 1, StoreID: 1, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				2: placement.Learner,
@@ -991,19 +990,19 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				4: placement.Learner,
 			},
 			steps: []OpStep{
-				RemovePeer{FromContainer: 1},
-				TransferLeader{FromContainer: 2, ToContainer: 3},
-				RemovePeer{FromContainer: 2},
-				AddLearner{ToContainer: 2},
-				AddLearner{ToContainer: 4},
+				RemovePeer{FromStore: 1},
+				TransferLeader{FromStore: 2, ToStore: 3},
+				RemovePeer{FromStore: 2},
+				AddLearner{ToStore: 2},
+				AddLearner{ToStore: 4},
 			},
 		},
 		{
 			name: "move resource partially with all incoming follower, leader step down",
 			originPeers: []metapb.Replica{
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				1: placement.Follower,
@@ -1016,9 +1015,9 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		{
 			name: "only leader transfer",
 			originPeers: []metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
@@ -1026,15 +1025,15 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				5: placement.Follower,
 			},
 			steps: []OpStep{
-				TransferLeader{FromContainer: 3, ToContainer: 4},
+				TransferLeader{FromStore: 3, ToStore: 4},
 			},
 		},
 		{
 			name: "add peer and transfer leader",
 			originPeers: []metapb.Replica{
-				{ID: 3, ContainerID: 3, Role: metapb.ReplicaRole_Voter},
-				{ID: 4, ContainerID: 4, Role: metapb.ReplicaRole_Voter},
-				{ID: 5, ContainerID: 5, Role: metapb.ReplicaRole_Voter},
+				{ID: 3, StoreID: 3, Role: metapb.ReplicaRole_Voter},
+				{ID: 4, StoreID: 4, Role: metapb.ReplicaRole_Voter},
+				{ID: 5, StoreID: 5, Role: metapb.ReplicaRole_Voter},
 			},
 			targetPeerRoles: map[uint64]placement.ReplicaRoleType{
 				3: placement.Follower,
@@ -1043,9 +1042,9 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 				6: placement.Follower,
 			},
 			steps: []OpStep{
-				AddLearner{ToContainer: 6},
-				PromoteLearner{ToContainer: 6},
-				TransferLeader{FromContainer: 3, ToContainer: 4},
+				AddLearner{ToStore: 6},
+				PromoteLearner{ToStore: 6},
+				TransferLeader{FromStore: 3, ToStore: 4},
 			},
 		},
 	}
@@ -1053,8 +1052,8 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 	s.cluster.DisableJointConsensus()
 	for _, tc := range tt {
 		t.Log(tc.name)
-		resource := core.NewCachedResource(&metadata.TestResource{ResID: 10, ResPeers: tc.originPeers}, &tc.originPeers[0])
-		op, err := CreateMoveResourceOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
+		resource := core.NewCachedShard(metapb.Shard{ID: 10, Replicas: tc.originPeers}, &tc.originPeers[0])
+		op, err := CreateMoveShardOperator("test", s.cluster, resource, OpAdmin, tc.targetPeerRoles)
 
 		if tc.expectedError == nil {
 			assert.NoError(t, err)
@@ -1070,14 +1069,14 @@ func TestMoveresourceWithoutJointConsensus(t *testing.T) {
 		for i := 0; i < op.Len(); i++ {
 			switch step := op.Step(i).(type) {
 			case TransferLeader:
-				assert.Equal(t, step.FromContainer, tc.steps[i].(TransferLeader).FromContainer)
-				assert.Equal(t, step.ToContainer, tc.steps[i].(TransferLeader).ToContainer)
+				assert.Equal(t, step.FromStore, tc.steps[i].(TransferLeader).FromStore)
+				assert.Equal(t, step.ToStore, tc.steps[i].(TransferLeader).ToStore)
 			case AddLearner:
-				assert.Equal(t, step.ToContainer, tc.steps[i].(AddLearner).ToContainer)
+				assert.Equal(t, step.ToStore, tc.steps[i].(AddLearner).ToStore)
 			case PromoteLearner:
-				assert.Equal(t, step.ToContainer, tc.steps[i].(PromoteLearner).ToContainer)
+				assert.Equal(t, step.ToStore, tc.steps[i].(PromoteLearner).ToStore)
 			case RemovePeer:
-				assert.Equal(t, step.FromContainer, tc.steps[i].(RemovePeer).FromContainer)
+				assert.Equal(t, step.FromStore, tc.steps[i].(RemovePeer).FromStore)
 			default:
 				t.Fatalf("unexpected type: %s", step.String())
 			}

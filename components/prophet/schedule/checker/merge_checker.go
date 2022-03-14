@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const maxTargetResourceSize = 500
+const maxTargetShardSize = 500
 
 // MergeChecker ensures resource to merge with adjacent resource when size is small
 type MergeChecker struct {
@@ -55,23 +55,23 @@ func (m *MergeChecker) GetType() string {
 	return "merge-checker"
 }
 
-// RecordResourceSplit put the recently split resource into cache. MergeChecker
+// RecordShardSplit put the recently split resource into cache. MergeChecker
 // will skip check it for a while.
-func (m *MergeChecker) RecordResourceSplit(resourceIDs []uint64) {
+func (m *MergeChecker) RecordShardSplit(resourceIDs []uint64) {
 	for _, resID := range resourceIDs {
 		m.splitCache.PutWithTTL(resID, nil, m.opts.GetSplitMergeInterval())
 	}
 }
 
 // Check verifies a resource's replicas, creating an Operator if need.
-func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
+func (m *MergeChecker) Check(res *core.CachedShard) []*operator.Operator {
 	expireTime := m.startTime.Add(m.opts.GetSplitMergeInterval())
 	if time.Now().Before(expireTime) {
 		checkerCounter.WithLabelValues("merge_checker", "recently-start").Inc()
 		return nil
 	}
 
-	if m.splitCache.Exists(res.Meta.ID()) {
+	if m.splitCache.Exists(res.Meta.GetID()) {
 		checkerCounter.WithLabelValues("merge_checker", "recently-split").Inc()
 		return nil
 	}
@@ -88,32 +88,32 @@ func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
 	}
 
 	// resource is not small enough
-	if res.GetApproximateSize() > int64(m.opts.GetMaxMergeResourceSize()) ||
-		res.GetApproximateKeys() > int64(m.opts.GetMaxMergeResourceKeys()) {
+	if res.GetApproximateSize() > int64(m.opts.GetMaxMergeShardSize()) ||
+		res.GetApproximateKeys() > int64(m.opts.GetMaxMergeShardKeys()) {
 		checkerCounter.WithLabelValues("merge_checker", "no-need").Inc()
 		return nil
 	}
 
 	// skip resource has down peers or pending peers or learner peers
-	if !opt.IsResourceHealthy(m.cluster, res) {
+	if !opt.IsShardHealthy(m.cluster, res) {
 		checkerCounter.WithLabelValues("merge_checker", "special-peer").Inc()
 		return nil
 	}
 
-	if !opt.IsResourceReplicated(m.cluster, res) {
+	if !opt.IsShardReplicated(m.cluster, res) {
 		checkerCounter.WithLabelValues("merge_checker", "abnormal-replica").Inc()
 		return nil
 	}
 
 	// skip hot resource
-	if m.cluster.IsResourceHot(res) {
+	if m.cluster.IsShardHot(res) {
 		checkerCounter.WithLabelValues("merge_checker", "hot-resource").Inc()
 		return nil
 	}
 
-	prev, next := m.cluster.GetAdjacentResources(res)
+	prev, next := m.cluster.GetAdjacentShards(res)
 
-	var target *core.CachedResource
+	var target *core.CachedShard
 	if m.checkTarget(res, next) {
 		target = next
 	}
@@ -128,16 +128,16 @@ func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
 		return nil
 	}
 
-	if target.GetApproximateSize() > maxTargetResourceSize {
+	if target.GetApproximateSize() > maxTargetShardSize {
 		checkerCounter.WithLabelValues("merge_checker", "target-too-large").Inc()
 		return nil
 	}
 
 	m.cluster.GetLogger().Debug("try to merge resource",
-		zap.Stringer("from", core.ResourceToHexMeta(res.Meta)),
-		zap.Stringer("to", core.ResourceToHexMeta(target.Meta)))
+		zap.Stringer("from", core.ShardToHexMeta(res.Meta)),
+		zap.Stringer("to", core.ShardToHexMeta(target.Meta)))
 
-	ops, err := operator.CreateMergeResourceOperator("merge-resource", m.cluster, res, target, operator.OpMerge)
+	ops, err := operator.CreateMergeShardOperator("merge-resource", m.cluster, res, target, operator.OpMerge)
 	if err != nil {
 		m.cluster.GetLogger().Warn("fail to create merge resource operator",
 			zap.Error(err))
@@ -151,14 +151,14 @@ func (m *MergeChecker) Check(res *core.CachedResource) []*operator.Operator {
 	return ops
 }
 
-func (m *MergeChecker) checkTarget(region, adjacent *core.CachedResource) bool {
-	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.ID()) && !m.cluster.IsResourceHot(adjacent) &&
-		AllowMerge(m.cluster, region, adjacent) && opt.IsResourceHealthy(m.cluster, adjacent) &&
-		opt.IsResourceReplicated(m.cluster, adjacent)
+func (m *MergeChecker) checkTarget(region, adjacent *core.CachedShard) bool {
+	return adjacent != nil && !m.splitCache.Exists(adjacent.Meta.GetID()) && !m.cluster.IsShardHot(adjacent) &&
+		AllowMerge(m.cluster, region, adjacent) && opt.IsShardHealthy(m.cluster, adjacent) &&
+		opt.IsShardReplicated(m.cluster, adjacent)
 }
 
 // AllowMerge returns true if two resources can be merged according to the key type.
-func AllowMerge(cluster opt.Cluster, res *core.CachedResource, adjacent *core.CachedResource) bool {
+func AllowMerge(cluster opt.Cluster, res *core.CachedShard, adjacent *core.CachedShard) bool {
 	var start, end []byte
 	if bytes.Equal(res.GetEndKey(), adjacent.GetStartKey()) && len(res.GetEndKey()) != 0 {
 		start, end = res.GetStartKey(), adjacent.GetEndKey()

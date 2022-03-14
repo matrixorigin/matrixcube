@@ -22,11 +22,11 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/operator"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
 	"github.com/matrixorigin/matrixcube/components/prophet/statistics"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/montanaflynn/stats"
 	"go.uber.org/zap"
 )
@@ -46,36 +46,36 @@ const (
 )
 
 func shouldBalance(cluster opt.Cluster,
-	source, target *core.CachedContainer,
-	res *core.CachedResource, kind core.ScheduleKind,
+	source, target *core.CachedStore,
+	res *core.CachedShard, kind core.ScheduleKind,
 	opInfluence operator.OpInfluence,
 	scheduleName string) (shouldBalance bool, sourceScore float64, targetScore float64) {
-	// The reason we use max(resourceSize, averageResourceSize) to check is:
+	// The reason we use max(resourceSize, averageShardSize) to check is:
 	// 1. prevent moving small resources between containers with close scores, leading to unnecessary balance.
 	// 2. prevent moving huge resources, leading to over balance.
-	sourceID := source.Meta.ID()
-	targetID := target.Meta.ID()
-	tolerantResource := getTolerantResource(cluster, res, kind)
-	sourceInfluence := opInfluence.GetContainerInfluence(sourceID).ResourceProperty(kind, res.GetGroupKey())
-	targetInfluence := opInfluence.GetContainerInfluence(targetID).ResourceProperty(kind, res.GetGroupKey())
-	sourceDelta, targetDelta := sourceInfluence-tolerantResource, targetInfluence+tolerantResource
+	sourceID := source.Meta.GetID()
+	targetID := target.Meta.GetID()
+	tolerantShard := getTolerantShard(cluster, res, kind)
+	sourceInfluence := opInfluence.GetStoreInfluence(sourceID).ShardProperty(kind, res.GetGroupKey())
+	targetInfluence := opInfluence.GetStoreInfluence(targetID).ShardProperty(kind, res.GetGroupKey())
+	sourceDelta, targetDelta := sourceInfluence-tolerantShard, targetInfluence+tolerantShard
 	opts := cluster.GetOpts()
-	switch kind.ResourceKind {
-	case metapb.ResourceKind_LeaderKind:
+	switch kind.ShardKind {
+	case metapb.ShardType_LeaderOnly:
 		if kind.Policy == core.ByCount {
 			sourceDelta = -1
 			targetDelta = 1
 		}
 		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
 		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
-	case metapb.ResourceKind_ReplicaKind:
-		sourceScore = source.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
-		targetScore = target.ResourceScore(res.GetGroupKey(), opts.GetResourceScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
+	case metapb.ShardType_AllShards:
+		sourceScore = source.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
+		targetScore = target.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
 	if opts.IsDebugMetricsEnabled() {
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), "source").Set(float64(sourceInfluence))
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(targetID, 10), "target").Set(float64(targetInfluence))
-		tolerantResourceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), strconv.FormatUint(targetID, 10)).Set(float64(tolerantResource))
+		tolerantShardStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), strconv.FormatUint(targetID, 10)).Set(float64(tolerantShard))
 	}
 	// Make sure after move, source score is still greater than target score.
 	shouldBalance = sourceScore >= targetScore
@@ -83,26 +83,26 @@ func shouldBalance(cluster opt.Cluster,
 	if !shouldBalance {
 		if ce := cluster.GetLogger().Check(zap.DebugLevel, "skip balance"); ce != nil {
 			ce.Write(log.HexField("group-key", []byte(res.GetGroupKey())),
-				zap.Uint64("resource", res.Meta.ID()),
-				zap.String("resource-kind", kind.ResourceKind.String()),
+				zap.Uint64("resource", res.Meta.GetID()),
+				zap.String("resource-kind", kind.ShardKind.String()),
 				zap.String("schedule", scheduleName),
 				sourceField(sourceID),
 				targetField(targetID),
-				zap.Int64("source-size", source.GetResourceSize(res.GetGroupKey())),
-				zap.Int64("target-size", target.GetResourceSize(res.GetGroupKey())),
-				zap.Int64("average-size", cluster.GetAverageResourceSize()),
+				zap.Int64("source-size", source.GetShardSize(res.GetGroupKey())),
+				zap.Int64("target-size", target.GetShardSize(res.GetGroupKey())),
+				zap.Int64("average-size", cluster.GetAverageShardSize()),
 				zap.Int64("source-influence", sourceInfluence),
 				zap.Int64("target-influence", targetInfluence),
 				zap.Float64("source-score", sourceScore),
 				zap.Float64("target-score", targetScore),
-				zap.Int64("tolerant-resource", tolerantResource))
+				zap.Int64("tolerant-resource", tolerantShard))
 		}
 	}
 	return shouldBalance, sourceScore, targetScore
 }
 
-func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind core.ScheduleKind) int64 {
-	if kind.ResourceKind == metapb.ResourceKind_LeaderKind && kind.Policy == core.ByCount {
+func getTolerantShard(cluster opt.Cluster, res *core.CachedShard, kind core.ScheduleKind) int64 {
+	if kind.ShardKind == metapb.ShardType_LeaderOnly && kind.Policy == core.ByCount {
 		tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 		if tolerantSizeRatio == 0 {
 			tolerantSizeRatio = leaderTolerantSizeRatio
@@ -112,8 +112,8 @@ func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind cor
 	}
 
 	resourceSize := res.GetApproximateSize()
-	if resourceSize < cluster.GetAverageResourceSize() {
-		resourceSize = cluster.GetAverageResourceSize()
+	if resourceSize < cluster.GetAverageShardSize() {
+		resourceSize = cluster.GetAverageShardSize()
 	}
 	resourceSize = int64(float64(resourceSize) * adjustTolerantRatio(res.GetGroupKey(), cluster))
 	return resourceSize
@@ -122,15 +122,15 @@ func getTolerantResource(cluster opt.Cluster, res *core.CachedResource, kind cor
 func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 	tolerantSizeRatio := cluster.GetOpts().GetTolerantSizeRatio()
 	if tolerantSizeRatio == 0 {
-		var maxResourceCount float64
-		containers := cluster.GetContainers()
+		var maxShardCount float64
+		containers := cluster.GetStores()
 		for _, container := range containers {
-			resourceCount := float64(cluster.GetContainerResourceCount(groupKey, container.Meta.ID()))
-			if maxResourceCount < resourceCount {
-				maxResourceCount = resourceCount
+			resourceCount := float64(cluster.GetStoreShardCount(groupKey, container.Meta.GetID()))
+			if maxShardCount < resourceCount {
+				maxShardCount = resourceCount
 			}
 		}
-		tolerantSizeRatio = maxResourceCount * adjustRatio
+		tolerantSizeRatio = maxShardCount * adjustRatio
 		if tolerantSizeRatio < minTolerantSizeRatio {
 			tolerantSizeRatio = minTolerantSizeRatio
 		}
@@ -138,12 +138,12 @@ func adjustTolerantRatio(groupKey string, cluster opt.Cluster) float64 {
 	return tolerantSizeRatio
 }
 
-func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ResourceKind) uint64 {
-	containers := cluster.GetContainers()
+func adjustBalanceLimit(groupKey string, cluster opt.Cluster, kind metapb.ShardType) uint64 {
+	containers := cluster.GetStores()
 	counts := make([]float64, 0, len(containers))
 	for _, s := range containers {
 		if s.IsUp() {
-			counts = append(counts, float64(s.ResourceCount(groupKey, kind)))
+			counts = append(counts, float64(s.ShardCount(groupKey, kind)))
 		}
 	}
 	limit, _ := stats.StandardDeviation(counts)
@@ -394,7 +394,7 @@ func (li *containerLoadDetail) toHotPeersStat() *statistics.HotPeersStat {
 }
 
 var (
-	sourceField   = log.SourceContainerField
-	targetField   = log.TargetContainerField
+	sourceField   = log.SourceStoreField
+	targetField   = log.TargetStoreField
 	resourceField = log.ResourceField
 )

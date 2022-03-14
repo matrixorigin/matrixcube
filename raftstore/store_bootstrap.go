@@ -18,9 +18,8 @@ import (
 	"time"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
 	"github.com/matrixorigin/matrixcube/keys"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"
 )
@@ -47,15 +46,15 @@ func (s *store) ProphetBecomeFollower() {
 
 func (s *store) initMeta() {
 	s.meta.SetLabels(s.cfg.GetLabels())
-	s.meta.SetStartTimestamp(time.Now().Unix())
+	s.meta.SetStartTime(time.Now().Unix())
 	s.meta.SetDeployPath(s.cfg.DeployPath)
-	s.meta.SetVersion(s.cfg.Version, s.cfg.GitHash)
+	s.meta.SetVersionAndCommitID(s.cfg.Version, s.cfg.GitHash)
 	s.meta.SetAddrs(s.cfg.AdvertiseClientAddr, s.cfg.AdvertiseRaftAddr)
 
 	s.logger.Info("store metadata init",
 		s.storeField(),
-		zap.String("raft-addr", s.Meta().RaftAddr),
-		zap.String("client-addr", s.Meta().ClientAddr),
+		zap.String("raft-addr", s.Meta().RaftAddress),
+		zap.String("client-addr", s.Meta().ClientAddress),
 		zap.Any("labels", s.Meta().Labels))
 }
 
@@ -72,7 +71,9 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 
 	s.logger.Info("begin to create local store metadata",
 		s.storeField())
+	s.Lock()
 	s.meta.SetID(s.MustAllocID())
+	s.Unlock()
 	s.mustSaveStoreMetadata()
 	s.logger.Info("create local store",
 		s.storeField())
@@ -92,19 +93,19 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 			s.logger.Info("begin to bootstrap the cluster with init shards",
 				s.storeField())
 			var initShards []Shard
-			var resources []metadata.Resource
+			var resources []*Shard
 			if s.cfg.Customize.CustomInitShardsFactory != nil {
 				shards := s.cfg.Customize.CustomInitShardsFactory()
 				for _, shard := range shards {
 					s.doCreateInitShard(&shard)
 					initShards = append(initShards, shard)
-					resources = append(resources, NewResourceAdapterWithShard(shard))
+					resources = append(resources, shard.Clone())
 				}
 			} else {
-				shard := Shard{}
-				s.doCreateInitShard(&shard)
-				initShards = append(initShards, shard)
-				resources = append(resources, NewResourceAdapterWithShard(shard))
+				shard := metapb.NewShard()
+				s.doCreateInitShard(shard)
+				initShards = append(initShards, *shard)
+				resources = append(resources, shard)
 			}
 
 			newReplicaCreator(s).
@@ -130,13 +131,13 @@ func (s *store) doBootstrapCluster(bootstrap bool) {
 
 func (s *store) postBootstrapped() {
 	s.mustPutStore()
-	s.startHandleResourceHeartbeat()
+	s.startHandleShardHeartbeat()
 	close(s.pdStartedC)
 }
 
 func (s *store) mustPutStore() {
 	for {
-		if err := s.pd.GetClient().PutContainer(s.meta); err != nil {
+		if err := s.pd.GetClient().PutStore(s.meta); err != nil {
 			s.logger.Info("failed to put container to prophet",
 				s.storeField(),
 				zap.Error(err),
@@ -164,8 +165,8 @@ func (s *store) mustSaveStoreMetadata() {
 			s.storeField())
 	}
 
-	v := &meta.StoreIdent{
-		StoreID:   s.meta.ID(),
+	v := &metapb.StoreIdent{
+		StoreID:   s.meta.GetID(),
 		ClusterID: s.pd.GetClusterID(),
 	}
 	err = s.kvStorage.Set(keys.GetStoreIdentKey(), protoc.MustMarshal(v), true)
@@ -185,7 +186,7 @@ func (s *store) mustLoadStoreMetadata() bool {
 	}
 
 	if len(data) > 0 {
-		v := &meta.StoreIdent{}
+		v := &metapb.StoreIdent{}
 		protoc.MustUnmarshal(v, data)
 
 		if v.ClusterID != s.pd.GetClusterID() {
@@ -208,11 +209,11 @@ func (s *store) doCreateInitShard(shard *Shard) {
 	shardID := s.MustAllocID()
 	peerID := s.MustAllocID()
 	shard.ID = shardID
-	shard.Epoch.Version = 1
-	shard.Epoch.ConfVer = 1
+	shard.Epoch.Generation = 1
+	shard.Epoch.ConfigVer = 1
 	shard.Replicas = append(shard.Replicas, Replica{
 		ID:            peerID,
-		ContainerID:   s.meta.ID(),
+		StoreID:       s.meta.GetID(),
 		InitialMember: true,
 	})
 }

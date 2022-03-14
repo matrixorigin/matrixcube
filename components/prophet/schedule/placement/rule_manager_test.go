@@ -20,9 +20,8 @@ import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -83,20 +82,14 @@ func TestApplyRule(t *testing.T) {
 		Count:       5,
 	})
 
-	rules := s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
-		ResID:    1,
-		Start:    []byte("a"),
-		End:      []byte("c"),
-		ResPeers: []metapb.Replica{{ID: 1, ContainerID: 1}},
+	rules := s.manager.GetRulesForApplyShard(core.NewCachedShard(metapb.Shard{
+		ID: 1, Start: []byte("a"), End: []byte("c"), Replicas: []metapb.Replica{{ID: 1, StoreID: 1}},
 	}, nil))
 	assert.Equal(t, 3, len(rules))
 
-	rules = s.manager.GetRulesForApplyResource(core.NewCachedResource(&metadata.TestResource{
-		ResID:         1,
-		Start:         []byte("a"),
-		End:           []byte("c"),
-		ResPeers:      []metapb.Replica{{ID: 1, ContainerID: 1}},
-		ResRuleGroups: []string{"group1", "group2"},
+	rules = s.manager.GetRulesForApplyShard(core.NewCachedShard(metapb.Shard{
+		ID: 1, Start: []byte("a"), End: []byte("c"), Replicas: []metapb.Replica{{ID: 1, StoreID: 1}},
+		RuleGroups: []string{"group1", "group2"},
 	}, nil))
 	assert.Equal(t, 2, len(rules))
 	assert.Equal(t, "id1", rules[0].ID)
@@ -220,8 +213,8 @@ func TestKeys(t *testing.T) {
 		{{"11", "33"}},
 	}
 	for _, keys := range resourceKeys {
-		resource := core.NewCachedResource(&metadata.TestResource{Start: s.dhex(keys[0][0]), End: s.dhex(keys[0][1])}, nil)
-		rules := s.manager.GetRulesForApplyResource(resource)
+		resource := core.NewCachedShard(metapb.Shard{Start: s.dhex(keys[0][0]), End: s.dhex(keys[0][1])}, nil)
+		rules := s.manager.GetRulesForApplyShard(resource)
 		assert.Equal(t, len(keys)-1, len(rules))
 		for i := range rules {
 			assert.Equal(t, keys[i+1][0], rules[i].StartKeyHex)

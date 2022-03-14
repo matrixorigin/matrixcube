@@ -19,16 +19,16 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 )
 
-// ContainerComparer compares 2 containers. Often used for ContainerCandidates to
+// StoreComparer compares 2 containers. Often used for StoreCandidates to
 // sort candidate containers.
-type ContainerComparer func(a, b *core.CachedContainer) int
+type StoreComparer func(a, b *core.CachedStore) int
 
-// ResourceScoreComparer creates a ContainerComparer to sort container by resource
+// ShardScoreComparer creates a StoreComparer to sort container by resource
 // score.
-func ResourceScoreComparer(groupKey string, opt *config.PersistOptions) ContainerComparer {
-	return func(a, b *core.CachedContainer) int {
-		sa := a.ResourceScore(groupKey, opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
-		sb := b.ResourceScore(groupKey, opt.GetResourceScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+func ShardScoreComparer(groupKey string, opt *config.PersistOptions) StoreComparer {
+	return func(a, b *core.CachedStore) int {
+		sa := a.ShardScore(groupKey, opt.GetShardScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+		sb := b.ShardScore(groupKey, opt.GetShardScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
 		switch {
 		case sa > sb:
 			return 1
@@ -40,11 +40,11 @@ func ResourceScoreComparer(groupKey string, opt *config.PersistOptions) Containe
 	}
 }
 
-// IsolationComparer creates a ContainerComparer to sort container by isolation score.
-func IsolationComparer(locationLabels []string, resourceContainers []*core.CachedContainer) ContainerComparer {
-	return func(a, b *core.CachedContainer) int {
-		sa := core.DistinctScore(locationLabels, resourceContainers, a)
-		sb := core.DistinctScore(locationLabels, resourceContainers, b)
+// IsolationComparer creates a StoreComparer to sort container by isolation score.
+func IsolationComparer(locationLabels []string, resourceStores []*core.CachedStore) StoreComparer {
+	return func(a, b *core.CachedStore) int {
+		sa := core.DistinctScore(locationLabels, resourceStores, a)
+		sb := core.DistinctScore(locationLabels, resourceStores, b)
 		switch {
 		case sa > sb:
 			return 1

@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
-	"github.com/matrixorigin/matrixcube/pb/rpc"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 var (
@@ -34,31 +34,31 @@ var (
 	errStoreNotMatch      = errors.New("store not match")
 
 	infoStaleCMD  = new(errorpb.StaleCommand)
-	storeNotMatch = new(errorpb.StoreNotMatch)
+	storeMismatch = new(errorpb.StoreMismatch)
 )
 
-// ShardUnavailableErr is a error that the shard is unavailable
+// ShardUnavailableErr is an error indicates the shard is unavailable
 type ShardUnavailableErr struct {
 	err string
 }
 
 // NewShardUnavailableErr returns a wrapped error that the shard is unavailable
-func NewNewShardUnavailableErr(id uint64) error {
+func NewShardUnavailableErr(id uint64) error {
 	return ShardUnavailableErr{err: fmt.Sprintf("shard %d is unavailable", id)}
 }
 
-// String implement error interface
+// String implements error interface
 func (err ShardUnavailableErr) Error() string {
 	return err.err
 }
 
-// IsShardUnavailableErr is ShardUnavailableErr error
+// IsShardUnavailableErr checks if an error is ShardUnavailableErr
 func IsShardUnavailableErr(err error) bool {
 	_, ok := err.(ShardUnavailableErr)
 	return ok
 }
 
-func buildID(id []byte, resp *rpc.ResponseBatch) {
+func buildID(id []byte, resp *rpcpb.ResponseBatch) {
 	if resp.Header.IsEmpty() {
 		return
 	}
@@ -68,19 +68,19 @@ func buildID(id []byte, resp *rpc.ResponseBatch) {
 	}
 }
 
-func errorOtherCMDResp(err error) rpc.ResponseBatch {
+func errorOtherCMDResp(err error) rpcpb.ResponseBatch {
 	resp := errorBaseResp(nil)
 	resp.Header.Error.Message = err.Error()
 	return resp
 }
 
-func errorPbResp(id []byte, err errorpb.Error) rpc.ResponseBatch {
+func errorPbResp(id []byte, err errorpb.Error) rpcpb.ResponseBatch {
 	resp := errorBaseResp(id)
 	resp.Header.Error = err
 	return resp
 }
 
-func errorStaleCMDResp(id []byte) rpc.ResponseBatch {
+func errorStaleCMDResp(id []byte) rpcpb.ResponseBatch {
 	resp := errorBaseResp(id)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleCommand = infoStaleCMD
@@ -88,7 +88,7 @@ func errorStaleCMDResp(id []byte) rpc.ResponseBatch {
 }
 
 func errorStaleEpochResp(id []byte,
-	newShards ...Shard) rpc.ResponseBatch {
+	newShards ...Shard) rpcpb.ResponseBatch {
 	resp := errorBaseResp(id)
 	resp.Header.Error.Message = errStaleCMD.Error()
 	resp.Header.Error.StaleEpoch = &errorpb.StaleEpoch{
@@ -97,8 +97,8 @@ func errorStaleEpochResp(id []byte,
 	return resp
 }
 
-func errorBaseResp(id []byte) rpc.ResponseBatch {
-	resp := rpc.ResponseBatch{}
+func errorBaseResp(id []byte) rpcpb.ResponseBatch {
+	resp := rpcpb.ResponseBatch{}
 	resp.Header.ID = id
 	return resp
 }

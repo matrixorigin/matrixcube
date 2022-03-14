@@ -95,12 +95,16 @@ test-transport:
 test-keys:
 	$(GOTEST) $(PKGNAME)/keys
 
+.PHONY: test-prophet
+test-prophet:
+	$(GOTEST) $(PKGNAME)/components/prophet
+
 .PHONY: integration-test
 integration-test: test-all-raftstore
 
 .PHONY: components-unit-test
 components-unit-test: test-storage test-logdb test-server test-transport test-keys \
-  test-snapshot
+  test-snapshot test-prophet
 
 .PHONY: test
 test: components-unit-test test-raftstore
@@ -110,7 +114,7 @@ all-tests: components-unit-test test-all-raftstore
 
 .PHONY: pb
 pb:
-	cd $(ROOT_DIR)/pb; ./gen.sh; cd $(ROOT_DIR)/components/prophet/pb; ./gen.sh
+	cd $(ROOT_DIR)/pb; ./gen.sh; cd $(ROOT_DIR)/pb; ./gen.sh
 
 ###############################################################################
 # static checks

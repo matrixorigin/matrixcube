@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/matrixorigin/matrixcube/components/log"
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -98,7 +98,7 @@ func (r *replica) applySnapshot(ss raftpb.Snapshot) error {
 	logger := r.logger.With(log.SnapshotField(ss))
 	// double check whether we are trying to recover from a dummy snapshot
 	if len(ss.Data) > 0 {
-		var si meta.SnapshotInfo
+		var si metapb.SnapshotInfo
 		protoc.MustUnmarshal(&si, ss.Data)
 		if si.Dummy {
 			logger.Fatal("trying to recover from a dummy snapshot")

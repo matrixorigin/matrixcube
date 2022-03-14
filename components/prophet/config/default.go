@@ -27,37 +27,37 @@ import (
 )
 
 const (
-	defaultMaxReplicas                 = 3
-	defaultMaxSnapshotCount            = 3
-	defaultMaxPendingPeerCount         = 16
-	defaultMaxMergeResourceSize        = 20
-	defaultMaxMergeResourceKeys        = 200000
-	defaultSplitMergeInterval          = 1 * time.Hour
-	defaultPatrolResourceInterval      = 100 * time.Millisecond
-	defaultMaxContainerDownTime        = 30 * time.Minute
-	defaultLeaderScheduleLimit         = 4
-	defaultResourceScheduleLimit       = 2048
-	defaultReplicaScheduleLimit        = 64
-	defaultMergeScheduleLimit          = 8
-	defaultHotResourceScheduleLimit    = 4
-	defaultTolerantSizeRatio           = 0
-	defaultLowSpaceRatio               = 0.8
-	defaultHighSpaceRatio              = 0.7
-	defaultResourceScoreFormulaVersion = "v2"
-	// defaultHotResourceCacheHitsThreshold is the low hit number threshold of the
+	defaultMaxReplicas              = 3
+	defaultMaxSnapshotCount         = 3
+	defaultMaxPendingPeerCount      = 16
+	defaultMaxMergeShardSize        = 20
+	defaultMaxMergeShardKeys        = 200000
+	defaultSplitMergeInterval       = 1 * time.Hour
+	defaultPatrolShardInterval      = 100 * time.Millisecond
+	defaultMaxStoreDownTime         = 30 * time.Minute
+	defaultLeaderScheduleLimit      = 4
+	defaultShardScheduleLimit       = 2048
+	defaultReplicaScheduleLimit     = 64
+	defaultMergeScheduleLimit       = 8
+	defaultHotShardScheduleLimit    = 4
+	defaultTolerantSizeRatio        = 0
+	defaultLowSpaceRatio            = 0.8
+	defaultHighSpaceRatio           = 0.7
+	defaultShardScoreFormulaVersion = "v2"
+	// defaultHotShardCacheHitsThreshold is the low hit number threshold of the
 	// hot resource.
-	defaultHotResourceCacheHitsThreshold = 3
-	defaultSchedulerMaxWaitingOperator   = 5
-	defaultLeaderSchedulePolicy          = "count"
-	defaultContainerLimitMode            = "manual"
-	defaultEnableJointConsensus          = false
-	defaultEnableCrossTableMerge         = true
+	defaultHotShardCacheHitsThreshold  = 3
+	defaultSchedulerMaxWaitingOperator = 5
+	defaultLeaderSchedulePolicy        = "count"
+	defaultStoreLimitMode              = "manual"
+	defaultEnableJointConsensus        = false
+	defaultEnableCrossTableMerge       = true
 )
 
 var (
 	defaultLocationLabels = []string{}
-	// DefaultContainerLimit is the default container limit of add peer and remove peer.
-	DefaultContainerLimit = ContainerLimit{AddPeer: 15, RemovePeer: 15}
+	// DefaultStoreLimit is the default container limit of add peer and remove peer.
+	DefaultStoreLimit = StoreLimit{AddPeer: 15, RemovePeer: 15}
 )
 
 const (
@@ -113,7 +113,7 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 		return err
 	}
 
-	if c.StorageNode {
+	if c.ProphetNode {
 		adjustString(&c.EmbedEtcd.ClientUrls, defaultClientUrls)
 		adjustString(&c.EmbedEtcd.AdvertiseClientUrls, c.EmbedEtcd.ClientUrls)
 		adjustString(&c.EmbedEtcd.PeerUrls, defaultPeerUrls)
@@ -155,6 +155,10 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 	}
 	if err := c.Replication.adjust(configMetaData.Child("replication")); err != nil {
 		return err
+	}
+
+	if c.TestContext == nil {
+		c.TestContext = NewTestContext()
 	}
 
 	if c.jobRegister == nil {

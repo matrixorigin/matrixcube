@@ -23,31 +23,28 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/limit"
-	"github.com/matrixorigin/matrixcube/components/prophet/metadata"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/metapb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"go.uber.org/zap"
 )
 
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	logger                  *zap.Logger
-	factory                 func() metadata.Resource
-	Containers              *CachedContainers
-	Resources               *CachedResources
-	DestroyedResources      *roaring64.Bitmap
-	WaittingCreateResources map[uint64]metadata.Resource
-	DestroyingStatuses      map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules      []metapb.ScheduleGroupRule
-	ScheduleGroupKeys       map[string]struct{}
+	logger               *zap.Logger
+	Stores               *CachedStores
+	Shards               *CachedShards
+	DestroyedShards      *roaring64.Bitmap
+	WaittingCreateShards map[uint64]metapb.Shard
+	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
+	ScheduleGroupRules   []metapb.ScheduleGroupRule
+	ScheduleGroupKeys    map[string]struct{}
 }
 
 // NewBasicCluster creates a BasicCluster.
-func NewBasicCluster(factory func() metadata.Resource, logger *zap.Logger) *BasicCluster {
+func NewBasicCluster(logger *zap.Logger) *BasicCluster {
 	bc := &BasicCluster{
-		factory:            factory,
 		logger:             log.Adjust(logger),
 		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
 		ScheduleGroupKeys:  make(map[string]struct{}),
@@ -61,58 +58,58 @@ func (bc *BasicCluster) Reset() {
 	bc.Lock()
 	defer bc.Unlock()
 
-	bc.Containers = NewCachedContainers()
-	bc.Resources = NewCachedResources(bc.factory)
-	bc.DestroyedResources = roaring64.NewBitmap()
-	bc.WaittingCreateResources = make(map[uint64]metadata.Resource)
+	bc.Stores = NewCachedStores()
+	bc.Shards = NewCachedShards()
+	bc.DestroyedShards = roaring64.NewBitmap()
+	bc.WaittingCreateShards = make(map[uint64]metapb.Shard)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
-// AddRemovedResources add removed resources
-func (bc *BasicCluster) AddRemovedResources(ids ...uint64) {
+// AddRemovedShards add removed resources
+func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.DestroyedResources.AddMany(ids)
+	bc.DestroyedShards.AddMany(ids)
 	for _, id := range ids {
-		res := bc.Resources.GetResource(id)
+		res := bc.Shards.GetShard(id)
 		if res != nil {
-			bc.Resources.RemoveResource(res)
+			bc.Shards.RemoveShard(res)
 		}
 	}
 }
 
-// AddWaittingCreateResources add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateResources(resources ...metadata.Resource) {
+// AddWaittingCreateShards add waitting create resources
+func (bc *BasicCluster) AddWaittingCreateShards(resources ...metapb.Shard) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
-		bc.WaittingCreateResources[res.ID()] = res
+		bc.WaittingCreateShards[res.GetID()] = res
 	}
 }
 
-// ForeachWaittingCreateResources do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateResources(fn func(res metadata.Resource)) {
+// ForeachWaittingCreateShards do func for every waitting create resources
+func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
-	for _, res := range bc.WaittingCreateResources {
+	for _, res := range bc.WaittingCreateShards {
 		fn(res)
 	}
 }
 
-// ForeachResources foreach resources by group
-func (bc *BasicCluster) ForeachResources(group uint64, fn func(res metadata.Resource)) {
+// ForeachShards foreach resources by group
+func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	bc.Resources.ForeachResources(group, fn)
+	bc.Shards.ForeachShards(group, fn)
 }
 
-// IsWaittingCreateResource returns true means the resource is waitting create
-func (bc *BasicCluster) IsWaittingCreateResource(id uint64) bool {
+// IsWaittingCreateShard returns true means the resource is waitting create
+func (bc *BasicCluster) IsWaittingCreateShard(id uint64) bool {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	_, ok := bc.WaittingCreateResources[id]
+	_, ok := bc.WaittingCreateShards[id]
 	return ok
 }
 
@@ -121,115 +118,115 @@ func (bc *BasicCluster) AlreadyRemoved(id uint64) bool {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	return bc.DestroyedResources.Contains(id)
+	return bc.DestroyedShards.Contains(id)
 }
 
-// GetDestroyResources get destroyed and destroying state resources
-func (bc *BasicCluster) GetDestroyResources(bm *roaring64.Bitmap) (*roaring64.Bitmap, *roaring64.Bitmap) {
+// GetDestroyShards get destroyed and destroying state resources
+func (bc *BasicCluster) GetDestroyShards(bm *roaring64.Bitmap) (*roaring64.Bitmap, *roaring64.Bitmap) {
 	bc.RLock()
 	defer bc.RUnlock()
 
 	// read destroyed resources
-	destroyed := bc.DestroyedResources.Clone()
+	destroyed := bc.DestroyedShards.Clone()
 	destroyed.And(bm)
 
 	// read destroying resources
 	destroying := roaring64.New()
-	for id, res := range bc.Resources.resources.m {
-		if res.Meta.State() == metapb.ResourceState_Destroying && bm.Contains(id) {
+	for id, res := range bc.Shards.resources.m {
+		if res.Meta.GetState() == metapb.ShardState_Destroying && bm.Contains(id) {
 			destroying.Add(id)
 		}
 	}
 	return destroyed, destroying
 }
 
-// GetContainers returns all Containers in the cluster.
-func (bc *BasicCluster) GetContainers() []*CachedContainer {
+// GetStores returns all Stores in the cluster.
+func (bc *BasicCluster) GetStores() []*CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.GetContainers()
+	return bc.Stores.GetStores()
 }
 
-// GetMetaContainers gets a complete set of metadata.Container.
-func (bc *BasicCluster) GetMetaContainers() []metadata.Container {
+// GetMetaStores gets a complete set of *metapb.Store.
+func (bc *BasicCluster) GetMetaStores() []metapb.Store {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.GetMetaContainers()
+	return bc.Stores.GetMetaStores()
 }
 
-// GetContainer searches for a container by ID.
-func (bc *BasicCluster) GetContainer(containerID uint64) *CachedContainer {
+// GetStore searches for a container by ID.
+func (bc *BasicCluster) GetStore(containerID uint64) *CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.GetContainer(containerID)
+	return bc.Stores.GetStore(containerID)
 }
 
-// GetResource searches for a resource by ID.
-func (bc *BasicCluster) GetResource(resourceID uint64) *CachedResource {
+// GetShard searches for a resource by ID.
+func (bc *BasicCluster) GetShard(resourceID uint64) *CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetResource(resourceID)
+	return bc.Shards.GetShard(resourceID)
 }
 
-// GetResources gets all CachedResource from resourceMap.
-func (bc *BasicCluster) GetResources() []*CachedResource {
+// GetShards gets all CachedShard from resourceMap.
+func (bc *BasicCluster) GetShards() []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetResources()
+	return bc.Shards.GetShards()
 }
 
-// GetMetaResources gets a set of metadata.Resource from resourceMap.
-func (bc *BasicCluster) GetMetaResources() []metadata.Resource {
+// GetMetaShards gets a set of *metapb.Shard from resourceMap.
+func (bc *BasicCluster) GetMetaShards() []*metapb.Shard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetMetaResources()
+	return bc.Shards.GetMetaShards()
 }
 
-// GetContainerResources gets all CachedResource with a given containerID.
-func (bc *BasicCluster) GetContainerResources(groupKey string, containerID uint64) []*CachedResource {
+// GetStoreShards gets all CachedShard with a given containerID.
+func (bc *BasicCluster) GetStoreShards(groupKey string, containerID uint64) []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerResources(groupKey, containerID)
+	return bc.Shards.GetStoreShards(groupKey, containerID)
 }
 
-// GetResourceContainers returns all Containers that contains the resource's peer.
-func (bc *BasicCluster) GetResourceContainers(res *CachedResource) []*CachedContainer {
+// GetShardStores returns all Stores that contains the resource's peer.
+func (bc *BasicCluster) GetShardStores(res *CachedShard) []*CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	var containers []*CachedContainer
-	for id := range res.GetContainerIDs() {
-		if container := bc.Containers.GetContainer(id); container != nil {
+	var containers []*CachedStore
+	for id := range res.GetStoreIDs() {
+		if container := bc.Stores.GetStore(id); container != nil {
 			containers = append(containers, container)
 		}
 	}
 	return containers
 }
 
-// GetFollowerContainers returns all Containers that contains the resource's follower peer.
-func (bc *BasicCluster) GetFollowerContainers(res *CachedResource) []*CachedContainer {
+// GetFollowerStores returns all Stores that contains the resource's follower peer.
+func (bc *BasicCluster) GetFollowerStores(res *CachedShard) []*CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	var containers []*CachedContainer
+	var containers []*CachedStore
 	for id := range res.GetFollowers() {
-		if container := bc.Containers.GetContainer(id); container != nil {
+		if container := bc.Stores.GetStore(id); container != nil {
 			containers = append(containers, container)
 		}
 	}
 	return containers
 }
 
-// GetLeaderContainer returns all Containers that contains the resource's leader peer.
-func (bc *BasicCluster) GetLeaderContainer(res *CachedResource) *CachedContainer {
+// GetLeaderStore returns all Stores that contains the resource's leader peer.
+func (bc *BasicCluster) GetLeaderStore(res *CachedShard) *CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.GetContainer(res.GetLeader().GetContainerID())
+	return bc.Stores.GetStore(res.GetLeader().GetStoreID())
 }
 
-// GetAdjacentResources returns resource's info that is adjacent with specific resource.
-func (bc *BasicCluster) GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource) {
+// GetAdjacentShards returns resource's info that is adjacent with specific resource.
+func (bc *BasicCluster) GetAdjacentShards(res *CachedShard) (*CachedShard, *CachedShard) {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetAdjacentResources(res)
+	return bc.Shards.GetAdjacentShards(res)
 }
 
 // PauseLeaderTransfer prevents the container from been selected as source or
@@ -237,7 +234,7 @@ func (bc *BasicCluster) GetAdjacentResources(res *CachedResource) (*CachedResour
 func (bc *BasicCluster) PauseLeaderTransfer(containerID uint64) error {
 	bc.Lock()
 	defer bc.Unlock()
-	return bc.Containers.PauseLeaderTransfer(containerID)
+	return bc.Stores.PauseLeaderTransfer(containerID)
 }
 
 // ResumeLeaderTransfer cleans a container's pause state. The container can be selected
@@ -245,14 +242,14 @@ func (bc *BasicCluster) PauseLeaderTransfer(containerID uint64) error {
 func (bc *BasicCluster) ResumeLeaderTransfer(containerID uint64) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Containers.ResumeLeaderTransfer(containerID)
+	bc.Stores.ResumeLeaderTransfer(containerID)
 }
 
 // AttachAvailableFunc attaches an available function to a specific container.
 func (bc *BasicCluster) AttachAvailableFunc(containerID uint64, limitType limit.Type, f func() bool) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Containers.AttachAvailableFunc(containerID, limitType, f)
+	bc.Stores.AttachAvailableFunc(containerID, limitType, f)
 }
 
 // GetScheduleGroupKeys returns Schedule group keys
@@ -279,49 +276,49 @@ func (bc *BasicCluster) GetScheduleGroupKeysWithPrefix(prefix string) []string {
 	return keys
 }
 
-// UpdateContainerStatus updates the information of the container.
-func (bc *BasicCluster) UpdateContainerStatus(groupKey string, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
+// UpdateStoreStatus updates the information of the container.
+func (bc *BasicCluster) UpdateStoreStatus(groupKey string, containerID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.ScheduleGroupKeys[groupKey] = struct{}{}
-	bc.Containers.UpdateContainerStatus(groupKey, containerID, leaderCount, resourceCount, pendingPeerCount, leaderSize, resourceSize)
+	bc.Stores.UpdateStoreStatus(groupKey, containerID, leaderCount, resourceCount, pendingPeerCount, leaderSize, resourceSize)
 }
 
-const randomResourceMaxRetry = 10
+const randomShardMaxRetry = 10
 
-// RandFollowerResource returns a random resource that has a follower on the container.
-func (bc *BasicCluster) RandFollowerResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+// RandFollowerShard returns a random resource that has a follower on the container.
+func (bc *BasicCluster) RandFollowerShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard {
 	bc.RLock()
-	resources := bc.Resources.RandFollowerResources(groupKey, containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Shards.RandFollowerShards(groupKey, containerID, ranges, randomShardMaxRetry)
 	bc.RUnlock()
-	return bc.selectResource(resources, opts...)
+	return bc.selectShard(resources, opts...)
 }
 
-// RandLeaderResource returns a random resource that has leader on the container.
-func (bc *BasicCluster) RandLeaderResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+// RandLeaderShard returns a random resource that has leader on the container.
+func (bc *BasicCluster) RandLeaderShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard {
 	bc.RLock()
-	resources := bc.Resources.RandLeaderResources(groupKey, containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Shards.RandLeaderShards(groupKey, containerID, ranges, randomShardMaxRetry)
 	bc.RUnlock()
-	return bc.selectResource(resources, opts...)
+	return bc.selectShard(resources, opts...)
 }
 
-// RandPendingResource returns a random resource that has a pending peer on the container.
-func (bc *BasicCluster) RandPendingResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+// RandPendingShard returns a random resource that has a pending peer on the container.
+func (bc *BasicCluster) RandPendingShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard {
 	bc.RLock()
-	resources := bc.Resources.RandPendingResources(groupKey, containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Shards.RandPendingShards(groupKey, containerID, ranges, randomShardMaxRetry)
 	bc.RUnlock()
-	return bc.selectResource(resources, opts...)
+	return bc.selectShard(resources, opts...)
 }
 
-// RandLearnerResource returns a random resource that has a learner peer on the container.
-func (bc *BasicCluster) RandLearnerResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource {
+// RandLearnerShard returns a random resource that has a learner peer on the container.
+func (bc *BasicCluster) RandLearnerShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard {
 	bc.RLock()
-	resources := bc.Resources.RandLearnerResources(groupKey, containerID, ranges, randomResourceMaxRetry)
+	resources := bc.Shards.RandLearnerShards(groupKey, containerID, ranges, randomShardMaxRetry)
 	bc.RUnlock()
-	return bc.selectResource(resources, opts...)
+	return bc.selectShard(resources, opts...)
 }
 
-func (bc *BasicCluster) selectResource(resources []*CachedResource, opts ...ResourceOption) *CachedResource {
+func (bc *BasicCluster) selectShard(resources []*CachedShard, opts ...ShardOption) *CachedShard {
 	for _, r := range resources {
 		if r == nil {
 			break
@@ -333,105 +330,105 @@ func (bc *BasicCluster) selectResource(resources []*CachedResource, opts ...Reso
 	return nil
 }
 
-// GetResourceCount gets the total count of CachedResource of resourceMap.
-func (bc *BasicCluster) GetResourceCount() int {
+// GetShardCount gets the total count of CachedShard of resourceMap.
+func (bc *BasicCluster) GetShardCount() int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetResourceCount()
+	return bc.Shards.GetShardCount()
 }
 
-// GetContainerCount returns the total count of CachedContainers.
-func (bc *BasicCluster) GetContainerCount() int {
+// GetStoreCount returns the total count of CachedStores.
+func (bc *BasicCluster) GetStoreCount() int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.GetContainerCount()
+	return bc.Stores.GetStoreCount()
 }
 
-// GetContainerResourceCount gets the total count of a container's leader and follower CachedResource by containerID.
-func (bc *BasicCluster) GetContainerResourceCount(groupKey string, containerID uint64) int {
+// GetStoreShardCount gets the total count of a container's leader and follower CachedShard by containerID.
+func (bc *BasicCluster) GetStoreShardCount(groupKey string, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderCount(groupKey, containerID) +
-		bc.Resources.GetContainerFollowerCount(groupKey, containerID) +
-		bc.Resources.GetContainerLearnerCount(groupKey, containerID)
+	return bc.Shards.GetStoreLeaderCount(groupKey, containerID) +
+		bc.Shards.GetStoreFollowerCount(groupKey, containerID) +
+		bc.Shards.GetStoreLearnerCount(groupKey, containerID)
 }
 
-// GetContainerLeaderCount get the total count of a container's leader CachedResource.
-func (bc *BasicCluster) GetContainerLeaderCount(groupKey string, containerID uint64) int {
+// GetStoreLeaderCount get the total count of a container's leader CachedShard.
+func (bc *BasicCluster) GetStoreLeaderCount(groupKey string, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderCount(groupKey, containerID)
+	return bc.Shards.GetStoreLeaderCount(groupKey, containerID)
 }
 
-// GetContainerFollowerCount get the total count of a container's follower CachedResource.
-func (bc *BasicCluster) GetContainerFollowerCount(groupKey string, containerID uint64) int {
+// GetStoreFollowerCount get the total count of a container's follower CachedShard.
+func (bc *BasicCluster) GetStoreFollowerCount(groupKey string, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerFollowerCount(groupKey, containerID)
+	return bc.Shards.GetStoreFollowerCount(groupKey, containerID)
 }
 
-// GetContainerPendingPeerCount gets the total count of a container's resource that includes pending peer.
-func (bc *BasicCluster) GetContainerPendingPeerCount(groupKey string, containerID uint64) int {
+// GetStorePendingPeerCount gets the total count of a container's resource that includes pending peer.
+func (bc *BasicCluster) GetStorePendingPeerCount(groupKey string, containerID uint64) int {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerPendingPeerCount(groupKey, containerID)
+	return bc.Shards.GetStorePendingPeerCount(groupKey, containerID)
 }
 
-// GetContainerLeaderResourceSize get total size of container's leader resources.
-func (bc *BasicCluster) GetContainerLeaderResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreLeaderShardSize get total size of container's leader resources.
+func (bc *BasicCluster) GetStoreLeaderShardSize(groupKey string, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderResourceSize(groupKey, containerID)
+	return bc.Shards.GetStoreLeaderShardSize(groupKey, containerID)
 }
 
-// GetContainerResourceSize get total size of container's resources.
-func (bc *BasicCluster) GetContainerResourceSize(groupKey string, containerID uint64) int64 {
+// GetStoreShardSize get total size of container's resources.
+func (bc *BasicCluster) GetStoreShardSize(groupKey string, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetContainerLeaderResourceSize(groupKey, containerID) +
-		bc.Resources.GetContainerFollowerResourceSize(groupKey, containerID) +
-		bc.Resources.GetContainerLearnerResourceSize(groupKey, containerID)
+	return bc.Shards.GetStoreLeaderShardSize(groupKey, containerID) +
+		bc.Shards.GetStoreFollowerShardSize(groupKey, containerID) +
+		bc.Shards.GetStoreLearnerShardSize(groupKey, containerID)
 }
 
-// GetAverageResourceSize returns the average resource approximate size.
-func (bc *BasicCluster) GetAverageResourceSize() int64 {
+// GetAverageShardSize returns the average resource approximate size.
+func (bc *BasicCluster) GetAverageShardSize() int64 {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetAverageResourceSize()
+	return bc.Shards.GetAverageShardSize()
 }
 
-// PutContainer put a container.
-func (bc *BasicCluster) PutContainer(container *CachedContainer) {
+// PutStore put a container.
+func (bc *BasicCluster) PutStore(container *CachedStore) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Containers.SetContainer(container)
+	bc.Stores.SetStore(container)
 }
 
-// DeleteContainer deletes a container.
-func (bc *BasicCluster) DeleteContainer(container *CachedContainer) {
+// DeleteStore deletes a container.
+func (bc *BasicCluster) DeleteStore(container *CachedStore) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Containers.DeleteContainer(container)
+	bc.Stores.DeleteStore(container)
 }
 
-// TakeContainer returns the point of the origin CachedContainers with the specified containerID.
-func (bc *BasicCluster) TakeContainer(containerID uint64) *CachedContainer {
+// TakeStore returns the point of the origin CachedStores with the specified containerID.
+func (bc *BasicCluster) TakeStore(containerID uint64) *CachedStore {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Containers.TakeContainer(containerID)
+	return bc.Stores.TakeStore(containerID)
 }
 
-// PreCheckPutResource checks if the resource is valid to put.
-func (bc *BasicCluster) PreCheckPutResource(res *CachedResource) (*CachedResource, error) {
+// PreCheckPutShard checks if the resource is valid to put.
+func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error) {
 	bc.RLock()
-	origin := bc.Resources.GetResource(res.Meta.ID())
+	origin := bc.Shards.GetShard(res.Meta.GetID())
 	if origin == nil ||
 		!bytes.Equal(origin.GetStartKey(), res.GetStartKey()) ||
 		!bytes.Equal(origin.GetEndKey(), res.GetEndKey()) {
-		for _, item := range bc.Resources.GetOverlaps(res) {
-			if res.Meta.Epoch().Version < item.Meta.Epoch().Version {
+		for _, item := range bc.Shards.GetOverlaps(res) {
+			if res.Meta.GetEpoch().Generation < item.Meta.GetEpoch().Generation {
 				bc.RUnlock()
-				return nil, errResourceIsStale(res.Meta, item.Meta)
+				return nil, errShardIsStale(res.Meta, item.Meta)
 			}
 		}
 	}
@@ -439,95 +436,95 @@ func (bc *BasicCluster) PreCheckPutResource(res *CachedResource) (*CachedResourc
 	if origin == nil {
 		return nil, nil
 	}
-	r := res.Meta.Epoch()
-	o := origin.Meta.Epoch()
+	r := res.Meta.GetEpoch()
+	o := origin.Meta.GetEpoch()
 
 	isTermBehind := res.GetTerm() < origin.GetTerm()
 
-	// Resource meta is stale, return an error.
-	if r.GetVersion() < o.GetVersion() || r.GetConfVer() < o.GetConfVer() || isTermBehind {
-		return origin, errResourceIsStale(res.Meta, origin.Meta)
+	// Shard meta is stale, return an error.
+	if r.GetGeneration() < o.GetGeneration() || r.GetConfigVer() < o.GetConfigVer() || isTermBehind {
+		return origin, errShardIsStale(res.Meta, origin.Meta)
 	}
 
 	return origin, nil
 }
 
-// PutResource put a resource, returns overlap resources
-func (bc *BasicCluster) PutResource(res *CachedResource) []*CachedResource {
+// PutShard put a resource, returns overlap resources
+func (bc *BasicCluster) PutShard(res *CachedShard) []*CachedShard {
 	bc.Lock()
 	defer bc.Unlock()
 
-	if _, ok := bc.WaittingCreateResources[res.Meta.ID()]; ok {
-		delete(bc.WaittingCreateResources, res.Meta.ID())
-		if res.Meta.State() == metapb.ResourceState_Creating {
-			res.Meta.SetState(metapb.ResourceState_Running)
+	if _, ok := bc.WaittingCreateShards[res.Meta.GetID()]; ok {
+		delete(bc.WaittingCreateShards, res.Meta.GetID())
+		if res.Meta.GetState() == metapb.ShardState_Creating {
+			res.Meta.SetState(metapb.ShardState_Running)
 		}
 	}
-	return bc.Resources.SetResource(res)
+	return bc.Shards.SetShard(res)
 }
 
-// CheckAndPutResource checks if the resource is valid to put,if valid then put.
-func (bc *BasicCluster) CheckAndPutResource(res *CachedResource) []*CachedResource {
-	switch res.Meta.State() {
-	case metapb.ResourceState_Destroyed:
-		bc.AddRemovedResources(res.Meta.ID())
+// CheckAndPutShard checks if the resource is valid to put,if valid then put.
+func (bc *BasicCluster) CheckAndPutShard(res *CachedShard) []*CachedShard {
+	switch res.Meta.GetState() {
+	case metapb.ShardState_Destroyed:
+		bc.AddRemovedShards(res.Meta.GetID())
 		return nil
-	case metapb.ResourceState_Creating:
-		bc.AddWaittingCreateResources(res.Meta)
+	case metapb.ShardState_Creating:
+		bc.AddWaittingCreateShards(res.Meta)
 		return nil
 	}
 
-	origin, err := bc.PreCheckPutResource(res)
+	origin, err := bc.PreCheckPutShard(res)
 	if err != nil {
 		bc.logger.Debug("resource is stale, need to delete",
-			zap.Uint64("resource", origin.Meta.ID()))
+			zap.Uint64("resource", origin.Meta.GetID()))
 		// return the state resource to delete.
-		return []*CachedResource{res}
+		return []*CachedShard{res}
 	}
-	return bc.PutResource(res)
+	return bc.PutShard(res)
 }
 
-// RemoveResource removes CachedResource from resourceTree and resourceMap.
-func (bc *BasicCluster) RemoveResource(res *CachedResource) {
+// RemoveShard removes CachedShard from resourceTree and resourceMap.
+func (bc *BasicCluster) RemoveShard(res *CachedShard) {
 	bc.Lock()
 	defer bc.Unlock()
-	bc.Resources.RemoveResource(res)
+	bc.Shards.RemoveShard(res)
 }
 
-// SearchResource searches CachedResource from resourceTree.
-func (bc *BasicCluster) SearchResource(group uint64, resKey []byte) *CachedResource {
+// SearchShard searches CachedShard from resourceTree.
+func (bc *BasicCluster) SearchShard(group uint64, resKey []byte) *CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.SearchResource(group, resKey)
+	return bc.Shards.SearchShard(group, resKey)
 }
 
-// SearchPrevResource searches previous CachedResource from resourceTree.
-func (bc *BasicCluster) SearchPrevResource(group uint64, resKey []byte) *CachedResource {
+// SearchPrevShard searches previous CachedShard from resourceTree.
+func (bc *BasicCluster) SearchPrevShard(group uint64, resKey []byte) *CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.SearchPrevResource(group, resKey)
+	return bc.Shards.SearchPrevShard(group, resKey)
 }
 
 // ScanRange scans resources intersecting [start key, end key), returns at most
 // `limit` resources. limit <= 0 means no limit.
-func (bc *BasicCluster) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedResource {
+func (bc *BasicCluster) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.ScanRange(group, startKey, endKey, limit)
+	return bc.Shards.ScanRange(group, startKey, endKey, limit)
 }
 
-// GetDestroyingResources returns all resources in destroying state
-func (bc *BasicCluster) GetDestroyingResources() []*CachedResource {
+// GetDestroyingShards returns all resources in destroying state
+func (bc *BasicCluster) GetDestroyingShards() []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetDestroyingResources()
+	return bc.Shards.GetDestroyingShards()
 }
 
 // GetOverlaps returns the resources which are overlapped with the specified resource range.
-func (bc *BasicCluster) GetOverlaps(res *CachedResource) []*CachedResource {
+func (bc *BasicCluster) GetOverlaps(res *CachedShard) []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
-	return bc.Resources.GetOverlaps(res)
+	return bc.Shards.GetOverlaps(res)
 }
 
 // GetDestroyingStatus returns DestroyingStatus
@@ -575,42 +572,42 @@ func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule) bool
 	return true
 }
 
-// GetResourceCount gets the total count of group rules
-func (bc *BasicCluster) GetResourceGroupRuleCount() int {
+// GetShardGroupRuleCount gets the total count of group rules
+func (bc *BasicCluster) GetShardGroupRuleCount() int {
 	bc.RLock()
 	defer bc.RUnlock()
 	return len(bc.ScheduleGroupRules)
 }
 
-// ResourceSetInformer provides access to a shared informer of resources.
-type ResourceSetInformer interface {
+// ShardSetInformer provides access to a shared informer of resources.
+type ShardSetInformer interface {
 	GetScheduleGroupKeys() []string
 	GetScheduleGroupKeysWithPrefix(prefix string) []string
-	GetResourceCount() int
-	RandFollowerResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandLeaderResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandLearnerResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	RandPendingResource(groupKey string, containerID uint64, ranges []KeyRange, opts ...ResourceOption) *CachedResource
-	GetAverageResourceSize() int64
-	GetContainerResourceCount(groupKey string, containerID uint64) int
-	GetResource(id uint64) *CachedResource
-	GetAdjacentResources(res *CachedResource) (*CachedResource, *CachedResource)
-	ScanResources(group uint64, startKey, endKey []byte, limit int) []*CachedResource
-	GetResourceByKey(group uint64, resKey []byte) *CachedResource
+	GetShardCount() int
+	RandFollowerShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard
+	RandLeaderShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard
+	RandLearnerShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard
+	RandPendingShard(groupKey string, containerID uint64, ranges []KeyRange, opts ...ShardOption) *CachedShard
+	GetAverageShardSize() int64
+	GetStoreShardCount(groupKey string, containerID uint64) int
+	GetShard(id uint64) *CachedShard
+	GetAdjacentShards(res *CachedShard) (*CachedShard, *CachedShard)
+	ScanShards(group uint64, startKey, endKey []byte, limit int) []*CachedShard
+	GetShardByKey(group uint64, resKey []byte) *CachedShard
 }
 
-// ContainerSetInformer provides access to a shared informer of containers.
-type ContainerSetInformer interface {
-	GetContainers() []*CachedContainer
-	GetContainer(id uint64) *CachedContainer
+// StoreSetInformer provides access to a shared informer of containers.
+type StoreSetInformer interface {
+	GetStores() []*CachedStore
+	GetStore(id uint64) *CachedStore
 
-	GetResourceContainers(res *CachedResource) []*CachedContainer
-	GetFollowerContainers(res *CachedResource) []*CachedContainer
-	GetLeaderContainer(res *CachedResource) *CachedContainer
+	GetShardStores(res *CachedShard) []*CachedStore
+	GetFollowerStores(res *CachedShard) []*CachedStore
+	GetLeaderStore(res *CachedShard) *CachedStore
 }
 
-// ContainerSetController is used to control containers' status.
-type ContainerSetController interface {
+// StoreSetController is used to control containers' status.
+type StoreSetController interface {
 	PauseLeaderTransfer(id uint64) error
 	ResumeLeaderTransfer(id uint64)
 

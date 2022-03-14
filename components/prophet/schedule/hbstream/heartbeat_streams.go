@@ -24,8 +24,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/opt"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
 )
 
@@ -46,32 +46,32 @@ type HeartbeatStreams struct {
 	hbStreamCancel    context.CancelFunc
 	clusterID         uint64
 	streams           map[uint64]opt.HeartbeatStream
-	msgCh             chan *rpcpb.ResourceHeartbeatRsp
+	msgCh             chan *rpcpb.ShardHeartbeatRsp
 	streamCh          chan streamUpdate
-	containerInformer core.ContainerSetInformer
+	containerInformer core.StoreSetInformer
 	logger            *zap.Logger
 	needRun           bool // For test only.
 }
 
 // NewHeartbeatStreams creates a new HeartbeatStreams which enable background running by default.
-func NewHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, logger *zap.Logger) *HeartbeatStreams {
+func NewHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.StoreSetInformer, logger *zap.Logger) *HeartbeatStreams {
 	return newHbStreams(ctx, clusterID, containerInformer, true, logger)
 }
 
 // NewTestHeartbeatStreams creates a new HeartbeatStreams for test purpose only.
 // Please use NewHeartbeatStreams for other usage.
-func NewTestHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
+func NewTestHeartbeatStreams(ctx context.Context, clusterID uint64, containerInformer core.StoreSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
 	return newHbStreams(ctx, clusterID, containerInformer, needRun, logger)
 }
 
-func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.ContainerSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
+func newHbStreams(ctx context.Context, clusterID uint64, containerInformer core.StoreSetInformer, needRun bool, logger *zap.Logger) *HeartbeatStreams {
 	hbStreamCtx, hbStreamCancel := context.WithCancel(ctx)
 	hs := &HeartbeatStreams{
 		hbStreamCtx:       hbStreamCtx,
 		hbStreamCancel:    hbStreamCancel,
 		clusterID:         clusterID,
 		streams:           make(map[uint64]opt.HeartbeatStream),
-		msgCh:             make(chan *rpcpb.ResourceHeartbeatRsp, heartbeatChanCapacity),
+		msgCh:             make(chan *rpcpb.ShardHeartbeatRsp, heartbeatChanCapacity),
 		streamCh:          make(chan streamUpdate, 1),
 		containerInformer: containerInformer,
 		needRun:           needRun,
@@ -98,21 +98,21 @@ func (s *HeartbeatStreams) run() {
 		case update := <-s.streamCh:
 			s.streams[update.containerID] = update.stream
 		case msg := <-s.msgCh:
-			containerID := msg.GetTargetReplica().ContainerID
+			containerID := msg.GetTargetReplica().StoreID
 			containerLabel := strconv.FormatUint(containerID, 10)
-			container := s.containerInformer.GetContainer(containerID)
+			container := s.containerInformer.GetStore(containerID)
 			if container == nil {
 				s.logger.Error("fail to get container, not found",
-					log.ResourceField(msg.ResourceID),
+					log.ResourceField(msg.ShardID),
 					zap.Uint64("container", containerID))
 				delete(s.streams, containerID)
 				continue
 			}
-			containerAddress := container.Meta.Addr()
+			containerAddress := container.Meta.GetClientAddress()
 			if stream, ok := s.streams[containerID]; ok {
 				if err := stream.Send(msg); err != nil {
 					s.logger.Error("fail to send heartbeat message",
-						log.ResourceField(msg.ResourceID),
+						log.ResourceField(msg.ShardID),
 						zap.Error(err))
 					delete(s.streams, containerID)
 					heartbeatStreamCounter.WithLabelValues(containerAddress, containerLabel, "push", "err").Inc()
@@ -121,7 +121,7 @@ func (s *HeartbeatStreams) run() {
 				}
 			} else {
 				s.logger.Debug("heartbeat stream not found, skip send message",
-					log.ResourceField(msg.ResourceID),
+					log.ResourceField(msg.ShardID),
 					zap.Uint64("container", containerID))
 				heartbeatStreamCounter.WithLabelValues(containerAddress, containerLabel, "push", "skip").Inc()
 			}
@@ -150,13 +150,13 @@ func (s *HeartbeatStreams) BindStream(containerID uint64, stream opt.HeartbeatSt
 }
 
 // SendMsg sends a message to related container.
-func (s *HeartbeatStreams) SendMsg(res *core.CachedResource, msg *rpcpb.ResourceHeartbeatRsp) {
+func (s *HeartbeatStreams) SendMsg(res *core.CachedShard, msg *rpcpb.ShardHeartbeatRsp) {
 	if res.GetLeader() == nil {
 		return
 	}
 
-	msg.ResourceID = res.Meta.ID()
-	msg.ResourceEpoch = res.Meta.Epoch()
+	msg.ShardID = res.Meta.GetID()
+	msg.ShardEpoch = res.Meta.GetEpoch()
 	msg.TargetReplica = res.GetLeader()
 
 	select {

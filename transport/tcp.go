@@ -45,7 +45,7 @@ import (
 	"github.com/lni/goutils/syncutil"
 	"go.uber.org/zap"
 
-	"github.com/matrixorigin/matrixcube/pb/meta"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
 const (
@@ -340,7 +340,7 @@ func (c *TCPConnection) Close() {
 }
 
 // SendMessageBatch sends a raft message batch to remote node.
-func (c *TCPConnection) SendMessageBatch(batch meta.RaftMessageBatch) error {
+func (c *TCPConnection) SendMessageBatch(batch metapb.RaftMessageBatch) error {
 	header := requestHeader{method: raftType}
 	buf := protoc.MustMarshal(&batch)
 	return writeMessage(c.conn, header, buf, c.header, c.encrypted)
@@ -383,7 +383,7 @@ func (c *TCPSnapshotConnection) Close() {
 }
 
 // SendChunk sends the specified snapshot chunk to remote node.
-func (c *TCPSnapshotConnection) SendChunk(chunk meta.SnapshotChunk) error {
+func (c *TCPSnapshotConnection) SendChunk(chunk metapb.SnapshotChunk) error {
 	header := requestHeader{method: snapshotType}
 	buf := protoc.MustMarshal(&chunk)
 	return writeMessage(c.conn, header, buf, c.header, c.encrypted)
@@ -525,13 +525,13 @@ func (t *TCP) serveConn(conn net.Conn) {
 			return
 		}
 		if rheader.method == raftType {
-			batch := meta.RaftMessageBatch{}
+			batch := metapb.RaftMessageBatch{}
 			if err := batch.Unmarshal(buf); err != nil {
 				return
 			}
 			t.requestHandler(batch)
 		} else {
-			chunk := meta.SnapshotChunk{}
+			chunk := metapb.SnapshotChunk{}
 			if err := chunk.Unmarshal(buf); err != nil {
 				return
 			}

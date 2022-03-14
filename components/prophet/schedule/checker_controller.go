@@ -60,7 +60,7 @@ func NewCheckerController(ctx context.Context, cluster opt.Cluster, ruleManager 
 }
 
 // FillReplicas fill replicas for a empty resources
-func (c *CheckerController) FillReplicas(res *core.CachedResource, leastPeers int) error {
+func (c *CheckerController) FillReplicas(res *core.CachedShard, leastPeers int) error {
 	if c.opts.IsPlacementRulesEnabled() {
 		return c.ruleChecker.FillReplicas(res, leastPeers)
 	}
@@ -68,8 +68,8 @@ func (c *CheckerController) FillReplicas(res *core.CachedResource, leastPeers in
 	return c.replicaChecker.FillReplicas(res, leastPeers)
 }
 
-// CheckResource will check the resource and add a new operator if needed.
-func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.Operator {
+// CheckShard will check the resource and add a new operator if needed.
+func (c *CheckerController) CheckShard(res *core.CachedShard) []*operator.Operator {
 	// If PD has restarted, it need to check learners added before and promote them.
 	// Don't check isRaftLearnerEnabled cause it maybe disable learner feature but there are still some learners to promote.
 	opController := c.opController
@@ -84,7 +84,7 @@ func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.
 				return []*operator.Operator{op}
 			}
 			operator.OperatorLimitCounter.WithLabelValues(c.ruleChecker.GetType(), operator.OpReplica.String()).Inc()
-			c.resourceWaitingList.Put(res.Meta.ID(), nil)
+			c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		}
 	} else {
 		if op := c.learnerChecker.Check(res); op != nil {
@@ -95,7 +95,7 @@ func (c *CheckerController) CheckResource(res *core.CachedResource) []*operator.
 				return []*operator.Operator{op}
 			}
 			operator.OperatorLimitCounter.WithLabelValues(c.replicaChecker.GetType(), operator.OpReplica.String()).Inc()
-			c.resourceWaitingList.Put(res.Meta.ID(), nil)
+			c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 		}
 	}
 
@@ -118,17 +118,17 @@ func (c *CheckerController) GetMergeChecker() *checker.MergeChecker {
 	return c.mergeChecker
 }
 
-// GetWaitingResources returns the resources in the waiting list.
-func (c *CheckerController) GetWaitingResources() []*cache.Item {
+// GetWaitingShards returns the resources in the waiting list.
+func (c *CheckerController) GetWaitingShards() []*cache.Item {
 	return c.resourceWaitingList.Elems()
 }
 
-// AddWaitingResource returns the resources in the waiting list.
-func (c *CheckerController) AddWaitingResource(res *core.CachedResource) {
-	c.resourceWaitingList.Put(res.Meta.ID(), nil)
+// AddWaitingShard returns the resources in the waiting list.
+func (c *CheckerController) AddWaitingShard(res *core.CachedShard) {
+	c.resourceWaitingList.Put(res.Meta.GetID(), nil)
 }
 
-// RemoveWaitingResource removes the resource from the waiting list.
-func (c *CheckerController) RemoveWaitingResource(id uint64) {
+// RemoveWaitingShard removes the resource from the waiting list.
+func (c *CheckerController) RemoveWaitingShard(id uint64) {
 	c.resourceWaitingList.Remove(id)
 }

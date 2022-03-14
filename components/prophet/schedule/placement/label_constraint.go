@@ -18,8 +18,8 @@ import (
 	"strings"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
-	"github.com/matrixorigin/matrixcube/components/prophet/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/components/prophet/util/slice"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
 // LabelConstraintOp defines how a LabelConstraint matches a container. It can be one of
@@ -81,8 +81,8 @@ type LabelConstraint struct {
 	Values []string          `json:"values,omitempty"`
 }
 
-// MatchContainer checks if a container matches the constraint.
-func (c *LabelConstraint) MatchContainer(container *core.CachedContainer) bool {
+// MatchStore checks if a container matches the constraint.
+func (c *LabelConstraint) MatchStore(container *core.CachedStore) bool {
 	switch c.Op {
 	case In:
 		label := container.GetLabelValue(c.Key)
@@ -119,19 +119,19 @@ func isExclusiveLabel(key string) bool {
 }
 
 // MatchLabelConstraints checks if a container matches label constraints list.
-func MatchLabelConstraints(container *core.CachedContainer, constraints []LabelConstraint) bool {
+func MatchLabelConstraints(container *core.CachedStore, constraints []LabelConstraint) bool {
 	if container == nil {
 		return false
 	}
 
-	for _, l := range container.Meta.Labels() {
+	for _, l := range container.Meta.GetLabels() {
 		if isExclusiveLabel(l.GetKey()) &&
 			slice.NoneOf(constraints, func(i int) bool { return constraints[i].Key == l.GetKey() }) {
 			return false
 		}
 	}
 
-	return slice.AllOf(constraints, func(i int) bool { return constraints[i].MatchContainer(container) })
+	return slice.AllOf(constraints, func(i int) bool { return constraints[i].MatchStore(container) })
 }
 
 func newLabelConstraintsFromRPC(lcs []rpcpb.LabelConstraint) []LabelConstraint {

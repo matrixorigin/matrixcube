@@ -50,32 +50,33 @@ type Leadership struct {
 	nodeName  string
 	nodeValue string
 
-	ctx                          context.Context
-	allowCampaign                bool
-	becomeLeader, becomeFollower func(string) bool
-	stopper                      *stop.Stopper
-	logger                       *zap.Logger
+	ctx                                  context.Context
+	allowBecomeLeader                    bool
+	becomeLeaderFunc, becomeFollowerFunc func(string) bool
+	stopper                              *stop.Stopper
+	logger                               *zap.Logger
 }
 
-func newLeadership(elector *elector,
+func newLeadership(
+	elector *elector,
 	purpose, nodeName, nodeValue string,
-	allowCampaign bool,
-	becomeLeader, becomeFollower func(string) bool,
-	logger *zap.Logger) *Leadership {
+	allowBecomeLeader bool,
+	becomeLeaderFunc, becomeFollowerFunc func(string) bool,
+	logger *zap.Logger,
+) *Leadership {
 	tag := fmt.Sprintf("[%s/%s]", purpose, nodeName)
 	return &Leadership{
-		purpose:        purpose,
-		elector:        elector,
-		leaderKey:      getPurposePath(elector.options.leaderPath, purpose),
-		nodeValue:      nodeValue,
-		nodeName:       nodeName,
-		allowCampaign:  allowCampaign,
-		becomeLeader:   becomeLeader,
-		becomeFollower: becomeFollower,
-		tag:            tag,
-		logger: log.Adjust(logger).With(zap.String("tag", tag),
-			zap.String("purpose", purpose)),
-		stopper: stop.NewStopper("leadership"),
+		purpose:            purpose,
+		elector:            elector,
+		leaderKey:          getPurposePath(elector.options.leaderPath, purpose),
+		nodeValue:          nodeValue,
+		nodeName:           nodeName,
+		allowBecomeLeader:  allowBecomeLeader,
+		becomeLeaderFunc:   becomeLeaderFunc,
+		becomeFollowerFunc: becomeFollowerFunc,
+		tag:                tag,
+		logger:             log.Adjust(logger).With(zap.String("tag", tag), zap.String("purpose", purpose)),
+		stopper:            stop.NewStopper("leadership"),
 	}
 }
 
@@ -164,80 +165,81 @@ func (ls *Leadership) ElectionLoop() {
 func (ls *Leadership) doElectionLoop(ctx context.Context) {
 	ls.ctx = ctx
 	for {
-		ls.logger.Info("ready to next loop",
-			mainLoopFiled)
+		ls.logger.Info("ready to next loop", mainLoopFiled)
+
 		select {
 		case <-ctx.Done():
-			ls.logger.Info("loop exit due to context done",
-				mainLoopFiled)
+			ls.logger.Info("loop exit due to context done", mainLoopFiled)
 			return
 		default:
-			ls.logger.Info("ready to load current leader",
-				mainLoopFiled)
-			currentLeader, rev, err := ls.CurrentLeader()
-			if err != nil {
-				ls.logger.Error("fail to load current leader, retry later",
-					mainLoopFiled,
-					zap.Error(err))
-				time.Sleep(loopInterval)
+		}
+
+		ls.logger.Info("ready to load current leader", mainLoopFiled)
+		currentLeader, rev, err := ls.CurrentLeader()
+		if err != nil {
+			ls.logger.Error("fail to load current leader, retry later",
+				mainLoopFiled,
+				zap.Error(err),
+			)
+			time.Sleep(loopInterval)
+			continue
+		}
+
+		ls.logger.Info("current leader loaded", mainLoopFiled,
+			zap.String("leader", currentLeader),
+		)
+
+		if len(currentLeader) > 0 {
+			if ls.nodeValue != "" && currentLeader == ls.nodeValue {
+				// oh, we are already leader, we may meet something wrong
+				// in previous campaignLeader. we can resign and campaign again.
+				ls.logger.Warn("matched, resign and campaign again")
+
+				if err := ls.resign(); err != nil {
+					ls.logger.Warn("fail to resign leader", mainLoopFiled,
+						zap.Error(err),
+					)
+					time.Sleep(loopInterval)
+					continue
+				}
+			} else {
+				ls.logger.Info("start to watch current leader", mainLoopFiled,
+					zap.String("leader", currentLeader),
+				)
+
+				ls.becomeFollowerFunc(currentLeader)
+				ls.watch(rev)
+				ls.becomeFollowerFunc("")
+
+				ls.logger.Info("current leader out", mainLoopFiled,
+					zap.String("leader", currentLeader),
+				)
+			}
+		}
+
+		if ls.allowBecomeLeader {
+			ls.logger.Info("start checkExpectLeader", mainLoopFiled)
+			if err := ls.checkExpectLeader(); err != nil {
+				ls.logger.Error("fail to check expect leader", mainLoopFiled,
+					zap.Error(err),
+				)
+				time.Sleep(200 * time.Millisecond)
 				continue
 			}
-			ls.logger.Info("current leader loaded",
-				mainLoopFiled,
-				zap.String("leader", currentLeader))
 
-			if len(currentLeader) > 0 {
-				if ls.nodeValue != "" && currentLeader == ls.nodeValue {
-					// oh, we are already leader, we may meet something wrong
-					// in previous campaignLeader. we can resign and campaign again.
-					ls.logger.Warn("matched, resign and campaign again")
-					if err = ls.resign(); err != nil {
-						ls.logger.Warn("fail to resign leader",
-							mainLoopFiled,
-							zap.Error(err))
-						time.Sleep(loopInterval)
-						continue
-					}
-				} else {
-					ls.logger.Info("start watch leader",
-						mainLoopFiled,
-						zap.String("leader", currentLeader))
-					ls.becomeFollower(currentLeader)
-					ls.watch(rev)
-					ls.becomeFollower("")
-					ls.logger.Info("leader out",
-						mainLoopFiled,
-						zap.String("leader", currentLeader))
-				}
+			ls.logger.Info("end checkExpectLeader, and start campaign", mainLoopFiled)
+			if err := ls.campaign(); err != nil {
+				ls.logger.Error("fail to campaign leader", mainLoopFiled,
+					zap.Error(err),
+				)
+				time.Sleep(time.Second * time.Duration(ls.elector.options.leaseSec))
+				continue
 			}
 
-			if ls.allowCampaign {
-				ls.logger.Info("start checkExpectLeader",
-					mainLoopFiled)
-				// check expect leader exists
-				err := ls.checkExpectLeader()
-				if err != nil {
-					ls.logger.Error("fail to check expect leader",
-						mainLoopFiled,
-						zap.Error(err))
-					time.Sleep(200 * time.Millisecond)
-					continue
-				}
-				ls.logger.Info("end checkExpectLeader, and start campaign",
-					mainLoopFiled)
-				if err = ls.campaign(); err != nil {
-					ls.logger.Error("fail to campaign leader",
-						mainLoopFiled,
-						zap.Error(err))
-					time.Sleep(time.Second * time.Duration(ls.elector.options.leaseSec))
-					continue
-				}
-				ls.logger.Info("end campaign",
-					mainLoopFiled)
-			}
-
-			time.Sleep(loopInterval)
+			ls.logger.Info("end campaign", mainLoopFiled)
 		}
+
+		time.Sleep(loopInterval)
 	}
 }
 
@@ -313,14 +315,14 @@ func (ls *Leadership) campaign() error {
 			keepaliveField)
 	}
 
-	if !ls.becomeLeader(ls.nodeValue) {
+	if !ls.becomeLeaderFunc(ls.nodeValue) {
 		ls.logger.Info("become leader func return false",
 			keepaliveField)
 		return nil
 	}
 
 	defer func() {
-		ls.becomeFollower("")
+		ls.becomeFollowerFunc("")
 		if lock != nil {
 			lock.Unlock(ls.ctx)
 			ls.logger.Info("lock released",
@@ -458,7 +460,7 @@ func (ls *Leadership) checkExpectLeader() error {
 
 func (ls *Leadership) addExpectLeader(newLeader string) error {
 	ctx, cancel := context.WithTimeout(ls.elector.client.Ctx(), option.DefaultRequestTimeout)
-	leaseResp, err := ls.elector.lessor.Grant(ctx, ls.elector.options.leaseSec)
+	leaseResp, err := ls.elector.lease.Grant(ctx, ls.elector.options.leaseSec)
 	cancel()
 
 	if err != nil {
