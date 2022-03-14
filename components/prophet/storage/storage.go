@@ -63,18 +63,6 @@ type RuleStorage interface {
 	LoadRuleGroups(limit int64, f func(k, v string) error) error
 }
 
-// CustomDataStorage custom data storage
-type CustomDataStorage interface {
-	// PutCustomData puts the custom data to the storage
-	PutCustomData(key []byte, data []byte) error
-	// BatchPutCustomData batch puts the custom data to the storage
-	BatchPutCustomData(keys [][]byte, data [][]byte) error
-	// LoadCustomData load all custom data
-	LoadCustomData(limit int64, f func(k, v []byte) error) error
-	// RemoveCustomData remove custom data
-	RemoveCustomData(key []byte) error
-}
-
 // ShardStorage resource storage
 type ShardStorage interface {
 	// PutShard puts the meta to the storage
@@ -141,7 +129,6 @@ type ClusterStorage interface {
 // Storage meta storage
 type Storage interface {
 	JobStorage
-	CustomDataStorage
 	RuleStorage
 	ConfigStorage
 	StoreStorage
@@ -172,7 +159,6 @@ type storage struct {
 	schedulePath             string
 	jobPath                  string
 	jobDataPath              string
-	customDataPath           string
 }
 
 // NewTestStorage create test storage
@@ -198,7 +184,6 @@ func NewStorage(rootPath string, kv KV, idGen id.Generator) Storage {
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
 		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
 		jobDataPath:              fmt.Sprintf("%s/job-data", rootPath),
-		customDataPath:           fmt.Sprintf("%s/custom", rootPath),
 	}
 }
 
@@ -511,36 +496,6 @@ func (s *storage) GetJobData(job metapb.Job) ([]byte, error) {
 
 func (s *storage) RemoveJobData(job metapb.Job) error {
 	return s.kv.Remove(s.jobDataKey(job.Type))
-}
-
-func (s *storage) PutCustomData(key []byte, data []byte) error {
-	return s.kv.Save(path.Join(s.customDataPath, string(key)), string(data))
-}
-
-func (s *storage) BatchPutCustomData(keys [][]byte, data [][]byte) error {
-	if len(keys) != len(data) {
-		return fmt.Errorf("key length %d != data length %d",
-			len(keys),
-			len(data))
-	}
-
-	batch := &Batch{}
-	for i := 0; i < len(keys); i++ {
-		batch.SaveKeys = append(batch.SaveKeys, path.Join(s.customDataPath, string(keys[i])))
-		batch.SaveValues = append(batch.SaveValues, string(data[i]))
-	}
-	return s.kv.Batch(batch)
-}
-
-func (s *storage) LoadCustomData(limit int64, do func(k, v []byte) error) error {
-	return s.LoadRangeByPrefix(limit, s.customDataPath+"/", func(k, v string) error {
-		do([]byte(k), []byte(v))
-		return nil
-	})
-}
-
-func (s *storage) RemoveCustomData(key []byte) error {
-	return s.kv.Remove(path.Join(s.customDataPath, string(key)))
 }
 
 func (s *storage) PutBootstrapped(container metapb.Store, resources ...*metapb.Shard) (bool, error) {

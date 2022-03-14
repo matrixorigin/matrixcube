@@ -49,16 +49,16 @@ func (mr *MockShardsAwareMockRecorder) ForeachShards(group, fn interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachShards", reflect.TypeOf((*MockShardsAware)(nil).ForeachShards), group, fn)
 }
 
-// ForeachWaittingCreateShards mocks base method.
-func (m *MockShardsAware) ForeachWaittingCreateShards(do func(metapb.Shard)) {
+// ForeachWaitingCreateShards mocks base method.
+func (m *MockShardsAware) ForeachWaitingCreateShards(do func(metapb.Shard)) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ForeachWaittingCreateShards", do)
+	m.ctrl.Call(m, "ForeachWaitingCreateShards", do)
 }
 
-// ForeachWaittingCreateShards indicates an expected call of ForeachWaittingCreateShards.
-func (mr *MockShardsAwareMockRecorder) ForeachWaittingCreateShards(do interface{}) *gomock.Call {
+// ForeachWaitingCreateShards indicates an expected call of ForeachWaitingCreateShards.
+func (mr *MockShardsAwareMockRecorder) ForeachWaitingCreateShards(do interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachWaittingCreateShards", reflect.TypeOf((*MockShardsAware)(nil).ForeachWaittingCreateShards), do)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForeachWaitingCreateShards", reflect.TypeOf((*MockShardsAware)(nil).ForeachWaitingCreateShards), do)
 }
 
 // GetShard mocks base method.

@@ -93,19 +93,6 @@ func (s *memStorage) LoadRange(key, endKey string, limit int64) ([]string, []str
 	return keys, values, nil
 }
 
-func (s *memStorage) CountRange(key, endKey string) (uint64, error) {
-	s.RLock()
-	defer s.RUnlock()
-
-	cnt := uint64(0)
-	s.tree.AscendRange(memoryKVItem{key, ""}, memoryKVItem{endKey, ""}, func(item btree.Item) bool {
-		cnt++
-		return true
-	})
-
-	return cnt, nil
-}
-
 func (s *memStorage) SaveIfNotExists(key string, value string, batch *Batch) (bool, string, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -135,41 +122,6 @@ func (s *memStorage) SaveIfNotExists(key string, value string, batch *Batch) (bo
 	}
 
 	return true, "", err
-}
-
-func (s *memStorage) RemoveIfValueMatched(key string, expect string) (bool, error) {
-	s.Lock()
-	defer s.Unlock()
-
-	old, err := s.doLoad(key)
-	if err != nil {
-		return false, err
-	}
-
-	if old != expect {
-		return false, nil
-	}
-
-	err = s.doRemove(key)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
-func (s *memStorage) SaveWithoutLeader(key, value string) error {
-	s.Lock()
-	defer s.Unlock()
-
-	return s.doSave(string(key), string(value))
-}
-
-func (s *memStorage) RemoveWithoutLeader(key string) error {
-	s.Lock()
-	defer s.Unlock()
-
-	return s.doRemove(key)
 }
 
 func (s *memStorage) doLoad(key string) (string, error) {

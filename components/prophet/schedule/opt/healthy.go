@@ -40,7 +40,7 @@ func IsHealthyAllowPending(cluster Cluster, res *core.CachedShard) bool {
 
 // IsEmptyShardAllowBalance checks if a region is an empty region and can be balanced.
 func IsEmptyShardAllowBalance(cluster Cluster, res *core.CachedShard) bool {
-	return res.GetApproximateSize() > core.EmptyShardApproximateSize ||
+	return res.GetApproximateSize() > core.MinShardSize ||
 		cluster.GetShardCount() < balanceEmptyShardThreshold
 }
 

@@ -202,35 +202,35 @@ func TestShardTree(t *testing.T) {
 	assert.Nil(t, tree.search([]byte("c")))
 	assert.Equal(t, resD, tree.search([]byte("d")))
 
-	// check get adjacent resources
+	// check get adjacent shards
 	prev, next := tree.getAdjacentShards(resA)
 	assert.Nil(t, prev)
-	assert.Equal(t, resB, next.res)
+	assert.Equal(t, resB, next.shard)
 
 	prev, next = tree.getAdjacentShards(resB)
-	assert.Equal(t, resA, prev.res)
-	assert.Equal(t, resD, next.res)
+	assert.Equal(t, resA, prev.shard)
+	assert.Equal(t, resD, next.shard)
 
 	prev, next = tree.getAdjacentShards(resC)
-	assert.Equal(t, resB, prev.res)
-	assert.Equal(t, resD, next.res)
+	assert.Equal(t, resB, prev.shard)
+	assert.Equal(t, resD, next.shard)
 
 	prev, next = tree.getAdjacentShards(resD)
-	assert.Equal(t, resB, prev.res)
+	assert.Equal(t, resB, prev.shard)
 	assert.Nil(t, next)
 
-	// resource with the same range and different resource id will not be delete.
-	res0 := newTestShardItem([]byte{}, []byte("a")).res
+	// resource with the same range and different resource id will not be deleted.
+	res0 := newTestShardItem([]byte{}, []byte("a")).shard
 	tree.update(res0)
 	assert.Equal(t, res0, tree.search([]byte{}))
 
-	anotherRes0 := newTestShardItem([]byte{}, []byte("a")).res
+	anotherRes0 := newTestShardItem([]byte{}, []byte("a")).shard
 	anotherRes0.Meta.SetID(123)
 	tree.remove(anotherRes0)
 	assert.Equal(t, res0, tree.search([]byte{}))
 
 	// overlaps with 0, A, B, C.
-	res0D := newTestShardItem([]byte(""), []byte("d")).res
+	res0D := newTestShardItem([]byte(""), []byte("d")).shard
 	tree.update(res0D)
 	assert.Equal(t, res0D, tree.search([]byte{}))
 	assert.Equal(t, res0D, tree.search([]byte("a")))
@@ -239,7 +239,7 @@ func TestShardTree(t *testing.T) {
 	assert.Equal(t, resD, tree.search([]byte("d")))
 
 	// overlaps with D.
-	resE := newTestShardItem([]byte("e"), []byte{}).res
+	resE := newTestShardItem([]byte("e"), []byte{}).shard
 	tree.update(resE)
 	assert.Equal(t, res0D, tree.search([]byte{}))
 	assert.Equal(t, res0D, tree.search([]byte("a")))
@@ -251,7 +251,7 @@ func TestShardTree(t *testing.T) {
 
 func TestShardTreeSplitAndMerge(t *testing.T) {
 	tree := newShardTree()
-	resources := []*CachedShard{newTestShardItem([]byte{}, []byte{}).res}
+	resources := []*CachedShard{newTestShardItem([]byte{}, []byte{}).shard}
 
 	// Byte will underflow/overflow if n > 7.
 	n := 7
@@ -376,7 +376,7 @@ func TestRandomShardDiscontinuous(t *testing.T) {
 	checkRandomShard(t, tree, []*CachedShard{resA, resB, resC, resD}, []KeyRange{NewKeyRange(0, "", "")})
 }
 
-func updateTestShards(t *testing.T, tree *resourceTree, resources []*CachedShard) {
+func updateTestShards(t *testing.T, tree *shardTree, resources []*CachedShard) {
 	for _, res := range resources {
 		startKey, endKey := res.Meta.GetRange()
 		tree.update(res)
@@ -389,7 +389,7 @@ func updateTestShards(t *testing.T, tree *resourceTree, resources []*CachedShard
 	}
 }
 
-func checkRandomShard(t *testing.T, tree *resourceTree, resources []*CachedShard, ranges []KeyRange) {
+func checkRandomShard(t *testing.T, tree *shardTree, resources []*CachedShard, ranges []KeyRange) {
 	keys := make(map[string]struct{})
 	for i := 0; i < 10000 && len(keys) < len(resources); i++ {
 		re := tree.RandomShard(ranges)

@@ -109,7 +109,7 @@ func TestSortedEqual(t *testing.T) {
 }
 
 func TestShardMap(t *testing.T) {
-	var empty *resourceMap
+	var empty *shardMap
 	assert.Equal(t, 0, empty.Len(), "TestShardMap failed")
 	assert.Nil(t, empty.Get(1), "TestShardMap failed")
 
@@ -236,8 +236,8 @@ func TestSetShard(t *testing.T) {
 	assert.Equal(t, 96, resources.trees[0].length(), "TestSetShard failed")
 	assert.Equal(t, 96, len(resources.GetShards()), "TestSetShard failed")
 	assert.NotNil(t, resources.GetShard(201), "TestSetShard failed")
-	assert.Equal(t, int64(20), resources.resources.totalKeys, "TestSetShard failed")
-	assert.Equal(t, int64(30), resources.resources.totalSize, "TestSetShard failed")
+	assert.Equal(t, int64(20), resources.shards.totalKeys, "TestSetShard failed")
+	assert.Equal(t, int64(30), resources.shards.totalSize, "TestSetShard failed")
 }
 
 func TestShouldRemoveFromSubTree(t *testing.T) {
@@ -280,7 +280,7 @@ func TestShouldRemoveFromSubTree(t *testing.T) {
 	assert.True(t, resources.shouldRemoveFromSubTree(res, origin))
 }
 
-func checkShardMap(t *testing.T, msg string, rm *resourceMap, ids ...uint64) {
+func checkShardMap(t *testing.T, msg string, rm *shardMap, ids ...uint64) {
 	// Check Get.
 	for _, id := range ids {
 		assert.Equal(t, id, rm.Get(id).Meta.GetID(), msg)
@@ -307,7 +307,7 @@ func checkShardMap(t *testing.T, msg string, rm *resourceMap, ids ...uint64) {
 	assert.Equal(t, rm.totalSize, total, msg)
 }
 
-func checkShards(t *testing.T, resources *CachedShards, msg string) {
+func checkShards(t *testing.T, resources *ShardsContainer, msg string) {
 	leaderMap := make(map[uint64]uint64)
 	followerMap := make(map[uint64]uint64)
 	learnerMap := make(map[uint64]uint64)

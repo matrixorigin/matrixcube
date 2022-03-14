@@ -28,7 +28,7 @@ const (
 	HighPriority
 )
 
-// ScheduleKind distinguishes resources and schedule policy.
+// ScheduleKind distinguishes shards and schedule policy.
 type ScheduleKind struct {
 	ShardKind metapb.ShardType
 	Policy    SchedulePolicy
@@ -97,19 +97,5 @@ func (k KeyType) String() string {
 		return "txn"
 	default:
 		return "unknown"
-	}
-}
-
-// StringToKeyType creates a key type with string.
-func StringToKeyType(input string) KeyType {
-	switch input {
-	case Table.String():
-		return Table
-	case Raw.String():
-		return Raw
-	case Txn.String():
-		return Txn
-	default:
-		panic("invalid key type: " + input)
 	}
 }
