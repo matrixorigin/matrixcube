@@ -24,6 +24,7 @@ import (
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
@@ -150,10 +151,14 @@ type Storage interface {
 
 	// KV return KV storage
 	KV() KV
+
+	// ID generator
+	id.Generator
 }
 
 type storage struct {
 	kv                       KV
+	idGen                    id.Generator
 	rootPath                 string
 	configPath               string
 	resourcePath             string
@@ -172,13 +177,14 @@ type storage struct {
 
 // NewTestStorage create test storage
 func NewTestStorage() Storage {
-	return NewStorage("/test", newMemKV())
+	return NewStorage("/test", newMemKV(), id.NewMemGenerator())
 }
 
 // NewStorage returns a metadata storage
-func NewStorage(rootPath string, kv KV) Storage {
+func NewStorage(rootPath string, kv KV, idGen id.Generator) Storage {
 	return &storage{
 		kv:                       kv,
+		idGen:                    idGen,
 		rootPath:                 rootPath,
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
@@ -538,7 +544,7 @@ func (s *storage) RemoveCustomData(key []byte) error {
 }
 
 func (s *storage) PutBootstrapped(container metapb.Store, resources ...*metapb.Shard) (bool, error) {
-	clusterID, err := s.kv.AllocID()
+	clusterID, err := s.idGen.AllocID()
 	if err != nil {
 		return false, err
 	}
@@ -603,4 +609,9 @@ func (s *storage) jobKey(jobType metapb.JobType) string {
 
 func (s *storage) jobDataKey(jobType metapb.JobType) string {
 	return path.Join(s.jobDataPath, string(format.Uint64ToString(uint64(jobType))))
+}
+
+// AllocID implement id.Generator interface
+func (s *storage) AllocID() (uint64, error) {
+	return s.idGen.AllocID()
 }

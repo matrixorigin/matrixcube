@@ -251,7 +251,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			continue
 		}
 
-		id, err := c.storage.KV().AllocID()
+		id, err := c.storage.AllocID()
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +275,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 
 		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: uint64(len(cachedShard.Meta.GetReplicas()))})
 		for idx := range cachedShard.Meta.GetReplicas() {
-			id, err := c.storage.KV().AllocID()
+			id, err := c.storage.AllocID()
 			if err != nil {
 				return nil, err
 			}
