@@ -1292,7 +1292,7 @@ func (c *RaftCluster) takeShardStoresLocked(res *core.CachedShard) []*core.Cache
 
 // AllocID allocs ID.
 func (c *RaftCluster) AllocID() (uint64, error) {
-	return c.storage.KV().AllocID()
+	return c.storage.AllocID()
 }
 
 // ChangedEventNotifier changedEventNotifier

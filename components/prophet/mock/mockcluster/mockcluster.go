@@ -89,7 +89,7 @@ func (mc *Cluster) GetOpts() *config.PersistOptions {
 
 // AllocID allocs a new unique ID.
 func (mc *Cluster) AllocID() (uint64, error) {
-	return mc.storage.KV().AllocID()
+	return mc.storage.AllocID()
 }
 
 // ScanShards scans resource with start key, until number greater than limit.

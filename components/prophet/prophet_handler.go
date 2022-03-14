@@ -328,7 +328,7 @@ func (p *defaultProphet) handleGetStore(rc *cluster.RaftCluster, req *rpcpb.Prop
 }
 
 func (p *defaultProphet) handleAllocID(rc *cluster.RaftCluster, req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse) error {
-	id, err := p.storage.KV().AllocID()
+	id, err := p.storage.AllocID()
 	if err != nil {
 		return err
 	}

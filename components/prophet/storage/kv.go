@@ -38,8 +38,6 @@ type KV interface {
 	LoadRange(key, endKey string, limit int64) ([]string, []string, error)
 	// CountRange count all key-value pairs in the storage
 	CountRange(key, endKey string) (uint64, error)
-	// AllocID allocate a id from kv
-	AllocID() (uint64, error)
 	// SaveIfNotExists put the value at path
 	// returns true, nil, nil if created
 	// returns false, exists, nil if not created

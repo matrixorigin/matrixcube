@@ -128,11 +128,4 @@ func TestEtcdKV(t *testing.T) {
 	value, err = kv.Load(key1)
 	assert.NoError(t, err)
 	assert.Empty(t, value)
-
-	n := uint64(idBatch) + 1
-	for i := uint64(1); i <= n; i++ {
-		id, err := kv.AllocID()
-		assert.NoError(t, err)
-		assert.Equal(t, i, id)
-	}
 }

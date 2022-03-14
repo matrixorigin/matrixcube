@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,12 @@ func TestPutAndGetShard(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 	id := uint64(1)
 	assert.NoError(t, storage.PutShard(metapb.Shard{ID: id}), "TestPutAndGetShard failed")
 
@@ -63,7 +69,13 @@ func TestPutAndGetStore(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	id := uint64(1)
 	assert.NoError(t, storage.PutStore(metapb.Store{ID: id}), "TestPutAndGetStore failed")
 
@@ -87,7 +99,12 @@ func TestLoadShards(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 
 	var values []metapb.Shard
 	cb := func(v metapb.Shard) {
@@ -122,7 +139,12 @@ func TestLoadStores(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 
 	var values []metapb.Store
 	cb := func(v metapb.Store, lw, cw float64) {
@@ -157,7 +179,13 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	yes, err := s.AlreadyBootstrapped()
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
@@ -197,7 +225,13 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}))
@@ -235,7 +269,13 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
 	assert.NoError(t, storage.PutCustomData([]byte("k2"), []byte("v2")))
 	assert.NoError(t, storage.PutCustomData([]byte("k3"), []byte("v3")))
@@ -278,7 +318,14 @@ func TestBatchPutCustomData(t *testing.T) {
 
 	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
 	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	assert.NoError(t, storage.BatchPutCustomData(keys, data))
 
 	var loadedValues [][]byte
