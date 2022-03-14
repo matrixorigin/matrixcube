@@ -51,7 +51,7 @@ const (
 	clientTimeout            = 3 * time.Second
 	defaultChangedEventLimit = 10000
 	// persistLimitRetryTimes is used to reduce the probability of the persistent error
-	// since the once the store is add or remove, we shouldn't return an error even if the store limit is failed to persist.
+	// since the once the store is added or removed, we shouldn't return an error even if the store limit is failed to persist.
 	persistLimitRetryTimes = 5
 	persistLimitWaitTime   = 100 * time.Millisecond
 )
@@ -573,7 +573,7 @@ func (c *RaftCluster) processShardHeartbeat(res *core.CachedShard) error {
 	}
 
 	c.Lock()
-	inCreating := c.core.IsWaittingCreateShard(res.Meta.GetID())
+	inCreating := c.core.IsWaitingCreateShard(res.Meta.GetID())
 	if isNew && inCreating {
 		if c.resourceStateChangedHandler != nil {
 			c.resourceStateChangedHandler(&res.Meta, metapb.ShardState_Creating,
@@ -700,11 +700,6 @@ func (c *RaftCluster) GetShardByKey(group uint64, resourceKey []byte) *core.Cach
 	return c.core.SearchShard(group, resourceKey)
 }
 
-// GetPrevShardByKey gets previous resource and leader peer by the resource key from cluster.
-func (c *RaftCluster) GetPrevShardByKey(group uint64, resourceKey []byte) *core.CachedShard {
-	return c.core.SearchPrevShard(group, resourceKey)
-}
-
 // ScanShards scans resource with start key, until the resource contains endKey, or
 // total number greater than limit.
 func (c *RaftCluster) ScanShards(group uint64, startKey, endKey []byte, limit int) []*core.CachedShard {
@@ -722,7 +717,7 @@ func (c *RaftCluster) GetShard(resourceID uint64) *core.CachedShard {
 }
 
 // GetMetaShards gets resources from cluster.
-func (c *RaftCluster) GetMetaShards() []*metapb.Shard {
+func (c *RaftCluster) GetMetaShards() []metapb.Shard {
 	return c.core.GetMetaShards()
 }
 
@@ -1283,7 +1278,7 @@ func (c *RaftCluster) updateShardsLabelLevelStats(resources []*core.CachedShard)
 func (c *RaftCluster) takeShardStoresLocked(res *core.CachedShard) []*core.CachedStore {
 	containers := make([]*core.CachedStore, 0, len(res.Meta.GetReplicas()))
 	for _, p := range res.Meta.GetReplicas() {
-		if container := c.core.TakeStore(p.StoreID); container != nil {
+		if container := c.core.GetStore(p.StoreID); container != nil {
 			containers = append(containers, container)
 		}
 	}

@@ -167,8 +167,8 @@ func (s *balanceShardScheduler) scheduleByGroup(groupKey string, cluster opt.Clu
 	sort.Slice(containers, func(i, j int) bool {
 		iOp := opInfluence.GetStoreInfluence(containers[i].Meta.GetID()).ShardProperty(kind, groupKey)
 		jOp := opInfluence.GetStoreInfluence(containers[j].Meta.GetID()).ShardProperty(kind, groupKey)
-		return containers[i].ShardScore(groupKey, opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
-			containers[j].ShardScore(groupKey, opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
+		return containers[i].ShardScore(groupKey, opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), iOp, -1) >
+			containers[j].ShardScore(groupKey, opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), jOp, -1)
 	})
 
 	groupID := util.DecodeGroupKey(groupKey)

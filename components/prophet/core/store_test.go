@@ -43,11 +43,11 @@ func TestDistinctScore(t *testing.T) {
 				container := NewTestStoreInfoWithLabel(containerID, 1, containerLabels)
 				containers = append(containers, container)
 
-				// Number of containers in different zones.
+				// Number of stores in different zones.
 				numZones := i * len(racks) * len(hosts)
-				// Number of containers in the same zone but in different racks.
+				// Number of stores in the same zone but in different racks.
 				numRacks := j * len(hosts)
-				// Number of containers in the same rack but in different hosts.
+				// Number of stores in the same rack but in different hosts.
 				numHosts := k
 				score := (numZones*replicaBaseScore+numRacks)*replicaBaseScore + numHosts
 				assert.Equal(t, float64(score), DistinctScore(labels, containers, container))
@@ -101,7 +101,7 @@ func TestShardScore(t *testing.T) {
 		SetStoreStats(stats),
 		SetShardSize("", 1),
 	)
-	score := container.ShardScore("", "v1", 0.7, 0.9, 0, 0)
+	score := container.ShardScore("", 0.7, 0.9, 0, 0)
 	// Shard score should never be NaN, or /container API would fail.
 	assert.False(t, math.IsNaN(score))
 }
@@ -112,9 +112,9 @@ func TestLowSpaceRatio(t *testing.T) {
 	container.rawStats.Available = container.rawStats.Capacity >> 3
 
 	assert.False(t, container.IsLowSpace(0.8))
-	info := container.resourceInfo[""]
+	info := container.shardInfo[""]
 	info.count = 31
-	container.resourceInfo[""] = info
+	container.shardInfo[""] = info
 	assert.True(t, container.IsLowSpace(0.8))
 	container.rawStats.Available = container.rawStats.Capacity >> 2
 	assert.False(t, container.IsLowSpace(0.8))

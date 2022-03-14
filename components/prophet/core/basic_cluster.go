@@ -32,14 +32,14 @@ import (
 // BasicCluster provides basic data member and interface for a storage application cluster.
 type BasicCluster struct {
 	sync.RWMutex
-	logger               *zap.Logger
-	Stores               *CachedStores
-	Shards               *CachedShards
-	DestroyedShards      *roaring64.Bitmap
-	WaittingCreateShards map[uint64]metapb.Shard
-	DestroyingStatuses   map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules   []metapb.ScheduleGroupRule
-	ScheduleGroupKeys    map[string]struct{}
+	logger              *zap.Logger
+	Stores              *StoresContainer
+	Shards              *ShardsContainer
+	DestroyedShards     *roaring64.Bitmap
+	WaitingCreateShards map[uint64]metapb.Shard
+	DestroyingStatuses  map[uint64]*metapb.DestroyingStatus
+	ScheduleGroupRules  []metapb.ScheduleGroupRule
+	ScheduleGroupKeys   map[string]struct{}
 }
 
 // NewBasicCluster creates a BasicCluster.
@@ -61,11 +61,11 @@ func (bc *BasicCluster) Reset() {
 	bc.Stores = NewCachedStores()
 	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
-	bc.WaittingCreateShards = make(map[uint64]metapb.Shard)
+	bc.WaitingCreateShards = make(map[uint64]metapb.Shard)
 	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
 }
 
-// AddRemovedShards add removed resources
+// AddRemovedShards add removed shards
 func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 	bc.Lock()
 	defer bc.Unlock()
@@ -78,25 +78,25 @@ func (bc *BasicCluster) AddRemovedShards(ids ...uint64) {
 	}
 }
 
-// AddWaittingCreateShards add waitting create resources
-func (bc *BasicCluster) AddWaittingCreateShards(resources ...metapb.Shard) {
+// AddWaitingCreateShards add waiting create shards
+func (bc *BasicCluster) AddWaitingCreateShards(resources ...metapb.Shard) {
 	bc.Lock()
 	defer bc.Unlock()
 	for _, res := range resources {
-		bc.WaittingCreateShards[res.GetID()] = res
+		bc.WaitingCreateShards[res.GetID()] = res
 	}
 }
 
-// ForeachWaittingCreateShards do func for every waitting create resources
-func (bc *BasicCluster) ForeachWaittingCreateShards(fn func(res metapb.Shard)) {
+// ForeachWaitingCreateShards do func for every waiting create shards
+func (bc *BasicCluster) ForeachWaitingCreateShards(fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
-	for _, res := range bc.WaittingCreateShards {
+	for _, res := range bc.WaitingCreateShards {
 		fn(res)
 	}
 }
 
-// ForeachShards foreach resources by group
+// ForeachShards foreach shards by group
 func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -104,12 +104,12 @@ func (bc *BasicCluster) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	bc.Shards.ForeachShards(group, fn)
 }
 
-// IsWaittingCreateShard returns true means the resource is waitting create
-func (bc *BasicCluster) IsWaittingCreateShard(id uint64) bool {
+// IsWaitingCreateShard returns true means the resource is waiting create
+func (bc *BasicCluster) IsWaitingCreateShard(id uint64) bool {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	_, ok := bc.WaittingCreateShards[id]
+	_, ok := bc.WaitingCreateShards[id]
 	return ok
 }
 
@@ -121,18 +121,18 @@ func (bc *BasicCluster) AlreadyRemoved(id uint64) bool {
 	return bc.DestroyedShards.Contains(id)
 }
 
-// GetDestroyShards get destroyed and destroying state resources
+// GetDestroyShards get destroyed and destroying state shards
 func (bc *BasicCluster) GetDestroyShards(bm *roaring64.Bitmap) (*roaring64.Bitmap, *roaring64.Bitmap) {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	// read destroyed resources
+	// read destroyed shards
 	destroyed := bc.DestroyedShards.Clone()
 	destroyed.And(bm)
 
-	// read destroying resources
+	// read destroying shards
 	destroying := roaring64.New()
-	for id, res := range bc.Shards.resources.m {
+	for id, res := range bc.Shards.shards.m {
 		if res.Meta.GetState() == metapb.ShardState_Destroying && bm.Contains(id) {
 			destroying.Add(id)
 		}
@@ -168,15 +168,15 @@ func (bc *BasicCluster) GetShard(resourceID uint64) *CachedShard {
 	return bc.Shards.GetShard(resourceID)
 }
 
-// GetShards gets all CachedShard from resourceMap.
+// GetShards gets all CachedShard from shardMap.
 func (bc *BasicCluster) GetShards() []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetShards()
 }
 
-// GetMetaShards gets a set of *metapb.Shard from resourceMap.
-func (bc *BasicCluster) GetMetaShards() []*metapb.Shard {
+// GetMetaShards gets a set of *metapb.Shard from shardMap.
+func (bc *BasicCluster) GetMetaShards() []metapb.Shard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetMetaShards()
@@ -269,7 +269,7 @@ func (bc *BasicCluster) GetScheduleGroupKeysWithPrefix(prefix string) []string {
 	var keys []string
 	for k := range bc.ScheduleGroupKeys {
 		if strings.HasPrefix(k, prefix) ||
-			(k == "" && prefix == string(util.EncodeGroupKey(0, nil, nil))) {
+			(k == "" && prefix == util.EncodeGroupKey(0, nil, nil)) {
 			keys = append(keys, k)
 		}
 	}
@@ -330,14 +330,14 @@ func (bc *BasicCluster) selectShard(resources []*CachedShard, opts ...ShardOptio
 	return nil
 }
 
-// GetShardCount gets the total count of CachedShard of resourceMap.
+// GetShardCount gets the total count of CachedShard of shardMap.
 func (bc *BasicCluster) GetShardCount() int {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetShardCount()
 }
 
-// GetStoreCount returns the total count of CachedStores.
+// GetStoreCount returns the total count of StoresContainer.
 func (bc *BasicCluster) GetStoreCount() int {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -374,14 +374,14 @@ func (bc *BasicCluster) GetStorePendingPeerCount(groupKey string, containerID ui
 	return bc.Shards.GetStorePendingPeerCount(groupKey, containerID)
 }
 
-// GetStoreLeaderShardSize get total size of container's leader resources.
+// GetStoreLeaderShardSize get total size of container's leader shards.
 func (bc *BasicCluster) GetStoreLeaderShardSize(groupKey string, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetStoreLeaderShardSize(groupKey, containerID)
 }
 
-// GetStoreShardSize get total size of container's resources.
+// GetStoreShardSize get total size of container's shards.
 func (bc *BasicCluster) GetStoreShardSize(groupKey string, containerID uint64) int64 {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -409,13 +409,6 @@ func (bc *BasicCluster) DeleteStore(container *CachedStore) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.Stores.DeleteStore(container)
-}
-
-// TakeStore returns the point of the origin CachedStores with the specified containerID.
-func (bc *BasicCluster) TakeStore(containerID uint64) *CachedStore {
-	bc.RLock()
-	defer bc.RUnlock()
-	return bc.Stores.TakeStore(containerID)
 }
 
 // PreCheckPutShard checks if the resource is valid to put.
@@ -449,13 +442,13 @@ func (bc *BasicCluster) PreCheckPutShard(res *CachedShard) (*CachedShard, error)
 	return origin, nil
 }
 
-// PutShard put a resource, returns overlap resources
+// PutShard put a resource, returns overlap shards
 func (bc *BasicCluster) PutShard(res *CachedShard) []*CachedShard {
 	bc.Lock()
 	defer bc.Unlock()
 
-	if _, ok := bc.WaittingCreateShards[res.Meta.GetID()]; ok {
-		delete(bc.WaittingCreateShards, res.Meta.GetID())
+	if _, ok := bc.WaitingCreateShards[res.Meta.GetID()]; ok {
+		delete(bc.WaitingCreateShards, res.Meta.GetID())
 		if res.Meta.GetState() == metapb.ShardState_Creating {
 			res.Meta.SetState(metapb.ShardState_Running)
 		}
@@ -470,7 +463,7 @@ func (bc *BasicCluster) CheckAndPutShard(res *CachedShard) []*CachedShard {
 		bc.AddRemovedShards(res.Meta.GetID())
 		return nil
 	case metapb.ShardState_Creating:
-		bc.AddWaittingCreateShards(res.Meta)
+		bc.AddWaitingCreateShards(res.Meta)
 		return nil
 	}
 
@@ -484,43 +477,36 @@ func (bc *BasicCluster) CheckAndPutShard(res *CachedShard) []*CachedShard {
 	return bc.PutShard(res)
 }
 
-// RemoveShard removes CachedShard from resourceTree and resourceMap.
+// RemoveShard removes CachedShard from shardTree and shardMap.
 func (bc *BasicCluster) RemoveShard(res *CachedShard) {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.Shards.RemoveShard(res)
 }
 
-// SearchShard searches CachedShard from resourceTree.
+// SearchShard searches CachedShard from shardTree.
 func (bc *BasicCluster) SearchShard(group uint64, resKey []byte) *CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.SearchShard(group, resKey)
 }
 
-// SearchPrevShard searches previous CachedShard from resourceTree.
-func (bc *BasicCluster) SearchPrevShard(group uint64, resKey []byte) *CachedShard {
-	bc.RLock()
-	defer bc.RUnlock()
-	return bc.Shards.SearchPrevShard(group, resKey)
-}
-
-// ScanRange scans resources intersecting [start key, end key), returns at most
-// `limit` resources. limit <= 0 means no limit.
+// ScanRange scans shards intersecting [start key, end key), returns at most
+// `limit` shards. limit <= 0 means no limit.
 func (bc *BasicCluster) ScanRange(group uint64, startKey, endKey []byte, limit int) []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.ScanRange(group, startKey, endKey, limit)
 }
 
-// GetDestroyingShards returns all resources in destroying state
+// GetDestroyingShards returns all shards in destroying state
 func (bc *BasicCluster) GetDestroyingShards() []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
 	return bc.Shards.GetDestroyingShards()
 }
 
-// GetOverlaps returns the resources which are overlapped with the specified resource range.
+// GetOverlaps returns the shards which are overlapped with the specified resource range.
 func (bc *BasicCluster) GetOverlaps(res *CachedShard) []*CachedShard {
 	bc.RLock()
 	defer bc.RUnlock()
@@ -579,7 +565,7 @@ func (bc *BasicCluster) GetShardGroupRuleCount() int {
 	return len(bc.ScheduleGroupRules)
 }
 
-// ShardSetInformer provides access to a shared informer of resources.
+// ShardSetInformer provides access to a shared informer of shards.
 type ShardSetInformer interface {
 	GetScheduleGroupKeys() []string
 	GetScheduleGroupKeysWithPrefix(prefix string) []string
@@ -596,7 +582,7 @@ type ShardSetInformer interface {
 	GetShardByKey(group uint64, resKey []byte) *CachedShard
 }
 
-// StoreSetInformer provides access to a shared informer of containers.
+// StoreSetInformer provides access to a shared informer of stores.
 type StoreSetInformer interface {
 	GetStores() []*CachedStore
 	GetStore(id uint64) *CachedStore
@@ -606,7 +592,7 @@ type StoreSetInformer interface {
 	GetLeaderStore(res *CachedShard) *CachedStore
 }
 
-// StoreSetController is used to control containers' status.
+// StoreSetController is used to control stores' status.
 type StoreSetController interface {
 	PauseLeaderTransfer(id uint64) error
 	ResumeLeaderTransfer(id uint64)

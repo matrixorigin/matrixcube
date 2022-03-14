@@ -16,28 +16,28 @@ package core
 
 import (
 	"bytes"
-	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"math/rand"
 	"time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/util/btree"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-var _ btree.Item = &resourceItem{}
+var _ btree.Item = &shardItem{}
 
-type resourceItem struct {
-	res *CachedShard
+type shardItem struct {
+	shard *CachedShard
 }
 
 // Less returns true if the resource start key is less than the other.
-func (r *resourceItem) Less(other btree.Item) bool {
-	left := r.res.GetStartKey()
-	right := other.(*resourceItem).res.GetStartKey()
+func (r *shardItem) Less(other btree.Item) bool {
+	left := r.shard.GetStartKey()
+	right := other.(*shardItem).shard.GetStartKey()
 	return bytes.Compare(left, right) < 0
 }
 
-func (r *resourceItem) Contains(key []byte) bool {
-	start, end := r.res.GetStartKey(), r.res.GetEndKey()
+func (r *shardItem) Contains(key []byte) bool {
+	start, end := r.shard.GetStartKey(), r.shard.GetEndKey()
 	return bytes.Compare(key, start) >= 0 && (len(end) == 0 || bytes.Compare(key, end) < 0)
 }
 
@@ -45,36 +45,34 @@ const (
 	defaultBTreeDegree = 64
 )
 
-type resourceTree struct {
+type shardTree struct {
 	tree *btree.BTree
 }
 
-func newShardTree() *resourceTree {
-	return &resourceTree{
+func newShardTree() *shardTree {
+	return &shardTree{
 		tree: btree.New(defaultBTreeDegree),
 	}
 }
 
-func (t *resourceTree) newSearchRes(key []byte) *CachedShard {
-	meta := metapb.Shard{}
-	meta.SetStartKey(key)
-	return &CachedShard{Meta: meta}
+func (t *shardTree) newSearchRes(key []byte) *CachedShard {
+	return &CachedShard{Meta: metapb.Shard{Start: key}}
 }
 
-func (t *resourceTree) length() int {
+func (t *shardTree) length() int {
 	return t.tree.Len()
 }
 
-// getOverlaps gets the resources which are overlapped with the specified resource range.
-func (t *resourceTree) getOverlaps(res *CachedShard) []*CachedShard {
-	item := &resourceItem{res: res}
+// getOverlaps gets the shards which are overlapped with the specified resource range.
+func (t *shardTree) getOverlaps(res *CachedShard) []*CachedShard {
+	item := &shardItem{shard: res}
 
 	// note that find() gets the last item that is less or equal than the resource.
 	// in the case: |_______a_______|_____b_____|___c___|
 	// new resource is   |______d______|
-	// find() will return resourceItem of resource_a
+	// find() will return shardItem of resource_a
 	// and both startKey of resource_a and resource_b are less than endKey of resource_d,
-	// thus they are regarded as overlapped resources.
+	// thus they are regarded as overlapped shards.
 	result := t.find(res)
 	if result == nil {
 		result = item
@@ -82,26 +80,26 @@ func (t *resourceTree) getOverlaps(res *CachedShard) []*CachedShard {
 
 	var overlaps []*CachedShard
 	t.tree.AscendGreaterOrEqual(result, func(i btree.Item) bool {
-		over := i.(*resourceItem)
-		if len(res.GetEndKey()) > 0 && bytes.Compare(res.GetEndKey(), over.res.GetStartKey()) <= 0 {
+		over := i.(*shardItem)
+		if len(res.GetEndKey()) > 0 && bytes.Compare(res.GetEndKey(), over.shard.GetStartKey()) <= 0 {
 			return false
 		}
-		overlaps = append(overlaps, over.res)
+		overlaps = append(overlaps, over.shard)
 		return true
 	})
 	return overlaps
 }
 
 // update updates the tree with the resource.
-// It finds and deletes all the overlapped resources first, and then
+// It finds and deletes all the overlapped shards first, and then
 // insert the resource.
-func (t *resourceTree) update(res *CachedShard) []*CachedShard {
+func (t *shardTree) update(res *CachedShard) []*CachedShard {
 	overlaps := t.getOverlaps(res)
 	for _, item := range overlaps {
-		t.tree.Delete(&resourceItem{item})
+		t.tree.Delete(&shardItem{item})
 	}
 
-	t.tree.ReplaceOrInsert(&resourceItem{res: res})
+	t.tree.ReplaceOrInsert(&shardItem{shard: res})
 
 	return overlaps
 }
@@ -109,12 +107,12 @@ func (t *resourceTree) update(res *CachedShard) []*CachedShard {
 // remove removes a resource if the resource is in the tree.
 // It will do nothing if it cannot find the resource or the found resource
 // is not the same with the resource.
-func (t *resourceTree) remove(res *CachedShard) btree.Item {
+func (t *shardTree) remove(res *CachedShard) btree.Item {
 	if t.length() == 0 {
 		return nil
 	}
 	result := t.find(res)
-	if result == nil || result.res.Meta.GetID() != res.Meta.GetID() {
+	if result == nil || result.shard.Meta.GetID() != res.Meta.GetID() {
 		return nil
 	}
 
@@ -122,40 +120,40 @@ func (t *resourceTree) remove(res *CachedShard) btree.Item {
 }
 
 // search returns a resource that contains the key.
-func (t *resourceTree) search(resKey []byte) *CachedShard {
+func (t *shardTree) search(resKey []byte) *CachedShard {
 	res := t.newSearchRes(resKey)
 	result := t.find(res)
 	if result == nil {
 		return nil
 	}
-	return result.res
+	return result.shard
 }
 
 // searchPrev returns the previous resource of the resource where the resourceKey is located.
-func (t *resourceTree) searchPrev(resKey []byte) *CachedShard {
+func (t *shardTree) searchPrev(resKey []byte) *CachedShard {
 	curRes := t.newSearchRes(resKey)
 	curResItem := t.find(curRes)
 	if curResItem == nil {
 		return nil
 	}
-	prevShardItem, _ := t.getAdjacentShards(curResItem.res)
+	prevShardItem, _ := t.getAdjacentShards(curResItem.shard)
 	if prevShardItem == nil {
 		return nil
 	}
-	if !bytes.Equal(prevShardItem.res.GetEndKey(), curResItem.res.GetStartKey()) {
+	if !bytes.Equal(prevShardItem.shard.GetEndKey(), curResItem.shard.GetStartKey()) {
 		return nil
 	}
-	return prevShardItem.res
+	return prevShardItem.shard
 }
 
-// find is a helper function to find an item that contains the resources start
+// find is a helper function to find an item that contains the shards start
 // key.
-func (t *resourceTree) find(res *CachedShard) *resourceItem {
-	item := &resourceItem{res: res}
+func (t *shardTree) find(res *CachedShard) *shardItem {
+	item := &shardItem{shard: res}
 
-	var result *resourceItem
+	var result *shardItem
 	t.tree.DescendLessOrEqual(item, func(i btree.Item) bool {
-		result = i.(*resourceItem)
+		result = i.(*shardItem)
 		return false
 	})
 
@@ -168,40 +166,40 @@ func (t *resourceTree) find(res *CachedShard) *resourceItem {
 
 // scanRage scans from the first resource containing or behind the start key
 // until f return false
-func (t *resourceTree) scanRange(startKey []byte, f func(*CachedShard) bool) {
+func (t *shardTree) scanRange(startKey []byte, f func(*CachedShard) bool) {
 	res := t.newSearchRes(startKey)
 	// find if there is a resource with key range [s, d), s < startKey < d
 	startItem := t.find(res)
 	if startItem == nil {
-		startItem = &resourceItem{res: t.newSearchRes(startKey)}
+		startItem = &shardItem{shard: t.newSearchRes(startKey)}
 	}
 	t.tree.AscendGreaterOrEqual(startItem, func(item btree.Item) bool {
-		return f(item.(*resourceItem).res)
+		return f(item.(*shardItem).shard)
 	})
 }
 
-func (t *resourceTree) getAdjacentShards(res *CachedShard) (*resourceItem, *resourceItem) {
-	item := &resourceItem{res: t.newSearchRes(res.GetStartKey())}
-	var prev, next *resourceItem
+func (t *shardTree) getAdjacentShards(res *CachedShard) (*shardItem, *shardItem) {
+	item := &shardItem{shard: t.newSearchRes(res.GetStartKey())}
+	var prev, next *shardItem
 	t.tree.AscendGreaterOrEqual(item, func(i btree.Item) bool {
-		if bytes.Equal(item.res.GetStartKey(), i.(*resourceItem).res.GetStartKey()) {
+		if bytes.Equal(item.shard.GetStartKey(), i.(*shardItem).shard.GetStartKey()) {
 			return true
 		}
-		next = i.(*resourceItem)
+		next = i.(*shardItem)
 		return false
 	})
 	t.tree.DescendLessOrEqual(item, func(i btree.Item) bool {
-		if bytes.Equal(item.res.GetStartKey(), i.(*resourceItem).res.GetStartKey()) {
+		if bytes.Equal(item.shard.GetStartKey(), i.(*shardItem).shard.GetStartKey()) {
 			return true
 		}
-		prev = i.(*resourceItem)
+		prev = i.(*shardItem)
 		return false
 	})
 	return prev, next
 }
 
 // RandomShard is used to get a random resource within ranges.
-func (t *resourceTree) RandomShard(ranges []KeyRange) *CachedShard {
+func (t *shardTree) RandomShard(ranges []KeyRange) *CachedShard {
 	if t.length() == 0 {
 		return nil
 	}
@@ -213,17 +211,17 @@ func (t *resourceTree) RandomShard(ranges []KeyRange) *CachedShard {
 	for _, i := range rand.Perm(len(ranges)) {
 		var endIndex int
 		startKey, endKey := ranges[i].StartKey, ranges[i].EndKey
-		startShard, startIndex := t.tree.GetWithIndex(&resourceItem{res: t.newSearchRes(startKey)})
+		startShard, startIndex := t.tree.GetWithIndex(&shardItem{shard: t.newSearchRes(startKey)})
 
 		if len(endKey) != 0 {
-			_, endIndex = t.tree.GetWithIndex(&resourceItem{res: t.newSearchRes(endKey)})
+			_, endIndex = t.tree.GetWithIndex(&shardItem{shard: t.newSearchRes(endKey)})
 		} else {
 			endIndex = t.tree.Len()
 		}
 
 		// Consider that the item in the tree may not be continuous,
 		// we need to check if the previous item contains the key.
-		if startIndex != 0 && startShard == nil && t.tree.GetAt(startIndex-1).(*resourceItem).Contains(startKey) {
+		if startIndex != 0 && startShard == nil && t.tree.GetAt(startIndex-1).(*shardItem).Contains(startKey) {
 			startIndex--
 		}
 
@@ -231,7 +229,7 @@ func (t *resourceTree) RandomShard(ranges []KeyRange) *CachedShard {
 			continue
 		}
 		index := rand.Intn(endIndex-startIndex) + startIndex
-		res := t.tree.GetAt(index).(*resourceItem).res
+		res := t.tree.GetAt(index).(*shardItem).shard
 		if isInvolved(res, startKey, endKey) {
 			return res
 		}

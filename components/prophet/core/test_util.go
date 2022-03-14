@@ -20,10 +20,10 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// SplitTestShards split a set of CachedShard by the middle of resourceKey
-func SplitTestShards(resources []*CachedShard) []*CachedShard {
-	results := make([]*CachedShard, 0, len(resources)*2)
-	for _, res := range resources {
+// SplitTestShards split a set of CachedShard by the middle of shardKey
+func SplitTestShards(shards []*CachedShard) []*CachedShard {
+	results := make([]*CachedShard, 0, len(shards)*2)
+	for _, res := range shards {
 		resStart, resEnd := res.Meta.GetRange()
 		start, end := byte(0), byte(math.MaxUint8)
 		if len(resStart) > 0 {
@@ -35,14 +35,14 @@ func SplitTestShards(resources []*CachedShard) []*CachedShard {
 		middle := []byte{start/2 + end/2}
 
 		left := res.Clone()
-		left.Meta.SetID(res.Meta.GetID() + uint64(len(resources)))
+		left.Meta.SetID(res.Meta.GetID() + uint64(len(shards)))
 		left.Meta.SetEndKey(middle)
 		epoch := left.Meta.GetEpoch()
 		epoch.Generation++
 		left.Meta.SetEpoch(epoch)
 
 		right := res.Clone()
-		right.Meta.SetID(res.Meta.GetID() + uint64(len(resources)*2))
+		right.Meta.SetID(res.Meta.GetID() + uint64(len(shards)*2))
 		right.Meta.SetStartKey(middle)
 		epoch = right.Meta.GetEpoch()
 		epoch.Generation++
@@ -52,21 +52,21 @@ func SplitTestShards(resources []*CachedShard) []*CachedShard {
 	return results
 }
 
-// MergeTestShards merge a set of CachedShard by resourceKey
-func MergeTestShards(resources []*CachedShard) []*CachedShard {
-	results := make([]*CachedShard, 0, len(resources)/2)
-	for i := 0; i < len(resources); i += 2 {
-		left := resources[i]
-		right := resources[i]
-		if i+1 < len(resources) {
-			right = resources[i+1]
+// MergeTestShards merge a set of CachedShard by shardKey
+func MergeTestShards(shards []*CachedShard) []*CachedShard {
+	results := make([]*CachedShard, 0, len(shards)/2)
+	for i := 0; i < len(shards); i += 2 {
+		left := shards[i]
+		right := shards[i]
+		if i+1 < len(shards) {
+			right = shards[i+1]
 		}
 
 		leftStart, _ := left.Meta.GetRange()
 		_, rightEnd := right.Meta.GetRange()
 		res := &CachedShard{
 			Meta: metapb.Shard{
-				ID:    left.Meta.GetID() + uint64(len(resources)),
+				ID:    left.Meta.GetID() + uint64(len(shards)),
 				Start: leftStart,
 				End:   rightEnd,
 			},
@@ -96,8 +96,8 @@ func NewTestCachedShard(start, end []byte) *CachedShard {
 	}
 }
 
-// NewTestStoreInfoWithLabel is create a container with specified labels.
-func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]string) *CachedStore {
+// NewTestStoreInfoWithLabel creates a store with specified labels.
+func NewTestStoreInfoWithLabel(id uint64, shardCount int, labels map[string]string) *CachedStore {
 	containerLabels := make([]metapb.Label, 0, len(labels))
 	for k, v := range labels {
 		containerLabels = append(containerLabels, metapb.Label{
@@ -111,30 +111,14 @@ func NewTestStoreInfoWithLabel(id uint64, resourceCount int, labels map[string]s
 	container := NewCachedStore(
 		metapb.Store{ID: id, Labels: containerLabels},
 		SetStoreStats(stats),
-		SetShardCount("", resourceCount),
-		SetShardSize("", int64(resourceCount)*10),
+		SetShardCount("", shardCount),
+		SetShardSize("", int64(shardCount)*10),
 	)
 	return container
 }
 
-// NewTestCachedStoreWithSizeCount is create a container with size and count.
-func NewTestCachedStoreWithSizeCount(id uint64, resourceCount, leaderCount int, resourceSize, leaderSize int64) *CachedStore {
-	stats := &metapb.StoreStats{}
-	stats.Capacity = uint64(1024)
-	stats.Available = uint64(1024)
-	container := NewCachedStore(
-		metapb.Store{ID: id},
-		SetStoreStats(stats),
-		SetShardCount("", resourceCount),
-		SetShardSize("", resourceSize),
-		SetLeaderCount("", leaderCount),
-		SetLeaderSize("", leaderSize),
-	)
-	return container
-}
-
-func newTestShardItem(start, end []byte) *resourceItem {
-	return &resourceItem{res: NewTestCachedShard(start, end)}
+func newTestShardItem(start, end []byte) *shardItem {
+	return &shardItem{shard: NewTestCachedShard(start, end)}
 }
 
 func newShardWithStat(start, end string, size, keys int64) *CachedShard {

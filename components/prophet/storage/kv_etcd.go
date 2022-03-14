@@ -126,23 +126,6 @@ func (s *etcdKV) LoadRange(key, endKey string, limit int64) ([]string, []string,
 	return keys, values, nil
 }
 
-func (s *etcdKV) CountRange(key, endKey string) (uint64, error) {
-	// Note: reason to use `strings.Join` instead of `path.Join` is that the latter will
-	// removes suffix '/' of the joined string.
-	// As a result, when we try to scan from "foo/", it ends up scanning from "/pd/foo"
-	// internally, and returns unexpected keys such as "foo_bar/baz".
-	key = strings.Join([]string{key}, "/")
-	endKey = strings.Join([]string{endKey}, "/")
-
-	withRange := clientv3.WithRange(endKey)
-	resp, err := util.GetEtcdResp(s.client, key, withRange, clientv3.WithCountOnly())
-	if err != nil {
-		return 0, err
-	}
-
-	return uint64(resp.Count), nil
-}
-
 func (s *etcdKV) SaveIfNotExists(key string, value string, batch *Batch) (bool, string, error) {
 	var ops []clientv3.Op
 	ops = append(ops, clientv3.OpPut(key, value))
@@ -174,44 +157,4 @@ func (s *etcdKV) SaveIfNotExists(key string, value string, batch *Batch) (bool, 
 	}
 
 	return true, "", nil
-}
-
-func (s *etcdKV) RemoveIfValueMatched(key string, expect string) (bool, error) {
-	resp, err := util.Txn(s.client).
-		If(clientv3.Compare(clientv3.Value(key), "=", string(expect))).
-		Then(clientv3.OpDelete(key)).
-		Commit()
-	if err != nil {
-		return false, err
-	}
-
-	if !resp.Succeeded {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (s *etcdKV) SaveWithoutLeader(key, value string) error {
-	var ops []clientv3.Op
-	ops = append(ops, clientv3.OpPut(key, value))
-
-	_, err := util.Txn(s.client).Then(ops...).Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *etcdKV) RemoveWithoutLeader(key string) error {
-	var ops []clientv3.Op
-	ops = append(ops, clientv3.OpDelete(key))
-
-	_, err := util.Txn(s.client).Then(ops...).Commit()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -238,7 +238,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres metapb.Shard) {
+			c.core.ForeachWaitingCreateShards(func(wres metapb.Shard) {
 				if wres.GetUnique() == res.GetUnique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
@@ -296,7 +296,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		return nil, err
 	}
 
-	c.core.AddWaittingCreateShards(createdShards...)
+	c.core.AddWaitingCreateShards(createdShards...)
 	c.triggerNotifyCreateShards()
 	return &rpcpb.CreateShardsRsp{}, nil
 }
@@ -401,7 +401,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res metapb.Shard) {
+	c.core.ForeachWaitingCreateShards(func(res metapb.Shard) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }

@@ -65,13 +65,13 @@ func TestCreateShards(t *testing.T) {
 	cluster.addShardStore(3, 1)
 	_, err = cluster.HandleCreateShards(req)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(cluster.core.WaittingCreateShards))
+	assert.Equal(t, 1, len(cluster.core.WaitingCreateShards))
 	assert.Equal(t, 0, cluster.GetShardCount())
 
 	// recreate
 	_, err = cluster.HandleCreateShards(req)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(cluster.core.WaittingCreateShards))
+	assert.Equal(t, 1, len(cluster.core.WaitingCreateShards))
 	assert.Equal(t, 0, cluster.GetShardCount())
 
 	cluster.doNotifyCreateShards()
@@ -79,14 +79,14 @@ func TestCreateShards(t *testing.T) {
 	assert.Equal(t, event.EventShard, e.Type)
 	assert.True(t, e.ShardEvent.Create)
 
-	for _, res := range cluster.core.WaittingCreateShards {
+	for _, res := range cluster.core.WaitingCreateShards {
 		v, err := cluster.storage.GetShard(res.GetID())
 		assert.NoError(t, err)
 		assert.Equal(t, metapb.ShardState_Creating, v.GetState())
 
 		assert.NoError(t, cluster.HandleShardHeartbeat(core.NewCachedShard(res, &res.GetReplicas()[0])))
 		assert.Equal(t, 1, cluster.GetShardCount())
-		assert.Equal(t, 0, len(cluster.core.WaittingCreateShards))
+		assert.Equal(t, 0, len(cluster.core.WaitingCreateShards))
 		assert.NotNil(t, changedRes)
 		assert.Equal(t, changedResFrom, metapb.ShardState_Creating)
 		assert.Equal(t, changedResTo, metapb.ShardState_Running)
@@ -118,7 +118,7 @@ func TestCreateShardsRestart(t *testing.T) {
 	// restart
 	tc := newTestRaftCluster(cluster.GetOpts(), cluster.storage, core.NewBasicCluster(nil))
 	tc.LoadClusterInfo()
-	assert.Equal(t, 1, len(tc.core.WaittingCreateShards))
+	assert.Equal(t, 1, len(tc.core.WaitingCreateShards))
 	tc.doNotifyCreateShards()
 	e := <-tc.ChangedEventNotifier()
 	assert.Equal(t, event.EventShard, e.Type)

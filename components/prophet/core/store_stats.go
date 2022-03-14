@@ -22,7 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-type containerStats struct {
+type storeStats struct {
 	mu       sync.RWMutex
 	rawStats *metapb.StoreStats
 
@@ -36,8 +36,8 @@ type containerStats struct {
 	avgMaxAvailableDeviation *movingaverage.HMA
 }
 
-func newStoreStats() *containerStats {
-	return &containerStats{
+func newStoreStats() *storeStats {
+	return &storeStats{
 		rawStats:                 &metapb.StoreStats{},
 		avgAvailable:             movingaverage.NewHMA(240),       // take 40 minutes sample under 10s heartbeat rate
 		maxAvailableDeviation:    movingaverage.NewMaxFilter(120), // take 20 minutes sample under 10s heartbeat rate
@@ -45,7 +45,7 @@ func newStoreStats() *containerStats {
 	}
 }
 
-func (ss *containerStats) updateRawStats(rawStats *metapb.StoreStats) {
+func (ss *storeStats) updateRawStats(rawStats *metapb.StoreStats) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	ss.rawStats = rawStats
@@ -61,98 +61,98 @@ func (ss *containerStats) updateRawStats(rawStats *metapb.StoreStats) {
 }
 
 // GetStoreStats returns the statistics information of the container.
-func (ss *containerStats) GetStoreStats() *metapb.StoreStats {
+func (ss *storeStats) GetStoreStats() *metapb.StoreStats {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats
 }
 
 // GetCapacity returns the capacity size of the container.
-func (ss *containerStats) GetCapacity() uint64 {
+func (ss *storeStats) GetCapacity() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetCapacity()
 }
 
 // GetAvailable returns the available size of the container.
-func (ss *containerStats) GetAvailable() uint64 {
+func (ss *storeStats) GetAvailable() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetAvailable()
 }
 
 // GetUsedSize returns the used size of the container.
-func (ss *containerStats) GetUsedSize() uint64 {
+func (ss *storeStats) GetUsedSize() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetUsedSize()
 }
 
 // GetUsedRatio returns the used ratio of the container.
-func (ss *containerStats) GetUsedRatio() float64 {
+func (ss *storeStats) GetUsedRatio() float64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return float64(ss.rawStats.GetUsedSize()) / float64(ss.rawStats.GetCapacity())
 }
 
 // GetBytesWritten returns the bytes written for the container during this period.
-func (ss *containerStats) GetBytesWritten() uint64 {
+func (ss *storeStats) GetBytesWritten() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetWrittenBytes()
 }
 
 // GetBytesRead returns the bytes read for the container during this period.
-func (ss *containerStats) GetBytesRead() uint64 {
+func (ss *storeStats) GetBytesRead() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReadBytes()
 }
 
 // GetKeysWritten returns the keys written for the container during this period.
-func (ss *containerStats) GetKeysWritten() uint64 {
+func (ss *storeStats) GetKeysWritten() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetWrittenKeys()
 }
 
 // GetKeysRead returns the keys read for the container during this period.
-func (ss *containerStats) GetKeysRead() uint64 {
+func (ss *storeStats) GetKeysRead() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReadKeys()
 }
 
 // IsBusy returns if the container is busy.
-func (ss *containerStats) IsBusy() bool {
+func (ss *storeStats) IsBusy() bool {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetIsBusy()
 }
 
 // GetSendingSnapCount returns the current sending snapshot count of the container.
-func (ss *containerStats) GetSendingSnapCount() uint64 {
+func (ss *storeStats) GetSendingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetSendingSnapCount()
 }
 
 // GetReceivingSnapCount returns the current receiving snapshot count of the container.
-func (ss *containerStats) GetReceivingSnapCount() uint64 {
+func (ss *storeStats) GetReceivingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReceivingSnapCount()
 }
 
 // GetApplyingSnapCount returns the current applying snapshot count of the container.
-func (ss *containerStats) GetApplyingSnapCount() uint64 {
+func (ss *storeStats) GetApplyingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetApplyingSnapCount()
 }
 
 // GetAvgAvailable returns available size after the spike changes has been smoothed.
-func (ss *containerStats) GetAvgAvailable() uint64 {
+func (ss *storeStats) GetAvgAvailable() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	if ss.avgAvailable == nil {
@@ -162,7 +162,7 @@ func (ss *containerStats) GetAvgAvailable() uint64 {
 }
 
 // GetAvailableDeviation returns approximate magnitude of available in the recent period.
-func (ss *containerStats) GetAvailableDeviation() uint64 {
+func (ss *storeStats) GetAvailableDeviation() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	if ss.avgMaxAvailableDeviation == nil {

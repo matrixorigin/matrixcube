@@ -455,7 +455,7 @@ func TestIssue3293(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	s.cluster.DeleteStore(s.cluster.TakeStore(5))
+	s.cluster.DeleteStore(s.cluster.GetStore(5))
 	err = s.ruleManager.SetRule(&placement.Rule{
 		GroupID: "DDL_51",
 		ID:      "default",
