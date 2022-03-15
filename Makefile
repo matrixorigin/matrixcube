@@ -83,9 +83,9 @@ test-raftstore:
 test-all-raftstore: override SHORT_ONLY :=
 test-all-raftstore: test-raftstore
 
-.PHONY: test-server
-test-server:
-	$(GOTEST) $(PKGNAME)/server
+.PHONY: test-client
+test-client:
+	$(GOTEST) $(PKGNAME)/client
 
 .PHONY: test-transport
 test-transport:
@@ -103,7 +103,7 @@ test-prophet:
 integration-test: test-all-raftstore
 
 .PHONY: components-unit-test
-components-unit-test: test-storage test-logdb test-server test-transport test-keys \
+components-unit-test: test-storage test-logdb test-client test-transport test-keys \
   test-snapshot test-prophet
 
 .PHONY: test
