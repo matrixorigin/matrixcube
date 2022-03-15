@@ -27,7 +27,7 @@ func (p *defaultProphet) startElectionLoop() {
 func (p *defaultProphet) becomeLeader() error {
 	p.logger.Info("********become leader now********")
 
-	if err := p.createRaftCluster(); err != nil {
+	if err := p.startRaftCluster(); err != nil {
 		p.logger.Error("fail to create raft cluster", zap.Error(err))
 		return err
 	}
@@ -60,7 +60,7 @@ func (p *defaultProphet) notifyElectionComplete() {
 	})
 }
 
-func (p *defaultProphet) createRaftCluster() error {
+func (p *defaultProphet) startRaftCluster() error {
 	if p.cluster.IsRunning() {
 		return nil
 	}

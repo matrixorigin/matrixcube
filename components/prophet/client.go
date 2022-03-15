@@ -80,7 +80,7 @@ type Client interface {
 	// AddSchedulingRule Add scheduling rules, scheduling rules are effective for all schedulers.
 	// The scheduling rules are based on the Label of the Shard to group all resources and do
 	// scheduling independently for these grouped resources.`ruleName` is unique within the group.
-	AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error
+	AddSchedulingRule(groupID uint64, ruleName string, labelName string) error
 	// GetSchedulingRules get all schedule group rules
 	GetSchedulingRules() ([]metapb.ScheduleGroupRule, error)
 
@@ -457,16 +457,16 @@ func (c *asyncClient) GetAppliedRules(id uint64) ([]rpcpb.PlacementRule, error) 
 	return rsp.GetAppliedRules.Rules, nil
 }
 
-func (c *asyncClient) AddSchedulingRule(group uint64, ruleName string, groupByLabel string) error {
+func (c *asyncClient) AddSchedulingRule(groupID uint64, ruleName string, labelName string) error {
 	if !c.running() {
 		return ErrClosed
 	}
 
 	req := &rpcpb.ProphetRequest{}
 	req.Type = rpcpb.TypeAddScheduleGroupRuleReq
-	req.AddScheduleGroupRule.Rule.GroupID = group
+	req.AddScheduleGroupRule.Rule.GroupID = groupID
 	req.AddScheduleGroupRule.Rule.Name = ruleName
-	req.AddScheduleGroupRule.Rule.GroupByLabel = groupByLabel
+	req.AddScheduleGroupRule.Rule.GroupByLabel = labelName
 
 	_, err := c.syncDo(req)
 	if err != nil {

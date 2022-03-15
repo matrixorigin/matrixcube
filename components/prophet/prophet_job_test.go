@@ -86,14 +86,24 @@ func (p *testJobProcessor) Execute([]byte, storage.JobStorage, config.ShardsAwar
 }
 
 func TestStartAndStopAndRemoveJobs(t *testing.T) {
-	cluster := newTestClusterProphet(t, 3, nil)
+	clusterSize := 3
+	cluster := newTestClusterProphet(t, clusterSize, nil)
 	defer func() {
 		for _, p := range cluster {
 			p.Stop()
 		}
 	}()
 
-	p := cluster[0].(*defaultProphet)
+	var leader Prophet
+	for i := 0; i < clusterSize; i++ {
+		if cluster[i].GetMember().ID() == cluster[i].GetLeader().ID {
+			leader = cluster[i]
+			break
+		}
+	}
+	assert.NotNil(t, leader)
+
+	p := leader.(*defaultProphet)
 	rc := p.GetRaftCluster()
 	jp := newTestJobProcessor()
 	p.cfg.Prophet.RegisterJobProcessor(metapb.JobType(1), jp)
