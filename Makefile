@@ -98,6 +98,9 @@ test-keys:
 .PHONY: test-prophet
 test-prophet:
 	$(GOTEST) $(PKGNAME)/components/prophet
+	$(GOTEST) $(PKGNAME)/components/prophet/id
+	$(GOTEST) $(PKGNAME)/components/prophet/storage
+	$(GOTEST) $(PKGNAME)/components/prophet/core
 
 .PHONY: integration-test
 integration-test: test-all-raftstore

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
@@ -218,7 +219,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetStore failed")
+	assert.NoError(t, err, "TestPutAndDeleteAndLoadJobs failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
@@ -252,4 +253,50 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 		c++
 	}))
 	assert.Equal(t, 0, c)
+}
+
+func TestScheduleGroupRule(t *testing.T) {
+	stopC, port := mock.StartTestSingleEtcd(t)
+	defer close(stopC)
+
+	client := mock.NewEtcdClient(t, port)
+	defer client.Close()
+
+	e, err := election.NewElector(client)
+	assert.NoError(t, err, "TestScheduleGroupRule failed")
+	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
+	defer ls.Stop()
+
+	ls.ElectionLoop()
+	time.Sleep(time.Millisecond * 200)
+
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
+	// try to add 10 rules
+	for id := 10; id < 20; id++ {
+		rule := metapb.ScheduleGroupRule{
+			ID:           uint64(id),
+			GroupID:      uint64(id),
+			Name:         "RuleTable",
+			GroupByLabel: "LabelTable",
+		}
+		err = storage.PutScheduleGroupRule(rule)
+		assert.NoError(t, err)
+
+		// duplicated add
+		err = storage.PutScheduleGroupRule(rule)
+		assert.NoError(t, err)
+	}
+
+	ruleCache := core.NewScheduleGroupRuleCache()
+	err = storage.LoadScheduleGroupRules(256, func(rule metapb.ScheduleGroupRule) {
+		ruleCache.AddRule(rule)
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, ruleCache.RuleCount(), 10)
 }

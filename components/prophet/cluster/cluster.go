@@ -299,6 +299,9 @@ func (c *RaftCluster) Stop() {
 	}
 
 	c.running = false
+	if c.core != nil {
+		c.core.Reset()
+	}
 	close(c.quit)
 	c.coordinator.stop()
 	c.Unlock()

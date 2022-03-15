@@ -30,7 +30,10 @@ type Generator interface {
 	AllocID() (uint64, error)
 }
 
-const idBatch uint64 = 512
+const (
+	idBatch         uint64 = 512
+	UninitializedID uint64 = 0
+)
 
 // etcdGenerator allocate ID based on etcd.
 type etcdGenerator struct {

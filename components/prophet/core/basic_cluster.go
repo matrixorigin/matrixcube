@@ -38,7 +38,7 @@ type BasicCluster struct {
 	DestroyedShards     *roaring64.Bitmap
 	WaitingCreateShards map[uint64]metapb.Shard
 	DestroyingStatuses  map[uint64]*metapb.DestroyingStatus
-	ScheduleGroupRules  []metapb.ScheduleGroupRule
+	ScheduleGroupRules  ScheduleGroupRuleCache
 	ScheduleGroupKeys   map[string]struct{}
 }
 
@@ -48,6 +48,7 @@ func NewBasicCluster(logger *zap.Logger) *BasicCluster {
 		logger:             log.Adjust(logger),
 		DestroyingStatuses: make(map[uint64]*metapb.DestroyingStatus),
 		ScheduleGroupKeys:  make(map[string]struct{}),
+		ScheduleGroupRules: NewScheduleGroupRuleCache(),
 	}
 	bc.Reset()
 	return bc
@@ -62,7 +63,7 @@ func (bc *BasicCluster) Reset() {
 	bc.Shards = NewCachedShards()
 	bc.DestroyedShards = roaring64.NewBitmap()
 	bc.WaitingCreateShards = make(map[uint64]metapb.Shard)
-	bc.ScheduleGroupRules = bc.ScheduleGroupRules[:0]
+	bc.ScheduleGroupRules.Clear()
 }
 
 // AddRemovedShards add removed shards
@@ -536,33 +537,13 @@ func (bc *BasicCluster) UpdateDestroyingStatus(id uint64, status *metapb.Destroy
 	bc.DestroyingStatuses[id] = status
 }
 
-func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule) bool {
-	bc.Lock()
-	defer bc.Unlock()
-
-	exists := false
-	for idx, r := range bc.ScheduleGroupRules {
-		if r.GroupID == rule.GroupID &&
-			r.Name == rule.Name {
-			exists = true
-			if r.GroupByLabel == rule.GroupByLabel {
-				return false
-			}
-			bc.ScheduleGroupRules[idx].GroupByLabel = rule.GroupByLabel
-			break
-		}
-	}
-	if !exists {
-		bc.ScheduleGroupRules = append(bc.ScheduleGroupRules, rule)
-	}
-	return true
+func (bc *BasicCluster) AddScheduleGroupRule(rule metapb.ScheduleGroupRule) error {
+	return bc.ScheduleGroupRules.AddRule(rule)
 }
 
 // GetShardGroupRuleCount gets the total count of group rules
 func (bc *BasicCluster) GetShardGroupRuleCount() int {
-	bc.RLock()
-	defer bc.RUnlock()
-	return len(bc.ScheduleGroupRules)
+	return bc.ScheduleGroupRules.RuleCount()
 }
 
 // ShardSetInformer provides access to a shared informer of shards.

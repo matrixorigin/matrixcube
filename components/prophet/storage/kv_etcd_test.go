@@ -109,9 +109,4 @@ func TestEtcdKV(t *testing.T) {
 	value, err = kv.Load(key3)
 	assert.NoError(t, err)
 	assert.Empty(t, value)
-
-	kv.Save(key1, key1)
-	value, err = kv.Load(key1)
-	assert.NoError(t, err)
-	assert.Empty(t, value)
 }
