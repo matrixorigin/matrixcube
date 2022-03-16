@@ -128,6 +128,32 @@ func TestCheckShardState(t *testing.T) {
 	assert.Equal(t, uint64(0), util.MustUnmarshalBM64(rsp.Destroyed).GetCardinality())
 }
 
+func TestScheduleGroupRule(t *testing.T) {
+	p := newTestSingleProphet(t, nil)
+	defer p.Stop()
+
+	c := p.GetClient()
+
+	ruleName := "RuleTable"
+	labelName := "LabelTable"
+
+	// try to add 10 rules
+	for id := 1; id <= 10; id++ {
+		var err error
+
+		err = c.AddSchedulingRule(uint64(id), ruleName, labelName)
+		assert.NoError(t, err)
+		// duplicated add
+		err = c.AddSchedulingRule(uint64(id), ruleName, labelName)
+		assert.NoError(t, err)
+	}
+
+	// get all rules
+	rules, err := c.GetSchedulingRules()
+	assert.NoError(t, err)
+	assert.Equal(t, 10, len(rules))
+}
+
 func TestPutPlacementRule(t *testing.T) {
 	p := newTestSingleProphet(t, nil)
 	defer p.Stop()
@@ -163,7 +189,8 @@ func TestPutPlacementRule(t *testing.T) {
 }
 
 func TestIssue106(t *testing.T) {
-	cluster := newTestClusterProphet(t, 3, func(c *config.Config) {
+	clusterSize := 3
+	cluster := newTestClusterProphet(t, clusterSize, func(c *config.Config) {
 		c.RPCTimeout.Duration = time.Millisecond * 200
 	})
 	defer func() {
@@ -172,9 +199,18 @@ func TestIssue106(t *testing.T) {
 		}
 	}()
 
-	cfg := cluster[0].GetConfig()
-	cli := cluster[0].GetClient()
-	assert.Equal(t, cluster[0].GetMember().ID(), cluster[0].GetLeader().ID)
+	var leader Prophet
+	for i := 0; i < clusterSize; i++ {
+		p := cluster[i]
+		if p.GetMember().ID() == p.GetLeader().ID {
+			leader = p
+			break
+		}
+	}
+	assert.NotNil(t, leader)
+
+	cfg := leader.GetConfig()
+	cli := leader.GetClient()
 	cfg.TestContext.EnableResponseNotLeader()
 	go func() {
 		time.Sleep(time.Millisecond * 50)

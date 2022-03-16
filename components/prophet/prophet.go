@@ -26,6 +26,7 @@ import (
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/join"
 	"github.com/matrixorigin/matrixcube/components/prophet/member"
 	"github.com/matrixorigin/matrixcube/components/prophet/option"
@@ -186,10 +187,9 @@ func (p *defaultProphet) Start() {
 	p.member.InitMemberInfo(p.cfg.Prophet.Name, p.cfg.Prophet.AdvertiseRPCAddr)
 	p.logger.Info("member init completed")
 
-	p.storage = storage.NewStorage(
-		rootPath,
-		storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership()),
-	)
+	kv := storage.NewEtcdKV(rootPath, p.elector.Client(), p.member.GetLeadership())
+	idGenerator := id.NewEtcdGenerator(rootPath, p.elector.Client(), p.member.GetLeadership())
+	p.storage = storage.NewStorage(rootPath, kv, idGenerator)
 	p.logger.Info("storage created")
 
 	p.basicCluster = core.NewBasicCluster(p.logger)

@@ -20,7 +20,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
-	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,13 +79,6 @@ func TestEtcdKV(t *testing.T) {
 	assert.Equal(t, 2, len(keys))
 	assert.Equal(t, 2, len(values))
 
-	cnt, err := kv.CountRange(key1, key3)
-	assert.NoError(t, err)
-	assert.Equal(t, uint64(2), cnt)
-	cnt, err = kv.CountRange("key/", util.GetPrefixRangeEnd("key/"))
-	assert.NoError(t, err)
-	assert.Equal(t, uint64(3), cnt)
-
 	kv.Remove(key1)
 	kv.Remove(key2)
 	kv.Remove(key3)
@@ -117,22 +109,4 @@ func TestEtcdKV(t *testing.T) {
 	value, err = kv.Load(key3)
 	assert.NoError(t, err)
 	assert.Empty(t, value)
-
-	kv.Save(key1, key1)
-	ok, err = kv.RemoveIfValueMatched(key1, key2)
-	assert.NoError(t, err)
-	assert.False(t, ok)
-	ok, err = kv.RemoveIfValueMatched(key1, key1)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-	value, err = kv.Load(key1)
-	assert.NoError(t, err)
-	assert.Empty(t, value)
-
-	n := uint64(idBatch) + 1
-	for i := uint64(1); i <= n; i++ {
-		id, err := kv.AllocID()
-		assert.NoError(t, err)
-		assert.Equal(t, i, id)
-	}
 }

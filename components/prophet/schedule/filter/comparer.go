@@ -27,8 +27,8 @@ type StoreComparer func(a, b *core.CachedStore) int
 // score.
 func ShardScoreComparer(groupKey string, opt *config.PersistOptions) StoreComparer {
 	return func(a, b *core.CachedStore) int {
-		sa := a.ShardScore(groupKey, opt.GetShardScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
-		sb := b.ShardScore(groupKey, opt.GetShardScoreFormulaVersion(), opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+		sa := a.ShardScore(groupKey, opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
+		sb := b.ShardScore(groupKey, opt.GetHighSpaceRatio(), opt.GetLowSpaceRatio(), 0, 0)
 		switch {
 		case sa > sb:
 			return 1

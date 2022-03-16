@@ -38,7 +38,7 @@ func WithState(state metapb.ShardState) ShardCreateOption {
 func WithDownPeers(downReplicas []metapb.ReplicaStats) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.downReplicas = append(downReplicas[:0:0], downReplicas...)
-		sort.Sort(peerStatsSlice(res.downReplicas))
+		sort.Sort(res.downReplicas)
 	}
 }
 
@@ -46,7 +46,7 @@ func WithDownPeers(downReplicas []metapb.ReplicaStats) ShardCreateOption {
 func WithPendingPeers(pendingReplicas []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.pendingReplicas = append(pendingReplicas[:0:0], pendingReplicas...)
-		sort.Sort(peerSlice(res.pendingReplicas))
+		sort.Sort(res.pendingReplicas)
 	}
 }
 
@@ -93,20 +93,6 @@ func WithNewShardID(id uint64) ShardCreateOption {
 	}
 }
 
-// WithNewPeerIds sets new ids for peers.
-func WithNewPeerIds(peerIDs ...uint64) ShardCreateOption {
-	return func(res *CachedShard) {
-		if len(peerIDs) != len(res.Meta.GetReplicas()) {
-			return
-		}
-
-		peers := res.Meta.GetReplicas()
-		for i := range peers {
-			peers[i].ID = peerIDs[i]
-		}
-	}
-}
-
 // WithIncVersion increases the version of the resource.
 func WithIncVersion() ShardCreateOption {
 	return func(res *CachedShard) {
@@ -130,15 +116,6 @@ func WithIncConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
 		e.ConfigVer++
-		res.Meta.SetEpoch(e)
-	}
-}
-
-// WithDecConfVer decreases the config version of the resource.
-func WithDecConfVer() ShardCreateOption {
-	return func(res *CachedShard) {
-		e := res.Meta.GetEpoch()
-		e.ConfigVer--
 		res.Meta.SetEpoch(e)
 	}
 }
@@ -205,32 +182,6 @@ func SetReportInterval(v uint64) ShardCreateOption {
 	}
 }
 
-// SetShardConfVer sets the config version for the resource.
-func SetShardConfVer(confVer uint64) ShardCreateOption {
-	return func(res *CachedShard) {
-		e := res.Meta.GetEpoch()
-		if e.Generation == 0 {
-			res.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: confVer, Generation: 1})
-		} else {
-			e.ConfigVer = confVer
-			res.Meta.SetEpoch(e)
-		}
-	}
-}
-
-// SetShardVersion sets the version for the resource.
-func SetShardVersion(version uint64) ShardCreateOption {
-	return func(res *CachedShard) {
-		e := res.Meta.GetEpoch()
-		if e.Generation == 0 {
-			res.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: 1, Generation: version})
-		} else {
-			e.Generation = version
-			res.Meta.SetEpoch(e)
-		}
-	}
-}
-
 // SetPeers sets the peers for the resource.
 func SetPeers(peers []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
@@ -275,12 +226,5 @@ func WithReplacePeerStore(oldStoreID, newStoreID uint64) ShardCreateOption {
 				peers[i].StoreID = newStoreID
 			}
 		}
-	}
-}
-
-// WithInterval sets the interval
-func WithInterval(interval *metapb.TimeInterval) ShardCreateOption {
-	return func(res *CachedShard) {
-		res.stats.Interval = interval
 	}
 }

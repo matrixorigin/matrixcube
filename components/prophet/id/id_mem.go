@@ -2,7 +2,7 @@
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// You may obtain alloc copy of the License at
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
@@ -11,16 +11,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package id
 
 import (
-	"github.com/matrixorigin/matrixcube/raftstore"
+	"sync"
 )
 
-// Cfg cfg
-type Cfg struct {
-	Store raftstore.Store
+// memGenerator allocate ID for test.
+type memGenerator struct {
+	sync.Mutex
 
-	// only testing can change
-	storeStarted bool
+	id uint64
+}
+
+// NewMemGenerator returns alloc ID allocator based on memory.
+func NewMemGenerator() Generator {
+	return &memGenerator{
+		id: 1,
+	}
+}
+
+// AllocID allocs alloc unique id.
+func (alloc *memGenerator) AllocID() (uint64, error) {
+	alloc.Lock()
+	defer alloc.Unlock()
+
+	alloc.id++
+	return alloc.id, nil
 }

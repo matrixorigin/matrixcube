@@ -33,8 +33,8 @@ type testShardsAware struct {
 	adjust func(*core.CachedShard) *core.CachedShard
 }
 
-func (tra *testShardsAware) ForeachWaittingCreateShards(do func(res metapb.Shard)) {
-	tra.aware.ForeachWaittingCreateShards(do)
+func (tra *testShardsAware) ForeachWaitingCreateShards(do func(res metapb.Shard)) {
+	tra.aware.ForeachWaitingCreateShards(do)
 }
 func (tra *testShardsAware) ForeachShards(group uint64, fn func(res metapb.Shard)) {
 	tra.aware.ForeachShards(group, fn)

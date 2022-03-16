@@ -20,6 +20,7 @@ import (
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule"
 	"github.com/matrixorigin/matrixcube/components/prophet/schedule/placement"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
@@ -238,7 +239,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			}
 		}
 		if create {
-			c.core.ForeachWaittingCreateShards(func(wres metapb.Shard) {
+			c.core.ForeachWaitingCreateShards(func(wres metapb.Shard) {
 				if wres.GetUnique() == res.GetUnique() {
 					create = false
 					c.logger.Info("resource already in waitting create queue",
@@ -251,7 +252,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 			continue
 		}
 
-		id, err := c.storage.KV().AllocID()
+		id, err := c.storage.AllocID()
 		if err != nil {
 			return nil, err
 		}
@@ -275,7 +276,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 
 		cachedShard.Meta.SetEpoch(metapb.ShardEpoch{ConfigVer: uint64(len(cachedShard.Meta.GetReplicas()))})
 		for idx := range cachedShard.Meta.GetReplicas() {
-			id, err := c.storage.KV().AllocID()
+			id, err := c.storage.AllocID()
 			if err != nil {
 				return nil, err
 			}
@@ -296,7 +297,7 @@ func (c *RaftCluster) HandleCreateShards(request *rpcpb.ProphetRequest) (*rpcpb.
 		return nil, err
 	}
 
-	c.core.AddWaittingCreateShards(createdShards...)
+	c.core.AddWaitingCreateShards(createdShards...)
 	c.triggerNotifyCreateShards()
 	return &rpcpb.CreateShardsRsp{}, nil
 }
@@ -374,21 +375,43 @@ func (c *RaftCluster) HandleAddScheduleGroupRule(request *rpcpb.ProphetRequest) 
 	c.RLock()
 	defer c.RUnlock()
 
-	id, err := c.AllocID()
-	if err != nil {
-		return err
+	// check RaftCluster running or not
+	if !c.running {
+		return util.ErrNotLeader
 	}
-	request.AddScheduleGroupRule.Rule.ID = id
-	if !c.core.AddScheduleGroupRule(request.AddScheduleGroupRule.Rule) {
+
+	// check whether or not to add the rule
+	shouldAdd, ruleID := c.core.ScheduleGroupRules.Precheck(request.AddScheduleGroupRule.Rule)
+	if !shouldAdd {
 		return nil
 	}
-	return c.storage.PutScheduleGroupRule(request.AddScheduleGroupRule.Rule)
+
+	// generate rule ID if necessary
+	if ruleID == id.UninitializedID {
+		newID, err := c.AllocID()
+		if err != nil {
+			return err
+		}
+		ruleID = newID
+	}
+	request.AddScheduleGroupRule.Rule.ID = ruleID
+
+	// sync with etcd
+	if err := c.storage.PutScheduleGroupRule(request.AddScheduleGroupRule.Rule); err != nil {
+		return err
+	}
+
+	// update cache, should always success
+	return c.core.AddScheduleGroupRule(request.AddScheduleGroupRule.Rule)
 }
 
 func (c *RaftCluster) HandleGetScheduleGroupRule(request *rpcpb.ProphetRequest) ([]metapb.ScheduleGroupRule, error) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.core.ScheduleGroupRules, nil
+	if !c.running {
+		return nil, util.ErrNotLeader
+	}
+	return c.core.ScheduleGroupRules.ListRules()
 }
 
 func (c *RaftCluster) triggerNotifyCreateShards() {
@@ -401,7 +424,7 @@ func (c *RaftCluster) triggerNotifyCreateShards() {
 }
 
 func (c *RaftCluster) doNotifyCreateShards() {
-	c.core.ForeachWaittingCreateShards(func(res metapb.Shard) {
+	c.core.ForeachWaitingCreateShards(func(res metapb.Shard) {
 		c.addNotifyLocked(event.NewShardEvent(res, 0, false, true))
 	})
 }

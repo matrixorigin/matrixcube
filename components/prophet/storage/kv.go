@@ -36,18 +36,8 @@ type KV interface {
 	Remove(key string) error
 	// LoadRange iterates all key-value pairs in the storage
 	LoadRange(key, endKey string, limit int64) ([]string, []string, error)
-	// CountRange count all key-value pairs in the storage
-	CountRange(key, endKey string) (uint64, error)
-	// AllocID allocate a id from kv
-	AllocID() (uint64, error)
 	// SaveIfNotExists put the value at path
 	// returns true, nil, nil if created
 	// returns false, exists, nil if not created
 	SaveIfNotExists(key string, value string, batch *Batch) (bool, string, error)
-	// RemoveIfValueMatched returns true if the expect value is and the exists value are matched
-	RemoveIfValueMatched(key string, expect string) (bool, error)
-	// SaveWithoutLeader save without leader
-	SaveWithoutLeader(key, value string) error
-	// RemoveWithoutLeader remove without leader
-	RemoveWithoutLeader(key string) error
 }

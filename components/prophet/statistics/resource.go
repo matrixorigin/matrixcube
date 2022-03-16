@@ -57,7 +57,7 @@ func (s *ShardStats) Observe(r *core.CachedShard) {
 	s.Count++
 	approximateKeys := r.GetApproximateKeys()
 	approximateSize := r.GetApproximateSize()
-	if approximateSize <= core.EmptyShardApproximateSize {
+	if approximateSize <= core.MinShardSize {
 		s.EmptyCount++
 	}
 	s.StorageSize += approximateSize

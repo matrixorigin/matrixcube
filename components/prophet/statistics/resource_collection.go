@@ -147,7 +147,7 @@ func (r *ShardStatistics) Observe(res *core.CachedShard, containers []*core.Cach
 		DownPeer:    len(res.GetDownPeers()) > 0,
 		PendingPeer: len(res.GetPendingPeers()) > 0,
 		LearnerPeer: len(res.GetLearners()) > 0,
-		EmptyShard:  res.GetApproximateSize() <= core.EmptyShardApproximateSize,
+		EmptyShard:  res.GetApproximateSize() <= core.MinShardSize,
 	}
 
 	for typ, c := range conditions {

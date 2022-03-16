@@ -24,6 +24,7 @@ import (
 
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
@@ -60,18 +61,6 @@ type RuleStorage interface {
 	RemoveRuleGroup(groupID string) error
 	// LoadRuleGroups load all rule groups
 	LoadRuleGroups(limit int64, f func(k, v string) error) error
-}
-
-// CustomDataStorage custom data storage
-type CustomDataStorage interface {
-	// PutCustomData puts the custom data to the storage
-	PutCustomData(key []byte, data []byte) error
-	// BatchPutCustomData batch puts the custom data to the storage
-	BatchPutCustomData(keys [][]byte, data [][]byte) error
-	// LoadCustomData load all custom data
-	LoadCustomData(limit int64, f func(k, v []byte) error) error
-	// RemoveCustomData remove custom data
-	RemoveCustomData(key []byte) error
 }
 
 // ShardStorage resource storage
@@ -140,7 +129,6 @@ type ClusterStorage interface {
 // Storage meta storage
 type Storage interface {
 	JobStorage
-	CustomDataStorage
 	RuleStorage
 	ConfigStorage
 	StoreStorage
@@ -150,10 +138,14 @@ type Storage interface {
 
 	// KV return KV storage
 	KV() KV
+
+	// ID generator
+	id.Generator
 }
 
 type storage struct {
 	kv                       KV
+	idGen                    id.Generator
 	rootPath                 string
 	configPath               string
 	resourcePath             string
@@ -167,18 +159,18 @@ type storage struct {
 	schedulePath             string
 	jobPath                  string
 	jobDataPath              string
-	customDataPath           string
 }
 
 // NewTestStorage create test storage
 func NewTestStorage() Storage {
-	return NewStorage("/test", newMemKV())
+	return NewStorage("/test", newMemKV(), id.NewMemGenerator())
 }
 
 // NewStorage returns a metadata storage
-func NewStorage(rootPath string, kv KV) Storage {
+func NewStorage(rootPath string, kv KV, idGen id.Generator) Storage {
 	return &storage{
 		kv:                       kv,
+		idGen:                    idGen,
 		rootPath:                 rootPath,
 		configPath:               fmt.Sprintf("%s/config", rootPath),
 		resourcePath:             fmt.Sprintf("%s/resources", rootPath),
@@ -192,7 +184,6 @@ func NewStorage(rootPath string, kv KV) Storage {
 		schedulePath:             fmt.Sprintf("%s/schedule", rootPath),
 		jobPath:                  fmt.Sprintf("%s/jobs", rootPath),
 		jobDataPath:              fmt.Sprintf("%s/job-data", rootPath),
-		customDataPath:           fmt.Sprintf("%s/custom", rootPath),
 	}
 }
 
@@ -507,38 +498,8 @@ func (s *storage) RemoveJobData(job metapb.Job) error {
 	return s.kv.Remove(s.jobDataKey(job.Type))
 }
 
-func (s *storage) PutCustomData(key []byte, data []byte) error {
-	return s.kv.Save(path.Join(s.customDataPath, string(key)), string(data))
-}
-
-func (s *storage) BatchPutCustomData(keys [][]byte, data [][]byte) error {
-	if len(keys) != len(data) {
-		return fmt.Errorf("key length %d != data length %d",
-			len(keys),
-			len(data))
-	}
-
-	batch := &Batch{}
-	for i := 0; i < len(keys); i++ {
-		batch.SaveKeys = append(batch.SaveKeys, path.Join(s.customDataPath, string(keys[i])))
-		batch.SaveValues = append(batch.SaveValues, string(data[i]))
-	}
-	return s.kv.Batch(batch)
-}
-
-func (s *storage) LoadCustomData(limit int64, do func(k, v []byte) error) error {
-	return s.LoadRangeByPrefix(limit, s.customDataPath+"/", func(k, v string) error {
-		do([]byte(k), []byte(v))
-		return nil
-	})
-}
-
-func (s *storage) RemoveCustomData(key []byte) error {
-	return s.kv.Remove(path.Join(s.customDataPath, string(key)))
-}
-
 func (s *storage) PutBootstrapped(container metapb.Store, resources ...*metapb.Shard) (bool, error) {
-	clusterID, err := s.kv.AllocID()
+	clusterID, err := s.idGen.AllocID()
 	if err != nil {
 		return false, err
 	}
@@ -603,4 +564,9 @@ func (s *storage) jobKey(jobType metapb.JobType) string {
 
 func (s *storage) jobDataKey(jobType metapb.JobType) string {
 	return path.Join(s.jobDataPath, string(format.Uint64ToString(uint64(jobType))))
+}
+
+// AllocID implement id.Generator interface
+func (s *storage) AllocID() (uint64, error) {
+	return s.idGen.AllocID()
 }

@@ -69,8 +69,8 @@ func shouldBalance(cluster opt.Cluster,
 		sourceScore = source.LeaderScore(res.GetGroupKey(), kind.Policy, sourceDelta)
 		targetScore = target.LeaderScore(res.GetGroupKey(), kind.Policy, targetDelta)
 	case metapb.ShardType_AllShards:
-		sourceScore = source.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
-		targetScore = target.ShardScore(res.GetGroupKey(), opts.GetShardScoreFormulaVersion(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
+		sourceScore = source.ShardScore(res.GetGroupKey(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), sourceDelta, -1)
+		targetScore = target.ShardScore(res.GetGroupKey(), opts.GetHighSpaceRatio(), opts.GetLowSpaceRatio(), targetDelta, 1)
 	}
 	if opts.IsDebugMetricsEnabled() {
 		opInfluenceStatus.WithLabelValues(scheduleName, strconv.FormatUint(sourceID, 10), "source").Set(float64(sourceInfluence))
@@ -155,7 +155,7 @@ func getKeyRanges(args []string) ([]core.KeyRange, error) {
 	for len(args) > 1 {
 		groupID, err := strconv.ParseUint(args[0], 10, 64)
 		if err != nil {
-			return nil, errors.New("scheduler error coniguration")
+			return nil, errors.New("scheduler error configuration")
 		}
 
 		startKey, err := url.QueryUnescape(args[1])

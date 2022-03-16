@@ -234,7 +234,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 			id = shard.ID
 		}
 	}
-	aware.ForeachWaittingCreateShards(fn)
+	aware.ForeachWaitingCreateShards(fn)
 	if id == 0 {
 		aware.ForeachShards(group, fn)
 	}

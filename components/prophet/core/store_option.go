@@ -60,7 +60,7 @@ func SetStoreVersion(commitID, version string) StoreCreateOption {
 	}
 }
 
-// SetStoreDeployPath sets the deploy path for the container.
+// SetStoreDeployPath sets the deploy-path for the container.
 func SetStoreDeployPath(deployPath string) StoreCreateOption {
 	return func(container *CachedStore) {
 		meta := container.Meta.CloneValue()
@@ -97,15 +97,6 @@ func TombstoneStore() StoreCreateOption {
 	}
 }
 
-// SetStoreState sets the state for the container.
-func SetStoreState(state metapb.StoreState) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetState(state)
-		container.Meta = meta
-	}
-}
-
 // PauseLeaderTransfer prevents the container from been selected as source or
 // target container of TransferLeader.
 func PauseLeaderTransfer() StoreCreateOption {
@@ -134,9 +125,9 @@ func SetLeaderCount(groupKey string, leaderCount int) StoreCreateOption {
 // SetShardCount sets the Shard count for the container.
 func SetShardCount(groupKey string, resourceCount int) StoreCreateOption {
 	return func(container *CachedStore) {
-		info := container.resourceInfo[groupKey]
+		info := container.shardInfo[groupKey]
 		info.count = resourceCount
-		container.resourceInfo[groupKey] = info
+		container.shardInfo[groupKey] = info
 	}
 }
 
@@ -159,9 +150,9 @@ func SetLeaderSize(groupKey string, leaderSize int64) StoreCreateOption {
 // SetShardSize sets the Shard size for the container.
 func SetShardSize(groupKey string, resourceSize int64) StoreCreateOption {
 	return func(container *CachedStore) {
-		info := container.resourceInfo[groupKey]
+		info := container.shardInfo[groupKey]
 		info.size = resourceSize
-		container.resourceInfo[groupKey] = info
+		container.shardInfo[groupKey] = info
 	}
 }
 
@@ -175,7 +166,7 @@ func SetLeaderWeight(leaderWeight float64) StoreCreateOption {
 // SetShardWeight sets the Shard weight for the container.
 func SetShardWeight(resourceWeight float64) StoreCreateOption {
 	return func(container *CachedStore) {
-		container.resourceWeight = resourceWeight
+		container.shardWeight = resourceWeight
 	}
 }
 
@@ -196,16 +187,16 @@ func SetLastPersistTime(lastPersist time.Time) StoreCreateOption {
 // SetStoreStats sets the statistics information for the container.
 func SetStoreStats(stats *metapb.StoreStats) StoreCreateOption {
 	return func(container *CachedStore) {
-		container.containerStats.updateRawStats(stats)
+		container.storeStats.updateRawStats(stats)
 	}
 }
 
 // SetNewStoreStats sets the raw statistics information for the container.
 func SetNewStoreStats(stats *metapb.StoreStats) StoreCreateOption {
 	return func(container *CachedStore) {
-		// There is no clone in default container stats, we create new one to avoid to modify others.
+		// There is no clone in default container stats, we create new one to avoid modifying others.
 		// And range cluster cannot use HMA because the last value is not cached
-		container.containerStats = &containerStats{
+		container.storeStats = &storeStats{
 			rawStats: stats,
 		}
 	}

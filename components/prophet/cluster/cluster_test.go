@@ -381,7 +381,7 @@ func TestShardHeartbeat(t *testing.T) {
 		checkShard(t, res, resources[res.Meta.GetID()])
 	}
 	for _, res := range cluster.GetMetaShards() {
-		assert.True(t, reflect.DeepEqual(*res, resources[res.GetID()].Meta))
+		assert.True(t, reflect.DeepEqual(res, resources[res.GetID()].Meta))
 	}
 
 	for _, res := range resources {
@@ -889,7 +889,7 @@ func checkShardsKV(t *testing.T, s storage.Storage, resources []*core.CachedShar
 	}
 }
 
-func checkShards(t *testing.T, cache *core.CachedShards, resources []*core.CachedShard) {
+func checkShards(t *testing.T, cache *core.ShardsContainer, resources []*core.CachedShard) {
 	resourceCount := make(map[uint64]int)
 	leaderCount := make(map[uint64]int)
 	followerCount := make(map[uint64]int)
@@ -921,7 +921,7 @@ func checkShards(t *testing.T, cache *core.CachedShards, resources []*core.Cache
 		checkShard(t, res, resources[res.Meta.GetID()])
 	}
 	for _, res := range cache.GetMetaShards() {
-		assert.True(t, reflect.DeepEqual(*res, resources[res.GetID()].Meta))
+		assert.True(t, reflect.DeepEqual(res, resources[res.GetID()].Meta))
 	}
 }
 

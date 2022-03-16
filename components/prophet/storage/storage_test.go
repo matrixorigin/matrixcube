@@ -18,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/components/prophet/core"
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
+	"github.com/matrixorigin/matrixcube/components/prophet/id"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +41,12 @@ func TestPutAndGetShard(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 	id := uint64(1)
 	assert.NoError(t, storage.PutShard(metapb.Shard{ID: id}), "TestPutAndGetShard failed")
 
@@ -63,7 +70,13 @@ func TestPutAndGetStore(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	id := uint64(1)
 	assert.NoError(t, storage.PutStore(metapb.Store{ID: id}), "TestPutAndGetStore failed")
 
@@ -87,7 +100,12 @@ func TestLoadShards(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 
 	var values []metapb.Shard
 	cb := func(v metapb.Shard) {
@@ -122,7 +140,12 @@ func TestLoadStores(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 
 	var values []metapb.Store
 	cb := func(v metapb.Store, lw, cw float64) {
@@ -157,7 +180,13 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	s := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	s := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	yes, err := s.AlreadyBootstrapped()
 	assert.NoError(t, err, "TestAlreadyBootstrapped failed")
 	assert.False(t, yes, "TestAlreadyBootstrapped failed")
@@ -190,14 +219,20 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err, "TestPutAndGetStore failed")
+	assert.NoError(t, err, "TestPutAndDeleteAndLoadJobs failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
+
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(1), Content: []byte("job1")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(2), Content: []byte("job2")}))
 	assert.NoError(t, storage.PutJob(metapb.Job{Type: metapb.JobType(3), Content: []byte("job3")}))
@@ -220,7 +255,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	assert.Equal(t, 0, c)
 }
 
-func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
+func TestScheduleGroupRule(t *testing.T) {
 	stopC, port := mock.StartTestSingleEtcd(t)
 	defer close(stopC)
 
@@ -228,66 +263,40 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	defer client.Close()
 
 	e, err := election.NewElector(client)
-	assert.NoError(t, err)
+	assert.NoError(t, err, "TestScheduleGroupRule failed")
 	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
 	defer ls.Stop()
 
 	ls.ElectionLoop()
 	time.Sleep(time.Millisecond * 200)
 
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
-	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
-	assert.NoError(t, storage.PutCustomData([]byte("k2"), []byte("v2")))
-	assert.NoError(t, storage.PutCustomData([]byte("k3"), []byte("v3")))
+	rootPath := "/root"
+	storage := NewStorage(
+		rootPath,
+		NewEtcdKV("/root", client, ls),
+		id.NewEtcdGenerator(rootPath, client, ls),
+	)
 
-	var loadedValues [][]byte
-	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
-		loadedValues = append(loadedValues, k)
-		return nil
-	}))
-	assert.Equal(t, 3, len(loadedValues))
-	assert.Equal(t, []byte("k1"), loadedValues[0])
-	assert.NoError(t, storage.RemoveCustomData(loadedValues[0]))
-	assert.Equal(t, []byte("k2"), loadedValues[1])
-	assert.NoError(t, storage.RemoveCustomData(loadedValues[1]))
-	assert.Equal(t, []byte("k3"), loadedValues[2])
-	assert.NoError(t, storage.RemoveCustomData(loadedValues[2]))
+	// try to add 10 rules
+	for id := 10; id < 20; id++ {
+		rule := metapb.ScheduleGroupRule{
+			ID:           uint64(id),
+			GroupID:      uint64(id),
+			Name:         "RuleTable",
+			GroupByLabel: "LabelTable",
+		}
+		err = storage.PutScheduleGroupRule(rule)
+		assert.NoError(t, err)
 
-	c := 0
-	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
-		c++
-		return nil
-	}))
-	assert.Equal(t, 0, c)
-}
-
-func TestBatchPutCustomData(t *testing.T) {
-	stopC, port := mock.StartTestSingleEtcd(t)
-	defer close(stopC)
-
-	client := mock.NewEtcdClient(t, port)
-	defer client.Close()
-
-	e, err := election.NewElector(client)
-	assert.NoError(t, err)
-	ls := e.CreateLeadship("prophet", "node1", "node1", true, func(string) bool { return true }, func(string) bool { return true })
-	defer ls.Stop()
-
-	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
-
-	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
-	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
-	storage := NewStorage("/root", NewEtcdKV("/root", client, ls))
-	assert.NoError(t, storage.BatchPutCustomData(keys, data))
-
-	var loadedValues [][]byte
-	assert.NoError(t, storage.LoadCustomData(1, func(k, v []byte) error {
-		loadedValues = append(loadedValues, v)
-		return nil
-	}))
-	assert.Equal(t, len(keys), len(loadedValues))
-	for i := 0; i < len(keys); i++ {
-		assert.Equal(t, data[i], loadedValues[i])
+		// duplicated add
+		err = storage.PutScheduleGroupRule(rule)
+		assert.NoError(t, err)
 	}
+
+	ruleCache := core.NewScheduleGroupRuleCache()
+	err = storage.LoadScheduleGroupRules(256, func(rule metapb.ScheduleGroupRule) {
+		ruleCache.AddRule(rule)
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, ruleCache.RuleCount(), 10)
 }
