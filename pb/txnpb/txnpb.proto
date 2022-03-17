@@ -1,0 +1,181 @@
+syntax = "proto3";
+package txnpb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_enum_prefix_all) = true;
+
+// Isolation is the transaction isolation Level
+enum Isolation {
+    // RC read committed
+    RC         = 0;
+    // RCReadOnly read committed, but only read-only transaction
+    RCReadOnly = 1;
+    // SI snapshot serializable 
+    SI         = 2;
+}
+
+// TxnStatus transaction status
+enum TxnStatus {
+    // Pending indicates that the transaction is in progress.
+    Pending   = 0;
+    // Staging the parallel-commit optimization sets the transaction
+    // to this state, indicating that it is not sure if all writes 
+    // have succeeded, and that you need to verify that all writes have
+    // succeeded when you encounter this state. May be converted to
+    // `Committed` or `Aborted` state.
+    Staging   = 1;
+    // Committed this is a final status indicating that the transaction 
+    // has been committed.
+    Committed = 2;
+    // Committed this is a final status indicating that the transaction 
+    // has been aborted.
+    Aborted   = 3;
+}
+
+// TxnMeta transaction metadata, which will be integrated into TxnRecord and 
+// TxnOpMeta for persistent storage.
+message TxnMeta {
+    // ID transction id
+    bytes     id                = 1  [(gogoproto.customname) = "ID"];
+    // Name transaction name
+    string    name              = 2;
+    // Isolation transaction isolation level
+    Isolation isolation         = 3;
+    // TxnRecordRouteKey used to locate which Shard the TxnRecord is in.
+    bytes     txnRecordRouteKey = 4;
+    // Epoch used to indicate the number of restarts of a transaction.
+    // Each time a transaction is restarted, the field +1.
+    uint32    epoch             = 5;
+    // Priority transaction priority, used for transaction conflict, according 
+    // to the priority of the decision to abort which a transaction.
+    uint64    priority          = 6;
+    // WriteTimestamp the timestamp version number of the data written by the 
+    // transaction, this version number may be raised in several scenarios.
+    uint64    writeTimestamp    = 7;
+    // ReadTimestamp the timestamp of the start of the transaction, which is used
+    // to read the data from MVCC, in some scenarios this timestamp will be raised
+    // to avoid some conflicts and ambiguities.
+    uint64    readTimestamp     = 8;
+    // MaxTimestamp if using HLC's clocking scheme, this field is equal to Readtimestamp 
+    // + maximum clock skew, which is used to indicate an upper limit of uncertainty 
+    // time.
+    uint64    maxTimestamp      = 9;
+}
+
+// TxnRecord similar to Txn, but only the fields that need to be persisted to 
+// disk are kept. A TxnRecord is the central store of a transaction, with the 
+// global state of the transaction and the Key of all written data. Once the 
+// status of the TxnRecord changes to `Committed`, then all data written by the
+// transaction is visible atomically.
+message TxnRecord {
+    // TxnMeta embed txn meta
+    TxnMeta   txnMeta         = 1 [(gogoproto.nullable) = false, (gogoproto.embed) = true];
+    // TxnStatus transaction status
+    TxnStatus status          = 2;
+    // LastHeartbeat the last time the transaction coordinator sent a heartbeat, 
+    // this field is used to check if the transaction can't continue due to the 
+    // transaction coordinator being down, thus rolling back the transaction.
+    uint64    lastHeartbeat   = 3;
+    // CompletedWrites record the current transaction has completed the consensus write 
+    // operation.
+    KeySet    completedWrites = 4 [(gogoproto.nullable) = false];
+    // InfightWrites record the current transaction has not completed the consensus write
+    // operation.
+    KeySet    infightWrites   = 5 [(gogoproto.nullable) = false];
+}
+
+// TxnOpMeta metadata for transaction operations, with fields related to the 
+// current operation of the transaction added to TxnMeta.
+message TxnOpMeta {
+    // TxnMeta embed txn meta
+    TxnMeta  txnMeta          = 1 [(gogoproto.nullable) = false, (gogoproto.embed) = true];
+    // OriginKey the origin data key without any transaction codec
+    bytes    originKey        = 2;
+    // Sequence indicates the current number of write operations in the transaction.
+    // Of all the operations in the transaction, only the write operation will increase 
+    // the value of the field, the read operation will not. Used to implement the `read 
+    // your write`.
+    uint32    sequence        = 3;
+    // CompletedWrites record the current transaction has completed the consensus write 
+    // operation. Only when it is a Commit or Rollback transaction, it will be attached.
+    KeySet    completedWrites = 4;
+    // InfightWrites record the current transaction has not completed the consensus write
+    // operation. Only when it is a Commit or Rollback transaction, it will be attached.
+    KeySet    infightWrites   = 5;
+}
+
+// KeyRange description of the set of Keys in the range [start, end) 
+message KeyRange {
+    // Start start key, include
+    bytes start = 1;
+    // End end key, exclude
+    bytes end   = 2;
+}
+
+// KeySet key collection, with a set of individual Keys and a set of KeyRanges.
+// This structure can be compressed, for example by using a KeyRange to represent
+// a set of Keys, or by using a KeyRange with a larger range instead of multiple 
+// KeyRanges with smaller ranges.
+message KeySet {
+    // PointKeys the `originKey` set of explicit point data.
+    repeated bytes    pointKeys = 1;
+    // Ranges the set of range `originKey`
+    repeated KeyRange ranges    = 2 [(gogoproto.nullable) = false];
+}
+
+// TxnOperation a operation for transaction. Called at TxnOperator and executed on 
+// the Lease Holder of Shard.
+message TxnOperation {
+    // Op the specific type of request, e.g. Set/Get/Delete.
+    uint32 op       = 1;
+    // Payload the data of request.
+    bytes  payload  = 2;
+    // Impacted impact data KeySet for transaction framework to do conflict detection, 
+    // Lock, Latch and asynchronous consensus optimization.
+    KeySet impacted = 3 [(gogoproto.nullable) = false];
+}
+
+// TxnRequestType transaction request type
+enum TxnRequestType {
+    // Read read request
+    Read     = 0;
+    // Write write request
+    Write    = 1;
+    // Commit commit request
+    Commit   = 2;
+    // Rollback rollback request
+    Rollback = 3;
+}
+
+// TxnBatchRequest transaction operations are converted into multiple transaction 
+// requests, contained by a TxnBatchRequest.
+message TxnBatchRequest {
+    TxnBatchRequestHeader header   = 1 [(gogoproto.nullable) = false];
+    repeated TxnRequest   requests = 2;
+}
+
+// TxnBatchRequestHeader the head of TxnBatchRequest.
+message TxnBatchRequestHeader {
+    // TxnOpMeta transaction operation metadata
+    TxnOpMeta      txn      = 1 [(gogoproto.nullable) = false];
+    // ToShard shardID that handles the request
+    uint64         toShard  = 2;
+    // TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
+    TxnRequestType type     = 3;
+}
+
+// TxnRequest transaction request, corresponds to a TxnOperation
+message TxnRequest {
+    // Operation the TxnOperation
+    TxnOperation  operation = 1 [(gogoproto.nullable) = false];
+}
+
+// TxnResponse is TxnOperation response
+message TxnResponse {
+    // Data is returned by `HandleRead` or `HandleWrite`
+    bytes data = 1;
+}
