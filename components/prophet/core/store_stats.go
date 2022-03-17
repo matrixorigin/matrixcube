@@ -60,91 +60,91 @@ func (ss *storeStats) updateRawStats(rawStats *metapb.StoreStats) {
 	ss.avgMaxAvailableDeviation.Add(ss.maxAvailableDeviation.Get())
 }
 
-// GetStoreStats returns the statistics information of the container.
+// GetStoreStats returns the statistics information of the store.
 func (ss *storeStats) GetStoreStats() *metapb.StoreStats {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats
 }
 
-// GetCapacity returns the capacity size of the container.
+// GetCapacity returns the capacity size of the store.
 func (ss *storeStats) GetCapacity() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetCapacity()
 }
 
-// GetAvailable returns the available size of the container.
+// GetAvailable returns the available size of the store.
 func (ss *storeStats) GetAvailable() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetAvailable()
 }
 
-// GetUsedSize returns the used size of the container.
+// GetUsedSize returns the used size of the store.
 func (ss *storeStats) GetUsedSize() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetUsedSize()
 }
 
-// GetUsedRatio returns the used ratio of the container.
+// GetUsedRatio returns the used ratio of the store.
 func (ss *storeStats) GetUsedRatio() float64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return float64(ss.rawStats.GetUsedSize()) / float64(ss.rawStats.GetCapacity())
 }
 
-// GetBytesWritten returns the bytes written for the container during this period.
+// GetBytesWritten returns the bytes written for the store during this period.
 func (ss *storeStats) GetBytesWritten() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetWrittenBytes()
 }
 
-// GetBytesRead returns the bytes read for the container during this period.
+// GetBytesRead returns the bytes read for the store during this period.
 func (ss *storeStats) GetBytesRead() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReadBytes()
 }
 
-// GetKeysWritten returns the keys written for the container during this period.
+// GetKeysWritten returns the keys written for the store during this period.
 func (ss *storeStats) GetKeysWritten() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetWrittenKeys()
 }
 
-// GetKeysRead returns the keys read for the container during this period.
+// GetKeysRead returns the keys read for the store during this period.
 func (ss *storeStats) GetKeysRead() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReadKeys()
 }
 
-// IsBusy returns if the container is busy.
+// IsBusy returns if the store is busy.
 func (ss *storeStats) IsBusy() bool {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetIsBusy()
 }
 
-// GetSendingSnapCount returns the current sending snapshot count of the container.
+// GetSendingSnapCount returns the current sending snapshot count of the store.
 func (ss *storeStats) GetSendingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetSendingSnapCount()
 }
 
-// GetReceivingSnapCount returns the current receiving snapshot count of the container.
+// GetReceivingSnapCount returns the current receiving snapshot count of the store.
 func (ss *storeStats) GetReceivingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()
 	return ss.rawStats.GetReceivingSnapCount()
 }
 
-// GetApplyingSnapCount returns the current applying snapshot count of the container.
+// GetApplyingSnapCount returns the current applying snapshot count of the store.
 func (ss *storeStats) GetApplyingSnapCount() uint64 {
 	ss.mu.RLock()
 	defer ss.mu.RUnlock()

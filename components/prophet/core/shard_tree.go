@@ -29,7 +29,7 @@ type shardItem struct {
 	shard *CachedShard
 }
 
-// Less returns true if the resource start key is less than the other.
+// Less returns true if the shard start key is less than the other.
 func (r *shardItem) Less(other btree.Item) bool {
 	left := r.shard.GetStartKey()
 	right := other.(*shardItem).shard.GetStartKey()
@@ -63,15 +63,15 @@ func (t *shardTree) length() int {
 	return t.tree.Len()
 }
 
-// getOverlaps gets the shards which are overlapped with the specified resource range.
+// getOverlaps gets the shards which are overlapped with the specified shard range.
 func (t *shardTree) getOverlaps(res *CachedShard) []*CachedShard {
 	item := &shardItem{shard: res}
 
-	// note that find() gets the last item that is less or equal than the resource.
+	// note that find() gets the last item that is less or equal than the shard.
 	// in the case: |_______a_______|_____b_____|___c___|
-	// new resource is   |______d______|
-	// find() will return shardItem of resource_a
-	// and both startKey of resource_a and resource_b are less than endKey of resource_d,
+	// new shard is   |______d______|
+	// find() will return shardItem of shard_a
+	// and both startKey of shard_a and shard_b are less than endKey of shard_d,
 	// thus they are regarded as overlapped shards.
 	result := t.find(res)
 	if result == nil {
@@ -90,9 +90,9 @@ func (t *shardTree) getOverlaps(res *CachedShard) []*CachedShard {
 	return overlaps
 }
 
-// update updates the tree with the resource.
+// update updates the tree with the shard.
 // It finds and deletes all the overlapped shards first, and then
-// insert the resource.
+// insert the shard.
 func (t *shardTree) update(res *CachedShard) []*CachedShard {
 	overlaps := t.getOverlaps(res)
 	for _, item := range overlaps {
@@ -104,9 +104,9 @@ func (t *shardTree) update(res *CachedShard) []*CachedShard {
 	return overlaps
 }
 
-// remove removes a resource if the resource is in the tree.
-// It will do nothing if it cannot find the resource or the found resource
-// is not the same with the resource.
+// remove removes a shard if the shard is in the tree.
+// It will do nothing if it cannot find the shard or the found shard
+// is not the same with the shard.
 func (t *shardTree) remove(res *CachedShard) btree.Item {
 	if t.length() == 0 {
 		return nil
@@ -119,7 +119,7 @@ func (t *shardTree) remove(res *CachedShard) btree.Item {
 	return t.tree.Delete(result)
 }
 
-// search returns a resource that contains the key.
+// search returns a shard that contains the key.
 func (t *shardTree) search(resKey []byte) *CachedShard {
 	res := t.newSearchRes(resKey)
 	result := t.find(res)
@@ -129,7 +129,7 @@ func (t *shardTree) search(resKey []byte) *CachedShard {
 	return result.shard
 }
 
-// searchPrev returns the previous resource of the resource where the resourceKey is located.
+// searchPrev returns the previous shard of the shard where the shardKey is located.
 func (t *shardTree) searchPrev(resKey []byte) *CachedShard {
 	curRes := t.newSearchRes(resKey)
 	curResItem := t.find(curRes)
@@ -164,11 +164,11 @@ func (t *shardTree) find(res *CachedShard) *shardItem {
 	return result
 }
 
-// scanRage scans from the first resource containing or behind the start key
+// scanRage scans from the first shard containing or behind the start key
 // until f return false
 func (t *shardTree) scanRange(startKey []byte, f func(*CachedShard) bool) {
 	res := t.newSearchRes(startKey)
-	// find if there is a resource with key range [s, d), s < startKey < d
+	// find if there is a shard with key range [s, d), s < startKey < d
 	startItem := t.find(res)
 	if startItem == nil {
 		startItem = &shardItem{shard: t.newSearchRes(startKey)}
@@ -198,7 +198,7 @@ func (t *shardTree) getAdjacentShards(res *CachedShard) (*shardItem, *shardItem)
 	return prev, next
 }
 
-// RandomShard is used to get a random resource within ranges.
+// RandomShard is used to get a random shard within ranges.
 func (t *shardTree) RandomShard(ranges []KeyRange) *CachedShard {
 	if t.length() == 0 {
 		return nil
