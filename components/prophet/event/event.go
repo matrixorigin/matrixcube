@@ -19,37 +19,38 @@ import (
 )
 
 var (
-	// EventInit event init
-	EventInit uint32 = 1 << 1
-	// EventShard resource event
-	EventShard uint32 = 1 << 2
-	// EventStore container create event
-	EventStore uint32 = 1 << 3
-	// EventShardStats resource stats
-	EventShardStats uint32 = 1 << 4
-	// EventStoreStats container stats
-	EventStoreStats uint32 = 1 << 5
-	// EventFlagAll all event
-	EventFlagAll = 0xffffffff
+	// InitEvent event init
+	InitEvent uint32 = 1 << 1
+	// ShardEvent shard event
+	ShardEvent uint32 = 1 << 2
+	// StoreEvent store creation event
+	StoreEvent uint32 = 1 << 3
+	// ShardStatsEvent shard stats
+	ShardStatsEvent uint32 = 1 << 4
+	// StoreStatsEvent store stats
+	StoreStatsEvent uint32 = 1 << 5
+	// AllEvent all event
+	AllEvent uint32 = 0xffffffff
 
 	names = map[uint32]string{
-		EventInit:       "init",
-		EventShard:      "resource",
-		EventShardStats: "resource-stats",
-		EventStore:      "container",
-		EventStoreStats: "container-stats",
+		InitEvent:       "init",
+		ShardEvent:      "shard",
+		ShardStatsEvent: "shard-stats",
+		StoreEvent:      "store",
+		StoreStatsEvent: "store-stats",
+		AllEvent:        "all",
 	}
 )
 
-// EventTypeName returns event type name
-func EventTypeName(value uint32) string {
+// TypeName returns event type name
+func TypeName(value uint32) string {
 	return names[value]
 }
 
 // Snapshot cache snapshot
 type Snapshot struct {
-	Shards  []*metapb.Shard
-	Stores  []*metapb.Store
+	Shards  []metapb.Shard
+	Stores  []metapb.Store
 	Leaders map[uint64]uint64
 }
 
@@ -84,7 +85,7 @@ func NewInitEvent(snap Snapshot) (*rpcpb.InitEventData, error) {
 	return resp, nil
 }
 
-// NewShardEvent create resource event
+// NewShardEvent create shard event
 func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bool) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
@@ -92,7 +93,7 @@ func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bo
 	}
 
 	return rpcpb.EventNotify{
-		Type: EventShard,
+		Type: ShardEvent,
 		ShardEvent: &rpcpb.ShardEventData{
 			Data:    value,
 			Leader:  leaderID,
@@ -102,23 +103,23 @@ func NewShardEvent(target metapb.Shard, leaderID uint64, removed bool, create bo
 	}
 }
 
-// NewShardStatsEvent create resource stats event
+// NewShardStatsEvent create shard stats event
 func NewShardStatsEvent(stats *metapb.ShardStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:            EventShardStats,
+		Type:            ShardStatsEvent,
 		ShardStatsEvent: stats,
 	}
 }
 
-// NewStoreStatsEvent create container stats event
+// NewStoreStatsEvent create store stats event
 func NewStoreStatsEvent(stats *metapb.StoreStats) rpcpb.EventNotify {
 	return rpcpb.EventNotify{
-		Type:            EventStoreStats,
+		Type:            StoreStatsEvent,
 		StoreStatsEvent: stats,
 	}
 }
 
-// NewStoreEvent create container event
+// NewStoreEvent create store event
 func NewStoreEvent(target metapb.Store) rpcpb.EventNotify {
 	value, err := target.Marshal()
 	if err != nil {
@@ -126,7 +127,7 @@ func NewStoreEvent(target metapb.Store) rpcpb.EventNotify {
 	}
 
 	return rpcpb.EventNotify{
-		Type: EventStore,
+		Type: StoreEvent,
 		StoreEvent: &rpcpb.StoreEventData{
 			Data: value,
 		},

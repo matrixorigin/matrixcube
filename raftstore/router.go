@@ -274,9 +274,9 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 	defer r.mu.Unlock()
 
 	switch evt.Type {
-	case event.EventInit:
+	case event.InitEvent:
 		r.logger.Info("reset",
-			zap.String("event", event.EventTypeName(evt.Type)),
+			zap.String("event", event.TypeName(evt.Type)),
 			zap.Int("shard-count", len(evt.InitEvent.Shards)),
 			zap.Int("store-count", len(evt.InitEvent.Stores)))
 		for key := range r.mu.keyRanges {
@@ -290,14 +290,14 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 		for i, data := range evt.InitEvent.Shards {
 			r.updateShardLocked(data, evt.InitEvent.Leaders[i], false, false)
 		}
-	case event.EventShard:
+	case event.ShardEvent:
 		r.updateShardLocked(evt.ShardEvent.Data, evt.ShardEvent.Leader,
 			evt.ShardEvent.Removed, evt.ShardEvent.Create)
-	case event.EventStore:
+	case event.StoreEvent:
 		r.updateStoreLocked(evt.StoreEvent.Data)
-	case event.EventShardStats:
+	case event.ShardStatsEvent:
 		r.mu.shardStats[evt.ShardStatsEvent.ShardID] = *evt.ShardStatsEvent
-	case event.EventStoreStats:
+	case event.StoreStatsEvent:
 		r.mu.storeStats[evt.StoreStatsEvent.StoreID] = *evt.StoreStatsEvent
 	}
 }

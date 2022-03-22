@@ -53,7 +53,7 @@ type Client interface {
 	ShardHeartbeat(meta metapb.Shard, hb rpcpb.ShardHeartbeatReq) error
 	StoreHeartbeat(hb rpcpb.StoreHeartbeatReq) (rpcpb.StoreHeartbeatRsp, error)
 	AskBatchSplit(res metapb.Shard, count uint32) ([]rpcpb.SplitID, error)
-	NewWatcher(flag uint32) (Watcher, error)
+	NewWatcher(flag uint32) (EventWatcher, error)
 	GetShardHeartbeatRspNotifier() (chan rpcpb.ShardHeartbeatRsp, error)
 	// AsyncAddShards add resources asynchronously. The operation add new resources meta on the
 	// prophet leader cache and embed etcd. And porphet leader has a background goroutine to notify
@@ -345,7 +345,7 @@ func (c *asyncClient) AskBatchSplit(res metapb.Shard, count uint32) ([]rpcpb.Spl
 	return resp.AskBatchSplit.SplitIDs, nil
 }
 
-func (c *asyncClient) NewWatcher(flag uint32) (Watcher, error) {
+func (c *asyncClient) NewWatcher(flag uint32) (EventWatcher, error) {
 	if !c.running() {
 		return nil, ErrClosed
 	}

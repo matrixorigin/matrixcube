@@ -865,7 +865,7 @@ func (c *RaftCluster) UpdateStoreLabels(containerID uint64, labels []metapb.Labe
 	if container == nil {
 		return fmt.Errorf("invalid container ID %d, not found", containerID)
 	}
-	newStore := container.Meta.CloneValue()
+	newStore := container.Meta
 	newStore.SetLabels(labels)
 	// PutStore will perform label merge.
 	return c.putStoreImpl(newStore, force)

@@ -21,193 +21,177 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// StoreCreateOption is used to create container.
-type StoreCreateOption func(container *CachedStore)
+// StoreCreateOption is used to create cachedStore.
+type StoreCreateOption func(cachedStore *CachedStore)
 
-// SetStoreAddress sets the address for the container.
+// SetStoreAddress sets the address for the cachedStore.
 func SetStoreAddress(address, shardAddress string) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetAddrs(address, shardAddress)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetAddrs(address, shardAddress)
 	}
 }
 
-// SetStoreLabels sets the labels for the container.
+// SetStoreLabels sets the labels for the cachedStore.
 func SetStoreLabels(labels []metapb.Label) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetLabels(labels)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetLabels(labels)
 	}
 }
 
-// SetStoreStartTime sets the start timestamp for the container.
+// SetStoreStartTime sets the start timestamp for the cachedStore.
 func SetStoreStartTime(startTS int64) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetStartTime(startTS)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetStartTime(startTS)
 	}
 }
 
-// SetStoreVersion sets the version for the container.
+// SetStoreVersion sets the version for the cachedStore.
 func SetStoreVersion(commitID, version string) StoreCreateOption {
 	return func(cachedStore *CachedStore) {
-		meta := cachedStore.Meta.CloneValue()
-		meta.SetVersionAndCommitID(version, commitID)
-		cachedStore.Meta = meta
+		cachedStore.Meta.SetVersionAndCommitID(version, commitID)
 	}
 }
 
-// SetStoreDeployPath sets the deploy-path for the container.
+// SetStoreDeployPath sets the deploy-path for the cachedStore.
 func SetStoreDeployPath(deployPath string) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetDeployPath(deployPath)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetDeployPath(deployPath)
 	}
 }
 
-// OfflineStore offline a container
+// OfflineStore offline a cachedStore
 func OfflineStore(physicallyDestroyed bool) StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetDestroyed(physicallyDestroyed)
-		meta.SetState(metapb.StoreState_Down)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetDestroyed(physicallyDestroyed)
+		cachedStore.Meta.SetState(metapb.StoreState_Down)
 	}
 }
 
-// UpStore up a container
+// UpStore up a cachedStore
 func UpStore() StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetState(metapb.StoreState_Up)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetState(metapb.StoreState_Up)
 	}
 }
 
-// TombstoneStore set a container to tombstone.
+// TombstoneStore set a cachedStore to tombstone.
 func TombstoneStore() StoreCreateOption {
-	return func(container *CachedStore) {
-		meta := container.Meta.CloneValue()
-		meta.SetState(metapb.StoreState_StoreTombstone)
-		container.Meta = meta
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetState(metapb.StoreState_StoreTombstone)
 	}
 }
 
-// PauseLeaderTransfer prevents the container from been selected as source or
-// target container of TransferLeader.
+// PauseLeaderTransfer prevents the cachedStore from been selected as source or
+// target cachedStore of TransferLeader.
 func PauseLeaderTransfer() StoreCreateOption {
-	return func(container *CachedStore) {
-		container.pauseLeaderTransfer = true
+	return func(cachedStore *CachedStore) {
+		cachedStore.pauseLeaderTransfer = true
 	}
 }
 
-// ResumeLeaderTransfer cleans a container's pause state. The container can be selected
+// ResumeLeaderTransfer cleans a cachedStore's pause state. The cachedStore can be selected
 // as source or target of TransferLeader again.
 func ResumeLeaderTransfer() StoreCreateOption {
-	return func(container *CachedStore) {
-		container.pauseLeaderTransfer = false
+	return func(cachedStore *CachedStore) {
+		cachedStore.pauseLeaderTransfer = false
 	}
 }
 
-// SetLeaderCount sets the leader count for the container.
+// SetLeaderCount sets the leader count for the cachedStore.
 func SetLeaderCount(groupKey string, leaderCount int) StoreCreateOption {
-	return func(container *CachedStore) {
-		info := container.leaderInfo[groupKey]
+	return func(cachedStore *CachedStore) {
+		info := cachedStore.leaderInfo[groupKey]
 		info.count = leaderCount
-		container.leaderInfo[groupKey] = info
+		cachedStore.leaderInfo[groupKey] = info
 	}
 }
 
-// SetShardCount sets the Shard count for the container.
+// SetShardCount sets the Shard count for the cachedStore.
 func SetShardCount(groupKey string, resourceCount int) StoreCreateOption {
-	return func(container *CachedStore) {
-		info := container.shardInfo[groupKey]
+	return func(cachedStore *CachedStore) {
+		info := cachedStore.shardInfo[groupKey]
 		info.count = resourceCount
-		container.shardInfo[groupKey] = info
+		cachedStore.shardInfo[groupKey] = info
 	}
 }
 
-// SetPendingPeerCount sets the pending peer count for the container.
+// SetPendingPeerCount sets the pending peer count for the cachedStore.
 func SetPendingPeerCount(groupKey string, pendingPeerCount int) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.pendingPeerCounts[groupKey] = pendingPeerCount
+	return func(cachedStore *CachedStore) {
+		cachedStore.pendingPeerCounts[groupKey] = pendingPeerCount
 	}
 }
 
-// SetLeaderSize sets the leader size for the container.
+// SetLeaderSize sets the leader size for the cachedStore.
 func SetLeaderSize(groupKey string, leaderSize int64) StoreCreateOption {
-	return func(container *CachedStore) {
-		info := container.leaderInfo[groupKey]
+	return func(cachedStore *CachedStore) {
+		info := cachedStore.leaderInfo[groupKey]
 		info.size = leaderSize
-		container.leaderInfo[groupKey] = info
+		cachedStore.leaderInfo[groupKey] = info
 	}
 }
 
-// SetShardSize sets the Shard size for the container.
+// SetShardSize sets the Shard size for the cachedStore.
 func SetShardSize(groupKey string, resourceSize int64) StoreCreateOption {
-	return func(container *CachedStore) {
-		info := container.shardInfo[groupKey]
+	return func(cachedStore *CachedStore) {
+		info := cachedStore.shardInfo[groupKey]
 		info.size = resourceSize
-		container.shardInfo[groupKey] = info
+		cachedStore.shardInfo[groupKey] = info
 	}
 }
 
-// SetLeaderWeight sets the leader weight for the container.
+// SetLeaderWeight sets the leader weight for the cachedStore.
 func SetLeaderWeight(leaderWeight float64) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.leaderWeight = leaderWeight
+	return func(cachedStore *CachedStore) {
+		cachedStore.leaderWeight = leaderWeight
 	}
 }
 
-// SetShardWeight sets the Shard weight for the container.
+// SetShardWeight sets the Shard weight for the cachedStore.
 func SetShardWeight(resourceWeight float64) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.shardWeight = resourceWeight
+	return func(cachedStore *CachedStore) {
+		cachedStore.shardWeight = resourceWeight
 	}
 }
 
-// SetLastHeartbeatTS sets the time of last heartbeat for the container.
+// SetLastHeartbeatTS sets the time of last heartbeat for the cachedStore.
 func SetLastHeartbeatTS(lastHeartbeatTS time.Time) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.Meta.SetLastHeartbeat(lastHeartbeatTS.UnixNano())
+	return func(cachedStore *CachedStore) {
+		cachedStore.Meta.SetLastHeartbeat(lastHeartbeatTS.UnixNano())
 	}
 }
 
 // SetLastPersistTime updates the time of last persistent.
 func SetLastPersistTime(lastPersist time.Time) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.lastPersistTime = lastPersist
+	return func(cachedStore *CachedStore) {
+		cachedStore.lastPersistTime = lastPersist
 	}
 }
 
-// SetStoreStats sets the statistics information for the container.
+// SetStoreStats sets the statistics information for the cachedStore.
 func SetStoreStats(stats *metapb.StoreStats) StoreCreateOption {
-	return func(container *CachedStore) {
-		container.storeStats.updateRawStats(stats)
+	return func(cachedStore *CachedStore) {
+		cachedStore.storeStats.updateRawStats(stats)
 	}
 }
 
-// SetNewStoreStats sets the raw statistics information for the container.
+// SetNewStoreStats sets the raw statistics information for the cachedStore.
 func SetNewStoreStats(stats *metapb.StoreStats) StoreCreateOption {
-	return func(container *CachedStore) {
-		// There is no clone in default container stats, we create new one to avoid modifying others.
+	return func(cachedStore *CachedStore) {
+		// There is no clone in default cachedStore stats, we create new one to avoid modifying others.
 		// And range cluster cannot use HMA because the last value is not cached
-		container.storeStats = &storeStats{
+		cachedStore.storeStats = &storeStats{
 			rawStats: stats,
 		}
 	}
 }
 
-// AttachAvailableFunc attaches a customize function for the container. The function f returns true if the container limit is not exceeded.
+// AttachAvailableFunc attaches a customize function for the cachedStore. The function f returns true if the cachedStore limit is not exceeded.
 func AttachAvailableFunc(limitType limit.Type, f func() bool) StoreCreateOption {
-	return func(container *CachedStore) {
-		if container.available == nil {
-			container.available = make(map[limit.Type]func() bool)
+	return func(cachedStore *CachedStore) {
+		if cachedStore.available == nil {
+			cachedStore.available = make(map[limit.Type]func() bool)
 		}
-		container.available[limitType] = f
+		cachedStore.available[limitType] = f
 	}
 }

@@ -23,11 +23,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// Watcher watcher
-type Watcher interface {
+// EventWatcher event watcher
+type EventWatcher interface {
 	// GetNotify returns event notify channel
 	GetNotify() chan rpcpb.EventNotify
-	// Close close watcher
+	// Close closes watcher
 	Close()
 }
 
@@ -41,7 +41,7 @@ type watcher struct {
 	conn   goetty.IOSession
 }
 
-func newWatcher(flag uint32, client *asyncClient, logger *zap.Logger) Watcher {
+func newWatcher(flag uint32, client *asyncClient, logger *zap.Logger) EventWatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &watcher{
 		logger: log.Adjust(logger).Named("watcher"),
@@ -139,7 +139,7 @@ func (w *watcher) startReadLoop() {
 			return
 		}
 
-		// we lost some event notify, close the conection, and retry
+		// we lost some events, close the connection, and retry
 		if expectSeq != resp.Event.Seq {
 			w.logger.Error("lost some event notify, close and retry",
 				zap.Uint64("expect", expectSeq),
