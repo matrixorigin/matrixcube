@@ -679,6 +679,8 @@ func (r *ShardsContainer) AddShard(res *CachedShard) []*CachedShard {
 	r.shards.Put(res)
 
 	r.maybeInitWithGroup(res.groupKey)
+	r.Lock()
+	defer r.Unlock()
 
 	// Add to leaders and followers.
 	for _, peer := range res.GetVoters() {
@@ -746,6 +748,8 @@ func (r *ShardsContainer) removeShardFromTreeAndMap(res *CachedShard) {
 // removeShardFromSubTree removes CachedShard from shardSubTrees
 func (r *ShardsContainer) removeShardFromSubTree(res *CachedShard) {
 	r.maybeInitWithGroup(res.groupKey)
+	r.Lock()
+	defer r.Unlock()
 
 	// Remove from leaders and followers.
 	for _, peer := range res.Meta.GetReplicas() {
@@ -871,6 +875,8 @@ func (r *ShardsContainer) GetShards() []*CachedShard {
 // GetStoreShards gets all CachedShard with a given storeID
 func (r *ShardsContainer) GetStoreShards(groupKey string, storeID uint64) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	shards := make([]*CachedShard, 0, r.GetStoreShardCount(groupKey, storeID))
 	if leaders, ok := r.leaders[groupKey][storeID]; ok {
 		shards = append(shards, leaders.scanRanges()...)
@@ -887,18 +893,24 @@ func (r *ShardsContainer) GetStoreShards(groupKey string, storeID uint64) []*Cac
 // GetStoreLeaderShardSize get total size of store's leader shards
 func (r *ShardsContainer) GetStoreLeaderShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.leaders[groupKey][storeID].TotalSize()
 }
 
 // GetStoreFollowerShardSize get total size of store's follower shards
 func (r *ShardsContainer) GetStoreFollowerShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.followers[groupKey][storeID].TotalSize()
 }
 
 // GetStoreLearnerShardSize get total size of store's learner shards
 func (r *ShardsContainer) GetStoreLearnerShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.learners[groupKey][storeID].TotalSize()
 }
 
@@ -935,24 +947,32 @@ func (r *ShardsContainer) GetStoreShardCount(groupKey string, storeID uint64) in
 // GetStorePendingPeerCount gets the total count of a store's shard that includes pending peer
 func (r *ShardsContainer) GetStorePendingPeerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.pendingReplicas[groupKey][storeID].length()
 }
 
 // GetStoreLeaderCount get the total count of a store's leader CachedShard
 func (r *ShardsContainer) GetStoreLeaderCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.leaders[groupKey][storeID].length()
 }
 
 // GetStoreFollowerCount get the total count of a store's follower CachedShard
 func (r *ShardsContainer) GetStoreFollowerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.followers[groupKey][storeID].length()
 }
 
 // GetStoreLearnerCount get the total count of a store's learner CachedShard
 func (r *ShardsContainer) GetStoreLearnerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.learners[groupKey][storeID].length()
 }
 
@@ -991,6 +1011,8 @@ func (r *ShardsContainer) RandLearnerShards(groupKey string, storeID uint64, ran
 // GetLeader return leader CachedShard by storeID and shardID(now only used in test)
 func (r *ShardsContainer) GetLeader(groupKey string, storeID uint64, res *CachedShard) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	if leaders, ok := r.leaders[groupKey][storeID]; ok {
 		return leaders.find(res).shard
 	}
@@ -1000,6 +1022,8 @@ func (r *ShardsContainer) GetLeader(groupKey string, storeID uint64, res *Cached
 // GetFollower return follower CachedShard by storeID and shardID(now only used in test)
 func (r *ShardsContainer) GetFollower(groupKey string, storeID uint64, res *CachedShard) *CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	if followers, ok := r.followers[groupKey][storeID]; ok {
 		return followers.find(res).shard
 	}
