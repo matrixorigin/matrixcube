@@ -76,7 +76,7 @@ func TestCreateShards(t *testing.T) {
 
 	cluster.doNotifyCreateShards()
 	e := <-cluster.ChangedEventNotifier()
-	assert.Equal(t, event.EventShard, e.Type)
+	assert.Equal(t, event.ShardEvent, e.Type)
 	assert.True(t, e.ShardEvent.Create)
 
 	for _, res := range cluster.core.WaitingCreateShards {
@@ -121,7 +121,7 @@ func TestCreateShardsRestart(t *testing.T) {
 	assert.Equal(t, 1, len(tc.core.WaitingCreateShards))
 	tc.doNotifyCreateShards()
 	e := <-tc.ChangedEventNotifier()
-	assert.Equal(t, event.EventShard, e.Type)
+	assert.Equal(t, event.ShardEvent, e.Type)
 	assert.True(t, e.ShardEvent.Create)
 }
 
@@ -138,7 +138,7 @@ func TestRemoveShards(t *testing.T) {
 	// add 1,2,3,4,5,6
 	for i := uint64(1); i < n; i++ {
 		cluster.processShardHeartbeat(resources[i])
-		checkNotifyCount(t, nc, event.EventShard, event.EventShardStats)
+		checkNotifyCount(t, nc, event.ShardEvent, event.ShardStatsEvent)
 	}
 
 	removed := []uint64{1, 2, 3, 4, 5}
@@ -149,7 +149,7 @@ func TestRemoveShards(t *testing.T) {
 	assert.Equal(t, uint64(1), cluster.core.DestroyedShards.GetCardinality())
 	assert.True(t, cluster.core.DestroyedShards.Contains(removed[0]))
 	assert.Error(t, cluster.processShardHeartbeat(resources[1]))
-	checkNotifyCount(t, nc, event.EventShard)
+	checkNotifyCount(t, nc, event.ShardEvent)
 
 	_, err = cluster.HandleRemoveShards(&rpcpb.ProphetRequest{
 		RemoveShards: rpcpb.RemoveShardsReq{IDs: removed},
@@ -160,7 +160,7 @@ func TestRemoveShards(t *testing.T) {
 		RemoveShards: rpcpb.RemoveShardsReq{IDs: removed[1:]},
 	})
 	assert.NoError(t, err)
-	checkNotifyCount(t, nc, event.EventShard, event.EventShard, event.EventShard, event.EventShard)
+	checkNotifyCount(t, nc, event.ShardEvent, event.ShardEvent, event.ShardEvent, event.ShardEvent)
 	assert.Equal(t, uint64(5), cluster.core.DestroyedShards.GetCardinality())
 	for _, id := range removed {
 		assert.True(t, cluster.core.DestroyedShards.Contains(id))

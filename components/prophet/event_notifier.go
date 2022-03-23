@@ -45,7 +45,7 @@ func (wt *watcherSession) notify(evt rpcpb.EventNotify) error {
 	return nil
 }
 
-type watcherNotifier struct {
+type eventNotifier struct {
 	sync.Mutex
 
 	logger   *zap.Logger
@@ -54,8 +54,8 @@ type watcherNotifier struct {
 	stopper  *stop.Stopper
 }
 
-func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watcherNotifier {
-	wn := &watcherNotifier{
+func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *eventNotifier {
+	wn := &eventNotifier{
 		logger:   log.Adjust(logger).Named("watch-notify"),
 		cluster:  cluster,
 		watchers: make(map[uint64]*watcherSession),
@@ -64,22 +64,22 @@ func newWatcherNotifier(cluster *cluster.RaftCluster, logger *zap.Logger) *watch
 	return wn
 }
 
-func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse, session goetty.IOSession) error {
+func (wn *eventNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *rpcpb.ProphetResponse, session goetty.IOSession) error {
 	if wn != nil {
 		wn.logger.Info("watcher added",
 			zap.String("address", session.RemoteAddr()))
 
 		wn.cluster.RLock()
 		defer wn.cluster.RUnlock()
-		if event.MatchEvent(event.EventInit, req.CreateWatcher.Flag) {
+		if event.MatchEvent(event.InitEvent, req.CreateWatcher.Flag) {
 			snap := event.Snapshot{
 				Leaders: make(map[uint64]uint64),
 			}
 			for _, c := range wn.cluster.GetStores() {
-				snap.Stores = append(snap.Stores, c.Meta.Clone())
+				snap.Stores = append(snap.Stores, c.Meta)
 			}
 			for _, res := range wn.cluster.GetShards() {
-				snap.Shards = append(snap.Shards, res.Meta.Clone())
+				snap.Shards = append(snap.Shards, res.Meta)
 				leader := res.GetLeader()
 				if leader != nil {
 					snap.Leaders[res.Meta.GetID()] = leader.ID
@@ -91,7 +91,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *
 				return err
 			}
 
-			resp.Event.Type = event.EventInit
+			resp.Event.Type = event.InitEvent
 			resp.Event.InitEvent = rsp
 		}
 
@@ -101,7 +101,7 @@ func (wn *watcherNotifier) handleCreateWatcher(req *rpcpb.ProphetRequest, resp *
 	return nil
 }
 
-func (wn *watcherNotifier) addWatcher(flag uint32, session goetty.IOSession) error {
+func (wn *eventNotifier) addWatcher(flag uint32, session goetty.IOSession) error {
 	wn.Lock()
 	defer wn.Unlock()
 
@@ -116,14 +116,14 @@ func (wn *watcherNotifier) addWatcher(flag uint32, session goetty.IOSession) err
 	return nil
 }
 
-func (wn *watcherNotifier) doClearWatcherLocked(w *watcherSession) {
+func (wn *eventNotifier) doClearWatcherLocked(w *watcherSession) {
 	delete(wn.watchers, w.session.ID())
 	w.session.Close()
 	wn.logger.Info("watcher removed",
 		zap.String("address", w.session.RemoteAddr()))
 }
 
-func (wn *watcherNotifier) doNotify(evt rpcpb.EventNotify) {
+func (wn *eventNotifier) doNotify(evt rpcpb.EventNotify) {
 	wn.Lock()
 	defer wn.Unlock()
 
@@ -135,22 +135,22 @@ func (wn *watcherNotifier) doNotify(evt rpcpb.EventNotify) {
 	}
 }
 
-func (wn *watcherNotifier) start() {
+func (wn *eventNotifier) start() {
 	wn.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		eventC := wn.cluster.ChangedEventNotifier()
 		if eventC == nil {
-			wn.logger.Info("watcher notifer exit with nil event channel")
+			wn.logger.Info("watcher notifier exit with nil event channel")
 			return
 		}
 
 		for {
 			select {
 			case <-ctx.Done():
-				wn.logger.Info("watcher notifer exit")
+				wn.logger.Info("watcher notifier exit")
 				return
 			case evt, ok := <-eventC:
 				if !ok {
-					wn.logger.Info("watcher notifer exit with channel closed")
+					wn.logger.Info("watcher notifier exit with channel closed")
 					return
 				}
 				wn.doNotify(evt)
@@ -159,7 +159,7 @@ func (wn *watcherNotifier) start() {
 	})
 }
 
-func (wn *watcherNotifier) stop() {
+func (wn *eventNotifier) stop() {
 	wn.Lock()
 	for _, wt := range wn.watchers {
 		wn.doClearWatcherLocked(wt)

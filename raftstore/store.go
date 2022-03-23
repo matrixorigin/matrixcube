@@ -15,7 +15,6 @@ package raftstore
 
 import (
 	"fmt"
-	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +31,7 @@ import (
 	"github.com/matrixorigin/matrixcube/logdb"
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/transport"
@@ -63,11 +63,11 @@ type Store interface {
 	OnRequest(rpcpb.Request) error
 	// OnRequestWithCB receive a request, and call cb while the request is completed
 	OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) error
-	// DataStorage returns a DataStorage of the shard group
+	// DataStorageByGroup returns a DataStorage of the shard group
 	DataStorageByGroup(uint64) storage.DataStorage
 	// MaybeLeader returns the shard replica maybe leader
 	MaybeLeader(uint64) bool
-	// AllocID returns a uint64 id, panic if has a error
+	// MustAllocID returns an uint64 id, panic if it has an error
 	MustAllocID() uint64
 	// Prophet return current prophet instance
 	Prophet() prophet.Prophet
@@ -96,7 +96,7 @@ type store struct {
 	shardsProxy           ShardsProxy
 	router                Router
 	splitChecker          *splitChecker
-	watcher               prophet.Watcher
+	watcher               prophet.EventWatcher
 	vacuumCleaner         *vacuumCleaner
 	createShardsProtector *createShardsProtector
 	keyRanges             sync.Map // group id -> *util.ShardTree
@@ -254,7 +254,7 @@ func (s *store) Stop() {
 		s.workerPool.close()
 		s.logger.Info("worker pool stopped",
 			s.storeField())
-		// worker pool stopped, its now safe to check whether all replicas have been
+		// worker pool stopped, it's now safe to check whether all replicas have been
 		// shutdown, shutdown the replica if it is not stopped.
 		s.forEachReplica(func(pr *replica) bool {
 			if !pr.unloaded() {
@@ -292,7 +292,7 @@ func (s *store) GetRouter() Router {
 }
 
 func (s *store) startRouter() {
-	watcher, err := s.pd.GetClient().NewWatcher(uint32(event.EventFlagAll))
+	watcher, err := s.pd.GetClient().NewWatcher(event.AllEvent)
 	if err != nil {
 		s.logger.Fatal("fail to create router",
 			s.storeField(),
@@ -324,7 +324,7 @@ func (s *store) startRouter() {
 }
 
 func (s *store) Meta() metapb.Store {
-	return *s.meta.Clone()
+	return s.meta
 }
 
 func (s *store) OnRequest(req rpcpb.Request) error {
@@ -596,11 +596,11 @@ func (s *store) getReplica(id uint64, mustLeader bool) *replica {
 	return nil
 }
 
-// In some case, the vote raft msg maybe dropped, so follower node can't response the vote msg
+// In some case, the vote raft msg maybe dropped, so follower node can't respond the vote msg
 // shard a has 3 replicas p1, p2, p3. The p1 split to new shard b
-// case 1: in most sence, p1 apply split raft log is before p2 and p3.
+// case 1: in most case, p1 apply split raft log is before p2 and p3.
 //         At this time, if p2, p3 received the shard b's vote msg,
-//         and this vote will dropped by p2 and p3 node,
+//         and this vote will be dropped by p2 and p3 node,
 //         because shard a and shard b has overlapped range at p2 and p3 node
 // case 2: p2 or p3 apply split log is before p1, we can't mock shard b's vote msg
 func (s *store) cacheDroppedVoteMsg(id uint64, msg metapb.RaftMessage) {
@@ -708,10 +708,10 @@ func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 		return false
 	}
 
-	lastestEpoch := shard.Epoch
+	latestEpoch := shard.Epoch
 	isStale := func(fromEpoch Epoch) bool {
-		return (checkConfVer && fromEpoch.ConfigVer < lastestEpoch.ConfigVer) ||
-			(checkVer && fromEpoch.Generation < lastestEpoch.Generation)
+		return (checkConfVer && fromEpoch.ConfigVer < latestEpoch.ConfigVer) ||
+			(checkVer && fromEpoch.Generation < latestEpoch.Generation)
 	}
 
 	// only check first request, because requests inside a batch have the same epoch

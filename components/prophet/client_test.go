@@ -97,13 +97,13 @@ func TestAsyncCreateShards(t *testing.T) {
 	assert.NoError(t, c.PutStore(newTestStoreMeta(3)))
 	_, err = c.StoreHeartbeat(newTestStoreHeartbeat(3, 1))
 	assert.NoError(t, err)
-	w, err := c.NewWatcher(uint32(event.EventFlagAll))
+	w, err := c.NewWatcher(event.AllEvent)
 	assert.NoError(t, err)
 	assert.NoError(t, c.AsyncAddShards(newTestShardMeta(1)))
 
 	select {
 	case e := <-w.GetNotify():
-		assert.Equal(t, event.EventInit, e.Type)
+		assert.Equal(t, event.InitEvent, e.Type)
 	case <-time.After(time.Second):
 		assert.FailNow(t, "timeout")
 	}

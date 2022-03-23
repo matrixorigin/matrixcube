@@ -21,20 +21,20 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 )
 
-// ShardOption is used to select resource.
+// ShardOption is used to select shard.
 type ShardOption func(res *CachedShard) bool
 
-// ShardCreateOption used to create resource.
+// ShardCreateOption used to create shard.
 type ShardCreateOption func(res *CachedShard)
 
-// WithState sets state for the resource.
+// WithState sets state for the shard.
 func WithState(state metapb.ShardState) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.Meta.SetState(state)
 	}
 }
 
-// WithDownPeers sets the down peers for the resource.
+// WithDownPeers sets the down peers for the shard.
 func WithDownPeers(downReplicas []metapb.ReplicaStats) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.downReplicas = append(downReplicas[:0:0], downReplicas...)
@@ -42,7 +42,7 @@ func WithDownPeers(downReplicas []metapb.ReplicaStats) ShardCreateOption {
 	}
 }
 
-// WithPendingPeers sets the pending peers for the resource.
+// WithPendingPeers sets the pending peers for the shard.
 func WithPendingPeers(pendingReplicas []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.pendingReplicas = append(pendingReplicas[:0:0], pendingReplicas...)
@@ -50,7 +50,7 @@ func WithPendingPeers(pendingReplicas []metapb.Replica) ShardCreateOption {
 	}
 }
 
-// WithLearners sets the learners for the resource.
+// WithLearners sets the learners for the shard.
 func WithLearners(learners []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		peers := res.Meta.GetReplicas()
@@ -65,35 +65,35 @@ func WithLearners(learners []metapb.Replica) ShardCreateOption {
 	}
 }
 
-// WithLeader sets the leader for the resource.
+// WithLeader sets the leader for the shard.
 func WithLeader(leader *metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.leader = leader
 	}
 }
 
-// WithStartKey sets the start key for the resource.
+// WithStartKey sets the start key for the shard.
 func WithStartKey(key []byte) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.Meta.SetStartKey(key)
 	}
 }
 
-// WithEndKey sets the end key for the resource.
+// WithEndKey sets the end key for the shard.
 func WithEndKey(key []byte) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.Meta.SetEndKey(key)
 	}
 }
 
-// WithNewShardID sets new id for the resource.
+// WithNewShardID sets new id for the shard.
 func WithNewShardID(id uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.Meta.SetID(id)
 	}
 }
 
-// WithIncVersion increases the version of the resource.
+// WithIncVersion increases the version of the shard.
 func WithIncVersion() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
@@ -102,7 +102,7 @@ func WithIncVersion() ShardCreateOption {
 	}
 }
 
-// WithDecVersion decreases the version of the resource.
+// WithDecVersion decreases the version of the shard.
 func WithDecVersion() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
@@ -111,7 +111,7 @@ func WithDecVersion() ShardCreateOption {
 	}
 }
 
-// WithIncConfVer increases the config version of the resource.
+// WithIncConfVer increases the config version of the shard.
 func WithIncConfVer() ShardCreateOption {
 	return func(res *CachedShard) {
 		e := res.Meta.GetEpoch()
@@ -120,21 +120,21 @@ func WithIncConfVer() ShardCreateOption {
 	}
 }
 
-// SetWrittenBytes sets the written bytes for the resource.
+// SetWrittenBytes sets the written bytes for the shard.
 func SetWrittenBytes(v uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.WrittenBytes = v
 	}
 }
 
-// SetWrittenKeys sets the written keys for the resource.
+// SetWrittenKeys sets the written keys for the shard.
 func SetWrittenKeys(v uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.WrittenKeys = v
 	}
 }
 
-// WithRemoveStorePeer removes the specified peer for the resource.
+// WithRemoveStorePeer removes the specified peer for the shard.
 func WithRemoveStorePeer(containerID uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		var peers []metapb.Replica
@@ -147,49 +147,49 @@ func WithRemoveStorePeer(containerID uint64) ShardCreateOption {
 	}
 }
 
-// SetReadBytes sets the read bytes for the resource.
+// SetReadBytes sets the read bytes for the shard.
 func SetReadBytes(v uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.ReadBytes = v
 	}
 }
 
-// SetReadKeys sets the read keys for the resource.
+// SetReadKeys sets the read keys for the shard.
 func SetReadKeys(v uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.ReadKeys = v
 	}
 }
 
-// SetApproximateSize sets the approximate size for the resource.
+// SetApproximateSize sets the approximate size for the shard.
 func SetApproximateSize(v int64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.ApproximateSize = uint64(v)
 	}
 }
 
-// SetApproximateKeys sets the approximate keys for the resource.
+// SetApproximateKeys sets the approximate keys for the shard.
 func SetApproximateKeys(v int64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.ApproximateKeys = uint64(v)
 	}
 }
 
-// SetReportInterval sets the report interval for the resource.
+// SetReportInterval sets the report interval for the shard.
 func SetReportInterval(v uint64) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.stats.Interval = &metapb.TimeInterval{Start: 0, End: v}
 	}
 }
 
-// SetPeers sets the peers for the resource.
+// SetPeers sets the peers for the shard.
 func SetPeers(peers []metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		res.Meta.SetReplicas(peers)
 	}
 }
 
-// WithAddPeer adds a peer for the resource.
+// WithAddPeer adds a peer for the shard.
 func WithAddPeer(peer metapb.Replica) ShardCreateOption {
 	return func(res *CachedShard) {
 		peers := res.Meta.GetReplicas()

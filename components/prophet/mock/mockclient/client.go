@@ -280,10 +280,10 @@ func (mr *MockClientMockRecorder) GetStore(containerID interface{}) *gomock.Call
 }
 
 // NewWatcher mocks base method.
-func (m *MockClient) NewWatcher(flag uint32) (prophet.Watcher, error) {
+func (m *MockClient) NewWatcher(flag uint32) (prophet.EventWatcher, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewWatcher", flag)
-	ret0, _ := ret[0].(prophet.Watcher)
+	ret0, _ := ret[0].(prophet.EventWatcher)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

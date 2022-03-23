@@ -35,7 +35,7 @@ func TestHandleInitEvent(t *testing.T) {
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
 	store := metapb.Store{ID: 101}
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventInit
+	e.Type = event.InitEvent
 	e.InitEvent = &rpcpb.InitEventData{
 		Shards:  [][]byte{protoc.MustMarshal(&shard)},
 		Stores:  [][]byte{protoc.MustMarshal(&store)},
@@ -62,7 +62,7 @@ func TestHandleShardEvent(t *testing.T) {
 	shard := b.CreateShard(1, "100/101,200/201,300/301")
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventShard
+	e.Type = event.ShardEvent
 	e.ShardEvent = &rpcpb.ShardEventData{
 		Data: protoc.MustMarshal(&shard),
 	}
@@ -87,13 +87,13 @@ func TestHandleShardEventWithLeader(t *testing.T) {
 	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventStore
+	e.Type = event.StoreEvent
 	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}
 	r.handleEvent(e)
 
-	e.Type = event.EventShard
+	e.Type = event.ShardEvent
 	e.ShardEvent = &rpcpb.ShardEventData{
 		Data:   protoc.MustMarshal(&shard),
 		Leader: 100,
@@ -120,7 +120,7 @@ func TestHandleShardEventWithMissingLeaderStore(t *testing.T) {
 	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventShard
+	e.Type = event.ShardEvent
 	e.ShardEvent = &rpcpb.ShardEventData{
 		Data:   protoc.MustMarshal(&shard),
 		Leader: 100,
@@ -132,7 +132,7 @@ func TestHandleShardEventWithMissingLeaderStore(t *testing.T) {
 	assert.Equal(t, metapb.Store{}, r.mu.leaders[shard.ID])
 	assert.Equal(t, Replica{ID: 100, StoreID: 101}, r.mu.missingLeaderStoreShards[shard.ID])
 
-	e.Type = event.EventStore
+	e.Type = event.StoreEvent
 	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}
@@ -153,7 +153,7 @@ func TestHandleStoreEvent(t *testing.T) {
 	store := metapb.Store{ID: 101}
 
 	e := rpcpb.EventNotify{}
-	e.Type = event.EventStore
+	e.Type = event.StoreEvent
 	e.StoreEvent = &rpcpb.StoreEventData{
 		Data: protoc.MustMarshal(&store),
 	}

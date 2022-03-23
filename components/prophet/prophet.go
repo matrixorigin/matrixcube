@@ -107,7 +107,7 @@ type defaultProphet struct {
 
 	mu struct {
 		sync.RWMutex
-		wn *watcherNotifier
+		wn *eventNotifier
 	}
 }
 
