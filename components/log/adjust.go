@@ -36,3 +36,10 @@ func GetPanicZapLogger(options ...zap.Option) *zap.Logger {
 	return GetDefaultZapLoggerWithLevel(zapcore.InfoLevel,
 		zap.OnFatal(zapcore.WriteThenPanic))
 }
+
+// GetPanicZapLoggerWithLevel returns a zap logger which will panic on Fatal(). The
+// returned zap logger should only be used in tests.
+func GetPanicZapLoggerWithLevel(level zapcore.Level, options ...zap.Option) *zap.Logger {
+	return GetDefaultZapLoggerWithLevel(level,
+		zap.OnFatal(zapcore.WriteThenPanic))
+}
