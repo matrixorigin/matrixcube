@@ -253,7 +253,7 @@ func (r *CachedShard) GetPendingLearner(peerID uint64) (metapb.Replica, bool) {
 	return metapb.Replica{}, false
 }
 
-// GetStorePeer returns the peer in specified container.
+// GetStorePeer returns the peer in specified store.
 func (r *CachedShard) GetStorePeer(storeID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.Meta.GetReplicas() {
 		if peer.StoreID == storeID {
@@ -263,7 +263,7 @@ func (r *CachedShard) GetStorePeer(storeID uint64) (metapb.Replica, bool) {
 	return metapb.Replica{}, false
 }
 
-// GetStoreVoter returns the voter in specified container.
+// GetStoreVoter returns the voter in specified store.
 func (r *CachedShard) GetStoreVoter(storeID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.voters {
 		if peer.StoreID == storeID {
@@ -273,7 +273,7 @@ func (r *CachedShard) GetStoreVoter(storeID uint64) (metapb.Replica, bool) {
 	return metapb.Replica{}, false
 }
 
-// GetStoreLearner returns the learner peer in specified container.
+// GetStoreLearner returns the learner peer in specified store.
 func (r *CachedShard) GetStoreLearner(storeID uint64) (metapb.Replica, bool) {
 	for _, peer := range r.learners {
 		if peer.StoreID == storeID {
@@ -316,7 +316,7 @@ func (r *CachedShard) GetFollower() (metapb.Replica, bool) {
 }
 
 // GetDiffFollowers returns the followers which is not located in the same
-// container as any other followers of the another specified shard.
+// store as any other followers of the another specified shard.
 func (r *CachedShard) GetDiffFollowers(other *CachedShard) []metapb.Replica {
 	res := make([]metapb.Replica, 0, len(r.Meta.GetReplicas()))
 	for _, p := range r.GetFollowers() {
@@ -884,25 +884,25 @@ func (r *ShardsContainer) GetStoreShards(groupKey string, storeID uint64) []*Cac
 	return shards
 }
 
-// GetStoreLeaderShardSize get total size of container's leader shards
+// GetStoreLeaderShardSize get total size of store's leader shards
 func (r *ShardsContainer) GetStoreLeaderShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.leaders[groupKey][storeID].TotalSize()
 }
 
-// GetStoreFollowerShardSize get total size of container's follower shards
+// GetStoreFollowerShardSize get total size of store's follower shards
 func (r *ShardsContainer) GetStoreFollowerShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.followers[groupKey][storeID].TotalSize()
 }
 
-// GetStoreLearnerShardSize get total size of container's learner shards
+// GetStoreLearnerShardSize get total size of store's learner shards
 func (r *ShardsContainer) GetStoreLearnerShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.learners[groupKey][storeID].TotalSize()
 }
 
-// GetStoreShardSize get total size of container's shards
+// GetStoreShardSize get total size of store's shards
 func (r *ShardsContainer) GetStoreShardSize(groupKey string, storeID uint64) int64 {
 	r.maybeInitWithGroup(groupKey)
 	return r.GetStoreLeaderShardSize(groupKey, storeID) +
@@ -924,7 +924,7 @@ func (r *ShardsContainer) GetShardCount() int {
 	return r.shards.Len()
 }
 
-// GetStoreShardCount gets the total count of a container's leader, follower and learner CachedShard by storeID
+// GetStoreShardCount gets the total count of a store's leader, follower and learner CachedShard by storeID
 func (r *ShardsContainer) GetStoreShardCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.GetStoreLeaderCount(groupKey, storeID) +
@@ -932,51 +932,59 @@ func (r *ShardsContainer) GetStoreShardCount(groupKey string, storeID uint64) in
 		r.GetStoreLearnerCount(groupKey, storeID)
 }
 
-// GetStorePendingPeerCount gets the total count of a container's shard that includes pending peer
+// GetStorePendingPeerCount gets the total count of a store's shard that includes pending peer
 func (r *ShardsContainer) GetStorePendingPeerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.pendingReplicas[groupKey][storeID].length()
 }
 
-// GetStoreLeaderCount get the total count of a container's leader CachedShard
+// GetStoreLeaderCount get the total count of a store's leader CachedShard
 func (r *ShardsContainer) GetStoreLeaderCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.leaders[groupKey][storeID].length()
 }
 
-// GetStoreFollowerCount get the total count of a container's follower CachedShard
+// GetStoreFollowerCount get the total count of a store's follower CachedShard
 func (r *ShardsContainer) GetStoreFollowerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.followers[groupKey][storeID].length()
 }
 
-// GetStoreLearnerCount get the total count of a container's learner CachedShard
+// GetStoreLearnerCount get the total count of a store's learner CachedShard
 func (r *ShardsContainer) GetStoreLearnerCount(groupKey string, storeID uint64) int {
 	r.maybeInitWithGroup(groupKey)
 	return r.learners[groupKey][storeID].length()
 }
 
-// RandPendingShards randomly gets a container's n shards with a pending peer.
+// RandPendingShards randomly gets a store's n shards with a pending peer.
 func (r *ShardsContainer) RandPendingShards(groupKey string, storeID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.pendingReplicas[groupKey][storeID].RandomShards(n, ranges)
 }
 
-// RandLeaderShards randomly gets a container's n leader shards.
+// RandLeaderShards randomly gets a store's n leader shards.
 func (r *ShardsContainer) RandLeaderShards(groupKey string, storeID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.leaders[groupKey][storeID].RandomShards(n, ranges)
 }
 
-// RandFollowerShards randomly gets a container's n follower shards.
+// RandFollowerShards randomly gets a store's n follower shards.
 func (r *ShardsContainer) RandFollowerShards(groupKey string, storeID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.followers[groupKey][storeID].RandomShards(n, ranges)
 }
 
-// RandLearnerShards randomly gets a container's n learner shards.
+// RandLearnerShards randomly gets a store's n learner shards.
 func (r *ShardsContainer) RandLearnerShards(groupKey string, storeID uint64, ranges []KeyRange, n int) []*CachedShard {
 	r.maybeInitWithGroup(groupKey)
+	r.RLock()
+	defer r.RUnlock()
 	return r.learners[groupKey][storeID].RandomShards(n, ranges)
 }
 
