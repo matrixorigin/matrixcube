@@ -83,11 +83,15 @@ func TestLocalDispatch(t *testing.T) {
 		build(rr)
 	assert.NoError(t, err)
 
+	rc := newMockRetryController()
+	sp.SetRetryController(rc)
+
 	// no shard
 	req := rpcpb.Request{}
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
-	req.StopAt = time.Now().Add(time.Millisecond * 50).Unix()
+	rc.setRequest(req, time.Millisecond*50)
+
 	err = sp.Dispatch(req)
 	assert.NoError(t, err)
 	select {
@@ -190,13 +194,16 @@ func TestRPCDispatch(t *testing.T) {
 	assert.NoError(t, sp2.Start())
 	defer sp2.Stop()
 
+	rc := newMockRetryController()
+	sp2.SetRetryController(rc)
+
 	factory1.backends[addr2] = newRemoteBackend(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp1")),
 		success1, failure1, addr2, goetty.NewIOSession(goetty.WithCodec(encoder, decoder)))
 
 	req := rpcpb.Request{}
 	req.ID = []byte("k1")
 	req.Key = []byte("k1")
-	req.StopAt = time.Now().Add(time.Millisecond * 100).Unix()
+	rc.setRequest(req, time.Millisecond*100)
 	assert.NoError(t, sp1.DispatchTo(req, Shard{}, addr2))
 
 	select {

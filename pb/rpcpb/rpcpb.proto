@@ -512,10 +512,22 @@ message Request {
     bytes   key                = 5;
     bytes   cmd                = 6;
     int64   pid                = 7 [(gogoproto.customname) = "PID"];
-    int64   stopAt             = 8;
-    uint64  toShard            = 9;
-    bool    ignoreEpochCheck   = 10;
-    metapb.ShardEpoch epoch = 11 [(gogoproto.nullable) = false];
+    uint64  toShard            = 8;
+    bool    ignoreEpochCheck   = 9;
+    metapb.ShardEpoch epoch    = 10 [(gogoproto.nullable) = false];
+    // KeysRange If the current request operates on multiple Keys, then KeysRange needs 
+    // to be filled in, and the client needs to split the request again if it wants to 
+    // re-route according to KeysRange after the data management scope of the Shard has changed,
+    // or if it returns the specified error.
+    Range   keysRange          = 11;
+}
+
+// Range key range [from, to)
+message Range {
+    // From include
+    bytes from = 1;
+    // To exclude
+    bytes to   = 2;
 }
 
 // Response response
