@@ -44,6 +44,16 @@ func WithRouteKey(key []byte) Option {
 	}
 }
 
+// WithKeysRange If the current request operates on multiple Keys, set the range [from, to) of Keys
+// operated by the current request. The client needs to split the request again if it wants
+// to re-route according to KeysRange after the data management scope of the Shard has
+// changed, or if it returns the specified error.
+func WithKeysRange(from, to []byte) Option {
+	return func(c *Future) {
+		c.req.KeysRange = &rpcpb.Range{From: from, To: to}
+	}
+}
+
 // WithShard use the specified shard to route request
 func WithShard(shard uint64) Option {
 	return func(c *Future) {
@@ -69,7 +79,7 @@ func newFuture(ctx context.Context, req rpcpb.Request) *Future {
 	return &Future{
 		ctx: ctx,
 		req: req,
-		c:   make(chan struct{}),
+		c:   make(chan struct{}, 1),
 	}
 }
 
@@ -110,7 +120,11 @@ func (f *Future) done(value []byte, err error) {
 	if !f.mu.closed {
 		f.value = value
 		f.err = err
-		f.c <- struct{}{}
+		select {
+		case f.c <- struct{}{}:
+		default:
+			panic("BUG")
+		}
 	}
 }
 
@@ -217,9 +231,9 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 
 	var err error
 	if s.dispatcher != nil {
-		err = s.dispatcher(req, s.shardsProxy)
+		err = s.dispatcher(f.req, s.shardsProxy)
 	} else {
-		err = s.shardsProxy.Dispatch(req)
+		err = s.shardsProxy.Dispatch(f.req)
 	}
 	if err != nil {
 		f.done(nil, err)

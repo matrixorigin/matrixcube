@@ -670,6 +670,7 @@ func newTestKVClient(t *testing.T, store Store, adjust func(req *rpcpb.Request))
 		stopper:  stop.NewStopper("test-kv-client"),
 		requests: make(map[string]rpcpb.Request),
 		adjust:   adjust,
+		rc:       newMockRetryController(),
 	}
 	kv.proxy = store.GetShardsProxy()
 	kv.proxy.SetCallback(kv.done, kv.errorDone)
@@ -686,6 +687,7 @@ type testKVClient struct {
 	errCtx   map[string]chan error
 	requests map[string]rpcpb.Request
 	adjust   func(req *rpcpb.Request)
+	rc       *mockRetryController
 }
 
 func (kv *testKVClient) Set(key, value string, timeout time.Duration) error {
@@ -704,11 +706,11 @@ func (kv *testKVClient) SetWithShard(key, value string, shardID uint64, timeout 
 	defer kv.clearContext(id)
 
 	req := createTestWriteReq(id, key, value)
-	req.StopAt = time.Now().Add(timeout).Unix()
 	req.ToShard = shardID
 
 	kv.Lock()
 	kv.requests[id] = req
+	kv.rc.setRequest(req, timeout)
 	kv.Unlock()
 
 	defer func() {
@@ -757,10 +759,10 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 			Policy: rpcpb.Add,
 		}),
 	}
-	req.StopAt = time.Now().Add(timeout).Unix()
 
 	kv.Lock()
 	kv.requests[id] = req
+	kv.rc.setRequest(req, timeout)
 	kv.Unlock()
 
 	defer func() {
@@ -799,11 +801,11 @@ func (kv *testKVClient) GetWithShard(key string, shardID uint64, timeout time.Du
 	defer kv.clearContext(id)
 
 	req := createTestReadReq(id, key)
-	req.StopAt = time.Now().Add(timeout).Unix()
 	req.ToShard = shardID
 
 	kv.Lock()
 	kv.requests[id] = req
+	kv.rc.setRequest(req, timeout)
 	kv.Unlock()
 
 	defer func() {
@@ -852,6 +854,7 @@ func (kv *testKVClient) clearContext(id string) {
 
 	delete(kv.errCtx, id)
 	delete(kv.doneCtx, id)
+	kv.rc.deleteRequest(id)
 }
 
 func (kv *testKVClient) done(resp rpcpb.Response) {
@@ -1784,4 +1787,43 @@ func (s *customStorageStatsReader) stats() (storageStats, error) {
 		available: s.available - used,
 		usedSize:  s.capacity - s.available + used,
 	}, nil
+}
+
+type mockRetryController struct {
+	sync.Mutex
+	stopAt   map[string]int64
+	requests map[string]rpcpb.Request
+}
+
+func newMockRetryController() *mockRetryController {
+	return &mockRetryController{
+		stopAt:   make(map[string]int64),
+		requests: make(map[string]rpcpb.Request),
+	}
+}
+
+func (c *mockRetryController) setRequest(request rpcpb.Request, timeout time.Duration) {
+	c.Lock()
+	defer c.Unlock()
+	c.requests[string(request.ID)] = request
+	c.stopAt[string(request.ID)] = time.Now().Add(timeout).Unix()
+}
+
+func (c *mockRetryController) deleteRequest(id string) {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.requests, id)
+	delete(c.stopAt, id)
+}
+
+func (c *mockRetryController) Retry(requestID []byte) (rpcpb.Request, bool) {
+	c.Lock()
+	defer c.Unlock()
+
+	v, ok := c.stopAt[string(requestID)]
+	if !ok || time.Now().Unix() >= v {
+		return rpcpb.Request{}, false
+	}
+
+	return c.requests[string(requestID)], true
 }
