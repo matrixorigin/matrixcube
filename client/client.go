@@ -135,6 +135,10 @@ type Client interface {
 	// Stop stop the cube client
 	Stop() error
 
+	// Router returns a Router with real-time updated routing table information
+	// inside for custom message routing
+	Router() raftstore.Router
+
 	// Admin exec the admin request, and use the `Future` to get the response.
 	Admin(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future
 	// Write exec the write request, and use the `Future` to get the response.
@@ -190,6 +194,10 @@ func (s *client) Stop() error {
 	}
 	s.logger.Info("cube client stopped")
 	return nil
+}
+
+func (s *client) Router() raftstore.Router {
+	return s.shardsProxy.Router()
 }
 
 func (s *client) Write(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future {
