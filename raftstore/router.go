@@ -26,16 +26,37 @@ import (
 	"go.uber.org/zap"
 )
 
+// ReplicaSelectPolicy strategies for selecting replica
+type ReplicaSelectPolicy int
+
+var (
+	// SelectLeader select leader replica store
+	SelectLeader = ReplicaSelectPolicy(0)
+	// SelectRandom select random replica store
+	SelectRandom = ReplicaSelectPolicy(1)
+	// SelectLeaseHolder select replica lease holder store
+	SelectLeaseHolder = ReplicaSelectPolicy(2)
+)
+
 // Router route the request to the corresponding shard
 type Router interface {
 	// Start the router
 	Start() error
 	// Stop stops the router
 	Stop()
+
+	// AscendRange iterate through all shards in order within [Start, end), and stop when fn returns false.
+	AscendRange(group uint64, start, end []byte, policy ReplicaSelectPolicy, fn func(shard Shard, replicaStore metapb.Store) bool)
+	// SelectShardWithPolicy Select a Shard according to the specified Key, and select the Store where the
+	// Shard's Replica is located according to the ReplicaSelectPolicy.
+	SelectShardWithPolicy(group uint64, key []byte, policy ReplicaSelectPolicy) (Shard, metapb.Store)
+
 	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
-	// If returns leader address is "", means the current shard has no leader
+	// If returns leader address is "", means the current shard has no leader.
+	// Note: Deprecated
 	SelectShard(group uint64, key []byte) (Shard, string)
 	// Every do with all shards
+	// Note: Deprecated
 	Every(group uint64, mustLeader bool, fn func(shard Shard, store metapb.Store) bool)
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard Shard) bool)
@@ -170,6 +191,38 @@ func (r *defaultRouter) Stop() {
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
 	shard := r.searchShard(group, key)
 	return shard, r.LeaderReplicaStore(shard.ID).ClientAddress
+}
+
+func (r *defaultRouter) AscendRange(group uint64, start, end []byte,
+	policy ReplicaSelectPolicy,
+	fn func(shard Shard, replciaStore metapb.Store) bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if tree, ok := r.mu.keyRanges[group]; ok {
+		tree.AscendRange(start, end, func(shard *metapb.Shard) bool {
+			s := *shard
+			return fn(s, r.selectReplicaStoreByPolicyLocked(s, policy))
+		})
+	}
+}
+
+func (r *defaultRouter) SelectShardWithPolicy(group uint64, key []byte, policy ReplicaSelectPolicy) (Shard, metapb.Store) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	shard := r.searchShard(group, key)
+	return shard, r.selectReplicaStoreByPolicyLocked(shard, policy)
+}
+
+func (r *defaultRouter) selectReplicaStoreByPolicyLocked(shard Shard, policy ReplicaSelectPolicy) metapb.Store {
+	switch policy {
+	case SelectLeader:
+		return r.getLeaderReplicaStoreLocked(shard.ID)
+	case SelectRandom:
+		return r.mustGetStoreLocked(r.selectStoreLocked(shard))
+	default:
+		panic("not yet implemented")
+	}
 }
 
 func (r *defaultRouter) GetShard(id uint64) Shard {
@@ -427,6 +480,15 @@ func (r *defaultRouter) mustGetStoreLocked(id uint64) metapb.Store {
 }
 
 func (r *defaultRouter) getLeaderReplicaStoreLocked(shardID uint64) metapb.Store {
+	if value, ok := r.mu.leaders[shardID]; ok {
+		return value
+	}
+	r.logger.Debug("missing leader",
+		log.ShardIDField(shardID))
+	return metapb.Store{}
+}
+
+func (r *defaultRouter) getRandomReplicaStoreLocked(shardID uint64) metapb.Store {
 	if value, ok := r.mu.leaders[shardID]; ok {
 		return value
 	}

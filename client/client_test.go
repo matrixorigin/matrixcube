@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matrixorigin/matrixcube/config"
+	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
@@ -97,6 +99,33 @@ func TestAddShardLabel(t *testing.T) {
 	assert.NoError(t, err)
 
 	c.WaitShardByLabel(sid, "l1", "v1", time.Minute)
+}
+
+func TestKeysRangeNotInShard(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	c := raftstore.NewSingleTestClusterStore(t, raftstore.WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Customize.CustomInitShardsFactory = func() []metapb.Shard {
+			return []metapb.Shard{{Start: []byte("k5"), End: []byte("k8")}}
+		}
+	}))
+	defer c.Stop()
+
+	c.Start()
+	s := NewClient(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s.Start()
+	defer s.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	req := newTestWriteCustomRequest("k5", "v")
+	f := s.Write(ctx, req.CmdType, req.Cmd, WithRouteKey(req.Key), WithKeysRange([]byte("k1"), []byte("k9")))
+	defer f.Close()
+
+	v, err := f.Get()
+	assert.Equal(t, raftstore.ErrKeysNotInShard, err)
+	assert.Empty(t, v)
 }
 
 func newTestWriteCustomRequest(k, v string) storage.Request {
