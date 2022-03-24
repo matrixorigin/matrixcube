@@ -94,13 +94,7 @@ func TestStartAndStopAndRemoveJobs(t *testing.T) {
 		}
 	}()
 
-	var leader Prophet
-	for i := 0; i < clusterSize; i++ {
-		if cluster[i].GetMember().ID() == cluster[i].GetLeader().ID {
-			leader = cluster[i]
-			break
-		}
-	}
+	leader := findProphetLeader(t, cluster, clusterSize)
 	assert.NotNil(t, leader)
 
 	p := leader.(*defaultProphet)

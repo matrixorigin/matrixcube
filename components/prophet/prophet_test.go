@@ -71,6 +71,20 @@ func newTestSingleProphet(t *testing.T, adjustFunc func(*pconfig.Config)) Prophe
 	return newTestProphet(t, c, vfs.GetTestFS())
 }
 
+func findProphetLeader(t *testing.T, cluster []Prophet, clusterSize int) Prophet {
+	assert.Equal(t, len(cluster), clusterSize)
+
+	var leader Prophet
+	for i := 0; i < clusterSize; i++ {
+		p := cluster[i]
+		if p.GetLeader() != nil && p.GetLeader().ID == p.GetMember().ID() {
+			leader = p
+			break
+		}
+	}
+	return leader
+}
+
 func newTestClusterProphet(t *testing.T, n int, adjustFunc func(*pconfig.Config)) []Prophet {
 	if n < 3 {
 		assert.FailNow(t, "cluster count must >= 3")
