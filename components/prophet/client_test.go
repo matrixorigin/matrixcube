@@ -191,7 +191,7 @@ func TestPutPlacementRule(t *testing.T) {
 func TestIssue106(t *testing.T) {
 	clusterSize := 3
 	cluster := newTestClusterProphet(t, clusterSize, func(c *config.Config) {
-		c.RPCTimeout.Duration = time.Millisecond * 200
+		c.RPCTimeout.Duration = time.Millisecond * 500
 	})
 	defer func() {
 		for _, p := range cluster {

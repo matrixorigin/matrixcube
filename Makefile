@@ -28,9 +28,9 @@ PKGNAME = $(shell go list)
 ROOT_DIR = $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
 
 ifeq ($(VERBOSE),)
-GO=@$(GOEXEC)
+	SILENT_MARK := @
 else
-GO=$(GOEXEC)
+	SILENT_MARK :=
 endif
 
 ifeq ($(NO_RACE),1)
@@ -50,10 +50,16 @@ $(info Running selected tests $(TEST_TO_RUN))
 SELECTED_TESTS=-run $(TEST_TO_RUN)
 endif
 
+ifeq ($(shell uname), Darwin)
+### For issue: https://github.com/matrixorigin/matrixcube/issues/720
+	TEST_ENV=CGO_ENABLED=1
+else
+	TEST_ENV=
+endif
 TEST_TAGS=-tags matrixone_test
 SHORT_ONLY=-short
 TEST_OPTIONS=test -timeout=3600s -count=1 -v $(RACE_FLAG) $(COVER_FLAG) $(SELECTED_TESTS)
-GOTEST=$(GO) $(TEST_OPTIONS) $(SHORT_ONLY) $(TEST_TAGS)
+GOTEST = $(SILENT_MARK)$(TEST_ENV) $(GOEXEC) $(TEST_OPTIONS) $(SHORT_ONLY) $(TEST_TAGS)
 
 ###############################################################################
 # tests
