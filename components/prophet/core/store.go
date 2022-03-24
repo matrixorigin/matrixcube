@@ -30,7 +30,7 @@ const (
 	// Interval to save store meta (including heartbeat ts) to etcd.
 	storePersistInterval  = 5 * time.Minute
 	gb                    = 1 << 30 // 1GB size
-	initialMaxShardCounts = 30      // exclude storage Threshold Filter when resource less than 30
+	initialMaxShardCounts = 30      // exclude storage Threshold Filter when shard less than 30
 	initialMinSpace       = 1 << 33 // 2^3=8GB
 )
 
@@ -286,9 +286,9 @@ func (cr *CachedStore) LeaderScore(groupKey string, policy SchedulePolicy, delta
 	}
 }
 
-// ShardScore returns the store's resource score.
+// ShardScore returns the store's shard score.
 // Deviation It is used to control the direction of the deviation considered
-// when calculating the resource score. It is set to -1 when it is the source
+// when calculating the shard score. It is set to -1 when it is the source
 // store of balance, 1 when it is the target, and 0 in the rest of cases.
 func (cr *CachedStore) ShardScore(groupKey string, highSpaceRatio, lowSpaceRatio float64, delta int64, deviation int) float64 {
 	A := float64(float64(cr.GetAvgAvailable())-float64(deviation)*float64(cr.GetAvailableDeviation())) / gb
@@ -305,7 +305,7 @@ func (cr *CachedStore) ShardScore(groupKey string, highSpaceRatio, lowSpaceRatio
 	if A >= C || cr.GetUsedRatio() <= highSpaceRatio || C < 1 {
 		score = R
 	} else if A > F {
-		// As the amount of data increases (available becomes smaller), the weight of resource size on total score
+		// As the amount of data increases (available becomes smaller), the weight of shard size on total score
 		// increases. Ideally, all nodes converge at the position where remaining space is F (default 20GiB).
 		score = (K + M*(math.Log(C)-math.Log(A-F+1))/(C-A+F-1)) * R
 	} else {
@@ -341,7 +341,7 @@ func (cr *CachedStore) IsLowSpace(lowSpaceRatio float64) bool {
 	return cr.AvailableRatio() < 1-lowSpaceRatio
 }
 
-// ShardCount returns count of leader/resource-replica in the store.
+// ShardCount returns count of leader/shard-replica in the store.
 func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardType) uint64 {
 	switch kind {
 	case metapb.ShardType_LeaderOnly:
@@ -353,7 +353,7 @@ func (cr *CachedStore) ShardCount(groupKey string, kind metapb.ShardType) uint64
 	}
 }
 
-// ShardSize returns size of leader/resource-replica in the store
+// ShardSize returns size of leader/shard-replica in the store
 func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardType) int64 {
 	switch kind {
 	case metapb.ShardType_LeaderOnly:
@@ -365,7 +365,7 @@ func (cr *CachedStore) ShardSize(groupKey string, kind metapb.ShardType) int64 {
 	}
 }
 
-// ShardWeight returns weight of leader/resource-replica in the score
+// ShardWeight returns weight of leader/shard-replica in the score
 func (cr *CachedStore) ShardWeight(kind metapb.ShardType) float64 {
 	switch kind {
 	case metapb.ShardType_LeaderOnly:
@@ -375,11 +375,11 @@ func (cr *CachedStore) ShardWeight(kind metapb.ShardType) float64 {
 		}
 		return leaderWeight
 	case metapb.ShardType_AllShards:
-		resourceWeight := cr.GetShardWeight()
-		if resourceWeight <= 0 {
+		shardWeight := cr.GetShardWeight()
+		if shardWeight <= 0 {
 			return minWeight
 		}
-		return resourceWeight
+		return shardWeight
 	default:
 		return 0
 	}
@@ -556,13 +556,13 @@ func (s *StoresContainer) GetStoreCount() int {
 }
 
 // UpdateStoreStatus updates the information of the store.
-func (s *StoresContainer) UpdateStoreStatus(groupKey string, storeID uint64, leaderCount int, resourceCount int, pendingPeerCount int, leaderSize int64, resourceSize int64) {
+func (s *StoresContainer) UpdateStoreStatus(groupKey string, storeID uint64, leaderCount int, shardCount int, pendingPeerCount int, leaderSize int64, shardSize int64) {
 	if store, ok := s.stores[storeID]; ok {
 		newStore := store.ShallowClone(SetLeaderCount(groupKey, leaderCount),
-			SetShardCount(groupKey, resourceCount),
+			SetShardCount(groupKey, shardCount),
 			SetPendingPeerCount(groupKey, pendingPeerCount),
 			SetLeaderSize(groupKey, leaderSize),
-			SetShardSize(groupKey, resourceSize))
+			SetShardSize(groupKey, shardSize))
 		s.SetStore(newStore)
 	}
 }
