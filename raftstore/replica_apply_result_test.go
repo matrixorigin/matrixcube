@@ -164,8 +164,16 @@ func TestUpdateMetricsHintsCanBeIgnored(t *testing.T) {
 
 	pr.handleApplyResult(applyResult{
 		ignoreMetrics: true,
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+		},
 	})
 	assert.Equal(t, uint64(1), pr.stats.approximateSize)
-	pr.handleApplyResult(applyResult{})
-	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	pr.handleApplyResult(applyResult{
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+		},
+	})
+	assert.Equal(t, uint64(2), pr.stats.approximateSize)
+
 }
