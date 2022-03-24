@@ -14,6 +14,7 @@
 package raftstore
 
 import (
+	"bytes"
 	"errors"
 	"sync"
 	"time"
@@ -22,13 +23,14 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/errorpb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
-	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
 var (
 	// ErrTimeout timeout error
 	ErrTimeout = errors.New("exec timeout")
+	// ErrKeysNotInShard keys not in shard, request data needs to be split
+	ErrKeysNotInShard = errors.New("keys not in shard, request data needs to be split")
 
 	errStopped = errors.New("stopped")
 )
@@ -226,6 +228,15 @@ func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) erro
 		return nil
 	}
 
+	// the current request is designed to operate on multiple Keys
+	if req.KeysRange != nil && !keysRangeInShard(req.KeysRange, shard) {
+		if ce := p.logger.Check(zap.DebugLevel, "keys not in shard"); ce != nil {
+			ce.Write(log.HexField("id", req.ID),
+				log.ShardField("shard", shard))
+		}
+		return ErrKeysNotInShard
+	}
+
 	req.Epoch = shard.Epoch
 	return p.forwardToBackend(req, to)
 }
@@ -345,16 +356,6 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 		return
 	}
 
-	if time.Now().Unix() >= req.StopAt {
-		if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed with no retry"); ce != nil {
-			ce.Write(log.HexField("id", requestID),
-				log.ReasonField("retry timeout"),
-				zap.String("cause", err))
-		}
-		p.cfg.failureCallback(requestID, multierr.Append(errors.New(err), ErrTimeout))
-		return
-	}
-
 	// FIXME: more efficient retry mechanism
 	if ce := p.logger.Check(zap.DebugLevel, "dispatch request failed, retry later"); ce != nil {
 		ce.Write(log.HexField("id", req.ID),
@@ -366,9 +367,20 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 func (p *shardsProxy) doRetry(arg interface{}) {
 	req := arg.(rpcpb.Request)
 	if req.ToShard == 0 {
-		p.Dispatch(req)
+		err := p.Dispatch(req)
+		if err != nil {
+			p.cfg.failureCallback(req.ID, err)
+		}
 		return
 	}
 
-	p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
+	err := p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
+	if err != nil {
+		p.cfg.failureCallback(req.ID, err)
+	}
+}
+
+func keysRangeInShard(keys *rpcpb.Range, shard Shard) bool {
+	return (len(shard.Start) == 0 || bytes.Compare(shard.Start, keys.From) <= 0) &&
+		(len(shard.End) == 0 || bytes.Compare(shard.End, keys.To) >= 0)
 }
