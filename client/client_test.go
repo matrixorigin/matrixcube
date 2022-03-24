@@ -85,6 +85,7 @@ func TestAddShardLabel(t *testing.T) {
 	c.WaitShardByCount(1, time.Minute)
 
 	sid := c.GetShardByIndex(0, 0).ID
+	assert.NotEqual(t, 0, sid)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

@@ -303,7 +303,7 @@ func (r *defaultRouter) handleEvent(evt rpcpb.EventNotify) {
 }
 
 func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, removed bool, create bool) {
-	res := metapb.NewShard()
+	res := metapb.Shard{}
 	err := res.Unmarshal(data)
 	if err != nil {
 		r.logger.Fatal("fail to unmarshal shard",
@@ -313,11 +313,11 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 
 	if removed {
 		r.logger.Info("need to delete shard",
-			log.ShardField("shard", *res))
+			log.ShardField("shard", res))
 
 		r.options.removeShardHandler(res.GetID())
 		if tree, ok := r.mu.keyRanges[res.GetGroup()]; ok {
-			tree.Remove(*res)
+			tree.Remove(res)
 		}
 		delete(r.mu.shards, res.GetID())
 		delete(r.mu.missingLeaderStoreShards, res.GetID())
@@ -327,16 +327,16 @@ func (r *defaultRouter) updateShardLocked(data []byte, leaderReplicaID uint64, r
 
 	if create {
 		r.logger.Info("need to create shard",
-			log.ShardField("shard", *res))
-		r.options.createShardHandler(*res)
+			log.ShardField("shard", res))
+		r.options.createShardHandler(res)
 		return
 	}
 
-	r.mu.shards[res.GetID()] = *res
-	r.updateShardKeyRangeLocked(*res)
+	r.mu.shards[res.GetID()] = res
+	r.updateShardKeyRangeLocked(res)
 
 	r.logger.Debug("shard route updated",
-		log.ShardField("shard", *res),
+		log.ShardField("shard", res),
 		zap.Uint64("leader", leaderReplicaID))
 
 	if leaderReplicaID > 0 {

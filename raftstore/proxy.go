@@ -222,7 +222,7 @@ func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) erro
 
 	// No leader, retry after a leader tick
 	if to == "" {
-		p.retryDispatch(req.ID, "dispath to nil store")
+		p.retryDispatch(req.ID, "dispatch to nil store")
 		return nil
 	}
 
