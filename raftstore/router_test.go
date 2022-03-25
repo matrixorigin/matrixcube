@@ -290,7 +290,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 		leaderReplicaID uint64
 		shard           Shard
 		stores          []metapb.Store
-		policy          ReplicaSelectPolicy
+		policy          rpcpb.ReplicaSelectPolicy
 		expectStoreID   []uint64
 		expectShardID   uint64
 	}{
@@ -299,7 +299,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
-			policy:          SelectLeader,
+			policy:          rpcpb.SelectLeader,
 			expectShardID:   1,
 			expectStoreID:   []uint64{101, 101},
 		},
@@ -308,7 +308,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
-			policy:          SelectRandom,
+			policy:          rpcpb.SelectRandom,
 			expectShardID:   1,
 			expectStoreID:   []uint64{101, 301},
 		},
@@ -317,7 +317,7 @@ func TestSelectShardByPolicy(t *testing.T) {
 			leaderReplicaID: 100,
 			shard:           b.CreateShard(1, "100/101,200/201,300/301"),
 			stores:          []metapb.Store{{ID: 101}, {ID: 201}, {ID: 301}},
-			policy:          SelectLeader,
+			policy:          rpcpb.SelectLeader,
 			expectShardID:   0,
 			expectStoreID:   []uint64{0, 0},
 		},
@@ -366,31 +366,31 @@ func TestAscendRange(t *testing.T) {
 
 	cases := []struct {
 		keyRange     []uint64
-		policy       ReplicaSelectPolicy
+		policy       rpcpb.ReplicaSelectPolicy
 		expectShards []uint64
 		expectStores []uint64
 	}{
 		{
 			keyRange:     []uint64{1, 4},
-			policy:       SelectLeader,
+			policy:       rpcpb.SelectLeader,
 			expectShards: []uint64{1, 2, 3},
 			expectStores: []uint64{11, 101, 1001},
 		},
 		{
 			keyRange:     []uint64{1, 3},
-			policy:       SelectLeader,
+			policy:       rpcpb.SelectLeader,
 			expectShards: []uint64{1, 2},
 			expectStores: []uint64{11, 101},
 		},
 		{
 			keyRange:     []uint64{1, 2},
-			policy:       SelectLeader,
+			policy:       rpcpb.SelectLeader,
 			expectShards: []uint64{1},
 			expectStores: []uint64{11},
 		},
 		{
 			keyRange:     []uint64{0, 1},
-			policy:       SelectLeader,
+			policy:       rpcpb.SelectLeader,
 			expectShards: nil,
 			expectStores: nil,
 		},

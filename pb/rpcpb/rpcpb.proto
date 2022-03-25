@@ -505,21 +505,22 @@ message ResponseBatch {
 
 // Request request
 message Request {
-    bytes   id                 = 1 [(gogoproto.customname) = "ID"];
-    uint64  group              = 2;
-    CmdType type               = 3;
-    uint64  customType         = 4;
-    bytes   key                = 5;
-    bytes   cmd                = 6;
-    int64   pid                = 7 [(gogoproto.customname) = "PID"];
-    uint64  toShard            = 8;
-    bool    ignoreEpochCheck   = 9;
-    metapb.ShardEpoch epoch    = 10 [(gogoproto.nullable) = false];
+    bytes   id                              = 1 [(gogoproto.customname) = "ID"];
+    uint64  group                           = 2;
+    CmdType type                            = 3;
+    uint64  customType                      = 4;
+    bytes   key                             = 5;
+    bytes   cmd                             = 6;
+    int64   pid                             = 7 [(gogoproto.customname) = "PID"];
+    uint64  toShard                         = 8;
+    bool    ignoreEpochCheck                = 9;
+    metapb.ShardEpoch epoch                 = 10 [(gogoproto.nullable) = false];
     // KeysRange If the current request operates on multiple Keys, then KeysRange needs 
     // to be filled in, and the client needs to split the request again if it wants to 
     // re-route according to KeysRange after the data management scope of the Shard has changed,
     // or if it returns the specified error.
-    Range   keysRange          = 11;
+    Range   keysRange                       = 11;
+    ReplicaSelectPolicy replicaSelectPolicy = 12;
 }
 
 // Range key range [from, to)
@@ -625,4 +626,14 @@ message UpdateLabelsRequest {
 
 message UpdateLabelsResponse {
 
+}
+
+// ReplicaSelectPolicy strategies for selecting replica
+enum ReplicaSelectPolicy {
+    // SelectLeader select leader replica store
+    SelectLeader = 0;
+    // SelectRandom select random replica store
+    SelectRandom = 1;
+    // SelectLeaseHolder select replica lease holder store
+    SelectLeaseHolder = 2;
 }

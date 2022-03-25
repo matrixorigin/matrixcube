@@ -205,13 +205,13 @@ func (p *shardsProxy) SetRetryController(retryController RetryController) {
 
 func (p *shardsProxy) Dispatch(req rpcpb.Request) error {
 	if req.ToShard == 0 {
-		shard, to := p.cfg.router.SelectShard(req.Group, req.Key)
-		return p.DispatchTo(req, shard, to)
+		shard, store := p.cfg.router.SelectShardWithPolicy(req.Group, req.Key, req.ReplicaSelectPolicy)
+		return p.DispatchTo(req, shard, store.ClientAddress)
 	}
 
 	return p.DispatchTo(req,
 		p.cfg.router.GetShard(req.ToShard),
-		p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
+		p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy).ClientAddress)
 }
 
 func (p *shardsProxy) DispatchTo(req rpcpb.Request, shard Shard, to string) error {
@@ -367,15 +367,14 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 func (p *shardsProxy) doRetry(arg interface{}) {
 	req := arg.(rpcpb.Request)
 	if req.ToShard == 0 {
-		err := p.Dispatch(req)
-		if err != nil {
+		if err := p.Dispatch(req); err != nil {
 			p.cfg.failureCallback(req.ID, err)
 		}
 		return
 	}
 
-	err := p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard), p.cfg.router.LeaderReplicaStore(req.ToShard).ClientAddress)
-	if err != nil {
+	if err := p.DispatchTo(req, p.cfg.router.GetShard(req.ToShard),
+		p.cfg.router.SelectReplicaStoreWithPolicy(req.ToShard, req.ReplicaSelectPolicy).ClientAddress); err != nil {
 		p.cfg.failureCallback(req.ID, err)
 	}
 }
