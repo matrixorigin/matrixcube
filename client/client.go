@@ -61,6 +61,13 @@ func WithShard(shard uint64) Option {
 	}
 }
 
+// WithReplicaSelectPolicy set the ReplicaSelectPolicy for request, default is SelectLeader
+func WithReplicaSelectPolicy(policy rpcpb.ReplicaSelectPolicy) Option {
+	return func(f *Future) {
+		f.req.ReplicaSelectPolicy = policy
+	}
+}
+
 // Future is used to obtain response data synchronously.
 type Future struct {
 	value []byte
