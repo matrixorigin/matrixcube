@@ -16,7 +16,6 @@ package storage
 
 import (
 	"testing"
-	time "time"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/election"
 	"github.com/matrixorigin/matrixcube/components/prophet/mock"
@@ -36,7 +35,7 @@ func TestEtcdKV(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	kv := NewEtcdKV("/root", client, ls)
 

@@ -61,6 +61,13 @@ func WithShard(shard uint64) Option {
 	}
 }
 
+// WithReplicaSelectPolicy set the ReplicaSelectPolicy for request, default is SelectLeader
+func WithReplicaSelectPolicy(policy rpcpb.ReplicaSelectPolicy) Option {
+	return func(f *Future) {
+		f.req.ReplicaSelectPolicy = policy
+	}
+}
+
 // Future is used to obtain response data synchronously.
 type Future struct {
 	value []byte
@@ -232,6 +239,13 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 		opt(f)
 	}
 	s.inflights.Store(hack.SliceToString(f.req.ID), f)
+
+	if len(req.Key) > 0 && req.ToShard > 0 {
+		s.logger.Fatal("route with key and route with shard cannot be set at the same time")
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		s.logger.Fatal("cube client must use timeout context")
+	}
 
 	if ce := s.logger.Check(zap.DebugLevel, "begin to send request"); ce != nil {
 		ce.Write(log.RequestIDField(req.ID))

@@ -135,7 +135,7 @@ func TestGCAllocating(t *testing.T) {
 
 	ss := storage.NewTestStorage()
 	p.gcAllocating(ss, nil)
-	v, err := ss.GetJobData(p.job)
+	v, err := ss.GetJobData(p.job.Type)
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 
@@ -143,7 +143,7 @@ func TestGCAllocating(t *testing.T) {
 	p.mu.pools = metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
 	p.mu.pools.Pools[1] = &metapb.ShardPool{Capacity: 1, Seq: 1, AllocatedOffset: 0}
 	p.gcAllocating(ss, nil)
-	v, err = ss.GetJobData(p.job)
+	v, err = ss.GetJobData(p.job.Type)
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 
@@ -163,7 +163,7 @@ func TestGCAllocating(t *testing.T) {
 		},
 	}}
 	p.gcAllocating(ss, aware)
-	v, err = ss.GetJobData(p.job)
+	v, err = ss.GetJobData(p.job.Type)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, v)
 	assert.Equal(t, 1, len(p.mu.pools.Pools[1].AllocatedShards))
@@ -219,7 +219,7 @@ func TestMaybeCreate(t *testing.T) {
 	assert.Equal(t, c, batchCreateCount)
 	assert.Equal(t, 1, len(p.mu.createC))
 	assert.Equal(t, uint64(batchCreateCount), p.mu.pools.Pools[0].Seq)
-	v, err := ss.GetJobData(p.job)
+	v, err := ss.GetJobData(p.job.Type)
 	assert.NoError(t, err)
 	assert.Equal(t, protoc.MustMarshal(&p.mu.pools), v)
 }
@@ -290,7 +290,7 @@ func TestDoAllocLocked(t *testing.T) {
 	assert.NotEmpty(t, v)
 	assert.Equal(t, 1, len(p.mu.createC))
 	assert.Equal(t, uint64(1), p.mu.pools.Pools[0].AllocatedOffset)
-	v, err = ss.GetJobData(p.job)
+	v, err = ss.GetJobData(p.job.Type)
 	assert.NoError(t, err)
 	assert.Equal(t, protoc.MustMarshal(&p.mu.pools), v)
 }
@@ -332,7 +332,7 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	job := metapb.Job{Type: metapb.JobType_CreateShardPool}
 	pools := metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
 	pools.Pools[0] = &metapb.ShardPool{Capacity: 4}
-	s.PutJobData(job, protoc.MustMarshal(&pools))
+	s.PutJobData(job.Type, protoc.MustMarshal(&pools))
 	p.Start(job, s, nil)
 
 	p.mu.RLock()

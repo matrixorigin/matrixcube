@@ -39,11 +39,11 @@ type JobStorage interface {
 	LoadJobs(limit int64, do func(metapb.Job)) error
 
 	// PutJobData put job data
-	PutJobData(metapb.Job, []byte) error
+	PutJobData(metapb.JobType, []byte) error
 	// GetJobData  returns job data
-	GetJobData(metapb.Job) ([]byte, error)
+	GetJobData(metapb.JobType) ([]byte, error)
 	// RemoveJobData removes job data
-	RemoveJobData(metapb.Job) error
+	RemoveJobData(metapb.JobType) error
 }
 
 // RuleStorage rule storage
@@ -496,12 +496,12 @@ func (s *storage) LoadJobs(limit int64, fn func(metapb.Job)) error {
 	})
 }
 
-func (s *storage) PutJobData(job metapb.Job, data []byte) error {
-	return s.kv.Save(s.jobDataKey(job.Type), string(data))
+func (s *storage) PutJobData(jobType metapb.JobType, data []byte) error {
+	return s.kv.Save(s.jobDataKey(jobType), string(data))
 }
 
-func (s *storage) GetJobData(job metapb.Job) ([]byte, error) {
-	v, err := s.kv.Load(s.jobDataKey(job.Type))
+func (s *storage) GetJobData(jobType metapb.JobType) ([]byte, error) {
+	v, err := s.kv.Load(s.jobDataKey(jobType))
 	if err != nil {
 		return nil, err
 	}
@@ -509,8 +509,8 @@ func (s *storage) GetJobData(job metapb.Job) ([]byte, error) {
 	return []byte(v), nil
 }
 
-func (s *storage) RemoveJobData(job metapb.Job) error {
-	return s.kv.Remove(s.jobDataKey(job.Type))
+func (s *storage) RemoveJobData(jobType metapb.JobType) error {
+	return s.kv.Remove(s.jobDataKey(jobType))
 }
 
 func (s *storage) PutCustomData(key []byte, data []byte) error {
