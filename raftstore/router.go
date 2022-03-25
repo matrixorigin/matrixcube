@@ -178,8 +178,8 @@ func (r *defaultRouter) Stop() {
 }
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
-	shard := r.searchShard(group, key)
-	return shard, r.LeaderReplicaStore(shard.ID).ClientAddress
+	shard, store := r.SelectShardWithPolicy(group, key, rpcpb.SelectLeader)
+	return shard, store.ClientAddress
 }
 
 func (r *defaultRouter) AscendRange(group uint64, start, end []byte,
@@ -199,7 +199,7 @@ func (r *defaultRouter) AscendRange(group uint64, start, end []byte,
 func (r *defaultRouter) SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	shard := r.searchShard(group, key)
+	shard := r.searchShardLocked(group, key)
 	return shard, r.selectReplicaStoreByPolicyLocked(shard, policy)
 }
 
@@ -505,7 +505,7 @@ func (r *defaultRouter) selectStoreLocked(shard Shard) uint64 {
 	return storeID
 }
 
-func (r *defaultRouter) searchShard(group uint64, key []byte) Shard {
+func (r *defaultRouter) searchShardLocked(group uint64, key []byte) Shard {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
