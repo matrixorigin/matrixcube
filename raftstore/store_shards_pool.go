@@ -14,6 +14,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet"
 	pconfig "github.com/matrixorigin/matrixcube/components/prophet/config"
 	"github.com/matrixorigin/matrixcube/components/prophet/storage"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/util/buf"
@@ -138,7 +139,7 @@ func (dsp *dynamicShardsPool) Start(job metapb.Job, store storage.JobStorage, aw
 	}
 
 	// load or init the job data
-	value, err := store.GetJobData(job)
+	value, err := store.GetJobData(job.Type)
 	if err != nil {
 		return
 	}
@@ -184,14 +185,16 @@ func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, a
 
 func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, aware pconfig.ShardsAware) ([]byte, error) {
 	if len(data) <= 0 {
-		return nil, errors.New("error execute data")
+		return nil, util.WrappedError(
+			util.ErrJobInvalidCommand, fmt.Sprintf("data empty"),
+		)
 	}
 
 	dsp.mu.Lock()
 	defer dsp.mu.Unlock()
 
 	if !dsp.isStartedLocked() {
-		return nil, fmt.Errorf("job not started")
+		return nil, util.ErrJobProcessorStopped
 	}
 
 	cmd := &metapb.ShardsPoolCmd{}
@@ -200,13 +203,22 @@ func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, awa
 	case metapb.ShardsPoolCmdType_AllocShard:
 		return dsp.doAllocLocked(cmd.Alloc, store, aware)
 	default:
-		return nil, fmt.Errorf("invalid execute cmd %d", cmd.Type)
+		return nil, util.WrappedError(
+			util.ErrJobInvalidCommand,
+			fmt.Sprintf("not supported (type=%d)", cmd.Type),
+		)
 	}
 }
 
 func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, store storage.JobStorage, aware pconfig.ShardsAware) ([]byte, error) {
 	group := cmd.Group
-	p := dsp.mu.pools.Pools[group]
+	p, ok := dsp.mu.pools.Pools[group]
+	if !ok {
+		return nil, util.WrappedError(
+			util.ErrJobInvalidCommand,
+			fmt.Sprintf("missing shard pool for group: %d", group),
+		)
+	}
 
 	// check whether the purpose has been allocated before
 	if len(p.AllocatedShards) > 0 {
@@ -420,7 +432,7 @@ func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconf
 }
 
 func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) error {
-	err := store.PutJobData(dsp.job, protoc.MustMarshal(&dsp.mu.pools))
+	err := store.PutJobData(dsp.job.Type, protoc.MustMarshal(&dsp.mu.pools))
 	if err != nil {
 		dsp.logger.Error("fail to save shard pool metadata, retry later",
 			zap.Error(err))

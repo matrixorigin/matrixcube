@@ -160,7 +160,7 @@ func TestAddShardWithShardPool(t *testing.T) {
 	c.WaitShardByCountPerNode(5, testWaitTimeout)
 	c.WaitLeadersByCount(5, testWaitTimeout)
 
-	v, err := c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateShardPool})
+	v, err := c.GetProphet().GetStorage().GetJobData(metapb.JobType_CreateShardPool)
 	assert.NoError(t, err)
 	sp := &metapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
@@ -183,7 +183,7 @@ func TestAddShardWithShardPool(t *testing.T) {
 		}
 	})
 
-	v, err = c.GetProphet().GetStorage().GetJobData(metapb.Job{Type: metapb.JobType_CreateShardPool})
+	v, err = c.GetProphet().GetStorage().GetJobData(metapb.JobType_CreateShardPool)
 	assert.NoError(t, err)
 	sp = &metapb.ShardsPool{}
 	protoc.MustUnmarshal(sp, v)
