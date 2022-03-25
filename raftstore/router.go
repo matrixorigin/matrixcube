@@ -506,9 +506,6 @@ func (r *defaultRouter) selectStoreLocked(shard Shard) uint64 {
 }
 
 func (r *defaultRouter) searchShardLocked(group uint64, key []byte) Shard {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	if tree, ok := r.mu.keyRanges[group]; ok {
 		return tree.Search(key)
 	}
