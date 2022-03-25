@@ -207,7 +207,12 @@ func (r *defaultRouter) SelectReplicaStoreWithPolicy(shardID uint64, policy rpcp
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.selectReplicaStoreByPolicyLocked(r.mustGetShardLocked(shardID), policy)
+	shard, ok := r.mu.shards[shardID]
+	if !ok {
+		return metapb.Store{}
+	}
+
+	return r.selectReplicaStoreByPolicyLocked(shard, policy)
 }
 
 func (r *defaultRouter) selectReplicaStoreByPolicyLocked(shard Shard, policy rpcpb.ReplicaSelectPolicy) metapb.Store {
