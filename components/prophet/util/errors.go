@@ -15,6 +15,8 @@ package util
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 )
 
 var (
@@ -34,9 +36,25 @@ var (
 	ErrSchedulerExisted = errors.New("scheduler is existed")
 	// ErrSchedulerNotFound error with scheduler is not found
 	ErrSchedulerNotFound = errors.New("scheduler is not found")
+
+	// errors related with long running job
+	// ErrJobProcessorNotFound should keep compatibility with PR 1915 of matrixone
+	ErrJobProcessorNotFound = errors.New("missing job processor")
+	ErrJobProcessorStopped  = errors.New("job processor stopped")
+	ErrJobInvalidCommand    = errors.New("invalid job command")
+	ErrJobNotFound          = errors.New("job not found")
 )
 
 // IsNotLeaderError is not leader error
 func IsNotLeaderError(err string) bool {
 	return err == ErrNotLeader.Error()
+}
+
+// IsJobProcessorNotFoundErr check error via its string content
+func IsJobProcessorNotFoundErr(err string) bool {
+	return strings.Contains(err, ErrJobProcessorNotFound.Error())
+}
+
+func WrappedError(err error, msg string) error {
+	return fmt.Errorf("%w: %s", err, msg)
 }

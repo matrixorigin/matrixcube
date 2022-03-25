@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/matrixorigin/matrixcube/components/prophet/cluster"
+	"github.com/matrixorigin/matrixcube/components/prophet/util"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"go.uber.org/zap"
@@ -51,7 +52,7 @@ func (p *defaultProphet) startJobs() {
 		}
 
 		p.logger.Info("load jobs", zap.Int("count", len(p.jobMu.jobs)))
-		for _, job := range p.jobMu.jobs {
+		for jobType, job := range p.jobMu.jobs {
 			select {
 			case <-ctx.Done():
 				return
@@ -65,6 +66,8 @@ func (p *defaultProphet) startJobs() {
 						zap.String("type", job.Type.String()),
 						zap.Error(err))
 				}
+				// Get rid of completed job from the cache
+				delete(p.jobMu.jobs, jobType)
 				continue
 			}
 
@@ -112,7 +115,9 @@ func (p *defaultProphet) handleCreateJob(rc *cluster.RaftCluster, req *rpcpb.Pro
 	job := req.CreateJob.Job
 	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
-		return fmt.Errorf("missing job processor for type %d", job.Type)
+		return util.WrappedError(
+			util.ErrJobProcessorNotFound, fmt.Sprintf("job type = %d", job.Type),
+		)
 	}
 
 	if _, ok := p.jobMu.jobs[job.Type]; ok {
@@ -136,7 +141,9 @@ func (p *defaultProphet) handleRemoveJob(rc *cluster.RaftCluster, req *rpcpb.Pro
 	job := req.RemoveJob.Job
 	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
-		return fmt.Errorf("missing job processor for type %d, %+v", job.Type, job)
+		return util.WrappedError(
+			util.ErrJobProcessorNotFound, fmt.Sprintf("job type = %d, %+v", job.Type, job),
+		)
 	}
 
 	if _, ok := p.jobMu.jobs[job.Type]; !ok {
@@ -156,11 +163,15 @@ func (p *defaultProphet) handleExecuteJob(rc *cluster.RaftCluster, req *rpcpb.Pr
 	job := req.ExecuteJob.Job
 	processor := p.cfg.Prophet.GetJobProcessor(job.Type)
 	if processor == nil {
-		return fmt.Errorf("missing job processor for type %d", job.Type)
+		return util.WrappedError(
+			util.ErrJobProcessorNotFound, fmt.Sprintf("job type = %d", job.Type),
+		)
 	}
 
 	if _, ok := p.jobMu.jobs[job.Type]; !ok {
-		return fmt.Errorf("missing job for type %d, the job maybe not created or started", job.Type)
+		return util.WrappedError(
+			util.ErrJobNotFound, fmt.Sprintf("not created or not started, job type = %d", job.Type),
+		)
 	}
 
 	data, err := processor.Execute(req.ExecuteJob.Data, p.storage, rc.GetCacheCluster())
