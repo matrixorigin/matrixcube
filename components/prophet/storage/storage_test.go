@@ -39,7 +39,7 @@ func TestPutAndGetShard(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	storage := NewStorage(
@@ -68,7 +68,7 @@ func TestPutAndGetStore(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	storage := NewStorage(
@@ -98,7 +98,7 @@ func TestLoadShards(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	s := NewStorage(
@@ -138,7 +138,7 @@ func TestLoadStores(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	s := NewStorage(
@@ -178,7 +178,7 @@ func TestAlreadyBootstrapped(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	s := NewStorage(
@@ -224,7 +224,7 @@ func TestPutAndDeleteAndLoadJobs(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	storage := NewStorage(
@@ -268,7 +268,7 @@ func TestScheduleGroupRule(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	rootPath := "/root"
 	storage := NewStorage(
@@ -314,7 +314,7 @@ func TestPutAndDeleteAndLoadCustomData(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	storage := NewStorage("/root", NewEtcdKV("/root", client, ls), id.NewMemGenerator())
 	assert.NoError(t, storage.PutCustomData([]byte("k1"), []byte("v1")))
@@ -355,7 +355,7 @@ func TestBatchPutCustomData(t *testing.T) {
 	defer ls.Stop()
 
 	ls.ElectionLoop()
-	time.Sleep(time.Millisecond * 200)
+	waitLeaderReady(t, ls)
 
 	keys := [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}
 	data := [][]byte{[]byte("v1"), []byte("v2"), []byte("v3")}
@@ -370,5 +370,17 @@ func TestBatchPutCustomData(t *testing.T) {
 	assert.Equal(t, len(keys), len(loadedValues))
 	for i := 0; i < len(keys); i++ {
 		assert.Equal(t, data[i], loadedValues[i])
+	}
+}
+
+func waitLeaderReady(t *testing.T, ls *election.Leadership) {
+	for {
+		leader, _, err := ls.CurrentLeader()
+		assert.NoError(t, err)
+		if len(leader) > 0 {
+			break
+		}
+
+		time.Sleep(time.Millisecond * 50)
 	}
 }
