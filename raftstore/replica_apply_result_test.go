@@ -120,13 +120,13 @@ func TestUpdateMetricsHints(t *testing.T) {
 			writtenKeys:         1,
 		},
 	})
-	assert.Equal(t, uint64(3), pr.stats.approximateSize)
+	assert.Equal(t, uint64(4), pr.stats.approximateSize)
 	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
 
 	pr.updateMetricsHints(applyResult{})
-	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	assert.Equal(t, uint64(4), pr.stats.approximateSize)
 	assert.Equal(t, uint64(2), pr.stats.deleteKeysHint)
 	assert.Equal(t, uint64(2), pr.stats.writtenBytes)
 	assert.Equal(t, uint64(2), pr.stats.writtenKeys)
@@ -164,8 +164,16 @@ func TestUpdateMetricsHintsCanBeIgnored(t *testing.T) {
 
 	pr.handleApplyResult(applyResult{
 		ignoreMetrics: true,
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+		},
 	})
 	assert.Equal(t, uint64(1), pr.stats.approximateSize)
-	pr.handleApplyResult(applyResult{})
-	assert.Equal(t, uint64(0), pr.stats.approximateSize)
+	pr.handleApplyResult(applyResult{
+		metrics: applyMetrics{
+			approximateDiffHint: 1,
+		},
+	})
+	assert.Equal(t, uint64(2), pr.stats.approximateSize)
+
 }

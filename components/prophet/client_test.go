@@ -199,14 +199,7 @@ func TestIssue106(t *testing.T) {
 		}
 	}()
 
-	var leader Prophet
-	for i := 0; i < clusterSize; i++ {
-		p := cluster[i]
-		if p.GetMember().ID() == p.GetLeader().ID {
-			leader = p
-			break
-		}
-	}
+	leader := findProphetLeader(t, cluster, clusterSize)
 	assert.NotNil(t, leader)
 
 	cfg := leader.GetConfig()
