@@ -42,12 +42,10 @@ type Router interface {
 	// ReplicaSelectPolicy
 	SelectReplicaStoreWithPolicy(shardID uint64, policy rpcpb.ReplicaSelectPolicy) metapb.Store
 
-	// SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
-	// If returns leader address is "", means the current shard has no leader.
-	// Note: Deprecated
+	// Deprecated: SelectShard returns a shard and leader store that the key is in the range [shard.Start, shard.End).
+	// If returns leader address is "", means the current shard has no leader. Use `SelectShardWithPolicy` instead.
 	SelectShard(group uint64, key []byte) (Shard, string)
-	// Every do with all shards
-	// Note: Deprecated
+	// Deprecated: Every do with all shards.  Use `AscendRange` instead.
 	Every(group uint64, mustLeader bool, fn func(shard Shard, store metapb.Store) bool)
 	// ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard Shard) bool)
