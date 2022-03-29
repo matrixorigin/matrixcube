@@ -176,15 +176,19 @@ func (t *ShardTree) NextShard(start []byte) *metapb.Shard {
 // AscendRange asc iterator the tree in the range [start, end) until fn returns false
 func (t *ShardTree) AscendRange(start, end []byte, fn func(shard *metapb.Shard) bool) {
 	t.RLock()
-	result := t.find(metapb.Shard{Start: start})
-	t.tree.DescendLessOrEqual(result, func(item btree.Item) bool {
+	defer t.RUnlock()
+
+	startShard := t.find(metapb.Shard{Start: start})
+	if startShard == nil {
+		return
+	}
+	t.tree.DescendLessOrEqual(startShard, func(item btree.Item) bool {
 		if len(end) > 0 && bytes.Compare(item.(*ShardItem).Shard.Start, end) >= 0 {
 			return false
 		}
 
 		return fn(&item.(*ShardItem).Shard)
 	})
-	t.RUnlock()
 }
 
 // Search returns a Shard that contains the key.
