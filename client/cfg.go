@@ -20,7 +20,4 @@ import (
 // Cfg cfg
 type Cfg struct {
 	Store raftstore.Store
-
-	// only testing can change
-	storeStarted bool
 }

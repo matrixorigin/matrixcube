@@ -55,15 +55,23 @@ type TxnIDGenerator interface {
 	Generate() []byte
 }
 
-// TxnOperationSplitter used to split TxnOperation, as the transaction framework does not know how the
+// TxnOperationRouter used to route TxnOperation, as the transaction framework does not know how the
 // TxnOperation data is organized, the caller needs to split the data managed in a TxnOperation
 // into multiple TxnOperations according to the Shard.
-type TxnOperationSplitter interface {
-	// Split according to the TxnOperation internal management of data split into multiple
+type TxnOperationRouter interface {
+	// Route according to the TxnOperation internal management of data split into multiple
 	// TxnOperation, split each TxnOperation with a Shard correspondence. The transaction
 	// framework will concurrently send the split TxnOperations to the corresponding Shard for
 	// execution.
-	Split(request txnpb.TxnOperation) (payloads []txnpb.TxnOperation, shards []uint64, err error)
+	Route(request txnpb.TxnOperation) ([]RouteInfo, error)
+}
+
+// RouteInfo indicates the shard to which the data associated with a txn operation belongs
+type RouteInfo struct {
+	// Operation txn operation
+	Operation txnpb.TxnOperation
+	// ShardID shard id
+	ShardID uint64
 }
 
 // TxnPriorityGenerator transaction priority generator, when a conflict occurs, decide which

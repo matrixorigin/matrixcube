@@ -161,34 +161,40 @@ var _ Client = (*client)(nil)
 
 // client a tcp application server
 type client struct {
-	cfg         Cfg
-	inflights   sync.Map // request id -> *Future
-	shardsProxy raftstore.ShardsProxy
-	dispatcher  func(req rpcpb.Request, proxy raftstore.ShardsProxy) error
 	logger      *zap.Logger
+	shardsProxy raftstore.ShardsProxy
+	inflights   sync.Map // request id -> *Future
+
 }
 
 // NewClient creates and return a cube client
 func NewClient(cfg Cfg) Client {
-	return NewClientWithDispatcher(cfg, nil)
+	return NewClientWithOptions(CreateWithLogger(cfg.Store.GetConfig().Logger.Named("cube-client")),
+		CreateWithShardsProxy(cfg.Store.GetShardsProxy()))
 }
 
-// NewClientWithDispatcher similar to NewClient, but with a special dispatcher
-func NewClientWithDispatcher(cfg Cfg, dispatcher func(req rpcpb.Request, proxy raftstore.ShardsProxy) error) Client {
-	return &client{
-		cfg:        cfg,
-		dispatcher: dispatcher,
+// NewClientWithOptions create client wiht options
+func NewClientWithOptions(options ...CreateOption) Client {
+	c := &client{}
+	for _, opt := range options {
+		opt(c)
+	}
+	c.adjust()
+	return c
+}
+
+func (s *client) adjust() {
+	if s.logger == nil {
+		s.logger = log.Adjust(nil).Named("cube-client")
+	}
+
+	if s.shardsProxy == nil {
+		s.logger.Fatal("ShardsProxy not set")
 	}
 }
 
 func (s *client) Start() error {
-	s.logger = s.cfg.Store.GetConfig().Logger.Named("client")
-
 	s.logger.Info("begin to start cube client")
-	if !s.cfg.storeStarted {
-		s.cfg.Store.Start()
-	}
-	s.shardsProxy = s.cfg.Store.GetShardsProxy()
 	s.shardsProxy.SetCallback(s.done, s.doneError)
 	s.shardsProxy.SetRetryController(s)
 	s.logger.Info("cube client started")
@@ -196,9 +202,6 @@ func (s *client) Start() error {
 }
 
 func (s *client) Stop() error {
-	if !s.cfg.storeStarted {
-		s.cfg.Store.Stop()
-	}
 	s.logger.Info("cube client stopped")
 	return nil
 }
@@ -251,13 +254,7 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 		ce.Write(log.RequestIDField(req.ID))
 	}
 
-	var err error
-	if s.dispatcher != nil {
-		err = s.dispatcher(f.req, s.shardsProxy)
-	} else {
-		err = s.shardsProxy.Dispatch(f.req)
-	}
-	if err != nil {
+	if err := s.shardsProxy.Dispatch(f.req); err != nil {
 		f.done(nil, err)
 	}
 	return f

@@ -16,7 +16,7 @@ import (
 func TestSendAfterTxnCommittedOrAbortedOrEnding(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -49,7 +49,7 @@ func TestSendEmptyBatchRequestWillPanic(t *testing.T) {
 		}
 	}()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -65,7 +65,7 @@ func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
 		}
 	}()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -83,7 +83,7 @@ func TestSendWithImpactedKeyRangeWillPanic(t *testing.T) {
 		}
 	}()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -96,7 +96,7 @@ func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var last txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		last = req
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -116,7 +116,7 @@ func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {
 func TestHeatbeatStartedAfterFirstWrite(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -134,7 +134,7 @@ func TestHeatbeatStartedAfterFirstWrite(t *testing.T) {
 func TestHeatbeatStartedAfterMultiWrites(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -147,7 +147,7 @@ func TestHeatbeatStartedAfterMultiWrites(t *testing.T) {
 func TestHeatbeatNotStartAfterFirstWriteWithCommit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(nil)
+	sender := newMockBatchDispatcher(nil)
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
@@ -165,7 +165,7 @@ func TestInfightWritesAndCompletedWrites(t *testing.T) {
 	defer close(c)
 	r := make(chan struct{})
 	defer close(r)
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		if block {
 			c <- struct{}{}
 			<-r
@@ -193,7 +193,7 @@ func TestSingleWriteSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var requests []txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		requests = append(requests, req)
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -210,7 +210,7 @@ func TestMultiWriteSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var requests []txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		requests = append(requests, req)
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -230,7 +230,7 @@ func TestSingleWriteAndCommitSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var requests []txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		requests = append(requests, req)
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -249,7 +249,7 @@ func TestMultiWriteAndCommitSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var requests []txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		requests = append(requests, req)
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -271,7 +271,7 @@ func TestMultiWriteWithoutCreateTxnRecordAndCommitSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	var requests []txnpb.TxnBatchRequest
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		requests = append(requests, req)
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -294,7 +294,7 @@ func TestMultiWriteWithoutCreateTxnRecordAndCommitSplit(t *testing.T) {
 func TestReceivedAbortedError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Error = &txnpb.TxnError{}
 		resp.Header.Error.AbortedError = &txnpb.AbortedError{}
@@ -310,7 +310,7 @@ func TestReceivedAbortedError(t *testing.T) {
 func TestReceivedConflictError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Error = &txnpb.TxnError{}
 		resp.Header.Error.ConflictWithCommittedError = &txnpb.ConflictWithCommittedError{}
@@ -326,7 +326,7 @@ func TestReceivedConflictError(t *testing.T) {
 func TestReceivedUncertaintyError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Error = &txnpb.TxnError{}
 		resp.Header.Error.UncertaintyError = &txnpb.UncertaintyError{}
@@ -343,7 +343,7 @@ func TestReceivedOtherError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	otherErr := errors.New("other error")
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		return resp, otherErr
 	})
@@ -363,7 +363,7 @@ func TestUpdateTxnWriteTimestampWithInvalidIDWillPanic(t *testing.T) {
 		}
 	}()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.ID = []byte{}
@@ -379,7 +379,7 @@ func TestUpdateTxnWriteTimestampWithInvalidIDWillPanic(t *testing.T) {
 func TestUpdateTxnWriteTimestamp(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp + 1
@@ -401,7 +401,7 @@ func TestUpdateTxnWriteTimestamp(t *testing.T) {
 func TestUpdateTxnWriteTimestampWithLower(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp - 1
@@ -424,7 +424,7 @@ func TestUpdateTxnWriteTimestampWithLower(t *testing.T) {
 func TestSkipUpdateTxnWriteTimestampWithInvalidEpoch(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.Epoch = 0
@@ -449,7 +449,7 @@ func TestStartHeartbeatTask(t *testing.T) {
 
 	hb := make(chan txnpb.TxnBatchRequest)
 	defer close(hb)
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		if req.Requests[0].Operation.Op == uint32(txnpb.InternalTxnOp_Heartbeat) {
 			hb <- req
 		}
@@ -463,7 +463,6 @@ func TestStartHeartbeatTask(t *testing.T) {
 	select {
 	case req := <-hb:
 		assert.True(t, req.Requests[0].Operation.Timestamp > 0)
-		assert.Equal(t, "k1", string(req.Header.RouteByOriginKey))
 	case <-time.After(time.Second):
 		assert.Fail(t, "heartbeat timeout")
 	}
@@ -472,7 +471,7 @@ func TestStartHeartbeatTask(t *testing.T) {
 func TestCannotStartHeartbeatTaskIfNotPendingStatus(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -490,7 +489,7 @@ func TestStopHeartbeatTask(t *testing.T) {
 
 	c := make(chan struct{})
 	defer close(c)
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		c <- struct{}{}
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
@@ -523,7 +522,7 @@ func TestHeartbeatTaskStopByResponseStatus(t *testing.T) {
 
 	for _, status := range []txnpb.TxnStatus{txnpb.TxnStatus_Aborted, txnpb.TxnStatus_Committed} {
 		func(status txnpb.TxnStatus) {
-			sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+			sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 				return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Status: status, Txn: req.Header.Txn.TxnMeta}}, nil
 			})
 			tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -537,7 +536,7 @@ func TestHeartbeatTaskStopByResponseStatus(t *testing.T) {
 func TestHeartbeatTaskStopByResponseTxnAbortedError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{
 			Header: txnpb.TxnBatchResponseHeader{
 				Txn: req.Header.Txn.TxnMeta,
@@ -571,7 +570,7 @@ func TestHeartbeatReceiveOtherTxnErrorWillPanic(t *testing.T) {
 				}
 			}()
 
-			sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+			sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 				return txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Txn:   req.Header.Txn.TxnMeta,
@@ -590,7 +589,7 @@ func TestHeartbeatReceiveOtherTxnErrorWillPanic(t *testing.T) {
 func TestHeartbeatTaskWillContinueIfSendReturnError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{}, errors.New("error")
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -604,7 +603,7 @@ func TestHeartbeatTaskStopByNotPendingStatus(t *testing.T) {
 
 	for _, status := range []txnpb.TxnStatus{txnpb.TxnStatus_Aborted, txnpb.TxnStatus_Committed, txnpb.TxnStatus_Staging} {
 		func(status txnpb.TxnStatus) {
-			sender := newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+			sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 				return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Status: status, Txn: req.Header.Txn.TxnMeta}}, nil
 			})
 			tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -618,7 +617,7 @@ func TestHeartbeatTaskStopByNotPendingStatus(t *testing.T) {
 	}
 }
 
-func newTestTxnCoordinator(sender BatchSender, name string, id string, epoch uint32) *coordinator {
+func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch uint32) *coordinator {
 	clocker := newMockTxnClocker(0)
 	ts, skew := clocker.Now()
 	return newTxnCoordinator(newTestSITxn(name, id, ts, skew, epoch),

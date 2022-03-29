@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewTxn(t *testing.T) {
-	client := NewTxnClient(newMockBatchSender(nil), WithTxnClocker(newMockTxnClocker(5)))
+	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClocker(newMockTxnClocker(5)))
 	txn := client.NewTxn("mock-txn", txnpb.Isolation_SI).getTxnMeta()
 	assert.Equal(t, "mock-txn", txn.Name)
 	assert.Equal(t, txnpb.Isolation_SI, txn.Isolation)
@@ -26,7 +26,7 @@ func TestNewTxn(t *testing.T) {
 func TestWrite(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	client := NewTxnClient(newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
@@ -40,7 +40,7 @@ func TestWrite(t *testing.T) {
 func TestWriteAndCommit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	client := NewTxnClient(newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
@@ -52,7 +52,7 @@ func TestWriteAndCommit(t *testing.T) {
 func TestRead(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	client := NewTxnClient(newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}, Responses: make([]txnpb.TxnResponse, len(req.Requests))}, nil
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
@@ -66,7 +66,7 @@ func TestRead(t *testing.T) {
 func TestCommit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	client := NewTxnClient(newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
@@ -79,7 +79,7 @@ func TestCommit(t *testing.T) {
 func TestRollback(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	client := NewTxnClient(newMockBatchSender(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	}), WithTxnClocker(newMockTxnClocker(5)))
 

@@ -23,13 +23,13 @@ type txnClient struct {
 	txnIDGenerator       TxnIDGenerator
 	txnPriorityGenerator TxnPriorityGenerator
 	txnClocker           TxnClocker
-	sender               BatchSender
+	dispatcher           BatchDispatcher
 	txnHeartbeatDuration time.Duration
 }
 
 // NewTxnClient create a txn client
-func NewTxnClient(sender BatchSender, opts ...Option) TxnClient {
-	tc := &txnClient{sender: sender}
+func NewTxnClient(dispatcher BatchDispatcher, opts ...Option) TxnClient {
+	tc := &txnClient{dispatcher: dispatcher}
 	for _, opt := range opts {
 		opt(tc)
 	}
@@ -51,7 +51,7 @@ func (tc *txnClient) NewTxn(name string, isolation txnpb.Isolation) TxnOperator 
 	txn.Priority = tc.txnPriorityGenerator.Generate()
 	util.LogTxnMeta(tc.logger, zap.DebugLevel, "txn created", txn)
 	return NewTxnOperator(txn,
-		tc.sender,
+		tc.dispatcher,
 		tc.txnClocker,
 		tc.txnHeartbeatDuration,
 		tc.logger)
@@ -107,13 +107,13 @@ var _ TxnOperator = (*txnOperator)(nil)
 
 // NewTxnOperator create txn operator, a txn corresponds to a TxnOperator instance.
 func NewTxnOperator(txnMeta txnpb.TxnMeta,
-	sender BatchSender,
+	dispatcher BatchDispatcher,
 	txnClocker TxnClocker,
 	txnHeartbeatDuration time.Duration,
 	logger *zap.Logger) TxnOperator {
 	return &txnOperator{
 		tc: newTxnCoordinator(txnMeta,
-			sender,
+			dispatcher,
 			txnClocker,
 			txnHeartbeatDuration,
 			logger),

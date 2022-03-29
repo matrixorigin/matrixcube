@@ -68,6 +68,32 @@ func (f *defaultBackendFactory) create(addr string, success SuccessCallback, fai
 		nil
 }
 
+type mockBackend struct {
+	handler    func(rpcpb.Request) (rpcpb.ResponseBatch, error)
+	onResponse func(rpcpb.ResponseBatch)
+}
+
+func newMockBackend(handler func(rpcpb.Request) (rpcpb.ResponseBatch, error), onResponse func(rpcpb.ResponseBatch)) backend {
+	return &mockBackend{
+		handler:    handler,
+		onResponse: onResponse,
+	}
+}
+
+func (mb *mockBackend) dispatch(req rpcpb.Request) error {
+	req.PID = 0
+	resp, err := mb.handler(req)
+	if err != nil {
+		return err
+	}
+	mb.onResponse(resp)
+	return nil
+}
+
+func (mb *mockBackend) close() {
+	mb.close()
+}
+
 type localBackend struct {
 	handler func(rpcpb.Request) error
 }

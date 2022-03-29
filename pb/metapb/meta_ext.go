@@ -14,6 +14,8 @@
 package metapb
 
 import (
+	"bytes"
+
 	"github.com/fagongzi/util/protoc"
 )
 
@@ -120,4 +122,10 @@ func (m *Store) SetState(value StoreState) {
 
 func (m *Store) SetLastHeartbeat(value int64) {
 	m.LastHeartbeatTime = value
+}
+
+// ContainsKey returns true if the shard contains the key
+func (m *Shard) ContainsKey(key []byte) bool {
+	return (len(m.Start) == 0 || bytes.Compare(key, m.Start) >= 0) &&
+		(len(m.End) == 0 || bytes.Compare(key, m.End) < 0)
 }

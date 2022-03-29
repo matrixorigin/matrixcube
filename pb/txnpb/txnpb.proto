@@ -40,30 +40,32 @@ enum TxnStatus {
 // TxnOpMeta for persistent storage.
 message TxnMeta {
     // ID transction id
-    bytes     id                = 1  [(gogoproto.customname) = "ID"];
+    bytes     id                  = 1  [(gogoproto.customname) = "ID"];
     // Name transaction name
-    string    name              = 2;
+    string    name                = 2;
     // Isolation transaction isolation level
-    Isolation isolation         = 3;
+    Isolation isolation           = 3;
     // TxnRecordRouteKey used to locate which Shard the TxnRecord is in.
-    bytes     txnRecordRouteKey = 4;
+    bytes     txnRecordRouteKey   = 4;
+    // TxnRecordShardGroup used to locate which ShardGroup the TxnRecord is in.
+    uint64    txnRecordShardGroup = 5;
     // Epoch used to indicate the number of restarts of a transaction.
     // Each time a transaction is restarted, the field +1.
-    uint32    epoch             = 5;
+    uint32    epoch               = 6;
     // Priority transaction priority, used for transaction conflict, according 
     // to the priority of the decision to abort which a transaction.
-    uint32    priority          = 6;
+    uint32    priority            = 7;
     // WriteTimestamp the timestamp version number of the data written by the 
     // transaction, this version number may be raised in several scenarios.
-    uint64    writeTimestamp    = 7;
+    uint64    writeTimestamp      = 8;
     // ReadTimestamp the timestamp of the start of the transaction, which is used
     // to read the data from MVCC, in some scenarios this timestamp will be raised
     // to avoid some conflicts and ambiguities.
-    uint64    readTimestamp     = 8;
+    uint64    readTimestamp       = 9;
     // MaxTimestamp if using HLC's clocking scheme, this field is equal to Readtimestamp 
     // + maximum clock skew, which is used to indicate an upper limit of uncertainty 
     // time.
-    uint64    maxTimestamp      = 9;
+    uint64    maxTimestamp        = 10;
 }
 
 // TxnRecord similar to Txn, but only the fields that need to be persisted to 
@@ -143,16 +145,17 @@ enum InternalTxnOp {
 // the Lease Holder of Shard.
 message TxnOperation {
     // Op the specific type of request, e.g. Set/Get/Delete.
-    uint32 op       = 1;
+    uint32 op         = 1;
     // Payload the data of request.
-    bytes  payload  = 2;
+    bytes  payload    = 2;
     // Impacted impact data KeySet for transaction framework to do conflict detection, 
     // Lock, Latch and asynchronous consensus optimization.
-    KeySet impacted = 3 [(gogoproto.nullable) = false];
-
+    KeySet impacted   = 3 [(gogoproto.nullable) = false];
+    // ShardGroup which shard group the data is in
+    uint64 shardGroup = 4;
     // Timestamp the timestamp of the transaction operation initiation, the request in 
     // heartbeat will be accompanied by.
-    uint64 timestamp = 4;
+    uint64 timestamp  = 5;
 }
 
 // TxnRequestType transaction request type
@@ -176,10 +179,6 @@ message TxnBatchRequestHeader {
     TxnOpMeta      txn              = 1 [(gogoproto.nullable) = false];
     // TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
     TxnRequestType type             = 2;
-    // RouteByShardID route requests by shard id
-    uint64         routeByShardID   = 3;
-    // RouteByOriginKey route requests by originKey
-    bytes          routeByOriginKey = 4;
 }
 
 // TxnBatchResponseHeader the head of TxnBatchResponse.
@@ -235,14 +234,16 @@ message TxnError {
 // txn.ReadTS and txn.WriteTS => committedTimestamp+1, and check if the read data
 // has been written in the range [lastForwardTimestamp, committedTimestamp+1].
 message ConflictWithCommittedError {
-    uint64 committedTimestamp = 1;
+    // MinTimestamp minimum timestamp for a transaction to be forward
+    uint64 minTimestamp = 1;
 }
 
 // UncertaintyError T.ReadTS < C.CommitTS <= T.MaxTS, HLC clock drift
-// txn.ReadTS and txn.WriteTS => T1.MaxTS+1, and check if the read data
+// txn.ReadTS and txn.WriteTS => C.CommitTS+1, and check if the read data
 // has been written in the range [lastForwardTimestamp, T1.MaxTS+1].
 message UncertaintyError {
-
+    // MinTimestamp minimum timestamp for a transaction to be forward
+    uint64 minTimestamp = 1;
 }
 
 // AbortedError transaction is aborted in server side

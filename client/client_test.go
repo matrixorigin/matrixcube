@@ -34,7 +34,7 @@ func TestExec(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	s := NewClient(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s := NewClient(Cfg{Store: c.GetStore(0)})
 	s.Start()
 	defer s.Stop()
 
@@ -56,7 +56,7 @@ func TestExecWithTimeout(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	s := NewClient(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s := NewClient(Cfg{Store: c.GetStore(0)})
 	s.Start()
 	defer s.Stop()
 
@@ -80,7 +80,7 @@ func TestAddShardLabel(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	s := NewClient(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s := NewClient(Cfg{Store: c.GetStore(0)})
 	s.Start()
 	defer s.Stop()
 
@@ -112,7 +112,7 @@ func TestKeysRangeNotInShard(t *testing.T) {
 	defer c.Stop()
 
 	c.Start()
-	s := NewClient(Cfg{Store: c.GetStore(0), storeStarted: true})
+	s := NewClient(Cfg{Store: c.GetStore(0)})
 	s.Start()
 	defer s.Stop()
 

@@ -21,7 +21,7 @@ type txnCoordinator interface {
 }
 
 func newTxnCoordinator(txnMeta txnpb.TxnMeta,
-	sender BatchSender,
+	sender BatchDispatcher,
 	txnClocker TxnClocker,
 	txnHeartbeatDuration time.Duration,
 	logger *zap.Logger) *coordinator {
@@ -39,7 +39,7 @@ func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 
 type coordinator struct {
 	logger               *zap.Logger
-	sender               BatchSender
+	sender               BatchDispatcher
 	txnClocker           TxnClocker
 	txnHeartbeatDuration time.Duration
 	stopper              *stop.Stopper
@@ -139,6 +139,7 @@ func (c *coordinator) prepareSend(ctx context.Context, batchRequest *txnpb.TxnBa
 			// the TxnRecord synchronously. We use the first Key of the first write request as
 			// the TxnRecordRouteKey.
 			c.mu.txnMeta.TxnRecordRouteKey = batchRequest.Requests[0].Operation.Impacted.PointKeys[0]
+			c.mu.txnMeta.TxnRecordShardGroup = batchRequest.Requests[0].Operation.ShardGroup
 			batchRequest.Requests[0].Options.CreateTxnRecord = true
 			createTxnRecord = true
 		}
@@ -384,8 +385,8 @@ func (c *coordinator) updateTxnMetaLocked(txn txnpb.TxnMeta) {
 
 	// update write timestamp if
 	// 1. server-side forward the writeTimestamp due to TSCache
-	// 2. due to RW conflicts, the write timestamps of write transactions need to be boosted
-	//    in order to ensure that read transactions can be read without blocking.
+	// 2. due to RW conflicts, the write timestamps of write transactions need to be
+	//    forward in order to ensure that read transactions can be read without blocking.
 	if c.txnClocker.Compare(c.mu.txnMeta.WriteTimestamp, txn.WriteTimestamp) < 0 {
 		c.mu.txnMeta.WriteTimestamp = txn.WriteTimestamp
 	}
@@ -451,11 +452,11 @@ func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
 	var batchRequest txnpb.TxnBatchRequest
 	batchRequest.Header.Txn.TxnMeta = txn
 	batchRequest.Header.Type = txnpb.TxnRequestType_Write
-	batchRequest.Header.RouteByOriginKey = txn.TxnRecordRouteKey
 	batchRequest.Requests = append(batchRequest.Requests, txnpb.TxnRequest{
 		Operation: txnpb.TxnOperation{
-			Op:        uint32(txnpb.InternalTxnOp_Heartbeat),
-			Timestamp: ts,
+			Op:         uint32(txnpb.InternalTxnOp_Heartbeat),
+			ShardGroup: txn.TxnRecordShardGroup,
+			Timestamp:  ts,
 		},
 	})
 	return batchRequest
