@@ -150,3 +150,81 @@ func TestAddDestroyShard(t *testing.T) {
 	assert.Equal(t, metapb.Shard{}, tree.Search([]byte{1}))
 	assert.Equal(t, metapb.Shard{}, tree.Search([]byte{10}))
 }
+
+func TestAscendRange(t *testing.T) {
+	values := []metapb.Shard{
+		{
+			ID:    1,
+			Start: nil,
+			End:   []byte{5},
+		},
+		{
+			ID:    2,
+			Start: []byte{5},
+			End:   []byte{10},
+		},
+		{
+			ID:    3,
+			Start: []byte{10},
+			End:   nil,
+		},
+	}
+	tree := NewShardTree()
+	tree.Update(values...)
+
+	cases := []struct {
+		start        []byte
+		end          []byte
+		expectShards []metapb.Shard
+	}{
+		{
+			start:        nil,
+			end:          nil,
+			expectShards: values,
+		},
+		{
+			start:        nil,
+			end:          []byte{5},
+			expectShards: values[:1],
+		},
+		{
+			start:        nil,
+			end:          []byte{6},
+			expectShards: values[:2],
+		},
+		{
+			start:        nil,
+			end:          []byte{10},
+			expectShards: values[:2],
+		},
+		{
+			start:        []byte{5},
+			end:          []byte{6},
+			expectShards: values[1:2],
+		},
+		{
+			start:        []byte{5},
+			end:          []byte{10},
+			expectShards: values[1:2],
+		},
+		{
+			start:        []byte{5},
+			end:          nil,
+			expectShards: values[1:],
+		},
+		{
+			start:        []byte{10},
+			end:          nil,
+			expectShards: values[2:],
+		},
+	}
+
+	for _, c := range cases {
+		var shards []metapb.Shard
+		tree.AscendRange(c.start, c.end, func(shard *metapb.Shard) bool {
+			shards = append(shards, *shard)
+			return true
+		})
+		assert.Equal(t, c.expectShards, shards)
+	}
+}
