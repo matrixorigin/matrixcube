@@ -174,17 +174,14 @@ func (t *ShardTree) NextShard(start []byte) *metapb.Shard {
 }
 
 // AscendRange asc iterator the tree in the range [start, end) until fn returns false
-func (t *ShardTree) AscendRange(start, end []byte, fn func(Shard *metapb.Shard) bool) {
-	startItem := &ShardItem{
-		Shard: metapb.Shard{Start: start},
-	}
-
-	endItem := &ShardItem{
-		Shard: metapb.Shard{Start: end},
-	}
-
+func (t *ShardTree) AscendRange(start, end []byte, fn func(shard *metapb.Shard) bool) {
 	t.RLock()
-	t.tree.DescendRange(startItem, endItem, func(item btree.Item) bool {
+	result := t.find(metapb.Shard{Start: start})
+	t.tree.DescendLessOrEqual(result, func(item btree.Item) bool {
+		if len(end) > 0 && bytes.Compare(item.(*ShardItem).Shard.Start, end) >= 0 {
+			return false
+		}
+
 		return fn(&item.(*ShardItem).Shard)
 	})
 	t.RUnlock()
@@ -192,10 +189,10 @@ func (t *ShardTree) AscendRange(start, end []byte, fn func(Shard *metapb.Shard) 
 
 // Search returns a Shard that contains the key.
 func (t *ShardTree) Search(key []byte) metapb.Shard {
-	Shard := metapb.Shard{Start: key}
+	shard := metapb.Shard{Start: key}
 
 	t.RLock()
-	result := t.find(Shard)
+	result := t.find(shard)
 	t.RUnlock()
 
 	if result == nil {
@@ -205,9 +202,9 @@ func (t *ShardTree) Search(key []byte) metapb.Shard {
 	return result.Shard
 }
 
-func (t *ShardTree) find(Shard metapb.Shard) *ShardItem {
+func (t *ShardTree) find(shard metapb.Shard) *ShardItem {
 	item := acquireItem()
-	item.Shard = Shard
+	item.Shard = shard
 
 	var result *ShardItem
 	t.tree.AscendGreaterOrEqual(item, func(i btree.Item) bool {
@@ -215,7 +212,7 @@ func (t *ShardTree) find(Shard metapb.Shard) *ShardItem {
 		return false
 	})
 
-	if result == nil || !result.Contains(Shard.Start) {
+	if result == nil || !result.Contains(shard.Start) {
 		releaseItem(item)
 		return nil
 	}
