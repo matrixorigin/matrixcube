@@ -97,6 +97,44 @@ func (TxnStatus) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_4cec01c879ff9f20, []int{1}
 }
 
+// InternalTxnOp transaction framework internal operation types.
+type InternalTxnOp int32
+
+const (
+	// Heartbeat txn heartbeat operation
+	InternalTxnOp_Heartbeat InternalTxnOp = 0
+	// Commit txn commit operation
+	InternalTxnOp_Commit InternalTxnOp = 1
+	// Rollback txn rollback operation
+	InternalTxnOp_Rollback InternalTxnOp = 2
+	// Reserved txn reserved operation value, all custom transaction
+	// read and write operation type can not use the value below the
+	// reserved value.
+	InternalTxnOp_Reserved InternalTxnOp = 1000
+)
+
+var InternalTxnOp_name = map[int32]string{
+	0:    "Heartbeat",
+	1:    "Commit",
+	2:    "Rollback",
+	1000: "Reserved",
+}
+
+var InternalTxnOp_value = map[string]int32{
+	"Heartbeat": 0,
+	"Commit":    1,
+	"Rollback":  2,
+	"Reserved":  1000,
+}
+
+func (x InternalTxnOp) String() string {
+	return proto.EnumName(InternalTxnOp_name, int32(x))
+}
+
+func (InternalTxnOp) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{2}
+}
+
 // TxnRequestType transaction request type
 type TxnRequestType int32
 
@@ -105,24 +143,16 @@ const (
 	TxnRequestType_Read TxnRequestType = 0
 	// Write write request
 	TxnRequestType_Write TxnRequestType = 1
-	// Commit commit request
-	TxnRequestType_Commit TxnRequestType = 2
-	// Rollback rollback request
-	TxnRequestType_Rollback TxnRequestType = 3
 )
 
 var TxnRequestType_name = map[int32]string{
 	0: "Read",
 	1: "Write",
-	2: "Commit",
-	3: "Rollback",
 }
 
 var TxnRequestType_value = map[string]int32{
-	"Read":     0,
-	"Write":    1,
-	"Commit":   2,
-	"Rollback": 3,
+	"Read":  0,
+	"Write": 1,
 }
 
 func (x TxnRequestType) String() string {
@@ -130,7 +160,7 @@ func (x TxnRequestType) String() string {
 }
 
 func (TxnRequestType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_4cec01c879ff9f20, []int{2}
+	return fileDescriptor_4cec01c879ff9f20, []int{3}
 }
 
 // TxnMeta transaction metadata, which will be integrated into TxnRecord and
@@ -144,23 +174,25 @@ type TxnMeta struct {
 	Isolation Isolation `protobuf:"varint,3,opt,name=isolation,proto3,enum=txnpb.Isolation" json:"isolation,omitempty"`
 	// TxnRecordRouteKey used to locate which Shard the TxnRecord is in.
 	TxnRecordRouteKey []byte `protobuf:"bytes,4,opt,name=txnRecordRouteKey,proto3" json:"txnRecordRouteKey,omitempty"`
+	// TxnRecordShardGroup used to locate which ShardGroup the TxnRecord is in.
+	TxnRecordShardGroup uint64 `protobuf:"varint,5,opt,name=txnRecordShardGroup,proto3" json:"txnRecordShardGroup,omitempty"`
 	// Epoch used to indicate the number of restarts of a transaction.
 	// Each time a transaction is restarted, the field +1.
-	Epoch uint32 `protobuf:"varint,5,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Epoch uint32 `protobuf:"varint,6,opt,name=epoch,proto3" json:"epoch,omitempty"`
 	// Priority transaction priority, used for transaction conflict, according
 	// to the priority of the decision to abort which a transaction.
-	Priority uint64 `protobuf:"varint,6,opt,name=priority,proto3" json:"priority,omitempty"`
+	Priority uint32 `protobuf:"varint,7,opt,name=priority,proto3" json:"priority,omitempty"`
 	// WriteTimestamp the timestamp version number of the data written by the
 	// transaction, this version number may be raised in several scenarios.
-	WriteTimestamp uint64 `protobuf:"varint,7,opt,name=writeTimestamp,proto3" json:"writeTimestamp,omitempty"`
+	WriteTimestamp uint64 `protobuf:"varint,8,opt,name=writeTimestamp,proto3" json:"writeTimestamp,omitempty"`
 	// ReadTimestamp the timestamp of the start of the transaction, which is used
 	// to read the data from MVCC, in some scenarios this timestamp will be raised
 	// to avoid some conflicts and ambiguities.
-	ReadTimestamp uint64 `protobuf:"varint,8,opt,name=readTimestamp,proto3" json:"readTimestamp,omitempty"`
+	ReadTimestamp uint64 `protobuf:"varint,9,opt,name=readTimestamp,proto3" json:"readTimestamp,omitempty"`
 	// MaxTimestamp if using HLC's clocking scheme, this field is equal to Readtimestamp
 	// + maximum clock skew, which is used to indicate an upper limit of uncertainty
 	// time.
-	MaxTimestamp         uint64   `protobuf:"varint,9,opt,name=maxTimestamp,proto3" json:"maxTimestamp,omitempty"`
+	MaxTimestamp         uint64   `protobuf:"varint,10,opt,name=maxTimestamp,proto3" json:"maxTimestamp,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -227,6 +259,13 @@ func (m *TxnMeta) GetTxnRecordRouteKey() []byte {
 	return nil
 }
 
+func (m *TxnMeta) GetTxnRecordShardGroup() uint64 {
+	if m != nil {
+		return m.TxnRecordShardGroup
+	}
+	return 0
+}
+
 func (m *TxnMeta) GetEpoch() uint32 {
 	if m != nil {
 		return m.Epoch
@@ -234,7 +273,7 @@ func (m *TxnMeta) GetEpoch() uint32 {
 	return 0
 }
 
-func (m *TxnMeta) GetPriority() uint64 {
+func (m *TxnMeta) GetPriority() uint32 {
 	if m != nil {
 		return m.Priority
 	}
@@ -353,8 +392,6 @@ func (m *TxnRecord) GetInfightWrites() KeySet {
 type TxnOpMeta struct {
 	// TxnMeta embed txn meta
 	TxnMeta `protobuf:"bytes,1,opt,name=txnMeta,proto3,embedded=txnMeta" json:"txnMeta"`
-	// OriginKey the origin data key without any transaction codec
-	OriginKey []byte `protobuf:"bytes,2,opt,name=originKey,proto3" json:"originKey,omitempty"`
 	// Sequence indicates the current number of write operations in the transaction.
 	// Of all the operations in the transaction, only the write operation will increase
 	// the value of the field, the read operation will not. Used to implement the `read
@@ -403,13 +440,6 @@ func (m *TxnOpMeta) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_TxnOpMeta proto.InternalMessageInfo
-
-func (m *TxnOpMeta) GetOriginKey() []byte {
-	if m != nil {
-		return m.OriginKey
-	}
-	return nil
-}
 
 func (m *TxnOpMeta) GetSequence() uint32 {
 	if m != nil {
@@ -560,7 +590,12 @@ type TxnOperation struct {
 	Payload []byte `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Impacted impact data KeySet for transaction framework to do conflict detection,
 	// Lock, Latch and asynchronous consensus optimization.
-	Impacted             KeySet   `protobuf:"bytes,3,opt,name=impacted,proto3" json:"impacted"`
+	Impacted KeySet `protobuf:"bytes,3,opt,name=impacted,proto3" json:"impacted"`
+	// ShardGroup which shard group the data is in
+	ShardGroup uint64 `protobuf:"varint,4,opt,name=shardGroup,proto3" json:"shardGroup,omitempty"`
+	// Timestamp the timestamp of the transaction operation initiation, the request in
+	// heartbeat will be accompanied by.
+	Timestamp            uint64   `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -620,11 +655,25 @@ func (m *TxnOperation) GetImpacted() KeySet {
 	return KeySet{}
 }
 
+func (m *TxnOperation) GetShardGroup() uint64 {
+	if m != nil {
+		return m.ShardGroup
+	}
+	return 0
+}
+
+func (m *TxnOperation) GetTimestamp() uint64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
 // TxnBatchRequest transaction operations are converted into multiple transaction
 // requests, contained by a TxnBatchRequest.
 type TxnBatchRequest struct {
 	Header               TxnBatchRequestHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header"`
-	Requests             []*TxnRequest         `protobuf:"bytes,2,rep,name=requests,proto3" json:"requests,omitempty"`
+	Requests             []TxnRequest          `protobuf:"bytes,2,rep,name=requests,proto3" json:"requests"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
 	XXX_sizecache        int32                 `json:"-"`
@@ -670,7 +719,7 @@ func (m *TxnBatchRequest) GetHeader() TxnBatchRequestHeader {
 	return TxnBatchRequestHeader{}
 }
 
-func (m *TxnBatchRequest) GetRequests() []*TxnRequest {
+func (m *TxnBatchRequest) GetRequests() []TxnRequest {
 	if m != nil {
 		return m.Requests
 	}
@@ -681,10 +730,8 @@ func (m *TxnBatchRequest) GetRequests() []*TxnRequest {
 type TxnBatchRequestHeader struct {
 	// TxnOpMeta transaction operation metadata
 	Txn TxnOpMeta `protobuf:"bytes,1,opt,name=txn,proto3" json:"txn"`
-	// ToShard shardID that handles the request
-	ToShard uint64 `protobuf:"varint,2,opt,name=toShard,proto3" json:"toShard,omitempty"`
 	// TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
-	Type                 TxnRequestType `protobuf:"varint,3,opt,name=type,proto3,enum=txnpb.TxnRequestType" json:"type,omitempty"`
+	Type                 TxnRequestType `protobuf:"varint,2,opt,name=type,proto3,enum=txnpb.TxnRequestType" json:"type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
 	XXX_sizecache        int32          `json:"-"`
@@ -730,13 +777,6 @@ func (m *TxnBatchRequestHeader) GetTxn() TxnOpMeta {
 	return TxnOpMeta{}
 }
 
-func (m *TxnBatchRequestHeader) GetToShard() uint64 {
-	if m != nil {
-		return m.ToShard
-	}
-	return 0
-}
-
 func (m *TxnBatchRequestHeader) GetType() TxnRequestType {
 	if m != nil {
 		return m.Type
@@ -744,20 +784,150 @@ func (m *TxnBatchRequestHeader) GetType() TxnRequestType {
 	return TxnRequestType_Read
 }
 
+// TxnBatchResponseHeader the head of TxnBatchResponse.
+type TxnBatchResponseHeader struct {
+	// TxnMeta the modified transaction metadata by server
+	Txn TxnMeta `protobuf:"bytes,1,opt,name=txn,proto3" json:"txn"`
+	// TxnStatus txn status found in server side, only relevant requests requesting
+	// access to TxnRecord will return.
+	Status TxnStatus `protobuf:"varint,2,opt,name=status,proto3,enum=txnpb.TxnStatus" json:"status,omitempty"`
+	// TxnError txn error
+	Error                *TxnError `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
+}
+
+func (m *TxnBatchResponseHeader) Reset()         { *m = TxnBatchResponseHeader{} }
+func (m *TxnBatchResponseHeader) String() string { return proto.CompactTextString(m) }
+func (*TxnBatchResponseHeader) ProtoMessage()    {}
+func (*TxnBatchResponseHeader) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{8}
+}
+func (m *TxnBatchResponseHeader) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TxnBatchResponseHeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TxnBatchResponseHeader.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TxnBatchResponseHeader) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TxnBatchResponseHeader.Merge(m, src)
+}
+func (m *TxnBatchResponseHeader) XXX_Size() int {
+	return m.Size()
+}
+func (m *TxnBatchResponseHeader) XXX_DiscardUnknown() {
+	xxx_messageInfo_TxnBatchResponseHeader.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TxnBatchResponseHeader proto.InternalMessageInfo
+
+func (m *TxnBatchResponseHeader) GetTxn() TxnMeta {
+	if m != nil {
+		return m.Txn
+	}
+	return TxnMeta{}
+}
+
+func (m *TxnBatchResponseHeader) GetStatus() TxnStatus {
+	if m != nil {
+		return m.Status
+	}
+	return TxnStatus_Pending
+}
+
+func (m *TxnBatchResponseHeader) GetError() *TxnError {
+	if m != nil {
+		return m.Error
+	}
+	return nil
+}
+
+// TxnBatchResponse the response of TxnBatchRequest returns the modified transaction
+// metadata in the header of the response, and the transaction coordinator needs to
+// update the transaction metadata in memory, such as the read and write timestamps
+// of the transaction being raised.
+type TxnBatchResponse struct {
+	Header               TxnBatchResponseHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header"`
+	Responses            []TxnResponse          `protobuf:"bytes,2,rep,name=responses,proto3" json:"responses"`
+	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
+	XXX_unrecognized     []byte                 `json:"-"`
+	XXX_sizecache        int32                  `json:"-"`
+}
+
+func (m *TxnBatchResponse) Reset()         { *m = TxnBatchResponse{} }
+func (m *TxnBatchResponse) String() string { return proto.CompactTextString(m) }
+func (*TxnBatchResponse) ProtoMessage()    {}
+func (*TxnBatchResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{9}
+}
+func (m *TxnBatchResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TxnBatchResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TxnBatchResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TxnBatchResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TxnBatchResponse.Merge(m, src)
+}
+func (m *TxnBatchResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *TxnBatchResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_TxnBatchResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TxnBatchResponse proto.InternalMessageInfo
+
+func (m *TxnBatchResponse) GetHeader() TxnBatchResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return TxnBatchResponseHeader{}
+}
+
+func (m *TxnBatchResponse) GetResponses() []TxnResponse {
+	if m != nil {
+		return m.Responses
+	}
+	return nil
+}
+
 // TxnRequest transaction request, corresponds to a TxnOperation
 type TxnRequest struct {
 	// Operation the TxnOperation
-	Operation            TxnOperation `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation"`
-	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
-	XXX_unrecognized     []byte       `json:"-"`
-	XXX_sizecache        int32        `json:"-"`
+	Operation TxnOperation `protobuf:"bytes,1,opt,name=operation,proto3" json:"operation"`
+	// OperationOptions for the first write operation, you need to write to TxnRecod
+	// at the same time.
+	Options              OperationOptions `protobuf:"bytes,2,opt,name=options,proto3" json:"options"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
 }
 
 func (m *TxnRequest) Reset()         { *m = TxnRequest{} }
 func (m *TxnRequest) String() string { return proto.CompactTextString(m) }
 func (*TxnRequest) ProtoMessage()    {}
 func (*TxnRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_4cec01c879ff9f20, []int{8}
+	return fileDescriptor_4cec01c879ff9f20, []int{10}
 }
 func (m *TxnRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -793,6 +963,13 @@ func (m *TxnRequest) GetOperation() TxnOperation {
 	return TxnOperation{}
 }
 
+func (m *TxnRequest) GetOptions() OperationOptions {
+	if m != nil {
+		return m.Options
+	}
+	return OperationOptions{}
+}
+
 // TxnResponse is TxnOperation response
 type TxnResponse struct {
 	// Data is returned by `HandleRead` or `HandleWrite`
@@ -806,7 +983,7 @@ func (m *TxnResponse) Reset()         { *m = TxnResponse{} }
 func (m *TxnResponse) String() string { return proto.CompactTextString(m) }
 func (*TxnResponse) ProtoMessage()    {}
 func (*TxnResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_4cec01c879ff9f20, []int{9}
+	return fileDescriptor_4cec01c879ff9f20, []int{11}
 }
 func (m *TxnResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -842,9 +1019,266 @@ func (m *TxnResponse) GetData() []byte {
 	return nil
 }
 
+// OperationOptions option options
+type OperationOptions struct {
+	// CreateTxnRecord
+	CreateTxnRecord      bool     `protobuf:"varint,1,opt,name=createTxnRecord,proto3" json:"createTxnRecord,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *OperationOptions) Reset()         { *m = OperationOptions{} }
+func (m *OperationOptions) String() string { return proto.CompactTextString(m) }
+func (*OperationOptions) ProtoMessage()    {}
+func (*OperationOptions) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{12}
+}
+func (m *OperationOptions) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *OperationOptions) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_OperationOptions.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *OperationOptions) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_OperationOptions.Merge(m, src)
+}
+func (m *OperationOptions) XXX_Size() int {
+	return m.Size()
+}
+func (m *OperationOptions) XXX_DiscardUnknown() {
+	xxx_messageInfo_OperationOptions.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_OperationOptions proto.InternalMessageInfo
+
+func (m *OperationOptions) GetCreateTxnRecord() bool {
+	if m != nil {
+		return m.CreateTxnRecord
+	}
+	return false
+}
+
+// TxnError txn error, Special errors encountered in transaction operations,
+// which require special handling on the client or server side.
+type TxnError struct {
+	ConflictWithCommittedError *ConflictWithCommittedError `protobuf:"bytes,1,opt,name=conflictWithCommittedError,proto3" json:"conflictWithCommittedError,omitempty"`
+	UncertaintyError           *UncertaintyError           `protobuf:"bytes,2,opt,name=uncertaintyError,proto3" json:"uncertaintyError,omitempty"`
+	AbortedError               *AbortedError               `protobuf:"bytes,3,opt,name=abortedError,proto3" json:"abortedError,omitempty"`
+	XXX_NoUnkeyedLiteral       struct{}                    `json:"-"`
+	XXX_unrecognized           []byte                      `json:"-"`
+	XXX_sizecache              int32                       `json:"-"`
+}
+
+func (m *TxnError) Reset()         { *m = TxnError{} }
+func (m *TxnError) String() string { return proto.CompactTextString(m) }
+func (*TxnError) ProtoMessage()    {}
+func (*TxnError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{13}
+}
+func (m *TxnError) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TxnError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TxnError.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TxnError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TxnError.Merge(m, src)
+}
+func (m *TxnError) XXX_Size() int {
+	return m.Size()
+}
+func (m *TxnError) XXX_DiscardUnknown() {
+	xxx_messageInfo_TxnError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TxnError proto.InternalMessageInfo
+
+func (m *TxnError) GetConflictWithCommittedError() *ConflictWithCommittedError {
+	if m != nil {
+		return m.ConflictWithCommittedError
+	}
+	return nil
+}
+
+func (m *TxnError) GetUncertaintyError() *UncertaintyError {
+	if m != nil {
+		return m.UncertaintyError
+	}
+	return nil
+}
+
+func (m *TxnError) GetAbortedError() *AbortedError {
+	if m != nil {
+		return m.AbortedError
+	}
+	return nil
+}
+
+// ConflictWithCommittedError T.ReadTS < C.CommitTS < T.CommitTS, W/W conflict,
+// txn.ReadTS and txn.WriteTS => committedTimestamp+1, and check if the read data
+// has been written in the range [lastForwardTimestamp, committedTimestamp+1].
+type ConflictWithCommittedError struct {
+	// MinTimestamp minimum timestamp for a transaction to be forward
+	MinTimestamp         uint64   `protobuf:"varint,1,opt,name=minTimestamp,proto3" json:"minTimestamp,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ConflictWithCommittedError) Reset()         { *m = ConflictWithCommittedError{} }
+func (m *ConflictWithCommittedError) String() string { return proto.CompactTextString(m) }
+func (*ConflictWithCommittedError) ProtoMessage()    {}
+func (*ConflictWithCommittedError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{14}
+}
+func (m *ConflictWithCommittedError) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ConflictWithCommittedError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ConflictWithCommittedError.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ConflictWithCommittedError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ConflictWithCommittedError.Merge(m, src)
+}
+func (m *ConflictWithCommittedError) XXX_Size() int {
+	return m.Size()
+}
+func (m *ConflictWithCommittedError) XXX_DiscardUnknown() {
+	xxx_messageInfo_ConflictWithCommittedError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ConflictWithCommittedError proto.InternalMessageInfo
+
+func (m *ConflictWithCommittedError) GetMinTimestamp() uint64 {
+	if m != nil {
+		return m.MinTimestamp
+	}
+	return 0
+}
+
+// UncertaintyError T.ReadTS < C.CommitTS <= T.MaxTS, HLC clock drift
+// txn.ReadTS and txn.WriteTS => C.CommitTS+1, and check if the read data
+// has been written in the range [lastForwardTimestamp, T1.MaxTS+1].
+type UncertaintyError struct {
+	// MinTimestamp minimum timestamp for a transaction to be forward
+	MinTimestamp         uint64   `protobuf:"varint,1,opt,name=minTimestamp,proto3" json:"minTimestamp,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UncertaintyError) Reset()         { *m = UncertaintyError{} }
+func (m *UncertaintyError) String() string { return proto.CompactTextString(m) }
+func (*UncertaintyError) ProtoMessage()    {}
+func (*UncertaintyError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{15}
+}
+func (m *UncertaintyError) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UncertaintyError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UncertaintyError.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UncertaintyError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UncertaintyError.Merge(m, src)
+}
+func (m *UncertaintyError) XXX_Size() int {
+	return m.Size()
+}
+func (m *UncertaintyError) XXX_DiscardUnknown() {
+	xxx_messageInfo_UncertaintyError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UncertaintyError proto.InternalMessageInfo
+
+func (m *UncertaintyError) GetMinTimestamp() uint64 {
+	if m != nil {
+		return m.MinTimestamp
+	}
+	return 0
+}
+
+// AbortedError transaction is aborted in server side
+type AbortedError struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AbortedError) Reset()         { *m = AbortedError{} }
+func (m *AbortedError) String() string { return proto.CompactTextString(m) }
+func (*AbortedError) ProtoMessage()    {}
+func (*AbortedError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4cec01c879ff9f20, []int{16}
+}
+func (m *AbortedError) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AbortedError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AbortedError.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AbortedError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AbortedError.Merge(m, src)
+}
+func (m *AbortedError) XXX_Size() int {
+	return m.Size()
+}
+func (m *AbortedError) XXX_DiscardUnknown() {
+	xxx_messageInfo_AbortedError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AbortedError proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterEnum("txnpb.Isolation", Isolation_name, Isolation_value)
 	proto.RegisterEnum("txnpb.TxnStatus", TxnStatus_name, TxnStatus_value)
+	proto.RegisterEnum("txnpb.InternalTxnOp", InternalTxnOp_name, InternalTxnOp_value)
 	proto.RegisterEnum("txnpb.TxnRequestType", TxnRequestType_name, TxnRequestType_value)
 	proto.RegisterType((*TxnMeta)(nil), "txnpb.TxnMeta")
 	proto.RegisterType((*TxnRecord)(nil), "txnpb.TxnRecord")
@@ -854,67 +1288,90 @@ func init() {
 	proto.RegisterType((*TxnOperation)(nil), "txnpb.TxnOperation")
 	proto.RegisterType((*TxnBatchRequest)(nil), "txnpb.TxnBatchRequest")
 	proto.RegisterType((*TxnBatchRequestHeader)(nil), "txnpb.TxnBatchRequestHeader")
+	proto.RegisterType((*TxnBatchResponseHeader)(nil), "txnpb.TxnBatchResponseHeader")
+	proto.RegisterType((*TxnBatchResponse)(nil), "txnpb.TxnBatchResponse")
 	proto.RegisterType((*TxnRequest)(nil), "txnpb.TxnRequest")
 	proto.RegisterType((*TxnResponse)(nil), "txnpb.TxnResponse")
+	proto.RegisterType((*OperationOptions)(nil), "txnpb.OperationOptions")
+	proto.RegisterType((*TxnError)(nil), "txnpb.TxnError")
+	proto.RegisterType((*ConflictWithCommittedError)(nil), "txnpb.ConflictWithCommittedError")
+	proto.RegisterType((*UncertaintyError)(nil), "txnpb.UncertaintyError")
+	proto.RegisterType((*AbortedError)(nil), "txnpb.AbortedError")
 }
 
 func init() { proto.RegisterFile("txnpb.proto", fileDescriptor_4cec01c879ff9f20) }
 
 var fileDescriptor_4cec01c879ff9f20 = []byte{
-	// 835 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x55, 0xdd, 0x6e, 0xe3, 0x44,
-	0x18, 0xad, 0x9d, 0xc4, 0x89, 0xbf, 0xfc, 0xd4, 0xfb, 0xc1, 0x22, 0x6b, 0xb5, 0x6a, 0x83, 0x85,
-	0x50, 0x28, 0xb4, 0x95, 0xb2, 0x17, 0x2b, 0x90, 0x10, 0xda, 0x14, 0xa4, 0xad, 0x2a, 0xb4, 0x68,
-	0x12, 0xc4, 0xf5, 0x24, 0x9e, 0x4d, 0x46, 0xc4, 0x33, 0xc6, 0x9e, 0x88, 0x58, 0xe2, 0x1a, 0x89,
-	0x27, 0xe2, 0x15, 0xf6, 0xb2, 0x4f, 0x50, 0x41, 0x6f, 0x78, 0x0d, 0x34, 0xe3, 0x71, 0xdc, 0xb4,
-	0xac, 0x54, 0x71, 0xe7, 0xf3, 0xcd, 0x99, 0x99, 0x73, 0xce, 0x7c, 0x33, 0x86, 0xae, 0xda, 0x8a,
-	0x74, 0x7e, 0x96, 0x66, 0x52, 0x49, 0x6c, 0x19, 0xf0, 0xec, 0x74, 0xc9, 0xd5, 0x6a, 0x33, 0x3f,
-	0x5b, 0xc8, 0xe4, 0x7c, 0x29, 0x97, 0xf2, 0xdc, 0x8c, 0xce, 0x37, 0x6f, 0x0d, 0x32, 0xc0, 0x7c,
-	0x95, 0xb3, 0xa2, 0x3f, 0x5d, 0x68, 0xcf, 0xb6, 0xe2, 0x7b, 0xa6, 0x28, 0x7e, 0x04, 0x2e, 0x8f,
-	0x43, 0x67, 0xe8, 0x8c, 0x7a, 0x13, 0xef, 0xf6, 0xe6, 0xd8, 0xbd, 0xfc, 0x96, 0xb8, 0x3c, 0x46,
-	0x84, 0xa6, 0xa0, 0x09, 0x0b, 0xdd, 0xa1, 0x33, 0xf2, 0x89, 0xf9, 0xc6, 0x33, 0xf0, 0x79, 0x2e,
-	0xd7, 0x54, 0x71, 0x29, 0xc2, 0xc6, 0xd0, 0x19, 0x0d, 0xc6, 0xc1, 0x59, 0x29, 0xe7, 0xb2, 0xaa,
-	0x93, 0x9a, 0x82, 0x5f, 0xc0, 0x13, 0xb5, 0x15, 0x84, 0x2d, 0x64, 0x16, 0x13, 0xb9, 0x51, 0xec,
-	0x8a, 0x15, 0x61, 0x53, 0x6f, 0x45, 0x1e, 0x0e, 0xe0, 0x87, 0xd0, 0x62, 0xa9, 0x5c, 0xac, 0xc2,
-	0xd6, 0xd0, 0x19, 0xf5, 0x49, 0x09, 0xf0, 0x19, 0x74, 0xd2, 0x8c, 0xcb, 0x8c, 0xab, 0x22, 0xf4,
-	0x86, 0xce, 0xa8, 0x49, 0x76, 0x18, 0x3f, 0x85, 0xc1, 0xaf, 0x19, 0x57, 0x6c, 0xc6, 0x13, 0x96,
-	0x2b, 0x9a, 0xa4, 0x61, 0xdb, 0x30, 0xee, 0x55, 0xf1, 0x13, 0xe8, 0x67, 0x8c, 0xc6, 0x35, 0xad,
-	0x63, 0x68, 0xfb, 0x45, 0x8c, 0xa0, 0x97, 0xd0, 0x6d, 0x4d, 0xf2, 0x0d, 0x69, 0xaf, 0x16, 0xfd,
-	0xe1, 0x82, 0x3f, 0xab, 0x94, 0xe3, 0x18, 0xda, 0xaa, 0x8c, 0xd1, 0x04, 0xd8, 0x1d, 0x0f, 0x6c,
-	0x1a, 0x36, 0xdc, 0x49, 0xe7, 0xdd, 0xcd, 0xf1, 0xc1, 0xf5, 0xcd, 0xb1, 0x43, 0x2a, 0x22, 0x8e,
-	0xc0, 0xcb, 0x15, 0x55, 0x9b, 0xdc, 0x24, 0x5b, 0x07, 0x38, 0xdb, 0x8a, 0xa9, 0xa9, 0x13, 0x3b,
-	0xae, 0x55, 0xaf, 0x69, 0xae, 0x5e, 0x33, 0x9a, 0xa9, 0x39, 0xa3, 0xca, 0x24, 0xde, 0x24, 0xfb,
-	0x45, 0xfc, 0x1a, 0x0e, 0x17, 0x32, 0x49, 0xd7, 0x4c, 0xb1, 0xf8, 0x27, 0x6d, 0x3b, 0x37, 0x09,
-	0x77, 0xc7, 0x7d, 0xbb, 0xf0, 0x15, 0x2b, 0xa6, 0x4c, 0x4d, 0x9a, 0x5a, 0x0a, 0xb9, 0xcf, 0xc5,
-	0x2f, 0xa1, 0xcf, 0xc5, 0x5b, 0xbe, 0x5c, 0x29, 0x3b, 0xb9, 0xf5, 0xfe, 0xc9, 0xfb, 0xcc, 0xe8,
-	0x1f, 0xc7, 0x64, 0xf1, 0x26, 0x35, 0xbe, 0xfe, 0x4f, 0x16, 0xcf, 0xc1, 0x97, 0x19, 0x5f, 0x72,
-	0xa1, 0xfb, 0xc2, 0x35, 0x7d, 0x51, 0x17, 0xf4, 0xc9, 0xe7, 0xec, 0x97, 0x0d, 0x13, 0x0b, 0x66,
-	0xac, 0xf7, 0xc9, 0x0e, 0xe3, 0xcb, 0xc7, 0xb9, 0x7e, 0xe8, 0xf7, 0xc5, 0x63, 0xfc, 0xde, 0x77,
-	0x3a, 0x86, 0xce, 0x15, 0x2b, 0x08, 0x15, 0x4b, 0xa6, 0xbb, 0x34, 0x57, 0x34, 0x53, 0xe5, 0x95,
-	0x21, 0x25, 0xc0, 0x00, 0x1a, 0x4c, 0xc4, 0xd6, 0x83, 0xfe, 0x8c, 0x7e, 0x04, 0xaf, 0x5c, 0x4c,
-	0xbb, 0x4c, 0x25, 0x17, 0xea, 0x8a, 0x15, 0x79, 0xe8, 0x0c, 0x1b, 0xda, 0xe5, 0xae, 0x80, 0xa7,
-	0xe0, 0x65, 0x7a, 0x61, 0xdd, 0x0f, 0x8d, 0x51, 0x77, 0x7c, 0x58, 0x2b, 0x31, 0x1b, 0xda, 0xec,
-	0x2d, 0x29, 0xe2, 0xd0, 0x33, 0x99, 0xb3, 0xac, 0xbc, 0x62, 0x03, 0x70, 0x65, 0x6a, 0xb4, 0xf4,
-	0x89, 0x2b, 0x53, 0x0c, 0xa1, 0x9d, 0xd2, 0x62, 0x2d, 0x69, 0x25, 0xa6, 0x82, 0x78, 0x0e, 0x1d,
-	0x9e, 0xa4, 0x74, 0xa1, 0x58, 0x6c, 0xe2, 0x7c, 0xcf, 0x21, 0xef, 0x48, 0xd1, 0x6f, 0x70, 0x38,
-	0xdb, 0x8a, 0x09, 0x55, 0x8b, 0x15, 0xd1, 0xb9, 0xe7, 0x0a, 0xbf, 0x02, 0x6f, 0xc5, 0x68, 0xcc,
-	0x32, 0x7b, 0xc6, 0xcf, 0xeb, 0x33, 0xbe, 0xcb, 0x7b, 0x6d, 0x38, 0x95, 0xf2, 0x72, 0x06, 0x9e,
-	0x42, 0x27, 0x2b, 0x87, 0x2b, 0xab, 0x4f, 0xea, 0xd9, 0x76, 0x22, 0xd9, 0x51, 0xa2, 0xdf, 0x1d,
-	0x78, 0xfa, 0x9f, 0xcb, 0xe2, 0x08, 0x1a, 0x6a, 0x2b, 0xac, 0x82, 0x3b, 0xd7, 0xa7, 0x6c, 0x44,
-	0xbb, 0xab, 0xa6, 0xe8, 0x30, 0x94, 0x9c, 0xae, 0x68, 0x56, 0x86, 0xd1, 0x24, 0x15, 0xc4, 0xcf,
-	0xa0, 0xa9, 0x8a, 0x94, 0xd9, 0x47, 0xec, 0xe9, 0x03, 0x21, 0xb3, 0x22, 0x65, 0xc4, 0x50, 0xa2,
-	0xef, 0x00, 0xea, 0x3a, 0xbe, 0x04, 0x5f, 0x56, 0xe1, 0x5b, 0x09, 0x1f, 0xdc, 0x95, 0x60, 0x87,
-	0xac, 0x8a, 0x9a, 0x1b, 0x7d, 0x0c, 0x5d, 0xb3, 0x4c, 0x9e, 0x4a, 0x91, 0x33, 0xfd, 0xbc, 0xc6,
-	0xd4, 0xde, 0x95, 0x1e, 0x31, 0xdf, 0x27, 0x9f, 0x83, 0xbf, 0x7b, 0x46, 0xd1, 0x03, 0x97, 0x5c,
-	0x04, 0x07, 0x38, 0x00, 0x20, 0x17, 0x84, 0xd1, 0xf8, 0x8d, 0x58, 0x17, 0x81, 0xa3, 0xeb, 0xd3,
-	0xcb, 0xc0, 0x3d, 0x79, 0x65, 0x2e, 0x5f, 0xf9, 0x64, 0x60, 0x17, 0xda, 0x3f, 0x30, 0x11, 0x73,
-	0xb1, 0x0c, 0x0e, 0x34, 0x98, 0x2a, 0xba, 0xd4, 0xc0, 0xc1, 0x3e, 0xf8, 0x17, 0x32, 0x49, 0xb8,
-	0x52, 0x2c, 0x0e, 0x5c, 0x3d, 0xf6, 0x6a, 0x2e, 0x33, 0x0d, 0x1a, 0x27, 0xdf, 0xc0, 0x60, 0xdf,
-	0x31, 0x76, 0xa0, 0xa9, 0xb7, 0x0a, 0x0e, 0xd0, 0x87, 0x96, 0x69, 0xfe, 0xc0, 0x41, 0x00, 0xaf,
-	0x5c, 0x22, 0x70, 0xb1, 0x07, 0x1d, 0x22, 0xd7, 0xeb, 0x39, 0x5d, 0xfc, 0x1c, 0x34, 0x26, 0xc1,
-	0xf5, 0xdf, 0x47, 0xce, 0xbb, 0xdb, 0x23, 0xe7, 0xfa, 0xf6, 0xc8, 0xf9, 0xeb, 0xf6, 0xc8, 0x99,
-	0x7b, 0xe6, 0x07, 0xf3, 0xe2, 0xdf, 0x00, 0x00, 0x00, 0xff, 0xff, 0x22, 0xc6, 0x7d, 0x51, 0xa5,
-	0x06, 0x00, 0x00,
+	// 1098 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x56, 0x5b, 0x6f, 0x1b, 0xc5,
+	0x17, 0xcf, 0xac, 0x6f, 0xeb, 0xe3, 0x4b, 0xb6, 0xd3, 0x7f, 0xfb, 0xb7, 0xa2, 0x92, 0xba, 0x2b,
+	0x5a, 0x99, 0x40, 0x13, 0xe4, 0x48, 0x8d, 0xb8, 0x49, 0x34, 0x01, 0xb5, 0x51, 0x84, 0x82, 0x26,
+	0xae, 0xfa, 0x3c, 0xde, 0x9d, 0xd8, 0x2b, 0xec, 0x99, 0x65, 0x76, 0x0c, 0xf6, 0x0b, 0x0f, 0xbc,
+	0x20, 0x1e, 0xf9, 0x14, 0x7c, 0x95, 0xf2, 0x96, 0x4f, 0x10, 0x41, 0x9e, 0x40, 0x7c, 0x09, 0xb4,
+	0xb3, 0xb3, 0x17, 0x6f, 0x1a, 0x14, 0xf1, 0x36, 0xe7, 0x9c, 0xdf, 0x39, 0xf3, 0x3b, 0xb7, 0x9d,
+	0x85, 0x96, 0x5a, 0xf2, 0x70, 0xbc, 0x1b, 0x4a, 0xa1, 0x04, 0xae, 0x69, 0x61, 0xeb, 0xe9, 0x24,
+	0x50, 0xd3, 0xc5, 0x78, 0xd7, 0x13, 0xf3, 0xbd, 0x89, 0x98, 0x88, 0x3d, 0x6d, 0x1d, 0x2f, 0xce,
+	0xb5, 0xa4, 0x05, 0x7d, 0x4a, 0xbc, 0xdc, 0xbf, 0x2c, 0x68, 0x8c, 0x96, 0xfc, 0x2b, 0xa6, 0x28,
+	0xbe, 0x0f, 0x56, 0xe0, 0xf7, 0x50, 0x1f, 0x0d, 0xda, 0x87, 0xf5, 0xab, 0xcb, 0x87, 0xd6, 0xf1,
+	0x17, 0xc4, 0x0a, 0x7c, 0x8c, 0xa1, 0xca, 0xe9, 0x9c, 0xf5, 0xac, 0x3e, 0x1a, 0x34, 0x89, 0x3e,
+	0xe3, 0x5d, 0x68, 0x06, 0x91, 0x98, 0x51, 0x15, 0x08, 0xde, 0xab, 0xf4, 0xd1, 0xa0, 0x3b, 0x74,
+	0x76, 0x13, 0x3a, 0xc7, 0xa9, 0x9e, 0xe4, 0x10, 0xfc, 0x01, 0xdc, 0x51, 0x4b, 0x4e, 0x98, 0x27,
+	0xa4, 0x4f, 0xc4, 0x42, 0xb1, 0x13, 0xb6, 0xea, 0x55, 0xe3, 0xab, 0xc8, 0x75, 0x03, 0xfe, 0x10,
+	0xee, 0x66, 0xca, 0xb3, 0x29, 0x95, 0xfe, 0x0b, 0x29, 0x16, 0x61, 0xaf, 0xd6, 0x47, 0x83, 0x2a,
+	0x79, 0x9b, 0x09, 0xff, 0x0f, 0x6a, 0x2c, 0x14, 0xde, 0xb4, 0x57, 0xef, 0xa3, 0x41, 0x87, 0x24,
+	0x02, 0xde, 0x02, 0x3b, 0x94, 0x81, 0x90, 0x81, 0x5a, 0xf5, 0x1a, 0xda, 0x90, 0xc9, 0xf8, 0x09,
+	0x74, 0xbf, 0x97, 0x81, 0x62, 0xa3, 0x60, 0xce, 0x22, 0x45, 0xe7, 0x61, 0xcf, 0xd6, 0xe1, 0x4b,
+	0x5a, 0xfc, 0x2e, 0x74, 0x24, 0xa3, 0x7e, 0x0e, 0x6b, 0x6a, 0xd8, 0xba, 0x12, 0xbb, 0xd0, 0x9e,
+	0xd3, 0x65, 0x0e, 0x02, 0x0d, 0x5a, 0xd3, 0xb9, 0x3f, 0x5b, 0xd0, 0x1c, 0xa5, 0xdc, 0xf1, 0x10,
+	0x1a, 0x2a, 0x29, 0xbc, 0x2e, 0x79, 0x6b, 0xd8, 0x35, 0xf5, 0x33, 0xed, 0x38, 0xb4, 0xdf, 0x5c,
+	0x3e, 0xdc, 0xb8, 0xb8, 0x7c, 0x88, 0x48, 0x0a, 0xc4, 0x03, 0xa8, 0x47, 0x8a, 0xaa, 0x45, 0xa4,
+	0x7b, 0x91, 0x97, 0x7c, 0xb4, 0xe4, 0x67, 0x5a, 0x4f, 0x8c, 0x3d, 0x66, 0x3d, 0xa3, 0x91, 0x7a,
+	0xc9, 0xa8, 0x54, 0x63, 0x46, 0x95, 0xee, 0x51, 0x95, 0xac, 0x2b, 0xf1, 0x67, 0xb0, 0xe9, 0x89,
+	0x79, 0x38, 0x63, 0x8a, 0xf9, 0xaf, 0xe3, 0xb4, 0x23, 0xdd, 0x93, 0xd6, 0xb0, 0x63, 0x02, 0x9f,
+	0xb0, 0xd5, 0x19, 0x53, 0x87, 0xd5, 0x98, 0x0a, 0x29, 0x63, 0xf1, 0x47, 0xd0, 0x09, 0xf8, 0x79,
+	0x30, 0x99, 0x2a, 0xe3, 0x5c, 0xbb, 0xd9, 0x79, 0x1d, 0xe9, 0xfe, 0x86, 0x74, 0x2d, 0x4e, 0x43,
+	0x9d, 0xd7, 0x7f, 0xa9, 0xc5, 0x16, 0xd8, 0x11, 0xfb, 0x76, 0xc1, 0xb8, 0xc7, 0x74, 0x72, 0x1d,
+	0x92, 0xc9, 0xf8, 0xe0, 0x76, 0x79, 0x5d, 0xcf, 0x68, 0xff, 0x36, 0x19, 0x95, 0x73, 0x19, 0x82,
+	0x7d, 0xc2, 0x56, 0x84, 0xf2, 0x09, 0x8b, 0xe7, 0x30, 0x52, 0x54, 0xaa, 0x64, 0x8d, 0x48, 0x22,
+	0x60, 0x07, 0x2a, 0x8c, 0xfb, 0xba, 0x69, 0x6d, 0x12, 0x1f, 0xdd, 0x57, 0x50, 0x4f, 0x82, 0xe1,
+	0x07, 0xd0, 0x0c, 0x45, 0xc0, 0xd5, 0x09, 0x5b, 0x45, 0x3d, 0xd4, 0xaf, 0x0c, 0xda, 0x24, 0x57,
+	0xe0, 0xa7, 0x50, 0x97, 0x71, 0xe0, 0xb8, 0xe3, 0x95, 0x41, 0x6b, 0xb8, 0x99, 0x33, 0xd1, 0x17,
+	0x9a, 0xea, 0x1a, 0x90, 0xfb, 0x2b, 0x82, 0xb6, 0x2e, 0x2b, 0x93, 0xc9, 0xde, 0x75, 0xc1, 0x12,
+	0xa1, 0x26, 0xd3, 0x21, 0x96, 0x08, 0x71, 0x0f, 0x1a, 0x21, 0x5d, 0xcd, 0x04, 0x4d, 0xd9, 0xa4,
+	0x22, 0xde, 0x03, 0x3b, 0x98, 0x87, 0xd4, 0x53, 0xcc, 0xd7, 0xf5, 0xbc, 0xa1, 0x8f, 0x19, 0x08,
+	0x6f, 0x03, 0x44, 0xf9, 0x6e, 0x56, 0xf5, 0x7c, 0x15, 0x34, 0x71, 0x62, 0x2a, 0xdb, 0x87, 0x64,
+	0x75, 0x73, 0x85, 0xfb, 0x23, 0x82, 0xcd, 0xd1, 0x92, 0x1f, 0x52, 0xe5, 0x4d, 0x49, 0xdc, 0xb7,
+	0x48, 0xe1, 0x8f, 0xa1, 0x3e, 0x65, 0xd4, 0x67, 0xd2, 0x4c, 0xc1, 0x83, 0x7c, 0x0a, 0x8a, 0xb8,
+	0x97, 0x1a, 0x93, 0x66, 0x9e, 0x78, 0xe0, 0x7d, 0xb0, 0x65, 0x62, 0x4e, 0x4b, 0x75, 0x27, 0xf7,
+	0x36, 0x8e, 0x69, 0x0a, 0x29, 0xd0, 0x9d, 0xc1, 0xbd, 0xb7, 0xc6, 0xc6, 0x03, 0xa8, 0xa8, 0x25,
+	0x37, 0x34, 0x0a, 0x5b, 0x96, 0xcc, 0xab, 0x89, 0x13, 0x43, 0xf0, 0x7b, 0x50, 0x55, 0xab, 0x90,
+	0x99, 0x85, 0xbc, 0x77, 0xed, 0xce, 0xd1, 0x2a, 0x64, 0x44, 0x43, 0xdc, 0x5f, 0x10, 0xdc, 0xcf,
+	0xaf, 0x8b, 0x42, 0xc1, 0x23, 0x66, 0xee, 0x7b, 0x52, 0xbc, 0xaf, 0x3c, 0xfc, 0x85, 0xdb, 0x6e,
+	0xff, 0x01, 0x78, 0x0c, 0x35, 0x26, 0xa5, 0x90, 0xa6, 0x97, 0x9b, 0x39, 0xf0, 0xcb, 0x58, 0x4d,
+	0x12, 0xab, 0xfb, 0x13, 0x02, 0xa7, 0xcc, 0x09, 0x7f, 0x52, 0xea, 0xc3, 0x3b, 0xd7, 0xfa, 0x50,
+	0x24, 0x5f, 0x6a, 0xc4, 0x33, 0x68, 0x4a, 0x63, 0x4f, 0x3b, 0x81, 0x8b, 0x55, 0x49, 0x4c, 0xc6,
+	0x29, 0x87, 0xba, 0x3f, 0x00, 0xe4, 0x55, 0xc3, 0x07, 0xd0, 0x14, 0xe9, 0x10, 0x1b, 0x16, 0x77,
+	0x8b, 0x6d, 0x30, 0xa6, 0x34, 0x4c, 0x86, 0xc5, 0x07, 0xd0, 0x10, 0x61, 0x7c, 0x4a, 0x4a, 0xd4,
+	0x1a, 0xfe, 0xdf, 0xb8, 0x65, 0x3e, 0xa7, 0x89, 0xd9, 0xb8, 0xa6, 0x68, 0xf7, 0x11, 0xb4, 0x0a,
+	0xfc, 0xe2, 0x47, 0xcf, 0xa7, 0xe6, 0x7b, 0xd4, 0x26, 0xfa, 0xec, 0x7e, 0x0a, 0x4e, 0x39, 0x0a,
+	0x1e, 0xc0, 0xa6, 0x27, 0x19, 0x55, 0x2c, 0xfb, 0xb2, 0x6b, 0x17, 0x9b, 0x94, 0xd5, 0xee, 0xdf,
+	0x08, 0xec, 0xb4, 0xfc, 0x98, 0xc2, 0x96, 0x27, 0xf8, 0xf9, 0x2c, 0xf0, 0xd4, 0xeb, 0x40, 0x4d,
+	0x8f, 0xc4, 0x7c, 0x1e, 0x28, 0xc5, 0x7c, 0x6d, 0x35, 0x09, 0x3f, 0x32, 0xcc, 0x8f, 0x6e, 0x04,
+	0x92, 0x7f, 0x09, 0x82, 0x8f, 0xc0, 0x59, 0x70, 0x8f, 0x49, 0x45, 0x03, 0xae, 0x56, 0x49, 0xe0,
+	0xf5, 0x92, 0xbc, 0x2a, 0x99, 0xc9, 0x35, 0x07, 0x7c, 0x00, 0x6d, 0x3a, 0x16, 0x32, 0x63, 0x56,
+	0x59, 0x6b, 0xc5, 0xf3, 0x82, 0x89, 0xac, 0x01, 0xdd, 0xcf, 0x61, 0xeb, 0x66, 0xde, 0xfa, 0xb9,
+	0x0c, 0x78, 0xfe, 0x5c, 0x22, 0xf3, 0x5c, 0x16, 0x74, 0xee, 0x33, 0x70, 0xca, 0x04, 0x6f, 0xe5,
+	0xd7, 0x85, 0x76, 0x91, 0xd7, 0xce, 0xfb, 0xd0, 0xcc, 0x7e, 0x49, 0x70, 0x1d, 0x2c, 0x72, 0xe4,
+	0x6c, 0xe0, 0x2e, 0x00, 0x39, 0x22, 0x8c, 0xfa, 0xa7, 0x7c, 0xb6, 0x72, 0x50, 0xac, 0x3f, 0x3b,
+	0x76, 0xac, 0x9d, 0xe7, 0xfa, 0x59, 0x4a, 0x76, 0x09, 0xb7, 0xa0, 0xf1, 0x35, 0xe3, 0x7e, 0xc0,
+	0x27, 0xce, 0x46, 0x2c, 0x9c, 0x29, 0x3a, 0x89, 0x05, 0x84, 0x3b, 0xd0, 0xcc, 0x32, 0x72, 0xac,
+	0xd8, 0x66, 0xae, 0x74, 0x2a, 0x3b, 0x2f, 0xa0, 0x73, 0xcc, 0x15, 0x93, 0x9c, 0xce, 0xf4, 0xa8,
+	0xc6, 0xe0, 0xec, 0xc9, 0x75, 0x36, 0x30, 0x40, 0x3d, 0xf1, 0x75, 0x10, 0x6e, 0x83, 0x4d, 0xc4,
+	0x6c, 0x36, 0xa6, 0xde, 0x37, 0x8e, 0x85, 0x3b, 0x60, 0x13, 0x16, 0x31, 0xf9, 0x1d, 0xf3, 0x9d,
+	0x3f, 0x1b, 0x3b, 0x8f, 0xa1, 0xbb, 0xfe, 0x1d, 0xc1, 0x36, 0x54, 0x63, 0xce, 0xce, 0x06, 0x6e,
+	0x42, 0x4d, 0xbf, 0x3e, 0x0e, 0x3a, 0x74, 0x2e, 0xfe, 0xd8, 0x46, 0x6f, 0xae, 0xb6, 0xd1, 0xc5,
+	0xd5, 0x36, 0xfa, 0xfd, 0x6a, 0x1b, 0x8d, 0xeb, 0xfa, 0xdf, 0x6e, 0xff, 0x9f, 0x00, 0x00, 0x00,
+	0xff, 0xff, 0xcd, 0xac, 0xf0, 0xc3, 0x20, 0x0a, 0x00, 0x00,
 }
 
 func (m *TxnMeta) Marshal() (dAtA []byte, err error) {
@@ -955,28 +1412,33 @@ func (m *TxnMeta) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintTxnpb(dAtA, i, uint64(len(m.TxnRecordRouteKey)))
 		i += copy(dAtA[i:], m.TxnRecordRouteKey)
 	}
-	if m.Epoch != 0 {
+	if m.TxnRecordShardGroup != 0 {
 		dAtA[i] = 0x28
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.TxnRecordShardGroup))
+	}
+	if m.Epoch != 0 {
+		dAtA[i] = 0x30
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.Epoch))
 	}
 	if m.Priority != 0 {
-		dAtA[i] = 0x30
+		dAtA[i] = 0x38
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.Priority))
 	}
 	if m.WriteTimestamp != 0 {
-		dAtA[i] = 0x38
+		dAtA[i] = 0x40
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.WriteTimestamp))
 	}
 	if m.ReadTimestamp != 0 {
-		dAtA[i] = 0x40
+		dAtA[i] = 0x48
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.ReadTimestamp))
 	}
 	if m.MaxTimestamp != 0 {
-		dAtA[i] = 0x48
+		dAtA[i] = 0x50
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.MaxTimestamp))
 	}
@@ -1064,12 +1526,6 @@ func (m *TxnOpMeta) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n4
-	if len(m.OriginKey) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintTxnpb(dAtA, i, uint64(len(m.OriginKey)))
-		i += copy(dAtA[i:], m.OriginKey)
-	}
 	if m.Sequence != 0 {
 		dAtA[i] = 0x18
 		i++
@@ -1209,6 +1665,16 @@ func (m *TxnOperation) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n7
+	if m.ShardGroup != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.ShardGroup))
+	}
+	if m.Timestamp != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.Timestamp))
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1279,15 +1745,95 @@ func (m *TxnBatchRequestHeader) MarshalTo(dAtA []byte) (int, error) {
 		return 0, err
 	}
 	i += n9
-	if m.ToShard != 0 {
+	if m.Type != 0 {
 		dAtA[i] = 0x10
 		i++
-		i = encodeVarintTxnpb(dAtA, i, uint64(m.ToShard))
-	}
-	if m.Type != 0 {
-		dAtA[i] = 0x18
-		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.Type))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *TxnBatchResponseHeader) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TxnBatchResponseHeader) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	dAtA[i] = 0xa
+	i++
+	i = encodeVarintTxnpb(dAtA, i, uint64(m.Txn.Size()))
+	n10, err := m.Txn.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n10
+	if m.Status != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.Status))
+	}
+	if m.Error != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.Error.Size()))
+		n11, err := m.Error.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n11
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *TxnBatchResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TxnBatchResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	dAtA[i] = 0xa
+	i++
+	i = encodeVarintTxnpb(dAtA, i, uint64(m.Header.Size()))
+	n12, err := m.Header.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n12
+	if len(m.Responses) > 0 {
+		for _, msg := range m.Responses {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintTxnpb(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1313,11 +1859,19 @@ func (m *TxnRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Operation.Size()))
-	n10, err := m.Operation.MarshalTo(dAtA[i:])
+	n13, err := m.Operation.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n10
+	i += n13
+	dAtA[i] = 0x12
+	i++
+	i = encodeVarintTxnpb(dAtA, i, uint64(m.Options.Size()))
+	n14, err := m.Options.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n14
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1345,6 +1899,161 @@ func (m *TxnResponse) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintTxnpb(dAtA, i, uint64(len(m.Data)))
 		i += copy(dAtA[i:], m.Data)
 	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *OperationOptions) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *OperationOptions) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.CreateTxnRecord {
+		dAtA[i] = 0x8
+		i++
+		if m.CreateTxnRecord {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i++
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *TxnError) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TxnError) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ConflictWithCommittedError != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.ConflictWithCommittedError.Size()))
+		n15, err := m.ConflictWithCommittedError.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n15
+	}
+	if m.UncertaintyError != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.UncertaintyError.Size()))
+		n16, err := m.UncertaintyError.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n16
+	}
+	if m.AbortedError != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.AbortedError.Size()))
+		n17, err := m.AbortedError.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n17
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ConflictWithCommittedError) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ConflictWithCommittedError) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.MinTimestamp != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.MinTimestamp))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *UncertaintyError) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UncertaintyError) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.MinTimestamp != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintTxnpb(dAtA, i, uint64(m.MinTimestamp))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *AbortedError) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AbortedError) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1380,6 +2089,9 @@ func (m *TxnMeta) Size() (n int) {
 	l = len(m.TxnRecordRouteKey)
 	if l > 0 {
 		n += 1 + l + sovTxnpb(uint64(l))
+	}
+	if m.TxnRecordShardGroup != 0 {
+		n += 1 + sovTxnpb(uint64(m.TxnRecordShardGroup))
 	}
 	if m.Epoch != 0 {
 		n += 1 + sovTxnpb(uint64(m.Epoch))
@@ -1434,10 +2146,6 @@ func (m *TxnOpMeta) Size() (n int) {
 	_ = l
 	l = m.TxnMeta.Size()
 	n += 1 + l + sovTxnpb(uint64(l))
-	l = len(m.OriginKey)
-	if l > 0 {
-		n += 1 + l + sovTxnpb(uint64(l))
-	}
 	if m.Sequence != 0 {
 		n += 1 + sovTxnpb(uint64(m.Sequence))
 	}
@@ -1514,6 +2222,12 @@ func (m *TxnOperation) Size() (n int) {
 	}
 	l = m.Impacted.Size()
 	n += 1 + l + sovTxnpb(uint64(l))
+	if m.ShardGroup != 0 {
+		n += 1 + sovTxnpb(uint64(m.ShardGroup))
+	}
+	if m.Timestamp != 0 {
+		n += 1 + sovTxnpb(uint64(m.Timestamp))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1548,11 +2262,49 @@ func (m *TxnBatchRequestHeader) Size() (n int) {
 	_ = l
 	l = m.Txn.Size()
 	n += 1 + l + sovTxnpb(uint64(l))
-	if m.ToShard != 0 {
-		n += 1 + sovTxnpb(uint64(m.ToShard))
-	}
 	if m.Type != 0 {
 		n += 1 + sovTxnpb(uint64(m.Type))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *TxnBatchResponseHeader) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Txn.Size()
+	n += 1 + l + sovTxnpb(uint64(l))
+	if m.Status != 0 {
+		n += 1 + sovTxnpb(uint64(m.Status))
+	}
+	if m.Error != nil {
+		l = m.Error.Size()
+		n += 1 + l + sovTxnpb(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *TxnBatchResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Header.Size()
+	n += 1 + l + sovTxnpb(uint64(l))
+	if len(m.Responses) > 0 {
+		for _, e := range m.Responses {
+			l = e.Size()
+			n += 1 + l + sovTxnpb(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1567,6 +2319,8 @@ func (m *TxnRequest) Size() (n int) {
 	var l int
 	_ = l
 	l = m.Operation.Size()
+	n += 1 + l + sovTxnpb(uint64(l))
+	l = m.Options.Size()
 	n += 1 + l + sovTxnpb(uint64(l))
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1584,6 +2338,87 @@ func (m *TxnResponse) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovTxnpb(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *OperationOptions) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.CreateTxnRecord {
+		n += 2
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *TxnError) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ConflictWithCommittedError != nil {
+		l = m.ConflictWithCommittedError.Size()
+		n += 1 + l + sovTxnpb(uint64(l))
+	}
+	if m.UncertaintyError != nil {
+		l = m.UncertaintyError.Size()
+		n += 1 + l + sovTxnpb(uint64(l))
+	}
+	if m.AbortedError != nil {
+		l = m.AbortedError.Size()
+		n += 1 + l + sovTxnpb(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ConflictWithCommittedError) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MinTimestamp != 0 {
+		n += 1 + sovTxnpb(uint64(m.MinTimestamp))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UncertaintyError) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MinTimestamp != 0 {
+		n += 1 + sovTxnpb(uint64(m.MinTimestamp))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AbortedError) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1753,6 +2588,25 @@ func (m *TxnMeta) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 5:
 			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TxnRecordShardGroup", wireType)
+			}
+			m.TxnRecordShardGroup = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TxnRecordShardGroup |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Epoch", wireType)
 			}
 			m.Epoch = 0
@@ -1770,7 +2624,7 @@ func (m *TxnMeta) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 6:
+		case 7:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Priority", wireType)
 			}
@@ -1784,12 +2638,12 @@ func (m *TxnMeta) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Priority |= uint64(b&0x7F) << shift
+				m.Priority |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-		case 7:
+		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field WriteTimestamp", wireType)
 			}
@@ -1808,7 +2662,7 @@ func (m *TxnMeta) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 8:
+		case 9:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ReadTimestamp", wireType)
 			}
@@ -1827,7 +2681,7 @@ func (m *TxnMeta) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 9:
+		case 10:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field MaxTimestamp", wireType)
 			}
@@ -2122,40 +2976,6 @@ func (m *TxnOpMeta) Unmarshal(dAtA []byte) error {
 			}
 			if err := m.TxnMeta.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OriginKey", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTxnpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthTxnpb
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthTxnpb
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OriginKey = append(m.OriginKey[:0], dAtA[iNdEx:postIndex]...)
-			if m.OriginKey == nil {
-				m.OriginKey = []byte{}
 			}
 			iNdEx = postIndex
 		case 3:
@@ -2631,6 +3451,44 @@ func (m *TxnOperation) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ShardGroup", wireType)
+			}
+			m.ShardGroup = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ShardGroup |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTxnpb(dAtA[iNdEx:])
@@ -2747,7 +3605,7 @@ func (m *TxnBatchRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Requests = append(m.Requests, &TxnRequest{})
+			m.Requests = append(m.Requests, TxnRequest{})
 			if err := m.Requests[len(m.Requests)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -2841,25 +3699,6 @@ func (m *TxnBatchRequestHeader) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ToShard", wireType)
-			}
-			m.ToShard = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTxnpb
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ToShard |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
 			m.Type = 0
@@ -2877,6 +3716,269 @@ func (m *TxnBatchRequestHeader) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TxnBatchResponseHeader) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TxnBatchResponseHeader: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TxnBatchResponseHeader: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Txn", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Txn.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			m.Status = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Status |= TxnStatus(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Error == nil {
+				m.Error = &TxnError{}
+			}
+			if err := m.Error.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TxnBatchResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TxnBatchResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TxnBatchResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Responses", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Responses = append(m.Responses, TxnResponse{})
+			if err := m.Responses[len(m.Responses)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTxnpb(dAtA[iNdEx:])
@@ -2961,6 +4063,39 @@ func (m *TxnRequest) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if err := m.Operation.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Options", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Options.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -3052,6 +4187,442 @@ func (m *TxnResponse) Unmarshal(dAtA []byte) error {
 				m.Data = []byte{}
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *OperationOptions) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: OperationOptions: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: OperationOptions: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CreateTxnRecord", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.CreateTxnRecord = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TxnError) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TxnError: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TxnError: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConflictWithCommittedError", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ConflictWithCommittedError == nil {
+				m.ConflictWithCommittedError = &ConflictWithCommittedError{}
+			}
+			if err := m.ConflictWithCommittedError.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UncertaintyError", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.UncertaintyError == nil {
+				m.UncertaintyError = &UncertaintyError{}
+			}
+			if err := m.UncertaintyError.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AbortedError", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AbortedError == nil {
+				m.AbortedError = &AbortedError{}
+			}
+			if err := m.AbortedError.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ConflictWithCommittedError) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ConflictWithCommittedError: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ConflictWithCommittedError: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinTimestamp", wireType)
+			}
+			m.MinTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UncertaintyError) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UncertaintyError: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UncertaintyError: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MinTimestamp", wireType)
+			}
+			m.MinTimestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTxnpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MinTimestamp |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTxnpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthTxnpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AbortedError) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTxnpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AbortedError: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AbortedError: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTxnpb(dAtA[iNdEx:])

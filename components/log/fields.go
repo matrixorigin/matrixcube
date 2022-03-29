@@ -250,6 +250,11 @@ func ConfigChangesField(key string, changes []rpcpb.ConfigChangeRequest) zap.Fie
 	return zap.String(key, hack.SliceToString(info.Bytes()))
 }
 
+// TxnIDField return formated TxnID zap string field
+func TxnIDField(txnID []byte) zap.Field {
+	return HexField("txn-id", txnID)
+}
+
 func doAppendConfigChange(confType metapb.ConfigChangeType, replica metapb.Replica, info *bytes.Buffer) {
 	info.WriteString("{type: ")
 	info.WriteString(confType.String())

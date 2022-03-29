@@ -207,7 +207,7 @@ func (s *Stopper) Stop() {
 			}
 			timer.Reset(s.opts.stopTimeout)
 		default:
-			if s.getTaskCount() == 0 {
+			if s.GetTaskCount() == 0 {
 				return
 			}
 		}
@@ -219,7 +219,7 @@ func (s *Stopper) Stop() {
 }
 
 func (s *Stopper) runningTasks() []string {
-	if s.getTaskCount() == 0 {
+	if s.GetTaskCount() == 0 {
 		return nil
 	}
 
@@ -270,6 +270,7 @@ func (s *Stopper) addTask(v int64) {
 	atomic.AddInt64(&s.atomic.taskCount, v)
 }
 
-func (s *Stopper) getTaskCount() int64 {
+// GetTaskCount returns number of the running task
+func (s *Stopper) GetTaskCount() int64 {
 	return atomic.LoadInt64(&s.atomic.taskCount)
 }

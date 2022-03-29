@@ -17,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
@@ -33,6 +34,9 @@ type Router interface {
 	// Stop stops the router
 	Stop()
 
+	// SelectShardIDByKey Returns shardid where the key is located
+	SelectShardIDByKey(group uint64, key []byte) uint64
+
 	// AscendRange iterate through all shards in order within [Start, end), and stop when fn returns false.
 	AscendRange(group uint64, start, end []byte, policy rpcpb.ReplicaSelectPolicy, fn func(shard Shard, replicaStore metapb.Store) bool)
 	// SelectShardWithPolicy Select a Shard according to the specified Key, and select the Store where the
@@ -47,14 +51,19 @@ type Router interface {
 	SelectShard(group uint64, key []byte) (Shard, string)
 	// Deprecated: Every do with all shards.  Use `AscendRange` instead.
 	Every(group uint64, mustLeader bool, fn func(shard Shard, store metapb.Store) bool)
-	// ForeachShards foreach shards
+	// Deprecated: ForeachShards foreach shards
 	ForeachShards(group uint64, fn func(shard Shard) bool)
 	// GetShard returns the shard by shard id
 	GetShard(id uint64) Shard
+
 	// UpdateLeader update shard leader
 	UpdateLeader(shardID uint64, leaderReplciaID uint64)
+	// UpdateShard update shard metadata
+	UpdateShard(shard Shard)
+	// UpdateStore update store metadata
+	UpdateStore(store metapb.Store)
 
-	// Deprecated: LeaderStore return leader replica store. Use `SelectReplicaStoreWithPolicy` instead.
+	// Deprecated: LeaderReplicaStore return leader replica store. Use `SelectReplicaStoreWithPolicy` instead.
 	LeaderReplicaStore(shardID uint64) metapb.Store
 	// Deprecated: RandomReplicaStore return random replica store. Use `SelectReplicaStoreWithPolicy` instead.
 	RandomReplicaStore(shardID uint64) metapb.Store
@@ -175,6 +184,13 @@ func (r *defaultRouter) Start() error {
 
 func (r *defaultRouter) Stop() {
 	r.options.stopper.Stop()
+}
+
+func (r *defaultRouter) SelectShardIDByKey(group uint64, key []byte) uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.searchShardLocked(group, key).ID
 }
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
@@ -307,6 +323,20 @@ func (r *defaultRouter) UpdateLeader(shardID uint64, leaderReplciaID uint64) {
 	defer r.mu.Unlock()
 
 	r.updateLeaderLocked(shardID, leaderReplciaID)
+}
+
+func (r *defaultRouter) UpdateShard(shard Shard) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.updateShardLocked(protoc.MustMarshal(&shard), 0, false, false)
+}
+
+func (r *defaultRouter) UpdateStore(store metapb.Store) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.updateStoreLocked(protoc.MustMarshal(&store))
 }
 
 func (r *defaultRouter) eventLoop() {
@@ -513,4 +543,10 @@ func (r *defaultRouter) searchShardLocked(group uint64, key []byte) Shard {
 		zap.Uint64("group", group),
 		log.HexField("key", key))
 	return Shard{}
+}
+
+// NewMockRouter returns a mock router for testing.
+func NewMockRouter() Router {
+	r, _ := newRouterBuilder().build(make(chan rpcpb.EventNotify))
+	return r
 }

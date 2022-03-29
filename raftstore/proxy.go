@@ -383,3 +383,30 @@ func keysRangeInShard(keys *rpcpb.Range, shard Shard) bool {
 	return (len(shard.Start) == 0 || bytes.Compare(shard.Start, keys.From) <= 0) &&
 		(len(shard.End) == 0 || bytes.Compare(shard.End, keys.To) >= 0)
 }
+
+// NewMockShardsProxy returns mock shards proxy to handle request
+func NewMockShardsProxy(router Router, handler func(rpcpb.Request) (rpcpb.ResponseBatch, error)) (ShardsProxy, error) {
+	mcf := newMockBackendFactory()
+	sp, err := newShardsProxyBuilder().
+		withBackendFactory(mcf).
+		withRetryInterval(time.Millisecond * 10).
+		build(router)
+	mcf.init(sp, handler)
+	return sp, err
+}
+
+type mockBackendFactory struct {
+	backend backend
+}
+
+func newMockBackendFactory() *mockBackendFactory {
+	return &mockBackendFactory{}
+}
+
+func (mcf *mockBackendFactory) init(sp ShardsProxy, handler func(rpcpb.Request) (rpcpb.ResponseBatch, error)) {
+	mcf.backend = newMockBackend(handler, sp.OnResponse)
+}
+
+func (mcf *mockBackendFactory) create(string, SuccessCallback, FailureCallback) (backend, error) {
+	return mcf.backend, nil
+}
