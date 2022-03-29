@@ -376,7 +376,14 @@ func (s *store) OnRequestWithCB(req rpcpb.Request, cb func(resp rpcpb.ResponseBa
 		}
 	}
 
-	return pr.onReq(req, cb)
+	if err := pr.onReq(req, cb); err != nil {
+		if s.isShardUnavailable(pr.getShardID()) {
+			respShardUnavailable(pr.getShardID(), req, cb)
+		} else {
+			respStoreNotMatch(errStoreNotMatch, req, cb)
+		}
+	}
+	return nil
 }
 
 func (s *store) DataStorageByGroup(group uint64) storage.DataStorage {
