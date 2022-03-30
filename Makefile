@@ -108,12 +108,16 @@ test-prophet:
 	$(GOTEST) $(PKGNAME)/components/prophet/storage
 	$(GOTEST) $(PKGNAME)/components/prophet/core
 
+.PHONY: test-txn
+test-txn:
+	$(GOTEST) $(PKGNAME)/txn/client
+
 .PHONY: integration-test
 integration-test: test-all-raftstore
 
 .PHONY: components-unit-test
 components-unit-test: test-storage test-logdb test-client test-transport test-keys \
-  test-snapshot test-prophet
+  test-snapshot test-prophet test-txn
 
 .PHONY: test
 test: components-unit-test test-raftstore
@@ -150,7 +154,8 @@ DIRS=storage \
 		 snapshot \
 		 transport \
 		 logdb \
-		 raftstore
+		 raftstore \
+		 txn
 
 EXTRA_LINTERS=-E misspell -E exportloopref -E rowserrcheck -E depguard -E unconvert \
 	-E prealloc -E gofmt -E stylecheck
