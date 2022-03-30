@@ -157,7 +157,7 @@ type DataStorage interface {
 // WriteContext contains the details of write requests to be handled by the
 // data storage.
 type WriteContext interface {
-	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
+	// Deprecated: ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	// Note, the will be reset after each Read or Write execution, so it is safe
 	// to use bytebuf in one Read or Write call. Multiple calls to `ByteBuf` in
 	// a single Read or Write return the same instance.
@@ -187,7 +187,7 @@ type WriteContext interface {
 }
 
 type ReadContext interface {
-	// ByteBuf returns the bytebuf that can be used to avoid memory allocation.
+	// Deprecated: ByteBuf returns the bytebuf that can be used to avoid memory allocation.
 	ByteBuf() *buf.ByteBuf
 	// Shard returns the current shard details.
 	Shard() metapb.Shard
