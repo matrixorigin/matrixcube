@@ -275,18 +275,17 @@ func (pr *replica) sendRaftMessage(msg raftpb.Message) error {
 	}
 
 	m := metapb.RaftMessage{
-		ShardID:      pr.shardID,
-		From:         pr.replica,
-		To:           to,
-		Start:        shard.Start,
-		End:          shard.End,
-		ShardEpoch:   shard.Epoch,
-		Group:        shard.Group,
-		DisableSplit: shard.DisableSplit,
-		Unique:       shard.Unique,
-		RuleGroups:   shard.RuleGroups,
-		Message:      msg,
-		CommitIndex:  pr.lastCommittedIndex,
+		ShardID:     pr.shardID,
+		From:        pr.replica,
+		To:          to,
+		Start:       shard.Start,
+		End:         shard.End,
+		ShardEpoch:  shard.Epoch,
+		Group:       shard.Group,
+		Unique:      shard.Unique,
+		RuleGroups:  shard.RuleGroups,
+		Message:     msg,
+		CommitIndex: pr.lastCommittedIndex,
 		// FIXME: remove this hack
 		SendTime: uint64(time.Now().UnixMilli()),
 	}

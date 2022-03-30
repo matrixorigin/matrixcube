@@ -20,6 +20,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/mock/mockclient"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +28,11 @@ import (
 func TestSplitCheckerAdd(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sc := newSplitChecker(1, 100, nil, nil)
+	sc := newSplitChecker(1, nil, func(u uint64) storage.Feature {
+		return storage.Feature{
+			ShardCapacityBytes: 100,
+		}
+	}, nil)
 
 	sc.add(Shard{})
 	assert.Equal(t, 0, len(sc.shardsC))
@@ -42,7 +47,11 @@ func TestSplitCheckerAdd(t *testing.T) {
 func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sc := newSplitChecker(1, 100, nil, nil)
+	sc := newSplitChecker(1, nil, func(u uint64) storage.Feature {
+		return storage.Feature{
+			ShardCapacityBytes: 100,
+		}
+	}, nil)
 	sc.mu.running = true
 
 	sc.add(Shard{State: metapb.ShardState_Destroying})
@@ -55,7 +64,11 @@ func TestSplitCheckerAddWithInvalidShardState(t *testing.T) {
 func TestSplitCheckerStartAndClose(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	sc := newSplitChecker(1, 100, nil, nil)
+	sc := newSplitChecker(1, nil, func(u uint64) storage.Feature {
+		return storage.Feature{
+			ShardCapacityBytes: 100,
+		}
+	}, nil)
 
 	assert.False(t, sc.mu.running)
 	sc.start()
@@ -73,7 +86,11 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	var splitKeys [][]byte
 	var err error
 	trg := newTestReplicaGetter()
-	sc := newSplitChecker(1, 100, trg, func(group uint64) splitCheckFunc {
+	sc := newSplitChecker(1, trg, func(u uint64) storage.Feature {
+		return storage.Feature{
+			ShardCapacityBytes: 100,
+		}
+	}, func(group uint64) splitCheckFunc {
 		return func(shard Shard, size uint64) (uint64, uint64, [][]byte, []byte, error) {
 			return currentSize, currentKeys, splitKeys, nil, err
 		}

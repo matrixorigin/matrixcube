@@ -141,8 +141,10 @@ func NewStore(cfg *config.Config) Store {
 
 	s.vacuumCleaner = newVacuumCleaner(s.vacuum)
 	// TODO: make maxWaitToChecker configurable
-	s.splitChecker = newSplitChecker(4, uint64(s.cfg.Replication.ShardCapacityBytes),
-		&storeReplicaGetter{s}, func(group uint64) splitCheckFunc {
+	s.splitChecker = newSplitChecker(4, &storeReplicaGetter{s},
+		func(group uint64) storage.Feature {
+			return s.cfg.Storage.DataStorageFactory(group).Feature()
+		}, func(group uint64) splitCheckFunc {
 			return s.cfg.Storage.DataStorageFactory(group).SplitCheck
 		})
 	s.workerPool = newWorkerPool(s.logger, s.logdb, &storeReplicaLoader{s}, s.cfg.Worker.RaftEventWorkers)
@@ -447,7 +449,7 @@ func (s *store) startShards() {
 	shards := make(map[uint64]metapb.ShardLocalState)
 	localDestroyings := make(map[uint64]metapb.ShardMetadata)
 	confirmShards := roaring64.New()
-	s.cfg.Storage.ForeachDataStorageFunc(func(ds storage.DataStorage) {
+	s.cfg.Storage.ForeachDataStorageFunc(func(group uint64, ds storage.DataStorage) {
 		initStates, err := ds.GetInitialStates()
 		if err != nil {
 			s.logger.Fatal("fail to get initial state",
@@ -949,7 +951,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.StoreHeartbeatReq, erro
 	stats.SendingSnapCount = s.trans.SendingSnapshotCount()
 	stats.StartTime = uint64(s.Meta().StartTime)
 
-	s.cfg.Storage.ForeachDataStorageFunc(func(db storage.DataStorage) {
+	s.cfg.Storage.ForeachDataStorageFunc(func(_ uint64, db storage.DataStorage) {
 		st := db.Stats()
 		stats.WrittenBytes += st.WrittenBytes
 		stats.WrittenKeys += st.WrittenKeys

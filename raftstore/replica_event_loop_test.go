@@ -251,7 +251,7 @@ func TestDoCheckCompactLog(t *testing.T) {
 	assert.Equal(t, int64(0), pr.requests.Len())
 
 	// force count, if minReplicated - first == CompactThreshold
-	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
+	pr.feature.ForceCompactCount = 1
 	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
 	pr.stats.raftLogSizeHint = 0
 	pr.sm.setFirstIndex(100)
@@ -265,8 +265,8 @@ func TestDoCheckCompactLog(t *testing.T) {
 	assert.Equal(t, uint64(101), req.CompactIndex)
 
 	// force count
-	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1
-	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1000
+	pr.feature.ForceCompactCount = 1
+	pr.feature.ForceCompactBytes = 1000
 	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
 	pr.stats.raftLogSizeHint = 0
 	pr.sm.setFirstIndex(99)
@@ -280,8 +280,8 @@ func TestDoCheckCompactLog(t *testing.T) {
 	assert.Equal(t, uint64(101), req.CompactIndex)
 
 	// force bytes
-	pr.store.cfg.Raft.RaftLog.ForceCompactCount = 1000
-	pr.store.cfg.Raft.RaftLog.ForceCompactBytes = 1
+	pr.feature.ForceCompactCount = 1000
+	pr.feature.ForceCompactBytes = 1
 	pr.store.cfg.Raft.RaftLog.CompactThreshold = 1
 	pr.stats.raftLogSizeHint = 1
 	pr.requests = task.New(32)

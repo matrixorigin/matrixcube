@@ -275,11 +275,10 @@ message RaftMessage  {
     bool                 isTombstone  = 7;
     bytes                start        = 8;
     bytes                end          = 9;
-    bool                 disableSplit = 10;
-    string               unique       = 11;
-    repeated string      ruleGroups   = 12;
-    uint64               commitIndex  = 13;
-    uint64               sendTime     = 14;
+    string               unique       = 10;
+    repeated string      ruleGroups   = 11;
+    uint64               commitIndex  = 12;
+    uint64               sendTime     = 13;
 }
 
 message SnapshotChunk {
@@ -315,12 +314,10 @@ message Shard {
     metapb.ShardEpoch        epoch           = 4 [(gogoproto.nullable) = false];
     metapb.ShardState        state           = 5;
     repeated metapb.Replica  replicas        = 6 [(gogoproto.nullable) = false];
-    bool                     disableSplit    = 7;
-    uint64                   group           = 8;
-    string                   unique          = 10;
-    repeated string          ruleGroups      = 11;
-    bytes                    data            = 12;
-    repeated metapb.Label    labels          = 13 [(gogoproto.nullable) = false];
+    uint64                   group           = 7;
+    string                   unique          = 8;
+    repeated string          ruleGroups      = 9;
+    repeated metapb.Label    labels          = 10 [(gogoproto.nullable) = false];
 }
 
 // ReplicaState the state of the shard peer

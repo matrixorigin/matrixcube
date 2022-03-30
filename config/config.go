@@ -40,11 +40,9 @@ var (
 	defaultRaftMaxWorkers           uint64 = 64
 	defaultRaftElectionTick                = 10
 	defaultRaftHeartbeatTick               = 2
-	defaultShardSplitCheckDuration         = time.Second * 30
 	defaultShardStateCheckDuration         = time.Second * 60
 	defaultCompactLogCheckDuration         = time.Second * 60
 	defaultMaxEntryBytes                   = 10 * mb
-	defaultShardCapacityBytes       uint64 = uint64(96 * mb)
 	defaultMaxAllowTransferLag      uint64 = 2
 	defaultCompactThreshold         uint64 = 256
 	defaultRaftTickDuration                = time.Second
@@ -138,7 +136,7 @@ func (c *Config) Adjust() {
 
 	(&c.Snapshot).adjust()
 	(&c.Replication).adjust()
-	(&c.Raft).adjust(uint64(c.Replication.ShardCapacityBytes))
+	(&c.Raft).adjust()
 	c.Prophet.DataDir = path.Join(c.DataPath, defaultProphetDirName)
 	c.Prophet.StoreHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
 	(&c.Prophet).Adjust(nil, false)
@@ -186,13 +184,9 @@ type ReplicationConfig struct {
 	MaxPeerDownTime         typeutil.Duration `toml:"max-peer-down-time"`
 	ShardHeartbeatDuration  typeutil.Duration `toml:"shard-heartbeat-duration"`
 	StoreHeartbeatDuration  typeutil.Duration `toml:"store-heartbeat-duration"`
-	ShardSplitCheckDuration typeutil.Duration `toml:"shard-split-check-duration"`
 	ShardStateCheckDuration typeutil.Duration `toml:"shard-state-check-duration"`
 	CompactLogCheckDuration typeutil.Duration `toml:"compact-log-check-duration"`
-	DisableShardSplit       bool              `toml:"disable-shard-split"`
 	AllowRemoveLeader       bool              `toml:"allow-remove-leader"`
-	ShardCapacityBytes      typeutil.ByteSize `toml:"shard-capacity-bytes"`
-	ShardSplitCheckBytes    typeutil.ByteSize `toml:"shard-split-check-bytes"`
 }
 
 func (c *ReplicationConfig) adjust() {
@@ -208,24 +202,12 @@ func (c *ReplicationConfig) adjust() {
 		c.StoreHeartbeatDuration.Duration = defaultStoreHeartbeatDuration
 	}
 
-	if c.ShardSplitCheckDuration.Duration == 0 {
-		c.ShardSplitCheckDuration.Duration = defaultShardSplitCheckDuration
-	}
-
 	if c.ShardStateCheckDuration.Duration == 0 {
 		c.ShardStateCheckDuration.Duration = defaultShardStateCheckDuration
 	}
 
 	if c.CompactLogCheckDuration.Duration == 0 {
 		c.CompactLogCheckDuration.Duration = defaultCompactLogCheckDuration
-	}
-
-	if c.ShardCapacityBytes == 0 {
-		c.ShardCapacityBytes = typeutil.ByteSize(defaultShardCapacityBytes)
-	}
-
-	if c.ShardSplitCheckBytes == 0 {
-		c.ShardSplitCheckBytes = c.ShardCapacityBytes * 80 / 100
 	}
 }
 
@@ -295,7 +277,7 @@ func (c *RaftConfig) GetHeartbeatDuration() time.Duration {
 	return time.Duration(c.HeartbeatTicks) * c.TickInterval.Duration
 }
 
-func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
+func (c *RaftConfig) adjust() {
 	if c.TickInterval.Duration == 0 {
 		c.TickInterval.Duration = defaultRaftTickDuration
 	}
@@ -320,7 +302,7 @@ func (c *RaftConfig) adjust(shardCapacityBytes uint64) {
 		c.MaxEntryBytes = typeutil.ByteSize(defaultMaxEntryBytes)
 	}
 
-	(&c.RaftLog).adjust(shardCapacityBytes)
+	(&c.RaftLog).adjust()
 }
 
 // RaftLogConfig raft log config
@@ -328,25 +310,15 @@ type RaftLogConfig struct {
 	DisableSync         bool   `toml:"disable-sync"`
 	CompactThreshold    uint64 `toml:"compact-threshold"`
 	MaxAllowTransferLag uint64 `toml:"max-allow-transfer-lag"`
-	ForceCompactCount   uint64 `toml:"force-compact-log-count"`
-	ForceCompactBytes   uint64 `toml:"force-compact-log-bytes"`
 }
 
-func (c *RaftLogConfig) adjust(shardCapacityBytes uint64) {
+func (c *RaftLogConfig) adjust() {
 	if c.MaxAllowTransferLag == 0 {
 		c.MaxAllowTransferLag = defaultMaxAllowTransferLag
 	}
 
 	if c.CompactThreshold == 0 {
 		c.CompactThreshold = defaultCompactThreshold
-	}
-
-	if c.ForceCompactCount == 0 {
-		c.ForceCompactCount = shardCapacityBytes * uint64(mb) * 3 / 4 / uint64(kb)
-	}
-
-	if c.ForceCompactBytes == 0 {
-		c.ForceCompactBytes = shardCapacityBytes * 3 / 4
 	}
 }
 
@@ -356,7 +328,7 @@ type StorageConfig struct {
 	// DataStorageFactory is a storage factory  to store application's data
 	DataStorageFactory func(group uint64) storage.DataStorage `json:"-" toml:"-"`
 	// ForeachDataStorageFunc do in every storage
-	ForeachDataStorageFunc func(cb func(storage.DataStorage)) `json:"-" toml:"-"`
+	ForeachDataStorageFunc func(cb func(uint64, storage.DataStorage)) `json:"-" toml:"-"`
 }
 
 // CustomizeConfig customize config

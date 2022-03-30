@@ -352,9 +352,6 @@ func appendShard(shard metapb.Shard, info *bytes.Buffer, first bool) {
 		info.WriteString("]")
 	}
 
-	info.WriteString(", shard-disable-split: ")
-	info.WriteString(format.BoolToString(shard.DisableSplit))
-
 	l = len(shard.Labels)
 	if l > 0 {
 		info.WriteString(", shard-labels: [")
