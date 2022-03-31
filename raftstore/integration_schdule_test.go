@@ -96,7 +96,6 @@ func TestRebalanceOnBalancedClusterWithLabel(t *testing.T) {
 	}
 
 	defer leaktest.AfterTest(t)()
-
 	c := NewTestClusterStore(t, withStorageStatsReader(func(s *store) storageStatsReader {
 		return &customStorageStatsReader{
 			s:            s,
@@ -104,11 +103,10 @@ func TestRebalanceOnBalancedClusterWithLabel(t *testing.T) {
 			capacity:     1000 * gb,
 			available:    900 * gb,
 		}
-	}),
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Prophet.Replication.MaxReplicas = 1
-			cfg.Prophet.Replication.Groups = []uint64{0, 1}
-		}))
+	}), WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Prophet.Replication.MaxReplicas = 1
+		cfg.Prophet.Replication.Groups = []uint64{0, 1}
+	}))
 	c.Start()
 	defer c.Stop()
 
@@ -153,10 +151,9 @@ func TestRebalanceLeaderOnBalancedClusterWithLabel(t *testing.T) {
 			capacity:     1000 * gb,
 			available:    900 * gb,
 		}
-	}),
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Prophet.Replication.Groups = []uint64{0, 1}
-		}))
+	}), WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
+		cfg.Prophet.Replication.Groups = []uint64{0, 1}
+	}))
 	c.Start()
 	defer c.Stop()
 

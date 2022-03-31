@@ -62,7 +62,6 @@ func TestAddShardWithMultiGroups(t *testing.T) {
 			DiskTestCluster,
 			OldTestCluster,
 			WithAppendTestClusterAdjustConfigFunc(func(i int, cfg *config.Config) {
-				cfg.ShardGroups = 2
 				cfg.Prophet.Replication.Groups = []uint64{0, 1}
 				cfg.Customize.CustomInitShardsFactory = func() []Shard {
 					return []Shard{{Start: []byte("a"), End: []byte("b")}, {Group: 1, Start: []byte("a"), End: []byte("b")}}
