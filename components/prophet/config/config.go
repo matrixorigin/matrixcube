@@ -429,8 +429,8 @@ type ReplicationConfig struct {
 	// because other zones already have replicas on it.
 	IsolationLevel string `toml:"isolation-level" json:"isolation-level"`
 
-	// Groups resources groups
-	Groups []uint64 `toml:"groups" json:"groups"`
+	// Groups shard groups
+	Groups []uint64
 }
 
 // Clone makes a deep copy of the config.
@@ -471,11 +471,6 @@ func (c *ReplicationConfig) adjust(meta *configMetaData) error {
 	if !meta.IsDefined("location-labels") {
 		if len(c.LocationLabels) == 0 {
 			c.LocationLabels = defaultLocationLabels
-		}
-	}
-	if !meta.IsDefined("groups") {
-		if len(c.Groups) == 0 {
-			c.Groups = []uint64{0}
 		}
 	}
 	return c.Validate()

@@ -33,7 +33,6 @@ var (
 	kb = 1024
 	mb = 1024 * kb
 
-	defaultGroups                   uint64 = 1
 	defaultSendRaftBatchSize        uint64 = 64
 	defaultMaxConcurrencySnapChunks uint64 = 8
 	defaultSnapChunkSize                   = 4 * mb
@@ -71,7 +70,6 @@ type Config struct {
 	// Capacity max capacity can use
 	Capacity           typeutil.ByteSize `toml:"capacity"`
 	UseMemoryAsStorage bool              `toml:"use-memory-as-storage"`
-	ShardGroups        uint64            `toml:"shard-groups"`
 	Replication        ReplicationConfig `toml:"replication"`
 	Snapshot           SnapshotConfig    `toml:"snapshot"`
 	// Raft raft config
@@ -130,10 +128,6 @@ func (c *Config) Adjust() {
 		c.DeployPath = "not set"
 	}
 
-	if c.ShardGroups == 0 {
-		c.ShardGroups = defaultGroups
-	}
-
 	(&c.Snapshot).adjust()
 	(&c.Replication).adjust()
 	(&c.Raft).adjust()
@@ -157,6 +151,12 @@ func (c *Config) Adjust() {
 	}
 
 	c.Logger = log.Adjust(c.Logger).Named("cube")
+
+	if len(c.Prophet.Replication.Groups) == 0 {
+		c.Storage.ForeachDataStorageFunc(func(g uint64, ds storage.DataStorage) {
+			c.Prophet.Replication.Groups = append(c.Prophet.Replication.Groups, g)
+		})
+	}
 }
 
 func (c *Config) validate() {
