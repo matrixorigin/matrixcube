@@ -330,6 +330,18 @@ func (s *store) Meta() metapb.Store {
 }
 
 func (s *store) OnRequest(req rpcpb.Request) error {
+	if s.cfg.Customize.CustomShardProxyRequestHandler == nil {
+		return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
+	}
+
+	handled, err := s.cfg.Customize.CustomShardProxyRequestHandler(req, s.shardsProxy.OnResponse)
+	if err != nil {
+		return err
+	}
+
+	if handled {
+		return nil
+	}
 	return s.OnRequestWithCB(req, s.shardsProxy.OnResponse)
 }
 
@@ -549,8 +561,7 @@ func (s *store) removeReplica(shard Shard) {
 
 func (s *store) startShardsProxy() {
 	maxBodySize := int(s.cfg.Raft.MaxEntryBytes) * 2
-
-	rpcpb := newProxyRPC(s.logger.Named("proxy.rpcpb").With(s.storeField()),
+	rpc := newProxyRPC(s.logger.Named("proxy.rpc").With(s.storeField()),
 		s.cfg.ClientAddr,
 		maxBodySize,
 		s.OnRequest)
@@ -560,14 +571,13 @@ func (s *store) startShardsProxy() {
 		withLogger(l).
 		withBackendFactory(newBackendFactory(l, s)).
 		withMaxBodySize(maxBodySize).
-		withRPC(rpcpb).
+		withRPC(rpc).
 		build(s.router)
 	if err != nil {
 		s.logger.Fatal("fail to create shards proxy", zap.Error(err))
 	}
 
 	s.shardsProxy = sp
-
 	err = s.shardsProxy.Start()
 	if err != nil {
 		s.logger.Fatal("fail to start shards proxy",

@@ -17,7 +17,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/fagongzi/util/protoc"
 	raftstoreClient "github.com/matrixorigin/matrixcube/client"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
@@ -139,10 +138,6 @@ func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req t
 			return
 		}
 
-		fn := s.client.Write
-		if req.Header.Type == txnpb.TxnRequestType_Read {
-			fn = s.client.Read
-		}
 		options := []raftstoreClient.Option{raftstoreClient.WithShard(shard),
 			raftstoreClient.WithReplicaSelectPolicy(s.replicaSelectPolicy)}
 		if !req.OnlyContainsSingleKey() {
@@ -150,9 +145,8 @@ func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req t
 			options = append(options, raftstoreClient.WithKeysRange(min, max))
 		}
 
-		// TODO: register cmd handler without consensus
-		f := fn(ctx, 1, protoc.MustMarshal(&req), options...)
-		v, err := f.Get()
+		f := s.client.Txn(ctx, req, options...)
+		resp, err = f.GetTxn()
 		f.Close()
 		if err != nil {
 			if err == raftstore.ErrKeysNotInShard || raftstore.IsShardUnavailableErr(err) {
@@ -164,8 +158,6 @@ func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req t
 			result.done(resp, err)
 			return
 		}
-
-		protoc.MustUnmarshal(&resp, v)
 		result.done(resp, err)
 	})
 }

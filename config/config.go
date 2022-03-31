@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/prophet/util/typeutil"
 	"github.com/matrixorigin/matrixcube/metric"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -346,6 +347,8 @@ type CustomizeConfig struct {
 	CustomTransportFilter func(metapb.RaftMessage) bool `json:"-" toml:"-"`
 	// CustomWrapNewTransport wraps new transports
 	CustomWrapNewTransport func(transport.Trans) transport.Trans `json:"-" toml:"-"`
+	// CustomShardProxyRequestHandler custom ShardProxy request handler
+	CustomShardProxyRequestHandler func(req rpcpb.Request, cb func(resp rpcpb.ResponseBatch)) (bool, error) `json:"-" toml:"-"`
 }
 
 // GetLabels returns lables
