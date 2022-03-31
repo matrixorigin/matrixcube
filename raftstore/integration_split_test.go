@@ -41,10 +41,7 @@ func TestSplitWithSingleCluster(t *testing.T) {
 	c := NewSingleTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
-		}))
+		WithTestClusterSplitPolicy(4, 2))
 
 	c.Start()
 	defer c.Stop()
@@ -65,10 +62,7 @@ func TestSplitWithMultiNodesCluster(t *testing.T) {
 	c := NewTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
-		}))
+		WithTestClusterSplitPolicy(4, 2))
 
 	c.Start()
 	defer c.Stop()
@@ -91,10 +85,7 @@ func TestSplitWithSingleClusterAndWriteToOldShard(t *testing.T) {
 	c := NewSingleTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
-		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
-		}))
+		WithTestClusterSplitPolicy(4, 2))
 
 	c.Start()
 	defer c.Stop()
@@ -132,9 +123,8 @@ func TestSplitWithCase1(t *testing.T) {
 	c := NewTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
+		WithTestClusterSplitPolicy(4, 2),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 			cfg.Prophet.Schedule.EnableRemoveDownReplica = true
 			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second)
@@ -185,9 +175,8 @@ func TestSplitWithCase2(t *testing.T) {
 		DiskTestCluster,
 		OldTestCluster,
 		WithTestClusterNodeCount(3),
+		WithTestClusterSplitPolicy(4, 2),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 			cfg.Prophet.Schedule.EnableRemoveDownReplica = true
 			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second)
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
@@ -237,9 +226,8 @@ func TestSplitWithCase3(t *testing.T) {
 		DiskTestCluster,
 		OldTestCluster,
 		WithTestClusterNodeCount(3),
+		WithTestClusterSplitPolicy(4, 2),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 			cfg.Prophet.Schedule.EnableRemoveDownReplica = true
 			cfg.Replication.MaxPeerDownTime = typeutil.NewDuration(time.Second)
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
@@ -291,9 +279,8 @@ func TestSplitWithCase4(t *testing.T) {
 		DiskTestCluster,
 		OldTestCluster,
 		WithTestClusterNodeCount(3),
+		WithTestClusterSplitPolicy(4, 2),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 		}))
 	c.Start()
@@ -340,9 +327,8 @@ func TestSplitWithApplySnapshotAndStartDestroyByStateCheck(t *testing.T) {
 		DiskTestCluster,
 		OldTestCluster,
 		WithTestClusterNodeCount(3),
+		WithTestClusterSplitPolicy(4, 2),
 		WithAppendTestClusterAdjustConfigFunc(func(node int, cfg *config.Config) {
-			cfg.Replication.ShardCapacityBytes = typeutil.ByteSize(4)
-			cfg.Replication.ShardSplitCheckBytes = typeutil.ByteSize(2)
 			cfg.Replication.ShardStateCheckDuration.Duration = time.Second
 		}))
 	c.Start()

@@ -193,14 +193,13 @@ func (s *store) tryToCreateReplicate(msg metapb.RaftMessage) bool {
 		withReplicaRecordGetter(func(s Shard) Replica { return target }).
 		create([]Shard{
 			{
-				ID:           msg.ShardID,
-				Epoch:        msg.ShardEpoch,
-				Start:        msg.Start,
-				End:          msg.End,
-				Group:        msg.Group,
-				DisableSplit: msg.DisableSplit,
-				Unique:       msg.Unique,
-				Replicas:     []Replica{},
+				ID:       msg.ShardID,
+				Epoch:    msg.ShardEpoch,
+				Start:    msg.Start,
+				End:      msg.End,
+				Group:    msg.Group,
+				Unique:   msg.Unique,
+				Replicas: []Replica{},
 			},
 		})
 	return true

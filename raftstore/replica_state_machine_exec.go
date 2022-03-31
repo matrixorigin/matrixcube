@@ -245,7 +245,6 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 		newShard.Group = current.Group
 		newShard.Unique = current.Unique
 		newShard.RuleGroups = current.RuleGroups
-		newShard.DisableSplit = current.DisableSplit
 		newShard.Epoch = current.Epoch
 		newShard.Start = req.Start
 		newShard.End = req.End

@@ -474,6 +474,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	if !pr.isLeader() {
 		return
 	}
+
 	var minReplicatedIndex uint64
 	for _, p := range progresses {
 		if minReplicatedIndex == 0 {
@@ -510,10 +511,10 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	// check wether to force compaction or not
 	if compactIndex == 0 &&
 		appliedIndex > firstIndex &&
-		appliedIndex-firstIndex >= pr.store.cfg.Raft.RaftLog.ForceCompactCount {
+		appliedIndex-firstIndex >= pr.feature.ForceCompactCount {
 		compactIndex = appliedIndex
 	} else if compactIndex == 0 &&
-		pr.stats.raftLogSizeHint >= pr.store.cfg.Raft.RaftLog.ForceCompactBytes {
+		pr.stats.raftLogSizeHint >= pr.feature.ForceCompactBytes {
 		compactIndex = appliedIndex
 	}
 

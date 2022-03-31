@@ -115,6 +115,8 @@ type replica struct {
 
 	tickTotalCount   uint64
 	tickHandledCount uint64
+
+	feature storage.Feature
 }
 
 // createReplica called in:
@@ -181,6 +183,7 @@ func newReplica(store *store, shard Shard, r Replica, reason string) (*replica, 
 		})
 	pr.destroyTaskFactory = newDefaultDestroyReplicaTaskFactory(pr.addAction,
 		pr.prophetClient, defaultCheckInterval)
+	pr.feature = storage.Feature()
 	return pr, nil
 }
 
@@ -518,10 +521,6 @@ func (pr *replica) execReadRequest(req rpcpb.Request) {
 			},
 		}}})
 	}
-}
-
-func (pr *replica) supportSplit() bool {
-	return !pr.getShard().DisableSplit
 }
 
 func (pr *replica) pendingReadCount() int {

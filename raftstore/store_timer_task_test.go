@@ -98,7 +98,7 @@ func TestHandleSplitCheckTask(t *testing.T) {
 			pr.stats = c.stats
 			pr.leaderID = c.leader
 			s.addReplica(pr)
-			s.handleSplitCheckTask()
+			s.handleSplitCheckTask(0)
 			assert.Equal(t, c.hasAction, pr.actions.Len() > 0, "index %d", idx)
 			if c.hasAction {
 				v, err := pr.actions.Peek()

@@ -14,6 +14,8 @@
 package storage
 
 import (
+	"time"
+
 	"github.com/cockroachdb/errors"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -152,6 +154,27 @@ type DataStorage interface {
 	// metadata after the Shard has executed the split, metadata needs atomically saved
 	// into the underlying storage.
 	Split(old metapb.ShardMetadata, news []metapb.ShardMetadata, ctx []byte) error
+	// Feature returns the feature for managed shard
+	Feature() Feature
+}
+
+// Feature the feature for data
+type Feature struct {
+	// ShardSplitCheckDuration duration to check if the Shard needs to be split.
+	ShardSplitCheckDuration time.Duration
+	// ShardCapacity the size of the data managed by each Shard, beyond which the Shard needs
+	// to be split.
+	ShardCapacityBytes uint64
+	// ShardSplitCheckBytes the Cube records a Shard-managed data size in memory, which is an approximate
+	// value that changes after each Write call. Whenever this value exceeds the size set by the
+	// current field, a real check is made to see if a split is needed, involving real IO operations.
+	ShardSplitCheckBytes uint64
+	// DisableShardSplit disable shard split
+	DisableShardSplit bool
+	// ForceCompactCount force compaction when the number of Raft logs reaches the specified number
+	ForceCompactCount uint64
+	// ForceCompactBytes force compaction when the number of Raft logs reaches the specified bytes
+	ForceCompactBytes uint64
 }
 
 // WriteContext contains the details of write requests to be handled by the

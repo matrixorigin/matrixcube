@@ -292,6 +292,9 @@ func (t *testDataStorage) SplitCheck(shard metapb.Shard, size uint64) (currentAp
 func (t *testDataStorage) Split(old metapb.ShardMetadata, news []metapb.ShardMetadata, ctx []byte) error {
 	panic("not implemented")
 }
+func (t *testDataStorage) Feature() storage.Feature {
+	return storage.Feature{}
+}
 
 func TestDoExecCompactLog(t *testing.T) {
 	defer leaktest.AfterTest(t)()

@@ -18,6 +18,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/components/log"
@@ -30,12 +31,17 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	mb = uint64(1024 * 1024)
+)
+
 // Option option func
 type Option func(*options)
 
 type options struct {
 	sampleSync uint64
 	logger     *zap.Logger
+	feature    storage.Feature
 }
 
 // WithSampleSync set sync sample interval. `Cube` will call the `GetPersistentLogIndex` method of `DataStorage` to obtain
@@ -55,6 +61,13 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
+// WithFeature set kv data feature
+func WithFeature(feature storage.Feature) Option {
+	return func(opts *options) {
+		opts.feature = feature
+	}
+}
+
 func newOptions() *options {
 	return &options{}
 }
@@ -62,6 +75,26 @@ func newOptions() *options {
 func (opts *options) adjust() {
 	if opts.sampleSync == 0 {
 		opts.sampleSync = 100
+	}
+
+	if opts.feature.ShardSplitCheckDuration == 0 {
+		opts.feature.ShardSplitCheckDuration = time.Minute
+	}
+
+	if opts.feature.ShardCapacityBytes == 0 {
+		opts.feature.ShardCapacityBytes = 96 * 1024 * 1024
+	}
+
+	if opts.feature.ShardSplitCheckBytes == 0 {
+		opts.feature.ShardSplitCheckBytes = opts.feature.ShardCapacityBytes * 80 / 100
+	}
+
+	if opts.feature.ForceCompactCount == 0 {
+		opts.feature.ForceCompactCount = opts.feature.ShardCapacityBytes * mb * 3 / 4 / 1024
+	}
+
+	if opts.feature.ForceCompactBytes == 0 {
+		opts.feature.ForceCompactBytes = opts.feature.ShardCapacityBytes * 3 / 4
 	}
 
 	opts.logger = log.Adjust(opts.logger).Named("kv-data-storage")
@@ -323,6 +356,10 @@ func (kv *kvDataStorage) SplitCheck(shard metapb.Shard,
 func (kv *kvDataStorage) Split(old metapb.ShardMetadata,
 	news []metapb.ShardMetadata, ctx []byte) error {
 	return kv.SaveShardMetadata(append(news, old))
+}
+
+func (kv *kvDataStorage) Feature() storage.Feature {
+	return kv.opts.feature
 }
 
 func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {

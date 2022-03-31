@@ -21,18 +21,20 @@ import (
 	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"
 )
 
 type splitCheckFunc func(shard Shard, size uint64) (currentApproximateSize uint64,
 	currentApproximateKeys uint64, splitKeys [][]byte, ctx []byte, err error)
+type featureGetter func(uint64) storage.Feature
 
 type splitChecker struct {
-	shardCapacityBytes uint64
-	replicaGetter      replicaGetter
-	checkFuncFactory   func(group uint64) splitCheckFunc
-	stopper            *syncutil.Stopper
-	shardsC            chan Shard
+	replicaGetter     replicaGetter
+	featureGetterFunc featureGetter
+	checkFuncFactory  func(group uint64) splitCheckFunc
+	stopper           *syncutil.Stopper
+	shardsC           chan Shard
 
 	mu struct {
 		sync.Mutex
@@ -41,15 +43,15 @@ type splitChecker struct {
 }
 
 func newSplitChecker(maxWaitToCheck int,
-	shardCapacityBytes uint64,
 	replicaGetter replicaGetter,
+	featureGetter featureGetter,
 	checkFuncFactory func(group uint64) splitCheckFunc) *splitChecker {
 	return &splitChecker{
-		stopper:            syncutil.NewStopper(),
-		replicaGetter:      replicaGetter,
-		checkFuncFactory:   checkFuncFactory,
-		shardCapacityBytes: shardCapacityBytes,
-		shardsC:            make(chan Shard, maxWaitToCheck),
+		stopper:           syncutil.NewStopper(),
+		replicaGetter:     replicaGetter,
+		checkFuncFactory:  checkFuncFactory,
+		featureGetterFunc: featureGetter,
+		shardsC:           make(chan Shard, maxWaitToCheck),
 	}
 }
 
@@ -92,8 +94,9 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 		return false
 	}
 
+	policy := sc.featureGetterFunc(shard.Group)
 	fn := sc.checkFuncFactory(shard.Group)
-	size, keys, splitKeys, ctx, err := fn(shard, sc.shardCapacityBytes)
+	size, keys, splitKeys, ctx, err := fn(shard, policy.ShardCapacityBytes)
 	if err != nil {
 		pr.logger.Fatal("fail to scan split key",
 			zap.Error(err))
@@ -102,7 +105,7 @@ func (sc *splitChecker) doChecker(shard Shard) bool {
 	pr.logger.Debug("split check result",
 		log.ShardField("metadata", shard),
 		zap.Uint64("size", size),
-		zap.Uint64("capacity", sc.shardCapacityBytes),
+		zap.Uint64("capacity", policy.ShardCapacityBytes),
 		zap.Uint64("keys", keys),
 		zap.ByteStrings("split-keys", splitKeys))
 

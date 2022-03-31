@@ -18,15 +18,13 @@ import (
 
 	"github.com/RoaringBitmap/roaring/roaring64"
 	putil "github.com/matrixorigin/matrixcube/components/prophet/util"
+	"github.com/matrixorigin/matrixcube/storage"
 	"go.uber.org/zap"
 )
 
 func (s *store) startTimerTasks() {
 	s.stopper.RunWorker(func() {
 		last := time.Now()
-
-		splitCheckTicker := time.NewTicker(s.cfg.Replication.ShardSplitCheckDuration.Duration)
-		defer splitCheckTicker.Stop()
 
 		stateCheckTicker := time.NewTicker(s.cfg.Replication.ShardStateCheckDuration.Duration)
 		defer stateCheckTicker.Stop()
@@ -54,8 +52,6 @@ func (s *store) startTimerTasks() {
 				return
 			case <-compactLogCheckTicker.C:
 				s.handleCompactLogTask()
-			case <-splitCheckTicker.C:
-				s.handleSplitCheckTask()
 			case <-stateCheckTicker.C:
 				s.handleShardStateCheckTask()
 			case <-shardLeaderheartbeatTicker.C:
@@ -69,6 +65,30 @@ func (s *store) startTimerTasks() {
 				s.doLogDebugInfo()
 			}
 		}
+	})
+
+	s.cfg.Storage.ForeachDataStorageFunc(func(group uint64, ds storage.DataStorage) {
+		s.stopper.RunWorker(func() {
+			policy := ds.Feature()
+			if policy.DisableShardSplit {
+				return
+			}
+
+			splitCheckTicker := time.NewTicker(policy.ShardSplitCheckDuration)
+			defer splitCheckTicker.Stop()
+
+			for {
+				select {
+				case <-s.stopper.ShouldStop():
+					s.logger.Info("timer based tasks stopped",
+						s.storeField())
+					return
+
+				case <-splitCheckTicker.C:
+					s.handleSplitCheckTask(group)
+				}
+			}
+		})
 	})
 }
 
@@ -90,7 +110,7 @@ func (s *store) handleShardStateCheckTask() {
 
 		bm := putil.MustUnmarshalBM64(rsp.Destroyed)
 		s.addUnavailableShardWithIds(bm)
-		
+
 		for _, id := range bm.ToArray() {
 			// FIXME: we don't known whether to remove data or not. Conservative retention data.
 			s.destroyReplica(id, true, false, "shard state check")
@@ -114,13 +134,9 @@ func (s *store) handleShardStateCheckTask() {
 	}
 }
 
-func (s *store) handleSplitCheckTask() {
-	if s.cfg.Replication.DisableShardSplit {
-		return
-	}
-
+func (s *store) handleSplitCheckTask(group uint64) {
 	s.forEachReplica(func(pr *replica) bool {
-		if pr.supportSplit() &&
+		if pr.group == group &&
 			pr.isLeader() {
 			pr.addAction(action{actionType: checkSplitAction, actionCallback: func(arg interface{}) {
 				s.splitChecker.add(arg.(Shard))

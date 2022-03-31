@@ -65,17 +65,18 @@ var (
 type TestClusterOption func(*testClusterOptions)
 
 type testClusterOptions struct {
-	tmpDir              string
-	nodes               int
-	recreate            bool
-	adjustConfigFuncs   []func(node int, cfg *config.Config)
-	storeFactory        func(node int, cfg *config.Config) Store
-	nodeStartFunc       func(node int, store Store)
-	logLevel            zapcore.Level
-	useDisk             bool
-	enableAdvertiseAddr bool
-	dataOpts            *cpebble.Options
-
+	tmpDir                string
+	nodes                 int
+	recreate              bool
+	adjustConfigFuncs     []func(node int, cfg *config.Config)
+	storeFactory          func(node int, cfg *config.Config) Store
+	nodeStartFunc         func(node int, store Store)
+	logLevel              zapcore.Level
+	useDisk               bool
+	enableAdvertiseAddr   bool
+	dataOpts              *cpebble.Options
+	shardCapacityBytes    uint64
+	shardSplitCheckBytes  uint64
 	disableSchedule       bool
 	enableParallelTest    bool
 	useProphetInitCluster bool
@@ -204,6 +205,14 @@ func WithDataStorageOption(dataOpts *cpebble.Options) TestClusterOption {
 func WithAppendTestClusterAdjustConfigFunc(value func(node int, cfg *config.Config)) TestClusterOption {
 	return func(opts *testClusterOptions) {
 		opts.adjustConfigFuncs = append(opts.adjustConfigFuncs, value)
+	}
+}
+
+// WithTestClusterSplitPolicy adjust config
+func WithTestClusterSplitPolicy(shardCapacityBytes, shardSplitCheckBytes uint64) TestClusterOption {
+	return func(opts *testClusterOptions) {
+		opts.shardCapacityBytes = shardCapacityBytes
+		opts.shardSplitCheckBytes = shardSplitCheckBytes
 	}
 }
 
@@ -1074,7 +1083,6 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 
 	cfg.Replication.ShardHeartbeatDuration = typeutil.NewDuration(time.Millisecond * 100)
 	cfg.Replication.StoreHeartbeatDuration = typeutil.NewDuration(time.Second)
-	cfg.Replication.ShardSplitCheckDuration = typeutil.NewDuration(time.Millisecond * 100)
 	cfg.Raft.TickInterval = typeutil.NewDuration(time.Millisecond * 100)
 
 	cfg.Prophet.Name = fmt.Sprintf("node-%d", node)
@@ -1137,13 +1145,18 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 			kvs = mem.NewStorage()
 		}
 		base := kv.NewBaseStorage(kvs, cfg.FS)
-		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs), kv.WithLogger(cfg.Logger))
+		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs),
+			kv.WithLogger(cfg.Logger), kv.WithFeature(storage.Feature{
+				ShardSplitCheckDuration: time.Millisecond * 100,
+				ShardCapacityBytes:      c.opts.shardCapacityBytes,
+				ShardSplitCheckBytes:    c.opts.shardSplitCheckBytes,
+			}))
 
 		cfg.Storage.DataStorageFactory = func(group uint64) storage.DataStorage {
 			return dataStorage
 		}
-		cfg.Storage.ForeachDataStorageFunc = func(cb func(storage.DataStorage)) {
-			cb(dataStorage)
+		cfg.Storage.ForeachDataStorageFunc = func(cb func(uint64, storage.DataStorage)) {
+			cb(0, dataStorage)
 		}
 		c.dataStorages[node] = dataStorage
 	}
