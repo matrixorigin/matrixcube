@@ -7,7 +7,7 @@ set -e
 
 # directories containing protos to be built
 MOD="github.com/matrixorigin/matrixcube"
-DIRS="./errorpb ./metapb ./rpcpb ./txnpb"
+DIRS="./errorpb ./metapb ./rpcpb ./txnpb ./hlcpb"
 VENDOR_DIR=$(dirname "$PWD")/vendor
 PB_DIR=$(dirname "$PWD")/pb
 
