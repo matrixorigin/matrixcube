@@ -22,6 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
@@ -70,11 +71,12 @@ func WithReplicaSelectPolicy(policy rpcpb.ReplicaSelectPolicy) Option {
 
 // Future is used to obtain response data synchronously.
 type Future struct {
-	value []byte
-	err   error
-	req   rpcpb.Request
-	ctx   context.Context
-	c     chan struct{}
+	txnResponse txnpb.TxnBatchResponse
+	value       []byte
+	err         error
+	req         rpcpb.Request
+	ctx         context.Context
+	c           chan struct{}
 
 	mu struct {
 		sync.Mutex
@@ -102,6 +104,18 @@ func (f *Future) Get() ([]byte, error) {
 	}
 }
 
+// GetTxn get the txn response data synchronously, blocking until `context.Done` or the response is received.
+// This method cannot be called more than once. After calling `Get`, `Close` must be called to close
+// `Future`.
+func (f *Future) GetTxn() (txnpb.TxnBatchResponse, error) {
+	select {
+	case <-f.ctx.Done():
+		return f.txnResponse, f.ctx.Err()
+	case <-f.c:
+		return f.txnResponse, f.err
+	}
+}
+
 // Close close the future.
 func (f *Future) Close() {
 	f.mu.Lock()
@@ -120,11 +134,14 @@ func (f *Future) canRetry() bool {
 	}
 }
 
-func (f *Future) done(value []byte, err error) {
+func (f *Future) done(value []byte, txnRespopnse *txnpb.TxnBatchResponse, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if !f.mu.closed {
+		if txnRespopnse != nil {
+			f.txnResponse = *txnRespopnse
+		}
 		f.value = value
 		f.err = err
 		select {
@@ -152,6 +169,8 @@ type Client interface {
 	Write(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future
 	// Read exec the read request, and use the `Future` to get the response
 	Read(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future
+	// Txn exec the transaction request, and use the `Future` to get the response
+	Txn(ctx context.Context, request txnpb.TxnBatchRequest, opts ...Option) *Future
 
 	// AddLabelToShard add lable to shard, and use the `Future` to get the response
 	AddLabelToShard(ctx context.Context, name, value string, shard uint64) *Future
@@ -211,15 +230,19 @@ func (s *client) Router() raftstore.Router {
 }
 
 func (s *client) Write(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future {
-	return s.exec(ctx, requestType, payload, rpcpb.Write, opts...)
+	return s.exec(ctx, requestType, payload, rpcpb.Write, nil, opts...)
 }
 
 func (s *client) Read(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future {
-	return s.exec(ctx, requestType, payload, rpcpb.Read, opts...)
+	return s.exec(ctx, requestType, payload, rpcpb.Read, nil, opts...)
 }
 
 func (s *client) Admin(ctx context.Context, requestType uint64, payload []byte, opts ...Option) *Future {
-	return s.exec(ctx, requestType, payload, rpcpb.Admin, opts...)
+	return s.exec(ctx, requestType, payload, rpcpb.Admin, nil, opts...)
+}
+
+func (s *client) Txn(ctx context.Context, request txnpb.TxnBatchRequest, opts ...Option) *Future {
+	return s.exec(ctx, 0, nil, rpcpb.Txn, &request, opts...)
 }
 
 func (s *client) AddLabelToShard(ctx context.Context, name, value string, shard uint64) *Future {
@@ -227,15 +250,16 @@ func (s *client) AddLabelToShard(ctx context.Context, name, value string, shard 
 		Labels: []metapb.Label{{Key: name, Value: value}},
 		Policy: rpcpb.Add,
 	})
-	return s.exec(ctx, uint64(rpcpb.AdminUpdateLabels), payload, rpcpb.Admin, WithShard(shard))
+	return s.exec(ctx, uint64(rpcpb.AdminUpdateLabels), payload, rpcpb.Admin, nil, WithShard(shard))
 }
 
-func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, cmdType rpcpb.CmdType, opts ...Option) *Future {
+func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, cmdType rpcpb.CmdType, txnRequest *txnpb.TxnBatchRequest, opts ...Option) *Future {
 	req := rpcpb.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.Type = cmdType
 	req.CustomType = requestType
 	req.Cmd = payload
+	req.TxnBatchRequest = txnRequest
 
 	f := newFuture(ctx, req)
 	for _, opt := range opts {
@@ -255,7 +279,7 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 	}
 
 	if err := s.shardsProxy.Dispatch(f.req); err != nil {
-		f.done(nil, err)
+		f.done(nil, nil, err)
 	}
 	return f
 }
@@ -280,7 +304,7 @@ func (s *client) done(resp rpcpb.Response) {
 	id := hack.SliceToString(resp.ID)
 	if c, ok := s.inflights.Load(hack.SliceToString(resp.ID)); ok {
 		s.inflights.Delete(id)
-		c.(*Future).done(resp.Value, nil)
+		c.(*Future).done(resp.Value, resp.TxnBatchResponse, nil)
 	} else {
 		if ce := s.logger.Check(zap.DebugLevel, "response skipped"); ce != nil {
 			ce.Write(log.RequestIDField(resp.ID), log.ReasonField("missing ctx"))
@@ -296,6 +320,6 @@ func (s *client) doneError(requestID []byte, err error) {
 	id := hack.SliceToString(requestID)
 	if c, ok := s.inflights.Load(id); ok {
 		s.inflights.Delete(id)
-		c.(*Future).done(nil, err)
+		c.(*Future).done(nil, nil, err)
 	}
 }

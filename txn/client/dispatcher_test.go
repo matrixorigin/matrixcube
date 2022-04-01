@@ -74,9 +74,9 @@ func TestDispatcherSend(t *testing.T) {
 	addTestShard(router, 1, "10/11,20/21,30/31")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -98,9 +98,9 @@ func TestDispatcherSendWithInternal(t *testing.T) {
 	addTestShard(router, 1, "10/11,20/21,30/31")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -122,9 +122,9 @@ func TestDispatcherSendWithTimeout(t *testing.T) {
 	addTestShard(router, 1, "10/11,20/21,30/31")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -145,9 +145,9 @@ func TestDispatcherDoSendWithTimeout(t *testing.T) {
 	addTestShard(router, 1, "10/11,20/21,30/31")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -173,9 +173,9 @@ func TestDispatcherDoSendWithMultiKeysAndReroute(t *testing.T) {
 	addTestShard(router, 3, "1000/1001,2000/2001,3000/3001")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -292,13 +292,13 @@ func TestDispatcherSendWithRetryableErrors(t *testing.T) {
 					idx++
 					return rpcpb.ResponseBatch{Header: rpcpb.ResponseBatchHeader{
 						Error: rerr,
-					}, Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+					}, Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 						Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-					})}}}, nil
+					}}}}, nil
 				} else {
-					return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+					return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 						Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-					})}}}, nil
+					}}}}, nil
 				}
 			})
 			defer client.Stop()
@@ -332,13 +332,13 @@ func TestDispatcherSendWithShardUnavailable(t *testing.T) {
 					Message:          "retryable error",
 					ShardUnavailable: &errorpb.ShardUnavailable{},
 				},
-			}, Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+			}, Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 				Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-			})}}}, nil
+			}}}}, nil
 		} else {
-			return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+			return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 				Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
-			})}}}, nil
+			}}}}, nil
 		}
 	})
 	defer client.Stop()
@@ -385,9 +385,9 @@ func TestDispatcherSendWithRouteToMoreShard(t *testing.T) {
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
 		data := format.Uint64ToBytes(r.ToShard)
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Responses: []txnpb.TxnResponse{{Data: data}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -417,7 +417,7 @@ func TestDispatcherSendWithUpdateWriteTimestamp(t *testing.T) {
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
 		data := format.Uint64ToBytes(r.ToShard)
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Header: txnpb.TxnBatchResponseHeader{
 				Txn: txnpb.TxnMeta{
 					ID:             []byte("txn-1"),
@@ -426,7 +426,7 @@ func TestDispatcherSendWithUpdateWriteTimestamp(t *testing.T) {
 				},
 			},
 			Responses: []txnpb.TxnResponse{{Data: data}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -447,14 +447,14 @@ func TestUpdateTxnErrorsWithAbortedError(t *testing.T) {
 	addTestShard(router, 1, "10/11,20/21,30/31")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Header: txnpb.TxnBatchResponseHeader{
 				Error: &txnpb.TxnError{
 					AbortedError: &txnpb.AbortedError{},
 				},
 			},
 			Responses: []txnpb.TxnResponse{{}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -478,14 +478,14 @@ func TestUpdateTxnErrorsWithMergeAbortedErrors(t *testing.T) {
 	addTestShard(router, 2, "100/101,200/201,300/301")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
-		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 			Header: txnpb.TxnBatchResponseHeader{
 				Error: &txnpb.TxnError{
 					AbortedError: &txnpb.AbortedError{},
 				},
 			},
 			Responses: []txnpb.TxnResponse{{}},
-		})}}}, nil
+		}}}}, nil
 	})
 	defer client.Stop()
 
@@ -538,12 +538,12 @@ func TestUpdateTxnErrorsWithMergeAbortedAndConflictWithCommittedErrors(t *testin
 				err := errs[idx]
 				idx++
 
-				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Error: err,
 					},
 					Responses: []txnpb.TxnResponse{{}},
-				})}}}, nil
+				}}}}, nil
 			})
 			defer client.Stop()
 
@@ -598,12 +598,12 @@ func TestUpdateTxnErrorsWithMergeAbortedAndUncertaintyErrors(t *testing.T) {
 				err := errs[idx]
 				idx++
 
-				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Error: err,
 					},
 					Responses: []txnpb.TxnResponse{{}},
-				})}}}, nil
+				}}}}, nil
 			})
 			defer client.Stop()
 
@@ -658,12 +658,12 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedErrors(t *testing.T) {
 				err := errs[idx]
 				idx++
 
-				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Error: err,
 					},
 					Responses: []txnpb.TxnResponse{{}},
-				})}}}, nil
+				}}}}, nil
 			})
 			defer client.Stop()
 
@@ -719,12 +719,12 @@ func TestUpdateTxnErrorsWithMergeUncertaintyErrors(t *testing.T) {
 				err := errs[idx]
 				idx++
 
-				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Error: err,
 					},
 					Responses: []txnpb.TxnResponse{{}},
-				})}}}, nil
+				}}}}, nil
 			})
 			defer client.Stop()
 
@@ -796,12 +796,12 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedAndUncertaintyError(t *tes
 				err := errs[idx]
 				idx++
 
-				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, Value: protoc.MustMarshal(&txnpb.TxnBatchResponse{
+				return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
 					Header: txnpb.TxnBatchResponseHeader{
 						Error: err,
 					},
 					Responses: []txnpb.TxnResponse{{}},
-				})}}}, nil
+				}}}}, nil
 			})
 			defer client.Stop()
 

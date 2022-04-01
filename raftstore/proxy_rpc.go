@@ -34,7 +34,7 @@ type defaultRPC struct {
 }
 
 func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(rpcpb.Request) error) proxyRPC {
-	rpcpb := &defaultRPC{
+	rpc := &defaultRPC{
 		logger:  log.Adjust(logger),
 		handler: handler,
 	}
@@ -42,7 +42,7 @@ func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(
 	encoder, decoder := length.NewWithSize(rc, rc, 0, 0, 0, maxBodySize)
 	app, err := goetty.NewTCPApplication(
 		addr,
-		rpcpb.onMessage,
+		rpc.onMessage,
 		goetty.WithAppLogger(logger),
 		goetty.WithAppSessionOptions(
 			goetty.WithCodec(encoder, decoder),
@@ -52,12 +52,12 @@ func newProxyRPC(logger *zap.Logger, addr string, maxBodySize int, handler func(
 	)
 
 	if err != nil {
-		rpcpb.logger.Fatal("fail to create rpcpb",
+		rpc.logger.Fatal("fail to create rpcpb",
 			zap.Error(err))
 	}
 
-	rpcpb.app = app
-	return rpcpb
+	rpc.app = app
+	return rpc
 }
 
 func (r *defaultRPC) start() error {
