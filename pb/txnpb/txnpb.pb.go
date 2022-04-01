@@ -7,6 +7,7 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -1466,9 +1467,9 @@ func (m *TxnRecord) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.TxnMeta.Size()))
-	n1, err := m.TxnMeta.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n1, err1 := m.TxnMeta.MarshalTo(dAtA[i:])
+	if err1 != nil {
+		return 0, err1
 	}
 	i += n1
 	if m.Status != 0 {
@@ -1484,17 +1485,17 @@ func (m *TxnRecord) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.CompletedWrites.Size()))
-	n2, err := m.CompletedWrites.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n2, err2 := m.CompletedWrites.MarshalTo(dAtA[i:])
+	if err2 != nil {
+		return 0, err2
 	}
 	i += n2
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.InfightWrites.Size()))
-	n3, err := m.InfightWrites.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n3, err3 := m.InfightWrites.MarshalTo(dAtA[i:])
+	if err3 != nil {
+		return 0, err3
 	}
 	i += n3
 	if m.XXX_unrecognized != nil {
@@ -1521,9 +1522,9 @@ func (m *TxnOpMeta) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.TxnMeta.Size()))
-	n4, err := m.TxnMeta.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n4, err4 := m.TxnMeta.MarshalTo(dAtA[i:])
+	if err4 != nil {
+		return 0, err4
 	}
 	i += n4
 	if m.Sequence != 0 {
@@ -1535,9 +1536,9 @@ func (m *TxnOpMeta) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.CompletedWrites.Size()))
-		n5, err := m.CompletedWrites.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n5, err5 := m.CompletedWrites.MarshalTo(dAtA[i:])
+		if err5 != nil {
+			return 0, err5
 		}
 		i += n5
 	}
@@ -1545,9 +1546,9 @@ func (m *TxnOpMeta) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.InfightWrites.Size()))
-		n6, err := m.InfightWrites.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n6, err6 := m.InfightWrites.MarshalTo(dAtA[i:])
+		if err6 != nil {
+			return 0, err6
 		}
 		i += n6
 	}
@@ -1660,9 +1661,9 @@ func (m *TxnOperation) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1a
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Impacted.Size()))
-	n7, err := m.Impacted.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n7, err7 := m.Impacted.MarshalTo(dAtA[i:])
+	if err7 != nil {
+		return 0, err7
 	}
 	i += n7
 	if m.ShardGroup != 0 {
@@ -1699,9 +1700,9 @@ func (m *TxnBatchRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Header.Size()))
-	n8, err := m.Header.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n8, err8 := m.Header.MarshalTo(dAtA[i:])
+	if err8 != nil {
+		return 0, err8
 	}
 	i += n8
 	if len(m.Requests) > 0 {
@@ -1740,9 +1741,9 @@ func (m *TxnBatchRequestHeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Txn.Size()))
-	n9, err := m.Txn.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n9, err9 := m.Txn.MarshalTo(dAtA[i:])
+	if err9 != nil {
+		return 0, err9
 	}
 	i += n9
 	if m.Type != 0 {
@@ -1774,9 +1775,9 @@ func (m *TxnBatchResponseHeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Txn.Size()))
-	n10, err := m.Txn.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n10, err10 := m.Txn.MarshalTo(dAtA[i:])
+	if err10 != nil {
+		return 0, err10
 	}
 	i += n10
 	if m.Status != 0 {
@@ -1788,9 +1789,9 @@ func (m *TxnBatchResponseHeader) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.Error.Size()))
-		n11, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n11, err11 := m.Error.MarshalTo(dAtA[i:])
+		if err11 != nil {
+			return 0, err11
 		}
 		i += n11
 	}
@@ -1818,9 +1819,9 @@ func (m *TxnBatchResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Header.Size()))
-	n12, err := m.Header.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n12, err12 := m.Header.MarshalTo(dAtA[i:])
+	if err12 != nil {
+		return 0, err12
 	}
 	i += n12
 	if len(m.Responses) > 0 {
@@ -1859,17 +1860,17 @@ func (m *TxnRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Operation.Size()))
-	n13, err := m.Operation.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n13, err13 := m.Operation.MarshalTo(dAtA[i:])
+	if err13 != nil {
+		return 0, err13
 	}
 	i += n13
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintTxnpb(dAtA, i, uint64(m.Options.Size()))
-	n14, err := m.Options.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
+	n14, err14 := m.Options.MarshalTo(dAtA[i:])
+	if err14 != nil {
+		return 0, err14
 	}
 	i += n14
 	if m.XXX_unrecognized != nil {
@@ -1955,9 +1956,9 @@ func (m *TxnError) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.ConflictWithCommittedError.Size()))
-		n15, err := m.ConflictWithCommittedError.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n15, err15 := m.ConflictWithCommittedError.MarshalTo(dAtA[i:])
+		if err15 != nil {
+			return 0, err15
 		}
 		i += n15
 	}
@@ -1965,9 +1966,9 @@ func (m *TxnError) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.UncertaintyError.Size()))
-		n16, err := m.UncertaintyError.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n16, err16 := m.UncertaintyError.MarshalTo(dAtA[i:])
+		if err16 != nil {
+			return 0, err16
 		}
 		i += n16
 	}
@@ -1975,9 +1976,9 @@ func (m *TxnError) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintTxnpb(dAtA, i, uint64(m.AbortedError.Size()))
-		n17, err := m.AbortedError.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
+		n17, err17 := m.AbortedError.MarshalTo(dAtA[i:])
+		if err17 != nil {
+			return 0, err17
 		}
 		i += n17
 	}
@@ -2426,14 +2427,7 @@ func (m *AbortedError) Size() (n int) {
 }
 
 func sovTxnpb(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozTxnpb(x uint64) (n int) {
 	return sovTxnpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))
