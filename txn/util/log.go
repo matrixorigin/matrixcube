@@ -18,6 +18,6 @@ func LogTxnMeta(logger *zap.Logger, level zapcore.Level, msg string, txn txnpb.T
 			zap.Uint64("txn-read-ts", txn.ReadTimestamp),
 			zap.Uint64("txn-write-ts", txn.WriteTimestamp),
 			zap.Uint64("txn-max-ts", txn.MaxTimestamp),
-			zap.String("txn-isolation", txn.Isolation.String()))
+			zap.String("txn-isolation", txn.IsolationLevel.String()))
 	}
 }

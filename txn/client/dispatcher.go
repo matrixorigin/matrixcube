@@ -75,7 +75,19 @@ func (s *batchDispatcher) Send(ctx context.Context, request txnpb.TxnBatchReques
 	result := dispatchResult{
 		txnClocker: s.txnClocker,
 	}
-	for shard, req := range s.routeRequest(request) {
+	createTxnRecordShard, splitted := s.routeRequest(request)
+	if createTxnRecordShard > 0 {
+		resp, err := s.doSyncSend(ctx, createTxnRecordShard, splitted[createTxnRecordShard])
+		if err != nil {
+			return resp, err
+		}
+		result.wg.Add(1)
+		result.done(resp, err)
+	}
+	for shard, req := range splitted {
+		if shard == createTxnRecordShard {
+			continue
+		}
 		result.wg.Add(1)
 		s.doSendToShard(ctx, shard, req, &result)
 	}
@@ -88,16 +100,27 @@ func (s *batchDispatcher) Close() {
 
 // routeRequest for custom read and write requests, a request may contain multiple data operations, so a request
 // needs to be split into multiple requests to be sent to the corresponding Shard.
-func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) map[uint64]txnpb.TxnBatchRequest {
+func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, map[uint64]txnpb.TxnBatchRequest) {
+	hasCreateTxnRecordShard := uint64(0)
 	requests := make(map[uint64]txnpb.TxnBatchRequest)
+	createTxnRecord := request.Header.Options.CreateTxnRecord
 	appendRequest := func(toShard uint64, req txnpb.TxnRequest) {
 		if m, ok := requests[toShard]; ok {
 			m.Requests = append(m.Requests, req)
 		} else {
-			requests[toShard] = txnpb.TxnBatchRequest{
+			newBatchRequest := txnpb.TxnBatchRequest{
 				Header:   request.Header,
 				Requests: []txnpb.TxnRequest{req},
 			}
+			// if the origin request need to create txn record, and the request splited into multi requests,
+			// only the first request can create txn record.
+			newBatchRequest.Header.Options.CreateTxnRecord = false
+			if createTxnRecord {
+				hasCreateTxnRecordShard = toShard
+				newBatchRequest.Header.Options.CreateTxnRecord = true
+				createTxnRecord = false
+			}
+			requests[toShard] = newBatchRequest
 		}
 	}
 	for idx := range request.Requests {
@@ -120,46 +143,45 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) map[uint64
 			for i := range routeInfos {
 				appendRequest(routeInfos[i].ShardID, txnpb.TxnRequest{
 					Operation: routeInfos[i].Operation,
-					Options:   request.Requests[idx].Options,
 				})
 			}
 		}
 	}
-	return requests
+	return hasCreateTxnRecordShard, requests
 }
 
 func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest, result *dispatchResult) {
 	s.stopper.RunTask(ctx, func(ctx context.Context) {
-		var resp txnpb.TxnBatchResponse
-		var err error
-
-		if err := s.maybeTimeout(ctx); err != nil {
-			result.done(resp, err)
-			return
-		}
-
-		options := []raftstoreClient.Option{raftstoreClient.WithShard(shard),
-			raftstoreClient.WithReplicaSelectPolicy(s.replicaSelectPolicy)}
-		if !req.OnlyContainsSingleKey() {
-			min, max := req.GetMultiKeyRange()
-			options = append(options, raftstoreClient.WithKeysRange(min, max))
-		}
-
-		f := s.client.Txn(ctx, req, options...)
-		resp, err = f.GetTxn()
-		f.Close()
-		if err != nil {
-			if err == raftstore.ErrKeysNotInShard || raftstore.IsShardUnavailableErr(err) {
-				resp, err = s.handleNeedReRoute(ctx, req)
-				result.done(resp, err)
-				return
-			}
-
-			result.done(resp, err)
-			return
-		}
+		resp, err := s.doSyncSend(ctx, shard, req)
 		result.done(resp, err)
 	})
+}
+
+func (s *batchDispatcher) doSyncSend(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+	var resp txnpb.TxnBatchResponse
+	var err error
+
+	if err := s.maybeTimeout(ctx); err != nil {
+		return resp, err
+	}
+
+	options := []raftstoreClient.Option{raftstoreClient.WithShard(shard),
+		raftstoreClient.WithReplicaSelectPolicy(s.replicaSelectPolicy)}
+	if !req.OnlyContainsSingleKey() {
+		min, max := req.GetMultiKeyRange()
+		options = append(options, raftstoreClient.WithKeysRange(min, max))
+	}
+
+	f := s.client.Txn(ctx, req, options...)
+	resp, err = f.GetTxn()
+	f.Close()
+	if err != nil {
+		if err == raftstore.ErrKeysNotInShard || raftstore.IsShardUnavailableErr(err) {
+			return s.handleNeedReRoute(ctx, req)
+		}
+	}
+
+	return resp, err
 }
 
 func (s *batchDispatcher) handleNeedReRoute(ctx context.Context, req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {

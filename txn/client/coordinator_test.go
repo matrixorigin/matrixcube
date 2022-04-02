@@ -123,7 +123,7 @@ func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {
 	_, err = tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("k2"), tc.getTxnMeta().TxnRecordRouteKey)
-	assert.True(t, last.Requests[0].Options.CreateTxnRecord)
+	assert.True(t, last.Header.Options.CreateTxnRecord)
 }
 
 func TestHeatbeatStartedAfterFirstWrite(t *testing.T) {
@@ -170,38 +170,6 @@ func TestHeatbeatNotStartAfterFirstWriteWithCommit(t *testing.T) {
 	tc.mu.Unlock()
 }
 
-func TestInfightWritesAndCompletedWrites(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-
-	block := false
-	c := make(chan struct{})
-	defer close(c)
-	r := make(chan struct{})
-	defer close(r)
-	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
-		if block {
-			c <- struct{}{}
-			<-r
-		}
-		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	})
-	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
-	defer tc.stop()
-
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
-
-	go func() {
-		<-c
-		tc.mu.Lock()
-		defer tc.mu.Unlock()
-		assert.Equal(t, "k1", string(tc.mu.completedWrites.PointKeys[0]))
-		assert.Equal(t, "k2", string(tc.mu.infightWrites.PointKeys[0]))
-		r <- struct{}{}
-	}()
-	block = true
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
-}
-
 func TestSingleWriteSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
@@ -217,6 +185,30 @@ func TestSingleWriteSplit(t *testing.T) {
 	assert.Equal(t, 1, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
+	tc.mu.Lock()
+	assert.Equal(t, 0, tc.mu.infightWrites.Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites.PointKeys))
+	tc.mu.Unlock()
+}
+
+func TestWriteWithAsyncConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	tc.opts.optimize.asynchronousConsensus = true
+	defer tc.stop()
+
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 1, tc.mu.infightWrites.Len())
+	assert.Equal(t, 0, len(tc.mu.completedWrites.PointKeys))
+	tc.mu.Unlock()
 }
 
 func TestMultiWriteSplit(t *testing.T) {
@@ -636,15 +628,15 @@ func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch
 	return newTxnCoordinator(newTestSITxn(name, id, ts, skew, epoch),
 		sender,
 		clocker,
-		time.Millisecond*10,
-		log.GetPanicZapLoggerWithLevel(zap.DebugLevel))
+		log.GetPanicZapLoggerWithLevel(zap.DebugLevel),
+		txnOptions{heartbeatDuration: time.Millisecond * 10})
 }
 
 func newTestSITxn(name, id string, ts, skew uint64, epoch uint32) txnpb.TxnMeta {
 	return txnpb.TxnMeta{
 		ID:             []byte("id"),
 		Name:           name,
-		Isolation:      txnpb.Isolation_SI,
+		IsolationLevel: txnpb.IsolationLevel_SnapshotSerializable,
 		ReadTimestamp:  ts,
 		WriteTimestamp: ts,
 		MaxTimestamp:   ts + skew,

@@ -11,7 +11,7 @@ func TestSortPointKeys(t *testing.T) {
 	m.PointKeys = append(m.PointKeys, []byte("k1"))
 	m.PointKeys = append(m.PointKeys, []byte("k3"))
 	m.PointKeys = append(m.PointKeys, []byte("k2"))
-	m.sort()
+	m.Sort()
 	assert.Equal(t, [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")}, m.PointKeys)
 }
 
@@ -20,7 +20,7 @@ func TestSortRanges(t *testing.T) {
 	m.Ranges = append(m.Ranges, KeyRange{Start: []byte("k1"), End: []byte("k2")})
 	m.Ranges = append(m.Ranges, KeyRange{Start: []byte("k3"), End: []byte("k4")})
 	m.Ranges = append(m.Ranges, KeyRange{Start: []byte("k2"), End: []byte("k3")})
-	m.sort()
+	m.Sort()
 	assert.Equal(t, KeyRange{Start: []byte("k1"), End: []byte("k2")}, m.Ranges[0])
 	assert.Equal(t, KeyRange{Start: []byte("k2"), End: []byte("k3")}, m.Ranges[1])
 	assert.Equal(t, KeyRange{Start: []byte("k3"), End: []byte("k4")}, m.Ranges[2])

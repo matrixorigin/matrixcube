@@ -8,14 +8,14 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_enum_prefix_all) = true;
 
-// Isolation is the transaction isolation Level
-enum Isolation {
-    // RC read committed
-    RC         = 0;
-    // RCReadOnly read committed, but only read-only transaction
-    RCReadOnly = 1;
-    // SI snapshot serializable 
-    SI         = 2;
+// IsolationLevel is the transaction isolation Level
+enum IsolationLevel {
+    // SnapshotSerializable snapshot serializable 
+    SnapshotSerializable  = 0;
+    // ReadCommitted read committed
+    ReadCommitted         = 1;
+    // ReadCommittedReadOnly read committed, but only read-only transaction
+    ReadCommittedReadOnly = 2;
 }
 
 // TxnStatus transaction status
@@ -43,8 +43,8 @@ message TxnMeta {
     bytes     id                  = 1  [(gogoproto.customname) = "ID"];
     // Name transaction name
     string    name                = 2;
-    // Isolation transaction isolation level
-    Isolation isolation           = 3;
+    // IsolationLevel transaction isolation level
+    IsolationLevel isolationLevel = 3;
     // TxnRecordRouteKey used to locate which Shard the TxnRecord is in.
     bytes     txnRecordRouteKey   = 4;
     // TxnRecordShardGroup used to locate which ShardGroup the TxnRecord is in.
@@ -125,16 +125,20 @@ message KeySet {
     repeated bytes    pointKeys = 1;
     // Ranges the set of range `originKey`
     repeated KeyRange ranges    = 2 [(gogoproto.nullable) = false];
+    // Sorted all keys and ranges are sorted
+    bool              sorted    = 3;
 }
 
 // InternalTxnOp transaction framework internal operation types.
 enum InternalTxnOp {
     // Heartbeat txn heartbeat operation
-    Heartbeat = 0;
+    Heartbeat     = 0;
     // Commit txn commit operation
-    Commit    = 1;
+    Commit        = 1;
     // Rollback txn rollback operation
-    Rollback  = 2;
+    Rollback      = 2;
+    // WaitConsensus waiting for consensus to be completed
+    WaitConsensus = 3;
     // Reserved txn reserved operation value, all custom transaction
     // read and write operation type can not use the value below the 
     // reserved value.
@@ -179,6 +183,8 @@ message TxnBatchRequestHeader {
     TxnOpMeta      txn              = 1 [(gogoproto.nullable) = false];
     // TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
     TxnRequestType type             = 2;
+     // RequestOptions request options
+    RequestOptions options          = 3 [(gogoproto.nullable) = false];
 }
 
 // TxnBatchResponseHeader the head of TxnBatchResponse.
@@ -205,9 +211,6 @@ message TxnBatchResponse {
 message TxnRequest {
     // Operation the TxnOperation
     TxnOperation    operation = 1 [(gogoproto.nullable) = false];
-    // OperationOptions for the first write operation, you need to write to TxnRecod 
-    // at the same time.
-    OperationOptions options  = 2 [(gogoproto.nullable) = false];
 }
 
 // TxnResponse is TxnOperation response
@@ -216,10 +219,12 @@ message TxnResponse {
     bytes data = 1;
 }
 
-// OperationOptions option options
-message OperationOptions {
-    // CreateTxnRecord 
-    bool createTxnRecord = 1;
+// RequestOptions request options
+message RequestOptions {
+    // CreateTxnRecord the current request requires the creation of a TxnRecord
+    bool createTxnRecord       = 1;
+    // AasynchronousConsensus current request with asynchronous consensus on
+    bool asynchronousConsensus = 2;
 }
 
 // TxnError txn error, Special errors encountered in transaction operations,

@@ -53,18 +53,51 @@ func TestRouteRequest(t *testing.T) {
 	defer bd.Close()
 
 	req := newTestBatchRequest(1)
-	m := bd.routeRequest(req)
+	s, m := bd.routeRequest(req)
+	assert.Equal(t, s, uint64(0))
+	assert.Equal(t, 1, len(m))
+	assert.Equal(t, 1, len(m[1].Requests))
+	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys, m[1].Requests[0].Operation.Impacted.PointKeys)
+
+	req = newTestBatchRequest(1)
+	req.Header.Type = txnpb.TxnRequestType_Write
+	s, m = bd.routeRequest(req)
+	assert.Equal(t, s, uint64(0))
+	assert.Equal(t, 1, len(m))
+	assert.Equal(t, 1, len(m[1].Requests))
+	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys, m[1].Requests[0].Operation.Impacted.PointKeys)
+
+	req = newTestBatchRequest(1)
+	req.Header.Type = txnpb.TxnRequestType_Write
+	req.Header.Options.CreateTxnRecord = true
+	s, m = bd.routeRequest(req)
+	assert.Equal(t, s, uint64(1))
 	assert.Equal(t, 1, len(m))
 	assert.Equal(t, 1, len(m[1].Requests))
 	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys, m[1].Requests[0].Operation.Impacted.PointKeys)
 
 	req = newTestBatchRequest(1, 2)
-	m = bd.routeRequest(req)
+	s, m = bd.routeRequest(req)
+	assert.Equal(t, s, uint64(0))
 	assert.Equal(t, 2, len(m))
 	assert.Equal(t, 1, len(m[1].Requests))
 	assert.Equal(t, 1, len(m[2].Requests))
 	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[:1], m[1].Requests[0].Operation.Impacted.PointKeys)
 	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[1:], m[2].Requests[0].Operation.Impacted.PointKeys)
+
+	req = newTestBatchRequest(1, 2)
+	req.Header.Type = txnpb.TxnRequestType_Write
+	req.Header.Options.CreateTxnRecord = true
+	s, m = bd.routeRequest(req)
+	assert.Equal(t, s, uint64(1))
+	assert.Equal(t, 2, len(m))
+	assert.Equal(t, 1, len(m[1].Requests))
+	assert.Equal(t, 1, len(m[2].Requests))
+	assert.True(t, m[1].Header.Options.CreateTxnRecord)
+	assert.False(t, m[2].Header.Options.CreateTxnRecord)
+	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[:1], m[1].Requests[0].Operation.Impacted.PointKeys)
+	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[1:], m[2].Requests[0].Operation.Impacted.PointKeys)
+
 }
 
 func TestDispatcherSend(t *testing.T) {
@@ -89,6 +122,37 @@ func TestDispatcherSend(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(resp.Responses))
 	assert.Equal(t, "ok", string(resp.Responses[0].Data))
+}
+
+func TestDispatcherSendWithCreateTxnRecordToMultiShards(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	router := raftstore.NewMockRouter()
+	addTestShard(router, 1, "10/11,20/21,30/31")
+	addTestShard(router, 2, "100/101,200/201,300/301")
+	addTestShard(router, 3, "1000/1001,2000/2001,3000/3001")
+
+	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
+			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
+		}}}}, nil
+	})
+	defer client.Stop()
+
+	bd := newTestBatchDispatcher(client)
+	defer bd.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	req := newTestBatchRequest(1, 2, 3)
+	req.Header.Type = txnpb.TxnRequestType_Write
+	req.Header.Options.CreateTxnRecord = true
+	resp, err := bd.Send(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(resp.Responses))
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, "ok", string(resp.Responses[0].Data))
+	}
 }
 
 func TestDispatcherSendWithInternal(t *testing.T) {
