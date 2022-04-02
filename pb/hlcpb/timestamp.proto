@@ -14,8 +14,6 @@
 syntax = "proto3";
 package hlcpb;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
 // Timestamp is a HLC time value. All its field should never be accessed
 // directly by its users. 
 message Timestamp {

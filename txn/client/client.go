@@ -15,7 +15,6 @@ package client
 
 import (
 	"context"
-	"time"
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
@@ -26,7 +25,7 @@ import (
 // TxnClient distributed transaction client.
 type TxnClient interface {
 	// NewTxn create transaction operation handles to perform transaction operations.
-	NewTxn(name string, isolation txnpb.Isolation) TxnOperator
+	NewTxn(opts ...TxnOption) TxnOperator
 }
 
 var _ TxnClient = (*txnClient)(nil)
@@ -37,7 +36,6 @@ type txnClient struct {
 	txnPriorityGenerator TxnPriorityGenerator
 	txnClocker           TxnClocker
 	dispatcher           BatchDispatcher
-	txnHeartbeatDuration time.Duration
 }
 
 // NewTxnClient create a txn client
@@ -51,11 +49,17 @@ func NewTxnClient(dispatcher BatchDispatcher, opts ...Option) TxnClient {
 }
 
 // NewTxn create a txn and returns the txn operator.
-func (tc *txnClient) NewTxn(name string, isolation txnpb.Isolation) TxnOperator {
+func (tc *txnClient) NewTxn(opts ...TxnOption) TxnOperator {
+	options := txnOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	options.adjust()
+
 	now, maxSkew := tc.txnClocker.Now()
 	txn := txnpb.TxnMeta{
-		Name:           name,
-		Isolation:      isolation,
+		Name:           options.name,
+		IsolationLevel: options.isolationLevel,
 		ReadTimestamp:  now,
 		WriteTimestamp: now,
 		MaxTimestamp:   now + maxSkew,
@@ -63,11 +67,11 @@ func (tc *txnClient) NewTxn(name string, isolation txnpb.Isolation) TxnOperator 
 	txn.ID = tc.txnIDGenerator.Generate()
 	txn.Priority = tc.txnPriorityGenerator.Generate()
 	util.LogTxnMeta(tc.logger, zap.DebugLevel, "txn created", txn)
-	return NewTxnOperator(txn,
+	return newTxnOperator(txn,
 		tc.dispatcher,
 		tc.txnClocker,
-		tc.txnHeartbeatDuration,
-		tc.logger)
+		tc.logger,
+		options)
 }
 
 func (tc *txnClient) adjust() {
@@ -81,10 +85,6 @@ func (tc *txnClient) adjust() {
 
 	if tc.txnPriorityGenerator == nil {
 		tc.txnPriorityGenerator = newTxnPriorityGenerator()
-	}
-
-	if tc.txnHeartbeatDuration == 0 {
-		tc.txnHeartbeatDuration = time.Second * 5
 	}
 }
 
@@ -100,11 +100,14 @@ type TxnOperator interface {
 	// Each TxnOperation can be split into multiple `TxnOperations` by the `Splitter` and
 	// the framework will send these split `TxnOperations` to the corresponding Shard for
 	// execution. The Write method will only return when all TxnOperations have been executed.
+	// Note: use `txnpb.NewWriteOnlyOperation` or `txnpb.NewReadWriteOperation` to build
+	// TxnOperation.
 	Write(ctx context.Context, operations []txnpb.TxnOperation) error
 	// WriteAndCommit similar to `Wirte`, but commit the transaction after completing the write.
 	WriteAndCommit(ctx context.Context, operations []txnpb.TxnOperation) error
 	// Read transactional read operations, each read operation needs to specify a shard to a shard,
 	// or provide a RouteKey to route to a shard.
+	// Note: use `txnpb.NewReadOperation` to build TxnOperation.
 	Read(ctx context.Context, operations []txnpb.TxnOperation) ([][]byte, error)
 	// Rollback rollback transactions, once the transaction is rolled back, the transaction's temporary
 	// write data is cleaned up asynchronously.
@@ -118,18 +121,17 @@ type TxnOperator interface {
 
 var _ TxnOperator = (*txnOperator)(nil)
 
-// NewTxnOperator create txn operator, a txn corresponds to a TxnOperator instance.
-func NewTxnOperator(txnMeta txnpb.TxnMeta,
+func newTxnOperator(txnMeta txnpb.TxnMeta,
 	dispatcher BatchDispatcher,
 	txnClocker TxnClocker,
-	txnHeartbeatDuration time.Duration,
-	logger *zap.Logger) TxnOperator {
+	logger *zap.Logger,
+	opts txnOptions) TxnOperator {
 	return &txnOperator{
 		tc: newTxnCoordinator(txnMeta,
 			dispatcher,
 			txnClocker,
-			txnHeartbeatDuration,
-			logger),
+			logger,
+			opts),
 	}
 }
 
