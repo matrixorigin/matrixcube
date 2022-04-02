@@ -68,6 +68,15 @@ GOTEST = $(SILENT_MARK)$(TEST_ENV) $(GOEXEC) $(TEST_OPTIONS) $(SHORT_ONLY) $(TES
 .PHONY: all
 all: test
 
+.PHONY: test-util
+test-util:
+	$(GOTEST) $(PKGNAME)/util/hlc
+
+.PHONY: test-pb
+test-pb:
+	$(GOTEST) $(PKGNAME)/pb/txnpb
+	$(GOTEST) $(PKGNAME)/pb/hlcpb
+
 .PHONY: test-storage
 test-storage:
 	$(GOTEST) $(PKGNAME)/storage/kv
@@ -117,7 +126,7 @@ integration-test: test-all-raftstore
 
 .PHONY: components-unit-test
 components-unit-test: test-storage test-logdb test-client test-transport test-keys \
-  test-snapshot test-prophet test-txn
+  test-snapshot test-prophet test-txn test-pb test-util
 
 .PHONY: test
 test: components-unit-test test-raftstore
@@ -155,7 +164,8 @@ DIRS=storage \
 		 transport \
 		 logdb \
 		 raftstore \
-		 txn
+		 txn \
+		 util/hlc
 
 EXTRA_LINTERS=-E misspell -E exportloopref -E rowserrcheck -E depguard -E unconvert \
 	-E prealloc -E gofmt -E stylecheck
