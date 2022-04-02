@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/util/keys"
 )
 
@@ -39,8 +40,7 @@ func (m TxnBatchRequest) OnlyContainsSingleKey() bool {
 func (m TxnBatchRequest) GetMultiKeyRange() ([]byte, []byte) {
 	var min, max []byte
 	for idx := range m.Requests {
-		m.Requests[idx].Operation.Impacted.Sort()
-		v1, v2 := m.Requests[idx].Operation.Impacted.getKeyRange()
+		v1, v2 := m.Requests[idx].Operation.Impacted.GetKeyRange()
 		if len(min) == 0 && len(max) == 0 {
 			min, max = v1, v2
 			continue
@@ -67,6 +67,41 @@ func (m TxnBatchRequest) HasWaitConsensus() bool {
 	return false
 }
 
+// AddRequest add request
+func (m *TxnBatchRequest) AddRequest(req TxnRequest) {
+	m.Requests = append(m.Requests, req)
+}
+
+// AddManyRequest add many request
+func (m *TxnBatchRequest) AddManyRequest(reqs []TxnRequest) {
+	m.Requests = append(m.Requests, reqs...)
+}
+
+// Clone clone the txn batch request
+func (m TxnBatchRequest) Clone() TxnBatchRequest {
+	cloned := TxnBatchRequest{}
+	protoc.MustUnmarshal(&cloned, protoc.MustMarshal(&m))
+	return cloned
+}
+
+// GetLastPreCommitRequestIdx return the last pre commit idx
+func (m TxnBatchRequest) GetLastPreCommitRequestIdx() int {
+	lastPreCommitIdx := -1
+	n := len(m.Requests) - 1
+	for i := n - 1; i >= 0; i-- {
+		if !m.Requests[i].IsWaitConsensus() {
+			break
+		}
+		lastPreCommitIdx = i
+	}
+	return lastPreCommitIdx
+}
+
+// Switch switch the request by index
+func (m *TxnBatchRequest) Switch(idx1, idx2 int) {
+	m.Requests[idx1], m.Requests[idx2] = m.Requests[idx2], m.Requests[idx1]
+}
+
 // IsInternal is internal request
 func (m TxnRequest) IsInternal() bool {
 	return m.Operation.Op < uint32(InternalTxnOp_Reserved)
@@ -74,7 +109,7 @@ func (m TxnRequest) IsInternal() bool {
 
 // IsCommitOrRollback is a commit or rollback request
 func (m TxnRequest) IsCommitOrRollback() bool {
-	return m.IsCommit() || m.IsInternal()
+	return m.IsCommit() || m.IsRollback()
 }
 
 // IsCommit is commit request
@@ -90,6 +125,12 @@ func (m TxnRequest) IsRollback() bool {
 // IsWaitConsensus is wait consensus request
 func (m TxnRequest) IsWaitConsensus() bool {
 	return m.Operation.Op < uint32(InternalTxnOp_Reserved)
+}
+
+// HasReadImpacted returns the keys in the keyset will be read
+func (m TxnRequest) HasReadImpacted() bool {
+	return !m.IsInternal() && (m.Operation.ImpactedType == ImpactedType_ReadImpacted ||
+		m.Operation.ImpactedType == ImpactedType_ReadWriteImpacted)
 }
 
 // IsFinal is final status
@@ -109,7 +150,7 @@ func (m TxnMeta) IsEmpty() bool {
 
 // IsEmpty returns true if KeySet no pointKeys or KeyRanges
 func (m KeySet) IsEmpty() bool {
-	return len(m.PointKeys) == 0 || len(m.Ranges) == 0
+	return len(m.PointKeys) == 0 && len(m.Ranges) == 0
 }
 
 // HasPointKeys returns true if KeySet any pointKeys
@@ -134,7 +175,19 @@ func (m KeySet) HasPointKey(key []byte) bool {
 
 // AddPointKeys add point keys
 func (m *KeySet) AddPointKeys(keys [][]byte) {
+	if len(keys) == 0 {
+		return
+	}
 	m.PointKeys = append(m.PointKeys, keys...)
+	m.Sorted = false
+}
+
+// AddKeyRanges add range keys
+func (m *KeySet) AddKeyRanges(ranges []KeyRange) {
+	if len(ranges) == 0 {
+		return
+	}
+	m.Ranges = append(m.Ranges, ranges...)
 	m.Sorted = false
 }
 
@@ -159,7 +212,9 @@ func (m *KeySet) Sort() {
 	m.Sorted = true
 }
 
-func (m KeySet) getKeyRange() ([]byte, []byte) {
+// GetKeyRange returns the [max, min) range of the keyset containing the key
+func (m *KeySet) GetKeyRange() ([]byte, []byte) {
+	m.Sort()
 	var min, max []byte
 	if len(m.PointKeys) > 0 {
 		min = m.PointKeys[0]
@@ -176,4 +231,30 @@ func (m KeySet) getKeyRange() ([]byte, []byte) {
 		}
 	}
 	return min, max
+}
+
+// NewReadOperation returns the read operation
+func NewReadOperation(op uint32, payload []byte, impactedKeys KeySet) TxnOperation {
+	return newTxnOperation(op, payload, impactedKeys, ImpactedType_ReadImpacted)
+}
+
+// NewWriteOnlyOperation returns the write operation, any only write the keys.
+// E.g insert operation
+func NewWriteOnlyOperation(op uint32, payload []byte, impactedKeys KeySet) TxnOperation {
+	return newTxnOperation(op, payload, impactedKeys, ImpactedType_WriteImpacted)
+}
+
+// NewReadWriteOperation returns the write operation, but read the keys before write.
+// E.g. update operation
+func NewReadWriteOperation(op uint32, payload []byte, impactedKeys KeySet) TxnOperation {
+	return newTxnOperation(op, payload, impactedKeys, ImpactedType_ReadWriteImpacted)
+}
+
+func newTxnOperation(op uint32, payload []byte, impactedKeys KeySet, impactedType ImpactedType) TxnOperation {
+	return TxnOperation{
+		Op:           op,
+		Payload:      payload,
+		Impacted:     impactedKeys,
+		ImpactedType: impactedType,
+	}
 }

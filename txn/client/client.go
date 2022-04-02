@@ -100,11 +100,14 @@ type TxnOperator interface {
 	// Each TxnOperation can be split into multiple `TxnOperations` by the `Splitter` and
 	// the framework will send these split `TxnOperations` to the corresponding Shard for
 	// execution. The Write method will only return when all TxnOperations have been executed.
+	// Note: use `txnpb.NewWriteOnlyOperation` or `txnpb.NewReadWriteOperation` to build
+	// TxnOperation.
 	Write(ctx context.Context, operations []txnpb.TxnOperation) error
 	// WriteAndCommit similar to `Wirte`, but commit the transaction after completing the write.
 	WriteAndCommit(ctx context.Context, operations []txnpb.TxnOperation) error
 	// Read transactional read operations, each read operation needs to specify a shard to a shard,
 	// or provide a RouteKey to route to a shard.
+	// Note: use `txnpb.NewReadOperation` to build TxnOperation.
 	Read(ctx context.Context, operations []txnpb.TxnOperation) ([][]byte, error)
 	// Rollback rollback transactions, once the transaction is rolled back, the transaction's temporary
 	// write data is cleaned up asynchronously.

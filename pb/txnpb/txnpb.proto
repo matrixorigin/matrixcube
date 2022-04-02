@@ -84,10 +84,10 @@ message TxnRecord {
     uint64    lastHeartbeat   = 3;
     // CompletedWrites record the current transaction has completed the consensus write 
     // operation.
-    KeySet    completedWrites = 4 [(gogoproto.nullable) = false];
+    map<uint64, KeySet> completedWrites = 4 [(gogoproto.nullable) = false];
     // InfightWrites record the current transaction has not completed the consensus write
     // operation.
-    KeySet    infightWrites   = 5 [(gogoproto.nullable) = false];
+    map<uint64, KeySet> infightWrites   = 5 [(gogoproto.nullable) = false];
 }
 
 // TxnOpMeta metadata for transaction operations, with fields related to the 
@@ -102,10 +102,10 @@ message TxnOpMeta {
     uint32    sequence        = 3;
     // CompletedWrites record the current transaction has completed the consensus write 
     // operation. Only when it is a Commit or Rollback transaction, it will be attached.
-    KeySet    completedWrites = 4;
+    map<uint64, KeySet>    completedWrites = 4 [(gogoproto.nullable) = false];
     // InfightWrites record the current transaction has not completed the consensus write
     // operation. Only when it is a Commit or Rollback transaction, it will be attached.
-    KeySet    infightWrites   = 5;
+    map<uint64, KeySet>    infightWrites   = 5 [(gogoproto.nullable) = false];
 }
 
 // KeyRange description of the set of Keys in the range [start, end) 
@@ -145,21 +145,33 @@ enum InternalTxnOp {
     Reserved  = 1000;
 }
 
+// ImpactedType type of impact
+enum ImpactedType {
+    // ReadImpacted read the keys in impacted
+    ReadImpacted      = 0;
+    // WriteImpacted write the keys in impacted
+    WriteImpacted     = 1;
+    // ReadWriteImpacted read and write the keys in impacted
+    ReadWriteImpacted = 2;
+}
+
 // TxnOperation a operation for transaction. Called at TxnOperator and executed on 
 // the Lease Holder of Shard.
 message TxnOperation {
     // Op the specific type of request, e.g. Set/Get/Delete.
-    uint32 op         = 1;
+    uint32 op                 = 1;
     // Payload the data of request.
-    bytes  payload    = 2;
+    bytes  payload            = 2;
     // Impacted impact data KeySet for transaction framework to do conflict detection, 
     // Lock, Latch and asynchronous consensus optimization.
-    KeySet impacted   = 3 [(gogoproto.nullable) = false];
+    KeySet impacted           = 3 [(gogoproto.nullable) = false];
+    // ImpactedType how the keys are impacted
+    ImpactedType impactedType = 4;
     // ShardGroup which shard group the data is in
-    uint64 shardGroup = 4;
+    uint64 shardGroup         = 5;
     // Timestamp the timestamp of the transaction operation initiation, the request in 
     // heartbeat will be accompanied by.
-    uint64 timestamp  = 5;
+    uint64 timestamp          = 6;
 }
 
 // TxnRequestType transaction request type

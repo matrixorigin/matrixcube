@@ -75,6 +75,30 @@ func (s *batchDispatcher) Send(ctx context.Context, request txnpb.TxnBatchReques
 	result := dispatchResult{
 		txnClocker: s.txnClocker,
 	}
+
+	// try to split pre-commit WaitConsensus requests and commit, make sure the commit or rollback
+	// request can see the reuslt of the in-fight writes.
+	n := len(request.Requests)
+	if request.HasCommitOrRollback() && n > 1 {
+		idx := request.GetLastPreCommitRequestIdx()
+		if idx > 0 {
+			request.Switch(idx, n-1)
+			waitConsensusBatch := txnpb.TxnBatchRequest{
+				Header:   request.Header,
+				Requests: request.Requests[idx+1:],
+			}
+
+			resp, err := s.Send(ctx, waitConsensusBatch)
+			if err != nil {
+				return txnpb.TxnBatchResponse{}, err
+			}
+			result.wg.Add(1)
+			result.done(resp, nil)
+
+			request.Requests = request.Requests[:idx+1]
+		}
+	}
+
 	createTxnRecordShard, splitted := s.routeRequest(request)
 	if createTxnRecordShard > 0 {
 		resp, err := s.doSyncSend(ctx, createTxnRecordShard, splitted[createTxnRecordShard])
@@ -131,6 +155,11 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 				txnpb.InternalTxnOp_Rollback:
 				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Header.Txn.TxnRecordRouteKey)
+				appendRequest(toShard, request.Requests[idx])
+				break
+			case txnpb.InternalTxnOp_WaitConsensus:
+				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
+					request.Requests[idx].Operation.Impacted.PointKeys[0])
 				appendRequest(toShard, request.Requests[idx])
 				break
 			}
@@ -321,7 +350,7 @@ func (s *mockBatchDispatcher) Send(ctx context.Context, req txnpb.TxnBatchReques
 	s.Lock()
 	defer s.Unlock()
 
-	return s.fn(req)
+	return s.fn(req.Clone())
 }
 
 func (s *mockBatchDispatcher) Close() {

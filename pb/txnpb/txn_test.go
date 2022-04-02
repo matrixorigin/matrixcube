@@ -70,3 +70,50 @@ func TestGetMultiKeyRange(t *testing.T) {
 	assert.Equal(t, []byte("k1"), min)
 	assert.Equal(t, []byte("k9"), max)
 }
+
+func TestGetKeyRange(t *testing.T) {
+	v := KeySet{
+		PointKeys: [][]byte{[]byte("k1"), []byte("k2"), []byte("k3")},
+		Ranges: []KeyRange{
+			{
+				Start: []byte("k1"), End: []byte("k2"),
+			},
+			{
+				Start: []byte("k3"), End: []byte("k4"),
+			},
+			{
+				Start: []byte("k2"), End: []byte("k3"),
+			},
+		},
+	}
+	min, max := v.GetKeyRange()
+	assert.Equal(t, []byte("k1"), min)
+	assert.Equal(t, []byte("k4"), max)
+	assert.True(t, v.Sorted)
+
+	v = KeySet{
+		PointKeys: [][]byte{[]byte("k1")},
+	}
+	min, max = v.GetKeyRange()
+	assert.Equal(t, []byte("k1"), min)
+	assert.Equal(t, []byte("k1\x00"), max)
+	assert.True(t, v.Sorted)
+
+	v = KeySet{
+		Ranges: []KeyRange{
+			{
+				Start: []byte("k1"), End: []byte("k2"),
+			},
+			{
+				Start: []byte("k3"), End: []byte("k4"),
+			},
+			{
+				Start: []byte("k2"), End: []byte("k3"),
+			},
+		},
+	}
+	min, max = v.GetKeyRange()
+	assert.Equal(t, []byte("k1"), min)
+	assert.Equal(t, []byte("k4"), max)
+	assert.True(t, v.Sorted)
+}

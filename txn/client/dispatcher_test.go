@@ -884,6 +884,90 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedAndUncertaintyError(t *tes
 	}
 }
 
+func TestDispatcherSendOnlyCommitWithNoSwitchWaitConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	router := raftstore.NewMockRouter()
+	addTestShard(router, 1, "10/11,20/21,30/31")
+
+	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
+			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
+		}}}}, nil
+	})
+	defer client.Stop()
+
+	bd := newTestBatchDispatcher(client)
+	defer bd.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	resp, err := bd.Send(ctx, newTestBatchInternalRequest(1))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, "ok", string(resp.Responses[0].Data))
+}
+
+func TestDispatcherSendCommitAndNonWaitConsensusWithNoSwitchWaitConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	router := raftstore.NewMockRouter()
+	addTestShard(router, 1, "10/11,20/21,30/31")
+
+	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
+			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
+		}}}}, nil
+	})
+	defer client.Stop()
+
+	bd := newTestBatchDispatcher(client)
+	defer bd.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+
+	req := newTestBatchRequest(1)
+	appendTestCommitRequest(&req, 1)
+	resp, err := bd.Send(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(resp.Responses))
+	assert.Equal(t, "ok", string(resp.Responses[0].Data))
+}
+
+func TestDispatcherSendCommitAndWithSwitchWaitConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	router := raftstore.NewMockRouter()
+	addTestShard(router, 1, "10/11,20/21,30/31")
+
+	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
+		data := []byte("ok")
+		if r.TxnBatchRequest.Requests[0].IsWaitConsensus() {
+			data = []byte("wait")
+		}
+		return rpcpb.ResponseBatch{Responses: []rpcpb.Response{{ID: r.ID, TxnBatchResponse: &txnpb.TxnBatchResponse{
+			Responses: []txnpb.TxnResponse{{Data: data}},
+		}}}}, nil
+	})
+	defer client.Stop()
+
+	bd := newTestBatchDispatcher(client)
+	defer bd.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+
+	req := newTestBatchRequest(1)
+	appendTestInternalRequest(&req, 1, txnpb.InternalTxnOp_WaitConsensus)
+	appendTestCommitRequest(&req, 1)
+	resp, err := bd.Send(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(resp.Responses))
+	assert.Equal(t, "wait", string(resp.Responses[0].Data))
+	assert.Equal(t, "ok", string(resp.Responses[1].Data))
+}
+
 func newTestBatchRequest(ids ...uint64) txnpb.TxnBatchRequest {
 	keys := make([][]byte, 0, len(ids))
 	for _, id := range ids {
@@ -914,6 +998,25 @@ func newTestBatchInternalRequest(id uint64) txnpb.TxnBatchRequest {
 		},
 	})
 	return req
+}
+
+func appendTestCommitRequest(req *txnpb.TxnBatchRequest, id uint64) {
+	req.Header.Txn.TxnRecordRouteKey = format.Uint64ToBytes(id)
+	req.Requests = append(req.Requests, txnpb.TxnRequest{
+		Operation: txnpb.TxnOperation{
+			Op:       uint32(txnpb.InternalTxnOp_Commit),
+			Impacted: txnpb.KeySet{PointKeys: [][]byte{format.Uint64ToBytes(id)}},
+		},
+	})
+}
+
+func appendTestInternalRequest(req *txnpb.TxnBatchRequest, id uint64, op txnpb.InternalTxnOp) {
+	req.Requests = append(req.Requests, txnpb.TxnRequest{
+		Operation: txnpb.TxnOperation{
+			Op:       uint32(op),
+			Impacted: txnpb.KeySet{PointKeys: [][]byte{format.Uint64ToBytes(id)}},
+		},
+	})
 }
 
 func addTestShard(router raftstore.Router, shardID uint64, shardInfo string) {
