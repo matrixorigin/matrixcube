@@ -125,9 +125,8 @@ func (s *batchDispatcher) Close() {
 // routeRequest for custom read and write requests, a request may contain multiple data operations, so a request
 // needs to be split into multiple requests to be sent to the corresponding Shard.
 func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, map[uint64]txnpb.TxnBatchRequest) {
-	hasCreateTxnRecordShard := uint64(0)
+	createTxnRecordShard := uint64(0)
 	requests := make(map[uint64]txnpb.TxnBatchRequest)
-	createTxnRecord := request.Header.Options.CreateTxnRecord
 	appendRequest := func(toShard uint64, req txnpb.TxnRequest) {
 		if m, ok := requests[toShard]; ok {
 			m.Requests = append(m.Requests, req)
@@ -138,11 +137,8 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 			}
 			// if the origin request need to create txn record, and the request splited into multi requests,
 			// only the first request can create txn record.
-			newBatchRequest.Header.Options.CreateTxnRecord = false
-			if createTxnRecord {
-				hasCreateTxnRecordShard = toShard
-				newBatchRequest.Header.Options.CreateTxnRecord = true
-				createTxnRecord = false
+			if req.Options.CreateTxnRecord {
+				createTxnRecordShard = toShard
 			}
 			requests[toShard] = newBatchRequest
 		}
@@ -170,13 +166,17 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 					zap.Error(err))
 			}
 			for i := range routeInfos {
-				appendRequest(routeInfos[i].ShardID, txnpb.TxnRequest{
+				req := txnpb.TxnRequest{
 					Operation: routeInfos[i].Operation,
-				})
+					Options:   request.Requests[idx].Options,
+				}
+				// Only first request can create txn record
+				req.Options.CreateTxnRecord = req.Options.CreateTxnRecord && i == 0
+				appendRequest(routeInfos[i].ShardID, req)
 			}
 		}
 	}
-	return hasCreateTxnRecordShard, requests
+	return createTxnRecordShard, requests
 }
 
 func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest, result *dispatchResult) {

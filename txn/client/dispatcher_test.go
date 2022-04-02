@@ -69,7 +69,7 @@ func TestRouteRequest(t *testing.T) {
 
 	req = newTestBatchRequest(1)
 	req.Header.Type = txnpb.TxnRequestType_Write
-	req.Header.Options.CreateTxnRecord = true
+	req.Requests[0].Options.CreateTxnRecord = true
 	s, m = bd.routeRequest(req)
 	assert.Equal(t, s, uint64(1))
 	assert.Equal(t, 1, len(m))
@@ -87,14 +87,14 @@ func TestRouteRequest(t *testing.T) {
 
 	req = newTestBatchRequest(1, 2)
 	req.Header.Type = txnpb.TxnRequestType_Write
-	req.Header.Options.CreateTxnRecord = true
+	req.Requests[0].Options.CreateTxnRecord = true
 	s, m = bd.routeRequest(req)
 	assert.Equal(t, s, uint64(1))
 	assert.Equal(t, 2, len(m))
 	assert.Equal(t, 1, len(m[1].Requests))
 	assert.Equal(t, 1, len(m[2].Requests))
-	assert.True(t, m[1].Header.Options.CreateTxnRecord)
-	assert.False(t, m[2].Header.Options.CreateTxnRecord)
+	assert.True(t, m[1].Requests[0].Options.CreateTxnRecord)
+	assert.False(t, m[2].Requests[0].Options.CreateTxnRecord)
 	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[:1], m[1].Requests[0].Operation.Impacted.PointKeys)
 	assert.Equal(t, req.Requests[0].Operation.Impacted.PointKeys[1:], m[2].Requests[0].Operation.Impacted.PointKeys)
 
@@ -146,7 +146,7 @@ func TestDispatcherSendWithCreateTxnRecordToMultiShards(t *testing.T) {
 	defer cancel()
 	req := newTestBatchRequest(1, 2, 3)
 	req.Header.Type = txnpb.TxnRequestType_Write
-	req.Header.Options.CreateTxnRecord = true
+	req.Requests[0].Options.CreateTxnRecord = true
 	resp, err := bd.Send(ctx, req)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(resp.Responses))

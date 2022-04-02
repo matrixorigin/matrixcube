@@ -161,7 +161,7 @@ func (c *coordinator) prepareSend(ctx context.Context, batchRequest *txnpb.TxnBa
 			// the TxnRecordRouteKey.
 			c.mu.txnMeta.TxnRecordRouteKey = batchRequest.Requests[0].Operation.Impacted.PointKeys[0]
 			c.mu.txnMeta.TxnRecordShardGroup = batchRequest.Requests[0].Operation.ShardGroup
-			batchRequest.Header.Options.CreateTxnRecord = true
+			batchRequest.Requests[0].Options.CreateTxnRecord = true
 			createTxnRecord = true
 		}
 	}
@@ -262,35 +262,44 @@ func (c *coordinator) canSendLocked() error {
 }
 
 func (c *coordinator) addInfightWritesLocked(batchRequest *txnpb.TxnBatchRequest) {
-	asyncConsensus := false
-	if c.supportAsyncConsensus() {
-		batchRequest.Header.Options.AsynchronousConsensus = true
-		asyncConsensus = true
-	}
-
-	// TODO: compaction the infight writes by maxInfightBytes
 	for idx := range batchRequest.Requests {
+		asyncConsensus := false
 		if !batchRequest.Requests[idx].IsInternal() {
 			if batchRequest.Requests[idx].Operation.Impacted.IsEmpty() {
 				c.logger.Fatal("write operation has no impacted keys")
 			}
 
-			if batchRequest.Requests[idx].Operation.Impacted.HasPointKeys() {
-				asyncConsensus = true
-			}
-			// range update can not perform async consensus, because we can not clearly
-			// know which keys are in the consensus
-			if batchRequest.Requests[idx].Operation.Impacted.HasKeyRanges() {
-				asyncConsensus = false
+			if c.supportAsyncConsensus() {
+				if batchRequest.Requests[idx].Operation.Impacted.HasPointKeys() {
+					asyncConsensus = true
+				}
+				// range update can not perform async consensus, because we can not clearly
+				// know which keys are in the consensus
+				if batchRequest.Requests[idx].Operation.Impacted.HasKeyRanges() {
+					asyncConsensus = false
+				}
 			}
 
-			if c.supportAsyncConsensus() && asyncConsensus {
+			batchRequest.Requests[idx].Options.AsynchronousConsensus = asyncConsensus
+			if asyncConsensus {
 				c.addToInfightWritesLocked(batchRequest.Requests[idx].Operation)
 			} else {
 				c.addToCompletedWritesLocked(batchRequest.Requests[idx].Operation)
 			}
 		}
 	}
+}
+
+func (c *coordinator) infightBytesLocked() int {
+	n := 0
+	for _, tree := range c.mu.infightWrites {
+		n += tree.Bytes()
+	}
+	return n
+}
+
+func (c *coordinator) maxInfightBytesExceedLocked() bool {
+	return c.opts.optimize.maxInfilghtKeysBytes <= c.infightBytesLocked()
 }
 
 func (c *coordinator) addToInfightWritesLocked(op txnpb.TxnOperation) {
@@ -586,7 +595,8 @@ func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
 }
 
 func (c *coordinator) supportAsyncConsensus() bool {
-	return c.opts.optimize.asynchronousConsensus
+	return c.opts.optimize.asynchronousConsensus &&
+		!c.maxInfightBytesExceedLocked()
 }
 
 func (c *coordinator) inflightKeySetLocked() map[uint64]txnpb.KeySet {

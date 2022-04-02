@@ -21,6 +21,7 @@ func (item treeItem) Less(other btree.Item) bool {
 type KeyTree struct {
 	tree *btree.BTree
 	tmp  treeItem
+	size int
 }
 
 // NewKeyTree return a kv btree
@@ -32,18 +33,25 @@ func NewKeyTree(btreeDegree int) *KeyTree {
 
 // Add adds a key
 func (k *KeyTree) Add(key []byte) {
-	k.tree.ReplaceOrInsert(treeItem{
+	k.size += len(key)
+	item := k.tree.ReplaceOrInsert(treeItem{
 		key: key,
 	})
+	if item != nil {
+		k.size -= len(item.(treeItem).key)
+	}
 }
 
 // AddMany adds many key
 func (k *KeyTree) AddMany(keys [][]byte) {
 	for _, key := range keys {
-		k.tree.ReplaceOrInsert(treeItem{
-			key: key,
-		})
+		k.Add(key)
 	}
+}
+
+// Bytes returns keys bytes
+func (k *KeyTree) Bytes() int {
+	return k.size
 }
 
 // Contains returns true if the key is in the tree
@@ -60,7 +68,10 @@ func (k *KeyTree) Len() int {
 // Delete deletes a key
 func (k *KeyTree) Delete(key []byte) {
 	k.tmp.key = key
-	k.tree.Delete(k.tmp)
+	item := k.tree.Delete(k.tmp)
+	if item != nil {
+		k.size -= len(item.(treeItem).key)
+	}
 }
 
 // DeleteMany deletes many keys

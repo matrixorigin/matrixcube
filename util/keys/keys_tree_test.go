@@ -99,3 +99,26 @@ func TestAscendRange(t *testing.T) {
 	})
 	assert.Equal(t, 1, n)
 }
+
+func TestBytes(t *testing.T) {
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	tree := NewKeyTree(64)
+	tree.Add(k1)
+	assert.Equal(t, 2, tree.Bytes())
+	tree.Add(k1)
+	assert.Equal(t, 2, tree.Bytes())
+	tree.Add(k2)
+	assert.Equal(t, 4, tree.Bytes())
+	tree.Add(k3)
+	assert.Equal(t, 6, tree.Bytes())
+	tree.Delete(k1)
+	assert.Equal(t, 4, tree.Bytes())
+	tree.Delete(k1)
+	assert.Equal(t, 4, tree.Bytes())
+	tree.Delete(k2)
+	assert.Equal(t, 2, tree.Bytes())
+	tree.Delete(k3)
+	assert.Equal(t, 0, tree.Bytes())
+}

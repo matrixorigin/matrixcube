@@ -195,8 +195,6 @@ message TxnBatchRequestHeader {
     TxnOpMeta      txn              = 1 [(gogoproto.nullable) = false];
     // TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
     TxnRequestType type             = 2;
-     // RequestOptions request options
-    RequestOptions options          = 3 [(gogoproto.nullable) = false];
 }
 
 // TxnBatchResponseHeader the head of TxnBatchResponse.
@@ -223,6 +221,8 @@ message TxnBatchResponse {
 message TxnRequest {
     // Operation the TxnOperation
     TxnOperation    operation = 1 [(gogoproto.nullable) = false];
+    // RequestOptions request options
+    RequestOptions   options  = 2 [(gogoproto.nullable) = false];
 }
 
 // TxnResponse is TxnOperation response

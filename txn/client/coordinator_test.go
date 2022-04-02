@@ -124,7 +124,7 @@ func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {
 	_, err = tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("k2"), tc.getTxnMeta().TxnRecordRouteKey)
-	assert.True(t, last.Header.Options.CreateTxnRecord)
+	assert.True(t, last.Requests[0].Options.CreateTxnRecord)
 }
 
 func TestHeatbeatStartedAfterFirstWrite(t *testing.T) {
@@ -202,6 +202,7 @@ func TestWriteWithAsyncConsensus(t *testing.T) {
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	defer tc.stop()
 
 	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
@@ -209,6 +210,30 @@ func TestWriteWithAsyncConsensus(t *testing.T) {
 	tc.mu.Lock()
 	assert.Equal(t, 1, tc.mu.infightWrites[0].Len())
 	assert.Equal(t, 0, len(tc.mu.completedWrites[0].PointKeys))
+	tc.mu.Unlock()
+}
+
+func TestWriteWithAsyncConsensusAndMaxBytesExceed(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 2
+	defer tc.stop()
+
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2"))
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 1, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].PointKeys))
+	assert.Equal(t, 2, len(requests))
+	assert.True(t, requests[0].Requests[0].Options.AsynchronousConsensus)
+	assert.False(t, requests[1].Requests[0].Options.AsynchronousConsensus)
 	tc.mu.Unlock()
 }
 
@@ -221,8 +246,10 @@ func TestRangeWriteWithAsyncConsensus(t *testing.T) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
-	tc.opts.optimize.asynchronousConsensus = true
 	defer tc.stop()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 
 	req := newTestWriteTxnOperation(false, "k1")
 	req.Requests[0].Operation.Impacted.Ranges = []txnpb.KeyRange{
@@ -250,6 +277,7 @@ func TestWriteWithAsyncConsensusAndWaitConsensus(t *testing.T) {
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	defer tc.stop()
 
 	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
@@ -710,6 +738,7 @@ func TestAddAllInfightWithCommit(t *testing.T) {
 	defer tc.mu.Unlock()
 
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	tc.mu.infightWrites[0].Add([]byte("k1"))
 	tc.mu.infightWrites[0].Add([]byte("k2"))
 
@@ -734,6 +763,7 @@ func TestAddInfightWithPointRead(t *testing.T) {
 	defer tc.mu.Unlock()
 
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	tc.mu.infightWrites[0].Add([]byte("k1"))
 	tc.mu.infightWrites[0].Add([]byte("k2"))
 	tc.mu.infightWrites[0].Add([]byte("k3"))
@@ -757,6 +787,7 @@ func TestAddInfightWithMultiPointRead(t *testing.T) {
 	defer tc.mu.Unlock()
 
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	tc.mu.infightWrites[0].Add([]byte("k1"))
 	tc.mu.infightWrites[0].Add([]byte("k2"))
 	tc.mu.infightWrites[0].Add([]byte("k3"))
@@ -780,6 +811,7 @@ func TestAddAllInfightsWithMultiPointRead(t *testing.T) {
 	defer tc.mu.Unlock()
 
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	tc.mu.infightWrites[0].Add([]byte("k1"))
 	tc.mu.infightWrites[0].Add([]byte("k2"))
 	tc.mu.infightWrites[0].Add([]byte("k3"))
@@ -810,6 +842,7 @@ func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
 
 	tc.mu.Lock()
 	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
 	tc.mu.infightWrites[0].Add([]byte("k1"))
 	tc.mu.infightWrites[0].Add([]byte("k2"))
 	tc.mu.infightWrites[0].Add([]byte("k3"))
