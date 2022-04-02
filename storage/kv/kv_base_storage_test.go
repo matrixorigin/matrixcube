@@ -25,6 +25,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadWriteBytes(t *testing.T) {
@@ -39,7 +40,7 @@ func TestReadWriteBytes(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	fn := "test-data-safe-to-delete"
-	fs.RemoveAll(fn)
+	require.NoError(t, fs.RemoveAll(fn))
 	for _, tt := range tests {
 		defer vfs.ReportLeakedFD(fs, t)
 		func() {
@@ -52,7 +53,9 @@ func TestReadWriteBytes(t *testing.T) {
 		func() {
 			f, err := fs.Open(fn)
 			assert.NoError(t, err)
-			defer fs.RemoveAll(fn)
+			defer func() {
+				require.NoError(t, fs.RemoveAll(fn))
+			}()
 			defer f.Close()
 			result, err := readBytes(f)
 			assert.NoError(t, err)
@@ -143,8 +146,10 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	dir := "snapshot-dir-safe-to-delete"
 	shardID := uint64(100)
-	fs.RemoveAll(dir)
-	defer fs.RemoveAll(dir)
+	require.NoError(t, fs.RemoveAll(dir))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(dir))
+	}()
 	var metadata []byte
 	func() {
 		kv := mem.NewStorage()

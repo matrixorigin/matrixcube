@@ -116,7 +116,9 @@ func deCompress(fs vfs.FS, tarFile, dest string) error {
 		if err != nil {
 			return err
 		}
-		io.Copy(file, tr)
+		if _, err := io.Copy(file, tr); err != nil {
+			return err
+		}
 	}
 	return nil
 }

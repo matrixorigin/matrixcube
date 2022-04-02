@@ -56,7 +56,7 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 	opts := &cpebble.Options{
 		FS: vfs.NewPebbleFS(fs),
 	}
-	fs.RemoveAll(testStorageDir)
+	_ = fs.RemoveAll(testStorageDir)
 	st, err := pebble.NewStorage(testStorageDir, nil, opts)
 	if err != nil {
 		panic(err)
@@ -65,7 +65,9 @@ func getTestStorage(fs vfs.FS) storage.KVStorage {
 }
 
 func runLogDBTest(t *testing.T, tf func(t *testing.T, db *KVLogDB), fs vfs.FS) {
-	defer fs.RemoveAll(testStorageDir)
+	defer func() {
+		assert.NoError(t, fs.RemoveAll(testStorageDir))
+	}()
 	defer vfs.ReportLeakedFD(fs, t)
 	defer leaktest.AfterTest(t)()
 	kv := getTestStorage(fs)
@@ -195,7 +197,7 @@ func TestLogDBRemovingTheMostRecentSnapshotWillPanic(t *testing.T) {
 		if err := db.SaveRaftState(testShardID, 100, rd1, wc); err != nil {
 			t.Fatalf("failed to save raft state, %v", err)
 		}
-		db.RemoveSnapshot(testShardID, rd1.Snapshot.Metadata.Index)
+		assert.NoError(t, db.RemoveSnapshot(testShardID, rd1.Snapshot.Metadata.Index))
 	}
 	fs := vfs.GetTestFS()
 	runLogDBTest(t, tf, fs)

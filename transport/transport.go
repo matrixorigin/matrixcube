@@ -143,7 +143,6 @@ type Transport struct {
 		breakers map[string]*circuit.Breaker
 	}
 	logger         *zap.Logger
-	addr           string
 	storeID        uint64
 	jobs           uint64
 	ctx            context.Context

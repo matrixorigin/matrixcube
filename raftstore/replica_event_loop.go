@@ -82,7 +82,7 @@ const (
 
 func (pr *replica) addAdminRequest(adminType rpcpb.AdminCmdType, request protoc.PB) {
 	shard := pr.getShard()
-	pr.addRequest(newReqCtx(rpcpb.Request{
+	if err := pr.addRequest(newReqCtx(rpcpb.Request{
 		ID:         uuid.NewV4().Bytes(),
 		Group:      shard.Group,
 		ToShard:    shard.ID,
@@ -90,7 +90,9 @@ func (pr *replica) addAdminRequest(adminType rpcpb.AdminCmdType, request protoc.
 		CustomType: uint64(adminType),
 		Epoch:      shard.Epoch,
 		Cmd:        protoc.MustMarshal(request),
-	}, nil))
+	}, nil)); err != nil {
+		panic(err)
+	}
 }
 
 func (pr *replica) addRequest(req reqCtx) error {
@@ -144,7 +146,10 @@ func (pr *replica) addRaftTick() bool {
 func (pr *replica) onRaftTick(arg interface{}) {
 	if pr.addRaftTick() {
 		metric.SetRaftTickQueueMetric(pr.ticks.Len())
-		util.DefaultTimeoutWheel().Schedule(pr.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil)
+		w := util.DefaultTimeoutWheel()
+		if _, err := w.Schedule(pr.cfg.Raft.TickInterval.Duration, pr.onRaftTick, nil); err != nil {
+			panic(err)
+		}
 		return
 	}
 	pr.logger.Info("raft tick stopped")
@@ -163,7 +168,10 @@ func (pr *replica) onCheckPendingReads(arg interface{}) {
 	// We periodically check whether there are read requests that need to be cleaned up. These requests
 	// will not be responded to, and the client will try again.
 	if pr.addCheckPendingReads() {
-		util.DefaultTimeoutWheel().Schedule(time.Minute, pr.onCheckPendingReads, nil)
+		w := util.DefaultTimeoutWheel()
+		if _, err := w.Schedule(time.Minute, pr.onCheckPendingReads, nil); err != nil {
+			panic(err)
+		}
 		return
 	}
 	pr.logger.Info("check pending reads stopped")

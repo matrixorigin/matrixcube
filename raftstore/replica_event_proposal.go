@@ -126,7 +126,7 @@ func (pr *replica) propose(c batch) {
 	}
 }
 
-func (pr *replica) updatePendingProposal(c batch, isConfChange bool) error {
+func (pr *replica) updatePendingProposal(c batch, isConfChange bool) {
 	if isConfChange {
 		changeC := pr.pendingProposals.getConfigChange()
 		if !changeC.requestBatch.Header.IsEmpty() {
@@ -136,8 +136,6 @@ func (pr *replica) updatePendingProposal(c batch, isConfChange bool) error {
 	} else {
 		pr.pendingProposals.append(c)
 	}
-
-	return nil
 }
 
 func (pr *replica) respNotLeader(c batch) {
@@ -248,11 +246,11 @@ func (pr *replica) proposeConfChangeInternal(c batch) error {
 	pr.logger.Info("propose conf change",
 		log.ConfigChangesField("changes", changes))
 
-	propose_index := pr.nextProposalIndex()
+	index := pr.nextProposalIndex()
 	if err := pr.rn.ProposeConfChange(cc); err != nil {
 		return err
 	}
-	if propose_index == pr.nextProposalIndex() {
+	if index == pr.nextProposalIndex() {
 		// The message is dropped silently, this usually due to leader absence
 		// or transferring leader. Both cases can be considered as NotLeader error.
 		target, _ := pr.store.getReplicaRecord(pr.getLeaderReplicaID())
@@ -356,7 +354,7 @@ func isValidConfigChangeRequest(ccr rpcpb.ConfigChangeRequest) bool {
 
 func isRemovingOrDemotingLeader(kind confChangeKind,
 	ccr rpcpb.ConfigChangeRequest, leaderReplicaID uint64) bool {
-	// targetting the leader
+	// targeting the leader
 	if ccr.Replica.ID != leaderReplicaID {
 		return false
 	}
