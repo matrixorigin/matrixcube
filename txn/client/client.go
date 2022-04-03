@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/txn/util"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +35,7 @@ type txnClient struct {
 	logger               *zap.Logger
 	txnIDGenerator       TxnIDGenerator
 	txnPriorityGenerator TxnPriorityGenerator
-	txnClocker           TxnClocker
+	txnClocker           hlc.Clock
 	dispatcher           BatchDispatcher
 }
 
@@ -56,13 +57,16 @@ func (tc *txnClient) NewTxn(opts ...TxnOption) TxnOperator {
 	}
 	options.adjust()
 
-	now, maxSkew := tc.txnClocker.Now()
+	now := tc.txnClocker.Now()
+	maxOffet := tc.txnClocker.MaxOffset()
+	// tc.txnClocker
+
 	txn := txnpb.TxnMeta{
 		Name:           options.name,
 		IsolationLevel: options.isolationLevel,
 		ReadTimestamp:  now,
 		WriteTimestamp: now,
-		MaxTimestamp:   now + maxSkew,
+		MaxTimestamp:   now,
 	}
 	txn.ID = tc.txnIDGenerator.Generate()
 	txn.Priority = tc.txnPriorityGenerator.Generate()

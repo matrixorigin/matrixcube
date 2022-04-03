@@ -15,9 +15,9 @@ func LogTxnMeta(logger *zap.Logger, level zapcore.Level, msg string, txn txnpb.T
 			zap.Uint32("txn-epoch", txn.Epoch),
 			log.HexField("txn-record-route-key", txn.TxnRecordRouteKey),
 			zap.Uint32("txn-priority", txn.Priority),
-			zap.Uint64("txn-read-ts", txn.ReadTimestamp),
-			zap.Uint64("txn-write-ts", txn.WriteTimestamp),
-			zap.Uint64("txn-max-ts", txn.MaxTimestamp),
+			zap.String("txn-read-ts", txn.ReadTimestamp.String()),
+			zap.String("txn-write-ts", txn.WriteTimestamp.String()),
+			zap.String("txn-max-ts", txn.MaxTimestamp.String()),
 			zap.String("txn-isolation", txn.IsolationLevel.String()))
 	}
 }

@@ -16,9 +16,9 @@ package client
 import (
 	"math"
 	"math/rand"
-	"sync"
 
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/uuid"
 	"go.uber.org/zap"
 )
@@ -47,8 +47,8 @@ func WithTxnPriorityGenerator(txnPriorityGenerator TxnPriorityGenerator) Option 
 	}
 }
 
-// WithTxnClocker set TxnClocker for txn client
-func WithTxnClocker(txnClocker TxnClocker) Option {
+// WithTxnClocker set Clocker for txn client
+func WithTxnClocker(txnClocker hlc.Clock) Option {
 	return func(tc *txnClient) {
 		tc.txnClocker = txnClocker
 	}
@@ -87,16 +87,6 @@ type TxnPriorityGenerator interface {
 	Generate() uint32
 }
 
-// TxnClocker transaction clock solution abstraction
-type TxnClocker interface {
-	// Now return current clock
-	Now() (current uint64, maxSkew uint64)
-	// Compare return 0 if ts1 == ts2, positive if ts1 > ts2, negative if ts1 < ts2
-	Compare(ts1, ts2 uint64) int
-	// Next returns the next timestamp of ts
-	Next(ts uint64) uint64
-}
-
 var _ TxnIDGenerator = (*uuidTxnIDGenerator)(nil)
 
 type uuidTxnIDGenerator struct {
@@ -119,30 +109,4 @@ func newTxnPriorityGenerator() TxnPriorityGenerator {
 
 func (p *txnPriorityGenerator) Generate() uint32 {
 	return uint32(rand.Int63n(math.MaxUint32))
-}
-
-type mockTxnClocker struct {
-	sync.Mutex
-	ts      uint64
-	maxSkew uint64
-}
-
-func newMockTxnClocker(maxSkew uint64) TxnClocker {
-	return &mockTxnClocker{maxSkew: maxSkew}
-}
-
-func (tc *mockTxnClocker) Now() (current uint64, maxSkew uint64) {
-	tc.Lock()
-	defer tc.Unlock()
-
-	tc.ts++
-	return tc.ts, tc.maxSkew
-}
-
-func (tc *mockTxnClocker) Compare(ts1, ts2 uint64) int {
-	return int(ts1 - ts2)
-}
-
-func (tc *mockTxnClocker) Next(ts uint64) uint64 {
-	return ts + 1
 }

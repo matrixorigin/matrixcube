@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/txn/util"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
@@ -37,7 +38,7 @@ type txnCoordinator interface {
 
 func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 	sender BatchDispatcher,
-	txnClocker TxnClocker,
+	txnClocker hlc.Clock,
 	logger *zap.Logger,
 	opts txnOptions) *coordinator {
 	c := &coordinator{
@@ -57,7 +58,7 @@ func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 type coordinator struct {
 	logger     *zap.Logger
 	sender     BatchDispatcher
-	txnClocker TxnClocker
+	txnClocker hlc.Clock
 	opts       txnOptions
 	stopper    *stop.Stopper
 
@@ -519,7 +520,7 @@ func (c *coordinator) updateTxnMetaLocked(txn txnpb.TxnMeta) {
 	// 1. server-side forward the writeTimestamp due to TSCache
 	// 2. due to RW conflicts, the write timestamps of write transactions need to be
 	//    forward in order to ensure that read transactions can be read without blocking.
-	if c.txnClocker.Compare(c.mu.txnMeta.WriteTimestamp, txn.WriteTimestamp) < 0 {
+	if c.mu.txnMeta.WriteTimestamp.Less(txn.WriteTimestamp) {
 		c.mu.txnMeta.WriteTimestamp = txn.WriteTimestamp
 	}
 }
@@ -579,7 +580,7 @@ func (c *coordinator) splitBatchRequestsWithIndex(batchRequest *txnpb.TxnBatchRe
 }
 
 func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
-	ts, _ := c.txnClocker.Now()
+	ts := c.txnClocker.Now()
 	txn := c.getTxnMeta()
 	var batchRequest txnpb.TxnBatchRequest
 	batchRequest.Header.Txn.TxnMeta = txn
