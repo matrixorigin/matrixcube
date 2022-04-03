@@ -39,7 +39,7 @@ const (
 )
 
 func getTestPebbleStorage(t *testing.T, fs vfs.FS) *pebble.Storage {
-	fs.RemoveAll(testDir)
+	require.NoError(t, fs.RemoveAll(testDir))
 	base, err := pebble.NewStorage(testDir, nil, &cpebble.Options{FS: vfs.NewPebbleFS(fs)})
 	require.NoError(t, err)
 	return base
@@ -65,7 +65,9 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
-			defer fs.RemoveAll(testDir)
+			defer func() {
+				require.NoError(t, fs.RemoveAll(testDir))
+			}()
 			defer s.Close()
 
 			assert.NoError(t, s.SaveShardMetadata(tt.inputs))
@@ -107,7 +109,9 @@ func TestSaveShardMetadataAndGetInitialStates(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, nil)
-			defer fs.RemoveAll(testDir)
+			defer func() {
+				require.NoError(t, fs.RemoveAll(testDir))
+			}()
 			defer s.Close()
 
 			assert.NoError(t, s.SaveShardMetadata(c.inputs), "index %d", i)
@@ -127,7 +131,9 @@ func TestGetInitialStatesReturnsTheMostRecentMetadata(t *testing.T) {
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer s.Close()
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 
@@ -151,7 +157,9 @@ func TestGetInitialStatesLoadsPersistentLogIndexValues(t *testing.T) {
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer s.Close()
 	assert.NoError(t, s.SaveShardMetadata(inputs))
 	values, err := s.GetInitialStates()
@@ -170,14 +178,17 @@ func TestGetPersistentLogIndexWillPanicWhenPersistentIndexesAreNotLoaded(t *test
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer s.Close()
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("panic not triggered")
 		}
 	}()
-	s.GetPersistentLogIndex(10)
+	_, err := s.GetPersistentLogIndex(10)
+	require.NoError(t, err)
 }
 
 func TestGetPersistentLogIndex(t *testing.T) {
@@ -187,7 +198,9 @@ func TestGetPersistentLogIndex(t *testing.T) {
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	s := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer s.Close()
 
 	cases := []struct {
@@ -214,7 +227,9 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
 			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(c.sample))
-			defer fs.RemoveAll(testDir)
+			defer func() {
+				require.NoError(t, fs.RemoveAll(testDir))
+			}()
 			defer s.Close()
 
 			s.(*kvDataStorage).mu.loaded = true
@@ -249,10 +264,10 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		opts := &cpebble.Options{
 			FS: vfs.NewPebbleFS(memfs),
 		}
-		memfs.MkdirAll("/test-data", 0755)
+		require.NoError(t, memfs.MkdirAll("/test-data", 0755))
 		dir, err := memfs.OpenDir("/")
 		assert.NoError(t, err)
-		dir.Sync()
+		require.NoError(t, dir.Sync())
 		shardID := uint64(1)
 		persistentLogIndex, metadataLogIndex := func() (uint64, uint64) {
 			kv, err := pebble.NewStorage("test-data", nil, opts)
@@ -312,7 +327,6 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 			save(index)
 			index++
 			write(index)
-			index++
 			v, err := s.GetPersistentLogIndex(shardID)
 			assert.NoError(t, err)
 			assert.Equal(t, persistent, v)
@@ -343,35 +357,37 @@ func TestRemoveShard(t *testing.T) {
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer ds.Close()
 
-	kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false)
-	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), []byte{99}, false)
-	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false)
-	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false))
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), []byte{99}, false))
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false))
+	require.NoError(t, kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false))
 
 	assert.NoError(t, ds.RemoveShard(metapb.Shard{ID: 1, End: []byte{2}}, false))
 	v, err := kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil))
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	c := 0
-	kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(1, 200, nil), nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(1, 200, nil), nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
-	}, false)
+	}, false))
 	assert.Equal(t, 0, c)
 	c = 0
-	kv.Scan(EncodeShardStart(nil, nil), EncodeShardEnd([]byte{2}, nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(EncodeShardStart(nil, nil), EncodeShardEnd([]byte{2}, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
-	}, false)
+	}, false))
 	assert.Equal(t, 1, c)
 
-	kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil), format.Uint64ToBytes(200), false)
-	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false)
-	kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false)
-	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil), format.Uint64ToBytes(200), false))
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false))
+	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false))
+	require.NoError(t, kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false))
 	ds.(*kvDataStorage).mu.Lock()
 	ds.(*kvDataStorage).mu.lastAppliedIndexes[2] = 100
 	ds.(*kvDataStorage).mu.persistentAppliedIndexes[2] = 100
@@ -387,16 +403,16 @@ func TestRemoveShard(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	c = 0
-	kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(2, 200, nil), nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(2, 200, nil), nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
-	}, false)
+	}, false))
 	assert.Equal(t, 0, c)
 	c = 0
-	kv.Scan(EncodeShardStart([]byte{2}, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(EncodeShardStart([]byte{2}, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
-	}, false)
+	}, false))
 	assert.Equal(t, 0, c)
 }
 
@@ -407,12 +423,14 @@ func TestSplitCheck(t *testing.T) {
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
 	ds := NewKVDataStorage(base, nil)
-	defer fs.RemoveAll(testDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
 	defer ds.Close()
 
-	kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false)
-	kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false)
-	kv.Set(EncodeDataKey([]byte{3}, nil), []byte{3}, false)
+	require.NoError(t, kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false))
+	require.NoError(t, kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false))
+	require.NoError(t, kv.Set(EncodeDataKey([]byte{3}, nil), []byte{3}, false))
 
 	size, keys, splitKeys, ctx, err := ds.SplitCheck(metapb.Shard{}, 100)
 	assert.NoError(t, err)

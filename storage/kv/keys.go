@@ -71,8 +71,12 @@ func NextKey(key []byte, buffer *buf.ByteBuf) []byte {
 	}
 
 	buffer.MarkWrite()
-	buffer.Write(key)
-	buffer.WriteByte(0)
+	if _, err := buffer.Write(key); err != nil {
+		panic(err)
+	}
+	if err := buffer.WriteByte(0); err != nil {
+		panic(err)
+	}
 	return buffer.WrittenDataAfterMark().Data()
 }
 
@@ -85,7 +89,11 @@ func doAppendPrefix(key []byte, prefix byte, buffer *buf.ByteBuf) []byte {
 	}
 
 	buffer.MarkWrite()
-	buffer.WriteByte(prefix)
-	buffer.Write(key)
+	if err := buffer.WriteByte(prefix); err != nil {
+		panic(err)
+	}
+	if _, err := buffer.Write(key); err != nil {
+		panic(err)
+	}
 	return buffer.WrittenDataAfterMark().Data()
 }

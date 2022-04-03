@@ -57,9 +57,7 @@ func snapshotDirFunc(shardID uint64, replicaID uint64) string {
 func runChunkTest(t *testing.T,
 	fn func(*testing.T, *Chunk, *testMessageHandler), fs vfs.FS) {
 	defer func() {
-		if err := fs.RemoveAll(testSnapshotDir); err != nil {
-			t.Fatalf("%v", err)
-		}
+		require.NoError(t, fs.RemoveAll(testSnapshotDir))
 	}()
 	defer leaktest.AfterTest(t)()
 	require.NoError(t, fs.RemoveAll(testSnapshotDir))
@@ -105,7 +103,9 @@ func getTestChunks() []metapb.SnapshotChunk {
 			Extra:          protoc.MustMarshal(si),
 		}
 		data := make([]byte, 1024)
-		rand.Read(data)
+		if _, err := rand.Read(data); err != nil {
+			panic(err)
+		}
 		c.Data = data
 		result = append(result, c)
 	}

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -52,7 +53,8 @@ func TestInitAppliedIndex(t *testing.T) {
 	defer cancel()
 
 	ds := s.DataStorageByGroup(0)
-	ds.GetInitialStates()
+	_, err := ds.GetInitialStates()
+	require.NoError(t, err)
 
 	pr, err := newReplica(s, Shard{ID: 1}, Replica{ID: 1000}, "test")
 	assert.NoError(t, err)
@@ -80,7 +82,7 @@ func TestInitAppliedIndex(t *testing.T) {
 	}
 	assert.NoError(t, pr.logdb.SaveRaftState(2, 2000, rd, pr.logdb.NewWorkerContext()))
 	assert.NoError(t, err)
-	ds.Sync([]uint64{2})
+	assert.NoError(t, ds.Sync([]uint64{2}))
 	pr, err = newReplica(s, Shard{ID: 2}, Replica{ID: 2000}, "test")
 	assert.NoError(t, err)
 	assert.NoError(t, pr.initAppliedIndex())

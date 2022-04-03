@@ -35,6 +35,7 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 	"go.uber.org/zap"
 
@@ -67,7 +68,9 @@ func TestSendSavedSnapshotPutsAllChunksInCh(t *testing.T) {
 		1, 1, 8, transport, nil, stopc, defaultSnapshotChunkSize, fs)
 
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
-	defer fs.RemoveAll(testSnapshotDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testSnapshotDir))
+	}()
 	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}

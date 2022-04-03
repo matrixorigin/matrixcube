@@ -35,12 +35,14 @@ func TestPhysicalClockReturnsNanoseconds(t *testing.T) {
 func TestSkipClockUncertainityPeriodOnRestart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// TODO: check why the maxOffset below can not be set lower
-	c := NewUnixNanoHLCClock(ctx, 4*time.Millisecond)
+	// maxOffset below has to be set to a relatively large value, we repeatedly
+	// saw cpu starvations of several milliseconds in tests running on github
+	// actions.
+	c := NewUnixNanoHLCClock(ctx, 500*time.Millisecond)
 	v1 := physicalClock()
 	SkipClockUncertainityPeriodOnRestart(ctx, c)
 	v2 := physicalClock()
-	assert.True(t, v2-v1 >= 1e6)
+	assert.True(t, v2-v1 >= 500*1e6)
 }
 
 func TestNewHLCClock(t *testing.T) {

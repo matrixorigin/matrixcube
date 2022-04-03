@@ -19,6 +19,7 @@ import (
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	trackerPkg "go.etcd.io/etcd/raft/v3/tracker"
 
@@ -136,7 +137,8 @@ func TestApplyInitialSnapshot(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
-		r.handleAction(make([]interface{}, readyBatchSize))
+		_, err = r.handleAction(make([]interface{}, readyBatchSize))
+		require.NoError(t, err)
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))
@@ -182,7 +184,7 @@ func TestInitialSnapshotRecordIsNeverRemoved(t *testing.T) {
 				},
 			},
 		}))
-		ds.Sync(nil)
+		require.NoError(t, ds.Sync(nil))
 		_, err = ds.GetInitialStates()
 		assert.NoError(t, err)
 

@@ -100,19 +100,6 @@ func (s *snapshotter) prepareReplicaSnapshotDir() error {
 	return s.removeOrphanSnapshots()
 }
 
-// TODO: this can only be invoked after the replica is fully unloaded.
-// need to consider the snapshot transport pool as well.
-func (s *snapshotter) removeReplicaSnapshotDir() error {
-	exist, err := fileutil.Exist(s.rootDir, s.fs)
-	if err != nil {
-		return err
-	}
-	if exist {
-		return s.fs.RemoveAll(s.rootDir)
-	}
-	return nil
-}
-
 func (s *snapshotter) removeOrphanSnapshots() error {
 	noss := false
 	ss, err := s.ldb.GetSnapshot(s.shardID)

@@ -120,7 +120,6 @@ type LogDB interface {
 // KVLogDB is a LogDB implementation built on top of a Key-Value store.
 type KVLogDB struct {
 	logger *zap.Logger
-	state  raftpb.HardState
 	ms     storage.KVMetadataStore
 }
 
