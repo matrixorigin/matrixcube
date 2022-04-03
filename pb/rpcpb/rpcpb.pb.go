@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -5267,97 +5266,97 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardHeartbeat.Size()))
-	n1, err1 := m.ShardHeartbeat.MarshalTo(dAtA[i:])
-	if err1 != nil {
-		return 0, err1
+	n1, err := m.ShardHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n1
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreHeartbeat.Size()))
-	n2, err2 := m.StoreHeartbeat.MarshalTo(dAtA[i:])
-	if err2 != nil {
-		return 0, err2
+	n2, err := m.StoreHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n2
 	dAtA[i] = 0x32
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutStore.Size()))
-	n3, err3 := m.PutStore.MarshalTo(dAtA[i:])
-	if err3 != nil {
-		return 0, err3
+	n3, err := m.PutStore.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n3
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetStore.Size()))
-	n4, err4 := m.GetStore.MarshalTo(dAtA[i:])
-	if err4 != nil {
-		return 0, err4
+	n4, err := m.GetStore.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n4
 	dAtA[i] = 0x42
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n5, err5 := m.AllocID.MarshalTo(dAtA[i:])
-	if err5 != nil {
-		return 0, err5
+	n5, err := m.AllocID.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n5
 	dAtA[i] = 0x4a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n6, err6 := m.AskBatchSplit.MarshalTo(dAtA[i:])
-	if err6 != nil {
-		return 0, err6
+	n6, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n6
 	dAtA[i] = 0x52
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestroying.Size()))
-	n7, err7 := m.CreateDestroying.MarshalTo(dAtA[i:])
-	if err7 != nil {
-		return 0, err7
+	n7, err := m.CreateDestroying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n7
 	dAtA[i] = 0x5a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestroyed.Size()))
-	n8, err8 := m.ReportDestroyed.MarshalTo(dAtA[i:])
-	if err8 != nil {
-		return 0, err8
+	n8, err := m.ReportDestroyed.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n8
 	dAtA[i] = 0x62
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestroying.Size()))
-	n9, err9 := m.GetDestroying.MarshalTo(dAtA[i:])
-	if err9 != nil {
-		return 0, err9
+	n9, err := m.GetDestroying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n9
 	dAtA[i] = 0x6a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateWatcher.Size()))
-	n10, err10 := m.CreateWatcher.MarshalTo(dAtA[i:])
-	if err10 != nil {
-		return 0, err10
+	n10, err := m.CreateWatcher.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n10
 	dAtA[i] = 0x72
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateShards.Size()))
-	n11, err11 := m.CreateShards.MarshalTo(dAtA[i:])
-	if err11 != nil {
-		return 0, err11
+	n11, err := m.CreateShards.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n11
 	dAtA[i] = 0x7a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveShards.Size()))
-	n12, err12 := m.RemoveShards.MarshalTo(dAtA[i:])
-	if err12 != nil {
-		return 0, err12
+	n12, err := m.RemoveShards.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n12
 	dAtA[i] = 0x82
@@ -5365,9 +5364,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckShardState.Size()))
-	n13, err13 := m.CheckShardState.MarshalTo(dAtA[i:])
-	if err13 != nil {
-		return 0, err13
+	n13, err := m.CheckShardState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n13
 	dAtA[i] = 0x8a
@@ -5375,9 +5374,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
-	n14, err14 := m.PutPlacementRule.MarshalTo(dAtA[i:])
-	if err14 != nil {
-		return 0, err14
+	n14, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n14
 	dAtA[i] = 0x92
@@ -5385,9 +5384,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
-	n15, err15 := m.GetAppliedRules.MarshalTo(dAtA[i:])
-	if err15 != nil {
-		return 0, err15
+	n15, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n15
 	dAtA[i] = 0x9a
@@ -5395,9 +5394,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
-	n16, err16 := m.CreateJob.MarshalTo(dAtA[i:])
-	if err16 != nil {
-		return 0, err16
+	n16, err := m.CreateJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n16
 	dAtA[i] = 0xa2
@@ -5405,9 +5404,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
-	n17, err17 := m.RemoveJob.MarshalTo(dAtA[i:])
-	if err17 != nil {
-		return 0, err17
+	n17, err := m.RemoveJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n17
 	dAtA[i] = 0xaa
@@ -5415,9 +5414,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
-	n18, err18 := m.ExecuteJob.MarshalTo(dAtA[i:])
-	if err18 != nil {
-		return 0, err18
+	n18, err := m.ExecuteJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n18
 	dAtA[i] = 0xb2
@@ -5425,9 +5424,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AddScheduleGroupRule.Size()))
-	n19, err19 := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err19 != nil {
-		return 0, err19
+	n19, err := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n19
 	dAtA[i] = 0xba
@@ -5435,9 +5434,9 @@ func (m *ProphetRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetScheduleGroupRule.Size()))
-	n20, err20 := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err20 != nil {
-		return 0, err20
+	n20, err := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n20
 	if m.XXX_unrecognized != nil {
@@ -5486,89 +5485,89 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardHeartbeat.Size()))
-	n21, err21 := m.ShardHeartbeat.MarshalTo(dAtA[i:])
-	if err21 != nil {
-		return 0, err21
+	n21, err := m.ShardHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n21
 	dAtA[i] = 0x32
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreHeartbeat.Size()))
-	n22, err22 := m.StoreHeartbeat.MarshalTo(dAtA[i:])
-	if err22 != nil {
-		return 0, err22
+	n22, err := m.StoreHeartbeat.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n22
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutStore.Size()))
-	n23, err23 := m.PutStore.MarshalTo(dAtA[i:])
-	if err23 != nil {
-		return 0, err23
+	n23, err := m.PutStore.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n23
 	dAtA[i] = 0x42
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetStore.Size()))
-	n24, err24 := m.GetStore.MarshalTo(dAtA[i:])
-	if err24 != nil {
-		return 0, err24
+	n24, err := m.GetStore.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n24
 	dAtA[i] = 0x4a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AllocID.Size()))
-	n25, err25 := m.AllocID.MarshalTo(dAtA[i:])
-	if err25 != nil {
-		return 0, err25
+	n25, err := m.AllocID.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n25
 	dAtA[i] = 0x52
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AskBatchSplit.Size()))
-	n26, err26 := m.AskBatchSplit.MarshalTo(dAtA[i:])
-	if err26 != nil {
-		return 0, err26
+	n26, err := m.AskBatchSplit.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n26
 	dAtA[i] = 0x5a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateDestroying.Size()))
-	n27, err27 := m.CreateDestroying.MarshalTo(dAtA[i:])
-	if err27 != nil {
-		return 0, err27
+	n27, err := m.CreateDestroying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n27
 	dAtA[i] = 0x62
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ReportDestroyed.Size()))
-	n28, err28 := m.ReportDestroyed.MarshalTo(dAtA[i:])
-	if err28 != nil {
-		return 0, err28
+	n28, err := m.ReportDestroyed.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n28
 	dAtA[i] = 0x6a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetDestroying.Size()))
-	n29, err29 := m.GetDestroying.MarshalTo(dAtA[i:])
-	if err29 != nil {
-		return 0, err29
+	n29, err := m.GetDestroying.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n29
 	dAtA[i] = 0x72
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Event.Size()))
-	n30, err30 := m.Event.MarshalTo(dAtA[i:])
-	if err30 != nil {
-		return 0, err30
+	n30, err := m.Event.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n30
 	dAtA[i] = 0x7a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateShards.Size()))
-	n31, err31 := m.CreateShards.MarshalTo(dAtA[i:])
-	if err31 != nil {
-		return 0, err31
+	n31, err := m.CreateShards.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n31
 	dAtA[i] = 0x82
@@ -5576,9 +5575,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveShards.Size()))
-	n32, err32 := m.RemoveShards.MarshalTo(dAtA[i:])
-	if err32 != nil {
-		return 0, err32
+	n32, err := m.RemoveShards.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n32
 	dAtA[i] = 0x8a
@@ -5586,9 +5585,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CheckShardState.Size()))
-	n33, err33 := m.CheckShardState.MarshalTo(dAtA[i:])
-	if err33 != nil {
-		return 0, err33
+	n33, err := m.CheckShardState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n33
 	dAtA[i] = 0x92
@@ -5596,9 +5595,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.PutPlacementRule.Size()))
-	n34, err34 := m.PutPlacementRule.MarshalTo(dAtA[i:])
-	if err34 != nil {
-		return 0, err34
+	n34, err := m.PutPlacementRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n34
 	dAtA[i] = 0x9a
@@ -5606,9 +5605,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetAppliedRules.Size()))
-	n35, err35 := m.GetAppliedRules.MarshalTo(dAtA[i:])
-	if err35 != nil {
-		return 0, err35
+	n35, err := m.GetAppliedRules.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n35
 	dAtA[i] = 0xa2
@@ -5616,9 +5615,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.CreateJob.Size()))
-	n36, err36 := m.CreateJob.MarshalTo(dAtA[i:])
-	if err36 != nil {
-		return 0, err36
+	n36, err := m.CreateJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n36
 	dAtA[i] = 0xaa
@@ -5626,9 +5625,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.RemoveJob.Size()))
-	n37, err37 := m.RemoveJob.MarshalTo(dAtA[i:])
-	if err37 != nil {
-		return 0, err37
+	n37, err := m.RemoveJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n37
 	dAtA[i] = 0xb2
@@ -5636,9 +5635,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ExecuteJob.Size()))
-	n38, err38 := m.ExecuteJob.MarshalTo(dAtA[i:])
-	if err38 != nil {
-		return 0, err38
+	n38, err := m.ExecuteJob.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n38
 	dAtA[i] = 0xba
@@ -5646,9 +5645,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.AddScheduleGroupRule.Size()))
-	n39, err39 := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err39 != nil {
-		return 0, err39
+	n39, err := m.AddScheduleGroupRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n39
 	dAtA[i] = 0xc2
@@ -5656,9 +5655,9 @@ func (m *ProphetResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.GetScheduleGroupRule.Size()))
-	n40, err40 := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
-	if err40 != nil {
-		return 0, err40
+	n40, err := m.GetScheduleGroupRule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n40
 	if m.XXX_unrecognized != nil {
@@ -5702,9 +5701,9 @@ func (m *ShardHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Leader.Size()))
-		n41, err41 := m.Leader.MarshalTo(dAtA[i:])
-		if err41 != nil {
-			return 0, err41
+		n41, err := m.Leader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n41
 	}
@@ -5735,9 +5734,9 @@ func (m *ShardHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n42, err42 := m.Stats.MarshalTo(dAtA[i:])
-	if err42 != nil {
-		return 0, err42
+	n42, err := m.Stats.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n42
 	if len(m.GroupKey) > 0 {
@@ -5775,18 +5774,18 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardEpoch.Size()))
-	n43, err43 := m.ShardEpoch.MarshalTo(dAtA[i:])
-	if err43 != nil {
-		return 0, err43
+	n43, err := m.ShardEpoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n43
 	if m.TargetReplica != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TargetReplica.Size()))
-		n44, err44 := m.TargetReplica.MarshalTo(dAtA[i:])
-		if err44 != nil {
-			return 0, err44
+		n44, err := m.TargetReplica.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n44
 	}
@@ -5794,9 +5793,9 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChange.Size()))
-		n45, err45 := m.ConfigChange.MarshalTo(dAtA[i:])
-		if err45 != nil {
-			return 0, err45
+		n45, err := m.ConfigChange.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n45
 	}
@@ -5804,9 +5803,9 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TransferLeader.Size()))
-		n46, err46 := m.TransferLeader.MarshalTo(dAtA[i:])
-		if err46 != nil {
-			return 0, err46
+		n46, err := m.TransferLeader.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n46
 	}
@@ -5814,9 +5813,9 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x32
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Merge.Size()))
-		n47, err47 := m.Merge.MarshalTo(dAtA[i:])
-		if err47 != nil {
-			return 0, err47
+		n47, err := m.Merge.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n47
 	}
@@ -5824,9 +5823,9 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.SplitShard.Size()))
-		n48, err48 := m.SplitShard.MarshalTo(dAtA[i:])
-		if err48 != nil {
-			return 0, err48
+		n48, err := m.SplitShard.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n48
 	}
@@ -5834,9 +5833,9 @@ func (m *ShardHeartbeatRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x42
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ConfigChangeV2.Size()))
-		n49, err49 := m.ConfigChangeV2.MarshalTo(dAtA[i:])
-		if err49 != nil {
-			return 0, err49
+		n49, err := m.ConfigChangeV2.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n49
 	}
@@ -5928,9 +5927,9 @@ func (m *StoreHeartbeatReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-	n50, err50 := m.Stats.MarshalTo(dAtA[i:])
-	if err50 != nil {
-		return 0, err50
+	n50, err := m.Stats.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n50
 	if len(m.Data) > 0 {
@@ -6023,9 +6022,9 @@ func (m *GetStoreRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Stats.Size()))
-		n51, err51 := m.Stats.MarshalTo(dAtA[i:])
-		if err51 != nil {
-			return 0, err51
+		n51, err := m.Stats.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n51
 	}
@@ -6276,9 +6275,9 @@ func (m *GetDestroyingRsp) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.Status.Size()))
-		n54, err54 := m.Status.MarshalTo(dAtA[i:])
-		if err54 != nil {
-			return 0, err54
+		n54, err := m.Status.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n54
 	}
@@ -6618,9 +6617,9 @@ func (m *PutPlacementRuleReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
-	n61, err61 := m.Rule.MarshalTo(dAtA[i:])
-	if err61 != nil {
-		return 0, err61
+	n61, err := m.Rule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n61
 	if m.XXX_unrecognized != nil {
@@ -6727,9 +6726,9 @@ func (m *CreateJobReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n62, err62 := m.Job.MarshalTo(dAtA[i:])
-	if err62 != nil {
-		return 0, err62
+	n62, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n62
 	if m.XXX_unrecognized != nil {
@@ -6777,9 +6776,9 @@ func (m *RemoveJobReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n63, err63 := m.Job.MarshalTo(dAtA[i:])
-	if err63 != nil {
-		return 0, err63
+	n63, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n63
 	if m.XXX_unrecognized != nil {
@@ -6827,9 +6826,9 @@ func (m *ExecuteJobReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Job.Size()))
-	n64, err64 := m.Job.MarshalTo(dAtA[i:])
-	if err64 != nil {
-		return 0, err64
+	n64, err := m.Job.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n64
 	if len(m.Data) > 0 {
@@ -6889,9 +6888,9 @@ func (m *AddScheduleGroupRuleReq) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Rule.Size()))
-	n65, err65 := m.Rule.MarshalTo(dAtA[i:])
-	if err65 != nil {
-		return 0, err65
+	n65, err := m.Rule.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n65
 	if m.XXX_unrecognized != nil {
@@ -7004,9 +7003,9 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.InitEvent.Size()))
-		n66, err66 := m.InitEvent.MarshalTo(dAtA[i:])
-		if err66 != nil {
-			return 0, err66
+		n66, err := m.InitEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n66
 	}
@@ -7014,9 +7013,9 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardEvent.Size()))
-		n67, err67 := m.ShardEvent.MarshalTo(dAtA[i:])
-		if err67 != nil {
-			return 0, err67
+		n67, err := m.ShardEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n67
 	}
@@ -7024,9 +7023,9 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreEvent.Size()))
-		n68, err68 := m.StoreEvent.MarshalTo(dAtA[i:])
-		if err68 != nil {
-			return 0, err68
+		n68, err := m.StoreEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n68
 	}
@@ -7034,9 +7033,9 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x32
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.ShardStatsEvent.Size()))
-		n69, err69 := m.ShardStatsEvent.MarshalTo(dAtA[i:])
-		if err69 != nil {
-			return 0, err69
+		n69, err := m.ShardStatsEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n69
 	}
@@ -7044,9 +7043,9 @@ func (m *EventNotify) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.StoreStatsEvent.Size()))
-		n70, err70 := m.StoreStatsEvent.MarshalTo(dAtA[i:])
-		if err70 != nil {
-			return 0, err70
+		n70, err := m.StoreStatsEvent.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n70
 	}
@@ -7207,9 +7206,9 @@ func (m *ConfigChange) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n73, err73 := m.Replica.MarshalTo(dAtA[i:])
-	if err73 != nil {
-		return 0, err73
+	n73, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n73
 	if m.ChangeType != 0 {
@@ -7241,9 +7240,9 @@ func (m *TransferLeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n74, err74 := m.Replica.MarshalTo(dAtA[i:])
-	if err74 != nil {
-		return 0, err74
+	n74, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n74
 	if m.XXX_unrecognized != nil {
@@ -7525,9 +7524,9 @@ func (m *RequestBatchHeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1a
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n75, err75 := m.Replica.MarshalTo(dAtA[i:])
-	if err75 != nil {
-		return 0, err75
+	n75, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n75
 	if m.XXX_unrecognized != nil {
@@ -7560,9 +7559,9 @@ func (m *ResponseBatchHeader) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Error.Size()))
-	n76, err76 := m.Error.MarshalTo(dAtA[i:])
-	if err76 != nil {
-		return 0, err76
+	n76, err := m.Error.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n76
 	if m.XXX_unrecognized != nil {
@@ -7589,9 +7588,9 @@ func (m *RequestBatch) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Header.Size()))
-	n77, err77 := m.Header.MarshalTo(dAtA[i:])
-	if err77 != nil {
-		return 0, err77
+	n77, err := m.Header.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n77
 	if len(m.Requests) > 0 {
@@ -7630,9 +7629,9 @@ func (m *ResponseBatch) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Header.Size()))
-	n78, err78 := m.Header.MarshalTo(dAtA[i:])
-	if err78 != nil {
-		return 0, err78
+	n78, err := m.Header.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n78
 	if len(m.Responses) > 0 {
@@ -7724,18 +7723,18 @@ func (m *Request) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x52
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Epoch.Size()))
-	n79, err79 := m.Epoch.MarshalTo(dAtA[i:])
-	if err79 != nil {
-		return 0, err79
+	n79, err := m.Epoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n79
 	if m.KeysRange != nil {
 		dAtA[i] = 0x5a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.KeysRange.Size()))
-		n80, err80 := m.KeysRange.MarshalTo(dAtA[i:])
-		if err80 != nil {
-			return 0, err80
+		n80, err := m.KeysRange.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n80
 	}
@@ -7748,9 +7747,9 @@ func (m *Request) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x6a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnBatchRequest.Size()))
-		n81, err81 := m.TxnBatchRequest.MarshalTo(dAtA[i:])
-		if err81 != nil {
-			return 0, err81
+		n81, err := m.TxnBatchRequest.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n81
 	}
@@ -7838,18 +7837,18 @@ func (m *Response) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x32
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Error.Size()))
-	n82, err82 := m.Error.MarshalTo(dAtA[i:])
-	if err82 != nil {
-		return 0, err82
+	n82, err := m.Error.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n82
 	if m.TxnBatchResponse != nil {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintRpcpb(dAtA, i, uint64(m.TxnBatchResponse.Size()))
-		n83, err83 := m.TxnBatchResponse.MarshalTo(dAtA[i:])
-		if err83 != nil {
-			return 0, err83
+		n83, err := m.TxnBatchResponse.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n83
 	}
@@ -7882,9 +7881,9 @@ func (m *ConfigChangeRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x12
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n84, err84 := m.Replica.MarshalTo(dAtA[i:])
-	if err84 != nil {
-		return 0, err84
+	n84, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n84
 	if m.XXX_unrecognized != nil {
@@ -7911,9 +7910,9 @@ func (m *ConfigChangeResponse) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Shard.Size()))
-	n85, err85 := m.Shard.MarshalTo(dAtA[i:])
-	if err85 != nil {
-		return 0, err85
+	n85, err := m.Shard.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n85
 	if m.XXX_unrecognized != nil {
@@ -7987,9 +7986,9 @@ func (m *TransferLeaderRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Replica.Size()))
-	n86, err86 := m.Replica.MarshalTo(dAtA[i:])
-	if err86 != nil {
-		return 0, err86
+	n86, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n86
 	if m.XXX_unrecognized != nil {
@@ -8218,9 +8217,9 @@ func (m *UpdateMetadataRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintRpcpb(dAtA, i, uint64(m.Metadata.Size()))
-	n87, err87 := m.Metadata.MarshalTo(dAtA[i:])
-	if err87 != nil {
-		return 0, err87
+	n87, err := m.Metadata.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n87
 	if m.XXX_unrecognized != nil {
@@ -9861,7 +9860,14 @@ func (m *UpdateLabelsResponse) Size() (n int) {
 }
 
 func sovRpcpb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozRpcpb(x uint64) (n int) {
 	return sovRpcpb(uint64((x << 1) ^ uint64((int64(x) >> 63))))

@@ -7,7 +7,6 @@ import (
 	fmt "fmt"
 	io "io"
 	math "math"
-	math_bits "math/bits"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
@@ -3163,9 +3162,9 @@ func (m *ReplicaStats) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.Replica.Size()))
-	n1, err1 := m.Replica.MarshalTo(dAtA[i:])
-	if err1 != nil {
-		return 0, err1
+	n1, err := m.Replica.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n1
 	if m.DownSeconds != 0 {
@@ -3266,9 +3265,9 @@ func (m *ShardStats) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x42
 		i++
 		i = encodeVarintMetapb(dAtA, i, uint64(m.Interval.Size()))
-		n2, err2 := m.Interval.MarshalTo(dAtA[i:])
-		if err2 != nil {
-			return 0, err2
+		n2, err := m.Interval.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n2
 	}
@@ -3307,9 +3306,9 @@ func (m *StoreStats) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintMetapb(dAtA, i, uint64(m.Interval.Size()))
-		n3, err3 := m.Interval.MarshalTo(dAtA[i:])
-		if err3 != nil {
-			return 0, err3
+		n3, err := m.Interval.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n3
 	}
@@ -3814,9 +3813,9 @@ func (m *ShardExtra) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMetapb(dAtA, i, uint64(m.DestroyingStatus.Size()))
-		n4, err4 := m.DestroyingStatus.MarshalTo(dAtA[i:])
-		if err4 != nil {
-			return 0, err4
+		n4, err := m.DestroyingStatus.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n4
 	}
@@ -3930,33 +3929,33 @@ func (m *RaftMessage) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1a
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.From.Size()))
-	n5, err5 := m.From.MarshalTo(dAtA[i:])
-	if err5 != nil {
-		return 0, err5
+	n5, err := m.From.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n5
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.To.Size()))
-	n6, err6 := m.To.MarshalTo(dAtA[i:])
-	if err6 != nil {
-		return 0, err6
+	n6, err := m.To.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n6
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.Message.Size()))
-	n7, err7 := m.Message.MarshalTo(dAtA[i:])
-	if err7 != nil {
-		return 0, err7
+	n7, err := m.Message.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n7
 	dAtA[i] = 0x32
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.ShardEpoch.Size()))
-	n8, err8 := m.ShardEpoch.MarshalTo(dAtA[i:])
-	if err8 != nil {
-		return 0, err8
+	n8, err := m.ShardEpoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n8
 	if m.IsTombstone {
@@ -4116,9 +4115,9 @@ func (m *SnapshotChunk) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.ConfState.Size()))
-	n9, err9 := m.ConfState.MarshalTo(dAtA[i:])
-	if err9 != nil {
-		return 0, err9
+	n9, err := m.ConfState.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n9
 	if m.XXX_unrecognized != nil {
@@ -4193,9 +4192,9 @@ func (m *Shard) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.Epoch.Size()))
-	n10, err10 := m.Epoch.MarshalTo(dAtA[i:])
-	if err10 != nil {
-		return 0, err10
+	n10, err := m.Epoch.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n10
 	if m.State != 0 {
@@ -4318,9 +4317,9 @@ func (m *ShardMetadata) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x1a
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.Metadata.Size()))
-	n11, err11 := m.Metadata.MarshalTo(dAtA[i:])
-	if err11 != nil {
-		return 0, err11
+	n11, err := m.Metadata.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n11
 	if m.XXX_unrecognized != nil {
@@ -4347,9 +4346,9 @@ func (m *ShardLocalState) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintMetapb(dAtA, i, uint64(m.Shard.Size()))
-	n12, err12 := m.Shard.MarshalTo(dAtA[i:])
-	if err12 != nil {
-		return 0, err12
+	n12, err := m.Shard.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
 	}
 	i += n12
 	if m.State != 0 {
@@ -4500,9 +4499,9 @@ func (m *ShardsPool) MarshalTo(dAtA []byte) (int, error) {
 				dAtA[i] = 0x12
 				i++
 				i = encodeVarintMetapb(dAtA, i, uint64(v.Size()))
-				n13, err13 := v.MarshalTo(dAtA[i:])
-				if err13 != nil {
-					return 0, err13
+				n13, err := v.MarshalTo(dAtA[i:])
+				if err != nil {
+					return 0, err
 				}
 				i += n13
 			}
@@ -4629,9 +4628,9 @@ func (m *ShardsPoolCmd) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMetapb(dAtA, i, uint64(m.Create.Size()))
-		n14, err14 := m.Create.MarshalTo(dAtA[i:])
-		if err14 != nil {
-			return 0, err14
+		n14, err := m.Create.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n14
 	}
@@ -4639,9 +4638,9 @@ func (m *ShardsPoolCmd) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintMetapb(dAtA, i, uint64(m.Alloc.Size()))
-		n15, err15 := m.Alloc.MarshalTo(dAtA[i:])
-		if err15 != nil {
-			return 0, err15
+		n15, err := m.Alloc.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
 		}
 		i += n15
 	}
@@ -5653,7 +5652,14 @@ func (m *SnapshotInfo) Size() (n int) {
 }
 
 func sovMetapb(x uint64) (n int) {
-	return (math_bits.Len64(x|1) + 6) / 7
+	for {
+		n++
+		x >>= 7
+		if x == 0 {
+			break
+		}
+	}
+	return n
 }
 func sozMetapb(x uint64) (n int) {
 	return sovMetapb(uint64((x << 1) ^ uint64((int64(x) >> 63))))

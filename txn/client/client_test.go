@@ -24,9 +24,9 @@ import (
 
 func TestNewTxn(t *testing.T) {
 	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClocker(newMockTxnClocker(5)))
-	txn := client.NewTxn("mock-txn", txnpb.Isolation_SI).getTxnMeta()
+	txn := client.NewTxn(WithTxnOptionName("mock-txn")).getTxnMeta()
 	assert.Equal(t, "mock-txn", txn.Name)
-	assert.Equal(t, txnpb.Isolation_SI, txn.Isolation)
+	assert.Equal(t, txnpb.IsolationLevel_SnapshotSerializable, txn.IsolationLevel)
 	assert.NotEmpty(t, txn.ID)
 	assert.True(t, txn.Priority > 0)
 	assert.Equal(t, uint64(6), txn.MaxTimestamp)
@@ -44,7 +44,7 @@ func TestWrite(t *testing.T) {
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
 	ctx := context.TODO()
-	op := client.NewTxn("mock-txn", txnpb.Isolation_SI)
+	op := client.NewTxn()
 	defer op.Rollback(ctx)
 
 	assert.NoError(t, op.Write(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}}))
@@ -58,7 +58,7 @@ func TestWriteAndCommit(t *testing.T) {
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
 	ctx := context.TODO()
-	op := client.NewTxn("mock-txn", txnpb.Isolation_SI)
+	op := client.NewTxn()
 	assert.NoError(t, op.WriteAndCommit(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}}))
 }
 
@@ -70,7 +70,7 @@ func TestRead(t *testing.T) {
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
 	ctx := context.TODO()
-	op := client.NewTxn("mock-txn", txnpb.Isolation_SI)
+	op := client.NewTxn()
 	data, err := op.Read(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(data))
@@ -84,7 +84,7 @@ func TestCommit(t *testing.T) {
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
 	ctx := context.TODO()
-	op := client.NewTxn("mock-txn", txnpb.Isolation_SI)
+	op := client.NewTxn()
 	assert.NoError(t, op.Write(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}}))
 	assert.NoError(t, op.Commit(ctx))
 }
@@ -97,7 +97,7 @@ func TestRollback(t *testing.T) {
 	}), WithTxnClocker(newMockTxnClocker(5)))
 
 	ctx := context.TODO()
-	op := client.NewTxn("mock-txn", txnpb.Isolation_SI)
+	op := client.NewTxn()
 	assert.NoError(t, op.Write(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}}))
 	assert.NoError(t, op.Rollback(ctx))
 }

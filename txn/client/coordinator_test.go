@@ -21,6 +21,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
+	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -87,7 +88,7 @@ func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
 	tc.send(context.Background(), r)
 }
 
-func TestSendWithImpactedKeyRangeWillPanic(t *testing.T) {
+func TestSendWithEmptyImpactedWillPanic(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	defer func() {
@@ -101,7 +102,7 @@ func TestSendWithImpactedKeyRangeWillPanic(t *testing.T) {
 	defer tc.stop()
 
 	r := newTestWriteTxnOperation(false, "k1")
-	r.Requests[0].Operation.Impacted.Ranges = []txnpb.KeyRange{{}}
+	r.Requests[0].Operation.Impacted = txnpb.KeySet{}
 	tc.send(context.Background(), r)
 }
 
@@ -170,38 +171,6 @@ func TestHeatbeatNotStartAfterFirstWriteWithCommit(t *testing.T) {
 	tc.mu.Unlock()
 }
 
-func TestInfightWritesAndCompletedWrites(t *testing.T) {
-	defer leaktest.AfterTest(t)()
-
-	block := false
-	c := make(chan struct{})
-	defer close(c)
-	r := make(chan struct{})
-	defer close(r)
-	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
-		if block {
-			c <- struct{}{}
-			<-r
-		}
-		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	})
-	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
-	defer tc.stop()
-
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
-
-	go func() {
-		<-c
-		tc.mu.Lock()
-		defer tc.mu.Unlock()
-		assert.Equal(t, "k1", string(tc.mu.completedWrites.PointKeys[0]))
-		assert.Equal(t, "k2", string(tc.mu.infightWrites.PointKeys[0]))
-		r <- struct{}{}
-	}()
-	block = true
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
-}
-
 func TestSingleWriteSplit(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
@@ -217,6 +186,115 @@ func TestSingleWriteSplit(t *testing.T) {
 	assert.Equal(t, 1, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
+	tc.mu.Lock()
+	assert.Equal(t, 0, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].PointKeys))
+	tc.mu.Unlock()
+}
+
+func TestWriteWithAsyncConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	defer tc.stop()
+
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 1, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 0, len(tc.mu.completedWrites[0].PointKeys))
+	tc.mu.Unlock()
+}
+
+func TestWriteWithAsyncConsensusAndMaxBytesExceed(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 2
+	defer tc.stop()
+
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2"))
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 1, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].PointKeys))
+	assert.Equal(t, 2, len(requests))
+	assert.True(t, requests[0].Requests[0].Options.AsynchronousConsensus)
+	assert.False(t, requests[1].Requests[0].Options.AsynchronousConsensus)
+	tc.mu.Unlock()
+}
+
+func TestRangeWriteWithAsyncConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+
+	req := newTestWriteTxnOperation(false, "k1")
+	req.Requests[0].Operation.Impacted.Ranges = []txnpb.KeyRange{
+		{
+			Start: []byte("k1"),
+			End:   []byte("k2"),
+		},
+	}
+	_, err := tc.send(context.Background(), req)
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 0, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].PointKeys))
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].Ranges))
+	tc.mu.Unlock()
+}
+
+func TestWriteWithAsyncConsensusAndWaitConsensus(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var requests []txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		requests = append(requests, req)
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	defer tc.stop()
+
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 1, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 0, len(tc.mu.completedWrites[0].PointKeys))
+	tc.mu.Unlock()
+
+	req := newTestPointReadTxnOperation("k1")
+	req.Requests[0].Operation.Op = uint32(txnpb.InternalTxnOp_WaitConsensus)
+	_, err = tc.send(context.Background(), req)
+	assert.NoError(t, err)
+	tc.mu.Lock()
+	assert.Equal(t, 0, tc.mu.infightWrites[0].Len())
+	assert.Equal(t, 1, len(tc.mu.completedWrites[0].PointKeys))
+	tc.mu.Unlock()
 }
 
 func TestMultiWriteSplit(t *testing.T) {
@@ -630,21 +708,173 @@ func TestHeartbeatTaskStopByNotPendingStatus(t *testing.T) {
 	}
 }
 
+func TestAddNothingWithWriteImpacted(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		return txnpb.TxnBatchResponse{}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+
+	req := newTestWriteTxnOperation(false, "k1")
+	tc.maybeInsertWaitConsensusLocked(&req)
+	assert.Equal(t, 1, len(req.Requests))
+}
+
+func TestAddAllInfightWithCommit(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		return txnpb.TxnBatchResponse{}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+	tc.mu.infightWrites[0].Add([]byte("k2"))
+
+	req := newTestWriteTxnOperation(true, "k1")
+	tc.maybeInsertWaitConsensusLocked(&req)
+	assert.Equal(t, 4, len(req.Requests))
+	assert.True(t, req.Requests[1].IsWaitConsensus())
+	assert.Equal(t, []byte("k1"), req.Requests[1].Operation.Impacted.PointKeys[0])
+	assert.True(t, req.Requests[2].IsWaitConsensus())
+	assert.Equal(t, []byte("k2"), req.Requests[2].Operation.Impacted.PointKeys[0])
+}
+
+func TestAddInfightWithPointRead(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		return txnpb.TxnBatchResponse{}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+	tc.mu.infightWrites[0].Add([]byte("k2"))
+	tc.mu.infightWrites[0].Add([]byte("k3"))
+
+	req := newTestPointReadTxnOperation("k4", "k2")
+	tc.maybeInsertWaitConsensusLocked(&req)
+	assert.Equal(t, 3, len(req.Requests))
+	assert.True(t, req.Requests[1].IsWaitConsensus())
+	assert.Equal(t, []byte("k2"), req.Requests[1].Operation.Impacted.PointKeys[0])
+}
+
+func TestAddInfightWithMultiPointRead(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		return txnpb.TxnBatchResponse{}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+	tc.mu.infightWrites[0].Add([]byte("k2"))
+	tc.mu.infightWrites[0].Add([]byte("k3"))
+
+	req := newTestPointReadTxnOperation("k2", "k2")
+	tc.maybeInsertWaitConsensusLocked(&req)
+	assert.Equal(t, 3, len(req.Requests))
+	assert.True(t, req.Requests[0].IsWaitConsensus())
+	assert.Equal(t, []byte("k2"), req.Requests[0].Operation.Impacted.PointKeys[0])
+}
+
+func TestAddAllInfightsWithMultiPointRead(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		return txnpb.TxnBatchResponse{}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+	tc.mu.infightWrites[0].Add([]byte("k2"))
+	tc.mu.infightWrites[0].Add([]byte("k3"))
+
+	req := newTestPointReadTxnOperation("k1", "k2", "k3", "k3")
+	tc.maybeInsertWaitConsensusLocked(&req)
+	assert.Equal(t, 7, len(req.Requests))
+	assert.True(t, req.Requests[0].IsWaitConsensus())
+	assert.Equal(t, []byte("k1"), req.Requests[0].Operation.Impacted.PointKeys[0])
+	assert.True(t, req.Requests[2].IsWaitConsensus())
+	assert.Equal(t, []byte("k2"), req.Requests[2].Operation.Impacted.PointKeys[0])
+	assert.True(t, req.Requests[4].IsWaitConsensus())
+	assert.Equal(t, []byte("k3"), req.Requests[4].Operation.Impacted.PointKeys[0])
+}
+
+func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	var commit txnpb.TxnBatchRequest
+	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
+		if req.HasCommitOrRollback() {
+			commit = req
+		}
+		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
+	})
+	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
+	defer tc.stop()
+
+	tc.mu.Lock()
+	tc.opts.optimize.asynchronousConsensus = true
+	tc.opts.optimize.maxInfilghtKeysBytes = 1024
+	tc.mu.infightWrites[0].Add([]byte("k1"))
+	tc.mu.infightWrites[0].Add([]byte("k2"))
+	tc.mu.infightWrites[0].Add([]byte("k3"))
+	tc.mu.completedWrites[0].AddPointKeys([][]byte{[]byte("k4"), []byte("k5")})
+	tc.mu.Unlock()
+
+	tc.send(context.Background(), newTestWriteTxnOperation(true, "k6"))
+	assert.NotNil(t, commit.Header.Txn.InfightWrites)
+	assert.NotNil(t, commit.Header.Txn.InfightWrites[0].Sorted)
+	assert.Equal(t, 4, len(commit.Header.Txn.InfightWrites[0].PointKeys))
+	assert.NotNil(t, commit.Header.Txn.CompletedWrites)
+	assert.Equal(t, 2, len(commit.Header.Txn.CompletedWrites[0].PointKeys))
+}
+
 func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch uint32) *coordinator {
 	clocker := newMockTxnClocker(0)
 	ts, skew := clocker.Now()
-	return newTxnCoordinator(newTestSITxn(name, id, ts, skew, epoch),
+	tc := newTxnCoordinator(newTestSITxn(name, id, ts, skew, epoch),
 		sender,
 		clocker,
-		time.Millisecond*10,
-		log.GetPanicZapLoggerWithLevel(zap.DebugLevel))
+		log.GetPanicZapLoggerWithLevel(zap.DebugLevel),
+		txnOptions{heartbeatDuration: time.Millisecond * 10})
+	tc.mu.infightWrites[0] = keys.NewKeyTree(32)
+	tc.mu.completedWrites[0] = &txnpb.KeySet{}
+	return tc
 }
 
 func newTestSITxn(name, id string, ts, skew uint64, epoch uint32) txnpb.TxnMeta {
 	return txnpb.TxnMeta{
 		ID:             []byte("id"),
 		Name:           name,
-		Isolation:      txnpb.Isolation_SI,
+		IsolationLevel: txnpb.IsolationLevel_SnapshotSerializable,
 		ReadTimestamp:  ts,
 		WriteTimestamp: ts,
 		MaxTimestamp:   ts + skew,
@@ -652,15 +882,15 @@ func newTestSITxn(name, id string, ts, skew uint64, epoch uint32) txnpb.TxnMeta 
 	}
 }
 
-func newTestPointReadTxnOperation(key string) txnpb.TxnBatchRequest {
+func newTestPointReadTxnOperation(keys ...string) txnpb.TxnBatchRequest {
 	var r txnpb.TxnBatchRequest
 	r.Header.Type = txnpb.TxnRequestType_Read
-	r.Requests = append(r.Requests,
-		txnpb.TxnRequest{Operation: txnpb.TxnOperation{
-			Op:       uint32(txnpb.InternalTxnOp_Reserved) + 1,
-			Payload:  []byte(key),
-			Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte(key)}},
-		}})
+	for _, key := range keys {
+		op := txnpb.NewReadOperation(uint32(txnpb.InternalTxnOp_Reserved)+1, []byte(key),
+			txnpb.KeySet{PointKeys: [][]byte{[]byte(key)}})
+		r.Requests = append(r.Requests, txnpb.TxnRequest{Operation: op})
+	}
+
 	return r
 }
 
@@ -668,13 +898,11 @@ func newTestWriteTxnOperation(commit bool, keys ...string) txnpb.TxnBatchRequest
 	var r txnpb.TxnBatchRequest
 	r.Header.Type = txnpb.TxnRequestType_Write
 	for _, key := range keys {
-		r.Requests = append(r.Requests,
-			txnpb.TxnRequest{Operation: txnpb.TxnOperation{
-				Op:       uint32(txnpb.InternalTxnOp_Reserved) + 2,
-				Payload:  []byte(key),
-				Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte(key)}},
-			}})
+		op := txnpb.NewWriteOnlyOperation(uint32(txnpb.InternalTxnOp_Reserved)+2, []byte(key),
+			txnpb.KeySet{PointKeys: [][]byte{[]byte(key)}})
+		r.Requests = append(r.Requests, txnpb.TxnRequest{Operation: op})
 	}
+
 	if commit {
 		r.Requests = append(r.Requests, txnpb.TxnRequest{Operation: txnpb.TxnOperation{Op: uint32(txnpb.InternalTxnOp_Commit)}})
 	}

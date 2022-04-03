@@ -17,7 +17,6 @@ import (
 	"math"
 	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/util/uuid"
@@ -52,13 +51,6 @@ func WithTxnPriorityGenerator(txnPriorityGenerator TxnPriorityGenerator) Option 
 func WithTxnClocker(txnClocker TxnClocker) Option {
 	return func(tc *txnClient) {
 		tc.txnClocker = txnClocker
-	}
-}
-
-// WithTxnHeartbeatDuration set txn heartbeat duration
-func WithTxnHeartbeatDuration(value time.Duration) Option {
-	return func(tc *txnClient) {
-		tc.txnHeartbeatDuration = value
 	}
 }
 

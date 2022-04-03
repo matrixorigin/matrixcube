@@ -19,9 +19,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fagongzi/util/hack"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/txn/util"
+	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
@@ -36,26 +38,28 @@ type txnCoordinator interface {
 func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 	sender BatchDispatcher,
 	txnClocker TxnClocker,
-	txnHeartbeatDuration time.Duration,
-	logger *zap.Logger) *coordinator {
+	logger *zap.Logger,
+	opts txnOptions) *coordinator {
 	c := &coordinator{
-		sender:               sender,
-		logger:               logger.With(log.HexField("txn-id", txnMeta.ID)),
-		txnClocker:           txnClocker,
-		txnHeartbeatDuration: txnHeartbeatDuration,
-		stopper:              stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
+		sender:     sender,
+		logger:     logger.With(log.HexField("txn-id", txnMeta.ID)),
+		txnClocker: txnClocker,
+		opts:       opts,
+		stopper:    stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
 	}
 	c.mu.txnMeta = txnMeta
 	c.mu.status = txnpb.TxnStatus_Pending
+	c.mu.infightWrites = make(map[uint64]*keys.KeyTree)
+	c.mu.completedWrites = make(map[uint64]*txnpb.KeySet)
 	return c
 }
 
 type coordinator struct {
-	logger               *zap.Logger
-	sender               BatchDispatcher
-	txnClocker           TxnClocker
-	txnHeartbeatDuration time.Duration
-	stopper              *stop.Stopper
+	logger     *zap.Logger
+	sender     BatchDispatcher
+	txnClocker TxnClocker
+	opts       txnOptions
+	stopper    *stop.Stopper
 
 	mu struct {
 		sync.Mutex
@@ -68,10 +72,10 @@ type coordinator struct {
 		txnMeta txnpb.TxnMeta
 		// infightWrites record the current transaction has not completed the consensus write
 		// operation.
-		infightWrites txnpb.KeySet
+		infightWrites map[uint64]*keys.KeyTree
 		// completedWrites record the current transaction has completed the consensus write
 		// operation.
-		completedWrites txnpb.KeySet
+		completedWrites map[uint64]*txnpb.KeySet
 		// sequence indicates the current number of write operations in the transaction.
 		// Of all the operations in the transaction, only the write operation will increase
 		// the value of the field.
@@ -91,14 +95,14 @@ func (c *coordinator) send(ctx context.Context, batchRequest txnpb.TxnBatchReque
 		return txnpb.TxnBatchResponse{}, err
 	}
 
-	// TODO: with pipline optimization on, you can only move to completedWrites after explicitly
+	// if with async consensus optimization on, we can only move to completedWrites after explicitly
 	// querying for written temporary data
-	defer c.moveToCompletedWrites(&batchRequest)
+	defer c.moveToCompletedWrites(batchRequest)
 
 	// create TxnRecord request need to be completed first, commit requests need to be completed last
 	// (no parallel commit optimization), and they cannot be executed together with other write requests
 	// in a Batch.
-	sendDirect := n == 1 || // only one write request
+	sendDirect := n == 1 || // only one request
 		batchRequest.Header.Type == txnpb.TxnRequestType_Read || // read requests
 		(!createTxnRecord && !hasCommitOrRollback) // txn record created
 
@@ -143,11 +147,15 @@ func (c *coordinator) prepareSend(ctx context.Context, batchRequest *txnpb.TxnBa
 		return createTxnRecord, err
 	}
 
-	if batchRequest.Header.Type == txnpb.TxnRequestType_Write {
+	if batchRequest.IsWrite() {
 		c.mu.sequence++
 		c.addInfightWritesLocked(batchRequest)
 
 		if c.mu.sequence == 1 {
+			if !batchRequest.Requests[0].Operation.Impacted.HasPointKeys() {
+				c.logger.Fatal("first write in txn must has point key to save txn record.")
+			}
+
 			// For the first write operation, need to explicitly tell the TxnManager to create
 			// the TxnRecord synchronously. We use the first Key of the first write request as
 			// the TxnRecordRouteKey.
@@ -157,18 +165,85 @@ func (c *coordinator) prepareSend(ctx context.Context, batchRequest *txnpb.TxnBa
 			createTxnRecord = true
 		}
 	}
+
+	// make sure all read or commit/rollback request should after infight key completed
+	c.maybeInsertWaitConsensusLocked(batchRequest)
+
 	batchRequest.Header.Txn.TxnMeta = c.mu.txnMeta
 	batchRequest.Header.Txn.Sequence = c.mu.sequence
 	// If the current BatchRequest contains requests for commit or rollback transactions, we need
 	// to append the Key of all the operations performed and let TxnManager resolve the temporary
 	// data.
 	if batchRequest.HasCommitOrRollback() {
-		batchRequest.Header.Txn.InfightWrites = &c.mu.infightWrites
-		batchRequest.Header.Txn.CompletedWrites = &c.mu.completedWrites
+		batchRequest.Header.Txn.InfightWrites = c.inflightKeySetLocked()
+		batchRequest.Header.Txn.CompletedWrites = c.completedKeySetLocked()
 		c.mu.ending = true
 	}
 
 	return createTxnRecord, nil
+}
+
+func (c *coordinator) maybeInsertWaitConsensusLocked(batchRequest *txnpb.TxnBatchRequest) {
+	n := c.infightKeyCountLocked()
+	if !c.supportAsyncConsensus() ||
+		n == 0 {
+		return
+	}
+
+	// we need see has overlap with infight writes
+	oldRequests := batchRequest.Requests
+	// every infight key added only once
+	var addedKeys map[string]struct{}
+	changed := false
+	for idx := range oldRequests {
+		// all infight keys added
+		if len(addedKeys) == n {
+			if changed {
+				batchRequest.AddManyRequest(oldRequests[idx:])
+			}
+			break
+		}
+
+		fn := func(key []byte) bool {
+			if !changed {
+				batchRequest.Requests = append([]txnpb.TxnRequest(nil), oldRequests[:idx]...)
+				changed = true
+			}
+			if addedKeys == nil {
+				addedKeys = make(map[string]struct{})
+			}
+			strKey := hack.SliceToString(key)
+			if _, ok := addedKeys[strKey]; !ok {
+				batchRequest.AddRequest(txnpb.TxnRequest{
+					Operation: txnpb.TxnOperation{
+						Op:         uint32(txnpb.InternalTxnOp_WaitConsensus),
+						Impacted:   txnpb.KeySet{PointKeys: [][]byte{key}},
+						ShardGroup: oldRequests[idx].Operation.ShardGroup,
+					},
+				})
+				addedKeys[strKey] = struct{}{}
+			}
+			return true
+		}
+
+		if oldRequests[idx].IsCommitOrRollback() {
+			// add all infight keys
+			for _, tree := range c.mu.infightWrites {
+				tree.Ascend(fn)
+			}
+		} else if oldRequests[idx].HasReadImpacted() { // normal read or readwrite operation
+			if oldRequests[idx].Operation.Impacted.IsEmpty() {
+				c.logger.Fatal("read operation has no impacted keys")
+			}
+			// add intersection of infight key
+			from, to := oldRequests[idx].Operation.Impacted.GetKeyRange()
+			c.mu.infightWrites[oldRequests[idx].Operation.ShardGroup].AscendRange(from, to, fn)
+		}
+
+		if changed {
+			batchRequest.AddRequest(oldRequests[idx])
+		}
+	}
 }
 
 func (c *coordinator) canSendLocked() error {
@@ -188,47 +263,91 @@ func (c *coordinator) canSendLocked() error {
 
 func (c *coordinator) addInfightWritesLocked(batchRequest *txnpb.TxnBatchRequest) {
 	for idx := range batchRequest.Requests {
+		asyncConsensus := false
 		if !batchRequest.Requests[idx].IsInternal() {
-			if !batchRequest.Requests[idx].Operation.Impacted.HasPointKeys() {
-				c.logger.Fatal("write operation has no impacted pointKeys")
-			}
-			if batchRequest.Requests[idx].Operation.Impacted.HasKeyRanges() {
-				c.logger.Fatal("write operation has impacted key ranges, only support pointKeys for write")
+			if batchRequest.Requests[idx].Operation.Impacted.IsEmpty() {
+				c.logger.Fatal("write operation has no impacted keys")
 			}
 
-			c.mu.infightWrites.PointKeys = append(c.mu.infightWrites.PointKeys,
-				batchRequest.Requests[idx].Operation.Impacted.PointKeys...)
+			if c.supportAsyncConsensus() {
+				if batchRequest.Requests[idx].Operation.Impacted.HasPointKeys() {
+					asyncConsensus = true
+				}
+				// range update can not perform async consensus, because we can not clearly
+				// know which keys are in the consensus
+				if batchRequest.Requests[idx].Operation.Impacted.HasKeyRanges() {
+					asyncConsensus = false
+				}
+			}
+
+			batchRequest.Requests[idx].Options.AsynchronousConsensus = asyncConsensus
+			if asyncConsensus {
+				c.addToInfightWritesLocked(batchRequest.Requests[idx].Operation)
+			} else {
+				c.addToCompletedWritesLocked(batchRequest.Requests[idx].Operation)
+			}
 		}
 	}
 }
 
-func (c *coordinator) moveToCompletedWrites(batchRequest *txnpb.TxnBatchRequest) {
-	if batchRequest.Header.Type != txnpb.TxnRequestType_Write {
+func (c *coordinator) infightBytesLocked() int {
+	n := 0
+	for _, tree := range c.mu.infightWrites {
+		n += tree.Bytes()
+	}
+	return n
+}
+
+func (c *coordinator) maxInfightBytesExceedLocked() bool {
+	return c.opts.optimize.maxInfilghtKeysBytes <= c.infightBytesLocked()
+}
+
+func (c *coordinator) addToInfightWritesLocked(op txnpb.TxnOperation) {
+	if tree, ok := c.mu.infightWrites[op.ShardGroup]; ok {
+		tree.AddMany(op.Impacted.PointKeys)
+		return
+	}
+
+	tree := keys.NewKeyTree(32)
+	tree.AddMany(op.Impacted.PointKeys)
+	c.mu.infightWrites[op.ShardGroup] = tree
+}
+
+func (c *coordinator) infightKeyCountLocked() int {
+	n := 0
+	for _, tree := range c.mu.infightWrites {
+		n += tree.Len()
+	}
+	return n
+}
+
+func (c *coordinator) addToCompletedWritesLocked(op txnpb.TxnOperation) {
+	if keySet, ok := c.mu.completedWrites[op.ShardGroup]; ok {
+		keySet.AddPointKeys(op.Impacted.PointKeys)
+		keySet.AddKeyRanges(op.Impacted.Ranges)
+		return
+	}
+
+	keySet := &txnpb.KeySet{}
+	keySet.AddPointKeys(op.Impacted.PointKeys)
+	keySet.AddKeyRanges(op.Impacted.Ranges)
+	c.mu.completedWrites[op.ShardGroup] = keySet
+}
+
+func (c *coordinator) moveToCompletedWrites(batchRequest txnpb.TxnBatchRequest) {
+	if !batchRequest.HasWaitConsensus() {
 		return
 	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var completedPointKeys txnpb.KeySet
 	for idx := range batchRequest.Requests {
-		if !batchRequest.Requests[idx].IsInternal() {
-			completedPointKeys.PointKeys = append(completedPointKeys.PointKeys,
-				batchRequest.Requests[idx].Operation.Impacted.PointKeys...)
+		if batchRequest.Requests[idx].IsWaitConsensus() {
+			g := batchRequest.Requests[idx].Operation.ShardGroup
+			c.mu.infightWrites[g].DeleteMany(batchRequest.Requests[idx].Operation.Impacted.PointKeys)
+			c.mu.completedWrites[g].AddPointKeys(batchRequest.Requests[idx].Operation.Impacted.PointKeys)
 		}
-	}
-
-	// TODO: use a more efficient data structure to store infilghtWrites and facilitate
-	// the movement of consensus-complete Keys to completedWrites.
-	if completedPointKeys.HasPointKeys() {
-		var newInfightKeys [][]byte
-		for _, key := range c.mu.infightWrites.PointKeys {
-			if !completedPointKeys.HasPointKey(key) {
-				newInfightKeys = append(newInfightKeys, key)
-			}
-		}
-		c.mu.infightWrites.PointKeys = newInfightKeys
-		c.mu.completedWrites.PointKeys = append(c.mu.completedWrites.PointKeys, completedPointKeys.PointKeys...)
 	}
 }
 
@@ -286,7 +405,7 @@ func (c *coordinator) startTxnHeartbeatLocked() {
 	}
 	c.mu.heartbeating = true
 	c.stopper.RunTask(context.Background(), func(ctx context.Context) {
-		ticker := time.NewTicker(c.txnHeartbeatDuration)
+		ticker := time.NewTicker(c.opts.heartbeatDuration)
 		defer ticker.Stop()
 
 		for {
@@ -473,4 +592,34 @@ func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
 		},
 	})
 	return batchRequest
+}
+
+func (c *coordinator) supportAsyncConsensus() bool {
+	return c.opts.optimize.asynchronousConsensus &&
+		!c.maxInfightBytesExceedLocked()
+}
+
+func (c *coordinator) inflightKeySetLocked() map[uint64]txnpb.KeySet {
+	allInfights := make(map[uint64]txnpb.KeySet, len(c.mu.infightWrites))
+
+	for g, v := range c.mu.infightWrites {
+		set := txnpb.KeySet{
+			PointKeys: make([][]byte, 0, v.Len()),
+			Sorted:    true,
+		}
+		v.Ascend(func(key []byte) bool {
+			set.PointKeys = append(set.PointKeys, key)
+			return true
+		})
+		allInfights[g] = set
+	}
+	return allInfights
+}
+
+func (c *coordinator) completedKeySetLocked() map[uint64]txnpb.KeySet {
+	allCompleted := make(map[uint64]txnpb.KeySet, len(c.mu.completedWrites))
+	for g, v := range c.mu.completedWrites {
+		allCompleted[g] = *v
+	}
+	return allCompleted
 }

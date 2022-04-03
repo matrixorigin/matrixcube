@@ -21,8 +21,8 @@ require (
 	github.com/montanaflynn/stats v0.6.6
 	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d
 	github.com/prometheus/client_golang v1.11.0
-	github.com/shirou/gopsutil/v3 v3.21.10
-	github.com/stretchr/testify v1.7.0
+	github.com/shirou/gopsutil/v3 v3.22.3
+	github.com/stretchr/testify v1.7.1
 	go.etcd.io/etcd/api/v3 v3.5.0
 	go.etcd.io/etcd/client/pkg/v3 v3.5.0
 	go.etcd.io/etcd/client/v3 v3.5.0
