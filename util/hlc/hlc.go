@@ -43,6 +43,9 @@ type Clock interface {
 	MaxOffset() time.Duration
 	// Now returns the current timestamp.
 	Now() Timestamp
+	// NowUpperBound returns the upper bound of the current HLC time, the upper
+	// bound is Now() + MaxOffset.
+	NowUpperBound() Timestamp
 	// Update updates the clock based on the received timestamp.
 	Update(m Timestamp)
 }
