@@ -144,31 +144,6 @@ func (h *testMessageHandler) HandleSnapshot(shardID uint64,
 	}
 }
 
-func (h *testMessageHandler) getReceivedSnapshotCount(shardID uint64,
-	replicaID uint64) uint64 {
-	return h.getMessageCount(h.receivedSnapshotCount, shardID, replicaID)
-}
-
-func (h *testMessageHandler) getReceivedSnapshotFromCount(shardID uint64,
-	replicaID uint64) uint64 {
-	return h.getMessageCount(h.receivedSnapshotFromCount, shardID, replicaID)
-}
-
-func (h *testMessageHandler) getRequestCount(shardID uint64,
-	replicaID uint64) uint64 {
-	return h.getMessageCount(h.requestCount, shardID, replicaID)
-}
-
-func (h *testMessageHandler) getFailedSnapshotCount(shardID uint64,
-	replicaID uint64) uint64 {
-	return h.getMessageCount(h.snapshotFailedCount, shardID, replicaID)
-}
-
-func (h *testMessageHandler) getSnapshotSuccessCount(shardID uint64,
-	replicaID uint64) uint64 {
-	return h.getMessageCount(h.snapshotSuccessCount, shardID, replicaID)
-}
-
 func (h *testMessageHandler) getSnapshotCount(shardID uint64,
 	replicaID uint64) uint64 {
 	return h.getMessageCount(h.snapshotCount, shardID, replicaID)

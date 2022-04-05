@@ -27,6 +27,7 @@ import (
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -42,8 +43,8 @@ func createMem(fs vfs.FS, t *testing.T) storage.KVStorage {
 
 func createPebble(fs vfs.FS, t *testing.T) storage.KVStorage {
 	path := filepath.Join(util.GetTestDir(), "pebble", fmt.Sprintf("%d", time.Now().UnixNano()))
-	fs.RemoveAll(path)
-	fs.MkdirAll(path, 0755)
+	require.NoError(t, fs.RemoveAll(path))
+	require.NoError(t, fs.MkdirAll(path, 0755))
 	opts := &cpebble.Options{FS: vfs.NewPebbleFS(fs)}
 	s, err := pebble.NewStorage(path, nil, opts)
 	assert.NoError(t, err, "createPebble failed")
@@ -120,9 +121,9 @@ func TestSetAndGet(t *testing.T) {
 
 			key4 := []byte("k4")
 
-			s.Set(key1, value1, false)
-			s.Set(key2, value2, false)
-			s.Set(key3, value3, false)
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key2, value2, false))
+			require.NoError(t, s.Set(key3, value3, false))
 
 			value, err := s.Get(key1)
 			assert.NoError(t, err, "TestSetAndGet failed")
@@ -157,10 +158,10 @@ func TestDelete(t *testing.T) {
 			key2 := []byte("k2")
 			value2 := []byte("v2")
 
-			s.Set(key1, value1, false)
-			s.Set(key2, value2, false)
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key2, value2, false))
 
-			s.Delete(key2, false)
+			require.NoError(t, s.Delete(key2, false))
 
 			value, err := s.Get(key1)
 			assert.NoError(t, err, "TestDelete failed")
@@ -187,8 +188,8 @@ func TestSeek(t *testing.T) {
 			key3 := []byte("k3")
 			value3 := []byte("v3")
 
-			s.Set(key1, value1, false)
-			s.Set(key3, value3, false)
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key3, value3, false))
 
 			key, value, err := s.Seek(key1)
 			assert.NoError(t, err, "TestSeek failed")

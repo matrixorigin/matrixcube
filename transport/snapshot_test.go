@@ -32,9 +32,7 @@ package transport
 import (
 	"crypto/rand"
 	"fmt"
-	"io"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -86,7 +84,9 @@ func generateTestSnapshotDir(dir string, fs vfs.FS) error {
 	}
 
 	data := make([]byte, 1024)
-	rand.Read(data)
+	if _, err := rand.Read(data); err != nil {
+		return err
+	}
 	dfp1 := fs.PathJoin(fp1, "datafile1")
 	dfp2 := fs.PathJoin(fp1, "datafile2")
 	dfp3 := fs.PathJoin(fp3, "datafile3")
@@ -114,7 +114,9 @@ func TestSplitSnapshotMessage(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
-	defer fs.RemoveAll(testSnapshotDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testSnapshotDir))
+	}()
 	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
@@ -212,7 +214,9 @@ func TestLoadChunkData(t *testing.T) {
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
 	assert.NoError(t, generateTestSnapshotDir(testSnapshotDir, fs))
-	defer fs.RemoveAll(testSnapshotDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testSnapshotDir))
+	}()
 	si := &metapb.SnapshotInfo{
 		Extra: 12345,
 	}
@@ -271,7 +275,9 @@ func generateTestSnapshotDirWithFiles(fileCount int,
 	for i := 0; i < fileCount; i++ {
 		fn := fmt.Sprintf("testdata-%d.dat", i)
 		data := make([]byte, fileSize)
-		rand.Read(data)
+		if _, err := rand.Read(data); err != nil {
+			return err
+		}
 		if err := func() error {
 			fp := fs.PathJoin(dir, fn)
 			f, err := fs.Create(fp)
@@ -288,51 +294,6 @@ func generateTestSnapshotDirWithFiles(fileCount int,
 		}
 	}
 	return nil
-}
-
-func compareDir(source string, target string, fs vfs.FS) (bool, error) {
-	srcFiles, err := fs.List(source)
-	if err != nil {
-		return false, err
-	}
-	sourceData := make([]byte, 0)
-	dstData := make([]byte, 0)
-	for _, fn := range srcFiles {
-		if func() error {
-			fp := fs.PathJoin(source, fn)
-			f, err := fs.Open(fp)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-			result, err := io.ReadAll(f)
-			if err != nil {
-				return err
-			}
-			sourceData = append(sourceData, result...)
-
-			dfp := fs.PathJoin(target, fn)
-			df, err := fs.Open(dfp)
-			if err != nil {
-				return err
-			}
-			defer df.Close()
-			result, err = io.ReadAll(df)
-			if err != nil {
-				return err
-			}
-			dstData = append(dstData, result...)
-			return nil
-		}(); err != nil {
-			return false, err
-		}
-	}
-
-	if len(sourceData) != len(dstData) {
-		return false, nil
-	}
-
-	return reflect.DeepEqual(sourceData, dstData), nil
 }
 
 func getTestSnapshotDir(shardID uint64, replicaID uint64) string {
@@ -366,10 +327,6 @@ func (t *testTransportStatus) SnapshotStatusHandler(_, _ uint64, _ raftpb.Snapsh
 	atomic.AddUint64(&t.statusCount, 1)
 }
 
-func (t *testTransportStatus) getMessageCount() int {
-	return int(atomic.LoadUint64(&t.messageHandlerCount))
-}
-
 func (t *testTransportStatus) waitMessageCount(tt *testing.T, value int, timeout time.Duration) {
 	t.waitCount(tt, value, &t.messageHandlerCount, timeout)
 }
@@ -401,8 +358,10 @@ func TestSnapshotCanBeTransported(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
-	fs.RemoveAll(testSnapshotDir)
-	defer fs.RemoveAll(testSnapshotDir)
+	require.NoError(t, fs.RemoveAll(testSnapshotDir))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testSnapshotDir))
+	}()
 	extra := uint64(12345)
 	index := uint64(100)
 	si := &metapb.SnapshotInfo{

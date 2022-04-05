@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -41,8 +42,7 @@ func TestCompactionAndSnapshot(t *testing.T) {
 			msg.From.StoreID == atomic.LoadUint64(&skipStore)
 	}
 
-	var c TestRaftCluster
-	c = NewTestClusterStore(t,
+	c := NewTestClusterStore(t,
 		DiskTestCluster,
 		OldTestCluster,
 		WithTestClusterNodeCount(3))
@@ -76,7 +76,7 @@ func TestCompactionAndSnapshot(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		store := c.GetStore(i).(*store)
 		if pr := store.getReplica(shardID, true); pr != nil {
-			pr.sm.dataStorage.Sync([]uint64{shardID})
+			require.NoError(t, pr.sm.dataStorage.Sync([]uint64{shardID}))
 		}
 	}
 

@@ -43,21 +43,24 @@ type Clock interface {
 	MaxOffset() time.Duration
 	// Now returns the current timestamp.
 	Now() Timestamp
+	// NowUpperBound returns the upper bound of the current HLC time, the upper
+	// bound is Now() + MaxOffset.
+	NowUpperBound() Timestamp
 	// Update updates the clock based on the received timestamp.
 	Update(m Timestamp)
 }
 
 // SkipClockUncertainityPeriodOnRestart will cause the current goroutine to
-// sleep to skip clock uncertainity period. This function must be called during
+// sleep to skip clock uncertainty period. This function must be called during
 // the restart of the node.
 //
 // The system assumes that each node keeps synchronizing with accurate NTP
 // servers to have the clock offset limited under HLCClock.maxOffset.
 func SkipClockUncertainityPeriodOnRestart(ctx context.Context, clock Clock) {
-	nowTs := clock.Now()
-	bound := nowTs.PhysicalTime + int64(clock.MaxOffset())
+	now := clock.Now()
+	bound := now.PhysicalTime + int64(clock.MaxOffset())
 	sleepUntil := Timestamp{PhysicalTime: bound}
-	for nowTs.Less(sleepUntil) {
+	for now.Less(sleepUntil) {
 		time.Sleep(time.Millisecond)
 		select {
 		case <-ctx.Done():
@@ -65,7 +68,7 @@ func SkipClockUncertainityPeriodOnRestart(ctx context.Context, clock Clock) {
 		default:
 		}
 
-		nowTs = clock.Now()
+		now = clock.Now()
 	}
 }
 
@@ -75,7 +78,6 @@ func SkipClockUncertainityPeriodOnRestart(ctx context.Context, clock Clock) {
 // Logical Physical Clocks and Consistent Snapshots in Globally Distributed
 // Databases
 type HLCClock struct {
-	ctx           context.Context
 	maxOffset     time.Duration
 	physicalClock func() int64
 
@@ -197,12 +199,12 @@ func (c *HLCClock) keepPhysicalClock(pts int64) int64 {
 }
 
 // handleClockJump is called everytime when a physical time is read from the
-// local wall clock. it logs backward jump whenever it happenes, jumps are
+// local wall clock. it logs backward jump whenever it happens, jumps are
 // compared with maxClockForwardOffset() and cause fatal fail when the
 // maxClockForwardOffset constrain is violated.
 //
 // handleClockJump assumes that there are periodic background probes to the
-// physcial wall clock to monitor and learn its values. the probe interval
+// physical wall clock to monitor and learn its values. the probe interval
 // is required to be smaller than the maxClockForwardOffset().
 func (c *HLCClock) handleClockJump(oldPts int64, newPts int64) {
 	if oldPts == 0 {
@@ -257,7 +259,5 @@ func (c *HLCClock) update(m Timestamp) {
 	} else if m.PhysicalTime > c.mu.ts.PhysicalTime {
 		c.mu.ts.PhysicalTime = m.PhysicalTime
 		c.mu.ts.LogicalTime = m.LogicalTime
-	} else if m.PhysicalTime < c.mu.ts.PhysicalTime {
-		// nothing to do here
 	}
 }

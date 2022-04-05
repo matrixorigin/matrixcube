@@ -319,7 +319,9 @@ func (c *Chunk) save(chunk metapb.SnapshotChunk) (err error) {
 	var f *chunkFile
 	if chunk.FileChunkID == 0 {
 		fb := c.fs.PathDir(fp)
-		c.fs.MkdirAll(fb, 0755)
+		if err := c.fs.MkdirAll(fb, 0755); err != nil {
+			return err
+		}
 		f, err = createChunkFile(fp, c.fs)
 	} else {
 		f, err = openChunkFileForAppend(fp, c.fs)

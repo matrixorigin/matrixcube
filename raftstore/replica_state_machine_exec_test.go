@@ -192,7 +192,8 @@ func TestDoExecSplit(t *testing.T) {
 				ch <- false
 			}
 		}()
-		pr.sm.execAdminRequest(ctx)
+		_, err := pr.sm.execAdminRequest(ctx)
+		require.NoError(t, err)
 	}
 
 	// check split panic
@@ -236,7 +237,8 @@ func TestDoExecSplit(t *testing.T) {
 	assert.False(t, pr.sm.canApply(raftpb.Entry{}))
 	assert.True(t, pr.sm.metadataMu.splited)
 
-	pr.sm.dataStorage.GetInitialStates()
+	_, err = pr.sm.dataStorage.GetInitialStates()
+	require.NoError(t, err)
 	assert.NoError(t, pr.sm.dataStorage.Sync([]uint64{1, 2, 3}))
 	idx, err := pr.sm.dataStorage.GetPersistentLogIndex(1)
 	assert.NoError(t, err)

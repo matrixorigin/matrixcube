@@ -148,7 +148,7 @@ func TestSendRaftMessageAttachsExpectedShardDetails(t *testing.T) {
 		To:   toReplica.ID,
 		Type: raftpb.MsgVote,
 	}
-	r.sendRaftMessage(m)
+	require.NoError(t, r.sendRaftMessage(m))
 	require.Equal(t, 1, len(trans.messages))
 	sentMsg := trans.messages[0]
 	assert.Equal(t, shard.Start, sentMsg.Start)
@@ -259,7 +259,8 @@ func TestApplyReceivedSnapshot(t *testing.T) {
 		assert.Equal(t, ss.Metadata.Term, r.sm.metadataMu.term)
 		assert.Equal(t, shard, r.sm.metadataMu.shard)
 
-		r.handleAction(make([]interface{}, readyBatchSize))
+		_, err = r.handleAction(make([]interface{}, readyBatchSize))
+		require.NoError(t, err)
 		sms, err := r.sm.dataStorage.GetInitialStates()
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(sms))

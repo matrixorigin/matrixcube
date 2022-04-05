@@ -23,6 +23,7 @@ import (
 
 	cpebble "github.com/cockroachdb/pebble"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	pb "go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -468,7 +469,7 @@ func TestLogReaderSnapshotReturnsErrSnapshotTemporarilyUnavailable(t *testing.T)
 			Index: 5,
 		},
 	}
-	lr.CreateSnapshot(snap)
+	require.NoError(t, lr.CreateSnapshot(snap))
 	v, err = lr.Snapshot()
 	assert.Equal(t, snap, v)
 	assert.Empty(t, err)

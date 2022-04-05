@@ -18,6 +18,7 @@ import (
 
 	"github.com/fagongzi/util/protoc"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/raft/v3"
 	"go.etcd.io/etcd/raft/v3/raftpb"
 
@@ -43,11 +44,13 @@ func runReplicaSnapshotTest(t *testing.T,
 	ldb := logdb.NewKVLogDB(m, logger)
 	lr := NewLogReader(logger, 1, 1, ldb)
 	fp := fs.PathJoin(snapshotterTestDir, "snapshot")
-	fs.RemoveAll(snapshotterTestDir)
+	require.NoError(t, fs.RemoveAll(snapshotterTestDir))
 	if err := fs.MkdirAll(fp, 0777); err != nil {
 		panic(err)
 	}
-	defer fs.RemoveAll(snapshotterTestDir)
+	defer func() {
+		require.NoError(t, fs.RemoveAll(snapshotterTestDir))
+	}()
 	replicaSnapshotDir := func(shardID uint64, replicaID uint64) string {
 		return fp
 	}
@@ -153,7 +156,8 @@ func TestReplicaSnapshotCanBeApplied(t *testing.T) {
 
 		r.replica = Replica{}
 		assert.NoError(t, r.applySnapshot(ss))
-		r.handleAction(make([]interface{}, readyBatchSize))
+		_, err = r.handleAction(make([]interface{}, readyBatchSize))
+		require.NoError(t, err)
 
 		// applySnapshot will have the persistentLogIndex value updated
 		persistentLogIndex, err = r.getPersistentLogIndex()
@@ -233,7 +237,8 @@ func TestCreatingOutOfDateSnapshotWillCausePanic(t *testing.T) {
 			},
 		}
 		assert.NoError(t, r.lr.CreateSnapshot(ss))
-		r.createSnapshot()
+		_, _, err := r.createSnapshot()
+		require.NoError(t, err)
 	}
 	fs := vfs.GetTestFS()
 	runReplicaSnapshotTest(t, fn, fs)

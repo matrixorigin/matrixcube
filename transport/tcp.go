@@ -60,7 +60,6 @@ var (
 	magicNumber                = [2]byte{0xAE, 0x7D}
 	poisonNumber               = [2]byte{0x0, 0x0}
 	payloadBufferSize          = SnapshotChunkSize + 1024*128
-	tlsHandshackTimeout        = 10 * time.Second
 	magicNumberDuration        = 1 * time.Second
 	headerDuration             = 2 * time.Second
 	readDuration               = 5 * time.Second
