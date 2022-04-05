@@ -72,7 +72,7 @@ func (lhs Timestamp) GreaterEq(rhs Timestamp) bool {
 }
 
 // Next returns the smallest timestamp that is greater than the current
-// timestmap.
+// timestamp.
 func (lhs Timestamp) Next() Timestamp {
 	if lhs.LogicalTime == math.MaxUint32 {
 		return Timestamp{PhysicalTime: lhs.PhysicalTime + 1}
