@@ -37,10 +37,6 @@ var (
 	mb = uint64(1024 * 1024)
 )
 
-// SplitKeyFunc based on the implementation-specific encoding rules, a final SplitKey is returned that can be applied to
-// ensure that the relevant data cannot be split into 2 shards.
-type SplitKeyFunc func(splitKey []byte) []byte
-
 // Option option func
 type Option func(*options)
 
