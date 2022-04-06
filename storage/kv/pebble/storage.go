@@ -177,8 +177,8 @@ func (s *Storage) RangeDelete(start, end []byte, sync bool) error {
 
 // Scan scans the key-value pairs in [start, end), and perform with a handler function, if the function
 // returns false, the scan will be terminated.
-// The Handler func will received a cloned the key and value, if the `copy` is true.
-func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
+// The Handler func will received a cloned the key and value, if the `cloneResult` is true.
+func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool, error), cloneResult bool) error {
 	ios := &pebble.IterOptions{}
 	if len(start) > 0 {
 		ios.LowerBound = start
@@ -196,7 +196,7 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 			return err
 		}
 		var ok bool
-		if copy {
+		if cloneResult {
 			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
@@ -216,7 +216,7 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 }
 
 func (s *Storage) ScanInView(view storage.View,
-	start, end []byte, handler func(key, value []byte) (bool, error), copy bool) error {
+	start, end []byte, handler func(key, value []byte) (bool, error), cloneResult bool) error {
 	ios := &pebble.IterOptions{}
 	if len(start) > 0 {
 		ios.LowerBound = start
@@ -235,7 +235,7 @@ func (s *Storage) ScanInView(view storage.View,
 			return err
 		}
 		var ok bool
-		if copy {
+		if cloneResult {
 			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
@@ -256,8 +256,8 @@ func (s *Storage) ScanInView(view storage.View,
 
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 // while perform with a handler function, if the function returns false, the scan will be terminated.
-// The Handler func will received a cloned the key and value, if the `copy` is true.
-func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), copy bool) error {
+// The Handler func will received a cloned the key and value, if the `clone` is true.
+func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (bool, error), cloneResult bool) error {
 	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: prefix})
 	defer iter.Close()
 	iter.First()
@@ -270,7 +270,7 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 		}
 		var err error
 		var ok bool
-		if copy {
+		if cloneResult {
 			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
@@ -312,7 +312,9 @@ func (s *Storage) Sync() error {
 	atomic.AddUint64(&s.stats.SyncCount, 1)
 	wb := s.db.NewBatch()
 	defer wb.Close()
-	wb.Set(keys.ForcedSyncKey, keys.ForcedSyncKey, nil)
+	if err := wb.Set(keys.ForcedSyncKey, keys.ForcedSyncKey, nil); err != nil {
+		return err
+	}
 	return s.db.Apply(wb, pebble.Sync)
 }
 
@@ -354,16 +356,22 @@ type writeBatch struct {
 }
 
 func (wb *writeBatch) Delete(key []byte) {
-	wb.batch.Delete(key, nil)
+	if err := wb.batch.Delete(key, nil); err != nil {
+		panic(err)
+	}
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)))
 }
 
 func (wb *writeBatch) DeleteRange(fk []byte, lk []byte) {
-	wb.batch.DeleteRange(fk, lk, nil)
+	if err := wb.batch.DeleteRange(fk, lk, nil); err != nil {
+		panic(err)
+	}
 }
 
 func (wb *writeBatch) Set(key []byte, value []byte) {
-	wb.batch.Set(key, value, nil)
+	if err := wb.batch.Set(key, value, nil); err != nil {
+		panic(err)
+	}
 	atomic.AddUint64(&wb.stats.WrittenBytes, uint64(len(key)+len(value)))
 }
 

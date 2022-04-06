@@ -37,26 +37,26 @@ type KVStore interface {
 	Delete(key []byte, sync bool) error
 	// Scan scans the key-value paire in the specified [start, end) range, the
 	// specified handler function is invoked on each key-value pair until the
-	// handler function returns false. Depending on the copy parameter, the
+	// handler function returns false. Depending on the clone parameter, the
 	// handler function will be provided a cloned key-value pair that can be
 	// retained after the return of the handler function or a pair of temporary
 	// key-value slices that could change after the return of the handler
 	// function.
 	Scan(start, end []byte,
-		handler func(key, value []byte) (bool, error), copy bool) error
+		handler func(key, value []byte) (bool, error), clone bool) error
 	// ScanInView is similar to Scan, it performs the Scan operation on the
 	// specified view.
 	ScanInView(view View, start, end []byte,
-		handler func(key, value []byte) (bool, error), copy bool) error
+		handler func(key, value []byte) (bool, error), clone bool) error
 	// PrefixScan scans all key-value pairs that share the specified prefix, the
 	// specified handler function will be invoked on each such key-value pairs
-	// until false is returned by the handler function. Depending on the copy
+	// until false is returned by the handler function. Depending on the clone
 	// parameter, the handler function will be provided a cloned key-value pair
 	// that can be retained after the return of the handler function or a pair
 	// of temporary key-value slices that could change after the return of the
 	// handler function.
 	PrefixScan(prefix []byte,
-		handler func(key, value []byte) (bool, error), copy bool) error
+		handler func(key, value []byte) (bool, error), clone bool) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
 	// Seek returns the first key-value pair that has the key component no less
