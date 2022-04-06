@@ -41,11 +41,9 @@ type Clock interface {
 	HasNetworkLatency() bool
 	// MaxOffset returns the max offset of the physical clocks in the cluster.
 	MaxOffset() time.Duration
-	// Now returns the current timestamp.
-	Now() Timestamp
-	// NowUpperBound returns the upper bound of the current HLC time, the upper
-	// bound is Now() + MaxOffset.
-	NowUpperBound() Timestamp
+	// Now returns the current timestamp and the upper bound of the current time
+	// caused by clock offset.
+	Now() (Timestamp, Timestamp)
 	// Update updates the clock based on the received timestamp.
 	Update(m Timestamp)
 }
@@ -57,9 +55,7 @@ type Clock interface {
 // The system assumes that each node keeps synchronizing with accurate NTP
 // servers to have the clock offset limited under HLCClock.maxOffset.
 func SkipClockUncertainityPeriodOnRestart(ctx context.Context, clock Clock) {
-	now := clock.Now()
-	bound := now.PhysicalTime + int64(clock.MaxOffset())
-	sleepUntil := Timestamp{PhysicalTime: bound}
+	now, sleepUntil := clock.Now()
 	for now.Less(sleepUntil) {
 		time.Sleep(time.Millisecond)
 		select {
@@ -68,7 +64,7 @@ func SkipClockUncertainityPeriodOnRestart(ctx context.Context, clock Clock) {
 		default:
 		}
 
-		now = clock.Now()
+		now, _ = clock.Now()
 	}
 }
 
@@ -136,15 +132,11 @@ func (c *HLCClock) MaxOffset() time.Duration {
 	return c.maxOffset
 }
 
-// Now returns the current HLC timestamp.
-func (c *HLCClock) Now() Timestamp {
-	return c.now()
-}
-
-// NowUpperBound returns the upper bound of the current HLC time.
-func (c *HLCClock) NowUpperBound() Timestamp {
+// Now returns the current HLC timestamp and the upper bound timestamp of the
+// current time in hlc.
+func (c *HLCClock) Now() (Timestamp, Timestamp) {
 	now := c.now()
-	return Timestamp{PhysicalTime: now.PhysicalTime + int64(c.maxOffset)}
+	return now, Timestamp{PhysicalTime: now.PhysicalTime + int64(c.maxOffset)}
 }
 
 // Update is called whenever messages are received from other nodes. HLC
