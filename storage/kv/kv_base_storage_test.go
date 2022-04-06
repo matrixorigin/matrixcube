@@ -14,6 +14,7 @@
 package kv
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/cockroachdb/pebble"
@@ -23,6 +24,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -214,4 +216,84 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 	}()
 }
 
-// TODO: add test for BaseStorage.SplitCheck()
+func TestScanInViewWithOptions(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := mem.NewStorage()
+	base := NewBaseStorage(kv, fs)
+	defer func() {
+		assert.NoError(t, base.Close())
+	}()
+
+	for i := 0; i < 5; i++ {
+		k := []byte(fmt.Sprintf("k%d", i))
+		assert.NoError(t, base.Set(k, k, false))
+	}
+
+	cases := []struct {
+		from, to   []byte
+		options    storage.NextIterOptions
+		expectKeys [][]byte
+	}{
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			expectKeys: [][]byte{[]byte("k0"), []byte("k1"), []byte("k2"), []byte("k3"), []byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k6"),
+			expectKeys: [][]byte{[]byte("k0"), []byte("k1"), []byte("k2"), []byte("k3"), []byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{Stop: true},
+			expectKeys: [][]byte{[]byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekGE: []byte("k3")},
+			expectKeys: [][]byte{[]byte("k0"), []byte("k3"), []byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekGE: []byte("k5")},
+			expectKeys: [][]byte{[]byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekLT: []byte("k4")},
+			expectKeys: [][]byte{[]byte("k0"), []byte("k3"), []byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekLT: []byte("k5")},
+			expectKeys: [][]byte{[]byte("k0"), []byte("k4")},
+		},
+	}
+
+	view := base.GetView()
+	defer func() {
+		assert.NoError(t, view.Close())
+	}()
+
+	for idx, c := range cases {
+		var keys [][]byte
+		n := 0
+		err := base.ScanInViewWithOptions(view, c.from, c.to, func(key, value []byte) (storage.NextIterOptions, error) {
+			keys = append(keys, keysutil.Clone(key))
+			if n == 0 {
+				n++
+				return c.options, nil
+			}
+			return storage.NextIterOptions{}, nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, c.expectKeys, keys, "idx %d", idx)
+	}
+}

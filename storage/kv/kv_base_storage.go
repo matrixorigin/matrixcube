@@ -50,11 +50,6 @@ func (s *BaseStorage) GetView() storage.View {
 	return s.kv.GetView()
 }
 
-func (s *BaseStorage) ScanInView(view storage.View,
-	start, end []byte, handler func(key, value []byte) (bool, error), clone bool) error {
-	return s.kv.ScanInView(view, start, end, handler, clone)
-}
-
 func (s *BaseStorage) Close() error {
 	return s.kv.Close()
 }
@@ -86,6 +81,15 @@ func (s *BaseStorage) Delete(key []byte, sync bool) error {
 func (s *BaseStorage) Scan(start, end []byte,
 	handler func(key, value []byte) (bool, error), clone bool) error {
 	return s.kv.Scan(start, end, handler, clone)
+}
+
+func (s *BaseStorage) ScanInView(view storage.View,
+	start, end []byte, handler func(key, value []byte) (bool, error), clone bool) error {
+	return s.kv.ScanInView(view, start, end, handler, clone)
+}
+
+func (s *BaseStorage) ScanInViewWithOptions(view storage.View, start, end []byte, handler func(key, value []byte) (storage.NextIterOptions, error)) error {
+	return s.kv.ScanInViewWithOptions(view, start, end, handler)
 }
 
 func (s *BaseStorage) PrefixScan(prefix []byte,

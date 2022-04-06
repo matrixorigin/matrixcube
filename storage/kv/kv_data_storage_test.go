@@ -30,6 +30,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor/simple"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
+	"github.com/matrixorigin/matrixcube/util/buf"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
@@ -452,6 +453,63 @@ func TestSplitCheck(t *testing.T) {
 	assert.Equal(t, uint64(3), keys)
 	assert.Equal(t, [][]byte{{3}}, splitKeys)
 	assert.Empty(t, ctx)
+}
+
+func TestSplitCheckWithSplitKeyFunc(t *testing.T) {
+	// mvcc encode: key+uint64, fix key length 4
+	decode := func(k []byte) []byte {
+		return k[:4]
+	}
+	encode := func(k int, v uint64) []byte {
+		newK := make([]byte, 12)
+		buf.Int2BytesTo(k, newK)
+		buf.Uint64ToBytesTo(v, newK[4:])
+		return newK
+	}
+
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+	ds := NewKVDataStorage(base, nil, WithFeature(storage.Feature{
+		SplitKeyAdjustFunc: func(splitKey []byte) []byte {
+			if len(splitKey) == 4 {
+				return splitKey
+			}
+			return buf.Int2Bytes(buf.Byte2Int(decode(splitKey)) + 1)
+		},
+	}))
+	defer func() {
+		assert.NoError(t, fs.RemoveAll(testDir))
+	}()
+	defer func() {
+		assert.NoError(t, ds.Close())
+	}()
+
+	v := []byte("v")
+
+	// k 1, and has 1, 2, 3 version
+	assert.NoError(t, base.Set(EncodeDataKey(buf.Int2Bytes(1), nil), v, false)) // 5          bytes
+	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 1), nil), v, false))     // 5 +13 = 18 bytes
+	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 2), nil), v, false))     // 18+13 = 31 bytes
+	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 3), nil), v, false))     // 31+13 = 44 bytes
+	// k 2, and has 1, 2, 3 version
+	assert.NoError(t, base.Set(EncodeDataKey(buf.Int2Bytes(2), nil), v, false))
+	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 1), nil), v, false))
+	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 2), nil), v, false))
+	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 3), nil), v, false))
+
+	_, _, keys, _, err := ds.SplitCheck(metapb.Shard{}, 5)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(keys))
+	assert.Equal(t, buf.Int2Bytes(2), keys[0])
+	assert.Equal(t, buf.Int2Bytes(3), keys[1])
+
+	_, _, keys, _, err = ds.SplitCheck(metapb.Shard{}, 44)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(keys))
+	assert.Equal(t, buf.Int2Bytes(2), keys[0])
 }
 
 func newTestShardMetadata(n uint64) []metapb.ShardMetadata {

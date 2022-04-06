@@ -175,6 +175,9 @@ type Feature struct {
 	ForceCompactCount uint64
 	// ForceCompactBytes force compaction when the number of Raft logs reaches the specified bytes
 	ForceCompactBytes uint64
+	// SplitKeyAdjustFunc based on the implementation-specific encoding rules, a final SplitKey is
+	// returned that can be applied to ensure that the relevant data cannot be split into 2 shards.
+	SplitKeyAdjustFunc func([]byte) []byte
 }
 
 // WriteContext contains the details of write requests to be handled by the
