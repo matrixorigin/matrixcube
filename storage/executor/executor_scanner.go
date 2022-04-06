@@ -28,12 +28,14 @@ type scanOptions struct {
 }
 
 func (opts *scanOptions) adjust(shard metapb.Shard) {
+	// opts.startKey < shard.Start, only scan the data in current shard
 	if len(opts.startKey) == 0 ||
-		bytes.Compare(opts.startKey, shard.Start) < 0 { // opts.startKey < shard.Start
+		bytes.Compare(opts.startKey, shard.Start) < 0 {
 		opts.startKey = shard.Start
 	}
+	// opts.endKey > shard.End, only scan the data in current shard
 	if len(opts.endKey) == 0 ||
-		bytes.Compare(opts.endKey, shard.End) < 0 { // opts.endKey > shard.End
+		(len(shard.End) > 0 && bytes.Compare(opts.endKey, shard.End) > 0) {
 		opts.endKey = shard.End
 	}
 

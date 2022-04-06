@@ -78,6 +78,13 @@ func TestScanner(t *testing.T) {
 			expectCompleted: false,
 			expectKeyPolicy: UseShardEnd,
 		},
+		{
+			shard:           metapb.Shard{Start: []byte("a"), End: []byte("c")},
+			options:         []ScanOption{WithScanStartKey([]byte("a")), WithScanEndKey([]byte("d"))},
+			expectCompleted: false,
+			expectKeyPolicy: UseShardEnd,
+			expectKeys:      [][]byte{[]byte("a"), []byte("b")},
+		},
 	}
 
 	for i, c := range cases {
