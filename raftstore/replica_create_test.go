@@ -18,8 +18,8 @@ func TestShardCreateWithSaveMetadata(t *testing.T) {
 
 func TestShardCreateWithStart(t *testing.T) {
 	defer leaktest.AfterTest(t)()
-	s, close := newTestStore(t)
-	defer close()
+	s, closeFunc := newTestStore(t)
+	defer closeFunc()
 
 	var pr *replica
 	db := NewTestDataBuilder()
@@ -41,8 +41,8 @@ func TestShardCreateWithStart(t *testing.T) {
 
 func testShardCreateWithSaveMetadataWithSync(t *testing.T, sync bool) {
 	defer leaktest.AfterTest(t)()
-	s, close := newTestStore(t)
-	defer close()
+	s, closeFunc := newTestStore(t)
+	defer closeFunc()
 
 	s.meta.SetID(100)
 	db := NewTestDataBuilder()

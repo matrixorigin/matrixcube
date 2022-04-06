@@ -173,7 +173,8 @@ func TestDestroyTaskWithStartCheckLogAppliedStep(t *testing.T) {
 
 	c := make(chan struct{})
 	dms := newTestDestroyMetadataStorage(false)
-	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
+	_, err := dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
+	assert.NoError(t, err)
 
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogAppliedAction {
@@ -204,7 +205,8 @@ func TestDestroyTaskWithStartCompleteCheckLogAppliedStep(t *testing.T) {
 
 	c := make(chan struct{})
 	dms := newTestDestroyMetadataStorage(false)
-	dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
+	_, err := dms.CreateDestroying(pr.shardID, 100, false, []uint64{1, 2, 3})
+	assert.NoError(t, err)
 
 	f := newTestDestroyReplicaTaskFactory(false).setDestroyingStorage(dms).setActionHandler(func(a action) {
 		if a.actionType == checkLogAppliedAction {

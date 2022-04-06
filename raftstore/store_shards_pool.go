@@ -185,9 +185,8 @@ func (dsp *dynamicShardsPool) Remove(job metapb.Job, store storage.JobStorage, a
 
 func (dsp *dynamicShardsPool) Execute(data []byte, store storage.JobStorage, aware pconfig.ShardsAware) ([]byte, error) {
 	if len(data) <= 0 {
-		return nil, util.WrappedError(
-			util.ErrJobInvalidCommand, fmt.Sprintf("data empty"),
-		)
+		return nil,
+			util.WrappedError(util.ErrJobInvalidCommand, "data empty")
 	}
 
 	dsp.mu.Lock()
@@ -265,9 +264,9 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 	p.AllocatedShards = append(p.AllocatedShards, allocated)
 	dsp.mu.pools.Pools[group] = p
 
-	if err := dsp.saveLocked(store); err != nil {
+	if !dsp.saveLocked(store) {
 		dsp.mu.pools = old
-		return nil, err
+		return nil, nil
 	}
 
 	dsp.triggerCreateLocked()
@@ -276,7 +275,7 @@ func (dsp *dynamicShardsPool) doAllocLocked(cmd *metapb.ShardsPoolAllocCmd, stor
 
 func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStorage, aware pconfig.ShardsAware) {
 	dsp.triggerCreateLocked()
-	dsp.stopper.RunTask(context.Background(), func(ctx context.Context) {
+	err := dsp.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		dsp.logger.Info("dynamic shards pool job started")
 		defer func() {
 			close(c)
@@ -309,6 +308,10 @@ func (dsp *dynamicShardsPool) startLocked(c chan struct{}, store storage.JobStor
 			}
 		}
 	})
+	if err != nil {
+		dsp.logger.Fatal("start shards pool failed",
+			zap.Error(err))
+	}
 }
 
 func (dsp *dynamicShardsPool) isStartedLocked() bool {
@@ -373,7 +376,7 @@ func (dsp *dynamicShardsPool) maybeCreate(store storage.JobStorage) {
 		for g, p := range dsp.mu.pools.Pools {
 			p.Seq = modified.Pools[g].Seq
 		}
-		if err := dsp.saveLocked(store); err != nil {
+		if !dsp.saveLocked(store) {
 			dsp.mu.pools = backup
 		}
 
@@ -431,14 +434,14 @@ func (dsp *dynamicShardsPool) gcAllocating(store storage.JobStorage, aware pconf
 	}
 }
 
-func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) error {
+func (dsp *dynamicShardsPool) saveLocked(store storage.JobStorage) bool {
 	err := store.PutJobData(dsp.job.Type, protoc.MustMarshal(&dsp.mu.pools))
 	if err != nil {
 		dsp.logger.Error("fail to save shard pool metadata, retry later",
 			zap.Error(err))
+		return false
 	}
-
-	return err
+	return true
 }
 
 func (dsp *dynamicShardsPool) cloneDataLocked() metapb.ShardsPool {

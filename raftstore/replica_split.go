@@ -61,7 +61,7 @@ func (pr *replica) hasReplicaInSnapshotState() (bool, uint64) {
 }
 
 func (pr *replica) needDoCheckSplit() bool {
-	return pr.stats.approximateSize >= uint64(pr.feature.ShardSplitCheckBytes)
+	return pr.stats.approximateSize >= pr.feature.ShardSplitCheckBytes
 }
 
 func (pr *replica) doSplit(act action) {

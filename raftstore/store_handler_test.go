@@ -83,7 +83,8 @@ func TestTryToCreateReplicate(t *testing.T) {
 		func() {
 			s, cancel := newTestStore(t)
 			defer cancel()
-			s.DataStorageByGroup(0).GetInitialStates()
+			_, err := s.DataStorageByGroup(0).GetInitialStates()
+			assert.NoError(t, err)
 			if c.pr != nil {
 				c.pr.startedC = make(chan struct{})
 				c.pr.closedC = make(chan struct{})
@@ -146,7 +147,8 @@ func TestHandleDestroyReplicaMessage(t *testing.T) {
 			break
 		}
 	}
-	pr.handleEvent(nil)
+	_, err := pr.handleEvent(nil)
+	assert.NoError(t, err)
 
 	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))

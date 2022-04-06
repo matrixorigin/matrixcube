@@ -18,10 +18,10 @@ func TestScanner(t *testing.T) {
 	defer s.Close()
 
 	scanner := NewKVBasedDataStorageScanner(s)
-	s.Set(kv.EncodeDataKey([]byte("a"), nil), []byte("a"), false)
-	s.Set(kv.EncodeDataKey([]byte("b"), nil), []byte("b"), false)
-	s.Set(kv.EncodeDataKey([]byte("c"), nil), []byte("c"), false)
-	s.Set(kv.EncodeDataKey([]byte("d"), nil), []byte("d"), false)
+	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("a"), nil), []byte("a"), false))
+	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("b"), nil), []byte("b"), false))
+	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("c"), nil), []byte("c"), false))
+	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("d"), nil), []byte("d"), false))
 
 	cases := []struct {
 		shard           metapb.Shard

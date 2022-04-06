@@ -427,22 +427,6 @@ func appendReplicas(key string, Replicas []metapb.Replica, info *bytes.Buffer, f
 	info.WriteString("]")
 }
 
-func appendSplitRequest(req rpcpb.SplitRequest, info *bytes.Buffer, first bool) {
-	if !first {
-		info.WriteString(", ")
-	}
-
-	info.WriteString("shard-id: ")
-	info.WriteString(format.Uint64ToString(req.NewShardID))
-
-	info.WriteString(", shard-range: [")
-	info.WriteString(hex.EncodeToString(req.Start))
-	info.WriteString(", ")
-	info.WriteString(hex.EncodeToString(req.End))
-	info.WriteString(")")
-	appendReplicas("replicas", req.NewReplicas, info, false)
-}
-
 func appendIDs(ids []uint64, info *bytes.Buffer) {
 	for idx, id := range ids {
 		info.WriteString(format.Uint64ToString(id))

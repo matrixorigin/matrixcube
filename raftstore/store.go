@@ -271,7 +271,11 @@ func (s *store) Stop() {
 		s.logger.Info("stopper stopped",
 			s.storeField())
 
-		s.shardsProxy.Stop()
+		if err := s.shardsProxy.Stop(); err != nil {
+			s.logger.Fatal("stop shards proxt failed",
+				s.storeField(),
+				zap.Error(err))
+		}
 		s.logger.Info("proxy stopped",
 			s.storeField())
 
@@ -428,8 +432,6 @@ func (s *store) Prophet() prophet.Prophet {
 
 func (s *store) startProphet() {
 	s.cfg.Prophet.Handler = s
-	s.cfg.Prophet.Adjust(nil, false)
-
 	s.pdStartedC = make(chan struct{})
 	s.pd = prophet.NewProphet(s.cfg)
 	s.pd.Start()
@@ -450,7 +452,11 @@ func (s *store) createTransport() {
 }
 
 func (s *store) startTransport() {
-	s.trans.Start()
+	if err := s.trans.Start(); err != nil {
+		s.logger.Fatal("start raft internal transport failed",
+			s.storeField(),
+			zap.Error(err))
+	}
 }
 
 func (s *store) startShards() {
@@ -841,7 +847,11 @@ func (s *store) snapshotStatus(shardID uint64,
 		case <-timer.C:
 			if pr := s.getReplica(shardID, true); pr != nil {
 				pr.addSnapshotStatus(snapshotStatus{to: replicaID, rejected: rejected})
-				pr.removeSnapshot(ss, false)
+				if err := pr.removeSnapshot(ss, false); err != nil {
+					s.logger.Error("remove snapshot failed",
+						s.storeField(),
+						zap.Error(err))
+				}
 			}
 		case <-s.stopper.ShouldStop():
 			return

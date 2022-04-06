@@ -65,7 +65,10 @@ func (r *defaultRPC) start() error {
 }
 
 func (r *defaultRPC) stop() {
-	r.app.Stop()
+	if err := r.app.Stop(); err != nil {
+		r.logger.Fatal("stop rpc failed",
+			zap.Error(err))
+	}
 }
 
 func (r *defaultRPC) onMessage(rs goetty.IOSession, value interface{}, seq uint64) error {

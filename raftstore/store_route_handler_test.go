@@ -24,7 +24,8 @@ func TestDoDynamicallyCreate(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	s, cancel := newTestStore(t)
 	defer cancel()
-	s.DataStorageByGroup(1).GetInitialStates()
+	_, err := s.DataStorageByGroup(1).GetInitialStates()
+	assert.NoError(t, err)
 	assert.True(t, s.doDynamicallyCreate(Shard{ID: 100, Group: 1, Replicas: []Replica{{ID: 200, StoreID: s.Meta().ID, InitialMember: true}}}))
 	assert.NotNil(t, s.getReplica(100, false))
 }

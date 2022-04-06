@@ -34,16 +34,16 @@ import (
 
 type testBackendFactory struct {
 	sync.RWMutex
-	backends map[string]backend
-	sucesses map[string]SuccessCallback
-	failures map[string]FailureCallback
+	backends  map[string]backend
+	successes map[string]SuccessCallback
+	failures  map[string]FailureCallback
 }
 
 func newTestBackendFactory() *testBackendFactory {
 	return &testBackendFactory{
-		backends: make(map[string]backend),
-		sucesses: make(map[string]SuccessCallback),
-		failures: make(map[string]FailureCallback),
+		backends:  make(map[string]backend),
+		successes: make(map[string]SuccessCallback),
+		failures:  make(map[string]FailureCallback),
 	}
 }
 
@@ -56,7 +56,7 @@ func (f *testBackendFactory) create(addr string, success SuccessCallback, failur
 		return nil, fmt.Errorf("missing backend %s", addr)
 	}
 
-	f.sucesses[addr] = success
+	f.successes[addr] = success
 	f.failures[addr] = failure
 	return bc, nil
 }
@@ -166,7 +166,9 @@ func TestRPCDispatch(t *testing.T) {
 		build(rr)
 	assert.NoError(t, err)
 	assert.NoError(t, sp1.Start())
-	defer sp1.Stop()
+	defer func() {
+		assert.NoError(t, sp1.Stop())
+	}()
 
 	addr2 := fmt.Sprintf("127.0.0.1:%d", testutil.GenTestPorts(1)[0])
 	rpc2 := newProxyRPC(log.GetDefaultZapLoggerWithLevel(zap.DebugLevel).With(zap.String("sp", "sp2")), addr2, 1024*1024, func(r rpcpb.Request) error {
@@ -192,7 +194,9 @@ func TestRPCDispatch(t *testing.T) {
 		build(rr)
 	assert.NoError(t, err)
 	assert.NoError(t, sp2.Start())
-	defer sp2.Stop()
+	defer func() {
+		assert.NoError(t, sp2.Stop())
+	}()
 
 	rc := newMockRetryController()
 	sp2.SetRetryController(rc)

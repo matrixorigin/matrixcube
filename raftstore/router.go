@@ -14,16 +14,17 @@
 package raftstore
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/lni/goutils/syncutil"
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/components/prophet/event"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/util"
+	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
 )
 
@@ -85,22 +86,15 @@ func (o *op) next() uint64 {
 type routerOptions struct {
 	logger             *zap.Logger
 	fields             []zap.Field
-	stopper            *syncutil.Stopper
 	removeShardHandler func(id uint64)
 	createShardHandler func(shard Shard)
 }
 
 func (opts *routerOptions) adjust() {
 	opts.logger = log.Adjust(opts.logger)
-
-	if opts.stopper == nil {
-		opts.stopper = syncutil.NewStopper()
-	}
-
 	if opts.removeShardHandler == nil {
 		opts.removeShardHandler = func(id uint64) {}
 	}
-
 	if opts.createShardHandler == nil {
 		opts.createShardHandler = func(shard Shard) {}
 	}
@@ -118,11 +112,6 @@ func newRouterBuilder() *routerBuilder {
 
 func (rb *routerBuilder) withLogger(logger *zap.Logger, fields ...zap.Field) *routerBuilder {
 	rb.options.logger = logger
-	return rb
-}
-
-func (rb *routerBuilder) withStopper(stopper *syncutil.Stopper) *routerBuilder {
-	rb.options.stopper = stopper
 	return rb
 }
 
@@ -144,6 +133,7 @@ type defaultRouter struct {
 	options *routerOptions
 	logger  *zap.Logger
 	eventC  chan rpcpb.EventNotify
+	stopper *stop.Stopper
 
 	mu struct {
 		sync.RWMutex
@@ -165,6 +155,7 @@ func newRouter(eventC chan rpcpb.EventNotify, options *routerOptions) (Router, e
 		options: options,
 		logger:  options.logger.Named("router").With(options.fields...),
 		eventC:  eventC,
+		stopper: stop.NewStopper("router-stoppper"),
 	}
 	r.mu.keyRanges = make(map[uint64]*util.ShardTree)
 	r.mu.leaders = make(map[uint64]metapb.Store)
@@ -178,12 +169,11 @@ func newRouter(eventC chan rpcpb.EventNotify, options *routerOptions) (Router, e
 }
 
 func (r *defaultRouter) Start() error {
-	r.options.stopper.RunWorker(r.eventLoop)
-	return nil
+	return r.stopper.RunTask(context.Background(), r.eventLoop)
 }
 
 func (r *defaultRouter) Stop() {
-	r.options.stopper.Stop()
+	r.stopper.Stop()
 }
 
 func (r *defaultRouter) SelectShardIDByKey(group uint64, key []byte) uint64 {
@@ -339,12 +329,12 @@ func (r *defaultRouter) UpdateStore(store metapb.Store) {
 	r.updateStoreLocked(protoc.MustMarshal(&store))
 }
 
-func (r *defaultRouter) eventLoop() {
+func (r *defaultRouter) eventLoop(ctx context.Context) {
 	r.logger.Info("router event loop task started")
 
 	for {
 		select {
-		case <-r.options.stopper.ShouldStop():
+		case <-ctx.Done():
 			r.logger.Info("router event loop task stopped")
 			return
 		case evt := <-r.eventC:
@@ -511,15 +501,6 @@ func (r *defaultRouter) mustGetStoreLocked(id uint64) metapb.Store {
 }
 
 func (r *defaultRouter) getLeaderReplicaStoreLocked(shardID uint64) metapb.Store {
-	if value, ok := r.mu.leaders[shardID]; ok {
-		return value
-	}
-	r.logger.Debug("missing leader",
-		log.ShardIDField(shardID))
-	return metapb.Store{}
-}
-
-func (r *defaultRouter) getRandomReplicaStoreLocked(shardID uint64) metapb.Store {
 	if value, ok := r.mu.leaders[shardID]; ok {
 		return value
 	}

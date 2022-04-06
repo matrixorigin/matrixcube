@@ -40,15 +40,11 @@ func StartPush(cfg Cfg, logger *zap.Logger) {
 		timer := time.NewTicker(time.Second * time.Duration(cfg.Interval))
 		defer timer.Stop()
 
-		for {
-			select {
-			case <-timer.C:
-				err := pusher.Push()
-				if err != nil {
-					logger.Error("fail to push metric",
-						zap.String("pushgateway", cfg.Addr),
-						zap.Error(err))
-				}
+		for range timer.C {
+			if err := pusher.Push(); err != nil {
+				logger.Error("fail to push metric",
+					zap.String("pushgateway", cfg.Addr),
+					zap.Error(err))
 			}
 		}
 	}()

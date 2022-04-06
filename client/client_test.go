@@ -35,8 +35,10 @@ func TestExec(t *testing.T) {
 
 	c.Start()
 	s := NewClient(Cfg{Store: c.GetStore(0)})
-	s.Start()
-	defer s.Stop()
+	assert.NoError(t, s.Start())
+	defer func() {
+		assert.NoError(t, s.Stop())
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -53,12 +55,14 @@ func TestExecWithTimeout(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	c := raftstore.NewSingleTestClusterStore(t)
+	c.Start()
 	defer c.Stop()
 
-	c.Start()
 	s := NewClient(Cfg{Store: c.GetStore(0)})
-	s.Start()
-	defer s.Stop()
+	assert.NoError(t, s.Start())
+	defer func() {
+		assert.NoError(t, s.Stop())
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*10)
 	time.Sleep(time.Millisecond * 10)
@@ -77,12 +81,14 @@ func TestAddShardLabel(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	c := raftstore.NewSingleTestClusterStore(t)
+	c.Start()
 	defer c.Stop()
 
-	c.Start()
 	s := NewClient(Cfg{Store: c.GetStore(0)})
-	s.Start()
-	defer s.Stop()
+	assert.NoError(t, s.Start())
+	defer func() {
+		assert.NoError(t, s.Stop())
+	}()
 
 	c.WaitShardByCount(1, time.Minute)
 
@@ -109,12 +115,14 @@ func TestKeysRangeNotInShard(t *testing.T) {
 			return []metapb.Shard{{Start: []byte("k5"), End: []byte("k8")}}
 		}
 	}))
+	c.Start()
 	defer c.Stop()
 
-	c.Start()
 	s := NewClient(Cfg{Store: c.GetStore(0)})
-	s.Start()
-	defer s.Stop()
+	assert.NoError(t, s.Start())
+	defer func() {
+		assert.NoError(t, s.Stop())
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

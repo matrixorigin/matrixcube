@@ -5,7 +5,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 )
 
-// TODO: move all reponse method to here
+// TODO: move all response method to here
 
 func requestDone(req rpcpb.Request, cb func(rpcpb.ResponseBatch), data []byte) {
 	r := getResponse(req)
