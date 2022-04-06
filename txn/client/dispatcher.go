@@ -146,12 +146,10 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Header.Txn.TxnRecordRouteKey)
 				appendRequest(toShard, request.Requests[idx])
-				break
 			case txnpb.InternalTxnOp_WaitConsensus:
 				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Requests[idx].Operation.Impacted.PointKeys[0])
 				appendRequest(toShard, request.Requests[idx])
-				break
 			}
 		} else {
 			routeInfos, err := s.router.Route(request.Requests[idx].Operation)
@@ -174,10 +172,14 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 }
 
 func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest, result *dispatchResult) {
-	s.stopper.RunTask(ctx, func(ctx context.Context) {
+	err := s.stopper.RunTask(ctx, func(ctx context.Context) {
 		resp, err := s.doSyncSend(ctx, shard, req)
 		result.done(resp, err)
 	})
+	if err != nil {
+		s.logger.Fatal("send to shard failed",
+			zap.Error(err))
+	}
 }
 
 func (s *batchDispatcher) doSyncSend(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {

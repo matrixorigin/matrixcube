@@ -48,7 +48,9 @@ func TestRouteRequest(t *testing.T) {
 	addTestShard(router, 3, "1000/1001,2000/2001,3000/3001")
 
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) { return rpcpb.ResponseBatch{}, nil })
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -112,7 +114,9 @@ func TestDispatcherSend(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -138,7 +142,9 @@ func TestDispatcherSendWithCreateTxnRecordToMultiShards(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -281,7 +287,8 @@ func TestDispatchEmptyRequestsWillPanic(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
-	bd.Send(ctx, txnpb.TxnBatchRequest{})
+	_, err := bd.Send(ctx, txnpb.TxnBatchRequest{})
+	assert.NoError(t, err)
 }
 
 func TestDispatchNonTimeoutContextRequestsWillPanic(t *testing.T) {
@@ -306,7 +313,8 @@ func TestDispatchNonTimeoutContextRequestsWillPanic(t *testing.T) {
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
 
-	bd.Send(context.Background(), newTestBatchRequest(1))
+	_, err := bd.Send(context.Background(), newTestBatchRequest(1))
+	assert.NoError(t, err)
 }
 
 func TestDispatcherSendWithRetryableErrors(t *testing.T) {
@@ -1040,12 +1048,10 @@ func newTestBatchDispatcher(client raftstoreClient.Client) *batchDispatcher {
 func newTestRaftstoreClient(router raftstore.Router, handler func(rpcpb.Request) (rpcpb.ResponseBatch, error)) raftstoreClient.Client {
 	sp, _ := raftstore.NewMockShardsProxy(router, handler)
 	c := raftstoreClient.NewClientWithOptions(raftstoreClient.CreateWithShardsProxy(sp))
-	c.Start()
+	if err := c.Start(); err != nil {
+		panic(err)
+	}
 	return c
-}
-
-func newMockRoute() raftstore.Router {
-	return raftstore.NewMockRouter()
 }
 
 type testTxnOperationRouter struct {

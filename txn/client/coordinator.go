@@ -405,7 +405,7 @@ func (c *coordinator) startTxnHeartbeatLocked() {
 		return
 	}
 	c.mu.heartbeating = true
-	c.stopper.RunTask(context.Background(), func(ctx context.Context) {
+	err := c.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		ticker := time.NewTicker(c.opts.heartbeatDuration)
 		defer ticker.Stop()
 
@@ -422,6 +422,10 @@ func (c *coordinator) startTxnHeartbeatLocked() {
 			}
 		}
 	})
+	if err != nil {
+		c.logger.Fatal("start heartbeat failed",
+			zap.Error(err))
+	}
 }
 
 func (c *coordinator) doHeartbeat() bool {
@@ -479,7 +483,7 @@ func (c *coordinator) doHeartbeat() bool {
 // transaction is Aborted, if all temporary data of the transaction is cleaned up
 // immediately.
 func (c *coordinator) startAsyncCleanTxnTask() {
-	c.stopper.RunTask(context.TODO(), func(ctx context.Context) {
+	err := c.stopper.RunTask(context.TODO(), func(ctx context.Context) {
 		// It's okay if it fails, because the state of TxnRecord is Aborted, and there
 		// will be opportunities to trigger the cleanup process later, such as when a
 		// conflict occurs.
@@ -489,6 +493,10 @@ func (c *coordinator) startAsyncCleanTxnTask() {
 				zap.Error(err))
 		}
 	})
+	if err != nil {
+		c.logger.Fatal("start async clean txn task failed",
+			zap.Error(err))
+	}
 }
 
 func (c *coordinator) getTxnMeta() txnpb.TxnMeta {

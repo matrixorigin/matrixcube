@@ -68,7 +68,8 @@ func TestSendEmptyBatchRequestWillPanic(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), txnpb.TxnBatchRequest{})
+	_, err := tc.send(context.Background(), txnpb.TxnBatchRequest{})
+	assert.NoError(t, err)
 }
 
 func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
@@ -86,7 +87,8 @@ func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
 
 	r := newTestWriteTxnOperation(false, "k1")
 	r.Requests[0].Operation.Impacted.PointKeys = nil
-	tc.send(context.Background(), r)
+	_, err := tc.send(context.Background(), r)
+	assert.NoError(t, err)
 }
 
 func TestSendWithEmptyImpactedWillPanic(t *testing.T) {
@@ -104,7 +106,8 @@ func TestSendWithEmptyImpactedWillPanic(t *testing.T) {
 
 	r := newTestWriteTxnOperation(false, "k1")
 	r.Requests[0].Operation.Impacted = txnpb.KeySet{}
-	tc.send(context.Background(), r)
+	_, err := tc.send(context.Background(), r)
+	assert.NoError(t, err)
 }
 
 func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {

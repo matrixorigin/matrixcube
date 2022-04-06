@@ -45,7 +45,9 @@ func TestWrite(t *testing.T) {
 
 	ctx := context.TODO()
 	op := client.NewTxn()
-	defer op.Rollback(ctx)
+	defer func() {
+		assert.NoError(t, op.Rollback(ctx))
+	}()
 
 	assert.NoError(t, op.Write(ctx, []txnpb.TxnOperation{{Op: 10000, Payload: []byte("10000"), Impacted: txnpb.KeySet{PointKeys: [][]byte{[]byte("k1")}}}}))
 }
