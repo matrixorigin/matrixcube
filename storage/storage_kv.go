@@ -48,15 +48,20 @@ type KVStore interface {
 	// specified view.
 	ScanInView(view View, start, end []byte,
 		handler func(key, value []byte) (bool, error), clone bool) error
-	// PrefixScan scans all key-value pairs that share the specified prefix, the
+	// Deprecated: PrefixScan scans all key-value pairs that share the specified prefix, the
 	// specified handler function will be invoked on each such key-value pairs
 	// until false is returned by the handler function. Depending on the clone
 	// parameter, the handler function will be provided a cloned key-value pair
 	// that can be retained after the return of the handler function or a pair
 	// of temporary key-value slices that could change after the return of the
-	// handler function.
+	// handler function. Use `ScanInViewWithOptions`` instead
 	PrefixScan(prefix []byte,
 		handler func(key, value []byte) (bool, error), clone bool) error
+	// ScanInViewWithOptions scans the key-value paire in the specified [start, end) range. The
+	// starting key of the next iteration of Scan is determined by the handler return. The Key
+	// and Value passed to the handler are unsafe and will only be in effect for the current call.
+	// To save them, the caller needs to copy the values.
+	ScanInViewWithOptions(view View, start, end []byte, handler func(key, value []byte) (NextIterOptions, error)) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
 	// Seek returns the first key-value pair that has the key component no less
@@ -64,6 +69,16 @@ type KVStore interface {
 	Seek(key []byte) ([]byte, []byte, error)
 	// Sync synchronize the storage's in-core state with that on disk.
 	Sync() error
+}
+
+// NextIterOptions options for next iteration
+type NextIterOptions struct {
+	// Stop set true to stop the iteration
+	Stop bool
+	// SeekGE if set, seek to fisrt key in [SeekGE, max) for next iteration
+	SeekGE []byte
+	// SeekLT if set, seek to fisrt key in (min, SeekLT) for next iteration
+	SeekLT []byte
 }
 
 // KVStorage is key-value based storage.

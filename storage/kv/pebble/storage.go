@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"go.uber.org/zap"
 )
@@ -197,7 +198,7 @@ func (s *Storage) Scan(start, end []byte, handler func(key, value []byte) (bool,
 		}
 		var ok bool
 		if cloneResult {
-			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+			ok, err = handler(keysutil.Clone(iter.Key()), keysutil.Clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
 		}
@@ -236,7 +237,7 @@ func (s *Storage) ScanInView(view storage.View,
 		}
 		var ok bool
 		if cloneResult {
-			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+			ok, err = handler(keysutil.Clone(iter.Key()), keysutil.Clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
 		}
@@ -249,6 +250,46 @@ func (s *Storage) ScanInView(view storage.View,
 			break
 		}
 		iter.Next()
+	}
+
+	return nil
+}
+
+func (s *Storage) ScanInViewWithOptions(view storage.View, start, end []byte, handler func(key, value []byte) (storage.NextIterOptions, error)) error {
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+	ss := view.Raw().(*pebble.Snapshot)
+	iter := ss.NewIter(ios)
+	defer iter.Close()
+
+	iter.First()
+	for iter.Valid() {
+		err := iter.Error()
+		if err != nil {
+			return err
+		}
+		opts, err := handler(iter.Key(), iter.Value())
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&s.stats.ReadKeys, 1)
+		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
+		if opts.Stop {
+			break
+		}
+
+		if len(opts.SeekGE) > 0 {
+			iter.SeekGE(opts.SeekGE)
+		} else if len(opts.SeekLT) > 0 {
+			iter.SeekLT(opts.SeekLT)
+		} else {
+			iter.Next()
+		}
 	}
 
 	return nil
@@ -271,7 +312,7 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 		var err error
 		var ok bool
 		if cloneResult {
-			ok, err = handler(clone(iter.Key()), clone(iter.Value()))
+			ok, err = handler(keysutil.Clone(iter.Key()), keysutil.Clone(iter.Value()))
 		} else {
 			ok, err = handler(iter.Key(), iter.Value())
 		}
@@ -299,8 +340,8 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 		if err := iter.Error(); err != nil {
 			return nil, nil, err
 		}
-		key = clone(iter.Key())
-		value = clone(iter.Value())
+		key = keysutil.Clone(iter.Key())
+		value = keysutil.Clone(iter.Value())
 		atomic.AddUint64(&s.stats.ReadKeys, 1)
 		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
 	}
@@ -338,12 +379,6 @@ func toWriteOptions(sync bool) *pebble.WriteOptions {
 		return pebble.Sync
 	}
 	return pebble.NoSync
-}
-
-func clone(value []byte) []byte {
-	v := make([]byte, len(value))
-	copy(v, value)
-	return v
 }
 
 func newWriteBatch(batch *pebble.Batch, stats *stats.Stats) util.WriteBatch {

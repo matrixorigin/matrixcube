@@ -14,6 +14,7 @@
 package kv
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -28,12 +29,17 @@ import (
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"go.uber.org/zap"
 )
 
 var (
 	mb = uint64(1024 * 1024)
 )
+
+// SplitKeyFunc based on the implementation-specific encoding rules, a final SplitKey is returned that can be applied to
+// ensure that the relevant data cannot be split into 2 shards.
+type SplitKeyFunc func(splitKey []byte) []byte
 
 // Option option func
 type Option func(*options)
@@ -136,7 +142,6 @@ func NewKVDataStorage(base storage.KVBaseStorage,
 }
 
 func (kv *kvDataStorage) GetKVStorage() storage.KVStorage {
-	// TODO: see keys encode
 	return kv.base
 }
 
@@ -330,11 +335,23 @@ func (kv *kvDataStorage) SplitCheck(shard metapb.Shard,
 	appendSplitKey := false
 	var splitKeys [][]byte
 
+	view := kv.base.GetView()
 	start := EncodeShardStart(shard.Start, nil)
 	end := EncodeShardEnd(shard.End, nil)
-	if err := kv.base.Scan(start, end, func(key, val []byte) (bool, error) {
+	if err := kv.base.ScanInViewWithOptions(view, start, end, func(key, val []byte) (storage.NextIterOptions, error) {
+		opts := storage.NextIterOptions{}
 		if appendSplitKey {
-			splitKeys = append(splitKeys, key[1:])
+			var realSplitKey []byte
+			if kv.opts.feature.SplitKeyAdjustFunc == nil {
+				realSplitKey = keysutil.Clone(key[1:])
+			} else {
+				realSplitKey = keysutil.Clone(kv.opts.feature.SplitKeyAdjustFunc(key[1:]))
+				// split key changed
+				if !bytes.Equal(realSplitKey, key[1:]) {
+					opts.SeekGE = keysutil.NextKey(EncodeDataKey(realSplitKey, nil))
+				}
+			}
+			splitKeys = append(splitKeys, realSplitKey)
 			appendSplitKey = false
 			sum = 0
 		}
@@ -345,8 +362,8 @@ func (kv *kvDataStorage) SplitCheck(shard metapb.Shard,
 		if sum >= size {
 			appendSplitKey = true
 		}
-		return true, nil
-	}, true); err != nil {
+		return opts, nil
+	}); err != nil {
 		return 0, 0, nil, nil, err
 	}
 

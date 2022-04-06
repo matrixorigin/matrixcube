@@ -6,3 +6,10 @@ func NextKey(k []byte) []byte {
 	copy(v, k)
 	return v
 }
+
+// Clone clone the value
+func Clone(value []byte) []byte {
+	v := make([]byte, len(value))
+	copy(v, value)
+	return v
+}
