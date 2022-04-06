@@ -46,8 +46,9 @@ func TestDecodeResponse(t *testing.T) {
 			buf := buf.NewByteBuf(32)
 			defer buf.Release()
 
-			buf.Write(protoc.MustMarshal(&c.resp))
-			buf.MarkIndex(buf.GetWriteIndex())
+			_, err := buf.Write(protoc.MustMarshal(&c.resp))
+			assert.NoError(t, err)
+			assert.NoError(t, buf.MarkIndex(buf.GetWriteIndex()))
 			ok, v, err := rc.Decode(buf)
 			assert.NoError(t, err, "index %d", i)
 			assert.True(t, ok, "index %d", i)
@@ -79,8 +80,9 @@ func TestDecodeRequest(t *testing.T) {
 			buf := buf.NewByteBuf(32)
 			defer buf.Release()
 
-			buf.Write(protoc.MustMarshal(&c.resp))
-			buf.MarkIndex(buf.GetWriteIndex())
+			_, err := buf.Write(protoc.MustMarshal(&c.resp))
+			assert.NoError(t, err)
+			assert.NoError(t, buf.MarkIndex(buf.GetWriteIndex()))
 			ok, v, err := rc.Decode(buf)
 			assert.NoError(t, err, "index %d", i)
 			assert.True(t, ok, "index %d", i)

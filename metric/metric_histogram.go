@@ -95,22 +95,22 @@ func ObserveSnapshotBytes(size int64) {
 
 // ObserveSnapshotBuildingDuration observe building seconds per snapshot
 func ObserveSnapshotBuildingDuration(start time.Time) {
-	snapshotBuildingDurationHistogram.Observe(time.Now().Sub(start).Seconds())
+	snapshotBuildingDurationHistogram.Observe(time.Since(start).Seconds())
 }
 
 // ObserveSnapshotSendingDuration observe seconds per snapshot
 func ObserveSnapshotSendingDuration(start time.Time) {
-	snapshotSendingDurationHistogram.Observe(time.Now().Sub(start).Seconds())
+	snapshotSendingDurationHistogram.Observe(time.Since(start).Seconds())
 }
 
 // ObserveRaftLogAppendDuration observe seconds raft log append
 func ObserveRaftLogAppendDuration(start time.Time) {
-	raftLogAppendDurationHistogram.Observe(time.Now().Sub(start).Seconds())
+	raftLogAppendDurationHistogram.Observe(time.Since(start).Seconds())
 }
 
 // ObserveRaftLogApplyDuration observe seconds raft log apply
 func ObserveRaftLogApplyDuration(start time.Time) {
-	raftLogApplyDurationHistogram.Observe(time.Now().Sub(start).Seconds())
+	raftLogApplyDurationHistogram.Observe(time.Since(start).Seconds())
 }
 
 // ObserveRaftLogLag observe raft log lag

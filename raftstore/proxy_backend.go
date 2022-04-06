@@ -91,7 +91,7 @@ func (mb *mockBackend) dispatch(req rpcpb.Request) error {
 }
 
 func (mb *mockBackend) close() {
-	mb.close()
+
 }
 
 type localBackend struct {
@@ -137,7 +137,9 @@ func newRemoteBackend(logger *zap.Logger,
 		reqs:            task.New(32),
 	}
 	bc.stopper = stop.NewStopper(fmt.Sprintf("rpcpb-backend-%s", addr))
-	bc.stopper.RunTask(context.Background(), bc.writeLoop)
+	if err := bc.stopper.RunTask(context.Background(), bc.writeLoop); err != nil {
+		panic(err)
+	}
 	return bc
 }
 
@@ -152,7 +154,10 @@ func (bc *remoteBackend) dispatch(req rpcpb.Request) error {
 }
 
 func (bc *remoteBackend) close() {
-	bc.reqs.Put(closeFlag)
+	if err := bc.reqs.Put(closeFlag); err != nil {
+		bc.logger.Fatal("close remote backend failed",
+			zap.Error(err))
+	}
 	bc.stopper.Stop()
 }
 
@@ -179,7 +184,10 @@ func (bc *remoteBackend) checkConnect() bool {
 		return false
 	}
 
-	bc.stopper.RunTask(context.Background(), bc.readLoop)
+	if err := bc.stopper.RunTask(context.Background(), bc.readLoop); err != nil {
+		bc.logger.Fatal("start read loop failed",
+			zap.Error(err))
+	}
 	return ok
 }
 
@@ -207,7 +215,10 @@ func (bc *remoteBackend) writeLoop(ctx context.Context) {
 				if ce := bc.logger.Check(zap.DebugLevel, "send request"); ce != nil {
 					ce.Write(log.HexField("id", items[i].(rpcpb.Request).ID))
 				}
-				bc.conn.Write(items[i])
+				if err := bc.conn.Write(items[i]); err != nil {
+					bc.logger.Error("write request to remote failed",
+						zap.Error(err))
+				}
 			}
 
 			err = bc.conn.Flush()

@@ -34,8 +34,8 @@ func TestDestroyReplica(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
-	kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false)
-	kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false)
+	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false))
+	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false))
 
 	shard := Shard{
 		ID:       1,
@@ -46,10 +46,10 @@ func TestDestroyReplica(t *testing.T) {
 
 	scan := func() int {
 		count := 0
-		kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardStart(shard.End, nil), func(key, value []byte) (bool, error) {
+		assert.NoError(t, kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardStart(shard.End, nil), func(key, value []byte) (bool, error) {
 			count++
 			return true, nil
-		}, false)
+		}, false))
 		return count
 	}
 
@@ -92,7 +92,8 @@ func TestDestroyReplica(t *testing.T) {
 		s.destroyReplica(pr.shardID, true, true, "testing")
 	}
 	wc := s.logdb.NewWorkerContext()
-	pr.handleEvent(wc)
+	_, err := pr.handleEvent(wc)
+	assert.NoError(t, err)
 	pr.waitDestroyed()
 	assert.Nil(t, s.getReplica(1, false))
 	assert.Equal(t, 0, scan())

@@ -112,7 +112,8 @@ func TestSplitCheckerDoCheck(t *testing.T) {
 	assert.True(t, sc.doChecker(pr.getShard()))
 	assert.Equal(t, int64(1), pr.actions.Len())
 	act, _ := pr.actions.Peek()
-	pr.actions.Get(1, make([]interface{}, 1))
+	_, err = pr.actions.Get(1, make([]interface{}, 1))
+	assert.NoError(t, err)
 	assert.Equal(t, action{actionType: splitAction, epoch: pr.getShard().Epoch, splitCheckData: splitCheckData{keys: currentKeys, size: currentSize, splitKeys: splitKeys}}, act)
 
 	// ok and need split

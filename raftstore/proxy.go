@@ -361,7 +361,11 @@ func (p *shardsProxy) retryDispatch(requestID []byte, err string) {
 		ce.Write(log.HexField("id", req.ID),
 			zap.String("cause", err))
 	}
-	util.DefaultTimeoutWheel().Schedule(p.cfg.retryInterval, p.doRetry, req)
+	if _, err := util.DefaultTimeoutWheel().Schedule(p.cfg.retryInterval, p.doRetry, req); err != nil {
+		p.logger.Error("fail to retry request",
+			log.HexField("id", req.ID))
+	}
+
 }
 
 func (p *shardsProxy) doRetry(arg interface{}) {

@@ -192,7 +192,7 @@ func NewClient(cfg Cfg) Client {
 		CreateWithShardsProxy(cfg.Store.GetShardsProxy()))
 }
 
-// NewClientWithOptions create client wiht options
+// NewClientWithOptions create client with options
 func NewClientWithOptions(options ...CreateOption) Client {
 	c := &client{}
 	for _, opt := range options {

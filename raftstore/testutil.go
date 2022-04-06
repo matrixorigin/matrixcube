@@ -217,8 +217,12 @@ func WithTestClusterSplitPolicy(shardCapacityBytes, shardSplitCheckBytes uint64)
 }
 
 func recreateTestTempDir(fs vfs.FS, tmpDir string) {
-	fs.RemoveAll(tmpDir)
-	fs.MkdirAll(tmpDir, 0755)
+	if err := fs.RemoveAll(tmpDir); err != nil {
+		panic(err)
+	}
+	if err := fs.MkdirAll(tmpDir, 0755); err != nil {
+		panic(err)
+	}
 }
 
 type testShardAware struct {
@@ -298,18 +302,6 @@ func (ts *testShardAware) waitByShardSplitCount(t *testing.T, id uint64, count i
 			time.Sleep(time.Millisecond * 100)
 		}
 	}
-}
-
-func (ts *testShardAware) hasShard(id uint64) bool {
-	ts.RLock()
-	defer ts.RUnlock()
-
-	for _, shard := range ts.shards {
-		if shard.ID == id {
-			return true
-		}
-	}
-	return false
 }
 
 func (ts *testShardAware) shardRemoved(id uint64) bool {
@@ -881,7 +873,9 @@ func (kv *testKVClient) errorDone(requestID []byte, err error) {
 
 	if IsShardUnavailableErr(err) && kv.adjust != nil {
 		if req, ok := kv.retryLocked(requestID); ok {
-			kv.proxy.Dispatch(req)
+			if err := kv.proxy.Dispatch(req); err != nil {
+				panic(err)
+			}
 			return
 		}
 	}

@@ -361,7 +361,8 @@ func TestDoExecCompactLog(t *testing.T) {
 	pr.lr.SetRange(0, 100)
 	pr.handleApplyResult(result)
 	// actual compaction is done as an action by the event worker
-	pr.handleAction(make([]interface{}, readyBatchSize))
+	_, err = pr.handleAction(make([]interface{}, readyBatchSize))
+	assert.NoError(t, err)
 	state, err := pr.sm.logdb.ReadRaftState(pr.shardID, pr.replicaID, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), state.FirstIndex)

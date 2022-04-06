@@ -90,15 +90,15 @@ func TestSplitWithSingleClusterAndWriteToOldShard(t *testing.T) {
 	c.Start()
 	defer c.Stop()
 
-	sid := prepareSplit(t, c, []int{0}, []int{2})
+	oldShardID := prepareSplit(t, c, []int{0}, []int{2})
 	n := 0
 	kv := c.CreateTestKVClient(0)
 	defer kv.Close()
-	assert.True(t, IsShardUnavailableErr(kv.SetWithShard("k1", "v1", sid, testWaitTimeout)))
+	assert.True(t, IsShardUnavailableErr(kv.SetWithShard("k1", "v1", oldShardID, testWaitTimeout)))
 
 	kv2 := c.CreateTestKVClientWithAdjust(0, func(req *rpcpb.Request) {
 		if n == 0 {
-			req.ToShard = sid
+			req.ToShard = oldShardID
 		} else {
 			req.ToShard = 0
 		}
@@ -354,7 +354,7 @@ func TestSplitWithApplySnapshotAndStartDestroyByStateCheck(t *testing.T) {
 		pr := s.(*store).getReplica(sid, true)
 		if pr != nil {
 			idx, _ := pr.sm.getAppliedIndexTerm()
-			pr.sm.dataStorage.Sync([]uint64{sid})
+			assert.NoError(t, pr.sm.dataStorage.Sync([]uint64{sid}))
 			pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
 				CompactIndex: idx,
 			})
@@ -436,11 +436,11 @@ func checkSplitWithStore(t *testing.T, c TestRaftCluster, index int, parentShard
 	// read
 	v, err := kv.Get("k1", testWaitTimeout)
 	assert.NoError(t, err, "index %d", index)
-	assert.Equal(t, "v1", string(v), "index %d", index)
+	assert.Equal(t, "v1", v, "index %d", index)
 
 	v, err = kv.Get("k2", testWaitTimeout)
 	assert.NoError(t, err, "index %d", index)
-	assert.Equal(t, "v2", string(v), "index %d", index)
+	assert.Equal(t, "v2", v, "index %d", index)
 
 	// check router
 	shard, _ := c.GetStore(index).GetRouter().SelectShard(0, []byte("k1"))

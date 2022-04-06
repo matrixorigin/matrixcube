@@ -33,7 +33,8 @@ func TestApplySplit(t *testing.T) {
 	pr := newTestReplica(Shard{ID: 1, Start: []byte{1}, End: []byte{10}}, Replica{ID: 100}, s)
 
 	s.updateShardKeyRange(0, pr.getShard())
-	pr.sm.dataStorage.GetInitialStates()
+	_, err := pr.sm.dataStorage.GetInitialStates()
+	assert.NoError(t, err)
 	pr.stats.approximateSize = 200
 	pr.stats.approximateKeys = 200
 
@@ -75,7 +76,7 @@ func TestApplySplit(t *testing.T) {
 	assert.Equal(t, uint64(100), pr.stats.approximateKeys)
 	assert.Equal(t, int64(1), pr.messages.Len())
 
-	pr, err := s.selectShard(0, []byte{1})
+	pr, err = s.selectShard(0, []byte{1})
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), pr.getShard().ID)
 

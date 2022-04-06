@@ -134,7 +134,9 @@ func (c *Config) Adjust() {
 	(&c.Raft).adjust()
 	c.Prophet.DataDir = path.Join(c.DataPath, defaultProphetDirName)
 	c.Prophet.StoreHeartbeatDataProcessor = c.Customize.CustomStoreHeartbeatDataProcessor
-	(&c.Prophet).Adjust(nil, false)
+	if err := (&c.Prophet).Adjust(nil, false); err != nil {
+		panic(err)
+	}
 	(&c.Worker).adjust()
 
 	if c.Test.ShardStateAware != nil {

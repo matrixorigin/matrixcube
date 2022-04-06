@@ -332,7 +332,7 @@ func TestShardsPoolStartAndStop(t *testing.T) {
 	job := metapb.Job{Type: metapb.JobType_CreateShardPool}
 	pools := metapb.ShardsPool{Pools: make(map[uint64]*metapb.ShardPool)}
 	pools.Pools[0] = &metapb.ShardPool{Capacity: 4}
-	s.PutJobData(job.Type, protoc.MustMarshal(&pools))
+	assert.NoError(t, s.PutJobData(job.Type, protoc.MustMarshal(&pools)))
 	p.Start(job, s, nil)
 
 	p.mu.RLock()

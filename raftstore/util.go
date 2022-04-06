@@ -53,12 +53,12 @@ func removeReplica(shard *Shard, storeID uint64) *Replica {
 	return removed
 }
 
-func removedReplicas(new, old Shard) []uint64 {
+func removedReplicas(newShard, oldShard Shard) []uint64 {
 	var ids []uint64
 
-	for _, o := range old.Replicas {
+	for _, o := range oldShard.Replicas {
 		c := 0
-		for _, n := range new.Replicas {
+		for _, n := range newShard.Replicas {
 			if n.ID == o.ID {
 				c++
 				break

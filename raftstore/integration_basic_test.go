@@ -203,7 +203,7 @@ func TestAddShardLabel(t *testing.T) {
 
 	for {
 		ch := make(chan rpcpb.ResponseBatch)
-		c.GetStore(0).OnRequestWithCB(rpcpb.Request{
+		assert.NoError(t, c.GetStore(0).OnRequestWithCB(rpcpb.Request{
 			ID:         uuid.NewV4().Bytes(),
 			Group:      0,
 			Type:       rpcpb.Admin,
@@ -216,7 +216,7 @@ func TestAddShardLabel(t *testing.T) {
 			}),
 		}, func(resp rpcpb.ResponseBatch) {
 			ch <- resp
-		})
+		}))
 
 		resp := <-ch
 		if resp.Header.IsEmpty() {

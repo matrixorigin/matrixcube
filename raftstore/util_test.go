@@ -71,7 +71,7 @@ func TestRemoveReplica(t *testing.T) {
 func TestRemovedReplicas(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	old := Shard{
+	oldShard := Shard{
 		Replicas: []Replica{
 			{ID: 1, StoreID: 10000},
 			{ID: 2, StoreID: 20000},
@@ -79,7 +79,7 @@ func TestRemovedReplicas(t *testing.T) {
 		},
 	}
 
-	new := Shard{
+	newShard := Shard{
 		Replicas: []Replica{
 			{ID: 1, StoreID: 10000},
 			{ID: 5, StoreID: 50000},
@@ -87,19 +87,19 @@ func TestRemovedReplicas(t *testing.T) {
 		},
 	}
 
-	ids := removedReplicas(new, old)
+	ids := removedReplicas(newShard, oldShard)
 	assert.Equal(t, 2, len(ids))
 	assert.Equal(t, uint64(2), ids[0])
 	assert.Equal(t, uint64(3), ids[1])
 
-	old = Shard{
+	oldShard = Shard{
 		Replicas: []Replica{
 			{ID: 1, StoreID: 10000},
 			{ID: 2, StoreID: 20000},
 			{ID: 3, StoreID: 30000},
 		},
 	}
-	new = Shard{
+	newShard = Shard{
 		Replicas: []Replica{
 			{ID: 6, StoreID: 60000},
 			{ID: 5, StoreID: 50000},
@@ -107,12 +107,12 @@ func TestRemovedReplicas(t *testing.T) {
 		},
 	}
 
-	ids = removedReplicas(new, old)
+	ids = removedReplicas(newShard, oldShard)
 	assert.Equal(t, 3, len(ids))
 	assert.Equal(t, uint64(1), ids[0])
 	assert.Equal(t, uint64(2), ids[1])
 	assert.Equal(t, uint64(3), ids[2])
 
-	ids = removedReplicas(new, new)
+	ids = removedReplicas(newShard, newShard)
 	assert.Equal(t, 0, len(ids))
 }
