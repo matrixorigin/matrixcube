@@ -55,7 +55,7 @@ func TestNewUnixNanoHLCClock(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	c := NewUnixNanoHLCClock(ctx, 500*time.Millisecond)
-	result := c.Now()
+	result, _ := c.Now()
 	assert.True(t, v < result.PhysicalTime)
 }
 
@@ -99,12 +99,16 @@ func TestNow(t *testing.T) {
 	c := NewHLCClock(pc, time.Second)
 
 	c.mu.ts = Timestamp{PhysicalTime: 100, LogicalTime: 10}
-	result := c.Now()
+	result, _ := c.Now()
 	assert.Equal(t, Timestamp{PhysicalTime: 200}, result)
 
 	c.mu.ts = Timestamp{PhysicalTime: 300, LogicalTime: 10}
-	result = c.Now()
+	result, _ = c.Now()
 	assert.Equal(t, Timestamp{PhysicalTime: 300, LogicalTime: 11}, result)
+
+	result, upperBound := c.Now()
+	assert.Equal(t, result.PhysicalTime+int64(c.MaxOffset()), upperBound.PhysicalTime)
+	assert.Equal(t, uint32(0), upperBound.LogicalTime)
 }
 
 func TestUpdate(t *testing.T) {
