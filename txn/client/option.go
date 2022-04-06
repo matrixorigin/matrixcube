@@ -16,6 +16,7 @@ package client
 import (
 	"math"
 	"math/rand"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/util/hlc"
@@ -47,10 +48,10 @@ func WithTxnPriorityGenerator(txnPriorityGenerator TxnPriorityGenerator) Option 
 	}
 }
 
-// WithTxnClocker set Clocker for txn client
-func WithTxnClocker(txnClocker hlc.Clock) Option {
+// WithTxnClock set Clock for txn client
+func WithTxnClock(txnClock hlc.Clock) Option {
 	return func(tc *txnClient) {
-		tc.txnClocker = txnClocker
+		tc.txnClock = txnClock
 	}
 }
 
@@ -109,4 +110,10 @@ func newTxnPriorityGenerator() TxnPriorityGenerator {
 
 func (p *txnPriorityGenerator) Generate() uint32 {
 	return uint32(rand.Int63n(math.MaxUint32))
+}
+
+func newMockTxnClock(maxOffset time.Duration) hlc.Clock {
+	return hlc.NewHLCClock(func() int64 {
+		return time.Now().Unix()
+	}, maxOffset)
 }

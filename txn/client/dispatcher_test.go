@@ -32,6 +32,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/raftstore"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -486,7 +487,7 @@ func TestDispatcherSendWithUpdateWriteTimestamp(t *testing.T) {
 				Txn: txnpb.TxnMeta{
 					ID:             []byte("txn-1"),
 					Name:           "txn-1",
-					WriteTimestamp: r.ToShard,
+					WriteTimestamp: hlc.Timestamp{PhysicalTime: int64(r.ToShard)},
 				},
 			},
 			Responses: []txnpb.TxnResponse{{Data: data}},
@@ -501,7 +502,7 @@ func TestDispatcherSendWithUpdateWriteTimestamp(t *testing.T) {
 	defer cancel()
 	resp, err := bd.Send(ctx, newTestBatchRequest(1, 2))
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(2), resp.Header.Txn.WriteTimestamp)
+	assert.Equal(t, hlc.Timestamp{PhysicalTime: 2}, resp.Header.Txn.WriteTimestamp)
 }
 
 func TestUpdateTxnErrorsWithAbortedError(t *testing.T) {
@@ -574,12 +575,12 @@ func TestUpdateTxnErrorsWithMergeAbortedAndConflictWithCommittedErrors(t *testin
 				AbortedError: &txnpb.AbortedError{},
 			},
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
 				AbortedError: &txnpb.AbortedError{},
@@ -634,12 +635,12 @@ func TestUpdateTxnErrorsWithMergeAbortedAndUncertaintyErrors(t *testing.T) {
 				AbortedError: &txnpb.AbortedError{},
 			},
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
 				AbortedError: &txnpb.AbortedError{},
@@ -691,18 +692,18 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedErrors(t *testing.T) {
 	errors := [][]*txnpb.TxnError{
 		{
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 2},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 2},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 		},
 	}
@@ -739,7 +740,7 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedErrors(t *testing.T) {
 			resp, err := bd.Send(ctx, newTestBatchRequest(1, 2))
 			assert.NoError(t, err)
 			assert.NotNil(t, resp.Header.Error.ConflictWithCommittedError)
-			assert.Equal(t, uint64(2), resp.Header.Error.ConflictWithCommittedError.MinTimestamp)
+			assert.Equal(t, hlc.Timestamp{PhysicalTime: 2}, resp.Header.Error.ConflictWithCommittedError.MinTimestamp)
 			assert.Nil(t, resp.Header.Error.AbortedError)
 			assert.Nil(t, resp.Header.Error.UncertaintyError)
 		}(errs)
@@ -752,18 +753,18 @@ func TestUpdateTxnErrorsWithMergeUncertaintyErrors(t *testing.T) {
 	errors := [][]*txnpb.TxnError{
 		{
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 2},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 2},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 		},
 	}
@@ -800,7 +801,7 @@ func TestUpdateTxnErrorsWithMergeUncertaintyErrors(t *testing.T) {
 			resp, err := bd.Send(ctx, newTestBatchRequest(1, 2))
 			assert.NoError(t, err)
 			assert.NotNil(t, resp.Header.Error.UncertaintyError)
-			assert.Equal(t, uint64(2), resp.Header.Error.UncertaintyError.MinTimestamp)
+			assert.Equal(t, hlc.Timestamp{PhysicalTime: 2}, resp.Header.Error.UncertaintyError.MinTimestamp)
 			assert.Nil(t, resp.Header.Error.AbortedError)
 			assert.Nil(t, resp.Header.Error.ConflictWithCommittedError)
 		}(errs)
@@ -813,34 +814,34 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedAndUncertaintyError(t *tes
 	errors := [][]*txnpb.TxnError{
 		{
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 2},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
-			},
-		},
-		{
-			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
-			},
-			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 2},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 2},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
 			},
 		},
 		{
 			&txnpb.TxnError{
-				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: 2},
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 			&txnpb.TxnError{
-				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: 1},
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
+			},
+		},
+		{
+			&txnpb.TxnError{
+				UncertaintyError: &txnpb.UncertaintyError{MinTimestamp: hlc.Timestamp{PhysicalTime: 2}},
+			},
+			&txnpb.TxnError{
+				ConflictWithCommittedError: &txnpb.ConflictWithCommittedError{MinTimestamp: hlc.Timestamp{PhysicalTime: 1}},
 			},
 		},
 	}
@@ -877,7 +878,7 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedAndUncertaintyError(t *tes
 			resp, err := bd.Send(ctx, newTestBatchRequest(1, 2))
 			assert.NoError(t, err)
 			assert.NotNil(t, resp.Header.Error.UncertaintyError)
-			assert.Equal(t, uint64(2), resp.Header.Error.UncertaintyError.MinTimestamp)
+			assert.Equal(t, hlc.Timestamp{PhysicalTime: 2}, resp.Header.Error.UncertaintyError.MinTimestamp)
 			assert.Nil(t, resp.Header.Error.AbortedError)
 			assert.Nil(t, resp.Header.Error.ConflictWithCommittedError)
 		}(errs)
@@ -1032,7 +1033,6 @@ func addTestShard(router raftstore.Router, shardID uint64, shardInfo string) {
 func newTestBatchDispatcher(client raftstoreClient.Client) *batchDispatcher {
 	batch := NewBatchDispatcher(client, rpcpb.SelectLeader,
 		newTestTxnOperationRouter(client.Router()),
-		newMockTxnClocker(0),
 		log.GetPanicZapLoggerWithLevel(zap.DebugLevel))
 	return batch.(*batchDispatcher)
 }

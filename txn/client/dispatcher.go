@@ -307,7 +307,7 @@ func (dr *dispatchResult) updateTxnErrorLocked(currentTxnErr *txnpb.TxnError) {
 		}
 	} else if previousTxnErr.ConflictWithCommittedError != nil {
 		if currentTxnErr.UncertaintyError != nil {
-			if previousTxnErr.ConflictWithCommittedError.MinTimestamp.Less(currentTxnErr.UncertaintyError.MinTimestamp) {
+			if previousTxnErr.ConflictWithCommittedError.MinTimestamp.Greater(currentTxnErr.UncertaintyError.MinTimestamp) {
 				currentTxnErr.UncertaintyError.MinTimestamp = previousTxnErr.ConflictWithCommittedError.MinTimestamp
 			}
 			previousTxnErr.ConflictWithCommittedError = nil

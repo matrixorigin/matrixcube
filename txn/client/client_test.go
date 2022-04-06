@@ -16,6 +16,7 @@ package client
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -23,15 +24,14 @@ import (
 )
 
 func TestNewTxn(t *testing.T) {
-	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClocker(newMockTxnClocker(5)))
+	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 	txn := client.NewTxn(WithTxnOptionName("mock-txn")).getTxnMeta()
 	assert.Equal(t, "mock-txn", txn.Name)
 	assert.Equal(t, txnpb.IsolationLevel_SnapshotSerializable, txn.IsolationLevel)
 	assert.NotEmpty(t, txn.ID)
 	assert.True(t, txn.Priority > 0)
-	assert.Equal(t, uint64(6), txn.MaxTimestamp)
-	assert.Equal(t, uint64(1), txn.ReadTimestamp)
-	assert.Equal(t, uint64(1), txn.WriteTimestamp)
+	assert.True(t, txn.ReadTimestamp.Equal(txn.WriteTimestamp))
+	assert.True(t, txn.MaxTimestamp.Greater(txn.ReadTimestamp))
 	assert.Equal(t, uint32(0), txn.Epoch)
 	assert.Empty(t, txn.TxnRecordRouteKey)
 }
@@ -41,7 +41,7 @@ func TestWrite(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClocker(newMockTxnClocker(5)))
+	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -55,7 +55,7 @@ func TestWriteAndCommit(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClocker(newMockTxnClocker(5)))
+	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -67,7 +67,7 @@ func TestRead(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}, Responses: make([]txnpb.TxnResponse, len(req.Requests))}, nil
-	}), WithTxnClocker(newMockTxnClocker(5)))
+	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -81,7 +81,7 @@ func TestCommit(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClocker(newMockTxnClocker(5)))
+	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -94,7 +94,7 @@ func TestRollback(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClocker(newMockTxnClocker(5)))
+	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()

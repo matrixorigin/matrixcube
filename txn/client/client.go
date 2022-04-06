@@ -35,7 +35,7 @@ type txnClient struct {
 	logger               *zap.Logger
 	txnIDGenerator       TxnIDGenerator
 	txnPriorityGenerator TxnPriorityGenerator
-	txnClocker           hlc.Clock
+	txnClock             hlc.Clock
 	dispatcher           BatchDispatcher
 }
 
@@ -57,23 +57,21 @@ func (tc *txnClient) NewTxn(opts ...TxnOption) TxnOperator {
 	}
 	options.adjust()
 
-	now := tc.txnClocker.Now()
-	maxOffet := tc.txnClocker.MaxOffset()
-	// tc.txnClocker
-
+	now := tc.txnClock.Now()
+	maxTimestamp := tc.txnClock.NowUpperBound()
 	txn := txnpb.TxnMeta{
 		Name:           options.name,
 		IsolationLevel: options.isolationLevel,
 		ReadTimestamp:  now,
 		WriteTimestamp: now,
-		MaxTimestamp:   now,
+		MaxTimestamp:   maxTimestamp,
 	}
 	txn.ID = tc.txnIDGenerator.Generate()
 	txn.Priority = tc.txnPriorityGenerator.Generate()
 	util.LogTxnMeta(tc.logger, zap.DebugLevel, "txn created", txn)
 	return newTxnOperator(txn,
 		tc.dispatcher,
-		tc.txnClocker,
+		tc.txnClock,
 		tc.logger,
 		options)
 }
@@ -127,13 +125,13 @@ var _ TxnOperator = (*txnOperator)(nil)
 
 func newTxnOperator(txnMeta txnpb.TxnMeta,
 	dispatcher BatchDispatcher,
-	txnClocker TxnClocker,
+	txnClock hlc.Clock,
 	logger *zap.Logger,
 	opts txnOptions) TxnOperator {
 	return &txnOperator{
 		tc: newTxnCoordinator(txnMeta,
 			dispatcher,
-			txnClocker,
+			txnClock,
 			logger,
 			opts),
 	}
