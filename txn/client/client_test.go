@@ -24,7 +24,7 @@ import (
 )
 
 func TestNewTxn(t *testing.T) {
-	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	client := NewTxnClient(newMockBatchDispatcher(nil), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 	txn := client.NewTxn(WithTxnOptionName("mock-txn")).getTxnMeta()
 	assert.Equal(t, "mock-txn", txn.Name)
 	assert.Equal(t, txnpb.IsolationLevel_SnapshotSerializable, txn.IsolationLevel)
@@ -41,7 +41,7 @@ func TestWrite(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	}), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -57,7 +57,7 @@ func TestWriteAndCommit(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	}), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -69,7 +69,7 @@ func TestRead(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}, Responses: make([]txnpb.TxnResponse, len(req.Requests))}, nil
-	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	}), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -83,7 +83,7 @@ func TestCommit(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	}), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()
@@ -96,7 +96,7 @@ func TestRollback(t *testing.T) {
 
 	client := NewTxnClient(newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
-	}), WithTxnClock(newMockTxnClock(time.Millisecond*500)))
+	}), WithTxnClock(newHLCTxnClock(time.Millisecond*500)))
 
 	ctx := context.TODO()
 	op := client.NewTxn()

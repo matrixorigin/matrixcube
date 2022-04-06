@@ -864,7 +864,7 @@ func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
 }
 
 func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch uint32) *coordinator {
-	clock := newMockTxnClock(time.Millisecond * 500)
+	clock := newHLCTxnClock(time.Millisecond * 500)
 	ts, max := clock.Now()
 	tc := newTxnCoordinator(newTestSITxn(name, id, ts, max, epoch),
 		sender,

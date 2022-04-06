@@ -38,15 +38,15 @@ type txnCoordinator interface {
 
 func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 	sender BatchDispatcher,
-	txnClocker hlc.Clock,
+	txnClock hlc.Clock,
 	logger *zap.Logger,
 	opts txnOptions) *coordinator {
 	c := &coordinator{
-		sender:     sender,
-		logger:     logger.With(log.HexField("txn-id", txnMeta.ID)),
-		txnClocker: txnClocker,
-		opts:       opts,
-		stopper:    stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
+		sender:   sender,
+		logger:   logger.With(log.HexField("txn-id", txnMeta.ID)),
+		txnClock: txnClock,
+		opts:     opts,
+		stopper:  stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
 	}
 	c.mu.txnMeta = txnMeta
 	c.mu.status = txnpb.TxnStatus_Pending
@@ -56,11 +56,11 @@ func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 }
 
 type coordinator struct {
-	logger     *zap.Logger
-	sender     BatchDispatcher
-	txnClocker hlc.Clock
-	opts       txnOptions
-	stopper    *stop.Stopper
+	logger   *zap.Logger
+	sender   BatchDispatcher
+	txnClock hlc.Clock
+	opts     txnOptions
+	stopper  *stop.Stopper
 
 	mu struct {
 		sync.Mutex
@@ -588,7 +588,7 @@ func (c *coordinator) splitBatchRequestsWithIndex(batchRequest *txnpb.TxnBatchRe
 }
 
 func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
-	ts, _ := c.txnClocker.Now()
+	ts, _ := c.txnClock.Now()
 	txn := c.getTxnMeta()
 	var batchRequest txnpb.TxnBatchRequest
 	batchRequest.Header.Txn.TxnMeta = txn

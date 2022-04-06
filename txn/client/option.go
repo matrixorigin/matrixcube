@@ -112,7 +112,7 @@ func (p *txnPriorityGenerator) Generate() uint32 {
 	return uint32(rand.Int63n(math.MaxUint32))
 }
 
-func newMockTxnClock(maxOffset time.Duration) hlc.Clock {
+func newHLCTxnClock(maxOffset time.Duration) hlc.Clock {
 	return hlc.NewHLCClock(func() int64 {
 		return time.Now().Unix()
 	}, maxOffset)
