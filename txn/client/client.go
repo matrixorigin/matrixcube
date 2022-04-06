@@ -57,14 +57,13 @@ func (tc *txnClient) NewTxn(opts ...TxnOption) TxnOperator {
 	}
 	options.adjust()
 
-	now := tc.txnClock.Now()
-	maxTimestamp := tc.txnClock.NowUpperBound()
+	now, max := tc.txnClock.Now()
 	txn := txnpb.TxnMeta{
 		Name:           options.name,
 		IsolationLevel: options.isolationLevel,
 		ReadTimestamp:  now,
 		WriteTimestamp: now,
-		MaxTimestamp:   maxTimestamp,
+		MaxTimestamp:   max,
 	}
 	txn.ID = tc.txnIDGenerator.Generate()
 	txn.Priority = tc.txnPriorityGenerator.Generate()

@@ -580,7 +580,7 @@ func (c *coordinator) splitBatchRequestsWithIndex(batchRequest *txnpb.TxnBatchRe
 }
 
 func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
-	ts := c.txnClocker.Now()
+	ts, _ := c.txnClocker.Now()
 	txn := c.getTxnMeta()
 	var batchRequest txnpb.TxnBatchRequest
 	batchRequest.Header.Txn.TxnMeta = txn

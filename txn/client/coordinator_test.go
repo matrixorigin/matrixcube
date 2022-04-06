@@ -862,9 +862,8 @@ func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
 
 func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch uint32) *coordinator {
 	clock := newMockTxnClock(time.Millisecond * 500)
-	ts := clock.Now()
-	maxTs := clock.NowUpperBound()
-	tc := newTxnCoordinator(newTestSITxn(name, id, ts, maxTs, epoch),
+	ts, max := clock.Now()
+	tc := newTxnCoordinator(newTestSITxn(name, id, ts, max, epoch),
 		sender,
 		clock,
 		log.GetPanicZapLoggerWithLevel(zap.DebugLevel),
