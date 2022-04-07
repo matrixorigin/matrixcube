@@ -97,30 +97,24 @@ func Benchmark_SyncPool_CacheMiss_512(b *testing.B) {
 
 func Benchmark_Make_128(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
-		var x []byte
 		for pb.Next() {
-			x = make([]byte, 128)
+			_ = make([]byte, 128)
 		}
-		x = x[:0]
 	})
 }
 
 func Benchmark_Make_256(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
-		var x []byte
 		for pb.Next() {
-			x = make([]byte, 256)
+			_ = make([]byte, 256)
 		}
-		x = x[:0]
 	})
 }
 
 func Benchmark_Make_512(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
-		var x []byte
 		for pb.Next() {
-			x = make([]byte, 512)
+			_ = make([]byte, 512)
 		}
-		x = x[:0]
 	})
 }

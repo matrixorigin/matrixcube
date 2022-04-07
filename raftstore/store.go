@@ -924,7 +924,7 @@ func (s *store) getStoreHeartbeat(last time.Time) (rpcpb.StoreHeartbeatReq, erro
 	}
 
 	// cpu usages
-	usages, err := util.CpuUsages()
+	usages, err := util.CPUUsages()
 	if err != nil {
 		s.logger.Error("fail to get cpu status",
 			s.storeField(),

@@ -97,8 +97,6 @@ L:
 			if atomic.CompareAndSwapUint64(&rb.queue, pos, pos+1) {
 				break L
 			}
-		case dif < 0:
-			panic(`Ring buffer in a compromised state during a put operation.`)
 		default:
 			pos = atomic.LoadUint64(&rb.queue)
 		}
@@ -150,8 +148,6 @@ L:
 			if atomic.CompareAndSwapUint64(&rb.dequeue, pos, pos+1) {
 				break L
 			}
-		case dif < 0:
-			panic(`Ring buffer in compromised state during a get operation.`)
 		default:
 			pos = atomic.LoadUint64(&rb.dequeue)
 		}
