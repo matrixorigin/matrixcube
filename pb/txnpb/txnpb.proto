@@ -91,6 +91,24 @@ message TxnRecord {
     map<uint64, KeySet> infightWrites   = 5 [(gogoproto.nullable) = false];
 }
 
+// TxnProvisionalData used to mark which MVCC data is temporary and contains the TxnMeta 
+// when the data is written
+message TxnProvisionalData {
+    // TxnMeta embed txn meta
+    TxnMeta         txnMeta     = 1 [(gogoproto.nullable) = false, (gogoproto.embed) = true];
+    // Timestamp is the version of the ProvisionalData in MVCC records
+    hlcpb.Timestamp timestamp   = 2 [(gogoproto.nullable) = false];
+}
+
+// TxnConflictData used to describe write/write conflicts encountered in a transaction. 
+// Only one of the committed and uncommitted conflicts can be set.
+message TxnConflictData {
+    // WithUncommitted conflicts with the uncommitted data
+    TxnProvisionalData withUncommitted = 1;
+    // WithCommitted conflicts with the committed data
+    hlcpb.Timestamp    withCommitted   = 2;
+} 
+
 // TxnOpMeta metadata for transaction operations, with fields related to the 
 // current operation of the transaction added to TxnMeta.
 message TxnOpMeta {

@@ -14,13 +14,16 @@
 package storage
 
 import (
+	"context"
 	"time"
 
 	"github.com/cockroachdb/errors"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
+	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 )
 
 var (
@@ -178,6 +181,41 @@ type Feature struct {
 	// SplitKeyAdjustFunc based on the implementation-specific encoding rules, a final SplitKey is
 	// returned that can be applied to ensure that the relevant data cannot be split into 2 shards.
 	SplitKeyAdjustFunc func([]byte) []byte
+	// SupportTransaction whether to support Transaction, if support transaction, the current DataStorage
+	// need to implement TransactionalStorage, used to handle transaction-related consensus commands.
+	SupportTransaction bool
+}
+
+// TransactionalStorage is a `DataStorage` that supports transaction operations.  Where all write data
+// methods must be called by the Cube after completing the consensus, and read data methods can be read
+// directly in the LeaseHolder.
+type TransactionalStorage interface {
+	// UpdateTxnRecord update an existing `TxnRecord`. The creation of `TxnRecord` is written with the
+	// consensus of the first written key of a transaction operation.
+	UpdateTxnRecord(ctx context.Context, record txnpb.TxnRecord) error
+	// DeleteTxnRecord delete a `TxnRecord`. This method is called to clean up the `TxnRecord` when the
+	// transaction has been committed or rolled back and all temporary writes have been processed correctly.
+	DeleteTxnRecord(ctx context.Context, txnRecordRouteKey []byte)
+	// CommitWriteData commit a Key corresponding to the temporary write data to make it visible
+	CommitWriteData(ctx context.Context, originKey []byte, commitTS hlc.Timestamp) error
+	// RollbackWriteData delete temporary data written by the transaction corresponding to a key
+	RollbackWriteData(ctx context.Context, originKey []byte, metadata txnpb.TxnProvisionalData) error
+	// Clean delete all MVCC records with MVCC version number less than hlc.Timestamp in the range
+	// [fromOriginKey, toOriginKey). This method is called periodically.
+	Clean(ctx context.Context, fromOriginKey, toOriginKey []byte, timestamp hlc.Timestamp) error
+
+	// GetTxnRecord read `TxnRecord`
+	GetTxnRecord(ctx context.Context, txnRecordRouteKey []byte) (txnpb.TxnRecord, error)
+	// GetCommitted return the largest record with MVCC version number < timestamp corresponding to
+	// the Key.
+	GetCommitted(ctx context.Context, originKey []byte, timestamp hlc.Timestamp) (exist bool, data []byte, err error)
+	// GetUncommittedOrAnyHighCommitted get the conflicting data of the currently specified Key.
+	// There are 2 cases of conflict, 1. encounter uncommitted data; 2. encounter any version
+	// number > timestamp of committed data.
+	GetUncommittedOrAnyHighCommitted(ctx context.Context, originKey []byte, timestamp hlc.Timestamp) (*txnpb.TxnConflictData, error)
+	// GetUncommittedOrAnyHighCommittedByRange is similar to `GetUncommittedOrAnyHighCommitted`, but
+	// perform keys in txnpb.TxnOperation range
+	GetUncommittedOrAnyHighCommittedByRange(ctx context.Context, op txnpb.TxnOperation, timestamp hlc.Timestamp) ([]txnpb.TxnConflictData, error)
 }
 
 // WriteContext contains the details of write requests to be handled by the
