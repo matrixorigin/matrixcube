@@ -28,20 +28,6 @@ import (
 func TestWriteContextCanBeInitialized(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	cases := []struct {
-		batch rpcpb.RequestBatch
-	}{
-		{
-			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(1)},
-		},
-		{
-			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(2)},
-		},
-		{
-			batch: rpcpb.RequestBatch{Requests: newTestRPCRequests(3)},
-		},
-	}
-
 	shard := Shard{ID: 12345}
 	fs := vfs.GetTestFS()
 	defer vfs.ReportLeakedFD(fs, t)
@@ -49,18 +35,10 @@ func TestWriteContextCanBeInitialized(t *testing.T) {
 	defer base.Close()
 	ctx := newWriteContext(base)
 	assert.False(t, ctx.hasRequest())
-	for i, c := range cases {
-		ctx.initialize(shard, 0, c.batch)
-		assert.True(t, ctx.hasRequest())
-		assert.Equal(t, len(c.batch.Requests), len(ctx.batch.Requests), "index %d", i)
-		for idx := range c.batch.Requests {
-			assert.Equal(t, c.batch.Requests[idx].CustomType, ctx.batch.Requests[idx].CmdType)
-			assert.Equal(t, c.batch.Requests[idx].Key, ctx.batch.Requests[idx].Key)
-			assert.Equal(t, c.batch.Requests[idx].Cmd, ctx.batch.Requests[idx].Cmd)
-		}
-		assert.Empty(t, ctx.responses)
-		assert.Equal(t, shard, ctx.shard)
-	}
+
+	ctx.initialize(shard, 0)
+	assert.Empty(t, ctx.responses)
+	assert.Equal(t, shard, ctx.shard)
 }
 
 func newTestRPCRequests(n uint64) []rpcpb.Request {
@@ -69,7 +47,7 @@ func newTestRPCRequests(n uint64) []rpcpb.Request {
 		requests = append(requests, rpcpb.Request{
 			ID:         []byte(fmt.Sprintf("%d", n)),
 			Key:        []byte(fmt.Sprintf("%d", n)),
-			CustomType: n,
+			CustomType: uint64(rpcpb.CmdReserved) + n,
 		})
 	}
 	return requests

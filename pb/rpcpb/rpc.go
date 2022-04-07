@@ -132,3 +132,8 @@ func (m *ResponseBatch) GetTransferLeaderResponse() TransferLeaderResponse {
 	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
 	return req
 }
+
+// IsInternal returns true if the request is internal  request
+func (m Request) IsInternal() bool {
+	return m.CustomType < uint64(CmdReserved)
+}

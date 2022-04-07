@@ -45,7 +45,7 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 				ID:         []byte{100, 200, 200},
 				Type:       rpcpb.Write,
 				Key:        []byte{101, 202, 203},
-				CustomType: 100,
+				CustomType: uint64(rpcpb.CmdReserved) + 100,
 				Cmd:        []byte{200, 201, 202},
 			},
 		},
@@ -277,7 +277,7 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 					ID:         []byte{100, 200, 200},
 					Type:       rpcpb.Write,
 					Key:        key1,
-					CustomType: 1,
+					CustomType: uint64(rpcpb.CmdReserved) + 1,
 					Cmd:        value1,
 				},
 			},
@@ -300,7 +300,7 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 					ID:         []byte{220, 230, 235},
 					Type:       rpcpb.Write,
 					Key:        key2,
-					CustomType: 1,
+					CustomType: uint64(rpcpb.CmdReserved) + 1,
 					Cmd:        value2,
 				},
 			},
@@ -329,7 +329,7 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 		readContext := newReadContext()
 		sr := storage.Request{
 			Key:     key1,
-			CmdType: 2,
+			CmdType: uint64(rpcpb.CmdReserved) + 2,
 		}
 		readContext.reset(sm.metadataMu.shard, sr)
 		data, err := sm.dataStorage.Read(readContext)
@@ -338,7 +338,7 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 
 		sr = storage.Request{
 			Key:     key2,
-			CmdType: 2,
+			CmdType: uint64(rpcpb.CmdReserved) + 2,
 		}
 		readContext.reset(sm.metadataMu.shard, sr)
 		data, err = sm.dataStorage.Read(readContext)

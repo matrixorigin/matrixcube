@@ -24,9 +24,13 @@ import (
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
+	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
+	"github.com/matrixorigin/matrixcube/util/buf"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/util/uuid"
 )
 
 func TestStateMachineAddNode(t *testing.T) {
@@ -267,6 +271,8 @@ func TestDoExecSplit(t *testing.T) {
 
 type testDataStorage struct {
 	persistentLogIndex uint64
+	feature            storage.Feature
+	counts             map[int]int
 }
 
 func (t *testDataStorage) Close() error                                     { panic("not implemented") }
@@ -274,9 +280,15 @@ func (t *testDataStorage) Stats() stats.Stats                               { pa
 func (t *testDataStorage) NewWriteBatch() storage.Resetable                 { panic("not implemented") }
 func (t *testDataStorage) CreateSnapshot(shardID uint64, path string) error { panic("not implemented") }
 func (t *testDataStorage) ApplySnapshot(shardID uint64, path string) error  { panic("not implemented") }
-func (t *testDataStorage) Write(storage.WriteContext) error                 { panic("not implemented") }
-func (t *testDataStorage) Read(storage.ReadContext) ([]byte, error)         { panic("not implemented") }
+func (t *testDataStorage) Write(ctx storage.WriteContext) error {
+	for range ctx.Batch().Requests {
+		ctx.AppendResponse([]byte("OK"))
+	}
+	return nil
+}
+func (t *testDataStorage) Read(storage.ReadContext) ([]byte, error) { panic("not implemented") }
 func (t *testDataStorage) GetInitialStates() ([]metapb.ShardMetadata, error) {
+	t.counts = make(map[int]int)
 	return nil, nil
 }
 func (t *testDataStorage) GetPersistentLogIndex(shardID uint64) (uint64, error) {
@@ -295,7 +307,40 @@ func (t *testDataStorage) Split(old metapb.ShardMetadata, news []metapb.ShardMet
 	panic("not implemented")
 }
 func (t *testDataStorage) Feature() storage.Feature {
-	return storage.Feature{}
+	return t.feature
+}
+
+func (t *testDataStorage) UpdateTxnRecord(record txnpb.TxnRecord, wb storage.Resetable) error {
+	t.counts[int(rpcpb.CmdUpdateTxnRecord)]++
+	return nil
+}
+func (t *testDataStorage) DeleteTxnRecord(txnRecordRouteKey []byte, wb storage.Resetable) error {
+	t.counts[int(rpcpb.CmdDeleteTxnRecord)]++
+	return nil
+}
+func (t *testDataStorage) CommitWriteData(originKey []byte, commitTS hlc.Timestamp, wb storage.Resetable) error {
+	t.counts[int(rpcpb.CmdCommitTxnData)]++
+	return nil
+}
+func (t *testDataStorage) RollbackWriteData(originKey []byte, metadata hlc.Timestamp, wb storage.Resetable) error {
+	t.counts[int(rpcpb.CmdRollbackTxnData)]++
+	return nil
+}
+func (t *testDataStorage) CleanMVCCData(shard metapb.Shard, timestamp hlc.Timestamp, wb storage.Resetable) error {
+	t.counts[int(rpcpb.CmdCleanTxnMVCCData)]++
+	return nil
+}
+func (t *testDataStorage) GetTxnRecord(txnRecordRouteKey []byte) (txnpb.TxnRecord, error) {
+	return txnpb.TxnRecord{}, nil
+}
+func (t *testDataStorage) GetCommitted(originKey []byte, timestamp hlc.Timestamp) (exist bool, data []byte, err error) {
+	return false, nil, nil
+}
+func (t *testDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (*txnpb.TxnConflictData, error) {
+	return nil, nil
+}
+func (t *testDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlc.Timestamp) ([]txnpb.TxnConflictData, error) {
+	return nil, nil
 }
 
 func TestDoExecCompactLog(t *testing.T) {
@@ -367,4 +412,106 @@ func TestDoExecCompactLog(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), state.FirstIndex)
 	assert.Equal(t, uint64(3), state.EntryCount)
+}
+
+func TestExecWriteRequest(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	s, cancel := newTestStore(t)
+	defer cancel()
+	pr := newTestReplica(Shard{ID: 1, Replicas: []Replica{{ID: 2}}}, Replica{ID: 2}, s)
+	ds := &testDataStorage{}
+	_, err := ds.GetInitialStates()
+	assert.NoError(t, err)
+
+	pr.sm.dataStorage = ds
+	pr.sm.transactionalDataStorage = ds
+
+	cases := []struct {
+		request         rpcpb.RequestBatch
+		expectResponses [][]byte
+		expectCounts    map[rpcpb.InternalCmd]int
+	}{
+		{
+			request:         newTestRequestBatch(1, func(r *rpcpb.Request, i int) { r.CustomType = uint64(rpcpb.CmdReserved) + 1 }),
+			expectResponses: [][]byte{[]byte("OK")},
+		},
+		{
+			request: newTestRequestBatch(2, func(r *rpcpb.Request, i int) {
+				if i == 0 {
+					r.CustomType = uint64(rpcpb.CmdUpdateTxnRecord)
+				} else {
+					r.CustomType = uint64(rpcpb.CmdReserved) + 1
+				}
+			}),
+			expectResponses: [][]byte{nil, []byte("OK")},
+			expectCounts: map[rpcpb.InternalCmd]int{
+				rpcpb.CmdUpdateTxnRecord: 1,
+			},
+		},
+		{
+			request: newTestRequestBatch(9, func(r *rpcpb.Request, i int) {
+				switch i {
+				case 0:
+					r.CustomType = uint64(rpcpb.CmdUpdateTxnRecord)
+				case 1:
+					r.CustomType = uint64(rpcpb.CmdReserved) + 1
+				case 2:
+					r.CustomType = uint64(rpcpb.CmdDeleteTxnRecord)
+				case 3:
+					r.CustomType = uint64(rpcpb.CmdReserved) + 1
+				case 4:
+					r.CustomType = uint64(rpcpb.CmdCommitTxnData)
+				case 5:
+					r.CustomType = uint64(rpcpb.CmdReserved) + 1
+				case 6:
+					r.CustomType = uint64(rpcpb.CmdRollbackTxnData)
+				case 7:
+					r.CustomType = uint64(rpcpb.CmdReserved) + 1
+				case 8:
+					r.CustomType = uint64(rpcpb.CmdCleanTxnMVCCData)
+				}
+			}),
+			expectResponses: [][]byte{nil, []byte("OK"), nil, []byte("OK"), nil, []byte("OK"), nil, []byte("OK"), nil},
+			expectCounts: map[rpcpb.InternalCmd]int{
+				rpcpb.CmdUpdateTxnRecord:  1,
+				rpcpb.CmdDeleteTxnRecord:  1,
+				rpcpb.CmdCommitTxnData:    1,
+				rpcpb.CmdRollbackTxnData:  1,
+				rpcpb.CmdCleanTxnMVCCData: 1,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		ctx := newApplyContext()
+		ctx.req = c.request
+		ds.counts = make(map[int]int)
+		var responses [][]byte
+		for _, resp := range pr.sm.execWriteRequest(ctx).Responses {
+			responses = append(responses, resp.Value)
+		}
+		assert.Equal(t, c.expectResponses, responses)
+		if c.expectCounts == nil {
+			c.expectCounts = make(map[rpcpb.InternalCmd]int)
+		}
+		for k, v := range ds.counts {
+			ev := c.expectCounts[rpcpb.InternalCmd(k)]
+			assert.Equal(t, ev, v, "%s", rpcpb.InternalCmd(k).String())
+		}
+	}
+}
+
+func newTestRequestBatch(n int, builder func(*rpcpb.Request, int)) rpcpb.RequestBatch {
+	rb := rpcpb.RequestBatch{
+		Header: rpcpb.RequestBatchHeader{ID: uuid.NewV4().Bytes()}}
+	for i := 0; i < n; i++ {
+		req := rpcpb.Request{
+			ID:   buf.Int2Bytes(i),
+			Key:  buf.Int2Bytes(i),
+			Type: rpcpb.Write,
+		}
+		builder(&req, i)
+		rb.Requests = append(rb.Requests, req)
+	}
+	return rb
 }

@@ -79,16 +79,18 @@ type replicaResultHandler interface {
 var _ replicaResultHandler = (*replica)(nil)
 
 type stateMachine struct {
-	logger                *zap.Logger
-	shardID               uint64
-	replica               Replica
-	applyCtx              *applyContext
-	writeCtx              *writeContext
-	dataStorage           storage.DataStorage
-	logdb                 logdb.LogDB
-	wc                    *logdb.WorkerContext
-	replicaCreatorFactory replicaCreatorFactory
-	resultHandler         replicaResultHandler
+	logger                   *zap.Logger
+	shardID                  uint64
+	replica                  Replica
+	applyCtx                 *applyContext
+	writeCtx                 *writeContext
+	dataStorage              storage.DataStorage
+	transactionalDataStorage storage.TransactionalDataStorage
+	logdb                    logdb.LogDB
+	wc                       *logdb.WorkerContext
+	replicaCreatorFactory    replicaCreatorFactory
+	resultHandler            replicaResultHandler
+	tmpRequests              []rpcpb.Request
 
 	metadataMu struct {
 		sync.Mutex
@@ -118,6 +120,9 @@ func newStateMachine(l *zap.Logger, ds storage.DataStorage, ldb logdb.LogDB,
 	}
 	if ldb != nil {
 		sm.wc = ldb.NewWorkerContext()
+	}
+	if ds.Feature().SupportTransaction {
+		sm.transactionalDataStorage = ds.(storage.TransactionalDataStorage)
 	}
 	sm.metadataMu.shard = shard
 	return sm

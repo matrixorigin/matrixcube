@@ -16,13 +16,14 @@ package simple
 import (
 	"fmt"
 
+	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 )
 
 const (
-	setCmd = 1
-	getCmd = 2
+	setCmd = uint64(1 + rpcpb.CmdReserved)
+	getCmd = uint64(2 + rpcpb.CmdReserved)
 )
 
 var (
