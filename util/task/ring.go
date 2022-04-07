@@ -47,13 +47,13 @@ type nodes []*node
 // described here: http://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
 // with some minor additions.
 type RingBuffer struct {
-	_padding0      [8]uint64
+	_              [8]uint64
 	queue          uint64
-	_padding1      [8]uint64
+	_              [8]uint64
 	dequeue        uint64
-	_padding2      [8]uint64
+	_              [8]uint64
 	mask, disposed uint64
-	_padding3      [8]uint64
+	_              [8]uint64
 	nodes          nodes
 }
 
