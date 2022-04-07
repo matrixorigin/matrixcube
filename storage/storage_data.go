@@ -225,6 +225,12 @@ type ReadContext interface {
 	SetReadBytes(uint64)
 }
 
+// InternalContext implementation interface for internally used read and write contexts
+type InternalContext interface {
+	// ByteBuf returns the bytebuf that can be used to avoid memory allocation
+	ByteBuf() *buf.ByteBuf
+}
+
 // Batch contains a list of requests. For write batches, all requests are from
 // the same raft log specified by the Index value. They must be atomically
 // applied into the data storage together with the Index value itself. For

@@ -153,7 +153,7 @@ func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 
 	// append data key
 	for idx := range batch.Requests {
-		batch.Requests[idx].Key = EncodeDataKey(batch.Requests[idx].Key, ctx.ByteBuf())
+		batch.Requests[idx].Key = EncodeDataKey(batch.Requests[idx].Key, ctx.(storage.InternalContext).ByteBuf())
 	}
 	if err := kv.executor.UpdateWriteBatch(ctx); err != nil {
 		return err
@@ -378,7 +378,7 @@ func (kv *kvDataStorage) Feature() storage.Feature {
 func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, index uint64) {
 	r := ctx.WriteBatch()
 	wb := r.(util.WriteBatch)
-	buffer := ctx.ByteBuf()
+	buffer := ctx.(storage.InternalContext).ByteBuf()
 	// TODO(fagongzi): avoid allocate for get applied index key
 	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(ctx.Shard().ID, nil), buffer)
 	val := protoc.MustMarshal(&metapb.LogIndex{Index: index})
@@ -451,11 +451,11 @@ type readContext struct {
 	base storage.ReadContext
 }
 
-func (c readContext) ByteBuf() *buf.ByteBuf { return c.base.ByteBuf() }
+func (c readContext) ByteBuf() *buf.ByteBuf { return c.base.(storage.InternalContext).ByteBuf() }
 func (c readContext) Shard() metapb.Shard   { return c.base.Shard() }
 func (c readContext) SetReadBytes(v uint64) { c.base.SetReadBytes(v) }
 func (c readContext) Request() storage.Request {
 	req := c.base.Request()
-	req.Key = EncodeDataKey(req.Key, c.base.ByteBuf())
+	req.Key = EncodeDataKey(req.Key, c.base.(storage.InternalContext).ByteBuf())
 	return req
 }

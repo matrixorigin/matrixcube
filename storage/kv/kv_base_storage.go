@@ -92,6 +92,7 @@ func (s *BaseStorage) ScanInViewWithOptions(view storage.View, start, end []byte
 	return s.kv.ScanInViewWithOptions(view, start, end, handler)
 }
 
+// Deprecated: implement interface
 func (s *BaseStorage) PrefixScan(prefix []byte,
 	handler func(key, value []byte) (bool, error), clone bool) error {
 	return s.kv.PrefixScan(prefix, handler, clone)
