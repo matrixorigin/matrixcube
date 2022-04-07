@@ -138,24 +138,24 @@ func TestAdminResp(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	resp := rpcpb.BatchSplitResponse{Shards: []Shard{{ID: 1}}}
-	b := newTestBatch("id", "", uint64(rpcpb.AdminBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
+	b := newTestBatch("id", "", uint64(rpcpb.CmdBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
 		assert.True(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 		assert.True(t, rb.IsAdmin())
-		assert.Equal(t, rpcpb.AdminBatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, rpcpb.CmdBatchSplit, rb.GetAdminCmdType())
 		assert.Equal(t, resp, rb.GetBatchSplitResponse())
 	})
-	b.resp(newAdminResponseBatch(rpcpb.AdminBatchSplit, &resp))
+	b.resp(newAdminResponseBatch(rpcpb.CmdBatchSplit, &resp))
 }
 
 func TestAdminRespWithError(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	b := newTestBatch("id", "", uint64(rpcpb.AdminBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
+	b := newTestBatch("id", "", uint64(rpcpb.CmdBatchSplit), rpcpb.Admin, 1, func(rb rpcpb.ResponseBatch) {
 		assert.False(t, rb.Header.IsEmpty())
 		assert.Equal(t, 1, len(rb.Responses))
 		assert.True(t, rb.IsAdmin())
-		assert.Equal(t, rpcpb.AdminBatchSplit, rb.GetAdminCmdType())
+		assert.Equal(t, rpcpb.CmdBatchSplit, rb.GetAdminCmdType())
 		assert.Equal(t, errorOtherCMDResp(errors.New("error resp")).Header.Error, rb.Header.Error)
 	})
 	b.resp(errorOtherCMDResp(errors.New("error resp")))
@@ -180,7 +180,7 @@ func newTestBatch(id string, key string, customType uint64, cmdType rpcpb.CmdTyp
 		0)
 }
 
-func newTestAdminRequestBatch(id string, pid int64, cmdType rpcpb.AdminCmdType, cmd []byte) rpcpb.RequestBatch {
+func newTestAdminRequestBatch(id string, pid int64, cmdType rpcpb.InternalCmd, cmd []byte) rpcpb.RequestBatch {
 	return rpcpb.RequestBatch{
 		Header: rpcpb.RequestBatchHeader{ID: uuid.NewV4().Bytes()},
 		Requests: []rpcpb.Request{

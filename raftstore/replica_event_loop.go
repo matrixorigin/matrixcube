@@ -80,7 +80,7 @@ const (
 	checkPendingReadsAction
 )
 
-func (pr *replica) addAdminRequest(adminType rpcpb.AdminCmdType, request protoc.PB) {
+func (pr *replica) addAdminRequest(adminType rpcpb.InternalCmd, request protoc.PB) {
 	shard := pr.getShard()
 	if err := pr.addRequest(newReqCtx(rpcpb.Request{
 		ID:         uuid.NewV4().Bytes(),
@@ -546,7 +546,7 @@ func (pr *replica) doCheckLogCompact(progresses map[uint64]trackerPkg.Progress, 
 	}
 	pr.logger.Info("requesting log compaction",
 		log.IndexField(compactIndex))
-	pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
+	pr.addAdminRequest(rpcpb.CmdCompactLog, &rpcpb.CompactLogRequest{
 		CompactIndex: compactIndex,
 	})
 }

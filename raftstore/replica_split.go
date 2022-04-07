@@ -130,5 +130,5 @@ func (pr *replica) doSplit(act action) {
 		start = end
 	}
 
-	pr.addAdminRequest(rpcpb.AdminBatchSplit, &req)
+	pr.addAdminRequest(rpcpb.CmdBatchSplit, &req)
 }

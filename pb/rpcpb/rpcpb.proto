@@ -452,7 +452,7 @@ message PlacementRule {
     bytes        startKey = 5;
     bytes        endKey   = 6;
     // Role expected role of the peers
-    ReplicaRoleType role     = 7;
+    ReplicaRoleType role  = 7;
     // Count expected count of the peers
     uint32       count    = 8;
     // LabelConstraints used to select stores to place peers
@@ -463,21 +463,45 @@ message PlacementRule {
     string                   isolationLevel   = 11;
 }
 
+// CmdType command type
 enum CmdType {
-    Write  = 0;
-    Read   = 1;
-    Admin  = 2;
-    Txn    = 3;
+    // Write write command, need raft consensus
+    Write   = 0;
+    // Read read command, need raft consensus(read index or lease read)
+    Read    = 1;
+    // Admin admin command, need raft consensus
+    Admin   = 2;
+    // Txn reuse ShardsDispatch to forward txn rpc messages  
+    Txn     = 3;
 }
 
-// AdminCmdType admin cmd type
-enum AdminCmdType {
-    AdminConfigChange   = 0;
-    AdminCompactLog     = 1;
-    AdminTransferLeader = 2;
-    AdminBatchSplit     = 5;
-    AdminUpdateMetadata = 6;
-    AdminUpdateLabels   = 7;
+// InternalCmd internal reserved commands 
+enum InternalCmd {
+    // CmdConfigChange config change command, admin type
+    CmdConfigChange     = 0;
+    // CmdCompactLog compact log command, admin type
+    CmdCompactLog       = 1;
+    // CmdTransferLeader transfer leader command, admin type
+    CmdTransferLeader   = 2;
+    // CmdBatchSplit batch split command, admin type
+    CmdBatchSplit       = 5;
+    // CmdUpdateMetadata update shard metadata command, admin type
+    CmdUpdateMetadata   = 6;
+    // CmdUpdateLabels update shard label command, admin type
+    CmdUpdateLabels     = 7;     
+    // CmdUpdateTxnRecord update txn record command, write type
+    CmdUpdateTxnRecord  = 100;
+    // CmdDeleteTxnRecord delete txn record command, write type
+    CmdDeleteTxnRecord  = 101;
+    // CmdCommitTxnData commit txn write data, write type
+    CmdCommitTxnData    = 102;
+    // CmdRollbackTxnData rollback txn write data, write type
+    CmdRollbackTxnData  = 103;
+    // CmdCleanTxnMVCCData clean txn mvcc data, write type
+    CmdCleanTxnMVCCData = 104;
+    // CmdReserved cube reserved cmd type value, all custom cmd type read and 
+    // write cmd type can not use the value below the reserved value.
+    CmdReserved       = 1000;
 }
 
 // RequestHeader raft request header, it contains the shard's metadata
@@ -572,14 +596,6 @@ message TransferLeaderRequest {
 }
 
 message TransferLeaderResponse {}
-
-message VerifyHashRequest {
-    uint64 index = 1;
-    bytes hash = 2;
-    bytes context = 3;
-}
-
-message VerifyHashResponse {}
 
 // BatchSplitRequest batch split requests.
 message BatchSplitRequest {

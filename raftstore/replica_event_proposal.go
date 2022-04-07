@@ -285,7 +285,7 @@ func (pr *replica) requestTransferLeader(c batch) bool {
 	}
 	// we submitted the request to start the leadership transfer, but there is no
 	// guarantee that it will successfully complete.
-	c.resp(newAdminResponseBatch(rpcpb.AdminTransferLeader,
+	c.resp(newAdminResponseBatch(rpcpb.CmdTransferLeader,
 		&rpcpb.TransferLeaderResponse{}))
 	return false
 }
@@ -454,9 +454,9 @@ func (pr *replica) checkJointState(cci raftpb.ConfChangeI) (*tracker, error) {
 func (pr *replica) getRequestType(req rpcpb.RequestBatch) requestType {
 	if req.IsAdmin() {
 		switch req.GetAdminCmdType() {
-		case rpcpb.AdminConfigChange:
+		case rpcpb.CmdConfigChange:
 			return proposalConfigChange
-		case rpcpb.AdminTransferLeader:
+		case rpcpb.CmdTransferLeader:
 			return requestTransferLeader
 		default:
 			return proposalNormal

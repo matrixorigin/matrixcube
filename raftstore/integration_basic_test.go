@@ -207,7 +207,7 @@ func TestAddShardLabel(t *testing.T) {
 			ID:         uuid.NewV4().Bytes(),
 			Group:      0,
 			Type:       rpcpb.Admin,
-			CustomType: uint64(rpcpb.AdminUpdateLabels),
+			CustomType: uint64(rpcpb.CmdUpdateLabels),
 			ToShard:    sid,
 			Epoch:      c.GetShardByIndex(0, 0).Epoch,
 			Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{
@@ -222,7 +222,7 @@ func TestAddShardLabel(t *testing.T) {
 		if resp.Header.IsEmpty() {
 			assert.True(t, resp.Header.IsEmpty()) // no error
 			assert.True(t, resp.IsAdmin())
-			assert.Equal(t, rpcpb.AdminUpdateLabels, resp.GetAdminCmdType())
+			assert.Equal(t, rpcpb.CmdUpdateLabels, resp.GetAdminCmdType())
 			break
 		}
 	}

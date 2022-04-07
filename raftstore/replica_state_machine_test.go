@@ -66,7 +66,7 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 func TestStateMachineApplyContextCanBeInitializedForConfigChange(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-		rpcpb.AdminConfigChange,
+		rpcpb.CmdConfigChange,
 		protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 			ChangeType: metapb.ConfigChangeType_AddNode,
 			Replica: metapb.Replica{
@@ -352,7 +352,7 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
@@ -383,7 +383,7 @@ func TestStateMachineApplyConfigChange(t *testing.T) {
 		assert.Equal(t, batch.Header.ID, h.id)
 		assert.Equal(t, true, h.isConfChange)
 		require.Equal(t, 1, len(h.resp.Responses))
-		assert.Equal(t, rpcpb.AdminConfigChange, rpcpb.AdminCmdType(h.resp.Responses[0].CustomType))
+		assert.Equal(t, rpcpb.CmdConfigChange, rpcpb.InternalCmd(h.resp.Responses[0].CustomType))
 		// TODO: add a check to test whether the error field in the resp is empty
 
 		shard := sm.getShard()
@@ -398,7 +398,7 @@ func TestStateMachineRejectsStaleEpochEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,
@@ -430,7 +430,7 @@ func TestStateMachineUpdatesAppliedIndexAfterSkippingEntries(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{}))
 		cc := raftpb.ConfChange{
 			Type:    raftpb.ConfChangeAddNode,

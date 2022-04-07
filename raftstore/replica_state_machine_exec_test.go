@@ -38,7 +38,7 @@ func TestStateMachineAddLearner(t *testing.T) {
 	h := &testReplicaResultHandler{}
 	f := func(sm *stateMachine) {
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddLearnerNode,
 				Replica: metapb.Replica{
@@ -83,7 +83,7 @@ func TestStateMachinePromoteLeanerToVoter(t *testing.T) {
 		sm.updateShard(shard)
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_AddNode,
 				Replica: metapb.Replica{
@@ -128,7 +128,7 @@ func testStateMachineRemoveNode(t *testing.T, role metapb.ReplicaRole, removeRep
 		sm.updateShard(shard)
 
 		batch := newTestAdminRequestBatch(string([]byte{0x1, 0x2, 0x3}), 0,
-			rpcpb.AdminConfigChange,
+			rpcpb.CmdConfigChange,
 			protoc.MustMarshal(&rpcpb.ConfigChangeRequest{
 				ChangeType: metapb.ConfigChangeType_RemoveNode,
 				Replica:    removeReplica,
@@ -197,28 +197,28 @@ func TestDoExecSplit(t *testing.T) {
 	}
 
 	// check split panic
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check range not match
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}}, {End: []byte{5}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}}, {End: []byte{5}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check key not in range
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{20}}, {End: []byte{10}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{20}}, {End: []byte{10}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// check range discontinuity
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}))
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{Requests: []rpcpb.SplitRequest{{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}}, {Start: []byte{6}, End: []byte{10}}}}))
 	go checkPanicFn()
 	assert.True(t, <-ch)
 
 	// s1 -> s2+s3
 	ctx.index = 100
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, protoc.MustMarshal(&rpcpb.BatchSplitRequest{
 		Requests: []rpcpb.SplitRequest{
 			{Start: []byte{1}, End: []byte{5}, NewShardID: 2, NewReplicas: []Replica{{ID: 200}}},
 			{Start: []byte{5}, End: []byte{10}, NewShardID: 3, NewReplicas: []Replica{{ID: 300}}},
@@ -337,7 +337,7 @@ func TestDoExecCompactLog(t *testing.T) {
 	}, pr.sm.logdb.NewWorkerContext())
 	assert.NoError(t, err)
 
-	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.AdminCompactLog, protoc.MustMarshal(&rpcpb.CompactLogRequest{
+	ctx.req = newTestAdminRequestBatch("", 0, rpcpb.CmdCompactLog, protoc.MustMarshal(&rpcpb.CompactLogRequest{
 		CompactIndex: 4,
 	}))
 	ds := &testDataStorage{
