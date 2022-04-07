@@ -97,7 +97,7 @@ func TestCompactionAndSnapshot(t *testing.T) {
 			}
 			assert.True(t, hasLog(2))
 
-			pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
+			pr.addAdminRequest(rpcpb.CmdCompactLog, &rpcpb.CompactLogRequest{
 				CompactIndex: 3,
 			})
 

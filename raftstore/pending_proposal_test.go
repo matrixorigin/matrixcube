@@ -66,7 +66,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
 	p := newPendingProposals()
-	cmd := newTestBatch("", "", uint64(rpcpb.AdminConfigChange), rpcpb.Admin, 0, nil)
+	cmd := newTestBatch("", "", uint64(rpcpb.CmdConfigChange), rpcpb.Admin, 0, nil)
 	p.setConfigChange(cmd)
 	v := p.getConfigChange()
 	assert.Equal(t, cmd, v)
@@ -75,7 +75,7 @@ func TestPendingConfigChangeProposalCanBeSetAndGet(t *testing.T) {
 func TestPendingProposalWontAcceptRegularCmdAsConfigChanageCmd(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 
-	cmd := newTestBatch("", "", uint64(rpcpb.AdminTransferLeader), rpcpb.Admin, 0, nil)
+	cmd := newTestBatch("", "", uint64(rpcpb.CmdTransferLeader), rpcpb.Admin, 0, nil)
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatalf("failed to trigger panic")
@@ -110,7 +110,7 @@ func testPendingProposalClear(t *testing.T,
 
 	ConfChangeCmd := batch{
 		logger:       log.Adjust(nil),
-		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.AdminConfigChange, nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.CmdConfigChange, nil),
 		cb:           cb,
 	}
 	p := newPendingProposals()
@@ -157,7 +157,7 @@ func TestPendingProposalCanNotifyConfigChangeCmd(t *testing.T) {
 	}
 	ConfChangeCmd := batch{
 		logger:       log.Adjust(nil),
-		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.AdminConfigChange, nil),
+		requestBatch: newTestAdminRequestBatch(string(uuid.NewV4().Bytes()), 0, rpcpb.CmdConfigChange, nil),
 		cb:           cb,
 	}
 	p := newPendingProposals()

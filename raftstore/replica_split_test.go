@@ -106,7 +106,7 @@ func TestDoSplit(t *testing.T) {
 	assert.NoError(t, err)
 	var req rpcpb.BatchSplitRequest
 	protoc.MustUnmarshal(&req, v.(reqCtx).req.Cmd)
-	assert.Equal(t, rpcpb.AdminBatchSplit, rpcpb.AdminCmdType(v.(reqCtx).req.CustomType))
+	assert.Equal(t, rpcpb.CmdBatchSplit, rpcpb.InternalCmd(v.(reqCtx).req.CustomType))
 	assert.Equal(t, 2, len(req.Requests))
 	assert.Equal(t, pr.getShard().Start, req.Requests[0].Start)
 	assert.Equal(t, act.splitCheckData.splitKeys[0], req.Requests[0].End)

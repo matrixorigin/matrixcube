@@ -355,7 +355,7 @@ func TestSplitWithApplySnapshotAndStartDestroyByStateCheck(t *testing.T) {
 		if pr != nil {
 			idx, _ := pr.sm.getAppliedIndexTerm()
 			assert.NoError(t, pr.sm.dataStorage.Sync([]uint64{sid}))
-			pr.addAdminRequest(rpcpb.AdminCompactLog, &rpcpb.CompactLogRequest{
+			pr.addAdminRequest(rpcpb.CmdCompactLog, &rpcpb.CompactLogRequest{
 				CompactIndex: idx,
 			})
 

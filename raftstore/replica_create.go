@@ -245,7 +245,7 @@ func (rc *replicaCreator) maybeInsertBootstrapRaftLog(state metapb.ShardLocalSta
 			ToShard:    state.Shard.ID,
 			Group:      state.Shard.Group,
 			Type:       rpcpb.Admin,
-			CustomType: uint64(rpcpb.AdminUpdateMetadata),
+			CustomType: uint64(rpcpb.CmdUpdateMetadata),
 			Epoch:      state.Shard.Epoch,
 			Cmd: protoc.MustMarshal(&rpcpb.UpdateMetadataRequest{
 				Metadata: state,

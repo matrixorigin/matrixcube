@@ -36,15 +36,15 @@ var (
 
 func (d *stateMachine) execAdminRequest(ctx *applyContext) (rpcpb.ResponseBatch, error) {
 	switch ctx.req.GetAdminCmdType() {
-	case rpcpb.AdminConfigChange:
+	case rpcpb.CmdConfigChange:
 		return d.doExecConfigChange(ctx)
-	case rpcpb.AdminBatchSplit:
+	case rpcpb.CmdBatchSplit:
 		return d.doExecSplit(ctx)
-	case rpcpb.AdminUpdateMetadata:
+	case rpcpb.CmdUpdateMetadata:
 		return d.doUpdateMetadata(ctx)
-	case rpcpb.AdminCompactLog:
+	case rpcpb.CmdCompactLog:
 		return d.doExecCompactLog(ctx)
-	case rpcpb.AdminUpdateLabels:
+	case rpcpb.CmdUpdateLabels:
 		return d.doUpdateLabels(ctx)
 	}
 
@@ -67,9 +67,9 @@ func (d *stateMachine) doExecCompactLog(ctx *applyContext) (rpcpb.ResponseBatch,
 	}
 
 	d.setFirstIndex(compactIndex + 1)
-	resp := newAdminResponseBatch(rpcpb.AdminCompactLog, &rpcpb.CompactLogResponse{})
+	resp := newAdminResponseBatch(rpcpb.CmdCompactLog, &rpcpb.CompactLogResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpcpb.AdminCompactLog,
+		adminType: rpcpb.CmdCompactLog,
 		compactionResult: compactionResult{
 			index: compactIndex,
 		},
@@ -182,11 +182,11 @@ func (d *stateMachine) doExecConfigChange(ctx *applyContext) (rpcpb.ResponseBatc
 		log.ShardField("metadata", res),
 		zap.String("state", state.String()))
 
-	resp := newAdminResponseBatch(rpcpb.AdminConfigChange, &rpcpb.ConfigChangeResponse{
+	resp := newAdminResponseBatch(rpcpb.CmdConfigChange, &rpcpb.ConfigChangeResponse{
 		Shard: res,
 	})
 	ctx.adminResult = &adminResult{
-		adminType: rpcpb.AdminConfigChange,
+		adminType: rpcpb.CmdConfigChange,
 		configChangeResult: configChangeResult{
 			index:   ctx.index,
 			changes: []rpcpb.ConfigChangeRequest{req},
@@ -286,11 +286,11 @@ func (d *stateMachine) doExecSplit(ctx *applyContext) (rpcpb.ResponseBatch, erro
 
 	d.setSplited()
 	d.updateShard(current)
-	resp := newAdminResponseBatch(rpcpb.AdminBatchSplit, &rpcpb.BatchSplitResponse{
+	resp := newAdminResponseBatch(rpcpb.CmdBatchSplit, &rpcpb.BatchSplitResponse{
 		Shards: newShards,
 	})
 	ctx.adminResult = &adminResult{
-		adminType: rpcpb.AdminBatchSplit,
+		adminType: rpcpb.CmdBatchSplit,
 		splitResult: splitResult{
 			newShards: newShards,
 		},
@@ -362,9 +362,9 @@ func (d *stateMachine) doUpdateLabels(ctx *applyContext) (rpcpb.ResponseBatch, e
 	d.logger.Info("shard labels updated",
 		log.ShardField("new-shard", current))
 
-	resp := newAdminResponseBatch(rpcpb.AdminUpdateLabels, &rpcpb.UpdateLabelsResponse{})
+	resp := newAdminResponseBatch(rpcpb.CmdUpdateLabels, &rpcpb.UpdateLabelsResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpcpb.AdminUpdateLabels,
+		adminType: rpcpb.CmdUpdateLabels,
 	}
 	return resp, nil
 }
@@ -416,9 +416,9 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpcpb.ResponseBatch,
 		})
 	}
 
-	resp := newAdminResponseBatch(rpcpb.AdminUpdateMetadata, &rpcpb.UpdateMetadataResponse{})
+	resp := newAdminResponseBatch(rpcpb.CmdUpdateMetadata, &rpcpb.UpdateMetadataResponse{})
 	ctx.adminResult = &adminResult{
-		adminType: rpcpb.AdminUpdateMetadata,
+		adminType: rpcpb.CmdUpdateMetadata,
 		updateMetadataResult: updateMetadataResult{
 			changes: cc,
 		},

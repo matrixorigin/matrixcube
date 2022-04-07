@@ -198,7 +198,7 @@ func (d *stateMachine) applyCommittedEntries(entries []raftpb.Entry) {
 		if isConfigChangeEntry(entry) {
 			if result.adminResult == nil {
 				result.adminResult = &adminResult{
-					adminType:          rpcpb.AdminConfigChange,
+					adminType:          rpcpb.CmdConfigChange,
 					configChangeResult: configChangeResult{},
 				}
 			} else {
@@ -381,5 +381,5 @@ func isConfigChangeEntry(entry raftpb.Entry) bool {
 
 func isConfigChangeRequestBatch(req rpcpb.RequestBatch) bool {
 	return req.IsAdmin() &&
-		req.GetAdminCmdType() == rpcpb.AdminConfigChange
+		req.GetAdminCmdType() == rpcpb.CmdConfigChange
 }

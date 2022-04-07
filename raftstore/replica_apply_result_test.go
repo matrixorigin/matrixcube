@@ -134,7 +134,7 @@ func TestUpdateMetricsHints(t *testing.T) {
 
 	pr.updateMetricsHints(applyResult{
 		adminResult: &adminResult{
-			adminType:   rpcpb.AdminBatchSplit,
+			adminType:   rpcpb.CmdBatchSplit,
 			splitResult: splitResult{},
 		},
 	})

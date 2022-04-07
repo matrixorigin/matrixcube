@@ -712,11 +712,11 @@ func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 
 	if req.IsAdmin() {
 		switch req.GetAdminCmdType() {
-		case rpcpb.AdminBatchSplit:
+		case rpcpb.CmdBatchSplit:
 			checkVer = true
-		case rpcpb.AdminConfigChange:
+		case rpcpb.CmdConfigChange:
 			checkConfVer = true
-		case rpcpb.AdminTransferLeader:
+		case rpcpb.CmdTransferLeader:
 			checkVer = true
 			checkConfVer = true
 		}
@@ -744,7 +744,7 @@ func checkEpoch(shard Shard, req rpcpb.RequestBatch) bool {
 		!isStale(req.Requests[0].Epoch)
 }
 
-func newAdminResponseBatch(adminType rpcpb.AdminCmdType, rsp protoc.PB) rpcpb.ResponseBatch {
+func newAdminResponseBatch(adminType rpcpb.InternalCmd, rsp protoc.PB) rpcpb.ResponseBatch {
 	return rpcpb.ResponseBatch{
 		Responses: []rpcpb.Response{
 			{
@@ -1036,7 +1036,7 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 			s.storeField(),
 			log.ShardIDField(rsp.ShardID),
 			log.ConfigChangeFieldWithHeartbeatResp("change", rsp))
-		pr.addAdminRequest(rpcpb.AdminConfigChange, &rpcpb.ConfigChangeRequest{
+		pr.addAdminRequest(rpcpb.CmdConfigChange, &rpcpb.ConfigChangeRequest{
 			ChangeType: rsp.ConfigChange.ChangeType,
 			Replica:    rsp.ConfigChange.Replica,
 		})
@@ -1050,7 +1050,7 @@ func (s *store) doShardHeartbeatRsp(rsp rpcpb.ShardHeartbeatRsp) {
 		s.logger.Info("send transfer leader request",
 			s.storeField(),
 			log.ShardIDField(rsp.ShardID))
-		pr.addAdminRequest(rpcpb.AdminTransferLeader, &rpcpb.TransferLeaderRequest{
+		pr.addAdminRequest(rpcpb.CmdTransferLeader, &rpcpb.TransferLeaderRequest{
 			Replica: rsp.TransferLeader.Replica,
 		})
 	} else if rsp.SplitShard != nil {

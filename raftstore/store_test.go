@@ -231,43 +231,43 @@ func TestCheckEpoch(t *testing.T) {
 		ok    bool
 	}{
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, nil),
 			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdConfigChange, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdConfigChange, nil),
 			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdTransferLeader, nil),
 			shard: Shard{},
 			ok:    true,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{ConfigVer: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Generation: 1}},
 			ok:    false,
 		},
 		{
-			req:   newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			req:   newTestAdminRequestBatch("", 0, rpcpb.CmdTransferLeader, nil),
 			shard: Shard{Epoch: Epoch{Generation: 1, ConfigVer: 1}},
 			ok:    false,
 		},

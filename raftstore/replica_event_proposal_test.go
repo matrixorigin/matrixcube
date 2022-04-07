@@ -223,15 +223,15 @@ func TestGetRequestType(t *testing.T) {
 			readIndex,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpcpb.AdminConfigChange, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.CmdConfigChange, nil),
 			proposalConfigChange,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpcpb.AdminTransferLeader, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.CmdTransferLeader, nil),
 			requestTransferLeader,
 		},
 		{
-			newTestAdminRequestBatch("", 0, rpcpb.AdminBatchSplit, nil),
+			newTestAdminRequestBatch("", 0, rpcpb.CmdBatchSplit, nil),
 			proposalNormal,
 		},
 	}

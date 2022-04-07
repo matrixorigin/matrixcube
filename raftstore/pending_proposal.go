@@ -67,7 +67,7 @@ func (p *pendingProposals) append(c batch) {
 
 func (p *pendingProposals) setConfigChange(c batch) {
 	cmdType := c.requestBatch.GetAdminCmdType()
-	if cmdType != rpcpb.AdminConfigChange {
+	if cmdType != rpcpb.CmdConfigChange {
 		panic("not a config change request")
 	}
 	p.confChangeCmd = c

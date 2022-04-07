@@ -35,11 +35,11 @@ type applyResult struct {
 
 func (res *applyResult) hasSplitResult() bool {
 	return nil != res.adminResult &&
-		res.adminResult.adminType == rpcpb.AdminBatchSplit
+		res.adminResult.adminType == rpcpb.CmdBatchSplit
 }
 
 type adminResult struct {
-	adminType            rpcpb.AdminCmdType
+	adminType            rpcpb.InternalCmd
 	configChangeResult   configChangeResult
 	splitResult          splitResult
 	compactionResult     compactionResult
@@ -105,15 +105,15 @@ func (pr *replica) updateMetricsHints(result applyResult) {
 
 func (pr *replica) handleAdminResult(result applyResult) {
 	switch result.adminResult.adminType {
-	case rpcpb.AdminConfigChange:
+	case rpcpb.CmdConfigChange:
 		pr.applyConfChange(result.adminResult.configChangeResult)
-	case rpcpb.AdminBatchSplit:
+	case rpcpb.CmdBatchSplit:
 		pr.applySplit(result.adminResult.splitResult)
-	case rpcpb.AdminCompactLog:
+	case rpcpb.CmdCompactLog:
 		pr.applyCompactionResult(result.adminResult.compactionResult)
-	case rpcpb.AdminUpdateMetadata:
+	case rpcpb.CmdUpdateMetadata:
 		pr.applyUpdateMetadataResult(result.adminResult.updateMetadataResult)
-	case rpcpb.AdminUpdateLabels:
+	case rpcpb.CmdUpdateLabels:
 		pr.applyUpdateLabels(result.adminResult.updateLabelsResult)
 	}
 }

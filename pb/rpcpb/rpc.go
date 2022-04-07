@@ -10,8 +10,8 @@ func (m *RequestBatch) IsAdmin() bool {
 }
 
 // GetAdminCmdType returns the admin cmd type
-func (m *RequestBatch) GetAdminCmdType() AdminCmdType {
-	return AdminCmdType(m.Requests[0].CustomType)
+func (m *RequestBatch) GetAdminCmdType() InternalCmd {
+	return InternalCmd(m.Requests[0].CustomType)
 }
 
 // GetAdminRequest returns the admin request
@@ -82,8 +82,8 @@ func (m *ResponseBatch) IsAdmin() bool {
 }
 
 // GetAdminCmdType returns the admin cmd type
-func (m *ResponseBatch) GetAdminCmdType() AdminCmdType {
-	return AdminCmdType(m.Responses[0].CustomType)
+func (m *ResponseBatch) GetAdminCmdType() InternalCmd {
+	return InternalCmd(m.Responses[0].CustomType)
 }
 
 // GetAdminResponse returns the admin Response

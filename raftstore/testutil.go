@@ -752,7 +752,7 @@ func (kv *testKVClient) UpdateLabel(shard, group uint64, key, value string, time
 	req := rpcpb.Request{
 		ID:         []byte(id),
 		Type:       rpcpb.Admin,
-		CustomType: uint64(rpcpb.AdminUpdateLabels),
+		CustomType: uint64(rpcpb.CmdUpdateLabels),
 		Group:      group,
 		ToShard:    shard,
 		Cmd: protoc.MustMarshal(&rpcpb.UpdateLabelsRequest{

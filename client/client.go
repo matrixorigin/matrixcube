@@ -250,7 +250,7 @@ func (s *client) AddLabelToShard(ctx context.Context, name, value string, shard 
 		Labels: []metapb.Label{{Key: name, Value: value}},
 		Policy: rpcpb.Add,
 	})
-	return s.exec(ctx, uint64(rpcpb.AdminUpdateLabels), payload, rpcpb.Admin, nil, WithShard(shard))
+	return s.exec(ctx, uint64(rpcpb.CmdUpdateLabels), payload, rpcpb.Admin, nil, WithShard(shard))
 }
 
 func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, cmdType rpcpb.CmdType, txnRequest *txnpb.TxnBatchRequest, opts ...Option) *Future {
