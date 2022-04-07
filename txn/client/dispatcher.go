@@ -39,13 +39,11 @@ type BatchDispatcher interface {
 func NewBatchDispatcher(client raftstoreClient.Client,
 	replicaSelectPolicy rpcpb.ReplicaSelectPolicy,
 	router TxnOperationRouter,
-	txnClocker TxnClocker,
 	logger *zap.Logger) BatchDispatcher {
 	return &batchDispatcher{
 		logger:              logger,
 		router:              router,
 		client:              client,
-		txnClocker:          txnClocker,
 		replicaSelectPolicy: replicaSelectPolicy,
 		stopper:             stop.NewStopper("txn-batch-dispatcher"),
 	}
@@ -56,7 +54,6 @@ type batchDispatcher struct {
 	replicaSelectPolicy rpcpb.ReplicaSelectPolicy
 	client              raftstoreClient.Client
 	router              TxnOperationRouter
-	txnClocker          TxnClocker
 	stopper             *stop.Stopper
 }
 
@@ -72,10 +69,7 @@ func (s *batchDispatcher) Send(ctx context.Context, request txnpb.TxnBatchReques
 		return txnpb.TxnBatchResponse{}, err
 	}
 
-	result := dispatchResult{
-		txnClocker: s.txnClocker,
-	}
-
+	result := dispatchResult{}
 	// try to split pre-commit WaitConsensus requests and commit, make sure the commit or rollback
 	// request can see the reuslt of the in-fight writes.
 	n := len(request.Requests)
@@ -152,12 +146,10 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Header.Txn.TxnRecordRouteKey)
 				appendRequest(toShard, request.Requests[idx])
-				break
 			case txnpb.InternalTxnOp_WaitConsensus:
 				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Requests[idx].Operation.Impacted.PointKeys[0])
 				appendRequest(toShard, request.Requests[idx])
-				break
 			}
 		} else {
 			routeInfos, err := s.router.Route(request.Requests[idx].Operation)
@@ -180,10 +172,14 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 }
 
 func (s *batchDispatcher) doSendToShard(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest, result *dispatchResult) {
-	s.stopper.RunTask(ctx, func(ctx context.Context) {
+	err := s.stopper.RunTask(ctx, func(ctx context.Context) {
 		resp, err := s.doSyncSend(ctx, shard, req)
 		result.done(resp, err)
 	})
+	if err != nil {
+		s.logger.Fatal("send to shard failed",
+			zap.Error(err))
+	}
 }
 
 func (s *batchDispatcher) doSyncSend(ctx context.Context, shard uint64, req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
@@ -235,10 +231,9 @@ func (s *batchDispatcher) maybeTimeout(ctx context.Context) error {
 
 type dispatchResult struct {
 	sync.Mutex
-	err        error
-	resp       txnpb.TxnBatchResponse
-	wg         sync.WaitGroup
-	txnClocker TxnClocker
+	err  error
+	resp txnpb.TxnBatchResponse
+	wg   sync.WaitGroup
 }
 
 func (dr *dispatchResult) get() (txnpb.TxnBatchResponse, error) {
@@ -278,7 +273,7 @@ func (dr *dispatchResult) done(res txnpb.TxnBatchResponse, err error) {
 	dr.resp.Responses = append(dr.resp.Responses, res.Responses...)
 	if dr.resp.Header.Txn.IsEmpty() {
 		dr.resp.Header.Txn = res.Header.Txn
-	} else if dr.txnClocker.Compare(dr.resp.Header.Txn.WriteTimestamp, res.Header.Txn.WriteTimestamp) < 0 {
+	} else if dr.resp.Header.Txn.WriteTimestamp.Less(res.Header.Txn.WriteTimestamp) {
 		// Determine the maximum write timestamp due to TSCache (RW Conflict)
 		dr.resp.Header.Txn.WriteTimestamp = res.Header.Txn.WriteTimestamp
 	}
@@ -304,27 +299,23 @@ func (dr *dispatchResult) updateTxnErrorLocked(currentTxnErr *txnpb.TxnError) {
 	//    to update ConflictWithCommittedError.MinTimestamp
 	if previousTxnErr.UncertaintyError != nil {
 		if currentTxnErr.UncertaintyError != nil {
-			if dr.txnClocker.Compare(previousTxnErr.UncertaintyError.MinTimestamp,
-				currentTxnErr.UncertaintyError.MinTimestamp) < 0 {
+			if previousTxnErr.UncertaintyError.MinTimestamp.Less(currentTxnErr.UncertaintyError.MinTimestamp) {
 				previousTxnErr.UncertaintyError.MinTimestamp = currentTxnErr.UncertaintyError.MinTimestamp
 			}
 		} else if currentTxnErr.ConflictWithCommittedError != nil {
-			if dr.txnClocker.Compare(previousTxnErr.UncertaintyError.MinTimestamp,
-				currentTxnErr.ConflictWithCommittedError.MinTimestamp) < 0 {
+			if previousTxnErr.UncertaintyError.MinTimestamp.Less(currentTxnErr.ConflictWithCommittedError.MinTimestamp) {
 				previousTxnErr.UncertaintyError.MinTimestamp = currentTxnErr.ConflictWithCommittedError.MinTimestamp
 			}
 		}
 	} else if previousTxnErr.ConflictWithCommittedError != nil {
 		if currentTxnErr.UncertaintyError != nil {
-			if dr.txnClocker.Compare(previousTxnErr.ConflictWithCommittedError.MinTimestamp,
-				currentTxnErr.UncertaintyError.MinTimestamp) > 0 {
+			if previousTxnErr.ConflictWithCommittedError.MinTimestamp.Greater(currentTxnErr.UncertaintyError.MinTimestamp) {
 				currentTxnErr.UncertaintyError.MinTimestamp = previousTxnErr.ConflictWithCommittedError.MinTimestamp
 			}
 			previousTxnErr.ConflictWithCommittedError = nil
 			previousTxnErr.UncertaintyError = currentTxnErr.UncertaintyError
 		} else if currentTxnErr.ConflictWithCommittedError != nil {
-			if dr.txnClocker.Compare(previousTxnErr.ConflictWithCommittedError.MinTimestamp,
-				currentTxnErr.ConflictWithCommittedError.MinTimestamp) < 0 {
+			if previousTxnErr.ConflictWithCommittedError.MinTimestamp.Less(currentTxnErr.ConflictWithCommittedError.MinTimestamp) {
 				previousTxnErr.ConflictWithCommittedError.MinTimestamp = currentTxnErr.ConflictWithCommittedError.MinTimestamp
 			}
 		}

@@ -23,6 +23,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/txn/util"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"go.uber.org/zap"
@@ -37,15 +38,15 @@ type txnCoordinator interface {
 
 func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 	sender BatchDispatcher,
-	txnClocker TxnClocker,
+	txnClock hlc.Clock,
 	logger *zap.Logger,
 	opts txnOptions) *coordinator {
 	c := &coordinator{
-		sender:     sender,
-		logger:     logger.With(log.HexField("txn-id", txnMeta.ID)),
-		txnClocker: txnClocker,
-		opts:       opts,
-		stopper:    stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
+		sender:   sender,
+		logger:   logger.With(log.HexField("txn-id", txnMeta.ID)),
+		txnClock: txnClock,
+		opts:     opts,
+		stopper:  stop.NewStopper("txn-"+txnMeta.Name, stop.WithLogger(logger)),
 	}
 	c.mu.txnMeta = txnMeta
 	c.mu.status = txnpb.TxnStatus_Pending
@@ -55,11 +56,11 @@ func newTxnCoordinator(txnMeta txnpb.TxnMeta,
 }
 
 type coordinator struct {
-	logger     *zap.Logger
-	sender     BatchDispatcher
-	txnClocker TxnClocker
-	opts       txnOptions
-	stopper    *stop.Stopper
+	logger   *zap.Logger
+	sender   BatchDispatcher
+	txnClock hlc.Clock
+	opts     txnOptions
+	stopper  *stop.Stopper
 
 	mu struct {
 		sync.Mutex
@@ -404,7 +405,7 @@ func (c *coordinator) startTxnHeartbeatLocked() {
 		return
 	}
 	c.mu.heartbeating = true
-	c.stopper.RunTask(context.Background(), func(ctx context.Context) {
+	err := c.stopper.RunTask(context.Background(), func(ctx context.Context) {
 		ticker := time.NewTicker(c.opts.heartbeatDuration)
 		defer ticker.Stop()
 
@@ -421,6 +422,10 @@ func (c *coordinator) startTxnHeartbeatLocked() {
 			}
 		}
 	})
+	if err != nil {
+		c.logger.Fatal("start heartbeat failed",
+			zap.Error(err))
+	}
 }
 
 func (c *coordinator) doHeartbeat() bool {
@@ -478,7 +483,7 @@ func (c *coordinator) doHeartbeat() bool {
 // transaction is Aborted, if all temporary data of the transaction is cleaned up
 // immediately.
 func (c *coordinator) startAsyncCleanTxnTask() {
-	c.stopper.RunTask(context.TODO(), func(ctx context.Context) {
+	err := c.stopper.RunTask(context.TODO(), func(ctx context.Context) {
 		// It's okay if it fails, because the state of TxnRecord is Aborted, and there
 		// will be opportunities to trigger the cleanup process later, such as when a
 		// conflict occurs.
@@ -488,6 +493,10 @@ func (c *coordinator) startAsyncCleanTxnTask() {
 				zap.Error(err))
 		}
 	})
+	if err != nil {
+		c.logger.Fatal("start async clean txn task failed",
+			zap.Error(err))
+	}
 }
 
 func (c *coordinator) getTxnMeta() txnpb.TxnMeta {
@@ -519,7 +528,7 @@ func (c *coordinator) updateTxnMetaLocked(txn txnpb.TxnMeta) {
 	// 1. server-side forward the writeTimestamp due to TSCache
 	// 2. due to RW conflicts, the write timestamps of write transactions need to be
 	//    forward in order to ensure that read transactions can be read without blocking.
-	if c.txnClocker.Compare(c.mu.txnMeta.WriteTimestamp, txn.WriteTimestamp) < 0 {
+	if c.mu.txnMeta.WriteTimestamp.Less(txn.WriteTimestamp) {
 		c.mu.txnMeta.WriteTimestamp = txn.WriteTimestamp
 	}
 }
@@ -579,7 +588,7 @@ func (c *coordinator) splitBatchRequestsWithIndex(batchRequest *txnpb.TxnBatchRe
 }
 
 func (c *coordinator) getHeartbeatBatchRequest() txnpb.TxnBatchRequest {
-	ts, _ := c.txnClocker.Now()
+	ts, _ := c.txnClock.Now()
 	txn := c.getTxnMeta()
 	var batchRequest txnpb.TxnBatchRequest
 	batchRequest.Header.Txn.TxnMeta = txn

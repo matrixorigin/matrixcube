@@ -2,6 +2,7 @@ syntax = "proto3";
 package txnpb;
 
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "github.com/matrixorigin/matrixcube/pb/hlcpb/timestamp.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
@@ -57,15 +58,15 @@ message TxnMeta {
     uint32    priority            = 7;
     // WriteTimestamp the timestamp version number of the data written by the 
     // transaction, this version number may be raised in several scenarios.
-    uint64    writeTimestamp      = 8;
+    hlcpb.Timestamp    writeTimestamp      = 8 [(gogoproto.nullable) = false];
     // ReadTimestamp the timestamp of the start of the transaction, which is used
     // to read the data from MVCC, in some scenarios this timestamp will be raised
     // to avoid some conflicts and ambiguities.
-    uint64    readTimestamp       = 9;
+    hlcpb.Timestamp    readTimestamp       = 9 [(gogoproto.nullable) = false];
     // MaxTimestamp if using HLC's clocking scheme, this field is equal to Readtimestamp 
     // + maximum clock skew, which is used to indicate an upper limit of uncertainty 
     // time.
-    uint64    maxTimestamp        = 10;
+    hlcpb.Timestamp    maxTimestamp        = 10 [(gogoproto.nullable) = false];
 }
 
 // TxnRecord similar to Txn, but only the fields that need to be persisted to 
@@ -81,7 +82,7 @@ message TxnRecord {
     // LastHeartbeat the last time the transaction coordinator sent a heartbeat, 
     // this field is used to check if the transaction can't continue due to the 
     // transaction coordinator being down, thus rolling back the transaction.
-    uint64    lastHeartbeat   = 3;
+    hlcpb.Timestamp    lastHeartbeat   = 3 [(gogoproto.nullable) = false];
     // CompletedWrites record the current transaction has completed the consensus write 
     // operation.
     map<uint64, KeySet> completedWrites = 4 [(gogoproto.nullable) = false];
@@ -171,7 +172,7 @@ message TxnOperation {
     uint64 shardGroup         = 5;
     // Timestamp the timestamp of the transaction operation initiation, the request in 
     // heartbeat will be accompanied by.
-    uint64 timestamp          = 6;
+    hlcpb.Timestamp timestamp          = 6 [(gogoproto.nullable) = false];
 }
 
 // TxnRequestType transaction request type
@@ -252,7 +253,7 @@ message TxnError {
 // has been written in the range [lastForwardTimestamp, committedTimestamp+1].
 message ConflictWithCommittedError {
     // MinTimestamp minimum timestamp for a transaction to be forward
-    uint64 minTimestamp = 1;
+    hlcpb.Timestamp minTimestamp = 1 [(gogoproto.nullable) = false];
 }
 
 // UncertaintyError T.ReadTS < C.CommitTS <= T.MaxTS, HLC clock drift
@@ -260,7 +261,7 @@ message ConflictWithCommittedError {
 // has been written in the range [lastForwardTimestamp, T1.MaxTS+1].
 message UncertaintyError {
     // MinTimestamp minimum timestamp for a transaction to be forward
-    uint64 minTimestamp = 1;
+    hlcpb.Timestamp minTimestamp = 1 [(gogoproto.nullable) = false];
 }
 
 // AbortedError transaction is aborted in server side

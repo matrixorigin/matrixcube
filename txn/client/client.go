@@ -19,6 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/txn/util"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"go.uber.org/zap"
 )
 
@@ -34,7 +35,7 @@ type txnClient struct {
 	logger               *zap.Logger
 	txnIDGenerator       TxnIDGenerator
 	txnPriorityGenerator TxnPriorityGenerator
-	txnClocker           TxnClocker
+	txnClock             hlc.Clock
 	dispatcher           BatchDispatcher
 }
 
@@ -56,20 +57,20 @@ func (tc *txnClient) NewTxn(opts ...TxnOption) TxnOperator {
 	}
 	options.adjust()
 
-	now, maxSkew := tc.txnClocker.Now()
+	now, max := tc.txnClock.Now()
 	txn := txnpb.TxnMeta{
 		Name:           options.name,
 		IsolationLevel: options.isolationLevel,
 		ReadTimestamp:  now,
 		WriteTimestamp: now,
-		MaxTimestamp:   now + maxSkew,
+		MaxTimestamp:   max,
 	}
 	txn.ID = tc.txnIDGenerator.Generate()
 	txn.Priority = tc.txnPriorityGenerator.Generate()
 	util.LogTxnMeta(tc.logger, zap.DebugLevel, "txn created", txn)
 	return newTxnOperator(txn,
 		tc.dispatcher,
-		tc.txnClocker,
+		tc.txnClock,
 		tc.logger,
 		options)
 }
@@ -123,13 +124,13 @@ var _ TxnOperator = (*txnOperator)(nil)
 
 func newTxnOperator(txnMeta txnpb.TxnMeta,
 	dispatcher BatchDispatcher,
-	txnClocker TxnClocker,
+	txnClock hlc.Clock,
 	logger *zap.Logger,
 	opts txnOptions) TxnOperator {
 	return &txnOperator{
 		tc: newTxnCoordinator(txnMeta,
 			dispatcher,
-			txnClocker,
+			txnClock,
 			logger,
 			opts),
 	}

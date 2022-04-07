@@ -21,6 +21,7 @@ import (
 
 	"github.com/matrixorigin/matrixcube/components/log"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
+	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -67,7 +68,8 @@ func TestSendEmptyBatchRequestWillPanic(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), txnpb.TxnBatchRequest{})
+	_, err := tc.send(context.Background(), txnpb.TxnBatchRequest{})
+	assert.NoError(t, err)
 }
 
 func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
@@ -85,7 +87,8 @@ func TestSendWithoutImpactedKeyWillPanic(t *testing.T) {
 
 	r := newTestWriteTxnOperation(false, "k1")
 	r.Requests[0].Operation.Impacted.PointKeys = nil
-	tc.send(context.Background(), r)
+	_, err := tc.send(context.Background(), r)
+	assert.NoError(t, err)
 }
 
 func TestSendWithEmptyImpactedWillPanic(t *testing.T) {
@@ -103,7 +106,8 @@ func TestSendWithEmptyImpactedWillPanic(t *testing.T) {
 
 	r := newTestWriteTxnOperation(false, "k1")
 	r.Requests[0].Operation.Impacted = txnpb.KeySet{}
-	tc.send(context.Background(), r)
+	_, err := tc.send(context.Background(), r)
+	assert.NoError(t, err)
 }
 
 func TestSetTxnRecordRouteKeyByFirstWrite(t *testing.T) {
@@ -458,7 +462,7 @@ func TestUpdateTxnWriteTimestampWithInvalidIDWillPanic(t *testing.T) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.ID = []byte{}
-		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp + 1
+		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp.Next()
 		return resp, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -473,7 +477,7 @@ func TestUpdateTxnWriteTimestamp(t *testing.T) {
 	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
-		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp + 1
+		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp.Next()
 		return resp, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
@@ -485,7 +489,7 @@ func TestUpdateTxnWriteTimestamp(t *testing.T) {
 
 	tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
 	tc.mu.Lock()
-	assert.Equal(t, ts+1, tc.mu.txnMeta.WriteTimestamp)
+	assert.Equal(t, ts.Next(), tc.mu.txnMeta.WriteTimestamp)
 	tc.mu.Unlock()
 }
 
@@ -495,7 +499,9 @@ func TestUpdateTxnWriteTimestampWithLower(t *testing.T) {
 	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
-		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp - 1
+		resp.Header.Txn.WriteTimestamp = hlc.Timestamp{
+			PhysicalTime: resp.Header.Txn.WriteTimestamp.PhysicalTime - 1,
+		}
 		return resp, nil
 	})
 
@@ -519,7 +525,7 @@ func TestSkipUpdateTxnWriteTimestampWithInvalidEpoch(t *testing.T) {
 		var resp txnpb.TxnBatchResponse
 		resp.Header.Txn = req.Header.Txn.TxnMeta
 		resp.Header.Txn.Epoch = 0
-		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp + 1
+		resp.Header.Txn.WriteTimestamp = resp.Header.Txn.WriteTimestamp.Next()
 		return resp, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 1)
@@ -553,7 +559,7 @@ func TestStartHeartbeatTask(t *testing.T) {
 
 	select {
 	case req := <-hb:
-		assert.True(t, req.Requests[0].Operation.Timestamp > 0)
+		assert.False(t, req.Requests[0].Operation.Timestamp.IsEmpty())
 	case <-time.After(time.Second):
 		assert.Fail(t, "heartbeat timeout")
 	}
@@ -858,11 +864,11 @@ func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
 }
 
 func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch uint32) *coordinator {
-	clocker := newMockTxnClocker(0)
-	ts, skew := clocker.Now()
-	tc := newTxnCoordinator(newTestSITxn(name, id, ts, skew, epoch),
+	clock := newHLCTxnClock(time.Millisecond * 500)
+	ts, max := clock.Now()
+	tc := newTxnCoordinator(newTestSITxn(name, id, ts, max, epoch),
 		sender,
-		clocker,
+		clock,
 		log.GetPanicZapLoggerWithLevel(zap.DebugLevel),
 		txnOptions{heartbeatDuration: time.Millisecond * 10})
 	tc.mu.infightWrites[0] = keys.NewKeyTree(32)
@@ -870,14 +876,14 @@ func newTestTxnCoordinator(sender BatchDispatcher, name string, id string, epoch
 	return tc
 }
 
-func newTestSITxn(name, id string, ts, skew uint64, epoch uint32) txnpb.TxnMeta {
+func newTestSITxn(name, id string, ts, maxTS hlc.Timestamp, epoch uint32) txnpb.TxnMeta {
 	return txnpb.TxnMeta{
 		ID:             []byte("id"),
 		Name:           name,
 		IsolationLevel: txnpb.IsolationLevel_SnapshotSerializable,
 		ReadTimestamp:  ts,
 		WriteTimestamp: ts,
-		MaxTimestamp:   ts + skew,
+		MaxTimestamp:   maxTS,
 		Epoch:          epoch,
 	}
 }
