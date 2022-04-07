@@ -138,12 +138,14 @@ func TestHeatbeatStartedAfterFirstWrite(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestPointReadTxnOperation("k1"))
+	_, err := tc.send(context.Background(), newTestPointReadTxnOperation("k1"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.False(t, tc.mu.heartbeating)
 	tc.mu.Unlock()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
+	_, err = tc.send(context.Background(), newTestWriteTxnOperation(false, "k2"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.True(t, tc.mu.heartbeating)
 	tc.mu.Unlock()
@@ -156,7 +158,8 @@ func TestHeatbeatStartedAfterMultiWrites(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.True(t, tc.mu.heartbeating)
 	tc.mu.Unlock()
@@ -169,7 +172,8 @@ func TestHeatbeatNotStartAfterFirstWriteWithCommit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(true, "k2"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(true, "k2"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.False(t, tc.mu.heartbeating)
 	tc.mu.Unlock()
@@ -186,7 +190,8 @@ func TestSingleWriteSplit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
@@ -312,7 +317,8 @@ func TestMultiWriteSplit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2", "k3"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1", "k2", "k3"))
+	assert.NoError(t, err)
 	assert.Equal(t, 2, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
@@ -332,7 +338,8 @@ func TestSingleWriteAndCommitSplit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(true, "k1"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(true, "k1"))
+	assert.NoError(t, err)
 	assert.Equal(t, 2, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
@@ -351,7 +358,8 @@ func TestMultiWriteAndCommitSplit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(true, "k1", "k2", "k3"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(true, "k1", "k2", "k3"))
+	assert.NoError(t, err)
 	assert.Equal(t, 3, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k1", string(requests[0].Requests[0].Operation.Payload))
@@ -373,8 +381,10 @@ func TestMultiWriteWithoutCreateTxnRecordAndCommitSplit(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
-	tc.send(context.Background(), newTestWriteTxnOperation(true, "k1", "k2", "k3"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	assert.NoError(t, err)
+	_, err = tc.send(context.Background(), newTestWriteTxnOperation(true, "k1", "k2", "k3"))
+	assert.NoError(t, err)
 	assert.Equal(t, 3, len(requests))
 	assert.Equal(t, 1, len(requests[0].Requests))
 	assert.Equal(t, "k0", string(requests[0].Requests[0].Operation.Payload))
@@ -468,7 +478,8 @@ func TestUpdateTxnWriteTimestampWithInvalidIDWillPanic(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
 }
 
 func TestUpdateTxnWriteTimestamp(t *testing.T) {
@@ -487,7 +498,8 @@ func TestUpdateTxnWriteTimestamp(t *testing.T) {
 	ts := tc.mu.txnMeta.WriteTimestamp
 	tc.mu.Unlock()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.Equal(t, ts.Next(), tc.mu.txnMeta.WriteTimestamp)
 	tc.mu.Unlock()
@@ -512,7 +524,8 @@ func TestUpdateTxnWriteTimestampWithLower(t *testing.T) {
 	ts := tc.mu.txnMeta.WriteTimestamp
 	tc.mu.Unlock()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.Equal(t, ts, tc.mu.txnMeta.WriteTimestamp)
 	tc.mu.Unlock()
@@ -535,7 +548,8 @@ func TestSkipUpdateTxnWriteTimestampWithInvalidEpoch(t *testing.T) {
 	ts := tc.mu.txnMeta.WriteTimestamp
 	tc.mu.Unlock()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k0"))
+	assert.NoError(t, err)
 	tc.mu.Lock()
 	assert.Equal(t, ts, tc.mu.txnMeta.WriteTimestamp)
 	tc.mu.Unlock()
@@ -555,7 +569,8 @@ func TestStartHeartbeatTask(t *testing.T) {
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
 	defer tc.stop()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(false, "k1"))
+	assert.NoError(t, err)
 
 	select {
 	case req := <-hb:
@@ -855,7 +870,8 @@ func TestCommitWillAttachedInfightAndCompletedWrites(t *testing.T) {
 	tc.mu.completedWrites[0].AddPointKeys([][]byte{[]byte("k4"), []byte("k5")})
 	tc.mu.Unlock()
 
-	tc.send(context.Background(), newTestWriteTxnOperation(true, "k6"))
+	_, err := tc.send(context.Background(), newTestWriteTxnOperation(true, "k6"))
+	assert.NoError(t, err)
 	assert.NotNil(t, commit.Header.Txn.InfightWrites)
 	assert.NotNil(t, commit.Header.Txn.InfightWrites[0].Sorted)
 	assert.Equal(t, 4, len(commit.Header.Txn.InfightWrites[0].PointKeys))

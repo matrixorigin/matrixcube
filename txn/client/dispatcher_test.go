@@ -173,7 +173,9 @@ func TestDispatcherSendWithInternal(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -197,7 +199,9 @@ func TestDispatcherSendWithTimeout(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -220,7 +224,9 @@ func TestDispatcherDoSendWithTimeout(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -248,7 +254,9 @@ func TestDispatcherDoSendWithMultiKeysAndReroute(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -280,7 +288,9 @@ func TestDispatchEmptyRequestsWillPanic(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		})}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -308,7 +318,9 @@ func TestDispatchNonTimeoutContextRequestsWillPanic(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		})}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -374,7 +386,9 @@ func TestDispatcherSendWithRetryableErrors(t *testing.T) {
 					}}}}, nil
 				}
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -414,7 +428,9 @@ func TestDispatcherSendWithShardUnavailable(t *testing.T) {
 			}}}}, nil
 		}
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -437,7 +453,9 @@ func TestDispatcherSendWithOtherError(t *testing.T) {
 	client := newTestRaftstoreClient(router, func(r rpcpb.Request) (rpcpb.ResponseBatch, error) {
 		return rpcpb.ResponseBatch{}, errors.New("others")
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -462,7 +480,9 @@ func TestDispatcherSendWithRouteToMoreShard(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: data}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -501,7 +521,9 @@ func TestDispatcherSendWithUpdateWriteTimestamp(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: data}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -529,7 +551,9 @@ func TestUpdateTxnErrorsWithAbortedError(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -560,7 +584,9 @@ func TestUpdateTxnErrorsWithMergeAbortedErrors(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -618,7 +644,9 @@ func TestUpdateTxnErrorsWithMergeAbortedAndConflictWithCommittedErrors(t *testin
 					Responses: []txnpb.TxnResponse{{}},
 				}}}}, nil
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -678,7 +706,9 @@ func TestUpdateTxnErrorsWithMergeAbortedAndUncertaintyErrors(t *testing.T) {
 					Responses: []txnpb.TxnResponse{{}},
 				}}}}, nil
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -738,7 +768,9 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedErrors(t *testing.T) {
 					Responses: []txnpb.TxnResponse{{}},
 				}}}}, nil
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -799,7 +831,9 @@ func TestUpdateTxnErrorsWithMergeUncertaintyErrors(t *testing.T) {
 					Responses: []txnpb.TxnResponse{{}},
 				}}}}, nil
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -876,7 +910,9 @@ func TestUpdateTxnErrorsWithMergeConflictWithCommittedAndUncertaintyError(t *tes
 					Responses: []txnpb.TxnResponse{{}},
 				}}}}, nil
 			})
-			defer client.Stop()
+			defer func() {
+				assert.NoError(t, client.Stop())
+			}()
 
 			bd := newTestBatchDispatcher(client)
 			defer bd.Close()
@@ -904,7 +940,9 @@ func TestDispatcherSendOnlyCommitWithNoSwitchWaitConsensus(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -928,7 +966,9 @@ func TestDispatcherSendCommitAndNonWaitConsensusWithNoSwitchWaitConsensus(t *tes
 			Responses: []txnpb.TxnResponse{{Data: []byte("ok")}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()
@@ -959,7 +999,9 @@ func TestDispatcherSendCommitAndWithSwitchWaitConsensus(t *testing.T) {
 			Responses: []txnpb.TxnResponse{{Data: data}},
 		}}}}, nil
 	})
-	defer client.Stop()
+	defer func() {
+		assert.NoError(t, client.Stop())
+	}()
 
 	bd := newTestBatchDispatcher(client)
 	defer bd.Close()

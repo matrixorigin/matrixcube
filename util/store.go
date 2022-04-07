@@ -33,8 +33,8 @@ func MemStats() (*mem.VirtualMemoryStat, error) {
 	return mem.VirtualMemory()
 }
 
-// CpuUsages returns cpu usages
-func CpuUsages() ([]float64, error) {
+// CPUUsages returns cpu usages
+func CPUUsages() ([]float64, error) {
 	return cpu.Percent(0, true)
 }
 

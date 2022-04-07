@@ -33,9 +33,9 @@ func TestRunTask(t *testing.T) {
 	defer s.Stop()
 
 	c := make(chan struct{})
-	s.RunTask(context.Background(), func(ctx context.Context) {
+	assert.NoError(t, s.RunTask(context.Background(), func(ctx context.Context) {
 		close(c)
-	})
+	}))
 	select {
 	case <-c:
 		break
@@ -54,9 +54,9 @@ func TestRunTaskWithTimeout(t *testing.T) {
 			names = append(names, tasks...)
 		}))
 
-	s.RunNamedTask(context.Background(), "timeout", func(ctx context.Context) {
+	assert.NoError(t, s.RunNamedTask(context.Background(), "timeout", func(ctx context.Context) {
 		<-c
-	})
+	}))
 
 	s.Stop()
 	assert.Equal(t, 1, len(names))

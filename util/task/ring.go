@@ -47,13 +47,13 @@ type nodes []*node
 // described here: http://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
 // with some minor additions.
 type RingBuffer struct {
-	_padding0      [8]uint64
+	_              [8]uint64
 	queue          uint64
-	_padding1      [8]uint64
+	_              [8]uint64
 	dequeue        uint64
-	_padding2      [8]uint64
+	_              [8]uint64
 	mask, disposed uint64
-	_padding3      [8]uint64
+	_              [8]uint64
 	nodes          nodes
 }
 
@@ -97,8 +97,6 @@ L:
 			if atomic.CompareAndSwapUint64(&rb.queue, pos, pos+1) {
 				break L
 			}
-		case dif < 0:
-			panic(`Ring buffer in a compromised state during a put operation.`)
 		default:
 			pos = atomic.LoadUint64(&rb.queue)
 		}
@@ -150,8 +148,6 @@ L:
 			if atomic.CompareAndSwapUint64(&rb.dequeue, pos, pos+1) {
 				break L
 			}
-		case dif < 0:
-			panic(`Ring buffer in compromised state during a get operation.`)
 		default:
 			pos = atomic.LoadUint64(&rb.dequeue)
 		}

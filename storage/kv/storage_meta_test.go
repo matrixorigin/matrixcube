@@ -204,6 +204,7 @@ func TestSeek(t *testing.T) {
 	}
 }
 
+// Deprecated: test case
 func TestPrefixScan(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()

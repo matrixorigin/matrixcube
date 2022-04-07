@@ -50,12 +50,22 @@ func ReadInt(r io.Reader) (int, error) {
 
 // Byte2Int byte array to int value using big order
 func Byte2Int(data []byte) int {
-	return int((int(data[0])&0xff)<<24 | (int(data[1])&0xff)<<16 | (int(data[2])&0xff)<<8 | (int(data[3]) & 0xff))
+	return (int(data[0])&0xff)<<24 |
+		(int(data[1])&0xff)<<16 |
+		(int(data[2])&0xff)<<8 |
+		(int(data[3]) & 0xff)
 }
 
 // Byte2Int64 byte array to int64 value using big order
 func Byte2Int64(data []byte) int64 {
-	return int64((int64(data[0])&0xff)<<56 | (int64(data[1])&0xff)<<48 | (int64(data[2])&0xff)<<40 | (int64(data[3])&0xff)<<32 | (int64(data[4])&0xff)<<24 | (int64(data[5])&0xff)<<16 | (int64(data[6])&0xff)<<8 | (int64(data[7]) & 0xff))
+	return (int64(data[0])&0xff)<<56 |
+		(int64(data[1])&0xff)<<48 |
+		(int64(data[2])&0xff)<<40 |
+		(int64(data[3])&0xff)<<32 |
+		(int64(data[4])&0xff)<<24 |
+		(int64(data[5])&0xff)<<16 |
+		(int64(data[6])&0xff)<<8 |
+		(int64(data[7]) & 0xff)
 }
 
 // Byte2UInt64 byte array to int64 value using big order
@@ -344,7 +354,7 @@ func (b *ByteBuf) ReadRawBytes(n int) (int, []byte, error) {
 }
 
 // ReadBytes read bytes from buf
-// It's will copy the data to a new byte arrary
+// It's will copy the data to a new byte array
 // return readedBytesCount, byte array, error
 func (b *ByteBuf) ReadBytes(n int) (int, []byte, error) {
 	data := make([]byte, n)
@@ -353,7 +363,7 @@ func (b *ByteBuf) ReadBytes(n int) (int, []byte, error) {
 }
 
 // ReadAll read all data from buf
-// It's will copy the data to a new byte arrary
+// It's will copy the data to a new byte array
 // return readedBytesCount, byte array, error
 func (b *ByteBuf) ReadAll() (int, []byte, error) {
 	return b.ReadBytes(b.Readable())
