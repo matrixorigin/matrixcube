@@ -122,3 +122,75 @@ func TestBytes(t *testing.T) {
 	tree.Delete(k3)
 	assert.Equal(t, 0, tree.Bytes())
 }
+
+func TestMin(t *testing.T) {
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	tree := NewKeyTree(64)
+	assert.Empty(t, tree.Min())
+
+	tree.Add(k1)
+	assert.Equal(t, k1, tree.Min())
+	tree.Add(k2)
+	assert.Equal(t, k1, tree.Min())
+	tree.Add(k3)
+	assert.Equal(t, k1, tree.Min())
+}
+
+func TestMax(t *testing.T) {
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	tree := NewKeyTree(64)
+	assert.Empty(t, tree.Max())
+
+	tree.Add(k1)
+	assert.Equal(t, k1, tree.Max())
+	tree.Add(k2)
+	assert.Equal(t, k2, tree.Max())
+	tree.Add(k3)
+	assert.Equal(t, k3, tree.Max())
+}
+
+func TestSeek(t *testing.T) {
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	tree := NewKeyTree(64)
+	assert.Empty(t, tree.Seek(k1))
+
+	tree.Add(k1)
+	assert.Equal(t, k1, tree.Seek(k1))
+	assert.Empty(t, tree.Seek(k2))
+	assert.Empty(t, tree.Seek(k3))
+	tree.Add(k2)
+	assert.Equal(t, k1, tree.Seek(k1))
+	assert.Equal(t, k2, tree.Seek(k2))
+	assert.Empty(t, tree.Seek(k3))
+	tree.Add(k3)
+	assert.Equal(t, k1, tree.Seek(k1))
+	assert.Equal(t, k2, tree.Seek(k2))
+	assert.Equal(t, k3, tree.Seek(k3))
+}
+
+func TestSeekGT(t *testing.T) {
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	tree := NewKeyTree(64)
+	assert.Empty(t, tree.SeekGT(k1))
+
+	tree.Add(k1)
+	assert.Empty(t, tree.SeekGT(k1))
+	assert.Empty(t, tree.SeekGT(k2))
+	assert.Empty(t, tree.SeekGT(k3))
+	tree.Add(k2)
+	assert.Equal(t, k2, tree.SeekGT(k1))
+	assert.Empty(t, tree.SeekGT(k2))
+	assert.Empty(t, tree.SeekGT(k3))
+	tree.Add(k3)
+	assert.Equal(t, k2, tree.SeekGT(k1))
+	assert.Equal(t, k3, tree.SeekGT(k2))
+	assert.Empty(t, tree.SeekGT(k3))
+}

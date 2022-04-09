@@ -446,7 +446,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 			continue
 		}
 
-		d.execInternalWrite(requests[idx], d.writeCtx.wb)
+		d.execInternalWrite(requests[idx], d.writeCtx)
 	}
 
 	if err := d.dataStorage.Write(d.writeCtx); err != nil {
@@ -476,7 +476,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 	return resp
 }
 
-func (d *stateMachine) execInternalWrite(req rpcpb.Request, wb storage.Resetable) {
+func (d *stateMachine) execInternalWrite(req rpcpb.Request, ctx storage.WriteContext) {
 	if d.transactionalDataStorage == nil {
 		d.logger.Fatal("can not handle transaction request.",
 			zap.String("data-storage", fmt.Sprintf("%T", d.dataStorage)))
@@ -484,28 +484,28 @@ func (d *stateMachine) execInternalWrite(req rpcpb.Request, wb storage.Resetable
 
 	switch rpcpb.InternalCmd(req.CustomType) {
 	case rpcpb.CmdUpdateTxnRecord:
-		if err := d.transactionalDataStorage.UpdateTxnRecord(req.UpdateTxnRecord.TxnRecord, wb); err != nil {
+		if err := d.transactionalDataStorage.UpdateTxnRecord(req.UpdateTxnRecord.TxnRecord, ctx); err != nil {
 			d.logger.Fatal("failed to update txn record",
 				zap.Error(err))
 		}
 	case rpcpb.CmdDeleteTxnRecord:
-		if err := d.transactionalDataStorage.DeleteTxnRecord(req.DeleteTxnRecord.TxnRecordRouteKey, wb); err != nil {
+		if err := d.transactionalDataStorage.DeleteTxnRecord(req.DeleteTxnRecord.TxnRecordRouteKey, req.DeleteTxnRecord.TxnID, ctx); err != nil {
 			d.logger.Fatal("failed to delete txn record",
 				zap.Error(err))
 		}
 	case rpcpb.CmdCommitTxnData:
-		if err := d.transactionalDataStorage.CommitWriteData(req.CommitTxnWriteData.OriginKey, req.CommitTxnWriteData.CommitTS, wb); err != nil {
+		if err := d.transactionalDataStorage.CommitWrittenData(req.CommitTxnWriteData.OriginKey, req.CommitTxnWriteData.CommitTS, ctx); err != nil {
 			d.logger.Fatal("failed to commit txn write data",
 				zap.Error(err))
 		}
 	case rpcpb.CmdRollbackTxnData:
-		if err := d.transactionalDataStorage.RollbackWriteData(req.RollbackTxnRecord.OriginKey, req.RollbackTxnRecord.Timestamp, wb); err != nil {
+		if err := d.transactionalDataStorage.RollbackWrittenData(req.RollbackTxnRecord.OriginKey, req.RollbackTxnRecord.Timestamp, ctx); err != nil {
 			d.logger.Fatal("failed to commit txn write data",
 				zap.Error(err))
 		}
 	case rpcpb.CmdCleanTxnMVCCData:
 		shard := d.getShard()
-		if err := d.transactionalDataStorage.CleanMVCCData(shard, req.CleanTxnMVCCData.Timestamp, wb); err != nil {
+		if err := d.transactionalDataStorage.CleanMVCCData(shard, req.CleanTxnMVCCData.Timestamp, ctx); err != nil {
 			d.logger.Fatal("failed to commit txn write data",
 				zap.Error(err))
 		}

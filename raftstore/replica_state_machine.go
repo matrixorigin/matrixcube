@@ -90,7 +90,6 @@ type stateMachine struct {
 	wc                       *logdb.WorkerContext
 	replicaCreatorFactory    replicaCreatorFactory
 	resultHandler            replicaResultHandler
-	tmpRequests              []rpcpb.Request
 
 	metadataMu struct {
 		sync.Mutex

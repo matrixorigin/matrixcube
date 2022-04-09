@@ -684,6 +684,7 @@ message UpdateTxnRecordResponse {
 // DeleteTxnRecordRequest delete txn record request
 message DeleteTxnRecordRequest {
     bytes txnRecordRouteKey = 1;
+    bytes txnID             = 2;
 }
 
 // DeleteTxnRecordResponse delete txn record response

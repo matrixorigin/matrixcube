@@ -44,6 +44,7 @@ type options struct {
 	sampleSync uint64
 	logger     *zap.Logger
 	feature    storage.Feature
+	resolver   TxnOperationKeysResolver
 }
 
 // WithSampleSync set sync sample interval. `Cube` will call the `GetPersistentLogIndex` method of `DataStorage` to obtain
@@ -67,6 +68,13 @@ func WithLogger(logger *zap.Logger) Option {
 func WithFeature(feature storage.Feature) Option {
 	return func(opts *options) {
 		opts.feature = feature
+	}
+}
+
+// WithTxnOperationKeysResolver set transaction operation keys resolver
+func WithTxnOperationKeysResolver(resolver TxnOperationKeysResolver) Option {
+	return func(opts *options) {
+		opts.resolver = resolver
 	}
 }
 
@@ -114,6 +122,10 @@ type kvDataStorage struct {
 		lastAppliedIndexes       map[uint64]uint64
 		persistentAppliedIndexes map[uint64]uint64
 	}
+
+	txn struct {
+		keysResolver TxnOperationKeysResolver
+	}
 }
 
 var _ storage.DataStorage = (*kvDataStorage)(nil)
@@ -127,13 +139,14 @@ func NewKVDataStorage(base storage.KVBaseStorage,
 		executor: executor,
 		opts:     newOptions(),
 	}
-	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
-	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
-
 	for _, opt := range opts {
 		opt(s.opts)
 	}
 	s.opts.adjust()
+
+	s.txn.keysResolver = s.opts.resolver
+	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
+	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
 	return s
 }
 

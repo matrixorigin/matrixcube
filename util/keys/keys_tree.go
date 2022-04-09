@@ -31,6 +31,22 @@ func NewKeyTree(btreeDegree int) *KeyTree {
 	}
 }
 
+// Min returns the min keys in the tree
+func (k *KeyTree) Min() []byte {
+	if k.Len() == 0 {
+		return nil
+	}
+	return k.tree.Min().(treeItem).key
+}
+
+// Max returns the max keys in the tree
+func (k *KeyTree) Max() []byte {
+	if k.Len() == 0 {
+		return nil
+	}
+	return k.tree.Max().(treeItem).key
+}
+
 // Add adds a key
 func (k *KeyTree) Add(key []byte) {
 	k.size += len(key)
@@ -101,4 +117,30 @@ func (k *KeyTree) Ascend(fn func(key []byte) bool) {
 		target := i.(treeItem)
 		return fn(target.key)
 	})
+}
+
+// Seek returns the next key which key >= spec key
+func (k *KeyTree) Seek(key []byte) []byte {
+	k.tmp.key = key
+	var result []byte
+	k.tree.AscendGreaterOrEqual(k.tmp, func(i btree.Item) bool {
+		result = i.(treeItem).key
+		return false
+	})
+	return result
+}
+
+// SeekGT returns the next key which key > spec key
+func (k *KeyTree) SeekGT(key []byte) []byte {
+	k.tmp.key = key
+	var result []byte
+	k.tree.AscendGreaterOrEqual(k.tmp, func(i btree.Item) bool {
+		ck := i.(treeItem).key
+		if bytes.Equal(ck, key) {
+			return true
+		}
+		result = i.(treeItem).key
+		return false
+	})
+	return result
 }

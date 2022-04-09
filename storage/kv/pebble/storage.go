@@ -227,6 +227,7 @@ func (s *Storage) ScanInView(view storage.View,
 	}
 	ss := view.Raw().(*pebble.Snapshot)
 	iter := ss.NewIter(ios)
+
 	defer iter.Close()
 
 	iter.First()
@@ -333,10 +334,35 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 // Seek returns the first key-value that >= key
 func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	var key, value []byte
-	iter := s.db.NewIter(&pebble.IterOptions{LowerBound: target})
+	view := s.db.NewSnapshot()
+	defer view.Close()
+
+	iter := view.NewIter(&pebble.IterOptions{LowerBound: target})
 	defer iter.Close()
-	iter.First()
-	if iter.Valid() {
+
+	if iter.First() {
+		if err := iter.Error(); err != nil {
+			return nil, nil, err
+		}
+		key = keysutil.Clone(iter.Key())
+		value = keysutil.Clone(iter.Value())
+		atomic.AddUint64(&s.stats.ReadKeys, 1)
+		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
+	}
+	return key, value, nil
+}
+
+// Seek returns the last key-value that < key
+func (s *Storage) SeekLT(target []byte) ([]byte, []byte, error) {
+	var key, value []byte
+	view := s.db.NewSnapshot()
+	defer view.Close()
+
+	iter := view.NewIter(&pebble.IterOptions{UpperBound: target})
+	defer iter.Close()
+	iter.SeekLT(target)
+
+	if iter.Last() {
 		if err := iter.Error(); err != nil {
 			return nil, nil, err
 		}

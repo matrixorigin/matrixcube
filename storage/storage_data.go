@@ -18,11 +18,11 @@ import (
 
 	"github.com/cockroachdb/errors"
 
+	"github.com/matrixorigin/matrixcube/pb/hlcpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util/buf"
-	"github.com/matrixorigin/matrixcube/util/hlc"
 )
 
 var (
@@ -196,30 +196,30 @@ type TransactionalDataStorage interface {
 
 	// UpdateTxnRecord update an existing `TxnRecord`. The creation of `TxnRecord` is written with the
 	// consensus of the first written key of a transaction operation.
-	UpdateTxnRecord(record txnpb.TxnRecord, wb Resetable) error
+	UpdateTxnRecord(record txnpb.TxnRecord, ctx WriteContext) error
 	// DeleteTxnRecord delete a `TxnRecord`. This method is called to clean up the `TxnRecord` when the
 	// transaction has been committed or rolled back and all temporary writes have been processed correctly.
-	DeleteTxnRecord(txnRecordRouteKey []byte, wb Resetable) error
-	// CommitWriteData commit a Key corresponding to the temporary write data to make it visible
-	CommitWriteData(originKey []byte, commitTS hlc.Timestamp, wb Resetable) error
-	// RollbackWriteData delete temporary data written by the transaction corresponding to a key
-	RollbackWriteData(originKey []byte, metadata hlc.Timestamp, wb Resetable) error
+	DeleteTxnRecord(txnRecordRouteKey, txnID []byte, ctx WriteContext) error
+	// CommitWrittenData commit a Key corresponding to the uncommitted written data to make it visible
+	CommitWrittenData(originKey []byte, commitTS hlcpb.Timestamp, ctx WriteContext) error
+	// RollbackWrittenData delete uncommitted data written by the transaction corresponding to a key
+	RollbackWrittenData(originKey []byte, metadata hlcpb.Timestamp, ctx WriteContext) error
 	// CleanMVCCData delete all MVCC records with MVCC version number less than hlc.Timestamp in the shard.
 	// This method is called periodically.
-	CleanMVCCData(shard metapb.Shard, timestamp hlc.Timestamp, wb Resetable) error
+	CleanMVCCData(shard metapb.Shard, timestamp hlcpb.Timestamp, ctx WriteContext) error
 
 	// GetTxnRecord read `TxnRecord`
-	GetTxnRecord(txnRecordRouteKey []byte) (txnpb.TxnRecord, error)
+	GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, txnpb.TxnRecord, error)
 	// GetCommitted return the largest record with MVCC version number < timestamp corresponding to
 	// the Key.
-	GetCommitted(originKey []byte, timestamp hlc.Timestamp) (exist bool, data []byte, err error)
+	GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error)
 	// GetUncommittedOrAnyHighCommitted get the conflicting data of the currently specified Key.
 	// There are 2 cases of conflict, 1. encounter uncommitted data; 2. encounter any version
 	// number > timestamp of committed data.
-	GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (*txnpb.TxnConflictData, error)
+	GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlcpb.Timestamp) (txnpb.TxnConflictData, error)
 	// GetUncommittedOrAnyHighCommittedByRange is similar to `GetUncommittedOrAnyHighCommitted`, but
 	// perform keys in txnpb.TxnOperation range
-	GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlc.Timestamp) ([]txnpb.TxnConflictData, error)
+	GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlcpb.Timestamp) ([]txnpb.TxnConflictData, error)
 }
 
 // WriteContext contains the details of write requests to be handled by the

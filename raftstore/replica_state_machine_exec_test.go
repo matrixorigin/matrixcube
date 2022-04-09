@@ -17,11 +17,6 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
-
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
@@ -31,6 +26,10 @@ import (
 	"github.com/matrixorigin/matrixcube/util/hlc"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/raft/v3"
+	"go.etcd.io/etcd/raft/v3/raftpb"
 )
 
 func TestStateMachineAddNode(t *testing.T) {
@@ -310,34 +309,34 @@ func (t *testDataStorage) Feature() storage.Feature {
 	return t.feature
 }
 
-func (t *testDataStorage) UpdateTxnRecord(record txnpb.TxnRecord, wb storage.Resetable) error {
+func (t *testDataStorage) UpdateTxnRecord(record txnpb.TxnRecord, wb storage.WriteContext) error {
 	t.counts[int(rpcpb.CmdUpdateTxnRecord)]++
 	return nil
 }
-func (t *testDataStorage) DeleteTxnRecord(txnRecordRouteKey []byte, wb storage.Resetable) error {
+func (t *testDataStorage) DeleteTxnRecord(txnRecordRouteKey, txnID []byte, wb storage.WriteContext) error {
 	t.counts[int(rpcpb.CmdDeleteTxnRecord)]++
 	return nil
 }
-func (t *testDataStorage) CommitWriteData(originKey []byte, commitTS hlc.Timestamp, wb storage.Resetable) error {
+func (t *testDataStorage) CommitWrittenData(originKey []byte, commitTS hlc.Timestamp, wb storage.WriteContext) error {
 	t.counts[int(rpcpb.CmdCommitTxnData)]++
 	return nil
 }
-func (t *testDataStorage) RollbackWriteData(originKey []byte, metadata hlc.Timestamp, wb storage.Resetable) error {
+func (t *testDataStorage) RollbackWrittenData(originKey []byte, metadata hlc.Timestamp, wb storage.WriteContext) error {
 	t.counts[int(rpcpb.CmdRollbackTxnData)]++
 	return nil
 }
-func (t *testDataStorage) CleanMVCCData(shard metapb.Shard, timestamp hlc.Timestamp, wb storage.Resetable) error {
+func (t *testDataStorage) CleanMVCCData(shard metapb.Shard, timestamp hlc.Timestamp, wb storage.WriteContext) error {
 	t.counts[int(rpcpb.CmdCleanTxnMVCCData)]++
 	return nil
 }
-func (t *testDataStorage) GetTxnRecord(txnRecordRouteKey []byte) (txnpb.TxnRecord, error) {
-	return txnpb.TxnRecord{}, nil
+func (t *testDataStorage) GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, txnpb.TxnRecord, error) {
+	return false, txnpb.TxnRecord{}, nil
 }
 func (t *testDataStorage) GetCommitted(originKey []byte, timestamp hlc.Timestamp) (exist bool, data []byte, err error) {
 	return false, nil, nil
 }
-func (t *testDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (*txnpb.TxnConflictData, error) {
-	return nil, nil
+func (t *testDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (txnpb.TxnConflictData, error) {
+	return txnpb.TxnConflictData{}, nil
 }
 func (t *testDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlc.Timestamp) ([]txnpb.TxnConflictData, error) {
 	return nil, nil

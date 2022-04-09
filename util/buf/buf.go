@@ -291,6 +291,15 @@ func (b *ByteBuf) MarkWrite() {
 	b.markedIndex = b.writerIndex
 }
 
+// ResetWrite use markindex to reset write index
+func (b *ByteBuf) ResetWrite() {
+	if b.markedIndex < 0 {
+		panic("invalid marked index")
+	}
+	b.writerIndex = b.markedIndex
+	b.markedIndex = -1
+}
+
 // WrittenDataAfterMark returns the data referance after mark write
 func (b *ByteBuf) WrittenDataAfterMark() Slice {
 	return Slice{b.markedIndex, b.writerIndex, b}

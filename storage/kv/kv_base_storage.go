@@ -106,6 +106,10 @@ func (s *BaseStorage) Seek(key []byte) ([]byte, []byte, error) {
 	return s.kv.Seek(key)
 }
 
+func (s *BaseStorage) SeekLT(key []byte) ([]byte, []byte, error) {
+	return s.kv.SeekLT(key)
+}
+
 func (s *BaseStorage) Sync() error {
 	return s.kv.Sync()
 }
