@@ -286,3 +286,13 @@ message UncertaintyError {
 message AbortedError {
 
 }
+
+// ConsensusData describe the write data that needs to go by raft consensus.
+message ConsensusData {
+    // RequestType the request type of consensus data, when Apply consensus data, 
+    // according to this field to implement the corresponding write logic.
+    uint64    requestType = 1;
+    // Data consensus write data
+    bytes     data        = 2;
+}
+
