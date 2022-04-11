@@ -20,7 +20,7 @@ import (
 	"github.com/matrixorigin/matrixcube/config"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
-	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/stop"
 	"github.com/matrixorigin/matrixcube/util/task"
@@ -34,8 +34,8 @@ func TestDestroyReplica(t *testing.T) {
 	s, cancel := newTestStore(t)
 	defer cancel()
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
-	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false))
-	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false))
+	assert.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte("a1"), nil), []byte("hello-a1"), false))
+	assert.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte("a2"), nil), []byte("hello-a2"), false))
 
 	shard := Shard{
 		ID:       1,
@@ -46,7 +46,7 @@ func TestDestroyReplica(t *testing.T) {
 
 	scan := func() int {
 		count := 0
-		assert.NoError(t, kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardStart(shard.End, nil), func(key, value []byte) (bool, error) {
+		assert.NoError(t, kv.Scan(keysutil.EncodeShardStart(shard.Start, nil), keysutil.EncodeShardStart(shard.End, nil), func(key, value []byte) (bool, error) {
 			count++
 			return true, nil
 		}, false))
@@ -178,7 +178,7 @@ func testDestroyReplicaWithRemoveShardDataAfterRestart(t *testing.T, removeData 
 	assert.NoError(t, ds.Sync([]uint64{sid}))
 
 	kvs := ds.(storage.KVStorageWrapper).GetKVStorage()
-	v, err := kvs.Get(skv.EncodeDataKey([]byte("k1"), nil))
+	v, err := kvs.Get(keysutil.EncodeDataKey([]byte("k1"), nil))
 	assert.NoError(t, err)
 	if !removeData {
 		assert.Equal(t, "v1", string(v))
@@ -186,7 +186,7 @@ func testDestroyReplicaWithRemoveShardDataAfterRestart(t *testing.T, removeData 
 		assert.Empty(t, v)
 	}
 
-	v, err = kvs.Get(skv.EncodeDataKey([]byte("k2"), nil))
+	v, err = kvs.Get(keysutil.EncodeDataKey([]byte("k2"), nil))
 	assert.NoError(t, err)
 	assert.Equal(t, "v2", string(v))
 }

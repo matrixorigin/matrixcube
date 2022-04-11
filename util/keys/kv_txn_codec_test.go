@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kv
+package keys
 
 import (
 	"testing"
@@ -29,9 +29,9 @@ func TestEncodeTxnRecordKey(t *testing.T) {
 
 	originKey := []byte("key")
 	txnID := uuid.NewV4().Bytes()
-	k, kt, v := decodeTxnKey(encodeTxnRecordKey(originKey, txnID, buffer))
+	k, kt, v := DecodeTxnKey(EncodeTxnRecordKey(originKey, txnID, buffer))
 	assert.Equal(t, originKey, k)
-	assert.Equal(t, txnRecordKeyType, kt)
+	assert.Equal(t, TxnRecordKeyType, kt)
 	assert.Equal(t, txnID, v)
 }
 
@@ -41,18 +41,18 @@ func TestEncodeTxnMVCCKey(t *testing.T) {
 
 	originKey := []byte("key")
 	ts := hlcpb.Timestamp{PhysicalTime: time.Now().Unix(), LogicalTime: 100}
-	k, kt, v := decodeTxnKey(encodeTxnMVCCKey(originKey, ts, buffer))
+	k, kt, v := DecodeTxnKey(EncodeTxnMVCCKey(originKey, ts, buffer))
 	assert.Equal(t, originKey, k)
-	assert.Equal(t, txnMVCCKeyType, kt)
+	assert.Equal(t, TxnMVCCKeyType, kt)
 	assert.Equal(t, 12, len(v))
 	assert.Equal(t, buf.Byte2Int64(v[:8]), ts.PhysicalTime)
 	assert.Equal(t, buf.Byte2UInt32(v[8:]), ts.LogicalTime)
 }
 
 func TestDecodeKeyWithOriginKey(t *testing.T) {
-	k, kt, v := decodeTxnKey([]byte("\x00key"))
+	k, kt, v := DecodeTxnKey([]byte("\x00key"))
 	assert.Equal(t, []byte("key"), k)
-	assert.Equal(t, txnOriginKeyType, kt)
+	assert.Equal(t, TxnOriginKeyType, kt)
 	assert.Empty(t, v)
 }
 
@@ -61,14 +61,14 @@ func TestDecodeTimestamp(t *testing.T) {
 	defer buffer.Release()
 
 	ts := hlcpb.Timestamp{PhysicalTime: time.Now().Unix(), LogicalTime: 100}
-	_, _, v := decodeTxnKey(encodeTxnMVCCKey([]byte("key"), ts, buffer))
-	assert.True(t, ts.Equal(decodeTimestamp(v)))
+	_, _, v := DecodeTxnKey(EncodeTxnMVCCKey([]byte("key"), ts, buffer))
+	assert.True(t, ts.Equal(DecodeTimestamp(v)))
 }
 
 func TestTxnRecordKeyLen(t *testing.T) {
-	assert.Equal(t, 1+3+1+2+1, txnRecordKeyLen([]byte("key"), []byte("id")))
+	assert.Equal(t, 1+3+1+2+1, TxnRecordKeyLen([]byte("key"), []byte("id")))
 }
 
 func TestTxnMVCCKeyLen(t *testing.T) {
-	assert.Equal(t, 1+3+1+12+1, txnMVCCKeyLen([]byte("key")))
+	assert.Equal(t, 1+3+1+12+1, TxnMVCCKeyLen([]byte("key")))
 }

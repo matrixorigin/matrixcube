@@ -1110,7 +1110,7 @@ func (tr *testTxnOperationRouter) Route(request txnpb.TxnOperation) ([]RouteInfo
 	p := &payload{}
 	p.unmarshal(request.Payload)
 	var routes []RouteInfo
-	tr.router.AscendRange(request.ShardGroup, p.firstKey(), keys.NextKey(p.lastKey()), rpcpb.SelectLeader, func(shard raftstore.Shard, replicaStore metapb.Store) bool {
+	tr.router.AscendRange(request.ShardGroup, p.firstKey(), keys.NextKey(p.lastKey(), nil), rpcpb.SelectLeader, func(shard raftstore.Shard, replicaStore metapb.Store) bool {
 		keys := p.getKeysInShard(shard)
 		if len(keys) > 0 {
 			sp := &payload{Keys: keys}

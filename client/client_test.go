@@ -22,7 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/raftstore"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -46,9 +46,8 @@ func TestExec(t *testing.T) {
 	req := newTestWriteCustomRequest("k", "v")
 	f := s.Write(ctx, req.CmdType, req.Cmd, WithRouteKey(req.Key))
 	defer f.Close()
-	v, err := f.Get()
+	_, err := f.Get()
 	assert.NoError(t, err)
-	assert.Equal(t, simple.OK, v)
 }
 
 func TestExecWithTimeout(t *testing.T) {
@@ -72,9 +71,8 @@ func TestExecWithTimeout(t *testing.T) {
 	f := s.Write(ctx, req.CmdType, req.Cmd, WithRouteKey(req.Key))
 	defer f.Close()
 
-	v, err := f.Get()
+	_, err := f.Get()
 	assert.Error(t, err)
-	assert.Empty(t, v)
 }
 
 func TestAddShardLabel(t *testing.T) {
@@ -137,5 +135,5 @@ func TestKeysRangeNotInShard(t *testing.T) {
 }
 
 func newTestWriteCustomRequest(k, v string) storage.Request {
-	return simple.NewWriteRequest([]byte(k), []byte(v))
+	return executor.NewWriteRequest([]byte(k), []byte(v))
 }

@@ -218,7 +218,7 @@ func (m *KeySet) GetKeyRange() ([]byte, []byte) {
 	var min, max []byte
 	if len(m.PointKeys) > 0 {
 		min = m.PointKeys[0]
-		max = keys.NextKey(m.PointKeys[len(m.PointKeys)-1])
+		max = keys.NextKey(m.PointKeys[len(m.PointKeys)-1], nil)
 	}
 
 	if len(m.Ranges) > 0 {

@@ -437,7 +437,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
-		if !requests[idx].IsInternal() {
+		if !requests[idx].IsTransaction() {
 			d.writeCtx.batch.Requests = append(d.writeCtx.batch.Requests, storage.Request{
 				CmdType: requests[idx].CustomType,
 				Key:     requests[idx].Key,
@@ -446,7 +446,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 			continue
 		}
 
-		d.execInternalWrite(requests[idx], d.writeCtx)
+		d.execTransactionWrite(requests[idx], d.writeCtx)
 	}
 
 	if err := d.dataStorage.Write(d.writeCtx); err != nil {
@@ -465,7 +465,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 		}
 		ctx.metrics.writtenKeys++
 		r := rpcpb.Response{}
-		if !requests[idx].IsInternal() {
+		if !requests[idx].IsTransaction() {
 			r.Value = d.writeCtx.responses[customResponseIdx]
 			customResponseIdx++
 		}
@@ -476,7 +476,7 @@ func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
 	return resp
 }
 
-func (d *stateMachine) execInternalWrite(req rpcpb.Request, ctx storage.WriteContext) {
+func (d *stateMachine) execTransactionWrite(req rpcpb.Request, ctx storage.WriteContext) {
 	if d.transactionalDataStorage == nil {
 		d.logger.Fatal("can not handle transaction request.",
 			zap.String("data-storage", fmt.Sprintf("%T", d.dataStorage)))

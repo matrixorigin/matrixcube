@@ -21,12 +21,12 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble"
 	"github.com/fagongzi/util/protoc"
-
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/stats"
 	"github.com/matrixorigin/matrixcube/util"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/vfs"
 )
 
@@ -116,7 +116,7 @@ func (s *BaseStorage) Sync() error {
 
 func (s *BaseStorage) getAppliedIndex(ss *pebble.Snapshot,
 	shardID uint64) ([]byte, []byte, error) {
-	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
+	key := keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
 	v, closer, err := ss.Get(key)
 	if err != nil {
 		return nil, nil, err
@@ -128,8 +128,8 @@ func (s *BaseStorage) getAppliedIndex(ss *pebble.Snapshot,
 func (s *BaseStorage) getShardMetadata(ss *pebble.Snapshot,
 	shardID uint64) ([]byte, []byte, error) {
 	ios := &pebble.IterOptions{
-		LowerBound: EncodeShardMetadataKey(keys.GetMetadataKey(shardID, 0, nil), nil),
-		UpperBound: EncodeShardMetadataKey(keys.GetMetadataKey(shardID, math.MaxUint64, nil), nil),
+		LowerBound: keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(shardID, 0, nil), nil),
+		UpperBound: keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(shardID, math.MaxUint64, nil), nil),
 	}
 	iter := ss.NewIter(ios)
 	defer iter.Close()
@@ -196,10 +196,10 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64, path string) error {
 	protoc.MustUnmarshal(&logIndex, appliedIndexValue)
 	shard := sls.Metadata.Shard
 
-	if err := writeBytes(f, EncodeShardStart(shard.Start, nil)); err != nil {
+	if err := writeBytes(f, keysutil.EncodeShardStart(shard.Start, nil)); err != nil {
 		return err
 	}
-	if err := writeBytes(f, EncodeShardEnd(shard.End, nil)); err != nil {
+	if err := writeBytes(f, keysutil.EncodeShardEnd(shard.End, nil)); err != nil {
 		return err
 	}
 	if err := writeBytes(f, appliedIndexKey); err != nil {
@@ -216,8 +216,8 @@ func (s *BaseStorage) CreateSnapshot(shardID uint64, path string) error {
 	}
 
 	ios := &pebble.IterOptions{
-		LowerBound: EncodeShardStart(shard.Start, nil),
-		UpperBound: EncodeShardEnd(shard.End, nil),
+		LowerBound: keysutil.EncodeShardStart(shard.Start, nil),
+		UpperBound: keysutil.EncodeShardEnd(shard.End, nil),
 	}
 
 	iter := snap.NewIter(ios)

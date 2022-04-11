@@ -40,7 +40,7 @@ func (kv *kvDataStorage) UpdateTxnRecord(record txnpb.TxnRecord, ctx storage.Wri
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	defer buffer.ResetWrite()
 
-	txnRecordKey := encodeTxnRecordKey(record.TxnRecordRouteKey, record.TxnMeta.ID, buffer)
+	txnRecordKey := keysutil.EncodeTxnRecordKey(record.TxnRecordRouteKey, record.TxnMeta.ID, buffer)
 	wb := ctx.WriteBatch()
 	wb.(util.WriteBatch).Set(txnRecordKey, protoc.MustMarshal(&record))
 	return nil
@@ -50,7 +50,7 @@ func (kv *kvDataStorage) DeleteTxnRecord(txnRecordRouteKey, txnID []byte, ctx st
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	defer buffer.ResetWrite()
 
-	txnRecordKey := encodeTxnRecordKey(txnRecordRouteKey, txnID, buffer)
+	txnRecordKey := keysutil.EncodeTxnRecordKey(txnRecordRouteKey, txnID, buffer)
 	wb := ctx.WriteBatch()
 	wb.(util.WriteBatch).Delete(txnRecordKey)
 	return nil
@@ -60,7 +60,7 @@ func (kv *kvDataStorage) CommitWrittenData(originKey []byte, commitTS hlcpb.Time
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	defer buffer.ResetWrite()
 
-	originKeyDataKey := EncodeDataKey(originKey, buffer)
+	originKeyDataKey := keysutil.EncodeDataKey(originKey, buffer)
 	exists, meta, err := kv.getTxnUncommittedMVCCMetadata(originKeyDataKey)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (kv *kvDataStorage) CommitWrittenData(originKey []byte, commitTS hlcpb.Time
 			return err
 		}
 		wb.Delete(oldMVCCKey)
-		wb.Set(encodeTxnMVCCKey(originKey, commitTS, buffer), v)
+		wb.Set(keysutil.EncodeTxnMVCCKey(originKey, commitTS, buffer), v)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (kv *kvDataStorage) RollbackWrittenData(originKey []byte, timestamp hlcpb.T
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	defer buffer.ResetWrite()
 
-	originKeyDataKey := EncodeDataKey(originKey, buffer)
+	originKeyDataKey := keysutil.EncodeDataKey(originKey, buffer)
 	exists, meta, err := kv.getTxnUncommittedMVCCMetadata(originKeyDataKey)
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (kv *kvDataStorage) RollbackWrittenData(originKey []byte, timestamp hlcpb.T
 
 	wb := ctx.WriteBatch().(util.WriteBatch)
 	wb.Delete(originKeyDataKey)
-	wb.Delete(encodeTxnMVCCKey(originKey, timestamp, buffer))
+	wb.Delete(keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer))
 	return nil
 }
 
@@ -121,25 +121,25 @@ func (kv *kvDataStorage) CleanMVCCData(shard metapb.Shard, timestamp hlcpb.Times
 	// Scan all originKey in the current shard, and skip all related transaction keys of the same key (MVCCKeys,
 	// TxnRecordKeys).
 	err := kv.base.ScanInViewWithOptions(view,
-		EncodeShardStart(shard.Start, buffer),
-		EncodeShardEnd(shard.End, buffer),
+		keysutil.EncodeShardStart(shard.Start, buffer),
+		keysutil.EncodeShardEnd(shard.End, buffer),
 		func(key, value []byte) (storage.NextIterOptions, error) {
 			defer buffer.ResetWrite()
 
-			originKey, kt, _ := decodeTxnKey(key)
+			originKey, kt, _ := keysutil.DecodeTxnKey(key)
 			// keep uncommitted data
-			if kt == txnOriginKeyType {
+			if kt == keysutil.TxnOriginKeyType {
 				var uncommitted txnpb.TxnUncommittedMVCCMetadata
 				protoc.MustUnmarshal(&uncommitted, value)
-				wb.DeleteRange(encodeTxnMVCCKey(originKey, hlcpb.Timestamp{}, buffer),
-					encodeTxnMVCCKey(originKey, uncommitted.Timestamp, buffer))
-				wb.DeleteRange(encodeTxnMVCCKey(originKey, uncommitted.Timestamp.Next(), buffer),
-					encodeTxnMVCCKey(originKey, timestamp, buffer))
+				wb.DeleteRange(keysutil.EncodeTxnMVCCKey(originKey, hlcpb.Timestamp{}, buffer),
+					keysutil.EncodeTxnMVCCKey(originKey, uncommitted.Timestamp, buffer))
+				wb.DeleteRange(keysutil.EncodeTxnMVCCKey(originKey, uncommitted.Timestamp.Next(), buffer),
+					keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer))
 			} else {
-				wb.DeleteRange(encodeTxnMVCCKey(originKey, hlcpb.Timestamp{}, buffer),
-					encodeTxnMVCCKey(originKey, timestamp, buffer))
+				wb.DeleteRange(keysutil.EncodeTxnMVCCKey(originKey, hlcpb.Timestamp{}, buffer),
+					keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer))
 			}
-			return storage.NextIterOptions{SeekGE: txnNextScanKey(originKey, buffer)}, nil
+			return storage.NextIterOptions{SeekGE: keysutil.TxnNextScanKey(originKey, buffer)}, nil
 		})
 	if err != nil {
 		return err
@@ -148,11 +148,11 @@ func (kv *kvDataStorage) CleanMVCCData(shard metapb.Shard, timestamp hlcpb.Times
 }
 
 func (kv *kvDataStorage) GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, txnpb.TxnRecord, error) {
-	buffer := buf.NewByteBuf(txnRecordKeyLen(txnRecordRouteKey, txnID))
+	buffer := buf.NewByteBuf(keysutil.TxnRecordKeyLen(txnRecordRouteKey, txnID))
 	defer buffer.Release()
 
 	var record txnpb.TxnRecord
-	v, err := kv.base.Get(encodeTxnRecordKey(txnRecordRouteKey, txnID, buffer))
+	v, err := kv.base.Get(keysutil.EncodeTxnRecordKey(txnRecordRouteKey, txnID, buffer))
 	if err != nil {
 		return false, record, err
 	}
@@ -165,10 +165,10 @@ func (kv *kvDataStorage) GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, tx
 }
 
 func (kv *kvDataStorage) GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error) {
-	buffer := buf.NewByteBuf(txnMVCCKeyLen(originKey))
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
 	defer buffer.Release()
 
-	_, v, err := kv.base.SeekLT(encodeTxnMVCCKey(originKey, timestamp, buffer))
+	_, v, err := kv.base.SeekLT(keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer))
 	if err != nil {
 		return false, nil, err
 	}
@@ -179,11 +179,11 @@ func (kv *kvDataStorage) GetCommitted(originKey []byte, timestamp hlcpb.Timestam
 }
 
 func (kv *kvDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlcpb.Timestamp) (txnpb.TxnConflictData, error) {
-	buffer := buf.NewByteBuf(txnMVCCKeyLen(originKey))
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
 	defer buffer.Release()
 
 	// check conflict with uncommitted
-	ok, v, err := kv.getTxnUncommittedMVCCMetadata(EncodeDataKey(originKey, buffer))
+	ok, v, err := kv.getTxnUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
 	if err != nil {
 		return txnpb.TxnConflictData{}, err
 	}
@@ -192,7 +192,7 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, time
 	}
 
 	// check conflict with committed
-	k, _, err := kv.base.Seek(encodeTxnMVCCKey(originKey, timestamp, buffer))
+	k, _, err := kv.base.Seek(keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer))
 	if err != nil {
 		return txnpb.TxnConflictData{}, err
 	}
@@ -200,12 +200,12 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, time
 		return txnpb.TxnConflictData{}, err
 	}
 
-	k, kt, timestampValue := decodeTxnKey(k)
-	if kt != txnMVCCKeyType || !bytes.Equal(k, originKey) {
+	k, kt, timestampValue := keysutil.DecodeTxnKey(k)
+	if kt != keysutil.TxnMVCCKeyType || !bytes.Equal(k, originKey) {
 		return txnpb.TxnConflictData{}, nil
 	}
 
-	ts := decodeTimestamp(timestampValue)
+	ts := keysutil.DecodeTimestamp(timestampValue)
 	return txnpb.TxnConflictData{WithCommitted: ts}, nil
 }
 
@@ -215,14 +215,14 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 		return nil, nil
 	}
 
-	buffer := buf.NewByteBuf(txnMVCCKeyLen(keys[0]))
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(keys[0]))
 	defer buffer.Release()
 
 	tree := keysutil.NewKeyTree(64)
 	tree.AddMany(keys)
 
-	from := EncodeDataKey(tree.Min(), buffer)
-	to := txnNextScanKey(tree.Max(), buffer)
+	from := keysutil.EncodeDataKey(tree.Min(), buffer)
+	to := keysutil.TxnNextScanKey(tree.Max(), buffer)
 
 	view := kv.base.GetView()
 	defer view.Close()
@@ -233,13 +233,13 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 		if len(nextK) == 0 {
 			return storage.NextIterOptions{Stop: true}, nil
 		}
-		return storage.NextIterOptions{SeekGE: EncodeDataKey(nextK, buffer)}, nil
+		return storage.NextIterOptions{SeekGE: keysutil.EncodeDataKey(nextK, buffer)}, nil
 	}
 	err := kv.base.ScanInViewWithOptions(view, from, to, func(key, value []byte) (storage.NextIterOptions, error) {
 		buffer.MarkWrite()
 		defer buffer.ResetWrite()
 
-		k, kt, v := decodeTxnKey(key)
+		k, kt, v := keysutil.DecodeTxnKey(key)
 
 		// seek to next key in the tree
 		if !tree.Contains(k) {
@@ -247,7 +247,7 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 		}
 
 		switch kt {
-		case txnOriginKeyType:
+		case keysutil.TxnOriginKeyType:
 			meta := txnpb.TxnUncommittedMVCCMetadata{}
 			protoc.MustUnmarshal(&meta, value)
 			// conflict with uncommitted
@@ -255,17 +255,17 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 				WithUncommitted: meta,
 			})
 			return seekToNextKeyInTree(k, tree.SeekGT)
-		case txnMVCCKeyType:
-			ts := decodeTimestamp(v)
+		case keysutil.TxnMVCCKeyType:
+			ts := keysutil.DecodeTimestamp(v)
 			if ts.Less(timestamp) {
-				return storage.NextIterOptions{SeekGE: encodeTxnMVCCKey(k, timestamp, buffer)}, nil
+				return storage.NextIterOptions{SeekGE: keysutil.EncodeTxnMVCCKey(k, timestamp, buffer)}, nil
 			}
 			// conflict with committed
 			conflicts = append(conflicts, txnpb.TxnConflictData{
 				WithCommitted: ts,
 			})
 			return seekToNextKeyInTree(k, tree.SeekGT)
-		case txnRecordKeyType:
+		case keysutil.TxnRecordKeyType:
 			return seekToNextKeyInTree(k, tree.SeekGT)
 		}
 		return storage.NextIterOptions{}, nil
@@ -294,7 +294,7 @@ func (kv *kvDataStorage) getTxnUncommittedMVCCMetadata(originDataKey []byte) (bo
 }
 
 func (kv *kvDataStorage) getTxnMVCCData(originKey []byte, timestamp hlcpb.Timestamp, mustExists bool, buffer *buf.ByteBuf) ([]byte, []byte, error) {
-	oldMVCCKey := encodeTxnMVCCKey(originKey, timestamp, buffer)
+	oldMVCCKey := keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer)
 	v, err := kv.base.Get(oldMVCCKey)
 	if err != nil {
 		return oldMVCCKey, v, err

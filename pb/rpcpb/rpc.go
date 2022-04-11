@@ -133,7 +133,8 @@ func (m *ResponseBatch) GetTransferLeaderResponse() TransferLeaderResponse {
 	return req
 }
 
-// IsInternal returns true if the request is internal  request
-func (m Request) IsInternal() bool {
-	return m.CustomType < uint64(CmdReserved)
+// IsTransaction returns true if the request is transaction request
+func (m Request) IsTransaction() bool {
+	return uint64(CmdUpdateTxnRecord) <= m.CustomType &&
+		m.CustomType <= uint64(CmdCleanTxnMVCCData)
 }

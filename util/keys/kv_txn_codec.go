@@ -11,89 +11,93 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kv
+package keys
 
 import (
 	"github.com/matrixorigin/matrixcube/pb/hlcpb"
 	"github.com/matrixorigin/matrixcube/util/buf"
 )
 
-type keyType byte
+// TxnKeyType txn key type
+type TxnKeyType byte
 
 var (
 	// key + 0 + timestamp + len(timestamp)
-	txnMVCCKeyType = keyType(0)
+	TxnMVCCKeyType = TxnKeyType(0)
 	// key + 1 + txnid + len(txnid)
-	txnRecordKeyType = keyType(1)
-	// txnNextScanKeyType next scanKey
-	txnNextScanKeyType = keyType(5)
-	// txnOriginKeyType origin key type
-	txnOriginKeyType = keyType(255)
+	TxnRecordKeyType = TxnKeyType(1)
+	// TxnNextScanKeyType next scanKey
+	TxnNextScanKeyType = TxnKeyType(5)
+	// TxnOriginKeyType origin key type
+	TxnOriginKeyType = TxnKeyType(255)
 )
 
-// encodeTxnRecordKey encode TxnRecordKey = dataPrefix + txnRecordRouteKey + txnRecordKeyType + txnID + len(txnID)
-func encodeTxnRecordKey(txnRecordRouteKey []byte, txnID []byte, buffer *buf.ByteBuf) []byte {
+// EncodeTxnRecordKey encode TxnRecordKey = dataPrefix + txnRecordRouteKey + txnRecordKeyType + txnID + len(txnID)
+func EncodeTxnRecordKey(txnRecordRouteKey []byte, txnID []byte, buffer *buf.ByteBuf) []byte {
 	buffer.MarkWrite()
 	mustWriteByte(buffer, dataPrefix)
 	mustWrite(buffer, txnRecordRouteKey)
-	mustWriteByte(buffer, byte(txnRecordKeyType))
+	mustWriteByte(buffer, byte(TxnRecordKeyType))
 	mustWrite(buffer, txnID)
 	mustWriteByte(buffer, byte(len(txnID)))
 	return buffer.WrittenDataAfterMark().Data()
 }
 
-// txnNextScanKey next scan key
-func txnNextScanKey(originKey []byte, buffer *buf.ByteBuf) []byte {
+// TxnNextScanKey next scan key
+func TxnNextScanKey(originKey []byte, buffer *buf.ByteBuf) []byte {
 	buffer.MarkWrite()
 	mustWriteByte(buffer, dataPrefix)
 	mustWrite(buffer, originKey)
-	mustWriteByte(buffer, byte(txnNextScanKeyType))
+	mustWriteByte(buffer, byte(TxnNextScanKeyType))
 	return buffer.WrittenDataAfterMark().Data()
 }
 
-// encodeTxnMVCCKey encode TxnMVCCKey = originKey + txnMVCCKeyType + timestamp + len(timestamp)
-func encodeTxnMVCCKey(originKey []byte, timestamp hlcpb.Timestamp, buffer *buf.ByteBuf) []byte {
+// EncodeTxnMVCCKey encode TxnMVCCKey = originKey + txnMVCCKeyType + timestamp + len(timestamp)
+func EncodeTxnMVCCKey(originKey []byte, timestamp hlcpb.Timestamp, buffer *buf.ByteBuf) []byte {
 	buffer.MarkWrite()
 	mustWriteByte(buffer, dataPrefix)
 	mustWrite(buffer, originKey)
-	mustWriteByte(buffer, byte(txnMVCCKeyType))
+	mustWriteByte(buffer, byte(TxnMVCCKeyType))
 	mustWriteInt64(buffer, timestamp.PhysicalTime)
 	mustWriteUInt32(buffer, timestamp.LogicalTime)
 	mustWriteByte(buffer, 12)
 	return buffer.WrittenDataAfterMark().Data()
 }
 
-// decodeTxnKey decode key, format: originKey + keyType + value + len(value)
-func decodeTxnKey(key []byte) ([]byte, keyType, []byte) {
+// DecodeTxnKey decode key, format: originKey + keyType + value + len(value)
+func DecodeTxnKey(key []byte) ([]byte, TxnKeyType, []byte) {
 	key = DecodeDataKey(key)
 	n := len(key)
 	kLen := int(key[len(key)-1])
 	kTypePos := n - kLen - 2
 	if kTypePos < 0 {
-		return key, txnOriginKeyType, nil
+		return key, TxnOriginKeyType, nil
 	}
 
-	switch keyType(key[kTypePos]) {
-	case txnMVCCKeyType:
-		return key[:kTypePos], txnMVCCKeyType, key[kTypePos+1 : n-1]
-	case txnRecordKeyType:
-		return key[:kTypePos], txnRecordKeyType, key[kTypePos+1 : n-1]
+	switch TxnKeyType(key[kTypePos]) {
+	case TxnMVCCKeyType:
+		return key[:kTypePos], TxnMVCCKeyType, key[kTypePos+1 : n-1]
+	case TxnRecordKeyType:
+		return key[:kTypePos], TxnRecordKeyType, key[kTypePos+1 : n-1]
 	}
-	return key, txnOriginKeyType, nil
+	return key, TxnOriginKeyType, nil
 }
 
-func decodeTimestamp(v []byte) hlcpb.Timestamp {
+// DecodeTimestamp decode timestamp
+func DecodeTimestamp(v []byte) hlcpb.Timestamp {
 	return hlcpb.Timestamp{
 		PhysicalTime: buf.Byte2Int64(v[:8]),
 		LogicalTime:  buf.Byte2UInt32(v[8:]),
 	}
 }
 
-func txnRecordKeyLen(txnRecordRouteKey []byte, txnID []byte) int {
+// TxnRecordKeyLen txn record key len
+func TxnRecordKeyLen(txnRecordRouteKey []byte, txnID []byte) int {
 	return prefixLen + len(txnRecordRouteKey) + 1 + len(txnID) + 1
 }
 
-func txnMVCCKeyLen(originKey []byte) int {
+// TxnMVCCKeyLen txn mvcc key len
+func TxnMVCCKeyLen(originKey []byte) int {
 	return prefixLen + len(originKey) + 14
 }
 

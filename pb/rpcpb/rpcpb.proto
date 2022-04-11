@@ -489,7 +489,7 @@ enum InternalCmd {
     // CmdUpdateMetadata update shard metadata command, admin type
     CmdUpdateMetadata   = 6;
     // CmdUpdateLabels update shard label command, admin type
-    CmdUpdateLabels     = 7;     
+    CmdUpdateLabels     = 7;    
     // CmdUpdateTxnRecord update txn record command, write type
     CmdUpdateTxnRecord  = 100;
     // CmdDeleteTxnRecord delete txn record command, write type
@@ -500,6 +500,22 @@ enum InternalCmd {
     CmdRollbackTxnData  = 103;
     // CmdCleanTxnMVCCData clean txn mvcc data, write type
     CmdCleanTxnMVCCData = 104;
+    // CmdKVSet  kv set command, write type
+    CmdKVSet            = 200;
+    // CmdKVBatchSet kv batch set command, write type
+    CmdKVBatchSet       = 201;
+    // CmdKVGet kv get command, read type
+    CmdKVGet            = 202;
+    // CmdKVBatchGet kv batch get command, read type
+    CmdKVBatchGet       = 203;
+    // CmdKVDelete kv delete command, write type
+    CmdKVDelete         = 204;
+    // CmdKVBatchDelete kv batch delete command, write type
+    CmdKVBatchDelete    = 205;
+    // CmdKVRangeDelete kv range delete command, write type
+    CmdKVRangeDelete    = 206;
+    // CmdKVScan kv scan command, read type
+    CmdKVScan           = 207;
     // CmdReserved cube reserved cmd type value, all custom cmd type read and 
     // write cmd type can not use the value below the reserved value.
     CmdReserved       = 1000;
@@ -719,4 +735,105 @@ message CleanTxnMVCCDataRequest {
 
 // CleanTxnMVCCDataResponse clean txn mvcc data response
 message CleanTxnMVCCDataResponse {
+}
+
+// KVSetRequest kv set request
+message KVSetRequest {
+    bytes key   = 1;
+    bytes value = 2;
+}
+
+// KVSetResponse kv set response
+message KVSetResponse {
+
+}
+
+// KVBatchSetRequest kv batch set request
+message KVBatchSetRequest {
+    repeated KVSetRequest requests = 1 [(gogoproto.nullable) = false];
+}
+
+// KVBatchSetResponse kv batch set response
+message KVBatchSetResponse {
+
+}
+
+// KVGetRequest kv get request
+message KVGetRequest {
+    bytes key = 1;
+}
+
+// KVGetResponse kv get response
+message KVGetResponse {
+    bytes value = 1;
+}
+
+// KVBatchGetRequest kv batch get request
+message KVBatchGetRequest {
+    repeated bytes keys = 1;
+}
+
+// KVBatchGetResponse kv batch get response
+message KVBatchGetResponse {
+    repeated bytes values = 1;
+}
+
+// KVDeleteRequest kv Delete request
+message KVDeleteRequest {
+    bytes key = 1;
+}
+
+// KVDeleteResponse kv Delete response
+message KVDeleteResponse {
+}
+
+// KVBatchDeleteRequest kv BatchDelete request
+message KVBatchDeleteRequest {
+    repeated bytes keys = 1;
+}
+
+// KVBatchDeleteResponse kv BatchDelete response
+message KVBatchDeleteResponse {
+}
+
+// KVRangeDeleteRequest kv RangeDelete request
+message KVRangeDeleteRequest {
+    // Start include
+    bytes start = 1;
+    // End exclude
+    bytes end   = 2;
+}
+
+// KVRangeDeleteResponse kv RangeDelete response
+message KVRangeDeleteResponse {
+}
+
+// KVScanRequest kv scan request
+message KVScanRequest {
+    // Start include, not set means min key
+    bytes  start      = 1;
+    // End exclude, not set means max key
+    bytes  end        = 2;
+    // Limit maximum count of scanned data
+    uint64 limit      = 3;
+    // LimitBytes maximum count of scanned data
+    uint64 limitBytes = 4;
+    // WithValue return the value
+    bool   withValue  = 5;
+    // OnlyCount only returns count
+    bool   onlyCount  = 6;
+}
+
+// KVScanResponse kv scan response
+message KVScanResponse {
+    // Keys scan keys result
+    repeated bytes keys   = 1;
+    // Values scan values result
+    repeated bytes values = 2;
+    // Count scan count result
+    uint64   count        = 3;
+    // Completed true if no data in current shard
+    bool     completed    = 4;
+    // ShardEnd shard end key
+    bytes    shardEnd     = 5;
 }

@@ -21,8 +21,9 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func TestUpdateAndDeleteTxnRecord(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -80,7 +81,7 @@ func TestCommitWrittenDataWithNoUncommittedData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -101,7 +102,7 @@ func TestCommitWrittenDataWithSameTimestamp(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -117,17 +118,17 @@ func TestCommitWrittenDataWithSameTimestamp(t *testing.T) {
 
 	n := 0
 	var mvccKey []byte
-	assert.NoError(t, base.Scan(EncodeShardStart(nil, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+	assert.NoError(t, base.Scan(keysutil.EncodeShardStart(nil, nil), keysutil.EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
 		n++
 		mvccKey = key
 		return true, nil
 	}, true))
 	assert.Equal(t, 1, n)
 
-	k, kt, v := decodeTxnKey(mvccKey)
+	k, kt, v := keysutil.DecodeTxnKey(mvccKey)
 	assert.Equal(t, originKey, k)
-	assert.Equal(t, txnMVCCKeyType, kt)
-	assert.Equal(t, getTestTimestamp(10), decodeTimestamp(v))
+	assert.Equal(t, keysutil.TxnMVCCKeyType, kt)
+	assert.Equal(t, getTestTimestamp(10), keysutil.DecodeTimestamp(v))
 }
 
 func TestCommitWrittenDataWithHighTimestamp(t *testing.T) {
@@ -136,7 +137,7 @@ func TestCommitWrittenDataWithHighTimestamp(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -152,17 +153,17 @@ func TestCommitWrittenDataWithHighTimestamp(t *testing.T) {
 
 	n := 0
 	var mvccKey []byte
-	assert.NoError(t, base.Scan(EncodeShardStart(nil, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+	assert.NoError(t, base.Scan(keysutil.EncodeShardStart(nil, nil), keysutil.EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
 		n++
 		mvccKey = key
 		return true, nil
 	}, true))
 	assert.Equal(t, 1, n)
 
-	k, kt, v := decodeTxnKey(mvccKey)
+	k, kt, v := keysutil.DecodeTxnKey(mvccKey)
 	assert.Equal(t, originKey, k)
-	assert.Equal(t, txnMVCCKeyType, kt)
-	assert.Equal(t, getTestTimestamp(11), decodeTimestamp(v))
+	assert.Equal(t, keysutil.TxnMVCCKeyType, kt)
+	assert.Equal(t, getTestTimestamp(11), keysutil.DecodeTimestamp(v))
 }
 
 func TestCommitWrittenDataWithLowTimestamp(t *testing.T) {
@@ -171,7 +172,7 @@ func TestCommitWrittenDataWithLowTimestamp(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -191,7 +192,7 @@ func TestRollbackWrittenDataWithNoProvisionalData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -212,7 +213,7 @@ func TestRollbackWrittenData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -235,7 +236,7 @@ func TestRollbackWrittenDataWithOtherTimestamp(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -259,7 +260,7 @@ func TestCleanMVCCData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -287,7 +288,7 @@ func TestCleanMVCCDataWithUncommittedData(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -311,7 +312,7 @@ func TestCleanMVCCDataWithMultiKeys(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -338,7 +339,7 @@ func TestCleanMVCCDataWithMultiKeysAndShard(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -365,7 +366,7 @@ func TestGetCommitted(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -393,7 +394,7 @@ func TestGetUncommittedOrAnyHighCommittedWithNoConflict(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -424,7 +425,7 @@ func TestGetUncommittedOrAnyHighCommittedWithUncommitted(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -449,7 +450,7 @@ func TestGetUncommittedOrAnyHighCommittedWithCommitted(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := getTestPebbleStorage(t, fs)
 	base := NewBaseStorage(kv, fs)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -480,7 +481,7 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 	k4 := []byte("k4")
 
 	resolver := newMockTxnOperationResolver(nil)
-	s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base),
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base),
 		WithFeature(storage.Feature{SupportTransaction: true}),
 		WithTxnOperationKeysResolver(resolver))
 	defer func() {
@@ -542,25 +543,25 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 
 func addTestUncommittedMVCCRecord(t *testing.T, base storage.KVBaseStorage, key, value []byte, timestamp int64) {
 	ts := hlcpb.Timestamp{PhysicalTime: timestamp}
-	assert.NoError(t, base.Set(EncodeDataKey(key, nil), protoc.MustMarshal(&txnpb.TxnUncommittedMVCCMetadata{
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(key, nil), protoc.MustMarshal(&txnpb.TxnUncommittedMVCCMetadata{
 		Timestamp: ts,
 	}), false))
-	assert.NoError(t, base.Set(encodeTxnMVCCKey(key, ts, buf.NewByteBuf(32)), value, false))
+	assert.NoError(t, base.Set(keysutil.EncodeTxnMVCCKey(key, ts, buf.NewByteBuf(32)), value, false))
 }
 
 func addTestCommittedMVCCRecord(t *testing.T, base storage.KVBaseStorage, key, value []byte, timestamp int64) {
-	assert.NoError(t, base.Set(encodeTxnMVCCKey(key, hlcpb.Timestamp{PhysicalTime: timestamp}, buf.NewByteBuf(32)), value, false))
+	assert.NoError(t, base.Set(keysutil.EncodeTxnMVCCKey(key, hlcpb.Timestamp{PhysicalTime: timestamp}, buf.NewByteBuf(32)), value, false))
 }
 
 func addTestTxnRecord(t *testing.T, base storage.KVBaseStorage, txnRecordRouteKey, txnID []byte) {
-	assert.NoError(t, base.Set(encodeTxnRecordKey(txnRecordRouteKey, txnID, buf.NewByteBuf(32)), protoc.MustMarshal(&txnpb.TxnRecord{
+	assert.NoError(t, base.Set(keysutil.EncodeTxnRecordKey(txnRecordRouteKey, txnID, buf.NewByteBuf(32)), protoc.MustMarshal(&txnpb.TxnRecord{
 		TxnMeta: txnpb.TxnMeta{ID: txnID, TxnRecordRouteKey: txnRecordRouteKey},
 	}), false))
 }
 
 func checkTxnKeysCount(t *testing.T, expect int, base storage.KVBaseStorage) {
 	n := 0
-	assert.NoError(t, base.Scan(EncodeShardStart(nil, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+	assert.NoError(t, base.Scan(keysutil.EncodeShardStart(nil, nil), keysutil.EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
 		n++
 		return true, nil
 	}, true))
