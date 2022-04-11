@@ -237,7 +237,7 @@ func (s *client) doneError(requestID []byte, err error) {
 	id := hack.SliceToString(requestID)
 	if c, ok := s.inflights.Load(id); ok {
 		s.inflights.Delete(id)
-		c.(*Future).done(nil, nil, err)
+		c.(asyncCtx).f.done(nil, nil, err)
 	}
 }
 
