@@ -80,7 +80,7 @@ test-pb:
 .PHONY: test-storage
 test-storage:
 	$(GOTEST) $(PKGNAME)/storage/kv
-	$(GOTEST) $(PKGNAME)/storage/executor/simple
+	$(GOTEST) $(PKGNAME)/storage/executor
 
 .PHONY: test-snapshot
 test-snapshot:

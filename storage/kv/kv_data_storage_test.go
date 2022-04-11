@@ -22,17 +22,17 @@ import (
 	"github.com/fagongzi/util/format"
 	"github.com/fagongzi/util/protoc"
 	pvfs "github.com/lni/vfs"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/vfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -77,7 +77,7 @@ func TestSaveShardMetadataUpdatesLastAppliedIndex(t *testing.T) {
 				index, ok := kvd.mu.lastAppliedIndexes[m.ShardID]
 				assert.True(t, ok)
 				assert.Equal(t, m.LogIndex, index)
-				v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil))
+				v, err := kvd.base.Get(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil))
 				assert.NoError(t, err)
 				var logIndex metapb.LogIndex
 				protoc.MustUnmarshal(&logIndex, v)
@@ -227,7 +227,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			defer vfs.ReportLeakedFD(fs, t)
 			kv := getTestPebbleStorage(t, fs)
 			base := NewBaseStorage(kv, fs)
-			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(c.sample))
+			s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithSampleSync(c.sample))
 			defer func() {
 				require.NoError(t, fs.RemoveAll(testDir))
 			}()
@@ -238,7 +238,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 				var batch storage.Batch
 				batch.Index = uint64(i)
 				k := []byte(fmt.Sprintf("%d", i))
-				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
+				batch.Requests = append(batch.Requests, executor.NewWriteRequest(k, k))
 				ctx := storage.NewSimpleWriteContext(0, base, batch)
 				assert.NoError(t, s.Write(ctx), "index %d", i)
 			}
@@ -248,7 +248,7 @@ func TestGetPersistentLogIndex(t *testing.T) {
 			assert.Equal(t, c.appliedIndex, appliedIndex, "index %d", i)
 
 			kvd := s.(*kvDataStorage)
-			v, err := kvd.base.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil))
+			v, err := kvd.base.Get(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil))
 			assert.NoError(t, err)
 			var logIndex metapb.LogIndex
 			protoc.MustUnmarshal(&logIndex, v)
@@ -274,7 +274,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 			kv, err := pebble.NewStorage("test-data", nil, opts)
 			assert.NoError(t, err)
 			base := NewBaseStorage(kv, memfs)
-			s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))
+			s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithSampleSync(sample))
 			defer func() {
 				// to emulate a crash
 				memfs.(*pvfs.MemFS).SetIgnoreSyncs(true)
@@ -286,7 +286,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 				var batch storage.Batch
 				batch.Index = index
 				k := []byte(fmt.Sprintf("%d", 100))
-				batch.Requests = append(batch.Requests, simple.NewWriteRequest(k, k))
+				batch.Requests = append(batch.Requests, executor.NewWriteRequest(k, k))
 				ctx := storage.NewSimpleWriteContext(shardID, base, batch)
 				assert.NoError(t, s.Write(ctx))
 			}
@@ -339,7 +339,7 @@ func TestKVDataStorageRestartWithNotSyncedDataLost(t *testing.T) {
 		kv, err := pebble.NewStorage("test-data", nil, opts)
 		assert.NoError(t, err)
 		base := NewBaseStorage(kv, memfs)
-		s := NewKVDataStorage(base, simple.NewSimpleKVExecutor(base), WithSampleSync(sample))
+		s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithSampleSync(sample))
 		defer s.Close()
 		md, err := s.GetInitialStates()
 		assert.NoError(t, err)
@@ -363,32 +363,32 @@ func TestRemoveShard(t *testing.T) {
 	}()
 	defer ds.Close()
 
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false))
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), []byte{99}, false))
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false))
-	require.NoError(t, kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil), format.Uint64ToBytes(100), false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), []byte{99}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(1, 100, nil), nil), []byte{100}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{1}, nil), []byte{1}, false))
 
 	assert.NoError(t, ds.RemoveShard(metapb.Shard{ID: 1, End: []byte{2}}, false))
-	v, err := kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil))
+	v, err := kv.Get(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(1, nil), nil))
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	c := 0
-	require.NoError(t, kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(1, 200, nil), nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(1, 99, nil), nil), keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(1, 200, nil), nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false))
 	assert.Equal(t, 0, c)
 	c = 0
-	require.NoError(t, kv.Scan(EncodeShardStart(nil, nil), EncodeShardEnd([]byte{2}, nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(keysutil.EncodeShardStart(nil, nil), keysutil.EncodeShardEnd([]byte{2}, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false))
 	assert.Equal(t, 1, c)
 
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil), format.Uint64ToBytes(200), false))
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false))
-	require.NoError(t, kv.Set(EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false))
-	require.NoError(t, kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil), format.Uint64ToBytes(200), false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), []byte{199}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(2, 100, nil), nil), []byte{200}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{2}, nil), []byte{2}, false))
 	ds.(*kvDataStorage).mu.Lock()
 	ds.(*kvDataStorage).mu.lastAppliedIndexes[2] = 100
 	ds.(*kvDataStorage).mu.persistentAppliedIndexes[2] = 100
@@ -400,17 +400,17 @@ func TestRemoveShard(t *testing.T) {
 	assert.Equal(t, uint64(0), ds.(*kvDataStorage).mu.persistentAppliedIndexes[2])
 	ds.(*kvDataStorage).mu.RUnlock()
 
-	v, err = kv.Get(EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil))
+	v, err = kv.Get(keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(2, nil), nil))
 	assert.NoError(t, err)
 	assert.Empty(t, v)
 	c = 0
-	require.NoError(t, kv.Scan(EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), EncodeShardMetadataKey(keys.GetMetadataKey(2, 200, nil), nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(2, 99, nil), nil), keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(2, 200, nil), nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false))
 	assert.Equal(t, 0, c)
 	c = 0
-	require.NoError(t, kv.Scan(EncodeShardStart([]byte{2}, nil), EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
+	require.NoError(t, kv.Scan(keysutil.EncodeShardStart([]byte{2}, nil), keysutil.EncodeShardEnd(nil, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false))
@@ -429,9 +429,9 @@ func TestSplitCheck(t *testing.T) {
 	}()
 	defer ds.Close()
 
-	require.NoError(t, kv.Set(EncodeDataKey([]byte{1}, nil), []byte{1}, false))
-	require.NoError(t, kv.Set(EncodeDataKey([]byte{2}, nil), []byte{2}, false))
-	require.NoError(t, kv.Set(EncodeDataKey([]byte{3}, nil), []byte{3}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{1}, nil), []byte{1}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{2}, nil), []byte{2}, false))
+	require.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{3}, nil), []byte{3}, false))
 
 	size, keys, splitKeys, ctx, err := ds.SplitCheck(metapb.Shard{}, 100)
 	assert.NoError(t, err)
@@ -490,15 +490,15 @@ func TestSplitCheckWithSplitKeyFunc(t *testing.T) {
 	v := []byte("v")
 
 	// k 1, and has 1, 2, 3 version
-	assert.NoError(t, base.Set(EncodeDataKey(buf.Int2Bytes(1), nil), v, false)) // 5          bytes
-	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 1), nil), v, false))     // 5 +13 = 18 bytes
-	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 2), nil), v, false))     // 18+13 = 31 bytes
-	assert.NoError(t, base.Set(EncodeDataKey(encode(1, 3), nil), v, false))     // 31+13 = 44 bytes
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(buf.Int2Bytes(1), nil), v, false)) // 5          bytes
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(1, 1), nil), v, false))     // 5 +13 = 18 bytes
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(1, 2), nil), v, false))     // 18+13 = 31 bytes
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(1, 3), nil), v, false))     // 31+13 = 44 bytes
 	// k 2, and has 1, 2, 3 version
-	assert.NoError(t, base.Set(EncodeDataKey(buf.Int2Bytes(2), nil), v, false))
-	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 1), nil), v, false))
-	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 2), nil), v, false))
-	assert.NoError(t, base.Set(EncodeDataKey(encode(2, 3), nil), v, false))
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(buf.Int2Bytes(2), nil), v, false))
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(2, 1), nil), v, false))
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(2, 2), nil), v, false))
+	assert.NoError(t, base.Set(keysutil.EncodeDataKey(encode(2, 3), nil), v, false))
 
 	_, _, keys, _, err := ds.SplitCheck(metapb.Shard{}, 5)
 	assert.NoError(t, err)

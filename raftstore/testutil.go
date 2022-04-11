@@ -34,7 +34,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
@@ -863,7 +863,13 @@ func (kv *testKVClient) done(resp rpcpb.Response) {
 	defer kv.Unlock()
 
 	if c, ok := kv.doneCtx[string(resp.ID)]; ok {
-		c <- string(resp.Value)
+		if resp.CustomType == uint64(rpcpb.CmdKVGet) {
+			var v rpcpb.KVGetResponse
+			protoc.MustUnmarshal(&v, resp.Value)
+			c <- string(v.Value)
+		} else {
+			c <- "OK"
+		}
 	}
 }
 
@@ -905,7 +911,7 @@ func (kv *testKVClient) nextID() string {
 }
 
 func createTestWriteReq(id, k, v string) rpcpb.Request {
-	wr := simple.NewWriteRequest([]byte(k), []byte(v))
+	wr := executor.NewWriteRequest([]byte(k), []byte(v))
 
 	req := rpcpb.Request{}
 	req.ID = []byte(id)
@@ -917,13 +923,14 @@ func createTestWriteReq(id, k, v string) rpcpb.Request {
 }
 
 func createTestReadReq(id, k string) rpcpb.Request {
-	rr := simple.NewReadRequest([]byte(k))
+	rr := executor.NewReadRequest([]byte(k))
 
 	req := rpcpb.Request{}
 	req.ID = []byte(id)
 	req.CustomType = rr.CmdType
 	req.Type = rpcpb.Read
 	req.Key = rr.Key
+	req.Cmd = rr.Cmd
 	return req
 }
 
@@ -1139,7 +1146,7 @@ func (c *testRaftCluster) resetNode(node int, init bool) {
 			kvs = mem.NewStorage()
 		}
 		base := kv.NewBaseStorage(kvs, cfg.FS)
-		dataStorage = kv.NewKVDataStorage(base, simple.NewSimpleKVExecutor(kvs),
+		dataStorage = kv.NewKVDataStorage(base, executor.NewKVExecutor(kvs),
 			kv.WithLogger(cfg.Logger), kv.WithFeature(storage.Feature{
 				ShardSplitCheckDuration: time.Millisecond * 100,
 				ShardCapacityBytes:      c.opts.shardCapacityBytes,

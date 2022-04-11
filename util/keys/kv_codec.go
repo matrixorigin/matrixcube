@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License
 
-package kv
+package keys
 
 import (
 	"github.com/matrixorigin/matrixcube/util/buf"
@@ -56,28 +56,6 @@ func EncodeShardEnd(value []byte, buffer *buf.ByteBuf) []byte {
 // EncodeShardMetadataKey encode shard metadata key with metadata prefix
 func EncodeShardMetadataKey(key []byte, buffer *buf.ByteBuf) []byte {
 	return doAppendPrefix(key, metaPrefix, buffer)
-}
-
-// NextKey returns the next key of current key
-func NextKey(key []byte, buffer *buf.ByteBuf) []byte {
-	if len(key) == 0 {
-		return []byte{0}
-	}
-
-	if buffer == nil {
-		v := make([]byte, 1+len(key))
-		copy(v[0:], key)
-		return v
-	}
-
-	buffer.MarkWrite()
-	if _, err := buffer.Write(key); err != nil {
-		panic(err)
-	}
-	if err := buffer.WriteByte(0); err != nil {
-		panic(err)
-	}
-	return buffer.WrittenDataAfterMark().Data()
 }
 
 func doAppendPrefix(key []byte, prefix byte, buffer *buf.ByteBuf) []byte {

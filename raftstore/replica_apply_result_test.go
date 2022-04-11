@@ -19,7 +19,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	skv "github.com/matrixorigin/matrixcube/storage/kv"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,7 +39,7 @@ func TestApplySplit(t *testing.T) {
 	pr.stats.approximateKeys = 200
 
 	kv := pr.sm.dataStorage.(storage.KVStorageWrapper).GetKVStorage()
-	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte{1}, nil), []byte("v"), false))
+	assert.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte{1}, nil), []byte("v"), false))
 
 	result := splitResult{
 		newShards: []Shard{
@@ -88,7 +88,7 @@ func TestApplySplit(t *testing.T) {
 
 	pr = s.getReplica(1, false)
 	assert.Nil(t, pr)
-	v, err := kv.Get(skv.EncodeDataKey([]byte{1}, nil))
+	v, err := kv.Get(keysutil.EncodeDataKey([]byte{1}, nil))
 	assert.NoError(t, err)
 	assert.NotEmpty(t, v)
 }

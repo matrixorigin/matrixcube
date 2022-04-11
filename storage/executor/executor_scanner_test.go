@@ -1,11 +1,24 @@
+// Copyright 2022 MatrixOrigin.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package executor
 
 import (
 	"testing"
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
-	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,10 +31,10 @@ func TestScanner(t *testing.T) {
 	defer s.Close()
 
 	scanner := NewKVBasedDataStorageScanner(s)
-	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("a"), nil), []byte("a"), false))
-	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("b"), nil), []byte("b"), false))
-	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("c"), nil), []byte("c"), false))
-	assert.NoError(t, s.Set(kv.EncodeDataKey([]byte("d"), nil), []byte("d"), false))
+	assert.NoError(t, s.Set(keysutil.EncodeDataKey([]byte("a"), nil), []byte("a"), false))
+	assert.NoError(t, s.Set(keysutil.EncodeDataKey([]byte("b"), nil), []byte("b"), false))
+	assert.NoError(t, s.Set(keysutil.EncodeDataKey([]byte("c"), nil), []byte("c"), false))
+	assert.NoError(t, s.Set(keysutil.EncodeDataKey([]byte("d"), nil), []byte("d"), false))
 
 	cases := []struct {
 		shard           metapb.Shard

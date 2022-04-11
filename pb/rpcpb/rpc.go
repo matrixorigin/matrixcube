@@ -132,3 +132,9 @@ func (m *ResponseBatch) GetTransferLeaderResponse() TransferLeaderResponse {
 	protoc.MustUnmarshal(&req, m.GetAdminResponse().Value)
 	return req
 }
+
+// IsTransaction returns true if the request is transaction request
+func (m Request) IsTransaction() bool {
+	return uint64(CmdUpdateTxnRecord) <= m.CustomType &&
+		m.CustomType <= uint64(CmdCleanTxnMVCCData)
+}

@@ -21,9 +21,9 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	skv "github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/transport"
 	"github.com/matrixorigin/matrixcube/util"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
 	"github.com/matrixorigin/matrixcube/util/task"
 	"github.com/stretchr/testify/assert"
@@ -207,15 +207,15 @@ func TestVacuum(t *testing.T) {
 	defer cancel()
 	kv := s.DataStorageByGroup(0).(storage.KVStorageWrapper).GetKVStorage()
 	shard := Shard{Start: []byte("a"), End: []byte("b"), Replicas: []Replica{{ID: 1}, {ID: 2}}}
-	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a1"), nil), []byte("hello"), false))
-	assert.NoError(t, kv.Set(skv.EncodeDataKey([]byte("a2"), nil), []byte("hello"), false))
+	assert.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte("a1"), nil), []byte("hello"), false))
+	assert.NoError(t, kv.Set(keysutil.EncodeDataKey([]byte("a2"), nil), []byte("hello"), false))
 	assert.NoError(t, s.vacuum(vacuumTask{
 		shard:      shard,
 		removeData: true,
 	}))
 
 	c := 0
-	assert.NoError(t, kv.Scan(skv.EncodeShardStart(shard.Start, nil), skv.EncodeShardEnd(shard.End, nil), func(key, value []byte) (bool, error) {
+	assert.NoError(t, kv.Scan(keysutil.EncodeShardStart(shard.Start, nil), keysutil.EncodeShardEnd(shard.End, nil), func(key, value []byte) (bool, error) {
 		c++
 		return true, nil
 	}, false))

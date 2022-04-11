@@ -64,9 +64,10 @@ type KVStore interface {
 	ScanInViewWithOptions(view View, start, end []byte, handler func(key, value []byte) (NextIterOptions, error)) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
-	// Seek returns the first key-value pair that has the key component no less
-	// than the specified key.
-	Seek(key []byte) ([]byte, []byte, error)
+	// SeekLT returns the first key-value pair that the key >= target.
+	Seek(target []byte) ([]byte, []byte, error)
+	// SeekLT returns the last key-value pair that the key < target.
+	SeekLT(target []byte) ([]byte, []byte, error)
 	// Sync synchronize the storage's in-core state with that on disk.
 	Sync() error
 }

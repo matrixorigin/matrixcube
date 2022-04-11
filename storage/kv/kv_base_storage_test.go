@@ -22,7 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/keys"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/storage/kv/mem"
 	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/vfs"
@@ -88,7 +88,7 @@ func TestGetAppliedIndex(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := mem.NewStorage()
 	base := NewBaseStorage(kv, fs)
-	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
+	ds := NewKVDataStorage(base, executor.NewKVExecutor(kv))
 	defer ds.Close()
 	ctx := storage.NewSimpleWriteContext(100, kv, storage.Batch{Index: 200})
 	assert.NoError(t, ds.Write(ctx))
@@ -121,7 +121,7 @@ func TestGetShardMetadata(t *testing.T) {
 	defer vfs.ReportLeakedFD(fs, t)
 	kv := mem.NewStorage()
 	base := NewBaseStorage(kv, fs)
-	ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
+	ds := NewKVDataStorage(base, executor.NewKVExecutor(kv))
 	defer ds.Close()
 	sm1 := metapb.ShardMetadata{
 		ShardID:  100,
@@ -156,11 +156,11 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 	func() {
 		kv := mem.NewStorage()
 		base := NewBaseStorage(kv, fs)
-		ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
+		ds := NewKVDataStorage(base, executor.NewKVExecutor(kv))
 		defer ds.Close()
-		assert.NoError(t, base.Set(EncodeDataKey([]byte("bb"), nil), []byte("v"), false))
-		assert.NoError(t, base.Set(EncodeDataKey([]byte("mmm"), nil), []byte("vv"), false))
-		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("vvv"), false))
+		assert.NoError(t, base.Set(keysutil.EncodeDataKey([]byte("bb"), nil), []byte("v"), false))
+		assert.NoError(t, base.Set(keysutil.EncodeDataKey([]byte("mmm"), nil), []byte("vv"), false))
+		assert.NoError(t, base.Set(keysutil.EncodeDataKey([]byte("yy"), nil), []byte("vvv"), false))
 		shard := metapb.Shard{
 			ID:    shardID,
 			Start: []byte("aa"),
@@ -183,21 +183,21 @@ func TestCreateAndApplySnapshot(t *testing.T) {
 	func() {
 		kv := mem.NewStorage()
 		base := NewBaseStorage(kv, fs)
-		ds := NewKVDataStorage(base, simple.NewSimpleKVExecutor(kv))
+		ds := NewKVDataStorage(base, executor.NewKVExecutor(kv))
 		defer ds.Close()
-		assert.NoError(t, base.Set(EncodeDataKey([]byte("cc"), nil), []byte("vv"), false))
-		assert.NoError(t, base.Set(EncodeDataKey([]byte("yy"), nil), []byte("zzz"), false))
+		assert.NoError(t, base.Set(keysutil.EncodeDataKey([]byte("cc"), nil), []byte("vv"), false))
+		assert.NoError(t, base.Set(keysutil.EncodeDataKey([]byte("yy"), nil), []byte("zzz"), false))
 		assert.NoError(t, base.ApplySnapshot(shardID, dir))
-		v, err := base.Get(EncodeDataKey([]byte("cc"), nil))
+		v, err := base.Get(keysutil.EncodeDataKey([]byte("cc"), nil))
 		assert.NoError(t, err)
 		assert.Empty(t, v)
-		v, err = base.Get(EncodeDataKey([]byte("yy"), nil))
+		v, err = base.Get(keysutil.EncodeDataKey([]byte("yy"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("zzz"), v)
-		v, err = base.Get(EncodeDataKey([]byte("bb"), nil))
+		v, err = base.Get(keysutil.EncodeDataKey([]byte("bb"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("v"), v)
-		v, err = base.Get(EncodeDataKey([]byte("mmm"), nil))
+		v, err = base.Get(keysutil.EncodeDataKey([]byte("mmm"), nil))
 		assert.NoError(t, err)
 		assert.Equal(t, []byte("vv"), v)
 		view := base.GetView()

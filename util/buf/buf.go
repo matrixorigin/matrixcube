@@ -291,6 +291,15 @@ func (b *ByteBuf) MarkWrite() {
 	b.markedIndex = b.writerIndex
 }
 
+// ResetWrite use markindex to reset write index
+func (b *ByteBuf) ResetWrite() {
+	if b.markedIndex < 0 {
+		panic("invalid marked index")
+	}
+	b.writerIndex = b.markedIndex
+	b.markedIndex = -1
+}
+
 // WrittenDataAfterMark returns the data referance after mark write
 func (b *ByteBuf) WrittenDataAfterMark() Slice {
 	return Slice{b.markedIndex, b.writerIndex, b}
@@ -621,5 +630,33 @@ func (b *ByteBuf) Expansion(n int) {
 		b.writerIndex = offset
 		b.pool.Free(b.buf)
 		b.buf = newBuf
+	}
+}
+
+// MustWriteByte must write byte value
+func MustWriteByte(buffer *ByteBuf, value byte) {
+	if err := buffer.WriteByte(value); err != nil {
+		panic(err)
+	}
+}
+
+// MustWriteInt64 must write int64 value
+func MustWriteInt64(buffer *ByteBuf, value int64) {
+	if _, err := buffer.WriteInt64(value); err != nil {
+		panic(err)
+	}
+}
+
+// MustWriteUInt32 must write uint32 value
+func MustWriteUInt32(buffer *ByteBuf, value uint32) {
+	if _, err := buffer.WriteUInt32(value); err != nil {
+		panic(err)
+	}
+}
+
+// MustWrite must write bytes value
+func MustWrite(buffer *ByteBuf, value []byte) {
+	if _, err := buffer.Write(value); err != nil {
+		panic(err)
 	}
 }

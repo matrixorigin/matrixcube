@@ -44,6 +44,7 @@ type options struct {
 	sampleSync uint64
 	logger     *zap.Logger
 	feature    storage.Feature
+	resolver   TxnOperationKeysResolver
 }
 
 // WithSampleSync set sync sample interval. `Cube` will call the `GetPersistentLogIndex` method of `DataStorage` to obtain
@@ -67,6 +68,13 @@ func WithLogger(logger *zap.Logger) Option {
 func WithFeature(feature storage.Feature) Option {
 	return func(opts *options) {
 		opts.feature = feature
+	}
+}
+
+// WithTxnOperationKeysResolver set transaction operation keys resolver
+func WithTxnOperationKeysResolver(resolver TxnOperationKeysResolver) Option {
+	return func(opts *options) {
+		opts.resolver = resolver
 	}
 }
 
@@ -114,6 +122,10 @@ type kvDataStorage struct {
 		lastAppliedIndexes       map[uint64]uint64
 		persistentAppliedIndexes map[uint64]uint64
 	}
+
+	txn struct {
+		keysResolver TxnOperationKeysResolver
+	}
 }
 
 var _ storage.DataStorage = (*kvDataStorage)(nil)
@@ -127,13 +139,14 @@ func NewKVDataStorage(base storage.KVBaseStorage,
 		executor: executor,
 		opts:     newOptions(),
 	}
-	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
-	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
-
 	for _, opt := range opts {
 		opt(s.opts)
 	}
 	s.opts.adjust()
+
+	s.txn.keysResolver = s.opts.resolver
+	s.mu.lastAppliedIndexes = make(map[uint64]uint64)
+	s.mu.persistentAppliedIndexes = make(map[uint64]uint64)
 	return s
 }
 
@@ -153,7 +166,7 @@ func (kv *kvDataStorage) Write(ctx storage.WriteContext) error {
 
 	// append data key
 	for idx := range batch.Requests {
-		batch.Requests[idx].Key = EncodeDataKey(batch.Requests[idx].Key, ctx.(storage.InternalContext).ByteBuf())
+		batch.Requests[idx].Key = keysutil.EncodeDataKey(batch.Requests[idx].Key, ctx.(storage.InternalContext).ByteBuf())
 	}
 	if err := kv.executor.UpdateWriteBatch(ctx); err != nil {
 		return err
@@ -184,11 +197,11 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []metapb.ShardMetadata) err
 		if m.ShardID != m.Metadata.Shard.ID {
 			panic(fmt.Errorf("BUG: shard ID mismatch, %+v", m))
 		}
-		key := EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil)
+		key := keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(m.ShardID, m.LogIndex, nil), nil)
 		wb.Set(key, protoc.MustMarshal(&m))
 
 		logIndex := metapb.LogIndex{Index: m.LogIndex}
-		key = EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil)
+		key = keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(m.ShardID, nil), nil)
 		wb.Set(key, protoc.MustMarshal(&logIndex))
 		kv.mu.lastAppliedIndexes[m.ShardID] = m.LogIndex
 		if _, ok := seen[m.ShardID]; ok {
@@ -209,8 +222,8 @@ func (kv *kvDataStorage) SaveShardMetadata(metadatas []metapb.ShardMetadata) err
 func (kv *kvDataStorage) GetInitialStates() ([]metapb.ShardMetadata, error) {
 	// TODO: this assumes that all shards have applied index records saved.
 	// double check to make sure this is actually true.
-	min := EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil)
-	max := EncodeShardMetadataKey(keys.GetAppliedIndexKey(math.MaxUint64, nil), nil)
+	min := keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(0, nil), nil)
+	max := keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(math.MaxUint64, nil), nil)
 	var shards []uint64
 	var lastApplied []uint64
 	// find out all shards and their last applied indexes
@@ -240,8 +253,8 @@ func (kv *kvDataStorage) GetInitialStates() ([]metapb.ShardMetadata, error) {
 	// for each shard,
 	var values []metapb.ShardMetadata
 	for _, shard := range shards {
-		min := EncodeShardMetadataKey(keys.GetMetadataKey(shard, 0, nil), nil)
-		max := EncodeShardMetadataKey(keys.GetMetadataKey(shard, math.MaxUint64, nil), nil)
+		min := keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(shard, 0, nil), nil)
+		max := keysutil.EncodeShardMetadataKey(keys.GetMetadataKey(shard, math.MaxUint64, nil), nil)
 		var v []byte
 		var logIndex uint64
 		var err error
@@ -300,8 +313,8 @@ func (kv *kvDataStorage) RemoveShard(shard metapb.Shard, removeData bool) error 
 	// This is not an atomic operation, but it is idempotent, and the metadata is
 	// deleted afterwards, so the cleanup will not be lost.
 	if removeData {
-		min := EncodeShardStart(shard.Start, nil)
-		max := EncodeShardEnd(shard.End, nil)
+		min := keysutil.EncodeShardStart(shard.Start, nil)
+		max := keysutil.EncodeShardEnd(shard.End, nil)
 		kv.opts.logger.Debug("remove shard data",
 			log.ShardField("shard", shard),
 			log.HexField("from", min),
@@ -311,8 +324,8 @@ func (kv *kvDataStorage) RemoveShard(shard metapb.Shard, removeData bool) error 
 		}
 	}
 
-	min := EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID), nil)
-	max := EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID+1), nil)
+	min := keysutil.EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID), nil)
+	max := keysutil.EncodeShardMetadataKey(keys.GetRaftPrefix(shard.ID+1), nil)
 	kv.mu.Lock()
 	delete(kv.mu.lastAppliedIndexes, shard.ID)
 	delete(kv.mu.persistentAppliedIndexes, shard.ID)
@@ -332,8 +345,8 @@ func (kv *kvDataStorage) SplitCheck(shard metapb.Shard,
 	var splitKeys [][]byte
 
 	view := kv.base.GetView()
-	start := EncodeShardStart(shard.Start, nil)
-	end := EncodeShardEnd(shard.End, nil)
+	start := keysutil.EncodeShardStart(shard.Start, nil)
+	end := keysutil.EncodeShardEnd(shard.End, nil)
 	if err := kv.base.ScanInViewWithOptions(view, start, end, func(key, val []byte) (storage.NextIterOptions, error) {
 		opts := storage.NextIterOptions{}
 		if appendSplitKey {
@@ -344,7 +357,7 @@ func (kv *kvDataStorage) SplitCheck(shard metapb.Shard,
 				realSplitKey = keysutil.Clone(kv.opts.feature.SplitKeyAdjustFunc(key[1:]))
 				// split key changed
 				if !bytes.Equal(realSplitKey, key[1:]) {
-					opts.SeekGE = keysutil.NextKey(EncodeDataKey(realSplitKey, nil))
+					opts.SeekGE = keysutil.NextKey(keysutil.EncodeDataKey(realSplitKey, nil), nil)
 				}
 			}
 			splitKeys = append(splitKeys, realSplitKey)
@@ -380,7 +393,7 @@ func (kv *kvDataStorage) setAppliedIndexToWriteBatch(ctx storage.WriteContext, i
 	wb := r.(util.WriteBatch)
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	// TODO(fagongzi): avoid allocate for get applied index key
-	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(ctx.Shard().ID, nil), buffer)
+	key := keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(ctx.Shard().ID, nil), buffer)
 	val := protoc.MustMarshal(&metapb.LogIndex{Index: index})
 	wb.Set(key, val)
 }
@@ -421,7 +434,7 @@ func (kv *kvDataStorage) ApplySnapshot(shardID uint64, path string) error {
 	if err := kv.base.ApplySnapshot(shardID, path); err != nil {
 		return err
 	}
-	key := EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
+	key := keysutil.EncodeShardMetadataKey(keys.GetAppliedIndexKey(shardID, nil), nil)
 	v, err := kv.base.Get(key)
 	if err != nil {
 		return err
@@ -456,6 +469,6 @@ func (c readContext) Shard() metapb.Shard   { return c.base.Shard() }
 func (c readContext) SetReadBytes(v uint64) { c.base.SetReadBytes(v) }
 func (c readContext) Request() storage.Request {
 	req := c.base.Request()
-	req.Key = EncodeDataKey(req.Key, c.base.(storage.InternalContext).ByteBuf())
+	req.Key = keysutil.EncodeDataKey(req.Key, c.base.(storage.InternalContext).ByteBuf())
 	return req
 }

@@ -18,7 +18,6 @@ import (
 
 	"github.com/matrixorigin/matrixcube/util/buf"
 
-	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 )
 
@@ -84,21 +83,13 @@ func (ctx *writeContext) SetDiffBytes(value int64) {
 	ctx.diffBytes = value
 }
 
-func (ctx *writeContext) initialize(shard Shard, index uint64, batch rpcpb.RequestBatch) {
+func (ctx *writeContext) initialize(shard Shard, index uint64) {
 	ctx.buf.Clear()
 	ctx.shard = shard
 	ctx.batch = storage.Batch{Index: index}
 	ctx.responses = ctx.responses[:0]
 	ctx.writtenBytes = 0
 	ctx.diffBytes = 0
-
-	for _, r := range batch.Requests {
-		ctx.batch.Requests = append(ctx.batch.Requests, storage.Request{
-			CmdType: r.CustomType,
-			Key:     r.Key,
-			Cmd:     r.Cmd,
-		})
-	}
 }
 
 type readContext struct {

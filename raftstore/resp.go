@@ -25,8 +25,9 @@ func requestDoneWithReplicaRemoved(req rpcpb.Request, cb func(rpcpb.ResponseBatc
 
 func getResponse(req rpcpb.Request) rpcpb.Response {
 	return rpcpb.Response{
-		Type: req.Type,
-		ID:   req.ID,
-		PID:  req.PID,
+		Type:       req.Type,
+		CustomType: req.CustomType,
+		ID:         req.ID,
+		PID:        req.PID,
 	}
 }

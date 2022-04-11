@@ -15,6 +15,7 @@ package raftstore
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"sort"
 
@@ -427,36 +428,90 @@ func (d *stateMachine) doUpdateMetadata(ctx *applyContext) (rpcpb.ResponseBatch,
 }
 
 func (d *stateMachine) execWriteRequest(ctx *applyContext) rpcpb.ResponseBatch {
-	d.writeCtx.initialize(d.getShard(), ctx.index, ctx.req)
-	for _, req := range ctx.req.Requests {
+	d.writeCtx.initialize(d.getShard(), ctx.index)
+	requests := ctx.req.Requests
+	for idx := range requests {
 		if ce := d.logger.Check(zap.DebugLevel, "begin to execute write"); ce != nil {
-			ce.Write(log.HexField("id", req.ID),
+			ce.Write(log.HexField("id", requests[idx].ID),
 				log.ShardIDField(d.shardID),
 				log.ReplicaIDField(d.replica.ID),
 				log.IndexField(ctx.index))
 		}
+		if !requests[idx].IsTransaction() {
+			d.writeCtx.batch.Requests = append(d.writeCtx.batch.Requests, storage.Request{
+				CmdType: requests[idx].CustomType,
+				Key:     requests[idx].Key,
+				Cmd:     requests[idx].Cmd,
+			})
+			continue
+		}
+
+		d.execTransactionWrite(requests[idx], d.writeCtx)
 	}
+
 	if err := d.dataStorage.Write(d.writeCtx); err != nil {
-		d.logger.Fatal("failed to exec read cmd",
+		d.logger.Fatal("failed to exec write cmd",
 			zap.Error(err))
-	}
-	for _, req := range ctx.req.Requests {
-		if ce := d.logger.Check(zap.DebugLevel, "write completed"); ce != nil {
-			ce.Write(log.HexField("id", req.ID),
-				log.ShardIDField(d.shardID),
-				log.ReplicaIDField(d.replica.ID),
-				log.IndexField(ctx.index))
-		}
 	}
 
 	resp := rpcpb.ResponseBatch{}
-	for _, v := range d.writeCtx.responses {
+	customResponseIdx := 0
+	for idx := range requests {
+		if ce := d.logger.Check(zap.DebugLevel, "write completed"); ce != nil {
+			ce.Write(log.HexField("id", requests[idx].ID),
+				log.ShardIDField(d.shardID),
+				log.ReplicaIDField(d.replica.ID),
+				log.IndexField(ctx.index))
+		}
 		ctx.metrics.writtenKeys++
-		r := rpcpb.Response{Value: v}
+		r := rpcpb.Response{}
+		if !requests[idx].IsTransaction() {
+			r.Value = d.writeCtx.responses[customResponseIdx]
+			customResponseIdx++
+		}
 		resp.Responses = append(resp.Responses, r)
 	}
+
 	d.updateWriteMetrics()
 	return resp
+}
+
+func (d *stateMachine) execTransactionWrite(req rpcpb.Request, ctx storage.WriteContext) {
+	if d.transactionalDataStorage == nil {
+		d.logger.Fatal("can not handle transaction request.",
+			zap.String("data-storage", fmt.Sprintf("%T", d.dataStorage)))
+	}
+
+	switch rpcpb.InternalCmd(req.CustomType) {
+	case rpcpb.CmdUpdateTxnRecord:
+		if err := d.transactionalDataStorage.UpdateTxnRecord(req.UpdateTxnRecord.TxnRecord, ctx); err != nil {
+			d.logger.Fatal("failed to update txn record",
+				zap.Error(err))
+		}
+	case rpcpb.CmdDeleteTxnRecord:
+		if err := d.transactionalDataStorage.DeleteTxnRecord(req.DeleteTxnRecord.TxnRecordRouteKey, req.DeleteTxnRecord.TxnID, ctx); err != nil {
+			d.logger.Fatal("failed to delete txn record",
+				zap.Error(err))
+		}
+	case rpcpb.CmdCommitTxnData:
+		if err := d.transactionalDataStorage.CommitWrittenData(req.CommitTxnWriteData.OriginKey, req.CommitTxnWriteData.CommitTS, ctx); err != nil {
+			d.logger.Fatal("failed to commit txn write data",
+				zap.Error(err))
+		}
+	case rpcpb.CmdRollbackTxnData:
+		if err := d.transactionalDataStorage.RollbackWrittenData(req.RollbackTxnRecord.OriginKey, req.RollbackTxnRecord.Timestamp, ctx); err != nil {
+			d.logger.Fatal("failed to commit txn write data",
+				zap.Error(err))
+		}
+	case rpcpb.CmdCleanTxnMVCCData:
+		shard := d.getShard()
+		if err := d.transactionalDataStorage.CleanMVCCData(shard, req.CleanTxnMVCCData.Timestamp, ctx); err != nil {
+			d.logger.Fatal("failed to commit txn write data",
+				zap.Error(err))
+		}
+	default:
+		panic("not support")
+	}
 }
 
 func (d *stateMachine) updateWriteMetrics() {

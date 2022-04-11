@@ -22,7 +22,7 @@ import (
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/executor/simple"
+	"github.com/matrixorigin/matrixcube/storage/executor"
 	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/storage/kv/pebble"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
@@ -45,7 +45,7 @@ func TestStateMachineApplyContextCanBeInitialized(t *testing.T) {
 				ID:         []byte{100, 200, 200},
 				Type:       rpcpb.Write,
 				Key:        []byte{101, 202, 203},
-				CustomType: 100,
+				CustomType: uint64(rpcpb.CmdReserved) + 100,
 				Cmd:        []byte{200, 201, 202},
 			},
 		},
@@ -107,7 +107,7 @@ func runSimpleStateMachineTest(t *testing.T,
 	st, err := pebble.NewStorage("test-data", nil, opts)
 	require.NoError(t, err)
 	defer st.Close()
-	executor := simple.NewSimpleKVExecutor(st)
+	executor := executor.NewKVExecutor(st)
 	base := kv.NewBaseStorage(st, fs)
 	ds := kv.NewKVDataStorage(base, executor)
 	sm := newStateMachine(l, ds, nil, shard, Replica{ID: 100}, h, nil)
@@ -277,8 +277,8 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 					ID:         []byte{100, 200, 200},
 					Type:       rpcpb.Write,
 					Key:        key1,
-					CustomType: 1,
-					Cmd:        value1,
+					CustomType: uint64(rpcpb.CmdKVSet),
+					Cmd:        protoc.MustMarshal(&rpcpb.KVSetRequest{Key: key1, Value: value1}),
 				},
 			},
 		}
@@ -300,8 +300,8 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 					ID:         []byte{220, 230, 235},
 					Type:       rpcpb.Write,
 					Key:        key2,
-					CustomType: 1,
-					Cmd:        value2,
+					CustomType: uint64(rpcpb.CmdKVSet),
+					Cmd:        protoc.MustMarshal(&rpcpb.KVSetRequest{Key: key2, Value: value2}),
 				},
 			},
 		}
@@ -324,26 +324,27 @@ func TestStateMachineApplyNormalEntries(t *testing.T) {
 		assert.Equal(t, batch2.Header.ID, h.id)
 		assert.Equal(t, false, h.isConfChange)
 		require.Equal(t, 1, len(h.resp.Responses))
-		assert.Equal(t, []byte("OK"), h.resp.Responses[0].Value)
 
 		readContext := newReadContext()
 		sr := storage.Request{
 			Key:     key1,
-			CmdType: 2,
+			CmdType: uint64(rpcpb.CmdKVGet),
+			Cmd:     protoc.MustMarshal(&rpcpb.KVGetRequest{Key: key1}),
 		}
 		readContext.reset(sm.metadataMu.shard, sr)
 		data, err := sm.dataStorage.Read(readContext)
 		assert.NoError(t, err)
-		assert.Equal(t, value1, data)
+		assert.Equal(t, protoc.MustMarshal(&rpcpb.KVGetResponse{Value: value1}), data)
 
 		sr = storage.Request{
 			Key:     key2,
-			CmdType: 2,
+			CmdType: uint64(rpcpb.CmdKVGet),
+			Cmd:     protoc.MustMarshal(&rpcpb.KVGetRequest{Key: key2}),
 		}
 		readContext.reset(sm.metadataMu.shard, sr)
 		data, err = sm.dataStorage.Read(readContext)
 		assert.NoError(t, err)
-		assert.Equal(t, value2, data)
+		assert.Equal(t, protoc.MustMarshal(&rpcpb.KVGetResponse{Value: value2}), data)
 	}
 	runSimpleStateMachineTest(t, f, h)
 }

@@ -1,3 +1,16 @@
+// Copyright 2022 MatrixOrigin.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package executor
 
 import (
@@ -6,8 +19,8 @@ import (
 
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/storage"
-	"github.com/matrixorigin/matrixcube/storage/kv"
 	"github.com/matrixorigin/matrixcube/util/buf"
+	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 )
 
 var emptyFilterFunc = func(v []byte) bool {
@@ -156,13 +169,13 @@ func (s *kvBasedDataStorageScanner) Scan(shard metapb.Shard, handler func(key, v
 		defer buffer.Release()
 	}
 
-	start := kv.EncodeShardStart(opts.startKey, buffer)
-	end := kv.EncodeShardEnd(opts.endKey, buffer)
+	start := keysutil.EncodeShardStart(opts.startKey, buffer)
+	end := keysutil.EncodeShardEnd(opts.endKey, buffer)
 	n := uint64(0)
 	bytes := uint64(0)
 	skipByLimit := false
 	err := s.kv.ScanInView(view, start, end, func(key, value []byte) (bool, error) {
-		originKey := kv.DecodeDataKey(key)
+		originKey := keysutil.DecodeDataKey(key)
 		if opts.filterFunc(originKey) {
 			err := handler(originKey, value)
 			if err != nil {

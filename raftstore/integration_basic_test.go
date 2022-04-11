@@ -26,6 +26,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSingleClusterReadAndWrite(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+
+	c := NewSingleTestClusterStore(t)
+	c.Start()
+	defer c.Stop()
+
+	c.WaitShardByCountPerNode(1, testWaitTimeout)
+	c.CheckShardCount(1)
+
+	kv := c.CreateTestKVClient(0)
+	assert.NoError(t, kv.Set("k1", "v1", testWaitTimeout))
+	v, err := kv.Get("k1", testWaitTimeout)
+	assert.NoError(t, err)
+	assert.Equal(t, "v1", v)
+}
+
 func TestAdvertiseAddr(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode.")

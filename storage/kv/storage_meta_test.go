@@ -204,6 +204,40 @@ func TestSeek(t *testing.T) {
 	}
 }
 
+func TestSeekLT(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(fs, t)
+			defer s.Close()
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+
+			key2 := []byte("k2")
+			value2 := []byte("v2")
+
+			key3 := []byte("k3")
+			value3 := []byte("v3")
+
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key2, value2, false))
+			require.NoError(t, s.Set(key3, value3, false))
+
+			key, value, err := s.SeekLT(key3)
+			assert.NoError(t, err)
+			assert.Equal(t, string(key2), string(key))
+			assert.Equal(t, string(value2), string(value))
+
+			key, value, err = s.SeekLT(key1)
+			assert.NoError(t, err)
+			assert.Empty(t, key)
+			assert.Empty(t, value)
+		})
+	}
+}
+
 // Deprecated: test case
 func TestPrefixScan(t *testing.T) {
 	defer leaktest.AfterTest(t)()

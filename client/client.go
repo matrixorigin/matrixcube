@@ -29,19 +29,19 @@ import (
 )
 
 // Option client option
-type Option func(*Future)
+type Option func(*rpcpb.Request)
 
 // WithShardGroup set shard group to execute the request
 func WithShardGroup(group uint64) Option {
-	return func(c *Future) {
-		c.req.Group = group
+	return func(req *rpcpb.Request) {
+		req.Group = group
 	}
 }
 
 // WithRouteKey use the specified key to route request
 func WithRouteKey(key []byte) Option {
-	return func(c *Future) {
-		c.req.Key = key
+	return func(req *rpcpb.Request) {
+		req.Key = key
 	}
 }
 
@@ -50,105 +50,22 @@ func WithRouteKey(key []byte) Option {
 // to re-route according to KeysRange after the data management scope of the Shard has
 // changed, or if it returns the specified error.
 func WithKeysRange(from, to []byte) Option {
-	return func(c *Future) {
-		c.req.KeysRange = &rpcpb.Range{From: from, To: to}
+	return func(req *rpcpb.Request) {
+		req.KeysRange = &rpcpb.Range{From: from, To: to}
 	}
 }
 
 // WithShard use the specified shard to route request
 func WithShard(shard uint64) Option {
-	return func(c *Future) {
-		c.req.ToShard = shard
+	return func(req *rpcpb.Request) {
+		req.ToShard = shard
 	}
 }
 
 // WithReplicaSelectPolicy set the ReplicaSelectPolicy for request, default is SelectLeader
 func WithReplicaSelectPolicy(policy rpcpb.ReplicaSelectPolicy) Option {
-	return func(f *Future) {
-		f.req.ReplicaSelectPolicy = policy
-	}
-}
-
-// Future is used to obtain response data synchronously.
-type Future struct {
-	txnResponse txnpb.TxnBatchResponse
-	value       []byte
-	err         error
-	req         rpcpb.Request
-	ctx         context.Context
-	c           chan struct{}
-
-	mu struct {
-		sync.Mutex
-		closed bool
-	}
-}
-
-func newFuture(ctx context.Context, req rpcpb.Request) *Future {
-	return &Future{
-		ctx: ctx,
-		req: req,
-		c:   make(chan struct{}, 1),
-	}
-}
-
-// Get get the response data synchronously, blocking until `context.Done` or the response is received.
-// This method cannot be called more than once. After calling `Get`, `Close` must be called to close
-// `Future`.
-func (f *Future) Get() ([]byte, error) {
-	select {
-	case <-f.ctx.Done():
-		return nil, f.ctx.Err()
-	case <-f.c:
-		return f.value, f.err
-	}
-}
-
-// GetTxn get the txn response data synchronously, blocking until `context.Done` or the response is received.
-// This method cannot be called more than once. After calling `Get`, `Close` must be called to close
-// `Future`.
-func (f *Future) GetTxn() (txnpb.TxnBatchResponse, error) {
-	select {
-	case <-f.ctx.Done():
-		return f.txnResponse, f.ctx.Err()
-	case <-f.c:
-		return f.txnResponse, f.err
-	}
-}
-
-// Close close the future.
-func (f *Future) Close() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	close(f.c)
-	f.mu.closed = true
-}
-
-func (f *Future) canRetry() bool {
-	select {
-	case <-f.ctx.Done():
-		return false
-	default:
-		return true
-	}
-}
-
-func (f *Future) done(value []byte, txnRespopnse *txnpb.TxnBatchResponse, err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if !f.mu.closed {
-		if txnRespopnse != nil {
-			f.txnResponse = *txnRespopnse
-		}
-		f.value = value
-		f.err = err
-		select {
-		case f.c <- struct{}{}:
-		default:
-			panic("BUG")
-		}
+	return func(req *rpcpb.Request) {
+		req.ReplicaSelectPolicy = policy
 	}
 }
 
@@ -254,18 +171,18 @@ func (s *client) AddLabelToShard(ctx context.Context, name, value string, shard 
 }
 
 func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, cmdType rpcpb.CmdType, txnRequest *txnpb.TxnBatchRequest, opts ...Option) *Future {
+	f := newFuture(ctx)
+
 	req := rpcpb.Request{}
 	req.ID = uuid.NewV4().Bytes()
 	req.Type = cmdType
 	req.CustomType = requestType
 	req.Cmd = payload
 	req.TxnBatchRequest = txnRequest
-
-	f := newFuture(ctx, req)
 	for _, opt := range opts {
-		opt(f)
+		opt(&req)
 	}
-	s.inflights.Store(hack.SliceToString(f.req.ID), f)
+	s.inflights.Store(hack.SliceToString(req.ID), asyncCtx{f: f, req: req})
 
 	if len(req.Key) > 0 && req.ToShard > 0 {
 		s.logger.Fatal("route with key and route with shard cannot be set at the same time")
@@ -278,7 +195,7 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 		ce.Write(log.RequestIDField(req.ID))
 	}
 
-	if err := s.shardsProxy.Dispatch(f.req); err != nil {
+	if err := s.shardsProxy.Dispatch(req); err != nil {
 		f.done(nil, nil, err)
 	}
 	return f
@@ -286,10 +203,10 @@ func (s *client) exec(ctx context.Context, requestType uint64, payload []byte, c
 
 func (s *client) Retry(requestID []byte) (rpcpb.Request, bool) {
 	id := hack.SliceToString(requestID)
-	if c, ok := s.inflights.Load(id); ok {
-		f := c.(*Future)
-		if f.canRetry() {
-			return f.req, true
+	if v, ok := s.inflights.Load(id); ok {
+		c := v.(asyncCtx)
+		if c.f.canRetry() {
+			return c.req, true
 		}
 	}
 
@@ -304,7 +221,7 @@ func (s *client) done(resp rpcpb.Response) {
 	id := hack.SliceToString(resp.ID)
 	if c, ok := s.inflights.Load(hack.SliceToString(resp.ID)); ok {
 		s.inflights.Delete(id)
-		c.(*Future).done(resp.Value, resp.TxnBatchResponse, nil)
+		c.(asyncCtx).f.done(resp.Value, resp.TxnBatchResponse, nil)
 	} else {
 		if ce := s.logger.Check(zap.DebugLevel, "response skipped"); ce != nil {
 			ce.Write(log.RequestIDField(resp.ID), log.ReasonField("missing ctx"))
@@ -320,6 +237,11 @@ func (s *client) doneError(requestID []byte, err error) {
 	id := hack.SliceToString(requestID)
 	if c, ok := s.inflights.Load(id); ok {
 		s.inflights.Delete(id)
-		c.(*Future).done(nil, nil, err)
+		c.(asyncCtx).f.done(nil, nil, err)
 	}
+}
+
+type asyncCtx struct {
+	f   *Future
+	req rpcpb.Request
 }

@@ -218,7 +218,7 @@ func (m *KeySet) GetKeyRange() ([]byte, []byte) {
 	var min, max []byte
 	if len(m.PointKeys) > 0 {
 		min = m.PointKeys[0]
-		max = keys.NextKey(m.PointKeys[len(m.PointKeys)-1])
+		max = keys.NextKey(m.PointKeys[len(m.PointKeys)-1], nil)
 	}
 
 	if len(m.Ranges) > 0 {
@@ -231,6 +231,26 @@ func (m *KeySet) GetKeyRange() ([]byte, []byte) {
 		}
 	}
 	return min, max
+}
+
+// IsEmpty returns true if has no conflict
+func (m TxnConflictData) IsEmpty() bool {
+	return m.WithCommitted.IsEmpty() && m.WithUncommitted.IsEmpty()
+}
+
+// ConflictWithUncommitted return true if conflict with uncommitted
+func (m TxnConflictData) ConflictWithUncommitted() bool {
+	return !m.WithUncommitted.IsEmpty()
+}
+
+// ConflictWithCommitted return true if conflict with committed
+func (m TxnConflictData) ConflictWithCommitted() bool {
+	return !m.WithCommitted.IsEmpty()
+}
+
+// IsEmpty returns true if uncommitted mvcc metadata is empty
+func (m TxnUncommittedMVCCMetadata) IsEmpty() bool {
+	return m.Timestamp.IsEmpty()
 }
 
 // NewReadOperation returns the read operation

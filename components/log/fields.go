@@ -276,6 +276,9 @@ func appendRaftResponse(resp *rpcpb.Response, info *bytes.Buffer, first bool) {
 	info.WriteString(", type: ")
 	info.WriteString(resp.Type.String())
 
+	info.WriteString(", custom-type: ")
+	info.WriteString(format.Uint64ToString(resp.CustomType))
+
 	appendError(resp.Error, info)
 
 	info.WriteString(", value: ")
