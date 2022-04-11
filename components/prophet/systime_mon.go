@@ -25,16 +25,18 @@ import (
 func StartMonitor(ctx context.Context, now func() time.Time, systimeErrHandler func(), logger *zap.Logger) {
 	logger = log.Adjust(logger)
 	logger.Info("start system time monitor")
-	tick := time.NewTicker(100 * time.Millisecond)
-	defer tick.Stop()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	last := now()
 	for {
-		last := now().UnixNano()
 		select {
-		case <-tick.C:
-			if now().UnixNano() < last {
+		case <-ticker.C:
+			if t := now(); t.Before(last) {
 				logger.Error("system time jump backward",
-					zap.Int64("last", last))
+					zap.Time("last", last))
 				systimeErrHandler()
+			} else {
+				last = t
 			}
 		case <-ctx.Done():
 			return
