@@ -28,14 +28,16 @@ var (
 	TxnRecordKeyType = TxnKeyType(1)
 	// TxnNextScanKeyType next scanKey
 	TxnNextScanKeyType = TxnKeyType(5)
-	// TxnOriginKeyType origin key type
+	// TxnOriginKeyType origin key type, it's only a define, will never exist in the official records
 	TxnOriginKeyType = TxnKeyType(255)
 )
 
 // EncodeTxnRecordKey encode TxnRecordKey = dataPrefix + txnRecordRouteKey + txnRecordKeyType + txnID + len(txnID)
-func EncodeTxnRecordKey(txnRecordRouteKey []byte, txnID []byte, buffer *buf.ByteBuf) []byte {
+func EncodeTxnRecordKey(txnRecordRouteKey []byte, txnID []byte, buffer *buf.ByteBuf, withDataPrefix bool) []byte {
 	buffer.MarkWrite()
-	mustWriteByte(buffer, dataPrefix)
+	if withDataPrefix {
+		mustWriteByte(buffer, dataPrefix)
+	}
 	mustWrite(buffer, txnRecordRouteKey)
 	mustWriteByte(buffer, byte(TxnRecordKeyType))
 	mustWrite(buffer, txnID)
@@ -44,18 +46,22 @@ func EncodeTxnRecordKey(txnRecordRouteKey []byte, txnID []byte, buffer *buf.Byte
 }
 
 // TxnNextScanKey next scan key
-func TxnNextScanKey(originKey []byte, buffer *buf.ByteBuf) []byte {
+func TxnNextScanKey(originKey []byte, buffer *buf.ByteBuf, withDataPrefix bool) []byte {
 	buffer.MarkWrite()
-	mustWriteByte(buffer, dataPrefix)
+	if withDataPrefix {
+		mustWriteByte(buffer, dataPrefix)
+	}
 	mustWrite(buffer, originKey)
 	mustWriteByte(buffer, byte(TxnNextScanKeyType))
 	return buffer.WrittenDataAfterMark().Data()
 }
 
-// EncodeTxnMVCCKey encode TxnMVCCKey = originKey + txnMVCCKeyType + timestamp + len(timestamp)
-func EncodeTxnMVCCKey(originKey []byte, timestamp hlcpb.Timestamp, buffer *buf.ByteBuf) []byte {
+// EncodeTxnMVCCKey encode TxnMVCCKey = dataPrefix + originKey + txnMVCCKeyType + timestamp + len(timestamp)
+func EncodeTxnMVCCKey(originKey []byte, timestamp hlcpb.Timestamp, buffer *buf.ByteBuf, withDataPrefix bool) []byte {
 	buffer.MarkWrite()
-	mustWriteByte(buffer, dataPrefix)
+	if withDataPrefix {
+		mustWriteByte(buffer, dataPrefix)
+	}
 	mustWrite(buffer, originKey)
 	mustWriteByte(buffer, byte(TxnMVCCKeyType))
 	mustWriteInt64(buffer, timestamp.PhysicalTime)

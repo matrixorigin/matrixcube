@@ -297,3 +297,85 @@ func TestScanInViewWithOptions(t *testing.T) {
 		assert.Equal(t, c.expectKeys, keys, "idx %d", idx)
 	}
 }
+
+func TestReverseScanInViewWithOptions(t *testing.T) {
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := mem.NewStorage()
+	base := NewBaseStorage(kv, fs)
+	defer func() {
+		assert.NoError(t, base.Close())
+	}()
+
+	for i := 0; i < 5; i++ {
+		k := []byte(fmt.Sprintf("k%d", i))
+		assert.NoError(t, base.Set(k, k, false))
+	}
+
+	cases := []struct {
+		from, to   []byte
+		options    storage.NextIterOptions
+		expectKeys [][]byte
+	}{
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			expectKeys: [][]byte{[]byte("k4"), []byte("k3"), []byte("k2"), []byte("k1"), []byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k6"),
+			expectKeys: [][]byte{[]byte("k4"), []byte("k3"), []byte("k2"), []byte("k1"), []byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{Stop: true},
+			expectKeys: [][]byte{[]byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekLT: []byte("k3")},
+			expectKeys: [][]byte{[]byte("k4"), []byte("k2"), []byte("k1"), []byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekLT: []byte("k0")},
+			expectKeys: [][]byte{[]byte("k4")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekGE: []byte("k1")},
+			expectKeys: [][]byte{[]byte("k4"), []byte("k1"), []byte("k0")},
+		},
+		{
+			from:       []byte("k0"),
+			to:         []byte("k5"),
+			options:    storage.NextIterOptions{SeekGE: []byte("k0")},
+			expectKeys: [][]byte{[]byte("k4"), []byte("k0")},
+		},
+	}
+
+	view := base.GetView()
+	defer func() {
+		assert.NoError(t, view.Close())
+	}()
+
+	for idx, c := range cases {
+		var keys [][]byte
+		n := 0
+		err := base.ReverseScanInViewWithOptions(view, c.from, c.to, func(key, value []byte) (storage.NextIterOptions, error) {
+			keys = append(keys, keysutil.Clone(key))
+			if n == 0 {
+				n++
+				return c.options, nil
+			}
+			return storage.NextIterOptions{}, nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, c.expectKeys, keys, "idx %d", idx)
+	}
+}

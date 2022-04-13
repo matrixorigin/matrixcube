@@ -62,6 +62,8 @@ type KVStore interface {
 	// and Value passed to the handler are unsafe and will only be in effect for the current call.
 	// To save them, the caller needs to copy the values.
 	ScanInViewWithOptions(view View, start, end []byte, handler func(key, value []byte) (NextIterOptions, error)) error
+	// ReverseScanInViewWithOptions is silimar to ScanInViewWithOptions, but perform reverse Scan
+	ReverseScanInViewWithOptions(view View, start, end []byte, handler func(key, value []byte) (NextIterOptions, error)) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
 	// SeekLT returns the first key-value pair that the key >= target.

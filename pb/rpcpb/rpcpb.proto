@@ -516,6 +516,8 @@ enum InternalCmd {
     CmdKVRangeDelete    = 206;
     // CmdKVScan kv scan command, read type
     CmdKVScan           = 207;
+    // CmdKVBatchMixedWrite mixed all kv write request
+    CmdKVBatchMixedWrite = 208;
     // CmdReserved cube reserved cmd type value, all custom cmd type read and 
     // write cmd type can not use the value below the reserved value.
     CmdReserved       = 1000;
@@ -836,4 +838,31 @@ message KVScanResponse {
     bool     completed    = 4;
     // ShardEnd shard end key
     bytes    shardEnd     = 5;
+}
+
+
+// KVBatchMixedWriteRequest kv batch MixedWrite requests
+message KVBatchMixedWriteRequest {
+    repeated KVMixedWriteRequest requests = 1 [(gogoproto.nullable) = false];
+}
+
+// KVBatchMixedWriteResponse kv batch MixedWrite responses
+message KVBatchMixedWriteResponse {
+    repeated KVMixedWriteResponse responses = 2 [(gogoproto.nullable) = false];
+}
+
+// KVMixedWriteRequest mixed requests
+message KVMixedWriteRequest {
+    uint64               cmdType     = 1;
+    KVSetRequest         set         = 2 [(gogoproto.nullable) = false];
+    KVDeleteRequest      delete      = 3 [(gogoproto.nullable) = false];
+    KVRangeDeleteRequest rangeDelete = 4 [(gogoproto.nullable) = false];
+}
+
+// KVMixedWriteResponse mixed response
+message KVMixedWriteResponse {
+    uint64               cmdType     = 1;
+    KVSetRequest         set         = 2 [(gogoproto.nullable) = false];
+    KVDeleteRequest      delete      = 3 [(gogoproto.nullable) = false];
+    KVRangeDeleteRequest rangeDelete = 4 [(gogoproto.nullable) = false];
 }

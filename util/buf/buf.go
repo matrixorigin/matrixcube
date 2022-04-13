@@ -340,6 +340,11 @@ func (b *ByteBuf) Readable() int {
 	return b.writerIndex - b.readerIndex
 }
 
+// ReadableBytes returns the readable bytes
+func (b *ByteBuf) ReadableBytes() []byte {
+	return b.buf[b.readerIndex:b.writerIndex]
+}
+
 // ReadByte read a byte from buf
 // return byte value, error
 func (b *ByteBuf) ReadByte() (byte, error) {

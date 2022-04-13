@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/fagongzi/util/protoc"
+	"github.com/matrixorigin/matrixcube/pb/hlcpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
@@ -334,6 +335,12 @@ func (t *testDataStorage) GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, t
 }
 func (t *testDataStorage) GetCommitted(originKey []byte, timestamp hlc.Timestamp) (exist bool, data []byte, err error) {
 	return false, nil, nil
+}
+func (t *testDataStorage) Get(originKey []byte, timestamp hlcpb.Timestamp) ([]byte, error) {
+	return nil, nil
+}
+func (t *testDataStorage) Scan(startOriginKey, endOriginKey []byte, timestamp hlcpb.Timestamp, filter storage.UncommittedFilter, handler func(key, value []byte) (bool, error)) error {
+	return nil
 }
 func (t *testDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (txnpb.TxnConflictData, error) {
 	return txnpb.TxnConflictData{}, nil

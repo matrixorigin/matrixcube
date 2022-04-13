@@ -26,12 +26,27 @@ import (
 	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 )
 
+var (
+	setResponse             = protoc.MustMarshal(&rpcpb.KVSetResponse{})
+	batchSetResponse        = protoc.MustMarshal(&rpcpb.KVBatchSetResponse{})
+	deleteResponse          = protoc.MustMarshal(&rpcpb.KVDeleteResponse{})
+	batchDeleteResponse     = protoc.MustMarshal(&rpcpb.KVBatchDeleteResponse{})
+	rangeDeleteResponse     = protoc.MustMarshal(&rpcpb.KVRangeDeleteResponse{})
+	batchMixedWriteResponse = protoc.MustMarshal(&rpcpb.KVMixedWriteResponse{})
+
+	emptyGetResponse = protoc.MustMarshal(&rpcpb.KVGetRequest{})
+)
+
 func handleSet(shard metapb.Shard, cmd []byte, wb util.WriteBatch, buffer *buf.ByteBuf, kvStore storage.KVStorage) (KVWriteCommandResult, error) {
 	defer buffer.ResetWrite()
 
 	var req rpcpb.KVSetRequest
 	protoc.MustUnmarshal(&req, cmd)
 
+	return doHandleSet(shard, req, wb, buffer, kvStore)
+}
+
+func doHandleSet(shard metapb.Shard, req rpcpb.KVSetRequest, wb util.WriteBatch, buffer *buf.ByteBuf, kvStore storage.KVStorage) (KVWriteCommandResult, error) {
 	k := keysutil.EncodeDataKey(req.Key, buffer)
 	wb.Set(k, req.Value)
 	changed := len(k) + len(req.Value)
@@ -68,6 +83,10 @@ func handleDelete(shard metapb.Shard, cmd []byte, wb util.WriteBatch, buffer *bu
 	var req rpcpb.KVDeleteRequest
 	protoc.MustUnmarshal(&req, cmd)
 
+	return doHandleDelete(shard, req, wb, buffer, kvStore)
+}
+
+func doHandleDelete(shard metapb.Shard, req rpcpb.KVDeleteRequest, wb util.WriteBatch, buffer *buf.ByteBuf, kvStore storage.KVStorage) (KVWriteCommandResult, error) {
 	k := keysutil.EncodeDataKey(req.Key, buffer)
 	wb.Delete(k)
 	changed := len(k)
@@ -104,6 +123,10 @@ func handleRangeDelete(shard metapb.Shard, cmd []byte, wb util.WriteBatch, buffe
 	var req rpcpb.KVRangeDeleteRequest
 	protoc.MustUnmarshal(&req, cmd)
 
+	return doHandleRangeDelete(shard, req, wb, buffer, kvStore)
+}
+
+func doHandleRangeDelete(shard metapb.Shard, req rpcpb.KVRangeDeleteRequest, wb util.WriteBatch, buffer *buf.ByteBuf, kvStore storage.KVStorage) (KVWriteCommandResult, error) {
 	from := keysutil.EncodeShardStart(req.Start, buffer)
 	to := keysutil.EncodeShardEnd(req.End, buffer)
 	wb.DeleteRange(from, to)
@@ -251,4 +274,34 @@ func handleScan(shard metapb.Shard, cmd []byte, buffer *buf.ByteBuf, kvStore sto
 		ReadBytes: bytes,
 		Response:  protoc.MustMarshal(&resp),
 	}, nil
+}
+
+func handleBatchMixedWrite(shard metapb.Shard, cmd []byte, wb util.WriteBatch, buffer *buf.ByteBuf, kvStore storage.KVStorage) (KVWriteCommandResult, error) {
+	defer buffer.ResetWrite()
+
+	var req rpcpb.KVBatchMixedWriteRequest
+	protoc.MustUnmarshal(&req, cmd)
+
+	var mixedResult KVWriteCommandResult
+	for idx := range req.Requests {
+		var result KVWriteCommandResult
+		var err error
+		switch rpcpb.InternalCmd(req.Requests[idx].CmdType) {
+		case rpcpb.CmdKVSet:
+			result, err = doHandleSet(shard, req.Requests[idx].Set, wb, buffer, kvStore)
+		case rpcpb.CmdKVDelete:
+			result, err = doHandleDelete(shard, req.Requests[idx].Delete, wb, buffer, kvStore)
+		case rpcpb.CmdKVRangeDelete:
+			result, err = doHandleRangeDelete(shard, req.Requests[idx].RangeDelete, wb, buffer, kvStore)
+		}
+
+		if err != nil {
+			return mixedResult, err
+		}
+		mixedResult.DiffBytes += result.DiffBytes
+		mixedResult.WrittenBytes += mixedResult.WrittenBytes
+	}
+
+	mixedResult.Response = batchMixedWriteResponse
+	return mixedResult, nil
 }

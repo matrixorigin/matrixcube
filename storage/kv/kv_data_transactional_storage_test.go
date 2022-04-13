@@ -14,17 +14,17 @@
 package kv
 
 import (
+	"bytes"
 	"testing"
 
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/hlcpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/txnpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/storage/executor"
-	"github.com/matrixorigin/matrixcube/util/buf"
 	keysutil "github.com/matrixorigin/matrixcube/util/keys"
 	"github.com/matrixorigin/matrixcube/util/leaktest"
+	"github.com/matrixorigin/matrixcube/util/testutil"
 	"github.com/matrixorigin/matrixcube/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,7 +112,7 @@ func TestCommitWrittenDataWithSameTimestamp(t *testing.T) {
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
 	originKey := []byte("key")
 
-	addTestUncommittedMVCCRecord(t, base, originKey, []byte{1}, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 10)
 	assert.NoError(t, ts.CommitWrittenData(originKey, getTestTimestamp(10), ctx))
 	assert.NoError(t, ts.Write(ctx))
 
@@ -147,7 +147,7 @@ func TestCommitWrittenDataWithHighTimestamp(t *testing.T) {
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
 	originKey := []byte("key")
 
-	addTestUncommittedMVCCRecord(t, base, originKey, []byte{1}, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 10)
 	assert.NoError(t, ts.CommitWrittenData(originKey, getTestTimestamp(11), ctx))
 	assert.NoError(t, ts.Write(ctx))
 
@@ -182,7 +182,7 @@ func TestCommitWrittenDataWithLowTimestamp(t *testing.T) {
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
 	originKey := []byte("key")
 
-	addTestUncommittedMVCCRecord(t, base, originKey, []byte{1}, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 10)
 	assert.Error(t, ts.CommitWrittenData(originKey, getTestTimestamp(9), ctx))
 }
 
@@ -223,7 +223,7 @@ func TestRollbackWrittenData(t *testing.T) {
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
 	originKey := []byte("key")
 
-	addTestUncommittedMVCCRecord(t, base, originKey, []byte{1}, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 10)
 	assert.NoError(t, ts.RollbackWrittenData(originKey, getTestTimestamp(10), ctx))
 	assert.NoError(t, ts.Write(ctx))
 
@@ -245,7 +245,7 @@ func TestRollbackWrittenDataWithOtherTimestamp(t *testing.T) {
 	ts := s.(storage.TransactionalDataStorage)
 	originKey := []byte("key")
 
-	addTestUncommittedMVCCRecord(t, base, originKey, []byte{1}, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 10)
 
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
 	assert.NoError(t, ts.RollbackWrittenData(originKey, getTestTimestamp(11), ctx))
@@ -268,7 +268,7 @@ func TestCleanMVCCData(t *testing.T) {
 
 	ts := s.(storage.TransactionalDataStorage)
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k1"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), i)
 	}
 
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
@@ -295,9 +295,9 @@ func TestCleanMVCCDataWithUncommittedData(t *testing.T) {
 	defer s.Close()
 
 	ts := s.(storage.TransactionalDataStorage)
-	addTestUncommittedMVCCRecord(t, base, []byte("k1"), []byte{1}, 1)
+	testutil.AddTestUncommittedMVCCRecord(t, base, []byte("k1"), 1)
 	for i := int64(2); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k1"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), i)
 	}
 
 	ctx := storage.NewSimpleWriteContext(0, base, storage.Batch{Index: 1})
@@ -320,10 +320,10 @@ func TestCleanMVCCDataWithMultiKeys(t *testing.T) {
 
 	ts := s.(storage.TransactionalDataStorage)
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k1"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), i)
 	}
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k2"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k2"), i)
 	}
 	checkTxnKeysCount(t, 18, base)
 
@@ -347,10 +347,10 @@ func TestCleanMVCCDataWithMultiKeysAndShard(t *testing.T) {
 
 	ts := s.(storage.TransactionalDataStorage)
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k1"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), i)
 	}
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k2"), []byte{1}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k2"), i)
 	}
 	checkTxnKeysCount(t, 18, base)
 
@@ -379,13 +379,13 @@ func TestGetCommitted(t *testing.T) {
 	assert.NoError(t, err)
 
 	for i := int64(1); i < 10; i++ {
-		addTestCommittedMVCCRecord(t, base, []byte("k1"), []byte{byte(i)}, i)
+		testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), i)
 	}
 
 	ok, v, err = ts.GetCommitted([]byte("k1"), getTestTimestamp(10))
 	assert.NoError(t, err)
 	assert.True(t, ok)
-	assert.Equal(t, []byte{9}, v)
+	assert.Equal(t, []byte("k1-9(c)"), v)
 }
 
 func TestGetUncommittedOrAnyHighCommittedWithNoConflict(t *testing.T) {
@@ -408,12 +408,12 @@ func TestGetUncommittedOrAnyHighCommittedWithNoConflict(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, v.IsEmpty())
 
-	addTestUncommittedMVCCRecord(t, base, []byte("k2"), []byte("k2"), 11)
+	testutil.AddTestUncommittedMVCCRecord(t, base, []byte("k2"), 11)
 	v, err = ts.GetUncommittedOrAnyHighCommitted(originKey, getTestTimestamp(8))
 	assert.NoError(t, err)
 	assert.True(t, v.IsEmpty())
 
-	addTestCommittedMVCCRecord(t, base, originKey, originKey, 10)
+	testutil.AddTestCommittedMVCCRecord(t, base, originKey, 10)
 	v, err = ts.GetUncommittedOrAnyHighCommitted(originKey, getTestTimestamp(11))
 	assert.NoError(t, err)
 	assert.True(t, v.IsEmpty())
@@ -433,8 +433,8 @@ func TestGetUncommittedOrAnyHighCommittedWithUncommitted(t *testing.T) {
 
 	originKey := []byte("k1")
 	ts := s.(storage.TransactionalDataStorage)
-	addTestUncommittedMVCCRecord(t, base, originKey, originKey, 11)
-	addTestCommittedMVCCRecord(t, base, originKey, originKey, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 11)
+	testutil.AddTestCommittedMVCCRecord(t, base, originKey, 10)
 
 	v, err := ts.GetUncommittedOrAnyHighCommitted(originKey, getTestTimestamp(8))
 	assert.NoError(t, err)
@@ -458,7 +458,7 @@ func TestGetUncommittedOrAnyHighCommittedWithCommitted(t *testing.T) {
 
 	originKey := []byte("k1")
 	ts := s.(storage.TransactionalDataStorage)
-	addTestCommittedMVCCRecord(t, base, originKey, originKey, 10)
+	testutil.AddTestCommittedMVCCRecord(t, base, originKey, 10)
 
 	v, err := ts.GetUncommittedOrAnyHighCommitted(originKey, getTestTimestamp(8))
 	assert.NoError(t, err)
@@ -489,13 +489,13 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 	}()
 	defer s.Close()
 
-	addTestTxnRecord(t, base, k1, k1)
-	addTestUncommittedMVCCRecord(t, base, k2, k2, 10)
-	addTestCommittedMVCCRecord(t, base, k2, k2, 11)
-	addTestCommittedMVCCRecord(t, base, k3, k3, 9)
-	addTestCommittedMVCCRecord(t, base, k3, k3, 10)
-	addTestCommittedMVCCRecord(t, base, k4, k4, 9)
-	addTestCommittedMVCCRecord(t, base, k4, k4, 10)
+	testutil.AddTestTxnRecord(t, base, k1, k1)
+	testutil.AddTestUncommittedMVCCRecord(t, base, k2, 10)
+	testutil.AddTestCommittedMVCCRecord(t, base, k2, 11)
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 9)
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 10)
+	testutil.AddTestCommittedMVCCRecord(t, base, k4, 9)
+	testutil.AddTestCommittedMVCCRecord(t, base, k4, 10)
 
 	ts := s.(storage.TransactionalDataStorage)
 
@@ -541,22 +541,84 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 	assert.True(t, conflicts[1].ConflictWithCommitted())
 }
 
-func addTestUncommittedMVCCRecord(t *testing.T, base storage.KVBaseStorage, key, value []byte, timestamp int64) {
-	ts := hlcpb.Timestamp{PhysicalTime: timestamp}
-	assert.NoError(t, base.Set(keysutil.EncodeDataKey(key, nil), protoc.MustMarshal(&txnpb.TxnUncommittedMVCCMetadata{
-		Timestamp: ts,
-	}), false))
-	assert.NoError(t, base.Set(keysutil.EncodeTxnMVCCKey(key, ts, buf.NewByteBuf(32)), value, false))
-}
+func TestScanTxn(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
 
-func addTestCommittedMVCCRecord(t *testing.T, base storage.KVBaseStorage, key, value []byte, timestamp int64) {
-	assert.NoError(t, base.Set(keysutil.EncodeTxnMVCCKey(key, hlcpb.Timestamp{PhysicalTime: timestamp}, buf.NewByteBuf(32)), value, false))
-}
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	k4 := []byte("k4")
 
-func addTestTxnRecord(t *testing.T, base storage.KVBaseStorage, txnRecordRouteKey, txnID []byte) {
-	assert.NoError(t, base.Set(keysutil.EncodeTxnRecordKey(txnRecordRouteKey, txnID, buf.NewByteBuf(32)), protoc.MustMarshal(&txnpb.TxnRecord{
-		TxnMeta: txnpb.TxnMeta{ID: txnID, TxnRecordRouteKey: txnRecordRouteKey},
-	}), false))
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base),
+		WithFeature(storage.Feature{SupportTransaction: true}))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
+	defer s.Close()
+	ts := s.(storage.TransactionalDataStorage)
+
+	// k1 only has txn record
+	testutil.AddTestTxnRecord(t, base, k1, k1)
+
+	// k2 has uncommitted and committed record
+	testutil.AddTestCommittedMVCCRecord(t, base, k2, 1)
+	testutil.AddTestUncommittedMVCCRecord(t, base, k2, 2)
+
+	// k3 only has committed record
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 1)
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 2)
+
+	cases := []struct {
+		timestamp              hlcpb.Timestamp
+		canReadUncommittedKeys [][]byte
+		expectKeys             [][]byte
+		expectValues           [][]byte
+	}{
+		{
+			timestamp:              getTestTimestamp(2),
+			canReadUncommittedKeys: [][]byte{k1, k2, k3},
+			expectKeys:             [][]byte{k2, k3},
+			expectValues:           [][]byte{[]byte("k2-2(u)"), []byte("k3-1(c)")},
+		},
+		{
+			timestamp:              getTestTimestamp(2),
+			canReadUncommittedKeys: [][]byte{},
+			expectKeys:             [][]byte{k2, k3},
+			expectValues:           [][]byte{[]byte("k2-1(c)"), []byte("k3-1(c)")},
+		},
+		{
+			timestamp:              getTestTimestamp(1),
+			canReadUncommittedKeys: [][]byte{},
+			expectKeys:             nil,
+			expectValues:           nil,
+		},
+	}
+
+	for _, c := range cases {
+		var keys [][]byte
+		var values [][]byte
+		assert.NoError(t, ts.Scan(k1, k4, c.timestamp,
+			func(key []byte, uncommitted txnpb.TxnUncommittedMVCCMetadata) bool {
+				for _, k := range c.canReadUncommittedKeys {
+					if bytes.Equal(k, key) {
+						return true
+					}
+				}
+				return false
+			},
+			func(key, value []byte) (bool, error) {
+				keys = append(keys, keysutil.Clone(key))
+				values = append(values, keysutil.Clone(value))
+				return true, nil
+			}))
+		assert.Equal(t, c.expectKeys, keys)
+		assert.Equal(t, c.expectValues, values)
+	}
+
 }
 
 func checkTxnKeysCount(t *testing.T, expect int, base storage.KVBaseStorage) {
