@@ -339,7 +339,7 @@ func (t *testDataStorage) GetCommitted(originKey []byte, timestamp hlc.Timestamp
 func (t *testDataStorage) Get(originKey []byte, timestamp hlcpb.Timestamp) ([]byte, error) {
 	return nil, nil
 }
-func (t *testDataStorage) ScanCommitted(fromOriginKey, toOriginKey []byte, timestamp hlcpb.Timestamp, handler func(key, value []byte)) error {
+func (t *testDataStorage) Scan(startOriginKey, endOriginKey []byte, timestamp hlcpb.Timestamp, filter storage.UncommittedFilter, handler func(key, value []byte) (bool, error)) error {
 	return nil
 }
 func (t *testDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlc.Timestamp) (txnpb.TxnConflictData, error) {
