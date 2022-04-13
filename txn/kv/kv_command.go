@@ -111,6 +111,21 @@ func handleGet(shard metapb.Shard, req txnpb.TxnRequest, reader KVReader) ([]byt
 	return protoc.MustMarshal(&rpcpb.KVGetResponse{Value: v}), nil
 }
 
+func handleBatchGet(shard metapb.Shard, req txnpb.TxnRequest, reader KVReader) ([]byte, error) {
+	var kvReq rpcpb.KVBatchGetRequest
+	protoc.MustUnmarshal(&kvReq, req.Operation.Payload)
+
+	var values [][]byte
+	for idx := range kvReq.Keys {
+		v, err := reader.Get(kvReq.Keys[idx])
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, v)
+	}
+	return protoc.MustMarshal(&rpcpb.KVBatchGetResponse{Values: values}), nil
+}
+
 func handleScan(shard metapb.Shard, req txnpb.TxnRequest, reader KVReader) ([]byte, error) {
 	var kvReq rpcpb.KVScanRequest
 	protoc.MustUnmarshal(&kvReq, req.Operation.Payload)

@@ -110,6 +110,35 @@ func TestHandleGetWithNoCommitted(t *testing.T) {
 	assert.Equal(t, "", string(resp.Value))
 }
 
+func TestHandleBatchGet(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	ts, base, closer := getTestTransactionDataStorage(t)
+	defer closer()
+
+	buffer := buf.NewByteBuf(32)
+	defer buffer.Release()
+
+	dr := txn.NewTransactionDataReader(ts)
+
+	k1 := []byte("k1")
+	testutil.AddTestCommittedMVCCRecordWithPrefix(t, base, k1, normalValuePrefix, 1)
+	k2 := []byte("k2")
+	testutil.AddTestCommittedMVCCRecordWithPrefix(t, base, k2, normalValuePrefix, 1)
+
+	rw := newKVReaderAndWriter(buffer, testutil.GetTestTxnOpMeta(0, 0, 2), dr, nil)
+	v, err := handleBatchGet(metapb.Shard{}, txnpb.TxnRequest{
+		Operation: txnpb.TxnOperation{
+			Payload: protoc.MustMarshal(&rpcpb.KVBatchGetRequest{
+				Keys: [][]byte{k1, k2},
+			}),
+		},
+	}, rw)
+	assert.NoError(t, err)
+	var resp rpcpb.KVBatchGetResponse
+	protoc.MustUnmarshal(&resp, v)
+	assert.Equal(t, [][]byte{[]byte("k1-1(c)"), []byte("k2-1(c)")}, resp.Values)
+}
+
 func TestHandleScan(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	ts, base, closer := getTestTransactionDataStorage(t)
