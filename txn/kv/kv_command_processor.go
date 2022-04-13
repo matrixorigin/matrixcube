@@ -226,6 +226,7 @@ func NewKVTxnCommandProcessor() RegisterTxnCommandProcessor {
 	p.RegisterWrite(uint32(rpcpb.CmdKVRangeDelete), handleRangeDelete)
 
 	p.RegisterRead(uint32(rpcpb.CmdKVGet), handleGet)
+	p.RegisterRead(uint32(rpcpb.CmdKVBatchGet), handleBatchGet)
 	p.RegisterRead(uint32(rpcpb.CmdKVScan), handleScan)
 	return p
 }
