@@ -83,3 +83,16 @@ func (lhs Timestamp) Next() Timestamp {
 		LogicalTime:  lhs.LogicalTime + 1,
 	}
 }
+
+// Prev returns the smallest timestamp that is less than the current
+// timestamp.
+func (lhs Timestamp) Prev() Timestamp {
+	if lhs.LogicalTime == 0 {
+		return Timestamp{PhysicalTime: lhs.PhysicalTime - 1, LogicalTime: math.MaxUint32}
+	}
+
+	return Timestamp{
+		PhysicalTime: lhs.PhysicalTime,
+		LogicalTime:  lhs.LogicalTime - 1,
+	}
+}

@@ -98,15 +98,22 @@ message TxnUncommittedMVCCMetadata {
     TxnMeta         txnMeta     = 1 [(gogoproto.nullable) = false, (gogoproto.embed) = true];
     // Timestamp is the version of the ProvisionalData in MVCC records
     hlcpb.Timestamp timestamp   = 2 [(gogoproto.nullable) = false];
+    
+    // Sequence indicates the current number of write operations in the transaction.
+    // Of all the operations in the transaction, only the write operation will increase 
+    // the value of the field, the read operation will not. Used to implement the `read 
+    // your write`.
+    uint32    sequence        = 3;
 }
 
 // TxnConflictData used to describe write/write conflicts encountered in a transaction. 
 // Only one of the committed and uncommitted conflicts can be set.
 message TxnConflictData {
+    bytes originKey = 1;
     // TxnUncommittedMVCCMetadata conflicts with the uncommitted data
-    TxnUncommittedMVCCMetadata withUncommitted = 1 [(gogoproto.nullable) = false];
+    TxnUncommittedMVCCMetadata withUncommitted = 2 [(gogoproto.nullable) = false];
     // WithCommitted conflicts with the committed data
-    hlcpb.Timestamp    withCommitted   = 2 [(gogoproto.nullable) = false];
+    hlcpb.Timestamp    withCommitted   = 3 [(gogoproto.nullable) = false];
 } 
 
 // TxnOpMeta metadata for transaction operations, with fields related to the 
@@ -296,3 +303,7 @@ message ConsensusData {
     bytes     data        = 2;
 }
 
+enum TxnScan {
+    Accept  = 0;
+    
+}

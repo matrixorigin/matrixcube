@@ -119,7 +119,10 @@ test-prophet:
 
 .PHONY: test-txn
 test-txn:
+	$(GOTEST) $(PKGNAME)/txn
 	$(GOTEST) $(PKGNAME)/txn/client
+	$(GOTEST) $(PKGNAME)/txn/kv
+	$(GOTEST) $(PKGNAME)/txn/util
 
 .PHONY: integration-test
 integration-test: test-all-raftstore

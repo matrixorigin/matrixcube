@@ -296,6 +296,46 @@ func (s *Storage) ScanInViewWithOptions(view storage.View, start, end []byte, ha
 	return nil
 }
 
+func (s *Storage) ReverseScanInViewWithOptions(view storage.View, start, end []byte, handler func(key, value []byte) (storage.NextIterOptions, error)) error {
+	ios := &pebble.IterOptions{}
+	if len(start) > 0 {
+		ios.LowerBound = start
+	}
+	if len(end) > 0 {
+		ios.UpperBound = end
+	}
+	ss := view.Raw().(*pebble.Snapshot)
+	iter := ss.NewIter(ios)
+	defer iter.Close()
+
+	iter.SeekLT(end)
+	for iter.Valid() {
+		err := iter.Error()
+		if err != nil {
+			return err
+		}
+		opts, err := handler(iter.Key(), iter.Value())
+		if err != nil {
+			return err
+		}
+		atomic.AddUint64(&s.stats.ReadKeys, 1)
+		atomic.AddUint64(&s.stats.ReadBytes, uint64(len(iter.Key())+len(iter.Value())))
+		if opts.Stop {
+			break
+		}
+
+		if len(opts.SeekGE) > 0 {
+			iter.SeekGE(opts.SeekGE)
+		} else if len(opts.SeekLT) > 0 {
+			iter.SeekLT(opts.SeekLT)
+		} else {
+			iter.Prev()
+		}
+	}
+
+	return nil
+}
+
 // PrefixScan scans the key-value pairs starts from prefix but only keys for the same prefix,
 // while perform with a handler function, if the function returns false, the scan will be terminated.
 // The Handler func will received a cloned the key and value, if the `clone` is true.

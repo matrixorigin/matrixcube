@@ -16,22 +16,11 @@ package executor
 import (
 	"fmt"
 
-	"github.com/fagongzi/util/protoc"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
 	"github.com/matrixorigin/matrixcube/pb/rpcpb"
 	"github.com/matrixorigin/matrixcube/storage"
 	"github.com/matrixorigin/matrixcube/util"
 	"github.com/matrixorigin/matrixcube/util/buf"
-)
-
-var (
-	setResponse         = protoc.MustMarshal(&rpcpb.KVSetResponse{})
-	batchSetResponse    = protoc.MustMarshal(&rpcpb.KVBatchSetResponse{})
-	deleteResponse      = protoc.MustMarshal(&rpcpb.KVDeleteResponse{})
-	batchDeleteResponse = protoc.MustMarshal(&rpcpb.KVBatchDeleteResponse{})
-	rangeDeleteResponse = protoc.MustMarshal(&rpcpb.KVRangeDeleteResponse{})
-
-	emptyGetResponse = protoc.MustMarshal(&rpcpb.KVGetRequest{})
 )
 
 // RegisterExecutor executor to support registration of custom read and write handlers
@@ -91,6 +80,7 @@ func NewKVExecutor(kv storage.KVStorage) RegisterExecutor {
 	ke.writeHandlers[uint64(rpcpb.CmdKVDelete)] = handleDelete
 	ke.writeHandlers[uint64(rpcpb.CmdKVBatchDelete)] = handleBatchDelete
 	ke.writeHandlers[uint64(rpcpb.CmdKVRangeDelete)] = handleRangeDelete
+	ke.writeHandlers[uint64(rpcpb.CmdKVBatchMixedWrite)] = handleBatchMixedWrite
 
 	ke.readHandlers[uint64(rpcpb.CmdKVGet)] = handleGet
 	ke.readHandlers[uint64(rpcpb.CmdKVBatchGet)] = handleBatchGet

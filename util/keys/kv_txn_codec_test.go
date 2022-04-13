@@ -29,7 +29,7 @@ func TestEncodeTxnRecordKey(t *testing.T) {
 
 	originKey := []byte("key")
 	txnID := uuid.NewV4().Bytes()
-	k, kt, v := DecodeTxnKey(EncodeTxnRecordKey(originKey, txnID, buffer))
+	k, kt, v := DecodeTxnKey(EncodeTxnRecordKey(originKey, txnID, buffer, true))
 	assert.Equal(t, originKey, k)
 	assert.Equal(t, TxnRecordKeyType, kt)
 	assert.Equal(t, txnID, v)
@@ -41,7 +41,7 @@ func TestEncodeTxnMVCCKey(t *testing.T) {
 
 	originKey := []byte("key")
 	ts := hlcpb.Timestamp{PhysicalTime: time.Now().Unix(), LogicalTime: 100}
-	k, kt, v := DecodeTxnKey(EncodeTxnMVCCKey(originKey, ts, buffer))
+	k, kt, v := DecodeTxnKey(EncodeTxnMVCCKey(originKey, ts, buffer, true))
 	assert.Equal(t, originKey, k)
 	assert.Equal(t, TxnMVCCKeyType, kt)
 	assert.Equal(t, 12, len(v))
@@ -61,7 +61,7 @@ func TestDecodeTimestamp(t *testing.T) {
 	defer buffer.Release()
 
 	ts := hlcpb.Timestamp{PhysicalTime: time.Now().Unix(), LogicalTime: 100}
-	_, _, v := DecodeTxnKey(EncodeTxnMVCCKey([]byte("key"), ts, buffer))
+	_, _, v := DecodeTxnKey(EncodeTxnMVCCKey([]byte("key"), ts, buffer, true))
 	assert.True(t, ts.Equal(DecodeTimestamp(v)))
 }
 

@@ -1,6 +1,9 @@
 package keys
 
 import (
+	"bytes"
+	"sort"
+
 	"github.com/matrixorigin/matrixcube/util/buf"
 )
 
@@ -27,8 +30,23 @@ func NextKey(key []byte, buffer *buf.ByteBuf) []byte {
 }
 
 // Clone clone the value
-func Clone(value []byte) []byte {
-	v := make([]byte, len(value))
-	copy(v, value)
-	return v
+func Clone(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return dst
+}
+
+// Join join the values
+func Join(v1, v2 []byte) []byte {
+	dst := make([]byte, len(v1)+len(v2))
+	copy(dst, v1)
+	copy(dst[len(v1):], v2)
+	return dst
+}
+
+// Sort values
+func Sort(values [][]byte) {
+	sort.Slice(values, func(i, j int) bool {
+		return bytes.Compare(values[i], values[j]) < 0
+	})
 }

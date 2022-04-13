@@ -210,17 +210,30 @@ type TransactionalDataStorage interface {
 
 	// GetTxnRecord read `TxnRecord`
 	GetTxnRecord(txnRecordRouteKey, txnID []byte) (bool, txnpb.TxnRecord, error)
+	// Get returns the current version data
+	Get(originKey []byte, timestamp hlcpb.Timestamp) ([]byte, error)
 	// GetCommitted return the largest record with MVCC version number < timestamp corresponding to
 	// the Key.
 	GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error)
+	// Scan scan the data in the range [startOriginKey, endOriginKey). Filter is used to filter the
+	// uncommitted key can read. When the Filter returns true, the value is loaded and the handler
+	// is called. When the handler returns false, the Scan is stopped.
+	Scan(startOriginKey, endOriginKey []byte, timestamp hlcpb.Timestamp, filter UncommittedFilter, handler func(key, value []byte) (bool, error)) error
 	// GetUncommittedOrAnyHighCommitted get the conflicting data of the currently specified Key.
 	// There are 2 cases of conflict, 1. encounter uncommitted data; 2. encounter any version
 	// number > timestamp of committed data.
+	// The uncommitted data of the current transaction is also returned to check whether this
+	// transaction operation can be executed, for example, transaction A writes an uncommitted record
+	// at seq=2, and the request for seq=1 arrives after the request for seq=2 because of a retry,
+	// at which point the current operation cannot be executed
 	GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlcpb.Timestamp) (txnpb.TxnConflictData, error)
 	// GetUncommittedOrAnyHighCommittedByRange is similar to `GetUncommittedOrAnyHighCommitted`, but
 	// perform keys in txnpb.TxnOperation range
 	GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlcpb.Timestamp) ([]txnpb.TxnConflictData, error)
 }
+
+// UncommittedFilter return true means uncommitted can read.
+type UncommittedFilter func(key []byte, uncommitted txnpb.TxnUncommittedMVCCMetadata) (accept bool)
 
 // WriteContext contains the details of write requests to be handled by the
 // data storage.
