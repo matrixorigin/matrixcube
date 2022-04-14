@@ -602,7 +602,10 @@ func TestStopHeartbeatTask(t *testing.T) {
 	c := make(chan struct{})
 	defer close(c)
 	sender := newMockBatchDispatcher(func(req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
-		c <- struct{}{}
+		select {
+		case c <- struct{}{}:
+		default:
+		}
 		return txnpb.TxnBatchResponse{Header: txnpb.TxnBatchResponseHeader{Txn: req.Header.Txn.TxnMeta}}, nil
 	})
 	tc := newTestTxnCoordinator(sender, "mock-txn", "t1", 0)
