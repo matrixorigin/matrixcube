@@ -371,13 +371,18 @@ func (s *Storage) PrefixScan(prefix []byte, handler func(key, value []byte) (boo
 	return nil
 }
 
-// Seek returns the first key-value that >= key
-func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
+// Seek returns min[lowerBound, +inf)
+func (s *Storage) Seek(lowerBound []byte) ([]byte, []byte, error) {
+	return s.SeekAndLT(lowerBound, nil)
+}
+
+// SeekAndLT returns min[lowerBound, upperBound)
+func (s *Storage) SeekAndLT(lowerBound, upperBound []byte) ([]byte, []byte, error) {
 	var key, value []byte
 	view := s.db.NewSnapshot()
 	defer view.Close()
 
-	iter := view.NewIter(&pebble.IterOptions{LowerBound: target})
+	iter := view.NewIter(&pebble.IterOptions{LowerBound: lowerBound, UpperBound: upperBound})
 	defer iter.Close()
 
 	if iter.First() {
@@ -392,15 +397,20 @@ func (s *Storage) Seek(target []byte) ([]byte, []byte, error) {
 	return key, value, nil
 }
 
-// Seek returns the last key-value that < key
-func (s *Storage) SeekLT(target []byte) ([]byte, []byte, error) {
+// Seek returns max(-inf, upperBound)
+func (s *Storage) SeekLT(upperBound []byte) ([]byte, []byte, error) {
+	return s.SeekLTAndGE(upperBound, nil)
+}
+
+// SeekLTAndGE returns max[lowerBound, upperBound)
+func (s *Storage) SeekLTAndGE(upperBound, lowerBound []byte) ([]byte, []byte, error) {
 	var key, value []byte
 	view := s.db.NewSnapshot()
 	defer view.Close()
 
-	iter := view.NewIter(&pebble.IterOptions{UpperBound: target})
+	iter := view.NewIter(&pebble.IterOptions{UpperBound: upperBound, LowerBound: lowerBound})
 	defer iter.Close()
-	iter.SeekLT(target)
+	iter.SeekLT(upperBound)
 
 	if iter.Last() {
 		if err := iter.Error(); err != nil {

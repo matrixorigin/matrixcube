@@ -171,16 +171,18 @@ func (kv *kvDataStorage) Get(originKey []byte, timestamp hlcpb.Timestamp) ([]byt
 }
 
 func (kv *kvDataStorage) GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error) {
-	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey) * 2)
 	defer buffer.Release()
 
-	_, v, err := kv.base.SeekLT(keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer, true))
+	_, v, err := kv.base.SeekLTAndGE(keysutil.EncodeTxnMVCCKey(originKey, timestamp, buffer, true),
+		keysutil.EncodeTxnMVCCKey(originKey, hlcpb.Timestamp{}, buffer, true))
 	if err != nil {
 		return false, nil, err
 	}
 	if len(v) == 0 {
 		return false, nil, nil
 	}
+
 	return true, v, nil
 }
 
