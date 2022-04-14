@@ -66,10 +66,14 @@ type KVStore interface {
 	ReverseScanInViewWithOptions(view View, start, end []byte, handler func(key, value []byte) (NextIterOptions, error)) error
 	// RangeDelete delete data within the specified [start,end) range.
 	RangeDelete(start, end []byte, sync bool) error
-	// SeekLT returns the first key-value pair that the key >= target.
-	Seek(target []byte) ([]byte, []byte, error)
-	// SeekLT returns the last key-value pair that the key < target.
-	SeekLT(target []byte) ([]byte, []byte, error)
+	// Seek returns min[lowerBound, +inf)
+	Seek(lowerBound []byte) ([]byte, []byte, error)
+	// SeekAndLT returns min[lowerBound, upperBound)
+	SeekAndLT(lowerBound, upperBound []byte) ([]byte, []byte, error)
+	// Seek returns max(-inf, upperBound)
+	SeekLT(upperBound []byte) ([]byte, []byte, error)
+	// SeekLTAndGE returns max[lowerBound, upperBound)
+	SeekLTAndGE(upperBound, lowerBound []byte) ([]byte, []byte, error)
 	// Sync synchronize the storage's in-core state with that on disk.
 	Sync() error
 }

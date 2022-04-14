@@ -388,6 +388,27 @@ func TestGetCommitted(t *testing.T) {
 	assert.Equal(t, []byte("k1-9(c)"), v)
 }
 
+func TestGetCommittedWithNoCommitted(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
+	defer s.Close()
+
+	ts := s.(storage.TransactionalDataStorage)
+	testutil.AddTestCommittedMVCCRecord(t, base, []byte("k1"), 2)
+
+	ok, v, err := ts.GetCommitted([]byte("k2"), getTestTimestamp(3))
+	assert.NoError(t, err)
+	assert.False(t, ok)
+	assert.Empty(t, v)
+}
+
 func TestGetUncommittedOrAnyHighCommittedWithNoConflict(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()

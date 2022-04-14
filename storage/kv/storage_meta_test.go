@@ -204,6 +204,43 @@ func TestSeek(t *testing.T) {
 	}
 }
 
+func TestSeekAndLT(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(fs, t)
+			defer s.Close()
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+			key2 := []byte("k2")
+			value2 := []byte("v2")
+			key3 := []byte("k3")
+			value3 := []byte("v3")
+
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key2, value2, false))
+			require.NoError(t, s.Set(key3, value3, false))
+
+			key, value, err := s.SeekAndLT(key1, key3)
+			assert.NoError(t, err)
+			assert.Equal(t, string(key1), string(key))
+			assert.Equal(t, string(value1), string(value))
+
+			key, value, err = s.SeekAndLT(key1, key2)
+			assert.NoError(t, err)
+			assert.Equal(t, string(key1), string(key))
+			assert.Equal(t, string(value1), string(value))
+
+			key, value, err = s.SeekAndLT(key1, key1)
+			assert.NoError(t, err)
+			assert.Equal(t, "", string(key))
+			assert.Equal(t, "", string(value))
+		})
+	}
+}
+
 func TestSeekLT(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 	fs := vfs.GetTestFS()
@@ -234,6 +271,45 @@ func TestSeekLT(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Empty(t, key)
 			assert.Empty(t, value)
+		})
+	}
+}
+
+func TestSeekLTWithGE(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	for name, factory := range factories {
+		t.Run(name, func(t *testing.T) {
+			s := factory(fs, t)
+			defer s.Close()
+			key1 := []byte("k1")
+			value1 := []byte("v1")
+
+			key2 := []byte("k2")
+			value2 := []byte("v2")
+
+			key3 := []byte("k3")
+			value3 := []byte("v3")
+
+			require.NoError(t, s.Set(key1, value1, false))
+			require.NoError(t, s.Set(key2, value2, false))
+			require.NoError(t, s.Set(key3, value3, false))
+
+			key, value, err := s.SeekLTAndGE(key3, key1)
+			assert.NoError(t, err)
+			assert.Equal(t, string(key2), string(key))
+			assert.Equal(t, string(value2), string(value))
+
+			key, value, err = s.SeekLTAndGE(key3, key2)
+			assert.NoError(t, err)
+			assert.Equal(t, string(key2), string(key))
+			assert.Equal(t, string(value2), string(value))
+
+			key, value, err = s.SeekLTAndGE(key3, key3)
+			assert.NoError(t, err)
+			assert.Equal(t, "", string(key))
+			assert.Equal(t, "", string(value))
 		})
 	}
 }

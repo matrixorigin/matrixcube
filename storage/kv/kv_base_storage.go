@@ -106,12 +106,20 @@ func (s *BaseStorage) RangeDelete(start, end []byte, sync bool) error {
 	return s.kv.RangeDelete(start, end, sync)
 }
 
-func (s *BaseStorage) Seek(key []byte) ([]byte, []byte, error) {
-	return s.kv.Seek(key)
+func (s *BaseStorage) Seek(lowerBound []byte) ([]byte, []byte, error) {
+	return s.kv.Seek(lowerBound)
 }
 
-func (s *BaseStorage) SeekLT(key []byte) ([]byte, []byte, error) {
-	return s.kv.SeekLT(key)
+func (s *BaseStorage) SeekAndLT(lowerBound, upperBound []byte) ([]byte, []byte, error) {
+	return s.kv.SeekAndLT(lowerBound, upperBound)
+}
+
+func (s *BaseStorage) SeekLT(upperBound []byte) ([]byte, []byte, error) {
+	return s.kv.SeekLT(upperBound)
+}
+
+func (s *BaseStorage) SeekLTAndGE(upperBound, lowerBound []byte) ([]byte, []byte, error) {
+	return s.kv.SeekLTAndGE(upperBound, lowerBound)
 }
 
 func (s *BaseStorage) Sync() error {
