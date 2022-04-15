@@ -14,9 +14,8 @@
 package storage
 
 import (
+	"errors"
 	"time"
-
-	"github.com/cockroachdb/errors"
 
 	"github.com/matrixorigin/matrixcube/pb/hlcpb"
 	"github.com/matrixorigin/matrixcube/pb/metapb"
@@ -215,9 +214,15 @@ type TransactionalDataStorage interface {
 	// GetCommitted return the largest record with MVCC version number < timestamp corresponding to
 	// the Key.
 	GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error)
+	// GetUncommittedMVCCMetadata returns the uncommitted mvcc metadata
+	GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error)
+	// GetUncommittedMVCCMetadataByRange is similar to GetUncommittedMVCCMetadata, but perform in
+	// txnpb.TxnOperation range.
+	GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnUncommittedMVCCMetadata, error)
 	// Scan scan the data in the range [startOriginKey, endOriginKey). Filter is used to filter the
 	// uncommitted key can read. When the Filter returns true, the value is loaded and the handler
-	// is called. When the handler returns false, the Scan is stopped.
+	// is called. Read only max(-inf, timestamp) records for committed data. When the handler returns
+	// false, the Scan is stopped.
 	Scan(startOriginKey, endOriginKey []byte, timestamp hlcpb.Timestamp, filter UncommittedFilter, handler func(key, value []byte) (bool, error)) error
 	// GetUncommittedOrAnyHighCommitted get the conflicting data of the currently specified Key.
 	// There are 2 cases of conflict, 1. encounter uncommitted data; 2. encounter any version

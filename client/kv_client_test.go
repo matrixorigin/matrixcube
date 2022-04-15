@@ -305,11 +305,11 @@ func TestKVScan(t *testing.T) {
 	for _, c := range cases {
 		var keys [][]byte
 		var values [][]byte
-		kv.Scan(ctx, c.start, c.end, func(key, value []byte) (bool, error) {
+		assert.NoError(t, kv.Scan(ctx, c.start, c.end, func(key, value []byte) (bool, error) {
 			keys = append(keys, key)
 			values = append(values, value)
 			return true, nil
-		}, c.options...)
+		}, c.options...))
 		assert.Equal(t, c.expectKeys, keys)
 		assert.Equal(t, c.expectValues, values)
 	}
@@ -403,13 +403,13 @@ func TestKVParallelScan(t *testing.T) {
 		var keys [][]byte
 		var values [][]byte
 		var lock sync.Mutex
-		kv.ParallelScan(ctx, c.start, c.end, func(key, value []byte) (bool, error) {
+		assert.NoError(t, kv.ParallelScan(ctx, c.start, c.end, func(key, value []byte) (bool, error) {
 			lock.Lock()
 			defer lock.Unlock()
 			keys = append(keys, key)
 			values = append(values, value)
 			return true, nil
-		}, c.options...)
+		}, c.options...))
 		sort.Slice(keys, func(i, j int) bool {
 			return bytes.Compare(keys[i], keys[j]) < 0
 		})

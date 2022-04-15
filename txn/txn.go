@@ -26,7 +26,7 @@ type UncommittedDataTree interface {
 	Get(key []byte) (txnpb.TxnUncommittedMVCCMetadata, bool)
 	// Len returns the count of uncommitted data
 	Len() int
-	// AscendRange is simliar to Ascend, but perform scan in [start, end)
+	// AscendRange is similar to Ascend, but perform scan in [start, end)
 	AscendRange(start, end []byte, fn func(key []byte, data txnpb.TxnUncommittedMVCCMetadata) (bool, error)) error
 }
 

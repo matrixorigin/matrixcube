@@ -27,24 +27,10 @@ const (
 
 var (
 	emptyShard metapb.Shard
-	itemPool   sync.Pool
 )
 
-func acquireItem() *ShardItem {
-	v := itemPool.Get()
-	if v == nil {
-		return &ShardItem{}
-	}
-	return v.(*ShardItem)
-}
-
-func releaseItem(item *ShardItem) {
-	itemPool.Put(item)
-}
-
-// ShardItem is the Shard btree item
-type ShardItem struct {
-	Shard metapb.Shard
+type shardItem struct {
+	shard metapb.Shard
 }
 
 // ShardTree is the btree for Shard
@@ -60,19 +46,18 @@ func NewShardTree() *ShardTree {
 	}
 }
 
-// Less returns true if the Shard start key is greater than the other.
-// So we will sort the Shard with start key reversely.
-func (r *ShardItem) Less(other btree.Item) bool {
-	left := r.Shard.Start
-	right := other.(*ShardItem).Shard.Start
-	return bytes.Compare(left, right) > 0
+// Less returns true r < other
+func (r shardItem) Less(other btree.Item) bool {
+	left := r.shard.Start
+	right := other.(shardItem).shard.Start
+	return bytes.Compare(left, right) < 0
 }
 
 // Contains returns the item contains the key
-func (r *ShardItem) Contains(key []byte) bool {
-	start, end := r.Shard.Start, r.Shard.End
-	// len(end) == 0: max field is positive infinity
-	return bytes.Compare(key, start) >= 0 && (len(end) == 0 || bytes.Compare(key, end) < 0)
+func (r shardItem) Contains(key []byte) bool {
+	start, end := r.shard.Start, r.shard.End
+	return (len(start) == 0 || bytes.Compare(key, start) >= 0) &&
+		(len(end) == 0 || bytes.Compare(key, end) < 0)
 }
 
 func (t *ShardTree) length() int {
@@ -84,41 +69,39 @@ func (t *ShardTree) length() int {
 // insert the Shard.
 func (t *ShardTree) Update(shards ...metapb.Shard) {
 	t.Lock()
+	defer t.Unlock()
+
 	for _, shard := range shards {
 		if shard.State == metapb.ShardState_Destroyed ||
 			shard.State == metapb.ShardState_Destroying {
 			continue
 		}
 
-		item := &ShardItem{Shard: shard}
-
-		result := t.find(shard)
-		if result == nil {
+		item := shardItem{shard: shard}
+		result, ok := t.findLocked(item)
+		if !ok {
 			result = item
 		}
 
-		var overlaps []*ShardItem
-
-		// between [Shard, first], so is iterator all.min >= Shard.min' Shard
+		var overlaps []shardItem
+		// between [Shard, Last], so is iterator all.min >= Shard.min' Shard
 		// until all.min > Shard.max
-		t.tree.DescendLessOrEqual(result, func(i btree.Item) bool {
-			over := i.(*ShardItem)
+		t.tree.AscendGreaterOrEqual(result, func(i btree.Item) bool {
+			over := i.(shardItem)
 			// Shard.max <= i.start, so Shard and i has no overlaps,
 			// otherwise Shard and i has overlaps
-			if len(shard.End) > 0 && bytes.Compare(shard.End, over.Shard.Start) <= 0 {
+			if len(shard.End) > 0 && bytes.Compare(shard.End, over.shard.Start) <= 0 {
 				return false
 			}
 			overlaps = append(overlaps, over)
 			return true
 		})
 
-		for _, item := range overlaps {
-			t.tree.Delete(item)
+		for _, overlap := range overlaps {
+			t.tree.Delete(overlap)
 		}
-
 		t.tree.ReplaceOrInsert(item)
 	}
-	t.Unlock()
 }
 
 // Remove removes a Shard if the Shard is in the tree.
@@ -126,101 +109,102 @@ func (t *ShardTree) Update(shards ...metapb.Shard) {
 // is not the same with the Shard.
 func (t *ShardTree) Remove(shard metapb.Shard) bool {
 	t.Lock()
+	defer t.Unlock()
 
-	result := t.find(shard)
-	if result == nil || result.Shard.ID != shard.ID {
-		t.Unlock()
+	result, ok := t.findLocked(shardItem{shard: shard})
+	if !ok || result.shard.ID != shard.ID {
 		return false
 	}
 
 	t.tree.Delete(result)
-	t.Unlock()
 	return true
 }
 
 // Ascend asc iterator the tree until fn returns false
 func (t *ShardTree) Ascend(fn func(Shard *metapb.Shard) bool) {
 	t.RLock()
-	t.tree.Descend(func(item btree.Item) bool {
-		return fn(&item.(*ShardItem).Shard)
+	defer t.RUnlock()
+
+	t.tree.Ascend(func(item btree.Item) bool {
+		shard := item.(shardItem).shard
+		return fn(&shard)
 	})
-	t.RUnlock()
 }
 
 // NextShard return the next bigger key range Shard
 func (t *ShardTree) NextShard(start []byte) *metapb.Shard {
-	var value *ShardItem
-
-	p := &ShardItem{
-		Shard: metapb.Shard{Start: start},
-	}
-
 	t.RLock()
-	t.tree.DescendLessOrEqual(p, func(item btree.Item) bool {
-		if bytes.Compare(item.(*ShardItem).Shard.Start, start) > 0 {
-			value = item.(*ShardItem)
+	defer t.RUnlock()
+
+	var value shardItem
+	var ok bool
+	t.tree.AscendGreaterOrEqual(shardItem{
+		shard: metapb.Shard{Start: start},
+	}, func(item btree.Item) bool {
+		if bytes.Compare(item.(shardItem).shard.Start, start) > 0 {
+			value = item.(shardItem)
+			ok = true
 			return false
 		}
 
 		return true
 	})
-	t.RUnlock()
-
-	if nil == value {
+	if !ok {
 		return nil
 	}
 
-	return &value.Shard
+	return &value.shard
 }
 
 // AscendRange asc iterator the tree in the range [start, end) until fn returns false
-func (t *ShardTree) AscendRange(start, end []byte, fn func(shard *metapb.Shard) bool) {
+func (t *ShardTree) AscendRange(start, end []byte, handler func(shard *metapb.Shard) bool) {
 	t.RLock()
 	defer t.RUnlock()
-
-	startShard := t.find(metapb.Shard{Start: start})
-	if startShard == nil {
-		return
-	}
-	t.tree.DescendLessOrEqual(startShard, func(item btree.Item) bool {
-		if len(end) > 0 && bytes.Compare(item.(*ShardItem).Shard.Start, end) >= 0 {
+	fn := func(item btree.Item) bool {
+		i := item.(shardItem)
+		if len(end) > 0 && bytes.Compare(i.shard.Start, end) >= 0 {
 			return false
 		}
 
-		return fn(&item.(*ShardItem).Shard)
-	})
+		return handler(&i.shard)
+	}
+
+	if len(start) == 0 {
+		t.tree.Ascend(fn)
+		return
+	}
+
+	item, ok := t.findLocked(shardItem{shard: metapb.Shard{Start: start}})
+	if !ok {
+		return
+	}
+
+	t.tree.AscendGreaterOrEqual(item, fn)
 }
 
 // Search returns a Shard that contains the key.
 func (t *ShardTree) Search(key []byte) metapb.Shard {
-	shard := metapb.Shard{Start: key}
-
 	t.RLock()
-	result := t.find(shard)
-	t.RUnlock()
+	defer t.RUnlock()
 
-	if result == nil {
+	result, ok := t.findLocked(shardItem{shard: metapb.Shard{Start: key}})
+	if !ok {
 		return emptyShard
 	}
-
-	return result.Shard
+	return result.shard
 }
 
-func (t *ShardTree) find(shard metapb.Shard) *ShardItem {
-	item := acquireItem()
-	item.Shard = shard
-
-	var result *ShardItem
-	t.tree.AscendGreaterOrEqual(item, func(i btree.Item) bool {
-		result = i.(*ShardItem)
+func (t *ShardTree) findLocked(item shardItem) (shardItem, bool) {
+	var result shardItem
+	var found bool
+	t.tree.DescendLessOrEqual(item, func(i btree.Item) bool {
+		result = i.(shardItem)
+		found = true
 		return false
 	})
 
-	if result == nil || !result.Contains(shard.Start) {
-		releaseItem(item)
-		return nil
+	if !found || !result.Contains(item.shard.Start) {
+		return result, false
 	}
-
-	releaseItem(item)
-	return result
+	return result, true
 }
