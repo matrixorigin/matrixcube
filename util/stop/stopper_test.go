@@ -46,11 +46,15 @@ func TestRunTask(t *testing.T) {
 
 func TestRunTaskWithTimeout(t *testing.T) {
 	c := make(chan struct{})
+	defer close(c)
 	var names []string
 	s := NewStopper("TestRunTaskWithTimeout",
 		WithStopTimeout(time.Millisecond*10),
 		WithTimeoutTaskHandler(func(tasks []string, timeAfterStop time.Duration) {
-			close(c)
+			select {
+			case c <- struct{}{}:
+			default:
+			}
 			names = append(names, tasks...)
 		}))
 

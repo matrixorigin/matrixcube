@@ -349,6 +349,13 @@ func (t *testDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOp
 	return nil, nil
 }
 
+func (t *testDataStorage) GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error) {
+	return false, txnpb.TxnUncommittedMVCCMetadata{}, nil
+}
+func (t *testDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnUncommittedMVCCMetadata, error) {
+	return nil, nil
+}
+
 func TestDoExecCompactLog(t *testing.T) {
 	defer leaktest.AfterTest(t)()
 

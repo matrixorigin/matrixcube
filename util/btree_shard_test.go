@@ -228,3 +228,15 @@ func TestAscendRange(t *testing.T) {
 		assert.Equal(t, c.expectShards, shards)
 	}
 }
+
+func TestAscendRangeWithOnlyInitShard(t *testing.T) {
+	tree := NewShardTree()
+	tree.Update(metapb.Shard{ID: 1})
+
+	n := 0
+	tree.AscendRange([]byte{1}, []byte{6}, func(shard *metapb.Shard) bool {
+		n++
+		return true
+	})
+	assert.Equal(t, 1, n)
+}

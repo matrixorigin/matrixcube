@@ -30,12 +30,6 @@ import (
 
 var _ storage.TransactionalDataStorage = (*kvDataStorage)(nil)
 
-// TxnOperationKeysResolver parsing a TxnOperation involves the operation of a collection of keys
-type TxnOperationKeysResolver interface {
-	// Resolve return all the Keys involved in the operation.
-	Resolve(txnpb.TxnOperation) [][]byte
-}
-
 func (kv *kvDataStorage) UpdateTxnRecord(record txnpb.TxnRecord, ctx storage.WriteContext) error {
 	buffer := ctx.(storage.InternalContext).ByteBuf()
 	defer buffer.ResetWrite()
@@ -61,7 +55,7 @@ func (kv *kvDataStorage) CommitWrittenData(originKey []byte, commitTS hlcpb.Time
 	defer buffer.ResetWrite()
 
 	originKeyDataKey := keysutil.EncodeDataKey(originKey, buffer)
-	exists, meta, err := kv.getTxnUncommittedMVCCMetadata(originKeyDataKey)
+	exists, meta, err := kv.doGetUncommittedMVCCMetadata(originKeyDataKey)
 	if err != nil {
 		return err
 	}
@@ -94,7 +88,7 @@ func (kv *kvDataStorage) RollbackWrittenData(originKey []byte, timestamp hlcpb.T
 	defer buffer.ResetWrite()
 
 	originKeyDataKey := keysutil.EncodeDataKey(originKey, buffer)
-	exists, meta, err := kv.getTxnUncommittedMVCCMetadata(originKeyDataKey)
+	exists, meta, err := kv.doGetUncommittedMVCCMetadata(originKeyDataKey)
 	if err != nil {
 		return err
 	}
@@ -203,7 +197,7 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 	end := keysutil.EncodeShardEnd(endOriginKey, buffer)
 
 	accepted := false
-	hasReadableComitted := false
+	hasReadableCommitted := false
 	acceptFunc := func(key, value []byte) (storage.NextIterOptions, error) {
 		ok, err := handler(key, value)
 		if err != nil {
@@ -214,7 +208,7 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 		}
 
 		accepted = false
-		hasReadableComitted = false
+		hasReadableCommitted = false
 		return storage.NextIterOptions{SeekGE: keysutil.TxnNextScanKey(key, buffer, true)}, nil
 	}
 
@@ -238,7 +232,7 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 
 		k, kt, v := keysutil.DecodeTxnKey(key)
 		if bytes.Equal(protectedKey.ReadableBytes(), key) {
-			if hasReadableComitted {
+			if hasReadableCommitted {
 				return acceptFunc(k, value)
 			}
 			return seekToNextKey(k)
@@ -268,7 +262,7 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 			}
 
 			// maybe has larger version
-			hasReadableComitted = true
+			hasReadableCommitted = true
 			return seekToLatestFunc(key, k, timestamp)
 		case keysutil.TxnRecordKeyType:
 			return seekToNextKey(k)
@@ -277,12 +271,74 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 	})
 }
 
+func (kv *kvDataStorage) GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error) {
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
+	defer buffer.Release()
+
+	return kv.doGetUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
+}
+
+func (kv *kvDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnUncommittedMVCCMetadata, error) {
+	op.Impacted.Sort()
+	if op.Impacted.IsEmpty() {
+		return nil, nil
+	}
+
+	min, max := op.Impacted.GetKeyRange()
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(min))
+	defer buffer.Release()
+
+	tree := keysutil.NewMixedKeysTree(op.Impacted.PointKeys)
+	for _, r := range op.Impacted.Ranges {
+		tree.AddKeyRange(r.Start, r.End)
+	}
+	from := keysutil.EncodeDataKey(min, buffer)
+	to := keysutil.TxnNextScanKey(max, buffer, true)
+
+	view := kv.base.GetView()
+	defer view.Close()
+
+	var uncommitted []txnpb.TxnUncommittedMVCCMetadata
+	seekToNextKeyInTree := func(k []byte, seekFn func([]byte) []byte) (storage.NextIterOptions, error) {
+		nextK := seekFn(k)
+		if len(nextK) == 0 {
+			return storage.NextIterOptions{Stop: true}, nil
+		}
+		return storage.NextIterOptions{SeekGE: keysutil.EncodeDataKey(nextK, buffer)}, nil
+	}
+	err := kv.base.ScanInViewWithOptions(view, from, to, func(key, value []byte) (storage.NextIterOptions, error) {
+		buffer.MarkWrite()
+		defer buffer.ResetWrite()
+
+		k, kt, _ := keysutil.DecodeTxnKey(key)
+		// seek to next key in the
+		if !tree.Contains(k) {
+			return seekToNextKeyInTree(k, tree.Seek)
+		}
+
+		switch kt {
+		case keysutil.TxnOriginKeyType:
+			meta := txnpb.TxnUncommittedMVCCMetadata{}
+			protoc.MustUnmarshal(&meta, value)
+			// conflict with uncommitted
+			uncommitted = append(uncommitted, meta)
+			return seekToNextKeyInTree(k, tree.SeekGT)
+		default:
+			return seekToNextKeyInTree(k, tree.SeekGT)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return uncommitted, nil
+}
+
 func (kv *kvDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, timestamp hlcpb.Timestamp) (txnpb.TxnConflictData, error) {
 	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
 	defer buffer.Release()
 
 	// check conflict with uncommitted
-	ok, v, err := kv.getTxnUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
+	ok, v, err := kv.doGetUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
 	if err != nil {
 		return txnpb.TxnConflictData{}, err
 	}
@@ -309,19 +365,21 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommitted(originKey []byte, time
 }
 
 func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOperation, timestamp hlcpb.Timestamp) ([]txnpb.TxnConflictData, error) {
-	keys := kv.txn.keysResolver.Resolve(op)
-	if len(keys) == 0 {
+	op.Impacted.Sort()
+	if op.Impacted.IsEmpty() {
 		return nil, nil
 	}
 
-	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(keys[0]))
+	min, max := op.Impacted.GetKeyRange()
+	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(min))
 	defer buffer.Release()
 
-	tree := keysutil.NewKeyTree(64)
-	tree.AddMany(keys)
-
-	from := keysutil.EncodeDataKey(tree.Min(), buffer)
-	to := keysutil.TxnNextScanKey(tree.Max(), buffer, true)
+	tree := keysutil.NewMixedKeysTree(op.Impacted.PointKeys)
+	for _, r := range op.Impacted.Ranges {
+		tree.AddKeyRange(r.Start, r.End)
+	}
+	from := keysutil.EncodeDataKey(min, buffer)
+	to := keysutil.TxnNextScanKey(max, buffer, true)
 
 	view := kv.base.GetView()
 	defer view.Close()
@@ -378,7 +436,7 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 	return conflicts, nil
 }
 
-func (kv *kvDataStorage) getTxnUncommittedMVCCMetadata(originDataKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error) {
+func (kv *kvDataStorage) doGetUncommittedMVCCMetadata(originDataKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error) {
 	meta := txnpb.TxnUncommittedMVCCMetadata{}
 
 	v, err := kv.base.Get(originDataKey)

@@ -501,10 +501,8 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 	k3 := []byte("k3")
 	k4 := []byte("k4")
 
-	resolver := newMockTxnOperationResolver(nil)
 	s := NewKVDataStorage(base, executor.NewKVExecutor(base),
-		WithFeature(storage.Feature{SupportTransaction: true}),
-		WithTxnOperationKeysResolver(resolver))
+		WithFeature(storage.Feature{SupportTransaction: true}))
 	defer func() {
 		require.NoError(t, fs.RemoveAll(testDir))
 	}()
@@ -520,42 +518,36 @@ func TestGetUncommittedOrAnyHighCommittedByRange(t *testing.T) {
 
 	ts := s.(storage.TransactionalDataStorage)
 
-	resolver.keys = [][]byte{k1}
-	conflicts, err := ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(11))
+	conflicts, err := ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k1), getTestTimestamp(11))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(conflicts))
 
-	resolver.keys = [][]byte{k2}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(11))
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k2), getTestTimestamp(11))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(conflicts))
 	assert.True(t, conflicts[0].ConflictWithUncommitted())
 
-	resolver.keys = [][]byte{k3}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(8))
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k3), getTestTimestamp(8))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(conflicts))
 	assert.True(t, conflicts[0].ConflictWithCommitted())
-	resolver.keys = [][]byte{k3}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(11))
+
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k3), getTestTimestamp(11))
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(conflicts))
 
-	resolver.keys = [][]byte{k1, k2}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(11))
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k1, k2), getTestTimestamp(11))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(conflicts))
 	assert.True(t, conflicts[0].ConflictWithUncommitted())
 
-	resolver.keys = [][]byte{k1, k2, k3}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(8))
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k1, k2, k3), getTestTimestamp(8))
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(conflicts))
 	assert.True(t, conflicts[0].ConflictWithUncommitted())
 	assert.True(t, conflicts[1].ConflictWithCommitted())
 
-	resolver.keys = [][]byte{k1, k2, k4}
-	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(txnpb.TxnOperation{}, getTestTimestamp(8))
+	conflicts, err = ts.GetUncommittedOrAnyHighCommittedByRange(getTestImpactedKeys(k1, k2, k4), getTestTimestamp(8))
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(conflicts))
 	assert.True(t, conflicts[0].ConflictWithUncommitted())
@@ -639,7 +631,35 @@ func TestScanTxn(t *testing.T) {
 		assert.Equal(t, c.expectKeys, keys)
 		assert.Equal(t, c.expectValues, values)
 	}
+}
 
+func TestGetUncommittedMVCCMetadata(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base), WithFeature(storage.Feature{SupportTransaction: true}))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
+	defer s.Close()
+
+	originKey := []byte("k1")
+	ts := s.(storage.TransactionalDataStorage)
+	testutil.AddTestUncommittedMVCCRecord(t, base, originKey, 11)
+
+	ok, v, err := ts.GetUncommittedMVCCMetadata(originKey)
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, txnpb.TxnUncommittedMVCCMetadata{
+		Timestamp: hlcpb.Timestamp{PhysicalTime: 11},
+	}, v)
+
+	ok, v, err = ts.GetUncommittedMVCCMetadata([]byte("k2"))
+	assert.NoError(t, err)
+	assert.False(t, ok)
+	assert.Equal(t, txnpb.TxnUncommittedMVCCMetadata{}, v)
 }
 
 func checkTxnKeysCount(t *testing.T, expect int, base storage.KVBaseStorage) {
@@ -655,16 +675,6 @@ func getTestTimestamp(v int64) hlcpb.Timestamp {
 	return hlcpb.Timestamp{PhysicalTime: v}
 }
 
-type mockTxnOperationResolver struct {
-	keys [][]byte
-}
-
-func newMockTxnOperationResolver(keys [][]byte) *mockTxnOperationResolver {
-	return &mockTxnOperationResolver{
-		keys: keys,
-	}
-}
-
-func (m *mockTxnOperationResolver) Resolve(txnpb.TxnOperation) [][]byte {
-	return m.keys
+func getTestImpactedKeys(keys ...[]byte) txnpb.TxnOperation {
+	return txnpb.TxnOperation{Impacted: txnpb.KeySet{PointKeys: keys}}
 }

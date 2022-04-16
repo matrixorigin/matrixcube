@@ -70,7 +70,13 @@ all: test
 
 .PHONY: test-util
 test-util:
+	$(GOTEST) $(PKGNAME)/util
 	$(GOTEST) $(PKGNAME)/util/hlc
+	$(GOTEST) $(PKGNAME)/util/keys
+	$(GOTEST) $(PKGNAME)/util/buf
+	$(GOTEST) $(PKGNAME)/util/fileutil
+	$(GOTEST) $(PKGNAME)/util/stop
+	$(GOTEST) $(PKGNAME)/util/task
 
 .PHONY: test-pb
 test-pb:
