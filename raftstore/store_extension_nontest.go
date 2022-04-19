@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build matrixone_test
-// +build matrixone_test
+//go:build !matrixone_test
+// +build !matrixone_test
 
 package raftstore
 
@@ -34,5 +34,5 @@ type LogDBGetter interface {
 // unexpected changes to the state of LogDB might corrupt the entire MatrixOne
 // cluster.
 func (s *store) GetLogDB() logdb.LogDB {
-	return s.logdb
+	panic("should not call this function")
 }
