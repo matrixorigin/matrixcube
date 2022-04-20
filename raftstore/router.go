@@ -35,11 +35,16 @@ type Router interface {
 	// Stop stops the router
 	Stop()
 
-	// SelectShardIDByKey Returns shardid where the key is located
+	// SelectShardIDByKey returns shard id where the key is located
 	SelectShardIDByKey(group uint64, key []byte) uint64
+	// SelectShardByKey returns shard where the key is located
+	SelectShardByKey(group uint64, key []byte) Shard
 
 	// AscendRange iterate through all shards in order within [Start, end), and stop when fn returns false.
 	AscendRange(group uint64, start, end []byte, policy rpcpb.ReplicaSelectPolicy, fn func(shard Shard, replicaStore metapb.Store) bool)
+	// AscendRangeWithoutSelectReplica is similar to AscendRange, but do not select replica
+	AscendRangeWithoutSelectReplica(group uint64, start, end []byte, fn func(shard Shard) bool)
+
 	// SelectShardWithPolicy Select a Shard according to the specified Key, and select the Store where the
 	// Shard's Replica is located according to the ReplicaSelectPolicy.
 	SelectShardWithPolicy(group uint64, key []byte, policy rpcpb.ReplicaSelectPolicy) (Shard, metapb.Store)
@@ -177,10 +182,14 @@ func (r *defaultRouter) Stop() {
 }
 
 func (r *defaultRouter) SelectShardIDByKey(group uint64, key []byte) uint64 {
+	return r.SelectShardByKey(group, key).ID
+}
+
+func (r *defaultRouter) SelectShardByKey(group uint64, key []byte) Shard {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	return r.searchShardLocked(group, key).ID
+	return r.searchShardLocked(group, key)
 }
 
 func (r *defaultRouter) SelectShard(group uint64, key []byte) (Shard, string) {
@@ -198,6 +207,20 @@ func (r *defaultRouter) AscendRange(group uint64, start, end []byte,
 		tree.AscendRange(start, end, func(shard *metapb.Shard) bool {
 			s := *shard
 			return fn(s, r.selectReplicaStoreByPolicyLocked(s, policy))
+		})
+	}
+}
+
+func (r *defaultRouter) AscendRangeWithoutSelectReplica(group uint64,
+	start, end []byte,
+	fn func(shard Shard) bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if tree, ok := r.mu.keyRanges[group]; ok {
+		tree.AscendRange(start, end, func(shard *metapb.Shard) bool {
+			s := *shard
+			return fn(s)
 		})
 	}
 }

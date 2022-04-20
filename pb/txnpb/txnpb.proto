@@ -198,6 +198,9 @@ message TxnOperation {
     // Timestamp the timestamp of the transaction operation initiation, the request in 
     // heartbeat will be accompanied by.
     hlcpb.Timestamp timestamp          = 6 [(gogoproto.nullable) = false];
+    // ToShard which shard the request dispatch to. 0 means the request need to 
+    // execute route.
+    uint64         toShard          = 7;
 }
 
 // TxnRequestType transaction request type
@@ -221,6 +224,9 @@ message TxnBatchRequestHeader {
     TxnOpMeta      txn              = 1 [(gogoproto.nullable) = false];
     // TxnRequestType request type, decide to call `HandleRead` or `HandleWrite`
     TxnRequestType type             = 2;
+    // ToShard which shard the request dispatch to. 0 means the request need to 
+    // execute route.
+    uint64         toShard          = 3;
 }
 
 // TxnBatchResponseHeader the head of TxnBatchResponse.

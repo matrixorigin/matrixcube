@@ -129,3 +129,11 @@ func (m *Shard) ContainsKey(key []byte) bool {
 	return (len(m.Start) == 0 || bytes.Compare(key, m.Start) >= 0) &&
 		(len(m.End) == 0 || bytes.Compare(key, m.End) < 0)
 }
+
+// MinEnd returns min(end, shard.end)
+func (m *Shard) MinEnd(end []byte) []byte {
+	if len(m.End) > 0 && bytes.Compare(end, m.End) < 0 {
+		return end
+	}
+	return m.End
+}

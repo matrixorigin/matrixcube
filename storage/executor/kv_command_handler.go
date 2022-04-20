@@ -62,9 +62,9 @@ func handleBatchSet(shard metapb.Shard, cmd []byte, wb util.WriteBatch, buffer *
 	protoc.MustUnmarshal(&req, cmd)
 
 	changed := 0
-	for i := range req.Requests {
-		k := keysutil.EncodeDataKey(req.Requests[i].Key, buffer)
-		v := req.Requests[i].Value
+	for i := range req.Keys {
+		k := keysutil.EncodeDataKey(req.Keys[i], buffer)
+		v := req.Values[i]
 		wb.Set(k, v)
 		buffer.ResetWrite()
 		changed += len(k) + len(v)
@@ -168,6 +168,7 @@ func handleBatchGet(shard metapb.Shard, cmd []byte, buffer *buf.ByteBuf, kvStore
 	protoc.MustUnmarshal(&req, cmd)
 
 	var resp rpcpb.KVBatchGetResponse
+	resp.Indexes = req.Indexes
 	resp.Values = make([][]byte, 0, len(req.Keys))
 
 	readed := 0

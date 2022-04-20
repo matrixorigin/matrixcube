@@ -333,10 +333,8 @@ func newTestBatchSetRequest(keysAndValues ...string) []byte {
 
 	n := len(keysAndValues) / 2
 	for i := 0; i < n; i++ {
-		req.Requests = append(req.Requests, rpcpb.KVSetRequest{
-			Key:   []byte(keysAndValues[2*i]),
-			Value: []byte(keysAndValues[2*i+1]),
-		})
+		req.Keys = append(req.Keys, []byte(keysAndValues[2*i]))
+		req.Values = append(req.Values, []byte(keysAndValues[2*i+1]))
 	}
 	return protoc.MustMarshal(&req)
 }

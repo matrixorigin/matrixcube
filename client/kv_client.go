@@ -73,7 +73,7 @@ type KVClient interface {
 	RangeDelete(ctx context.Context, start, end []byte) *Future
 	// Get get the value of the key, use Future.GetKVGetResponse to get response
 	Get(ctx context.Context, key []byte) *Future
-	// BatchGet
+	// BatchGet silimlar to Get, but perform with multi-keys
 	BatchGet(ctx context.Context, keys [][]byte) *Future
 	// Scan scan the keys in the range [start, end)
 	Scan(ctx context.Context, start, end []byte, handler ScanHandler, options ...ScanOption) error
@@ -117,13 +117,10 @@ func (c *kvClient) Set(ctx context.Context, key, value []byte) *Future {
 }
 
 func (c *kvClient) BatchSet(ctx context.Context, keys, values [][]byte) *Future {
-	var req rpcpb.KVBatchSetRequest
-	req.Requests = make([]rpcpb.KVSetRequest, 0, len(keys))
-	for idx := range keys {
-		req.Requests = append(req.Requests, rpcpb.KVSetRequest{Key: keys[idx], Value: values[idx]})
-	}
-
-	cmd := protoc.MustMarshal(&req)
+	cmd := protoc.MustMarshal(&rpcpb.KVBatchSetRequest{
+		Keys:   keys,
+		Values: values,
+	})
 	sort.Slice(keys, func(i, j int) bool {
 		return bytes.Compare(keys[i], keys[j]) < 0
 	})

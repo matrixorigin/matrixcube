@@ -69,15 +69,7 @@ type TxnOperationRouter interface {
 	// TxnOperation, split each TxnOperation with a Shard correspondence. The transaction
 	// framework will concurrently send the split TxnOperations to the corresponding Shard for
 	// execution.
-	Route(request txnpb.TxnOperation) ([]RouteInfo, error)
-}
-
-// RouteInfo indicates the shard to which the data associated with a txn operation belongs
-type RouteInfo struct {
-	// Operation txn operation
-	Operation txnpb.TxnOperation
-	// ShardID shard id
-	ShardID uint64
+	Route(request *txnpb.TxnOperation) (changed bool, changedOperations []txnpb.TxnOperation, err error)
 }
 
 // TxnPriorityGenerator transaction priority generator, when a conflict occurs, decide which
