@@ -65,6 +65,11 @@ func (k *KeyTree) AddMany(keys [][]byte) {
 	}
 }
 
+// Clear clear the tree
+func (k *KeyTree) Clear() {
+	k.tree.Clear(false)
+}
+
 // Bytes returns keys bytes
 func (k *KeyTree) Bytes() int {
 	return k.size

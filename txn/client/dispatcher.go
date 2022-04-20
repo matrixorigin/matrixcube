@@ -121,7 +121,8 @@ func (s *batchDispatcher) Close() {
 func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, map[uint64]txnpb.TxnBatchRequest) {
 	createTxnRecordShard := uint64(0)
 	requests := make(map[uint64]txnpb.TxnBatchRequest)
-	appendRequest := func(toShard uint64, req txnpb.TxnRequest) {
+	appendRequest := func(req txnpb.TxnRequest) {
+		toShard := req.Operation.ToShard
 		if m, ok := requests[toShard]; ok {
 			m.Requests = append(m.Requests, req)
 		} else {
@@ -143,28 +144,38 @@ func (s *batchDispatcher) routeRequest(request txnpb.TxnBatchRequest) (uint64, m
 			case txnpb.InternalTxnOp_Heartbeat,
 				txnpb.InternalTxnOp_Commit,
 				txnpb.InternalTxnOp_Rollback:
-				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
+				request.Requests[idx].Operation.ToShard = s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Header.Txn.TxnRecordRouteKey)
-				appendRequest(toShard, request.Requests[idx])
+				appendRequest(request.Requests[idx])
 			case txnpb.InternalTxnOp_WaitConsensus:
-				toShard := s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
+				request.Requests[idx].Operation.ToShard = s.client.Router().SelectShardIDByKey(request.Requests[idx].Operation.ShardGroup,
 					request.Requests[idx].Operation.Impacted.PointKeys[0])
-				appendRequest(toShard, request.Requests[idx])
+				appendRequest(request.Requests[idx])
 			}
 		} else {
-			routeInfos, err := s.router.Route(request.Requests[idx].Operation)
+			if request.Requests[idx].Operation.ToShard > 0 {
+				appendRequest(request.Requests[idx])
+				continue
+			}
+
+			splitted, ops, err := s.router.Route(&request.Requests[idx].Operation)
 			if err != nil {
 				s.logger.Fatal("split txn operation failed",
 					zap.Error(err))
 			}
-			for i := range routeInfos {
+			if !splitted {
+				appendRequest(request.Requests[idx])
+				continue
+			}
+
+			for i := range ops {
 				req := txnpb.TxnRequest{
-					Operation: routeInfos[i].Operation,
+					Operation: ops[i],
 					Options:   request.Requests[idx].Options,
 				}
 				// Only first request can create txn record
 				req.Options.CreateTxnRecord = req.Options.CreateTxnRecord && i == 0
-				appendRequest(routeInfos[i].ShardID, req)
+				appendRequest(req)
 			}
 		}
 	}
@@ -211,6 +222,9 @@ func (s *batchDispatcher) doSyncSend(ctx context.Context, shard uint64, req txnp
 
 func (s *batchDispatcher) handleNeedReRoute(ctx context.Context, req txnpb.TxnBatchRequest) (txnpb.TxnBatchResponse, error) {
 	for {
+		for idx := range req.Requests {
+			req.Requests[idx].Operation.ToShard = 0
+		}
 		resp, err := s.Send(ctx, req)
 		if err == raftstore.ErrKeysNotInShard || raftstore.IsShardUnavailableErr(err) {
 			continue

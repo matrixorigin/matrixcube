@@ -327,16 +327,8 @@ func TestHandleBatchSet(t *testing.T) {
 			Operation: txnpb.TxnOperation{
 				Op: uint32(rpcpb.CmdKVBatchSet),
 				Payload: protoc.MustMarshal(&rpcpb.KVBatchSetRequest{
-					Requests: []rpcpb.KVSetRequest{
-						{
-							Key:   k1,
-							Value: k1,
-						},
-						{
-							Key:   k2,
-							Value: k2,
-						},
-					},
+					Keys:   [][]byte{k1, k2},
+					Values: [][]byte{k1, k2},
 				}),
 			},
 		},

@@ -1071,10 +1071,17 @@ func appendTestInternalRequest(req *txnpb.TxnBatchRequest, id uint64, op txnpb.I
 }
 
 func addTestShard(router raftstore.Router, shardID uint64, shardInfo string) {
+	addTestShardWithAdjust(router, shardID, shardInfo, nil)
+}
+
+func addTestShardWithAdjust(router raftstore.Router, shardID uint64, shardInfo string, adjust func(*metapb.Shard)) {
 	b := raftstore.NewTestDataBuilder()
 	s := b.CreateShard(shardID, shardInfo)
 	for _, r := range s.Replicas {
 		router.UpdateStore(metapb.Store{ID: r.StoreID, ClientAddress: "test-cli"})
+	}
+	if adjust != nil {
+		adjust(&s)
 	}
 	router.UpdateShard(s)
 	router.UpdateLeader(s.ID, s.Replicas[0].ID)
@@ -1106,27 +1113,25 @@ func newTestTxnOperationRouter(router raftstore.Router) *testTxnOperationRouter 
 	}
 }
 
-func (tr *testTxnOperationRouter) Route(request txnpb.TxnOperation) ([]RouteInfo, error) {
+func (tr *testTxnOperationRouter) Route(request *txnpb.TxnOperation) (bool, []txnpb.TxnOperation, error) {
 	p := &payload{}
 	p.unmarshal(request.Payload)
-	var routes []RouteInfo
+	var routes []txnpb.TxnOperation
 	tr.router.AscendRange(request.ShardGroup, p.firstKey(), keys.NextKey(p.lastKey(), nil), rpcpb.SelectLeader, func(shard raftstore.Shard, replicaStore metapb.Store) bool {
 		keys := p.getKeysInShard(shard)
 		if len(keys) > 0 {
 			sp := &payload{Keys: keys}
-			routes = append(routes, RouteInfo{
-				ShardID: shard.ID,
-				Operation: txnpb.TxnOperation{
-					Op:         request.Op,
-					Payload:    sp.marshal(),
-					Impacted:   txnpb.KeySet{PointKeys: keys},
-					ShardGroup: shard.Group,
-				},
+			routes = append(routes, txnpb.TxnOperation{
+				Op:         request.Op,
+				Payload:    sp.marshal(),
+				Impacted:   txnpb.KeySet{PointKeys: keys},
+				ShardGroup: shard.Group,
+				ToShard:    shard.ID,
 			})
 		}
 		return true
 	})
-	return routes, nil
+	return true, routes, nil
 }
 
 type payload struct {

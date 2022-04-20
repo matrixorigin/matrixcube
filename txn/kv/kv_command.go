@@ -44,8 +44,8 @@ func handleBatchSet(shard metapb.Shard, req txnpb.TxnRequest, writer KVReaderAnd
 		writer.WriteTxnRecord(req)
 	}
 
-	for idx := range kvReq.Requests {
-		writer.WriteUncommitted(kvReq.Requests[idx].Key, kvReq.Requests[idx].Value)
+	for idx := range kvReq.Keys {
+		writer.WriteUncommitted(kvReq.Keys[idx], kvReq.Values[idx])
 	}
 	return nil
 }

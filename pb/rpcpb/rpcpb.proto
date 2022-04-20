@@ -752,7 +752,8 @@ message KVSetResponse {
 
 // KVBatchSetRequest kv batch set request
 message KVBatchSetRequest {
-    repeated KVSetRequest requests = 1 [(gogoproto.nullable) = false];
+    repeated bytes keys   = 1;
+    repeated bytes values = 2;
 }
 
 // KVBatchSetResponse kv batch set response
@@ -773,11 +774,16 @@ message KVGetResponse {
 // KVBatchGetRequest kv batch get request
 message KVBatchGetRequest {
     repeated bytes keys = 1;
+    // Indexes the original BatchGetRequest may be split and executed on multiple 
+    // Shards, and this field indicates the location of these Keys in the original
+    // Keys Slice.
+    repeated uint64 indexes = 2;
 }
 
 // KVBatchGetResponse kv batch get response
 message KVBatchGetResponse {
     repeated bytes values = 1;
+    repeated uint64 indexes = 2;
 }
 
 // KVDeleteRequest kv Delete request

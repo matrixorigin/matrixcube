@@ -212,7 +212,7 @@ func (m *KeySet) Sort() {
 	m.Sorted = true
 }
 
-// GetKeyRange returns the [max, min) range of the keyset containing the key
+// GetKeyRange returns the [min, max) range of the keyset containing the key
 func (m *KeySet) GetKeyRange() ([]byte, []byte) {
 	m.Sort()
 	var min, max []byte
