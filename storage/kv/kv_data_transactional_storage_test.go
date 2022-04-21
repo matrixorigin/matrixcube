@@ -652,14 +652,66 @@ func TestGetUncommittedMVCCMetadata(t *testing.T) {
 	ok, v, err := ts.GetUncommittedMVCCMetadata(originKey)
 	assert.NoError(t, err)
 	assert.True(t, ok)
-	assert.Equal(t, txnpb.TxnUncommittedMVCCMetadata{
-		Timestamp: hlcpb.Timestamp{PhysicalTime: 11},
+	assert.Equal(t, txnpb.TxnConflictData{
+		OriginKey: originKey,
+		WithUncommitted: txnpb.TxnUncommittedMVCCMetadata{
+			Timestamp: hlcpb.Timestamp{PhysicalTime: 11},
+		},
 	}, v)
 
 	ok, v, err = ts.GetUncommittedMVCCMetadata([]byte("k2"))
 	assert.NoError(t, err)
 	assert.False(t, ok)
-	assert.Equal(t, txnpb.TxnUncommittedMVCCMetadata{}, v)
+	assert.Equal(t, txnpb.TxnConflictData{}, v)
+}
+
+func TestGetUncommittedMVCCMetadataByRange(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	fs := vfs.GetTestFS()
+	defer vfs.ReportLeakedFD(fs, t)
+	kv := getTestPebbleStorage(t, fs)
+	base := NewBaseStorage(kv, fs)
+
+	k1 := []byte("k1")
+	k2 := []byte("k2")
+	k3 := []byte("k3")
+	k4 := []byte("k4")
+
+	s := NewKVDataStorage(base, executor.NewKVExecutor(base),
+		WithFeature(storage.Feature{SupportTransaction: true}))
+	defer func() {
+		require.NoError(t, fs.RemoveAll(testDir))
+	}()
+	defer s.Close()
+
+	testutil.AddTestTxnRecord(t, base, k1, k1)
+	testutil.AddTestUncommittedMVCCRecord(t, base, k2, 12)
+	testutil.AddTestCommittedMVCCRecord(t, base, k2, 11)
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 9)
+	testutil.AddTestCommittedMVCCRecord(t, base, k3, 10)
+	testutil.AddTestUncommittedMVCCRecord(t, base, k3, 11)
+	testutil.AddTestCommittedMVCCRecord(t, base, k4, 9)
+	testutil.AddTestCommittedMVCCRecord(t, base, k4, 10)
+
+	ts := s.(storage.TransactionalDataStorage)
+
+	conflicts, err := ts.GetUncommittedMVCCMetadataByRange(getTestImpactedKeys(k1))
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(conflicts))
+
+	conflicts, err = ts.GetUncommittedMVCCMetadataByRange(getTestImpactedKeys(k2))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(conflicts))
+	assert.Equal(t, k2, conflicts[0].OriginKey)
+
+	conflicts, err = ts.GetUncommittedMVCCMetadataByRange(getTestImpactedKeys(k1, k2, k3, k4))
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(conflicts))
+	assert.True(t, conflicts[0].ConflictWithUncommitted())
+	assert.Equal(t, k2, conflicts[0].OriginKey)
+	assert.True(t, conflicts[1].ConflictWithUncommitted())
+	assert.Equal(t, k3, conflicts[1].OriginKey)
+
 }
 
 func checkTxnKeysCount(t *testing.T, expect int, base storage.KVBaseStorage) {

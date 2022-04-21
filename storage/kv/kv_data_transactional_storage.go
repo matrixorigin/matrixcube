@@ -271,14 +271,22 @@ func (kv *kvDataStorage) Scan(startOriginKey, endOriginKey []byte,
 	})
 }
 
-func (kv *kvDataStorage) GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error) {
+func (kv *kvDataStorage) GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnConflictData, error) {
 	buffer := buf.NewByteBuf(keysutil.TxnMVCCKeyLen(originKey))
 	defer buffer.Release()
 
-	return kv.doGetUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
+	var conflict txnpb.TxnConflictData
+	ok, metadata, err := kv.doGetUncommittedMVCCMetadata(keysutil.EncodeDataKey(originKey, buffer))
+	if err != nil || !ok {
+		return false, conflict, err
+	}
+
+	conflict.OriginKey = originKey
+	conflict.WithUncommitted = metadata
+	return true, conflict, nil
 }
 
-func (kv *kvDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnUncommittedMVCCMetadata, error) {
+func (kv *kvDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnConflictData, error) {
 	op.Impacted.Sort()
 	if op.Impacted.IsEmpty() {
 		return nil, nil
@@ -298,7 +306,7 @@ func (kv *kvDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation
 	view := kv.base.GetView()
 	defer view.Close()
 
-	var uncommitted []txnpb.TxnUncommittedMVCCMetadata
+	var uncommitted []txnpb.TxnConflictData
 	seekToNextKeyInTree := func(k []byte, seekFn func([]byte) []byte) (storage.NextIterOptions, error) {
 		nextK := seekFn(k)
 		if len(nextK) == 0 {
@@ -321,7 +329,10 @@ func (kv *kvDataStorage) GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation
 			meta := txnpb.TxnUncommittedMVCCMetadata{}
 			protoc.MustUnmarshal(&meta, value)
 			// conflict with uncommitted
-			uncommitted = append(uncommitted, meta)
+			uncommitted = append(uncommitted, txnpb.TxnConflictData{
+				OriginKey:       keysutil.Clone(k),
+				WithUncommitted: meta,
+			})
 			return seekToNextKeyInTree(k, tree.SeekGT)
 		default:
 			return seekToNextKeyInTree(k, tree.SeekGT)
@@ -409,7 +420,7 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 			protoc.MustUnmarshal(&meta, value)
 			// conflict with uncommitted
 			conflicts = append(conflicts, txnpb.TxnConflictData{
-				OriginKey:       k,
+				OriginKey:       keysutil.Clone(k),
 				WithUncommitted: meta,
 			})
 			return seekToNextKeyInTree(k, tree.SeekGT)
@@ -420,7 +431,7 @@ func (kv *kvDataStorage) GetUncommittedOrAnyHighCommittedByRange(op txnpb.TxnOpe
 			}
 			// conflict with committed
 			conflicts = append(conflicts, txnpb.TxnConflictData{
-				OriginKey:     k,
+				OriginKey:     keysutil.Clone(k),
 				WithCommitted: ts,
 			})
 			return seekToNextKeyInTree(k, tree.SeekGT)
