@@ -215,10 +215,10 @@ type TransactionalDataStorage interface {
 	// the Key.
 	GetCommitted(originKey []byte, timestamp hlcpb.Timestamp) (exist bool, data []byte, err error)
 	// GetUncommittedMVCCMetadata returns the uncommitted mvcc metadata
-	GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnUncommittedMVCCMetadata, error)
+	GetUncommittedMVCCMetadata(originKey []byte) (bool, txnpb.TxnConflictData, error)
 	// GetUncommittedMVCCMetadataByRange is similar to GetUncommittedMVCCMetadata, but perform in
 	// txnpb.TxnOperation range.
-	GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnUncommittedMVCCMetadata, error)
+	GetUncommittedMVCCMetadataByRange(op txnpb.TxnOperation) ([]txnpb.TxnConflictData, error)
 	// Scan scan the data in the range [startOriginKey, endOriginKey). Filter is used to filter the
 	// uncommitted key can read. When the Filter returns true, the value is loaded and the handler
 	// is called. Read only max(-inf, timestamp) records for committed data. When the handler returns
